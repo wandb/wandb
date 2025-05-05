@@ -69,3 +69,7 @@ When preparing a release that can include breaking changes, consider applying ch
 - Remove fallback of storing system settings in a temporary directory when we don't have permissions to write to `~/.config/wandb/settings`
     - Owner: @jacobromero
     - Can do in >=0.20
+
+- Require `format` argument when initializing `wandb.Video`
+    - Owner: @jacobromero
+    - can do in >=0.20

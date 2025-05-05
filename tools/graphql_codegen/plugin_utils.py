@@ -102,6 +102,17 @@ def is_model_rebuild(node: ast.stmt) -> TypeGuard[ast.Expr]:
     )
 
 
+def make_model_rebuild(class_name: str) -> ast.Expr:
+    """Generate the AST node for a `PydanticModel.model_rebuild()` statement."""
+    return ast.Expr(
+        value=ast.Call(
+            func=ast.Attribute(attr="model_rebuild", value=ast.Name(id=class_name)),
+            args=[],
+            keywords=[],
+        )
+    )
+
+
 def collect_imported_names(stmts: Iterable[ast.ImportFrom]) -> list[str]:
     """Return the names to export from the __init__ module by parsing the import statements."""
     return list(chain.from_iterable(imported_names(stmt) for stmt in stmts))

@@ -28,13 +28,17 @@ import wandb
 from wandb import data_types, env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
+from wandb.apis.public.utils import gql_compat
 from wandb.data_types import WBValue
 from wandb.errors import CommError
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk import wandb_setup
-from wandb.sdk.artifacts._graphql_fragments import _gql_artifact_fragment
+from wandb.sdk.artifacts._graphql_fragments import (
+    _gql_artifact_fragment,
+    omit_artifact_fields,
+)
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
     ensure_not_finalized,
@@ -68,6 +72,16 @@ from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
 from wandb.sdk.mailbox import MailboxHandle
+
+from ._generated import (
+    ADD_ALIASES_GQL,
+    DELETE_ALIASES_GQL,
+    UPDATE_ARTIFACT_GQL,
+    ArtifactAliasInput,
+    ArtifactCollectionAliasInput,
+    TagInput,
+    UpdateArtifact,
+)
 
 reset_path = util.vendor_setup()
 
@@ -403,7 +417,7 @@ class Artifact:
         self._aliases = other_aliases
         self._saved_aliases = copy(other_aliases)
 
-        tags = [obj["name"] for obj in attrs.get("tags", [])]
+        tags = [obj["name"] for obj in (attrs.get("tags") or [])]
         self._tags = tags
         self._saved_tags = copy(tags)
 
@@ -1109,6 +1123,13 @@ class Artifact:
     @normalize_exceptions
     def _update(self) -> None:
         """Persists artifact changes to the wandb backend."""
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        entity = self.entity
+        project = self.project
+        collection = self.name.split(":")[0]
+
         aliases = None
         introspect_query = gql(
             """
@@ -1122,194 +1143,109 @@ class Artifact:
             }
             """
         )
-        assert self._client is not None
-        response = self._client.execute(introspect_query)
-        if response.get("AddAliasesInputInfoType"):  # wandb backend version >= 0.13.0
-            aliases_to_add = set(self._aliases) - set(self._saved_aliases)
-            aliases_to_delete = set(self._saved_aliases) - set(self._aliases)
-            if aliases_to_add:
-                add_mutation = gql(
-                    """
-                    mutation addAliases(
-                        $artifactID: ID!,
-                        $aliases: [ArtifactCollectionAliasInput!]!,
-                    ) {
-                        addAliases(
-                            input: {artifactID: $artifactID, aliases: $aliases}
-                        ) {
-                            success
-                        }
-                    }
-                    """
-                )
-                assert self._client is not None
+
+        data = self._client.execute(introspect_query)
+        if data.get("AddAliasesInputInfoType"):  # wandb backend version >= 0.13.0
+            alias_props = {
+                "entity_name": entity,
+                "project_name": project,
+                "artifact_collection_name": collection,
+            }
+            if aliases_to_add := (set(self.aliases) - set(self._saved_aliases)):
+                add_mutation = gql(ADD_ALIASES_GQL)
+                add_alias_inputs = [
+                    ArtifactCollectionAliasInput(**alias_props, alias=alias)
+                    for alias in aliases_to_add
+                ]
                 try:
                     self._client.execute(
                         add_mutation,
                         variable_values={
                             "artifactID": self.id,
-                            "aliases": [
-                                {
-                                    "entityName": self._entity,
-                                    "projectName": self._project,
-                                    "artifactCollectionName": self._name.split(":")[0],
-                                    "alias": alias,
-                                }
-                                for alias in aliases_to_add
-                            ],
+                            "aliases": [a.model_dump() for a in add_alias_inputs],
                         },
                     )
                 except CommError as e:
                     raise CommError(
                         "You do not have permission to add"
-                        f" {'at least one of the following aliases' if len(aliases_to_add) > 1  else 'the following alias'}"
+                        f" {'at least one of the following aliases' if len(aliases_to_add) > 1 else 'the following alias'}"
                         f" to this artifact: {aliases_to_add}"
                     ) from e
-            if aliases_to_delete:
-                delete_mutation = gql(
-                    """
-                    mutation deleteAliases(
-                        $artifactID: ID!,
-                        $aliases: [ArtifactCollectionAliasInput!]!,
-                    ) {
-                        deleteAliases(
-                            input: {artifactID: $artifactID, aliases: $aliases}
-                        ) {
-                            success
-                        }
-                    }
-                    """
-                )
-                assert self._client is not None
+
+            if aliases_to_delete := (set(self._saved_aliases) - set(self.aliases)):
+                delete_mutation = gql(DELETE_ALIASES_GQL)
+                delete_alias_inputs = [
+                    ArtifactCollectionAliasInput(**alias_props, alias=alias)
+                    for alias in aliases_to_delete
+                ]
                 try:
                     self._client.execute(
                         delete_mutation,
                         variable_values={
                             "artifactID": self.id,
-                            "aliases": [
-                                {
-                                    "entityName": self._entity,
-                                    "projectName": self._project,
-                                    "artifactCollectionName": self._name.split(":")[0],
-                                    "alias": alias,
-                                }
-                                for alias in aliases_to_delete
-                            ],
+                            "aliases": [a.model_dump() for a in delete_alias_inputs],
                         },
                     )
                 except CommError as e:
                     raise CommError(
                         f"You do not have permission to delete"
-                        f" {'at least one of the following aliases' if len(aliases_to_delete) > 1  else 'the following alias'}"
+                        f" {'at least one of the following aliases' if len(aliases_to_delete) > 1 else 'the following alias'}"
                         f" from this artifact: {aliases_to_delete}"
                     ) from e
-            self._saved_aliases = copy(self._aliases)
+
+            self._saved_aliases = copy(self.aliases)
+
         else:  # wandb backend version < 0.13.0
             aliases = [
-                {
-                    "artifactCollectionName": self._name.split(":")[0],
-                    "alias": alias,
-                }
-                for alias in self._aliases
+                ArtifactAliasInput(
+                    artifact_collection_name=collection, alias=alias
+                ).model_dump()
+                for alias in self.aliases
             ]
 
-        mutation_template = """
-            mutation updateArtifact(
-                $artifactID: ID!
-                $description: String
-                $metadata: JSONString
-                _TTL_DURATION_SECONDS_TYPE_
-                _TAGS_TO_ADD_TYPE_
-                _TAGS_TO_DELETE_TYPE_
-                $aliases: [ArtifactAliasInput!]
-            ) {
-                updateArtifact(
-                    input: {
-                        artifactID: $artifactID,
-                        description: $description,
-                        metadata: $metadata,
-                        _TTL_DURATION_SECONDS_VALUE_
-                        _TAGS_TO_ADD_VALUE_
-                        _TAGS_TO_DELETE_VALUE_
-                        aliases: $aliases
-                    }
-                ) {
-                    artifact {
-                        ...ArtifactFragment
-                    }
-                }
-            }
-        """ + _gql_artifact_fragment()
+        omit_fields = omit_artifact_fields(api=InternalApi())
+        omit_variables = set()
 
-        fields = InternalApi().server_artifact_introspection()
-        if "ttlIsInherited" in fields:
-            mutation_template = (
-                mutation_template.replace(
-                    "_TTL_DURATION_SECONDS_TYPE_",
-                    "$ttlDurationSeconds: Int64",
-                )
-                .replace(
-                    "_TTL_DURATION_SECONDS_VALUE_",
-                    "ttlDurationSeconds: $ttlDurationSeconds",
-                )
-                .replace(
-                    "_TTL_DURATION_SECONDS_FIELDS_",
-                    "ttlDurationSeconds ttlIsInherited",
-                )
-            )
-        else:
+        if {"ttlIsInherited", "ttlDurationSeconds"} & omit_fields:
             if self._ttl_changed:
                 termwarn(
                     "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
                 )
-            mutation_template = (
-                mutation_template.replace("_TTL_DURATION_SECONDS_TYPE_", "")
-                .replace("_TTL_DURATION_SECONDS_VALUE_", "")
-                .replace("_TTL_DURATION_SECONDS_FIELDS_", "")
-            )
 
-        tags_to_add = validate_tags(set(self._tags) - set(self._saved_tags))
-        tags_to_delete = validate_tags(set(self._saved_tags) - set(self._tags))
-        if "tags" in fields:
-            mutation_template = (
-                mutation_template.replace(
-                    "_TAGS_TO_ADD_TYPE_", "$tagsToAdd: [TagInput!]"
-                )
-                .replace("_TAGS_TO_DELETE_TYPE_", "$tagsToDelete: [TagInput!]")
-                .replace("_TAGS_TO_ADD_VALUE_", "tagsToAdd: $tagsToAdd")
-                .replace("_TAGS_TO_DELETE_VALUE_", "tagsToDelete: $tagsToDelete")
-            )
-        else:
-            if tags_to_add or tags_to_delete:
+            omit_variables |= {"ttlDurationSeconds"}
+
+        tags_to_add = validate_tags(set(self.tags) - set(self._saved_tags))
+        tags_to_del = validate_tags(set(self._saved_tags) - set(self.tags))
+
+        if {"tags"} & omit_fields:
+            if tags_to_add or tags_to_del:
                 termwarn(
                     "Server not compatible with Artifact tags. "
                     "To use Artifact tags, please upgrade the server to v0.85 or higher."
                 )
-            mutation_template = (
-                mutation_template.replace("_TAGS_TO_ADD_TYPE_", "")
-                .replace("_TAGS_TO_DELETE_TYPE_", "")
-                .replace("_TAGS_TO_ADD_VALUE_", "")
-                .replace("_TAGS_TO_DELETE_VALUE_", "")
-            )
 
-        mutation = gql(mutation_template)
-        assert self._client is not None
+            omit_variables |= {"tagsToAdd", "tagsToDelete"}
 
-        ttl_duration_input = self._ttl_duration_seconds_to_gql()
-        response = self._client.execute(
-            mutation,
-            variable_values={
-                "artifactID": self.id,
-                "description": self.description,
-                "metadata": util.json_dumps_safer(self.metadata),
-                "ttlDurationSeconds": ttl_duration_input,
-                "aliases": aliases,
-                "tagsToAdd": [{"tagName": tag_name} for tag_name in tags_to_add],
-                "tagsToDelete": [{"tagName": tag_name} for tag_name in tags_to_delete],
-            },
+        mutation = gql_compat(
+            UPDATE_ARTIFACT_GQL, omit_variables=omit_variables, omit_fields=omit_fields
         )
-        attrs = response["updateArtifact"]["artifact"]
-        self._assign_attrs(attrs)
+
+        gql_vars = {
+            "artifactID": self.id,
+            "description": self.description,
+            "metadata": util.json_dumps_safer(self.metadata),
+            "ttlDurationSeconds": self._ttl_duration_seconds_to_gql(),
+            "aliases": aliases,
+            "tagsToAdd": [TagInput(tag_name=t).model_dump() for t in tags_to_add],
+            "tagsToDelete": [TagInput(tag_name=t).model_dump() for t in tags_to_del],
+        }
+
+        data = self._client.execute(mutation, variable_values=gql_vars)
+
+        result = UpdateArtifact.model_validate(data).update_artifact
+        if not (result and (artifact := result.artifact)):
+            raise ValueError("Unable to parse updateArtifact response")
+        self._assign_attrs(artifact.model_dump())
 
         self._ttl_changed = False  # Reset after updating artifact
 
@@ -1862,6 +1798,7 @@ class Artifact:
         allow_missing_references: bool = False,
         skip_cache: bool | None = None,
         path_prefix: StrPath | None = None,
+        multipart: bool | None = None,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
@@ -1878,6 +1815,10 @@ class Artifact:
                 specified download directory.
             path_prefix: If specified, only files with a path that starts with the given
                 prefix will be downloaded. Uses unix format (forward slashes).
+            multipart: If set to `None` (default), the artifact will be downloaded
+                in parallel using multipart download if individual file size is greater than
+                2GB. If set to `True` or `False`, the artifact will be downloaded in
+                parallel or serially regardless of the file size.
 
         Returns:
             The path to the downloaded contents.
@@ -1901,6 +1842,7 @@ class Artifact:
             allow_missing_references=allow_missing_references,
             skip_cache=skip_cache,
             path_prefix=path_prefix,
+            multipart=multipart,
         )
 
     def _download_using_core(
@@ -1970,6 +1912,7 @@ class Artifact:
         allow_missing_references: bool = False,
         skip_cache: bool | None = None,
         path_prefix: StrPath | None = None,
+        multipart: bool | None = None,
     ) -> FilePathStr:
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
@@ -1986,6 +1929,7 @@ class Artifact:
 
         def _download_entry(
             entry: ArtifactManifestEntry,
+            executor: concurrent.futures.Executor,
             api_key: str | None,
             cookies: dict | None,
             headers: dict | None,
@@ -1995,7 +1939,12 @@ class Artifact:
             _thread_local_api_settings.headers = headers
 
             try:
-                entry.download(root, skip_cache=skip_cache)
+                entry.download(
+                    root,
+                    skip_cache=skip_cache,
+                    executor=executor,
+                    multipart=multipart,
+                )
             except FileNotFoundError as e:
                 if allow_missing_references:
                     wandb.termwarn(str(e))
@@ -2006,14 +1955,14 @@ class Artifact:
                 return
             download_logger.notify_downloaded()
 
-        download_entry = partial(
-            _download_entry,
-            api_key=_thread_local_api_settings.api_key,
-            cookies=_thread_local_api_settings.cookies,
-            headers=_thread_local_api_settings.headers,
-        )
-
         with concurrent.futures.ThreadPoolExecutor(64) as executor:
+            download_entry = partial(
+                _download_entry,
+                executor=executor,
+                api_key=_thread_local_api_settings.api_key,
+                cookies=_thread_local_api_settings.cookies,
+                headers=_thread_local_api_settings.headers,
+            )
             active_futures = set()
             has_next_page = True
             cursor = None
@@ -2049,8 +1998,9 @@ class Artifact:
             hours = int(delta // 3600)
             minutes = int((delta - hours * 3600) // 60)
             seconds = delta - hours * 3600 - minutes * 60
+            speed = size / 1024 / 1024 / delta
             termlog(
-                f"Done. {hours}:{minutes}:{seconds:.1f}",
+                f"Done. {hours}:{minutes}:{seconds:.1f} ({speed:.1f}MB/s)",
                 prefix=False,
             )
         return FilePathStr(root)
@@ -2323,7 +2273,9 @@ class Artifact:
         )
 
     @normalize_exceptions
-    def link(self, target_path: str, aliases: list[str] | None = None) -> None:
+    def link(
+        self, target_path: str, aliases: list[str] | None = None
+    ) -> Artifact | None:
         """Link this artifact to a portfolio (a promoted collection of artifacts).
 
         Args:
@@ -2340,6 +2292,9 @@ class Artifact:
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
+
+        Returns:
+            The linked artifact if linking was successful, otherwise None.
         """
         if self.is_link:
             wandb.termwarn(
@@ -2350,7 +2305,7 @@ class Artifact:
 
         if run := singleton.most_recent_active_run:
             # TODO: Deprecate and encourage explicit link_artifact().
-            run.link_artifact(self, target_path, aliases)
+            return run.link_artifact(self, target_path, aliases)
 
         else:
             with wandb.init(
@@ -2359,7 +2314,9 @@ class Artifact:
                 job_type="auto",
                 settings=wandb.Settings(silent="true"),
             ) as run:
-                run.link_artifact(self, target_path, aliases)
+                return run.link_artifact(self, target_path, aliases)
+
+        return None
 
     @ensure_logged
     def unlink(self) -> None:

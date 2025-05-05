@@ -1,11 +1,14 @@
 package runbranch
 
 import (
+	"slices"
 	"time"
 
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type RunPath struct {
@@ -30,234 +33,187 @@ func (re BranchError) Error() string {
 }
 
 type RunParams struct {
-	RunID       string
-	Project     string
-	Entity      string
+	StorageID              string
+	Entity, Project, RunID string
+
+	GroupName   string
 	DisplayName string
-	StartTime   time.Time
-	StorageID   string
-	SweepID     string
+	Notes       string
+
+	// Commit and RemoteURL contain the run's VCS (git) information.
+	Commit, RemoteURL string
+
+	Host    string
+	Program string
+	JobType string
+	SweepID string
 
 	// run state fields based on response from the server
 	StartingStep int64
 	Runtime      int32
 
-	Tags    []string
-	Config  map[string]any
+	Tags []string
+
+	// Summary exists only to pass information back to the client when resuming
+	// or forking a run, so that it can send it back to us for us to update the
+	// Handler and write it to the transaction log.
+	//
+	// It is ignored when creating or updating RunParams from a RunRecord.
+	//
+	// TODO: Untangle Summary logic and remove this field.
 	Summary map[string]any
 
 	Resumed bool
 	Forked  bool
 
+	StartTime time.Time
+
+	// FileStreamOffset exists here only to pass around run-resume info.
+	//
+	// It is ignored when creating or updating RunParams from a RunRecord
+	//
+	// TODO: Remove FileStreamOffset from RunParams.
 	FileStreamOffset filestream.FileStreamOffsetMap
-
-	Initialized bool
 }
 
-func (r *RunParams) Proto() *spb.RunRecord {
-
-	proto := &spb.RunRecord{}
-
-	// update runID if it exists
-	if r.RunID != "" {
-		proto.RunId = r.RunID
-	}
-
-	// update Entity if it exists
-	if r.Entity != "" {
-		proto.Entity = r.Entity
-	}
-
-	// update Project if it exists
-	if r.Project != "" {
-		proto.Project = r.Project
-	}
-
-	// update DisplayName if it exists
-	if r.DisplayName != "" {
-		proto.DisplayName = r.DisplayName
-	}
-
-	// update StartingStep if it exists
-	if r.StartingStep != 0 {
-		proto.StartingStep = r.StartingStep
-	}
-
-	// update Runtime if it exists
-	if r.Runtime != 0 {
-		proto.Runtime = r.Runtime
-	}
-
-	// update StorageID if it exists
-	if r.StorageID != "" {
-		proto.StorageId = r.StorageID
-	}
-
-	// update SweepID if it exists
-	if r.SweepID != "" {
-		proto.SweepId = r.SweepID
-	}
-
-	// update the resumption status
-	if r.Resumed {
-		proto.Resumed = true
-	}
-
-	// update the forked status
-	if r.Forked {
-		proto.Forked = true
-	}
-
-	// update the config
-	if len(r.Config) > 0 {
-		config := spb.ConfigRecord{}
-		for key, value := range r.Config {
-			// The client expects the config value to be a map with a "value" key.
-			// TODO: Remove this once the old service is deprecated.
-			valueModified := map[string]any{"value": value}
-			valueJson, _ := simplejsonext.MarshalToString(valueModified)
-			config.Update = append(config.Update, &spb.ConfigItem{
-				Key:       key,
-				ValueJson: valueJson,
-			})
-		}
-		proto.Config = &config
-	}
-
-	// update the summary
-	if len(r.Summary) > 0 {
-		summary := spb.SummaryRecord{}
-		for key, value := range r.Summary {
-			valueJson, _ := simplejsonext.MarshalToString(value)
-			summary.Update = append(summary.Update, &spb.SummaryItem{
-				Key:       key,
-				ValueJson: valueJson,
-			})
-		}
-		proto.Summary = &summary
-	}
-
-	// Start Time has a special behavior, the current behavior is that start
-	// time is the time when the run was resumed and not when it originally
-	// started, so we are not updating it here.
-	// if !r.StartTime.IsZero() {
-	// 	proto.StartTime = timestamppb.New(r.StartTime)
-	// }
-
-	// Tags are not updated here, because they have a special behavior,
-	// the current behavior is that tags are replaced if provided in init time
-	// and only added if provided in the run update.
-	// if len(r.Tags) > 0 {
-	// 	proto.Tags = r.Tags
-	// }
-
-	return proto
+// NewRunParams creates a new params object using a fully filled out record.
+//
+// Unlike Update(), this requires the record to have all fields set to their
+// desired values. Any missing fields will be cleared on records passed to
+// SetOnProto().
+func NewRunParams(
+	record *spb.RunRecord,
+	runSettings *settings.Settings,
+) *RunParams {
+	r := &RunParams{FileStreamOffset: make(filestream.FileStreamOffsetMap)}
+	r.Update(record, runSettings)
+	return r
 }
 
-//gocyclo:ignore
-func (r *RunParams) Merge(other *RunParams) {
-	if other == nil || r == nil {
+// SetOnProto overwrites fields on the record.
+func (r *RunParams) SetOnProto(record *spb.RunRecord) {
+	if r == nil {
 		return
 	}
 
-	// update runID if it exists
-	if other.RunID != "" {
-		r.RunID = other.RunID
+	// NOTE: Fields are organized the same as on the struct.
+	record.StorageId = r.StorageID
+
+	record.Entity = r.Entity
+	record.Project = r.Project
+	record.RunId = r.RunID
+
+	record.RunGroup = r.GroupName
+	record.DisplayName = r.DisplayName
+	record.Notes = r.Notes
+
+	record.Git = &spb.GitRepoRecord{
+		Commit:    r.Commit,
+		RemoteUrl: r.RemoteURL,
 	}
 
-	// update Entity if it exists
-	if other.Entity != "" {
-		r.Entity = other.Entity
+	record.Host = r.Host
+	// Program is stored on settings, so skipped here.
+	record.JobType = r.JobType
+	record.SweepId = r.SweepID
+
+	record.StartingStep = r.StartingStep
+	record.Runtime = r.Runtime
+
+	record.Tags = slices.Clone(r.Tags)
+
+	record.Summary = &spb.SummaryRecord{}
+	for key, value := range r.Summary {
+		valueJson, _ := simplejsonext.MarshalToString(value)
+		record.Summary.Update = append(record.Summary.Update, &spb.SummaryItem{
+			Key:       key,
+			ValueJson: valueJson,
+		})
 	}
 
-	// update Project if it exists
-	if other.Project != "" {
-		r.Project = other.Project
+	record.Resumed = r.Resumed
+	record.Forked = r.Forked
+
+	record.StartTime = timestamppb.New(r.StartTime)
+}
+
+// Update populates fields on the params object using the given record.
+//
+// The record may be partially filled, in which case only non-empty fields are
+// used.
+func (r *RunParams) Update(
+	record *spb.RunRecord,
+	runSettings *settings.Settings,
+) {
+	// NOTE: Fields are organized the same as on the struct.
+
+	if record.StorageId != "" {
+		r.StorageID = record.StorageId
 	}
 
-	// update DisplayName if it exists
-	if other.DisplayName != "" {
-		r.DisplayName = other.DisplayName
+	if record.Entity != "" {
+		r.Entity = record.Entity
+	}
+	if record.Project != "" {
+		r.Project = record.Project
+	}
+	if record.RunId != "" {
+		r.RunID = record.RunId
 	}
 
-	// update StartingStep if it exists
-	if other.StartingStep != 0 {
-		r.StartingStep = other.StartingStep
+	if record.RunGroup != "" {
+		r.GroupName = record.RunGroup
+	}
+	if record.DisplayName != "" {
+		r.DisplayName = record.DisplayName
+	}
+	if record.Notes != "" {
+		r.Notes = record.Notes
 	}
 
-	// update Runtime if it exists
-	if other.Runtime != 0 {
-		r.Runtime = other.Runtime
+	if record.Git.GetCommit() != "" {
+		r.Commit = record.Git.GetCommit()
+	}
+	if record.Git.GetRemoteUrl() != "" {
+		r.RemoteURL = record.Git.GetRemoteUrl()
 	}
 
-	// update StorageID if it exists
-	if other.StorageID != "" {
-		r.StorageID = other.StorageID
+	if !runSettings.IsDisableMachineInfo() && record.Host != "" {
+		r.Host = record.Host
+	}
+	if runSettings.GetProgram() != "" {
+		r.Program = runSettings.GetProgram()
+	}
+	if record.JobType != "" {
+		r.JobType = record.JobType
+	}
+	if record.SweepId != "" {
+		r.SweepID = record.SweepId
 	}
 
-	// update SweepID if it exists
-	if other.SweepID != "" {
-		r.SweepID = other.SweepID
+	if record.StartingStep != 0 {
+		r.StartingStep = record.StartingStep
+	}
+	if record.Runtime != 0 {
+		r.Runtime = record.Runtime
 	}
 
-	// update the config
-	if len(other.Config) > 0 {
-		if r.Config == nil {
-			r.Config = make(map[string]any)
-		}
-		for key, value := range other.Config {
-			r.Config[key] = value
-		}
+	if len(record.Tags) > 0 {
+		r.Tags = slices.Clone(record.Tags)
 	}
 
-	// update the summary
-	if len(other.Summary) > 0 {
-		if r.Summary == nil {
-			r.Summary = make(map[string]any)
-		}
-		for key, value := range other.Summary {
-			r.Summary[key] = value
-		}
-	}
+	// NOTE: Summary is ignored; see comment on the field.
 
-	// update the tags
-	if len(other.Tags) > 0 {
-		r.Tags = other.Tags
-	}
-
-	// update the filestream offset
-	if len(other.FileStreamOffset) > 0 {
-		if r.FileStreamOffset == nil {
-			r.FileStreamOffset = make(filestream.FileStreamOffsetMap)
-		}
-		for key, value := range other.FileStreamOffset {
-			r.FileStreamOffset[key] = value
-		}
-	}
-
-	// update the start time
-	if !other.StartTime.IsZero() {
-		r.StartTime = other.StartTime
-	}
-
-	if other.Resumed {
+	if record.Resumed {
 		r.Resumed = true
 	}
-
-	if other.Forked {
+	if record.Forked {
 		r.Forked = true
 	}
 
-}
-
-func (r *RunParams) Clone() *RunParams {
-	clone := &RunParams{}
-	clone.Merge(r)
-	return clone
-}
-
-func NewRunParams() *RunParams {
-	return &RunParams{
-		FileStreamOffset: make(filestream.FileStreamOffsetMap),
+	if startTime := record.StartTime.AsTime(); !startTime.IsZero() {
+		r.StartTime = startTime
 	}
+
+	// NOTE: FileStreamOffset is ignored; see comment on the field.
 }

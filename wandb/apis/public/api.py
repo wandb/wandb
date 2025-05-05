@@ -15,21 +15,38 @@ import json
 import logging
 import os
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional
+from http import HTTPStatus
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterator,
+    List,
+    Literal,
+    Optional,
+    Set,
+    Union,
+)
 
 import requests
+from pydantic import ValidationError
+from typing_extensions import Unpack
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
 import wandb
 from wandb import env, util
+from wandb._iterutils import one
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries.registries_search import Registries
+from wandb.apis.public.registries.registry import Registry
+from wandb.apis.public.registries.utils import _fetch_org_entity_from_organization
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
+    gql_compat,
     parse_org_from_registry_path,
 )
 from wandb.proto.wandb_deprecated import Deprecated
@@ -43,7 +60,16 @@ from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
 
 if TYPE_CHECKING:
-    from wandb.automations import Integration, SlackIntegration, WebhookIntegration
+    from wandb.automations import (
+        ActionType,
+        Automation,
+        EventType,
+        Integration,
+        NewAutomation,
+        SlackIntegration,
+        WebhookIntegration,
+    )
+    from wandb.automations._utils import WriteAutomationsKwargs
 
 logger = logging.getLogger(__name__)
 
@@ -1268,7 +1294,11 @@ class Api:
 
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            organization = name.split("/")[0] if name.count("/") == 2 else ""
+            organization = (
+                name.split("/")[0]
+                if name.count("/") == 2
+                else self.settings["organization"]
+            )
             # set entity to match the settings since in above code it was potentially set to an org
             settings_entity = self.settings["entity"] or self.default_entity
             # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
@@ -1522,6 +1552,120 @@ class Api:
         )
         return Registries(self.client, organization, filter)
 
+    def registry(self, name: str, organization: Optional[str] = None) -> Registry:
+        """Return a registry given a registry name.
+
+        Args:
+            name: The name of the registry. This is without the `wandb-registry-`
+                prefix.
+            organization: The organization of the registry.
+                If no organization is set in the settings, the organization will be
+                fetched from the entity if the entity only belongs to one
+                organization.
+
+        Returns:
+            A registry object.
+
+        Examples:
+            Fetch and update a registry
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            registry = api.registry(name="my-registry", organization="my-org")
+            registry.description = "This is an updated description"
+            registry.save()
+            ```
+        """
+        if not InternalApi()._check_server_feature_with_fallback(
+            ServerFeature.ARTIFACT_REGISTRY_SEARCH
+        ):
+            raise RuntimeError(
+                "api.registry() is not enabled on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
+        organization = organization or fetch_org_from_settings_or_entity(
+            self.settings, self.default_entity
+        )
+        org_entity = _fetch_org_entity_from_organization(self.client, organization)
+        registry = Registry(self.client, organization, org_entity, name)
+        registry.load()
+        return registry
+
+    def create_registry(
+        self,
+        name: str,
+        visibility: Literal["organization", "restricted"],
+        organization: Optional[str] = None,
+        description: Optional[str] = None,
+        artifact_types: Optional[List[str]] = None,
+    ) -> Registry:
+        """Create a new registry.
+
+        Args:
+            name: The name of the registry. Name must be unique within the organization.
+            visibility: The visibility of the registry.
+                organization: Anyone in the organization can view this registry. You can
+                    edit their roles later from the settings in the UI.
+                restricted: Only invited members via the UI can access this registry.
+                    Public sharing is disabled.
+            organization: The organization of the registry.
+                If no organization is set in the settings, the organization will be
+                fetched from the entity if the entity only belongs to one organization.
+            description: The description of the registry.
+            artifact_types: The accepted artifact types of the registry. A type is no
+                more than 128 characters and do not include characters `/` or `:`. If
+                not specified, all types are accepted.
+                Allowed types added to the registry cannot be removed later.
+
+        Returns:
+            A registry object.
+
+        Examples:
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            registry = api.create_registry(
+                name="my-registry",
+                visibility="restricted",
+                organization="my-org",
+                description="This is a test registry",
+                artifact_types=["model"],
+            )
+            ```
+        """
+        if not InternalApi()._check_server_feature_with_fallback(
+            ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
+        ):
+            raise RuntimeError(
+                "create_registry api is not enabled on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
+
+        organization = organization or fetch_org_from_settings_or_entity(
+            self.settings, self.default_entity
+        )
+
+        try:
+            existing_registry = self.registry(name=name, organization=organization)
+        except ValueError:
+            existing_registry = None
+        if existing_registry:
+            raise ValueError(
+                f"Registry {name!r} already exists in organization {organization!r},"
+                " please use a different name."
+            )
+
+        return Registry.create(
+            self.client,
+            organization,
+            name,
+            visibility,
+            description,
+            artifact_types,
+        )
+
     def integrations(
         self,
         entity: Optional[str] = None,
@@ -1531,32 +1675,31 @@ class Api:
         """Return an iterator of all integrations for an entity.
 
         Args:
-            entity (str, optional): The entity (e.g. team name) for which to
+            entity: The entity (e.g. team name) for which to
                 fetch integrations.  If not provided, the user's default entity
                 will be used.
-            per_page (int, optional): Number of integrations to fetch per page.
-                Defaults to 50.
+            per_page: Number of integrations to fetch per page.
+                Defaults to 50.  Usually there is no reason to change this.
 
         Yields:
             Iterator[SlackIntegration | WebhookIntegration]: An iterator of any supported integrations.
         """
         from wandb.apis.public.integrations import Integrations
 
-        entity = entity or self.default_entity
-        params = {"entityName": entity, "includeWebhook": True, "includeSlack": True}
+        params = {"entityName": entity or self.default_entity}
         return Integrations(client=self.client, variables=params, per_page=per_page)
 
     def webhook_integrations(
         self, entity: Optional[str] = None, *, per_page: int = 50
     ) -> Iterator["WebhookIntegration"]:
-        """Return an iterator of webhook integrations for an entity.
+        """Returns an iterator of webhook integrations for an entity.
 
         Args:
-            entity (str, optional): The entity (e.g. team name) for which to
+            entity: The entity (e.g. team name) for which to
                 fetch integrations.  If not provided, the user's default entity
                 will be used.
-            per_page (int, optional): Number of integrations to fetch per page.
-                Defaults to 50.
+            per_page: Number of integrations to fetch per page.
+                Defaults to 50.  Usually there is no reason to change this.
 
         Yields:
             Iterator[WebhookIntegration]: An iterator of webhook integrations.
@@ -1582,23 +1725,22 @@ class Api:
         """
         from wandb.apis.public.integrations import WebhookIntegrations
 
-        entity = entity or self.default_entity
-        params = {"entityName": entity, "includeWebhook": True}
+        params = {"entityName": entity or self.default_entity}
         return WebhookIntegrations(
             client=self.client, variables=params, per_page=per_page
         )
 
     def slack_integrations(
-        self, entity: Optional[str] = None, *, per_page: int = 50
+        self, *, entity: Optional[str] = None, per_page: int = 50
     ) -> Iterator["SlackIntegration"]:
-        """Return an iterator of Slack integrations for an entity.
+        """Returns an iterator of Slack integrations for an entity.
 
         Args:
-            entity (str, optional): The entity (e.g. team name) for which to
+            entity: The entity (e.g. team name) for which to
                 fetch integrations.  If not provided, the user's default entity
                 will be used.
-            per_page (int, optional): Number of integrations to fetch per page.
-                Defaults to 50.
+            per_page: Number of integrations to fetch per page.
+                Defaults to 50.  Usually there is no reason to change this.
 
         Yields:
             Iterator[SlackIntegration]: An iterator of Slack integrations.
@@ -1624,8 +1766,434 @@ class Api:
         """
         from wandb.apis.public.integrations import SlackIntegrations
 
-        entity = entity or self.default_entity
-        params = {"entityName": entity, "includeSlack": True}
+        params = {"entityName": entity or self.default_entity}
         return SlackIntegrations(
             client=self.client, variables=params, per_page=per_page
         )
+
+    def _supports_automation(
+        self,
+        *,
+        event: Optional["EventType"] = None,
+        action: Optional["ActionType"] = None,
+    ) -> bool:
+        """Returns whether the server recognizes the automation event and/or action."""
+        from wandb.automations._utils import (
+            ALWAYS_SUPPORTED_ACTIONS,
+            ALWAYS_SUPPORTED_EVENTS,
+        )
+
+        server_features = InternalApi()._server_features()
+        return bool(
+            (
+                (event is None)
+                or (event in ALWAYS_SUPPORTED_EVENTS)
+                or server_features.get(f"AUTOMATION_EVENT_{event.value}")
+            )
+            and (
+                (action is None)
+                or (action in ALWAYS_SUPPORTED_ACTIONS)
+                or server_features.get(f"AUTOMATION_ACTION_{action.value}")
+            )
+        )
+
+    def _omitted_automation_fragments(self) -> Set[str]:
+        """Returns the names of unsupported automation-related fragments.
+
+        Older servers won't recognize newer GraphQL types, so a valid request may
+        unnecessarily error out because it won't recognize fragments defined on those types.
+
+        So e.g. if a server does not support `NO_OP` action types, then the following need to be
+        removed from the body of the GraphQL request:
+
+            - Fragment definition:
+                ```
+                fragment NoOpActionFields on NoOpTriggeredAction {
+                    noOp
+                }
+                ```
+
+            - Fragment spread in selection set:
+                ```
+                {
+                    ...NoOpActionFields
+                    # ... other fields ...
+                }
+                ```
+        """
+        from wandb.automations import ActionType
+        from wandb.automations._generated import (
+            GenericWebhookActionFields,
+            NoOpActionFields,
+            NotificationActionFields,
+            QueueJobActionFields,
+        )
+
+        # Note: we can't currently define this as a constant outside the method
+        # and still keep it nearby in this module, because it relies on pydantic v2-only imports
+        fragment_names: dict[ActionType, str] = {
+            ActionType.NO_OP: NoOpActionFields.__name__,
+            ActionType.QUEUE_JOB: QueueJobActionFields.__name__,
+            ActionType.NOTIFICATION: NotificationActionFields.__name__,
+            ActionType.GENERIC_WEBHOOK: GenericWebhookActionFields.__name__,
+        }
+
+        return set(
+            name
+            for action in ActionType
+            if (not self._supports_automation(action=action))
+            and (name := fragment_names.get(action))
+        )
+
+    def automation(
+        self,
+        name: str,
+        *,
+        entity: Optional[str] = None,
+    ) -> "Automation":
+        """Returns the only Automation matching the parameters.
+
+        Args:
+            name: The name of the automation to fetch.
+            entity: The entity to fetch the automation for.
+
+        Raises:
+            ValueError: If zero or multiple Automations match the search criteria.
+
+        Examples:
+            Get an existing automation named "my-automation":
+
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            automation = api.automation(name="my-automation")
+            ```
+
+            Get an existing automation named "other-automation", from the entity "my-team":
+
+            ```python
+            automation = api.automation(name="other-automation", entity="my-team")
+            ```
+        """
+        return one(
+            self.automations(entity=entity, name=name),
+            too_short=ValueError("No automations found"),
+            too_long=ValueError("Multiple automations found"),
+        )
+
+    def automations(
+        self,
+        entity: Optional[str] = None,
+        *,
+        name: Optional[str] = None,
+        per_page: int = 50,
+    ) -> Iterator["Automation"]:
+        """Returns an iterator over all Automations that match the given parameters.
+
+        If no parameters are provided, the returned iterator will contain all
+        Automations that the user has access to.
+
+        Args:
+            entity: The entity to fetch the automations for.
+            name: The name of the automation to fetch.
+            per_page: The number of automations to fetch per page.
+                Defaults to 50.  Usually there is no reason to change this.
+
+        Returns:
+            A list of automations.
+
+        Examples:
+            Fetch all existing automations for the entity "my-team":
+
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            automations = api.automations(entity="my-team")
+            ```
+        """
+        from wandb.apis.public.automations import Automations
+        from wandb.automations._generated import (
+            GET_AUTOMATIONS_BY_ENTITY_GQL,
+            GET_AUTOMATIONS_GQL,
+        )
+
+        # For now, we need to use different queries depending on whether entity is given
+        variables = {"entityName": entity}
+        if entity is None:
+            gql_str = GET_AUTOMATIONS_GQL  # Automations for viewer
+        else:
+            gql_str = GET_AUTOMATIONS_BY_ENTITY_GQL  # Automations for entity
+
+        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
+        omit_fragments = self._omitted_automation_fragments()
+        query = gql_compat(gql_str, omit_fragments=omit_fragments)
+        iterator = Automations(
+            client=self.client, variables=variables, per_page=per_page, _query=query
+        )
+
+        # FIXME: this is crude, move this client-side filtering logic into backend
+        if name is not None:
+            iterator = filter(lambda x: x.name == name, iterator)
+        yield from iterator
+
+    def create_automation(
+        self,
+        obj: "NewAutomation",
+        *,
+        fetch_existing: bool = False,
+        **kwargs: Unpack["WriteAutomationsKwargs"],
+    ) -> "Automation":
+        """Create a new Automation.
+
+        Args:
+            obj:
+                The automation to create.
+            fetch_existing:
+                If True, and a conflicting automation already exists, attempt
+                to fetch the existing automation instead of raising an error.
+            **kwargs:
+                Any additional values to assign to the automation before
+                creating it.  If given, these will override any values that may
+                already be set on the automation:
+                - `name`: The name of the automation.
+                - `description`: The description of the automation.
+                - `enabled`: Whether the automation is enabled.
+                - `scope`: The scope of the automation.
+                - `event`: The event that triggers the automation.
+                - `action`: The action that is triggered by the automation.
+
+        Returns:
+            The saved Automation.
+
+        Examples:
+            Create a new automation named "my-automation" that sends a Slack notification
+            when a run within a specific project logs a metric exceeding a custom threshold:
+
+            ```python
+            import wandb
+            from wandb.automations import OnRunMetric, RunEvent, SendNotification
+
+            api = wandb.Api()
+
+            project = api.project("my-project", entity="my-team")
+
+            # Use the first Slack integration for the team
+            slack_hook = next(api.slack_integrations(entity="my-team"))
+
+            event = OnRunMetric(
+                scope=project,
+                filter=RunEvent.metric("custom-metric") > 10,
+            )
+            action = SendNotification.from_integration(slack_hook)
+
+            automation = api.create_automation(
+                event >> action,
+                name="my-automation",
+                description="Send a Slack message whenever 'custom-metric' exceeds 10.",
+            )
+            ```
+        """
+        from wandb.automations import Automation
+        from wandb.automations._generated import CREATE_AUTOMATION_GQL, CreateAutomation
+        from wandb.automations._utils import prepare_to_create
+
+        gql_input = prepare_to_create(obj, **kwargs)
+
+        if not self._supports_automation(
+            event=(event := gql_input.triggering_event_type),
+            action=(action := gql_input.triggered_action_type),
+        ):
+            raise ValueError(
+                f"Automation event or action ({event!r} -> {action!r}) "
+                "is not supported on this wandb server version. "
+                "Please upgrade your server version, or contact support at "
+                "support@wandb.com."
+            )
+
+        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
+        omit_fragments = self._omitted_automation_fragments()
+        mutation = gql_compat(CREATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
+        variables = {"params": gql_input.model_dump(exclude_none=True)}
+
+        name = gql_input.name
+        try:
+            data = self.client.execute(mutation, variable_values=variables)
+        except requests.HTTPError as e:
+            status = HTTPStatus(e.response.status_code)
+            if status is HTTPStatus.CONFLICT:  # 409
+                if fetch_existing:
+                    wandb.termlog(f"Automation {name!r} exists. Fetching it instead.")
+                    return self.automation(name=name)
+
+                raise ValueError(
+                    f"Automation {name!r} exists. Unable to create another with the same name."
+                ) from None
+            raise
+
+        try:
+            result = CreateAutomation.model_validate(data).result
+        except ValidationError as e:
+            msg = f"Invalid response while creating automation {name!r}"
+            raise RuntimeError(msg) from e
+
+        if (result is None) or (result.trigger is None):
+            msg = f"Empty response while creating automation {name!r}"
+            raise RuntimeError(msg)
+
+        return Automation.model_validate(result.trigger)
+
+    def update_automation(
+        self,
+        obj: "Automation",
+        *,
+        create_missing: bool = False,
+        **kwargs: Unpack["WriteAutomationsKwargs"],
+    ) -> "Automation":
+        """Update an existing automation.
+
+        Args:
+            obj: The automation to update.  Must be an existing automation.
+            create_missing (bool):
+                If True, and the automation does not exist, create it.
+            **kwargs:
+                Any additional values to assign to the automation before
+                updating it.  If given, these will override any values that may
+                already be set on the automation:
+                - `name`: The name of the automation.
+                - `description`: The description of the automation.
+                - `enabled`: Whether the automation is enabled.
+                - `scope`: The scope of the automation.
+                - `event`: The event that triggers the automation.
+                - `action`: The action that is triggered by the automation.
+
+        Returns:
+            The updated automation.
+
+        Examples:
+            Disable and edit the description of an existing automation ("my-automation"):
+
+            ```python
+            import wandb
+
+            api = wandb.Api()
+
+            automation = api.automation(name="my-automation")
+            automation.enabled = False
+            automation.description = "Kept for reference, but no longer used."
+
+            updated_automation = api.update_automation(automation)
+            ```
+
+            OR:
+
+            ```python
+            import wandb
+
+            api = wandb.Api()
+
+            automation = api.automation(name="my-automation")
+
+            updated_automation = api.update_automation(
+                automation,
+                enabled=False,
+                description="Kept for reference, but no longer used.",
+            )
+            ```
+        """
+        from wandb.automations import ActionType, Automation
+        from wandb.automations._generated import UPDATE_AUTOMATION_GQL, UpdateAutomation
+        from wandb.automations._utils import prepare_to_update
+
+        # Check if the server even supports updating automations.
+        #
+        # NOTE: Unfortunately, there is no current server feature flag for this.  As a workaround,
+        # we check whether the server supports the NO_OP action, which is a reasonably safe proxy
+        # for whether it supports updating automations.
+        if not self._supports_automation(action=ActionType.NO_OP):
+            raise RuntimeError(
+                "Updating existing automations is not enabled on this wandb server version. "
+                "Please upgrade your server version, or contact support at support@wandb.com."
+            )
+
+        gql_input = prepare_to_update(obj, **kwargs)
+
+        if not self._supports_automation(
+            event=(event := gql_input.triggering_event_type),
+            action=(action := gql_input.triggered_action_type),
+        ):
+            raise ValueError(
+                f"Automation event or action ({event.value} -> {action.value}) "
+                "is not supported on this wandb server version. "
+                "Please upgrade your server version, or contact support at "
+                "support@wandb.com."
+            )
+
+        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
+        omit_fragments = self._omitted_automation_fragments()
+        mutation = gql_compat(UPDATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
+        variables = {"params": gql_input.model_dump(exclude_none=True)}
+
+        name = gql_input.name
+        try:
+            data = self.client.execute(mutation, variable_values=variables)
+        except requests.HTTPError as e:
+            status = HTTPStatus(e.response.status_code)
+            if status is HTTPStatus.NOT_FOUND:  # 404
+                if create_missing:
+                    wandb.termlog(f"Automation {name!r} not found. Creating it.")
+                    return self.create_automation(obj)
+
+                raise ValueError(
+                    f"Automation {name!r} not found. Unable to edit it."
+                ) from e
+
+            # Not a (known) recoverable HTTP error
+            wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
+            raise e
+
+        try:
+            result = UpdateAutomation.model_validate(data).result
+        except ValidationError as e:
+            msg = f"Invalid response while updating automation {name!r}"
+            raise RuntimeError(msg) from e
+
+        if (result is None) or (result.trigger is None):
+            msg = f"Empty response while updating automation {name!r}"
+            raise RuntimeError(msg)
+
+        return Automation.model_validate(result.trigger)
+
+    def delete_automation(self, obj: Union["Automation", str]) -> Literal[True]:
+        """Delete an automation.
+
+        Args:
+            obj: The automation to delete, or its ID.
+
+        Returns:
+            True if the automation was deleted successfully.
+        """
+        from wandb.automations._generated import DELETE_AUTOMATION_GQL, DeleteAutomation
+        from wandb.automations._utils import extract_id
+
+        id_ = extract_id(obj)
+        mutation = gql(DELETE_AUTOMATION_GQL)
+        variables = {"id": id_}
+
+        data = self.client.execute(mutation, variable_values=variables)
+
+        try:
+            result = DeleteAutomation.model_validate(data).result
+        except ValidationError as e:
+            msg = f"Invalid response while deleting automation {id_!r}"
+            raise RuntimeError(msg) from e
+
+        if result is None:
+            msg = f"Empty response while deleting automation {id_!r}"
+            raise RuntimeError(msg)
+
+        if not result.success:
+            raise RuntimeError(f"Failed to delete automation: {id_!r}")
+
+        return result.success

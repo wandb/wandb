@@ -984,6 +984,9 @@ class _WandbInit:
             if settings.x_label:
                 tel.feature.user_provided_label = True
 
+            if wandb.env.dcgm_profiling_enabled():
+                tel.feature.dcgm_profiling_enabled = True
+
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
         if not settings.label_disable:

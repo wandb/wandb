@@ -1,4 +1,4 @@
-"""Public API: registries."""
+"""Public API: registries search."""
 
 import json
 from typing import TYPE_CHECKING, Any, Dict, Optional
@@ -63,7 +63,7 @@ class Registries(Paginator):
         super().__init__(client, variables, per_page)
 
     def __bool__(self):
-        return len(self) > 0 or len(self.objects) > 0
+        return bool(self.objects)
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth
@@ -225,12 +225,12 @@ class Collections(Paginator):
         self.collection_filter = collection_filter or {}
 
         variables = {
-            "registryFilter": json.dumps(self.registry_filter)
-            if self.registry_filter
-            else None,
-            "collectionFilter": json.dumps(self.collection_filter)
-            if self.collection_filter
-            else None,
+            "registryFilter": (
+                json.dumps(self.registry_filter) if self.registry_filter else None
+            ),
+            "collectionFilter": (
+                json.dumps(self.collection_filter) if self.collection_filter else None
+            ),
             "organization": self.organization,
             "collectionTypes": ["PORTFOLIO"],
             "perPage": per_page,
@@ -382,15 +382,15 @@ class Versions(Paginator):
         )
 
         variables = {
-            "registryFilter": json.dumps(self.registry_filter)
-            if self.registry_filter
-            else None,
-            "collectionFilter": json.dumps(self.collection_filter)
-            if self.collection_filter
-            else None,
-            "artifactFilter": json.dumps(self.artifact_filter)
-            if self.artifact_filter
-            else None,
+            "registryFilter": (
+                json.dumps(self.registry_filter) if self.registry_filter else None
+            ),
+            "collectionFilter": (
+                json.dumps(self.collection_filter) if self.collection_filter else None
+            ),
+            "artifactFilter": (
+                json.dumps(self.artifact_filter) if self.artifact_filter else None
+            ),
             "organization": self.organization,
         }
 

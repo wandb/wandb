@@ -2,19 +2,19 @@
 # Source: tools/graphql_codegen/automations/
 
 __all__ = [
-    "CREATE_FILTER_TRIGGER_GQL",
+    "CREATE_AUTOMATION_GQL",
     "CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL",
-    "DELETE_TRIGGER_GQL",
+    "DELETE_AUTOMATION_GQL",
     "GENERIC_WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL",
-    "GET_TRIGGERS_BY_ENTITY_GQL",
-    "GET_TRIGGERS_GQL",
+    "GET_AUTOMATIONS_BY_ENTITY_GQL",
+    "GET_AUTOMATIONS_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
     "SLACK_INTEGRATIONS_BY_ENTITY_GQL",
-    "UPDATE_FILTER_TRIGGER_GQL",
+    "UPDATE_AUTOMATION_GQL",
 ]
 
-GET_TRIGGERS_GQL = """
-query GetTriggers($cursor: String, $perPage: Int) {
+GET_AUTOMATIONS_GQL = """
+query GetAutomations($cursor: String, $perPage: Int) {
   searchScope: viewer {
     projects(after: $cursor, first: $perPage) {
       ...ProjectConnectionFields
@@ -142,8 +142,8 @@ fragment TriggerFields on Trigger {
 }
 """
 
-GET_TRIGGERS_BY_ENTITY_GQL = """
-query GetTriggersByEntity($entityName: String!, $cursor: String, $perPage: Int) {
+GET_AUTOMATIONS_BY_ENTITY_GQL = """
+query GetAutomationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
   searchScope: entity(name: $entityName) {
     projects(after: $cursor, first: $perPage) {
       ...ProjectConnectionFields
@@ -271,10 +271,10 @@ fragment TriggerFields on Trigger {
 }
 """
 
-CREATE_FILTER_TRIGGER_GQL = """
-mutation CreateFilterTrigger($params: CreateFilterTriggerInput!) {
+CREATE_AUTOMATION_GQL = """
+mutation CreateAutomation($params: CreateFilterTriggerInput!) {
   result: createFilterTrigger(input: $params) {
-    ...CreateFilterTriggerResult
+    ...CreateAutomationResult
   }
 }
 
@@ -290,7 +290,7 @@ fragment ArtifactSequenceScopeFields on ArtifactSequence {
   name
 }
 
-fragment CreateFilterTriggerResult on CreateFilterTriggerPayload {
+fragment CreateAutomationResult on CreateFilterTriggerPayload {
   __typename
   trigger {
     ...TriggerFields
@@ -385,10 +385,10 @@ fragment TriggerFields on Trigger {
 }
 """
 
-UPDATE_FILTER_TRIGGER_GQL = """
-mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!) {
+UPDATE_AUTOMATION_GQL = """
+mutation UpdateAutomation($params: UpdateFilterTriggerInput!) {
   result: updateFilterTrigger(input: $params) {
-    ...UpdateFilterTriggerResult
+    ...UpdateAutomationResult
   }
 }
 
@@ -491,7 +491,7 @@ fragment TriggerFields on Trigger {
   }
 }
 
-fragment UpdateFilterTriggerResult on UpdateFilterTriggerPayload {
+fragment UpdateAutomationResult on UpdateFilterTriggerPayload {
   __typename
   trigger {
     ...TriggerFields
@@ -499,14 +499,14 @@ fragment UpdateFilterTriggerResult on UpdateFilterTriggerPayload {
 }
 """
 
-DELETE_TRIGGER_GQL = """
-mutation DeleteTrigger($id: ID!) {
+DELETE_AUTOMATION_GQL = """
+mutation DeleteAutomation($id: ID!) {
   result: deleteTrigger(input: {triggerID: $id}) {
-    ...DeleteTriggerResult
+    ...DeleteAutomationResult
   }
 }
 
-fragment DeleteTriggerResult on DeleteTriggerPayload {
+fragment DeleteAutomationResult on DeleteTriggerPayload {
   __typename
   success
 }
