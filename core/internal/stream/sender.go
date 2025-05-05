@@ -613,7 +613,6 @@ func (s *Sender) sendJobFlush() {
 	if s.jobBuilder == nil {
 		return
 	}
-	s.jobBuilder.SetRunConfig(*s.runConfig)
 
 	output := s.runSummary.ToNestedMaps()
 
@@ -623,6 +622,7 @@ func (s *Sender) sendJobFlush() {
 	artifact, err := s.jobBuilder.Build(
 		op.Context(s.runWork.BeforeEndCtx()),
 		s.graphqlClient,
+		s.runConfig.CloneTree(),
 		output,
 	)
 	if err != nil {
