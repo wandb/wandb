@@ -147,12 +147,15 @@ def test_table_incremental_logging(user, test_settings, wandb_backend_spy):
     t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
     run.log({"table": t})
     assert t._last_logged_idx == 0
-    assert t._increment_num == 1
+    assert t._artifact_target is not None
+    assert t._increment_num == 0
     t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
+    assert t._artifact_target is None
+    assert t._increment_num == 1
     t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
     run.log({"table": t})
     assert t._last_logged_idx == 2
-    assert t._increment_num == 2
+    assert t._increment_num == 1
     run.finish()
     run = wandb.Api().run(f"uncategorized/{run.id}")
     assert len(run.logged_artifacts()) == 2
