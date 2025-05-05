@@ -14,6 +14,7 @@ import shutil
 import stat
 import tempfile
 import time
+from collections import deque
 from copy import copy
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -616,7 +617,7 @@ class Artifact:
 
         If the artifact is a link artifact (`artifact.is_link == True`), it will return an empty list.
         Limited to 500 results."""
-        if not (self._linked_artifacts or self.is_link):
+        if not self.is_link:
             self._linked_artifacts = self._fetch_linked_artifacts()
         return self._linked_artifacts
 
@@ -630,6 +631,8 @@ class Artifact:
             return self
         if self._source_artifact is None:
             try:
+                if self._client is None:
+                    raise ValueError("Client is not initialized")
                 artifact = self._from_name(
                     entity=self.source_entity,
                     project=self.source_project,
@@ -2618,33 +2621,57 @@ class Artifact:
             raise ValueError(
                 "Unable to find any artifact memberships for artifact without an ID"
             )
+        if self._client is None:
+            raise ValueError("Client is not initialized")
         response = self._client.execute(
             gql_compat(FETCH_LINKED_ARTIFACTS_GQL),
             variable_values={"artifactID": self.id},
         )
         result = FetchLinkedArtifacts.model_validate(response)
 
-        membership_edges = result.artifact.artifact_memberships.edges
-        if not membership_edges:
+        if not (
+            (artifact := result.artifact)
+            and (memberships := artifact.artifact_memberships)
+            and (membership_edges := memberships.edges)
+        ):
             raise ValueError("Unable to find any artifact memberships for artifact")
-        linked_artifacts = []
-        for node in (edge.node for edge in membership_edges):
-            if node.artifact_collection.typename__ == LINKED_ARTIFACT_COLLECTION_TYPE:
-                aliases = [a.alias for a in node.aliases]
-                version_index = f"v{node.version_index}"
-                if version_index not in aliases:
-                    aliases.append(version_index)
-                link_fields = _LinkArtifactFields(
-                    entity_name=node.artifact_collection.project.entity_name,
-                    project_name=node.artifact_collection.project.name,
-                    name=f"{node.artifact_collection.name}:{version_index}",
-                    version_index=version_index,
-                    aliases=aliases,
-                )
-                link = self._create_linked_artifact_using_source_artifact(link_fields)
-                linked_artifacts.append(link)
 
-        return linked_artifacts
+        linked_artifacts: deque[Artifact] = deque()
+        linked_nodes = (
+            node
+            for edge in membership_edges
+            if (
+                (node := edge.node)
+                and (col := node.artifact_collection)
+                and (col.typename__ == LINKED_ARTIFACT_COLLECTION_TYPE)
+            )
+        )
+        for node in linked_nodes:
+            # Trick for O(1) membership check that maintains order
+            alias_names = dict.fromkeys(a.alias for a in node.aliases)
+            version = f"v{node.version_index}"
+            aliases = (
+                [*alias_names, version] if (version in alias_names) else [*alias_names]
+            )
+
+            if not (
+                node
+                and (col := node.artifact_collection)
+                and (proj := col.project)
+                and (proj.entity_name and proj.name)
+            ):
+                raise ValueError("Unable to fetch fields for linked artifact")
+
+            link_fields = _LinkArtifactFields(
+                entity_name=proj.entity_name,
+                project_name=proj.name,
+                name=f"{col.name}:{version}",
+                version=version,
+                aliases=aliases,
+            )
+            link = self._create_linked_artifact_using_source_artifact(link_fields)
+            linked_artifacts.append(link)
+        return list(linked_artifacts)
 
     def _create_linked_artifact_using_source_artifact(
         self,
@@ -2652,7 +2679,7 @@ class Artifact:
     ) -> Artifact:
         """Copies the source artifact to a linked artifact."""
         linked_artifact = copy(self)
-        linked_artifact._version = link_fields.version_index
+        linked_artifact._version = link_fields.version
         linked_artifact._aliases = link_fields.aliases
         linked_artifact._saved_aliases = copy(link_fields.aliases)
         linked_artifact._name = link_fields.name
