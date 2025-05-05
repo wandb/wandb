@@ -1287,23 +1287,24 @@ def try_create_root_dir(settings: Settings) -> None:
         if os.path.exists(settings.root_dir) and not os.access(
             settings.root_dir, os.W_OK | os.R_OK
         ):
-            root_dir = tempfile.gettempdir()
-            wandb.termwarn(
-                f"Path {settings.root_dir} wasn't read/writable, "
-                f"using system temp directory {root_dir}.",
-                repeat=False,
-            )
-            settings.root_dir = root_dir
+            raise PermissionError(f"Path {settings.root_dir} wasn't read/writable")
 
         os.makedirs(settings.root_dir, exist_ok=True)
     except OSError:
-        root_dir = tempfile.gettempdir()
+        tmp_dir = tempfile.gettempdir()
         wandb.termwarn(
             f"Unable to create root directory {settings.root_dir}, "
-            f"using system temp directory {root_dir}.",
+            f"using system temp directory {tmp_dir}.",
             repeat=False,
         )
-        settings.root_dir = root_dir
+
+        if not os.access(tmp_dir, os.W_OK | os.R_OK):
+            raise ValueError(
+                f"System temp directory ({tmp_dir}) is not writable/readable, "
+                "please set the `dir` argument in `wandb.init()` to a writable/readable directory."
+            )
+
+        settings.root_dir = tmp_dir
         os.makedirs(settings.root_dir, exist_ok=True)
 
 
