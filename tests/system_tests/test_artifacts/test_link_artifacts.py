@@ -88,7 +88,7 @@ def test_artifact_is_link(user, api):
     assert versions[0].is_link
 
 
-def test_link_artifacts(user, api):
+def test_linked_artifacts_field(user, api):
     run = wandb.init()
     artifact_type = "model"
     collection_name = "sequence_name"
