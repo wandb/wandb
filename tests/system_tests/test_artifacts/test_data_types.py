@@ -140,6 +140,7 @@ def test_table_mutation_logging(user, test_settings, wandb_backend_spy):
     run = wandb.Api().run(f"uncategorized/{run.id}")
     assert len(run.logged_artifacts()) == 3
 
+
 def test_table_incremental_logging(user, test_settings, wandb_backend_spy):
     run = wandb.init(settings=test_settings())
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")

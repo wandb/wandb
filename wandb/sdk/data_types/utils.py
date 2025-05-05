@@ -160,7 +160,7 @@ def val_to_json(
                     use_incremental = True
                     incr_index = val._increment_num
                     entry_name = f"{incr_index}.{key}"
-                
+
                 art = wandb.Artifact(art_name, art_type, incremental=use_incremental)
                 art.add(val, entry_name)
                 run.log_artifact(art)

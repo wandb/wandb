@@ -262,7 +262,7 @@ def test_datetime_conversion():
 
 class TestTableLoggingModes:
     """Tests for different table logging modes."""
-    
+
     def test_table_logging_mode_validation(self):
         """Test that invalid logging modes raise an error."""
         with pytest.raises(AssertionError):
