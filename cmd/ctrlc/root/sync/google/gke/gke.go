@@ -248,8 +248,8 @@ func initClusterMetadata(cluster *container.Cluster, project string) map[string]
 	autoscalingNodePools := 0
 	for _, nodePool := range cluster.NodePools {
 		metadata[fmt.Sprintf("kubernetes/node-pool/%s/name", nodePool.Name)] = nodePool.Name
-		metadata[fmt.Sprintf("kubernetes/node-pool/%s/version", nodePool.Version)] = nodePool.Version
-		metadata[fmt.Sprintf("kubernetes/node-pool/%s/status", nodePool.Status)] = nodePool.Status
+		metadata[fmt.Sprintf("kubernetes/node-pool/%s/version", nodePool.Name)] = nodePool.Version
+		metadata[fmt.Sprintf("kubernetes/node-pool/%s/status", nodePool.Name)] = nodePool.Status
 
 		if nodePool.Config != nil {
 			if nodePool.Config.MachineType != "" {
@@ -360,6 +360,10 @@ func initClusterMetadata(cluster *container.Cluster, project string) map[string]
 	}
 	if cluster.MonitoringService != "" {
 		metadata["operations/monitoring"] = cluster.MonitoringService
+	}
+
+	for key, value := range cluster.ResourceLabels {
+		metadata[fmt.Sprintf("tags/%s", key)] = value
 	}
 
 	return metadata

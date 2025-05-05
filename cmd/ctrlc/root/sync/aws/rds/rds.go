@@ -438,6 +438,12 @@ func buildInstanceMetadata(instance *types.DBInstance, region, host string, port
 		metadata["aws/is-aurora"] = "false"
 	}
 
+	for _, tag := range instance.TagList {
+		if tag.Key != nil && tag.Value != nil {
+			metadata[fmt.Sprintf("tags/%s", *tag.Key)] = *tag.Value
+		}
+	}
+
 	return metadata
 }
 

@@ -289,6 +289,10 @@ func initBucketMetadata(bucket *storage.Bucket, project string) map[string]strin
 		}
 	}
 
+	for key, value := range bucket.Labels {
+		metadata[fmt.Sprintf("tags/%s", key)] = value
+	}
+
 	return metadata
 }
 

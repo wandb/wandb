@@ -297,6 +297,10 @@ func initClusterMetadata(cluster *types.Cluster, region string) map[string]strin
 		}
 	}
 
+	for key, value := range cluster.Tags {
+		metadata[fmt.Sprintf("tags/%s", key)] = value
+	}
+
 	return metadata
 }
 

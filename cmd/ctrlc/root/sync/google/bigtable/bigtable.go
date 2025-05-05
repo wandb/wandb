@@ -197,7 +197,7 @@ func initInstanceMetadata(instance *bigtableadmin.Instance, project string) map[
 		versionMajor, versionMinor, versionPatch = "0", "1", "0"
 	}
 
-	return map[string]string{
+	metadata := map[string]string{
 		kinds.DBMetadataType:  "bigtable",
 		kinds.DBMetadataHost:  instance.Name,
 		kinds.DBMetadataName:  instance.Name,
@@ -216,6 +216,12 @@ func initInstanceMetadata(instance *bigtableadmin.Instance, project string) map[
 		"google/state":         strings.ToLower(instance.State),
 		"google/type":          instance.Type,
 	}
+
+	for key, value := range instance.Labels {
+		metadata[fmt.Sprintf("tags/%s", key)] = value
+	}
+
+	return metadata
 }
 
 // processClusters handles processing of Bigtable clusters

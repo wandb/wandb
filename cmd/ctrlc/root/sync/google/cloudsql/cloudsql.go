@@ -364,6 +364,10 @@ func buildInstanceMetadata(instance *sqladmin.DatabaseInstance, project, region,
 		metadata["compute/availability-type"] = instance.Settings.AvailabilityType
 	}
 
+	for key, value := range instance.Settings.UserLabels {
+		metadata[fmt.Sprintf("tags/%s", key)] = value
+	}
+
 	return metadata
 }
 

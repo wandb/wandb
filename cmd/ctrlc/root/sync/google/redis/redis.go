@@ -272,6 +272,10 @@ func initInstanceMetadata(instance *redis.Instance, project string) map[string]s
 		}
 	}
 
+	for key, value := range instance.Labels {
+		metadata[fmt.Sprintf("tags/%s", key)] = value
+	}
+
 	return metadata
 }
 

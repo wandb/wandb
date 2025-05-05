@@ -317,6 +317,10 @@ func initSecretMetadata(secret *secretmanager.Secret, project string) map[string
 		}
 	}
 
+	for key, value := range secret.Labels {
+		metadata[fmt.Sprintf("tags/%s", key)] = value
+	}
+
 	return metadata
 }
 

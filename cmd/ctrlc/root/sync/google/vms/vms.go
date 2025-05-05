@@ -288,6 +288,10 @@ func initVMMetadata(instance *compute.Instance, project string, zone string) map
 		metadata["compute/gpu-count"] = strconv.Itoa(totalGPUs)
 	}
 
+	for key, value := range instance.Labels {
+		metadata[fmt.Sprintf("tags/%s", key)] = value
+	}
+
 	return metadata
 }
 
