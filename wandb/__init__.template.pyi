@@ -283,7 +283,7 @@ def link_model(
     registered_model_name: str,
     name: str | None = None,
     aliases: list[str] | None = None,
-) -> None:
+) -> Artifact | None:
     """<sdk/wandb_run.py::Run::link_model>"""
     ...
 
