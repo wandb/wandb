@@ -26,7 +26,7 @@ from .actions import (
     SendWebhook,
 )
 from .automations import Automation, NewAutomation
-from .events import EventType, InputEvent, RunMetricFilter, SavedEventFilter
+from .events import EventType, InputEvent, RunMetricFilter, _WrappedSavedEventFilter
 from .scopes import AutomationScope, ScopeType
 
 EXCLUDED_INPUT_EVENTS: Final[Collection[EventType]] = frozenset(
@@ -104,7 +104,7 @@ def prepare_action_config_input(obj: SavedAction | InputAction) -> dict[str, Any
 
 
 def prepare_event_filter_input(
-    obj: SavedEventFilter | MongoLikeFilter | RunMetricFilter,
+    obj: _WrappedSavedEventFilter | MongoLikeFilter | RunMetricFilter,
 ) -> str:
     """Prepare the `EventFilter` input, unnesting the filter if needed and serializing to JSON.
 
@@ -117,7 +117,9 @@ def prepare_event_filter_input(
     #
     # Yes, this is confusing.  It's also necessary to conform to under-the-hood
     # schemas and logic in the backend.
-    filter_to_serialize = obj.filter if isinstance(obj, SavedEventFilter) else obj
+    filter_to_serialize = (
+        obj.filter if isinstance(obj, _WrappedSavedEventFilter) else obj
+    )
     return to_json(filter_to_serialize)
 
 

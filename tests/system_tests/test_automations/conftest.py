@@ -6,7 +6,7 @@ from string import ascii_lowercase, digits
 from typing import Callable, Iterator, Union
 
 import wandb
-from pytest import FixtureRequest, MonkeyPatch, fixture, skip, xfail
+from pytest import FixtureRequest, MonkeyPatch, fixture, skip
 from typing_extensions import TypeAlias
 from wandb import Artifact
 from wandb.apis.public import ArtifactCollection, Project
@@ -166,6 +166,7 @@ def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
         (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
+        (EventType.RUN_METRIC_CHANGE, ScopeType.ARTIFACT_COLLECTION),
     }
 
 
@@ -188,9 +189,6 @@ def event_type(
 
     if (event_type, scope_type) in invalid_events_and_scopes():
         skip(f"Event {event_type.value!r} doesn't support scope {scope_type.value!r}")
-
-    if event_type is EventType.RUN_METRIC_CHANGE:
-        xfail(f"Event {event_type.value!r} not yet supported")
 
     return event_type
 
@@ -239,9 +237,16 @@ def on_add_artifact_alias(scope, artifact_filter) -> OnAddArtifactAlias:
 
 
 @fixture
-def on_run_metric(scope) -> OnRunMetric:
+def on_run_metric_threshold(scope) -> OnRunMetric:
     run_filter = RunEvent.name.contains("my-run")
     metric_filter = RunEvent.metric("my-metric").mean(5).gt(0)
+    return OnRunMetric(scope=scope, filter=run_filter & metric_filter)
+
+
+@fixture
+def on_run_metric_change(scope) -> OnRunMetric:
+    run_filter = RunEvent.name.contains("my-run")
+    metric_filter = RunEvent.metric("my-metric").mean(5).changes_by(diff=123.45)
     return OnRunMetric(scope=scope, filter=run_filter & metric_filter)
 
 
@@ -252,7 +257,8 @@ def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
         EventType.CREATE_ARTIFACT: on_create_artifact.__name__,
         EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
-        EventType.RUN_METRIC_THRESHOLD: on_run_metric.__name__,
+        EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
+        EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
     }
     return request.getfixturevalue(event2fixture[event_type])
 
