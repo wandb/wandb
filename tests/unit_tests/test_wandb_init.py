@@ -66,3 +66,13 @@ def test_no_temp_dir_access__throws_error(monkeypatch):
     with pytest.raises(ValueError):
         with wandb.init(dir=temp_dir, mode="offline") as run:
             run.log({"test": 1})
+
+
+def test_makedirs_with_file_in_path__uses_temp_dir(tmp_path, monkeypatch):
+    tmp_file = tmp_path / "test.txt"
+    tmp_file.touch()
+
+    with wandb.init(dir=str(tmp_file / "dir2"), mode="offline") as run:
+        run.log({"test": 1})
+
+    assert run.settings.root_dir == tempfile.gettempdir()

@@ -1284,13 +1284,11 @@ def try_create_root_dir(settings: Settings) -> None:
             if the parent directory is not writable.
     """
     try:
-        if os.path.exists(settings.root_dir) and not os.access(
+        assert os.path.exists(settings.root_dir) and os.access(
             settings.root_dir, os.W_OK | os.R_OK
-        ):
-            raise PermissionError(f"Path {settings.root_dir} wasn't read/writable")
-
+        )
         os.makedirs(settings.root_dir, exist_ok=True)
-    except OSError:
+    except (OSError, AssertionError):
         tmp_dir = tempfile.gettempdir()
         wandb.termwarn(
             f"Unable to create root directory {settings.root_dir}, "
