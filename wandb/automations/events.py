@@ -86,6 +86,14 @@ class _WrappedMetricFilter(GQLBase):  # from: RunMetricFilter
 
         return self
 
+    @property
+    def event_type(self) -> EventType:
+        if self.threshold_filter is not None:
+            return EventType.RUN_METRIC_THRESHOLD
+        if self.change_filter is not None:
+            return EventType.RUN_METRIC_CHANGE
+        raise RuntimeError("Expected one of: `threshold_filter` or `change_filter`")
+
 
 class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
     run: Annotated[SerializedToJson[MongoLikeFilter], Field(alias="run_filter")] = And()
@@ -226,13 +234,8 @@ class OnRunMetric(_BaseRunEventInput):
         """
         if isinstance(data, dict) and (raw_filter := data.get("filter")):
             # At this point, `raw_filter` may or may not be JSON-serialized
-            filter_ = RunMetricFilter.model_validate_json(ensure_json(raw_filter))
-
-            if filter_.metric.threshold_filter is not None:
-                event_type = EventType.RUN_METRIC_THRESHOLD
-            elif filter_.metric.change_filter is not None:
-                event_type = EventType.RUN_METRIC_CHANGE
-            return {**data, "event_type": event_type}
+            parsed_filter = RunMetricFilter.model_validate_json(ensure_json(raw_filter))
+            return {**data, "event_type": parsed_filter.metric.event_type}
 
         return data
 

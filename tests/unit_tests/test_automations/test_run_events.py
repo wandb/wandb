@@ -5,15 +5,8 @@ import json
 from hypothesis import given
 from hypothesis.strategies import DrawFn, SearchStrategy, composite, sampled_from
 from pytest import raises
-from wandb.automations import RunEvent
-from wandb.automations._filters.run_metrics import (
-    Agg,
-    BaseMetricOperand,
-    MetricAgg,
-    MetricChangeFilter,
-    MetricThresholdFilter,
-    MetricVal,
-)
+from wandb.automations import MetricChangeFilter, MetricThresholdFilter, RunEvent
+from wandb.automations._filters.run_metrics import Agg, MetricAgg, MetricVal
 
 from ._strategies import (
     aggs,
@@ -82,7 +75,7 @@ def test_metric_threshold_filter_serialization(
     threshold=ints_or_floats,
 )
 def test_metric_threshold_binop_vs_method_is_equivalent(
-    metric: BaseMetricOperand, threshold: float
+    metric: MetricVal | MetricAgg, threshold: float
 ):
     """Metric filters declared via (a) binary comparison operators vs (b) chained method calls are equivalent.
 
@@ -121,19 +114,17 @@ def test_metric_threshold_filter_repr(metric: MetricVal | MetricAgg, threshold: 
     if isinstance(metric, MetricVal):
         # Single-value metric operand (i.e. no aggregation)
         expected_lhs = metric.name
-        expected_rhs = f"{threshold}"
     elif isinstance(metric, MetricAgg):
         # Aggregated metric operand
         expected_lhs = f"{metric.agg.value}({metric.name})"
-        expected_rhs = f"{threshold}"
     else:
         raise ValueError(f"Unhandled metric operand type: {type(metric)}")
 
     # Check that the string representations are equivalent
-    assert repr(metric.gt(threshold)) == repr(f"{expected_lhs} > {expected_rhs}")
-    assert repr(metric.gte(threshold)) == repr(f"{expected_lhs} >= {expected_rhs}")
-    assert repr(metric.lt(threshold)) == repr(f"{expected_lhs} < {expected_rhs}")
-    assert repr(metric.lte(threshold)) == repr(f"{expected_lhs} <= {expected_rhs}")
+    assert repr(metric.gt(threshold)) == repr(f"{expected_lhs} > {threshold}")
+    assert repr(metric.gte(threshold)) == repr(f"{expected_lhs} >= {threshold}")
+    assert repr(metric.lt(threshold)) == repr(f"{expected_lhs} < {threshold}")
+    assert repr(metric.lte(threshold)) == repr(f"{expected_lhs} <= {threshold}")
 
 
 @given(metric_filter=metric_change_filters())
@@ -170,6 +161,42 @@ def test_metric_change_filter_defaults_prior_window_to_current_window(
 
     assert dict_["prior_window_size"] == dict_["current_window_size"]
     assert dict_from_json["prior_window_size"] == dict_from_json["current_window_size"]
+
+
+@given(
+    metric=metric_operands(),
+    delta=pos_numbers,
+)
+def test_metric_change_filter_repr(metric: MetricVal | MetricAgg, delta: float):
+    """Check that a metric change filter has the expected human-readable representation."""
+    # Determine the expected left- and right-hand sides of the inequality
+    if isinstance(metric, MetricVal):
+        # Single-value metric operand (i.e. no aggregation)
+        expected_lhs = metric.name
+    elif isinstance(metric, MetricAgg):
+        # Aggregated metric operand
+        expected_lhs = f"{metric.agg.value}({metric.name})"
+    else:
+        raise ValueError(f"Unhandled metric operand type: {type(metric)}")
+
+    # Check that the string representations are equivalent
+    metric_filter_repr = repr(metric.changes_by(frac=delta))
+    assert metric_filter_repr == repr(f"{expected_lhs} changes {delta:.2%}")
+
+    metric_filter_repr = repr(metric.changes_by(diff=delta))
+    assert metric_filter_repr == repr(f"{expected_lhs} changes {delta}")
+
+    metric_filter_repr = repr(metric.increases_by(frac=delta))
+    assert metric_filter_repr == repr(f"{expected_lhs} increases {delta:.2%}")
+
+    metric_filter_repr = repr(metric.increases_by(diff=delta))
+    assert metric_filter_repr == repr(f"{expected_lhs} increases {delta}")
+
+    metric_filter_repr = repr(metric.decreases_by(frac=delta))
+    assert metric_filter_repr == repr(f"{expected_lhs} decreases {delta:.2%}")
+
+    metric_filter_repr = repr(metric.decreases_by(diff=delta))
+    assert metric_filter_repr == repr(f"{expected_lhs} decreases {delta}")
 
 
 @given(

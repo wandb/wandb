@@ -179,13 +179,13 @@ class MetricChangeFilter(BaseMetricFilter):  # from: RunMetricChangeFilter
     def __repr__(self) -> str:
         metric = f"{self.agg.value}({self.name})" if self.agg else self.name
         verb = (
-            "changes by"
+            "changes"
             if (self.change_dir is ChangeDir.ANY)
-            else f"{self.change_dir.value.lower()}s by"
+            else f"{self.change_dir.value.lower()}s"
         )
-        amt = (
-            f"{self.threshold:{'.2%' if (self.change_type is ChangeType.REL) else ''}}"
-        )
+
+        fmt_spec = ".2%" if (self.change_type is ChangeType.REL) else ""
+        amt = f"{self.threshold:{fmt_spec}}"
         return repr(rf"{metric} {verb} {amt}")
 
 

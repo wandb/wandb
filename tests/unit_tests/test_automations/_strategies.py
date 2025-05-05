@@ -28,13 +28,8 @@ from hypothesis.strategies import (
     sampled_from,
     text,
 )
-from wandb.automations._filters.run_metrics import (
-    Agg,
-    ChangeDir,
-    ChangeType,
-    MetricChangeFilter,
-    MetricThresholdFilter,
-)
+from wandb.automations import MetricChangeFilter, MetricThresholdFilter
+from wandb.automations._filters.run_metrics import Agg, ChangeDir, ChangeType
 
 
 @composite
@@ -222,7 +217,9 @@ def sample_with_randomcase(
 
 # ----------------------------------------------------------------------------
 # For testing run metric filters
-metric_names: SearchStrategy[str] = text(PRINTABLE_CHARS, min_size=1, max_size=100)
+metric_names: SearchStrategy[str] = text(
+    PRINTABLE_CHARS, min_size=1, max_size=100
+).filter(lambda s: s[0].isalpha())
 """Valid metric names for run metric filters."""
 
 cmp_keys: SearchStrategy[str] = sampled_from(["$gt", "$gte", "$lt", "$lte"])

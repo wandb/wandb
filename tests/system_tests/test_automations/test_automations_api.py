@@ -13,6 +13,8 @@ from wandb.automations import (
     Automation,
     DoNothing,
     EventType,
+    MetricChangeFilter,
+    MetricThresholdFilter,
     OnLinkArtifact,
     OnRunMetric,
     ProjectScope,
@@ -20,9 +22,8 @@ from wandb.automations import (
     SendWebhook,
     WebhookIntegration,
 )
-from wandb.automations._filters.run_metrics import MetricChangeFilter
 from wandb.automations.actions import SavedNoOpAction, SavedWebhookAction
-from wandb.automations.events import MetricThresholdFilter, RunMetricFilter
+from wandb.automations.events import RunMetricFilter
 from wandb.automations.scopes import ArtifactCollectionScopeTypes
 
 

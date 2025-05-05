@@ -8,18 +8,20 @@ from hypothesis import given
 from hypothesis.strategies import integers, none
 from pytest import mark
 from wandb.apis.public import Project
-from wandb.automations import EventType, ScopeType
-from wandb.automations._filters.run_metrics import Agg, MetricChangeFilter
-from wandb.automations._generated import EventTriggeringConditionType
-from wandb.automations.events import (
+from wandb.automations import (
     ArtifactEvent,
+    EventType,
+    MetricChangeFilter,
     MetricThresholdFilter,
     OnAddArtifactAlias,
     OnCreateArtifact,
     OnLinkArtifact,
     OnRunMetric,
     RunEvent,
+    ScopeType,
 )
+from wandb.automations._filters.run_metrics import Agg
+from wandb.automations._generated import EventTriggeringConditionType
 
 from ._strategies import (
     cmp_keys,
