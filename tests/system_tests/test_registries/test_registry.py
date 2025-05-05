@@ -263,6 +263,7 @@ def test_edit_registry_name(mock_termlog, default_organization):
         organization=default_organization,
         name=registry_name,
         visibility="organization",
+        description="This is the initial description",
     )
 
     new_registry_name = "new-name"
@@ -271,6 +272,14 @@ def test_edit_registry_name(mock_termlog, default_organization):
     registry.save()
     assert registry.name == new_registry_name
     assert registry._saved_name == new_registry_name
+    assert registry.description == "This is the initial description"
 
+    # Double check we didn't create a new registry instead of renaming the old one
+    with pytest.raises(ValueError, match="Failed to load registry"):
+        api.registry(registry_name, default_organization)
+
+    new_name_registry = api.registry(new_registry_name, default_organization)
+    assert new_name_registry
+    assert new_name_registry.description == "This is the initial description"
     # Assert that the rename termlog was called as we never created a new registry
     mock_termlog.assert_not_called()

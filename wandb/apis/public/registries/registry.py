@@ -265,7 +265,7 @@ class Registry:
             raise ValueError(
                 f"Failed to delete registry: {self.name!r} in organization: {self.organization!r}"
             )
-        if not result.delete_project.success:
+        if not result.delete_model.success:
             raise ValueError(
                 f"Failed to delete registry: {self.name!r} in organization: {self.organization!r}"
             )
