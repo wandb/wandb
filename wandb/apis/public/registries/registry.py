@@ -306,14 +306,14 @@ class Registry:
 
         if self._no_updating_registry_types():
             raise ValueError(
-                "Cannot update artifact types when `allows_all_artifact_types` is `True`. Set it to `False` first."
+                f"Cannot update artifact types when `allows_all_artifact_types` is {True!r}. Set it to {False!r} first."
             )
 
         validate_project_name(self.full_name)
         visibility_value = _registry_visibility_to_gql(self.visibility)
         newly_added_types = _format_gql_artifact_types_input(self.artifact_types.draft)
         registry_save_error = f"Failed to save and update registry: {self.name} in organization: {self.organization}"
-        full_saved_name = REGISTRY_PREFIX + self._saved_name
+        full_saved_name = f"{REGISTRY_PREFIX}{self._saved_name}"
         try:
             response = self.client.execute(
                 gql(UPSERT_REGISTRY_PROJECT_GQL),

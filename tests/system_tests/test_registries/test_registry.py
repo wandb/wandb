@@ -107,7 +107,7 @@ def test_registry_create_edit_artifact_types(default_organization):
     registry.artifact_types.append(artifact_type_1)
     with pytest.raises(
         ValueError,
-        match="Cannot update artifact types when `allows_all_artifact_types` is `True`. Set it to `False` first.",
+        match="Cannot update artifact types when `allows_all_artifact_types` is True. Set it to False first.",
     ):
         registry.save()
     # Reset for valid save

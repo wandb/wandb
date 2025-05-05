@@ -101,11 +101,11 @@ def validate_project_name(name: str) -> None:
             )
 
     # Find the first occurrence of any invalid character
-    invalid_char = next((char for char in INVALID_URL_CHARACTERS if char in name), None)
-    if invalid_char is not None:
+    if invalid_chars := set(INVALID_URL_CHARACTERS).intersection(name):
         error_name = registry_name or name
+        invalid_chars_repr = ", ".join(sorted(map(repr, invalid_chars)))
         raise ValueError(
-            f"Invalid project/registry name {error_name!r}, cannot contain character '{invalid_char}'"
+            f"Invalid project/registry name {error_name!r}, cannot contain characters: {invalid_chars_repr!s}"
         )
 
 

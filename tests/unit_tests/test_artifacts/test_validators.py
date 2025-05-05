@@ -5,8 +5,9 @@ from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_na
 @pytest.mark.parametrize(
     "project_name, expected_output",
     [
-        ("my-project-?", "cannot contain character '?'"),
-        ("my-project-\n", "cannot contain character '\n'"),
+        ("my-project-?", "cannot contain characters: '?'"),
+        ("my-project-\n", "cannot contain characters: '\\\\n'"),
+        ("my-?:/-project", "cannot contain characters: '/', ':', '?'"),
         (REGISTRY_PREFIX + "a" * 128, "Invalid registry name"),
         ("p" * 129, "must be 128 characters or less"),
         ("", "Project name cannot be empty"),
