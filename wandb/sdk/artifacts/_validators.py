@@ -24,6 +24,9 @@ if TYPE_CHECKING:
 REGISTRY_PREFIX: Final[str] = "wandb-registry-"
 MAX_ARTIFACT_METADATA_KEYS: Final[int] = 100
 
+ARTIFACT_NAME_MAXLEN: Final[int] = 128
+ARTIFACT_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset({"/"})
+
 
 # For mypy checks
 @overload
@@ -43,6 +46,27 @@ def always_list(obj: Any, base_type: Any = (str, bytes)) -> list[T]:
     return [obj] if isinstance(obj, base_type) else list(obj)
 
 
+def validate_artifact_name(name: str) -> str:
+    """Validate the artifact name, returning it if successful.
+
+    Raises:
+        ValueError: If the artifact name is invalid.
+    """
+    if len(name) > ARTIFACT_NAME_MAXLEN:
+        short_name = f"{name[:ARTIFACT_NAME_MAXLEN]} ..."
+        raise ValueError(
+            f"Artifact name is longer than {ARTIFACT_NAME_MAXLEN} characters: {short_name!r}"
+        )
+
+    if ARTIFACT_NAME_INVALID_CHARS.intersection(name):
+        raise ValueError(
+            "Artifact names must not contain any of the following characters: "
+            f"{', '.join(sorted(ARTIFACT_NAME_INVALID_CHARS))}.  Got: {name!r}"
+        )
+
+    return name
+
+
 def validate_aliases(aliases: Collection[str] | str) -> list[str]:
     """Validate the artifact aliases and return them as a list.
 
@@ -57,6 +81,22 @@ def validate_aliases(aliases: Collection[str] | str) -> list[str]:
             f"Aliases must not contain any of the following characters: {', '.join(invalid_chars)}"
         )
     return aliases_list
+
+
+def validate_artifact_types_list(artifact_types: list[str]) -> list[str]:
+    """Return True if the artifact types list is valid, False otherwise."""
+    artifact_types = always_list(artifact_types)
+    invalid_chars = ("/", ":")
+    if any(
+        char in type or len(type) > 128
+        for type in artifact_types
+        for char in invalid_chars
+    ):
+        raise ValueError(
+            f"""Artifact types must not contain any of the following characters: {", ".join(invalid_chars)}
+              and must be less than equal to 128 characters"""
+        )
+    return artifact_types
 
 
 _VALID_TAG_PATTERN: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")

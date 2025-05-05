@@ -8,6 +8,7 @@ import wandb
 from wandb import Api
 from wandb.errors import CommError
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.lib.hashutil import md5_file_hex
 
 
 def test_fetching_artifact_files(user):
@@ -509,3 +510,36 @@ def test_artifact_history_step(user, api):
         name=f"{entity}/{project}/{artifact_name}:v1",
     )
     assert artifact.history_step == 0
+
+
+def test_artifact_multipart_download(user, api):
+    """Test download large artifact with multipart download."""
+    # Create file with all 1 as 101MB
+    file_path = "101mb.bin"
+    one_mb = b"\x01" * 1024 * 1024
+    with open(file_path, "wb") as f:
+        for _ in range(101):
+            f.write(one_mb)
+
+    # Hard coded because the file content never changes
+    md5_value = "01fedd4cfd8547c8ef960bc041c30523"
+
+    entity = user
+    project = "test-project"
+    artifact_name = "test-large-artifact"
+    artifact_type = "test-type"
+
+    with wandb.init(entity=entity, project=project) as run:
+        art = wandb.Artifact(artifact_name, artifact_type)
+        art.add_file(file_path)
+        run.log_artifact(art)
+
+    # Download artifact
+    artifact = api.artifact(
+        name=f"{entity}/{project}/{artifact_name}:v0",
+    )
+    # Force multipart download because the file is too small
+    stored_folder = artifact.download(multipart=True, skip_cache=True)
+    # Verify checksum
+    downloaded_md5 = md5_file_hex(os.path.join(stored_folder, file_path))
+    assert downloaded_md5 == md5_value

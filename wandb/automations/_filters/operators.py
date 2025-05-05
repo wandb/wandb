@@ -2,22 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Iterable, Tuple, TypeVar, Union, overload
+from typing import Any, Dict, Iterable, Tuple, TypeVar, Union
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from typing_extensions import TypeAlias, get_args
 
-from wandb._pydantic import Base
-
-if TYPE_CHECKING:
-    from wandb.automations._filters.run_metrics import MetricThresholdFilter
-    from wandb.automations.events import RunMetricFilter
-
+from wandb._pydantic import GQLBase
 
 # for type annotations
 Scalar = Union[StrictStr, StrictInt, StrictFloat, StrictBool]
 # for runtime type checks
-ScalarTypes = get_args(Scalar)
+ScalarTypes: tuple[type, ...] = tuple(t.__origin__ for t in get_args(Scalar))
 
 # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
 RichReprResult: TypeAlias = Iterable[
@@ -44,18 +39,13 @@ class SupportsLogicalOpSyntax:
         """Syntactic sugar for: `a | b` -> `Or(a, b)`."""
         return Or(or_=[self, other])
 
-    @overload
-    def __and__(self, other: MetricThresholdFilter) -> RunMetricFilter: ...
-    @overload
-    def __and__(self, other: Any) -> And: ...
-    def __and__(self, other: Any) -> Any:
+    def __and__(self, other: Any) -> And:
         """Syntactic sugar for: `a & b` -> `And(a, b)`."""
-        from wandb.automations._filters.run_metrics import MetricThresholdFilter
+        from .expressions import FilterExpr
 
-        # Special handling `run_filter & metric_filter`
-        if isinstance(other, MetricThresholdFilter):
-            return other.__and__(self)
-        return And(and_=[self, other])
+        if isinstance(other, (BaseOp, FilterExpr)):
+            return And(and_=[self, other])
+        return NotImplemented
 
     def __invert__(self) -> Not:
         """Syntactic sugar for: `~a` -> `Not(a)`."""
@@ -63,8 +53,9 @@ class SupportsLogicalOpSyntax:
 
 
 # Base class for parsed MongoDB filter/query operators, e.g. `{"$and": [...]}`.
-class BaseOp(Base, SupportsLogicalOpSyntax):
+class BaseOp(GQLBase, SupportsLogicalOpSyntax):
     model_config = ConfigDict(
+        extra="forbid",
         frozen=True,  # Make pseudo-immutable for easier comparison and hashing
     )
 

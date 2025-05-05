@@ -21,13 +21,14 @@ const (
 )
 
 type ServerParams struct {
-	ListenIPAddress string
-	PortFilename    string
-	ParentPid       int
-	SentryClient    *sentry_ext.Client
-	Commit          string
-	LoggerPath      string
-	LogLevel        slog.Level
+	ListenIPAddress     string
+	PortFilename        string
+	ParentPid           int
+	SentryClient        *sentry_ext.Client
+	Commit              string
+	LoggerPath          string
+	LogLevel            slog.Level
+	EnableDCGMProfiling bool
 }
 
 // Server is the core server
@@ -59,6 +60,9 @@ type Server struct {
 
 	// logLevel is the log level
 	logLevel slog.Level
+
+	// enableDCGMProfiling is true if DCGM profiling is enabled
+	enableDCGMProfiling bool
 }
 
 // NewServer creates a new server
@@ -75,15 +79,16 @@ func NewServer(params *ServerParams) (*Server, error) {
 	}
 
 	s := &Server{
-		serverLifetimeCtx: serverLifetimeCtx,
-		stopServer:        stopServer,
-		listener:          listener,
-		wg:                sync.WaitGroup{},
-		parentPid:         params.ParentPid,
-		sentryClient:      params.SentryClient,
-		commit:            params.Commit,
-		loggerPath:        params.LoggerPath,
-		logLevel:          params.LogLevel,
+		serverLifetimeCtx:   serverLifetimeCtx,
+		stopServer:          stopServer,
+		listener:            listener,
+		wg:                  sync.WaitGroup{},
+		parentPid:           params.ParentPid,
+		sentryClient:        params.SentryClient,
+		commit:              params.Commit,
+		loggerPath:          params.LoggerPath,
+		logLevel:            params.LogLevel,
+		enableDCGMProfiling: params.EnableDCGMProfiling,
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
@@ -140,7 +145,7 @@ func (s *Server) serve() {
 	slog.Info("server is running", "addr", s.listener.Addr())
 
 	streamMux := stream.NewStreamMux()
-	gpuResourceManager := monitor.NewGPUResourceManager()
+	gpuResourceManager := monitor.NewGPUResourceManager(s.enableDCGMProfiling)
 
 	// Run a separate goroutine to handle incoming connections
 	for {

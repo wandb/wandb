@@ -503,6 +503,7 @@ message LinkArtifactRequest {
 
 message LinkArtifactResponse {
   string error_message = 1;
+  optional int32 version_index = 2;
 }
 
 // Indicates a directory of TensorBoard tfevents files to sync with the run.
@@ -1412,6 +1413,18 @@ enum ServerFeature {
 
   // Indicates that the server supports expanding defined metric globs on the server side.
   EXPAND_DEFINED_METRIC_GLOBS = 8;
+
+  // Indicates that the server supports automation event RUN_METRIC.
+  AUTOMATION_EVENT_RUN_METRIC = 9;
+
+  // Indicates that the server supports automation event RUN_METRIC_CHANGE.
+  AUTOMATION_EVENT_RUN_METRIC_CHANGE = 10;
+
+  // Indicates that the server supports automation action NO_OP.
+  AUTOMATION_ACTION_NO_OP = 11;
+
+  // Indicates that the server supports including artifact types in registry creation.
+  INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION = 12;
 }
 
 /**

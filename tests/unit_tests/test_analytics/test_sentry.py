@@ -6,9 +6,9 @@ import wandb
 import wandb.analytics
 import wandb.env
 import wandb.util
-from sentry_relay import MetricRelayServer
 from sentry_sdk.utils import sentry_sdk
-from tests.unit_tests.test_analytics.sentry_relay import SentryResponse
+
+from .sentry_relay import MetricRelayServer, SentryResponse
 
 SENTRY_DSN_FORMAT = "http://{key}@127.0.0.1:{port}/{project}"
 

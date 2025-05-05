@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/runconfig"
 	. "github.com/wandb/wandb/core/pkg/launch"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -102,7 +101,7 @@ func TestJobBuilderRepo(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com__path_to_train.py", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -169,7 +168,7 @@ func TestJobBuilderRepo(t *testing.T) {
 			XJupyterRoot: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com_Untitled.ipynb", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -227,7 +226,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			Type: "code",
 		}
 		jobBuilder.SetRunCodeArtifact("testArtifactId", artifactRecord.GetName())
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -295,7 +294,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			Type: "code",
 		}
 		jobBuilder.SetRunCodeArtifact("testArtifactId", artifactRecord.GetName())
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -348,7 +347,7 @@ func TestJobBuilderImage(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testImage", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -388,7 +387,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 			},
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Nil(t, artifact)
 	})
@@ -401,7 +400,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
 	})
@@ -419,7 +418,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		}
 
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, artifact)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "wandb-metadata.json: no such file or directory")
@@ -443,7 +442,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
 	})
@@ -748,19 +747,17 @@ func TestWandbConfigParameters(t *testing.T) {
 		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 	}
 	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-	jobBuilder.SetRunConfig(*runconfig.NewFrom(
-		map[string]interface{}{
-			"key1": "value1",
-			"key2": "value2",
-			"key3": map[string]interface{}{
-				"key4": map[string]interface{}{
-					"key6": "value6",
-					"key7": "value7",
-				},
-				"key5": "value5",
+	runConfig := map[string]interface{}{
+		"key1": "value1",
+		"key2": "value2",
+		"key3": map[string]interface{}{
+			"key4": map[string]interface{}{
+				"key6": "value6",
+				"key7": "value7",
 			},
+			"key5": "value5",
 		},
-	))
+	}
 	jobBuilder.HandleJobInputRequest(&spb.JobInputRequest{
 		InputSource: &spb.JobInputSource{
 			Source: &spb.JobInputSource_RunConfig{},
@@ -768,7 +765,7 @@ func TestWandbConfigParameters(t *testing.T) {
 		IncludePaths: []*spb.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
 		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
 	})
-	artifact, err := jobBuilder.Build(ctx, gql, nil)
+	artifact, err := jobBuilder.Build(ctx, gql, runConfig, nil)
 	assert.Nil(t, err)
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
@@ -837,19 +834,17 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 	}
 	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-	jobBuilder.SetRunConfig(*runconfig.NewFrom(
-		map[string]interface{}{
-			"key1": "value1",
-			"key2": "value2",
-			"key3": map[string]interface{}{
-				"key4": map[string]interface{}{
-					"key6": "value6",
-					"key7": "value7",
-				},
-				"key5": "value5",
+	runConfig := map[string]interface{}{
+		"key1": "value1",
+		"key2": "value2",
+		"key3": map[string]interface{}{
+			"key4": map[string]interface{}{
+				"key6": "value6",
+				"key7": "value7",
 			},
+			"key5": "value5",
 		},
-	))
+	}
 	inputSchema, _ := json.Marshal(map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -874,7 +869,7 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
 		InputSchema:  string(inputSchema),
 	})
-	artifact, err := jobBuilder.Build(ctx, gql, nil)
+	artifact, err := jobBuilder.Build(ctx, gql, runConfig, nil)
 	assert.Nil(t, err)
 	var artifactMetadata map[string]any
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
@@ -948,7 +943,7 @@ func TestConfigFileParameters(t *testing.T) {
 		IncludePaths: []*spb.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
 		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4"}}},
 	})
-	artifact, err := jobBuilder.Build(ctx, gql, nil)
+	artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 
 	assert.Nil(t, err)
 	var artifactMetadata map[string]interface{}
@@ -1044,7 +1039,7 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4"}}},
 		InputSchema:  string(inputSchema),
 	})
-	artifact, err := jobBuilder.Build(ctx, gql, nil)
+	artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 
 	assert.Nil(t, err)
 	var artifactMetadata map[string]interface{}
