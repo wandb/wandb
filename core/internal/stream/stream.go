@@ -398,6 +398,11 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 }
 
 func printFooter(settings *settings.Settings) {
+	// Silent mode disables any footer output
+	if settings.IsSilent() {
+		return
+	}
+
 	formatter := pfxout.New(
 		pfxout.WithColor("wandb", pfxout.BrightBlue),
 	)

@@ -73,6 +73,11 @@ func (s *Settings) GetCredentialsFile() string {
 	return s.Proto.CredentialsFile.GetValue()
 }
 
+// Whether we are in silent mode.
+func (s *Settings) IsSilent() bool {
+	return s.Proto.Silent.GetValue()
+}
+
 // Whether we are in offline mode.
 func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
