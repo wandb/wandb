@@ -110,6 +110,18 @@ class ArtifactFragmentTags(GQLBase):
     name: str
 
 
+class ArtifactPortfolioTypeFields(GQLBase):
+    typename__: Typename[Literal["ArtifactPortfolio"]] = "ArtifactPortfolio"
+    id: GQLId
+    name: str
+
+
+class ArtifactSequenceTypeFields(GQLBase):
+    typename__: Typename[Literal["ArtifactSequence"]] = "ArtifactSequence"
+    id: GQLId
+    name: str
+
+
 class ArtifactTypeFragment(GQLBase):
     typename__: Typename[Literal["ArtifactType"]] = "ArtifactType"
     id: GQLId
@@ -192,6 +204,8 @@ ArtifactFragmentArtifactType.model_rebuild()
 ArtifactFragmentCurrentManifest.model_rebuild()
 ArtifactFragmentCurrentManifestFile.model_rebuild()
 ArtifactFragmentTags.model_rebuild()
+ArtifactPortfolioTypeFields.model_rebuild()
+ArtifactSequenceTypeFields.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
 ArtifactTypesFragment.model_rebuild()
 ArtifactTypesFragmentEdges.model_rebuild()
