@@ -1517,7 +1517,7 @@ def test_add_obj_wbtable_images(assets_path, artifact):
             "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
             "size": 71,
         },
-        "my-table.table.json": {"digest": "apPaCuFMSlFoP7rztfZq5Q==", "size": 1290},
+        "my-table.table.json": {'digest': 'UN1SfxHpRdt/OOy7TrjvdQ==', 'size': 1315},
     }
 
 
@@ -1547,7 +1547,7 @@ def test_add_obj_wbtable_images_duplicate_name(assets_path, artifact):
             "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
             "size": 8837,
         },
-        "my-table.table.json": {"digest": "hjWyKjD8J/wFtikBxnFOeA==", "size": 981},
+        "my-table.table.json": {'digest': 'rkNgqyX3yGEQ1UxM7hsGjQ==', 'size': 1006},
     }
 
 
