@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from wandb import Api
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
@@ -105,7 +107,7 @@ def test_registry_create_edit_artifact_types(default_organization):
     registry.artifact_types.append(artifact_type_1)
     with pytest.raises(
         ValueError,
-        match="Cannot update artifact types when `allows_all_artifact_types` is `true`. Set it to `false` first.",
+        match="Cannot update artifact types when `allows_all_artifact_types` is `True`. Set it to `False` first.",
     ):
         registry.save()
     # Reset for valid save
@@ -251,3 +253,24 @@ def test_create_registry_invalid_visibility_input(default_organization):
             name=registry_name,
             visibility="invalid",
         )
+
+
+@patch("wandb.apis.public.registries.registry.wandb.termlog")
+def test_edit_registry_name(mock_termlog, default_organization):
+    api = Api()
+    registry_name = "test"
+    registry = api.create_registry(
+        organization=default_organization,
+        name=registry_name,
+        visibility="organization",
+    )
+
+    new_registry_name = "new-name"
+    registry.name = new_registry_name
+    assert registry._saved_name == registry_name
+    registry.save()
+    assert registry.name == new_registry_name
+    assert registry._saved_name == new_registry_name
+
+    # Assert that the rename termlog was called as we never created a new registry
+    mock_termlog.assert_not_called()

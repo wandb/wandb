@@ -70,7 +70,7 @@ def _registry_visibility_to_gql(
     except KeyError:
         raise ValueError(
             f"Invalid visibility: {visibility!r}. "
-            f"Must be one of: {', '.join(_Visibility.__members__.keys())}"
+            f"Must be one of: {', '.join(map(repr, (e.name for e in _Visibility)))}"
         )
 
 

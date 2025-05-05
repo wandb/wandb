@@ -67,6 +67,48 @@ def validate_artifact_name(name: str) -> str:
     return name
 
 
+INVALID_URL_CHARACTERS = ("/", "\\", "#", "?", "%", ":", "\r", "\n")
+
+
+def validate_project_name(name: str) -> None:
+    """Validates a project name according to W&B rules.
+
+    Args:
+        name: The project name string.
+
+    Raises:
+        ValueError: If the name is invalid (too long or contains invalid characters).
+    """
+    max_len = 128
+
+    if len(name) == 0:
+        raise ValueError("Project name cannot be empty")
+
+    registry_name = ""
+    if name.startswith(REGISTRY_PREFIX):
+        registry_name = name[len(REGISTRY_PREFIX) :]
+        if len(registry_name) == 0:
+            raise ValueError("Registry name cannot be empty")
+
+    if len(name) > max_len:
+        if registry_name:
+            raise ValueError(
+                f"Invalid registry name {registry_name!r}, must be {max_len - len(REGISTRY_PREFIX)} characters or less"
+            )
+        else:
+            raise ValueError(
+                f"Invalid project name {name!r}, must be {max_len} characters or less"
+            )
+
+    # Find the first occurrence of any invalid character
+    invalid_char = next((char for char in INVALID_URL_CHARACTERS if char in name), None)
+    if invalid_char is not None:
+        error_name = registry_name or name
+        raise ValueError(
+            f"Invalid project/registry name {error_name!r}, cannot contain character '{invalid_char}'"
+        )
+
+
 def validate_aliases(aliases: Collection[str] | str) -> list[str]:
     """Validate the artifact aliases and return them as a list.
 
