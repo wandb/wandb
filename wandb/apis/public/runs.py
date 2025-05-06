@@ -102,7 +102,7 @@ class Runs(SizedPaginator["Run"]):
         include_sweeps: bool = True,
     ):
         self.QUERY = gql(
-            """
+            f"""#graphql
             query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
                 project(name: $project, entityName: $entity) {{
                     internalId
@@ -111,7 +111,7 @@ class Runs(SizedPaginator["Run"]):
                     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
                         edges {{
                             node {{
-                                {}
+                                {"" if _server_provides_internal_id_for_project(client) else "internalId"}
                                 ...RunFragment
                             }}
                             cursor
@@ -123,11 +123,8 @@ class Runs(SizedPaginator["Run"]):
                     }}
                 }}
             }}
-            {}
-            """.format(
-                "projectId" if _server_provides_internal_id_for_project(client) else "",
-                RUN_FRAGMENT,
-            )
+            {RUN_FRAGMENT}
+            """
         )
 
         self.entity = entity
@@ -485,9 +482,10 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
-        self._project_internal_id = (
-            int(self._attrs["projectId"]) if "projectId" in self._attrs else None
-        )
+        if "projectId" in self._attrs:
+            self._project_internal_id = int(self._attrs["projectId"])
+        else:
+            self._project_internal_id = None
 
         try:
             self._attrs["summaryMetrics"] = (

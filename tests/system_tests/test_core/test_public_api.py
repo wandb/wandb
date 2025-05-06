@@ -491,8 +491,7 @@ def test_delete_files_for_multiple_runs(
     user,
     wandb_backend_spy,
 ):
-    gql = wandb_backend_spy.gql
-    body = {
+    runs_gql_body = {
         "data": {
             "project": {
                 "runCount": 2,
@@ -521,38 +520,38 @@ def test_delete_files_for_multiple_runs(
             },
         },
     }
+    runs_files_gql_body = {
+        "data": {
+            "project": {
+                "run": {
+                    "files": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "RmlsZToxODMw",
+                                    "name": "test.txt",
+                                    "state": "finished",
+                                    "user": {
+                                        "name": "test",
+                                        "username": "test",
+                                    },
+                                }
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+    }
+    gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="Runs"),
-        gql.once(content=body),
+        gql.once(content=runs_gql_body),
     )
 
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="RunFiles"),
-        gql.Constant(
-            content={
-                "data": {
-                    "project": {
-                        "run": {
-                            "files": {
-                                "edges": [
-                                    {
-                                        "node": {
-                                            "id": "RmlsZToxODMw",
-                                            "name": "test.txt",
-                                            "state": "finished",
-                                            "user": {
-                                                "name": "test",
-                                                "username": "test",
-                                            },
-                                        }
-                                    },
-                                ],
-                            },
-                        },
-                    },
-                }
-            }
-        ),
+        gql.Constant(content=runs_files_gql_body),
     )
     delete_spy = gql.Constant(content={"data": {"deleteFiles": {"success": True}}})
     wandb_backend_spy.stub_gql(
@@ -565,21 +564,16 @@ def test_delete_files_for_multiple_runs(
         file = run.files()[0]
         file.delete()
 
+        expected_variables = {
+            "files": [file.id],
+        }
         # For system tests on newer server version, the projectId is provided
         if file._server_accepts_project_id_for_delete_file():
             assert "projectId" in delete_spy.requests[0].variables
             assert "projectId" in delete_spy.requests[0].query
-            assert delete_spy.requests[0].variables == {
-                "files": [file.id],
-                "projectId": runs[0]._project_internal_id,
-            }
-        # For some older server versions, the projectId is not provided
-        else:
-            assert "projectId" not in delete_spy.requests[0].variables
-            assert "projectId" not in delete_spy.requests[0].query
-            assert delete_spy.requests[0].variables == {
-                "files": [file.id],
-            }
+            expected_variables["projectId"] = runs[0]._project_internal_id
+
+        assert delete_spy.requests[0].variables == expected_variables
 
 
 def test_delete_file(
