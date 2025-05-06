@@ -387,7 +387,7 @@ class WandbStoragePolicy(StoragePolicy):
                 api.settings("base_url"), entity_name, md5_hex
             )
         elif storage_layout == StorageLayout.V2:
-            if api._check_server_feature_with_fallback(
+            if api._server_features().get(
                 ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER  # type: ignore
             ):
                 return "{}/artifactsV2/{}/{}/{}/{}/{}/{}/{}".format(

@@ -364,7 +364,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
-        self._server_features_cache: Optional[dict[str, bool]] = None
+        self._server_feature_cache: Optional[Dict[Union[str, int], bool]] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -869,45 +869,40 @@ class Api:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
 
-    def _server_features(self) -> Mapping[str, bool]:
-        """Returns a cached, read-only lookup of current server feature flags."""
-        if self._server_features_cache is None:
-            query = gql(SERVER_FEATURES_QUERY_GQL)
+    def _server_features(self) -> Mapping[Union[str, int], bool]:
+        """A cached, read-only lookup of current server feature flags.
 
-            try:
-                response = self.gql(query)
-            except Exception as e:
-                # Unfortunately we currently have to match on the text of the error message
-                if 'Cannot query field "features" on type "ServerInfo".' in str(e):
-                    self._server_features_cache = {}
-                else:
-                    raise
-            else:
-                info = ServerFeaturesQuery.model_validate(response).server_info
-                if info and (feats := info.features):
-                    self._server_features_cache = {
-                        f.name: f.is_enabled for f in feats if f
-                    }
-                else:
-                    self._server_features_cache = {}
-
-        return MappingProxyType(self._server_features_cache)
-
-    def _check_server_feature_with_fallback(self, feature_value: ServerFeature) -> bool:
-        """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
+        The lookup maps server features (either name or enum value) to boolean flags.
+        The flag values are `True` if the feature is enabled on the current server,
+        `False` otherwise.
 
         Good to use for features that have a fallback mechanism for older servers.
-
-        Args:
-            feature_value (ServerFeature): The enum value of the feature to check.
-
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
-
-        Exceptions:
-            Exception: If an error other than the server not supporting feature queries occurs.
         """
-        return self._server_features().get(ServerFeature.Name(feature_value), False)
+        # NOTE: Avoid `@cached_property` here, due to undocumented locking behavior before Python 3.12.
+        # See: https://github.com/python/cpython/issues/87634
+
+        if self._server_feature_cache is not None:
+            return MappingProxyType(self._server_feature_cache)
+
+        query = gql(SERVER_FEATURES_QUERY_GQL)
+        try:
+            response = self.gql(query)
+        except Exception as e:
+            # Unfortunately we currently have to match on the text of the error message
+            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
+                self._server_feature_cache = {}
+            else:
+                raise
+
+        info = ServerFeaturesQuery.model_validate(response).server_info
+        if info and (feats := info.features):
+            by_name = {f.name: f.is_enabled for f in feats if f}
+            by_value = {v: by_name.get(k, False) for k, v in ServerFeature.items()}
+            self._server_feature_cache = {**by_value, **by_name}  # type: ignore[dict-item]
+        else:
+            self._server_feature_cache = {}
+
+        return MappingProxyType(self._server_feature_cache)
 
     @normalize_exceptions
     def update_run_queue_item_warning(
@@ -3783,10 +3778,8 @@ class Api:
             "usedAs": use_as,
         }
 
-        server_allows_entity_project_information = (
-            self._check_server_feature_with_fallback(
-                ServerFeature.USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION  # type: ignore
-            )
+        server_allows_entity_project_information = self._server_features().get(
+            ServerFeature.USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION
         )
         if server_allows_entity_project_information:
             query_vars.extend(

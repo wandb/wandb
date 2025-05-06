@@ -318,7 +318,6 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
-        self._server_features_cache: Optional[dict[str, bool]] = None
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -1539,8 +1538,10 @@ class Api:
         Returns:
             A registry iterator.
         """
-        if not InternalApi()._check_server_feature_with_fallback(
-            ServerFeature.ARTIFACT_REGISTRY_SEARCH
+        if (
+            not InternalApi()
+            ._server_features()
+            .get(ServerFeature.ARTIFACT_REGISTRY_SEARCH)
         ):
             raise RuntimeError(
                 "Registry search API is not enabled on this wandb server version. "
@@ -1577,8 +1578,10 @@ class Api:
             registry.save()
             ```
         """
-        if not InternalApi()._check_server_feature_with_fallback(
-            ServerFeature.ARTIFACT_REGISTRY_SEARCH
+        if (
+            not InternalApi()
+            ._server_features()
+            .get(ServerFeature.ARTIFACT_REGISTRY_SEARCH)
         ):
             raise RuntimeError(
                 "api.registry() is not enabled on this wandb server version. "
@@ -1635,8 +1638,10 @@ class Api:
             )
             ```
         """
-        if not InternalApi()._check_server_feature_with_fallback(
-            ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
+        if (
+            not InternalApi()
+            ._server_features()
+            .get(ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION)
         ):
             raise RuntimeError(
                 "create_registry api is not enabled on this wandb server version. "

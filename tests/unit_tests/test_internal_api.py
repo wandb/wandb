@@ -2,6 +2,7 @@ import base64
 import hashlib
 import os
 import tempfile
+from collections import defaultdict
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
 from unittest.mock import Mock, call, patch
@@ -21,7 +22,7 @@ from wandb.sdk.internal.internal_api import (
 )
 from wandb.sdk.lib import retry
 
-from .test_retry import MockTime, mock_time  # noqa: F401
+from .test_retry import MockTime, mock_time  # noqa: F401  # type: ignore
 
 _T = TypeVar("_T")
 
@@ -822,7 +823,7 @@ def mock_client_with_random_error(mock_client):
 def test_server_feature_checks(
     request,
     fixture_name,
-    feature,
+    feature: ServerFeature,
     expected_result,
     expected_error,
 ):
@@ -832,9 +833,9 @@ def test_server_feature_checks(
 
     if expected_error:
         with pytest.raises(Exception, match="Some random error"):
-            api._check_server_feature_with_fallback(feature)
+            api._server_features().get(feature)
     else:
-        result = api._check_server_feature_with_fallback(feature)
+        result = api._server_features().get(feature)
         assert result == expected_result
 
 
@@ -847,7 +848,7 @@ def test_construct_use_artifact_query_with_every_field():
     api.server_use_artifact_input_introspection = Mock(
         return_value={"usedAs": "String"}
     )
-    api._check_server_feature_with_fallback = Mock(return_value=True)
+    api._server_features = Mock(return_value=defaultdict(lambda: True))
 
     test_cases = [
         {
@@ -911,7 +912,7 @@ def test_construct_use_artifact_query_without_entity_project():
     api.server_use_artifact_input_introspection = Mock(
         return_value={"usedAs": "String"}
     )
-    api._check_server_feature_with_fallback = Mock(return_value=False)
+    api._server_features = Mock(return_value=defaultdict(lambda: False))
 
     query, variables = api._construct_use_artifact_query(
         entity_name="test-entity",
@@ -938,7 +939,7 @@ def test_construct_use_artifact_query_without_used_as():
 
     # Mock methods to return empty dict for introspection
     api.server_use_artifact_input_introspection = Mock(return_value={})
-    api._check_server_feature_with_fallback = Mock(return_value=True)
+    api._server_features = Mock(return_value=defaultdict(lambda: True))
 
     query, variables = api._construct_use_artifact_query(
         entity_name="test-entity",
