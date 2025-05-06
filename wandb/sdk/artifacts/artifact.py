@@ -1965,20 +1965,76 @@ class Artifact:
         self._add_download_root(root)
 
         # TODO: download artifacts using core when implemented
-        # if is_require_core():
-        #     return self._download_using_core(
-        #         root=root,
-        #         allow_missing_references=allow_missing_references,
-        #         skip_cache=bool(skip_cache),
-        #         path_prefix=path_prefix,
-        #     )
-        return self._download(
+        return self._download_using_core_without_run(
             root=root,
             allow_missing_references=allow_missing_references,
-            skip_cache=skip_cache,
+            skip_cache=bool(skip_cache),
             path_prefix=path_prefix,
-            multipart=multipart,
         )
+        # return self._download(
+        #     root=root,
+        #     allow_missing_references=allow_missing_references,
+        #     skip_cache=skip_cache,
+        #     path_prefix=path_prefix,
+        #     multipart=multipart,
+        # )
+
+    def _download_using_core_without_run(
+        self,
+        root: str,
+        allow_missing_references: bool = False,
+        skip_cache: bool = False,
+        path_prefix: StrPath | None = None,
+    ) -> FilePathStr:
+        print("Downloading using core without run")
+        # Dynamic import to avoid circular import
+        from wandb.sdk.backend.backend import Backend
+
+        # Download using core without creating a run, let's see how it goes
+        # What the existing code is doing is:
+        # - Create the setting, which includes a run id which is also a stream id
+        # - Make sure go core is started
+        # - Inform init requires a run id
+        # - Send the proto, the implementation is in interface_shared.py
+        if wandb.run is not None:
+            raise ValueError("This should not happen, run should be None")
+        stream_id = generate_id()
+        # TODO: Why download_using_core does not set the id here?
+        settings = wandb.Settings(run_id=stream_id)
+        wl = wandb.setup(settings=settings)
+        settings = wl.settings.to_proto()
+
+        settings.run_id.value = stream_id
+
+        # print("settings", settings)
+
+        print("Ensuring service with stream id", stream_id)
+        service = wl.ensure_service()
+        # this requires proto settings
+        service.inform_init(settings=settings, run_id=settings.run_id.value)
+
+        # NOTE: cannot use proto settings here
+        # backend = Backend(settings=settings, service=service)
+        backend = Backend(settings=wl.settings, service=service)
+        backend.ensure_launched()
+
+        backend.interface._stream_id = stream_id
+
+        # enter c to continue execution in terminal
+        # breakpoint()
+        handle = backend.interface.deliver_download_artifact(
+            self.id,  # type: ignore
+            root,
+            allow_missing_references,
+            skip_cache,
+            path_prefix,  # type: ignore
+        )
+        result = handle.wait_or(timeout=None)
+        response = result.response.download_artifact_response
+        if response.error_message:
+            raise ValueError(f"Error downloading artifact: {response.error_message}")
+
+        return FilePathStr(root)
 
     def _download_using_core(
         self,
