@@ -893,14 +893,14 @@ class Api:
                 self._server_feature_cache = {}
             else:
                 raise
-
-        info = ServerFeaturesQuery.model_validate(response).server_info
-        if info and (feats := info.features):
-            by_name = {f.name: f.is_enabled for f in feats if f}
-            by_value = {v: by_name.get(k, False) for k, v in ServerFeature.items()}
-            self._server_feature_cache = {**by_value, **by_name}  # type: ignore[dict-item]
         else:
-            self._server_feature_cache = {}
+            info = ServerFeaturesQuery.model_validate(response).server_info
+            if info and (feats := info.features):
+                by_name = {f.name: f.is_enabled for f in feats if f}
+                by_value = {v: by_name.get(k, False) for k, v in ServerFeature.items()}
+                self._server_feature_cache = {**by_value, **by_name}  # type: ignore[dict-item]
+            else:
+                self._server_feature_cache = {}
 
         return MappingProxyType(self._server_feature_cache)
 

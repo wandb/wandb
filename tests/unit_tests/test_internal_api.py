@@ -3,6 +3,7 @@ import hashlib
 import os
 import tempfile
 from collections import defaultdict
+from itertools import chain
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
 from unittest.mock import Mock, call, patch
@@ -13,6 +14,7 @@ import responses
 import wandb.errors
 import wandb.sdk.internal.internal_api
 import wandb.sdk.internal.progress
+from pytest_mock import MockerFixture
 from wandb.apis import internal
 from wandb.errors import CommError
 from wandb.proto.wandb_internal_pb2 import ServerFeature
@@ -22,7 +24,7 @@ from wandb.sdk.internal.internal_api import (
 )
 from wandb.sdk.lib import retry
 
-from .test_retry import MockTime, mock_time  # noqa: F401  # type: ignore
+from .test_retry import MockTime, mock_time  # noqa: F401
 
 _T = TypeVar("_T")
 
@@ -747,7 +749,7 @@ ENABLED_FEATURE_RESPONSE = {
 
 
 @pytest.fixture
-def mock_client(mocker):
+def mock_client(mocker: MockerFixture):
     mock = mocker.patch("wandb.sdk.internal.internal_api.Client")
     mock.return_value = mocker.Mock()
     yield mock.return_value
@@ -785,38 +787,48 @@ def mock_client_with_random_error(mock_client):
 @pytest.mark.parametrize(
     "fixture_name, feature, expected_result, expected_error",
     [
-        # Test enabled features
         (
-            "mock_client_with_enabled_features",
+            # Test enabled features
+            mock_client_with_enabled_features.__name__,
             ServerFeature.LARGE_FILENAMES,
             True,
             False,
         ),
-        # Test disabled features
         (
-            "mock_client_with_enabled_features",
+            # Test disabled features
+            mock_client_with_enabled_features.__name__,
             ServerFeature.ARTIFACT_TAGS,
             False,
             False,
         ),
-        # Test features not in response
         (
-            "mock_client_with_enabled_features",
+            # Test features not in response
+            mock_client_with_enabled_features.__name__,
             ServerFeature.ARTIFACT_REGISTRY_SEARCH,
             False,
             False,
         ),
-        # Test empty features list
-        ("mock_client_with_no_features", ServerFeature.LARGE_FILENAMES, False, False),
-        # Test server not supporting features
         (
-            "mock_client_with_error_no_field",
+            # Test empty features list
+            mock_client_with_no_features.__name__,
             ServerFeature.LARGE_FILENAMES,
             False,
             False,
         ),
-        # Test other server errors
-        ("mock_client_with_random_error", ServerFeature.LARGE_FILENAMES, False, True),
+        (
+            # Test server not supporting features
+            mock_client_with_error_no_field.__name__,
+            ServerFeature.LARGE_FILENAMES,
+            False,
+            False,
+        ),
+        (
+            # Test other server errors
+            mock_client_with_random_error.__name__,
+            ServerFeature.LARGE_FILENAMES,
+            False,
+            True,
+        ),
     ],
 )
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
@@ -833,22 +845,31 @@ def test_server_feature_checks(
 
     if expected_error:
         with pytest.raises(Exception, match="Some random error"):
-            api._server_features().get(feature)
+            api._server_features().get(feature, False)
     else:
-        result = api._server_features().get(feature)
+        result = api._server_features().get(feature, False)
         assert result == expected_result
 
 
-def test_construct_use_artifact_query_with_every_field():
+def test_construct_use_artifact_query_with_every_field(mocker: MockerFixture):
     # Create mock internal API instance
     api = internal.InternalApi()
-    api.settings = Mock(side_effect=lambda x: "default-" + x)
+
+    mocker.patch.object(api, "settings", side_effect=lambda x: "default-" + x)
 
     # Mock the server introspection methods
-    api.server_use_artifact_input_introspection = Mock(
-        return_value={"usedAs": "String"}
+    mocker.patch.object(
+        api,
+        "server_use_artifact_input_introspection",
+        return_value={"usedAs": "String"},
     )
-    api._server_features = Mock(return_value=defaultdict(lambda: True))
+
+    # Simulate server support for ALL known features
+    mock_server_features = dict.fromkeys(
+        chain(ServerFeature.keys(), ServerFeature.values()),
+        True,
+    )
+    mocker.patch.object(api, "_server_features", return_value=mock_server_features)
 
     test_cases = [
         {
