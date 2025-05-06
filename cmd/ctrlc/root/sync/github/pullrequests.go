@@ -542,6 +542,8 @@ func initPullRequestMetadata(pr *github.PullRequest, owner, repo string) map[str
 		"git/state":       pr.GetState(),
 		"git/status":      normalizedStatus,
 		"git/author":      pr.GetUser().GetLogin(),
+		"git/branch":      pr.GetHead().GetRef(),
+
 		"git/source-branch": pr.GetHead().GetRef(),
 		"git/target-branch": pr.GetBase().GetRef(),
 	}
@@ -549,7 +551,6 @@ func initPullRequestMetadata(pr *github.PullRequest, owner, repo string) map[str
 	// Add draft status
 	if pr.GetDraft() {
 		metadata["git/draft"] = "true"
-		log.Debug("PR is draft", "number", prNumber)
 	} else {
 		metadata["git/draft"] = "false"
 	}

@@ -164,7 +164,7 @@ func processInstances(ctx context.Context, rdsClient *rds.Client, region string)
 		}
 
 		for _, instance := range resp.DBInstances {
-			resource, err := processInstance(ctx, &instance, region)
+			resource, err := processInstance(ctx, &instance, region, rdsClient)
 			if err != nil {
 				log.Error("Failed to process RDS instance", "identifier", *instance.DBInstanceIdentifier, "error", err)
 				continue
@@ -182,7 +182,7 @@ func processInstances(ctx context.Context, rdsClient *rds.Client, region string)
 	return resources, nil
 }
 
-func processInstance(_ context.Context, instance *types.DBInstance, region string) (api.AgentResource, error) {
+func processInstance(ctx context.Context, instance *types.DBInstance, region string, rdsClient *rds.Client) (api.AgentResource, error) {
 	// Get default port based on engine
 	port := int32(5432) // Default to PostgreSQL port
 	if instance.Endpoint != nil && instance.Endpoint.Port != nil && *instance.Endpoint.Port != 0 {
@@ -208,6 +208,15 @@ func processInstance(_ context.Context, instance *types.DBInstance, region strin
 		region, region, *instance.DBInstanceIdentifier)
 
 	metadata := buildInstanceMetadata(instance, region, host, int(port), consoleUrl)
+
+	// Add parameter group details if available
+	if len(instance.DBParameterGroups) > 0 {
+		for _, pg := range instance.DBParameterGroups {
+			if pg.DBParameterGroupName != nil {
+				fetchParameterGroupDetails(ctx, rdsClient, *pg.DBParameterGroupName, metadata)
+			}
+		}
+	}
 
 	return api.AgentResource{
 		Version:    "ctrlplane.dev/database/v1",
@@ -460,6 +469,44 @@ var relationshipRules = []api.CreateResourceRelationshipRule{
 
 		MetadataKeysMatch: []string{"aws/region", "network/name"},
 	},
+}
+
+// fetchParameterGroupDetails retrieves parameters from a parameter group and adds them to metadata
+func fetchParameterGroupDetails(ctx context.Context, rdsClient *rds.Client, parameterGroupName string, metadata map[string]string) {
+	metadata["database/parameter-group"] = parameterGroupName
+
+	// Get the parameters for this parameter group
+	var marker *string
+	paramCount := 0
+
+	for {
+		resp, err := rdsClient.DescribeDBParameters(ctx, &rds.DescribeDBParametersInput{
+			DBParameterGroupName: &parameterGroupName,
+			Marker:               marker,
+		})
+		if err != nil {
+			log.Error("Failed to get parameter group details", "parameter_group", parameterGroupName, "error", err)
+			return
+		}
+
+		for _, param := range resp.Parameters {
+			if param.ParameterName != nil && param.ParameterValue != nil {
+				paramKey := fmt.Sprintf("database/parameter/%s", *param.ParameterName)
+				metadata[paramKey] = *param.ParameterValue
+				paramCount++
+			}
+		}
+
+		if resp.Marker == nil {
+			break
+		}
+		marker = resp.Marker
+	}
+
+	// Add a count of how many parameters were added
+	if paramCount > 0 {
+		metadata["database/parameter-count"] = strconv.Itoa(paramCount)
+	}
 }
 
 // upsertToCtrlplane handles upserting resources to Ctrlplane
