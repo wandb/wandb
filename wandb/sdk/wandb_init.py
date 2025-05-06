@@ -1283,20 +1283,26 @@ def try_create_root_dir(settings: Settings) -> None:
             This function may update the root_dir to a temporary directory
             if the parent directory is not writable.
     """
-    try:
-        if os.path.exists(settings.root_dir) and not os.access(
-            settings.root_dir, os.W_OK | os.R_OK
-        ):
-            raise RuntimeError(f"Path {settings.root_dir} is not writable/readable")
+    fallback_to_temp_dir = False
 
+    try:
         os.makedirs(settings.root_dir, exist_ok=True)
-    except (OSError, RuntimeError):
-        tmp_dir = tempfile.gettempdir()
+    except OSError:
         wandb.termwarn(
-            f"Unable to create root directory {settings.root_dir}, "
-            f"using system temp directory {tmp_dir}.",
+            f"Unable to create root directory {settings.root_dir}",
             repeat=False,
         )
+        fallback_to_temp_dir = True
+    else:
+        if not os.access(settings.root_dir, os.W_OK | os.R_OK):
+            wandb.termwarn(
+                f"Path {settings.root_dir} wasn't read/writable",
+                repeat=False,
+            )
+            fallback_to_temp_dir = True
+
+    if fallback_to_temp_dir:
+        tmp_dir = tempfile.gettempdir()
 
         if not os.access(tmp_dir, os.W_OK | os.R_OK):
             raise ValueError(
@@ -1305,6 +1311,10 @@ def try_create_root_dir(settings: Settings) -> None:
             )
 
         settings.root_dir = tmp_dir
+        wandb.termwarn(
+            f"Falling back to temporary directory {tmp_dir}.",
+            repeat=False,
+        )
         os.makedirs(settings.root_dir, exist_ok=True)
 
 
