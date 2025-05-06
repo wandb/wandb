@@ -163,19 +163,19 @@ def test_table_incremental_logging(user, test_settings, wandb_backend_spy):
 
 
 def test_using_incrementally_logged_table(user, test_settings, wandb_backend_spy):
-    TABLE_KEY = "test"
+    table_key = "test"
     run = wandb.init(settings=test_settings())
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
     t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
-    run.log({TABLE_KEY: t})
+    run.log({table_key: t})
     t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
     t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
-    run.log({TABLE_KEY: t})
+    run.log({table_key: t})
     run.finish()
 
     run2 = wandb.init(settings=test_settings())
-    art = run2.use_artifact(f"run-{run.id}-incr-{TABLE_KEY}:latest")
-    incremental_table = art.get(f"1.{TABLE_KEY}.table.json")
+    art = run2.use_artifact(f"run-{run.id}-incr-{table_key}:latest")
+    incremental_table = art.get(f"1.{table_key}.table.json")
     assert len(incremental_table.data) == 3
     assert incremental_table.log_mode == "INCREMENTAL"
     assert incremental_table.columns == ["expected", "actual", "img"]
