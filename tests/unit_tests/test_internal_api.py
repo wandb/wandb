@@ -10,11 +10,11 @@ from unittest.mock import Mock, call, patch
 
 import pytest
 import requests
-import responses
 import wandb.errors
 import wandb.sdk.internal.internal_api
 import wandb.sdk.internal.progress
 from pytest_mock import MockerFixture
+from responses import RequestsMock
 from wandb.apis import internal
 from wandb.errors import CommError
 from wandb.proto.wandb_internal_pb2 import ServerFeature
@@ -27,12 +27,6 @@ from wandb.sdk.lib import retry
 from .test_retry import MockTime, mock_time  # noqa: F401
 
 _T = TypeVar("_T")
-
-
-@pytest.fixture
-def mock_responses():
-    with responses.RequestsMock() as rsps:
-        yield rsps
 
 
 def test_agent_heartbeat_with_no_agent_id_fails():
@@ -63,20 +57,17 @@ def test_get_run_state_invalid_kwargs():
     ],
 )
 def test_download_write_file_fetches_iff_file_checksum_mismatched(
+    responses: RequestsMock,
     existing_contents: Optional[str],
     expect_download: bool,
 ):
     url = "https://example.com/path/to/file.txt"
     current_contents = "current contents"
-    with responses.RequestsMock() as rsps, tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "file.txt")
 
         if expect_download:
-            rsps.add(
-                responses.GET,
-                url,
-                body=current_contents,
-            )
+            responses.get(url, body=current_contents)
 
         if existing_contents is not None:
             with open(filepath, "w") as f:
@@ -396,10 +387,10 @@ class TestUploadFile:
 
     class TestSimple:
         def test_adds_headers_to_request(
-            self, mock_responses: responses.RequestsMock, example_file: Path
+            self, responses: RequestsMock, example_file: Path
         ):
             response_callback = Mock(return_value=(200, {}, "success!"))
-            mock_responses.add_callback(
+            responses.add_callback(
                 "PUT", "http://example.com/upload-dst", response_callback
             )
             internal.InternalApi().upload_file(
@@ -410,11 +401,9 @@ class TestUploadFile:
             assert response_callback.call_args[0][0].headers["X-Test"] == "test"
 
         def test_returns_response_on_success(
-            self, mock_responses: responses.RequestsMock, example_file: Path
+            self, responses: RequestsMock, example_file: Path
         ):
-            mock_responses.add(
-                "PUT", "http://example.com/upload-dst", status=200, body="success!"
-            )
+            responses.put("http://example.com/upload-dst", status=200, body="success!")
             resp = internal.InternalApi().upload_file(
                 "http://example.com/upload-dst", example_file.open("rb")
             )
@@ -436,12 +425,12 @@ class TestUploadFile:
         )
         def test_returns_transienterror_on_transient_issues(
             self,
-            mock_responses: responses.RequestsMock,
+            responses: RequestsMock,
             example_file: Path,
             response: MockResponseOrException,
             expected_errtype: Type[Exception],
         ):
-            mock_responses.add_callback(
+            responses.add_callback(
                 "PUT",
                 "http://example.com/upload-dst",
                 Mock(return_value=response),
@@ -452,9 +441,7 @@ class TestUploadFile:
                 )
 
     class TestProgressCallback:
-        def test_smoke(
-            self, mock_responses: responses.RequestsMock, example_file: Path
-        ):
+        def test_smoke(self, responses: RequestsMock, example_file: Path):
             file_contents = "some text"
             example_file.write_text(file_contents)
 
@@ -462,7 +449,7 @@ class TestUploadFile:
                 assert request.body.read() == file_contents.encode()
                 return (200, {}, "success!")
 
-            mock_responses.add_callback(
+            responses.add_callback(
                 "PUT", "http://example.com/upload-dst", response_callback
             )
 
@@ -478,7 +465,7 @@ class TestUploadFile:
             ]
 
         def test_handles_multiple_calls(
-            self, mock_responses: responses.RequestsMock, example_file: Path
+            self, responses: RequestsMock, example_file: Path
         ):
             example_file.write_text("12345")
 
@@ -489,7 +476,7 @@ class TestUploadFile:
                 assert request.body.read() == b""
                 return (200, {}, "success!")
 
-            mock_responses.add_callback(
+            responses.add_callback(
                 "PUT", "http://example.com/upload-dst", response_callback
             )
 
@@ -518,7 +505,7 @@ class TestUploadFile:
         )
         def test_rewinds_on_failure(
             self,
-            mock_responses: responses.RequestsMock,
+            responses: RequestsMock,
             example_file: Path,
             failure: MockResponseOrException,
         ):
@@ -529,7 +516,7 @@ class TestUploadFile:
                 assert request.body.read(2) == b"34"
                 return failure
 
-            mock_responses.add_callback(
+            responses.add_callback(
                 "PUT", "http://example.com/upload-dst", response_callback
             )
 
@@ -574,13 +561,13 @@ class TestUploadFile:
     )
     def test_transient_failure_on_special_aws_request_timeout(
         self,
-        mock_responses: responses.RequestsMock,
+        responses: RequestsMock,
         example_file: Path,
         request_headers: Mapping[str, str],
         response,
         expected_errtype: Type[Exception],
     ):
-        mock_responses.add_callback(
+        responses.add_callback(
             "PUT", "http://example.com/upload-dst", Mock(return_value=response)
         )
         with pytest.raises(expected_errtype):
@@ -605,7 +592,7 @@ class TestUploadFile:
         )
         def test_uses_azure_lib_if_available(
             self,
-            mock_responses: responses.RequestsMock,
+            responses: RequestsMock,
             example_file: Path,
             request_headers: Mapping[str, str],
             uses_azure_lib: bool,
@@ -615,7 +602,7 @@ class TestUploadFile:
             if uses_azure_lib:
                 api._azure_blob_module = Mock()
             else:
-                mock_responses.add("PUT", "http://example.com/upload-dst")
+                responses.put("http://example.com/upload-dst")
 
             api.upload_file(
                 "http://example.com/upload-dst",
@@ -626,7 +613,7 @@ class TestUploadFile:
             if uses_azure_lib:
                 api._azure_blob_module.BlobClient.from_blob_url().upload_blob.assert_called_once()
             else:
-                assert len(mock_responses.calls) == 1
+                assert len(responses.calls) == 1
 
         @pytest.mark.parametrize(
             "response,expected_errtype,check_err",
@@ -653,13 +640,13 @@ class TestUploadFile:
         )
         def test_translates_azure_err_to_normal_err(
             self,
-            mock_responses: responses.RequestsMock,
+            responses: RequestsMock,
             example_file: Path,
             response: MockResponseOrException,
             expected_errtype: Type[Exception],
             check_err: Callable[[Exception], bool],
         ):
-            mock_responses.add_callback(
+            responses.add_callback(
                 "PUT", "https://example.com/foo/bar/baz", Mock(return_value=response)
             )
             with pytest.raises(expected_errtype) as e:
@@ -690,12 +677,12 @@ class TestUploadFileRetry:
     def test_stops_after_success(
         self,
         example_file: Path,
-        mock_responses: responses.RequestsMock,
+        responses: RequestsMock,
         schedule: Sequence[int],
         num_requests: int,
     ):
         handler = Mock(side_effect=[(status, {}, "") for status in schedule])
-        mock_responses.add_callback("PUT", "http://example.com/upload-dst", handler)
+        responses.add_callback("PUT", "http://example.com/upload-dst", handler)
 
         internal.InternalApi().upload_file_retry(
             "http://example.com/upload-dst",
@@ -707,10 +694,10 @@ class TestUploadFileRetry:
     def test_stops_after_bad_status(
         self,
         example_file: Path,
-        mock_responses: responses.RequestsMock,
+        responses: RequestsMock,
     ):
         handler = Mock(side_effect=[(400, {}, "")])
-        mock_responses.add_callback("PUT", "http://example.com/upload-dst", handler)
+        responses.add_callback("PUT", "http://example.com/upload-dst", handler)
 
         with pytest.raises(wandb.errors.CommError):
             internal.InternalApi().upload_file_retry(
@@ -722,11 +709,11 @@ class TestUploadFileRetry:
     def test_stops_after_retry_limit_exceeded(
         self,
         example_file: Path,
-        mock_responses: responses.RequestsMock,
+        responses: RequestsMock,
     ):
         num_retries = 8
         handler = Mock(return_value=(500, {}, ""))
-        mock_responses.add_callback("PUT", "http://example.com/upload-dst", handler)
+        responses.add_callback("PUT", "http://example.com/upload-dst", handler)
 
         with pytest.raises(wandb.errors.CommError):
             internal.InternalApi().upload_file_retry(
