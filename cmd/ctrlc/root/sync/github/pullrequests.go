@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -128,7 +129,7 @@ func runSync(repoPath, token, name *string, states *[]string) func(cmd *cobra.Co
 		githubToken := *token
 		if githubToken == "" {
 			log.Debug("Token not provided via flag, checking environment")
-			githubToken = viper.GetString("GITHUB_TOKEN")
+			githubToken = os.Getenv("GITHUB_TOKEN")
 			if githubToken == "" {
 				log.Debug("GitHub token not found in environment")
 				return fmt.Errorf("GitHub token is required (use --token flag or set GITHUB_TOKEN env var)")
