@@ -594,12 +594,11 @@ func initPullRequestMetadata(pr *github.PullRequest, owner, repo string) map[str
 	metadata["git/changed-files"] = strconv.Itoa(pr.GetChangedFiles())
 	log.Debug("PR change stats", "number", prNumber, "additions", pr.GetAdditions(), "deletions", pr.GetDeletions(), "files", pr.GetChangedFiles())
 
-	// Add labels
+	labels := make([]string, len(pr.Labels))
 	for i, label := range pr.Labels {
-		labelName := label.GetName()
-		metadata[fmt.Sprintf("git/label/%d", i)] = labelName
-		log.Debug("Added PR label", "number", prNumber, "index", i, "label", labelName)
+		labels[i] = label.GetName()
 	}
+	metadata["git/labels"] = strings.Join(labels, ",")
 
 	log.Debug("Completed PR metadata initialization", "number", prNumber, "metadata_count", len(metadata))
 	return metadata
