@@ -237,7 +237,7 @@ class Table(Media):
                 applies to all columns. A list of bool values applies to each respective column.
             allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
                 (disables type validation). Defaults to False
-            log_mode: (Optional[Literal["IMMUTABLE", "MUTABLE"]]) Controls how the Table is logged when mutations occur.
+            log_mode: (Optional[Literal["IMMUTABLE", "MUTABLE", "INCREMENTAL"]]) Controls how the Table is logged when mutations occur.
                 Options:
                 - "IMMUTABLE" (default): Table can only be logged once; subsequent
                 logging attempts after the table has been mutated will be no-ops.
