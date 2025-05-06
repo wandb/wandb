@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -17,10 +18,14 @@ import (
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runbranch"
+	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/proto"
 )
 
 // RunMetadata manages and syncs info about a run that's usually set on init and
@@ -43,7 +48,10 @@ type RunMetadata struct {
 	// done is closed when Finish is called.
 	done chan struct{}
 
-	params *runbranch.RunParams
+	params    *runbranch.RunParams
+	config    *runconfig.RunConfig
+	telemetry *spb.TelemetryRecord
+	metrics   *runmetric.RunConfigMetrics
 }
 
 type RunMetadataParams struct {
@@ -88,6 +96,37 @@ func InitRun(
 		panic("runmetadata: RunRecord is nil")
 	}
 
+	// Initialize the run config.
+	config := runconfig.New()
+	config.ApplyChangeRecord(runRecord.Config,
+		func(err error) {
+			params.Logger.Error(
+				"runmetadata: error updating config",
+				"error", err,
+			)
+		})
+	telemetry := &spb.TelemetryRecord{}
+	proto.Merge(telemetry, runRecord.Telemetry)
+	telemetry.CoreVersion = version.Version
+	config.AddTelemetryAndMetrics(
+		telemetry,
+		make([]map[string]any, 0),
+	)
+
+	// Initialize the run metrics.
+	enableServerExpandedMetrics := params.Settings.IsEnableServerSideExpandGlobMetrics()
+	if enableServerExpandedMetrics && !params.FeatureProvider.GetFeature(
+		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
+	).Enabled {
+		params.Logger.Warn(
+			"runmetadata: server does not expand metric globs" +
+				" but the x_server_side_expand_glob_metrics setting is set;" +
+				" ignoring")
+		enableServerExpandedMetrics = false
+	}
+	metrics := runmetric.NewRunConfigMetrics(enableServerExpandedMetrics)
+
+	// Initialize other run metadata.
 	runParams := runbranch.NewRunParams(runRecord, params.Settings)
 
 	metadata := &RunMetadata{
@@ -101,7 +140,10 @@ func InitRun(
 
 		done: make(chan struct{}),
 
-		params: runParams,
+		params:    runParams,
+		config:    config,
+		telemetry: telemetry,
+		metrics:   metrics,
 	}
 
 	operation := metadata.operations.New("creating run")
@@ -180,46 +222,61 @@ func (metadata *RunMetadata) FillRunRecord(record *spb.RunRecord) {
 	defer metadata.mu.Unlock()
 	metadata.params.SetOnProto(record)
 
-	// TODO: Set the config as well.
+	record.Config = &spb.ConfigRecord{}
+	for key, value := range metadata.config.CloneTree() {
+		valueJSON, _ := simplejsonext.MarshalToString(map[string]any{
+			"value": value,
+		})
+
+		record.Config.Update = append(record.Config.Update,
+			&spb.ConfigItem{
+				Key:       key,
+				ValueJson: valueJSON,
+			})
+	}
 }
 
 // RunPath returns the run's entity, project and run ID.
 func (metadata *RunMetadata) RunPath() runbranch.RunPath {
 	metadata.mu.Lock()
 	defer metadata.mu.Unlock()
-	panic("TODO: Unimplemented.")
+	return runbranch.RunPath{
+		Entity:  metadata.params.Entity,
+		Project: metadata.params.Project,
+		RunID:   metadata.params.RunID,
+	}
 }
 
 // ConfigYAML returns the run's config as a YAML string.
 func (metadata *RunMetadata) ConfigYAML() ([]byte, error) {
 	metadata.mu.Lock()
 	defer metadata.mu.Unlock()
-	panic("TODO: Unimplemented.")
+	return metadata.config.Serialize(runconfig.FormatYaml)
 }
 
 // ConfigMap returns a copy of the run's config as nested maps.
 func (metadata *RunMetadata) ConfigMap() map[string]any {
 	metadata.mu.Lock()
 	defer metadata.mu.Unlock()
-	panic("TODO: Unimplemented.")
+	return metadata.config.CloneTree()
 }
 
 func (metadata *RunMetadata) StartTime() time.Time {
 	metadata.mu.Lock()
 	defer metadata.mu.Unlock()
-	panic("TODO: Unimplemented.")
+	return metadata.params.StartTime
 }
 
 func (metadata *RunMetadata) DisplayName() string {
 	metadata.mu.Lock()
 	defer metadata.mu.Unlock()
-	panic("TODO: Unimplemented.")
+	return metadata.params.DisplayName
 }
 
 func (metadata *RunMetadata) FileStreamOffsets() filestream.FileStreamOffsetMap {
 	metadata.mu.Lock()
 	defer metadata.mu.Unlock()
-	panic("TODO: Unimplemented.")
+	return metadata.params.FileStreamOffset
 }
 
 // Finish uploads any remaining changes and ends the uploading goroutine.
@@ -240,6 +297,23 @@ func (metadata *RunMetadata) Finish() {
 func (metadata *RunMetadata) syncPeriodically() {
 	// TODO: Loop forever, uploading changes as they arrive.
 	//   Exit when the done channel is closed, flushing one more time.
+}
+
+// serializeConfig returns the serialized run config.
+//
+// If an error happens, it is logged an an empty string is returned.
+func (metadata *RunMetadata) serializeConfig() string {
+	serializedConfig, err := metadata.config.Serialize(runconfig.FormatJson)
+
+	if err != nil {
+		metadata.logger.Error(
+			"runmetadata: failed to serialize config",
+			"error", err,
+		)
+		return ""
+	} else {
+		return string(serializedConfig)
+	}
 }
 
 // lockedDoUpsert performs an UpsertBucket request to upload the current
@@ -290,8 +364,7 @@ func (metadata *RunMetadata) lockedDoUpsert(
 
 	var config *string
 	if uploadConfig {
-		// TODO
-		config = nil
+		config = nullify.NilIfZero(metadata.serializeConfig())
 	}
 
 	metadata.mu.Unlock()
