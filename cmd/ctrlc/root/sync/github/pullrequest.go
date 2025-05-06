@@ -58,7 +58,7 @@ func NewSyncPullRequestsCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&owner, "owner", "o", "", "GitHub repository owner (user or organization)")
 	cmd.Flags().StringVarP(&repo, "repo", "r", "", "GitHub repository name")
 	cmd.Flags().StringVarP(&token, "token", "t", "", "GitHub API token (can also be set via GITHUB_TOKEN env var)")
-	cmd.Flags().StringSliceVarP(&states, "state", "s", nil, "Filter pull requests by state: all, open, closed, draft, merged (can be specified multiple times)")
+	cmd.Flags().StringSliceVarP(&states, "state", "s", []string{"open"}, "Filter pull requests by state: all, open, closed, draft, merged (can be specified multiple times)")
 	cmd.MarkFlagRequired("owner")
 	cmd.MarkFlagRequired("repo")
 
@@ -261,8 +261,8 @@ func processPullRequests(ctx context.Context, client *github.Client, owner, repo
 		"states", states)
 
 	resources := []api.AgentResource{}
-	for i, pr := range filteredPRs {
-		log.Info("Processing pull request", "index", i+1, "of", len(filteredPRs), "number", pr.GetNumber())
+	for _, pr := range filteredPRs {
+		log.Info("Processing pull request", "number", pr.GetNumber(), "source", pr.GetHead().GetRef(), "target", pr.GetBase().GetRef())
 		resource, err := processPullRequest(ctx, client, owner, repo, pr)
 		if err != nil {
 			log.Error("Failed to process pull request", "number", pr.GetNumber(), "error", err)
@@ -495,10 +495,8 @@ func processPullRequest(ctx context.Context, client *github.Client, owner, repo 
 		Identifier: "github-" + pr.GetNodeID(),
 		Config: map[string]any{
 			"number":       prNumber,
-			"title":        pr.GetTitle(),
 			"url":          prUrl,
 			"state":        pr.GetState(),
-			"body":         pr.GetBody(),
 			"createdAt":    pr.GetCreatedAt().Format(time.RFC3339),
 			"updatedAt":    pr.GetUpdatedAt().Format(time.RFC3339),
 			"branch":       branchInfo,
