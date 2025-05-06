@@ -19,8 +19,7 @@ import (
 
 // NewSyncPullRequestCmd creates a new cobra command for syncing GitHub pull requests
 func NewSyncPullRequestsCmd() *cobra.Command {
-	var owner string
-	var repo string
+	var repoPath string
 	var token string
 	var name string
 	var states []string
@@ -32,48 +31,56 @@ func NewSyncPullRequestsCmd() *cobra.Command {
 			# Make sure GitHub credentials are configured via environment variables or token
 
 			# Sync all pull requests from a repository
-			$ ctrlc sync github pull-request --owner myorg --repo myrepo --token ghp_yourtokenhere
+			$ ctrlc sync github pull-requests --owner myorg --repo myrepo --token ghp_yourtokenhere
 
 			# Sync only open pull requests
-			$ ctrlc sync github pull-request --owner myorg --repo myrepo --state open
+			$ ctrlc sync github pull-requests --owner myorg --repo myrepo --state open
 
 			# Sync only draft pull requests
-			$ ctrlc sync github pull-request --owner myorg --repo myrepo --state draft
+			$ ctrlc sync github pull-requests --owner myorg --repo myrepo --state draft
 
 			# Sync only merged pull requests
-			$ ctrlc sync github pull-request --owner myorg --repo myrepo --state merged
+			$ ctrlc sync github pull-requests --owner myorg --repo myrepo --state merged
 
 			# Sync only closed but not merged pull requests
-			$ ctrlc sync github pull-request --owner myorg --repo myrepo --state closed
+			$ ctrlc sync github pull-requests --owner myorg --repo myrepo --state closed
 
 			# Sync multiple states
-			$ ctrlc sync github pull-request --owner myorg --repo myrepo --state open --state draft
+			$ ctrlc sync github pull-requests --owner myorg --repo myrepo --state open --state draft
 		`),
-		PreRunE: validateFlags(&owner, &repo, &states),
-		RunE:    runSync(&owner, &repo, &token, &name, &states),
+		PreRunE: validateFlags(&repoPath, &states),
+		RunE:    runSync(&repoPath, &token, &name, &states),
 	}
 
 	// Add command flags
 	cmd.Flags().StringVarP(&name, "provider", "p", "", "Name of the resource provider")
-	cmd.Flags().StringVarP(&owner, "owner", "o", "", "GitHub repository owner (user or organization)")
-	cmd.Flags().StringVarP(&repo, "repo", "r", "", "GitHub repository name")
+	cmd.Flags().StringVarP(&repoPath, "repo", "r", "", "GitHub repository name (owner/repo)")
 	cmd.Flags().StringVarP(&token, "token", "t", "", "GitHub API token (can also be set via GITHUB_TOKEN env var)")
 	cmd.Flags().StringSliceVarP(&states, "state", "s", []string{"open"}, "Filter pull requests by state: all, open, closed, draft, merged (can be specified multiple times)")
-	cmd.MarkFlagRequired("owner")
 	cmd.MarkFlagRequired("repo")
 
 	return cmd
 }
 
 // validateFlags ensures required flags are set and validates flag combinations
-func validateFlags(owner, repo *string, states *[]string) func(cmd *cobra.Command, args []string) error {
+func validateFlags(repoPath *string, states *[]string) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		log.Debug("Validating flags", "owner", *owner, "repo", *repo, "states", *states)
-		
-		if *owner == "" {
-			return fmt.Errorf("owner is required")
+		// Extract owner from repo string if it's in the format "owner/repo"
+		var owner string
+		var repo string
+		parts := strings.Split(*repoPath, "/")
+		if len(parts) == 2 {
+			owner = parts[0]
+			repo = parts[1]
+			log.Debug("Extracted owner and repo from repo string", "owner", owner, "repo", repo)
 		}
-		if *repo == "" {
+		
+		log.Debug("Validating flags", "owner", owner, "repo", repo, "states", *states)
+		
+		if owner == "" {
+			return fmt.Errorf("owner is required (use --owner flag or specify repo as 'owner/repo')")
+		}
+		if repo == "" {
 			return fmt.Errorf("repo is required")
 		}
 		
@@ -109,11 +116,10 @@ func validateFlags(owner, repo *string, states *[]string) func(cmd *cobra.Comman
 }
 
 // runSync contains the main sync logic
-func runSync(owner, repo, token, name *string, states *[]string) func(cmd *cobra.Command, args []string) error {
+func runSync(repoPath, token, name *string, states *[]string) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		log.Info("Syncing GitHub pull requests into Ctrlplane", 
-			"owner", *owner, 
-			"repo", *repo, 
+			"repoPath", *repoPath, 
 			"states", *states)
 
 		ctx := context.Background()
@@ -128,8 +134,6 @@ func runSync(owner, repo, token, name *string, states *[]string) func(cmd *cobra
 				return fmt.Errorf("GitHub token is required (use --token flag or set GITHUB_TOKEN env var)")
 			}
 			log.Debug("Found GitHub token in environment")
-		} else {
-			log.Debug("Using GitHub token from flag")
 		}
 
 		// Initialize GitHub client
@@ -142,8 +146,13 @@ func runSync(owner, repo, token, name *string, states *[]string) func(cmd *cobra
 		log.Debug("GitHub client initialized successfully")
 
 		// List and process pull requests
-		log.Debug("Processing pull requests", "owner", *owner, "repo", *repo)
-		resources, err := processPullRequests(ctx, client, *owner, *repo, *states)
+		log.Debug("Processing pull requests", "repoPath", *repoPath)
+		
+		pathSplit := strings.Split(*repoPath, "/")
+		owner := pathSplit[0]
+		repo := pathSplit[1]
+
+		resources, err := processPullRequests(ctx, client, owner, repo, *states)
 		if err != nil {
 			log.Error("Failed to process pull requests", "error", err)
 			return err
@@ -152,7 +161,7 @@ func runSync(owner, repo, token, name *string, states *[]string) func(cmd *cobra
 
 		// Upsert resources to Ctrlplane
 		log.Debug("Upserting resources to Ctrlplane", "count", len(resources))
-		return upsertToCtrlplane(ctx, resources, owner, repo, name)
+		return upsertToCtrlplane(ctx, resources, owner, repo, *name)
 	}
 }
 
@@ -598,14 +607,14 @@ func initPullRequestMetadata(pr *github.PullRequest, owner, repo string) map[str
 var relationshipRules = []api.CreateResourceRelationshipRule{}
 
 // upsertToCtrlplane handles upserting resources to Ctrlplane
-func upsertToCtrlplane(ctx context.Context, resources []api.AgentResource, owner, repo, name *string) error {
+func upsertToCtrlplane(ctx context.Context, resources []api.AgentResource, owner, repo, name string) error {
 	log.Debug("Upserting resources to Ctrlplane", "count", len(resources))
 	
-	if *name == "" {
-		*name = fmt.Sprintf("github-prs-%s-%s", *owner, *repo)
-		log.Debug("Using generated provider name", "name", *name)
+	if name == "" {
+		name = fmt.Sprintf("github-prs-%s-%s", owner, repo)
+		log.Debug("Using generated provider name", "name", name)
 	} else {
-		log.Debug("Using provided provider name", "name", *name)
+		log.Debug("Using provided provider name", "name", name)
 	}
 
 	apiURL := viper.GetString("url")
@@ -621,17 +630,17 @@ func upsertToCtrlplane(ctx context.Context, resources []api.AgentResource, owner
 		return fmt.Errorf("failed to create API client: %w", err)
 	}
 
-	log.Debug("Creating resource provider", "name", *name)
-	rp, err := api.NewResourceProvider(ctrlplaneClient, workspaceId, *name)
+	log.Debug("Creating resource provider", "name", name)
+	rp, err := api.NewResourceProvider(ctrlplaneClient, workspaceId, name)
 	if err != nil {
-		log.Error("Failed to create resource provider", "name", *name, "error", err)
+		log.Error("Failed to create resource provider", "name", name, "error", err)
 		return fmt.Errorf("failed to create resource provider: %w", err)
 	}
 
 	log.Debug("Adding resource relationship rules", "rules_count", len(relationshipRules))
 	err = rp.AddResourceRelationshipRule(ctx, relationshipRules)
 	if err != nil {
-		log.Error("Failed to add resource relationship rule", "name", *name, "error", err)
+		log.Error("Failed to add resource relationship rule", "name", name, "error", err)
 	} else {
 		log.Debug("Successfully added relationship rules")
 	}
