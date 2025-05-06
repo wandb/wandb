@@ -3,6 +3,7 @@ package runmetadata_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -12,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runmetadata"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/waiting"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -85,10 +87,17 @@ func TestInitRun_MakesCorrectRequest(t *testing.T) {
 				Commit:    "commit",
 				RemoteUrl: "remote URL", // repo parameter
 			},
-			Host:    "host",
-			JobType: "job type",
-			SweepId: "sweep ID",
-			Tags:    []string{"tag1", "tag2"},
+			Config: &spb.ConfigRecord{
+				Update: []*spb.ConfigItem{{
+					Key:       "test",
+					ValueJson: `123`,
+				}},
+			},
+			Telemetry: &spb.TelemetryRecord{PythonVersion: "test python"},
+			Host:      "host",
+			JobType:   "job type",
+			SweepId:   "sweep ID",
+			Tags:      []string{"tag1", "tag2"},
 		}),
 		params,
 	)
@@ -107,6 +116,19 @@ func TestInitRun_MakesCorrectRequest(t *testing.T) {
 		gqlmock.GQLVar("displayName", gomock.Eq("display name")),
 		gqlmock.GQLVar("notes", gomock.Eq("notes")),
 		gqlmock.GQLVar("commit", gomock.Eq("commit")),
+		gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
+				{
+					"test": {"value": 123},
+					"_wandb": {"value": {
+						"python_version": "test python",
+						"m": [],
+						"t": {
+							"4": "test python",
+							"12": "%s"
+						}
+					}}
+				}
+			`, version.Version))),
 		gqlmock.GQLVar("host", gomock.Eq("host")),
 		gqlmock.GQLVar("program", gomock.Eq("program")),
 		gqlmock.GQLVar("repo", gomock.Eq("remote URL")),
