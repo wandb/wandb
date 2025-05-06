@@ -2607,7 +2607,9 @@ class Artifact:
             alias_names = dict.fromkeys(a.alias for a in node.aliases)
             version = f"v{node.version_index}"
             aliases = (
-                [*alias_names, version] if (version in alias_names) else [*alias_names]
+                [*alias_names, version]
+                if version not in alias_names
+                else [*alias_names]
             )
 
             if not (
