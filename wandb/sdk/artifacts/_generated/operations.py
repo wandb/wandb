@@ -2,12 +2,15 @@
 # Source: tools/graphql_codegen/artifacts/
 
 __all__ = [
+    "ADD_ALIASES_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
+    "DELETE_ALIASES_GQL",
     "DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
+    "FETCH_LINKED_ARTIFACTS_GQL",
     "MOVE_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACTS_GQL",
     "PROJECT_ARTIFACT_COLLECTIONS_GQL",
@@ -16,6 +19,7 @@ __all__ = [
     "PROJECT_ARTIFACT_TYPE_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
+    "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
     "UPDATE_ARTIFACT_SEQUENCE_GQL",
 ]
@@ -460,6 +464,103 @@ query RunInputArtifacts($entity: String!, $project: String!, $runName: String!, 
           hasNextPage
         }
       }
+    }
+  }
+}
+
+fragment ArtifactFragment on Artifact {
+  id
+  artifactSequence {
+    project {
+      entityName
+      name
+    }
+    name
+  }
+  versionIndex
+  artifactType {
+    name
+  }
+  description
+  metadata
+  ttlDurationSeconds @include(if: true)
+  ttlIsInherited @include(if: true)
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+  tags @include(if: true) {
+    name
+  }
+  historyStep @include(if: true)
+  state
+  currentManifest {
+    file {
+      directUrl
+    }
+  }
+  commitHash
+  fileCount
+  createdAt
+  updatedAt
+}
+"""
+
+FETCH_LINKED_ARTIFACTS_GQL = """
+query FetchLinkedArtifacts($artifactID: ID!) {
+  artifact(id: $artifactID) {
+    artifactMemberships {
+      edges {
+        node {
+          aliases {
+            alias
+          }
+          versionIndex
+          artifactCollection {
+            project {
+              entityName
+              name
+            }
+            name
+            __typename
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+ADD_ALIASES_GQL = """
+mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
+  addAliases(input: {artifactID: $artifactID, aliases: $aliases}) {
+    success
+  }
+}
+"""
+
+DELETE_ALIASES_GQL = """
+mutation DeleteAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
+  deleteAliases(input: {artifactID: $artifactID, aliases: $aliases}) {
+    success
+  }
+}
+"""
+
+UPDATE_ARTIFACT_GQL = """
+mutation UpdateArtifact($artifactID: ID!, $description: String, $metadata: JSONString, $ttlDurationSeconds: Int64, $tagsToAdd: [TagInput!], $tagsToDelete: [TagInput!], $aliases: [ArtifactAliasInput!]) {
+  updateArtifact(
+    input: {artifactID: $artifactID, description: $description, metadata: $metadata, ttlDurationSeconds: $ttlDurationSeconds, tagsToAdd: $tagsToAdd, tagsToDelete: $tagsToDelete, aliases: $aliases}
+  ) {
+    artifact {
+      ...ArtifactFragment
     }
   }
 }

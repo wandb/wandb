@@ -110,6 +110,18 @@ class ArtifactFragmentTags(GQLBase):
     name: str
 
 
+class ArtifactPortfolioTypeFields(GQLBase):
+    typename__: Typename[Literal["ArtifactPortfolio"]] = "ArtifactPortfolio"
+    id: GQLId
+    name: str
+
+
+class ArtifactSequenceTypeFields(GQLBase):
+    typename__: Typename[Literal["ArtifactSequence"]] = "ArtifactSequence"
+    id: GQLId
+    name: str
+
+
 class ArtifactTypeFragment(GQLBase):
     typename__: Typename[Literal["ArtifactType"]] = "ArtifactType"
     id: GQLId
@@ -179,8 +191,31 @@ class FilesFragmentPageInfo(GQLBase):
 
 
 ArtifactCollectionsFragment.model_rebuild()
+ArtifactCollectionsFragmentEdges.model_rebuild()
+ArtifactCollectionsFragmentEdgesNode.model_rebuild()
+ArtifactCollectionsFragmentPageInfo.model_rebuild()
 ArtifactFragment.model_rebuild()
+ArtifactFragmentAliases.model_rebuild()
+ArtifactFragmentAliasesArtifactCollection.model_rebuild()
+ArtifactFragmentAliasesArtifactCollectionProject.model_rebuild()
+ArtifactFragmentArtifactSequence.model_rebuild()
+ArtifactFragmentArtifactSequenceProject.model_rebuild()
+ArtifactFragmentArtifactType.model_rebuild()
+ArtifactFragmentCurrentManifest.model_rebuild()
+ArtifactFragmentCurrentManifestFile.model_rebuild()
+ArtifactFragmentTags.model_rebuild()
+ArtifactPortfolioTypeFields.model_rebuild()
+ArtifactSequenceTypeFields.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
 ArtifactTypesFragment.model_rebuild()
+ArtifactTypesFragmentEdges.model_rebuild()
+ArtifactTypesFragmentPageInfo.model_rebuild()
 ArtifactsFragment.model_rebuild()
+ArtifactsFragmentEdges.model_rebuild()
+ArtifactsFragmentPageInfo.model_rebuild()
 FilesFragment.model_rebuild()
+FilesFragmentEdges.model_rebuild()
+FilesFragmentEdgesNode.model_rebuild()
+FilesFragmentPageInfo.model_rebuild()
+ArtifactFragment.model_rebuild()
+ArtifactTypeFragment.model_rebuild()

@@ -984,6 +984,9 @@ class _WandbInit:
             if settings.x_label:
                 tel.feature.user_provided_label = True
 
+            if wandb.env.dcgm_profiling_enabled():
+                tel.feature.dcgm_profiling_enabled = True
+
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
         if not settings.label_disable:
@@ -1280,16 +1283,40 @@ def try_create_root_dir(settings: Settings) -> None:
             This function may update the root_dir to a temporary directory
             if the parent directory is not writable.
     """
+    fallback_to_temp_dir = False
+
     try:
-        if not os.path.exists(settings.root_dir):
-            os.makedirs(settings.root_dir, exist_ok=True)
+        os.makedirs(settings.root_dir, exist_ok=True)
     except OSError:
-        temp_dir = tempfile.gettempdir()
         wandb.termwarn(
-            f"Path {settings.root_dir} wasn't writable, using system temp directory {temp_dir}.",
+            f"Unable to create root directory {settings.root_dir}",
             repeat=False,
         )
-        settings.root_dir = temp_dir
+        fallback_to_temp_dir = True
+    else:
+        if not os.access(settings.root_dir, os.W_OK | os.R_OK):
+            wandb.termwarn(
+                f"Path {settings.root_dir} wasn't read/writable",
+                repeat=False,
+            )
+            fallback_to_temp_dir = True
+
+    if not fallback_to_temp_dir:
+        return
+
+    tmp_dir = tempfile.gettempdir()
+    if not os.access(tmp_dir, os.W_OK | os.R_OK):
+        raise ValueError(
+            f"System temp directory ({tmp_dir}) is not writable/readable, "
+            "please set the `dir` argument in `wandb.init()` to a writable/readable directory."
+        )
+
+    settings.root_dir = tmp_dir
+    wandb.termwarn(
+        f"Falling back to temporary directory {tmp_dir}.",
+        repeat=False,
+    )
+    os.makedirs(settings.root_dir, exist_ok=True)
 
 
 def init(  # noqa: C901

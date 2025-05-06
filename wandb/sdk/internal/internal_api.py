@@ -12,6 +12,7 @@ import sys
 import threading
 from copy import deepcopy
 from pathlib import Path
+from types import MappingProxyType
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -189,11 +190,6 @@ def _match_org_with_fetched_org_entities(
     """
     for org_names in orgs:
         if organization in org_names:
-            wandb.termwarn(
-                "Registries can be linked/fetched using a shorthand form without specifying the organization name. "
-                "Try using shorthand path format: <my_registry_name>/<artifact_name> or "
-                "just <my_registry_name> if fetching just the project."
-            )
             return org_names.entity_name
 
     if len(orgs) == 1:
@@ -873,30 +869,29 @@ class Api:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
 
-    def _check_server_feature(self, feature_value: ServerFeature) -> bool:
-        """Check if a server feature is enabled.
-
-        Args:
-            feature_value (ServerFeature): The enum value of the feature to check.
-
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
-
-        Raises:
-            Exception: If server doesn't support feature queries or other errors occur
-        """
+    def _server_features(self) -> Mapping[str, bool]:
+        """Returns a cached, read-only lookup of current server feature flags."""
         if self._server_features_cache is None:
             query = gql(SERVER_FEATURES_QUERY_GQL)
-            response = self.gql(query)
-            server_info = ServerFeaturesQuery.model_validate(response).server_info
-            if server_info and (features := server_info.features):
-                self._server_features_cache = {
-                    f.name: f.is_enabled for f in features if f
-                }
-            else:
-                self._server_features_cache = {}
 
-        return self._server_features_cache.get(ServerFeature.Name(feature_value), False)
+            try:
+                response = self.gql(query)
+            except Exception as e:
+                # Unfortunately we currently have to match on the text of the error message
+                if 'Cannot query field "features" on type "ServerInfo".' in str(e):
+                    self._server_features_cache = {}
+                else:
+                    raise
+            else:
+                info = ServerFeaturesQuery.model_validate(response).server_info
+                if info and (feats := info.features):
+                    self._server_features_cache = {
+                        f.name: f.is_enabled for f in feats if f
+                    }
+                else:
+                    self._server_features_cache = {}
+
+        return MappingProxyType(self._server_features_cache)
 
     def _check_server_feature_with_fallback(self, feature_value: ServerFeature) -> bool:
         """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
@@ -912,12 +907,7 @@ class Api:
         Exceptions:
             Exception: If an error other than the server not supporting feature queries occurs.
         """
-        try:
-            return self._check_server_feature(feature_value)
-        except Exception as e:
-            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
-                return False
-            raise e
+        return self._server_features().get(ServerFeature.Name(feature_value), False)
 
     @normalize_exceptions
     def update_run_queue_item_warning(

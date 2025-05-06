@@ -12,13 +12,13 @@ from wandb._pydantic import GQLBase
 from .fragments import ProjectConnectionFields
 
 
-class GetTriggersByEntity(GQLBase):
-    search_scope: Optional[GetTriggersByEntitySearchScope] = Field(alias="searchScope")
+class GetAutomations(GQLBase):
+    search_scope: Optional[GetAutomationsSearchScope] = Field(alias="searchScope")
 
 
-class GetTriggersByEntitySearchScope(GQLBase):
+class GetAutomationsSearchScope(GQLBase):
     projects: Optional[ProjectConnectionFields]
 
 
-GetTriggersByEntity.model_rebuild()
-GetTriggersByEntitySearchScope.model_rebuild()
+GetAutomations.model_rebuild()
+GetAutomationsSearchScope.model_rebuild()

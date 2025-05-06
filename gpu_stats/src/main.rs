@@ -15,6 +15,8 @@ mod gpu_apple;
 mod gpu_apple_sources;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod gpu_nvidia;
+#[cfg(any(target_os = "linux"))]
+mod gpu_nvidia_dcgm;
 mod metrics;
 mod wandb_internal;
 
@@ -38,6 +40,8 @@ use gpu_amd::GpuAmd;
 use gpu_apple::ThreadSafeSampler;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use gpu_nvidia::NvidiaGpu;
+#[cfg(any(target_os = "linux"))]
+use gpu_nvidia_dcgm::DcgmClient;
 use prost_types::Timestamp;
 use wandb_internal::{
     record::RecordType,
@@ -77,6 +81,13 @@ struct Args {
     /// If set, the program will log debug messages.
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
+
+    /// Enable DCGM profiling.
+    ///
+    /// If set, the program will attempt to use DCGM for
+    /// collection Nvidia GPU performance metrics.
+    #[arg(long, default_value_t = false)]
+    enable_dcgm_profiling: bool,
 }
 
 /// System monitor service implementation.
@@ -97,9 +108,12 @@ pub struct SystemMonitorServiceImpl {
     /// Apple GPU sampler (ARM Mac only).
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     apple_sampler: Option<ThreadSafeSampler>,
-    /// Nvidia GPU monitor (Linux and Windows only).
+    /// Nvidia GPU monitor, NVML-based (Linux and Windows only).
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     nvidia_gpu: Option<tokio::sync::Mutex<NvidiaGpu>>,
+    /// Nvidia GPU monitor, performance metrics, DCGM-based (Linux only).
+    #[cfg(any(target_os = "linux"))]
+    dcgm_client: Option<DcgmClient>,
     /// AMD GPU monitor (Linux only).
     #[cfg(target_os = "linux")]
     amd_gpu: Option<GpuAmd>,
@@ -108,9 +122,10 @@ pub struct SystemMonitorServiceImpl {
 impl SystemMonitorServiceImpl {
     fn new(
         ppid: i32,
+        enable_dcgm_profiling: bool,
         shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     ) -> Self {
-        // Initialize the Apple GPU sampler (ARM Mac only)
+        // Initialize the Apple GPU sampler (ARM Mac only).
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         let apple_sampler = match ThreadSafeSampler::new() {
             Ok(sampler) => {
@@ -123,7 +138,26 @@ impl SystemMonitorServiceImpl {
             }
         };
 
-        // Initialize the Nvidia GPU monitor (Linux and Windows only)
+        // Initialize the Nvidia GPU DCGM-based monitor, if requested (Linux only).
+        #[cfg(target_os = "linux")]
+        let dcgm_client = if enable_dcgm_profiling {
+            match DcgmClient::new() {
+                // This calls the new sync-worker version
+                Ok(client) => {
+                    debug!("Successfully initialized NVIDIA GPU DCGM monitoring client.");
+                    Some(client)
+                }
+                Err(e) => {
+                    // Using debug as DCGM might not be installed/running is reasonable
+                    debug!("Failed to initialize NVIDIA GPU DCGM monitoring: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        // Initialize the Nvidia GPU NVML-based monitor (Linux and Windows only).
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         let nvidia_gpu = match NvidiaGpu::new() {
             Ok(gpu) => {
@@ -136,7 +170,7 @@ impl SystemMonitorServiceImpl {
             }
         };
 
-        // Initialize the AMD GPU monitor (Linux only)
+        // Initialize the AMD GPU monitor (Linux only).
         #[cfg(target_os = "linux")]
         let amd_gpu = match GpuAmd::new() {
             Some(gpu) => {
@@ -156,6 +190,8 @@ impl SystemMonitorServiceImpl {
             apple_sampler,
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             nvidia_gpu,
+            #[cfg(target_os = "linux")]
+            dcgm_client,
             #[cfg(target_os = "linux")]
             amd_gpu,
         };
@@ -215,7 +251,7 @@ impl SystemMonitorServiceImpl {
             }
         }
 
-        // Nvidia GPU metrics (Linux and Windows only)
+        // Nvidia GPU metrics from NVML (Linux and Windows only)
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         if let Some(nvidia_gpu) = &self.nvidia_gpu {
             match nvidia_gpu.lock().await.get_metrics(pid, gpu_device_ids) {
@@ -224,6 +260,20 @@ impl SystemMonitorServiceImpl {
                 }
                 Err(e) => {
                     warn!("Failed to get Nvidia metrics: {}", e);
+                }
+            }
+        }
+
+        // Nvidia GPU perf metrics from DCGM (Linux only)
+        #[cfg(any(target_os = "linux"))]
+        if let Some(client) = &self.dcgm_client {
+            match client.get_metrics().await {
+                // Still await the async function
+                Ok(dcgm_metrics) => {
+                    all_metrics.extend(dcgm_metrics);
+                }
+                Err(e) => {
+                    warn!("Failed to get DCGM metrics: {}", e);
                 }
             }
         }
@@ -253,7 +303,13 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         &self,
         request: Request<TearDownRequest>,
     ) -> Result<Response<TearDownResponse>, Status> {
-        debug!("Received a request to shutdown: {:?}", request);
+        debug!("Received a request to ShutdownShutdown: {:?}", request);
+
+        #[cfg(any(target_os = "linux"))]
+        if let Some(client) = &self.dcgm_client {
+            log::debug!("Signaling DCGM worker thread to shut down.");
+            client.shutdown();
+        }
 
         // Signal the gRPC server to shutdown
         let mut sender = self.shutdown_sender.lock().await;
@@ -420,7 +476,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
     let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
 
-    let system_monitor_service = SystemMonitorServiceImpl::new(args.ppid, shutdown_sender.clone());
+    let system_monitor_service = SystemMonitorServiceImpl::new(
+        args.ppid,
+        args.enable_dcgm_profiling,
+        shutdown_sender.clone(),
+    );
 
     // Write the server port to the portfile
     let local_addr = listener.local_addr()?;

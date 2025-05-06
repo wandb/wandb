@@ -1,12 +1,13 @@
+import wandb
 from wandb._pydantic import IS_PYDANTIC_V2
 
-from . import _filters as filters
-from . import actions, automations, events, scopes
-from .actions import ActionType, DoNothing, DoNotification, DoWebhook
-from .automations import Automation, NewAutomation, PreparedAutomation
+from .actions import ActionType, DoNothing, SendNotification, SendWebhook
+from .automations import Automation, NewAutomation
 from .events import (
     ArtifactEvent,
     EventType,
+    MetricChangeFilter,
+    MetricThresholdFilter,
     OnAddArtifactAlias,
     OnCreateArtifact,
     OnLinkArtifact,
@@ -26,33 +27,23 @@ if not IS_PYDANTIC_V2:
     # - Drop support for Pydantic v1
     # - Are able to implement (limited) Pydantic v1 support
     raise ImportError(
-        "The W&B Automations API is not supported in Pydantic v1 at this time. "
-        "If at all possible, we currently recommend upgrading to Pydantic v2 to use this feature.",
+        "The W&B Automations API requires Pydantic v2. "
+        "We recommend upgrading `pydantic` to use this feature."
     )
 
 else:
     # If Pydantic v2 is available, we can use the full Automations API
     # but communicate to users that the API is still experimental and
     # may change rapidly.
-    import warnings
-
-    warnings.warn(
-        "The W&B Automations API is currently experimental. Although we'll communicate "
-        "breaking changes in release notes and attempt to minimize them in general, "
-        "please know that such changes may occur between release versions without notice. "
-        "We strongly recommend pinning your `wandb` version when using the Automations API "
-        "to avoid unexpected breakages.",
-        FutureWarning,
-        stacklevel=1,
+    wandb.termwarn(
+        "The W&B Automations API is experimental and the implementation is subject to change."
+        "Review the release notes before upgrading. We recommend pinning your "
+        f"package version to `{wandb.__package__}=={wandb.__version__}` to reduce the risk of disruption.",
+        repeat=False,
     )
 # ----------------------------------------------------------------------------
 
 __all__ = [
-    "filters",
-    "scopes",
-    "events",
-    "actions",
-    "automations",
     # Scopes
     "ScopeType",
     "ArtifactCollectionScope",
@@ -65,15 +56,16 @@ __all__ = [
     "OnRunMetric",
     "ArtifactEvent",
     "RunEvent",
+    "MetricThresholdFilter",
+    "MetricChangeFilter",
     # Actions
     "ActionType",
-    "DoNotification",
-    "DoWebhook",
+    "SendNotification",
+    "SendWebhook",
     "DoNothing",
     # Automations
     "Automation",
     "NewAutomation",
-    "PreparedAutomation",
     # Integrations
     "Integration",
     "SlackIntegration",

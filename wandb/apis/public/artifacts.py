@@ -59,6 +59,10 @@ from wandb.sdk.artifacts._generated import (
     RunOutputArtifactsProjectRunOutputArtifacts,
 )
 from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
+from wandb.sdk.artifacts._validators import (
+    SOURCE_ARTIFACT_COLLECTION_TYPE,
+    validate_artifact_name,
+)
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
 
@@ -291,7 +295,7 @@ class ArtifactCollection:
         self.client = client
         self.entity = entity
         self.project = project
-        self._name = name
+        self._name = validate_artifact_name(name)
         self._saved_name = name
         self._type = type
         self._saved_type = type
@@ -362,7 +366,7 @@ class ArtifactCollection:
         sequence = type_.artifact_sequence
         self._is_sequence = (
             sequence is not None
-        ) and sequence.typename__ == "ArtifactSequence"
+        ) and sequence.typename__ == SOURCE_ARTIFACT_COLLECTION_TYPE
 
         if self._attrs is None:
             self._attrs = collection.model_dump(exclude_unset=True)
@@ -434,8 +438,8 @@ class ArtifactCollection:
         return self._name
 
     @name.setter
-    def name(self, name: List[str]) -> None:
-        self._name = name
+    def name(self, name: str) -> None:
+        self._name = validate_artifact_name(name)
 
     @property
     def type(self):

@@ -19,7 +19,6 @@ import (
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/randomid"
-	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -180,7 +179,6 @@ type JobBuilder struct {
 
 	aliases               []string
 	isNotebookRun         bool
-	runConfig             *runconfig.RunConfig
 	wandbConfigParameters *launchWandbConfigParameters
 	configFiles           []*configFileParameter
 	saveShapeToMetadata   bool
@@ -272,10 +270,6 @@ func (j *JobBuilder) getProgramRelpath(metadata RunMetadata, sourceType SourceTy
 	}
 	return metadata.CodePath
 
-}
-
-func (j *JobBuilder) SetRunConfig(config runconfig.RunConfig) {
-	j.runConfig = &config
 }
 
 func (j *JobBuilder) GetSourceType(metadata RunMetadata) (*SourceType, error) {
@@ -532,6 +526,7 @@ func (j *JobBuilder) createImageJobSource(metadata RunMetadata) (*ImageSource, *
 func (j *JobBuilder) Build(
 	ctx context.Context,
 	client graphql.Client,
+	runConfig map[string]any,
 	output map[string]interface{},
 ) (artifact *spb.ArtifactRecord, rerr error) {
 	j.logger.Debug("jobBuilder: building job artifact")
@@ -543,7 +538,10 @@ func (j *JobBuilder) Build(
 		// If we have a partial job source we just update the
 		// metadata and don't build the job.
 		typed_output := data_types.ResolveTypes(output)
-		metadata, err := j.MakeJobMetadata(&typed_output)
+		metadata, err := j.MakeJobMetadata(
+			runConfig,
+			&typed_output,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -624,18 +622,17 @@ func (j *JobBuilder) Build(
 	}
 	var metadataString string
 	if j.saveShapeToMetadata {
-		metadataString, err = j.MakeJobMetadata(&sourceInfo.OutputTypes)
+		metadataString, err = j.MakeJobMetadata(
+			runConfig,
+			&sourceInfo.OutputTypes,
+		)
 		if err != nil {
 			return nil, err
 		}
 		sourceInfo.InputTypes = data_types.ResolveTypes(map[string]interface{}{})
 	} else {
 		metadataString = ""
-		if j.runConfig == nil {
-			sourceInfo.InputTypes = data_types.ResolveTypes(map[string]interface{}{})
-		} else {
-			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.CloneTree())
-		}
+		sourceInfo.InputTypes = data_types.ResolveTypes(runConfig)
 	}
 
 	baseArtifact := &spb.ArtifactRecord{
@@ -731,7 +728,10 @@ func (j *JobBuilder) MakeFilesAndSchemas() (map[string]any, map[string]any, erro
 }
 
 // Makes job input schema into a json string to be stored as artifact metadata.
-func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
+func (j *JobBuilder) MakeJobMetadata(
+	runConfig map[string]any,
+	output *data_types.TypeRepresentation,
+) (string, error) {
 	metadata := make(map[string]any)
 	input_types := make(map[string]any)
 	input_schemas := make(map[string]any)
@@ -745,8 +745,8 @@ func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (str
 			input_schemas["files"] = file_schemas
 		}
 	}
-	if j.runConfig != nil && j.wandbConfigParameters != nil {
-		runConfigTypes, err := j.inferRunConfigTypes()
+	if runConfig != nil && j.wandbConfigParameters != nil {
+		runConfigTypes, err := j.inferRunConfigTypes(runConfig)
 		if err == nil {
 			input_types[WandbConfigKey] = runConfigTypes
 		} else {
