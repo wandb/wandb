@@ -5,6 +5,7 @@ import (
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/aws"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/azure"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/clickhouse"
+	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/github"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/google"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/kubernetes"
 	"github.com/ctrlplanedev/cli/cmd/ctrlc/root/sync/tailscale"
@@ -35,6 +36,7 @@ func NewSyncCmd() *cobra.Command {
 	cmd.AddCommand(google.NewGoogleCloudCmd())
 	cmd.AddCommand(azure.NewAzureCmd())
 	cmd.AddCommand(kubernetes.NewSyncKubernetesCmd())
+	cmd.AddCommand(github.NewSyncGitHubCmd())
 
 	return cmd
 }
