@@ -1,7 +1,60 @@
 import numpy as np
 import pytest
 import wandb
+import wandb.errors
 from wandb.sdk.lib import runid
+
+
+@pytest.mark.parametrize("resume", ("allow", "never"))
+def test_resume__no_run__success(user, resume):
+    _ = user  # Create a fake user for the test.
+
+    with wandb.init(resume=resume, id=runid.generate_id()) as run:
+        pass
+
+    assert not run.resumed
+
+
+def test_resume_must__no_run__raises(user):
+    _ = user  # Create a fake user for the test.
+
+    with pytest.raises(wandb.errors.UsageError):
+        wandb.init(resume="must", project="project")
+
+
+@pytest.mark.parametrize("resume", ("allow", "must"))
+def test_resume__run_exists__success(wandb_backend_spy, resume):
+    with wandb.init() as run:
+        run.log({"acc": 10}, step=15)
+    with wandb.init(resume=resume, id=run.id) as run:
+        run.log({"acc": 15})
+
+    assert run.resumed
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert history[0]["_step"] == 15
+        assert history[1]["_step"] == 16
+
+
+def test_resume_never__run_exists__raises(user):
+    _ = user  # Create a fake user for the test.
+
+    with wandb.init() as run:
+        pass
+
+    with pytest.raises(wandb.errors.UsageError):
+        with wandb.init(resume="never", id=run.id):
+            pass
+
+
+@pytest.mark.parametrize("resume", ("allow", "never", "must", True))
+def test_resume__offline__warns(resume, mock_wandb_log):
+    with wandb.init(mode="offline", resume=resume):
+        pass
+
+    assert mock_wandb_log.warned(
+        "`resume` will be ignored since W&B syncing is set to `offline`"
+    )
 
 
 @pytest.mark.wandb_core_only

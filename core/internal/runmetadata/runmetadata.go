@@ -157,7 +157,32 @@ func InitRun(
 	defer operation.Finish()
 	ctx := operation.Context(metadata.beforeRunEndCtx)
 
-	// TODO: Update metadata if resuming, rewinding or forking.
+	// If resuming, rewinding or forking, we need to modify metadata
+	// in special ways before upserting the run.
+	switch {
+	case params.Settings.GetResume() != "":
+		err := metadata.updateMetadataForResume(params.Settings.GetResume())
+
+		if err != nil {
+			return nil, runUpdateErrorFromBranchError(err)
+		}
+
+	case params.Settings.GetResumeFrom() != nil:
+		err := metadata.updateMetadataForRewind(params.Settings.GetResumeFrom())
+
+		if err != nil {
+			return nil, runUpdateErrorFromBranchError(err)
+		}
+
+		// TODO: Originally we didn't upsert, but that seems like a bug.
+
+	case params.Settings.GetForkFrom() != nil:
+		err := metadata.updateMetadataForFork(params.Settings.GetForkFrom())
+
+		if err != nil {
+			return nil, runUpdateErrorFromBranchError(err)
+		}
+	}
 
 	// If we're offline, skip upserting.
 	if metadata.graphqlClientOrNil == nil {
@@ -175,7 +200,7 @@ func InitRun(
 	)
 
 	if err != nil {
-		return nil, &runUpdateError{
+		return nil, &RunUpdateError{
 			UserMessage: fmt.Sprintf("Error uploading run: %v", err),
 			Cause:       err,
 			Code:        spb.ErrorInfo_COMMUNICATION,
@@ -349,6 +374,66 @@ func (metadata *RunMetadata) signalDirty() {
 	case metadata.dirty <- struct{}{}:
 	default:
 	}
+}
+
+// updateMetadataForResume updates run metadata based on the existing run
+// that's being resumed.
+func (metadata *RunMetadata) updateMetadataForResume(
+	resumeSetting string,
+) error {
+	if metadata.graphqlClientOrNil == nil {
+		// Ignore the resume mode when offline.
+		//
+		// A warning is printed by the client during wandb.init().
+		//
+		// resume="auto" is always OK and is handled by the client.
+		return nil
+	}
+
+	return runbranch.NewResumeBranch(
+		metadata.beforeRunEndCtx,
+		metadata.graphqlClientOrNil,
+		resumeSetting,
+	).UpdateForResume(
+		metadata.params,
+		metadata.config,
+	)
+}
+
+// updateMetadataForRewind updates run metadata based on the existing run
+// that's being rewound.
+func (metadata *RunMetadata) updateMetadataForRewind(
+	rewindSetting *spb.RunMoment,
+) error {
+	if metadata.graphqlClientOrNil == nil {
+		return &RunUpdateError{
+			UserMessage: "Cannot use `resume_from` in an offline run.",
+			Cause:       errors.New("runmetadata: cannot rewind a run when offline"),
+			Code:        spb.ErrorInfo_USAGE,
+		}
+	}
+
+	return runbranch.NewRewindBranch(
+		metadata.beforeRunEndCtx,
+		metadata.graphqlClientOrNil,
+		rewindSetting.Run,
+		rewindSetting.Metric,
+		rewindSetting.Value,
+	).UpdateForRewind(
+		metadata.params,
+		metadata.config,
+	)
+}
+
+// updateMetadataForFork updates configures run metadata for a forked run.
+func (metadata *RunMetadata) updateMetadataForFork(
+	forkSetting *spb.RunMoment,
+) error {
+	return runbranch.NewForkBranch(
+		forkSetting.Run,
+		forkSetting.Metric,
+		forkSetting.Value,
+	).UpdateForFork(metadata.params)
 }
 
 // syncPeriodically uploads changes in a loop.
