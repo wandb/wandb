@@ -69,7 +69,7 @@ jobs:
   build-macos-10-wheels:
     name: Build wheels for MacOS 10.x
     needs: prepare-release
-    runs-on: macos-14
+    runs-on: macos-13
     timeout-minutes: 60
     strategy:
       fail-fast: false
