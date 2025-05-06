@@ -634,9 +634,6 @@ class Table(Media):
         np_deserialized_columns = {}
         timestamp_column_indices = set()
         log_mode = json_obj.get("log_mode", "IMMUTABLE")
-        if log_mode == "INCREMENTAL":
-            Table._get_data_from_increments(json_obj, source_artifact)
-
         if json_obj.get("column_types") is not None:
             column_types = _dtypes.TypeRegistry.type_from_dict(
                 json_obj["column_types"], source_artifact
