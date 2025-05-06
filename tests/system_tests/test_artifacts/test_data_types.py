@@ -173,7 +173,7 @@ def test_using_incrementally_logged_table(user, test_settings, wandb_backend_spy
     run.finish()
     
     run2 = wandb.init(settings=test_settings())
-    art = run2.use_artifact( f"run-{run.id}-incr-{TABLE_KEY}:latest")
+    art = run2.use_artifact(f"run-{run.id}-incr-{TABLE_KEY}:latest")
     incremental_table = art.get(f"1.{TABLE_KEY}.table.json")
     assert len(incremental_table.data) == 3
     assert incremental_table.log_mode == "INCREMENTAL"
