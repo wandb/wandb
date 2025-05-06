@@ -5,33 +5,6 @@ import pytest
 import wandb
 
 
-def test_error_making_root_dir__uses_temp_dir(
-    tmp_path,
-    monkeypatch,
-):
-    temp_dir = tempfile.gettempdir()
-    root_dir = tmp_path / "no_permissions_test"
-    root_dir.mkdir(parents=True, exist_ok=True)
-    original_makedirs = os.makedirs
-
-    def mock_makedirs(path, exist_ok):
-        if str(path) == str(root_dir / "missing"):
-            raise OSError("Permission denied")
-        else:
-            return original_makedirs(path, exist_ok=exist_ok)
-
-    monkeypatch.setattr(os, "makedirs", mock_makedirs)
-
-    with wandb.init(
-        settings=wandb.Settings(root_dir=os.path.join(root_dir, "missing")),
-        mode="offline",
-    ) as run:
-        run.log({"test": 1})
-
-    assert not os.path.exists(os.path.join(root_dir, "missing"))
-    assert run.settings.root_dir == temp_dir
-
-
 def test_no_root_dir_access__uses_temp_dir(tmp_path, monkeypatch):
     temp_dir = tempfile.gettempdir()
     root_dir = tmp_path / "create_dir_test"
@@ -68,7 +41,7 @@ def test_no_temp_dir_access__throws_error(monkeypatch):
             run.log({"test": 1})
 
 
-def test_makedirs_with_file_in_path__uses_temp_dir(tmp_path, monkeypatch):
+def test_makedirs_raises_oserror__uses_temp_dir(tmp_path, monkeypatch):
     tmp_file = tmp_path / "test.txt"
     tmp_file.touch()
 

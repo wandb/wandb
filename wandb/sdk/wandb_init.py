@@ -1301,21 +1301,22 @@ def try_create_root_dir(settings: Settings) -> None:
             )
             fallback_to_temp_dir = True
 
-    if fallback_to_temp_dir:
-        tmp_dir = tempfile.gettempdir()
+    if not fallback_to_temp_dir:
+        return
 
-        if not os.access(tmp_dir, os.W_OK | os.R_OK):
-            raise ValueError(
-                f"System temp directory ({tmp_dir}) is not writable/readable, "
-                "please set the `dir` argument in `wandb.init()` to a writable/readable directory."
-            )
-
-        settings.root_dir = tmp_dir
-        wandb.termwarn(
-            f"Falling back to temporary directory {tmp_dir}.",
-            repeat=False,
+    tmp_dir = tempfile.gettempdir()
+    if not os.access(tmp_dir, os.W_OK | os.R_OK):
+        raise ValueError(
+            f"System temp directory ({tmp_dir}) is not writable/readable, "
+            "please set the `dir` argument in `wandb.init()` to a writable/readable directory."
         )
-        os.makedirs(settings.root_dir, exist_ok=True)
+
+    settings.root_dir = tmp_dir
+    wandb.termwarn(
+        f"Falling back to temporary directory {tmp_dir}.",
+        repeat=False,
+    )
+    os.makedirs(settings.root_dir, exist_ok=True)
 
 
 def init(  # noqa: C901
