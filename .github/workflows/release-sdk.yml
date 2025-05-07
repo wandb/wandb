@@ -100,7 +100,7 @@ jobs:
         run: |
           cd core
           echo "Downgrading Go dependencies for Go 1.22 compatibility..."
-          go get cloud.google.com/go/storage@v1.50.0
+          go get cloud.google.com/go@v0.118.2
           go get github.com/go-jose/go-jose/v4@v4.0.1
 
       ##################################################
