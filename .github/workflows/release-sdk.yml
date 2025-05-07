@@ -87,8 +87,6 @@ jobs:
       - name: Downgrade Go version
         run: |
           sed -i '' 's/1.24.2/1.22.12/' core/go.mod
-          sed -i '' 's/time v0.11.0/time v0.10.0/' core/go.mod
-          sed -i '' 's/storage v1.53.0/storage v1.50.0/' core/go.mod
 
       ##################################################
       # Install Go.
@@ -97,6 +95,13 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: core/go.mod
+
+      - name: Downgrade incompatible Go dependencies
+        run: |
+          cd core
+          echo "Downgrading Go dependencies for Go 1.22 compatibility..."
+          go get cloud.google.com/go/storage@v1.50.0
+          go get github.com/go-jose/go-jose/v4@v4.0.1
 
       ##################################################
       # Vendor dependencies
