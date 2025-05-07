@@ -821,14 +821,12 @@ class Table(Media):
             index.set_table(self)
             yield index, self.data[ndx]
 
-    @ensure_not_incremental
     @allow_relogging_after_mutation
     def set_pk(self, col_name):
         # TODO: Docs
         assert col_name in self.columns
         self.cast(col_name, _PrimaryKeyType())
 
-    @ensure_not_incremental
     @allow_relogging_after_mutation
     def set_fk(self, col_name, table, table_col):
         # TODO: Docs
