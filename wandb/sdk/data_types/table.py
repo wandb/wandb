@@ -251,7 +251,7 @@ class Table(Media):
         self.log_mode = log_mode
         if self.log_mode == "INCREMENTAL":
             self._increment_num = 0
-        self._last_logged_idx: int | None = None
+            self._last_logged_idx: int | None = None
         self._pk_col = None
         self._fk_cols: set[str] = set()
         if allow_mixed_types:
@@ -284,8 +284,8 @@ class Table(Media):
 
     def _validate_log_mode(self, log_mode):
         assert (
-            log_mode in self.supported_logging_modes
-        ), f"Invalid log_mode: {log_mode}. Must be one of {self.supported_logging_modes}"
+            log_mode in Table.supported_logging_modes
+        ), f"Invalid log_mode: {log_mode}. Must be one of {Table.supported_logging_modes}"
 
     @staticmethod
     def _assert_valid_columns(columns):
@@ -715,13 +715,14 @@ class Table(Media):
         json_dict = super().to_json(run_or_artifact)
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+            _type = "table-file"
             if self.log_mode == "INCREMENTAL":
                 json_dict.update({"_increment_num": self._increment_num})
+                _type = "incremental-table-file"
+
             json_dict.update(
                 {
-                    "_type": "incremental-table-file"
-                    if self.log_mode == "INCREMENTAL"
-                    else "table-file",
+                    "_type": _type,
                     "ncols": len(self.columns),
                     "nrows": len(self.data),
                     "log_mode": self.log_mode,
