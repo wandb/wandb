@@ -72,8 +72,8 @@ def login(
         bool: If `key` is configured
 
     Raises:
-        `AuthenticationError`: If api_key fails verification with the server.
-        `UsageError`: If api_key cannot be configured and no tty.
+        AuthenticationError: If `api_key` fails verification with the server.
+        UsageError: If `api_key` cannot be configured and no tty.
     """
     _handle_host_wandb_setting(host)
     return _login(
