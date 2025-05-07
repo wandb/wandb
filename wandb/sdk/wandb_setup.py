@@ -385,7 +385,7 @@ def setup(settings: Settings | None = None) -> _WandbSetup:
 
 @wb_logging.log_to_all_runs()
 def teardown(exit_code: int | None = None) -> None:
-    """Waits for wandb to finish and frees resources.
+    """Waits for W&B to finish and frees resources.
 
     Completes any runs that were not explicitly finished
     using `run.finish()` and waits for all data to be uploaded.

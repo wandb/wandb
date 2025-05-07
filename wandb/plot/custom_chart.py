@@ -106,6 +106,29 @@ def plot_table(
 
     Raises:
         wandb.Error: If `data_table` is not a `wandb.Table` object.
+
+    Example:
+    ```python
+    # Create a custom chart using a Vega-Lite spec and the data table.
+    import wandb
+
+    wandb.init()
+
+    data = [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]]
+    table = wandb.Table(data=data, columns=["x", "y"])
+
+    fields = {"x": "x", "y": "y", "title": "MY TITLE"}
+
+    # Create a custom title with `string_fields`.
+    my_custom_chart = wandb.plot_table(
+        vega_spec_name="wandb/line/v0",
+        data_table=table,
+        fields=fields,
+        string_fields={"title": "Title"},
+    )
+
+    wandb.log({"custom_chart": my_custom_chart})
+    ```
     """
 
     if not isinstance(data_table, wandb.Table):
