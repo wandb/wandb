@@ -81,33 +81,32 @@ func GetAccountID(ctx context.Context, cfg aws.Config) (string, error) {
 func InitAWSConfig(ctx context.Context, region string) (aws.Config, error) {
 	// Try to load AWS config with explicit credentials
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
-    if err != nil {
-        log.Warn("LoadDefaultConfig failed, falling back to shared profile", "error", err)
-        cfg, err = config.LoadDefaultConfig(ctx,
-            config.WithRegion(region),
-            config.WithSharedConfigProfile("default"),
-        )
-        if err != nil {
-            return aws.Config{}, fmt.Errorf("failed to load AWS config: %w", err)
-        }
-    }
-	
-    if roleArn := os.Getenv("AWS_ROLE_ARN"); roleArn != "" {
-        stsClient := sts.NewFromConfig(cfg)
-        sessName := os.Getenv("AWS_ROLE_SESSION_NAME")
-        if sessName == "" {
-            sessName = "aws-sdk-go-session"
-        }
+	if err != nil {
+		log.Warn("LoadDefaultConfig failed, falling back to shared profile", "error", err)
+		cfg, err = config.LoadDefaultConfig(ctx,
+			config.WithRegion(region),
+			config.WithSharedConfigProfile("default"),
+		)
+		if err != nil {
+			return aws.Config{}, fmt.Errorf("failed to load AWS config: %w", err)
+		}
+	}
 
-        cfg.Credentials = aws.NewCredentialsCache(
-            stscreds.NewAssumeRoleProvider(stsClient, roleArn, func(o *stscreds.AssumeRoleOptions) {
-                o.RoleSessionName = sessName
-                // o.Duration can be tweaked here if you need longer-lived tokens
-            }),
-        )
-        log.Info("Configured STS AssumeRole", "role_arn", roleArn, "session", sessName)
-    }
+	if roleArn := os.Getenv("AWS_ROLE_ARN"); roleArn != "" {
+		stsClient := sts.NewFromConfig(cfg)
+		sessName := os.Getenv("AWS_ROLE_SESSION_NAME")
+		if sessName == "" {
+			sessName = "aws-sdk-go-session"
+		}
 
+		cfg.Credentials = aws.NewCredentialsCache(
+			stscreds.NewAssumeRoleProvider(stsClient, roleArn, func(o *stscreds.AssumeRoleOptions) {
+				o.RoleSessionName = sessName
+				// o.Duration can be tweaked here if you need longer-lived tokens
+			}),
+		)
+		log.Info("Configured STS AssumeRole", "role_arn", roleArn, "session", sessName)
+	}
 
 	// Verify credentials are valid before proceeding
 	credentials, err := cfg.Credentials.Retrieve(ctx)

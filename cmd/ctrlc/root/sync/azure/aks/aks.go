@@ -128,12 +128,12 @@ func getTenantIDFromEnv() string {
 	if tenantID := os.Getenv("AZURE_TENANT_ID"); tenantID != "" {
 		return tenantID
 	}
-	
+
 	// Check viper config
 	if tenantID := viper.GetString("azure.tenant-id"); tenantID != "" {
 		return tenantID
 	}
-	
+
 	return ""
 }
 
@@ -221,7 +221,7 @@ func processCluster(_ context.Context, cluster *armcontainerservice.ManagedClust
 
 	certificateAuthorityData := ""
 	// The Azure SDK may not expose KubeConfig directly, we'll handle this gracefully
-	
+
 	endpoint := ""
 	if cluster.Properties.PrivateFQDN != nil {
 		endpoint = *cluster.Properties.PrivateFQDN
@@ -292,14 +292,14 @@ func initClusterMetadata(cluster *armcontainerservice.ManagedCluster, subscripti
 		"kubernetes/location": *cluster.Location,
 		"kubernetes/endpoint": getEndpoint(cluster),
 
-		"azure/subscription":    subscriptionID,
-		"azure/tenant":          tenantID,
-		"azure/resource-group":  resourceGroup,
-		"azure/resource-type":   "Microsoft.ContainerService/managedClusters",
-		"azure/location":        *cluster.Location,
-		"azure/status":          *cluster.Properties.ProvisioningState,
-		"azure/id":              *cluster.ID,
-		"azure/console-url":     fmt.Sprintf("https://portal.azure.com/#@/resource%s", *cluster.ID),
+		"azure/subscription":   subscriptionID,
+		"azure/tenant":         tenantID,
+		"azure/resource-group": resourceGroup,
+		"azure/resource-type":  "Microsoft.ContainerService/managedClusters",
+		"azure/location":       *cluster.Location,
+		"azure/status":         *cluster.Properties.ProvisioningState,
+		"azure/id":             *cluster.ID,
+		"azure/console-url":    fmt.Sprintf("https://portal.azure.com/#@/resource%s", *cluster.ID),
 	}
 
 	// Process creation time if available
@@ -310,20 +310,20 @@ func initClusterMetadata(cluster *armcontainerservice.ManagedCluster, subscripti
 	// Add node pool information
 	if cluster.Properties.AgentPoolProfiles != nil {
 		metadata["kubernetes/node-pool-count"] = strconv.Itoa(len(cluster.Properties.AgentPoolProfiles))
-		
+
 		totalNodeCount := 0
 		for i, pool := range cluster.Properties.AgentPoolProfiles {
 			metadata[fmt.Sprintf("kubernetes/node-pool/%d/name", i)] = *pool.Name
 			metadata[fmt.Sprintf("kubernetes/node-pool/%d/vm-size", i)] = *pool.VMSize
 			metadata[fmt.Sprintf("kubernetes/node-pool/%d/os-type", i)] = string(*pool.OSType)
 			metadata[fmt.Sprintf("kubernetes/node-pool/%d/mode", i)] = string(*pool.Mode)
-			
+
 			if pool.Count != nil {
 				nodeCount := int(*pool.Count)
 				metadata[fmt.Sprintf("kubernetes/node-pool/%d/count", i)] = strconv.Itoa(nodeCount)
 				totalNodeCount += nodeCount
 			}
-			
+
 			if pool.EnableAutoScaling != nil && *pool.EnableAutoScaling {
 				metadata[fmt.Sprintf("kubernetes/node-pool/%d/autoscaling", i)] = "enabled"
 				if pool.MinCount != nil {
@@ -335,12 +335,12 @@ func initClusterMetadata(cluster *armcontainerservice.ManagedCluster, subscripti
 			} else {
 				metadata[fmt.Sprintf("kubernetes/node-pool/%d/autoscaling", i)] = "disabled"
 			}
-			
+
 			if pool.OSDiskSizeGB != nil {
 				metadata[fmt.Sprintf("kubernetes/node-pool/%d/os-disk-size-gb", i)] = strconv.Itoa(int(*pool.OSDiskSizeGB))
 			}
 		}
-		
+
 		metadata["kubernetes/total-node-count"] = strconv.Itoa(totalNodeCount)
 	}
 
@@ -398,7 +398,7 @@ func getEndpoint(cluster *armcontainerservice.ManagedCluster) string {
 }
 
 func extractResourceGroupFromID(id string) string {
-	// The format of the resource ID is: 
+	// The format of the resource ID is:
 	// /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ContainerService/managedClusters/{clusterName}
 	parts := strings.Split(id, "/")
 	for i, part := range parts {
@@ -420,7 +420,7 @@ var relationshipRules = []api.CreateResourceRelationshipRule{
 		TargetKind:    "AzureNetwork",
 		TargetVersion: "ctrlplane.dev/network/v1",
 
-		MetadataKeysMatch: []string{"azure/subscription", "azure/resource-group"},
+		MetadataKeysMatch: &[]string{"azure/subscription", "azure/resource-group"},
 	},
 }
 
@@ -455,4 +455,4 @@ func upsertToCtrlplane(ctx context.Context, resources []api.AgentResource, subsc
 
 	log.Info("Response from upserting resources", "status", upsertResp.Status)
 	return nil
-} 
+}

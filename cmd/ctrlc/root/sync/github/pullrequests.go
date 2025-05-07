@@ -75,32 +75,32 @@ func validateFlags(repoPath *string, states *[]string) func(cmd *cobra.Command, 
 			repo = parts[1]
 			log.Debug("Extracted owner and repo from repo string", "owner", owner, "repo", repo)
 		}
-		
+
 		log.Debug("Validating flags", "owner", owner, "repo", repo, "states", *states)
-		
+
 		if owner == "" {
 			return fmt.Errorf("owner is required (use --owner flag or specify repo as 'owner/repo')")
 		}
 		if repo == "" {
 			return fmt.Errorf("repo is required")
 		}
-		
+
 		// Validate state values
 		validStates := map[string]bool{
-			"all": true,
-			"open": true,
+			"all":    true,
+			"open":   true,
 			"closed": true,
-			"draft": true,
+			"draft":  true,
 			"merged": true,
 		}
-		
+
 		for _, state := range *states {
 			if !validStates[state] {
 				log.Debug("Invalid state value", "state", state)
 				return fmt.Errorf("invalid state value: %s, must be one of: all, open, closed, draft, merged", state)
 			}
 		}
-		
+
 		// If "all" is specified with other states, return an error
 		if len(*states) > 1 {
 			for _, state := range *states {
@@ -110,7 +110,7 @@ func validateFlags(repoPath *string, states *[]string) func(cmd *cobra.Command, 
 				}
 			}
 		}
-		
+
 		log.Debug("Flag validation successful")
 		return nil
 	}
@@ -119,8 +119,8 @@ func validateFlags(repoPath *string, states *[]string) func(cmd *cobra.Command, 
 // runSync contains the main sync logic
 func runSync(repoPath, token, name *string, states *[]string) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		log.Info("Syncing GitHub pull requests into Ctrlplane", 
-			"repoPath", *repoPath, 
+		log.Info("Syncing GitHub pull requests into Ctrlplane",
+			"repoPath", *repoPath,
 			"states", *states)
 
 		ctx := context.Background()
@@ -148,7 +148,7 @@ func runSync(repoPath, token, name *string, states *[]string) func(cmd *cobra.Co
 
 		// List and process pull requests
 		log.Debug("Processing pull requests", "repoPath", *repoPath)
-		
+
 		pathSplit := strings.Split(*repoPath, "/")
 		owner := pathSplit[0]
 		repo := pathSplit[1]
@@ -181,15 +181,15 @@ func initGitHubClient(ctx context.Context, token string) (*github.Client, error)
 // processPullRequests lists and processes all pull requests
 func processPullRequests(ctx context.Context, client *github.Client, owner, repo string, states []string) ([]api.AgentResource, error) {
 	log.Debug("Processing pull requests", "owner", owner, "repo", repo, "states", states)
-	
+
 	// If no states specified or "all" is specified, include everything
 	fetchAll := len(states) == 0
 	log.Debug("Fetch all states", "fetchAll", fetchAll)
-	
+
 	// Determine which API calls to make
 	fetchOpen := true
 	fetchClosed := true
-	
+
 	if !fetchAll {
 		fetchOpen = false
 		fetchClosed = false
@@ -197,22 +197,22 @@ func processPullRequests(ctx context.Context, client *github.Client, owner, repo
 		for _, state := range states {
 			statesToFetch[state] = true
 		}
-		
+
 		// Need to fetch open PRs if any of the requested states are open or draft
 		if statesToFetch["open"] || statesToFetch["draft"] {
 			fetchOpen = true
 		}
-		
+
 		// Need to fetch closed PRs if any of the requested states are closed or merged
 		if statesToFetch["closed"] || statesToFetch["merged"] {
 			fetchClosed = true
 		}
 	}
-	
+
 	log.Debug("API calls to make", "fetchOpen", fetchOpen, "fetchClosed", fetchClosed)
-	
+
 	var allPRs []*github.PullRequest
-	
+
 	// Fetch open PRs if needed
 	if fetchOpen {
 		log.Debug("Fetching open PRs")
@@ -224,7 +224,7 @@ func processPullRequests(ctx context.Context, client *github.Client, owner, repo
 		log.Debug("Fetched open PRs", "count", len(prs))
 		allPRs = append(allPRs, prs...)
 	}
-	
+
 	// Fetch closed PRs if needed
 	if fetchClosed {
 		log.Debug("Fetching closed PRs")
@@ -239,7 +239,7 @@ func processPullRequests(ctx context.Context, client *github.Client, owner, repo
 
 	// Apply filters based on the requested states
 	var filteredPRs []*github.PullRequest
-	
+
 	if fetchAll {
 		// Include all PRs without filtering
 		log.Debug("Including all PRs without filtering")
@@ -250,12 +250,12 @@ func processPullRequests(ctx context.Context, client *github.Client, owner, repo
 		for _, state := range states {
 			stateFilters[state] = true
 		}
-		
+
 		for _, pr := range allPRs {
 			// Normalize the PR status
 			status := getNormalizedStatus(pr)
 			log.Debug("Checking PR status", "number", pr.GetNumber(), "status", status)
-			
+
 			if stateFilters[status] {
 				log.Debug("Including PR in filtered results", "number", pr.GetNumber(), "status", status)
 				filteredPRs = append(filteredPRs, pr)
@@ -265,8 +265,8 @@ func processPullRequests(ctx context.Context, client *github.Client, owner, repo
 		}
 	}
 
-	log.Info("Found GitHub pull requests", 
-		"total", len(allPRs), 
+	log.Info("Found GitHub pull requests",
+		"total", len(allPRs),
 		"filtered", len(filteredPRs),
 		"states", states)
 
@@ -314,7 +314,7 @@ func fetchPRs(ctx context.Context, client *github.Client, owner, repo, state str
 		opts.Page = resp.NextPage
 		page = resp.NextPage
 	}
-	
+
 	log.Debug("Completed fetching pull requests", "state", state, "total", len(prs))
 	return prs, nil
 }
@@ -323,31 +323,31 @@ func fetchPRs(ctx context.Context, client *github.Client, owner, repo, state str
 func fetchAllCommits(ctx context.Context, client *github.Client, owner, repo string, prNumber int) ([]*github.RepositoryCommit, error) {
 	var allCommits []*github.RepositoryCommit
 	page := 1
-	
+
 	for {
 		log.Debug("Fetching PR commits", "pr", prNumber, "page", page)
-		
+
 		commits, resp, err := client.PullRequests.ListCommits(ctx, owner, repo, prNumber, &github.ListOptions{
 			Page:    page,
 			PerPage: 100,
 		})
-		
+
 		if err != nil {
 			log.Error("Failed to list commits", "pr", prNumber, "page", page, "error", err)
 			return nil, fmt.Errorf("failed to list commits for PR #%d (page %d): %w", prNumber, page, err)
 		}
-		
+
 		log.Debug("Fetched commits", "pr", prNumber, "page", page, "count", len(commits))
 		allCommits = append(allCommits, commits...)
-		
+
 		if resp.NextPage == 0 {
 			log.Debug("No more commit pages to fetch", "pr", prNumber)
 			break
 		}
-		
+
 		page = resp.NextPage
 	}
-	
+
 	log.Debug("Retrieved all commits for PR", "pr", prNumber, "count", len(allCommits))
 	return allCommits, nil
 }
@@ -355,28 +355,28 @@ func fetchAllCommits(ctx context.Context, client *github.Client, owner, repo str
 // getBranchCommitInfo fetches the commits for a PR and returns info about oldest and newest
 func getBranchCommitInfo(ctx context.Context, client *github.Client, owner, repo string, prNumber int) (map[string]any, map[string]any, int, error) {
 	log.Debug("Getting branch commit info", "pr", prNumber)
-	
+
 	// Get all PR commits with pagination support
 	commits, err := fetchAllCommits(ctx, client, owner, repo, prNumber)
-	
+
 	if err != nil {
 		log.Error("Failed to fetch commits for PR", "pr", prNumber, "error", err)
-		return nil, nil, 0,fmt.Errorf("failed to list PR commits: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to list PR commits: %w", err)
 	}
-	
+
 	if len(commits) == 0 {
 		log.Warn("No commits found for PR", "pr", prNumber)
 		return nil, nil, 0, fmt.Errorf("no commits found for PR #%d", prNumber)
 	}
-	
+
 	// First commit in the list should be the oldest one
 	oldestCommit := commits[0]
 	// Last commit in the list should be the newest one
 	newestCommit := commits[len(commits)-1]
-	
+
 	// Add commit count to logs
 	log.Debug("Processing PR commits", "pr", prNumber, "commit_count", len(commits))
-	
+
 	oldestCommitInfo := map[string]any{
 		"sha":         oldestCommit.GetSHA(),
 		"message":     strings.Split(oldestCommit.GetCommit().GetMessage(), "\n")[0], // Get first line
@@ -384,14 +384,14 @@ func getBranchCommitInfo(ctx context.Context, client *github.Client, owner, repo
 		"authorEmail": oldestCommit.GetCommit().GetAuthor().GetEmail(),
 		"url":         oldestCommit.GetHTMLURL(),
 	}
-	
+
 	log.Debug("Oldest commit info", "pr", prNumber, "sha", oldestCommit.GetSHA())
-	
+
 	// Try to get commit date - using try/catch pattern with a function
 	tryAddDate(oldestCommitInfo, "date", func() string {
 		return oldestCommit.GetCommit().GetAuthor().GetDate().Format(time.RFC3339)
 	})
-	
+
 	newestCommitInfo := map[string]any{
 		"sha":         newestCommit.GetSHA(),
 		"message":     strings.Split(newestCommit.GetCommit().GetMessage(), "\n")[0], // Get first line
@@ -399,14 +399,14 @@ func getBranchCommitInfo(ctx context.Context, client *github.Client, owner, repo
 		"authorEmail": newestCommit.GetCommit().GetAuthor().GetEmail(),
 		"url":         newestCommit.GetHTMLURL(),
 	}
-	
+
 	log.Debug("Newest commit info", "pr", prNumber, "sha", newestCommit.GetSHA())
-	
+
 	// Try to get commit date - using try/catch pattern with a function
 	tryAddDate(newestCommitInfo, "date", func() string {
 		return newestCommit.GetCommit().GetAuthor().GetDate().Format(time.RFC3339)
 	})
-	
+
 	log.Debug("Successfully retrieved branch commit info", "pr", prNumber)
 	return oldestCommitInfo, newestCommitInfo, len(commits), nil
 }
@@ -421,7 +421,7 @@ func tryAddDate(m map[string]any, key string, getter func() string) {
 			// Just ignore the error and don't add the date
 		}
 	}()
-	
+
 	// Try to get the date
 	dateStr := getter()
 	if dateStr != "" {
@@ -457,7 +457,7 @@ func getNormalizedStatus(pr *github.PullRequest) string {
 func processPullRequest(ctx context.Context, client *github.Client, owner, repo string, pr *github.PullRequest) (api.AgentResource, error) {
 	prNumber := pr.GetNumber()
 	log.Debug("Processing pull request", "number", prNumber, "title", pr.GetTitle())
-	
+
 	metadata := initPullRequestMetadata(pr, owner, repo)
 	log.Debug("Initialized PR metadata", "number", prNumber, "metadata_count", len(metadata))
 
@@ -470,13 +470,13 @@ func processPullRequest(ctx context.Context, client *github.Client, owner, repo 
 	sourceBranch := pr.GetHead().GetRef()
 	targetBranch := pr.GetBase().GetRef()
 	log.Debug("PR branch info", "number", prNumber, "source", sourceBranch, "target", targetBranch)
-	
+
 	// Initialize the branch info map
 	branchInfo := map[string]any{
 		"source": sourceBranch,
 		"target": targetBranch,
 	}
-	
+
 	// Get commit information
 	log.Debug("Getting branch commit info", "number", prNumber)
 	oldestCommitInfo, newestCommitInfo, commitCount, err := getBranchCommitInfo(ctx, client, owner, repo, prNumber)
@@ -494,29 +494,29 @@ func processPullRequest(ctx context.Context, client *github.Client, owner, repo 
 	} else {
 		log.Warn("Failed to get branch commits", "pr", prNumber, "error", err)
 	}
-	
+
 	resourceName := fmt.Sprintf("%s-%s-%d", owner, repo, prNumber)
 	log.Debug("Creating resource", "number", prNumber, "name", resourceName)
-	
+
 	return api.AgentResource{
 		Version:    "ctrlplane.dev/git/pull-request/v1",
 		Kind:       "GitHubPullRequest",
 		Name:       resourceName,
 		Identifier: "github-" + pr.GetNodeID(),
 		Config: map[string]any{
-			"number":       prNumber,
-			"url":          prUrl,
-			"state":        pr.GetState(),
-			"createdAt":    pr.GetCreatedAt().Format(time.RFC3339),
-			"updatedAt":    pr.GetUpdatedAt().Format(time.RFC3339),
-			"branch":       branchInfo,
-			"isDraft":      pr.GetDraft(),
+			"number":    prNumber,
+			"url":       prUrl,
+			"state":     pr.GetState(),
+			"createdAt": pr.GetCreatedAt().Format(time.RFC3339),
+			"updatedAt": pr.GetUpdatedAt().Format(time.RFC3339),
+			"branch":    branchInfo,
+			"isDraft":   pr.GetDraft(),
 			"repository": map[string]any{
 				"owner": owner,
 				"name":  repo,
 			},
 			"author": map[string]any{
-				"login":    pr.GetUser().GetLogin(),
+				"login":     pr.GetUser().GetLogin(),
 				"avatarUrl": pr.GetUser().GetAvatarURL(),
 			},
 		},
@@ -528,21 +528,21 @@ func processPullRequest(ctx context.Context, client *github.Client, owner, repo 
 func initPullRequestMetadata(pr *github.PullRequest, owner, repo string) map[string]string {
 	prNumber := pr.GetNumber()
 	log.Debug("Initializing PR metadata", "number", prNumber)
-	
+
 	normalizedStatus := getNormalizedStatus(pr)
 
 	metadata := map[string]string{
 		"ctrlplane/external-id": pr.GetNodeID(),
 
-		"git/type":        "pull-request",
-		"git/owner":       owner,
-		"git/repo":        repo,
-		"git/number":      strconv.Itoa(prNumber),
-		"git/title":       pr.GetTitle(),
-		"git/state":       pr.GetState(),
-		"git/status":      normalizedStatus,
-		"git/author":      pr.GetUser().GetLogin(),
-		"git/branch":      pr.GetHead().GetRef(),
+		"git/type":   "pull-request",
+		"git/owner":  owner,
+		"git/repo":   repo,
+		"git/number": strconv.Itoa(prNumber),
+		"git/title":  pr.GetTitle(),
+		"git/state":  pr.GetState(),
+		"git/status": normalizedStatus,
+		"git/author": pr.GetUser().GetLogin(),
+		"git/branch": pr.GetHead().GetRef(),
 
 		"git/source-branch": pr.GetHead().GetRef(),
 		"git/target-branch": pr.GetBase().GetRef(),
@@ -574,7 +574,7 @@ func initPullRequestMetadata(pr *github.PullRequest, owner, repo string) map[str
 		mergedAt := pr.MergedAt.Format(time.RFC3339)
 		metadata["git/merged-at"] = mergedAt
 		log.Debug("PR merge time", "number", prNumber, "merged_at", mergedAt)
-		
+
 		if pr.MergedBy != nil {
 			mergedBy := pr.MergedBy.GetLogin()
 			metadata["git/merged-by"] = mergedBy
@@ -610,7 +610,7 @@ var relationshipRules = []api.CreateResourceRelationshipRule{}
 // upsertToCtrlplane handles upserting resources to Ctrlplane
 func upsertToCtrlplane(ctx context.Context, resources []api.AgentResource, owner, repo, name string) error {
 	log.Debug("Upserting resources to Ctrlplane", "count", len(resources))
-	
+
 	if name == "" {
 		name = fmt.Sprintf("github-prs-%s-%s", owner, repo)
 		log.Debug("Using generated provider name", "name", name)
@@ -621,7 +621,7 @@ func upsertToCtrlplane(ctx context.Context, resources []api.AgentResource, owner
 	apiURL := viper.GetString("url")
 	apiKey := viper.GetString("api-key")
 	workspaceId := viper.GetString("workspace")
-	
+
 	log.Debug("API configuration", "url", apiURL, "workspace", workspaceId)
 
 	log.Debug("Creating API client")
@@ -656,4 +656,4 @@ func upsertToCtrlplane(ctx context.Context, resources []api.AgentResource, owner
 	log.Info("Response from upserting resources", "status", upsertResp.Status)
 	log.Debug("Successfully upserted resources to Ctrlplane")
 	return nil
-} 
+}

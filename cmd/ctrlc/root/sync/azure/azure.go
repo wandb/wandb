@@ -32,6 +32,6 @@ func NewAzureCmd() *cobra.Command {
 
 	// Add all Azure sync subcommands
 	cmd.AddCommand(cliutil.AddIntervalSupport(aks.NewSyncAKSCmd(), ""))
-	
+
 	return cmd
-} 
+}

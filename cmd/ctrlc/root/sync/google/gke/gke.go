@@ -196,7 +196,6 @@ func initClusterMetadata(cluster *container.Cluster, project string) map[string]
 		noramlizedStatus = "failed"
 	}
 
-
 	metadata := map[string]string{
 		"network/type": "vpc",
 		"network/name": cluster.Network,
@@ -390,7 +389,7 @@ var relationshipRules = []api.CreateResourceRelationshipRule{
 		TargetKind:    "GoogleNetwork",
 		TargetVersion: "ctrlplane.dev/network/v1",
 
-		MetadataKeysMatch: []string{"google/project", "network/name"},
+		MetadataKeysMatch: &[]string{"google/project", "network/name"},
 	},
 }
 

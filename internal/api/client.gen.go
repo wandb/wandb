@@ -128,17 +128,21 @@ type CloudRegionGeoData struct {
 
 // CreateResourceRelationshipRule defines model for CreateResourceRelationshipRule.
 type CreateResourceRelationshipRule struct {
-	DependencyDescription *string                                `json:"dependencyDescription,omitempty"`
-	DependencyType        ResourceRelationshipRuleDependencyType `json:"dependencyType"`
-	Description           *string                                `json:"description,omitempty"`
-	MetadataKeysMatch     []string                               `json:"metadataKeysMatch"`
-	Name                  string                                 `json:"name"`
-	Reference             string                                 `json:"reference"`
-	SourceKind            string                                 `json:"sourceKind"`
-	SourceVersion         string                                 `json:"sourceVersion"`
-	TargetKind            string                                 `json:"targetKind"`
-	TargetVersion         string                                 `json:"targetVersion"`
-	WorkspaceId           string                                 `json:"workspaceId"`
+	DependencyDescription    *string                                `json:"dependencyDescription,omitempty"`
+	DependencyType           ResourceRelationshipRuleDependencyType `json:"dependencyType"`
+	Description              *string                                `json:"description,omitempty"`
+	MetadataKeysMatch        *[]string                              `json:"metadataKeysMatch,omitempty"`
+	MetadataTargetKeysEquals *[]struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	} `json:"metadataTargetKeysEquals,omitempty"`
+	Name          string `json:"name"`
+	Reference     string `json:"reference"`
+	SourceKind    string `json:"sourceKind"`
+	SourceVersion string `json:"sourceVersion"`
+	TargetKind    string `json:"targetKind"`
+	TargetVersion string `json:"targetVersion"`
+	WorkspaceId   string `json:"workspaceId"`
 }
 
 // DenyWindow defines model for DenyWindow.
@@ -245,6 +249,14 @@ type Environment struct {
 	SystemId         openapi_types.UUID      `json:"systemId"`
 }
 
+// Event defines model for Event.
+type Event struct {
+	Action    string                 `json:"action"`
+	CreatedAt time.Time              `json:"createdAt"`
+	Id        openapi_types.UUID     `json:"id"`
+	Payload   map[string]interface{} `json:"payload"`
+}
+
 // Job defines model for Job.
 type Job struct {
 	CompletedAt *time.Time `json:"completedAt"`
@@ -293,13 +305,27 @@ type JobWithTrigger struct {
 	Message        *string                `json:"message,omitempty"`
 	Reason         *string                `json:"reason,omitempty"`
 	Release        *Release               `json:"release,omitempty"`
-	Resource       *Resource              `json:"resource,omitempty"`
-	Runbook        *Runbook               `json:"runbook,omitempty"`
-	StartedAt      *time.Time             `json:"startedAt"`
-	Status         JobStatus              `json:"status"`
-	UpdatedAt      time.Time              `json:"updatedAt"`
-	Variables      VariableMap            `json:"variables"`
-	Version        *DeploymentVersion     `json:"version,omitempty"`
+	Resource       *struct {
+		Config        map[string]interface{} `json:"config"`
+		CreatedAt     time.Time              `json:"createdAt"`
+		Id            openapi_types.UUID     `json:"id"`
+		Identifier    string                 `json:"identifier"`
+		Kind          string                 `json:"kind"`
+		Metadata      MetadataMap            `json:"metadata"`
+		Name          string                 `json:"name"`
+		ProviderId    *openapi_types.UUID    `json:"providerId,omitempty"`
+		Relationships *map[string]Resource   `json:"relationships,omitempty"`
+		UpdatedAt     time.Time              `json:"updatedAt"`
+		Variables     *VariableMap           `json:"variables,omitempty"`
+		Version       string                 `json:"version"`
+		WorkspaceId   openapi_types.UUID     `json:"workspaceId"`
+	} `json:"resource,omitempty"`
+	Runbook   *Runbook           `json:"runbook,omitempty"`
+	StartedAt *time.Time         `json:"startedAt"`
+	Status    JobStatus          `json:"status"`
+	UpdatedAt time.Time          `json:"updatedAt"`
+	Variables VariableMap        `json:"variables"`
+	Version   *DeploymentVersion `json:"version,omitempty"`
 }
 
 // JobWithTriggerApprovalStatus defines model for JobWithTrigger.Approval.Status.
@@ -442,17 +468,22 @@ type Resource struct {
 
 // ResourceRelationshipRule defines model for ResourceRelationshipRule.
 type ResourceRelationshipRule struct {
-	DependencyDescription *string                                `json:"dependencyDescription,omitempty"`
-	DependencyType        ResourceRelationshipRuleDependencyType `json:"dependencyType"`
-	Description           *string                                `json:"description,omitempty"`
-	Id                    string                                 `json:"id"`
-	Name                  string                                 `json:"name"`
-	Reference             string                                 `json:"reference"`
-	SourceKind            string                                 `json:"sourceKind"`
-	SourceVersion         string                                 `json:"sourceVersion"`
-	TargetKind            string                                 `json:"targetKind"`
-	TargetVersion         string                                 `json:"targetVersion"`
-	WorkspaceId           string                                 `json:"workspaceId"`
+	DependencyDescription    *string                                `json:"dependencyDescription,omitempty"`
+	DependencyType           ResourceRelationshipRuleDependencyType `json:"dependencyType"`
+	Description              *string                                `json:"description,omitempty"`
+	Id                       openapi_types.UUID                     `json:"id"`
+	MetadataKeysMatch        *[]string                              `json:"metadataKeysMatch,omitempty"`
+	MetadataTargetKeysEquals *[]struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	} `json:"metadataTargetKeysEquals,omitempty"`
+	Name          string             `json:"name"`
+	Reference     string             `json:"reference"`
+	SourceKind    string             `json:"sourceKind"`
+	SourceVersion string             `json:"sourceVersion"`
+	TargetKind    *string            `json:"targetKind,omitempty"`
+	TargetVersion *string            `json:"targetVersion,omitempty"`
+	WorkspaceId   openapi_types.UUID `json:"workspaceId"`
 }
 
 // ResourceRelationshipRuleDependencyType defines model for ResourceRelationshipRuleDependencyType.
@@ -529,6 +560,24 @@ type System struct {
 
 	// WorkspaceId The workspace ID of the system
 	WorkspaceId openapi_types.UUID `json:"workspaceId"`
+}
+
+// UpdateResourceRelationshipRule defines model for UpdateResourceRelationshipRule.
+type UpdateResourceRelationshipRule struct {
+	DependencyDescription    *string                                 `json:"dependencyDescription,omitempty"`
+	DependencyType           *ResourceRelationshipRuleDependencyType `json:"dependencyType,omitempty"`
+	Description              *string                                 `json:"description,omitempty"`
+	MetadataKeysMatch        *[]string                               `json:"metadataKeysMatch,omitempty"`
+	MetadataTargetKeysEquals *[]struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	} `json:"metadataTargetKeysEquals,omitempty"`
+	Name          *string `json:"name,omitempty"`
+	Reference     *string `json:"reference,omitempty"`
+	SourceKind    *string `json:"sourceKind,omitempty"`
+	SourceVersion *string `json:"sourceVersion,omitempty"`
+	TargetKind    *string `json:"targetKind,omitempty"`
+	TargetVersion *string `json:"targetVersion,omitempty"`
 }
 
 // Variable defines model for Variable.
@@ -970,8 +1019,11 @@ type UpdateReleaseJSONRequestBody UpdateReleaseJSONBody
 // SetResourceProvidersResourcesJSONRequestBody defines body for SetResourceProvidersResources for application/json ContentType.
 type SetResourceProvidersResourcesJSONRequestBody SetResourceProvidersResourcesJSONBody
 
-// UpsertResourceRelationshipRuleJSONRequestBody defines body for UpsertResourceRelationshipRule for application/json ContentType.
-type UpsertResourceRelationshipRuleJSONRequestBody = CreateResourceRelationshipRule
+// CreateResourceRelationshipRuleJSONRequestBody defines body for CreateResourceRelationshipRule for application/json ContentType.
+type CreateResourceRelationshipRuleJSONRequestBody = CreateResourceRelationshipRule
+
+// UpdateResourceRelationshipRuleJSONRequestBody defines body for UpdateResourceRelationshipRule for application/json ContentType.
+type UpdateResourceRelationshipRuleJSONRequestBody = UpdateResourceRelationshipRule
 
 // CreateResourceSchemaJSONRequestBody defines body for CreateResourceSchema for application/json ContentType.
 type CreateResourceSchemaJSONRequestBody CreateResourceSchemaJSONBody
@@ -1685,10 +1737,15 @@ type ClientInterface interface {
 
 	SetResourceProvidersResources(ctx context.Context, providerId string, body SetResourceProvidersResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpsertResourceRelationshipRuleWithBody request with any body
-	UpsertResourceRelationshipRuleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CreateResourceRelationshipRuleWithBody request with any body
+	CreateResourceRelationshipRuleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpsertResourceRelationshipRule(ctx context.Context, body UpsertResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateResourceRelationshipRule(ctx context.Context, body CreateResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateResourceRelationshipRuleWithBody request with any body
+	UpdateResourceRelationshipRuleWithBody(ctx context.Context, ruleId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateResourceRelationshipRule(ctx context.Context, ruleId openapi_types.UUID, body UpdateResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateResourceSchemaWithBody request with any body
 	CreateResourceSchemaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1747,6 +1804,9 @@ type ClientInterface interface {
 
 	// ListEnvironments request
 	ListEnvironments(ctx context.Context, workspaceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetEventsByAction request
+	GetEventsByAction(ctx context.Context, workspaceId openapi_types.UUID, action string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeletePolicyByName request
 	DeletePolicyByName(ctx context.Context, workspaceId openapi_types.UUID, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2396,8 +2456,8 @@ func (c *Client) SetResourceProvidersResources(ctx context.Context, providerId s
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpsertResourceRelationshipRuleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpsertResourceRelationshipRuleRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateResourceRelationshipRuleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateResourceRelationshipRuleRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2408,8 +2468,32 @@ func (c *Client) UpsertResourceRelationshipRuleWithBody(ctx context.Context, con
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpsertResourceRelationshipRule(ctx context.Context, body UpsertResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpsertResourceRelationshipRuleRequest(c.Server, body)
+func (c *Client) CreateResourceRelationshipRule(ctx context.Context, body CreateResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateResourceRelationshipRuleRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateResourceRelationshipRuleWithBody(ctx context.Context, ruleId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateResourceRelationshipRuleRequestWithBody(c.Server, ruleId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateResourceRelationshipRule(ctx context.Context, ruleId openapi_types.UUID, body UpdateResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateResourceRelationshipRuleRequest(c.Server, ruleId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2662,6 +2746,18 @@ func (c *Client) ListDeployments(ctx context.Context, workspaceId string, reqEdi
 
 func (c *Client) ListEnvironments(ctx context.Context, workspaceId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListEnvironmentsRequest(c.Server, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetEventsByAction(ctx context.Context, workspaceId openapi_types.UUID, action string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEventsByActionRequest(c.Server, workspaceId, action)
 	if err != nil {
 		return nil, err
 	}
@@ -4123,19 +4219,19 @@ func NewSetResourceProvidersResourcesRequestWithBody(server string, providerId s
 	return req, nil
 }
 
-// NewUpsertResourceRelationshipRuleRequest calls the generic UpsertResourceRelationshipRule builder with application/json body
-func NewUpsertResourceRelationshipRuleRequest(server string, body UpsertResourceRelationshipRuleJSONRequestBody) (*http.Request, error) {
+// NewCreateResourceRelationshipRuleRequest calls the generic CreateResourceRelationshipRule builder with application/json body
+func NewCreateResourceRelationshipRuleRequest(server string, body CreateResourceRelationshipRuleJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpsertResourceRelationshipRuleRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateResourceRelationshipRuleRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewUpsertResourceRelationshipRuleRequestWithBody generates requests for UpsertResourceRelationshipRule with any type of body
-func NewUpsertResourceRelationshipRuleRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreateResourceRelationshipRuleRequestWithBody generates requests for CreateResourceRelationshipRule with any type of body
+func NewCreateResourceRelationshipRuleRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -4154,6 +4250,53 @@ func NewUpsertResourceRelationshipRuleRequestWithBody(server string, contentType
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewUpdateResourceRelationshipRuleRequest calls the generic UpdateResourceRelationshipRule builder with application/json body
+func NewUpdateResourceRelationshipRuleRequest(server string, ruleId openapi_types.UUID, body UpdateResourceRelationshipRuleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateResourceRelationshipRuleRequestWithBody(server, ruleId, "application/json", bodyReader)
+}
+
+// NewUpdateResourceRelationshipRuleRequestWithBody generates requests for UpdateResourceRelationshipRule with any type of body
+func NewUpdateResourceRelationshipRuleRequestWithBody(server string, ruleId openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "ruleId", runtime.ParamLocationPath, ruleId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/resource-relationship-rules/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -4758,6 +4901,47 @@ func NewListEnvironmentsRequest(server string, workspaceId string) (*http.Reques
 	return req, nil
 }
 
+// NewGetEventsByActionRequest generates requests for GetEventsByAction
+func NewGetEventsByActionRequest(server string, workspaceId openapi_types.UUID, action string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workspaceId", runtime.ParamLocationPath, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "action", runtime.ParamLocationPath, action)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/workspaces/%s/events/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewDeletePolicyByNameRequest generates requests for DeletePolicyByName
 func NewDeletePolicyByNameRequest(server string, workspaceId openapi_types.UUID, name string) (*http.Request, error) {
 	var err error
@@ -5219,10 +5403,15 @@ type ClientWithResponsesInterface interface {
 
 	SetResourceProvidersResourcesWithResponse(ctx context.Context, providerId string, body SetResourceProvidersResourcesJSONRequestBody, reqEditors ...RequestEditorFn) (*SetResourceProvidersResourcesResponse, error)
 
-	// UpsertResourceRelationshipRuleWithBodyWithResponse request with any body
-	UpsertResourceRelationshipRuleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertResourceRelationshipRuleResponse, error)
+	// CreateResourceRelationshipRuleWithBodyWithResponse request with any body
+	CreateResourceRelationshipRuleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateResourceRelationshipRuleResponse, error)
 
-	UpsertResourceRelationshipRuleWithResponse(ctx context.Context, body UpsertResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertResourceRelationshipRuleResponse, error)
+	CreateResourceRelationshipRuleWithResponse(ctx context.Context, body CreateResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateResourceRelationshipRuleResponse, error)
+
+	// UpdateResourceRelationshipRuleWithBodyWithResponse request with any body
+	UpdateResourceRelationshipRuleWithBodyWithResponse(ctx context.Context, ruleId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateResourceRelationshipRuleResponse, error)
+
+	UpdateResourceRelationshipRuleWithResponse(ctx context.Context, ruleId openapi_types.UUID, body UpdateResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateResourceRelationshipRuleResponse, error)
 
 	// CreateResourceSchemaWithBodyWithResponse request with any body
 	CreateResourceSchemaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateResourceSchemaResponse, error)
@@ -5281,6 +5470,9 @@ type ClientWithResponsesInterface interface {
 
 	// ListEnvironmentsWithResponse request
 	ListEnvironmentsWithResponse(ctx context.Context, workspaceId string, reqEditors ...RequestEditorFn) (*ListEnvironmentsResponse, error)
+
+	// GetEventsByActionWithResponse request
+	GetEventsByActionWithResponse(ctx context.Context, workspaceId openapi_types.UUID, action string, reqEditors ...RequestEditorFn) (*GetEventsByActionResponse, error)
 
 	// DeletePolicyByNameWithResponse request
 	DeletePolicyByNameWithResponse(ctx context.Context, workspaceId openapi_types.UUID, name string, reqEditors ...RequestEditorFn) (*DeletePolicyByNameResponse, error)
@@ -5429,6 +5621,7 @@ func (r UpdateDeploymentVersionResponse) StatusCode() int {
 type CreateDeploymentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *Deployment
 	JSON201      *Deployment
 	JSON409      *struct {
 		Error string             `json:"error"`
@@ -6333,17 +6526,20 @@ func (r SetResourceProvidersResourcesResponse) StatusCode() int {
 	return 0
 }
 
-type UpsertResourceRelationshipRuleResponse struct {
+type CreateResourceRelationshipRuleResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ResourceRelationshipRule
-	JSON400      *struct {
+	JSON409      *struct {
+		Error *string `json:"error,omitempty"`
+	}
+	JSON500 *struct {
 		Error *string `json:"error,omitempty"`
 	}
 }
 
 // Status returns HTTPResponse.Status
-func (r UpsertResourceRelationshipRuleResponse) Status() string {
+func (r CreateResourceRelationshipRuleResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -6351,7 +6547,35 @@ func (r UpsertResourceRelationshipRuleResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UpsertResourceRelationshipRuleResponse) StatusCode() int {
+func (r CreateResourceRelationshipRuleResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateResourceRelationshipRuleResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ResourceRelationshipRule
+	JSON404      *struct {
+		Error string `json:"error"`
+	}
+	JSON500 *struct {
+		Error string `json:"error"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateResourceRelationshipRuleResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateResourceRelationshipRuleResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6544,6 +6768,7 @@ func (r GetReleaseTargetsResponse) StatusCode() int {
 type CreateSystemResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *System
 	JSON201      *System
 	JSON400      *struct {
 		Error *[]struct {
@@ -6796,6 +7021,34 @@ func (r ListEnvironmentsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListEnvironmentsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetEventsByActionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Event
+	JSON404      *struct {
+		Error string `json:"error"`
+	}
+	JSON500 *struct {
+		Error string `json:"error"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEventsByActionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEventsByActionResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -7453,21 +7706,38 @@ func (c *ClientWithResponses) SetResourceProvidersResourcesWithResponse(ctx cont
 	return ParseSetResourceProvidersResourcesResponse(rsp)
 }
 
-// UpsertResourceRelationshipRuleWithBodyWithResponse request with arbitrary body returning *UpsertResourceRelationshipRuleResponse
-func (c *ClientWithResponses) UpsertResourceRelationshipRuleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertResourceRelationshipRuleResponse, error) {
-	rsp, err := c.UpsertResourceRelationshipRuleWithBody(ctx, contentType, body, reqEditors...)
+// CreateResourceRelationshipRuleWithBodyWithResponse request with arbitrary body returning *CreateResourceRelationshipRuleResponse
+func (c *ClientWithResponses) CreateResourceRelationshipRuleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateResourceRelationshipRuleResponse, error) {
+	rsp, err := c.CreateResourceRelationshipRuleWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpsertResourceRelationshipRuleResponse(rsp)
+	return ParseCreateResourceRelationshipRuleResponse(rsp)
 }
 
-func (c *ClientWithResponses) UpsertResourceRelationshipRuleWithResponse(ctx context.Context, body UpsertResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertResourceRelationshipRuleResponse, error) {
-	rsp, err := c.UpsertResourceRelationshipRule(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateResourceRelationshipRuleWithResponse(ctx context.Context, body CreateResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateResourceRelationshipRuleResponse, error) {
+	rsp, err := c.CreateResourceRelationshipRule(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpsertResourceRelationshipRuleResponse(rsp)
+	return ParseCreateResourceRelationshipRuleResponse(rsp)
+}
+
+// UpdateResourceRelationshipRuleWithBodyWithResponse request with arbitrary body returning *UpdateResourceRelationshipRuleResponse
+func (c *ClientWithResponses) UpdateResourceRelationshipRuleWithBodyWithResponse(ctx context.Context, ruleId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateResourceRelationshipRuleResponse, error) {
+	rsp, err := c.UpdateResourceRelationshipRuleWithBody(ctx, ruleId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateResourceRelationshipRuleResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateResourceRelationshipRuleWithResponse(ctx context.Context, ruleId openapi_types.UUID, body UpdateResourceRelationshipRuleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateResourceRelationshipRuleResponse, error) {
+	rsp, err := c.UpdateResourceRelationshipRule(ctx, ruleId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateResourceRelationshipRuleResponse(rsp)
 }
 
 // CreateResourceSchemaWithBodyWithResponse request with arbitrary body returning *CreateResourceSchemaResponse
@@ -7652,6 +7922,15 @@ func (c *ClientWithResponses) ListEnvironmentsWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseListEnvironmentsResponse(rsp)
+}
+
+// GetEventsByActionWithResponse request returning *GetEventsByActionResponse
+func (c *ClientWithResponses) GetEventsByActionWithResponse(ctx context.Context, workspaceId openapi_types.UUID, action string, reqEditors ...RequestEditorFn) (*GetEventsByActionResponse, error) {
+	rsp, err := c.GetEventsByAction(ctx, workspaceId, action, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEventsByActionResponse(rsp)
 }
 
 // DeletePolicyByNameWithResponse request returning *DeletePolicyByNameResponse
@@ -7923,6 +8202,13 @@ func ParseCreateDeploymentResponse(rsp *http.Response) (*CreateDeploymentRespons
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Deployment
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest Deployment
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -9219,15 +9505,15 @@ func ParseSetResourceProvidersResourcesResponse(rsp *http.Response) (*SetResourc
 	return response, nil
 }
 
-// ParseUpsertResourceRelationshipRuleResponse parses an HTTP response from a UpsertResourceRelationshipRuleWithResponse call
-func ParseUpsertResourceRelationshipRuleResponse(rsp *http.Response) (*UpsertResourceRelationshipRuleResponse, error) {
+// ParseCreateResourceRelationshipRuleResponse parses an HTTP response from a CreateResourceRelationshipRuleWithResponse call
+func ParseCreateResourceRelationshipRuleResponse(rsp *http.Response) (*CreateResourceRelationshipRuleResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpsertResourceRelationshipRuleResponse{
+	response := &CreateResourceRelationshipRuleResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -9240,14 +9526,67 @@ func ParseUpsertResourceRelationshipRuleResponse(rsp *http.Response) (*UpsertRes
 		}
 		response.JSON200 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest struct {
 			Error *string `json:"error,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON400 = &dest
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateResourceRelationshipRuleResponse parses an HTTP response from a UpdateResourceRelationshipRuleWithResponse call
+func ParseUpdateResourceRelationshipRuleResponse(rsp *http.Response) (*UpdateResourceRelationshipRuleResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateResourceRelationshipRuleResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ResourceRelationshipRule
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -9515,6 +9854,13 @@ func ParseCreateSystemResponse(rsp *http.Response) (*CreateSystemResponse, error
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest System
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest System
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -9837,6 +10183,50 @@ func ParseListEnvironmentsResponse(rsp *http.Response) (*ListEnvironmentsRespons
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetEventsByActionResponse parses an HTTP response from a GetEventsByActionWithResponse call
+func ParseGetEventsByActionResponse(rsp *http.Response) (*GetEventsByActionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEventsByActionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Event
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 

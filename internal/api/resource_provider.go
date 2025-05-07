@@ -107,7 +107,7 @@ func (r *ResourceProvider) UpsertResource(ctx context.Context, resources []Agent
 func (r *ResourceProvider) AddResourceRelationshipRule(ctx context.Context, rules []CreateResourceRelationshipRule) error {
 	for _, rule := range rules {
 		rule.WorkspaceId = r.workspaceId
-		resp, err := r.client.UpsertResourceRelationshipRuleWithResponse(ctx, rule)
+		resp, err := r.client.CreateResourceRelationshipRuleWithResponse(ctx, rule)
 		if err != nil {
 			return err
 		}

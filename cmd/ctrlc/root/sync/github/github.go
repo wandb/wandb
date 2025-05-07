@@ -15,4 +15,4 @@ func NewSyncGitHubCmd() *cobra.Command {
 	cmd.AddCommand(NewSyncPullRequestsCmd())
 
 	return cmd
-} 
+}
