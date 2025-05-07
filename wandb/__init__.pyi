@@ -193,7 +193,7 @@ def setup(settings: Settings | None = None) -> _WandbSetup:
     ...
 
 def teardown(exit_code: int | None = None) -> None:
-    """Waits for wandb to finish and frees resources.
+    """Waits for W&B to finish and frees resources.
 
     Completes any runs that were not explicitly finished
     using `run.finish()` and waits for all data to be uploaded.
@@ -248,7 +248,7 @@ def init(
 
     `wandb.init()` spawns a new background process to log data to a run, and it
     also syncs data to https://wandb.ai by default, so you can see your results
-    in real-time. When you're done logging data, call `run.finish()` to end the run.
+    in real-time. When you're done logging data, call `wandb.finish()` to end the run.
     If you don't call `run.finish()`, the run will end when your script exits.
 
     Run IDs must not contain any of the following special characters `/ \ # ? % :`
@@ -470,11 +470,11 @@ def login(
 
 
     Returns:
-        bool: if key is configured
+        bool: If `key` is configured
 
     Raises:
-        `AuthenticationError` if api_key fails verification with the server
-        `UsageError` if api_key cannot be configured and no tty
+        AuthenticationError: If `api_key` fails verification with the server.
+        UsageError: If `api_key` cannot be configured and no tty.
     """
     ...
 
@@ -899,12 +899,14 @@ def log_artifact(
         - `/local/directory`
         - `/local/directory/file.txt`
         - `s3://bucket/path`
-        name  (Optional[str]): An artifact name. Defaults to the basename of the path prepended with the current
-        run id  if not specified. Valid names can be in the following forms:
+        name: An artifact name. Defaults to the basename of the path
+            prepended with the current run id if not specified.
+            Valid names can be in the following forms:
         - name:version
         - name:alias
         - digest
-        type: The type of artifact to log, examples include `dataset`, `model`
+        type: The type of artifact to log. Common examples include
+            `dataset` and `model`
         aliases: Aliases to apply to this artifact,
             defaults to `["latest"]`
         tags: Tags to apply to this artifact, if any.
@@ -947,7 +949,7 @@ def log_model(
     name: str | None = None,
     aliases: list[str] | None = None,
 ) -> None:
-    """Logs a model artifact containing the contents inside the `path` to a run and marks it as an output to this run.
+    """Logs a model artifact as an output of this run.
 
     Args:
         path: A path to the contents of this model, can be in the following forms
@@ -967,7 +969,7 @@ def log_model(
         None
 
     Raises:
-        ValueError: if name has invalid special characters
+        ValueError: if name has invalid special characters.
 
     Examples:
     ```python
@@ -1043,33 +1045,20 @@ def link_model(
     The linked model version will be visible in the UI for the
     specified registered model.
 
-    First, check if `name` model artifact has been logged. If so,
-    use the artifact version that matches the files
-    located at `path` or log a new version. Otherwise log files
-    under `path` as a new model artifact, `name`
-    of type "model".
-
-    Next, check if registered model with name `registered_model_name`
-    exists in the 'model-registry' project.
-
-    If not, create a new registered model with name `registered_model_name`.
-    - Link version of model artifact `name` to registered model, `registered_model_name`.
-    - Attach aliases from 'aliases' list to the newly linked model artifact version.
-
     Args:
         path: A path to the contents of this model, can be in the following forms:
         - `/local/directory`
         - `/local/directory/file.txt`
         - `s3://bucket/path`
-        registered_model_name: the name of the registered model that
+        registered_model_name: The name of the registered model that
             the model is to be linked to. A registered model is a
             collection of model versions linked to the model registry,
             typically representing a team's specific ML Task.
             The entity that this registered model belongs to will be derived from the run
-        name: the name of the model artifact that files in `path`
+        name: The name of the model artifact that files in `path`
             will be logged to. This will default to the basename of
             the path prepended with the current run id  if not specified.
-        aliases: alias(es) that will only be applied on this linked artifact
+        aliases: Alias(es) that will only be applied on this linked artifact
             inside the registered model.
             The alias "latest" will always be applied to the latest
             version of an artifact that is linked.
@@ -1146,6 +1135,29 @@ def plot_table(
 
     Raises:
         wandb.Error: If `data_table` is not a `wandb.Table` object.
+
+    Example:
+    ```python
+    # Create a custom chart using a Vega-Lite spec and the data table.
+    import wandb
+
+    wandb.init()
+
+    data = [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]]
+    table = wandb.Table(data=data, columns=["x", "y"])
+
+    fields = {"x": "x", "y": "y", "title": "MY TITLE"}
+
+    # Create a custom title with `string_fields`.
+    my_custom_chart = wandb.plot_table(
+        vega_spec_name="wandb/line/v0",
+        data_table=table,
+        fields=fields,
+        string_fields={"title": "Title"},
+    )
+
+    wandb.log({"custom_chart": my_custom_chart})
+    ```
     """
     ...
 
