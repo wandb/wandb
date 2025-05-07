@@ -530,7 +530,7 @@ class Table(Media):
                 )
             logging.warning(f"Truncating wandb.Table object to {max_rows} rows.")
 
-        if self._last_logged_idx is not None:
+        if self.log_mode == "INCREMENTAL" and self._last_logged_idx is not None:
             return {
                 "columns": self.columns,
                 "data": self.data[
