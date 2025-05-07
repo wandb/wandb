@@ -33,9 +33,6 @@ func (rcm *RunConfigMetrics) ProcessRecord(record *spb.MetricRecord) error {
 
 // ToRunConfigData returns the data to store in the "m" (metrics) field of
 // the run config.
-//
-// May succeed partially, in which case the returned slice contains all
-// metrics that were successfully encoded and the error is non-nil.
 func (rcm *RunConfigMetrics) ToRunConfigData() []map[string]any {
 	var encodedMetrics []map[string]any
 	indexByName := make(map[string]int)
