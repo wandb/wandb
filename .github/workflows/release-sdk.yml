@@ -87,8 +87,8 @@ jobs:
       - name: Downgrade Go version
         run: |
           sed -i '' 's/1.24.2/1.22.12/' core/go.mod
-          sed -i '' 's/v0.11.0/v0.10.0' core/go.mod
-          sed -i '' 's/v1.53.0/v1.50.0' core/go.mod
+          sed -i '' 's/time v0.11.0/time v0.10.0/' core/go.mod
+          sed -i '' 's/storage v1.53.0/storage v1.50.0/' core/go.mod
 
       ##################################################
       # Install Go.
