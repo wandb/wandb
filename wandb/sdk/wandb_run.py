@@ -504,9 +504,6 @@ class Run:
     to `wandb.init`. For more details on distributed training with W&B, check out
     [our guide](https://docs.wandb.ai/guides/track/log/distributed-training).
 
-    Currently, there is a parallel `Run` object in the `wandb.Api`. Eventually these
-    two objects will be merged.
-
     Examples:
     Create a run with `wandb.init()`.
 
@@ -3156,12 +3153,14 @@ class Run:
             - `/local/directory`
             - `/local/directory/file.txt`
             - `s3://bucket/path`
-            name  (Optional[str]): An artifact name. Defaults to the basename of the path prepended with the current
-            run id  if not specified. Valid names can be in the following forms:
+            name: An artifact name. Defaults to the basename of the path
+                prepended with the current run id if not specified.
+                Valid names can be in the following forms:
             - name:version
             - name:alias
             - digest
-            type: The type of artifact to log, examples include `dataset`, `model`
+            type: The type of artifact to log. Common examples include
+                `dataset` and `model`
             aliases: Aliases to apply to this artifact,
                 defaults to `["latest"]`
             tags: Tags to apply to this artifact, if any.
@@ -3443,7 +3442,7 @@ class Run:
         name: str | None = None,
         aliases: list[str] | None = None,
     ) -> None:
-        """Logs a model artifact containing the contents inside the `path` to a run and marks it as an output to this run.
+        """Logs a model artifact as an output of this run.
 
         Args:
             path: A path to the contents of this model, can be in the following forms
@@ -3463,7 +3462,7 @@ class Run:
             None
 
         Raises:
-            ValueError: if name has invalid special characters
+            ValueError: if name has invalid special characters.
 
         Examples:
         ```python
@@ -3566,33 +3565,20 @@ class Run:
         The linked model version will be visible in the UI for the
         specified registered model.
 
-        First, check if `name` model artifact has been logged. If so,
-        use the artifact version that matches the files
-        located at `path` or log a new version. Otherwise log files
-        under `path` as a new model artifact, `name`
-        of type "model".
-
-        Next, check if registered model with name `registered_model_name`
-        exists in the 'model-registry' project.
-
-        If not, create a new registered model with name `registered_model_name`.
-        - Link version of model artifact `name` to registered model, `registered_model_name`.
-        - Attach aliases from 'aliases' list to the newly linked model artifact version.
-
         Args:
             path: A path to the contents of this model, can be in the following forms:
             - `/local/directory`
             - `/local/directory/file.txt`
             - `s3://bucket/path`
-            registered_model_name: the name of the registered model that
+            registered_model_name: The name of the registered model that
                 the model is to be linked to. A registered model is a
                 collection of model versions linked to the model registry,
                 typically representing a team's specific ML Task.
                 The entity that this registered model belongs to will be derived from the run
-            name: the name of the model artifact that files in `path`
+            name: The name of the model artifact that files in `path`
                 will be logged to. This will default to the basename of
                 the path prepended with the current run id  if not specified.
-            aliases: alias(es) that will only be applied on this linked artifact
+            aliases: Alias(es) that will only be applied on this linked artifact
                 inside the registered model.
                 The alias "latest" will always be applied to the latest
                 version of an artifact that is linked.
