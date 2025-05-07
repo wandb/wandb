@@ -1463,6 +1463,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def run_mode(self) -> Literal["run", "offline-run"]:
+        """The mode of the run. Can be either "run" or "offline-run"."""
         return "run" if not self._offline else "offline-run"
 
     @computed_field  # type: ignore[prop-decorator]
@@ -1496,6 +1497,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_dir(self) -> str:
+        """The directory for storing the run's files."""
         return _path_convert(
             self.wandb_dir,
             f"{self.run_mode}-{self.timespec}-{self.run_id}",
@@ -1510,11 +1512,13 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_symlink_latest(self) -> str:
+        """Path to the symlink to the most recent run's transaction log file."""
         return _path_convert(self.wandb_dir, "latest-run")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def timespec(self) -> str:
+        """The time specification for the run."""
         return self._start_datetime
 
     @computed_field  # type: ignore[prop-decorator]
