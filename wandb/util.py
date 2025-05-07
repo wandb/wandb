@@ -798,7 +798,7 @@ class JSONEncoderUncompressed(json.JSONEncoder):
     """
 
     def default(self, obj: Any) -> Any:
-        if is_numpy_array(obj) or is_pytorch_tensor_typename(get_full_typename(obj)):
+        if is_numpy_array(obj):
             return obj.tolist()
         elif np and isinstance(obj, np.number):
             return obj.item()
