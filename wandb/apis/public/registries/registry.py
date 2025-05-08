@@ -296,7 +296,7 @@ class Registry:
 
     def save(self) -> None:
         """Save registry attributes to the backend."""
-        if not InternalApi()._check_server_feature_with_fallback(
+        if not InternalApi()._server_supports(
             ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
         ):
             raise RuntimeError(
