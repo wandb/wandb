@@ -32,11 +32,6 @@ When preparing a release that can include breaking changes, consider applying ch
 
 ## Changes
 
-- Remove the `x_disable_service` setting; replace by False
-    - Owner: @timoffex
-    - Deprecated in 0.18.0
-    - Can do in >=0.20
-
 - Make `--verify` the default for `wandb login`
     - PR: https://github.com/wandb/wandb/pull/9230
     - Owner: @jacobromero

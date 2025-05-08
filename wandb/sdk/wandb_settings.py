@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Self
 
 import wandb
-from wandb import env, termwarn, util
+from wandb import env, util
 from wandb._pydantic import (
     IS_PYDANTIC_V2,
     AliasChoices,
@@ -529,11 +529,6 @@ class Settings(BaseModel, validate_assignment=True):
     x_disable_meta: bool = False
     """Flag to disable the collection of system metadata."""
 
-    x_disable_service: bool = False
-    """Flag to disable the W&B service.
-
-    This is deprecated and will be removed in future versions."""
-
     x_disable_setproctitle: bool = False
     """Flag to disable using setproctitle for the internal process in the legacy service.
 
@@ -831,18 +826,6 @@ class Settings(BaseModel, validate_assignment=True):
             return values
 
     # Field validators.
-
-    @field_validator("x_disable_service", mode="after")
-    @classmethod
-    def validate_disable_service(cls, value):
-        if value:
-            termwarn(
-                "Disabling the wandb service is deprecated as of version 0.18.0 "
-                "and will be removed in future versions. ",
-                repeat=False,
-            )
-        return value
-
     @field_validator("api_key", mode="after")
     @classmethod
     def validate_api_key(cls, value):
@@ -878,23 +861,7 @@ class Settings(BaseModel, validate_assignment=True):
         if value != "auto":
             return value
 
-        if hasattr(values, "data"):
-            # pydantic v2
-            values = values.data
-        else:
-            # pydantic v1
-            values = values
-
-        if (
-            ipython.in_jupyter()
-            or (values.get("start_method") == "thread")
-            or not values.get("x_disable_service")
-            or platform.system() == "Windows"
-        ):
-            value = "wrap"
-        else:
-            value = "redirect"
-        return value
+        return "wrap"
 
     @field_validator("x_executable", mode="before")
     @classmethod
@@ -1441,7 +1408,6 @@ class Settings(BaseModel, validate_assignment=True):
         env_prefix: str = "WANDB_"
         private_env_prefix: str = env_prefix + "_"
         special_env_var_names = {
-            "WANDB_DISABLE_SERVICE": "x_disable_service",
             "WANDB_SERVICE_TRANSPORT": "x_service_transport",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",

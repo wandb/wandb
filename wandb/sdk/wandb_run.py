@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import atexit
 import functools
 import glob
 import json
@@ -43,7 +42,7 @@ import wandb.util
 from wandb import trigger
 from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
-from wandb.errors import CommError, UnsupportedError, UsageError
+from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
@@ -474,54 +473,6 @@ def _raise_if_finished(
     return wrapper_fn
 
 
-def _noop_if_forked_with_no_service(
-    func: Callable[Concatenate[Run, _P], None],
-) -> Callable[Concatenate[Run, _P], None]:
-    """Do nothing if called in a forked process and service is disabled.
-
-    Disabling the service is a very old and barely supported setting.
-    """
-
-    @functools.wraps(func)
-    def wrapper(self: Run, *args, **kwargs) -> None:
-        # The _attach_id attribute is only None when running in the "disable
-        # service" mode.
-        #
-        # Since it is set early in `__init__` and included in the run's pickled
-        # state, the attribute always exists.
-        is_using_service = self._attach_id is not None
-
-        # This is the PID in which the Run object was constructed. The attribute
-        # always exists because it is set early in `__init__` and is included
-        # in the pickled state in `__getstate__` and `__setstate__`.
-        #
-        # It is not equal to the current PID if the process was forked or if
-        # the Run object was pickled and sent to another process.
-        init_pid = self._init_pid
-
-        if is_using_service or init_pid == os.getpid():
-            return func(self, *args, **kwargs)
-
-        message = (
-            f"`{func.__name__}` ignored (called from pid={os.getpid()},"
-            f" `init` called from pid={init_pid})."
-            f" See: {url_registry.url('multiprocess')}"
-        )
-
-        # This attribute may not exist because it is not included in the run's
-        # pickled state.
-        settings = getattr(self, "_settings", None)
-        if settings and settings.strict:
-            wandb.termerror(message, repeat=False)
-            raise UnsupportedError(
-                f"`{func.__name__}` does not support multiprocessing"
-            )
-        wandb.termwarn(message, repeat=False)
-        return None
-
-    return wrapper
-
-
 @dataclass
 class RunStatus:
     sync_items_total: int = field(default=0)
@@ -774,8 +725,7 @@ class Run:
         self._attach_pid = os.getpid()
         self._forked = False
         # for now, use runid as attach id, this could/should be versioned in the future
-        if not self._settings.x_disable_service:
-            self._attach_id = self._settings.run_id
+        self._attach_id = self._settings.run_id
 
     def _handle_launch_artifact_overrides(self) -> None:
         if self._settings.launch and (os.environ.get("WANDB_ARTIFACTS") is not None):
@@ -849,7 +799,7 @@ class Run:
     def __getstate__(self) -> Any:
         """Return run state as a custom pickle."""
         # We only pickle in service mode
-        if not self._settings or self._settings.x_disable_service:
+        if not self._settings:
             return
 
         _attach_id = self._attach_id
@@ -1807,7 +1757,6 @@ class Run:
             self._step += 1
 
     @_log_to_run
-    @_noop_if_forked_with_no_service
     @_raise_if_finished
     @_attach
     def log(
@@ -2274,7 +2223,6 @@ class Run:
         )
 
     @_log_to_run
-    @_noop_if_forked_with_no_service
     @_attach
     def finish(
         self,
@@ -2356,7 +2304,6 @@ class Run:
             wandb._sentry.end_session()
 
     @_log_to_run
-    @_noop_if_forked_with_no_service
     @_attach
     def join(self, exit_code: int | None = None) -> None:
         """Deprecated alias for `finish()` - use finish instead."""
@@ -2414,10 +2361,7 @@ class Run:
             console = self._settings.console
         # only use raw for service to minimize potential changes
         if console == "wrap":
-            if not self._settings.x_disable_service:
-                console = "wrap_raw"
-            else:
-                console = "wrap_emu"
+            console = "wrap_raw"
         logger.info("redirect: %s", console)
 
         out_redir: redirect.RedirectBase
@@ -2572,11 +2516,6 @@ class Run:
     def _console_start(self) -> None:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
-
-        if self.settings.x_disable_service:
-            self._hooks.hook()
-            # NB: manager will perform atexit hook like behavior for outstanding runs
-            atexit.register(lambda: self._atexit_cleanup())
 
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 

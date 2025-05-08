@@ -337,9 +337,6 @@ pub struct Feature {
     /// Using stable_baselines3 integration
     #[prost(bool, tag = "22")]
     pub sb3: bool,
-    /// Using wandb service internal process
-    #[prost(bool, tag = "23")]
-    pub service: bool,
     /// wandb.init() called in the same process returning previous run
     #[prost(bool, tag = "24")]
     pub init_return_run: bool,
@@ -403,9 +400,6 @@ pub struct Feature {
     /// Flow control customized by user
     #[prost(bool, tag = "44")]
     pub flow_control_custom: bool,
-    /// Service disabled by user
-    #[prost(bool, tag = "45")]
-    pub service_disabled: bool,
     /// Consuming metrics from an OpenMetrics endpoint
     #[prost(bool, tag = "46")]
     pub open_metrics: bool,
@@ -496,21 +490,6 @@ pub struct Env {
     /// apple silicon M1 gpu found
     #[prost(bool, tag = "4")]
     pub m1_gpu: bool,
-    /// multiprocessing spawn
-    #[prost(bool, tag = "5")]
-    pub start_spawn: bool,
-    /// multiprocessing fork
-    #[prost(bool, tag = "6")]
-    pub start_fork: bool,
-    /// multiprocessing forkserver
-    #[prost(bool, tag = "7")]
-    pub start_forkserver: bool,
-    /// thread start method
-    #[prost(bool, tag = "8")]
-    pub start_thread: bool,
-    /// maybe user running multiprocessing
-    #[prost(bool, tag = "9")]
-    pub maybe_mp: bool,
     /// AWS Trainium env detected
     #[prost(bool, tag = "10")]
     pub trainium: bool,
