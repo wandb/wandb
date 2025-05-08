@@ -153,13 +153,20 @@ def test_table_incremental_logging(user, test_settings, wandb_backend_spy):
     # _increment_num is only incremented after data is added
     assert t._artifact_target is None
     assert t._increment_num == 1
+    assert len(t._previous_increments_paths) == 1
     t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
     run.log({"table": t})
     assert t._last_logged_idx == 2
     assert t._increment_num == 1
+    t.add_data("No", "No", wandb.Image(np.ones(shape=(32, 32))))
+    assert t._last_logged_idx == 2
+    assert t._increment_num == 2
+    assert len(t._previous_increments_paths) == 2
+    run.log({"table": t})
+    assert t._last_logged_idx == 3
     run.finish()
     run = wandb.Api().run(f"uncategorized/{run.id}")
-    assert len(run.logged_artifacts()) == 2
+    assert len(run.logged_artifacts()) == 3
 
 
 def test_using_incrementally_logged_table(user, test_settings, wandb_backend_spy):

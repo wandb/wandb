@@ -155,7 +155,7 @@ def val_to_json(
                 use_incremental = False
                 entry_name = key
                 if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
-                    art_type = "incremental_run_table"
+                    art_type = "incremental_run_table" # todo(dom): use wandb- prefix to mark as system gen artifact
                     art_name = f"run-{run.id}-incr-{sanitized_key}"
                     use_incremental = True
                     incr_index = val._increment_num

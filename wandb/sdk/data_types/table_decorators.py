@@ -1,5 +1,6 @@
 """Decorators for W&B Table operations."""
 
+import wandb
 import logging
 from functools import wraps
 from typing import Any, Callable, TypeVar
@@ -24,10 +25,11 @@ def allow_relogging_after_mutation(method: Callable[..., T]) -> Callable[..., T]
             self._run = None
             self._artifact_target = None
         elif self.log_mode == "IMMUTABLE" and has_been_logged:
-            logging.warning(
+            wandb.termwarn(
                 "You are mutating a Table with log_mode='IMMUTABLE' that has been "
                 "logged already. Subsequent log() calls will have no effect. "
-                "Set log_mode='MUTABLE' to enable re-logging after mutations"
+                "Set log_mode='MUTABLE' to enable re-logging after mutations",
+                repeat=False
             )
 
         return res
@@ -48,9 +50,18 @@ def allow_incremental_logging_after_append(
     def wrapper(self, *args: Any, **kwargs: Any) -> T:
         res = method(self, *args, **kwargs)
         if self.log_mode == "INCREMENTAL" and self._artifact_target is not None:
+            art_entry_url = self._get_artifact_entry_ref_url()
+            if art_entry_url is not None:
+                self._previous_increments_paths.append(self._get_artifact_entry_ref_url())
             self._run = None
             self._artifact_target = None
             self._increment_num += 1
+            if self._increment_num > 99:
+                wandb.termwarn(
+                    "You have exceeded 100 increments for this table. "
+                    "Only the latest 100 increments will be visualized in the run workspace.",
+                    repeat=False
+                )
         return res
 
     return wrapper
@@ -64,10 +75,12 @@ def ensure_not_incremental(
     @wraps(method)
     def wrapper(self, *args: Any, **kwargs: Any) -> T:
         if self.log_mode == "INCREMENTAL":
-            raise ValueError(
-                f"Operation '{method.__name__}' is not supported for tables with "
-                f"log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
+            wandb.termwarn(
+                f"No-op. Operation '{method.__name__}' is not supported for tables with "
+                "log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'.",
+                repeat=False
             )
+            return
         return method(self, *args, **kwargs)
 
     return wrapper

@@ -252,6 +252,7 @@ class Table(Media):
         if self.log_mode == "INCREMENTAL":
             self._increment_num = 0
             self._last_logged_idx: int | None = None
+            self._previous_increments_paths = []
         self._pk_col = None
         self._fk_cols: set[str] = set()
         if allow_mixed_types:
@@ -569,9 +570,11 @@ class Table(Media):
         Returns:
             List of table rows from all increments
         """
+        if "latest" not in source_artifact.aliases:
+            wandb.termwarn("It is recommended to use the latest version of the incremental table artifact for ordering guarantees.", repeat=False)
         data: List[Any] = []
-        _increment_num = json_obj.get("_increment_num", None)
-        if _increment_num is None:
+        increment_num = json_obj.get("increment_num", None)
+        if increment_num is None:
             return data
 
         increment_entries = {
@@ -717,7 +720,12 @@ class Table(Media):
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             _type = "table-file"
             if self.log_mode == "INCREMENTAL":
-                json_dict.update({"_increment_num": self._increment_num})
+                json_dict.update(
+                    {
+                        "increment_num": self._increment_num,
+                        "previous_increments_paths": self._previous_increments_paths,
+                    }
+                )
                 _type = "incremental-table-file"
 
             json_dict.update(
@@ -731,7 +739,12 @@ class Table(Media):
 
         elif isinstance(run_or_artifact, wandb.Artifact):
             if self.log_mode == "INCREMENTAL":
-                json_dict.update({"_increment_num": self._increment_num})
+                json_dict.update(
+                    {
+                        "increment_num": self._increment_num,
+                        "previous_increments_paths": self._previous_increments_paths,
+                    }
+                )
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
