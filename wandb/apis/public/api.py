@@ -40,9 +40,9 @@ from wandb._iterutils import one
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.registries.registries_search import Registries
 from wandb.apis.public.registries.registry import Registry
-from wandb.apis.public.registries.utils import _fetch_org_entity_from_organization
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
@@ -1589,7 +1589,7 @@ class Api:
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )
-        org_entity = _fetch_org_entity_from_organization(self.client, organization)
+        org_entity = fetch_org_entity_from_organization(self.client, organization)
         registry = Registry(self.client, organization, org_entity, name)
         registry.load()
         return registry
