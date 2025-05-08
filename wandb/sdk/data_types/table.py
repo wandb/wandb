@@ -253,6 +253,8 @@ class Table(Media):
             self._increment_num = 0
             self._last_logged_idx: int | None = None
             self._previous_increments_paths: list[str] = []
+            self._resume_handled: bool = False
+            self._resume_random_id: None | str = None
         self._pk_col = None
         self._fk_cols: set[str] = set()
         if allow_mixed_types:

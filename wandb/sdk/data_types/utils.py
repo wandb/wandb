@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 import wandb
 from wandb import util
 
+from ..internal import incremental_table_util
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue
 from .image import _server_accepts_image_filenames
@@ -152,15 +153,10 @@ def val_to_json(
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
 
                 if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
-                    art_type = "wandb-run-incremental-table"
-                    art_name = f"run-{run.id}-incr-{sanitized_key}"
-                    incr_index = val._increment_num
-                    art = wandb.Artifact(
-                        art_name, "placeholder-run-incremental-table", incremental=True
-                    )
-                    # get around type restriction for system artifact
-                    art._type = art_type
-                    entry_name = f"{incr_index}.{key}"
+                    if run.resumed:
+                        incremental_table_util.handle_resumed_run(val, run, key)
+                    art = incremental_table_util.init_artifact(run, sanitized_key)
+                    entry_name = incremental_table_util.get_entry_name(val, key)
                 else:
                     art_type = "run_table"
                     art_name = f"run-{run.id}-{sanitized_key}"
