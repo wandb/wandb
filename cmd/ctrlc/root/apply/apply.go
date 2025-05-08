@@ -249,10 +249,10 @@ func processEnvironment(
 		Name:        environment.Name,
 		Description: &environment.Description,
 	}
+
 	if environment.ResourceSelector != nil {
 		body.ResourceSelector = environment.ResourceSelector
 	}
-
 	_, err := client.CreateEnvironmentWithResponse(ctx, body)
 	if err != nil {
 		log.Error("Failed to create environment", "name", environment.Name, "error", err)
