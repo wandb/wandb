@@ -571,7 +571,10 @@ class Table(Media):
             List of table rows from all increments
         """
         if "latest" not in source_artifact.aliases:
-            wandb.termwarn("It is recommended to use the latest version of the incremental table artifact for ordering guarantees.", repeat=False)
+            wandb.termwarn(
+                "It is recommended to use the latest version of the incremental table artifact for ordering guarantees.",
+                repeat=False,
+            )
         data: List[Any] = []
         increment_num = json_obj.get("increment_num", None)
         if increment_num is None:

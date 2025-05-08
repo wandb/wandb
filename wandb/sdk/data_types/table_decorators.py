@@ -1,9 +1,9 @@
 """Decorators for W&B Table operations."""
 
-import wandb
-import logging
 from functools import wraps
 from typing import Any, Callable, TypeVar
+
+import wandb
 
 T = TypeVar("T")
 
@@ -29,7 +29,7 @@ def allow_relogging_after_mutation(method: Callable[..., T]) -> Callable[..., T]
                 "You are mutating a Table with log_mode='IMMUTABLE' that has been "
                 "logged already. Subsequent log() calls will have no effect. "
                 "Set log_mode='MUTABLE' to enable re-logging after mutations",
-                repeat=False
+                repeat=False,
             )
 
         return res
@@ -52,7 +52,9 @@ def allow_incremental_logging_after_append(
         if self.log_mode == "INCREMENTAL" and self._artifact_target is not None:
             art_entry_url = self._get_artifact_entry_ref_url()
             if art_entry_url is not None:
-                self._previous_increments_paths.append(self._get_artifact_entry_ref_url())
+                self._previous_increments_paths.append(
+                    self._get_artifact_entry_ref_url()
+                )
             self._run = None
             self._artifact_target = None
             self._increment_num += 1
@@ -60,7 +62,7 @@ def allow_incremental_logging_after_append(
                 wandb.termwarn(
                     "You have exceeded 100 increments for this table. "
                     "Only the latest 100 increments will be visualized in the run workspace.",
-                    repeat=False
+                    repeat=False,
                 )
         return res
 
@@ -78,7 +80,7 @@ def ensure_not_incremental(
             wandb.termwarn(
                 f"No-op. Operation '{method.__name__}' is not supported for tables with "
                 "log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'.",
-                repeat=False
+                repeat=False,
             )
             return
         return method(self, *args, **kwargs)

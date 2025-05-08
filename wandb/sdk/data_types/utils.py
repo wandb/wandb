@@ -150,18 +150,23 @@ def val_to_json(
             ]:
                 # Sanitize the key to meet the constraints of artifact names.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
-                art_type = "run_table"
-                art_name = f"run-{run.id}-{sanitized_key}"
-                use_incremental = False
-                entry_name = key
-                if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
-                    art_type = "incremental_run_table" # todo(dom): use wandb- prefix to mark as system gen artifact
-                    art_name = f"run-{run.id}-incr-{sanitized_key}"
-                    use_incremental = True
-                    incr_index = val._increment_num
-                    entry_name = f"{incr_index}.{key}"
 
-                art = wandb.Artifact(art_name, art_type, incremental=use_incremental)
+                if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
+                    art_type = "wandb-run-incremental-table"
+                    art_name = f"run-{run.id}-incr-{sanitized_key}"
+                    incr_index = val._increment_num
+                    art = wandb.Artifact(
+                        art_name, "placeholder_incremental_run_table", incremental=True
+                    )
+                    # get around type restriction for system artifact
+                    art._type = art_type
+                    entry_name = f"{incr_index}.{key}"
+                else:
+                    art_type = "run_table"
+                    art_name = f"run-{run.id}-{sanitized_key}"
+                    art = wandb.Artifact(art_name, art_type)
+                    entry_name = key
+
                 art.add(val, entry_name)
                 run.log_artifact(art)
 
