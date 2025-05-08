@@ -156,7 +156,7 @@ def val_to_json(
                     art_name = f"run-{run.id}-incr-{sanitized_key}"
                     incr_index = val._increment_num
                     art = wandb.Artifact(
-                        art_name, "placeholder_incremental_run_table", incremental=True
+                        art_name, "placeholder-run-incremental-table", incremental=True
                     )
                     # get around type restriction for system artifact
                     art._type = art_type

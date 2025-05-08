@@ -156,7 +156,7 @@ class Artifact:
                 "Artifact types 'job' and 'wandb-*' are reserved for internal use. "
                 "Please use a different type."
             )
-        if incremental and type != "incremental_run_table":
+        if incremental and type != "placeholder-run-incremental-table":
             termwarn("Using experimental arg `incremental`")
 
         # Internal.
