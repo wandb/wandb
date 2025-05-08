@@ -71,7 +71,7 @@ def allow_incremental_logging_after_append(
 
 def ensure_not_incremental(
     method: Callable[..., T],
-) -> Callable[..., T]:
+) -> Callable[..., Union[T, None]]:
     """Decorator that checks if log mode is incremental to disallow methods from being called."""
 
     @wraps(method)
