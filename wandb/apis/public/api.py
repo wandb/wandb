@@ -318,7 +318,6 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
-        self._server_features_cache: Optional[dict[str, bool]] = None
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -1539,9 +1538,7 @@ class Api:
         Returns:
             A registry iterator.
         """
-        if not InternalApi()._check_server_feature_with_fallback(
-            ServerFeature.ARTIFACT_REGISTRY_SEARCH
-        ):
+        if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "Registry search API is not enabled on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
@@ -1577,9 +1574,7 @@ class Api:
             registry.save()
             ```
         """
-        if not InternalApi()._check_server_feature_with_fallback(
-            ServerFeature.ARTIFACT_REGISTRY_SEARCH
-        ):
+        if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "api.registry() is not enabled on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
@@ -1635,7 +1630,7 @@ class Api:
             )
             ```
         """
-        if not InternalApi()._check_server_feature_with_fallback(
+        if not InternalApi()._server_supports(
             ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
         ):
             raise RuntimeError(
@@ -1783,19 +1778,18 @@ class Api:
             ALWAYS_SUPPORTED_EVENTS,
         )
 
-        server_features = InternalApi()._server_features()
-        return bool(
-            (
-                (event is None)
-                or (event in ALWAYS_SUPPORTED_EVENTS)
-                or server_features.get(f"AUTOMATION_EVENT_{event.value}")
-            )
-            and (
-                (action is None)
-                or (action in ALWAYS_SUPPORTED_ACTIONS)
-                or server_features.get(f"AUTOMATION_ACTION_{action.value}")
-            )
+        api = InternalApi()
+        supports_event = (
+            (event is None)
+            or (event in ALWAYS_SUPPORTED_EVENTS)
+            or api._server_supports(f"AUTOMATION_EVENT_{event.value}")
         )
+        supports_action = (
+            (action is None)
+            or (action in ALWAYS_SUPPORTED_ACTIONS)
+            or api._server_supports(f"AUTOMATION_ACTION_{action.value}")
+        )
+        return supports_event and supports_action
 
     def _omitted_automation_fragments(self) -> Set[str]:
         """Returns the names of unsupported automation-related fragments.
