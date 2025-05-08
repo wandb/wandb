@@ -839,9 +839,9 @@ def test_server_feature_checks(
 
     if expected_error:
         with pytest.raises(Exception, match="Some random error"):
-            api._server_features().get(feature, False)
+            api._server_supports(feature)
     else:
-        result = api._server_features().get(feature, False)
+        result = api._server_supports(feature)
         assert result == expected_result
 
 

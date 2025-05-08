@@ -716,10 +716,8 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         names: Optional[Sequence[str]] = None,
         per_page: int = 50,
     ):
-        self.query_via_membership = (
-            InternalApi()
-            ._server_features()
-            .get(ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES)
+        self.query_via_membership = InternalApi()._server_supports(
+            ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         )
         self.artifact = artifact
 

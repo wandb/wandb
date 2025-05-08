@@ -2055,7 +2055,7 @@ class Artifact:
     def _fetch_file_urls(self, cursor: str | None, per_page: int | None = 5000) -> Any:
         if (
             InternalApi()
-            ._server_features()
+            ._server_supports()
             .get(
                 pb.ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES  # type: ignore
             )
