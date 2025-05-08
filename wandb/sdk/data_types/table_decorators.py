@@ -47,7 +47,7 @@ def allow_incremental_logging_after_append(
     """
 
     @wraps(method)
-    def wrapper(self, *args: Any, **kwargs: Any) -> T | None:
+    def wrapper(self, *args: Any, **kwargs: Any) -> T:
         res = method(self, *args, **kwargs)
         if self.log_mode == "INCREMENTAL" and self._artifact_target is not None:
             art_entry_url = self._get_artifact_entry_ref_url()
@@ -75,7 +75,7 @@ def ensure_not_incremental(
     """Decorator that checks if log mode is incremental to disallow methods from being called."""
 
     @wraps(method)
-    def wrapper(self, *args: Any, **kwargs: Any) -> T:
+    def wrapper(self, *args: Any, **kwargs: Any) -> T | None:
         if self.log_mode == "INCREMENTAL":
             wandb.termwarn(
                 f"No-op. Operation '{method.__name__}' is not supported for tables with "
