@@ -868,7 +868,7 @@ class Api:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
 
-    def _server_features(self) -> dict[str, bool]:
+    def _server_features(self) -> Dict[str, bool]:
         # NOTE: Avoid caching via `@cached_property`, due to undocumented
         # locking behavior before Python 3.12.
         # See: https://github.com/python/cpython/issues/87634
@@ -890,7 +890,7 @@ class Api:
                 self._server_features_cache = {}
         return self._server_features_cache
 
-    def _server_supports(self, feature: str | ServerFeature.ValueType) -> bool:
+    def _server_supports(self, feature: Union[str, ServerFeature.ValueType]) -> bool:
         """Return whether the current server supports the given feature.
 
         This also caches the underlying lookup of server feature flags,

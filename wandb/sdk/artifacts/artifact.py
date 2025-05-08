@@ -2053,12 +2053,8 @@ class Artifact:
         retryable_exceptions=(requests.RequestException),
     )
     def _fetch_file_urls(self, cursor: str | None, per_page: int | None = 5000) -> Any:
-        if (
-            InternalApi()
-            ._server_supports()
-            .get(
-                pb.ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES  # type: ignore
-            )
+        if InternalApi()._server_supports(
+            pb.ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         ):
             query = gql(
                 """
