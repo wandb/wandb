@@ -11,6 +11,7 @@ __all__ = [
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
+    "LINK_ARTIFACT_GQL",
     "MOVE_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACTS_GQL",
     "PROJECT_ARTIFACT_COLLECTIONS_GQL",
@@ -607,5 +608,13 @@ fragment ArtifactFragment on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+"""
+
+LINK_ARTIFACT_GQL = """
+mutation LinkArtifact($input: LinkArtifactInput!) {
+  linkArtifact(input: $input) {
+    versionIndex
+  }
 }
 """

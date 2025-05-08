@@ -73,7 +73,13 @@ from .fragments import (
     FilesFragmentEdgesNode,
     FilesFragmentPageInfo,
 )
-from .input_types import ArtifactAliasInput, ArtifactCollectionAliasInput, TagInput
+from .input_types import (
+    ArtifactAliasInput,
+    ArtifactCollectionAliasInput,
+    LinkArtifactInput,
+    TagInput,
+)
+from .link_artifact import LinkArtifact, LinkArtifactLinkArtifact
 from .move_artifact_collection import (
     MoveArtifactCollection,
     MoveArtifactCollectionMoveArtifactSequence,
@@ -89,6 +95,7 @@ from .operations import (
     DELETE_ARTIFACT_PORTFOLIO_GQL,
     DELETE_ARTIFACT_SEQUENCE_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
+    LINK_ARTIFACT_GQL,
     MOVE_ARTIFACT_COLLECTION_GQL,
     PROJECT_ARTIFACT_COLLECTION_GQL,
     PROJECT_ARTIFACT_COLLECTIONS_GQL,
@@ -166,6 +173,7 @@ __all__ = [
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
+    "LINK_ARTIFACT_GQL",
     "MOVE_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACTS_GQL",
     "PROJECT_ARTIFACT_COLLECTIONS_GQL",
@@ -254,8 +262,11 @@ __all__ = [
     "DeleteAliasesDeleteAliases",
     "UpdateArtifact",
     "UpdateArtifactUpdateArtifact",
+    "LinkArtifact",
+    "LinkArtifactLinkArtifact",
     "ArtifactAliasInput",
     "ArtifactCollectionAliasInput",
+    "LinkArtifactInput",
     "TagInput",
     "ArtifactCollectionsFragment",
     "ArtifactCollectionsFragmentEdges",
