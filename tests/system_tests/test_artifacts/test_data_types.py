@@ -139,3 +139,62 @@ def test_table_mutation_logging(user, test_settings, wandb_backend_spy):
 
     run = wandb.Api().run(f"uncategorized/{run.id}")
     assert len(run.logged_artifacts()) == 3
+
+
+def test_table_incremental_logging(user, test_settings, wandb_backend_spy):
+    run = wandb.init(settings=test_settings())
+    t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
+    t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
+    run.log({"table": t})
+    assert t._last_logged_idx == 0
+    assert t._artifact_target is not None
+    assert t._increment_num == 0
+    t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
+    # _increment_num is only incremented after data is added
+    assert t._artifact_target is None
+    assert t._increment_num == 1
+    assert len(t._previous_increments_paths) == 1
+    t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
+    run.log({"table": t})
+    assert t._last_logged_idx == 2
+    assert t._increment_num == 1
+    t.add_data("No", "No", wandb.Image(np.ones(shape=(32, 32))))
+    assert t._last_logged_idx == 2
+    assert t._increment_num == 2
+    assert len(t._previous_increments_paths) == 2
+    run.log({"table": t})
+    assert t._last_logged_idx == 3
+    run.finish()
+    run = wandb.Api().run(f"uncategorized/{run.id}")
+    assert len(run.logged_artifacts()) == 3
+
+
+def test_using_incrementally_logged_table(user, test_settings, wandb_backend_spy):
+    table_key = "test"
+    run = wandb.init(settings=test_settings())
+    t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
+    t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
+    run.log({table_key: t})
+    t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
+    t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
+    run.log({table_key: t})
+    run.finish()
+
+    run2 = wandb.init(settings=test_settings())
+    art = run2.use_artifact(f"run-{run.id}-incr-{table_key}:latest")
+    incremental_table = art.get(f"1.{table_key}.table.json")
+    assert len(incremental_table.data) == 3
+    assert incremental_table.log_mode == "INCREMENTAL"
+    assert incremental_table.columns == ["expected", "actual", "img"]
+
+
+def test_table_incremental_logging_empty(user, test_settings, wandb_backend_spy):
+    """Test that empty incremental tables are handled correctly."""
+    run = wandb.init(settings=test_settings())
+    t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
+    run.log({"table": t})  # Should handle empty table
+    t.add_data("1", "first")
+    run.log({"table": t})  # Should log first increment
+    run.finish()
+    run = wandb.Api().run(f"uncategorized/{run.id}")
+    assert len(run.logged_artifacts()) == 2

@@ -150,8 +150,24 @@ def val_to_json(
             ]:
                 # Sanitize the key to meet the constraints of artifact names.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
-                art = wandb.Artifact(f"run-{run.id}-{sanitized_key}", "run_table")
-                art.add(val, key)
+
+                if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
+                    art_type = "wandb-run-incremental-table"
+                    art_name = f"run-{run.id}-incr-{sanitized_key}"
+                    incr_index = val._increment_num
+                    art = wandb.Artifact(
+                        art_name, "placeholder-run-incremental-table", incremental=True
+                    )
+                    # get around type restriction for system artifact
+                    art._type = art_type
+                    entry_name = f"{incr_index}.{key}"
+                else:
+                    art_type = "run_table"
+                    art_name = f"run-{run.id}-{sanitized_key}"
+                    art = wandb.Artifact(art_name, art_type)
+                    entry_name = key
+
+                art.add(val, entry_name)
                 run.log_artifact(art)
 
             # Partitioned tables and joined tables do not support being bound to runs.
@@ -161,7 +177,13 @@ def val_to_json(
             ):
                 val.bind_to_run(run, key, namespace)
 
-        return val.to_json(run)
+        res = val.to_json(run)
+
+        if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
+            # Set the _last_logged_idx after the Table has been logged and
+            # bound to the run.
+            val._last_logged_idx = len(val.data) - 1
+        return res
 
     return converted  # type: ignore
 
