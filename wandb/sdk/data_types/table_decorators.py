@@ -1,7 +1,7 @@
 """Decorators for W&B Table operations."""
 
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeVar, Union
 
 import wandb
 
@@ -75,7 +75,7 @@ def ensure_not_incremental(
     """Decorator that checks if log mode is incremental to disallow methods from being called."""
 
     @wraps(method)
-    def wrapper(self, *args: Any, **kwargs: Any) -> T | None:
+    def wrapper(self, *args: Any, **kwargs: Any) -> Union[T, None]:
         if self.log_mode == "INCREMENTAL":
             wandb.termwarn(
                 f"No-op. Operation '{method.__name__}' is not supported for tables with "
