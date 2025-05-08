@@ -561,6 +561,7 @@ def mypy_report(session: nox.Session) -> None:
     If the report parameter is set to True, it will also generate an html report.
     """
     session.install(
+        "bokeh",
         "ipython",
         "lxml",
         # https://github.com/python/mypy/issues/17166
