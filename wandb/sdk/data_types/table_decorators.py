@@ -47,7 +47,7 @@ def allow_incremental_logging_after_append(
     """
 
     @wraps(method)
-    def wrapper(self, *args: Any, **kwargs: Any) -> T:
+    def wrapper(self, *args: Any, **kwargs: Any) -> T | None:
         res = method(self, *args, **kwargs)
         if self.log_mode == "INCREMENTAL" and self._artifact_target is not None:
             art_entry_url = self._get_artifact_entry_ref_url()
