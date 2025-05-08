@@ -298,8 +298,48 @@ class TestTableLoggingModes:
 
         # simulate logging
         t._set_artifact_target(wandb.Artifact("dummy_art", "placeholder"), "dummy_art")
-        t._increment_num = 1
 
         t.add_data("Yes", "No")
-        assert t._increment_num == 2
+        assert t._increment_num == 1
         assert t._artifact_target is None
+
+    def test_table_logging_mode_incremental_operations(self, mocker):
+        termwarn_spy = mocker.spy(wandb, "termwarn")
+        """Test that INCREMENTAL mode correctly handles unsupported operations."""
+        t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
+
+        # Test that add_column is not supported
+        t.add_column("c", [1, 2])
+        assert "c" not in t.columns
+        assert termwarn_spy.call_args[0][0] == (
+            "No-op. Operation 'add_column' is not supported for tables with "
+            "log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
+        )
+
+        termwarn_spy.reset_mock()
+
+        # Test that add_computed_columns is not supported
+        def compute_fn(ndx, row):
+            return {"c": row["a"] + 1}
+
+        t.add_computed_columns(compute_fn)
+        assert "c" not in t.columns
+        assert termwarn_spy.call_args[0][0] == (
+            "No-op. Operation 'add_computed_columns' is not supported for tables with "
+            "log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
+        )
+
+    def test_table_logging_mode_incremental_warnings(self, mocker):
+        """Test that INCREMENTAL mode shows warning when exceeding 100 increments"""
+        termwarn_spy = mocker.spy(wandb, "termwarn")
+
+        t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
+
+        # Test warning for max increments
+        t._increment_num = 99
+        t._set_artifact_target(wandb.Artifact("dummy_art", "placeholder"), "dummy_art")
+        t.add_data("test", "test")
+        assert termwarn_spy.call_args[0][0] == (
+            "You have exceeded 100 increments for this table. "
+            "Only the latest 100 increments will be visualized in the run workspace."
+        )

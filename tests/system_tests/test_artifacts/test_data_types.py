@@ -186,3 +186,15 @@ def test_using_incrementally_logged_table(user, test_settings, wandb_backend_spy
     assert len(incremental_table.data) == 3
     assert incremental_table.log_mode == "INCREMENTAL"
     assert incremental_table.columns == ["expected", "actual", "img"]
+
+
+def test_table_incremental_logging_empty(user, test_settings, wandb_backend_spy):
+    """Test that empty incremental tables are handled correctly."""
+    run = wandb.init(settings=test_settings())
+    t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
+    run.log({"table": t})  # Should handle empty table
+    t.add_data("1", "first")
+    run.log({"table": t})  # Should log first increment
+    run.finish()
+    run = wandb.Api().run(f"uncategorized/{run.id}")
+    assert len(run.logged_artifacts()) == 2
