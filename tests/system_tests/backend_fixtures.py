@@ -132,6 +132,39 @@ class TeamAndOrgNames:
     org: str
 
 
+@dataclass(frozen=True)
+class TeamCmd(FixtureCmd):
+    path: ClassVar[str] = "db/team"
+
+    command: Literal["up", "down"]
+
+    username: str | None = None
+    fixtureData: TeamOrgState | None = None  # noqa: N815
+
+
+@dataclass(frozen=True)
+class TeamOrgState:
+    planName: str  # noqa: N815
+    team: _Team
+    organization: _Organization
+
+
+@dataclass(frozen=True)
+class _Team:
+    name: str
+
+
+@dataclass(frozen=True)
+class _Organization:
+    name: str
+
+
+@dataclass(frozen=True)
+class TeamAndOrgNames:
+    team: str
+    org: str
+
+
 def random_string(alphabet: str = ascii_lowercase + digits, length: int = 12) -> str:
     """Generate a random string of a given length.
 

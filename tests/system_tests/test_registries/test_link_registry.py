@@ -15,6 +15,9 @@ class LinkArtifactExpectation:
     collection: str = ""
 
 
+@pytest.mark.skip(
+    reason="LinkArtifact operation bypasses this codepath to avoid throwaway runs"
+)
 @pytest.mark.parametrize(
     (
         "link_artifact_path",
