@@ -20,14 +20,29 @@ import (
 
 // Config represents the structure of the YAML file
 type Config struct {
-	Systems   map[string]System `yaml:"systems"`
+	Systems   []System `yaml:"systems"`
 	Providers ResourceProvider  `yaml:"resourceProvider"`
 }
 
 type System struct {
-	Name        string                `yaml:"name"`
-	Description string                `yaml:"description"`
-	Deployments map[string]Deployment `yaml:"deployments"`
+	Slug         string        `yaml:"slug"`
+	Name         string        `yaml:"name"`
+	Description  string        `yaml:"description"`
+	Deployments  []Deployment  `yaml:"deployments"`
+	Environments []Environment `yaml:"environments"`
+}
+
+type Environment struct {
+	Name             string         `yaml:"name"`
+	Description      string         `yaml:"description"`
+	ResourceSelector map[string]any `yaml:"resourceSelector"`
+}
+
+type Deployment struct {
+	Slug        string    `yaml:"slug"`
+	Name        string    `yaml:"name"`
+	Description *string   `yaml:"description"`
+	JobAgent    *JobAgent `yaml:"jobAgent,omitempty"`
 }
 
 type JobAgent struct {
@@ -35,18 +50,13 @@ type JobAgent struct {
 	Config map[string]any `yaml:"config"`
 }
 
-type Deployment struct {
-	Name        string    `yaml:"name"`
-	Description *string   `yaml:"description"`
-	JobAgent    *JobAgent `yaml:"jobAgent,omitempty"`
-}
-
 type ResourceProvider struct {
-	Name      string              `yaml:"name"`
-	Resources map[string]Resource `yaml:"resources"`
+	Name      string     `yaml:"name"`
+	Resources []Resource `yaml:"resources"`
 }
 
 type Resource struct {
+	Identifer string            `yaml:"identifer"`
 	Name      string            `yaml:"name"`
 	Version   string            `yaml:"version"`
 	Kind      string            `yaml:"kind"`
@@ -109,9 +119,9 @@ func processResourceProvider(ctx context.Context, client *api.ClientWithResponse
 	}
 
 	resources := make([]api.AgentResource, 0)
-	for id, resource := range provider.Resources {
+	for _, resource := range provider.Resources {
 		resources = append(resources, api.AgentResource{
-			Identifier: id,
+			Identifier: resource.Identifer,
 			Name:       resource.Name,
 			Version:    resource.Version,
 			Kind:       resource.Kind,
@@ -151,17 +161,16 @@ func processAllSystems(
 	ctx context.Context,
 	client *api.ClientWithResponses,
 	workspaceID uuid.UUID,
-	systems map[string]System,
+	systems []System,
 ) {
 	var systemWg sync.WaitGroup
 
-	for slug, system := range systems {
+	for _, system := range systems {
 		systemWg.Add(1)
 		go processSystem(
 			ctx,
 			client,
 			workspaceID,
-			slug,
 			system,
 			&systemWg,
 		)
@@ -174,14 +183,13 @@ func processSystem(
 	ctx context.Context,
 	client *api.ClientWithResponses,
 	workspaceID uuid.UUID,
-	slug string,
 	system System,
 	systemWg *sync.WaitGroup,
 ) {
 	defer systemWg.Done()
 
 	log.Info("Upserting system", "name", system.Name)
-	systemID, err := upsertSystem(ctx, client, workspaceID, slug, system)
+	systemID, err := upsertSystem(ctx, client, workspaceID, system)
 	if err != nil {
 		log.Error("Failed to upsert system", "name", system.Name, "error", err)
 		return
@@ -204,14 +212,13 @@ func processSystemDeployments(
 	system System,
 ) {
 	var deploymentWg sync.WaitGroup
-	for deploymentSlug, deployment := range system.Deployments {
+	for _, deployment := range system.Deployments {
 		deploymentWg.Add(1)
 		log.Info("Creating deployment", "system", system.Name, "name", deployment.Name)
 		go processDeployment(
 			ctx,
 			client,
 			systemID,
-			deploymentSlug,
 			deployment,
 			&deploymentWg,
 		)
@@ -223,13 +230,12 @@ func processDeployment(
 	ctx context.Context,
 	client *api.ClientWithResponses,
 	systemID uuid.UUID,
-	deploymentSlug string,
 	deployment Deployment,
 	deploymentWg *sync.WaitGroup,
 ) {
 	defer deploymentWg.Done()
 
-	body := createDeploymentRequestBody(systemID, deploymentSlug, deployment)
+	body := createDeploymentRequestBody(systemID, deployment)
 
 	if deployment.JobAgent != nil {
 		jobAgentUUID, err := uuid.Parse(deployment.JobAgent.Id)
@@ -247,10 +253,10 @@ func processDeployment(
 	}
 }
 
-func createDeploymentRequestBody(systemID uuid.UUID, slug string, deployment Deployment) api.CreateDeploymentJSONBody {
+func createDeploymentRequestBody(systemID uuid.UUID, deployment Deployment) api.CreateDeploymentJSONBody {
 	return api.CreateDeploymentJSONBody{
-		Slug:        slug,
 		SystemId:    systemID,
+		Slug:        deployment.Slug,
 		Name:        deployment.Name,
 		Description: deployment.Description,
 	}
@@ -282,13 +288,12 @@ func upsertSystem(
 	ctx context.Context,
 	client *api.ClientWithResponses,
 	workspaceID uuid.UUID,
-	slug string,
 	system System,
 ) (string, error) {
 	resp, err := client.CreateSystemWithResponse(ctx, api.CreateSystemJSONRequestBody{
-		Slug:        slug,
 		WorkspaceId: workspaceID,
 		Name:        system.Name,
+		Slug:        system.Slug,
 		Description: &system.Description,
 	})
 
