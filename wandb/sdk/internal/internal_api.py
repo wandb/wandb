@@ -890,7 +890,7 @@ class Api:
                 self._server_features_cache = {}
         return self._server_features_cache
 
-    def _server_supports(self, feature: Union[str, ServerFeature.ValueType]) -> bool:
+    def _server_supports(self, feature: Union[int, str]) -> bool:
         """Return whether the current server supports the given feature.
 
         This also caches the underlying lookup of server feature flags,
