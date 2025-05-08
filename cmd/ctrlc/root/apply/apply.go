@@ -20,8 +20,8 @@ import (
 
 // Config represents the structure of the YAML file
 type Config struct {
-	Systems   []System `yaml:"systems"`
-	Providers ResourceProvider  `yaml:"resourceProvider"`
+	Systems   []System         `yaml:"systems"`
+	Providers ResourceProvider `yaml:"resourceProvider"`
 }
 
 type System struct {
@@ -33,9 +33,9 @@ type System struct {
 }
 
 type Environment struct {
-	Name             string         `yaml:"name"`
-	Description      string         `yaml:"description"`
-	ResourceSelector map[string]any `yaml:"resourceSelector"`
+	Name             string          `yaml:"name"`
+	Description      string          `yaml:"description"`
+	ResourceSelector *map[string]any `yaml:"resourceSelector,omitempty"`
 }
 
 type Deployment struct {
@@ -212,6 +212,7 @@ func processSystemDeployments(
 	system System,
 ) {
 	var deploymentWg sync.WaitGroup
+	var environmentWg sync.WaitGroup
 	for _, deployment := range system.Deployments {
 		deploymentWg.Add(1)
 		log.Info("Creating deployment", "system", system.Name, "name", deployment.Name)
@@ -223,7 +224,39 @@ func processSystemDeployments(
 			&deploymentWg,
 		)
 	}
+
+	for _, environment := range system.Environments {
+		environmentWg.Add(1)
+		log.Info("Creating environment", "system", system.Name, "name", environment.Name)
+		go processEnvironment(ctx, client, systemID, environment, &environmentWg)
+	}
+
+	environmentWg.Wait()
 	deploymentWg.Wait()
+}
+
+func processEnvironment(
+	ctx context.Context,
+	client *api.ClientWithResponses,
+	systemID uuid.UUID,
+	environment Environment,
+	environmentWg *sync.WaitGroup,
+) {
+	defer environmentWg.Done()
+
+	body := api.CreateEnvironmentJSONRequestBody{
+		SystemId:    systemID.String(),
+		Name:        environment.Name,
+		Description: &environment.Description,
+	}
+	if environment.ResourceSelector != nil {
+		body.ResourceSelector = environment.ResourceSelector
+	}
+
+	_, err := client.CreateEnvironmentWithResponse(ctx, body)
+	if err != nil {
+		log.Error("Failed to create environment", "name", environment.Name, "error", err)
+	}
 }
 
 func processDeployment(
