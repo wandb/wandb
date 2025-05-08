@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import astuple, dataclass, field
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, TypeVar, cast
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+from typing_extensions import Self
 
 from wandb._iterutils import always_list
 from wandb._pydantic import gql_typename
@@ -259,3 +262,41 @@ def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
 
 def is_artifact_registry_project(project: str) -> bool:
     return project.startswith(REGISTRY_PREFIX)
+
+
+@pydantic_dataclass
+class ArtifactPath:
+    prefix: str | None  #: E.g. an org or entity name.
+    project: str | None
+    collection: str
+
+    @classmethod
+    def from_str(
+        cls,
+        path: str,
+        *,
+        default_prefix: str | None = None,
+        default_project: str | None = None,
+    ) -> Self:
+        """Instantiate by parsing an artifact path.
+
+        Args:
+            path: The artifact path to parse.
+            default_prefix: The prefix to use as a default.  Ignored if the path already contains a prefix (e.g. entity name).
+            default_project: The project to use as a default.  Ignored if the path already contains a project.
+        """
+        parts = path.split("/")
+        num_parts = len(parts)
+        if num_parts == 1:
+            return cls(default_prefix, default_project, *parts)
+        if num_parts == 2:
+            return cls(default_prefix, *parts)
+        if num_parts == 3:
+            return cls(*parts)
+        raise ValueError(
+            f"Invalid path.  Expected `name`, `project/name`, or `entity/project/name`, got: {str(path)!r}",
+        )
+
+    def to_str(self) -> str:
+        """Convert this instance to its string path representation."""
+        return "/".join(filter(bool, astuple(self)))
