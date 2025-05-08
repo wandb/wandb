@@ -20,7 +20,8 @@ import (
 
 // Config represents the structure of the YAML file
 type Config struct {
-	Systems map[string]System `yaml:"systems"`
+	Systems   map[string]System `yaml:"systems"`
+	Providers ResourceProvider  `yaml:"resourceProvider"`
 }
 
 type System struct {
@@ -38,6 +39,20 @@ type Deployment struct {
 	Name        string    `yaml:"name"`
 	Description *string   `yaml:"description"`
 	JobAgent    *JobAgent `yaml:"jobAgent,omitempty"`
+}
+
+type ResourceProvider struct {
+	Name      string              `yaml:"name"`
+	Resources map[string]Resource `yaml:"resources"`
+}
+
+type Resource struct {
+	Name      string            `yaml:"name"`
+	Version   string            `yaml:"version"`
+	Kind      string            `yaml:"kind"`
+	Config    map[string]any    `yaml:"config"`
+	Metadata  map[string]string `yaml:"metadata"`
+	Variables map[string]any    `yaml:"variables"`
 }
 
 // NewApplyCmd creates a new apply command
@@ -75,13 +90,43 @@ func runApply(filePath string) error {
 	}
 
 	// Process systems and collect errors
-	errors := processAllSystems(ctx, client, workspaceID, config.Systems)
-
-	if len(errors) > 0 {
-		return fmt.Errorf("encountered %d errors during apply", len(errors))
-	}
+	processAllSystems(ctx, client, workspaceID, config.Systems)
+	processResourceProvider(ctx, client, workspaceID.String(), config.Providers)
 
 	return nil
+}
+
+func processResourceProvider(ctx context.Context, client *api.ClientWithResponses, workspaceID string, provider ResourceProvider) {
+	if provider.Name == "" {
+		log.Info("Resource provider not provided, skipping")
+		return
+	}
+
+	rp, err := api.NewResourceProvider(client, workspaceID, provider.Name)
+	if err != nil {
+		log.Error("Failed to create resource provider", "name", provider.Name, "error", err)
+		return
+	}
+
+	resources := make([]api.AgentResource, 0)
+	for id, resource := range provider.Resources {
+		resources = append(resources, api.AgentResource{
+			Identifier: id,
+			Name:       resource.Name,
+			Version:    resource.Version,
+			Kind:       resource.Kind,
+			Config:     resource.Config,
+			Metadata:   resource.Metadata,
+		})
+	}
+
+	upsertResp, err := rp.UpsertResource(ctx, resources)
+	if err != nil {
+		log.Error("Failed to upsert resources", "name", provider.Name, "error", err)
+		return
+	}
+
+	log.Info("Response from upserting resources", "status", upsertResp.Status)
 }
 
 func createAPIClient() (*api.ClientWithResponses, uuid.UUID, error) {
@@ -107,32 +152,22 @@ func processAllSystems(
 	client *api.ClientWithResponses,
 	workspaceID uuid.UUID,
 	systems map[string]System,
-) []error {
-	systemErrors := make(chan error, len(systems))
+) {
 	var systemWg sync.WaitGroup
 
 	for slug, system := range systems {
 		systemWg.Add(1)
 		go processSystem(
-			ctx, 
-			client, 
+			ctx,
+			client,
 			workspaceID,
-			slug, 
-			system, 
+			slug,
+			system,
 			&systemWg,
 		)
 	}
 
 	systemWg.Wait()
-	close(systemErrors)
-
-	// Collect all errors
-	var errList []error
-	for err := range systemErrors {
-		errList = append(errList, err)
-	}
-
-	return errList
 }
 
 func processSystem(
@@ -144,7 +179,7 @@ func processSystem(
 	systemWg *sync.WaitGroup,
 ) {
 	defer systemWg.Done()
-	
+
 	log.Info("Upserting system", "name", system.Name)
 	systemID, err := upsertSystem(ctx, client, workspaceID, slug, system)
 	if err != nil {
@@ -173,11 +208,11 @@ func processSystemDeployments(
 		deploymentWg.Add(1)
 		log.Info("Creating deployment", "system", system.Name, "name", deployment.Name)
 		go processDeployment(
-			ctx, 
-			client, 
-			systemID, 
-			deploymentSlug, 
-			deployment, 
+			ctx,
+			client,
+			systemID,
+			deploymentSlug,
+			deployment,
 			&deploymentWg,
 		)
 	}
@@ -195,7 +230,7 @@ func processDeployment(
 	defer deploymentWg.Done()
 
 	body := createDeploymentRequestBody(systemID, deploymentSlug, deployment)
-	
+
 	if deployment.JobAgent != nil {
 		jobAgentUUID, err := uuid.Parse(deployment.JobAgent.Id)
 		if err != nil {
