@@ -222,7 +222,9 @@ class Object3D(BatchableMedia):
         super().__init__(caption=caption)
 
         if hasattr(data_or_path, "name") and not isinstance(data_or_path, pathlib.Path):
-            # if the file has a path, we just detect the type and copy it from there
+            # if the file has a path, we just detect the type and copy it from there.
+            # this does not work for pathlib.Path objects,
+            # where `.name` returns the last directory in the path.
             data_or_path = data_or_path.name
 
         if hasattr(data_or_path, "read"):

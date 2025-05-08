@@ -59,7 +59,6 @@ class Html(BatchableMedia):
         ) and not data_is_not_path
         data_path = ""
         if data_is_path:
-            assert isinstance(data, (str, pathlib.Path))
             data_path = str(data)
             with open(data_path, encoding="utf-8") as file:
                 self.html = file.read()

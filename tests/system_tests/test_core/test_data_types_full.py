@@ -16,7 +16,7 @@ from bokeh.plotting import figure
 
 def create_image(temp_dir) -> Path:
     image_path = Path(temp_dir) / "image.png"
-    PIL.Image.fromarray(np.random.randint(0, 255, (10, 10, 3), dtype=np.uint8)).save(
+    PIL.Image.fromarray(np.random.randint(0, 255, (1, 1, 3), dtype=np.uint8)).save(
         image_path
     )
     return image_path
@@ -25,7 +25,7 @@ def create_image(temp_dir) -> Path:
 def create_video(temp_dir) -> Path:
     video_path = Path(temp_dir) / "video.mp4"
     moviepy.video.io.ImageSequenceClip.ImageSequenceClip(
-        list(np.random.randint(0, 255, (10, 10, 3, 30), dtype=np.uint8)),
+        list(np.random.randint(0, 255, (1, 1, 3, 30), dtype=np.uint8)),
         fps=10,
     ).write_videofile(str(video_path))
     return video_path
