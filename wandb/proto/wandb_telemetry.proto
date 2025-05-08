@@ -138,6 +138,8 @@ message Imports {
 }
 
 message Feature {
+  reserved 23, 45;
+
   bool watch = 1;                         // wandb.watch() called
   bool finish = 2;                        // wandb.finish() called
   bool save = 3;                          // wandb.save() called
@@ -161,7 +163,6 @@ message Feature {
   bool launch = 20;                       // run is created through wandb launch
   bool torch_profiler_trace = 21;         // wandb.profiler.torch_trace_handler() called
   bool sb3 = 22;                          // Using stable_baselines3 integration
-  bool service = 23;                      // Using wandb service internal process
   bool init_return_run = 24;              // wandb.init() called in the same process returning previous run
   bool lightgbm_wandb_callback = 25;      // lightgbm callback used
   bool lightgbm_log_summary = 26;         // lightgbm log summary used
@@ -183,7 +184,6 @@ message Feature {
   bool sync = 42;                         // Run was synced with wandb sync
   bool flow_control_disabled = 43;        // Flow control disabled by user
   bool flow_control_custom = 44;          // Flow control customized by user
-  bool service_disabled = 45;             // Service disabled by user
   bool open_metrics = 46;                 // Consuming metrics from an OpenMetrics endpoint
   bool ultralytics_yolov8 = 47;           // Ultralytics YOLOv8 integration callbacks used
   bool importer_mlflow = 48;              // Using Import API for MLFlow
@@ -212,21 +212,18 @@ message Feature {
 }
 
 message Env {
-  bool jupyter = 1;           // jupyter env detected
-  bool kaggle = 2;            // kaggle env detected
-  bool windows = 3;           // windows detected
-  bool m1_gpu = 4;            // apple silicon M1 gpu found
-  bool start_spawn = 5;       // multiprocessing spawn
-  bool start_fork = 6;        // multiprocessing fork
-  bool start_forkserver = 7;  // multiprocessing forkserver
-  bool start_thread = 8;      // thread start method
-  bool maybe_mp = 9;          // maybe user running multiprocessing
-  bool trainium = 10;         // AWS Trainium env detected
-  bool pex = 11;              // pex env detected
-  bool colab = 12;            // colab env detected
-  bool ipython = 13;          // ipython env detected
-  bool aws_lambda = 14;       // running in AWS Lambda
-  bool amd_gpu = 15;          // AMD GPU detected
+  reserved 5, 6, 7, 8, 9;
+
+  bool jupyter = 1;      // jupyter env detected
+  bool kaggle = 2;       // kaggle env detected
+  bool windows = 3;      // windows detected
+  bool m1_gpu = 4;       // apple silicon M1 gpu found
+  bool trainium = 10;    // AWS Trainium env detected
+  bool pex = 11;         // pex env detected
+  bool colab = 12;       // colab env detected
+  bool ipython = 13;     // ipython env detected
+  bool aws_lambda = 14;  // running in AWS Lambda
+  bool amd_gpu = 15;     // AMD GPU detected
 }
 
 message Labels {
