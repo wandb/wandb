@@ -35,8 +35,8 @@ class Audio(BatchableMedia):
             list,
             "np.ndarray",
         ],
-        sample_rate=None,
-        caption=None,
+        sample_rate: Optional[int] = None,
+        caption: Optional[str] = None,
     ):
         """Accept a path to an audio file or a numpy array of audio data."""
         super().__init__(caption=caption)

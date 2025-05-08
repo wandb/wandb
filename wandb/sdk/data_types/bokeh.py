@@ -26,7 +26,6 @@ class Bokeh(Media):
 
     def __init__(
         self,
-        # TODO: update Any to be more specific
         data_or_path: Union[
             str,
             pathlib.Path,
