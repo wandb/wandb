@@ -82,7 +82,7 @@ def ensure_not_incremental(
                 "log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'.",
                 repeat=False,
             )
-            return
+            return None
         return method(self, *args, **kwargs)
 
     return wrapper

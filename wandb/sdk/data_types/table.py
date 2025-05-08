@@ -252,7 +252,7 @@ class Table(Media):
         if self.log_mode == "INCREMENTAL":
             self._increment_num = 0
             self._last_logged_idx: int | None = None
-            self._previous_increments_paths = []
+            self._previous_increments_paths: list[str] = []
         self._pk_col = None
         self._fk_cols: set[str] = set()
         if allow_mixed_types:

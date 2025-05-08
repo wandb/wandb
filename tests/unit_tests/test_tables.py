@@ -297,7 +297,7 @@ class TestTableLoggingModes:
         assert t._increment_num == 0
 
         # simulate logging
-        t._artifact_target = "dummy target"
+        t._set_artifact_target(wandb.Artifact("dummy_art", "placeholder"), "dummy_art")
         t._increment_num = 1
 
         t.add_data("Yes", "No")
