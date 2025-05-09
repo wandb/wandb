@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from wandb import Table
 
     from ..wandb_run import Run as LocalRun
+    from ..wandb_summary import Summary
 
 ART_TYPE = "wandb-run-incremental-table"
 
@@ -20,7 +21,9 @@ def handle_resumed_run(incr_table: "Table", run: "LocalRun", key: str):
     if not run.resumed or incr_table._resume_handled:
         return
 
-    summary_from_key: Optional[Dict[str, Any]] = run.summary.get(key)
+    summary: Summary = run.summary
+
+    summary_from_key: Optional[Dict[str, Any]] = summary.get(key)
 
     if summary_from_key is None:
         incr_table._resume_handled = True
