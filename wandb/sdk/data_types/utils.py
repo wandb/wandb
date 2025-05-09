@@ -20,6 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import plotly  # type: ignore
 
     from ..wandb_run import Run as LocalRun
+    from ..data_types.table import Table
 
     ValToJsonType = Union[
         dict,
@@ -149,22 +150,7 @@ def val_to_json(
                 "partitioned-table",
                 "joined-table",
             ]:
-                # Sanitize the key to meet the constraints of artifact names.
-                sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
-
-                if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
-                    if run.resumed:
-                        incremental_table_util.handle_resumed_run(val, run, key)
-                    art = incremental_table_util.init_artifact(run, sanitized_key)
-                    entry_name = incremental_table_util.get_entry_name(val, key)
-                else:
-                    art_type = "run_table"
-                    art_name = f"run-{run.id}-{sanitized_key}"
-                    art = wandb.Artifact(art_name, art_type)
-                    entry_name = key
-
-                art.add(val, entry_name)
-                run.log_artifact(art)
+                _log_table_artifact(val, key, run)
 
             # Partitioned tables and joined tables do not support being bound to runs.
             if not (
@@ -183,6 +169,23 @@ def val_to_json(
 
     return converted  # type: ignore
 
+def _log_table_artifact(val: "Table", key: str, run: "LocalRun"):
+    # Sanitize the key to meet the constraints of artifact names.
+    sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
+
+    if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
+        if run.resumed:
+            incremental_table_util.handle_resumed_run(val, run, key)
+        art = incremental_table_util.init_artifact(run, sanitized_key)
+        entry_name = incremental_table_util.get_entry_name(val, key)
+    else:
+        art_type = "run_table"
+        art_name = f"run-{run.id}-{sanitized_key}"
+        art = wandb.Artifact(art_name, art_type)
+        entry_name = key
+
+    art.add(val, entry_name)
+    run.log_artifact(art)
 
 def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:
     # If media type has a max respect it

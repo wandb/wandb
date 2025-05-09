@@ -214,7 +214,7 @@ def test_resumed_run_incremental_table(user, test_settings):
     resumed_run = wandb.init(settings=test_settings(), id="resume_test", resume="must")
     t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
     resumed_run.log({"table": t})
-    assert t._resume_handled == True
+    assert t._resume_handled
     assert len(t._previous_increments_paths) == 2
     assert t._increment_num == 2
 
@@ -238,7 +238,7 @@ def test_resumed_run_no_prev_incr_table(user, test_settings):
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
     t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
     resumed_run.log({"table": t})
-    assert t._resume_handled == True
+    assert t._resume_handled
     assert t._last_logged_idx == 0
     assert t._artifact_target is not None
     assert t._increment_num == 0
@@ -293,7 +293,7 @@ def test_resumed_run_multi_types_on_key(user, test_settings):
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
     t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
     resumed_run.log({"table": t})
-    assert t._resume_handled == True
+    assert t._resume_handled
     assert t._resume_random_id is not None
     assert t._last_logged_idx == 0
     assert t._artifact_target is not None
