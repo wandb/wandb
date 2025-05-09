@@ -1,6 +1,6 @@
 import wandb
 from wandb.sdk.lib import runid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Any, Optional
 if TYPE_CHECKING:
     from ..wandb_run import Run as LocalRun
     from wandb import Table
@@ -16,7 +16,7 @@ def handle_resumed_run(incr_table: "Table", run: "LocalRun", key: str):
     the key and assign the previous_increments_paths and increment_num to the table
     """
     if run.resumed and not incr_table._resume_handled:
-        summary_from_key = run.summary.get(key)
+        summary_from_key: Optional[Dict[str, Any]] = run.summary.get(key)
         if summary_from_key is None:
             incr_table._resume_handled = True
             return
