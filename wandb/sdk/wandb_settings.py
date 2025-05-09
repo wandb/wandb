@@ -3,7 +3,6 @@ from __future__ import annotations
 import configparser
 import json
 import logging
-import multiprocessing
 import os
 import pathlib
 import platform
@@ -1047,13 +1046,11 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_start_method(cls, value):
         if value is None:
             return value
-        available_methods = ["thread"]
-        if hasattr(multiprocessing, "get_all_start_methods"):
-            available_methods += multiprocessing.get_all_start_methods()
-        if value not in available_methods:
-            raise UsageError(
-                f"Settings field `start_method`: {value!r} not in {available_methods}"
-            )
+        wandb.termwarn(
+            "`start_method` is deprecated and will be removed in a future version "
+            "of wandb. This setting is currently non-functional and safely ignored.",
+            repeat=False,
+        )
         return value
 
     @field_validator("x_stats_gpu_device_ids", mode="before")
