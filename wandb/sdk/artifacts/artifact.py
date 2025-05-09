@@ -2435,11 +2435,11 @@ class Artifact:
             raise RuntimeError("Client not initialized for artifact mutations")
 
         # TODO: Absorb the helper implementation directly into `.link()` before merging.
-        return self._link_with_no_run(target_path, aliases)
+        # return self._link_with_no_run(target_path, aliases)
 
         # PREVIOUS WANDB-CORE LOGIC.  This was disabled to stop the creation of throwaway runs.
         # TODO: Remove once we've verified the behavior to test/match
-        # return self._link_with_throwaway_run(target_path, aliases)
+        return self._link_with_throwaway_run(target_path, aliases)
 
     def _link_with_throwaway_run(
         self, target_path: str, aliases: list[str] | None = None
