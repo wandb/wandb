@@ -21,20 +21,15 @@ def handle_resumed_run(incr_table: "Table", run: "LocalRun", key: str):
     if not run.resumed or incr_table._resume_handled:
         return
 
+    # Set a random id to use in the artifact entry name to prevent naming collisions
+    incr_table._resume_random_id = runid.generate_id(8)
+
     summary: Summary = run.summary
 
     summary_from_key: Optional[Dict[str, Any]] = summary.get(key)
 
     if summary_from_key is None:
         incr_table._resume_handled = True
-        return
-
-    if summary_from_key.get("_type") != "incremental-table-file":
-        # If a user has previously logged something else to the key than a Table increment,
-        # we need to be cautious about artifact entry naming collisions. Use a random id to
-        # construct the entry name
-        incr_table._resume_handled = True
-        incr_table._resume_random_id = runid.generate_id(8)
         return
 
     incr_table._previous_increments_paths = summary_from_key.get(
@@ -60,5 +55,7 @@ def init_artifact(run: "LocalRun", sanitized_key: str):
 
 def get_entry_name(incr_table: "Table", key: str):
     if incr_table._resume_random_id is not None:
-        return f"{incr_table._increment_num}-{incr_table._resume_random_id}.{key}"
+        return (
+            f"{incr_table._increment_num}-resumed-{incr_table._resume_random_id}.{key}"
+        )
     return f"{incr_table._increment_num}.{key}"

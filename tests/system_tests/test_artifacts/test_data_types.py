@@ -312,8 +312,8 @@ def test_resumed_run_multi_types_on_key(user, test_settings):
 
     manifest_entries = api_run.logged_artifacts()[4].manifest.entries
     expected_entries = [
-        f"0-{t._resume_random_id}.table.table.json",
-        f"1-{t._resume_random_id}.table.table.json",
+        f"0-resumed-{t._resume_random_id}.table.table.json",
+        f"1-resumed-{t._resume_random_id}.table.table.json",
     ]
     for entry in expected_entries:
         assert entry in manifest_entries
