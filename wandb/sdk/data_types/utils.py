@@ -20,7 +20,6 @@ if TYPE_CHECKING:  # pragma: no cover
     import plotly  # type: ignore
 
     from ..wandb_run import Run as LocalRun
-    from ..data_types.table import Table
 
     ValToJsonType = Union[
         dict,
@@ -169,7 +168,8 @@ def val_to_json(
 
     return converted  # type: ignore
 
-def _log_table_artifact(val: "Table", key: str, run: "LocalRun"):
+
+def _log_table_artifact(val, key, run):
     # Sanitize the key to meet the constraints of artifact names.
     sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
 
@@ -186,6 +186,7 @@ def _log_table_artifact(val: "Table", key: str, run: "LocalRun"):
 
     art.add(val, entry_name)
     run.log_artifact(art)
+
 
 def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:
     # If media type has a max respect it
