@@ -21,10 +21,10 @@ dependencies = [
     # One such dependency is docker-pycreds, where the latest release is 0.4.0
     # which was released in 2018.
     "setuptools",
-    "protobuf>=3.12.0,!=4.21.0,!=5.28.0,<6; python_version < '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<6; python_version == '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<6; python_version > '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<6; sys_platform != 'linux'",
+    "protobuf>=3.12.0,!=4.21.0,!=5.28.0,<7; python_version < '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<7; python_version == '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; python_version > '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; sys_platform != 'linux'",
     "PyYAML",
     "setproctitle",
     "platformdirs",
@@ -195,6 +195,14 @@ max-complexity = 18
 [tool.ruff.lint.isort]
 split-on-trailing-comma = false
 
+[tool.ruff.lint.pep8-naming]
+classmethod-decorators = [
+    # Allow Pydantic's `@field_validator` to trigger classmethod treatment,
+    # as well as the internal compat implementation.
+    "pydantic.field_validator",
+    "wandb._pydantic.field_validator",
+]
+
 [tool.ruff.lint.pycodestyle]
 ignore-overlong-task-comments = true
 
@@ -209,13 +217,13 @@ ignore-decorators = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Ensure stricter docstring requirements for public API module(s).
-"!wandb/{sdk/automations/**,apis/public/api.py}" = [ # Consider expanding to other `wandb.api.public` submodules as well.
-    "D101", # Require docstrings in public classes
-    "D102", # Require docstrings in public methods
-    "D103", # Require docstrings in public functions
-    "D417", # Require descriptions for all arguments
-]
+# Ensure stricter docstring requirements:
+# - D101: Require docstrings in public classes
+# - D102: Require docstrings in public methods
+# - D103: Require docstrings in public functions
+# - D417: Require descriptions for all arguments
+"!wandb/apis/public/api.py" = ["D101", "D102", "D103", "D417"]  # "Public API" module
+"!wandb/automations/**/*.py" = ["D101", "D102", "D103", "D417"] # Automations submodules
 
 "**/__init__.py" = ["E402", "F401"]
 "wandb/__init__.py" = ["I001"]
@@ -262,11 +270,13 @@ ignore-decorators = [
     "UP007", # Avoid using `X | Y` for union fields, as this can cause issues with pydantic < 2.6
 ]
 
-# For other pydantic code:
-"wandb/sdk/{wandb_settings,wandb_metadata,lib/run_moment}.py" = [
-    "UP006", # Avoid using standard library generics e.g. `list[...]`, as this can cause issues with earlier pydantic versions
-    "UP007", # Avoid using `X | Y` for union fields, as this can cause issues with pydantic < 2.6
-]
+# For other pydantic code, disable:
+# - UP006: Avoid using standard library generics e.g. `list[...]`, as this can cause issues with earlier pydantic versions
+# - UP007: Avoid using `X | Y` for union fields, as this can cause issues with pydantic < 2.6
+"wandb/sdk/wandb_settings.py" = ["UP006", "UP007"]
+"wandb/sdk/wandb_metadata.py" = ["UP006", "UP007"]
+"wandb/sdk/lib/run_moment.py" = ["UP006", "UP007"]
+"wandb/automations/**" = ["UP006", "UP007"]
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
@@ -295,7 +305,6 @@ module = [
     "wandb.sdk.verify.*",
     "wandb.trigger.*",
     "wandb.wandb_summary.*",
-    "wandb.jupyter.*",
     "wandb.sync.*",
     "wandb.sdk.integration_utils.*",
     "wandb.plot.*",

@@ -8,6 +8,7 @@ import wandb
 from wandb import Api
 from wandb.errors import CommError
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.lib.hashutil import md5_file_hex
 
 
 def test_fetching_artifact_files(user):
@@ -30,28 +31,6 @@ def test_fetching_artifact_files(user):
     file_path = os.path.join(artifact_path, boom.name)
     assert os.path.exists(file_path)
     assert open(file_path).read() == "testing"
-
-
-def test_artifact_download_offline_mode(user, monkeypatch, tmp_path):
-    project = "test"
-
-    # Create the test file in the temporary directory
-    file_path = tmp_path / "boom.txt"
-    file_path.write_text("testing")
-
-    with wandb.init(entity=user, project=project) as run:
-        artifact = wandb.Artifact("test-artifact", "test-type")
-        artifact.add_file(str(file_path), "test-name")  # Convert Path to string
-        run.log_artifact(artifact, aliases=["sequence"])
-        artifact.wait()
-
-    # Use monkeypatch to set WANDB_MODE after creating the artifact
-    monkeypatch.setenv("WANDB_MODE", "offline")
-
-    with pytest.raises(
-        RuntimeError, match="Cannot download artifacts in offline mode."
-    ):
-        artifact.download()
 
 
 def test_save_aliases_after_logging_artifact(user):
@@ -505,3 +484,62 @@ def test_artifact_enable_tracking_flag(user, api, mocker):
         client=api.client,
         enable_tracking=False,
     )
+
+
+def test_artifact_history_step(user, api):
+    """Test that the correct history step is returned for an artifact."""
+    entity = user
+    project = "test-project"
+    artifact_name = "test-artifact"
+    artifact_type = "test-type"
+
+    with wandb.init(entity=entity, project=project) as run:
+        for i in range(2):
+            art = wandb.Artifact(artifact_name, artifact_type)
+            with art.new_file("test.txt", "w") as f:
+                f.write(f"testing {i}")
+            run.log_artifact(art)
+            wandb.log({"metric": 5})
+
+    artifact = api.artifact(
+        name=f"{entity}/{project}/{artifact_name}:v0",
+    )
+    assert artifact.history_step is None
+
+    artifact = api.artifact(
+        name=f"{entity}/{project}/{artifact_name}:v1",
+    )
+    assert artifact.history_step == 0
+
+
+def test_artifact_multipart_download(user, api):
+    """Test download large artifact with multipart download."""
+    # Create file with all 1 as 101MB
+    file_path = "101mb.bin"
+    one_mb = b"\x01" * 1024 * 1024
+    with open(file_path, "wb") as f:
+        for _ in range(101):
+            f.write(one_mb)
+
+    # Hard coded because the file content never changes
+    md5_value = "01fedd4cfd8547c8ef960bc041c30523"
+
+    entity = user
+    project = "test-project"
+    artifact_name = "test-large-artifact"
+    artifact_type = "test-type"
+
+    with wandb.init(entity=entity, project=project) as run:
+        art = wandb.Artifact(artifact_name, artifact_type)
+        art.add_file(file_path)
+        run.log_artifact(art)
+
+    # Download artifact
+    artifact = api.artifact(
+        name=f"{entity}/{project}/{artifact_name}:v0",
+    )
+    # Force multipart download because the file is too small
+    stored_folder = artifact.download(multipart=True, skip_cache=True)
+    # Verify checksum
+    downloaded_md5 = md5_file_hex(os.path.join(stored_folder, file_path))
+    assert downloaded_md5 == md5_value

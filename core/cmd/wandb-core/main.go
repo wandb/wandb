@@ -31,6 +31,8 @@ func main() {
 		"Disables observability features such as metrics and logging analytics.")
 	enableOsPidShutdown := flag.Bool("os-pid-shutdown", false,
 		"Enables automatic server shutdown when the external process identified by the PID terminates.")
+	enableDCGMProfiling := flag.Bool("enable-dcgm-profiling", false,
+		"Enables collection of profiling metrics for Nvidia GPUs using DCGM. Requires a running `nvidia-dcgm` service.")
 
 	// Custom usage function to add a header, version, and commit info
 	flag.Usage = func() {
@@ -82,6 +84,7 @@ func main() {
 			"log-level", *logLevel,
 			"disable-analytics", *disableAnalytics,
 			"shutdown-on-parent-exit", shutdownOnParentExitEnabled,
+			"enable-dcgm-profiling", *enableDCGMProfiling,
 		)
 		loggerPath = file.Name()
 		defer func() {
@@ -100,13 +103,14 @@ func main() {
 
 	srv, err := server.NewServer(
 		&server.ServerParams{
-			ListenIPAddress: "127.0.0.1:0",
-			PortFilename:    *portFilename,
-			ParentPid:       *pid,
-			SentryClient:    sentryClient,
-			Commit:          commit,
-			LoggerPath:      loggerPath,
-			LogLevel:        slog.Level(*logLevel),
+			ListenIPAddress:     "127.0.0.1:0",
+			PortFilename:        *portFilename,
+			ParentPid:           *pid,
+			SentryClient:        sentryClient,
+			Commit:              commit,
+			LoggerPath:          loggerPath,
+			LogLevel:            slog.Level(*logLevel),
+			EnableDCGMProfiling: *enableDCGMProfiling,
 		},
 	)
 	if err != nil {

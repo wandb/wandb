@@ -106,7 +106,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.10.dev1"
+__version__: str = "0.19.12.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -156,6 +156,7 @@ def init(
             "default",
             "return_previous",
             "finish_previous",
+            "create_new",
         ]
     ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
@@ -282,7 +283,7 @@ def link_model(
     registered_model_name: str,
     name: str | None = None,
     aliases: list[str] | None = None,
-) -> None:
+) -> Artifact | None:
     """<sdk/wandb_run.py::Run::link_model>"""
     ...
 

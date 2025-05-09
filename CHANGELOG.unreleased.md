@@ -13,6 +13,14 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-### Changed
+### Notable Changes
 
-- Upgrade go version for `wandb-core` from 1.23.x to 1.24.x (@kptkin in https://github.com/wandb/wandb/pull/9590)
+This version removes the ability to disable the `service` process. This is a breaking change.
+
+### Removed
+
+- Removed support for disabling the `service` process. The `x_disable_service`/`_disable_service` setting and the `WANDB_DISABLE_SERVICE`/`WANDB_X_DISABLE_SERVICE` environment variable have been deprecated and will now raise an error if used (@kptkin in https://github.com/wandb/wandb/pull/9829)
+
+### Deprecated
+
+- The `start_method` setting is deprecated and has no effect; it is safely ignored (@kptkin in https://github.com/wandb/wandb/pull/9837)

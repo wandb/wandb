@@ -8,6 +8,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/runconfig"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -46,23 +47,27 @@ func NewRewindBranch(
 	}
 }
 
-// ApplyChanges applies the changes to the run params based on the rewind
-// information returned from the server.
-func (rb RewindBranch) ApplyChanges(
+// UpdateForRewind modifies run metadata for rewinding.
+//
+// The metadata should be initialized as if creating a fresh run,
+// specifically with Entity, Project and RunID fields set.
+//
+// On error, the metadata may have been partially modified
+// and must be discarded.
+func (rb RewindBranch) UpdateForRewind(
 	params *RunParams,
-	runpath RunPath,
-) (*RunParams, error) {
-
-	if rb.branch.RunID != runpath.RunID {
+	config *runconfig.RunConfig,
+) error {
+	if rb.branch.RunID != params.RunID {
 		err := fmt.Errorf(
 			"rewind run id %s does not match run id %s",
 			rb.branch.RunID,
-			runpath.RunID)
+			params.RunID)
 		info := &spb.ErrorInfo{
 			Code:    spb.ErrorInfo_USAGE,
 			Message: err.Error(),
 		}
-		return nil, &BranchError{Err: err, Response: info}
+		return &BranchError{Err: err, Response: info}
 	}
 
 	if rb.branch.MetricName != "_step" {
@@ -71,21 +76,21 @@ func (rb RewindBranch) ApplyChanges(
 			Code:    spb.ErrorInfo_UNSUPPORTED,
 			Message: err.Error(),
 		}
-		return nil, &BranchError{Err: err, Response: info}
+		return &BranchError{Err: err, Response: info}
 	}
 
 	response, err := gql.RewindRun(
 		rb.ctx,
 		rb.client,
-		runpath.RunID,
-		nullify.NilIfZero(runpath.Entity),
-		nullify.NilIfZero(runpath.Project),
+		params.RunID,
+		nullify.NilIfZero(params.Entity),
+		nullify.NilIfZero(params.Project),
 		rb.branch.MetricName,
 		rb.branch.MetricValue,
 	)
 
 	if err != nil {
-		return nil, &BranchError{
+		return &BranchError{
 			Err: err,
 			Response: &spb.ErrorInfo{
 				Code:    spb.ErrorInfo_COMMUNICATION,
@@ -95,7 +100,7 @@ func (rb RewindBranch) ApplyChanges(
 	}
 
 	if response.GetRewindRun() == nil || response.GetRewindRun().GetRewoundRun() == nil {
-		return nil, &BranchError{
+		return &BranchError{
 			Err: fmt.Errorf("run not found"),
 			Response: &spb.ErrorInfo{
 				Code:    spb.ErrorInfo_COMMUNICATION,
@@ -106,39 +111,43 @@ func (rb RewindBranch) ApplyChanges(
 
 	data := response.GetRewindRun().GetRewoundRun()
 
-	r := params.Clone()
-
-	filestreamOffset := make(filestream.FileStreamOffsetMap)
 	if data.GetHistoryLineCount() != nil {
-		filestreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
+		if params.FileStreamOffset == nil {
+			params.FileStreamOffset = make(filestream.FileStreamOffsetMap)
+		}
+
+		params.FileStreamOffset[filestream.HistoryChunk] =
+			*data.GetHistoryLineCount()
 	}
 
-	var projectName, entityName string
 	if data.GetProject() != nil {
-		projectName = data.GetProject().GetName()
-		entity := data.GetProject().GetEntity()
-		entityName = entity.GetName()
+		params.Project = data.GetProject().Name
+		params.Entity = data.GetProject().GetEntity().Name
 	}
 
-	var config map[string]any
 	if data.GetConfig() != nil {
-		config, err = processConfig(data.GetConfig())
+		var oldConfig map[string]any
+		oldConfig, err = processConfig(data.GetConfig())
+
+		if err == nil {
+			config.MergeResumedConfig(oldConfig)
+		}
 	}
 
-	r.Merge(
-		&RunParams{
-			StorageID:        data.GetId(),
-			RunID:            data.GetName(),
-			DisplayName:      nullify.ZeroIfNil(data.GetDisplayName()),
-			SweepID:          nullify.ZeroIfNil(data.GetSweepName()),
-			StartingStep:     int64(rb.branch.MetricValue) + 1,
-			Forked:           true,
-			FileStreamOffset: filestreamOffset,
-			Project:          projectName,
-			Entity:           entityName,
-			Config:           config,
-		},
-	)
+	if data.GetId() != "" {
+		params.StorageID = data.GetId()
+	}
+	if data.GetName() != "" {
+		params.RunID = data.GetName()
+	}
+	if name := data.GetDisplayName(); name != nil && *name != "" {
+		params.DisplayName = *name
+	}
+	if id := data.GetSweepName(); id != nil && *id != "" {
+		params.SweepID = *id
+	}
+	params.StartingStep = int64(rb.branch.MetricValue) + 1
+	params.Forked = true
 
-	return r, err
+	return err
 }

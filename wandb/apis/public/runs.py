@@ -61,36 +61,35 @@ RUN_FRAGMENT = """fragment RunFragment on Run {
 }"""
 
 
+@normalize_exceptions
+def _server_provides_internal_id_for_project(client) -> bool:
+    """Returns True if the server allows us to query the internalId field for a project.
+
+    This check is done by utilizing GraphQL introspection in the available fields on the Project type.
+    """
+    query_string = """
+       query ProbeRunInput {
+            RunType: __type(name:"Run") {
+                fields {
+                    name
+                }
+            }
+        }
+    """
+
+    # Only perform the query once to avoid extra network calls
+    query = gql(query_string)
+    res = client.execute(query)
+    return "projectId" in [
+        x["name"] for x in (res.get("RunType", {}).get("fields", [{}]))
+    ]
+
+
 class Runs(SizedPaginator["Run"]):
     """An iterable collection of runs associated with a project and optional filter.
 
     This is generally used indirectly via the `Api`.runs method.
     """
-
-    QUERY = gql(
-        """
-        query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
-            project(name: $project, entityName: $entity) {{
-                internalId
-                runCount(filters: $filters)
-                readOnly
-                runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
-                    edges {{
-                        node {{
-                            ...RunFragment
-                        }}
-                        cursor
-                    }}
-                    pageInfo {{
-                        endCursor
-                        hasNextPage
-                    }}
-                }}
-            }}
-        }}
-        {}
-        """.format(RUN_FRAGMENT)
-    )
 
     def __init__(
         self,
@@ -102,6 +101,32 @@ class Runs(SizedPaginator["Run"]):
         per_page: int = 50,
         include_sweeps: bool = True,
     ):
+        self.QUERY = gql(
+            f"""#graphql
+            query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
+                project(name: $project, entityName: $entity) {{
+                    internalId
+                    runCount(filters: $filters)
+                    readOnly
+                    runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
+                        edges {{
+                            node {{
+                                {"" if _server_provides_internal_id_for_project(client) else "internalId"}
+                                ...RunFragment
+                            }}
+                            cursor
+                        }}
+                        pageInfo {{
+                            endCursor
+                            hasNextPage
+                        }}
+                    }}
+                }}
+            }}
+            {RUN_FRAGMENT}
+            """
+        )
+
         self.entity = entity
         self.project = project
         self._project_internal_id = None
@@ -429,7 +454,9 @@ class Run(Attrs):
         }}
         {}
         """.format(
-                "projectId" if self._server_provides_internal_id_for_project() else "",
+                "projectId"
+                if _server_provides_internal_id_for_project(self.client)
+                else "",
                 RUN_FRAGMENT,
             )
         )
@@ -444,10 +471,6 @@ class Run(Attrs):
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
 
-            self._project_internal_id = (
-                int(self._attrs["projectId"]) if "projectId" in self._attrs else None
-            )
-
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
@@ -458,6 +481,11 @@ class Run(Attrs):
                     self.sweep_name,
                     withRuns=False,
                 )
+
+        if "projectId" in self._attrs:
+            self._project_internal_id = int(self._attrs["projectId"])
+        else:
+            self._project_internal_id = None
 
         try:
             self._attrs["summaryMetrics"] = (
@@ -911,32 +939,6 @@ class Run(Attrs):
             tags=tags,
         )
         return artifact
-
-    @normalize_exceptions
-    def _server_provides_internal_id_for_project(self) -> bool:
-        """Returns True if the server allows us to query the internalId field for a project.
-
-        This check is done by utilizing GraphQL introspection in the available fields on the Project type.
-        """
-        query_string = """
-           query ProbeRunInput {
-                RunType: __type(name:"Run") {
-                    fields {
-                        name
-                    }
-                }
-            }
-        """
-
-        # Only perform the query once to avoid extra network calls
-        if self.server_provides_internal_id_field is None:
-            query = gql(query_string)
-            res = self.client.execute(query)
-            self.server_provides_internal_id_field = "projectId" in [
-                x["name"] for x in (res.get("RunType", {}).get("fields", [{}]))
-            ]
-
-        return self.server_provides_internal_id_field
 
     @property
     def summary(self):
