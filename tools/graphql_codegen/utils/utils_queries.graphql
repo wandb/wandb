@@ -6,3 +6,11 @@ query ServerFeaturesQuery {
     }
   }
 }
+
+query FetchOrgEntityFromOrganization($organization: String!) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+    }
+  }
+}

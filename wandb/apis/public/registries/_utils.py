@@ -6,6 +6,10 @@ from wandb.sdk.artifacts._validators import (
     REGISTRY_PREFIX,
     validate_artifact_types_list,
 )
+from wandb.sdk.internal._generated import (
+    FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL,
+    FetchOrgEntityFromOrganization,
+)
 
 if TYPE_CHECKING:
     from wandb_gql import Client
@@ -112,29 +116,20 @@ def fetch_org_entity_from_organization(client: "Client", organization: str) -> s
         client (Client): Graphql client.
         organization (str): The organization to fetch the org entity for.
     """
-    query = gql(
-        """
-        query FetchOrgEntityFromOrganization($organization: String!) {
-            organization(name: $organization) {
-                    orgEntity {
-                        name
-                    }
-                }
-            }
-        """
-    )
+    query = gql(FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL)
     try:
-        response = client.execute(query, variable_values={"organization": organization})
-        if response["organization"] and response["organization"]["orgEntity"]:
-            if response["organization"]["orgEntity"]["name"]:
-                return response["organization"]["orgEntity"]["name"]
-            return ValueError(
-                f"Organization entity for organization: {organization} is empty"
+        data = client.execute(query, variable_values={"organization": organization})
+        result = FetchOrgEntityFromOrganization.model_validate(data)
+        if not (org := result.organization) or not (org_entity := org.org_entity):
+            raise ValueError(
+                f"Organization entity for organization: {organization!r} not found"
             )
-        raise ValueError(
-            f"Organization entity for organization: {organization} not found"
-        )
+        if not org_entity.name:
+            return ValueError(
+                f"Organization entity for organization: {organization!r} is empty"
+            )
+        return org_entity.name
     except Exception as e:
         raise ValueError(
-            f"Error fetching org entity for organization: {organization}"
+            f"Error fetching org entity for organization: {organization!r}"
         ) from e
