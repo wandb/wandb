@@ -56,13 +56,13 @@ type ResourceProvider struct {
 }
 
 type Resource struct {
-	Identifer string            `yaml:"identifer"`
-	Name      string            `yaml:"name"`
-	Version   string            `yaml:"version"`
-	Kind      string            `yaml:"kind"`
-	Config    map[string]any    `yaml:"config"`
-	Metadata  map[string]string `yaml:"metadata"`
-	Variables map[string]any    `yaml:"variables"`
+	Identifier string            `yaml:"identifier"`
+	Name       string            `yaml:"name"`
+	Version    string            `yaml:"version"`
+	Kind       string            `yaml:"kind"`
+	Config     map[string]any    `yaml:"config"`
+	Metadata   map[string]string `yaml:"metadata"`
+	Variables  map[string]any    `yaml:"variables"`
 }
 
 // NewApplyCmd creates a new apply command
@@ -121,7 +121,7 @@ func processResourceProvider(ctx context.Context, client *api.ClientWithResponse
 	resources := make([]api.AgentResource, 0)
 	for _, resource := range provider.Resources {
 		resources = append(resources, api.AgentResource{
-			Identifier: resource.Identifer,
+			Identifier: resource.Identifier,
 			Name:       resource.Name,
 			Version:    resource.Version,
 			Kind:       resource.Kind,

@@ -1,2 +1,6 @@
 .env
 test.bash
+
+/bin
+.idea
+.vscode
