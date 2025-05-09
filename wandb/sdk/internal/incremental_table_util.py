@@ -32,6 +32,10 @@ def handle_resumed_run(incr_table: "Table", run: "LocalRun", key: str):
         incr_table._resume_handled = True
         return
 
+    if summary_from_key.get("_type") != "incremental-table-file":
+        incr_table._resume_handled = True
+        return
+
     incr_table._previous_increments_paths = summary_from_key.get(
         "previous_increments_paths", []
     )
@@ -55,7 +59,5 @@ def init_artifact(run: "LocalRun", sanitized_key: str):
 
 def get_entry_name(incr_table: "Table", key: str):
     if incr_table._resume_random_id is not None:
-        return (
-            f"{incr_table._increment_num}-resumed-{incr_table._resume_random_id}.{key}"
-        )
+        return f"{incr_table._increment_num}-resumed-{incr_table._resume_random_id}.{key}"
     return f"{incr_table._increment_num}.{key}"
