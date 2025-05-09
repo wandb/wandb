@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
+	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -142,6 +143,8 @@ type StreamParams struct {
 	Sentry     *sentry_ext.Client
 	LoggerPath string
 	LogLevel   slog.Level
+
+	GPUResourceManager *monitor.GPUResourceManager
 }
 
 // NewStream creates a new stream with the given settings and responders.
@@ -162,6 +165,7 @@ func NewStream(
 		settings:     params.Settings,
 		sentryClient: params.Sentry,
 	}
+	clientId := randomid.GenerateUniqueID(32)
 
 	// TODO: replace this with a logger that can be read by the user
 	peeker := &observability.Peeker{}
@@ -180,7 +184,12 @@ func NewStream(
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
-		graphqlClientOrNil = NewGraphQLClient(backendOrNil, params.Settings, peeker)
+		graphqlClientOrNil = NewGraphQLClient(
+			backendOrNil,
+			params.Settings,
+			peeker,
+			clientId,
+		)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
 			s.logger,
@@ -188,6 +197,7 @@ func NewStream(
 			terminalPrinter,
 			params.Settings,
 			peeker,
+			clientId,
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
@@ -230,7 +240,6 @@ func NewStream(
 	s.handler = NewHandler(
 		HandlerParams{
 			Commit:            params.Commit,
-			FeatureProvider:   featureProvider,
 			FileTransferStats: fileTransferStats,
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			Logger:            s.logger,
@@ -238,9 +247,14 @@ func NewStream(
 			Operations:        operations,
 			OutChan:           make(chan *spb.Result, BufferSize),
 			Settings:          s.settings,
-			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings, s.runWork),
-			TBHandler:         tbHandler,
-			TerminalPrinter:   terminalPrinter,
+			SystemMonitor: monitor.NewSystemMonitor(
+				s.logger,
+				s.settings,
+				s.runWork,
+				params.GPUResourceManager,
+			),
+			TBHandler:       tbHandler,
+			TerminalPrinter: terminalPrinter,
 		},
 	)
 
@@ -384,6 +398,11 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 }
 
 func printFooter(settings *settings.Settings) {
+	// Silent mode disables any footer output
+	if settings.IsSilent() {
+		return
+	}
+
 	formatter := pfxout.New(
 		pfxout.WithColor("wandb", pfxout.BrightBlue),
 	)

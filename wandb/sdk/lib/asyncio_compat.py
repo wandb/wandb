@@ -53,7 +53,7 @@ class _Runner:
     """
 
     def __init__(self) -> None:
-        self._lock = threading.Condition()
+        self._lock = threading.Lock()
 
         self._is_cancelled = False
         self._started = False

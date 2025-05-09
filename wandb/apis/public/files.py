@@ -12,7 +12,7 @@ import wandb
 from wandb import util
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.paginator import Paginator
+from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
 from wandb.apis.public.api import Api
 from wandb.apis.public.const import RETRY_TIMEDELTA
@@ -41,7 +41,7 @@ FILE_FRAGMENT = """fragment RunFilesFragment on Run {
 }"""
 
 
-class Files(Paginator):
+class Files(SizedPaginator["File"]):
     """An iterable collection of `File` objects."""
 
     QUERY = gql(

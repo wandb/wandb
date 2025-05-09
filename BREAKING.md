@@ -32,11 +32,6 @@ When preparing a release that can include breaking changes, consider applying ch
 
 ## Changes
 
-- Remove the `x_disable_service` setting; replace by False
-    - Owner: @timoffex
-    - Deprecated in 0.18.0
-    - Can do in >=0.20
-
 - Make `--verify` the default for `wandb login`
     - PR: https://github.com/wandb/wandb/pull/9230
     - Owner: @jacobromero
@@ -61,3 +56,15 @@ When preparing a release that can include breaking changes, consider applying ch
     - Owner: @timoffex
     - Deprecated after 0.19.8 (https://github.com/wandb/wandb/pull/9557)
     - Can do after September 2025
+
+- Deprecate `data_is_not_path` flag in `wandb.Html` and add `path` keyword argument to explicitly handle files paths.
+    - Owner: @jacobromero
+    - Deprecated after 0.19.9
+
+- Remove fallback of storing system settings in a temporary directory when we don't have permissions to write to `~/.config/wandb/settings`
+    - Owner: @jacobromero
+    - Can do in >=0.20
+
+- Require `format` argument when initializing `wandb.Video`
+    - Owner: @jacobromero
+    - can do in >=0.20

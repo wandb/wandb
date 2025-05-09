@@ -26,3 +26,13 @@ def test__global_path_default_does_not_exist_and_is_not_writable():
         assert Settings._global_path() == os.path.join(
             "/tmp", "testuser", ".config", "wandb", "settings"
         )
+
+
+def test__global_path_env_var_exists_and_is_writable(tmp_path, monkeypatch):
+    config_dir = tmp_path / "config"
+    monkeypatch.setenv("WANDB_CONFIG_DIR", config_dir)
+
+    settings_path = Settings._global_path()
+
+    assert settings_path == os.path.join(config_dir, "settings")
+    assert os.path.exists(config_dir)

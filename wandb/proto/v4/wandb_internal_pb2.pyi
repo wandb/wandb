@@ -38,6 +38,24 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """Indicates that the server supports searching for artifacts in a registry."""
     STRUCTURED_CONSOLE_LOGS: _ServerFeature.ValueType  # 4
     """Indicates that the server supports structured console logs."""
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILES: _ServerFeature.ValueType  # 5
+    """Indicates that the server supports querying for files on artifact collection memberships."""
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: _ServerFeature.ValueType  # 6
+    """Indicates that the server supports downloading files with additional artifact collection memberships context in the
+    url.
+    """
+    USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: _ServerFeature.ValueType  # 7
+    """Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation."""
+    EXPAND_DEFINED_METRIC_GLOBS: _ServerFeature.ValueType  # 8
+    """Indicates that the server supports expanding defined metric globs on the server side."""
+    AUTOMATION_EVENT_RUN_METRIC: _ServerFeature.ValueType  # 9
+    """Indicates that the server supports automation event RUN_METRIC."""
+    AUTOMATION_EVENT_RUN_METRIC_CHANGE: _ServerFeature.ValueType  # 10
+    """Indicates that the server supports automation event RUN_METRIC_CHANGE."""
+    AUTOMATION_ACTION_NO_OP: _ServerFeature.ValueType  # 11
+    """Indicates that the server supports automation action NO_OP."""
+    INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION: _ServerFeature.ValueType  # 12
+    """Indicates that the server supports including artifact types in registry creation."""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -55,6 +73,24 @@ ARTIFACT_REGISTRY_SEARCH: ServerFeature.ValueType  # 3
 """Indicates that the server supports searching for artifacts in a registry."""
 STRUCTURED_CONSOLE_LOGS: ServerFeature.ValueType  # 4
 """Indicates that the server supports structured console logs."""
+ARTIFACT_COLLECTION_MEMBERSHIP_FILES: ServerFeature.ValueType  # 5
+"""Indicates that the server supports querying for files on artifact collection memberships."""
+ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: ServerFeature.ValueType  # 6
+"""Indicates that the server supports downloading files with additional artifact collection memberships context in the
+url.
+"""
+USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: ServerFeature.ValueType  # 7
+"""Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation."""
+EXPAND_DEFINED_METRIC_GLOBS: ServerFeature.ValueType  # 8
+"""Indicates that the server supports expanding defined metric globs on the server side."""
+AUTOMATION_EVENT_RUN_METRIC: ServerFeature.ValueType  # 9
+"""Indicates that the server supports automation event RUN_METRIC."""
+AUTOMATION_EVENT_RUN_METRIC_CHANGE: ServerFeature.ValueType  # 10
+"""Indicates that the server supports automation event RUN_METRIC_CHANGE."""
+AUTOMATION_ACTION_NO_OP: ServerFeature.ValueType  # 11
+"""Indicates that the server supports automation action NO_OP."""
+INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION: ServerFeature.ValueType  # 12
+"""Indicates that the server supports including artifact types in registry creation."""
 global___ServerFeature = ServerFeature
 
 @typing_extensions.final
@@ -880,6 +916,7 @@ class MetricRecord(google.protobuf.message.Message):
     SUMMARY_FIELD_NUMBER: builtins.int
     GOAL_FIELD_NUMBER: builtins.int
     _CONTROL_FIELD_NUMBER: builtins.int
+    EXPANDED_FROM_GLOB_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     name: builtins.str
     """only name or globname is set"""
@@ -897,6 +934,7 @@ class MetricRecord(google.protobuf.message.Message):
     goal: global___MetricRecord.MetricGoal.ValueType
     @property
     def _control(self) -> global___MetricControl: ...
+    expanded_from_glob: builtins.bool
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -910,10 +948,11 @@ class MetricRecord(google.protobuf.message.Message):
         summary: global___MetricSummary | None = ...,
         goal: global___MetricRecord.MetricGoal.ValueType = ...,
         _control: global___MetricControl | None = ...,
+        expanded_from_glob: builtins.bool = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_control", b"_control", "_info", b"_info", "options", b"options", "summary", b"summary"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_control", b"_control", "_info", b"_info", "glob_name", b"glob_name", "goal", b"goal", "name", b"name", "options", b"options", "step_metric", b"step_metric", "step_metric_index", b"step_metric_index", "summary", b"summary"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_control", b"_control", "_info", b"_info", "expanded_from_glob", b"expanded_from_glob", "glob_name", b"glob_name", "goal", b"goal", "name", b"name", "options", b"options", "step_metric", b"step_metric", "step_metric_index", b"step_metric_index", "summary", b"summary"]) -> None: ...
 
 global___MetricRecord = MetricRecord
 
@@ -1206,7 +1245,7 @@ class FilesItem(google.protobuf.message.Message):
     POLICY_FIELD_NUMBER: builtins.int
     TYPE_FIELD_NUMBER: builtins.int
     path: builtins.str
-    """A path or Unix glob relative to the W&B files directory."""
+    """A path or Unix glob relative to the run's files directory."""
     policy: global___FilesItem.PolicyType.ValueType
     """When to upload the file."""
     type: global___FilesItem.FileType.ValueType
@@ -1555,13 +1594,18 @@ class LinkArtifactResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     ERROR_MESSAGE_FIELD_NUMBER: builtins.int
+    VERSION_INDEX_FIELD_NUMBER: builtins.int
     error_message: builtins.str
+    version_index: builtins.int
     def __init__(
         self,
         *,
         error_message: builtins.str = ...,
+        version_index: builtins.int | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["error_message", b"error_message"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_version_index", b"_version_index", "version_index", b"version_index"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_version_index", b"_version_index", "error_message", b"error_message", "version_index", b"version_index"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["_version_index", b"_version_index"]) -> typing_extensions.Literal["version_index"] | None: ...
 
 global___LinkArtifactResponse = LinkArtifactResponse
 

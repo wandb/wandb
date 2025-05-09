@@ -17,7 +17,9 @@ func TestValidHeader(t *testing.T) {
 	r, w := io.Pipe()
 
 	go func() {
-		defer w.Close()
+		defer func() {
+			_ = w.Close()
+		}()
 		err := header.MarshalBinary(w)
 		assert.NoError(t, err)
 	}()
@@ -39,7 +41,9 @@ func TestInvalidHeader(t *testing.T) {
 	r, w := io.Pipe()
 
 	go func() {
-		defer w.Close()
+		defer func() {
+			_ = w.Close()
+		}()
 		err := header.MarshalBinary(w)
 		assert.NoError(t, err)
 	}()
@@ -53,8 +57,10 @@ func TestInvalidHeader(t *testing.T) {
 func TestOpenCreateStore(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-db")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	_ = tmpFile.Close()
 
 	store := stream.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
@@ -67,8 +73,10 @@ func TestOpenCreateStore(t *testing.T) {
 func TestOpenReadStore(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-db")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	_ = tmpFile.Close()
 
 	store := stream.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
@@ -88,11 +96,15 @@ func TestOpenReadStore(t *testing.T) {
 func TestReadWriteRecord(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-db")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	_ = tmpFile.Close()
 
 	store := stream.NewStore(tmpFile.Name())
-	defer store.Close()
+	defer func() {
+		_ = store.Close()
+	}()
 
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
@@ -108,7 +120,9 @@ func TestReadWriteRecord(t *testing.T) {
 	store2 := stream.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
-	defer store2.Close()
+	defer func() {
+		_ = store2.Close()
+	}()
 
 	readRecord, err := store2.Read()
 	assert.NoError(t, err)
@@ -127,7 +141,9 @@ func AppendToFile(filename string, data []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	// Write the data to the file
 	_, err = file.Write(data)
@@ -141,11 +157,15 @@ func AppendToFile(filename string, data []byte) error {
 func TestCorruptFile(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-db")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	_ = tmpFile.Close()
 
 	store := stream.NewStore(tmpFile.Name())
-	defer store.Close()
+	defer func() {
+		_ = store.Close()
+	}()
 
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
@@ -162,7 +182,9 @@ func TestCorruptFile(t *testing.T) {
 	store2 := stream.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
-	defer store2.Close()
+	defer func() {
+		_ = store2.Close()
+	}()
 
 	// this record was fine (record num:1)
 	_, err = store2.Read()
@@ -180,8 +202,10 @@ func TestCorruptFile(t *testing.T) {
 func TestStoreInvalidHeader(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-invalid-header")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	_ = tmpFile.Close()
 
 	store := stream.NewStore(tmpFile.Name())
 
@@ -204,8 +228,10 @@ func TestStoreHeader_Write_Error(t *testing.T) {
 func TestInvalidFlag(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-db")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	_ = tmpFile.Close()
 
 	store := stream.NewStore(tmpFile.Name())
 	err = store.Open(9999) // 9999 is an invalid flag
@@ -216,8 +242,10 @@ func TestInvalidFlag(t *testing.T) {
 func TestWriteToClosedStore(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-db")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	_ = tmpFile.Close()
 
 	store := stream.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
@@ -235,8 +263,10 @@ func TestWriteToClosedStore(t *testing.T) {
 func TestReadFromClosedStore(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-db")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	_ = tmpFile.Close()
 
 	store := stream.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)

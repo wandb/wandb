@@ -83,14 +83,13 @@ def cli_unsupported(argument):
 
 class ClickWandbException(ClickException):
     def format_message(self):
-        # log_file = util.get_log_file_path()
-        log_file = ""
         orig_type = f"{self.orig_type.__module__}.{self.orig_type.__name__}"
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
         else:
             return (
-                f"An Exception was raised, see {log_file} for full traceback.\n"
+                f"An Exception was raised, see {_wandb_log_path} for full"
+                " traceback.\n"
                 f"{orig_type}: {self.message}"
             )
 
@@ -257,6 +256,7 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
         key=key,
         relogin=relogin,
         verify=verify,
+        referrer="models",
     )
 
 

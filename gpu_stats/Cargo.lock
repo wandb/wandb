@@ -557,13 +557,14 @@ checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
 name = "gpu_stats"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "clap",
  "core-foundation",
  "env_logger",
  "libc",
+ "libloading",
  "log",
  "nix",
  "nvml-wrapper",

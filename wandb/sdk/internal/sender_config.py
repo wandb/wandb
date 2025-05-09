@@ -47,17 +47,14 @@ class ConfigState:
         # Add any top-level keys that aren't already set.
         self._add_unset_keys_from_subtree(old_config_tree, [])
 
-        # Unfortunately, when a user logs visualizations, we store them in the
-        # run's config. When resuming a run, we want to avoid erasing previously
-        # logged visualizations, hence this special handling:
-        self._add_unset_keys_from_subtree(
-            old_config_tree,
-            [_WANDB_INTERNAL_KEY, "visualize"],
-        )
-        self._add_unset_keys_from_subtree(
-            old_config_tree,
-            [_WANDB_INTERNAL_KEY, "viz"],
-        )
+        # When resuming a run, we want to ensure the some of the old configs keys
+        # are maintained. So we have this logic here to add back
+        # any keys that were in the old config but not in the new config
+        for key in ["viz", "visualize", "mask/class_labels"]:
+            self._add_unset_keys_from_subtree(
+                old_config_tree,
+                [_WANDB_INTERNAL_KEY, key],
+            )
 
     def _add_unset_keys_from_subtree(
         self,

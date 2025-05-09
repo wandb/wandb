@@ -24,7 +24,7 @@ from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.paginator import Paginator
+from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.sdk.lib import ipython, json_util, runid
 from wandb.sdk.lib.paths import LogicalPath
@@ -61,36 +61,35 @@ RUN_FRAGMENT = """fragment RunFragment on Run {
 }"""
 
 
-class Runs(Paginator):
+@normalize_exceptions
+def _server_provides_internal_id_for_project(client) -> bool:
+    """Returns True if the server allows us to query the internalId field for a project.
+
+    This check is done by utilizing GraphQL introspection in the available fields on the Project type.
+    """
+    query_string = """
+       query ProbeRunInput {
+            RunType: __type(name:"Run") {
+                fields {
+                    name
+                }
+            }
+        }
+    """
+
+    # Only perform the query once to avoid extra network calls
+    query = gql(query_string)
+    res = client.execute(query)
+    return "projectId" in [
+        x["name"] for x in (res.get("RunType", {}).get("fields", [{}]))
+    ]
+
+
+class Runs(SizedPaginator["Run"]):
     """An iterable collection of runs associated with a project and optional filter.
 
     This is generally used indirectly via the `Api`.runs method.
     """
-
-    QUERY = gql(
-        """
-        query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
-            project(name: $project, entityName: $entity) {{
-                internalId
-                runCount(filters: $filters)
-                readOnly
-                runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
-                    edges {{
-                        node {{
-                            ...RunFragment
-                        }}
-                        cursor
-                    }}
-                    pageInfo {{
-                        endCursor
-                        hasNextPage
-                    }}
-                }}
-            }}
-        }}
-        {}
-        """.format(RUN_FRAGMENT)
-    )
 
     def __init__(
         self,
@@ -102,6 +101,32 @@ class Runs(Paginator):
         per_page: int = 50,
         include_sweeps: bool = True,
     ):
+        self.QUERY = gql(
+            f"""#graphql
+            query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
+                project(name: $project, entityName: $entity) {{
+                    internalId
+                    runCount(filters: $filters)
+                    readOnly
+                    runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
+                        edges {{
+                            node {{
+                                {"" if _server_provides_internal_id_for_project(client) else "internalId"}
+                                ...RunFragment
+                            }}
+                            cursor
+                        }}
+                        pageInfo {{
+                            endCursor
+                            hasNextPage
+                        }}
+                    }}
+                }}
+            }}
+            {RUN_FRAGMENT}
+            """
+        )
+
         self.entity = entity
         self.project = project
         self._project_internal_id = None
@@ -421,16 +446,17 @@ class Run(Attrs):
             """
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
-                {}
                 run(name: $name) {{
+                    {}
                     ...RunFragment
                 }}
             }}
         }}
         {}
         """.format(
-                # Only query internalId if the server supports it
-                "internalId" if self._server_provides_internal_id_for_project() else "",
+                "projectId"
+                if _server_provides_internal_id_for_project(self.client)
+                else "",
                 RUN_FRAGMENT,
             )
         )
@@ -444,7 +470,7 @@ class Run(Attrs):
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
-            self._project_internal_id = response["project"].get("internalId", None)
+
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
                 # just for the sake of this one.
@@ -455,6 +481,11 @@ class Run(Attrs):
                     self.sweep_name,
                     withRuns=False,
                 )
+
+        if "projectId" in self._attrs:
+            self._project_internal_id = int(self._attrs["projectId"])
+        else:
+            self._project_internal_id = None
 
         try:
             self._attrs["summaryMetrics"] = (
@@ -847,7 +878,12 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact, wandb.Artifact) and not artifact.is_draft():
-            api.use_artifact(artifact.id, use_as=use_as or artifact.name)
+            api.use_artifact(
+                artifact.id,
+                use_as=use_as or artifact.name,
+                artifact_entity_name=artifact.entity,
+                artifact_project_name=artifact.project,
+            )
             return artifact
         elif isinstance(artifact, wandb.Artifact) and artifact.is_draft():
             raise ValueError(
@@ -903,32 +939,6 @@ class Run(Attrs):
             tags=tags,
         )
         return artifact
-
-    @normalize_exceptions
-    def _server_provides_internal_id_for_project(self) -> bool:
-        """Returns True if the server allows us to query the internalId field for a project.
-
-        This check is done by utilizing GraphQL introspection in the available fields on the Project type.
-        """
-        query_string = """
-           query ProbeProjectInput {
-                ProjectType: __type(name:"Project") {
-                    fields {
-                        name
-                    }
-                }
-            }
-        """
-
-        # Only perform the query once to avoid extra network calls
-        if self.server_provides_internal_id_field is None:
-            query = gql(query_string)
-            res = self.client.execute(query)
-            self.server_provides_internal_id_field = "internalId" in [
-                x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
-            ]
-
-        return self.server_provides_internal_id_field
 
     @property
     def summary(self):

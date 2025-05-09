@@ -456,7 +456,6 @@ def test_audio_to_json(mock_run):
 
     audio_expected = {
         "_type": "audio-file",
-        "caption": None,
         "size": 88244,
     }
     assert subdict(meta["audio"][0], audio_expected) == audio_expected
@@ -471,7 +470,6 @@ def test_audio_refs():
 
     audio_expected = {
         "_type": "audio-file",
-        "caption": None,
     }
     assert subdict(audio_obj.to_json(art), audio_expected) == audio_expected
 
@@ -1430,6 +1428,58 @@ def test_partitioned_table():
     assert len([(ndx, row) for ndx, row in partition_table.iterrows()]) == 0
     assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
     assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")
+
+
+################################################################################
+# Test wandb.Html
+################################################################################
+
+
+def test_wandb_html_with_directory(tmp_path):
+    html = wandb.Html(str(tmp_path), inject=False)
+
+    assert html._is_tmp is True
+    assert html._path is not None
+    assert os.path.exists(html._path)
+    with open(html._path) as f:
+        assert f.read() == str(tmp_path)
+
+
+def test_wandb_html_with_html_file(tmp_path):
+    html_file = tmp_path / "index.html"
+    html_file.write_text("Hello, world!")
+
+    html = wandb.Html(str(html_file), inject=False)
+
+    assert html._is_tmp is False
+    assert html._path is not None
+    assert html._path == str(html_file)
+    assert os.path.exists(html._path)
+    with open(html._path) as f:
+        assert f.read() == "Hello, world!"
+
+
+def test_wandb_html_with_html_file_skip_file_check(tmp_path):
+    html_file = tmp_path / "index.html"
+    html_file.write_text("Hello, world!")
+
+    html = wandb.Html(str(html_file), inject=False, data_is_not_path=True)
+
+    assert html._is_tmp is True
+    assert html._path is not None
+    with open(html._path) as f:
+        assert f.read() == str(html_file)
+
+
+def test_wandb_html_with_non_html_file(tmp_path):
+    file = tmp_path / "index.txt"
+    file.write_text("Hello, world!")
+
+    html = wandb.Html(str(file), inject=False)
+
+    assert html._is_tmp is True
+    with open(html._path) as f:
+        assert f.read() == str(file)
 
 
 ################################################################################
