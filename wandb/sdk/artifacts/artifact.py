@@ -2341,67 +2341,6 @@ class Artifact:
             },
         )
 
-    def _link_with_no_run(
-        self, target_path: str, aliases: list[str] | None = None
-    ) -> Artifact | None:
-        from wandb import Api
-
-        # Save the artifact first if necessary
-        if self.is_draft() and not self._is_draft_save_started():
-            self.save(project=self.source_project)
-        self.wait()
-
-        portfolio, project, entity = _parse_entity_project_item(target_path)
-
-        # Parse the entity appropriately, depending on whether we're linking to a registry
-        if is_artifact_registry_project(project):
-            # In a Registry linking, the entity is used to fetch the organization of the artifact
-            # therefore the source artifact's entity is passed to the backend
-            organization = entity
-            portfolio_entity = InternalApi()._resolve_org_entity_name(
-                entity=self.source_entity, organization=organization
-            )
-        else:
-            portfolio_entity = self.source_entity
-
-        # Prepare and validate the GraphQL input
-        alias_inputs = (
-            None
-            if (aliases is None)
-            else [dict(artifact_collection_name=portfolio, alias=a) for a in aliases]
-        )
-        gql_input = LinkArtifactInput(
-            artifact_id=self.id,
-            artifact_portfolio_name=portfolio,
-            entity_name=portfolio_entity,
-            project_name=project,
-            aliases=alias_inputs,
-        )
-
-        # Send it
-        data = self._client.execute(
-            gql(LINK_ARTIFACT_GQL),
-            variable_values={"input": gql_input.model_dump(exclude_none=True)},
-        )
-        result = LinkArtifact.model_validate(data).link_artifact
-
-        # Fetch the linked artifact to return it
-        try:
-            version_idx = result.version_index
-
-            if (in_registry := is_artifact_registry_project(project)) and organization:
-                linked_name = f"{organization}/{project}/{portfolio}:v{version_idx}"
-            elif in_registry:
-                linked_name = f"{project}/{portfolio}:v{version_idx}"
-            else:
-                linked_name = f"{entity}/{project}/{portfolio}:v{version_idx}"
-
-            public_api = Api(overrides={"entity": entity, "project": project})
-            return public_api._artifact(linked_name)
-        except Exception as e:
-            wandb.termerror(f"Error fetching link artifact after linking: {e}")
-            return None
-
     @normalize_exceptions
     def link(
         self, target_path: str, aliases: list[str] | None = None
@@ -2426,6 +2365,8 @@ class Artifact:
         Returns:
             The linked artifact if linking was successful, otherwise None.
         """
+        from wandb import Api
+
         if self.is_link:
             wandb.termwarn(
                 "Linking to a link artifact will result in directly linking to the source artifact of that link artifact."
@@ -2434,30 +2375,66 @@ class Artifact:
         if self._client is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        # TODO: Absorb the helper implementation directly into `.link()` before merging.
-        return self._link_with_no_run(target_path, aliases)
+        # Save the artifact first if necessary
+        if self.is_draft() and not self._is_draft_save_started():
+            self.save(project=self.source_project)
 
-        # PREVIOUS WANDB-CORE LOGIC.  This was disabled to stop the creation of throwaway runs.
-        # TODO: Remove once we've verified the behavior to test/match
-        # return self._link_with_throwaway_run(target_path, aliases)
+        # Wait until the artifact is committed before trying to link it.
+        self.wait()
 
-    def _link_with_throwaway_run(
-        self, target_path: str, aliases: list[str] | None = None
-    ) -> Artifact | None:
-        if run := wandb_setup.singleton().most_recent_active_run:
-            # TODO: Deprecate and encourage explicit link_artifact().
-            return run.link_artifact(self, target_path, aliases)
+        api = Api()
 
+        portfolio, project, entity = _parse_entity_project_item(target_path)
+
+        project = project or api.settings["project"] or "uncategorized"
+        entity = entity or api.settings["entity"] or api.default_entity
+
+        # Parse the entity appropriately, depending on whether we're linking to a registry
+        if is_registry_proj := is_artifact_registry_project(project):
+            # In a Registry linking, the entity is used to fetch the organization of the artifact
+            # therefore the source artifact's entity is passed to the backend
+            organization = entity or api.settings["organization"] or ""
+            portfolio_entity = InternalApi()._resolve_org_entity_name(
+                self.source_entity, organization
+            )
         else:
-            with wandb.init(
-                entity=self._source_entity,
-                project=self._source_project,
-                job_type="auto",
-                settings=wandb.Settings(silent="true"),
-            ) as run:
-                return run.link_artifact(self, target_path, aliases)
+            organization = ""
+            portfolio_entity = self.source_entity
 
-        return None
+        # Prepare the validated GQL input, send it
+        gql_input = LinkArtifactInput(
+            artifact_id=self.id,
+            artifact_portfolio_name=portfolio,
+            entity_name=portfolio_entity,
+            project_name=project,
+            aliases=[
+                dict(artifact_collection_name=portfolio, alias=a)
+                for a in (aliases or [])
+            ],
+        )
+        gql_vars = {"input": gql_input.model_dump(exclude_none=True)}
+        gql_op = gql(LINK_ARTIFACT_GQL)
+        data = self._client.execute(gql_op, variable_values=gql_vars)
+
+        result = LinkArtifact.model_validate(data).link_artifact
+        if not (result and (version_idx := result.version_index)):
+            raise ValueError("Unable to parse linked artifact version from response")
+
+        # Fetch the linked artifact to return it
+        try:
+            linked_path = f"{project}/{portfolio}:v{version_idx}"
+
+            # If appropriate, prepend the org or entity to the fetched path
+            if is_registry_proj and organization:
+                linked_path = f"{organization}/{linked_path}"
+            elif not is_registry_proj:
+                linked_path = f"{entity}/{linked_path}"
+
+            return api._artifact(linked_path)
+
+        except Exception as e:
+            wandb.termerror(f"Error fetching link artifact after linking: {e}")
+            return None
 
     @ensure_logged
     def unlink(self) -> None:

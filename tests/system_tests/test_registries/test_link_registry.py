@@ -4,10 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 import wandb
-from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
-from wandb.apis.public.registries.registry import Registry
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.artifacts.artifact import Artifact
 
 
 @dataclass
@@ -106,40 +103,3 @@ def test_link_artifact_client_handles_registry_paths(
     mock__deliver_link_artifact.assert_called_once_with(link_artifact_request)
 
     run.finish()
-
-
-# TODO: Finish setting this test up
-@pytest.fixture
-def organization(backend_fixture_factory, user) -> str:
-    """Set up backend resources for testing link_artifact within a registry."""
-    return backend_fixture_factory.make_org("Test Organization", username=user)
-
-
-@pytest.fixture
-def org_entity(organization, api: wandb.Api) -> str:
-    return fetch_org_entity_from_organization(api.client, organization)
-
-
-@pytest.fixture
-def registry(organization, api: wandb.Api) -> Registry:
-    registry = api.create_registry(
-        name="model",
-        organization=organization,
-        visibility="organization",
-    )
-    return registry
-
-
-@pytest.fixture
-def source_artifact(api: wandb.Api) -> Artifact:
-    artifact = api.create_artifact(
-        name="test-registry",
-        visibility="organization",
-        organization=organization,
-    )
-    return artifact
-
-
-# def test_link_artifact_in_registry_collection(organization, org_entity, registry):
-#     raise ValueError(f"{organization=}, {org_entity=}, {registry=}")
-#     pass
