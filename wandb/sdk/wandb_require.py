@@ -17,7 +17,6 @@ from typing import Iterable
 import wandb
 from wandb.env import _REQUIRE_LEGACY_SERVICE
 from wandb.errors import UnsupportedError
-from wandb.sdk import wandb_run
 
 
 class _Requires:
@@ -33,13 +32,8 @@ class _Requires:
     def require_require(self) -> None:
         pass
 
-    def _require_service(self) -> None:
-        wandb.teardown = wandb._teardown  # type: ignore
-        wandb.attach = wandb._attach  # type: ignore
-        wandb_run.Run.detach = wandb_run.Run._detach  # type: ignore
-
     def require_service(self) -> None:
-        self._require_service()
+        pass
 
     def require_core(self) -> None:
         wandb.termwarn(
@@ -91,10 +85,3 @@ def require(
 
     f = _Requires(features=features)
     f.apply()
-
-
-def _import_module_hook() -> None:
-    """On wandb import, setup anything needed based on parent process require calls."""
-    # TODO: optimize by caching which pids this has been done for or use real import hooks
-    # TODO: make this more generic, but for now this works
-    require("service")
