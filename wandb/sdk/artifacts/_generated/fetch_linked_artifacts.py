@@ -5,8 +5,6 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase, Typename
 
 
@@ -15,9 +13,7 @@ class FetchLinkedArtifacts(GQLBase):
 
 
 class FetchLinkedArtifactsArtifact(GQLBase):
-    artifact_memberships: FetchLinkedArtifactsArtifactArtifactMemberships = Field(
-        alias="artifactMemberships"
-    )
+    artifact_memberships: FetchLinkedArtifactsArtifactArtifactMemberships
 
 
 class FetchLinkedArtifactsArtifactArtifactMemberships(GQLBase):
@@ -30,10 +26,10 @@ class FetchLinkedArtifactsArtifactArtifactMembershipsEdges(GQLBase):
 
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode(GQLBase):
     aliases: List[FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeAliases]
-    version_index: Optional[int] = Field(alias="versionIndex")
+    version_index: Optional[int]
     artifact_collection: Optional[
         FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection
-    ] = Field(alias="artifactCollection")
+    ]
 
 
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeAliases(GQLBase):
@@ -55,7 +51,7 @@ class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollectionProject(
     GQLBase
 ):
-    entity_name: str = Field(alias="entityName")
+    entity_name: str
     name: str
 
 

@@ -22,6 +22,10 @@ BaseModelType: TypeAlias = Type[BaseModel]
 
 if IS_PYDANTIC_V2:
     import pydantic_core  # pydantic_core is only installed by pydantic v2
+    from pydantic import alias_generators
+
+    to_camel = alias_generators.to_camel
+    """Convert a snake_case string to lowerCamelCase."""
 
     def from_json(s: str) -> Any:
         """Quickly deserialize a JSON string to a Python object."""
@@ -55,6 +59,9 @@ else:
     # compatibility with Pydantic v1 so long as we need to support it.
 
     from pydantic.json import pydantic_encoder  # Only valid in pydantic v1
+    from pydantic.utils import to_lower_camel
+
+    to_camel = to_lower_camel
 
     def from_json(s: str) -> Any:
         return json.loads(s)

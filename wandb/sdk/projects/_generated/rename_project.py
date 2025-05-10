@@ -5,13 +5,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase
 
 
 class RenameProject(GQLBase):
-    rename_project: Optional[RenameProjectRenameProject] = Field(alias="renameProject")
+    rename_project: Optional[RenameProjectRenameProject]
 
 
 class RenameProjectRenameProject(GQLBase):

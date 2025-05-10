@@ -18,7 +18,9 @@ CODEGEN_CONFIGS=(
 # Reuse the schema that's already used to generate for wandb-core (Go)
 SCHEMA_DIR="$PROJECT_DIR/core/api/graphql/schemas"
 SCHEMA_COMMIT=$(cat "$SCHEMA_DIR/commit.hash.txt")  # get the commit hash
+
 SCHEMA_PATH="$SCHEMA_DIR/schema-latest-${SCHEMA_COMMIT}.graphql"
+SCHEMA_SYMLINK_PATH="$SCHEMA_DIR/schema-latest.graphql"
 
 if [ ! -f "$SCHEMA_PATH" ]; then
     echo "[INFO] Schema file does not exist: $SCHEMA_PATH"
@@ -42,11 +44,12 @@ if [ ! -f "$SCHEMA_PATH" ]; then
             git checkout "$SCHEMA_COMMIT" "$repo_schema_path"
 
             # Remove any existing schema files before copying the new one
-            rm -vf "$SCHEMA_DIR/schema-latest-*.graphql"
+            rm -vf "$SCHEMA_DIR/schema-latest*.graphql"
             mv "$repo_schema_path" "$SCHEMA_PATH"
         )
         rm -rf "$repo_dir"
     )
+    ln -svf "$SCHEMA_PATH" "$SCHEMA_SYMLINK_PATH"
 else
     echo "[INFO] Schema file already exists, skipping download: $SCHEMA_PATH"
 fi

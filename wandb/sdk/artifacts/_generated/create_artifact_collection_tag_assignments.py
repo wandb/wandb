@@ -5,15 +5,13 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase, GQLId
 
 
 class CreateArtifactCollectionTagAssignments(GQLBase):
     create_artifact_collection_tag_assignments: Optional[
         CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignments
-    ] = Field(alias="createArtifactCollectionTagAssignments")
+    ]
 
 
 class CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignments(
@@ -29,7 +27,7 @@ class CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignmen
 ):
     id: GQLId
     name: str
-    tag_category_name: str = Field(alias="tagCategoryName")
+    tag_category_name: str
 
 
 CreateArtifactCollectionTagAssignments.model_rebuild()

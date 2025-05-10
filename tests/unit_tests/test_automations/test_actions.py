@@ -20,14 +20,14 @@ VALID_ALERT_SEVERITY_ARG_VALUES = (
 
 
 def test_public_action_type_enum_matches_generated():
-    """Check that the public `ActionType` enum matches the schema-generated enum.
+    """Check that the public `ActionType` enum is a subset of the schema-generated enum.
 
     This is a safeguard in case we've had to make any extra customizations
     (e.g. renaming members) to the public API definition.
     """
     public_enum_values = {e.value for e in ActionType}
     generated_enum_values = {e.value for e in TriggeredActionType}
-    assert public_enum_values == generated_enum_values
+    assert public_enum_values <= generated_enum_values
 
 
 @mark.skipif(

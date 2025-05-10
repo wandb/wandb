@@ -5,8 +5,6 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase
 
 from .fragments import ArtifactFragment
@@ -21,17 +19,13 @@ class RunInputArtifactsProject(GQLBase):
 
 
 class RunInputArtifactsProjectRun(GQLBase):
-    input_artifacts: Optional[RunInputArtifactsProjectRunInputArtifacts] = Field(
-        alias="inputArtifacts"
-    )
+    input_artifacts: Optional[RunInputArtifactsProjectRunInputArtifacts]
 
 
 class RunInputArtifactsProjectRunInputArtifacts(GQLBase):
-    total_count: int = Field(alias="totalCount")
+    total_count: int
     edges: List[RunInputArtifactsProjectRunInputArtifactsEdges]
-    page_info: RunInputArtifactsProjectRunInputArtifactsPageInfo = Field(
-        alias="pageInfo"
-    )
+    page_info: RunInputArtifactsProjectRunInputArtifactsPageInfo
 
 
 class RunInputArtifactsProjectRunInputArtifactsEdges(GQLBase):
@@ -40,8 +34,8 @@ class RunInputArtifactsProjectRunInputArtifactsEdges(GQLBase):
 
 
 class RunInputArtifactsProjectRunInputArtifactsPageInfo(GQLBase):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
+    end_cursor: Optional[str]
+    has_next_page: bool
 
 
 RunInputArtifacts.model_rebuild()
