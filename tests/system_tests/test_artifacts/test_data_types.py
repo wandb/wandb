@@ -271,10 +271,10 @@ def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch
     4. Another run uses the artifact and verifies data order
     """
     # Import the function directly so we can patch it
-    from wandb.sdk.internal.incremental_table_util import get_entry_name as original_get_entry_name
-    
+
     # Override the get_entry_name function to use deterministic timestamps
     resume_count = 0
+
     def mock_get_entry_name(run, incr_table, key):
         nonlocal resume_count
         if run.resumed:
@@ -286,13 +286,15 @@ def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch
                 return f"2-resumed-1000105000.{key}"
         else:
             return f"{incr_table._increment_num}.{key}"
-    
-    monkeypatch.setattr("wandb.sdk.internal.incremental_table_util.get_entry_name", mock_get_entry_name)
+
+    monkeypatch.setattr(
+        "wandb.sdk.internal.incremental_table_util.get_entry_name", mock_get_entry_name
+    )
 
     # Initial run
     run = wandb.init(settings=test_settings(), id="resume_order_test")
     t = wandb.Table(columns=["step", "value"], log_mode="INCREMENTAL")
-    
+
     # First increment
     t.add_data(0, "first")
     t.add_data(1, "second")
@@ -300,9 +302,11 @@ def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch
     run.finish()
 
     # First resume
-    resumed_run1 = wandb.init(settings=test_settings(), id="resume_order_test", resume="must")
+    resumed_run1 = wandb.init(
+        settings=test_settings(), id="resume_order_test", resume="must"
+    )
     t = wandb.Table(columns=["step", "value"], log_mode="INCREMENTAL")
-    
+
     # Second increment
     t.add_data(2, "third")
     t.add_data(3, "fourth")
@@ -310,9 +314,11 @@ def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch
     resumed_run1.finish()
 
     # Second resume
-    resumed_run2 = wandb.init(settings=test_settings(), id="resume_order_test", resume="must")
+    resumed_run2 = wandb.init(
+        settings=test_settings(), id="resume_order_test", resume="must"
+    )
     t = wandb.Table(columns=["step", "value"], log_mode="INCREMENTAL")
-    
+
     # Third increment
     t.add_data(4, "fifth")
     t.add_data(5, "sixth")
@@ -321,17 +327,17 @@ def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch
 
     verification_run = wandb.init(settings=test_settings())
     art = verification_run.use_artifact(f"run-{resumed_run2.id}-incr-table:latest")
-    
+
     expected_full_data = [
         [0, "first"],
         [1, "second"],
         [2, "third"],
         [3, "fourth"],
         [4, "fifth"],
-        [5, "sixth"]
+        [5, "sixth"],
     ]
 
     incremental_table = art.get("2-resumed-1000105000.table.table.json")
     assert incremental_table.data == expected_full_data
-    
+
     verification_run.finish()

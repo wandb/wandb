@@ -1,5 +1,5 @@
-from typing import TYPE_CHECKING, Any, Dict, Optional
 import time
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import wandb
 from wandb.sdk.lib import runid
