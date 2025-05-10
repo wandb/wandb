@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Any, Dict, Optional
+import time
 
 import wandb
 from wandb.sdk.lib import runid
@@ -57,7 +58,10 @@ def init_artifact(run: "LocalRun", sanitized_key: str):
     return artifact
 
 
-def get_entry_name(incr_table: "Table", key: str):
-    if incr_table._resume_random_id is not None:
-        return f"{incr_table._increment_num}-resumed-{incr_table._resume_random_id}.{key}"
+def get_entry_name(run: "LocalRun", incr_table: "Table", key: str):
+    if run.resumed:
+        # Format: {increment_num}-resumed-{epoch_time}.{key}
+        # Using epoch time (ms) for sortable timestamps
+        epoch = str(int(time.time() * 1000))
+        return f"{incr_table._increment_num}-resumed-{epoch}.{key}"
     return f"{incr_table._increment_num}.{key}"

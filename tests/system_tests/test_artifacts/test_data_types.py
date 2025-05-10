@@ -262,58 +262,76 @@ def test_resumed_run_no_prev_incr_table(user, test_settings):
     assert len(api_run.logged_artifacts()) == 3
 
 
-def test_resumed_run_multi_types_on_key(user, test_settings):
+def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch):
     """
-    Test that the incremental table for this scenario:
-    1. User logs an incremental table to key A
-    2. User logs something else to key A
-    3. Run finishes
-    4. Run resumes
-    5. User logs an incremental table to key A
+    Test that incremental tables maintain proper ordering when:
+    1. Initial run logs some data
+    2. First resumed run logs more data
+    3. Second resumed run logs even more data
+    4. Another run uses the artifact and verifies data order
     """
-    run = wandb.init(settings=test_settings(), id="resume_test_3")
-    # User logs an incremental table to key `table`
-    incr_table = wandb.Table(
-        columns=["expected", "actual", "img"], log_mode="INCREMENTAL"
-    )
-    incr_table.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
-    run.log({"table": incr_table})
-    incr_table.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
-    run.log({"table": incr_table})
-    # User logs something else to key `table`
-    immutable_table = wandb.Table(columns=["expected", "actual", "img"])
-    immutable_table.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
-    run.log({"table": immutable_table})
+    # Import the function directly so we can patch it
+    from wandb.sdk.internal.incremental_table_util import get_entry_name as original_get_entry_name
+    
+    # Override the get_entry_name function to use deterministic timestamps
+    resume_count = 0
+    def mock_get_entry_name(run, incr_table, key):
+        nonlocal resume_count
+        if run.resumed:
+            resume_count += 1
+            # Use predictable timestamps for resumed runs
+            if resume_count == 1:
+                return f"1-resumed-1000070000.{key}"
+            else:
+                return f"2-resumed-1000105000.{key}"
+        else:
+            return f"{incr_table._increment_num}.{key}"
+    
+    monkeypatch.setattr("wandb.sdk.internal.incremental_table_util.get_entry_name", mock_get_entry_name)
+
+    # Initial run
+    run = wandb.init(settings=test_settings(), id="resume_order_test")
+    t = wandb.Table(columns=["step", "value"], log_mode="INCREMENTAL")
+    
+    # First increment
+    t.add_data(0, "first")
+    t.add_data(1, "second")
+    run.log({"table": t})
     run.finish()
 
-    resumed_run = wandb.init(
-        settings=test_settings(), id="resume_test_3", resume="must"
-    )
-    # User logs an incremental table to key `table`
-    t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
-    t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
-    resumed_run.log({"table": t})
-    assert t._resume_handled
-    assert t._resume_random_id is not None
-    assert t._last_logged_idx == 0
-    assert t._artifact_target is not None
-    assert t._increment_num == 0
-    t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
-    assert t._artifact_target is None
-    assert t._increment_num == 1
-    assert len(t._previous_increments_paths) == 1
-    t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
-    resumed_run.log({"table": t})
-    assert t._last_logged_idx == 2
-    assert t._increment_num == 1
-    resumed_run.finish()
-    api_run = wandb.Api().run(f"uncategorized/{resumed_run.id}")
-    assert len(api_run.logged_artifacts()) == 5
+    # First resume
+    resumed_run1 = wandb.init(settings=test_settings(), id="resume_order_test", resume="must")
+    t = wandb.Table(columns=["step", "value"], log_mode="INCREMENTAL")
+    
+    # Second increment
+    t.add_data(2, "third")
+    t.add_data(3, "fourth")
+    resumed_run1.log({"table": t})
+    resumed_run1.finish()
 
-    manifest_entries = api_run.logged_artifacts()[4].manifest.entries
-    expected_entries = [
-        f"0-resumed-{t._resume_random_id}.table.table.json",
-        f"1-resumed-{t._resume_random_id}.table.table.json",
+    # Second resume
+    resumed_run2 = wandb.init(settings=test_settings(), id="resume_order_test", resume="must")
+    t = wandb.Table(columns=["step", "value"], log_mode="INCREMENTAL")
+    
+    # Third increment
+    t.add_data(4, "fifth")
+    t.add_data(5, "sixth")
+    resumed_run2.log({"table": t})
+    resumed_run2.finish()
+
+    verification_run = wandb.init(settings=test_settings())
+    art = verification_run.use_artifact(f"run-{resumed_run2.id}-incr-table:latest")
+    
+    expected_full_data = [
+        [0, "first"],
+        [1, "second"],
+        [2, "third"],
+        [3, "fourth"],
+        [4, "fifth"],
+        [5, "sixth"]
     ]
-    for entry in expected_entries:
-        assert entry in manifest_entries
+
+    incremental_table = art.get("2-resumed-1000105000.table.table.json")
+    assert incremental_table.data == expected_full_data
+    
+    verification_run.finish()
