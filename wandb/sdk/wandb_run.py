@@ -3021,7 +3021,7 @@ class Run:
 
         return artifact_name
 
-    def _detach(self) -> None:
+    def detach(self) -> None:
         pass
 
     @_log_to_run
