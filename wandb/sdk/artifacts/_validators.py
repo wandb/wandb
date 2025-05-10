@@ -2,28 +2,26 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, TypeVar, cast
 
-from wandb.sdk.artifacts._generated.fragments import (
-    ArtifactPortfolioTypeFields,
-    ArtifactSequenceTypeFields,
-)
-from wandb.sdk.artifacts.exceptions import (
-    ArtifactFinalizedError,
-    ArtifactNotLoggedError,
-)
+from wandb._iterutils import always_list
+from wandb._pydantic import gql_typename
+from wandb.util import json_friendly_val
+
+from ._generated import ArtifactPortfolioTypeFields, ArtifactSequenceTypeFields
+from .exceptions import ArtifactFinalizedError, ArtifactNotLoggedError
 
 if TYPE_CHECKING:
-    from typing import Collection, Final, Iterable, Union
+    from typing import Collection, Final
 
     from wandb.sdk.artifacts.artifact import Artifact
 
     ArtifactT = TypeVar("ArtifactT", bound=Artifact)
     T = TypeVar("T")
-    ClassInfo = Union[type[T], tuple[type[T], ...]]
 
 
 REGISTRY_PREFIX: Final[str] = "wandb-registry-"
@@ -32,12 +30,8 @@ MAX_ARTIFACT_METADATA_KEYS: Final[int] = 100
 ARTIFACT_NAME_MAXLEN: Final[int] = 128
 ARTIFACT_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset({"/"})
 
-LINKED_ARTIFACT_COLLECTION_TYPE: Final[str] = ArtifactPortfolioTypeFields.model_fields[
-    "typename__"
-].default
-SOURCE_ARTIFACT_COLLECTION_TYPE: Final[str] = ArtifactSequenceTypeFields.model_fields[
-    "typename__"
-].default
+LINKED_ARTIFACT_COLLECTION_TYPE: Final[str] = gql_typename(ArtifactPortfolioTypeFields)
+SOURCE_ARTIFACT_COLLECTION_TYPE: Final[str] = gql_typename(ArtifactSequenceTypeFields)
 
 
 @dataclass
@@ -63,24 +57,6 @@ class _LinkArtifactFields:
     @property
     def linked_artifacts(self) -> list[Artifact]:
         return self._linked_artifacts
-
-
-# For mypy checks
-@overload
-def always_list(obj: Iterable[T], base_type: ClassInfo = ...) -> list[T]: ...
-@overload
-def always_list(obj: T, base_type: ClassInfo = ...) -> list[T]: ...
-
-
-def always_list(obj: Any, base_type: Any = (str, bytes)) -> list[T]:
-    """Return a guaranteed list of objects from a single instance OR iterable of such objects.
-
-    By default, assume the returned list should have string-like elements (i.e. `str`/`bytes`).
-
-    Adapted from `more_itertools.always_iterable`, but simplified for internal use.  See:
-    https://more-itertools.readthedocs.io/en/stable/api.html#more_itertools.always_iterable
-    """
-    return [obj] if isinstance(obj, base_type) else list(obj)
 
 
 def validate_artifact_name(name: str) -> str:
@@ -199,6 +175,25 @@ def validate_tags(tags: Collection[str] | str) -> list[str]:
     return list(dict.fromkeys(tags_list))
 
 
+def validate_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    """Validate the artifact metadata and return it as a dict."""
+    if metadata is None:
+        return {}
+    if not isinstance(metadata, dict):
+        raise TypeError(f"metadata must be dict, not {type(metadata)}")
+    return cast(Dict[str, Any], json.loads(json.dumps(json_friendly_val(metadata))))
+
+
+def validate_ttl_duration_seconds(gql_ttl_duration_seconds: int | None) -> int | None:
+    """Validate the `ttlDurationSeconds` value (if any) from a GraphQL response."""
+    # If gql_ttl_duration_seconds is not positive, its indicating that TTL is DISABLED(-2)
+    # gql_ttl_duration_seconds only returns None if the server is not compatible with setting Artifact TTLs
+    if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
+        return gql_ttl_duration_seconds
+    return None
+
+
+# ----------------------------------------------------------------------------
 DecoratedF = TypeVar("DecoratedF", bound=Callable[..., Any])
 """Type hint for a decorated function that'll preserve its signature (e.g. for arg autocompletion in IDEs)."""
 
