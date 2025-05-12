@@ -282,22 +282,14 @@ def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch
     3. Second resumed run logs even more data
     4. Another run uses the artifact and verifies data order
     """
-    # Import the function directly so we can patch it
 
-    # Override the get_entry_name function to use deterministic timestamps
-    resume_count = 0
-
+    # override get_entry_name to use deterministic timestamps
+    log_count = 0
     def mock_get_entry_name(run, incr_table, key):
-        nonlocal resume_count
-        if run.resumed:
-            resume_count += 1
-            # Use predictable timestamps for resumed runs
-            if resume_count == 1:
-                return f"1-resumed-1000070000.{key}"
-            else:
-                return f"2-resumed-1000105000.{key}"
-        else:
-            return f"{incr_table._increment_num}.{key}"
+        nonlocal log_count
+        entry_name = f"{log_count}-100000000{log_count}.{key}"
+        log_count += 1
+        return entry_name
 
     monkeypatch.setattr(
         "wandb.sdk.internal.incremental_table_util.get_entry_name", mock_get_entry_name
@@ -349,7 +341,7 @@ def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch
         [5, "sixth"],
     ]
 
-    incremental_table = art.get("2-resumed-1000105000.table.table.json")
+    incremental_table = art.get(f"{log_count - 1}-100000000{log_count - 1}.table")
     assert incremental_table.data == expected_full_data
 
     verification_run.finish()
