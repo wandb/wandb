@@ -2,7 +2,6 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import wandb
-from wandb.sdk.lib import runid
 
 if TYPE_CHECKING:
     from wandb import Table
@@ -21,9 +20,6 @@ def handle_resumed_run(incr_table: "Table", run: "LocalRun", key: str):
     """
     if not run.resumed or incr_table._resume_handled:
         return
-
-    # Set a random id to use in the artifact entry name to prevent naming collisions
-    incr_table._resume_random_id = runid.generate_id(8)
 
     summary: Summary = run.summary
 
