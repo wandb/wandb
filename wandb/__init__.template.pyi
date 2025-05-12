@@ -56,6 +56,7 @@ __all__ = (
     "plot",
     "plot_table",
     "restore",
+    "Run",
 )
 
 import os
