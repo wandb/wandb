@@ -586,9 +586,18 @@ class Table(Media):
             if not entry_key.startswith("media") and entry_key.endswith("table.json")
         }
 
-        sorted_increment_keys = sorted(
-            increment_entries.keys(), key=lambda x: int(x.split(".")[0])
-        )
+        # Sort by increment number first, then by timestamp if present
+        # Format of  is: "{incr_num}-{timestamp_ms}.{key}.table.json"
+        def get_sort_key(key: str) -> tuple:
+            parts = key.split(".")
+            increment_parts = parts[0].split("-")
+            increment_num = int(increment_parts[0])
+            # If there's a timestamp part, use it for secondary sorting
+            timestamp = int(increment_parts[1]) if len(increment_parts) > 1 else 0
+            return (increment_num, timestamp)
+
+        sorted_increment_keys = sorted(increment_entries.keys(), key=get_sort_key)
+
         for entry_key in sorted_increment_keys:
             with open(increment_entries[entry_key].download()) as f:
                 table_data = json.load(f)

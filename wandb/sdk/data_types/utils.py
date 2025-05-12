@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 import wandb
 from wandb import util
 
+from ..internal import incremental_table_util
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue
 from .image import _server_accepts_image_filenames
@@ -148,27 +149,7 @@ def val_to_json(
                 "partitioned-table",
                 "joined-table",
             ]:
-                # Sanitize the key to meet the constraints of artifact names.
-                sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
-
-                if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
-                    art_type = "wandb-run-incremental-table"
-                    art_name = f"run-{run.id}-incr-{sanitized_key}"
-                    incr_index = val._increment_num
-                    art = wandb.Artifact(
-                        art_name, "placeholder-run-incremental-table", incremental=True
-                    )
-                    # get around type restriction for system artifact
-                    art._type = art_type
-                    entry_name = f"{incr_index}.{key}"
-                else:
-                    art_type = "run_table"
-                    art_name = f"run-{run.id}-{sanitized_key}"
-                    art = wandb.Artifact(art_name, art_type)
-                    entry_name = key
-
-                art.add(val, entry_name)
-                run.log_artifact(art)
+                _log_table_artifact(val, key, run)
 
             # Partitioned tables and joined tables do not support being bound to runs.
             if not (
@@ -186,6 +167,23 @@ def val_to_json(
         return res
 
     return converted  # type: ignore
+
+
+def _log_table_artifact(val, key, run):
+    # Sanitize the key to meet the constraints of artifact names.
+    sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
+
+    if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
+        art = incremental_table_util.init_artifact(run, sanitized_key)
+        entry_name = incremental_table_util.get_entry_name(run, val, key)
+    else:
+        art_type = "run_table"
+        art_name = f"run-{run.id}-{sanitized_key}"
+        art = wandb.Artifact(art_name, art_type)
+        entry_name = key
+
+    art.add(val, entry_name)
+    run.log_artifact(art)
 
 
 def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:

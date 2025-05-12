@@ -169,7 +169,19 @@ def test_table_incremental_logging(user, test_settings, wandb_backend_spy):
     assert len(run.logged_artifacts()) == 3
 
 
-def test_using_incrementally_logged_table(user, test_settings, wandb_backend_spy):
+def test_using_incrementally_logged_table(user, test_settings, monkeypatch):
+    # override get_entry_name to use deterministic timestamps
+    log_count = 0
+    def mock_get_entry_name(run, incr_table, key):
+        nonlocal log_count
+        entry_name = f"{log_count}-100000000{log_count}.{key}"
+        log_count += 1
+        return entry_name
+
+    monkeypatch.setattr(
+        "wandb.sdk.internal.incremental_table_util.get_entry_name", mock_get_entry_name
+    )
+
     table_key = "test"
     run = wandb.init(settings=test_settings())
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
@@ -182,7 +194,7 @@ def test_using_incrementally_logged_table(user, test_settings, wandb_backend_spy
 
     run2 = wandb.init(settings=test_settings())
     art = run2.use_artifact(f"run-{run.id}-incr-{table_key}:latest")
-    incremental_table = art.get(f"1.{table_key}.table.json")
+    incremental_table = art.get(f"{log_count - 1}-100000000{log_count - 1}.{table_key}")
     assert len(incremental_table.data) == 3
     assert incremental_table.log_mode == "INCREMENTAL"
     assert incremental_table.columns == ["expected", "actual", "img"]
