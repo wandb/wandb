@@ -15,7 +15,7 @@ from wandb.sdk.artifacts._graphql_fragments import (
     _gql_registry_fragment,
 )
 
-from .utils import _ensure_registry_prefix_on_names
+from ._utils import ensure_registry_prefix_on_names
 
 
 class Registries(Paginator):
@@ -54,7 +54,7 @@ class Registries(Paginator):
     ):
         self.client = client
         self.organization = organization
-        self.filter = _ensure_registry_prefix_on_names(filter or {})
+        self.filter = ensure_registry_prefix_on_names(filter or {})
         variables = {
             "organization": organization,
             "filters": json.dumps(self.filter),
