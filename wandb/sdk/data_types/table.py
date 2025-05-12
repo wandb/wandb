@@ -587,17 +587,18 @@ class Table(Media):
             if not entry_key.startswith("media") and entry_key.endswith("table.json")
         }
 
-        # Sort by increment number first, then by resume timestamp if present
-        # Format is either "{incr_num}.{key}.table.json" or "{incr_num}-resumed-{timestamp}.{key}.table.json"
+        # Sort by increment number first, then by timestamp if present
+        # Format of  is: "{incr_num}-{timestamp_ms}.{key}.table.json"
         def get_sort_key(key: str) -> tuple:
             parts = key.split(".")
-            increment_parts = parts[0].split("-resumed-")
+            increment_parts = parts[0].split("-")
             increment_num = int(increment_parts[0])
-            # Non-resumed entries sort before resumed ones due to tuple ordering
-            resume_time = int(increment_parts[1]) if len(increment_parts) > 1 else 0
-            return (increment_num, resume_time)
+            # If there's a timestamp part, use it for secondary sorting
+            timestamp = int(increment_parts[1]) if len(increment_parts) > 1 else 0
+            return (increment_num, timestamp)
 
         sorted_increment_keys = sorted(increment_entries.keys(), key=get_sort_key)
+
         for entry_key in sorted_increment_keys:
             with open(increment_entries[entry_key].download()) as f:
                 table_data = json.load(f)

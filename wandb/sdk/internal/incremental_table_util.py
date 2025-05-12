@@ -55,9 +55,5 @@ def init_artifact(run: "LocalRun", sanitized_key: str):
 
 
 def get_entry_name(run: "LocalRun", incr_table: "Table", key: str):
-    if run.resumed:
-        # Format: {increment_num}-resumed-{epoch_time}.{key}
-        # Using epoch time (ms) for sortable timestamps
-        epoch = str(int(time.time() * 1000))
-        return f"{incr_table._increment_num}-resumed-{epoch}.{key}"
-    return f"{incr_table._increment_num}.{key}"
+    epoch = str(int(time.time() * 1000))
+    return f"{incr_table._increment_num}-{epoch}.{key}"
