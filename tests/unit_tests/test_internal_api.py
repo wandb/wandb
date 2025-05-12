@@ -2,16 +2,18 @@ import base64
 import hashlib
 import os
 import tempfile
+from itertools import chain
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
 from unittest.mock import Mock, call, patch
 
 import pytest
 import requests
-import responses
 import wandb.errors
 import wandb.sdk.internal.internal_api
 import wandb.sdk.internal.progress
+from pytest_mock import MockerFixture
+from responses import RequestsMock
 from wandb.apis import internal
 from wandb.errors import CommError
 from wandb.proto.wandb_internal_pb2 import ServerFeature
@@ -28,7 +30,7 @@ _T = TypeVar("_T")
 
 @pytest.fixture
 def mock_responses():
-    with responses.RequestsMock() as rsps:
+    with RequestsMock() as rsps:
         yield rsps
 
 
@@ -60,20 +62,17 @@ def test_get_run_state_invalid_kwargs():
     ],
 )
 def test_download_write_file_fetches_iff_file_checksum_mismatched(
+    mock_responses: RequestsMock,
     existing_contents: Optional[str],
     expect_download: bool,
 ):
     url = "https://example.com/path/to/file.txt"
     current_contents = "current contents"
-    with responses.RequestsMock() as rsps, tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory() as tmpdir:
         filepath = os.path.join(tmpdir, "file.txt")
 
         if expect_download:
-            rsps.add(
-                responses.GET,
-                url,
-                body=current_contents,
-            )
+            mock_responses.get(url, body=current_contents)
 
         if existing_contents is not None:
             with open(filepath, "w") as f:
@@ -393,7 +392,7 @@ class TestUploadFile:
 
     class TestSimple:
         def test_adds_headers_to_request(
-            self, mock_responses: responses.RequestsMock, example_file: Path
+            self, mock_responses: RequestsMock, example_file: Path
         ):
             response_callback = Mock(return_value=(200, {}, "success!"))
             mock_responses.add_callback(
@@ -407,10 +406,10 @@ class TestUploadFile:
             assert response_callback.call_args[0][0].headers["X-Test"] == "test"
 
         def test_returns_response_on_success(
-            self, mock_responses: responses.RequestsMock, example_file: Path
+            self, mock_responses: RequestsMock, example_file: Path
         ):
-            mock_responses.add(
-                "PUT", "http://example.com/upload-dst", status=200, body="success!"
+            mock_responses.put(
+                "http://example.com/upload-dst", status=200, body="success!"
             )
             resp = internal.InternalApi().upload_file(
                 "http://example.com/upload-dst", example_file.open("rb")
@@ -433,7 +432,7 @@ class TestUploadFile:
         )
         def test_returns_transienterror_on_transient_issues(
             self,
-            mock_responses: responses.RequestsMock,
+            mock_responses: RequestsMock,
             example_file: Path,
             response: MockResponseOrException,
             expected_errtype: Type[Exception],
@@ -449,9 +448,7 @@ class TestUploadFile:
                 )
 
     class TestProgressCallback:
-        def test_smoke(
-            self, mock_responses: responses.RequestsMock, example_file: Path
-        ):
+        def test_smoke(self, mock_responses: RequestsMock, example_file: Path):
             file_contents = "some text"
             example_file.write_text(file_contents)
 
@@ -475,7 +472,7 @@ class TestUploadFile:
             ]
 
         def test_handles_multiple_calls(
-            self, mock_responses: responses.RequestsMock, example_file: Path
+            self, mock_responses: RequestsMock, example_file: Path
         ):
             example_file.write_text("12345")
 
@@ -515,7 +512,7 @@ class TestUploadFile:
         )
         def test_rewinds_on_failure(
             self,
-            mock_responses: responses.RequestsMock,
+            mock_responses: RequestsMock,
             example_file: Path,
             failure: MockResponseOrException,
         ):
@@ -571,7 +568,7 @@ class TestUploadFile:
     )
     def test_transient_failure_on_special_aws_request_timeout(
         self,
-        mock_responses: responses.RequestsMock,
+        mock_responses: RequestsMock,
         example_file: Path,
         request_headers: Mapping[str, str],
         response,
@@ -602,7 +599,7 @@ class TestUploadFile:
         )
         def test_uses_azure_lib_if_available(
             self,
-            mock_responses: responses.RequestsMock,
+            mock_responses: RequestsMock,
             example_file: Path,
             request_headers: Mapping[str, str],
             uses_azure_lib: bool,
@@ -612,7 +609,7 @@ class TestUploadFile:
             if uses_azure_lib:
                 api._azure_blob_module = Mock()
             else:
-                mock_responses.add("PUT", "http://example.com/upload-dst")
+                mock_responses.put("http://example.com/upload-dst")
 
             api.upload_file(
                 "http://example.com/upload-dst",
@@ -650,7 +647,7 @@ class TestUploadFile:
         )
         def test_translates_azure_err_to_normal_err(
             self,
-            mock_responses: responses.RequestsMock,
+            mock_responses: RequestsMock,
             example_file: Path,
             response: MockResponseOrException,
             expected_errtype: Type[Exception],
@@ -687,7 +684,7 @@ class TestUploadFileRetry:
     def test_stops_after_success(
         self,
         example_file: Path,
-        mock_responses: responses.RequestsMock,
+        mock_responses: RequestsMock,
         schedule: Sequence[int],
         num_requests: int,
     ):
@@ -704,7 +701,7 @@ class TestUploadFileRetry:
     def test_stops_after_bad_status(
         self,
         example_file: Path,
-        mock_responses: responses.RequestsMock,
+        mock_responses: RequestsMock,
     ):
         handler = Mock(side_effect=[(400, {}, "")])
         mock_responses.add_callback("PUT", "http://example.com/upload-dst", handler)
@@ -719,7 +716,7 @@ class TestUploadFileRetry:
     def test_stops_after_retry_limit_exceeded(
         self,
         example_file: Path,
-        mock_responses: responses.RequestsMock,
+        mock_responses: RequestsMock,
     ):
         num_retries = 8
         handler = Mock(return_value=(500, {}, ""))
@@ -746,7 +743,7 @@ ENABLED_FEATURE_RESPONSE = {
 
 
 @pytest.fixture
-def mock_client(mocker):
+def mock_client(mocker: MockerFixture):
     mock = mocker.patch("wandb.sdk.internal.internal_api.Client")
     mock.return_value = mocker.Mock()
     yield mock.return_value
@@ -784,45 +781,55 @@ def mock_client_with_random_error(mock_client):
 @pytest.mark.parametrize(
     "fixture_name, feature, expected_result, expected_error",
     [
-        # Test enabled features
         (
-            "mock_client_with_enabled_features",
+            # Test enabled features
+            mock_client_with_enabled_features.__name__,
             ServerFeature.LARGE_FILENAMES,
             True,
             False,
         ),
-        # Test disabled features
         (
-            "mock_client_with_enabled_features",
+            # Test disabled features
+            mock_client_with_enabled_features.__name__,
             ServerFeature.ARTIFACT_TAGS,
             False,
             False,
         ),
-        # Test features not in response
         (
-            "mock_client_with_enabled_features",
+            # Test features not in response
+            mock_client_with_enabled_features.__name__,
             ServerFeature.ARTIFACT_REGISTRY_SEARCH,
             False,
             False,
         ),
-        # Test empty features list
-        ("mock_client_with_no_features", ServerFeature.LARGE_FILENAMES, False, False),
-        # Test server not supporting features
         (
-            "mock_client_with_error_no_field",
+            # Test empty features list
+            mock_client_with_no_features.__name__,
             ServerFeature.LARGE_FILENAMES,
             False,
             False,
         ),
-        # Test other server errors
-        ("mock_client_with_random_error", ServerFeature.LARGE_FILENAMES, False, True),
+        (
+            # Test server not supporting features
+            mock_client_with_error_no_field.__name__,
+            ServerFeature.LARGE_FILENAMES,
+            False,
+            False,
+        ),
+        (
+            # Test other server errors
+            mock_client_with_random_error.__name__,
+            ServerFeature.LARGE_FILENAMES,
+            False,
+            True,
+        ),
     ],
 )
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_server_feature_checks(
     request,
     fixture_name,
-    feature,
+    feature: ServerFeature,
     expected_result,
     expected_error,
 ):
@@ -832,22 +839,31 @@ def test_server_feature_checks(
 
     if expected_error:
         with pytest.raises(Exception, match="Some random error"):
-            api._check_server_feature_with_fallback(feature)
+            api._server_supports(feature)
     else:
-        result = api._check_server_feature_with_fallback(feature)
+        result = api._server_supports(feature)
         assert result == expected_result
 
 
-def test_construct_use_artifact_query_with_every_field():
+def test_construct_use_artifact_query_with_every_field(mocker: MockerFixture):
     # Create mock internal API instance
     api = internal.InternalApi()
-    api.settings = Mock(side_effect=lambda x: "default-" + x)
+
+    mocker.patch.object(api, "settings", side_effect=lambda x: "default-" + x)
 
     # Mock the server introspection methods
-    api.server_use_artifact_input_introspection = Mock(
-        return_value={"usedAs": "String"}
+    mocker.patch.object(
+        api,
+        "server_use_artifact_input_introspection",
+        return_value={"usedAs": "String"},
     )
-    api._check_server_feature_with_fallback = Mock(return_value=True)
+
+    # Simulate server support for ALL known features
+    mock_server_features = dict.fromkeys(
+        chain(ServerFeature.keys(), ServerFeature.values()),
+        True,
+    )
+    mocker.patch.object(api, "_server_features", return_value=mock_server_features)
 
     test_cases = [
         {
@@ -911,7 +927,7 @@ def test_construct_use_artifact_query_without_entity_project():
     api.server_use_artifact_input_introspection = Mock(
         return_value={"usedAs": "String"}
     )
-    api._check_server_feature_with_fallback = Mock(return_value=False)
+    api._server_features = Mock(return_value={})
 
     query, variables = api._construct_use_artifact_query(
         entity_name="test-entity",
@@ -938,7 +954,12 @@ def test_construct_use_artifact_query_without_used_as():
 
     # Mock methods to return empty dict for introspection
     api.server_use_artifact_input_introspection = Mock(return_value={})
-    api._check_server_feature_with_fallback = Mock(return_value=True)
+    # Simulate server support for ALL known features
+    mock_server_features = dict.fromkeys(
+        chain(ServerFeature.keys(), ServerFeature.values()),
+        True,
+    )
+    api._server_features = Mock(return_value=mock_server_features)
 
     query, variables = api._construct_use_artifact_query(
         entity_name="test-entity",

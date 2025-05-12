@@ -9,7 +9,7 @@ orbs:
 parameters:
   go_version:
     type: string
-    default: "1.24.2"
+    default: "1.24.3"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
@@ -103,7 +103,7 @@ commands:
     steps:
       - run:
           name: Install Python dependencies
-          command: python -m pip install -U nox pip "uv<0.7.0" # pin to unblock CI
+          command: python -m pip install -U nox pip uv
           no_output_timeout: 5m
 
       - run:
@@ -121,7 +121,7 @@ commands:
     steps:
       - run:
           name: Upgrade pip and uv
-          command: python -m pip install -U pip "uv<0.7.0" # pin to unblock CI
+          command: python -m pip install -U pip uv
       - run:
           name: Install tool dependencies
           command: uv pip install --system -r requirements_dev.txt
@@ -401,7 +401,7 @@ jobs:
       - install_rust
       - run:
           name: Install Python dependencies
-          command: python -m pip install -U nox pip "uv<0.7.0" # pin to unblock CI
+          command: python -m pip install -U nox pip uv
           no_output_timeout: 5m
       - run:
           name: Ensure proto files were generated
@@ -449,7 +449,7 @@ jobs:
           name:
           command: |
             go install github.com/google/go-containerregistry/cmd/gcrane@latest
-            python -m pip install -U pip nox requests "uv<0.7.0" # pin to unblock CI
+            python -m pip install -U pip nox requests uv
             nox -s local-testcontainer-registry
           no_output_timeout: 5m
 

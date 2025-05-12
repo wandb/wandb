@@ -15,6 +15,7 @@ from typing import Any, Callable, Generator, Iterable, Iterator
 
 import pyte
 import pyte.modes
+from pytest_mock import MockerFixture
 from wandb.errors import term
 
 # Don't write to Sentry in wandb.
@@ -349,20 +350,16 @@ def local_netrc(filesystem_isolate):
 
 
 @pytest.fixture
-def dummy_api_key():
+def dummy_api_key() -> str:
     return "1824812581259009ca9981580f8f8a9012409eee"
 
 
 @pytest.fixture
-def patch_apikey(dummy_api_key):
-    with unittest.mock.patch.object(
-        wandb.sdk.lib.apikey, "isatty", return_value=True
-    ), unittest.mock.patch.object(
-        wandb.sdk.lib.apikey, "input", return_value=1
-    ), unittest.mock.patch.object(
-        wandb.sdk.lib.apikey, "getpass", return_value=dummy_api_key
-    ):
-        yield
+def patch_apikey(mocker: MockerFixture, dummy_api_key: str):
+    mocker.patch.object(wandb.sdk.lib.apikey, "isatty", return_value=True)
+    mocker.patch.object(wandb.sdk.lib.apikey, "input", return_value=1)
+    mocker.patch.object(wandb.sdk.lib.apikey, "getpass", return_value=dummy_api_key)
+    yield
 
 
 @pytest.fixture
