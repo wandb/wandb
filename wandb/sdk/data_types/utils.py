@@ -174,6 +174,8 @@ def _log_table_artifact(val, key, run):
     sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
 
     if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
+        if run.resumed:
+            incremental_table_util.handle_resumed_run(val, run, key)
         art = incremental_table_util.init_artifact(run, sanitized_key)
         entry_name = incremental_table_util.get_entry_name(run, val, key)
     else:
