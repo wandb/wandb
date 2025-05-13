@@ -7,9 +7,9 @@ if TYPE_CHECKING:
     from wandb import Table
 
     from ..wandb_run import Run as LocalRun
-    from ..wandb_summary import Summary
 
 ART_TYPE = "wandb-run-incremental-table"
+
 
 def init_artifact(run: "LocalRun", sanitized_key: str):
     artifact_name = f"run-{run.id}-incr-{sanitized_key}"

@@ -1,14 +1,23 @@
 """Decorators for W&B Table operations."""
 
+import sys
 from functools import wraps
 from typing import Any, Callable, TypeVar, Union
 
 import wandb
 
-T = TypeVar("T")
+if sys.version_info < (3, 10):
+    from typing_extensions import Concatenate, ParamSpec
+else:
+    from typing import Concatenate, ParamSpec
+
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
 
 
-def allow_relogging_after_mutation(method: Callable[..., T]) -> Callable[..., T]:
+def allow_relogging_after_mutation(
+    method: Callable[Concatenate["wandb.Table", _P], _T],
+) -> Callable[Concatenate["wandb.Table", _P], _T]:
     """Decorator that handles table state after mutations based on log_mode.
 
     For MUTABLE tables, resets the run and artifact target to allow re-logging.
@@ -16,7 +25,7 @@ def allow_relogging_after_mutation(method: Callable[..., T]) -> Callable[..., T]
     """
 
     @wraps(method)
-    def wrapper(self, *args: Any, **kwargs: Any) -> T:
+    def wrapper(self: "wandb.Table", *args: Any, **kwargs: Any) -> _T:
         res = method(self, *args, **kwargs)
 
         has_been_logged = self._run is not None or self._artifact_target is not None
@@ -24,6 +33,8 @@ def allow_relogging_after_mutation(method: Callable[..., T]) -> Callable[..., T]
         if self.log_mode == "MUTABLE":
             self._run = None
             self._artifact_target = None
+            self._path = None
+            self._sha256 = None
         elif self.log_mode == "IMMUTABLE" and has_been_logged:
             wandb.termwarn(
                 "You are mutating a Table with log_mode='IMMUTABLE' that has been "
@@ -38,8 +49,8 @@ def allow_relogging_after_mutation(method: Callable[..., T]) -> Callable[..., T]
 
 
 def allow_incremental_logging_after_append(
-    method: Callable[..., T],
-) -> Callable[..., T]:
+    method: Callable[Concatenate["wandb.Table", _P], _T],
+) -> Callable[Concatenate["wandb.Table", _P], _T]:
     """Decorator that handles incremental logging state after append operations.
 
     For INCREMENTAL tables, manages artifact references and increments counters
@@ -47,7 +58,7 @@ def allow_incremental_logging_after_append(
     """
 
     @wraps(method)
-    def wrapper(self, *args: Any, **kwargs: Any) -> T:
+    def wrapper(self: "wandb.Table", *args: Any, **kwargs: Any) -> _T:
         res = method(self, *args, **kwargs)
         if self.log_mode == "INCREMENTAL" and self._artifact_target is not None:
             art_entry_url = self._get_artifact_entry_ref_url()
@@ -57,6 +68,8 @@ def allow_incremental_logging_after_append(
                 )
             self._run = None
             self._artifact_target = None
+            self._path = None
+            self._sha256 = None
             self._increment_num += 1
             if self._increment_num > 99:
                 wandb.termwarn(
@@ -70,12 +83,12 @@ def allow_incremental_logging_after_append(
 
 
 def ensure_not_incremental(
-    method: Callable[..., T],
-) -> Callable[..., Union[T, None]]:
+    method: Callable[Concatenate["wandb.Table", _P], _T],
+) -> Callable[Concatenate["wandb.Table", _P], _T]:
     """Decorator that checks if log mode is incremental to disallow methods from being called."""
 
     @wraps(method)
-    def wrapper(self, *args: Any, **kwargs: Any) -> Union[T, None]:
+    def wrapper(self: "wandb.Table", *args: Any, **kwargs: Any) -> Union[_T, None]:
         if self.log_mode == "INCREMENTAL":
             wandb.termwarn(
                 f"No-op. Operation '{method.__name__}' is not supported for tables with "

@@ -1543,7 +1543,6 @@ class Artifact:
             version because it is finalized. Log a new artifact version instead.
         """
         name = LogicalPath(name)
-
         # This is a "hack" to automatically rename tables added to
         # the wandb /media/tables directory to their sha-based name.
         # TODO: figure out a more appropriate convention.

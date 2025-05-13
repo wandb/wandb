@@ -172,6 +172,7 @@ def test_table_incremental_logging(user, test_settings, wandb_backend_spy):
 def test_using_incrementally_logged_table(user, test_settings, monkeypatch):
     # override get_entry_name to use deterministic timestamps
     log_count = 0
+
     def mock_get_entry_name(run, incr_table, key):
         nonlocal log_count
         entry_name = f"{log_count}-100000000{log_count}.{key}"
