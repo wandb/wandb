@@ -968,7 +968,8 @@ class _PartitionTablePartEntry:
 class PartitionedTable(Media):
     """A table which is composed of multiple sub-tables.
 
-    Currently, PartitionedTable is designed to point to a directory within an artifact.
+    Currently, PartitionedTable is designed to point to a directory within an
+    artifact.
     """
 
     _log_type = "partitioned-table"
