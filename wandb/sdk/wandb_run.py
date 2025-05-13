@@ -481,62 +481,51 @@ class RunStatus:
 
 
 class Run:
-    """A unit of computation logged by wandb. Typically, this is an ML experiment.
+    """A unit of computation logged by W&B. Typically, this is an ML experiment.
 
-    Create a run with `wandb.init()`:
-    ```python
-    import wandb
-
-    run = wandb.init()
-    ```
-
-    There is only ever at most one active `wandb.Run` in any process,
-    and it is accessible as `wandb.run`:
-    ```python
-    import wandb
-
-    assert wandb.run is None
-
-    wandb.init()
-
-    assert wandb.run is not None
-    ```
-    anything you log with `wandb.log` will be sent to that run.
-
-    If you want to start more runs in the same script or notebook, you'll need to
-    finish the run that is in-flight. Runs can be finished with `wandb.finish` or
-    by using them in a `with` block:
-    ```python
-    import wandb
-
-    wandb.init()
-    wandb.finish()
-
-    assert wandb.run is None
-
-    with wandb.init() as run:
-        pass  # log data here
-
-    assert wandb.run is None
-    ```
-
-    See the documentation for `wandb.init` for more on creating runs, or check out
-    [our guide to `wandb.init`](https://docs.wandb.ai/guides/track/launch).
+    Create a run with `wandb.init()`. This will start a new run and
+    return a `wandb.Run` object. You can log data to that [run](https://docs.wandb.ai/guides/runs/)
+    with `wandb.log()`. There is only ever at most one active `wandb.Run` in any process.
+    Anything you log with `wandb.log()` is sent to that run. See
+    [Create an experiment](https://docs.wandb.ai/guides/track/launch) or
+    [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page.
 
     In distributed training, you can either create a single run in the rank 0 process
     and then log information only from that process, or you can create a run in each process,
     logging from each separately, and group the results together with the `group` argument
-    to `wandb.init`. For more details on distributed training with W&B, check out
-    [our guide](https://docs.wandb.ai/guides/track/log/distributed-training).
+    to `wandb.init`.
+    See [Log distributed training experiments](https://docs.wandb.ai/guides/track/log/distributed-training).
 
-    Currently, there is a parallel `Run` object in the `wandb.Api`. Eventually these
-    two objects will be merged.
+    There is a another `Run` object in the
+    [`wandb.apis.public`](https://docs.wandb.ai/ref/python/public-api/api/).
+    Use this object is to interact with runs that have already been created.
 
     Attributes:
         summary: (Summary) Single values set for each `wandb.log()` key. By
             default, summary is set to the last value logged. You can manually
             set summary to the best value, like max accuracy, instead of the
             final value.
+
+    Examples:
+    Create a run with `wandb.init()`
+
+    ```python
+    import wandb
+
+    run = wandb.init(entity="my-entity", project="my-project")
+    ```
+
+    If you want to start more runs in the same script or notebook, you'll need to
+    finish any active runs. Finish a run with `wandb.finish()` or using a `with` block.
+    It is recommended to use `with` blocks.
+
+    ```python
+    import wandb
+
+    with wandb.init(entity="my-entity", project="my-project") as run:
+        run.log({"accuracy": 0.9})
+        run.log({"accuracy": 0.95})
+    ```
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
