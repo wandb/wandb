@@ -34,8 +34,8 @@ if TYPE_CHECKING:  # pragma: no cover
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 
-def _server_accepts_image_filenames() -> bool:
-    if util._is_offline():
+def _server_accepts_image_filenames(run: "LocalRun") -> bool:
+    if run.offline:
         return True
 
     # Newer versions of wandb accept large image filenames arrays
@@ -51,15 +51,15 @@ def _server_accepts_image_filenames() -> bool:
     return accepts_image_filenames
 
 
-def _server_accepts_artifact_path() -> bool:
-    from wandb.util import parse_version
+def _server_accepts_artifact_path(run: "LocalRun") -> bool:
+    if run.offline:
+        return False
 
-    target_version = "0.12.14"
-    max_cli_version = util._get_max_cli_version() if not util._is_offline() else None
-    accepts_artifact_path: bool = max_cli_version is not None and parse_version(
-        target_version
-    ) <= parse_version(max_cli_version)
-    return accepts_artifact_path
+    max_cli_version = util._get_max_cli_version()
+    if max_cli_version is None:
+        return False
+
+    return util.parse_version("0.12.14") <= util.parse_version(max_cli_version)
 
 
 class Image(BatchableMedia):
@@ -416,7 +416,7 @@ class Image(BatchableMedia):
             )
 
         if (
-            not _server_accepts_artifact_path()
+            not _server_accepts_artifact_path(run)
             or self._get_artifact_entry_ref_url() is None
         ):
             super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
@@ -599,7 +599,7 @@ class Image(BatchableMedia):
             "format": format,
             "count": num_images_to_log,
         }
-        if _server_accepts_image_filenames():
+        if _server_accepts_image_filenames(run):
             meta["filenames"] = [
                 obj.get("path", obj.get("artifact_path")) for obj in jsons
             ]

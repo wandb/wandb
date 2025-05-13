@@ -11,25 +11,30 @@ option.
 Consider removing tests once Pydantic v1 support is dropped.
 """
 
+# Ignored linter rules to ensure compatibility with older pydantic and/or python versions.
+# ruff: noqa: UP006  # allow e.g. `List[X]` instead of `list[x]`
+# ruff: noqa: UP007  # allow e.g. `Union[X, Y]` instead of `X | Y` (pydantic<2.6)
+
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import ConfigDict, Field, Json, ValidationError
 from pytest import raises
-from wandb._pydantic.v1_compat import (
+from wandb._pydantic import (
     IS_PYDANTIC_V2,
     AliasChoices,
-    PydanticCompatMixin,
+    CompatBaseModel,
     computed_field,
     field_validator,
     model_validator,
 )
+from wandb.sdk.artifacts._generated import ArtifactVersionFiles
 
 
 def test_field_validator_before():
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         name: str
 
         @field_validator("name", mode="before")
@@ -42,7 +47,7 @@ def test_field_validator_before():
 
 
 def test_field_validator_after():
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         name: str
 
         @field_validator("name", mode="after")
@@ -55,7 +60,7 @@ def test_field_validator_after():
 
 
 def test_model_validator_before():
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         x: int
         y: int
 
@@ -72,7 +77,7 @@ def test_model_validator_before():
 
 
 def test_model_validator_after():
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         x: int
         y: int
 
@@ -88,7 +93,7 @@ def test_model_validator_after():
 
 
 def test_computed_field_method():
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         x: int
         y: int
 
@@ -101,7 +106,7 @@ def test_computed_field_method():
 
 
 def test_computed_field_property():
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         x: int
         y: int
 
@@ -117,7 +122,7 @@ def test_computed_field_property():
 def test_alias_choices():
     from contextlib import nullcontext as does_not_raise
 
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         value: str = Field(validation_alias=AliasChoices("val", "v"))
 
     # NOTE: Pydantic v1 compatibility isn't currently implemented for AliasChoices.
@@ -137,7 +142,7 @@ def test_alias_choices():
 
 
 def test_model_fields_class_property():
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         x: int
         y: str
 
@@ -145,7 +150,7 @@ def test_model_fields_class_property():
 
 
 def test_model_fields_set_property():
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         x: int
         y: Optional[str] = None  # noqa: UP007  # `Optional[X]` instead of `X | None` for pydantic<2.6 compatibility
 
@@ -154,7 +159,7 @@ def test_model_fields_set_property():
 
 
 def test_model_validation_methods():
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         x: int
         y: str
 
@@ -170,7 +175,7 @@ def test_model_validation_methods():
 
 
 def test_model_dump_methods():
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         x: int
         y: str
 
@@ -181,7 +186,7 @@ def test_model_dump_methods():
 
 
 def test_model_copy():
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         x: int
         y: str
 
@@ -194,7 +199,7 @@ def test_model_copy():
 
 
 def test_model_config_conversion():
-    class Model(PydanticCompatMixin, BaseModel):
+    class Model(CompatBaseModel):
         model_config = ConfigDict(
             populate_by_name=True,
             str_to_lower=True,
@@ -204,3 +209,91 @@ def test_model_config_conversion():
 
     obj = Model(value="TEST")
     assert obj.value == "test"
+
+
+def test_model_dump_methods_with_json_fields():
+    class Model(CompatBaseModel):
+        x: int
+        req_json_field: Json[List[int]]
+        opt_json_field: Optional[Json[List[int]]] = None
+        unset_opt_json_field: Optional[Json[List[int]]] = None
+
+    obj = Model(
+        x=1,
+        req_json_field="[1, 2, 3]",
+        opt_json_field="[4, 5, 6]",
+    )
+
+    # Check default `.model_dump()` behavior.
+    # When `round_trip=False`, Json fields aren't re-serialized.
+    assert obj.model_dump() == {
+        "x": 1,
+        "req_json_field": [1, 2, 3],
+        "opt_json_field": [4, 5, 6],
+        "unset_opt_json_field": None,
+    }
+
+    # Check `.model_dump(round_trip=True)` behavior.
+    rt_dict = obj.model_dump(round_trip=True)
+
+    # NOTE: We avoid asserting on exact JSON strings here, since:
+    # - pydantic v2 dumps compact JSON by default, e.g. `"[1,2,3]"`
+    # - pydantic v1 dumps JSON with whitespace by default, e.g. `"[1, 2, 3]"`
+    assert rt_dict["x"] == 1
+
+    assert isinstance(rt_dict["req_json_field"], str)
+    assert json.loads(rt_dict["req_json_field"]) == [1, 2, 3]
+
+    assert isinstance(rt_dict["opt_json_field"], str)
+    assert json.loads(rt_dict["opt_json_field"]) == [4, 5, 6]
+
+    assert rt_dict["unset_opt_json_field"] is None
+
+    # Check that `.model_dump_json(round_trip=True)` behavior is consistent.
+    rt_json = obj.model_dump_json(round_trip=True)
+    assert json.loads(rt_json) == obj.model_dump(round_trip=True)
+
+
+# ------------------------------------------------------------------------------
+def test_generated_pydantic_fragment_validates_response_data():
+    """Check that the generated fragment validates the response data.
+
+    In Pydantic v1 environments, this partly guards against regressions of:
+    - https://github.com/wandb/wandb/pull/9795
+    """
+    response_data = {
+        "project": {
+            "artifactType": {
+                "artifact": {
+                    "files": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "QXJ0aWZhY3RGaWxlOjE2OTgzNjI1MDc6cmFuZG9tX2ltYWdlLnBuZw==",
+                                    "name": "random_image.png",
+                                    "url": "https://api.wandb.fake/artifactsV2/gcp-us/wandb/abcdef",
+                                    "sizeBytes": 30168,
+                                    "storagePath": "wandb_artifacts/626357751/1698362507/7e8ff39b55a1a62101758a6dc7a69f70",
+                                    "mimetype": None,
+                                    "updatedAt": None,
+                                    "digest": "fo/zm1WhpiEBdYptx6afcA==",
+                                    "md5": "fo/zm1WhpiEBdYptx6afcA==",
+                                    "directUrl": "https://fake-url.com",
+                                },
+                                "cursor": "YXJyYXljb25uZWN0aW9uOjA=",
+                            }
+                        ],
+                        "pageInfo": {
+                            "endCursor": "YXJyYXljb25uZWN0aW9uOjA=",
+                            "hasNextPage": False,
+                        },
+                    }
+                }
+            }
+        }
+    }
+    validated = ArtifactVersionFiles.model_validate(response_data)
+    assert (
+        validated.project.artifact_type.artifact.files.edges[0].node.name
+        == "random_image.png"
+    )

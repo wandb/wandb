@@ -4,7 +4,7 @@
 schema_path = "core/api/graphql/schemas/schema-latest.graphql"
 queries_path = "tools/graphql_codegen/automations/"
 
-target_package_path = "wandb/sdk/automations"
+target_package_path = "wandb/automations"
 target_package_name = "_generated"
 
 include_all_inputs = false # Only generate input types needed for queries
@@ -20,7 +20,7 @@ plugins = [
 type = "wandb._pydantic.GQLId"
 
 [tool.ariadne-codegen.scalars.JSONString]
-type = "wandb._pydantic.SerializedToJson"
+type = "str"
 
 [tool.ariadne-codegen.scalars.DateTime]
 type = "datetime.datetime"

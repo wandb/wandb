@@ -19,7 +19,7 @@ type ArtifactLinker struct {
 	GraphqlClient graphql.Client
 }
 
-func (al *ArtifactLinker) Link() error {
+func (al *ArtifactLinker) Link() (response *gql.LinkArtifactResponse, err error) {
 	clientId := al.LinkArtifact.ClientId
 	serverId := al.LinkArtifact.ServerId
 	portfolioName := al.LinkArtifact.PortfolioName
@@ -28,11 +28,10 @@ func (al *ArtifactLinker) Link() error {
 	organization := al.LinkArtifact.PortfolioOrganization
 	var portfolioAliases []gql.ArtifactAliasInput
 
-	var err error
 	if IsArtifactRegistryProject(portfolioProject) {
 		portfolioEntity, err = al.resolveOrgEntityName(portfolioEntity, organization)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -46,7 +45,7 @@ func (al *ArtifactLinker) Link() error {
 	}
 	switch {
 	case serverId != "":
-		_, err = gql.LinkArtifact(
+		response, err = gql.LinkArtifact(
 			al.Ctx,
 			al.GraphqlClient,
 			portfolioName,
@@ -57,7 +56,7 @@ func (al *ArtifactLinker) Link() error {
 			&serverId,
 		)
 	case clientId != "":
-		_, err = gql.LinkArtifact(
+		response, err = gql.LinkArtifact(
 			al.Ctx,
 			al.GraphqlClient,
 			portfolioName,
@@ -77,9 +76,9 @@ func (al *ArtifactLinker) Link() error {
 			portfolioName,
 			err,
 		)
+		return nil, err
 	}
-
-	return err
+	return response, nil
 }
 
 // resolveOrgEntityName fetches the portfolio's org entity's name.

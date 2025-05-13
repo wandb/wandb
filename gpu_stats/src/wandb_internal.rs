@@ -337,9 +337,6 @@ pub struct Feature {
     /// Using stable_baselines3 integration
     #[prost(bool, tag = "22")]
     pub sb3: bool,
-    /// Using wandb service internal process
-    #[prost(bool, tag = "23")]
-    pub service: bool,
     /// wandb.init() called in the same process returning previous run
     #[prost(bool, tag = "24")]
     pub init_return_run: bool,
@@ -403,9 +400,6 @@ pub struct Feature {
     /// Flow control customized by user
     #[prost(bool, tag = "44")]
     pub flow_control_custom: bool,
-    /// Service disabled by user
-    #[prost(bool, tag = "45")]
-    pub service_disabled: bool,
     /// Consuming metrics from an OpenMetrics endpoint
     #[prost(bool, tag = "46")]
     pub open_metrics: bool,
@@ -475,6 +469,12 @@ pub struct Feature {
     /// server-side derived summary computation was enabled
     #[prost(bool, tag = "68")]
     pub server_side_derived_summary: bool,
+    /// User set the x_label value
+    #[prost(bool, tag = "69")]
+    pub user_provided_label: bool,
+    /// DCGM profiling was enabled
+    #[prost(bool, tag = "70")]
+    pub dcgm_profiling_enabled: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
@@ -490,21 +490,6 @@ pub struct Env {
     /// apple silicon M1 gpu found
     #[prost(bool, tag = "4")]
     pub m1_gpu: bool,
-    /// multiprocessing spawn
-    #[prost(bool, tag = "5")]
-    pub start_spawn: bool,
-    /// multiprocessing fork
-    #[prost(bool, tag = "6")]
-    pub start_fork: bool,
-    /// multiprocessing forkserver
-    #[prost(bool, tag = "7")]
-    pub start_forkserver: bool,
-    /// thread start method
-    #[prost(bool, tag = "8")]
-    pub start_thread: bool,
-    /// maybe user running multiprocessing
-    #[prost(bool, tag = "9")]
-    pub maybe_mp: bool,
     /// AWS Trainium env detected
     #[prost(bool, tag = "10")]
     pub trainium: bool,
@@ -598,6 +583,18 @@ pub struct Deprecated {
     /// reinit setting set to a boolean value
     #[prost(bool, tag = "20")]
     pub run_reinit_bool: bool,
+    /// wandb.run.get_url() called
+    #[prost(bool, tag = "21")]
+    pub run_get_url: bool,
+    /// wandb.run.project_name() called
+    #[prost(bool, tag = "22")]
+    pub run_project_name: bool,
+    /// wandb.run.get_project_url() called
+    #[prost(bool, tag = "23")]
+    pub run_get_project_url: bool,
+    /// wandb.run.get_sweep_url() called
+    #[prost(bool, tag = "24")]
+    pub run_get_sweep_url: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
@@ -1099,6 +1096,8 @@ pub struct MetricRecord {
     pub goal: i32,
     #[prost(message, optional, tag = "9")]
     pub control: ::core::option::Option<MetricControl>,
+    #[prost(bool, tag = "10")]
+    pub expanded_from_glob: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
@@ -1245,7 +1244,7 @@ pub struct FilesRecord {
 /// One or more files being saved with a run.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilesItem {
-    /// A path or Unix glob relative to the W&B files directory.
+    /// A path or Unix glob relative to the run's files directory.
     #[prost(string, tag = "1")]
     pub path: ::prost::alloc::string::String,
     /// When to upload the file.
@@ -1528,6 +1527,8 @@ pub struct LinkArtifactRequest {
 pub struct LinkArtifactResponse {
     #[prost(string, tag = "1")]
     pub error_message: ::prost::alloc::string::String,
+    #[prost(int32, optional, tag = "2")]
+    pub version_index: ::core::option::Option<i32>,
 }
 /// Indicates a directory of TensorBoard tfevents files to sync with the run.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2851,6 +2852,16 @@ pub enum ServerFeature {
     ArtifactCollectionMembershipFileDownloadHandler = 6,
     /// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
     UseArtifactWithEntityAndProjectInformation = 7,
+    /// Indicates that the server supports expanding defined metric globs on the server side.
+    ExpandDefinedMetricGlobs = 8,
+    /// Indicates that the server supports automation event RUN_METRIC.
+    AutomationEventRunMetric = 9,
+    /// Indicates that the server supports automation event RUN_METRIC_CHANGE.
+    AutomationEventRunMetricChange = 10,
+    /// Indicates that the server supports automation action NO_OP.
+    AutomationActionNoOp = 11,
+    /// Indicates that the server supports including artifact types in registry creation.
+    IncludeArtifactTypesInRegistryCreation = 12,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2873,6 +2884,13 @@ impl ServerFeature {
             Self::UseArtifactWithEntityAndProjectInformation => {
                 "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
             }
+            Self::ExpandDefinedMetricGlobs => "EXPAND_DEFINED_METRIC_GLOBS",
+            Self::AutomationEventRunMetric => "AUTOMATION_EVENT_RUN_METRIC",
+            Self::AutomationEventRunMetricChange => "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
+            Self::AutomationActionNoOp => "AUTOMATION_ACTION_NO_OP",
+            Self::IncludeArtifactTypesInRegistryCreation => {
+                "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2891,6 +2909,15 @@ impl ServerFeature {
             }
             "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION" => {
                 Some(Self::UseArtifactWithEntityAndProjectInformation)
+            }
+            "EXPAND_DEFINED_METRIC_GLOBS" => Some(Self::ExpandDefinedMetricGlobs),
+            "AUTOMATION_EVENT_RUN_METRIC" => Some(Self::AutomationEventRunMetric),
+            "AUTOMATION_EVENT_RUN_METRIC_CHANGE" => {
+                Some(Self::AutomationEventRunMetricChange)
+            }
+            "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
+            "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION" => {
+                Some(Self::IncludeArtifactTypesInRegistryCreation)
             }
             _ => None,
         }

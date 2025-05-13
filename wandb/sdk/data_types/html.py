@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Html(BatchableMedia):
-    """W&B class for arbitrary html.
+    """W&B class for logging HTML content to W&B.
 
     Args:
         data: HTML to display in wandb
@@ -26,9 +26,42 @@ class Html(BatchableMedia):
 
     _log_type = "html-file"
 
-    def __init__(self, data: Union[str, "TextIO"], inject: bool = True) -> None:
+    def __init__(
+        self,
+        data: Union[str, "TextIO"],
+        inject: bool = True,
+        data_is_not_path: bool = False,
+    ) -> None:
+        """Creates a W&B HTML object.
+
+        It can be initialized by providing a path to a file:
+        ```
+        with wandb.init() as run:
+            run.log({"html": wandb.Html("./index.html")})
+        ```
+
+        Alternatively, it can be initialized by providing literal HTML,
+        in either a string or IO object:
+        ```
+        with wandb.init() as run:
+            run.log({"html": wandb.Html("<h1>Hello, world!</h1>")})
+        ```
+
+        Args:
+            data:
+                A string that is a path to a file with the extension ".html",
+                or a string or IO object containing literal HTML.
+            inject: Add a stylesheet to the HTML object. If set
+                to False the HTML will pass through unchanged.
+            data_is_not_path: If set to False, the data will be
+                treated as a path to a file.
+        """
         super().__init__()
-        data_is_path = isinstance(data, str) and os.path.exists(data)
+        data_is_path = (
+            isinstance(data, str)
+            and os.path.isfile(data)
+            and os.path.splitext(data)[1] == ".html"
+        ) and not data_is_not_path
         data_path = ""
         if data_is_path:
             assert isinstance(data, str)

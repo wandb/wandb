@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import logging
 import os
@@ -9,8 +10,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.deprecate import Deprecated, deprecate
+from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,
@@ -129,7 +131,11 @@ class ArtifactManifestEntry:
         return self._parent_artifact
 
     def download(
-        self, root: str | None = None, skip_cache: bool | None = None
+        self,
+        root: str | None = None,
+        skip_cache: bool | None = None,
+        executor: concurrent.futures.Executor | None = None,
+        multipart: bool | None = None,
     ) -> FilePathStr:
         """Download this artifact entry to the specified root path.
 
@@ -169,7 +175,11 @@ class ArtifactManifestEntry:
             )
         else:
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
-                self._parent_artifact, self, dest_path=override_cache_path
+                self._parent_artifact,
+                self,
+                dest_path=override_cache_path,
+                executor=executor,
+                multipart=multipart,
             )
 
         if skip_cache:

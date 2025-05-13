@@ -2,28 +2,29 @@
 
 from __future__ import annotations
 
-import sys
+import json
 from functools import lru_cache
-from importlib.metadata import version
 from inspect import signature
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    ClassVar,
-    Literal,
-    Mapping,
-    TypeVar,
-    overload,
-)
+from operator import attrgetter
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Literal, overload
 
 import pydantic
-from typing_extensions import ParamSpec
+
+from .utils import IS_PYDANTIC_V2, to_json
 
 if TYPE_CHECKING:
     from typing import Protocol
 
     class V1Model(Protocol):
+        # ------------------------------------------------------------------------------
+        # NOTE: These aren't part of the original v1 BaseModel spec, but were added as
+        # internal helpers and are (re-)declared here to satisfy mypy checks.
+        @classmethod
+        def _dump_json_vals(cls, values: dict, by_alias: bool) -> dict: ...
+
+        # ------------------------------------------------------------------------------
+        # These methods are part of the original v1 BaseModel spec.
+
         __config__: ClassVar[type]
         __fields__: ClassVar[dict[str, Any]]
         __fields_set__: set[str]
@@ -40,17 +41,6 @@ if TYPE_CHECKING:
         def dict(self, **kwargs: Any) -> dict[str, Any]: ...
         def json(self, **kwargs: Any) -> str: ...
         def copy(self, **kwargs: Any) -> V1Model: ...
-
-
-PYTHON_VERSION = sys.version_info
-
-pydantic_major_version, *_ = version(pydantic.__name__).split(".")
-IS_PYDANTIC_V2: bool = int(pydantic_major_version) >= 2
-
-
-ModelT = TypeVar("ModelT")
-RT = TypeVar("RT")
-P = ParamSpec("P")
 
 
 # Maps {v2 -> v1} model config keys that were renamed in v2.
@@ -96,28 +86,22 @@ class V1MixinMetaclass(PydanticModelMetaclass):
         namespace: dict[str, Any],
         **kwargs: Any,
     ):
-        # Converts a `model_config` dict in a V2 class definition, e.g.:
-        #
-        #     class MyModel(BaseModel):
+        # In the class definition, convert the model config, if any:
+        #     # BEFORE
+        #     class MyModel(BaseModel):  # v2 model with `ConfigDict`
         #         model_config = ConfigDict(populate_by_name=True)
         #
-        # ...to a `Config` class in a V1 class definition, e.g.:
-        #
-        #     class MyModel(BaseModel):
+        #     # AFTER
+        #     class MyModel(BaseModel):  # v1 model with inner `Config` class
         #         class Config:
         #             allow_population_by_field_name = True
-        #
         if config_dict := namespace.pop("model_config", None):
             namespace["Config"] = type("Config", (), convert_v2_config(config_dict))
         return super().__new__(cls, name, bases, namespace, **kwargs)
 
-    # note: workarounds to patch "class properties" aren't consistent between python
-    # versions, so this will have to do until changes are needed.
-    if not ((3, 9) <= PYTHON_VERSION < (3, 13)):
-
-        @property
-        def model_fields(self) -> dict[str, Any]:
-            return self.__fields__
+    @property
+    def model_fields(self) -> dict[str, Any]:
+        return self.__fields__  # type: ignore[deprecated]
 
 
 # Mixin to ensure compatibility of Pydantic models if Pydantic v1 is detected.
@@ -127,6 +111,23 @@ class V1MixinMetaclass(PydanticModelMetaclass):
 # Whenever possible, users should strongly prefer upgrading to Pydantic v2 to
 # ensure full compatibility.
 class V1Mixin(metaclass=V1MixinMetaclass):
+    # Internal compat helpers
+    @classmethod
+    def _dump_json_vals(cls, values: dict[str, Any], by_alias: bool) -> dict[str, Any]:
+        """Reserialize values from `Json`-typed fields after dumping the model to dict."""
+        # Get the expected keys (after `.model_dump()`) for `Json`-typed fields.
+        # Note: In v1, `Json` fields have `ModelField.parse_json == True`
+        json_fields = (f for f in cls.__fields__.values() if f.parse_json)  # type: ignore[deprecated]
+        get_key = attrgetter("alias" if by_alias else "name")
+        json_field_keys = set(map(get_key, json_fields))
+
+        return {
+            # Only serialize `Json` fields with non-null values.
+            k: to_json(v) if ((v is not None) and (k in json_field_keys)) else v
+            for k, v in values.items()
+        }
+
+    # ------------------------------------------------------------------------------
     @classmethod
     def __try_update_forward_refs__(cls: type[V1Model], **localns: Any) -> None:
         if hasattr(sup := super(), "__try_update_forward_refs__"):
@@ -151,26 +152,32 @@ class V1Mixin(metaclass=V1MixinMetaclass):
     def model_dump(self: V1Model, **kwargs: Any) -> dict[str, Any]:
         # Pass only kwargs that are allowed in the V1 method.
         allowed_keys = allowed_arg_names(self.dict) & kwargs.keys()
-        return self.dict(**{k: kwargs[k] for k in allowed_keys})
+        dict_ = self.dict(**{k: kwargs[k] for k in allowed_keys})
+
+        # Ugly hack: Try to serialize `Json` fields correctly when `round_trip=True` in pydantic v1
+        if kwargs.get("round_trip", False):
+            by_alias: bool = kwargs.get("by_alias", False)
+            return self._dump_json_vals(dict_, by_alias=by_alias)
+
+        return dict_
 
     def model_dump_json(self: V1Model, **kwargs: Any) -> str:
         # Pass only kwargs that are allowed in the V1 method.
         allowed_keys = allowed_arg_names(self.json) & kwargs.keys()
-        return self.json(**{k: kwargs[k] for k in allowed_keys})
+        json_ = self.json(**{k: kwargs[k] for k in allowed_keys})
+
+        # Ugly hack: Try to serialize `Json` fields correctly when `round_trip=True` in pydantic v1
+        if kwargs.get("round_trip", False):
+            by_alias: bool = kwargs.get("by_alias", False)
+            dict_ = json.loads(json_)
+            return json.dumps(self._dump_json_vals(dict_, by_alias=by_alias))
+
+        return json_
 
     def model_copy(self: V1Model, **kwargs: Any) -> V1Model:
         # Pass only kwargs that are allowed in the V1 method.
         allowed_keys = allowed_arg_names(self.copy) & kwargs.keys()
         return self.copy(**{k: kwargs[k] for k in allowed_keys})
-
-    # workarounds to patch "class properties" aren't consistent between python
-    # versions, so this will have to do until changes are needed.
-    if (3, 9) <= PYTHON_VERSION < (3, 13):
-
-        @classmethod  # type: ignore[misc]
-        @property
-        def model_fields(cls: type[V1Model]) -> Mapping[str, Any]:
-            return cls.__fields__
 
     @property
     def model_fields_set(self: V1Model) -> set[str]:
@@ -206,7 +213,7 @@ else:
         check_fields: bool | None = None,
         **_: Any,
     ) -> Callable:
-        return pydantic.validator(
+        return pydantic.validator(  # type: ignore[deprecated]
             field,
             *fields,
             pre=(mode == "before"),

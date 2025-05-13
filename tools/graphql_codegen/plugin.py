@@ -16,17 +16,19 @@ from typing import Any, ClassVar, Iterable, Iterator
 
 from ariadne_codegen import Plugin
 from graphlib import TopologicalSorter  # noqa # Run this only with python 3.9+
-from graphql import GraphQLSchema
+from graphql import FragmentDefinitionNode, GraphQLSchema
 
 from .plugin_utils import (
     apply_ruff,
     base_class_names,
     collect_imported_names,
     imported_names,
+    is_class_def,
     is_import_from,
     is_redundant_subclass_def,
     make_all_assignment,
     make_import_from,
+    make_model_rebuild,
     remove_module_files,
 )
 
@@ -42,6 +44,7 @@ GQLID_TYPE = "GQLId"  #: Custom GraphQL ID type for field annotations
 CUSTOM_BASE_IMPORT_NAMES = [
     CUSTOM_BASE_MODEL_NAME,
     CUSTOM_GQL_BASE_MODEL_NAME,
+    TYPENAME_TYPE,
 ]
 
 
@@ -79,11 +82,22 @@ class FixFragmentOrder(Plugin):
 
         imports = grouped_stmts.pop(ast.ImportFrom)
         class_defs = grouped_stmts.pop(ast.ClassDef)
-        model_rebuilds = grouped_stmts.pop(ast.Expr)
+
+        # Drop the `.model_rebuild()` statements (we'll regenerate them)
+        _ = grouped_stmts.pop(ast.Expr)
 
         # Since we've popped all the expected statement groups, verify there's nothing left
         if grouped_stmts:
             raise ValueError(f"Unexpected statements in module: {list(grouped_stmts)}")
+
+        # For safety, we're going to apply `.model_rebuild()` to all generated fragment types
+        # This'll prevent errors that pop up in pydantic v1 like:
+        #
+        #   pydantic.errors.ConfigError: field "node" not yet prepared so type is still a
+        #   ForwardRef, you might need to call FilesFragmentEdges.update_forward_refs().
+        model_rebuilds = [
+            make_model_rebuild(class_def.name) for class_def in class_defs
+        ]
 
         # Deterministically reorder the class definitions/model_rebuild() statements,
         # ensuring parent classes are defined first
@@ -205,8 +219,35 @@ class GraphQLCodegenPlugin(Plugin):
     def generate_result_types_module(self, module: ast.Module, *_, **__) -> ast.Module:
         return self._rewrite_generated_module(module)
 
-    def generate_fragments_module(self, module: ast.Module, *_, **__) -> ast.Module:
-        return self._rewrite_generated_module(module)
+    def generate_fragments_module(
+        self,
+        module: ast.Module,
+        fragments_definitions: dict[str, FragmentDefinitionNode],
+    ) -> ast.Module:
+        # Maps {fragment names -> original schema type names}
+        fragment2typename = {
+            f.name.value: f.type_condition.name.value
+            for f in fragments_definitions.values()
+        }
+
+        # Rewrite `typename__` fields:
+        #   - BEFORE: `typename__: str = Field(alias="__typename")`
+        #   - AFTER:  `typename__: Literal["OrigSchemaTypeName"] = "OrigSchemaTypeName"`
+        for class_def in filter(is_class_def, module.body):
+            for stmt in class_def.body:
+                if (
+                    isinstance(stmt, ast.AnnAssign)
+                    and (stmt.target.id == "typename__")
+                    and (typename := fragment2typename.get(class_def.name))
+                ):
+                    stmt.annotation = ast.Subscript(
+                        value=ast.Name(id="Literal"),
+                        slice=ast.Constant(value=typename),
+                    )
+                    stmt.value = ast.Constant(value=typename)
+
+        module = self._rewrite_generated_module(module)
+        return ast.fix_missing_locations(module)
 
     def _rewrite_generated_module(self, module: ast.Module) -> ast.Module:
         """Apply common transformations to the generated module, excluding `__init__`."""
@@ -314,17 +355,35 @@ class PydanticClassRewriter(ast.NodeTransformer):
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> ast.AnnAssign:
         if node.target.id == "typename__":
-            # e.g. BEFORE: `typename__: Literal["MyType"] = Field(...)`
+            # e.g. BEFORE: `typename__: Literal["MyType"] = Field(alias="__typename")`
             # e.g. AFTER:  `typename__: Typename[Literal["MyType"]]`
-            node = ast.AnnAssign(
-                target=node.target,
-                annotation=ast.Subscript(
-                    value=ast.Name(id=TYPENAME_TYPE),
-                    slice=node.annotation,
-                ),
-                value=None,
-                simple=1,
+            node.annotation = ast.Subscript(  # T -> Typename[T]
+                value=ast.Name(id=TYPENAME_TYPE),
+                slice=node.annotation,
             )
+            # Drop `= Field(alias="__typename")`, if present
+            if (
+                isinstance(node.value, ast.Call)
+                and node.value.func.id == "Field"
+                and len(node.value.keywords) == 1
+                and node.value.keywords[0].arg == "alias"
+            ):
+                node.value = None
+
+        # If this is a union of a single type, drop the `Field(discriminator=...)`
+        # since pydantic may complain.
+        # See: https://github.com/pydantic/pydantic/issues/3636
+        elif (
+            isinstance(annotation := node.annotation, ast.Subscript)
+            and annotation.value.id == "Union"
+            and isinstance(annotation.slice, ast.Tuple)
+            and len(annotation.slice.elts) == 1
+        ):
+            # e.g. BEFORE: `field: Union[OnlyType,] = Field(discriminator="...")`
+            # e.g. AFTER:  `field: OnlyType`
+            node.annotation = annotation.slice.elts[0]  # Union[T,] -> T
+            node.value = None  # drop `= Field(discriminator=...)`, if present
+
         return self.generic_visit(node)
 
     def visit_Name(self, node: ast.Name) -> ast.Name:

@@ -1,8 +1,8 @@
 from typing import Tuple
 
-import hypothesis
 import numpy as np
 import pytest
+from hypothesis import assume, given
 from hypothesis.strategies import floats, tuples
 from wandb import data_types
 
@@ -15,7 +15,7 @@ quaternions = tuples(
 )
 
 
-@hypothesis.given(
+@given(
     center=tuples(small_floats, small_floats, small_floats),
     size=tuples(small_floats, small_floats, small_floats),
     orientation=quaternions,
@@ -26,7 +26,7 @@ def test_box3d_always_box(
     orientation: "Tuple[float, float, float, float]",
 ):
     # Require a nonzero quaternion.
-    hypothesis.assume(any(q != pytest.approx(0) for q in orientation))
+    assume(any(q != pytest.approx(0) for q in orientation))
 
     box = data_types.box3d(
         center=center,
