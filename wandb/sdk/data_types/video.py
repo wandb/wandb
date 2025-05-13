@@ -48,7 +48,7 @@ def write_gif_with_image_io(
 
 
 class Video(BatchableMedia):
-    """A class for logging videos to W&B
+    """A class for logging videos to W&B.
 
     Args:
         data_or_path: Video can be initialized with a path to a file or an
