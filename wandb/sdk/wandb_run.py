@@ -483,22 +483,28 @@ class RunStatus:
 class Run:
     """A unit of computation logged by W&B. Typically, this is an ML experiment.
 
-    Create a run with `wandb.init()`. This will start a new run and
-    return a `wandb.Run` object. You can log data to that [run](https://docs.wandb.ai/guides/runs/)
-    with `wandb.log()`. There is only ever at most one active `wandb.Run` in any process.
-    Anything you log with `wandb.log()` is sent to that run. See
-    [Create an experiment](https://docs.wandb.ai/guides/track/launch) or
-    [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page.
+    Call [`wandb.init()`](https://docs.wandb.ai/ref/python/init/) to create a
+    new run. This will start a new run and return a `wandb.Run` object.
+    Each run is associated with a unique ID, which is used to identify
+    the run in the W&B UI.
 
-    In distributed training, you can either create a single run in the rank 0 process
-    and then log information only from that process, or you can create a run in each process,
-    logging from each separately, and group the results together with the `group` argument
-    to `wandb.init`.
-    See [Log distributed training experiments](https://docs.wandb.ai/guides/track/log/distributed-training).
+    You can log data to that run with `wandb.log()`. There is only ever at
+    most one active `wandb.Run` in any process. Anything you log with
+    `wandb.log()` is sent to that run. See
+    [Create an experiment](https://docs.wandb.ai/guides/track/launch) or
+    [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page
+    or more information.
+
+    In distributed training, you can either create a single run in the rank 0
+    process and then log information only from that process, or you can create
+    a run in each process, logging from each separately, and group the results
+    together with the `group` argument to `wandb.init`. See
+    [Log distributed training experiments](https://docs.wandb.ai/guides/track/log/distributed-training).
 
     There is a another `Run` object in the
-    [`wandb.apis.public`](https://docs.wandb.ai/ref/python/public-api/api/).
-    Use this object is to interact with runs that have already been created.
+    [`wandb.apis.public`](https://docs.wandb.ai/ref/python/public-api/api/)
+    namespace. Use this object is to interact with runs that have already been
+    created.
 
     Attributes:
         summary: (Summary) Single values set for each `wandb.log()` key. By
@@ -507,25 +513,20 @@ class Run:
             final value.
 
     Examples:
-    Create a run with `wandb.init()`
+    Create a run with `wandb.init()`:
 
     ```python
     import wandb
 
-    run = wandb.init(entity="my-entity", project="my-project")
+    # Start a new run and log some data
+    # Use context manager (`with` statement) to automatically finish the run
+    with wandb.init(entity="my-entity", project="my-project") as run:
+        run.log({"accuracy": acc, "loss": loss})
     ```
 
     If you want to start more runs in the same script or notebook, you'll need to
-    finish any active runs. Finish a run with `wandb.finish()` or using a `with` block.
-    It is recommended to use `with` blocks.
-
-    ```python
-    import wandb
-
-    with wandb.init(entity="my-entity", project="my-project") as run:
-        run.log({"accuracy": 0.9})
-        run.log({"accuracy": 0.95})
-    ```
+    finish any active runs. Finish a run with `wandb.finish()` or using a
+    context manager `with` statement. It is recommended to use `with` statements.
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
@@ -1026,9 +1027,7 @@ class Run:
         return self._settings.run_job_type or ""
 
     def project_name(self) -> str:
-        """This method is deprecated and will be removed in a future release.
-
-        Use `run.project` instead.
+        """This method is deprecated and will be removed in a future release. Use `run.project` instead.
 
         Name of the W&B project associated with the run.
         """
@@ -1051,9 +1050,7 @@ class Run:
 
     @_log_to_run
     def get_project_url(self) -> str | None:
-        """This method is deprecated and will be removed in a future release.
-
-        Use `run.project_url` instead.
+        """This method is deprecated and will be removed in a future release. Use `run.project_url` instead.
 
         URL of the W&B project associated with the run, if there is one.
         Offline runs do not have a project URL.
@@ -1186,12 +1183,10 @@ class Run:
 
     @_log_to_run
     def get_sweep_url(self) -> str | None:
-        """The URL of the sweep associated with the run, if there is one.
+        """This method is deprecated and will be removed in a future release. Use `run.sweep_url` instead.
 
+        The URL of the sweep associated with the run, if there is one.
         Offline runs do not have a sweep URL.
-
-        Note: this method is deprecated and will be removed in a future release.
-        Please use `run.sweep_url` instead.
         """
         deprecate.deprecate(
             field_name=Deprecated.run__get_sweep_url,
@@ -1216,12 +1211,9 @@ class Run:
 
     @_log_to_run
     def get_url(self) -> str | None:
-        """URL of the W&B run, if there is one.
+        """This method is deprecated and will be removed in a future release. Use `run.url` instead.
 
-        Offline runs do not have a URL.
-
-        Note: this method is deprecated and will be removed in a future release.
-        Please use `run.url` instead.
+        URL of the W&B run, if there is one. Offline runs do not have a URL.
         """
         deprecate.deprecate(
             field_name=Deprecated.run__get_url,
@@ -1344,7 +1336,7 @@ class Run:
     @_log_to_run
     @_attach
     def display(self, height: int = 420, hidden: bool = False) -> bool:
-        """Display this run in jupyter."""
+        """Display this run in Jupyter."""
         if self._settings.silent:
             return False
 
@@ -1772,32 +1764,26 @@ class Run:
         """Upload run data.
 
         Use `log` to log data from runs, such as scalars, images, video,
-        histograms, plots, and tables.
-
-        See our [guides to logging](https://docs.wandb.ai/guides/track/log) for
-        live examples, code snippets, best practices, and more.
+        histograms, plots, and tables. See [Log objects and media](https://docs.wandb.ai/guides/track/log) for
+        code snippets, best practices, and more.
 
         The most basic usage is `run.log({"train-loss": 0.5, "accuracy": 0.9})`.
         This will save the loss and accuracy to the run's history and update
         the summary values for these metrics.
 
-        Visualize logged data in the workspace at [wandb.ai](https://wandb.ai),
+        Visualize logged data in a workspace at [wandb.ai](https://wandb.ai),
         or locally on a [self-hosted instance](https://docs.wandb.ai/guides/hosting)
         of the W&B app, or export data to visualize and explore locally, e.g. in
         Jupyter notebooks, with [our API](https://docs.wandb.ai/guides/track/public-api-guide).
 
-        Logged values don't have to be scalars. Logging any wandb object is supported.
-        For example `run.log({"example": wandb.Image("myimage.jpg")})` will log an
-        example image which will be displayed nicely in the W&B UI.
-        See the [reference documentation](https://docs.wandb.com/ref/python/data-types)
-        for all of the different supported types or check out our
-        [guides to logging](https://docs.wandb.ai/guides/track/log) for examples,
-        from 3D molecular structures and segmentation masks to PR curves and histograms.
-        You can use `wandb.Table` to log structured data. See our
-        [guide to logging tables](https://docs.wandb.ai/guides/models/tables/tables-walkthrough)
-        for details.
+        Logged values don't have to be scalars. You can log any
+        [W&B supported Data Type](https://docs.wandb.ai/ref/python/data-types/)
+        such images, audio, video, and more. For example, you can use
+        `wandb.Table` to log structured data. See
+        [Log tables, visualize and query data](https://docs.wandb.ai/guides/models/tables/tables-walkthrough)
+        tutorial for more details.
 
-        The W&B UI organizes metrics with a forward slash (`/`) in their name
+        W&B organizes metrics with a forward slash (`/`) in their name
         into sections named using the text before the final slash. For example,
         the following results in two sections named "train" and "validate":
 
@@ -2319,7 +2305,7 @@ class Run:
     @_log_to_run
     @_attach
     def join(self, exit_code: int | None = None) -> None:
-        """Deprecated alias for `finish()` - use finish instead."""
+        """This method is deprecated. Use `wandb.run.finish()` instead."""
         if hasattr(self, "_telemetry_obj"):
             deprecate.deprecate(
                 field_name=Deprecated.run__join,
@@ -3027,6 +3013,10 @@ class Run:
         return artifact_name
 
     def _detach(self) -> None:
+        """Detach the run from the current process.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         pass
 
     @_log_to_run
@@ -3040,7 +3030,7 @@ class Run:
     ) -> Artifact | None:
         """Link the given artifact to a portfolio (a promoted collection of artifacts).
 
-        The linked artifact will be visible in the UI for the specified portfolio.
+        Linked artifacts are visible in the UI for the specified portfolio.
 
         Args:
             artifact: the (public or local) artifact which will be linked
@@ -3369,24 +3359,24 @@ class Run:
         Subsequent "upserts" with the same distributed ID will result in a new version.
 
         Args:
-            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
+            artifact_or_path: A path to the contents of this artifact,
                 can be in the following forms:
                     - `/local/directory`
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name: (str, optional) An artifact name. May be prefixed with entity/project.
+            name: An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
                     - name:version
                     - name:alias
                     - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type: (str) The type of artifact to log, examples include `dataset`, `model`
-            aliases: (list, optional) Aliases to apply to this artifact,
+            type: The type of artifact to log, examples include `dataset`, `model`
+            aliases: Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
+            distributed_id: Unique string that all distributed jobs share. If None,
                 defaults to the run's group name.
 
         Returns:
@@ -3644,7 +3634,7 @@ class Run:
     ) -> Artifact | None:
         """Log a model artifact version and link it to a registered model in the model registry.
 
-        The linked model version will be visible in the UI for the specified registered model.
+        Linked model versions are visible in the UI for the specified registered model.
 
         This method will:
         - Check if 'name' model artifact has been logged. If so, use the artifact version that matches the files
