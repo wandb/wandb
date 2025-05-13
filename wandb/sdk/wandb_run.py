@@ -3723,13 +3723,13 @@ class Run:
         level: str | AlertLevel | None = None,
         wait_duration: int | float | timedelta | None = None,
     ) -> None:
-        """Launch an alert with the given title and text.
+        """Create an alert with the given title and text.
 
         Args:
-            title: (str) The title of the alert, must be less than 64 characters long.
-            text: (str) The text body of the alert.
-            level: (str or AlertLevel, optional) The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
-            wait_duration: (int, float, or timedelta, optional) The time to wait (in seconds) before sending another
+            title: The title of the alert, must be less than 64 characters long.
+            text: The text body of the alert.
+            level: The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
+            wait_duration: The time to wait (in seconds) before sending another
                 alert with this title.
         """
         level = level or AlertLevel.INFO
