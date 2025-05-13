@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -40,6 +42,8 @@ type RunMetadata struct {
 
 	// done is closed when Finish is called.
 	done chan struct{}
+
+	params *runbranch.RunParams
 }
 
 type RunMetadataParams struct {
@@ -79,6 +83,13 @@ func InitRun(
 ) (*RunMetadata, error) {
 	params.panicIfNotFilled()
 
+	runRecord := record.GetRun()
+	if runRecord == nil {
+		panic("runmetadata: RunRecord is nil")
+	}
+
+	runParams := runbranch.NewRunParams(runRecord, params.Settings)
+
 	metadata := &RunMetadata{
 		debounceDelay: params.DebounceDelay,
 
@@ -89,6 +100,8 @@ func InitRun(
 		logger:             params.Logger,
 
 		done: make(chan struct{}),
+
+		params: runParams,
 	}
 
 	operation := metadata.operations.New("creating run")
@@ -106,7 +119,11 @@ func InitRun(
 	defer metadata.mu.Unlock()
 
 	// Upsert the run.
-	response, err := metadata.lockedDoUpsert(ctx)
+	response, err := metadata.lockedDoUpsert(
+		ctx,
+		/*uploadParams=*/ true,
+		/*uploadConfig=*/ true,
+	)
 
 	if err != nil {
 		return nil, &runUpdateError{
@@ -161,7 +178,9 @@ func (metadata *RunMetadata) UpdateMetrics(metric *spb.MetricRecord) {
 func (metadata *RunMetadata) FillRunRecord(record *spb.RunRecord) {
 	metadata.mu.Lock()
 	defer metadata.mu.Unlock()
-	panic("TODO: Unimplemented.")
+	metadata.params.SetOnProto(record)
+
+	// TODO: Set the config as well.
 }
 
 // RunPath returns the run's entity, project and run ID.
@@ -221,7 +240,6 @@ func (metadata *RunMetadata) Finish() {
 func (metadata *RunMetadata) syncPeriodically() {
 	// TODO: Loop forever, uploading changes as they arrive.
 	//   Exit when the done channel is closed, flushing one more time.
-	panic("TODO: Unimplemented.")
 }
 
 // lockedDoUpsert performs an UpsertBucket request to upload the current
@@ -230,9 +248,50 @@ func (metadata *RunMetadata) syncPeriodically() {
 // The mutex must be held. It is temporarily unlocked during the request.
 func (metadata *RunMetadata) lockedDoUpsert(
 	ctx context.Context,
+	uploadParams, uploadConfig bool,
 ) (*gql.UpsertBucketResponse, error) {
 	if metadata.graphqlClientOrNil == nil {
 		return nil, errors.New("runmetadata: cannot upsert when offline")
+	}
+
+	name := nullify.NilIfZero(metadata.params.RunID)
+	project := nullify.NilIfZero(metadata.params.Project)
+	entity := nullify.NilIfZero(metadata.params.Entity)
+
+	// NOTE: The only reason not to upload these short strings on every request
+	//   is because of shared mode, where there may be multiple machines writing
+	//   to the same run. We wouldn't want updating the config on one machine to
+	//   clear the run tags set by another.
+
+	var storageID *string
+	var groupName *string
+	var displayName *string
+	var notes *string
+	var commit *string
+	var host *string
+	var program *string
+	var repo *string
+	var jobType *string
+	var sweepID *string
+	var tags []string
+	if uploadParams {
+		storageID = nullify.NilIfZero(metadata.params.StorageID)
+		groupName = nullify.NilIfZero(metadata.params.GroupName)
+		displayName = nullify.NilIfZero(metadata.params.DisplayName)
+		notes = nullify.NilIfZero(metadata.params.Notes)
+		commit = nullify.NilIfZero(metadata.params.Commit)
+		host = nullify.NilIfZero(metadata.params.Host)
+		program = nullify.NilIfZero(metadata.params.Program)
+		repo = nullify.NilIfZero(metadata.params.RemoteURL)
+		jobType = nullify.NilIfZero(metadata.params.JobType)
+		sweepID = nullify.NilIfZero(metadata.params.SweepID)
+		tags = slices.Clone(metadata.params.Tags)
+	}
+
+	var config *string
+	if uploadConfig {
+		// TODO
+		config = nil
 	}
 
 	metadata.mu.Unlock()
@@ -245,8 +304,29 @@ func (metadata *RunMetadata) lockedDoUpsert(
 		clients.UpsertBucketRetryPolicy,
 	)
 
-	_ = ctx
-	panic("TODO: gql.UpsertBucket()")
+	return gql.UpsertBucket(
+		ctx,
+		metadata.graphqlClientOrNil,
+		storageID,
+		name,
+		project,
+		entity,
+		groupName,
+		nil, // description
+		displayName,
+		notes,
+		commit,
+		config,
+		host,
+		nil, // debug
+		program,
+		repo,
+		jobType,
+		nil, // state
+		sweepID,
+		tags,
+		nil, // summaryMetrics
+	)
 }
 
 // lockedUpdateFromUpsert updates metadata based on the response from
@@ -256,5 +336,31 @@ func (metadata *RunMetadata) lockedDoUpsert(
 func (metadata *RunMetadata) lockedUpdateFromUpsert(
 	response *gql.UpsertBucketResponse,
 ) {
-	panic("TODO: Unimplemented.")
+	if response.GetUpsertBucket() == nil ||
+		response.GetUpsertBucket().GetBucket() == nil {
+		metadata.logger.Error("runmetadata: upsert bucket response empty")
+		return
+	}
+
+	bucket := response.GetUpsertBucket().GetBucket()
+
+	metadata.params.StorageID = bucket.GetId()
+	metadata.params.RunID = bucket.GetName()
+	metadata.params.DisplayName = nullify.ZeroIfNil(bucket.GetDisplayName())
+	metadata.params.SweepID = nullify.ZeroIfNil(bucket.GetSweepName())
+
+	if lineCount := nullify.ZeroIfNil(bucket.GetHistoryLineCount()); lineCount > 0 {
+		metadata.params.FileStreamOffset = filestream.FileStreamOffsetMap{
+			filestream.HistoryChunk: lineCount,
+		}
+	}
+
+	if project := bucket.GetProject(); project == nil {
+		metadata.logger.Error("runmetadata: upsert bucket project is nil")
+	} else {
+		entity := project.GetEntity()
+
+		metadata.params.Entity = entity.GetName()
+		metadata.params.Project = project.GetName()
+	}
 }
