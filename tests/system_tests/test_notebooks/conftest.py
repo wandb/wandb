@@ -30,10 +30,6 @@ _NOTEBOOK_LOCKFILE = os.path.join(
     ".test_notebooks.lock",
 )
 
-# wandb.jupyter is lazy loaded, so we need to force it to load
-# before we can monkeypatch it
-wandb.jupyter.quiet()
-
 
 @pytest.fixture
 def mocked_module(monkeypatch):

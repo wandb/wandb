@@ -271,7 +271,7 @@ def _login(
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
     verify: bool = False,
-    referrer: Optional[str] = None,
+    referrer: str = "models",
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
 ) -> bool:

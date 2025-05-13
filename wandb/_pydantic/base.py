@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, Json
+from pydantic import BaseModel, ConfigDict, Field, Json, StrictStr
 from typing_extensions import Annotated, TypedDict, Unpack, override
 
+from .utils import IS_PYDANTIC_V2, to_json
 from .v1_compat import PydanticCompatMixin
 
 if TYPE_CHECKING:
@@ -38,20 +39,23 @@ MODEL_DUMP_DEFAULTS = ModelDumpKwargs(
 
 # v1-compatible base class for pydantic types.
 class CompatBaseModel(PydanticCompatMixin, BaseModel):
-    pass
+    __doc__ = None  # Prevent subclasses from inheriting the BaseModel docstring
 
 
-# Base class for all generated classes/types.
+# Base class for all GraphQL-generated types.
 # Omitted from docstring to avoid inclusion in generated docs.
-class Base(CompatBaseModel):
+class GQLBase(CompatBaseModel):
     model_config = ConfigDict(
-        populate_by_name=True,
+        populate_by_name=True,  # Discouraged in pydantic v2.11+, will be deprecated in v3
+        validate_by_name=True,  # Introduced in pydantic v2.11
+        validate_by_alias=True,  # Introduced in pydantic v2.11
+        serialize_by_alias=True,  # Introduced in pydantic v2.11
         validate_assignment=True,
         validate_default=True,
-        extra="forbid",
         use_attribute_docstrings=True,
         from_attributes=True,
         revalidate_instances="always",
+        protected_namespaces=(),  # Some GraphQL fields may begin with "model_"
     )
 
     @override
@@ -75,44 +79,50 @@ class Base(CompatBaseModel):
         return super().model_dump_json(indent=indent, **kwargs)
 
 
-# Base class with extra customization for GQL generated types.
-# Omitted from docstring to avoid inclusion in generated docs.
-class GQLBase(Base):
-    model_config = ConfigDict(
-        extra="ignore",
-        protected_namespaces=(),
-    )
-
-
 # ------------------------------------------------------------------------------
 # Reusable annotations for field types
 T = TypeVar("T")
 
-GQLId = Annotated[
-    str,
-    Field(repr=False, strict=True, frozen=True),
-]
+if IS_PYDANTIC_V2 or TYPE_CHECKING:
+    GQLId = Annotated[
+        StrictStr,
+        Field(repr=False, frozen=True),
+    ]
+else:
+    # FIXME: Find a way to fix this for pydantic v1, which doesn't like when
+    # `Field(...)` used in the field assignment AND `Annotated[...]`.
+    # This is a problem for codegen, which can currently outputs e.g.
+    #
+    #   class MyModel(GQLBase):
+    #       my_id: GQLId = Field(alias="myID")
+    #
+    GQLId = StrictStr  # type: ignore[misc]
 
 Typename = Annotated[
     T,
-    Field(repr=False, alias="__typename", frozen=True),
+    Field(repr=False, frozen=True, alias="__typename"),
 ]
 
 
-# FIXME: Restore, modify, or replace this later after ensuring pydantic v1 compatibility.
-# def validate_maybe_json(v: Any, handler: ValidatorFunctionWrapHandler) -> Any:
-#     """Wraps default Json[...] field validator to allow instantiation with an already-decoded value."""
-#     try:
-#         return handler(v)
-#     except ValidationError:
-#         # Try revalidating after properly jsonifying the value
-#         return handler(to_json(v, by_alias=True, round_trip=True))
-#
-#
-# SerializedToJson = Annotated[
-#     Json[T],
-#     # Allow lenient instantiation/validation: incoming data may already be deserialized.
-#     WrapValidator(validate_maybe_json),
-# ]
+def ensure_json(v: Any) -> Any:
+    """In case the incoming value isn't serialized JSON, reserialize it.
 
-SerializedToJson = Json[T]
+    This lets us use `Json[...]` fields with values that are already deserialized.
+    """
+    # NOTE: Assumes that the deserialized type is not itself a string.
+    # Revisit this if we need to support deserialized types that are str/bytes.
+    return v if isinstance(v, (str, bytes)) else to_json(v)
+
+
+if IS_PYDANTIC_V2 or TYPE_CHECKING:
+    from pydantic import BeforeValidator, PlainSerializer
+
+    SerializedToJson = Annotated[
+        Json[T],
+        # Allow lenient instantiation/validation: incoming data may already be deserialized.
+        BeforeValidator(ensure_json),
+        PlainSerializer(to_json),
+    ]
+else:
+    # FIXME: Restore, modify, or replace this later after ensuring pydantic v1 compatibility.
+    SerializedToJson = Json[T]  # type: ignore[misc]

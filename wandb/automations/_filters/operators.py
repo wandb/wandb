@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Tuple, TypeVar, Union, cast
+from typing import Any, Dict, Iterable, Tuple, TypeVar, Union
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
-from pydantic_core import to_jsonable_python
-from typing_extensions import TypeAlias, get_args, override
+from typing_extensions import TypeAlias, get_args
 
-from wandb._pydantic import IS_PYDANTIC_V2, Base
+from wandb._pydantic import GQLBase
 
-# For type annotations and/or narrowing
+# for type annotations
 Scalar = Union[StrictStr, StrictInt, StrictFloat, StrictBool]
-# For runtime `isinstance()` checks
-ScalarTypes = get_args(Scalar)
+# for runtime type checks
+ScalarTypes: tuple[type, ...] = tuple(t.__origin__ for t in get_args(Scalar))
 
 # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
 RichReprResult: TypeAlias = Iterable[
@@ -42,7 +41,11 @@ class SupportsLogicalOpSyntax:
 
     def __and__(self, other: Any) -> And:
         """Syntactic sugar for: `a & b` -> `And(a, b)`."""
-        return And(and_=[self, other])
+        from .expressions import FilterExpr
+
+        if isinstance(other, (BaseOp, FilterExpr)):
+            return And(and_=[self, other])
+        return NotImplemented
 
     def __invert__(self) -> Not:
         """Syntactic sugar for: `~a` -> `Not(a)`."""
@@ -50,32 +53,21 @@ class SupportsLogicalOpSyntax:
 
 
 # Base class for parsed MongoDB filter/query operators, e.g. `{"$and": [...]}`.
-class BaseOp(Base, SupportsLogicalOpSyntax):
+class BaseOp(GQLBase, SupportsLogicalOpSyntax):
     model_config = ConfigDict(
+        extra="forbid",
         frozen=True,  # Make pseudo-immutable for easier comparison and hashing
     )
 
     def __repr__(self) -> str:
         # Display operand as a positional arg
-        operands = ", ".join(f"{v!r}" for v in self.model_dump().values())
-        return f"{type(self).__name__}({operands})"
+        values_repr = ", ".join(map(repr, self.model_dump().values()))
+        return f"{type(self).__name__}({values_repr})"
 
     def __rich_repr__(self) -> RichReprResult:  # type: ignore[override]
-        # Display operand as a positional arg
+        # Display field values as positional args:
         # https://rich.readthedocs.io/en/stable/pretty.html
-        for v in self.model_dump().values():
-            yield (None, v)
-
-    if not IS_PYDANTIC_V2:
-        # Ugly workaround: Pydantic v1 doesn't support 'json' mode to ensure e.g. tuples -> lists
-        @override
-        def model_dump(self, **kwargs: Any) -> dict[str, Any]:
-            return cast(
-                Dict[str, Any],
-                to_jsonable_python(
-                    super().model_dump(**kwargs), by_alias=True, round_trip=True
-                ),
-            )
+        yield from ((None, v) for v in self.model_dump().values())
 
 
 # Logical operator(s)
@@ -90,13 +82,25 @@ class And(BaseOp):
 class Or(BaseOp):
     or_: TupleOf[Any] = Field(default=(), alias="$or")
 
+    def __invert__(self) -> Nor:
+        """Syntactic sugar for: `~Or(a, b)` -> `Nor(a, b)`."""
+        return Nor(nor_=self.or_)
+
 
 class Nor(BaseOp):
     nor_: TupleOf[Any] = Field(default=(), alias="$nor")
 
+    def __invert__(self) -> Or:
+        """Syntactic sugar for: `~Nor(a, b)` -> `Or(a, b)`."""
+        return Or(or_=self.nor_)
+
 
 class Not(BaseOp):
     not_: Any = Field(alias="$not")
+
+    def __invert__(self) -> Any:
+        """Syntactic sugar for: `~Not(a)` -> `a`."""
+        return self.not_
 
 
 # Comparison operator(s)
@@ -111,33 +115,65 @@ class Not(BaseOp):
 class Lt(BaseOp):
     lt_: Scalar = Field(alias="$lt")
 
+    def __invert__(self) -> Gte:
+        """Syntactic sugar for: `~Lt(a)` -> `Gte(a)`."""
+        return Gte(gte_=self.lt_)
+
 
 class Gt(BaseOp):
     gt_: Scalar = Field(alias="$gt")
+
+    def __invert__(self) -> Lte:
+        """Syntactic sugar for: `~Gt(a)` -> `Lte(a)`."""
+        return Lte(lte_=self.gt_)
 
 
 class Lte(BaseOp):
     lte_: Scalar = Field(alias="$lte")
 
+    def __invert__(self) -> Gt:
+        """Syntactic sugar for: `~Lte(a)` -> `Gt(a)`."""
+        return Gt(gt_=self.lte_)
+
 
 class Gte(BaseOp):
     gte_: Scalar = Field(alias="$gte")
+
+    def __invert__(self) -> Lt:
+        """Syntactic sugar for: `~Gte(a)` -> `Lt(a)`."""
+        return Lt(lt_=self.gte_)
 
 
 class Eq(BaseOp):
     eq_: Scalar = Field(alias="$eq")
 
+    def __invert__(self) -> Ne:
+        """Syntactic sugar for: `~Eq(a)` -> `Ne(a)`."""
+        return Ne(ne_=self.eq_)
+
 
 class Ne(BaseOp):
     ne_: Scalar = Field(alias="$ne")
+
+    def __invert__(self) -> Eq:
+        """Syntactic sugar for: `~Ne(a)` -> `Eq(a)`."""
+        return Eq(eq_=self.ne_)
 
 
 class In(BaseOp):
     in_: TupleOf[Scalar] = Field(default=(), alias="$in")
 
+    def __invert__(self) -> NotIn:
+        """Syntactic sugar for: `~In(a)` -> `NotIn(a)`."""
+        return NotIn(nin_=self.in_)
+
 
 class NotIn(BaseOp):
     nin_: TupleOf[Scalar] = Field(default=(), alias="$nin")
+
+    def __invert__(self) -> In:
+        """Syntactic sugar for: `~NotIn(a)` -> `In(a)`."""
+        return In(in_=self.nin_)
 
 
 # Element operator(s)
@@ -216,4 +252,7 @@ KnownOp = Union[
 ]
 UnknownOp = Dict[str, Any]
 
-AnyOp = Union[KnownOp, UnknownOp]
+# for type annotations
+Op = Union[KnownOp, UnknownOp]
+# for runtime type checks
+OpTypes: tuple[type, ...] = (*get_args(KnownOp), dict)

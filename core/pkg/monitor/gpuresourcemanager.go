@@ -38,11 +38,23 @@ type GPUResourceManager struct {
 	// this becomes empty.
 	refs      map[GPUResourceManagerRef]struct{}
 	nextRefId int
+
+	// enableDCGMProfiling is true if collecting profiling metrics for
+	// Nvidia GPUs using DCGM is requested.
+	//
+	// Enabling this feature can lead to increased resource usage compared to
+	// standard monitoring with NVML.
+	// Requires the `nvidia-dcgm` service to be running on the machine.
+	// Note that this is a global per-collector-process flag.
+	enableDCGMProfiling bool
 }
 
 // NewGPUResourceManager creates a GPUResourceManager.
-func NewGPUResourceManager() *GPUResourceManager {
-	return &GPUResourceManager{refs: map[GPUResourceManagerRef]struct{}{}}
+func NewGPUResourceManager(enableDCGMProfiling bool) *GPUResourceManager {
+	return &GPUResourceManager{
+		refs:                map[GPUResourceManagerRef]struct{}{},
+		enableDCGMProfiling: enableDCGMProfiling,
+	}
 }
 
 // Acquire returns a gRPC client for the GPU monitoring process.
@@ -119,6 +131,10 @@ func (m *GPUResourceManager) startGPUCollector() error {
 		"--portfile", pf.path,
 		"--ppid", strconv.Itoa(os.Getpid()),
 	)
+
+	if m.enableDCGMProfiling {
+		cmd.Args = append(cmd.Args, "--enable-dcgm-profiling")
+	}
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("monitor: could not start GPU binary: %v", err)

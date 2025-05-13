@@ -16,7 +16,7 @@ func newTestSystemMonitor() *monitor.SystemMonitor {
 		observability.NewNoOpLogger(),
 		settings.From(&spb.Settings{}),
 		runworktest.New(),
-		monitor.NewGPUResourceManager(),
+		monitor.NewGPUResourceManager(false),
 	)
 }
 

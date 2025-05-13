@@ -1,7 +1,7 @@
 package validator
 
 import (
-	//nolint:revive
+	//nolint:staticcheck // bad, yeah
 	. "github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )

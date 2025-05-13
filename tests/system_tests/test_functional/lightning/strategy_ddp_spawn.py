@@ -1,4 +1,4 @@
-from base import BoringModel, RandomDataset
+from base import BoringModel, RandomDataset  # type: ignore
 from lightning import Trainer
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader

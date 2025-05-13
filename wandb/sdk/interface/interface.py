@@ -173,6 +173,8 @@ class InterfaceBase:
             self._make_config(data=config_dict, obj=proto_run.config)
         if run._telemetry_obj:
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
+        if run._start_runtime:
+            proto_run.runtime = run._start_runtime
         return proto_run
 
     def publish_run(self, run: "Run") -> None:
@@ -426,7 +428,6 @@ class InterfaceBase:
 
     def deliver_link_artifact(
         self,
-        run: "Run",
         artifact: "Artifact",
         portfolio_name: str,
         aliases: Iterable[str],
@@ -440,9 +441,9 @@ class InterfaceBase:
         else:
             link_artifact.server_id = artifact.id if artifact.id else ""
         link_artifact.portfolio_name = portfolio_name
-        link_artifact.portfolio_entity = entity or run.entity
+        link_artifact.portfolio_entity = entity or ""
         link_artifact.portfolio_organization = organization or ""
-        link_artifact.portfolio_project = project or run.project
+        link_artifact.portfolio_project = project or ""
         link_artifact.portfolio_aliases.extend(aliases)
 
         return self._deliver_link_artifact(link_artifact)
