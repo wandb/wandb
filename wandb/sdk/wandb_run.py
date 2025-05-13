@@ -1107,7 +1107,6 @@ class Run:
                 and `<root>/wandb/` directories.
 
         Examples:
-
         Basic usage
 
         ```python
@@ -3135,7 +3134,6 @@ class Run:
             An `Artifact` object.
 
         Examples:
-
         ```python
         import wandb
 
