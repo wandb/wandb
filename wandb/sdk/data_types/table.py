@@ -5,7 +5,7 @@ import datetime
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set
 
 import wandb
 from wandb import util
@@ -1353,7 +1353,7 @@ def _get_data_from_increments(
 
 def _process_table_row(
     row: List[Any],
-    timestamp_column_indices: set[_dtypes.TimestampType],
+    timestamp_column_indices: Set[_dtypes.TimestampType],
     np_deserialized_columns: Dict[int, Any],
     source_artifact: "artifact.Artifact",
     row_idx: int,
