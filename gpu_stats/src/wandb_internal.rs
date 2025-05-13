@@ -337,9 +337,6 @@ pub struct Feature {
     /// Using stable_baselines3 integration
     #[prost(bool, tag = "22")]
     pub sb3: bool,
-    /// Using wandb service internal process
-    #[prost(bool, tag = "23")]
-    pub service: bool,
     /// wandb.init() called in the same process returning previous run
     #[prost(bool, tag = "24")]
     pub init_return_run: bool,
@@ -403,9 +400,6 @@ pub struct Feature {
     /// Flow control customized by user
     #[prost(bool, tag = "44")]
     pub flow_control_custom: bool,
-    /// Service disabled by user
-    #[prost(bool, tag = "45")]
-    pub service_disabled: bool,
     /// Consuming metrics from an OpenMetrics endpoint
     #[prost(bool, tag = "46")]
     pub open_metrics: bool,
@@ -496,21 +490,6 @@ pub struct Env {
     /// apple silicon M1 gpu found
     #[prost(bool, tag = "4")]
     pub m1_gpu: bool,
-    /// multiprocessing spawn
-    #[prost(bool, tag = "5")]
-    pub start_spawn: bool,
-    /// multiprocessing fork
-    #[prost(bool, tag = "6")]
-    pub start_fork: bool,
-    /// multiprocessing forkserver
-    #[prost(bool, tag = "7")]
-    pub start_forkserver: bool,
-    /// thread start method
-    #[prost(bool, tag = "8")]
-    pub start_thread: bool,
-    /// maybe user running multiprocessing
-    #[prost(bool, tag = "9")]
-    pub maybe_mp: bool,
     /// AWS Trainium env detected
     #[prost(bool, tag = "10")]
     pub trainium: bool,
@@ -1557,6 +1536,8 @@ pub struct LinkArtifactRequest {
 pub struct LinkArtifactResponse {
     #[prost(string, tag = "1")]
     pub error_message: ::prost::alloc::string::String,
+    #[prost(int32, optional, tag = "2")]
+    pub version_index: ::core::option::Option<i32>,
 }
 /// Indicates a directory of TensorBoard tfevents files to sync with the run.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2888,6 +2869,8 @@ pub enum ServerFeature {
     AutomationEventRunMetricChange = 10,
     /// Indicates that the server supports automation action NO_OP.
     AutomationActionNoOp = 11,
+    /// Indicates that the server supports including artifact types in registry creation.
+    IncludeArtifactTypesInRegistryCreation = 12,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2914,6 +2897,9 @@ impl ServerFeature {
             Self::AutomationEventRunMetric => "AUTOMATION_EVENT_RUN_METRIC",
             Self::AutomationEventRunMetricChange => "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
             Self::AutomationActionNoOp => "AUTOMATION_ACTION_NO_OP",
+            Self::IncludeArtifactTypesInRegistryCreation => {
+                "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2939,6 +2925,9 @@ impl ServerFeature {
                 Some(Self::AutomationEventRunMetricChange)
             }
             "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
+            "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION" => {
+                Some(Self::IncludeArtifactTypesInRegistryCreation)
+            }
             _ => None,
         }
     }

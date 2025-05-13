@@ -112,7 +112,7 @@ func (path1 AbsolutePath) RelativeTo(path2 AbsolutePath) (*RelativePath, error) 
 	return toPtr(RelativePath(result)), nil
 }
 
-// IsLocal reports whether the relative path does not start with "..".
+// IsLocal is false if the relative path starts with "..".
 func (path RelativePath) IsLocal() bool {
 	return filepath.IsLocal(string(path))
 }

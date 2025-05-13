@@ -1444,7 +1444,7 @@ class SendManager:
         )
         if (client_id or server_id) and portfolio_name and entity and project:
             try:
-                self._api.link_artifact(
+                response = self._api.link_artifact(
                     client_id,
                     server_id,
                     portfolio_name,
@@ -1453,9 +1453,12 @@ class SendManager:
                     aliases,
                     organization,
                 )
+                result.response.link_artifact_response.version_index = response[
+                    "versionIndex"
+                ]
             except Exception as e:
                 org_or_entity = organization or entity
-                result.response.log_artifact_response.error_message = (
+                result.response.link_artifact_response.error_message = (
                     f"error linking artifact to "
                     f'"{org_or_entity}/{project}/{portfolio_name}"; error: {e}'
                 )

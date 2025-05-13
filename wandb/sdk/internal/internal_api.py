@@ -12,7 +12,6 @@ import sys
 import threading
 from copy import deepcopy
 from pathlib import Path
-from types import MappingProxyType
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -190,11 +189,6 @@ def _match_org_with_fetched_org_entities(
     """
     for org_names in orgs:
         if organization in org_names:
-            wandb.termwarn(
-                "Registries can be linked/fetched using a shorthand form without specifying the organization name. "
-                "Try using shorthand path format: <my_registry_name>/<artifact_name> or "
-                "just <my_registry_name> if fetching just the project."
-            )
             return org_names.entity_name
 
     if len(orgs) == 1:
@@ -369,7 +363,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
-        self._server_features_cache: Optional[dict[str, bool]] = None
+        self._server_features_cache: Optional[Dict[str, bool]] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -874,45 +868,43 @@ class Api:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
 
-    def _server_features(self) -> Mapping[str, bool]:
-        """Returns a cached, read-only lookup of current server feature flags."""
-        if self._server_features_cache is None:
-            query = gql(SERVER_FEATURES_QUERY_GQL)
-
-            try:
-                response = self.gql(query)
-            except Exception as e:
-                # Unfortunately we currently have to match on the text of the error message
-                if 'Cannot query field "features" on type "ServerInfo".' in str(e):
-                    self._server_features_cache = {}
-                else:
-                    raise
+    def _server_features(self) -> Dict[str, bool]:
+        # NOTE: Avoid caching via `@cached_property`, due to undocumented
+        # locking behavior before Python 3.12.
+        # See: https://github.com/python/cpython/issues/87634
+        query = gql(SERVER_FEATURES_QUERY_GQL)
+        try:
+            response = self.gql(query)
+        except Exception as e:
+            # Unfortunately we currently have to match on the text of the error message,
+            # as the `gql` client raises `Exception` rather than a more specific error.
+            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
+                self._server_features_cache = {}
             else:
-                info = ServerFeaturesQuery.model_validate(response).server_info
-                if info and (feats := info.features):
-                    self._server_features_cache = {
-                        f.name: f.is_enabled for f in feats if f
-                    }
-                else:
-                    self._server_features_cache = {}
+                raise
+        else:
+            info = ServerFeaturesQuery.model_validate(response).server_info
+            if info and (feats := info.features):
+                self._server_features_cache = {f.name: f.is_enabled for f in feats if f}
+            else:
+                self._server_features_cache = {}
+        return self._server_features_cache
 
-        return MappingProxyType(self._server_features_cache)
+    def _server_supports(self, feature: Union[int, str]) -> bool:
+        """Return whether the current server supports the given feature.
 
-    def _check_server_feature_with_fallback(self, feature_value: ServerFeature) -> bool:
-        """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
+        This also caches the underlying lookup of server feature flags,
+        and it maps {feature_name (str) -> is_enabled (bool)}.
 
         Good to use for features that have a fallback mechanism for older servers.
-
-        Args:
-            feature_value (ServerFeature): The enum value of the feature to check.
-
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
-
-        Exceptions:
-            Exception: If an error other than the server not supporting feature queries occurs.
         """
-        return self._server_features().get(ServerFeature.Name(feature_value), False)
+        # If we're given the protobuf enum value, convert to a string name.
+        # NOTE: We deliberately use names (str) instead of enum values (int)
+        # as the keys here, since:
+        # - the server identifies features by their name, rather than (client-side) enum value
+        # - the defined list of client-side flags may be behind the server-side list of flags
+        key = ServerFeature.Name(feature) if isinstance(feature, int) else feature
+        return self._server_features().get(key) or False
 
     @normalize_exceptions
     def update_run_queue_item_warning(
@@ -3788,10 +3780,8 @@ class Api:
             "usedAs": use_as,
         }
 
-        server_allows_entity_project_information = (
-            self._check_server_feature_with_fallback(
-                ServerFeature.USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION  # type: ignore
-            )
+        server_allows_entity_project_information = self._server_supports(
+            ServerFeature.USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION
         )
         if server_allows_entity_project_information:
             query_vars.extend(

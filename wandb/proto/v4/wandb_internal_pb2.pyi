@@ -54,6 +54,8 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """Indicates that the server supports automation event RUN_METRIC_CHANGE."""
     AUTOMATION_ACTION_NO_OP: _ServerFeature.ValueType  # 11
     """Indicates that the server supports automation action NO_OP."""
+    INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION: _ServerFeature.ValueType  # 12
+    """Indicates that the server supports including artifact types in registry creation."""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -87,6 +89,8 @@ AUTOMATION_EVENT_RUN_METRIC_CHANGE: ServerFeature.ValueType  # 10
 """Indicates that the server supports automation event RUN_METRIC_CHANGE."""
 AUTOMATION_ACTION_NO_OP: ServerFeature.ValueType  # 11
 """Indicates that the server supports automation action NO_OP."""
+INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION: ServerFeature.ValueType  # 12
+"""Indicates that the server supports including artifact types in registry creation."""
 global___ServerFeature = ServerFeature
 
 @typing_extensions.final
@@ -1590,13 +1594,18 @@ class LinkArtifactResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     ERROR_MESSAGE_FIELD_NUMBER: builtins.int
+    VERSION_INDEX_FIELD_NUMBER: builtins.int
     error_message: builtins.str
+    version_index: builtins.int
     def __init__(
         self,
         *,
         error_message: builtins.str = ...,
+        version_index: builtins.int | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["error_message", b"error_message"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_version_index", b"_version_index", "version_index", b"version_index"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_version_index", b"_version_index", "error_message", b"error_message", "version_index", b"version_index"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["_version_index", b"_version_index"]) -> typing_extensions.Literal["version_index"] | None: ...
 
 global___LinkArtifactResponse = LinkArtifactResponse
 

@@ -41,6 +41,8 @@ from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries.registries_search import Registries
+from wandb.apis.public.registries.registry import Registry
+from wandb.apis.public.registries.utils import _fetch_org_entity_from_organization
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
@@ -316,7 +318,6 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
-        self._server_features_cache: Optional[dict[str, bool]] = None
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -1292,7 +1293,11 @@ class Api:
 
         # If its an Registry artifact, the entity is an org instead
         if is_artifact_registry_project(project):
-            organization = name.split("/")[0] if name.count("/") == 2 else ""
+            organization = (
+                name.split("/")[0]
+                if name.count("/") == 2
+                else self.settings["organization"]
+            )
             # set entity to match the settings since in above code it was potentially set to an org
             settings_entity = self.settings["entity"] or self.default_entity
             # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
@@ -1533,9 +1538,7 @@ class Api:
         Returns:
             A registry iterator.
         """
-        if not InternalApi()._check_server_feature_with_fallback(
-            ServerFeature.ARTIFACT_REGISTRY_SEARCH
-        ):
+        if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
                 "Registry search API is not enabled on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
@@ -1545,6 +1548,118 @@ class Api:
             self.settings, self.default_entity
         )
         return Registries(self.client, organization, filter)
+
+    def registry(self, name: str, organization: Optional[str] = None) -> Registry:
+        """Return a registry given a registry name.
+
+        Args:
+            name: The name of the registry. This is without the `wandb-registry-`
+                prefix.
+            organization: The organization of the registry.
+                If no organization is set in the settings, the organization will be
+                fetched from the entity if the entity only belongs to one
+                organization.
+
+        Returns:
+            A registry object.
+
+        Examples:
+            Fetch and update a registry
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            registry = api.registry(name="my-registry", organization="my-org")
+            registry.description = "This is an updated description"
+            registry.save()
+            ```
+        """
+        if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
+            raise RuntimeError(
+                "api.registry() is not enabled on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
+        organization = organization or fetch_org_from_settings_or_entity(
+            self.settings, self.default_entity
+        )
+        org_entity = _fetch_org_entity_from_organization(self.client, organization)
+        registry = Registry(self.client, organization, org_entity, name)
+        registry.load()
+        return registry
+
+    def create_registry(
+        self,
+        name: str,
+        visibility: Literal["organization", "restricted"],
+        organization: Optional[str] = None,
+        description: Optional[str] = None,
+        artifact_types: Optional[List[str]] = None,
+    ) -> Registry:
+        """Create a new registry.
+
+        Args:
+            name: The name of the registry. Name must be unique within the organization.
+            visibility: The visibility of the registry.
+                organization: Anyone in the organization can view this registry. You can
+                    edit their roles later from the settings in the UI.
+                restricted: Only invited members via the UI can access this registry.
+                    Public sharing is disabled.
+            organization: The organization of the registry.
+                If no organization is set in the settings, the organization will be
+                fetched from the entity if the entity only belongs to one organization.
+            description: The description of the registry.
+            artifact_types: The accepted artifact types of the registry. A type is no
+                more than 128 characters and do not include characters `/` or `:`. If
+                not specified, all types are accepted.
+                Allowed types added to the registry cannot be removed later.
+
+        Returns:
+            A registry object.
+
+        Examples:
+            ```python
+            import wandb
+
+            api = wandb.Api()
+            registry = api.create_registry(
+                name="my-registry",
+                visibility="restricted",
+                organization="my-org",
+                description="This is a test registry",
+                artifact_types=["model"],
+            )
+            ```
+        """
+        if not InternalApi()._server_supports(
+            ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
+        ):
+            raise RuntimeError(
+                "create_registry api is not enabled on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
+            )
+
+        organization = organization or fetch_org_from_settings_or_entity(
+            self.settings, self.default_entity
+        )
+
+        try:
+            existing_registry = self.registry(name=name, organization=organization)
+        except ValueError:
+            existing_registry = None
+        if existing_registry:
+            raise ValueError(
+                f"Registry {name!r} already exists in organization {organization!r},"
+                " please use a different name."
+            )
+
+        return Registry.create(
+            self.client,
+            organization,
+            name,
+            visibility,
+            description,
+            artifact_types,
+        )
 
     def integrations(
         self,
@@ -1663,19 +1778,18 @@ class Api:
             ALWAYS_SUPPORTED_EVENTS,
         )
 
-        server_features = InternalApi()._server_features()
-        return bool(
-            (
-                (event is None)
-                or (event in ALWAYS_SUPPORTED_EVENTS)
-                or server_features.get(f"AUTOMATION_EVENT_{event.value}")
-            )
-            and (
-                (action is None)
-                or (action in ALWAYS_SUPPORTED_ACTIONS)
-                or server_features.get(f"AUTOMATION_ACTION_{action.value}")
-            )
+        api = InternalApi()
+        supports_event = (
+            (event is None)
+            or (event in ALWAYS_SUPPORTED_EVENTS)
+            or api._server_supports(f"AUTOMATION_EVENT_{event.value}")
         )
+        supports_action = (
+            (action is None)
+            or (action in ALWAYS_SUPPORTED_ACTIONS)
+            or api._server_supports(f"AUTOMATION_ACTION_{action.value}")
+        )
+        return supports_event and supports_action
 
     def _omitted_automation_fragments(self) -> Set[str]:
         """Returns the names of unsupported automation-related fragments.

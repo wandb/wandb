@@ -153,7 +153,11 @@ class TestPrepareToCreate:
         # Expected defaults, if they weren't provided
         if "enabled" not in input_kwargs:
             expected_subset["enabled"] = True
-        assert expected_subset.items() <= prepared_vars.items()
+
+        assert expected_subset.keys() <= prepared_vars.keys()
+        for k, expected_val in expected_subset.items():
+            prepared_val = prepared_vars[k]
+            assert prepared_val == expected_val
 
         # Check all expected keys are present
         other_expected_keys = {"eventFilter", "triggeredActionConfig"}

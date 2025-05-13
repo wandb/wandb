@@ -51,8 +51,10 @@ func (p *launchWandbConfigParameters) exclude() []ConfigPath {
 //
 // If there are any errors in the process, the function logs them and returns
 // an unknown type representation. The errors should never happen in practice.
-func (j *JobBuilder) inferRunConfigTypes() (*data_types.TypeRepresentation, error) {
-	config := NewConfigFrom(j.runConfig.CloneTree())
+func (j *JobBuilder) inferRunConfigTypes(
+	runConfig map[string]any,
+) (*data_types.TypeRepresentation, error) {
+	config := NewConfigFrom(runConfig)
 	typeInfo := data_types.ResolveTypes(
 		config.filterTree(
 			j.wandbConfigParameters.include(),

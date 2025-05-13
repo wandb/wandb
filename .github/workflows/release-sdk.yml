@@ -86,7 +86,7 @@ jobs:
       ##################################################
       - name: Downgrade Go version
         run: |
-          sed -i '' 's/1.24.2/1.22.12/' core/go.mod
+          mv core/go.mod.1.22 core/go.mod
 
       ##################################################
       # Install Go.
@@ -97,11 +97,13 @@ jobs:
           go-version-file: core/go.mod
 
       ##################################################
-      # Vendor dependencies
+      # Vendor downgraded dependencies
       ##################################################
-      - name: Vendor dependencies
+      - name: Vendor downgraded dependencies
         run: |
           cd core
+          rm -rf vendor
+          rm go.sum
           go mod tidy
           go mod vendor
 
