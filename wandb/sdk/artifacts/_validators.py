@@ -199,6 +199,22 @@ def validate_tags(tags: Collection[str] | str) -> list[str]:
     return list(dict.fromkeys(tags_list))
 
 
+RESERVED_ARTIFACT_TYPE_PREFIXES: Final[tuple[str, ...]] = ("wandb-", "source-", "run-")
+RESERVED_ARTIFACT_TYPES: Final[tuple[str, ...]] = ("job", "run_table", "code")
+
+
+def validate_artifact_type(typ: str) -> str:
+    """Validate the artifact type and return it as a string."""
+    if (typ in RESERVED_ARTIFACT_TYPES) or typ.startswith(
+        RESERVED_ARTIFACT_TYPE_PREFIXES
+    ):
+        raise ValueError(
+            f"Artifact type {typ!r} is reserved for internal use. "
+            "Please use a different type."
+        )
+    return typ
+
+
 DecoratedF = TypeVar("DecoratedF", bound=Callable[..., Any])
 """Type hint for a decorated function that'll preserve its signature (e.g. for arg autocompletion in IDEs)."""
 
