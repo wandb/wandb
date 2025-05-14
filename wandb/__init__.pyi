@@ -521,18 +521,26 @@ def log(
     histograms, plots, and tables. See [Log objects and media](https://docs.wandb.ai/guides/track/log) for
     code snippets, best practices, and more.
 
-    The most basic usage is `run.log({"train-loss": 0.5, "accuracy": 0.9})`.
-    This will save the loss and accuracy to the run's history and update
-    the summary values for these metrics.
+    Basic usage:
+
+    ```python
+    import wandb
+
+    with wandb.init() as run:
+        run.log({"train-loss": 0.5, "accuracy": 0.9})
+    ```
+
+    The previous code snippet saves the loss and accuracy to the run's
+    history and updates the summary values for these metrics.
 
     Visualize logged data in a workspace at [wandb.ai](https://wandb.ai),
     or locally on a [self-hosted instance](https://docs.wandb.ai/guides/hosting)
-    of the W&B app, or export data to visualize and explore locally, e.g. in
-    Jupyter notebooks, with [our API](https://docs.wandb.ai/guides/track/public-api-guide).
+    of the W&B app, or export data to visualize and explore locally, such as in a
+    Jupyter notebook, with the [Public API](https://docs.wandb.ai/guides/track/public-api-guide).
 
     Logged values don't have to be scalars. You can log any
     [W&B supported Data Type](https://docs.wandb.ai/ref/python/data-types/)
-    such images, audio, video, and more. For example, you can use
+    such as images, audio, video, and more. For example, you can use
     `wandb.Table` to log structured data. See
     [Log tables, visualize and query data](https://docs.wandb.ai/guides/models/tables/tables-walkthrough)
     tutorial for more details.
@@ -559,11 +567,12 @@ def log(
     For optimal performance, limit your logging to once every N iterations,
     or collect data over multiple iterations and log it in a single step.
 
-    Each call to `log` creates a new "step".
+    By default, each call to `log` creates a new "step".
     The step must always increase, and it is not possible to log
-    to a previous step.
+    to a previous step. You can use any metric as the X axis in charts.
+    See [Custom log axes](https://docs.wandb.ai/guides/track/log/customize-logging-axes/)
+    for more details.
 
-    Note that you can use any metric as the X axis in charts.
     In many cases, it is better to treat the W&B step like
     you'd treat a timestamp rather than a training step.
 
@@ -571,8 +580,6 @@ def log(
     # Example: log an "epoch" metric for use as an X axis.
     run.log({"epoch": 40, "train-loss": 0.5})
     ```
-
-    See also [define_metric](https://docs.wandb.ai/ref/python/run#define_metric).
 
     It is possible to use multiple `log` invocations to log to
     the same step with the `step` and `commit` parameters.
