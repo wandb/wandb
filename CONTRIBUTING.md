@@ -23,12 +23,12 @@ Please make sure to update the ToC when you update this page!
   * [Setting up Python](#setting-up-python)
   * [Setting up Go](#setting-up-go)
   * [Setting up Rust](#setting-up-rust)
-  * [Building/installing the package](#building-installing-the-package)
+  * [Building/installing the package](#buildinginstalling-the-package)
   * [Linting the code](#linting-the-code)
   * [Auto-Generating Code](#auto-generating-code)
     + [Building protocol buffers](#building-protocol-buffers)
     + [Adding a new setting](#adding-a-new-setting)
-    + [Adding URLs (internal use only)](#adding-urls--internal-use-only-)
+    + [Adding URLs (internal use only)](#adding-urls-internal-use-only)
     + [Deprecating features](#deprecating-features)
       - [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
   * [Modifying GraphQL Schema](#modifying-graphql-schema)
@@ -190,7 +190,7 @@ If the feature or fix does not directly impact users, consider using a different
 
     It is unclear what is referenced here.
 
-- `feat(sdk): Adds new query to the the internal api getting the state of the run`
+- `feat(sdk): Adds new query to the internal api getting the state of the run`
 
     It is unclear what is of importance to the user here, what do they do with that information.
     A better type would be `chore` or the title should indicate how it translates into a user-facing feature.
@@ -315,7 +315,7 @@ To mark a feature as deprecated (and to be removed in the next major release), p
 - Add a new field to the `Deprecated` message definition in `wandb/proto/wandb_telemetry.proto`,
   which will be used to track the to-be-deprecated feature usage.
 - Rebuild protocol buffers and re-generate `wandb/proto/wandb_deprecated.py` by running `nox -t proto`.
-- Finally, to mark a feature as deprecated, call `wand.sdk.lib.deprecate` in your code:
+- Finally, to mark a feature as deprecated, call `wandb.sdk.lib.deprecate` in your code:
 
 ```python
 from wandb.sdk.lib import deprecate
