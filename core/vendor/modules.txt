@@ -39,7 +39,7 @@ cloud.google.com/go/iam/apiv1/iampb
 cloud.google.com/go/monitoring/apiv3/v2
 cloud.google.com/go/monitoring/apiv3/v2/monitoringpb
 cloud.google.com/go/monitoring/internal
-# cloud.google.com/go/storage v1.53.0
+# cloud.google.com/go/storage v1.54.0
 ## explicit; go 1.23.0
 cloud.google.com/go/storage
 cloud.google.com/go/storage/experimental
@@ -525,8 +525,8 @@ github.com/google/uuid
 ## explicit; go 1.23.0
 github.com/googleapis/enterprise-certificate-proxy/client
 github.com/googleapis/enterprise-certificate-proxy/client/util
-# github.com/googleapis/gax-go/v2 v2.14.1
-## explicit; go 1.21
+# github.com/googleapis/gax-go/v2 v2.14.2
+## explicit; go 1.23.0
 github.com/googleapis/gax-go/v2
 github.com/googleapis/gax-go/v2/apierror
 github.com/googleapis/gax-go/v2/apierror/internal/proto
@@ -844,7 +844,7 @@ golang.org/x/tools/internal/stdlib
 golang.org/x/tools/internal/typeparams
 golang.org/x/tools/internal/typesinternal
 golang.org/x/tools/internal/versions
-# google.golang.org/api v0.232.0
+# google.golang.org/api v0.233.0
 ## explicit; go 1.23.0
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
