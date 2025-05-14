@@ -1161,7 +1161,7 @@ def watch(
     idx: int | None = None,
     log_graph: bool = False,
 ) -> None:
-    """Hooks into the given PyTorch model(s) to monitor gradients and the model's computational graph.
+    """Hook into given PyTorch model to monitor gradients and the model's computational graph.
 
     This function can track parameters, gradients, or both during training.
 

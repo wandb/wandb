@@ -516,7 +516,6 @@ class Run:
             final value.
 
     Examples:
-
     Create a run with `wandb.init()`:
 
     ```python
