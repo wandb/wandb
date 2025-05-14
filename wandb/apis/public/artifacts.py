@@ -1,29 +1,7 @@
 """W&B Public API for Artifact Management.
 
 This module provides classes for interacting with W&B artifacts and their
-collections. Classes include:
-
-
-ArtifactTypes: A paginated collection of artifact types in a project
-- List and query artifact types
-- Access type metadata
-- Create new types
-
-ArtifactCollection: A collection of related artifacts
-- Manage artifact collections
-- Update metadata and descriptions
-- Work with tags and aliases
-- Change collection types
-
-Artifacts: A paginated collection of artifact versions
-- Filter and query artifacts
-- Access artifact metadata
-- Download artifacts
-
-ArtifactFiles: A paginated collection of files within an artifact
-- List and query artifact files
-- Access file metadata
-- Download individual files
+collections.
 """
 
 import json
@@ -248,6 +226,16 @@ class ArtifactType:
 
 
 class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
+    """Artifact collections of a specific type in a project.
+
+    Args:
+        client: The client instance to use for querying W&B.
+        entity: The entity (user or team) that owns the project.
+        project: The name of the project to query for artifact collections.
+        type_name: The name of the artifact type for which to fetch collections.
+        per_page: The number of artifact collections to fetch per page. Default is 50.
+    """
+
     last_response: Optional[ArtifactCollectionsFragment]
 
     def __init__(
@@ -303,6 +291,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
     @property
     def more(self):
+        """Returns whether there are more artifacts to fetch."""
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
@@ -672,6 +661,7 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
 
     @property
     def more(self) -> bool:
+        """Returns whether there are more files to fetch."""
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
