@@ -102,7 +102,7 @@ func (c *grpcStorageClient) OpenWriter(params *openWriterParams, opts ...storage
 	setFlush(func() (int64, error) {
 		return gw.flush()
 	})
-	gw, err := newGRPCWriter(c, s, params, pr, pw, params.setPipeWriter)
+	gw, err := newGRPCWriter(c, s, params, pr, pr, pw, params.setPipeWriter)
 	if err != nil {
 		errorf(err)
 		pr.CloseWithError(err)
@@ -188,14 +188,14 @@ func (c *grpcStorageClient) OpenWriter(params *openWriterParams, opts ...storage
 		// These calls are still valid if err is nil
 		err = checkCanceled(err)
 		errorf(err)
-		pr.CloseWithError(err)
+		gw.pr.CloseWithError(err)
 		close(params.donec)
 	}()
 
 	return pw, nil
 }
 
-func newGRPCWriter(c *grpcStorageClient, s *settings, params *openWriterParams, r io.Reader, pw *io.PipeWriter, setPipeWriter func(*io.PipeWriter)) (*gRPCWriter, error) {
+func newGRPCWriter(c *grpcStorageClient, s *settings, params *openWriterParams, r io.Reader, pr *io.PipeReader, pw *io.PipeWriter, setPipeWriter func(*io.PipeWriter)) (*gRPCWriter, error) {
 	if params.attrs.Retention != nil {
 		// TO-DO: remove once ObjectRetention is available - see b/308194853
 		return nil, status.Errorf(codes.Unimplemented, "storage: object retention is not supported in gRPC")
@@ -241,6 +241,7 @@ func newGRPCWriter(c *grpcStorageClient, s *settings, params *openWriterParams, 
 		ctx:                   params.ctx,
 		reader:                r,
 		pw:                    pw,
+		pr:                    pr,
 		bucket:                params.bucket,
 		attrs:                 params.attrs,
 		conds:                 params.conds,
@@ -266,6 +267,7 @@ type gRPCWriter struct {
 	c             *grpcStorageClient
 	buf           []byte
 	reader        io.Reader
+	pr            *io.PipeReader // Keep track of pr and pw to update post-flush
 	pw            *io.PipeWriter
 	setPipeWriter func(*io.PipeWriter) // used to set in parent storage.Writer
 
@@ -628,6 +630,7 @@ func (w *gRPCWriter) read() (int, bool, error) {
 			pr, pw := io.Pipe()
 			w.reader = pr
 			w.pw = pw
+			w.pr = pr
 			w.setPipeWriter(pw)
 		} else {
 			done = true
