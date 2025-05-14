@@ -14,7 +14,7 @@ require (
 	github.com/getsentry/sentry-go v0.32.0
 	github.com/go-git/go-git/v5 v5.16.0
 	github.com/golang/mock v1.6.0
-	github.com/googleapis/gax-go/v2 v2.14.1
+	github.com/googleapis/gax-go/v2 v2.14.2
 	github.com/hashicorp/go-retryablehttp v0.7.7
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/prometheus/client_golang v1.22.0
