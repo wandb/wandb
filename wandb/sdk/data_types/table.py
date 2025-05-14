@@ -5,7 +5,7 @@ import datetime
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple
 
 import wandb
 from wandb import util
@@ -1310,7 +1310,7 @@ def _get_data_from_increments(
 
     # Sort by increment number first, then by timestamp if present
     # Format of  is: "{incr_num}-{timestamp_ms}.{key}.table.json"
-    def get_sort_key(key: str) -> tuple[int, int]:
+    def get_sort_key(key: str) -> Tuple[int, int]:
         try:
             parts = key.split(".")
             increment_parts = parts[0].split("-")
