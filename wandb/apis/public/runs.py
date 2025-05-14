@@ -1,19 +1,7 @@
 """W&B Public API for ML Runs.
 
 This module provides classes for interacting with W&B runs and their associated
-data. Classes include:
-
-Runs: A paginated collection of runs associated with a project
-- Filter and query runs
-- Access run histories and metrics
-- Export data in various formats (pandas, polars)
-
-Run: A single machine learning training run
-- Access run metadata, configs, and metrics
-- Upload and download files
-- Work with artifacts
-- Query run history
-- Update run information
+data.
 
 Example:
 ```python

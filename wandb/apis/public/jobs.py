@@ -1,25 +1,7 @@
 """W&B Public API for Job Management and Queuing.
 
 This module provides classes for managing W&B jobs, queued runs, and run
-queues. Classes include:
-
-Job: Manage W&B job definitions and execution
-- Load and configure jobs from artifacts
-- Set entrypoints and runtime configurations
-- Execute jobs with different resource types
-- Handle notebook and container-based jobs
-
-QueuedRun: Track and manage individual queued runs
-- Monitor run state and execution
-- Wait for run completion
-- Access run results and artifacts
-- Delete queued runs
-
-RunQueue: Manage job queues and execution resources
-- Create and configure run queues
-- Set resource types and configurations
-- Monitor queue items and status
-- Control queue access and priorities
+queues.
 """
 
 import json

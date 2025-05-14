@@ -1,18 +1,7 @@
 """W&B Public API for Projects.
 
 This module provides classes for interacting with W&B projects and their
-associated data. Classes include:
-
-Projects: A paginated collection of projects associated with an entity
-- Iterate through all projects
-- Access project metadata
-- Query project information
-
-Project: A single project that serves as a namespace for runs
-- Access project properties
-- Work with artifacts and their types
-- Manage sweeps
-- Generate HTML representations for Jupyter
+associated data.
 
 Example:
 ```python

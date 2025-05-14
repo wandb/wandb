@@ -1,18 +1,6 @@
 """W&B Public API for managing teams and team members.
 
 This module provides classes for managing W&B teams and their members.
-Classes include:
-
-Team: Manage W&B teams and their settings
-- Create new teams
-- Invite team members
-- Create service accounts
-- Manage team permissions and settings
-
-Member: Represent and manage team members
-- Access member information
-- Delete members
-- Manage member permissions
 
 Note:
     This module is part of the W&B Public API and provides methods to manage

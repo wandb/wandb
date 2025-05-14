@@ -1,18 +1,7 @@
 """W&B Public API for Run History.
 
 This module provides classes for efficiently scanning and sampling run
-history data. Classes include:
-
-
-HistoryScan: Iterator for scanning complete run history
-- Paginated access to all metrics
-- Configure step ranges and page sizes
-- Raw access to all logged data
-
-SampledHistoryScan: Iterator for sampling run history data
-- Efficient access to downsampled metrics
-- Filter by specific keys
-- Control sample size and step ranges
+history data.
 
 Note:
     This module is part of the W&B Public API and provides methods

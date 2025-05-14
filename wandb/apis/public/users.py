@@ -1,13 +1,6 @@
 """W&B Public API for User Management.
 
 This module provides classes for managing W&B users and their API keys.
-Classes include:
-
-User: Manage W&B user accounts and authentication
-- Create new users
-- Generate and manage API keys
-- Access team memberships
-- Handle user properties and permissions
 
 Note:
     This module is part of the W&B Public API and provides methods to manage

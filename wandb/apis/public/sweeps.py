@@ -1,13 +1,7 @@
 """W&B Public API for Hyperparameter Sweeps.
 
 This module provides classes for interacting with W&B hyperparameter
-optimization sweeps. Classes include:
-
-Sweep: Represents a hyperparameter optimization sweep, providing access to:
-- Sweep configuration and state
-- Associated runs and their metrics
-- Best performing runs
-- URLs for visualization
+optimization sweeps.
 
 Example:
 ```python
