@@ -484,17 +484,16 @@ class Run:
     """A unit of computation logged by W&B. Typically, this is an ML experiment.
 
     Call [`wandb.init()`](https://docs.wandb.ai/ref/python/init/) to create a
-    new run. This will start a new run and return a `wandb.Run` object.
-    Each run is associated with a unique ID, which is used to identify
-    the run in the W&B UI. There is only ever at most one active `wandb.Run`
-    in any process.
+    new run. `wandb.init()` starts a new run and returns a `wandb.Run` object.
+    Each run is associated with a unique ID (run ID). There is only ever at
+    most one active `wandb.Run` in any process.
 
     For distributed training experiments, you can either track each process
     separately using one run per process or track all processes to a single run.
     See [Log distributed training experiments](https://docs.wandb.ai/guides/track/log/distributed-training)
     for more information.
 
-    You can log data to a run with `wandb.log()`. Anything you log with
+    You can log data to a run with `wandb.log()`. Anything you log using
     `wandb.log()` is sent to that run. See
     [Create an experiment](https://docs.wandb.ai/guides/track/launch) or
     [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page
@@ -505,6 +504,11 @@ class Run:
     namespace. Use this object is to interact with runs that have already been
     created.
 
+    Finish active runs before starting new runs. Use a context manager (`with`
+    statement) to automatically finish the run or use
+    `wandb.finish()` to finish a run manually. W&B recommends using a context
+    manager to automatically finish the run.
+
     Attributes:
         summary: (Summary) Single values set for each `wandb.log()` key. By
             default, summary is set to the last value logged. You can manually
@@ -512,6 +516,7 @@ class Run:
             final value.
 
     Examples:
+
     Create a run with `wandb.init()`:
 
     ```python
@@ -519,13 +524,9 @@ class Run:
 
     # Start a new run and log some data
     # Use context manager (`with` statement) to automatically finish the run
-    with wandb.init(entity="my-entity", project="my-project") as run:
+    with wandb.init(entity="entity", project="project") as run:
         run.log({"accuracy": acc, "loss": loss})
     ```
-
-    Finish active runs before starting new runs. Use a context manager (`with`
-    statement) to automatically finish the run. You can also use
-    `wandb.finish()` to finish a run manually.
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
@@ -2241,6 +2242,7 @@ class Run:
         - Crashed: Run that stopped sending heartbeats unexpectedly.
         - Finished: Run completed successfully (`exit_code=0`) with all data synced.
         - Failed: Run completed with errors (`exit_code!=0`).
+        - Killed: Run was forcibly stopped before it could finish.
 
         Args:
             exit_code: Integer indicating the run's exit status. Use 0 for success,
@@ -2948,7 +2950,7 @@ class Run:
         idx: int | None = None,
         log_graph: bool = False,
     ) -> None:
-        """Hooks into the given PyTorch model(s) to monitor gradients and the model's computational graph.
+        """Hook into given PyTorch model to monitor gradients and the model's computational graph.
 
         This function can track parameters, gradients, or both during training.
 
