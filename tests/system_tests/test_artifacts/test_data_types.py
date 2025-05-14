@@ -140,6 +140,7 @@ def test_table_mutation_logging(user, test_settings, wandb_backend_spy):
     run = wandb.Api().run(f"uncategorized/{run.id}")
     assert len(run.logged_artifacts()) == 3
 
+
 def test_incr_logging_initial_log(user, test_settings):
     run = wandb.init(settings=test_settings())
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
@@ -152,10 +153,8 @@ def test_incr_logging_initial_log(user, test_settings):
     assert t._artifact_target is not None
     assert t._increment_num == 0
 
-def test_incr_logging_add_data_reset_state_and_increment_counter(
-        user,
-        test_settings
-    ):
+
+def test_incr_logging_add_data_reset_state_and_increment_counter(user, test_settings):
     run = wandb.init(settings=test_settings())
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
     t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
@@ -170,20 +169,21 @@ def test_incr_logging_add_data_reset_state_and_increment_counter(
     assert t._increment_num == 1
     assert len(t._previous_increments_paths) == 1
 
+
 def test_incr_logging_multiple_logs(user, test_settings):
     """Test multiple logging operations on an incremental table."""
     run = wandb.init(settings=test_settings())
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
-    
+
     # Initial log
     t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
     run.log({"table": t})
-    
+
     # Add more data and log again
     t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
     t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
     run.log({"table": t})
-    
+
     # Verify state after second log
     assert t._last_logged_idx == 2
     assert t._increment_num == 1
@@ -194,7 +194,7 @@ def test_incr_logging_multiple_logs(user, test_settings):
     t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
     run.log({"table": t})
     run.finish()
-    
+
     # Verify state after third log
     assert t._last_logged_idx == 4
     assert t._increment_num == 2

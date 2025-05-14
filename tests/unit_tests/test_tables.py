@@ -308,23 +308,23 @@ class TestTableLoggingModes:
         t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
 
         # Test that add_column is not supported
-        t.add_column("c", [1, 2])
-        assert "c" not in t.columns
-        assert mock_wandb_log.warned(
-            "No-op. Operation 'add_column' is not supported for tables with "
-            "log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
-        )
+        with pytest.raises(wandb.Error) as e:
+            t.add_column("c", [1, 2])
+        assert (
+            "Operation 'add_column' is not supported for tables with"
+            " log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
+        ) in str(e)
 
         # Test that add_computed_columns is not supported
         def compute_fn(ndx, row):
             return {"c": row["a"] + 1}
 
-        t.add_computed_columns(compute_fn)
-        assert "c" not in t.columns
-        assert mock_wandb_log.warned(
-            "No-op. Operation 'add_computed_columns' is not supported for tables with "
-            "log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
-        )
+        with pytest.raises(wandb.Error) as e:
+            t.add_computed_columns(compute_fn)
+            assert (
+                "Operation 'add_computed_columns' is not supported for tables with"
+                " log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
+            ) in str(e)
 
     def test_table_logging_mode_incremental_warnings(self, mock_wandb_log):
         """Test that INCREMENTAL mode shows warning when exceeding 100 increments"""

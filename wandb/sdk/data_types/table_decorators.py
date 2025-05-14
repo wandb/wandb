@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from functools import wraps
-from typing import Any, Callable, TypeVar, Optional
+from typing import Any, Callable, TypeVar
 
 import wandb
 
@@ -85,18 +85,16 @@ def allow_incremental_logging_after_append(
 
 def ensure_not_incremental(
     method: Callable[Concatenate[wandb.Table, _P], _T],
-) -> Callable[Concatenate[wandb.Table, _P], Optional[_T]]:
+) -> Callable[Concatenate[wandb.Table, _P], _T]:
     """Decorator that checks if log mode is incremental to disallow methods from being called."""
 
     @wraps(method)
-    def wrapper(self: wandb.Table, *args: Any, **kwargs: Any) -> Optional[_T]:
+    def wrapper(self: wandb.Table, *args: Any, **kwargs: Any) -> _T:
         if self.log_mode == "INCREMENTAL":
-            wandb.termwarn(
-                f"No-op. Operation '{method.__name__}' is not supported for tables with "
-                "log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'.",
-                repeat=False,
+            raise wandb.Error(
+                f"Operation '{method.__name__}' is not supported for tables with "
+                "log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
             )
-            return None
         return method(self, *args, **kwargs)
 
     return wrapper
