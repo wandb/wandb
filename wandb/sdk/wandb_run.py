@@ -486,20 +486,19 @@ class Run:
     Call [`wandb.init()`](https://docs.wandb.ai/ref/python/init/) to create a
     new run. This will start a new run and return a `wandb.Run` object.
     Each run is associated with a unique ID, which is used to identify
-    the run in the W&B UI.
+    the run in the W&B UI. There is only ever at most one active `wandb.Run`
+    in any process.
 
-    You can log data to that run with `wandb.log()`. There is only ever at
-    most one active `wandb.Run` in any process. Anything you log with
+    For distributed training experiments, you can either track each process
+    separately using one run per process or track all processes to a single run.
+    See [Log distributed training experiments](https://docs.wandb.ai/guides/track/log/distributed-training)
+    for more information.
+
+    You can log data to a run with `wandb.log()`. Anything you log with
     `wandb.log()` is sent to that run. See
     [Create an experiment](https://docs.wandb.ai/guides/track/launch) or
     [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page
     or more information.
-
-    In distributed training, you can either create a single run in the rank 0
-    process and then log information only from that process, or you can create
-    a run in each process, logging from each separately, and group the results
-    together with the `group` argument to `wandb.init`. See
-    [Log distributed training experiments](https://docs.wandb.ai/guides/track/log/distributed-training).
 
     There is a another `Run` object in the
     [`wandb.apis.public`](https://docs.wandb.ai/ref/python/public-api/api/)
@@ -513,6 +512,7 @@ class Run:
             final value.
 
     Examples:
+
     Create a run with `wandb.init()`:
 
     ```python
@@ -524,9 +524,9 @@ class Run:
         run.log({"accuracy": acc, "loss": loss})
     ```
 
-    If you want to start more runs in the same script or notebook, you'll need to
-    finish any active runs. Finish a run with `wandb.finish()` or using a
-    context manager `with` statement. It is recommended to use `with` statements.
+    Finish active runs before starting new runs. Use a context manager (`with`
+    statement) to automatically finish the run. You can also use
+    `wandb.finish()` to finish a run manually.
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
@@ -1010,12 +1010,10 @@ class Run:
     def group(self) -> str:
         """Name of the group associated with the run.
 
-        Setting a group helps the W&B UI organize runs in a sensible way.
-
-        If you are doing a distributed training you should give all of the
-            runs in the training the same group.
-        If you are doing cross-validation you should give all the cross-validation
-            folds the same group.
+        Setting a group helps the W&B UI organize runs. If you are doing a
+        distributed training you should give all of the runs in the training
+        the same group. If you are doing cross-validation you should give all
+        the cross-validation folds the same group.
         """
         return self._settings.run_group or ""
 
@@ -1766,18 +1764,26 @@ class Run:
         histograms, plots, and tables. See [Log objects and media](https://docs.wandb.ai/guides/track/log) for
         code snippets, best practices, and more.
 
-        The most basic usage is `run.log({"train-loss": 0.5, "accuracy": 0.9})`.
-        This will save the loss and accuracy to the run's history and update
-        the summary values for these metrics.
+        Basic usage:
+
+        ```python
+        import wandb
+
+        with wandb.init() as run:
+            run.log({"train-loss": 0.5, "accuracy": 0.9})
+        ```
+
+        The previous code snippet saves the loss and accuracy to the run's
+        history and updates the summary values for these metrics.
 
         Visualize logged data in a workspace at [wandb.ai](https://wandb.ai),
         or locally on a [self-hosted instance](https://docs.wandb.ai/guides/hosting)
-        of the W&B app, or export data to visualize and explore locally, e.g. in
-        Jupyter notebooks, with [our API](https://docs.wandb.ai/guides/track/public-api-guide).
+        of the W&B app, or export data to visualize and explore locally, such as in a
+        Jupyter notebook, with the [Public API](https://docs.wandb.ai/guides/track/public-api-guide).
 
         Logged values don't have to be scalars. You can log any
         [W&B supported Data Type](https://docs.wandb.ai/ref/python/data-types/)
-        such images, audio, video, and more. For example, you can use
+        such as images, audio, video, and more. For example, you can use
         `wandb.Table` to log structured data. See
         [Log tables, visualize and query data](https://docs.wandb.ai/guides/models/tables/tables-walkthrough)
         tutorial for more details.
@@ -1804,11 +1810,12 @@ class Run:
         For optimal performance, limit your logging to once every N iterations,
         or collect data over multiple iterations and log it in a single step.
 
-        Each call to `log` creates a new "step".
+        By default, each call to `log` creates a new "step".
         The step must always increase, and it is not possible to log
-        to a previous step.
+        to a previous step. You can use any metric as the X axis in charts.
+        See [Custom log axes](https://docs.wandb.ai/guides/track/log/customize-logging-axes/)
+        for more details.
 
-        Note that you can use any metric as the X axis in charts.
         In many cases, it is better to treat the W&B step like
         you'd treat a timestamp rather than a training step.
 
@@ -1816,8 +1823,6 @@ class Run:
         # Example: log an "epoch" metric for use as an X axis.
         run.log({"epoch": 40, "train-loss": 0.5})
         ```
-
-        See also [define_metric](https://docs.wandb.ai/ref/python/run#define_metric).
 
         It is possible to use multiple `log` invocations to log to
         the same step with the `step` and `commit` parameters.
