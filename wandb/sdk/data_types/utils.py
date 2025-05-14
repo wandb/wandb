@@ -169,7 +169,7 @@ def val_to_json(
     return converted  # type: ignore
 
 
-def _log_table_artifact(val: ValToJsonType, key: str, run: "LocalRun") -> None:
+def _log_table_artifact(val: "ValToJsonType", key: str, run: "LocalRun") -> None:
     """Log a table to the run based on the table type and logging mode.
 
     Creates and logs a `run_table` type for Table, PartitionedTable, and
