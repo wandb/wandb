@@ -1,6 +1,19 @@
 # Changes
 
 
+## [1.54.0](https://github.com/googleapis/google-cloud-go/compare/storage/v1.53.0...storage/v1.54.0) (2025-05-12)
+
+
+### Features
+
+* **storage:** Add experimental ZB API option ([#12214](https://github.com/googleapis/google-cloud-go/issues/12214)) ([f669982](https://github.com/googleapis/google-cloud-go/commit/f669982de2abf64759eccf5c38bd669488b9cf6a))
+
+
+### Bug Fixes
+
+* **storage:** Fix append writer hang ([#12201](https://github.com/googleapis/google-cloud-go/issues/12201)) ([7ce2a2a](https://github.com/googleapis/google-cloud-go/commit/7ce2a2ad3ae9deff28c73c1bcc2e7001770464eb))
+* **storage:** Retry unwrapped EOFs ([#12202](https://github.com/googleapis/google-cloud-go/issues/12202)) ([b2d42bd](https://github.com/googleapis/google-cloud-go/commit/b2d42bda6a398f3aa00030b6e99bbcb40f132ff7))
+
 ## [1.53.0](https://github.com/googleapis/google-cloud-go/compare/storage/v1.52.0...storage/v1.53.0) (2025-05-02)
 
 
