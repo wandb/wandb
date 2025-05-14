@@ -124,10 +124,10 @@ func (w *RunUpdateWork) initRun() {
 
 // runInitErrorResult produces a RunUpdateResult for an initialization error.
 //
-// If the error is a runUpdateError, it is used to enhance the message.
+// If the error is a RunUpdateError, it is used to enhance the message.
 // Otherwise, a generic error with an unknown code is returned.
 func runInitErrorResult(err error) *spb.RunUpdateResult {
-	var runUpdateError *runUpdateError
+	var runUpdateError *RunUpdateError
 	if errors.As(err, &runUpdateError) {
 		return runUpdateError.AsResult()
 	} else {
