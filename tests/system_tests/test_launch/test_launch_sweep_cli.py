@@ -11,7 +11,15 @@ from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 def _run_cmd_check_msg(cmd: List[str], assert_str: str) -> None:
     """Helper for asserting a statement is in logs."""
-    out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+    try:
+        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        print(f"\nCommand failed with return code {e.returncode}")
+        print(f"Command: {' '.join(cmd)}")
+        print("\nOutput:")
+        print(e.output.decode())
+        print("\nTraceback:")
+        raise
     assert assert_str in out.decode("utf-8")
 
 
