@@ -1,0 +1,211 @@
+mutation DeleteArtifactSequence($id: ID!) {
+    deleteArtifactSequence(input: {artifactSequenceID: $id}) {
+        artifactCollection {
+            state
+        }
+    }
+}
+
+mutation DeleteArtifactPortfolio($id: ID!) {
+    deleteArtifactPortfolio(input: {artifactPortfolioID: $id}) {
+        artifactCollection {
+            state
+        }
+    }
+}
+
+mutation UpdateArtifactSequence(
+    $id: ID!
+    $name: String
+    $description: String
+) {
+    updateArtifactSequence(
+        input: {
+            artifactSequenceID: $id
+            name: $name
+            description: $description
+        }
+    ) {
+        artifactCollection {
+            __typename
+            id
+            name
+            description
+        }
+    }
+}
+
+mutation UpdateArtifactPortfolio(
+    $id: ID!
+    $name: String
+    $description: String
+) {
+    updateArtifactPortfolio(
+        input: {
+            artifactPortfolioID: $id
+            name: $name
+            description: $description
+        }
+    ) {
+        artifactCollection {
+            __typename
+            id
+            name
+            description
+        }
+    }
+}
+
+mutation MoveArtifactCollection(
+    $artifactSequenceID: ID!
+    $destinationArtifactTypeName: String!
+) {
+    moveArtifactSequence(
+        input: {
+            artifactSequenceID: $artifactSequenceID
+            destinationArtifactTypeName: $destinationArtifactTypeName
+        }
+    ) {
+        artifactCollection {
+            __typename
+            id
+            name
+            description
+        }
+    }
+}
+
+mutation CreateArtifactCollectionTagAssignments(
+    $entityName: String!
+    $projectName: String!
+    $artifactCollectionName: String!
+    $tags: [TagInput!]!
+) {
+    createArtifactCollectionTagAssignments(
+        input: {
+            entityName: $entityName
+            projectName: $projectName
+            artifactCollectionName: $artifactCollectionName
+            tags: $tags
+        }
+    ) {
+        tags {
+            id
+            name
+            tagCategoryName
+        }
+    }
+}
+
+mutation DeleteArtifactCollectionTagAssignments(
+    $entityName: String!
+    $projectName: String!
+    $artifactCollectionName: String!
+    $tags: [TagInput!]!
+) {
+    deleteArtifactCollectionTagAssignments(
+        input: {
+            entityName: $entityName
+            projectName: $projectName
+            artifactCollectionName: $artifactCollectionName
+            tags: $tags
+        }
+    ) {
+        success
+    }
+}
+
+fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
+    pageInfo {
+        endCursor
+        hasNextPage
+    }
+    totalCount
+    edges {
+        node {
+            __typename
+            id
+            name
+            description
+            createdAt
+        }
+        cursor
+    }
+}
+
+query ProjectArtifactCollections(
+    $entityName: String!,
+    $projectName: String!,
+    $artifactTypeName: String!
+    $cursor: String,
+) {
+    project(name: $projectName, entityName: $entityName) {
+        artifactType(name: $artifactTypeName) {
+            # NOTE: The node being aliased is named:
+            # - `artifactCollections` for new servers
+            # - `artifactSequences` for old servers
+            artifactCollections: artifactCollections(after: $cursor) {
+                ...ArtifactCollectionsFragment
+            }
+        }
+    }
+}
+
+
+query ProjectArtifactCollection(
+    $entityName: String!,
+    $projectName: String!,
+    $artifactTypeName: String!,
+    $artifactCollectionName: String!,
+    $cursor: String,
+    $perPage: Int = 1000
+) {
+    project(name: $projectName, entityName: $entityName) {
+        artifactType(name: $artifactTypeName) {
+            # NOTE: The node being aliased is named:
+            # - `artifactCollection` for new servers
+            # - `artifactSequence` for old servers
+            artifactCollection: artifactCollection(name: $artifactCollectionName) {
+                id
+                name
+                description
+                createdAt
+                tags {
+                    edges {
+                        node {
+                            id
+                            name
+                        }
+                    }
+                }
+                aliases(after: $cursor, first: $perPage){
+                    edges {
+                        node {
+                            alias
+                        }
+                        cursor
+                    }
+                    pageInfo {
+                        endCursor
+                        hasNextPage
+                    }
+                }
+            }
+            artifactSequence(name: $artifactCollectionName) {
+                __typename
+            }
+        }
+    }
+}
+
+fragment ArtifactPortfolioTypeFields on ArtifactPortfolio {
+    __typename
+    id
+    name
+}
+
+fragment ArtifactSequenceTypeFields on ArtifactSequence {
+    __typename
+    id
+    name
+}

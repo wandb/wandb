@@ -3,7 +3,6 @@ from __future__ import annotations
 import configparser
 import json
 import logging
-import multiprocessing
 import os
 import pathlib
 import platform
@@ -17,20 +16,22 @@ from datetime import datetime
 # the latter is not supported in pydantic<2.6 and Python<3.10.
 # Dict, List, and Tuple are used for backwards compatibility
 # with pydantic v1 and Python<3.9.
-from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
 from urllib.parse import quote, unquote, urlencode
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 from pydantic import BaseModel, ConfigDict, Field
-from pydantic.version import VERSION as PYDANTIC_VERSION
+from typing_extensions import Self
 
 import wandb
-from wandb import env, termwarn, util
+from wandb import env, util
+from wandb._pydantic import (
+    IS_PYDANTIC_V2,
+    AliasChoices,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 
@@ -38,10 +39,9 @@ from .lib import apikey, credentials, ipython
 from .lib.gitlib import GitRepo
 from .lib.run_moment import RunMoment
 
-is_pydantic_v2 = int(PYDANTIC_VERSION[0]) == 2
+validate_url: Callable[[str], None]
 
-if is_pydantic_v2:
-    from pydantic import AliasChoices, computed_field, field_validator, model_validator
+if IS_PYDANTIC_V2:
     from pydantic_core import SchemaValidator, core_schema
 
     def validate_url(url: str) -> None:
@@ -54,38 +54,7 @@ if is_pydantic_v2:
         )
         url_validator.validate_python(url)
 else:
-    from pydantic import root_validator, validator
-
-    class AliasChoices:  # type: ignore [no-redef]
-        """Compatibility class for Pydantic v2's AliasChoices."""
-
-        def __init__(self, *aliases):
-            self.aliases = aliases
-
-    def field_validator(field_name: str, mode="before"):  # type: ignore [no-redef]
-        """Compatibility wrapper for Pydantic v2's field_validator in v1."""
-        return validator(
-            field_name, pre=mode == "before", allow_reuse=True, always=True
-        )
-
-    def model_validator(mode="before"):  # type: ignore [no-redef]
-        """Compatibility wrapper for Pydantic v2's model_validator in v1."""
-        return root_validator(pre=(mode == "before"))
-
-    def computed_field(func=None, **kwargs):  # type: ignore [no-redef]
-        """Compatibility wrapper for Pydantic v2's computed_field in v1."""
-
-        def decorator(f):
-            # If already a property, return it
-            if isinstance(f, property):
-                return f
-            # Otherwise convert it to a property
-            return property(f)
-
-        # Handle both decorator styles
-        if func is not None:
-            return decorator(func)
-        return decorator
+    from pydantic import root_validator
 
     def validate_url(url: str) -> None:
         """Validate the base url of the wandb server.
@@ -276,7 +245,7 @@ class Settings(BaseModel, validate_assignment=True):
 
       "wrap_emu" - Same as "wrap" but captures output through an emulator.
       Derived from the `wrap` setting and should not be set manually.
-      """
+    """
 
     console_multipart: bool = False
     """Whether to produce multipart console log files."""
@@ -406,6 +375,7 @@ class Settings(BaseModel, validate_assignment=True):
             "default",
             "return_previous",
             "finish_previous",
+            "create_new",
         ],
         bool,
     ] = "default"
@@ -414,8 +384,14 @@ class Settings(BaseModel, validate_assignment=True):
     Options:
     - "default": Use "finish_previous" in notebooks and "return_previous"
         otherwise.
-    - "return_previous": Return the active run.
-    - "finish_previous": Finish the active run, then return a new one.
+    - "return_previous": Return the most recently created run
+        that is not yet finished. This does not update `wandb.run`; see
+        the "create_new" option.
+    - "finish_previous": Finish all active runs, then return a new run.
+    - "create_new": Create a new run without modifying other active runs.
+        Does not update `wandb.run` and top-level functions like `wandb.log`.
+        Because of this, some older integrations that rely on the global run
+        will not work.
 
     Can also be a boolean, but this is deprecated. False is the same as
     "return_previous", and True is the same as "finish_previous".
@@ -488,11 +464,7 @@ class Settings(BaseModel, validate_assignment=True):
     save_code: Optional[bool] = None
     """Whether to save the code associated with the run."""
 
-    settings_system: str = Field(
-        default_factory=lambda: _path_convert(
-            os.path.join("~", ".config", "wandb", "settings")
-        )
-    )
+    settings_system: Optional[str] = None
     """Path to the system-wide settings file."""
 
     show_colors: Optional[bool] = None
@@ -555,11 +527,6 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_disable_meta: bool = False
     """Flag to disable the collection of system metadata."""
-
-    x_disable_service: bool = False
-    """Flag to disable the W&B service.
-
-    This is deprecated and will be removed in future versions."""
 
     x_disable_setproctitle: bool = False
     """Flag to disable using setproctitle for the internal process in the legacy service.
@@ -719,6 +686,12 @@ class Settings(BaseModel, validate_assignment=True):
     This does not disable user-provided summary updates.
     """
 
+    x_server_side_expand_glob_metrics: bool = False
+    """Flag to delegate glob matching of metrics in define_metric to the server.
+
+    If the server does not support this, the client will perform the glob matching.
+    """
+
     x_service_transport: Optional[str] = None
     """Transport method for communication with the wandb service."""
 
@@ -817,7 +790,7 @@ class Settings(BaseModel, validate_assignment=True):
                 new_values[key] = values[key]
         return new_values
 
-    if is_pydantic_v2:
+    if IS_PYDANTIC_V2:
 
         @model_validator(mode="after")
         def validate_mutual_exclusion_of_branching_args(self) -> Self:
@@ -852,18 +825,6 @@ class Settings(BaseModel, validate_assignment=True):
             return values
 
     # Field validators.
-
-    @field_validator("x_disable_service", mode="after")
-    @classmethod
-    def validate_disable_service(cls, value):
-        if value:
-            termwarn(
-                "Disabling the wandb service is deprecated as of version 0.18.0 "
-                "and will be removed in future versions. ",
-                repeat=False,
-            )
-        return value
-
     @field_validator("api_key", mode="after")
     @classmethod
     def validate_api_key(cls, value):
@@ -899,23 +860,7 @@ class Settings(BaseModel, validate_assignment=True):
         if value != "auto":
             return value
 
-        if hasattr(values, "data"):
-            # pydantic v2
-            values = values.data
-        else:
-            # pydantic v1
-            values = values
-
-        if (
-            ipython.in_jupyter()
-            or (values.get("start_method") == "thread")
-            or not values.get("x_disable_service")
-            or platform.system() == "Windows"
-        ):
-            value = "wrap"
-        else:
-            value = "redirect"
-        return value
+        return "wrap"
 
     @field_validator("x_executable", mode="before")
     @classmethod
@@ -1082,9 +1027,12 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("settings_system", mode="after")
     @classmethod
     def validate_settings_system(cls, value):
-        if isinstance(value, pathlib.Path):
+        if value is None:
+            return None
+        elif isinstance(value, pathlib.Path):
             return str(_path_convert(value))
-        return _path_convert(value)
+        else:
+            return _path_convert(value)
 
     @field_validator("x_service_wait", mode="after")
     @classmethod
@@ -1093,18 +1041,16 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Service wait time cannot be negative")
         return value
 
-    @field_validator("start_method")
+    @field_validator("start_method", mode="after")
     @classmethod
     def validate_start_method(cls, value):
         if value is None:
             return value
-        available_methods = ["thread"]
-        if hasattr(multiprocessing, "get_all_start_methods"):
-            available_methods += multiprocessing.get_all_start_methods()
-        if value not in available_methods:
-            raise UsageError(
-                f"Settings field `start_method`: {value!r} not in {available_methods}"
-            )
+        wandb.termwarn(
+            "`start_method` is deprecated and will be removed in a future version "
+            "of wandb. This setting is currently non-functional and safely ignored.",
+            repeat=False,
+        )
         return value
 
     @field_validator("x_stats_gpu_device_ids", mode="before")
@@ -1459,7 +1405,6 @@ class Settings(BaseModel, validate_assignment=True):
         env_prefix: str = "WANDB_"
         private_env_prefix: str = env_prefix + "_"
         special_env_var_names = {
-            "WANDB_DISABLE_SERVICE": "x_disable_service",
             "WANDB_SERVICE_TRANSPORT": "x_service_transport",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
@@ -1692,6 +1637,11 @@ class Settings(BaseModel, validate_assignment=True):
         if not root:
             return None
 
+        # For windows if the root and program are on different drives,
+        # os.path.relpath will raise a ValueError.
+        if not util.are_paths_on_same_drive(root, program):
+            return None
+
         full_path_to_program = os.path.join(
             root, os.path.relpath(os.getcwd(), root), program
         )
@@ -1744,7 +1694,7 @@ class Settings(BaseModel, validate_assignment=True):
         elif isinstance(val, str):
             return RunMoment.from_uri(val)
 
-    if not is_pydantic_v2:
+    if not IS_PYDANTIC_V2:
 
         def model_copy(self, *args, **kwargs):
             return self.copy(*args, **kwargs)

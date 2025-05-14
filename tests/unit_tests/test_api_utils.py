@@ -1,9 +1,14 @@
+from textwrap import dedent
+
 import pytest
 from wandb.apis.public.utils import (
     fetch_org_from_settings_or_entity,
+    gql_compat,
     parse_org_from_registry_path,
 )
 from wandb.sdk.internal.internal_api import _OrgNames
+from wandb_gql import gql
+from wandb_graphql import print_ast
 
 
 @pytest.mark.parametrize(
@@ -95,3 +100,165 @@ def test_multiple_orgs_raises_error(mock_fetch_orgs_and_org_entities_from_entity
     settings = {"organization": None, "entity": "multi-org-user-entity"}
     with pytest.raises(ValueError, match="Multiple organizations found for entity"):
         fetch_org_from_settings_or_entity(settings)
+
+
+def test_gql_compat():
+    """Test that gql_compat rewrites a GraphQL request by omitting the expected parts."""
+    omit_fragments = ["ArtifactInfo"]
+    omit_variables = ["ttlDurationSeconds", "tagsToAdd", "tagsToDelete"]
+    omit_fields = ["ttlDurationSeconds", "ttlIsInherited", "tags"]
+
+    # GraphQL query with fragments on different types
+    orig_query_str = dedent(
+        """\
+        mutation updateArtifact(
+            $artifactID: ID!
+            $description: String
+            $metadata: JSONString
+            $ttlDurationSeconds: Int64
+            $tagsToAdd: [TagInput!]
+            $tagsToDelete: [TagInput!]
+            $aliases: [ArtifactAliasInput!]
+        ) {
+            updateArtifact(
+                input: {
+                    artifactID: $artifactID,
+                    description: $description,
+                    metadata: $metadata,
+                    ttlDurationSeconds: $ttlDurationSeconds,
+                    tagsToAdd: $tagsToAdd,
+                    tagsToDelete: $tagsToDelete,
+                    aliases: $aliases
+                }
+            ) {
+                artifact {
+                    ...ArtifactIdAndName
+                    ... ArtifactInfo
+                    ttlDurationSeconds
+                    ttlIsInherited
+                    tags {name}
+                }
+            }
+        }
+        fragment ArtifactIdAndName on Artifact {
+            id
+            name
+        }
+        fragment ArtifactInfo on Artifact {
+            description
+            versionIndex
+        }
+        """
+    )
+    expected_query_str = dedent(
+        """\
+        mutation updateArtifact(
+            $artifactID: ID!
+            $description: String
+            $metadata: JSONString
+            $aliases: [ArtifactAliasInput!]
+        ) {
+            updateArtifact(
+                input: {
+                    artifactID: $artifactID,
+                    description: $description,
+                    metadata: $metadata,
+                    aliases: $aliases
+                }
+            ) {
+                artifact {
+                    ...ArtifactIdAndName
+                }
+            }
+        }
+        fragment ArtifactIdAndName on Artifact {
+            id
+            name
+        }
+        """
+    )
+
+    # Omit the Artifact type fragments
+    compat_query = gql_compat(
+        orig_query_str,
+        omit_fragments=omit_fragments,
+        omit_variables=omit_variables,
+        omit_fields=omit_fields,
+    )
+
+    # Normalize the expected and actual query strings for consistent comparison
+    orig_query_str = print_ast(gql(orig_query_str))
+    orig_query_str = "\n".join(filter(str.strip, orig_query_str.splitlines()))
+
+    expected_query_str = print_ast(gql(expected_query_str))
+    expected_query_str = "\n".join(filter(str.strip, expected_query_str.splitlines()))
+
+    compat_query_str = print_ast(compat_query)
+    compat_query_str = "\n".join(filter(str.strip, compat_query_str.splitlines()))
+
+    assert compat_query_str == expected_query_str
+    assert compat_query_str != orig_query_str
+
+
+def test_gql_compat_rename_fields():
+    orig_query_str = dedent(
+        """\
+        query ProjectArtifactCollections(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!
+            $cursor: String,
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactCollections: artifactCollections(after: $cursor) {
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                        totalCount
+                    }
+                }
+            }
+        }
+        """
+    )
+    expected_query_str = dedent(
+        """\
+        query ProjectArtifactCollections(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!
+            $cursor: String,
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactCollections: artifactSequences(after: $cursor) {
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                        totalCount
+                    }
+                }
+            }
+        }
+        """
+    )
+    compat_query = gql_compat(
+        orig_query_str,
+        rename_fields={"artifactCollections": "artifactSequences"},
+    )
+
+    # Normalize the query strings for consistent comparison
+    orig_query_str = print_ast(gql(orig_query_str))
+    orig_query_str = "\n".join(filter(str.strip, orig_query_str.splitlines()))
+
+    expected_query_str = print_ast(gql(expected_query_str))
+    expected_query_str = "\n".join(filter(str.strip, expected_query_str.splitlines()))
+
+    compat_query_str = print_ast(compat_query)
+    compat_query_str = "\n".join(filter(str.strip, compat_query_str.splitlines()))
+
+    assert compat_query_str == expected_query_str
+    assert compat_query_str != orig_query_str

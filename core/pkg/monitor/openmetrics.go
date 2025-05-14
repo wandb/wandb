@@ -231,7 +231,9 @@ func (o *OpenMetrics) Sample() (*spb.StatsRecord, error) {
 		return nil, err
 	}
 	if resp != nil {
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 	}
 
 	if resp == nil {

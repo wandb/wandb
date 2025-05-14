@@ -282,7 +282,9 @@ func (c *oauth2CredentialProvider) fetchAccessToken() (accessTokenInfo, error) {
 	if err != nil {
 		return accessTokenInfo{}, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)

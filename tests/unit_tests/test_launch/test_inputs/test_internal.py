@@ -61,7 +61,7 @@ def test_json_schema():
         },
         "properties": {"trainer": {"$ref": "#/$defs/Trainer"}},
         "required": ["trainer"],
-        "title": "TestSchema",
+        "title": "ExampleSchema",
         "type": "object",
     }
 
@@ -97,7 +97,7 @@ def expected_json_schema():
             }
         },
         "required": ["trainer"],
-        "title": "TestSchema",
+        "title": "ExampleSchema",
         "type": "object",
     }
 
@@ -113,7 +113,7 @@ class Trainer(BaseModel):
     dataset: DatasetEnum = Field(description="Name of the dataset to use")
 
 
-class TestSchema(BaseModel):
+class ExampleSchema(BaseModel):
     trainer: Trainer
 
 
@@ -220,7 +220,7 @@ def test_handle_config_file_input_pydantic(
     wandb_run = MagicMock()
     mocker.patch("wandb.sdk.launch.inputs.internal.wandb.run", wandb_run)
     handle_config_file_input(
-        "path", include=["include"], exclude=["exclude"], schema=TestSchema
+        "path", include=["include"], exclude=["exclude"], schema=ExampleSchema
     )
     wandb_run._backend.interface.publish_job_input.assert_called_once_with(
         include_paths=[["include"]],

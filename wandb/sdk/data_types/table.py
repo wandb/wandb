@@ -480,6 +480,11 @@ class Table(Media):
             max_rows = Table.MAX_ROWS
         n_rows = len(self.data)
         if n_rows > max_rows and warn:
+            # NOTE: Never raises for reinit="create_new" runs.
+            #   Since this is called by bind_to_run(), this can be fixed by
+            #   propagating the run. It cannot be fixed for to_json() calls
+            #   that are given an artifact, other than by deferring to singleton
+            #   settings.
             if wandb.run and (
                 wandb.run.settings.table_raise_on_max_row_limit_exceeded
                 or wandb.run.settings.strict

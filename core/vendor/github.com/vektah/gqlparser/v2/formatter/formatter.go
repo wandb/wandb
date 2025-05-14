@@ -47,6 +47,13 @@ func WithoutDescription() FormatterOption {
 	}
 }
 
+// WithCompacted enables compacted output, which removes all unnecessary whitespace.
+func WithCompacted() FormatterOption {
+	return func(f *formatter) {
+		f.compacted = true
+	}
+}
+
 func NewFormatter(w io.Writer, options ...FormatterOption) Formatter {
 	f := &formatter{
 		indent: "\t",
@@ -66,6 +73,7 @@ type formatter struct {
 	emitBuiltin     bool
 	emitComments    bool
 	omitDescription bool
+	compacted       bool
 
 	padNext  bool
 	lineHead bool
@@ -168,7 +176,11 @@ func (f *formatter) FormatSchema(schema *ast.Schema) {
 		if !inSchema {
 			inSchema = true
 
-			f.WriteWord("schema").WriteString("{").WriteNewline()
+			f.WriteWord("schema")
+
+			f.FormatDirectiveList(schema.SchemaDirectives)
+
+			f.WriteString("{").WriteNewline()
 			f.IncrementIndent()
 		}
 	}
@@ -190,6 +202,15 @@ func (f *formatter) FormatSchema(schema *ast.Schema) {
 	if inSchema {
 		f.DecrementIndent()
 		f.WriteString("}").WriteNewline()
+	} else if len(schema.SchemaDirectives) > 0 {
+		// Schema definition is omitted from output, but it has
+		// directives. Output them as the schema extension to not loose
+		// them
+		f.WriteWord("extend").WriteWord("schema")
+
+		f.FormatDirectiveList(schema.SchemaDirectives)
+
+		f.WriteNewline()
 	}
 
 	directiveNames := make([]string, 0, len(schema.Directives))
@@ -275,22 +296,43 @@ func (f *formatter) FormatSchemaDefinitionList(lists ast.SchemaDefinitionList, e
 	if extension {
 		f.WriteWord("extend")
 	}
-	f.WriteWord("schema").WriteString("{").WriteNewline()
-	f.IncrementIndent()
+	f.WriteWord("schema")
 
+	f.IncrementIndent()
 	for _, def := range lists {
-		f.FormatSchemaDefinition(def)
+		f.FormatDirectiveList(def.Directives)
+	}
+	f.DecrementIndent()
+
+	// Don't output empty schema definition block for extensions
+	if !extension || !f.IsSchemaDefinitionsEmpty(lists) {
+		f.WriteString("{").WriteNewline()
+		f.IncrementIndent()
+
+		for _, def := range lists {
+			f.FormatSchemaDefinition(def)
+		}
+
+		f.FormatCommentGroup(endOfDefinitionComment)
+
+		f.DecrementIndent()
+		f.WriteString("}")
 	}
 
-	f.FormatCommentGroup(endOfDefinitionComment)
+	f.WriteNewline()
+}
 
-	f.DecrementIndent()
-	f.WriteString("}").WriteNewline()
+// Return true if schema definitions is empty (besides directives), false otherwise
+func (f *formatter) IsSchemaDefinitionsEmpty(lists ast.SchemaDefinitionList) bool {
+	for _, def := range lists {
+		if len(def.OperationTypes) > 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (f *formatter) FormatSchemaDefinition(def *ast.SchemaDefinition) {
-	f.FormatDirectiveList(def.Directives)
-
 	f.FormatOperationTypeDefinitionList(def.OperationTypes)
 }
 
@@ -553,6 +595,9 @@ func (f *formatter) FormatOperationDefinition(def *ast.OperationDefinition) {
 	f.WriteWord(string(def.Operation))
 	if def.Name != "" {
 		f.WriteWord(def.Name)
+		if f.compacted {
+			f.NoPadding()
+		}
 	}
 	f.FormatVariableDefinitionList(def.VariableDefinitions)
 	f.FormatDirectiveList(def.Directives)
@@ -707,7 +752,11 @@ func (f *formatter) FormatField(field *ast.Field) {
 func (f *formatter) FormatFragmentSpread(spread *ast.FragmentSpread) {
 	f.FormatCommentGroup(spread.Comment)
 
-	f.WriteWord("...").WriteWord(spread.Name)
+	f.WriteWord("...")
+	if f.compacted {
+		f.NoPadding()
+	}
+	f.WriteWord(spread.Name)
 
 	f.FormatDirectiveList(spread.Directives)
 }

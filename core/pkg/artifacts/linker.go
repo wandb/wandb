@@ -19,7 +19,7 @@ type ArtifactLinker struct {
 	GraphqlClient graphql.Client
 }
 
-func (al *ArtifactLinker) Link() error {
+func (al *ArtifactLinker) Link() (response *gql.LinkArtifactResponse, err error) {
 	clientId := al.LinkArtifact.ClientId
 	serverId := al.LinkArtifact.ServerId
 	portfolioName := al.LinkArtifact.PortfolioName
@@ -28,11 +28,10 @@ func (al *ArtifactLinker) Link() error {
 	organization := al.LinkArtifact.PortfolioOrganization
 	var portfolioAliases []gql.ArtifactAliasInput
 
-	var err error
 	if IsArtifactRegistryProject(portfolioProject) {
 		portfolioEntity, err = al.resolveOrgEntityName(portfolioEntity, organization)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -46,7 +45,7 @@ func (al *ArtifactLinker) Link() error {
 	}
 	switch {
 	case serverId != "":
-		_, err = gql.LinkArtifact(
+		response, err = gql.LinkArtifact(
 			al.Ctx,
 			al.GraphqlClient,
 			portfolioName,
@@ -57,7 +56,7 @@ func (al *ArtifactLinker) Link() error {
 			&serverId,
 		)
 	case clientId != "":
-		_, err = gql.LinkArtifact(
+		response, err = gql.LinkArtifact(
 			al.Ctx,
 			al.GraphqlClient,
 			portfolioName,
@@ -77,9 +76,9 @@ func (al *ArtifactLinker) Link() error {
 			portfolioName,
 			err,
 		)
+		return nil, err
 	}
-
-	return err
+	return response, nil
 }
 
 // resolveOrgEntityName fetches the portfolio's org entity's name.
@@ -98,7 +97,7 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 	canFetchOrgEntity := slices.Contains(orgFieldNames, "orgEntity")
 	if organization == "" && !canFetchOrgEntity {
 		// Support is added in version 0.50.0 of the wandb server.
-		return "", fmt.Errorf("Fetching Registry artifacts unsupported and no organization given")
+		return "", fmt.Errorf("fetching Registry artifacts unsupported and no organization given")
 	}
 	if !canFetchOrgEntity {
 		// Use traditional registry path with org entity if server doesn't support it
@@ -117,7 +116,7 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 		response.GetEntity() == nil ||
 		response.GetEntity().GetOrganization() == nil ||
 		response.GetEntity().GetOrganization().GetOrgEntity() == nil {
-		return "", fmt.Errorf("Unable to resolve an organization associated with the entity: %s "+
+		return "", fmt.Errorf("unable to resolve an organization associated with the entity: %s "+
 			"that is initialized in the API or Run settings. This could be because %s is a personal entity or "+
 			"the team entity doesn't exist. "+
 			"Please re-initialize the API or Run with a team entity using "+
@@ -132,8 +131,8 @@ func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organizat
 	inputMatchesOrgName := organization == orgDisplayName
 	inputMatchesOrgEntityName := organization == orgEntityName
 	if organization != "" && !inputMatchesOrgName && !inputMatchesOrgEntityName {
-		return "", fmt.Errorf("Artifact belongs to the organization %q and cannot be linked/fetched with %q. "+
-			"Please update the target path with the correct organization name.", orgDisplayName, organization)
+		return "", fmt.Errorf("artifact belongs to the organization %q and cannot be linked/fetched with %q. "+
+			"Please update the target path with the correct organization name", orgDisplayName, organization)
 	}
 	return orgEntityName, nil
 }

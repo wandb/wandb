@@ -14,12 +14,12 @@ func TestNetrcPath(t *testing.T) {
 	origEnv := os.Getenv("NETRC")
 	origHome := os.Getenv("HOME")
 	defer func() {
-		os.Setenv("NETRC", origEnv)
-		os.Setenv("HOME", origHome)
+		_ = os.Setenv("NETRC", origEnv)
+		_ = os.Setenv("HOME", origHome)
 	}()
 
 	t.Run("NETRC environment variable set", func(t *testing.T) {
-		os.Setenv("NETRC", "/custom/path/.netrc")
+		_ = os.Setenv("NETRC", "/custom/path/.netrc")
 		path, err := auth.NetrcPath()
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
@@ -30,8 +30,8 @@ func TestNetrcPath(t *testing.T) {
 	})
 
 	t.Run("Home directory not found", func(t *testing.T) {
-		os.Setenv("NETRC", "")
-		os.Setenv("HOME", "")
+		_ = os.Setenv("NETRC", "")
+		_ = os.Setenv("HOME", "")
 		_, err := auth.NetrcPath()
 		if err == nil {
 			t.Error("Expected error, got nil")
@@ -40,8 +40,8 @@ func TestNetrcPath(t *testing.T) {
 
 	t.Run("Existing .netrc file", func(t *testing.T) {
 		tempDir := t.TempDir()
-		os.Setenv("HOME", tempDir)
-		os.Setenv("NETRC", "")
+		_ = os.Setenv("HOME", tempDir)
+		_ = os.Setenv("NETRC", "")
 
 		netrcPath := filepath.Join(tempDir, ".netrc")
 		_, err := os.Create(netrcPath)
@@ -60,8 +60,8 @@ func TestNetrcPath(t *testing.T) {
 
 	t.Run("Existing _netrc file", func(t *testing.T) {
 		tempDir := t.TempDir()
-		os.Setenv("HOME", tempDir)
-		os.Setenv("NETRC", "")
+		_ = os.Setenv("HOME", tempDir)
+		_ = os.Setenv("NETRC", "")
 
 		netrcPath := filepath.Join(tempDir, "_netrc")
 		_, err := os.Create(netrcPath)
@@ -80,8 +80,8 @@ func TestNetrcPath(t *testing.T) {
 
 	t.Run("No existing netrc file", func(t *testing.T) {
 		tempDir := t.TempDir()
-		os.Setenv("HOME", tempDir)
-		os.Setenv("NETRC", "")
+		_ = os.Setenv("HOME", tempDir)
+		_ = os.Setenv("NETRC", "")
 
 		path, err := auth.NetrcPath()
 		if err != nil {
