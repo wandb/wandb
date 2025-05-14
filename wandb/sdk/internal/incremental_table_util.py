@@ -14,7 +14,9 @@ ART_TYPE = "wandb-run-incremental-table"
 def init_artifact(run: "LocalRun", sanitized_key: str):
     artifact_name = f"run-{run.id}-incr-{sanitized_key}"
     artifact = wandb.Artifact(
-        artifact_name, "placeholder-run-incremental-table", incremental=True
+        artifact_name,
+        "placeholder-run-incremental-table",
+        incremental=True,
     )
     artifact._type = ART_TYPE  # get around type restriction for system artifact
     return artifact

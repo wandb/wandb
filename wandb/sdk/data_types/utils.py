@@ -169,7 +169,19 @@ def val_to_json(
     return converted  # type: ignore
 
 
-def _log_table_artifact(val, key, run):
+def _log_table_artifact(val: ValToJsonType, key: str, run: "LocalRun") -> None:
+    """Log a table to the run based on the table type and logging mode.
+
+    Creates and logs a `run_table` type for Table, PartitionedTable, and
+    JoinedTable values. For tables with log_mode="INCREMENTAL", creates and
+    logs an incremental artifact of type `wandb-run-incremental-table.`
+
+    Args:
+        val: A wbvalue with log_type "table", "partitioned-table",
+            or "joined-table."
+        key: The key used to log val.
+        run: The LocalRun used to log val.
+    """
     # Sanitize the key to meet the constraints of artifact names.
     sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
 

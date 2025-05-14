@@ -607,8 +607,9 @@ class Table(Media):
                     ndarray_type._clear_serialization_path()
 
         if log_mode == "INCREMENTAL":
-            incremental_data = _get_data_from_increments(json_obj, source_artifact)
-            unprocessed_table_data = incremental_data
+            unprocessed_table_data = _get_data_from_increments(
+                json_obj, source_artifact
+            )
         else:
             unprocessed_table_data = json_obj["data"]
 
@@ -651,9 +652,10 @@ class Table(Media):
             )
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
-            wbvalue_type = "table-file"
             if self.log_mode == "INCREMENTAL":
                 wbvalue_type = "incremental-table-file"
+            else:
+                wbvalue_type = "table-file"
 
             json_dict.update(
                 {
@@ -1302,14 +1304,8 @@ def _get_data_from_increments(
     if increment_num is None:
         return data
 
-    increment_entries = {
-        entry_key: entry_value
-        for entry_key, entry_value in source_artifact.manifest.entries.items()
-        if not entry_key.startswith("media") and entry_key.endswith(".table.json")
-    }
-
     # Sort by increment number first, then by timestamp if present
-    # Format of  is: "{incr_num}-{timestamp_ms}.{key}.table.json"
+    # Format of name is: "{incr_num}-{timestamp_ms}.{key}.table.json"
     def get_sort_key(key: str) -> Tuple[int, int]:
         try:
             parts = key.split(".")
@@ -1321,33 +1317,29 @@ def _get_data_from_increments(
         except (ValueError, IndexError):
             wandb.termwarn(
                 (
-                    f"Could not parse artifact entry for increment {key}. "
-                    "The entry name does not follow the naming convention "
-                    "<increment_number>-<timestamp>.<key>.table.json"
-                    "The data in the table will be out of order."
+                    f"Could not parse artifact entry for increment {key}."
+                    " The entry name does not follow the naming convention"
+                    " <increment_number>-<timestamp>.<key>.table.json"
+                    " The data in the table will be out of order."
                 ),
                 repeat=False,
             )
             return (0, 0)
 
-    sorted_increment_keys = sorted(increment_entries.keys(), key=get_sort_key)
+    sorted_increment_keys = []
+    for entry_key in source_artifact.manifest.entries:
+        if entry_key.endswith(".table.json"):
+            sorted_increment_keys.append(entry_key)
+
+    sorted_increment_keys.sort(key=get_sort_key)
 
     for entry_key in sorted_increment_keys:
         try:
-            with open(increment_entries[entry_key].download()) as f:
+            with open(source_artifact.manifest.entries[entry_key].download()) as f:
                 table_data = json.load(f)
-        except json.JSONDecodeError:
-            wandb.termerror(f"Table file {entry_key} could not be parsed", repeat=False)
-        if "data" not in table_data:
-            wandb.termwarn(
-                (
-                    f"The table data from {entry_key} does not have a data key. "
-                    "The table file is potentially malformed."
-                ),
-                repeat=False,
-            )
-            continue
-        data.extend(table_data["data"])
+            data.extend(table_data["data"])
+        except (json.JSONDecodeError, KeyError) as e:
+            raise wandb.Error(f"Invalid table file {entry_key}") from e
     return data
 
 
@@ -1358,7 +1350,12 @@ def _process_table_row(
     source_artifact: "artifact.Artifact",
     row_idx: int,
 ) -> List[Any]:
-    """Process a single row of table data.
+    """Convert special columns in a table row to Python types.
+
+    Processes a single row of table data by converting timestamp values to
+    datetime objects, replacing np typed cells with numpy array data,
+    and initializing media objects from their json value.
+
 
     Args:
         row: The row data to process.
