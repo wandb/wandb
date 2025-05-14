@@ -1,4 +1,4 @@
-"""W&B Public API for User Management.
+"""W&B Public API for managing users and API keys.
 
 This module provides classes for managing W&B users and their API keys.
 

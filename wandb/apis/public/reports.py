@@ -1,4 +1,4 @@
-"""W&B Public API for Reports objects.
+"""W&B Public API for Report objects.
 
 This module provides classes for interacting with W&B reports and
 managing report-related data.

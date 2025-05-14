@@ -1,4 +1,4 @@
-"""W&B Public API for Hyperparameter Sweeps.
+"""W&B Public API for Sweeps.
 
 This module provides classes for interacting with W&B hyperparameter
 optimization sweeps.

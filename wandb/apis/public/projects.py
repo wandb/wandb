@@ -176,7 +176,10 @@ class Project(Attrs):
         return self.client.app_url + "/".join(self.path + ["workspace"])
 
     def to_html(self, height=420, hidden=False):
-        """Generate HTML containing an iframe displaying this project."""
+        """Generate HTML containing an iframe displaying this project.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         url = self.url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""

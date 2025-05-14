@@ -1,4 +1,4 @@
-"""W&B Public API for Job Management and Queuing.
+"""W&B Public API for management Launch Jobs and Launch Queues.
 
 This module provides classes for managing W&B jobs, queued runs, and run
 queues.

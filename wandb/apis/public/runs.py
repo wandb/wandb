@@ -1,4 +1,4 @@
-"""W&B Public API for Run objects.
+"""W&B Public API for Runs.
 
 This module provides classes for interacting with W&B runs and their associated
 data.
