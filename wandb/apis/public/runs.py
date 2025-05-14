@@ -1,4 +1,4 @@
-"""W&B Public API for ML Runs.
+"""W&B Public API for Run objects.
 
 This module provides classes for interacting with W&B runs and their associated
 data.
@@ -729,6 +729,10 @@ class Run(Attrs):
 
     @property
     def json_config(self):
+        """Return the run config as a JSON string.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         config = {}
         if "_wandb" in self.rawconfig:
             config["_wandb"] = {"value": self.rawconfig["_wandb"], "desc": None}
@@ -1004,7 +1008,7 @@ class Run(Attrs):
                 feature's artifact swapping functionality.
 
         Returns:
-            A `Artifact` object.
+            An `Artifact` object.
         """
         api = InternalApi(
             default_settings={"entity": self.entity, "project": self.project},

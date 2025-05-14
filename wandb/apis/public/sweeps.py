@@ -121,7 +121,7 @@ class Sweep(Attrs):
 
     @property
     def username(self):
-        """Note: Deprecated. Use entity instead."""
+        """Deprecated. Use `Sweep.entity` instead."""
         wandb.termwarn("Sweep.username is deprecated. please use Sweep.entity instead.")
         return self._entity
 

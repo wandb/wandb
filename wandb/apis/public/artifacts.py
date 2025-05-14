@@ -1,4 +1,4 @@
-"""W&B Public API for Artifact Management.
+"""W&B Public API for Artifact objects.
 
 This module provides classes for interacting with W&B artifacts and their
 collections.
@@ -117,20 +117,24 @@ class ArtifactTypes(Paginator["ArtifactType"]):
 
     @property
     def more(self) -> bool:
+        """Returns whether there are more artifact types to fetch."""
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self) -> Optional[str]:
+        """Returns the cursor for the next page of results."""
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
 
     def update_variables(self) -> None:
+        """Update the cursor variable for pagination."""
         self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self) -> List["ArtifactType"]:
+        """Convert the raw response data into a list of ArtifactType objects."""
         if self.last_response is None:
             return []
 
@@ -176,6 +180,7 @@ class ArtifactType:
             self.load()
 
     def load(self):
+        """Load the artifact type attributes from W&B."""
         data: Optional[Mapping[str, Any]] = self.client.execute(
             gql(PROJECT_ARTIFACT_TYPE_GQL),
             variable_values={
@@ -298,14 +303,17 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
     @property
     def cursor(self):
+        """Returns the cursor for the next page of results."""
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
 
     def update_variables(self) -> None:
+        """Update the cursor variable for pagination."""
         self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self) -> List["ArtifactCollection"]:
+        """Convert the raw response data into a list of ArtifactCollection objects."""
         return [
             ArtifactCollection(
                 client=self.client,
@@ -367,11 +375,12 @@ class ArtifactCollection:
 
     @property
     def id(self) -> str:
+        """The unique identifier of the artifact collection."""
         return self._attrs["id"]
 
     @normalize_exceptions
     def artifacts(self, per_page: int = 50) -> "Artifacts":
-        """Artifacts."""
+        """Get all artifacts in the collection."""
         return Artifacts(
             client=self.client,
             entity=self.entity,
@@ -388,9 +397,11 @@ class ArtifactCollection:
 
     @property
     def created_at(self) -> str:
+        """The creation date of the artifact collection."""
         return self._created_at
 
     def load(self):
+        """Load the artifact collection attributes from W&B."""
         if server_supports_artifact_collections_gql_edges(self.client):
             rename_fields = None
         else:
@@ -494,6 +505,7 @@ class ArtifactCollection:
 
     @name.setter
     def name(self, name: str) -> None:
+        """Set the name of the artifact collection."""
         self._name = validate_artifact_name(name)
 
     @property
@@ -655,6 +667,7 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
 
     @property
     def length(self) -> Optional[int]:
+        """Returns the total number of artifacts in the collection."""
         if self.last_response is None:
             return None
         return self.last_response.total_count
@@ -668,11 +681,13 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
 
     @property
     def cursor(self) -> Optional[str]:
+        """Returns the cursor for the next page of results."""
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
 
     def convert_objects(self) -> List["wandb.Artifact"]:
+        """Convert the raw response data into a list of wandb.Artifact objects."""
         artifact_edges = (edge for edge in self.last_response.edges if edge.node)
         artifacts = (
             wandb.Artifact._from_attrs(
@@ -745,23 +760,27 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
 
     @property
     def length(self) -> Optional[int]:
+        """Returns the total number of artifacts in the collection."""
         if self.last_response is None:
             return None
         return self.last_response.total_count
 
     @property
     def more(self) -> bool:
+        """Returns whether there are more artifacts to fetch."""
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self) -> Optional[str]:
+        """Returns the cursor for the next page of results."""
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
 
     def convert_objects(self) -> List["wandb.Artifact"]:
+        """Convert the raw response data into a list of wandb.Artifact objects."""
         return [
             wandb.Artifact._from_attrs(
                 entity=node.artifact_sequence.project.entity_name,
@@ -837,28 +856,34 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
     @property
     def path(self) -> List[str]:
+        """Returns the path of the artifact."""
         return [self.artifact.entity, self.artifact.project, self.artifact.name]
 
     @property
     def length(self) -> int:
+        """Returns the total number of files in the artifact."""
         return self.artifact.file_count
 
     @property
     def more(self) -> bool:
+        """Returns whether there are more files to fetch."""
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self) -> Optional[str]:
+        """Returns the cursor for the next page of results."""
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
 
     def update_variables(self) -> None:
+        """Update the variables dictionary with the cursor."""
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self) -> List["public.File"]:
+        """Convert the raw response data into a list of public.File objects."""
         return [
             public.File(
                 client=self.client,

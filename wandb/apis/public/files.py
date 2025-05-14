@@ -1,19 +1,6 @@
-"""W&B Public API for File Management.
+"""W&B Public API for File objects.
 
-This module provides classes for interacting with files stored in W&B. Classes
-include:
-
-Files: A paginated collection of files associated with a run
-- Iterate through files with automatic pagination
-- Filter files by name
-- Access file metadata and properties
-- Download multiple files
-
-File: A single file stored in W&B
-- Access file metadata (size, mimetype, URLs)
-- Download files to local storage
-- Delete files from W&B
-- Work with S3 URIs for direct access
+This module provides classes for interacting with files stored in W&B.
 
 Example:
 ```python

@@ -1,3 +1,8 @@
+"""W&B Public API for integrations.
+
+This module provides classes for interacting with W&B integrations.
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Iterable

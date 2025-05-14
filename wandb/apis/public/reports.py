@@ -1,4 +1,8 @@
-"""Public API: reports."""
+"""W&B Public API for Reports objects.
+
+This module provides classes for interacting with W&B reports and
+managing report-related data.
+"""
 
 import ast
 import json
@@ -123,16 +127,16 @@ class Reports(SizedPaginator["BetaReport"]):
 
 
 class BetaReport(Attrs):
-    """BetaReport is a class associated with reports created in wandb.
+    """BetaReport is a class associated with reports created in W&B.
 
     WARNING: this API will likely change in a future release
 
     Attributes:
-        name (string): report name
-        description (string): report description
-        user (User): the user that created the report
-        spec (dict): the spec off the report
-        updated_at (string): timestamp of last update
+        name (string): The name of the report.
+        description (string): Report description.
+        user (User): The user that created the report.
+        spec (dict): The spec off the report.
+        updated_at (string): timestamp of last update.
     """
 
     def __init__(self, client, attrs, entity=None, project=None):

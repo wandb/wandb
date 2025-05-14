@@ -1,4 +1,4 @@
-"""W&B Public API for Projects.
+"""W&B Public API for Project objects.
 
 This module provides classes for interacting with W&B projects and their
 associated data.

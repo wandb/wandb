@@ -179,11 +179,13 @@ class Team(Attrs):
         """Invite a user to a team.
 
         Args:
-            username_or_email: (str) The username or email address of the user you want to invite
-            admin: (bool) Whether to make this user a team admin, defaults to False
+            username_or_email: (str) The username or email address of the user
+                you want to invite.
+            admin: (bool) Whether to make this user a team admin.
+                Defaults to `False`.
 
         Returns:
-            True on success, False if user was already invited or didn't exist
+            True on success, `False` if user was already invited or didn't exist.
         """
         variables = {"entityName": self.name, "admin": admin}
         if "@" in username_or_email:
