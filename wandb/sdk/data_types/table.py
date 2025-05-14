@@ -594,6 +594,10 @@ class Table(Media):
                     and ndarray_type._get_serialization_path() is not None
                 ):
                     serialization_path = ndarray_type._get_serialization_path()
+
+                    if serialization_path is None:
+                        continue
+
                     np = util.get_module(
                         "numpy",
                         required="Deserializing NumPy columns requires NumPy to be installed.",
@@ -1369,6 +1373,7 @@ def _process_table_row(
     """
     row_data = []
     for c_ndx, item in enumerate(row):
+        cell: Any
         if c_ndx in timestamp_column_indices and isinstance(item, (int, float)):
             cell = datetime.datetime.fromtimestamp(
                 item / 1000, tz=datetime.timezone.utc
