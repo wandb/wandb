@@ -333,10 +333,27 @@ func (j *JobBuilder) getEntrypoint(programPath string, metadata RunMetadata) ([]
 	if fullPython == nil {
 		return nil, fmt.Errorf("missing python attribute in metadata class")
 	}
-	// drop everything after the last second .
-	pythonVersion := strings.Join(strings.Split(*fullPython, ".")[:2], ".")
-	return []string{fmt.Sprintf("python%s", pythonVersion), programPath}, nil
 
+	// Extract just the Python version from metadata.Python.
+	// Format can be either "<python impl> <python version>" (new) or
+	// just "<python version>" (old).
+	pythonStr := *fullPython
+
+	// platform.python_implementation() returns ‘CPython’, ‘IronPython’,
+	// ‘Jython’, or ‘PyPy’, so we can split by whitespace.
+	parts := strings.Fields(pythonStr)
+	var pythonVersionSemver string
+
+	if len(parts) > 1 {
+		pythonVersionSemver = parts[len(parts)-1]
+	} else {
+		// Already just the version
+		pythonVersionSemver = pythonStr
+	}
+
+	// drop everything after the last second .
+	pythonVersion := strings.Join(strings.Split(pythonVersionSemver, ".")[:2], ".")
+	return []string{fmt.Sprintf("python%s", pythonVersion), programPath}, nil
 }
 
 func (j *JobBuilder) makeJobName(derivedName string) string {
