@@ -11,15 +11,7 @@ from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 def _run_cmd_check_msg(cmd: List[str], assert_str: str) -> None:
     """Helper for asserting a statement is in logs."""
-    try:
-        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as e:
-        print(f"\nCommand failed with return code {e.returncode}")
-        print(f"Command: {' '.join(cmd)}")
-        print("\nOutput:")
-        print(e.output.decode())
-        print("\nTraceback:")
-        raise
+    out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
     assert assert_str in out.decode("utf-8")
 
 
@@ -32,7 +24,13 @@ def test_launch_sweep_param_validation(user):
     run.finish()
 
     base = ["wandb", "launch-sweep"]
-    _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
+    # In python 3.12, Click returns with an exit code of 2 when there are
+    # missing arguments.
+    if wandb.env.PYTHON_VERSION >= (3, 12):
+        with pytest.raises(subprocess.CalledProcessError):
+            _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
+    else:
+        _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
 
     base += ["-e", user, "-p", "p"]
     err_msg = "'config' and/or 'resume_id' required"
