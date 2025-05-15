@@ -1,6 +1,5 @@
 import json
 import platform
-import tempfile
 from pathlib import Path
 from unittest import mock
 
@@ -228,10 +227,14 @@ def test_image_array_old_wandb_mp_warning(
     ],
 )
 def test_log_media_with_pathlib_path(
-    user, wandb_backend_spy, create_media, file_ext, wandb_class
+    user,
+    wandb_backend_spy,
+    create_media,
+    file_ext,
+    wandb_class,
+    tmp_path,
 ):
-    temp_dir = tempfile.mkdtemp()
-    media_path = create_media(temp_dir)
+    media_path = create_media(tmp_path)
     with wandb.init() as run:
         run.log({"media": wandb_class(media_path)})
 

@@ -1,6 +1,4 @@
 import os
-import pathlib
-import tempfile
 
 import cloudpickle
 import pytest
@@ -109,9 +107,14 @@ def test_tensorflow_keras_saved_model():
         ),
     ],
 )
-def test_saved_model_path(model_fn, model_cls, file_ext, save_fn):
-    temp_dir = tempfile.mkdtemp()
-    model_path = pathlib.Path(temp_dir) / f"my_model.{file_ext}"
+def test_saved_model_path(
+    model_fn,
+    model_cls,
+    file_ext,
+    save_fn,
+    tmp_path,
+):
+    model_path = tmp_path / f"my_model.{file_ext}"
 
     model = model_fn()
     save_fn(model, model_path)
