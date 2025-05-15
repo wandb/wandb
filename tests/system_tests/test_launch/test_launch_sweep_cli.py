@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 from typing import List
 
 import pytest
@@ -26,7 +27,7 @@ def test_launch_sweep_param_validation(user):
     base = ["wandb", "launch-sweep"]
     # In python 3.12, Click returns with an exit code of 2 when there are
     # missing arguments.
-    if wandb.env.PYTHON_VERSION >= (3, 12):
+    if sys.version_info >= (3, 12):
         with pytest.raises(subprocess.CalledProcessError):
             _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
     else:
