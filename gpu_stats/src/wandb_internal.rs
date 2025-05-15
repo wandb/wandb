@@ -475,6 +475,12 @@ pub struct Feature {
     /// DCGM profiling was enabled
     #[prost(bool, tag = "70")]
     pub dcgm_profiling_enabled: bool,
+    /// User created a forked run
+    #[prost(bool, tag = "71")]
+    pub fork_mode: bool,
+    /// User created a rewinded run
+    #[prost(bool, tag = "72")]
+    pub rewind_mode: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
