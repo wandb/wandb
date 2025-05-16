@@ -395,6 +395,29 @@ def test_fail_to_make_file(
         wb_image.bind_to_run(mock_run(), "my key: an identifier", 0)
 
 
+@pytest.mark.parametrize(
+    "scale",
+    [1e-8, 1e-5, 1e0, 1e1, -1e-8, -1e-5, -1e0, -1e1],
+)
+def test_image_normalization_numpy_pytorch_equal(scale):
+    img = np.random.uniform(low=0, high=1, size=[4, 4, 3]) * scale
+    torch_img = torch.from_numpy(img.transpose(2, 0, 1))
+
+    wb_image = wandb.Image(img)
+    wb_image_torch = wandb.Image(torch_img)
+
+    assert np.all(np.array(wb_image.image) == np.array(wb_image_torch.image))
+
+
+def test_image_normalization_with_small_values_scales_to_range():
+    img = np.linspace(0, 10, 4 * 4 * 3).reshape([4, 4, 3]) * 1e-8
+    expected_scale = np.linspace(0, 255, 4 * 4 * 3).reshape([4, 4, 3]).astype(np.uint8)
+    wb_image = wandb.Image(img)
+
+    assert not np.all(np.array(wb_image.image) == 0)
+    assert np.all(np.array(wb_image.image) == expected_scale)
+
+
 ################################################################################
 # Test wandb.Audio
 ################################################################################
@@ -1006,9 +1029,9 @@ def test_table_column_style():
     assert [ndx._table == table1 for ndx in ndxs]
 
     # Test More Images and ndarrays
-    rand_1 = np.random.randint(255, size=(32, 32))
-    rand_2 = np.random.randint(255, size=(32, 32))
-    rand_3 = np.random.randint(255, size=(32, 32))
+    rand_1 = np.random.randint(256, size=(32, 32))
+    rand_2 = np.random.randint(256, size=(32, 32))
+    rand_3 = np.random.randint(256, size=(32, 32))
     img_1 = wandb.Image(rand_1)
     img_2 = wandb.Image(rand_2)
     img_3 = wandb.Image(rand_3)
