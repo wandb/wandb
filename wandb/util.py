@@ -1950,10 +1950,7 @@ def parse_version(version: str) -> "packaging.version.Version":
     is used to parse version strings into version objects. If the `packaging` library
     is not installed, it falls back to the `pkg_resources` library.
     """
-    try:
-        from packaging.version import parse as parse_version  # type: ignore
-    except ImportError:
-        from pkg_resources import parse_version  # type: ignore[assignment]
+    from packaging.version import parse as parse_version
 
     return parse_version(version)
 

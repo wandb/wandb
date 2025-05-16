@@ -31,6 +31,7 @@ dependencies = [
     "typing_extensions>=4.4,<5",
     "pydantic<3",
     "eval_type_backport; python_version < '3.10'",
+    "packaging",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -222,8 +223,18 @@ ignore-decorators = [
 # - D102: Require docstrings in public methods
 # - D103: Require docstrings in public functions
 # - D417: Require descriptions for all arguments
-"!wandb/apis/public/api.py" = ["D101", "D102", "D103", "D417"]  # "Public API" module
-"!wandb/automations/**/*.py" = ["D101", "D102", "D103", "D417"] # Automations submodules
+"!wandb/apis/public/api.py" = [
+    "D101",
+    "D102",
+    "D103",
+    "D417",
+] # "Public API" module
+"!wandb/automations/**/*.py" = [
+    "D101",
+    "D102",
+    "D103",
+    "D417",
+] # Automations submodules
 
 "**/__init__.py" = ["E402", "F401"]
 "wandb/__init__.py" = ["I001"]
