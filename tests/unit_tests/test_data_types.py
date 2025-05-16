@@ -395,6 +395,30 @@ def test_fail_to_make_file(
         wb_image.bind_to_run(mock_run(), "my key: an identifier", 0)
 
 
+def test_image_bounding_boxes_with_pytorch_tensors():
+    image = np.random.randint(255, size=(4, 4, 3))
+    boxes = [
+        {
+            "position": {
+                "middle": torch.from_numpy(np.array([1, 1])),
+                "width": 1,
+                "height": 1,
+            },
+            "domain": "pixel",
+            "class_id": 1,
+        },
+    ]
+
+    wandb.Image(image, boxes={"predictions": {"box_data": boxes}})
+
+
+def test_image_masks_with_pytorch_tensors():
+    image = np.random.randint(255, size=(4, 4, 3))
+    mask = torch.from_numpy(np.array([[1, 0], [0, 1]]))
+
+    wandb.Image(image, masks={"predictions": {"mask_data": mask}})
+
+
 ################################################################################
 # Test wandb.Audio
 ################################################################################
