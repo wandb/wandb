@@ -210,7 +210,7 @@ message Feature {
   bool user_provided_label = 69;          // User set the x_label value
   bool dcgm_profiling_enabled = 70;       // DCGM profiling was enabled
   bool fork_mode = 71;                    // User created a forked run
-  bool rewind_mode = 72;                  // User created a rewinded run
+  bool rewind_mode = 72;                  // User created a rewound run
 }
 
 message Env {

@@ -1109,7 +1109,7 @@ type Feature struct {
 	UserProvidedLabel        bool `protobuf:"varint,69,opt,name=user_provided_label,json=userProvidedLabel,proto3" json:"user_provided_label,omitempty"`                        // User set the x_label value
 	DcgmProfilingEnabled     bool `protobuf:"varint,70,opt,name=dcgm_profiling_enabled,json=dcgmProfilingEnabled,proto3" json:"dcgm_profiling_enabled,omitempty"`               // DCGM profiling was enabled
 	ForkMode                 bool `protobuf:"varint,71,opt,name=fork_mode,json=forkMode,proto3" json:"fork_mode,omitempty"`                                                     // User created a forked run
-	RewindMode               bool `protobuf:"varint,72,opt,name=rewind_mode,json=rewindMode,proto3" json:"rewind_mode,omitempty"`                                               // User created a rewinded run
+	RewindMode               bool `protobuf:"varint,72,opt,name=rewind_mode,json=rewindMode,proto3" json:"rewind_mode,omitempty"`                                               // User created a rewound run
 }
 
 func (x *Feature) Reset() {

@@ -478,7 +478,7 @@ pub struct Feature {
     /// User created a forked run
     #[prost(bool, tag = "71")]
     pub fork_mode: bool,
-    /// User created a rewinded run
+    /// User created a rewound run
     #[prost(bool, tag = "72")]
     pub rewind_mode: bool,
 }

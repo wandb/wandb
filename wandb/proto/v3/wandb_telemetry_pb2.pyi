@@ -623,7 +623,7 @@ class Feature(google.protobuf.message.Message):
     fork_mode: builtins.bool
     """User created a forked run"""
     rewind_mode: builtins.bool
-    """User created a rewinded run"""
+    """User created a rewound run"""
     def __init__(
         self,
         *,
