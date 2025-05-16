@@ -17,6 +17,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 This version removes the ability to disable the `service` process. This is a breaking change.
 
+### Added
+
+- Added support for initializing some Media objects with `pathlib.Path` (@jacobromero in https://github.com/wandb/wandb/pull/9692)
+
 ### Removed
 
 - Removed support for disabling the `service` process. The `x_disable_service`/`_disable_service` setting and the `WANDB_DISABLE_SERVICE`/`WANDB_X_DISABLE_SERVICE` environment variable have been deprecated and will now raise an error if used (@kptkin in https://github.com/wandb/wandb/pull/9829)

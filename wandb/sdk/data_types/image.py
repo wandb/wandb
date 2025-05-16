@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import os
+import pathlib
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
 from urllib import parse
@@ -30,7 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
     ImageDataType = Union[
         "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
     ]
-    ImageDataOrPathType = Union[str, "Image", ImageDataType]
+    ImageDataOrPathType = Union[str, pathlib.Path, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 
@@ -66,8 +67,8 @@ class Image(BatchableMedia):
     """Format images for logging to W&B.
 
     Args:
-        data_or_path: (numpy array, string, io) Accepts numpy array of
-            image data, or a PIL image. The class attempts to infer
+        data_or_path: (numpy array, pathlib.Path, string, io) Accepts numpy array of
+            image data, a PIL image, or a path to an image file. The class attempts to infer
             the data format and converts it.
         mode: (string) The PIL mode for an image. Most common are "L", "RGB",
             "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
@@ -169,7 +170,9 @@ class Image(BatchableMedia):
         # only overriding additional metadata passed in. If this pattern is compelling, we can generalize.
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             if self.path_is_reference(data_or_path):
                 self._initialize_from_reference(data_or_path)
             else:

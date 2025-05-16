@@ -1,4 +1,5 @@
 import os
+import pathlib
 from typing import TYPE_CHECKING, Sequence, Type, Union
 
 from wandb.sdk.lib import filesystem, runid
@@ -22,7 +23,7 @@ class Html(BatchableMedia):
 
     def __init__(
         self,
-        data: Union[str, "TextIO"],
+        data: Union[str, pathlib.Path, "TextIO"],
         inject: bool = True,
         data_is_not_path: bool = False,
     ) -> None:
@@ -52,14 +53,13 @@ class Html(BatchableMedia):
         """
         super().__init__()
         data_is_path = (
-            isinstance(data, str)
+            isinstance(data, (str, pathlib.Path))
             and os.path.isfile(data)
             and os.path.splitext(data)[1] == ".html"
         ) and not data_is_not_path
         data_path = ""
         if data_is_path:
-            assert isinstance(data, str)
-            data_path = data
+            data_path = str(data)
             with open(data_path, encoding="utf-8") as file:
                 self.html = file.read()
         elif isinstance(data, str):
