@@ -487,30 +487,21 @@ class LaunchProject:
         return env_vars
 
     def parse_existing_requirements(self) -> str:
-        import pkg_resources
+        from packaging.requirements import Requirement
 
         requirements_line = ""
         assert self.project_dir is not None
         base_requirements = os.path.join(self.project_dir, "requirements.txt")
         if os.path.exists(base_requirements):
             include_only = set()
-            with open(base_requirements) as f:
-                iter = pkg_resources.parse_requirements(f)
-                while True:
-                    try:
-                        pkg = next(iter)
-                        if hasattr(pkg, "name"):
-                            name = pkg.name.lower()
-                        else:
-                            name = str(pkg)
-                        include_only.add(shlex_quote(name))
-                    except StopIteration:
-                        break
-                    # Different versions of pkg_resources throw different errors
-                    # just catch them all and ignore packages we can't parse
-                    except Exception as e:
-                        _logger.warning(f"Unable to parse requirements.txt: {e}")
+            with open(base_requirements) as f2:
+                for line in f2:
+                    if line.strip() == "":
                         continue
+
+                    req = Requirement(line)
+                    name = req.name.lower()
+                    include_only.add(shlex_quote(name))
             requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
             if "wandb" not in requirements_line:
                 wandb.termwarn(f"{LOG_PREFIX}wandb is not present in requirements.txt.")

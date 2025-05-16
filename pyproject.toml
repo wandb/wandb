@@ -23,7 +23,7 @@ dependencies = [
     # Pinning to 80.7 due to removal of pkg_resources causing CI failures.
     # TODO(@jacobromero): remove version constraint
     # after migrating away from pkg_resources
-    "setuptools<80.7",
+    "setuptools",
     "protobuf>=3.12.0,!=4.21.0,!=5.28.0,<7; python_version < '3.9' and sys_platform == 'linux'",
     "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<7; python_version == '3.9' and sys_platform == 'linux'",
     "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; python_version > '3.9' and sys_platform == 'linux'",
@@ -34,6 +34,7 @@ dependencies = [
     "typing_extensions>=4.8,<5",
     "pydantic<3",
     "eval_type_backport; python_version < '3.10'",
+    "packaging",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

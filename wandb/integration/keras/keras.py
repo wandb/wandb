@@ -20,10 +20,9 @@ from wandb.util import add_import_hook
 
 def _check_keras_version():
     from keras import __version__ as keras_version
+    from packaging.version import parse
 
-    from wandb.util import parse_version
-
-    if parse_version(keras_version) < parse_version("2.4.0"):
+    if parse(keras_version) < parse("2.4.0"):
         wandb.termwarn(
             f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
         )
@@ -31,9 +30,9 @@ def _check_keras_version():
 
 def _can_compute_flops() -> bool:
     """FLOPS computation is restricted to TF 2.x as it requires tf.compat.v1."""
-    from wandb.util import parse_version
+    from packaging.version import parse
 
-    if parse_version(tf.__version__) >= parse_version("2.0.0"):
+    if parse(tf.__version__) >= parse("2.0.0"):
         return True
 
     return False
@@ -75,15 +74,10 @@ def is_generator_like(data):
 
 
 def patch_tf_keras():  # noqa: C901
+    from packaging.version import parse
     from tensorflow.python.eager import context
 
-    from wandb.util import parse_version
-
-    if (
-        parse_version("2.6.0")
-        <= parse_version(tf.__version__)
-        < parse_version("2.13.0")
-    ):
+    if parse("2.6.0") <= parse(tf.__version__) < parse("2.13.0"):
         keras_engine = "keras.engine"
         try:
             from keras.engine import training
@@ -238,9 +232,9 @@ patch_tf_keras()
 
 
 def _get_custom_optimizer_parent_class():
-    from wandb.util import parse_version
+    from packaging.version import parse
 
-    if parse_version(tf.__version__) >= parse_version("2.9.0"):
+    if parse(tf.__version__) >= parse("2.9.0"):
         custom_optimizer_parent_class = tf.keras.optimizers.legacy.Optimizer
     else:
         custom_optimizer_parent_class = tf.keras.optimizers.Optimizer
