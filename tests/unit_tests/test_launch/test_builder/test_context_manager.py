@@ -147,3 +147,39 @@ def test_create_build_context_buildx_enabled(mocker, mock_git_project):
     assert (
         image_tag == "f17a9120"
     )  # This is the hash of the Dockerfile + image_source_string.
+
+
+@pytest.mark.parametrize(
+    "python_version,expected_docker_image",
+    [
+        # Standard version string (backward compatibility)
+        ("3.8", "FROM python:3.8"),
+        # Implementation with version string (new format)
+        ("CPython 3.8.10", "FROM python:3.8"),
+        # Different implementation
+        ("PyPy 3.10", "FROM python:3.10"),
+    ],
+)
+def test_python_version_parsing(
+    mock_git_project, python_version, expected_docker_image
+):
+    """Test that python_version string is correctly parsed in different formats.
+    
+    Tests both backward compatibility with simple version strings ("3.8") and
+    the new format that includes implementation ("cpython 3.8").
+    """
+    (mock_git_project.project_dir / "requirements.txt").write_text("wandb")
+    (mock_git_project.project_dir / "entrypoint.py").write_text("import wandb")
+    
+    # Set the python version to test
+    mock_git_project.python_version = python_version
+
+    build_context_manager = BuildContextManager(mock_git_project)
+    path, image_tag = build_context_manager.create_build_context("docker")
+
+    path = pathlib.Path(path)
+    # Check Docker image uses correct Python version
+    dockerfile = (path / "Dockerfile.wandb").read_text()
+    assert expected_docker_image in dockerfile
+
+
