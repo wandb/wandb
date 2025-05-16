@@ -1572,6 +1572,10 @@ def init(  # noqa: C901
             init_telemetry.feature.set_init_tags = True
         if run_settings._offline:
             init_telemetry.feature.offline = True
+        if run_settings.fork_from is not None:
+            init_telemetry.feature.fork_mode = True
+        if run_settings.resume_from is not None:
+            init_telemetry.feature.rewind_mode = True
 
         wi.set_run_id(run_settings)
         run_printer = printer.new_printer(run_settings)
