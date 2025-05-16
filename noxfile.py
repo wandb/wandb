@@ -581,7 +581,10 @@ def mypy_report(session: nox.Session) -> None:
         "types-pytz",
         "types-PyYAML",
         "types-requests",
-        "types-setuptools",
+        # Fix for removal of pkg_resources
+        # TODO(@jacobromero): remove version constraint
+        # after migrating away from pkg_resources
+        "types-setuptools < 80.7",
         "types-six",
         "types-tqdm",
     )
