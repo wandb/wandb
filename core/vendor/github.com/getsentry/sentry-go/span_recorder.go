@@ -24,7 +24,7 @@ func (r *spanRecorder) record(s *Span) {
 	if len(r.spans) >= maxSpans {
 		r.overflowOnce.Do(func() {
 			root := r.spans[0]
-			Logger.Printf("Too many spans: dropping spans from transaction with TraceID=%s SpanID=%s limit=%d",
+			DebugLogger.Printf("Too many spans: dropping spans from transaction with TraceID=%s SpanID=%s limit=%d",
 				root.TraceID, root.SpanID, maxSpans)
 		})
 		// TODO(tracing): mark the transaction event in some way to

@@ -32,7 +32,7 @@ func (mi *modulesIntegration) processor(event *Event, _ *EventHint) *Event {
 		mi.once.Do(func() {
 			info, ok := debug.ReadBuildInfo()
 			if !ok {
-				Logger.Print("The Modules integration is not available in binaries built without module support.")
+				DebugLogger.Print("The Modules integration is not available in binaries built without module support.")
 				return
 			}
 			mi.modules = extractModules(info)
@@ -141,7 +141,7 @@ func (iei *ignoreErrorsIntegration) processor(event *Event, _ *EventHint) *Event
 	for _, suspect := range suspects {
 		for _, pattern := range iei.ignoreErrors {
 			if pattern.Match([]byte(suspect)) || strings.Contains(suspect, pattern.String()) {
-				Logger.Printf("Event dropped due to being matched by `IgnoreErrors` option."+
+				DebugLogger.Printf("Event dropped due to being matched by `IgnoreErrors` option."+
 					"| Value matched: %s | Filter used: %s", suspect, pattern)
 				return nil
 			}
@@ -203,7 +203,7 @@ func (iei *ignoreTransactionsIntegration) processor(event *Event, _ *EventHint) 
 
 	for _, pattern := range iei.ignoreTransactions {
 		if pattern.Match([]byte(suspect)) || strings.Contains(suspect, pattern.String()) {
-			Logger.Printf("Transaction dropped due to being matched by `IgnoreTransactions` option."+
+			DebugLogger.Printf("Transaction dropped due to being matched by `IgnoreTransactions` option."+
 				"| Value matched: %s | Filter used: %s", suspect, pattern)
 			return nil
 		}
