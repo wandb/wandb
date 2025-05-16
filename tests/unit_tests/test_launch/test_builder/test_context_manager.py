@@ -164,13 +164,13 @@ def test_python_version_parsing(
     mock_git_project, python_version, expected_docker_image
 ):
     """Test that python_version string is correctly parsed in different formats.
-    
+
     Tests both backward compatibility with simple version strings ("3.8") and
     the new format that includes implementation ("cpython 3.8").
     """
     (mock_git_project.project_dir / "requirements.txt").write_text("wandb")
     (mock_git_project.project_dir / "entrypoint.py").write_text("import wandb")
-    
+
     # Set the python version to test
     mock_git_project.python_version = python_version
 
@@ -181,5 +181,3 @@ def test_python_version_parsing(
     # Check Docker image uses correct Python version
     dockerfile = (path / "Dockerfile.wandb").read_text()
     assert expected_docker_image in dockerfile
-
-
