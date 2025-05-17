@@ -1,3 +1,5 @@
+"""W&B Public API for Automation objects."""
+
 from __future__ import annotations
 
 from itertools import chain
@@ -15,6 +17,8 @@ if TYPE_CHECKING:
 
 
 class Automations(Paginator["Automation"]):
+    """An iterable collection of `Automation` objects."""
+
     last_response: ProjectConnectionFields | None
     _query: Document
 
