@@ -59,7 +59,7 @@ class _WrappedSavedEventFilter(GQLBase):  # from: TriggeringFilterEvent
     filter: SerializedToJson[MongoLikeFilter] = And()
 
 
-class _WrappedMetricFilter(GQLBase):  # from: RunMetricFilter
+class _WrappedMetricFilter(GQLBase, alias_generator=None):  # from: RunMetricFilter
     threshold_filter: Optional[MetricThresholdFilter] = None
     change_filter: Optional[MetricChangeFilter] = None
 
@@ -95,7 +95,7 @@ class _WrappedMetricFilter(GQLBase):  # from: RunMetricFilter
         raise RuntimeError("Expected one of: `threshold_filter` or `change_filter`")
 
 
-class RunMetricFilter(GQLBase):  # from: TriggeringRunMetricEvent
+class RunMetricFilter(GQLBase, alias_generator=None):  # from: TriggeringRunMetricEvent
     run: Annotated[SerializedToJson[MongoLikeFilter], Field(alias="run_filter")] = And()
     metric: Annotated[_WrappedMetricFilter, Field(alias="run_metric_filter")]
 

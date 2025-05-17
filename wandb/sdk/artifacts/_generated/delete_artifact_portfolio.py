@@ -5,22 +5,18 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase, Typename
 
 from .enums import ArtifactCollectionState
 
 
 class DeleteArtifactPortfolio(GQLBase):
-    delete_artifact_portfolio: Optional[
-        DeleteArtifactPortfolioDeleteArtifactPortfolio
-    ] = Field(alias="deleteArtifactPortfolio")
+    delete_artifact_portfolio: Optional[DeleteArtifactPortfolioDeleteArtifactPortfolio]
 
 
 class DeleteArtifactPortfolioDeleteArtifactPortfolio(GQLBase):
-    artifact_collection: DeleteArtifactPortfolioDeleteArtifactPortfolioArtifactCollection = Field(
-        alias="artifactCollection"
+    artifact_collection: (
+        DeleteArtifactPortfolioDeleteArtifactPortfolioArtifactCollection
     )
 
 

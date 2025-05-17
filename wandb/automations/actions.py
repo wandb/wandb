@@ -129,7 +129,7 @@ class SendNotification(_BaseActionInput, NotificationActionInput):
 
     action_type: Literal[ActionType.NOTIFICATION] = ActionType.NOTIFICATION
 
-    integration_id: GQLId
+    integration_id: Annotated[GQLId, Field(alias="integrationID")]
     """The ID of the Slack integration that will be used to send the notification."""
 
     # Note: Validation aliases are meant to provide continuity with prior `wandb.alert()` API.
@@ -169,7 +169,7 @@ class SendWebhook(_BaseActionInput, GenericWebhookActionInput):
 
     action_type: Literal[ActionType.GENERIC_WEBHOOK] = ActionType.GENERIC_WEBHOOK
 
-    integration_id: GQLId
+    integration_id: Annotated[GQLId, Field(alias="integrationID")]
     """The ID of the webhook integration that will be used to send the request."""
 
     # overrides the generated field type to parse/serialize JSON strings

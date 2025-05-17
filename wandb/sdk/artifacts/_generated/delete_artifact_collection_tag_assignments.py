@@ -5,15 +5,13 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase
 
 
 class DeleteArtifactCollectionTagAssignments(GQLBase):
     delete_artifact_collection_tag_assignments: Optional[
         DeleteArtifactCollectionTagAssignmentsDeleteArtifactCollectionTagAssignments
-    ] = Field(alias="deleteArtifactCollectionTagAssignments")
+    ]
 
 
 class DeleteArtifactCollectionTagAssignmentsDeleteArtifactCollectionTagAssignments(
