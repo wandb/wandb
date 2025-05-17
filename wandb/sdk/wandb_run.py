@@ -2239,6 +2239,7 @@ class Run:
         - Crashed: Run that stopped sending heartbeats unexpectedly.
         - Finished: Run completed successfully (`exit_code=0`) with all data synced.
         - Failed: Run completed with errors (`exit_code!=0`).
+        - Killed: Run was forcibly stopped before it could finish.
 
         Args:
             exit_code: Integer indicating the run's exit status. Use 0 for success,
