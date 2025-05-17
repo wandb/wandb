@@ -8,9 +8,9 @@ RUN apt-get update && apt-get upgrade -y \
     && apt-get clean && rm -r /var/lib/apt/lists/*
 
 # Download and install Go bootstrap
-# Go 1.23 ships with a package containing a critical security vulnerability.
+# Go 1.24 ships with a package containing a critical security vulnerability.
 # We will use a bootstrap version of Go to build a patched version.
-COPY --from=golang:1.23-alpine /usr/local/go/ /usr/local/go-bootstrap
+COPY --from=golang:1.24-alpine /usr/local/go/ /usr/local/go-bootstrap
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 # Set up Go environment for bootstrap
@@ -21,11 +21,10 @@ ENV PATH=$PATH:/usr/local/go-bootstrap/bin:$GOPATH/bin
 # remove bootstrap version of go
 RUN git clone https://go.googlesource.com/go /usr/local/go-source && \
     cd /usr/local/go-source && \
-    git checkout go1.23.6 && \
-    # Update dependencies in the Go source
+    git checkout go1.24.2 && \
     cd src && \
-    go mod edit -require=golang.org/x/crypto@v0.31.0 && \
-    go mod edit -require=golang.org/x/net@v0.36.0 && \
+    go mod edit -require=golang.org/x/crypto@v0.37.0 && \
+    go mod edit -require=golang.org/x/net@v0.39.0 && \
     go mod download && \
     ./make.bash && \
     cd / && \
@@ -43,7 +42,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     pip uninstall -y setuptools && \
     pip install --no-cache-dir git+https://github.com/wandb/wandb.git@$REF#egg=wandb[launch] && \
     rm -rf /root/.cargo /root/.rustup && \
-    apt-get remove -y curl && \
+    apt-get remove -y curl perl && \
     apt-get -qy autoremove && \
     apt-get clean && rm -r /var/lib/apt/lists/*
 
