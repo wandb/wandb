@@ -5,6 +5,8 @@ in order to avoid file changes corrupting the artifact. Once the upload is compl
 file should be moved to the artifact cache.
 """
 
+from __future__ import annotations
+
 import os
 
 from wandb import env

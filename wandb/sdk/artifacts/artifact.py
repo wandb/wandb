@@ -19,16 +19,18 @@ from copy import copy
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
+from itertools import filterfalse
 from pathlib import PurePosixPath
-from typing import IO, Any, Dict, Iterator, Literal, Sequence, Type, cast, final
+from typing import IO, TYPE_CHECKING, Any, Iterator, Literal, Sequence, Type, final
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
 
 import wandb
-from wandb import data_types, env, util
+from wandb import data_types, env
+from wandb._iterutils import one
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
+from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
 from wandb.apis.public.utils import gql_compat
 from wandb.data_types import WBValue
 from wandb.errors import CommError
@@ -36,37 +38,6 @@ from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk import wandb_setup
-from wandb.sdk.artifacts._generated.fetch_linked_artifacts import FetchLinkedArtifacts
-from wandb.sdk.artifacts._generated.operations import FETCH_LINKED_ARTIFACTS_GQL
-from wandb.sdk.artifacts._graphql_fragments import (
-    _gql_artifact_fragment,
-    omit_artifact_fields,
-)
-from wandb.sdk.artifacts._validators import (
-    LINKED_ARTIFACT_COLLECTION_TYPE,
-    _LinkArtifactFields,
-    ensure_logged,
-    ensure_not_finalized,
-    is_artifact_registry_project,
-    validate_aliases,
-    validate_artifact_name,
-    validate_tags,
-)
-from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
-from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
-from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
-    ArtifactManifestV1,
-)
-from wandb.sdk.artifacts.artifact_state import ArtifactState
-from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
-from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError, WaitTimeoutError
-from wandb.sdk.artifacts.staging import get_staging_dir
-from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
-from wandb.sdk.artifacts.storage_layout import StorageLayout
-from wandb.sdk.artifacts.storage_policies import WANDB_STORAGE_POLICY
-from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -77,22 +48,66 @@ from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
 from wandb.sdk.mailbox import MailboxHandle
+from wandb.util import (
+    alias_is_version_index,
+    artifact_to_json,
+    fsync_open,
+    json_dumps_safer,
+    uri_from_path,
+    vendor_setup,
+)
 
 from ._generated import (
     ADD_ALIASES_GQL,
     DELETE_ALIASES_GQL,
+    FETCH_LINKED_ARTIFACTS_GQL,
     UPDATE_ARTIFACT_GQL,
     ArtifactAliasInput,
     ArtifactCollectionAliasInput,
+    FetchLinkedArtifacts,
     TagInput,
     UpdateArtifact,
 )
+from ._graphql_fragments import _gql_artifact_fragment, omit_artifact_fields
+from ._validators import (
+    LINKED_ARTIFACT_COLLECTION_TYPE,
+    _LinkArtifactFields,
+    ensure_logged,
+    ensure_not_finalized,
+    is_artifact_registry_project,
+    validate_aliases,
+    validate_artifact_name,
+    validate_metadata,
+    validate_tags,
+    validate_ttl_duration_seconds,
+)
+from .artifact_download_logger import ArtifactDownloadLogger
+from .artifact_instance_cache import artifact_instance_cache
+from .artifact_manifest import ArtifactManifest
+from .artifact_manifest_entry import ArtifactManifestEntry
+from .artifact_manifests.artifact_manifest_v1 import ArtifactManifestV1
+from .artifact_state import ArtifactState
+from .artifact_ttl import ArtifactTTL
+from .exceptions import (
+    ArtifactNotLoggedError,
+    TooFewItemsError,
+    TooManyItemsError,
+    WaitTimeoutError,
+)
+from .staging import get_staging_dir
+from .storage_handlers.gcs_handler import _GCSIsADirectoryError
+from .storage_layout import StorageLayout
+from .storage_policies import WANDB_STORAGE_POLICY
+from .storage_policy import StoragePolicy
 
-reset_path = util.vendor_setup()
+reset_path = vendor_setup()
 
 from wandb_gql import gql  # noqa: E402
 
 reset_path()
+
+if TYPE_CHECKING:
+    from wandb.apis.public import RetryingClient
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +210,7 @@ class Artifact:
         self._is_link: bool = False
         self._type: str = type
         self._description: str | None = description
-        self._metadata: dict = self._normalize_metadata(metadata)
+        self._metadata: dict[str, Any] = validate_metadata(metadata)
         self._ttl_duration_seconds: int | None = None
         self._ttl_is_inherited: bool = True
         self._ttl_changed: bool = False
@@ -226,8 +241,7 @@ class Artifact:
 
     @classmethod
     def _from_id(cls, artifact_id: str, client: RetryingClient) -> Artifact | None:
-        artifact = artifact_instance_cache.get(artifact_id)
-        if artifact is not None:
+        if (artifact := artifact_instance_cache.get(artifact_id)) is not None:
             return artifact
 
         query = gql(
@@ -398,23 +412,18 @@ class Artifact:
                 and obj["artifactCollection"]["name"] == collection
             ]
 
-        version_aliases = [
-            alias for alias in processed_aliases if util.alias_is_version_index(alias)
-        ]
-        other_aliases = [
-            alias
-            for alias in processed_aliases
-            if not util.alias_is_version_index(alias)
-        ]
-        if version_aliases:
-            try:
-                [version] = version_aliases
-            except ValueError:
-                raise ValueError(
-                    f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
-                )
-        else:
-            version = src_version
+        version_aliases = list(filter(alias_is_version_index, processed_aliases))
+        other_aliases = list(filterfalse(alias_is_version_index, processed_aliases))
+
+        try:
+            version = one(
+                version_aliases, too_short=TooFewItemsError, too_long=TooManyItemsError
+            )
+        except TooFewItemsError:
+            version = src_version  # default to the source version
+        except TooManyItemsError:
+            msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
+            raise ValueError(msg) from None
 
         self._version = version
 
@@ -429,11 +438,11 @@ class Artifact:
         self._saved_tags = copy(tags)
 
         metadata_str = attrs["metadata"]
-        self._metadata = self._normalize_metadata(
+        self._metadata = validate_metadata(
             json.loads(metadata_str) if metadata_str else {}
         )
 
-        self._ttl_duration_seconds = _ttl_duration_seconds_from_gql(
+        self._ttl_duration_seconds = validate_ttl_duration_seconds(
             attrs.get("ttlDurationSeconds")
         )
         self._ttl_is_inherited = (
@@ -798,7 +807,7 @@ class Artifact:
             wandb.termwarn(
                 "Editing the metadata of this linked artifact will edit the metadata for the source artifact and it's linked artifacts as well."
             )
-        self._metadata = self._normalize_metadata(metadata)
+        self._metadata = validate_metadata(metadata)
 
     @property
     def ttl(self) -> timedelta | None:
@@ -1276,7 +1285,7 @@ class Artifact:
         gql_vars = {
             "artifactID": self.id,
             "description": self.description,
-            "metadata": util.json_dumps_safer(self.metadata),
+            "metadata": json_dumps_safer(self.metadata),
             "ttlDurationSeconds": self._ttl_duration_seconds_to_gql(),
             "aliases": aliases,
             "tagsToAdd": [TagInput(tag_name=t).model_dump() for t in tags_to_add],
@@ -1352,7 +1361,7 @@ class Artifact:
 
         filesystem.mkdir_exists_ok(os.path.dirname(path))
         try:
-            with util.fsync_open(path, mode, encoding) as f:
+            with fsync_open(path, mode, encoding) as f:
                 yield f
         except FileExistsError:
             raise ValueError(f"File with name {name!r} already exists at {path!r}")
@@ -1775,7 +1784,7 @@ class Artifact:
             assert self._client is not None
             artifact = self._from_id(referenced_id, client=self._client)
             assert artifact is not None
-            return artifact.get(util.uri_from_path(entry.ref))
+            return artifact.get(uri_from_path(entry.ref))
 
         # Special case for wandb.Table. This is intended to be a short term
         # optimization. Since tables are likely to download many other assets in
@@ -2504,7 +2513,7 @@ class Artifact:
         Returns:
             A `dict` with `string` keys representing attributes of the artifact.
         """
-        return util.artifact_to_json(self)
+        return artifact_to_json(self)
 
     @staticmethod
     def _expected_type(
@@ -2542,16 +2551,6 @@ class Artifact:
             ((response.get("project") or {}).get("artifact") or {}).get("artifactType")
             or {}
         ).get("name")
-
-    @staticmethod
-    def _normalize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
-        if metadata is None:
-            return {}
-        if not isinstance(metadata, dict):
-            raise TypeError(f"metadata must be dict, not {type(metadata)}")
-        return cast(
-            Dict[str, Any], json.loads(json.dumps(util.json_friendly_val(metadata)))
-        )
 
     def _load_manifest(self, url: str) -> ArtifactManifest:
         with requests.get(url) as response:
@@ -2646,14 +2645,6 @@ class Artifact:
         linked_artifact._is_link = link_fields.is_link
         linked_artifact._linked_artifacts = link_fields.linked_artifacts
         return linked_artifact
-
-
-def _ttl_duration_seconds_from_gql(gql_ttl_duration_seconds: int | None) -> int | None:
-    # If gql_ttl_duration_seconds is not positive, its indicating that TTL is DISABLED(-2)
-    # gql_ttl_duration_seconds only returns None if the server is not compatible with setting Artifact TTLs
-    if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
-        return gql_ttl_duration_seconds
-    return None
 
 
 class _ArtifactVersionType(WBType):

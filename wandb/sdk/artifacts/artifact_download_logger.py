@@ -1,5 +1,7 @@
 """Artifact download logger."""
 
+from __future__ import annotations
+
 import multiprocessing.dummy
 import time
 from typing import Callable
