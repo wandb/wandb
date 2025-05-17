@@ -17,15 +17,15 @@ import filelock
 import polars as pl
 import requests
 import urllib3
-import wandb_workspaces.reports.v1 as wr
+import wandb_workspaces.reports.v2 as wr
 import yaml
 from wandb_gql import gql
-from wandb_workspaces.reports.v1 import Report
 
 import wandb
 from wandb.apis.public import ArtifactCollection, Run
 from wandb.apis.public.files import File
-from wandb.util import coalesce, remove_keys_with_none_values
+from wandb.util import coalesce, random_string, remove_keys_with_none_values
+
 
 from . import validation
 from .internals import internal
@@ -265,11 +265,11 @@ class WandbRun:
 
         yield from self._files
 
-    def logs(self) -> Optional[Iterable[str]]:
-        log_files = self._find_all_in_files_regex(r"^.*output\.log$")
-        for path in log_files:
-            with open(path) as f:
-                yield from f.readlines()
+    # def logs(self) -> Optional[Iterable[str]]:
+    #     log_files = self._find_all_in_files_regex(r"^.*output\.log$")
+    #     for path in log_files:
+    #         with open(path) as f:
+    #             yield from f.readlines()
 
     def _metadata_file(self) -> Dict[str, Any]:
         if (fname := self._find_in_files("wandb-metadata.json")) is None:
@@ -368,7 +368,9 @@ class WandbImporter:
         }
 
     def __repr__(self):
-        return f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"  # pragma: no cover
+        return (
+            f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"
+        )  # pragma: no cover
 
     def _import_run(
         self,
@@ -444,8 +446,8 @@ class WandbImporter:
         """
         entity = coalesce(namespace.entity, seq.entity)
         project = coalesce(namespace.project, seq.project)
-        art_type = f"{entity}/{project}/{seq.type_}"
-        art_name = seq.name
+        art_type = seq.type_
+        art_name = os.path.join(entity, project, seq.name)
 
         logger.info(
             f"Deleting collection {entity=}, {project=}, {art_type=}, {art_name=}"
@@ -709,7 +711,7 @@ class WandbImporter:
                 run.delete(delete_artifacts=False)
 
     def _import_report(
-        self, report: Report, *, namespace: Optional[Namespace] = None
+        self, report: wr.Report, *, namespace: Optional[Namespace] = None
     ) -> None:
         """Import one wandb.Report.
 
@@ -736,7 +738,7 @@ class WandbImporter:
 
         logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
         api.client.execute(
-            wr.report.UPSERT_VIEW,
+            wr.Report.UPSERT_VIEW,
             variable_values={
                 "id": None,  # Is there any benefit for this to be the same as default report?
                 "name": name,
@@ -798,6 +800,7 @@ class WandbImporter:
         history: bool = True,
         summary: bool = True,
         terminal_output: bool = True,
+        start_date: Optional[str] = None
     ):
         logger.info("START: Import runs")
 
@@ -806,7 +809,7 @@ class WandbImporter:
         _clear_fname(RUN_ERRORS_FNAME)
 
         logger.info("Collecting runs")
-        runs = list(self._collect_runs(namespaces=namespaces, limit=limit))
+        runs = list(self._collect_runs(namespaces=namespaces, limit=limit, start_date=start_date))
 
         logger.info(f"Validating runs, {len(runs)=}")
         self._validate_runs(
@@ -945,6 +948,7 @@ class WandbImporter:
         namespaces: Optional[Iterable[Namespace]] = None,
         incremental: bool = True,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
+        start_date: Optional[str] = None
     ):
         logger.info(f"START: Importing all, {runs=}, {artifacts=}, {reports=}")
         if runs:
@@ -952,6 +956,7 @@ class WandbImporter:
                 namespaces=namespaces,
                 incremental=incremental,
                 remapping=remapping,
+                start_date=start_date
             )
 
         if reports:
@@ -1444,8 +1449,8 @@ class _DummyUser:
 class _DummyRun:
     entity: str = ""
     project: str = ""
-    run_id: str = RUN_DUMMY_PLACEHOLDER
-    id: str = RUN_DUMMY_PLACEHOLDER
+    run_id: str = RUN_DUMMY_PLACEHOLDER + random_string()
+    id: str = RUN_DUMMY_PLACEHOLDER + random_string()
     display_name: str = RUN_DUMMY_PLACEHOLDER
     notes: str = ""
     url: str = ""
@@ -1462,7 +1467,10 @@ class _DummyRun:
 
 def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
     try:
-        df = pl.read_ndjson(fname)
+        if os.stat(fname).st_size == 0:
+            return None  # or handle the empty file case appropriately
+        else:
+            df = pl.read_ndjson(fname)
     except FileNotFoundError:
         return None
     except RuntimeError as e:
@@ -1513,8 +1521,8 @@ def _get_run_or_dummy_from_art(art: Artifact, api=None):
     run = _DummyRun(
         entity=art.entity,
         project=art.project,
-        run_id=creator.get("name", RUN_DUMMY_PLACEHOLDER),
-        id=creator.get("name", RUN_DUMMY_PLACEHOLDER),
+        run_id=creator.get("name", RUN_DUMMY_PLACEHOLDER + random_string()),
+        id=creator.get("name", RUN_DUMMY_PLACEHOLDER + random_string()),
     )
     return run
 
