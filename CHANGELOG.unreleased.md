@@ -13,6 +13,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+- wandb.Table: Added new constructor param, `log_mode`, with options `"IMMUTABLE"` and `"MUTABLE"`. `IMMUTABLE` log mode (default) is existing behavior that only allows a table to be logged once. `MUTABLE` log mode allows the table to be logged again if it has been mutated.
+
 ### Notable Changes
 
 This version removes the ability to disable the `service` process. This is a breaking change.
