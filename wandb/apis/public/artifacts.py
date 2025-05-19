@@ -59,6 +59,10 @@ from wandb.sdk.artifacts._generated import (
     RunOutputArtifactsProjectRunOutputArtifacts,
 )
 from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
+from wandb.sdk.artifacts._validators import (
+    SOURCE_ARTIFACT_COLLECTION_TYPE,
+    validate_artifact_name,
+)
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
 
@@ -286,16 +290,20 @@ class ArtifactCollection:
         type: str,
         organization: Optional[str] = None,
         attrs: Optional[Mapping[str, Any]] = None,
+        is_sequence: Optional[bool] = None,
     ):
         self.client = client
         self.entity = entity
         self.project = project
-        self._name = name
+        self._name = validate_artifact_name(name)
         self._saved_name = name
         self._type = type
         self._saved_type = type
         self._attrs = attrs
-        if self._attrs is None:
+        if is_sequence is not None:
+            self._is_sequence = is_sequence
+        is_loaded = attrs is not None and is_sequence is not None
+        if not is_loaded:
             self.load()
         self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
         self._description = self._attrs["description"]
@@ -358,7 +366,7 @@ class ArtifactCollection:
         sequence = type_.artifact_sequence
         self._is_sequence = (
             sequence is not None
-        ) and sequence.typename__ == "ArtifactSequence"
+        ) and sequence.typename__ == SOURCE_ARTIFACT_COLLECTION_TYPE
 
         if self._attrs is None:
             self._attrs = collection.model_dump(exclude_unset=True)
@@ -430,8 +438,8 @@ class ArtifactCollection:
         return self._name
 
     @name.setter
-    def name(self, name: List[str]) -> None:
-        self._name = name
+    def name(self, name: str) -> None:
+        self._name = validate_artifact_name(name)
 
     @property
     def type(self):
@@ -708,7 +716,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         names: Optional[Sequence[str]] = None,
         per_page: int = 50,
     ):
-        self.query_via_membership = InternalApi()._check_server_feature_with_fallback(
+        self.query_via_membership = InternalApi()._server_supports(
             ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         )
         self.artifact = artifact

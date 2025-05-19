@@ -106,7 +106,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.10.dev1"
+__version__: str = "0.19.12.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -1078,7 +1078,7 @@ def link_model(
     registered_model_name: str,
     name: str | None = None,
     aliases: list[str] | None = None,
-) -> None:
+) -> Artifact | None:
     """Log a model artifact version and link it to a registered model in the model registry.
 
     The linked model version will be visible in the UI for the specified registered model.
@@ -1140,7 +1140,7 @@ def link_model(
         ValueError: if name has invalid special characters
 
     Returns:
-        None
+        The linked artifact if linking was successful, otherwise None.
     """
     ...
 

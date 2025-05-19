@@ -204,6 +204,7 @@ def unit_tests_pydantic_v1(session: nox.Session) -> None:
             "tests/unit_tests/test_wandb_metadata.py",
             "tests/unit_tests/test_wandb_run.py",
             "tests/unit_tests/test_pydantic_v1_compat.py",
+            "tests/unit_tests/test_artifacts",
         ],
         opts={"n": "4"},
     )
@@ -580,7 +581,10 @@ def mypy_report(session: nox.Session) -> None:
         "types-pytz",
         "types-PyYAML",
         "types-requests",
-        "types-setuptools",
+        # Fix for removal of pkg_resources
+        # TODO(@jacobromero): remove version constraint
+        # after migrating away from pkg_resources
+        "types-setuptools < 80.7",
         "types-six",
         "types-tqdm",
     )

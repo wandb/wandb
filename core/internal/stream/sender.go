@@ -13,6 +13,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/debounce"
@@ -146,6 +147,8 @@ type Sender struct {
 
 	// startState tracks the initial state of a run handling
 	// potential branching with resume, fork, and rewind.
+	//
+	// It is nil initially.
 	startState *runbranch.RunParams
 
 	// telemetry record internal implementation of telemetry
@@ -291,7 +294,6 @@ func NewSender(
 		mailbox:       params.Mailbox,
 		runSummary:    params.RunSummary,
 		outChan:       params.OutChan,
-		startState:    runbranch.NewRunParams(),
 		configDebouncer: debounce.NewDebouncer(
 			configDebouncerRateLimit,
 			configDebouncerBurstSize,
@@ -545,7 +547,9 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 // updateSettings updates the settings from the run record upon a run start
 // with the information from the server
 func (s *Sender) updateSettings() {
-	if s.settings == nil || !s.startState.Initialized {
+	if s.startState == nil {
+		s.logger.CaptureError(
+			errors.New("sender: updateSettings: no start state"))
 		return
 	}
 
@@ -570,10 +574,6 @@ func (s *Sender) updateSettings() {
 // sendRequestRunStart sends a run start request to start all the stream
 // components that need to be started and to update the settings
 func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
-	// mark the run state as initialized, indicating the run has started and was
-	// successfully upserted on the server.
-	s.startState.Initialized = true
-
 	s.updateSettings()
 
 	if s.fileStream != nil {
@@ -613,7 +613,6 @@ func (s *Sender) sendJobFlush() {
 	if s.jobBuilder == nil {
 		return
 	}
-	s.jobBuilder.SetRunConfig(*s.runConfig)
 
 	output := s.runSummary.ToNestedMaps()
 
@@ -623,6 +622,7 @@ func (s *Sender) sendJobFlush() {
 	artifact, err := s.jobBuilder.Build(
 		op.Context(s.runWork.BeforeEndCtx()),
 		s.graphqlClient,
+		s.runConfig.CloneTree(),
 		output,
 	)
 	if err != nil {
@@ -852,12 +852,18 @@ func (s *Sender) sendLinkArtifact(record *spb.Record, msg *spb.LinkArtifactReque
 		LinkArtifact:  msg,
 		GraphqlClient: s.graphqlClient,
 	}
-	err := linker.Link()
+	linkResponse, err := linker.Link()
 	if err != nil {
 		response.ErrorMessage = err.Error()
 		s.logger.Error("sender: linkArtifact:", "error", err.Error())
 	}
 
+	if linkResponse != nil && linkResponse.LinkArtifact.VersionIndex != nil {
+		v := int32(*linkResponse.LinkArtifact.VersionIndex)
+		response.VersionIndex = &v
+	} else {
+		response.VersionIndex = nil
+	}
 	result := &spb.Result{
 		ResultType: &spb.Result_Response{
 			Response: &spb.Response{
@@ -901,23 +907,38 @@ func (s *Sender) serializeConfig(format runconfig.Format) ([]byte, error) {
 	return serializedConfig, nil
 }
 
-func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
+// setConfigOnRunRecord sets the record's Config field to the current config.
+func (s *Sender) setConfigOnRunRecord(record *spb.RunRecord) {
+	record.Config = &spb.ConfigRecord{}
 
+	for key, value := range s.runConfig.CloneTree() {
+		valueJSON, _ := simplejsonext.MarshalToString(map[string]any{
+			"value": value,
+		})
+
+		record.Config.Update = append(record.Config.Update,
+			&spb.ConfigItem{
+				Key:       key,
+				ValueJson: valueJSON,
+			})
+	}
+}
+
+func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
 	fork := s.settings.GetForkFrom()
-	update, err := runbranch.NewForkBranch(
+	err := runbranch.NewForkBranch(
 		fork.GetRun(),
 		fork.GetMetric(),
 		fork.GetValue(),
-	).ApplyChanges(s.startState, runbranch.RunPath{
-		Entity:  s.startState.Entity,
-		Project: s.startState.Project,
-		RunID:   s.startState.RunID,
-	})
+	).UpdateForFork(s.startState)
 
 	if err != nil {
+		s.startState = nil
+
 		s.logger.CaptureError(
 			fmt.Errorf("send: sendRun: failed to update run state: %s", err),
 		)
+
 		// provide more info about the error to the user
 		if errType, ok := err.(*runbranch.BranchError); ok {
 			if errType.Response != nil {
@@ -928,18 +949,18 @@ func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
 					s.respond(record, result)
 				}
 			}
-			return
 		}
+
+		return
 	}
 
-	s.startState.Merge(update)
-
-	s.upsertRun(record, run)
+	s.upsertRun(record, run, true /*updateStartState*/)
 }
 
 func (s *Sender) sendRewindRun(record *spb.Record, run *spb.RunRecord) {
-
-	// if there is no client we can't do anything so we just return
+	// The client is nil if we're offline, in which case we cannot rewind.
+	//
+	// FIXME: This should return an error instead of silently doing nothing.
 	if s.graphqlClient == nil {
 		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 			s.respond(record,
@@ -952,23 +973,22 @@ func (s *Sender) sendRewindRun(record *spb.Record, run *spb.RunRecord) {
 	}
 
 	rewind := s.settings.GetResumeFrom()
-	update, err := runbranch.NewRewindBranch(
+	err := runbranch.NewRewindBranch(
 		s.runWork.BeforeEndCtx(),
 		s.graphqlClient,
 		rewind.GetRun(),
 		rewind.GetMetric(),
 		rewind.GetValue(),
-	).ApplyChanges(s.startState, runbranch.RunPath{
-		Entity:  s.startState.Entity,
-		Project: s.startState.Project,
-		RunID:   s.startState.RunID,
-	})
+	).UpdateForRewind(s.startState, s.runConfig)
 
 	if err != nil {
+		s.startState = nil
+
 		s.logger.Error(
 			"send: sendRun: failed to update run state",
 			"error", err,
 		)
+
 		// provide more info about the error to the user
 		if errType, ok := err.(*runbranch.BranchError); ok {
 			if errType.Response != nil {
@@ -979,27 +999,23 @@ func (s *Sender) sendRewindRun(record *spb.Record, run *spb.RunRecord) {
 					s.respond(record, result)
 				}
 			}
-			return
 		}
+
+		return
 	}
 
-	s.startState.Merge(update)
-	// Merge the resumed config into the run config
-	s.runConfig.MergeResumedConfig(s.startState.Config)
-
 	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-		proto.Merge(run, s.startState.Proto())
-		s.respond(record,
-			&spb.RunUpdateResult{
-				Run: run,
-			},
-		)
+		updatedRun := proto.CloneOf(run)
+		s.startState.SetOnProto(updatedRun)
+		s.setConfigOnRunRecord(updatedRun)
+		s.respond(record, &spb.RunUpdateResult{Run: updatedRun})
 	}
 }
 
 func (s *Sender) sendResumeRun(record *spb.Record, run *spb.RunRecord) {
-
-	// if there is no client we can't do anything so we just return
+	// The client is nil if we're offline, in which case we cannot resume.
+	//
+	// FIXME: This should return an error instead of silently doing nothing.
 	if s.graphqlClient == nil {
 		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 			s.respond(record,
@@ -1011,20 +1027,19 @@ func (s *Sender) sendResumeRun(record *spb.Record, run *spb.RunRecord) {
 		return
 	}
 
-	update, err := runbranch.NewResumeBranch(
+	err := runbranch.NewResumeBranch(
 		s.runWork.BeforeEndCtx(),
 		s.graphqlClient,
 		s.settings.GetResume(),
-	).GetUpdates(s.startState, runbranch.RunPath{
-		Entity:  s.startState.Entity,
-		Project: s.startState.Project,
-		RunID:   s.startState.RunID,
-	})
+	).UpdateForResume(s.startState, s.runConfig)
 
 	if err != nil {
+		s.startState = nil
+
 		s.logger.CaptureError(
 			fmt.Errorf("send: sendRun: failed to update run state: %s", err),
 		)
+
 		// provide more info about the error to the user
 		if errType, ok := err.(*runbranch.BranchError); ok {
 			if errType.Response != nil {
@@ -1034,24 +1049,16 @@ func (s *Sender) sendResumeRun(record *spb.Record, run *spb.RunRecord) {
 					}
 					s.respond(record, result)
 				}
-				return
 			}
 		}
-	}
-	s.startState.Merge(update)
 
-	// On the first invocation of sendRun, we overwrite the tags if the user
-	// has set them in wandb.init(). Otherwise, we keep the tags from the
-	// original run.
-	if len(run.Tags) == 0 {
-		run.Tags = append(run.Tags, s.startState.Tags...)
+		return
 	}
 
-	// Merge the resumed config into the run config
-	s.runConfig.MergeResumedConfig(s.startState.Config)
-
-	proto.Merge(run, s.startState.Proto())
-	s.upsertRun(record, run)
+	updatedRun := proto.CloneOf(run)
+	s.startState.SetOnProto(updatedRun)
+	s.setConfigOnRunRecord(updatedRun)
+	s.upsertRun(record, updatedRun, true /*updateStartState*/)
 }
 
 // sendRun sends a run record to the server and updates the run record
@@ -1062,15 +1069,6 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 	//  consequent updates are fire-and-forget and thus don't have a mailbox
 	//  slot.
 	//  We should probably separate the initial upsert from the updates.
-
-	var ok bool
-	runClone, ok := proto.Clone(run).(*spb.RunRecord)
-	if !ok {
-		err := errors.New("failed to clone run record")
-		s.logger.CaptureFatalAndPanic(
-			fmt.Errorf("send: sendRun: failed to send run: %s", err),
-		)
-	}
 
 	// The first run record sent by the client is encoded incorrectly,
 	// causing it to overwrite the entire "_wandb" config key rather than
@@ -1088,54 +1086,49 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 	proto.Merge(s.telemetry, run.Telemetry)
 	s.updateConfigPrivate()
 
-	if !s.startState.Initialized {
-
-		// update the run state with the initial run record
-		s.startState.Merge(&runbranch.RunParams{
-			RunID:       runClone.GetRunId(),
-			Project:     runClone.GetProject(),
-			Entity:      runClone.GetEntity(),
-			DisplayName: runClone.GetDisplayName(),
-			StorageID:   runClone.GetStorageId(),
-			SweepID:     runClone.GetSweepId(),
-			StartTime:   runClone.GetStartTime().AsTime(),
-		})
-
-		isResume := s.settings.GetResume()
-		isRewind := s.settings.GetResumeFrom()
-		isFork := s.settings.GetForkFrom()
-		switch {
-		case isResume != "" && isRewind != nil || isResume != "" && isFork != nil || isRewind != nil && isFork != nil:
-			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-				s.respond(record,
-					&spb.RunUpdateResult{
-						Error: &spb.ErrorInfo{
-							Code: spb.ErrorInfo_USAGE,
-							Message: "`resume`, `fork_from`, and `resume_from` are mutually exclusive. " +
-								"Please specify only one of them.",
-						},
-					},
-				)
-			}
-			s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
-		case isResume != "":
-			s.sendResumeRun(record, runClone)
-		case isRewind != nil:
-			s.sendRewindRun(record, runClone)
-		case isFork != nil:
-			s.sendForkRun(record, runClone)
-		default:
-			s.upsertRun(record, runClone)
-		}
+	// If startState isn't nil, then we are updating an initialized run.
+	if s.startState != nil {
+		s.upsertRun(record, run, false /*updateStartState*/)
 		return
 	}
 
-	s.upsertRun(record, runClone)
+	s.startState = runbranch.NewRunParams(run, s.settings)
+
+	isResume := s.settings.GetResume()
+	isRewind := s.settings.GetResumeFrom()
+	isFork := s.settings.GetForkFrom()
+	switch {
+	case isResume != "" && isRewind != nil || isResume != "" && isFork != nil || isRewind != nil && isFork != nil:
+		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+			s.respond(record,
+				&spb.RunUpdateResult{
+					Error: &spb.ErrorInfo{
+						Code: spb.ErrorInfo_USAGE,
+						Message: "`resume`, `fork_from`, and `resume_from` are mutually exclusive. " +
+							"Please specify only one of them.",
+					},
+				},
+			)
+		}
+		s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
+	case isResume != "":
+		s.sendResumeRun(record, run)
+	case isRewind != nil:
+		s.sendRewindRun(record, run)
+	case isFork != nil:
+		s.sendForkRun(record, run)
+	default:
+		s.upsertRun(record, run, true /*updateStartState*/)
+	}
 }
 
-func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
-
-	// if there is no graphql client, we don't need to do anything
+//gocyclo:ignore
+func (s *Sender) upsertRun(
+	record *spb.Record,
+	run *spb.RunRecord,
+	updateStartState bool,
+) {
+	// The client is nil if we're offline, in which case we cannot upsert.
 	if s.graphqlClient == nil {
 		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 			s.respond(record,
@@ -1166,7 +1159,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		// if this times out, we mark the run as done as there is
 		// no need to proceed with it
 		ctx = s.mailbox.Add(ctx, s.runWork.SetDone, mailboxSlot)
-	} else if !s.startState.Initialized {
+	} else if updateStartState {
 		// this should never happen:
 		// the initial run upsert record should have a mailbox slot set by the client
 		s.logger.CaptureFatalAndPanic(
@@ -1236,7 +1229,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 	// manage the state of the run
 	if data == nil || data.GetUpsertBucket() == nil || data.GetUpsertBucket().GetBucket() == nil {
 		s.logger.Error("sender: upsertRun: upsert bucket response is empty")
-	} else if !s.startState.Initialized {
+	} else if updateStartState {
 		// only update the state once on the initial run upsert, the subsequent
 		// updates are fire-and-forget
 
@@ -1252,31 +1245,36 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 			projectName = project.GetName()
 		}
 
-		fileStreamOffset := make(fs.FileStreamOffsetMap)
-		fileStreamOffset[fs.HistoryChunk] = nullify.ZeroIfNil(bucket.GetHistoryLineCount())
+		s.startState.FileStreamOffset[fs.HistoryChunk] = nullify.ZeroIfNil(
+			bucket.GetHistoryLineCount(),
+		)
 
-		params := &runbranch.RunParams{
-			StorageID:        bucket.GetId(),
-			Entity:           nullify.ZeroIfNil(&entityName),
-			Project:          nullify.ZeroIfNil(&projectName),
-			RunID:            bucket.GetName(),
-			DisplayName:      nullify.ZeroIfNil(bucket.GetDisplayName()),
-			SweepID:          nullify.ZeroIfNil(bucket.GetSweepName()),
-			FileStreamOffset: fileStreamOffset,
+		if storageID := bucket.GetId(); storageID != "" {
+			s.startState.StorageID = storageID
 		}
-
-		s.startState.Merge(params)
+		if entityName != "" {
+			s.startState.Entity = entityName
+		}
+		if projectName != "" {
+			s.startState.Project = projectName
+		}
+		if runID := bucket.GetName(); runID != "" {
+			s.startState.RunID = runID
+		}
+		if displayName := nullify.ZeroIfNil(bucket.GetDisplayName()); displayName != "" {
+			s.startState.DisplayName = displayName
+		}
+		if sweepID := nullify.ZeroIfNil(bucket.GetSweepName()); sweepID != "" {
+			s.startState.SweepID = sweepID
+		}
 	}
 
 	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 		// This will be done only for the initial run upsert record
 		// the consequent updates are fire-and-forget
-		proto.Merge(run, s.startState.Proto())
-		s.respond(record,
-			&spb.RunUpdateResult{
-				Run: run,
-			},
-		)
+		updatedRun := proto.CloneOf(run)
+		s.startState.SetOnProto(updatedRun)
+		s.respond(record, &spb.RunUpdateResult{Run: updatedRun})
 	}
 }
 
@@ -1327,7 +1325,7 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	if !s.startState.Initialized {
+	if s.startState == nil {
 		s.logger.Error("sender: upsertConfig: RunRecord is nil")
 		return
 	}
@@ -1386,7 +1384,7 @@ func (s *Sender) uploadSummaryFile() {
 		return
 	}
 
-	if !s.startState.Initialized {
+	if s.startState == nil {
 		return
 	}
 
@@ -1416,7 +1414,7 @@ func (s *Sender) uploadConfigFile() {
 		return
 	}
 
-	if !s.startState.Initialized {
+	if s.startState == nil {
 		return
 	}
 
@@ -1525,7 +1523,7 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 		return
 	}
 
-	if !s.startState.Initialized {
+	if s.startState == nil {
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendAlert: RunRecord not set"))
 	}

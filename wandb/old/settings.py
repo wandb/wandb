@@ -146,6 +146,10 @@ class Settings:
         try:
             home_config_dir = os.path.join(os.path.expanduser("~"), ".config", "wandb")
 
+            if os.getenv(env.CONFIG_DIR):
+                try_create_dir(os.getenv(env.CONFIG_DIR))
+                return os.path.join(os.getenv(env.CONFIG_DIR), "settings")
+
             if not try_create_dir(home_config_dir):
                 temp_config_dir = os.path.join(
                     tempfile.gettempdir(), ".config", "wandb"
@@ -162,7 +166,6 @@ class Settings:
             else:
                 config_dir = home_config_dir
 
-            config_dir = os.environ.get(env.CONFIG_DIR, config_dir)
             return os.path.join(config_dir, "settings")
         except Exception:
             return None

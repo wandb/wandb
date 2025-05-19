@@ -1,6 +1,6 @@
 [package]
 name = "gpu_stats"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 
 [[bin]]
@@ -31,6 +31,8 @@ chrono = "0.4"
 
 tonic-build = "0.12.3"
 tempfile = "3.15.0"
+
+libloading = "0.8"
 
 [target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dependencies]
 which = "7.0.1"

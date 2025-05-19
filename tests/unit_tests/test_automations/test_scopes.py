@@ -1,6 +1,7 @@
 from wandb._pydantic import CompatBaseModel
 from wandb.apis.public import ArtifactCollection, Project
 from wandb.automations import ArtifactCollectionScope, ProjectScope, ScopeType
+from wandb.automations._generated import TriggerScopeType
 from wandb.automations.scopes import ArtifactCollectionScopeTypes, AutomationScope
 
 
@@ -14,6 +15,17 @@ class HasCollectionScope(HasScope):
 
 class HasProjectScope(HasScope):
     scope: ProjectScope
+
+
+def test_public_scope_type_enum_matches_generated():
+    """Check that the public `ScopeType` enum matches the schema-generated enum.
+
+    This is a safeguard in case we've had to make any extra customizations
+    (e.g. renaming members) to the public API definition.
+    """
+    public_enum_values = {e.value for e in ScopeType}
+    generated_enum_values = {e.value for e in TriggerScopeType}
+    assert public_enum_values == generated_enum_values
 
 
 def test_scope_can_validate_from_wandb_artifact_collection(
@@ -31,7 +43,7 @@ def test_scope_can_validate_from_wandb_artifact_collection(
     # - https://peps.python.org/pep-0604/
 
     assert isinstance(validated_scope, ArtifactCollectionScopeTypes)
-    assert validated_scope.scope_type is ScopeType.ARTIFACT_COLLECTION
+    assert validated_scope.scope_type == ScopeType.ARTIFACT_COLLECTION
     assert validated_scope.id == artifact_collection.id
     assert validated_scope.name == artifact_collection.name
 
@@ -39,7 +51,7 @@ def test_scope_can_validate_from_wandb_artifact_collection(
     validated_scope = validated.scope
 
     assert isinstance(validated_scope, ArtifactCollectionScopeTypes)
-    assert validated_scope.scope_type is ScopeType.ARTIFACT_COLLECTION
+    assert validated_scope.scope_type == ScopeType.ARTIFACT_COLLECTION
     assert validated_scope.id == artifact_collection.id
     assert validated_scope.name == artifact_collection.name
 
@@ -53,7 +65,7 @@ def test_scope_can_validate_from_wandb_project(
     validated_scope = validated.scope
 
     assert isinstance(validated_scope, ProjectScope)
-    assert validated_scope.scope_type is ScopeType.PROJECT
+    assert validated_scope.scope_type == ScopeType.PROJECT
     assert validated_scope.id == project.id
     assert validated_scope.name == project.name
 
@@ -61,6 +73,6 @@ def test_scope_can_validate_from_wandb_project(
     validated_scope = validated.scope
 
     assert isinstance(validated_scope, ProjectScope)
-    assert validated_scope.scope_type is ScopeType.PROJECT
+    assert validated_scope.scope_type == ScopeType.PROJECT
     assert validated_scope.id == project.id
     assert validated_scope.name == project.name

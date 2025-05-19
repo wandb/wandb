@@ -14,26 +14,29 @@ from wandb.automations._generated import (
     ProjectScopeFields,
 )
 
-from ._generated import TriggerScopeType
-from ._validators import validate_scope
+from ._validators import LenientStrEnum, to_scope
+
 
 # NOTE: Re-defined publicly with a more readable name for easier access
-ScopeType = TriggerScopeType
-"""The type of scope that triggers an automation."""
+class ScopeType(LenientStrEnum):
+    """The kind of scope that triggers an automation."""
+
+    PROJECT = "PROJECT"
+    ARTIFACT_COLLECTION = "ARTIFACT_COLLECTION"
 
 
 class _BaseScope(GQLBase):
-    scope_type: ScopeType
+    scope_type: Annotated[ScopeType, Field(frozen=True)]
 
 
 class _ArtifactSequenceScope(_BaseScope, ArtifactSequenceScopeFields):
-    """The ID and name of a "sequence"-type ArtifactCollection scope of an automation."""
+    """An automation scope defined by a specific `ArtifactSequence`."""
 
     scope_type: Literal[ScopeType.ARTIFACT_COLLECTION] = ScopeType.ARTIFACT_COLLECTION
 
 
 class _ArtifactPortfolioScope(_BaseScope, ArtifactPortfolioScopeFields):
-    """The ID and name of a "portfolio"-type ArtifactCollection scope of an automation."""
+    """An automation scope defined by a specific `ArtifactPortfolio` (e.g. a registry collection)."""
 
     scope_type: Literal[ScopeType.ARTIFACT_COLLECTION] = ScopeType.ARTIFACT_COLLECTION
 
@@ -41,20 +44,19 @@ class _ArtifactPortfolioScope(_BaseScope, ArtifactPortfolioScopeFields):
 # for type annotations
 ArtifactCollectionScope = Annotated[
     Union[_ArtifactSequenceScope, _ArtifactPortfolioScope],
-    BeforeValidator(validate_scope),
+    BeforeValidator(to_scope),
     Field(discriminator="typename__"),
 ]
-"""The ID and name of the ArtifactCollection scope of an automation."""
+"""An automation scope defined by a specific `ArtifactCollection`."""
 
 # for runtime type checks
-ArtifactCollectionScopeTypes: tuple[type, ...] = (
-    _ArtifactSequenceScope,
-    _ArtifactPortfolioScope,
+ArtifactCollectionScopeTypes: tuple[type, ...] = get_args(
+    ArtifactCollectionScope.__origin__  # type: ignore[attr-defined]
 )
 
 
 class ProjectScope(_BaseScope, ProjectScopeFields):
-    """The ID and name of the Project scope of an automation."""
+    """An automation scope defined by a specific `Project`."""
 
     scope_type: Literal[ScopeType.PROJECT] = ScopeType.PROJECT
 
@@ -62,15 +64,15 @@ class ProjectScope(_BaseScope, ProjectScopeFields):
 # for type annotations
 AutomationScope: TypeAlias = Annotated[
     Union[_ArtifactSequenceScope, _ArtifactPortfolioScope, ProjectScope],
-    BeforeValidator(validate_scope),
+    BeforeValidator(to_scope),
     Field(discriminator="typename__"),
 ]
 # for runtime type checks
-AutomationScopeTypes: tuple[type, ...] = get_args(AutomationScope)
+AutomationScopeTypes: tuple[type, ...] = get_args(AutomationScope.__origin__)  # type: ignore[attr-defined]
 
-# Aliases for naming clarity/consistency
-SavedScope: TypeAlias = AutomationScope
-InputScope: TypeAlias = AutomationScope
 
-SavedScopeTypes: tuple[type, ...] = get_args(SavedScope)
-InputScopeTypes: tuple[type, ...] = get_args(InputScope)
+__all__ = [
+    "ScopeType",
+    "ArtifactCollectionScope",
+    "ProjectScope",
+]

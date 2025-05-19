@@ -9,11 +9,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
     id
     name
     urlEndpoint
-    createdAt
-}
-fragment GithubIntegrationFields on GitHubOAuthIntegration {
-    __typename
-    id
 }
 
 # ------------------------------------------------------------------------------
@@ -41,14 +36,12 @@ fragment FilterEventFields on FilterEventTriggeringCondition {
 }
 
 # ------------------------------------------------------------------------------
-fragment RunQueueFields on RunQueue {
-    __typename
-    id
-    name
-}
 fragment QueueJobActionFields on QueueJobTriggeredAction {
     __typename
-    queue {...RunQueueFields}
+    queue {
+        id
+        name
+    }
     template
 }
 fragment NotificationActionFields on NotificationTriggeredAction {
@@ -75,18 +68,11 @@ fragment NoOpActionFields on NoOpTriggeredAction {
 }
 
 # ------------------------------------------------------------------------------
-fragment UserFields on User {
-    __typename
-    id
-    username
-}
-
 fragment TriggerFields on Trigger {
     __typename
 
     id
     createdAt
-    createdBy {...UserFields}
     updatedAt
 
     name
@@ -135,7 +121,7 @@ fragment ProjectConnectionFields on ProjectConnection {
 # top-level `triggers(...)` query.  The fact that triggers can only be searched under
 # an individual project or collection is a bit awkward, but has historically been
 # needed to support the UI alone.
-query GetTriggers (
+query GetAutomations (
     $cursor: String,
     $perPage: Int,
 ) {
@@ -145,7 +131,7 @@ query GetTriggers (
         }
     }
 }
-query GetTriggersByEntity (
+query GetAutomationsByEntity (
     $entityName: String!,
     $cursor: String,
     $perPage: Int,
@@ -158,33 +144,33 @@ query GetTriggersByEntity (
 }
 
 # ------------------------------------------------------------------------------
-fragment CreateFilterTriggerResult on CreateFilterTriggerPayload {
+fragment CreateAutomationResult on CreateFilterTriggerPayload {
     __typename
     trigger {...TriggerFields}
 }
-mutation CreateFilterTrigger($params: CreateFilterTriggerInput!) {
-    createFilterTrigger(input: $params) {
-        ...CreateFilterTriggerResult
+mutation CreateAutomation($params: CreateFilterTriggerInput!) {
+    result: createFilterTrigger(input: $params) {
+        ...CreateAutomationResult
     }
 }
 
-fragment UpdateFilterTriggerResult on UpdateFilterTriggerPayload {
+fragment UpdateAutomationResult on UpdateFilterTriggerPayload {
     __typename
     trigger {...TriggerFields}
 }
-mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!) {
-    updateFilterTrigger(input: $params) {
-        ...UpdateFilterTriggerResult
+mutation UpdateAutomation($params: UpdateFilterTriggerInput!) {
+    result: updateFilterTrigger(input: $params) {
+        ...UpdateAutomationResult
     }
 }
 
-fragment DeleteTriggerResult on DeleteTriggerPayload {
+fragment DeleteAutomationResult on DeleteTriggerPayload {
     __typename
     success
 }
-mutation DeleteTrigger($id: ID!) {
-    deleteTrigger(input: {triggerID: $id}) {
-        ...DeleteTriggerResult
+mutation DeleteAutomation($id: ID!) {
+    result: deleteTrigger(input: {triggerID: $id}) {
+        ...DeleteAutomationResult
     }
 }
 
@@ -196,8 +182,8 @@ fragment IntegrationConnectionFields on IntegrationConnection {
         cursor
         node {
             __typename
-            ...SlackIntegrationFields @include(if: $includeSlack)
-            ...GenericWebhookIntegrationFields @include(if: $includeWebhook)
+            ...SlackIntegrationFields
+            ...GenericWebhookIntegrationFields
         }
     }
 }
@@ -228,8 +214,6 @@ query IntegrationsByEntity(
     $entityName: String!,
     $cursor: String,
     $perPage: Int,
-    $includeSlack: Boolean = false,
-    $includeWebhook: Boolean = false,
 ) {
     entity(name: $entityName) {
         integrations(after: $cursor, first: $perPage) {

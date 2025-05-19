@@ -2,19 +2,19 @@
 # Source: tools/graphql_codegen/automations/
 
 __all__ = [
-    "CREATE_FILTER_TRIGGER_GQL",
+    "CREATE_AUTOMATION_GQL",
     "CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL",
-    "DELETE_TRIGGER_GQL",
+    "DELETE_AUTOMATION_GQL",
     "GENERIC_WEBHOOK_INTEGRATIONS_BY_ENTITY_GQL",
-    "GET_TRIGGERS_BY_ENTITY_GQL",
-    "GET_TRIGGERS_GQL",
+    "GET_AUTOMATIONS_BY_ENTITY_GQL",
+    "GET_AUTOMATIONS_GQL",
     "INTEGRATIONS_BY_ENTITY_GQL",
     "SLACK_INTEGRATIONS_BY_ENTITY_GQL",
-    "UPDATE_FILTER_TRIGGER_GQL",
+    "UPDATE_AUTOMATION_GQL",
 ]
 
-GET_TRIGGERS_GQL = """
-query GetTriggers($cursor: String, $perPage: Int) {
+GET_AUTOMATIONS_GQL = """
+query GetAutomations($cursor: String, $perPage: Int) {
   searchScope: viewer {
     projects(after: $cursor, first: $perPage) {
       ...ProjectConnectionFields
@@ -54,7 +54,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
@@ -102,15 +101,10 @@ fragment ProjectScopeFields on Project {
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
-    ...RunQueueFields
+    id
+    name
   }
   template
-}
-
-fragment RunQueueFields on RunQueue {
-  __typename
-  id
-  name
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
@@ -124,9 +118,6 @@ fragment TriggerFields on Trigger {
   __typename
   id
   createdAt
-  createdBy {
-    ...UserFields
-  }
   updatedAt
   name
   description
@@ -149,16 +140,10 @@ fragment TriggerFields on Trigger {
     ...NoOpActionFields
   }
 }
-
-fragment UserFields on User {
-  __typename
-  id
-  username
-}
 """
 
-GET_TRIGGERS_BY_ENTITY_GQL = """
-query GetTriggersByEntity($entityName: String!, $cursor: String, $perPage: Int) {
+GET_AUTOMATIONS_BY_ENTITY_GQL = """
+query GetAutomationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
   searchScope: entity(name: $entityName) {
     projects(after: $cursor, first: $perPage) {
       ...ProjectConnectionFields
@@ -198,7 +183,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
@@ -246,15 +230,10 @@ fragment ProjectScopeFields on Project {
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
-    ...RunQueueFields
+    id
+    name
   }
   template
-}
-
-fragment RunQueueFields on RunQueue {
-  __typename
-  id
-  name
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
@@ -268,9 +247,6 @@ fragment TriggerFields on Trigger {
   __typename
   id
   createdAt
-  createdBy {
-    ...UserFields
-  }
   updatedAt
   name
   description
@@ -293,18 +269,12 @@ fragment TriggerFields on Trigger {
     ...NoOpActionFields
   }
 }
-
-fragment UserFields on User {
-  __typename
-  id
-  username
-}
 """
 
-CREATE_FILTER_TRIGGER_GQL = """
-mutation CreateFilterTrigger($params: CreateFilterTriggerInput!) {
-  createFilterTrigger(input: $params) {
-    ...CreateFilterTriggerResult
+CREATE_AUTOMATION_GQL = """
+mutation CreateAutomation($params: CreateFilterTriggerInput!) {
+  result: createFilterTrigger(input: $params) {
+    ...CreateAutomationResult
   }
 }
 
@@ -320,7 +290,7 @@ fragment ArtifactSequenceScopeFields on ArtifactSequence {
   name
 }
 
-fragment CreateFilterTriggerResult on CreateFilterTriggerPayload {
+fragment CreateAutomationResult on CreateFilterTriggerPayload {
   __typename
   trigger {
     ...TriggerFields
@@ -347,7 +317,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
@@ -375,15 +344,10 @@ fragment ProjectScopeFields on Project {
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
-    ...RunQueueFields
+    id
+    name
   }
   template
-}
-
-fragment RunQueueFields on RunQueue {
-  __typename
-  id
-  name
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
@@ -397,9 +361,6 @@ fragment TriggerFields on Trigger {
   __typename
   id
   createdAt
-  createdBy {
-    ...UserFields
-  }
   updatedAt
   name
   description
@@ -422,18 +383,12 @@ fragment TriggerFields on Trigger {
     ...NoOpActionFields
   }
 }
-
-fragment UserFields on User {
-  __typename
-  id
-  username
-}
 """
 
-UPDATE_FILTER_TRIGGER_GQL = """
-mutation UpdateFilterTrigger($params: UpdateFilterTriggerInput!) {
-  updateFilterTrigger(input: $params) {
-    ...UpdateFilterTriggerResult
+UPDATE_AUTOMATION_GQL = """
+mutation UpdateAutomation($params: UpdateFilterTriggerInput!) {
+  result: updateFilterTrigger(input: $params) {
+    ...UpdateAutomationResult
   }
 }
 
@@ -469,7 +424,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 
 fragment NoOpActionFields on NoOpTriggeredAction {
@@ -497,15 +451,10 @@ fragment ProjectScopeFields on Project {
 fragment QueueJobActionFields on QueueJobTriggeredAction {
   __typename
   queue {
-    ...RunQueueFields
+    id
+    name
   }
   template
-}
-
-fragment RunQueueFields on RunQueue {
-  __typename
-  id
-  name
 }
 
 fragment SlackIntegrationFields on SlackIntegration {
@@ -519,9 +468,6 @@ fragment TriggerFields on Trigger {
   __typename
   id
   createdAt
-  createdBy {
-    ...UserFields
-  }
   updatedAt
   name
   description
@@ -545,35 +491,29 @@ fragment TriggerFields on Trigger {
   }
 }
 
-fragment UpdateFilterTriggerResult on UpdateFilterTriggerPayload {
+fragment UpdateAutomationResult on UpdateFilterTriggerPayload {
   __typename
   trigger {
     ...TriggerFields
   }
 }
-
-fragment UserFields on User {
-  __typename
-  id
-  username
-}
 """
 
-DELETE_TRIGGER_GQL = """
-mutation DeleteTrigger($id: ID!) {
-  deleteTrigger(input: {triggerID: $id}) {
-    ...DeleteTriggerResult
+DELETE_AUTOMATION_GQL = """
+mutation DeleteAutomation($id: ID!) {
+  result: deleteTrigger(input: {triggerID: $id}) {
+    ...DeleteAutomationResult
   }
 }
 
-fragment DeleteTriggerResult on DeleteTriggerPayload {
+fragment DeleteAutomationResult on DeleteTriggerPayload {
   __typename
   success
 }
 """
 
 INTEGRATIONS_BY_ENTITY_GQL = """
-query IntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int, $includeSlack: Boolean = false, $includeWebhook: Boolean = false) {
+query IntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
   entity(name: $entityName) {
     integrations(after: $cursor, first: $perPage) {
       ...IntegrationConnectionFields
@@ -586,7 +526,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 
 fragment IntegrationConnectionFields on IntegrationConnection {
@@ -598,8 +537,8 @@ fragment IntegrationConnectionFields on IntegrationConnection {
     cursor
     node {
       __typename
-      ...SlackIntegrationFields @include(if: $includeSlack)
-      ...GenericWebhookIntegrationFields @include(if: $includeWebhook)
+      ...SlackIntegrationFields
+      ...GenericWebhookIntegrationFields
     }
   }
 }
@@ -681,7 +620,6 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 
 fragment PageInfoFields on PageInfo {
@@ -705,6 +643,5 @@ fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
   id
   name
   urlEndpoint
-  createdAt
 }
 """

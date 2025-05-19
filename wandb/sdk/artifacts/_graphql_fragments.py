@@ -97,5 +97,6 @@ def _gql_registry_fragment() -> str:
             description
             createdAt
             updatedAt
+            access
         }
     """

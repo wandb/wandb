@@ -202,6 +202,15 @@ func (f *formatter) FormatSchema(schema *ast.Schema) {
 	if inSchema {
 		f.DecrementIndent()
 		f.WriteString("}").WriteNewline()
+	} else if len(schema.SchemaDirectives) > 0 {
+		// Schema definition is omitted from output, but it has
+		// directives. Output them as the schema extension to not loose
+		// them
+		f.WriteWord("extend").WriteWord("schema")
+
+		f.FormatDirectiveList(schema.SchemaDirectives)
+
+		f.WriteNewline()
 	}
 
 	directiveNames := make([]string, 0, len(schema.Directives))
