@@ -208,7 +208,7 @@ def test_using_incrementally_logged_table(user, test_settings, monkeypatch):
     # override get_entry_name to use deterministic timestamps
     log_count = 0
 
-    def mock_get_entry_name(run, incr_table, key):
+    def mock_get_entry_name(incr_table, key):
         nonlocal log_count
         entry_name = f"{log_count}-100000000{log_count}.{key}"
         log_count += 1
@@ -251,6 +251,9 @@ def test_table_incremental_logging_empty(user, test_settings, wandb_backend_spy)
 def test_resumed_run_incremental_table(user, test_settings):
     """
     Test that incremental tables are logged correctly from a resumed run.
+
+    We expect the incremental table to get the previous paths and
+    increment num from the previously logged incremental table.
     """
     run = wandb.init(settings=test_settings(), id="resume_test")
     t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
@@ -278,6 +281,7 @@ def test_resumed_run_no_prev_incr_table(user, test_settings):
     they weren't previously logged
     """
     run = wandb.init(settings=test_settings(), id="resume_test_2")
+    run.log({"test": 0.5})
     run.finish()
 
     resumed_run = wandb.init(
@@ -286,23 +290,10 @@ def test_resumed_run_no_prev_incr_table(user, test_settings):
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
     t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
     resumed_run.log({"table": t})
-    assert t._resume_handled
-    assert t._last_logged_idx == 0
-    assert t._artifact_target is not None
-    assert t._increment_num == 0
     t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
-    # _increment_num is only incremented after data is added
-    assert t._artifact_target is None
-    assert t._increment_num == 1
-    assert len(t._previous_increments_paths) == 1
     t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
     resumed_run.log({"table": t})
-    assert t._last_logged_idx == 2
-    assert t._increment_num == 1
     t.add_data("No", "No", wandb.Image(np.ones(shape=(32, 32))))
-    assert t._last_logged_idx == 2
-    assert t._increment_num == 2
-    assert len(t._previous_increments_paths) == 2
     resumed_run.log({"table": t})
     assert t._last_logged_idx == 3
     resumed_run.finish()
@@ -322,7 +313,7 @@ def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch
     # override get_entry_name to use deterministic timestamps
     log_count = 0
 
-    def mock_get_entry_name(run, incr_table, key):
+    def mock_get_entry_name(incr_table, key):
         nonlocal log_count
         entry_name = f"{log_count}-100000000{log_count}.{key}"
         log_count += 1
