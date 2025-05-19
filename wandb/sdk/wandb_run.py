@@ -29,6 +29,8 @@ from typing import (
     TypeVar,
 )
 
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
 if sys.version_info < (3, 10):
     from typing_extensions import Concatenate, ParamSpec
 else:
@@ -2630,7 +2632,7 @@ class Run:
         installed_packages_list: list[str],
         patch_path: os.PathLike | None = None,
     ) -> Artifact:
-        job_artifact = job_builder.JobArtifact(name)
+        job_artifact = InternalArtifact(name, job_builder.JOB_ARTIFACT_TYPE)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
 import wandb
 from wandb import util
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue
@@ -150,7 +151,7 @@ def val_to_json(
             ]:
                 # Sanitize the key to meet the constraints of artifact names.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
-                art = wandb.Artifact(f"run-{run.id}-{sanitized_key}", "run_table")
+                art = InternalArtifact(f"run-{run.id}-{sanitized_key}", "run_table")
                 art.add(val, key)
                 run.log_artifact(art)
 

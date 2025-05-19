@@ -189,7 +189,7 @@ class Artifact:
         self._source_version: str | None = None
         self._source_artifact: Artifact | None = None
         self._is_link: bool = False
-        self._type: str = validate_artifact_type(type)
+        self._type: str = validate_artifact_type(type, name)
         self._description: str | None = description
         self._metadata: dict = self._normalize_metadata(metadata)
         self._ttl_duration_seconds: int | None = None
