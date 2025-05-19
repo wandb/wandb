@@ -132,7 +132,7 @@ github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric
 # github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.51.0
 ## explicit; go 1.22
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping
-# github.com/Khan/genqlient v0.8.0
+# github.com/Khan/genqlient v0.8.1
 ## explicit; go 1.22.5
 github.com/Khan/genqlient/generate
 github.com/Khan/genqlient/graphql

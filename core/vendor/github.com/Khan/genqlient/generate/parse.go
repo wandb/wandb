@@ -91,6 +91,8 @@ func expandFilenames(globs []string) ([]string, error) {
 	for _, glob := range globs {
 		// SplitPattern in case the path is absolute or something; a valid path
 		// isn't necessarily a valid glob-pattern.
+		glob = filepath.Clean(glob)
+		glob = filepath.ToSlash(glob)
 		base, pattern := doublestar.SplitPattern(glob)
 		matches, err := doublestar.Glob(os.DirFS(base), pattern, doublestar.WithFilesOnly())
 		if err != nil {
