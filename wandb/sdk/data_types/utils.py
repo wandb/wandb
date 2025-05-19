@@ -184,6 +184,8 @@ def _log_table_artifact(val: "ValToJsonType", key: str, run: "LocalRun") -> None
     """
     # Sanitize the key to meet the constraints of artifact names.
     sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
+    if not isinstance(val, WBValue):
+        return
 
     if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
         if run.resumed:
