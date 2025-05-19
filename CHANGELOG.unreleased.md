@@ -24,3 +24,7 @@ This version removes the ability to disable the `service` process. This is a bre
 ### Deprecated
 
 - The `start_method` setting is deprecated and has no effect; it is safely ignored (@kptkin in https://github.com/wandb/wandb/pull/9837)
+
+### Fixed
+
+- Offline runs with requested branching (fork or rewind) sync correctly (@dmitryduev in https://github.com/wandb/wandb/pull/9876)
