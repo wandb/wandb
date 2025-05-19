@@ -925,11 +925,11 @@ func (s *Sender) setConfigOnRunRecord(record *spb.RunRecord) {
 }
 
 func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
-	fork := s.settings.GetForkFrom()
+	fork := run.GetBranchPoint()
 	err := runbranch.NewForkBranch(
-		fork.GetRun(),
-		fork.GetMetric(),
-		fork.GetValue(),
+		fork.GetSourceRun(),
+		fork.GetMetricName(),
+		fork.GetMetricValue(),
 	).UpdateForFork(s.startState)
 
 	if err != nil {
@@ -972,13 +972,13 @@ func (s *Sender) sendRewindRun(record *spb.Record, run *spb.RunRecord) {
 		return
 	}
 
-	rewind := s.settings.GetResumeFrom()
+	rewind := run.GetBranchPoint()
 	err := runbranch.NewRewindBranch(
 		s.runWork.BeforeEndCtx(),
 		s.graphqlClient,
-		rewind.GetRun(),
-		rewind.GetMetric(),
-		rewind.GetValue(),
+		rewind.GetSourceRun(),
+		rewind.GetMetricName(),
+		rewind.GetMetricValue(),
 	).UpdateForRewind(s.startState, s.runConfig)
 
 	if err != nil {
@@ -1095,10 +1095,10 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 	s.startState = runbranch.NewRunParams(run, s.settings)
 
 	isResume := s.settings.GetResume()
-	isRewind := s.settings.GetResumeFrom()
-	isFork := s.settings.GetForkFrom()
+	isRewind := run.GetBranchPoint() != nil && run.GetBranchPoint().Type == spb.BranchPointRecord_BRANCH_POINT_REWIND
+	isFork := run.GetBranchPoint() != nil && run.GetBranchPoint().Type == spb.BranchPointRecord_BRANCH_POINT_FORK
 	switch {
-	case isResume != "" && isRewind != nil || isResume != "" && isFork != nil || isRewind != nil && isFork != nil:
+	case isResume != "" && isRewind || isResume != "" && isFork || isRewind && isFork:
 		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 			s.respond(record,
 				&spb.RunUpdateResult{
@@ -1113,9 +1113,9 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 		s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
 	case isResume != "":
 		s.sendResumeRun(record, run)
-	case isRewind != nil:
+	case isRewind:
 		s.sendRewindRun(record, run)
-	case isFork != nil:
+	case isFork:
 		s.sendForkRun(record, run)
 	default:
 		s.upsertRun(record, run, true /*updateStartState*/)
