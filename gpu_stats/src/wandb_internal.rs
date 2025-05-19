@@ -781,6 +781,63 @@ pub struct FooterRecord {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
+/// BranchPointRecord stores information about a branch point for a run.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BranchPointRecord {
+    /// The name of the source run to branch off of.
+    #[prost(string, tag = "1")]
+    pub source_run: ::prost::alloc::string::String,
+    /// The name of the metric to use to find a branch point.
+    ///
+    /// Currently, this is always `_step`.
+    #[prost(string, tag = "2")]
+    pub metric_name: ::prost::alloc::string::String,
+    /// The value of the metric to branch at.
+    #[prost(double, tag = "3")]
+    pub metric_value: f64,
+    #[prost(enumeration = "branch_point_record::BranchPointType", tag = "4")]
+    pub r#type: i32,
+}
+/// Nested message and enum types in `BranchPointRecord`.
+pub mod branch_point_record {
+    /// The type of branch point.
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
+    #[repr(i32)]
+    pub enum BranchPointType {
+        BranchPointFork = 0,
+        BranchPointRewind = 1,
+    }
+    impl BranchPointType {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                Self::BranchPointFork => "BRANCH_POINT_FORK",
+                Self::BranchPointRewind => "BRANCH_POINT_REWIND",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "BRANCH_POINT_FORK" => Some(Self::BranchPointFork),
+                "BRANCH_POINT_REWIND" => Some(Self::BranchPointRewind),
+                _ => None,
+            }
+        }
+    }
+}
 ///
 /// RunRecord: wandb/sdk/wandb_run/Run
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -827,6 +884,8 @@ pub struct RunRecord {
     pub git: ::core::option::Option<GitRepoRecord>,
     #[prost(bool, tag = "22")]
     pub forked: bool,
+    #[prost(message, optional, tag = "23")]
+    pub branch_point: ::core::option::Option<BranchPointRecord>,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
