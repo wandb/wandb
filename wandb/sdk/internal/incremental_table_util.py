@@ -7,7 +7,7 @@ import wandb
 
 if TYPE_CHECKING:
     from wandb import Table
-
+    from wandb.sdk.artifacts.artifact import Artifact
     from ..wandb_run import Run as LocalRun
 
 ART_TYPE = "wandb-run-incremental-table"
@@ -46,7 +46,16 @@ def handle_resumed_run(incr_table: Table, run: LocalRun, key: str):
     incr_table._resume_handled = True
 
 
-def init_artifact(run: LocalRun, sanitized_key: str):
+def init_artifact(run: LocalRun, sanitized_key: str) -> Artifact:
+    """Initialize a new artifact for an incremental table.
+    
+    Args:
+        run: The wandb run associated with this artifact
+        sanitized_key: Sanitized string key to identify the table
+    
+    Returns:
+        A wandb Artifact configured for incremental table storage
+    """
     artifact_name = f"run-{run.id}-incr-{sanitized_key}"
     artifact = wandb.Artifact(
         artifact_name,
@@ -57,6 +66,16 @@ def init_artifact(run: LocalRun, sanitized_key: str):
     return artifact
 
 
-def get_entry_name(incr_table: Table, key: str):
+def get_entry_name(incr_table: "Table", key: str) -> str:
+    """Generate a unique entry name for a table increment.
+    
+    Args:
+        run: The wandb run associated with this table
+        incr_table: The incremental table being updated
+        key: String key for the table entry
+    
+    Returns:
+        A unique string name for the table entry
+    """
     epoch = str(int(time.time() * 1000))
     return f"{incr_table._increment_num}-{epoch}.{key}"
