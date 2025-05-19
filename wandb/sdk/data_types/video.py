@@ -84,6 +84,7 @@ class Video(BatchableMedia):
                 or io object. This parameter will be used to determine the format
                 to use when encoding the video data. Accepted values are "gif",
                 "mp4", "webm", or "ogg".
+                If no value is provided, the default format will be "gif".
 
         Examples:
             ### Log a numpy array as a video

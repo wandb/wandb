@@ -11,3 +11,5 @@ coverage:
       default:
         # Do not fail the commit status if the coverage was reduced up to this value
         threshold: 0.5%
+ignore:
+  - "log_fallback.go"
