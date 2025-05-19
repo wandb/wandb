@@ -141,37 +141,73 @@ def test_table_mutation_logging(user, test_settings, wandb_backend_spy):
     assert len(run.logged_artifacts()) == 3
 
 
-def test_table_incremental_logging(user, test_settings, wandb_backend_spy):
+def test_incr_logging_initial_log(user, test_settings):
     run = wandb.init(settings=test_settings())
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
     t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
     run.log({"table": t})
+    run.finish()
+    api_run = wandb.Api().run(f"uncategorized/{run.id}")
+    assert len(api_run.logged_artifacts()) == 1
     assert t._last_logged_idx == 0
     assert t._artifact_target is not None
     assert t._increment_num == 0
+
+
+def test_incr_logging_add_data_reset_state_and_increment_counter(user, test_settings):
+    run = wandb.init(settings=test_settings())
+    t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
+    t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
+    run.log({"table": t})
     t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
-    # _increment_num is only incremented after data is added
+    run.finish()
+    # _increment_num should only be incremented after data is added
     assert t._artifact_target is None
+    assert t._run is None
+    assert t._sha256 is None
+    assert t._path is None
     assert t._increment_num == 1
     assert len(t._previous_increments_paths) == 1
+
+
+def test_incr_logging_multiple_logs(user, test_settings):
+    """Test multiple logging operations on an incremental table."""
+    run = wandb.init(settings=test_settings())
+    t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
+
+    # Initial log
+    t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
+    run.log({"table": t})
+
+    # Add more data and log again
+    t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
     t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
     run.log({"table": t})
+
+    # Verify state after second log
     assert t._last_logged_idx == 2
     assert t._increment_num == 1
-    t.add_data("No", "No", wandb.Image(np.ones(shape=(32, 32))))
-    assert t._last_logged_idx == 2
+    assert len(t._previous_increments_paths) == 1
+
+    # Add more data and log again
+    t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
+    t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
+    run.log({"table": t})
+    run.finish()
+
+    # Verify state after third log
+    assert t._last_logged_idx == 4
     assert t._increment_num == 2
     assert len(t._previous_increments_paths) == 2
-    run.log({"table": t})
-    assert t._last_logged_idx == 3
-    run.finish()
-    run = wandb.Api().run(f"uncategorized/{run.id}")
-    assert len(run.logged_artifacts()) == 3
+
+    api_run = wandb.Api().run(f"uncategorized/{run.id}")
+    assert len(api_run.logged_artifacts()) == 3
 
 
 def test_using_incrementally_logged_table(user, test_settings, monkeypatch):
     # override get_entry_name to use deterministic timestamps
     log_count = 0
+
     def mock_get_entry_name(run, incr_table, key):
         nonlocal log_count
         entry_name = f"{log_count}-100000000{log_count}.{key}"

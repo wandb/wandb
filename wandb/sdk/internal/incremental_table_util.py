@@ -7,7 +7,6 @@ if TYPE_CHECKING:
     from wandb import Table
 
     from ..wandb_run import Run as LocalRun
-    from ..wandb_summary import Summary
 
 ART_TYPE = "wandb-run-incremental-table"
 
@@ -48,7 +47,9 @@ def handle_resumed_run(incr_table: "Table", run: "LocalRun", key: str):
 def init_artifact(run: "LocalRun", sanitized_key: str):
     artifact_name = f"run-{run.id}-incr-{sanitized_key}"
     artifact = wandb.Artifact(
-        artifact_name, "placeholder-run-incremental-table", incremental=True
+        artifact_name,
+        "placeholder-run-incremental-table",
+        incremental=True,
     )
     artifact._type = ART_TYPE  # get around type restriction for system artifact
     return artifact
