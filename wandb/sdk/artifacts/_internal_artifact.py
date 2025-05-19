@@ -1,4 +1,4 @@
-from typing import Any, Final
+from typing import Any, Dict, Final, Optional
 
 from wandb.sdk.artifacts.artifact import Artifact
 
@@ -10,10 +10,10 @@ class InternalArtifact(Artifact):
         self,
         name: str,
         type: str,
-        description: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        description: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         incremental: bool = False,
-        use_as: str | None = None,
+        use_as: Optional[str] = None,
     ) -> None:
         super().__init__(name, PLACEHOLDER, description, metadata, incremental, use_as)
         self._type = type
