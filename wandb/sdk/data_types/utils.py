@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
 import wandb
 from wandb import util
-from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue
@@ -72,6 +71,8 @@ def val_to_json(
         raise ValueError(
             "val_to_json must be called with a namespace(a step number, or 'summary') argument"
         )
+
+    from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
     converted = val
 

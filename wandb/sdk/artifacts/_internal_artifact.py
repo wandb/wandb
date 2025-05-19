@@ -1,6 +1,6 @@
 from typing import Any, Final
 
-from .artifact import Artifact
+from wandb.sdk.artifacts.artifact import Artifact
 
 PLACEHOLDER: Final[str] = "PLACEHOLDER"
 

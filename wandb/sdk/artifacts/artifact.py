@@ -2161,7 +2161,7 @@ class Artifact:
 
         Args:
             root: The directory to verify. If None artifact will be downloaded to
-                './artifacts/self.name/'
+                './artifacts/self.name/'.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.

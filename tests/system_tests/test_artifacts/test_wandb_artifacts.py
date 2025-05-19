@@ -17,7 +17,10 @@ import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 from wandb import Artifact, util
-from wandb.sdk.artifacts._validators import ARTIFACT_NAME_MAXLEN
+from wandb.sdk.artifacts._validators import (
+    ARTIFACT_NAME_MAXLEN,
+    RESERVED_ARTIFACT_TYPE_PREFIX,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
@@ -1631,6 +1634,22 @@ def test_change_artifact_collection_type(user):
     with wandb.init() as run:
         artifact = run.use_artifact("image_data:latest")
         assert artifact.type == "lucas_type"
+
+
+def test_change_artifact_collection_type_to_internal_type(user):
+    with wandb.init() as run:
+        artifact = Artifact("image_data", "data")
+        run.log_artifact(artifact)
+
+    internal_type = RESERVED_ARTIFACT_TYPE_PREFIX + "invalid"
+    with wandb.init() as run:
+        artifact = run.use_artifact("image_data:latest")
+        with pytest.raises(ValueError, match="is reserved for internal use"):
+            artifact.collection.change_type(internal_type)
+
+        with pytest.raises(ValueError, match="is reserved for internal use"):
+            artifact.collection.type = internal_type
+            artifact.collection.save()
 
 
 @pytest.mark.parametrize(

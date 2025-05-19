@@ -62,6 +62,7 @@ from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
 from wandb.sdk.artifacts._validators import (
     SOURCE_ARTIFACT_COLLECTION_TYPE,
     validate_artifact_name,
+    validate_artifact_type,
 )
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
@@ -379,6 +380,8 @@ class ArtifactCollection:
             warning_message="ArtifactCollection.change_type(type) is deprecated, use ArtifactCollection.save() instead.",
         )
 
+        validate_artifact_type(new_type, self.name)
+
         if not self.is_sequence():
             raise ValueError("Artifact collection needs to be a sequence")
         termlog(
@@ -452,6 +455,7 @@ class ArtifactCollection:
             raise ValueError(
                 "Type can only be changed if the artifact collection is a sequence."
             )
+        validate_artifact_type(type, self.name)
         self._type = type
 
     def _update_collection(self) -> None:
