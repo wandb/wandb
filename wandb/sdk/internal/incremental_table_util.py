@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import time
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 import wandb
 
@@ -11,7 +13,7 @@ if TYPE_CHECKING:
 ART_TYPE = "wandb-run-incremental-table"
 
 
-def handle_resumed_run(incr_table: "Table", run: "LocalRun", key: str):
+def handle_resumed_run(incr_table: Table, run: LocalRun, key: str):
     """Handle different scenarios when a run is resumed.
 
     Check the summary to see if there was an incremental table that was logged for
@@ -20,9 +22,9 @@ def handle_resumed_run(incr_table: "Table", run: "LocalRun", key: str):
     if not run.resumed or incr_table._resume_handled:
         return
 
-    summary: Summary = run.summary
+    summary = run.summary
 
-    summary_from_key: Optional[Dict[str, Any]] = summary.get(key)
+    summary_from_key: dict[str, Any] | None = summary.get(key)
 
     if summary_from_key is None:
         incr_table._resume_handled = True
@@ -44,7 +46,7 @@ def handle_resumed_run(incr_table: "Table", run: "LocalRun", key: str):
     incr_table._resume_handled = True
 
 
-def init_artifact(run: "LocalRun", sanitized_key: str):
+def init_artifact(run: LocalRun, sanitized_key: str):
     artifact_name = f"run-{run.id}-incr-{sanitized_key}"
     artifact = wandb.Artifact(
         artifact_name,
@@ -55,6 +57,6 @@ def init_artifact(run: "LocalRun", sanitized_key: str):
     return artifact
 
 
-def get_entry_name(run: "LocalRun", incr_table: "Table", key: str):
+def get_entry_name(incr_table: Table, key: str):
     epoch = str(int(time.time() * 1000))
     return f"{incr_table._increment_num}-{epoch}.{key}"

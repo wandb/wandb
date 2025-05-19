@@ -321,6 +321,7 @@ def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch
 
     # override get_entry_name to use deterministic timestamps
     log_count = 0
+
     def mock_get_entry_name(run, incr_table, key):
         nonlocal log_count
         entry_name = f"{log_count}-100000000{log_count}.{key}"

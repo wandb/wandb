@@ -189,7 +189,7 @@ def _log_table_artifact(val: "ValToJsonType", key: str, run: "LocalRun") -> None
         if run.resumed:
             incremental_table_util.handle_resumed_run(val, run, key)
         art = incremental_table_util.init_artifact(run, sanitized_key)
-        entry_name = incremental_table_util.get_entry_name(run, val, key)
+        entry_name = incremental_table_util.get_entry_name(val, key)
     else:
         art_type = "run_table"
         art_name = f"run-{run.id}-{sanitized_key}"
