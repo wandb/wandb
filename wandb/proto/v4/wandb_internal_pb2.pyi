@@ -439,6 +439,7 @@ class BranchPointRecord(google.protobuf.message.Message):
     SOURCE_RUN_FIELD_NUMBER: builtins.int
     METRIC_NAME_FIELD_NUMBER: builtins.int
     METRIC_VALUE_FIELD_NUMBER: builtins.int
+    TYPE_FIELD_NUMBER: builtins.int
     source_run: builtins.str
     """The name of the source run to branch off of."""
     metric_name: builtins.str
@@ -448,14 +449,16 @@ class BranchPointRecord(google.protobuf.message.Message):
     """
     metric_value: builtins.float
     """The value of the metric to branch at."""
+    type: global___BranchPointRecord.BranchPointType.ValueType
     def __init__(
         self,
         *,
         source_run: builtins.str = ...,
         metric_name: builtins.str = ...,
         metric_value: builtins.float = ...,
+        type: global___BranchPointRecord.BranchPointType.ValueType = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["metric_name", b"metric_name", "metric_value", b"metric_value", "source_run", b"source_run"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["metric_name", b"metric_name", "metric_value", b"metric_value", "source_run", b"source_run", "type", b"type"]) -> None: ...
 
 global___BranchPointRecord = BranchPointRecord
 

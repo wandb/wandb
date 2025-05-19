@@ -795,6 +795,8 @@ pub struct BranchPointRecord {
     /// The value of the metric to branch at.
     #[prost(double, tag = "3")]
     pub metric_value: f64,
+    #[prost(enumeration = "branch_point_record::BranchPointType", tag = "4")]
+    pub r#type: i32,
 }
 /// Nested message and enum types in `BranchPointRecord`.
 pub mod branch_point_record {

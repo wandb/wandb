@@ -140,6 +140,8 @@ message BranchPointRecord {
     BRANCH_POINT_FORK = 0;
     BRANCH_POINT_REWIND = 1;
   }
+
+  BranchPointType type = 4;
 }
 
 /*

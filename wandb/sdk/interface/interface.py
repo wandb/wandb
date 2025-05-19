@@ -167,8 +167,25 @@ class InterfaceBase:
         if run._settings.resumed:
             proto_run.resumed = run._settings.resumed
         if run._settings.fork_from:
-            pass
-            # print(run._settings.fork_from)
+            run_moment = run._settings.fork_from
+            proto_run.branch_point.MergeFrom(
+                    pb.BranchPointRecord(
+                    source_run=run_moment.run,
+                    metric_name=run_moment.metric,
+                    metric_value=run_moment.value,
+                    type=pb.BranchPointRecord.BRANCH_POINT_FORK,
+                )
+            )
+        if run._settings.resume_from:
+            run_moment = run._settings.resume_from
+            proto_run.branch_point.MergeFrom(
+                pb.BranchPointRecord(
+                    source_run=run_moment.run,
+                    metric_name=run_moment.metric,
+                    metric_value=run_moment.value,
+                    type=pb.BranchPointRecord.BRANCH_POINT_REWIND,
+                )
+            )
         if run._forked:
             proto_run.forked = run._forked
         if run._config is not None:
