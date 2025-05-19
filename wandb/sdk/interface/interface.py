@@ -169,7 +169,7 @@ class InterfaceBase:
         if run._settings.fork_from:
             run_moment = run._settings.fork_from
             proto_run.branch_point.MergeFrom(
-                    pb.BranchPointRecord(
+                pb.BranchPointRecord(
                     source_run=run_moment.run,
                     metric_name=run_moment.metric,
                     metric_value=run_moment.value,
