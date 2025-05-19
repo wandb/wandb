@@ -781,12 +781,15 @@ pub struct FooterRecord {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
+/// BranchPointRecord stores information about a branch point for a run.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BranchPointRecord {
     /// The name of the source run to branch off of.
     #[prost(string, tag = "1")]
     pub source_run: ::prost::alloc::string::String,
     /// The name of the metric to use to find a branch point.
+    ///
+    /// Currently, this is always `_step`.
     #[prost(string, tag = "2")]
     pub metric_name: ::prost::alloc::string::String,
     /// The value of the metric to branch at.

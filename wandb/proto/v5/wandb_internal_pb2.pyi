@@ -423,6 +423,8 @@ global___FooterRecord = FooterRecord
 
 @typing.final
 class BranchPointRecord(google.protobuf.message.Message):
+    """BranchPointRecord stores information about a branch point for a run."""
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     class _BranchPointType:
@@ -446,7 +448,10 @@ class BranchPointRecord(google.protobuf.message.Message):
     source_run: builtins.str
     """The name of the source run to branch off of."""
     metric_name: builtins.str
-    """The name of the metric to use to find a branch point."""
+    """The name of the metric to use to find a branch point.
+
+    Currently, this is always `_step`.
+    """
     metric_value: builtins.float
     """The value of the metric to branch at."""
     def __init__(
