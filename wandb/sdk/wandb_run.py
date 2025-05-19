@@ -1153,7 +1153,7 @@ class Run:
                     f"{self._settings.project}-{self._settings.program_relpath}"
                 )
             name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
-        art = wandb.Artifact(name, "code")
+        art = InternalArtifact(name, "code")
         files_added = False
         if root is not None:
             root = os.path.abspath(root)
