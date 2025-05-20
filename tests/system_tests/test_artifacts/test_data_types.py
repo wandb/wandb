@@ -274,10 +274,8 @@ def test_resumed_run_incremental_table(user, test_settings):
     assert len(t._previous_increments_paths) == 3
     assert t._increment_num == 3
 
-def test_resumed_run_nothing_prev_logged_to_key(
-    user,
-    test_settings
-):
+
+def test_resumed_run_nothing_prev_logged_to_key(user, test_settings):
     """
     Test that incremental tables log normally in a resumed run when
     logged to a key that hasn't been logged to yet.
