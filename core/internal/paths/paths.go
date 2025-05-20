@@ -87,10 +87,16 @@ func Absolute(path string) (*AbsolutePath, error) {
 // Relative returns the path if it's relative, or returns an error.
 func Relative(path string) (*RelativePath, error) {
 	if filepath.IsAbs(path) {
-		return nil, fmt.Errorf("path is not relative: %s", path)
+		return nil, fmt.Errorf("path is not relative: %q", path)
 	}
 
 	return toPtr(RelativePath(filepath.Clean(path))), nil
+}
+
+// Join appends a relative path to an absolute path.
+func (path1 AbsolutePath) Join(path2 RelativePath) AbsolutePath {
+	// NOTE: filepath.Join() calls Clean() on the result.
+	return AbsolutePath(filepath.Join(string(path1), string(path2)))
 }
 
 // RelativeTo returns an equivalent path that is relative to the given path.
@@ -112,7 +118,7 @@ func (path1 AbsolutePath) RelativeTo(path2 AbsolutePath) (*RelativePath, error) 
 	return toPtr(RelativePath(result)), nil
 }
 
-// IsLocal reports whether the relative path does not start with "..".
+// IsLocal is false if the relative path starts with "..".
 func (path RelativePath) IsLocal() bool {
 	return filepath.IsLocal(string(path))
 }

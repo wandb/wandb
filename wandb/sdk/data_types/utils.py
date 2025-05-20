@@ -182,6 +182,9 @@ def _log_table_artifact(val: "ValToJsonType", key: str, run: "LocalRun") -> None
         key: The key used to log val.
         run: The LocalRun used to log val.
     """
+
+    from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
     # Sanitize the key to meet the constraints of artifact names.
     sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
 
@@ -189,9 +192,7 @@ def _log_table_artifact(val: "ValToJsonType", key: str, run: "LocalRun") -> None
         art = incremental_table_util.init_artifact(run, sanitized_key)
         entry_name = incremental_table_util.get_entry_name(run, val, key)
     else:
-        art_type = "run_table"
-        art_name = f"run-{run.id}-{sanitized_key}"
-        art = wandb.Artifact(art_name, art_type)
+        art = InternalArtifact(f"run-{run.id}-{sanitized_key}", "run_table")
         entry_name = key
 
     art.add(val, entry_name)
