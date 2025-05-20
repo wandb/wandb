@@ -6,6 +6,13 @@ PLACEHOLDER: Final[str] = "PLACEHOLDER"
 
 
 class InternalArtifact(Artifact):
+    """InternalArtifact is used to create artifacts that are intended for internal use.
+
+    This includes artifacts of type: `job`, `code`(with `source-` prefix in the collection name),
+    `run_table` (with `run-` prefix in the collection name), and artifacts that start with `wandb-`.
+    Users should not use this class directly.
+    """
+
     def __init__(
         self,
         name: str,
