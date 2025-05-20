@@ -27,11 +27,11 @@ def handle_resumed_run(incr_table: Table, run: LocalRun, key: str):
 
     summary_from_key: dict[str, Any] | None = summary.get(key)
 
-    if summary_from_key is None:
-        incr_table._resume_handled = True
-        return
-
-    if summary_from_key.get("_type") != "incremental-table-file":
+    if (
+        summary_from_key is None
+        or not isinstance(summary_from_key, dict)
+        or summary_from_key.get("_type") != "incremental-table-file"
+    ):
         incr_table._resume_handled = True
         return
 

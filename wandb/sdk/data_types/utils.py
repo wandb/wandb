@@ -182,10 +182,15 @@ def _log_table_artifact(val: "ValToJsonType", key: str, run: "LocalRun") -> None
         key: The key used to log val.
         run: The LocalRun used to log val.
     """
+    # Ensure that val is a WBValue before continuing
+    if not isinstance(val, WBValue):
+        logging.warning(
+            f"Expected WBValue for artifact.add(), got {type(val).__name__}. Skipping artifact logging."
+        )
+        return
+
     # Sanitize the key to meet the constraints of artifact names.
     sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
-    if not isinstance(val, WBValue):
-        return
 
     if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
         if run.resumed:
