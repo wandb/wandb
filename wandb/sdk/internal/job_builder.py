@@ -19,6 +19,7 @@ from typing import (
 )
 
 import wandb
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api
@@ -126,12 +127,6 @@ def get_min_supported_for_source_dict(
             if min_seen is None or new_ver < min_seen:
                 min_seen = new_ver
     return min_seen
-
-
-class JobArtifact(Artifact):
-    def __init__(self, name: str, *args: Any, **kwargs: Any):
-        super().__init__(name, "placeholder", *args, **kwargs)
-        self._type = JOB_ARTIFACT_TYPE  # Get around type restriction.
 
 
 class JobBuilder:
@@ -552,7 +547,7 @@ class JobBuilder:
         assert source_info is not None
         assert name is not None
 
-        artifact = JobArtifact(name)
+        artifact = InternalArtifact(name, JOB_ARTIFACT_TYPE)
 
         _logger.info("adding wandb-job metadata file")
         with artifact.new_file("wandb-job.json") as f:
