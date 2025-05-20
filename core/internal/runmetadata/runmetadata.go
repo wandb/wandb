@@ -48,6 +48,12 @@ type RunMetadata struct {
 	// done is closed when Finish is called.
 	done chan struct{}
 
+	// dirty is a 1-buffered chan used to indicate that there are changes to
+	// upload.
+	dirty         chan struct{}
+	isParamsDirty bool // whether params has un-uploaded changes
+	isConfigDirty bool // whether config has un-uploaded changes
+
 	params    *runbranch.RunParams
 	config    *runconfig.RunConfig
 	telemetry *spb.TelemetryRecord
@@ -138,7 +144,8 @@ func InitRun(
 		graphqlClientOrNil: params.GraphqlClientOrNil,
 		logger:             params.Logger,
 
-		done: make(chan struct{}),
+		done:  make(chan struct{}),
+		dirty: make(chan struct{}, 1),
 
 		params:    runParams,
 		config:    config,
@@ -192,28 +199,69 @@ func InitRun(
 func (metadata *RunMetadata) Update(runRecord *spb.RunRecord) {
 	metadata.mu.Lock()
 	defer metadata.mu.Unlock()
-	panic("TODO: Unimplemented.")
+
+	metadata.params.Update(runRecord, metadata.settings)
+
+	metadata.isParamsDirty = true
+	metadata.signalDirty()
 }
 
 // UpdateConfig schedules an update to the run's config.
 func (metadata *RunMetadata) UpdateConfig(config *spb.ConfigRecord) {
 	metadata.mu.Lock()
 	defer metadata.mu.Unlock()
-	panic("TODO: Unimplemented.")
+
+	metadata.config.ApplyChangeRecord(config,
+		func(err error) {
+			metadata.logger.CaptureError(
+				fmt.Errorf("runmetadata: error updating config: %v", err))
+		})
+
+	metadata.isConfigDirty = true
+	metadata.signalDirty()
 }
 
 // UpdateTelemetry schedules an update to the run's telemetry.
 func (metadata *RunMetadata) UpdateTelemetry(telemetry *spb.TelemetryRecord) {
 	metadata.mu.Lock()
 	defer metadata.mu.Unlock()
-	panic("TODO: Unimplemented.")
+
+	proto.Merge(metadata.telemetry, telemetry)
+
+	metadata.config.AddTelemetryAndMetrics(
+		metadata.telemetry,
+		metadata.metrics.ToRunConfigData(),
+	)
+
+	metadata.isConfigDirty = true
+	metadata.signalDirty()
 }
 
 // UpdateMetrics schedules an update to the run's metrics in the config.
 func (metadata *RunMetadata) UpdateMetrics(metric *spb.MetricRecord) {
 	metadata.mu.Lock()
 	defer metadata.mu.Unlock()
-	panic("TODO: Unimplemented.")
+
+	// Skip uploading expanded metrics if the server expands them itself.
+	if metadata.metrics.IsServerExpandGlobMetrics() &&
+		metric.GetExpandedFromGlob() {
+		return
+	}
+
+	err := metadata.metrics.ProcessRecord(metric)
+	if err != nil {
+		metadata.logger.CaptureError(
+			fmt.Errorf("runmetadata: failed to process metric: %v", err))
+		return
+	}
+
+	metadata.config.AddTelemetryAndMetrics(
+		metadata.telemetry,
+		metadata.metrics.ToRunConfigData(),
+	)
+
+	metadata.isConfigDirty = true
+	metadata.signalDirty()
 }
 
 // FillRunRecord populates fields on a RunRecord representing the run metadata.
@@ -293,10 +341,70 @@ func (metadata *RunMetadata) Finish() {
 	metadata.wg.Wait()
 }
 
+// signalDirty pushes to the dirty channel to trigger an upload.
+//
+// The corresponding flags should be updated separately.
+func (metadata *RunMetadata) signalDirty() {
+	select {
+	case metadata.dirty <- struct{}{}:
+	default:
+	}
+}
+
 // syncPeriodically uploads changes in a loop.
 func (metadata *RunMetadata) syncPeriodically() {
-	// TODO: Loop forever, uploading changes as they arrive.
-	//   Exit when the done channel is closed, flushing one more time.
+	for {
+		select {
+		case <-metadata.dirty:
+			metadata.debounceAndUploadChanges()
+
+		case <-metadata.done:
+			metadata.debounceAndUploadChanges()
+			return
+		}
+	}
+}
+
+// debounce accumulates changes for some time to avoid rapid-fire updates.
+//
+// It is immediate if finishing.
+func (metadata *RunMetadata) debounce() {
+	delay, cancel := metadata.debounceDelay.Wait()
+	defer cancel()
+
+	select {
+	case <-delay:
+	case <-metadata.done:
+	}
+}
+
+// debounceAndUploadChanges uploads any changes to the run's metadata.
+func (metadata *RunMetadata) debounceAndUploadChanges() {
+	operation := metadata.operations.New("updating run metadata")
+	defer operation.Finish()
+	ctx := operation.Context(metadata.beforeRunEndCtx)
+
+	metadata.debounce()
+
+	metadata.mu.Lock()
+	defer metadata.mu.Unlock()
+
+	if !metadata.isParamsDirty && !metadata.isConfigDirty {
+		return
+	}
+
+	_, err := metadata.lockedDoUpsert(
+		ctx,
+		metadata.isParamsDirty,
+		metadata.isConfigDirty,
+	)
+
+	if err != nil {
+		metadata.logger.Error(
+			"runmetadata: failed to upload changes",
+			"error", err,
+		)
+	}
 }
 
 // serializeConfig returns the serialized run config.
@@ -327,6 +435,14 @@ func (metadata *RunMetadata) lockedDoUpsert(
 	if metadata.graphqlClientOrNil == nil {
 		return nil, errors.New("runmetadata: cannot upsert when offline")
 	}
+
+	// Clear dirty state.
+	select {
+	case <-metadata.dirty:
+	default:
+	}
+	metadata.isParamsDirty = !uploadParams && metadata.isParamsDirty
+	metadata.isConfigDirty = !uploadConfig && metadata.isConfigDirty
 
 	name := nullify.NilIfZero(metadata.params.RunID)
 	project := nullify.NilIfZero(metadata.params.Project)
