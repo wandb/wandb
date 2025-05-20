@@ -455,7 +455,6 @@ class ArtifactCollection:
             raise ValueError(
                 "Type can only be changed if the artifact collection is a sequence."
             )
-        validate_artifact_type(type, self.name)
         self._type = type
 
     def _update_collection(self) -> None:
@@ -507,6 +506,12 @@ class ArtifactCollection:
 
     def save(self) -> None:
         """Persist any changes made to the artifact collection."""
+        if self._saved_type != self._type:
+            try:
+                validate_artifact_type(self._type, self._name)
+            except ValueError as e:
+                raise ValueError(f"Failed to save artifact collection: {e}") from e
+
         self._update_collection()
 
         if self.is_sequence() and (self._saved_type != self._type):
