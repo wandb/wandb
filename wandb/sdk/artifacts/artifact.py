@@ -157,7 +157,7 @@ class Artifact:
                 f"Artifact name may only contain alphanumeric characters, dashes, "
                 f"underscores, and dots. Invalid name: {name}"
             )
-        if incremental:
+        if incremental and type != "PLACEHOLDER":
             termwarn("Using experimental arg `incremental`")
 
         # Internal.

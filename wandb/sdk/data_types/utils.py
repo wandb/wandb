@@ -182,7 +182,6 @@ def _log_table_artifact(val: "ValToJsonType", key: str, run: "LocalRun") -> None
         key: The key used to log val.
         run: The LocalRun used to log val.
     """
-
     from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
     # Sanitize the key to meet the constraints of artifact names.
