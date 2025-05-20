@@ -18,10 +18,6 @@ from wandb.sdk.mailbox import HandleAbandonedError, Mailbox, MailboxClosedError
 from wandb.sdk.service import service
 
 
-class WandbServiceNotOwnedError(Exception):
-    """Raised when the current process does not own the service process."""
-
-
 class WandbServiceConnectionError(Exception):
     """Raised on failure to connect to the service process."""
 
@@ -196,34 +192,34 @@ class ServiceConnection:
         request._info.stream_id = run_id
         self._client.send_server_request(spb.ServerRequest(inform_start=request))
 
-    def teardown(self, exit_code: int) -> int:
-        """Shuts down the service process and returns its exit code.
+    def teardown(self, exit_code: int) -> int | None:
+        """Close the connection.
+
+        Stop reading responses on the connection, and if this connection owns
+        the service process, send a teardown message and wait for it to shut
+        down.
 
         This may only be called once.
 
         Returns:
-            The exit code of the service process.
-
-        Raises:
-            WandbServiceNotOwnedError: If the current process did not start
-                the service process.
+            The exit code of the service process, or None if the process was
+            not owned by this connection.
         """
-        if not self._proc:
-            raise WandbServiceNotOwnedError(
-                "Cannot tear down service started by different process",
-            )
-
-        assert not self._torn_down
+        if self._torn_down:
+            raise AssertionError("Already torn down.")
         self._torn_down = True
 
         if self._cleanup:
             self._cleanup()
 
-        # Clear the service token to prevent new connections from being made.
-        service_token.clear_service_token()
-
         # Stop reading responses on the socket.
         self._router.join()
+
+        if not self._proc:
+            return None
+
+        # Clear the service token to prevent new connections to the process.
+        service_token.clear_service_token()
 
         self._client.send_server_request(
             spb.ServerRequest(

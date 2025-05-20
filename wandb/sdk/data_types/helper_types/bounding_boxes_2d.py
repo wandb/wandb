@@ -13,6 +13,18 @@ if TYPE_CHECKING:  # pragma: no cover
     from ...wandb_run import Run as LocalRun
 
 
+def _convert_pytorch_tensor_to_list(box_data):
+    for box in box_data:
+        if (
+            "position" in box
+            and "middle" in box["position"]
+            and util.is_pytorch_tensor_typename(
+                util.get_full_typename(box["position"]["middle"])
+            )
+        ):
+            box["position"]["middle"] = box["position"]["middle"].tolist()
+
+
 class BoundingBoxes2D(JSONMetadata):
     """Format images with 2D bounding box overlays for logging to W&B.
 
@@ -195,7 +207,11 @@ class BoundingBoxes2D(JSONMetadata):
             key: (string) The readable name or id for this set of bounding boxes (e.g.
                 predictions, ground_truth)
         """
+        # Pytorch tensors are not serializable to json,
+        # so we convert them to lists to avoid errors later on.
+        _convert_pytorch_tensor_to_list(val.get("box_data", []))
         super().__init__(val)
+
         self._val = val["box_data"]
         self._key = key
         # Add default class mapping

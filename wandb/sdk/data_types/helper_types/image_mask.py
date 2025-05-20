@@ -147,6 +147,12 @@ class ImageMask(Media):
             self._set_file(val["path"])
         else:
             np = util.get_module("numpy", required="Image mask support requires numpy")
+
+            if util.is_pytorch_tensor_typename(
+                util.get_full_typename(val["mask_data"])
+            ):
+                val["mask_data"] = val["mask_data"].cpu().numpy()
+
             # Add default class mapping
             if "class_labels" not in val:
                 classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
