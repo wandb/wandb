@@ -77,7 +77,9 @@ class FixtureCmd:
 class UserCmd(FixtureCmd):
     path: ClassVar[str] = "db/user"
 
-    command: Literal["up", "up_runs_v2", "down", "down_all", "logout", "login", "password"]
+    command: Literal[
+        "up", "up_runs_v2", "down", "down_all", "logout", "login", "password"
+    ]
 
     username: str | None = None
     password: str | None = None
@@ -145,8 +147,8 @@ class BackendFixtureFactory:
         self._client.__exit__()
 
     def make_user(
-        self, 
-        name: str | None = None, 
+        self,
+        name: str | None = None,
         admin: bool = False,
         enable_runs_v2: bool = False,
     ) -> str:

@@ -90,8 +90,8 @@ def wandb_verbose(request):
 
 @pytest.fixture
 def user_cfg() -> UserConfig:
-    """Default knobs for make_user().  
-    
+    """Default knobs for make_user().
+
     Tests can override or parametrize it.
     """
     return UserConfig()
