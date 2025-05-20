@@ -274,6 +274,35 @@ def test_resumed_run_incremental_table(user, test_settings):
     assert len(t._previous_increments_paths) == 3
     assert t._increment_num == 3
 
+def test_resumed_run_nothing_prev_logged_to_key(
+    user,
+    test_settings
+):
+    """
+    Test that incremental tables log normally in a resumed run when
+    logged to a key that hasn't been logged to yet.
+    """
+    run = wandb.init(settings=test_settings(), id="resume_test_2")
+    run.log({"test": 0.5})
+    run.finish()
+
+    resumed_run = wandb.init(
+        settings=test_settings(), id="resume_test_2", resume="must"
+    )
+    t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
+    t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
+    resumed_run.log({"table": t})
+    # The increment should start at 0 because nothing was
+    # logged on the key `table`
+    assert t._increment_num == 0
+
+    t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
+    resumed_run.log({"table": t})
+    assert t._last_logged_idx == 1
+    resumed_run.finish()
+    api_run = wandb.Api().run(f"uncategorized/{resumed_run.id}")
+    assert len(api_run.logged_artifacts()) == 2
+
 
 def test_resumed_run_no_prev_incr_table(user, test_settings):
     """
