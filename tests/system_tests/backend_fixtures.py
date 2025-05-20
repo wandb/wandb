@@ -84,7 +84,7 @@ class UserCmd(FixtureCmd):
     username: str | None = None
     password: str | None = None
     admin: bool = False
-    enableRunsV2: bool = False  # backend fixture expects camel case for param names
+    enableRunsV2: bool = False  # backend fixture expects camel case for param names  # noqa: N815
 
 
 @dataclass(frozen=True)
@@ -188,7 +188,6 @@ class BackendFixtureFactory:
         # FIXME: Figure out how SDK team preferences/conventions for replacing print statements
         print(f"Triggering fixture on {endpoint!r}: {data!r}", file=sys.stderr)  # noqa: T201
         try:
-            print(data)
             response = self._client.post(path, json=data)
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
