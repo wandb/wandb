@@ -29,11 +29,9 @@ message OpenMetricsFilters {
   }
 }
 
-// Serialized representation of the RunMoment class in wandb.sdk.lib.run_moment.
-// Used to communicate the moment in a run at which forking or resuming should
-// take place.
+// A point in a run from which another run can be branched.
 message RunMoment {
-  // The name of the run to branch off of.
+  // The ID of the run to branch from.
   string run = 1;
 
   // The value of the metric to branch at.
