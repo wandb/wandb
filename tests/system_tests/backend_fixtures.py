@@ -84,7 +84,9 @@ class UserCmd(FixtureCmd):
     username: str | None = None
     password: str | None = None
     admin: bool = False
-    enableRunsV2: bool = False  # backend fixture expects camel case for param names  # noqa: N815
+    enableRunsV2: bool = (  # noqa: N815
+        False  # backend fixture expects camel case for param names
+    )
 
 
 @dataclass(frozen=True)
