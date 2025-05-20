@@ -20,7 +20,6 @@ This version removes the ability to disable the `service` process. This is a bre
 ### Added
 
 - Support for pytorch.tensor for `masks` and `boxes` parameters when creating a `wandb.Image` object. (jacobromero in https://github.com/wandb/wandb/pull/9802)
-- `normalized` parameter to `wandb.Image` initialization to normalize pixel values for Images initialized with a numpy array or pytorch tensor. (@jacobromero in https://github.com/wandb/wandb/pull/9786)
 
 ### Removed
 
