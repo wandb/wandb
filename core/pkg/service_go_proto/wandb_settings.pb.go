@@ -298,11 +298,11 @@ type RunMoment struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// The name of the run to fork from.
+	// The name of the run to branch off of.
 	Run string `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`
-	// The value of the metric to fork at.
+	// The value of the metric to branch at.
 	Value float64 `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`
-	// The name of the metric to use to find a fork point.
+	// The name of the metric to use to find a branch point.
 	Metric string `protobuf:"bytes,3,opt,name=metric,proto3" json:"metric,omitempty"`
 }
 

@@ -416,6 +416,53 @@ class FooterRecord(google.protobuf.message.Message):
 global___FooterRecord = FooterRecord
 
 @typing_extensions.final
+class BranchPointRecord(google.protobuf.message.Message):
+    """BranchPointRecord stores information about a branch point for a run."""
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    class _BranchPointType:
+        ValueType = typing.NewType("ValueType", builtins.int)
+        V: typing_extensions.TypeAlias = ValueType
+
+    class _BranchPointTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[BranchPointRecord._BranchPointType.ValueType], builtins.type):
+        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+        BRANCH_POINT_FORK: BranchPointRecord._BranchPointType.ValueType  # 0
+        BRANCH_POINT_REWIND: BranchPointRecord._BranchPointType.ValueType  # 1
+
+    class BranchPointType(_BranchPointType, metaclass=_BranchPointTypeEnumTypeWrapper):
+        """The type of branch point."""
+
+    BRANCH_POINT_FORK: BranchPointRecord.BranchPointType.ValueType  # 0
+    BRANCH_POINT_REWIND: BranchPointRecord.BranchPointType.ValueType  # 1
+
+    SOURCE_RUN_FIELD_NUMBER: builtins.int
+    METRIC_NAME_FIELD_NUMBER: builtins.int
+    METRIC_VALUE_FIELD_NUMBER: builtins.int
+    TYPE_FIELD_NUMBER: builtins.int
+    source_run: builtins.str
+    """The name of the source run to branch off of."""
+    metric_name: builtins.str
+    """The name of the metric to use to find a branch point.
+
+    Currently, this is always `_step`.
+    """
+    metric_value: builtins.float
+    """The value of the metric to branch at."""
+    type: global___BranchPointRecord.BranchPointType.ValueType
+    def __init__(
+        self,
+        *,
+        source_run: builtins.str = ...,
+        metric_name: builtins.str = ...,
+        metric_value: builtins.float = ...,
+        type: global___BranchPointRecord.BranchPointType.ValueType = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["metric_name", b"metric_name", "metric_value", b"metric_value", "source_run", b"source_run", "type", b"type"]) -> None: ...
+
+global___BranchPointRecord = BranchPointRecord
+
+@typing_extensions.final
 class RunRecord(google.protobuf.message.Message):
     """
     RunRecord: wandb/sdk/wandb_run/Run
@@ -444,6 +491,7 @@ class RunRecord(google.protobuf.message.Message):
     RUNTIME_FIELD_NUMBER: builtins.int
     GIT_FIELD_NUMBER: builtins.int
     FORKED_FIELD_NUMBER: builtins.int
+    BRANCH_POINT_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     run_id: builtins.str
     entity: builtins.str
@@ -474,6 +522,8 @@ class RunRecord(google.protobuf.message.Message):
     def git(self) -> global___GitRepoRecord: ...
     forked: builtins.bool
     @property
+    def branch_point(self) -> global___BranchPointRecord: ...
+    @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
@@ -499,10 +549,11 @@ class RunRecord(google.protobuf.message.Message):
         runtime: builtins.int = ...,
         git: global___GitRepoRecord | None = ...,
         forked: builtins.bool = ...,
+        branch_point: global___BranchPointRecord | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "config", b"config", "git", b"git", "settings", b"settings", "start_time", b"start_time", "summary", b"summary", "telemetry", b"telemetry"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "config", b"config", "display_name", b"display_name", "entity", b"entity", "forked", b"forked", "git", b"git", "host", b"host", "job_type", b"job_type", "notes", b"notes", "project", b"project", "resumed", b"resumed", "run_group", b"run_group", "run_id", b"run_id", "runtime", b"runtime", "settings", b"settings", "start_time", b"start_time", "starting_step", b"starting_step", "storage_id", b"storage_id", "summary", b"summary", "sweep_id", b"sweep_id", "tags", b"tags", "telemetry", b"telemetry"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "branch_point", b"branch_point", "config", b"config", "git", b"git", "settings", b"settings", "start_time", b"start_time", "summary", b"summary", "telemetry", b"telemetry"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "branch_point", b"branch_point", "config", b"config", "display_name", b"display_name", "entity", b"entity", "forked", b"forked", "git", b"git", "host", b"host", "job_type", b"job_type", "notes", b"notes", "project", b"project", "resumed", b"resumed", "run_group", b"run_group", "run_id", b"run_id", "runtime", b"runtime", "settings", b"settings", "start_time", b"start_time", "starting_step", b"starting_step", "storage_id", b"storage_id", "summary", b"summary", "sweep_id", b"sweep_id", "tags", b"tags", "telemetry", b"telemetry"]) -> None: ...
 
 global___RunRecord = RunRecord
 
