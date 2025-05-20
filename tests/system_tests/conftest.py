@@ -11,6 +11,7 @@ from .backend_fixtures import (
     LocalWandbBackendAddress,
     connect_to_local_wandb_backend,
 )
+from .user_config import UserConfig
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
 
 
@@ -88,8 +89,20 @@ def wandb_verbose(request):
 
 
 @pytest.fixture
-def user(mocker, backend_fixture_factory) -> Iterator[str]:
-    username = backend_fixture_factory.make_user()
+def user_cfg() -> UserConfig:
+    """Default knobs for make_user().  
+    
+    Tests can override or parametrize it.
+    """
+    return UserConfig()
+
+
+@pytest.fixture
+def user(user_cfg: UserConfig, mocker, backend_fixture_factory) -> Iterator[str]:
+    username = backend_fixture_factory.make_user(
+        admin=user_cfg.admin,
+        enable_runs_v2=user_cfg.enable_runs_v2,
+    )
     envvars = {
         "WANDB_API_KEY": username,
         "WANDB_ENTITY": username,
