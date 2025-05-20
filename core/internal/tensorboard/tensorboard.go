@@ -130,6 +130,7 @@ func (tb *TBHandler) Handle(record *spb.TBRecord) error {
 
 	// Create the event stream.
 	stream := NewTFEventStream(
+		tb.extraWork.BeforeEndCtx(),
 		logDir,
 		tb.fileReadDelay,
 		TFEventsFileFilter{
