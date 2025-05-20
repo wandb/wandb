@@ -422,51 +422,30 @@ class FooterRecord(google.protobuf.message.Message):
 global___FooterRecord = FooterRecord
 
 @typing.final
-class BranchPointRecord(google.protobuf.message.Message):
-    """BranchPointRecord stores information about a branch point for a run."""
+class BranchPoint(google.protobuf.message.Message):
+    """A point in a run from which another run can be branched."""
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    class _BranchPointType:
-        ValueType = typing.NewType("ValueType", builtins.int)
-        V: typing_extensions.TypeAlias = ValueType
-
-    class _BranchPointTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[BranchPointRecord._BranchPointType.ValueType], builtins.type):
-        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
-        BRANCH_POINT_FORK: BranchPointRecord._BranchPointType.ValueType  # 0
-        BRANCH_POINT_REWIND: BranchPointRecord._BranchPointType.ValueType  # 1
-
-    class BranchPointType(_BranchPointType, metaclass=_BranchPointTypeEnumTypeWrapper):
-        """The type of branch point."""
-
-    BRANCH_POINT_FORK: BranchPointRecord.BranchPointType.ValueType  # 0
-    BRANCH_POINT_REWIND: BranchPointRecord.BranchPointType.ValueType  # 1
-
-    SOURCE_RUN_FIELD_NUMBER: builtins.int
-    METRIC_NAME_FIELD_NUMBER: builtins.int
-    METRIC_VALUE_FIELD_NUMBER: builtins.int
-    TYPE_FIELD_NUMBER: builtins.int
-    source_run: builtins.str
-    """The name of the source run to branch off of."""
-    metric_name: builtins.str
-    """The name of the metric to use to find a branch point.
-
-    Currently, this is always `_step`.
-    """
-    metric_value: builtins.float
+    RUN_FIELD_NUMBER: builtins.int
+    VALUE_FIELD_NUMBER: builtins.int
+    METRIC_FIELD_NUMBER: builtins.int
+    run: builtins.str
+    """The ID of the run to branch from."""
+    value: builtins.float
     """The value of the metric to branch at."""
-    type: global___BranchPointRecord.BranchPointType.ValueType
+    metric: builtins.str
+    """The name of the metric to use to find a branch point."""
     def __init__(
         self,
         *,
-        source_run: builtins.str = ...,
-        metric_name: builtins.str = ...,
-        metric_value: builtins.float = ...,
-        type: global___BranchPointRecord.BranchPointType.ValueType = ...,
+        run: builtins.str = ...,
+        value: builtins.float = ...,
+        metric: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["metric_name", b"metric_name", "metric_value", b"metric_value", "source_run", b"source_run", "type", b"type"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["metric", b"metric", "run", b"run", "value", b"value"]) -> None: ...
 
-global___BranchPointRecord = BranchPointRecord
+global___BranchPoint = BranchPoint
 
 @typing.final
 class RunRecord(google.protobuf.message.Message):
@@ -528,7 +507,9 @@ class RunRecord(google.protobuf.message.Message):
     @property
     def git(self) -> global___GitRepoRecord: ...
     @property
-    def branch_point(self) -> global___BranchPointRecord: ...
+    def branch_point(self) -> global___BranchPoint:
+        """Information about the source if this is a fork or rewind of another run."""
+
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -555,7 +536,7 @@ class RunRecord(google.protobuf.message.Message):
         runtime: builtins.int = ...,
         git: global___GitRepoRecord | None = ...,
         forked: builtins.bool = ...,
-        branch_point: global___BranchPointRecord | None = ...,
+        branch_point: global___BranchPoint | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["_info", b"_info", "branch_point", b"branch_point", "config", b"config", "git", b"git", "settings", b"settings", "start_time", b"start_time", "summary", b"summary", "telemetry", b"telemetry"]) -> builtins.bool: ...
