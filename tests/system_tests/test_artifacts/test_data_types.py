@@ -281,7 +281,8 @@ def test_resumed_run_no_prev_incr_table(user, test_settings):
     they weren't previously logged
     """
     run = wandb.init(settings=test_settings(), id="resume_test_2")
-    run.log({"test": 0.5})
+    regular_table = wandb.Table()
+    run.log({"test": 0.5, "table": regular_table})
     run.finish()
 
     resumed_run = wandb.init(
@@ -290,6 +291,10 @@ def test_resumed_run_no_prev_incr_table(user, test_settings):
     t = wandb.Table(columns=["expected", "actual", "img"], log_mode="INCREMENTAL")
     t.add_data("Yes", "No", wandb.Image(np.ones(shape=(32, 32))))
     resumed_run.log({"table": t})
+    # The increment should start at 0 because the last _type
+    # on the summary on key `table` is not an incr table.
+    assert t._increment_num == 0
+
     t.add_data("Yes", "Yes", wandb.Image(np.ones(shape=(32, 32))))
     t.add_data("No", "Yes", wandb.Image(np.ones(shape=(32, 32))))
     resumed_run.log({"table": t})
@@ -298,7 +303,7 @@ def test_resumed_run_no_prev_incr_table(user, test_settings):
     assert t._last_logged_idx == 3
     resumed_run.finish()
     api_run = wandb.Api().run(f"uncategorized/{resumed_run.id}")
-    assert len(api_run.logged_artifacts()) == 3
+    assert len(api_run.logged_artifacts()) == 4
 
 
 def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch):
