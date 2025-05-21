@@ -1053,12 +1053,12 @@ def test_table_column_style():
     assert [ndx._table == table1 for ndx in ndxs]
 
     # Test More Images and ndarrays
-    rand_1 = np.random.randint(256, size=(32, 32))
-    rand_2 = np.random.randint(256, size=(32, 32))
-    rand_3 = np.random.randint(256, size=(32, 32))
-    img_1 = wandb.Image(rand_1)
-    img_2 = wandb.Image(rand_2)
-    img_3 = wandb.Image(rand_3)
+    rand_1 = np.random.randint(256, size=(2, 2, 3))
+    rand_2 = np.random.randint(256, size=(2, 2, 3))
+    rand_3 = np.random.randint(256, size=(2, 2, 3))
+    img_1 = wandb.Image(rand_1, normalize=False)
+    img_2 = wandb.Image(rand_2, normalize=False)
+    img_3 = wandb.Image(rand_3, normalize=False)
 
     table2 = wandb.Table(columns=[], data=[])
     table2.add_column("np_data", [rand_1, rand_2])
