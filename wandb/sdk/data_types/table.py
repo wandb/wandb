@@ -351,6 +351,13 @@ class Table(Media):
         prev_increments_paths: Optional[List[str]] = None,
         increment_num: Optional[int] = None,
     ):
+        """Handle updating incremental table state for resumed runs.
+
+        This method is called when a run is resumed and there are previous
+        increments of this table that need to be preserved. It updates the
+        table's internal state to track previous increments and the current
+        increment number.
+        """
         if prev_increments_paths:
             self._previous_increments_paths = prev_increments_paths
         if increment_num:
