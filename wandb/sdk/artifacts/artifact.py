@@ -159,6 +159,7 @@ class Artifact:
             )
 
         from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
         if incremental and not isinstance(self, InternalArtifact):
             termwarn("Using experimental arg `incremental`")
 

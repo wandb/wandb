@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 ART_TYPE = "wandb-run-incremental-table"
 
+
 def _get_artifact_name(run: LocalRun, sanitized_key: str):
     return f"run-{run.id}-incr-{sanitized_key}"
 
