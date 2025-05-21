@@ -4,6 +4,7 @@ import pytest
 import wandb
 from wandb import data_types
 from wandb.sdk.data_types import _dtypes
+from wandb.sdk.internal import incremental_table_util
 
 matplotlib.use("Agg")
 
@@ -229,7 +230,7 @@ def test_using_incrementally_logged_table(user, test_settings, monkeypatch):
     run.finish()
 
     run2 = wandb.init(settings=test_settings())
-    art = run2.use_artifact(f"run-{run.id}-incr-{table_key}:latest")
+    art = run2.use_artifact(f"{incremental_table_util._get_artifact_name(run, table_key)}:latest")
     incremental_table = art.get(f"{log_count - 1}-100000000{log_count - 1}.{table_key}")
     assert len(incremental_table.data) == 3
     assert incremental_table.log_mode == "INCREMENTAL"

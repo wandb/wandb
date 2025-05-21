@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from typing import TYPE_CHECKING
 
@@ -9,8 +11,11 @@ if TYPE_CHECKING:
 
 ART_TYPE = "wandb-run-incremental-table"
 
+def _get_artifact_name(run: LocalRun, sanitized_key: str):
+    return f"run-{run.id}-incr-{sanitized_key}"
 
-def init_artifact(run: "LocalRun", sanitized_key: str) -> "Artifact":
+
+def init_artifact(run: LocalRun, sanitized_key: str) -> Artifact:
     """Initialize a new artifact for an incremental table.
 
     Args:
@@ -23,14 +28,14 @@ def init_artifact(run: "LocalRun", sanitized_key: str) -> "Artifact":
     from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
     artifact = InternalArtifact(
-        f"run-{run.id}-incr-{sanitized_key}",
+        _get_artifact_name(run, sanitized_key),
         ART_TYPE,
         incremental=True,
     )
     return artifact
 
 
-def get_entry_name(run: "LocalRun", incr_table: "Table", key: str) -> str:
+def get_entry_name(run: LocalRun, incr_table: Table, key: str) -> str:
     """Generate a unique entry name for a table increment.
 
     Args:
