@@ -335,7 +335,11 @@ class Image(BatchableMedia):
                 data = data.to(float)
             mode = mode or self.guess_mode(data, file_type)
             data = data.permute(1, 2, 0).cpu().numpy()
-            data = self.normalize_and_convert_to_uint8(data) if normalize else data
+
+            self.warn_on_invalid_data_range(data, normalize)
+
+            data = self.normalize(data) if normalize else data
+            data = self.convert_to_uint8(data)
 
             if data.ndim > 2:
                 data = data.squeeze()
@@ -350,8 +354,11 @@ class Image(BatchableMedia):
             if data.ndim > 2:
                 data = data.squeeze()  # get rid of trivial dimensions as a convenience
 
+            self.warn_on_invalid_data_range(data, normalize)
+
             mode = mode or self.guess_mode(data, file_type)
-            data = self.normalize_and_convert_to_uint8(data) if normalize else data
+            data = self.normalize(data) if normalize else data
+            data = self.convert_to_uint8(data)
             self._image = pil_image.fromarray(
                 data,
                 mode=mode,
@@ -360,6 +367,28 @@ class Image(BatchableMedia):
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
+
+    @classmethod
+    def warn_on_invalid_data_range(
+        cls,
+        data: "np.ndarray",
+        normalize: bool = True,
+    ) -> None:
+        if not normalize:
+            return
+
+        np = util.get_module(
+            "numpy",
+            required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
+        )
+
+        if data.dtype.kind == "f" or np.min(data) < 0:
+            wandb.termwarn(
+                "Image data is expected to be integer values in the range [0, 255], "
+                "image data will be normalized to this range. "
+                "This behavior will be removed in a future version of wandb.",
+                repeat=False,
+            )
 
     @classmethod
     def from_json(
@@ -528,18 +557,29 @@ class Image(BatchableMedia):
             )
 
     @classmethod
-    def normalize_and_convert_to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
+    def normalize(cls, data: "np.ndarray") -> "np.ndarray":
         """Normalizes and converts image pixel values to uint8 in the range [0, 255]."""
         np = util.get_module(
             "numpy",
             required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
         )
 
-        # Scale data to [0, 255] range
         data = data - np.min(data)
-        data = data / np.ptp(data)
+
+        data_max = np.max(data)
+        if data_max > 0:
+            data = data / data_max
         data = 255 * data
-        return data.clip(0, 255).astype(np.uint8)
+
+        return data.clip(0, 255)
+
+    @classmethod
+    def convert_to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
+        np = util.get_module(
+            "numpy",
+            required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
+        )
+        return data.astype(np.uint8)
 
     @classmethod
     def seq_to_json(
