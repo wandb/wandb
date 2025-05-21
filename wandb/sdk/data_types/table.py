@@ -346,6 +346,17 @@ class Table(Media):
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
 
+    def handle_resumed_run(
+        self,
+        prev_increments_paths: Optional[List[str]] = None,
+        increment_num: Optional[int] = None,
+    ):
+        if prev_increments_paths:
+            self._previous_increments_paths = prev_increments_paths
+        if increment_num:
+            self._increment_num = increment_num
+        self._resume_handled = True
+
     @allow_relogging_after_mutation
     def cast(self, col_name, dtype, optional=False):
         """Casts a column to a specific data type.

@@ -169,7 +169,7 @@ def val_to_json(
     return converted  # type: ignore
 
 
-def _log_table_artifact(val: "ValToJsonType", key: str, run: "LocalRun") -> None:
+def _log_table_artifact(val: "Media", key: str, run: "LocalRun") -> None:
     """Log a table to the run based on the table type and logging mode.
 
     Creates and logs a `run_table` type for Table, PartitionedTable, and
@@ -182,13 +182,6 @@ def _log_table_artifact(val: "ValToJsonType", key: str, run: "LocalRun") -> None
         key: The key used to log val.
         run: The LocalRun used to log val.
     """
-    # Ensure that val is a WBValue before continuing
-    if not isinstance(val, WBValue):
-        logging.warning(
-            f"Expected WBValue for artifact.add(), got {type(val).__name__}. Skipping artifact logging."
-        )
-        return
-
     # Sanitize the key to meet the constraints of artifact names.
     sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
 
