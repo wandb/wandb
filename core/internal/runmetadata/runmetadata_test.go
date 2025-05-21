@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -15,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/waiting"
+	"github.com/wandb/wandb/core/internal/waitingtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -197,4 +200,142 @@ func TestInitRun_Offline(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.NotNil(t, metadata)
+}
+
+type variablesForUpdateTest struct {
+	MockClient    *gqlmock.MockClient
+	DebounceDelay *waitingtest.FakeDelay
+	Metadata      *runmetadata.RunMetadata
+}
+
+// setupUpdateTest returns an initialized RunMetadata and a mock GraphQL client
+// stubbed to expect one more UpsertBucket request.
+func setupUpdateTest(t *testing.T) variablesForUpdateTest {
+	t.Helper()
+
+	params := testParams()
+	fakeDebounceDelay := waitingtest.NewFakeDelay()
+	mockClient := gqlmock.NewMockClient()
+	params.DebounceDelay = fakeDebounceDelay
+	params.GraphqlClientOrNil = mockClient
+
+	// There will be two upserts: the initial one, and a single update.
+	for range 2 {
+		mockClient.StubMatchOnce(
+			gqlmock.WithOpName("UpsertBucket"),
+			fakeUpsertBucketResponseJSON(),
+		)
+	}
+
+	metadata, err := runmetadata.InitRun(runRecord(&spb.RunRecord{}), params)
+
+	require.NoError(t, err)
+	return variablesForUpdateTest{
+		MockClient:    mockClient,
+		DebounceDelay: fakeDebounceDelay,
+		Metadata:      metadata,
+	}
+}
+
+func TestUpdate_Debounces(t *testing.T) {
+	vars := setupUpdateTest(t)
+
+	vars.Metadata.Update(&spb.RunRecord{})
+	vars.Metadata.UpdateConfig(&spb.ConfigRecord{})
+	vars.Metadata.UpdateTelemetry(&spb.TelemetryRecord{})
+	vars.Metadata.UpdateMetrics(&spb.MetricRecord{})
+	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
+	vars.Metadata.Finish()
+
+	requests := vars.MockClient.AllRequests()
+	assert.Len(t, requests, 2)
+}
+
+func TestUpdate_Uploads(t *testing.T) {
+	vars := setupUpdateTest(t)
+
+	vars.Metadata.Update(&spb.RunRecord{RunId: "test run ID"})
+	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
+	vars.Metadata.Finish()
+
+	requests := vars.MockClient.AllRequests()
+	assert.Len(t, requests, 2)
+	gqlmock.AssertVariables(t,
+		requests[1],
+		gqlmock.GQLVar("name", gomock.Eq("test run ID")),
+		gqlmock.GQLVar("config", gomock.Eq(nil)))
+}
+
+func TestUpdateConfig_Uploads(t *testing.T) {
+	vars := setupUpdateTest(t)
+
+	vars.Metadata.UpdateConfig(
+		&spb.ConfigRecord{
+			Update: []*spb.ConfigItem{{
+				Key:       "test key",
+				ValueJson: `"test value"`,
+			}},
+		},
+	)
+	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
+	vars.Metadata.Finish()
+
+	requests := vars.MockClient.AllRequests()
+	assert.Len(t, requests, 2)
+	gqlmock.AssertVariables(t,
+		requests[1],
+		gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
+				{
+					"_wandb": {"value": {"m": [], "t": {"12": "%s"}}},
+					"test key": {"value": "test value"}
+				}
+			`, version.Version))))
+}
+
+func TestUpdateTelemetry_Uploads(t *testing.T) {
+	vars := setupUpdateTest(t)
+
+	vars.Metadata.UpdateTelemetry(
+		&spb.TelemetryRecord{PythonVersion: "test python version"},
+	)
+	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
+	vars.Metadata.Finish()
+
+	requests := vars.MockClient.AllRequests()
+	assert.Len(t, requests, 2)
+	gqlmock.AssertVariables(t,
+		requests[1],
+		gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
+				{
+					"_wandb": {"value": {
+						"python_version": "test python version",
+						"m": [],
+						"t": {
+							"4": "test python version",
+							"12": "%s"
+						}
+					}}
+				}
+			`, version.Version))))
+}
+
+func TestUpdateMetrics_Uploads(t *testing.T) {
+	vars := setupUpdateTest(t)
+
+	vars.Metadata.UpdateMetrics(&spb.MetricRecord{Name: "test metric"})
+	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
+	vars.Metadata.Finish()
+
+	requests := vars.MockClient.AllRequests()
+	assert.Len(t, requests, 2)
+	gqlmock.AssertVariables(t,
+		requests[1],
+		gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
+				{
+					"_wandb": {"value": {
+						"m": [{"1": "test metric", "6": [3], "7": []}],
+						"t": {"12": "%s"}
+					}}
+				}
+			`, version.Version))))
 }

@@ -115,6 +115,7 @@ func TestSendRun(t *testing.T) {
 						},
 					},
 				},
+				RunId:   "testRun",
 				Project: "testProject",
 				Entity:  "testEntity",
 			}},

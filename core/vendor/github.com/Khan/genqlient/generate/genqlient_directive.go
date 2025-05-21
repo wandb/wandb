@@ -18,6 +18,7 @@ type genqlientDirective struct {
 	Flatten   *bool
 	Bind      string
 	TypeName  string
+	Alias     string
 	// FieldDirectives contains the directives to be
 	// applied to specific fields via the "for" option.
 	// Map from type-name -> field-name -> directive.
@@ -51,6 +52,9 @@ func (dir *genqlientDirective) argsString() string {
 	}
 	if dir.TypeName != "" {
 		parts = append(parts, fmt.Sprintf("typename: %v", dir.TypeName))
+	}
+	if dir.Alias != "" {
+		parts = append(parts, fmt.Sprintf("alias: %v", dir.Alias))
 	}
 	return strings.Join(parts, ", ")
 }
@@ -170,6 +174,8 @@ func (dir *genqlientDirective) add(graphQLDirective *ast.Directive, pos *ast.Pos
 			err = setString("bind", &dir.Bind, arg.Value, pos)
 		case "typename":
 			err = setString("typename", &dir.TypeName, arg.Value, pos)
+		case "alias":
+			err = setString("alias", &dir.Alias, arg.Value, pos)
 		case "for":
 			// handled above
 		default:
@@ -235,7 +241,7 @@ func (dir *genqlientDirective) validate(node interface{}, schema *ast.Schema) er
 		}
 
 		if dir.Struct != nil {
-			return errorf(dir.pos, "struct is only applicable to fields, not frragment-definitions")
+			return errorf(dir.pos, "struct is only applicable to fields, not fragment-definitions")
 		}
 
 		// Like operations, anything else will just apply to the entire
@@ -441,6 +447,7 @@ func (dir *genqlientDirective) mergeOperationDirective(
 	// typename isn't settable on the operation (when set there it replies to
 	// the response-type).
 	fillDefaultString(&dir.TypeName, forField.TypeName)
+	fillDefaultString(&dir.Alias, forField.Alias, operationDirective.Alias)
 }
 
 // parsePrecedingComment looks at the comment right before this node, and

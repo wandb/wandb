@@ -475,6 +475,12 @@ pub struct Feature {
     /// DCGM profiling was enabled
     #[prost(bool, tag = "70")]
     pub dcgm_profiling_enabled: bool,
+    /// User created a forked run
+    #[prost(bool, tag = "71")]
+    pub fork_mode: bool,
+    /// User created a rewound run
+    #[prost(bool, tag = "72")]
+    pub rewind_mode: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
@@ -784,6 +790,19 @@ pub struct FooterRecord {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
+/// A point in a run from which another run can be branched.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BranchPoint {
+    /// The ID of the run to branch from.
+    #[prost(string, tag = "1")]
+    pub run: ::prost::alloc::string::String,
+    /// The value of the metric to branch at.
+    #[prost(double, tag = "2")]
+    pub value: f64,
+    /// The name of the metric to use to find a branch point.
+    #[prost(string, tag = "3")]
+    pub metric: ::prost::alloc::string::String,
+}
 ///
 /// RunRecord: wandb/sdk/wandb_run/Run
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -830,6 +849,9 @@ pub struct RunRecord {
     pub git: ::core::option::Option<GitRepoRecord>,
     #[prost(bool, tag = "22")]
     pub forked: bool,
+    /// Information about the source if this is a fork or rewind of another run.
+    #[prost(message, optional, tag = "23")]
+    pub branch_point: ::core::option::Option<BranchPoint>,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

@@ -50,6 +50,7 @@ from wandb.sdk.artifacts._validators import (
     is_artifact_registry_project,
     validate_aliases,
     validate_artifact_name,
+    validate_artifact_type,
     validate_tags,
 )
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
@@ -121,8 +122,8 @@ class Artifact:
         type: The artifact's type. Use the type of an artifact to both organize
             and differentiate artifacts. You can use any string that contains letters,
             numbers, underscores, hyphens, and dots. Common types include `dataset` or `model`.
-            Include `model` within your type string if you want to link the artifact
-            to the W&B Model Registry.
+            Note: Some types are reserved for internal use and cannot be set by users.
+                Such types include `job` and types that start with `wandb-`.
         description: A description of the artifact. For Model or Dataset Artifacts,
             add documentation for your standardized team model or dataset card. View
             an artifact's description programmatically with the `Artifact.description`
@@ -156,11 +157,6 @@ class Artifact:
                 f"Artifact name may only contain alphanumeric characters, dashes, "
                 f"underscores, and dots. Invalid name: {name}"
             )
-        if type == "job" or type.startswith("wandb-"):
-            raise ValueError(
-                "Artifact types 'job' and 'wandb-*' are reserved for internal use. "
-                "Please use a different type."
-            )
         if incremental:
             termwarn("Using experimental arg `incremental`")
 
@@ -193,7 +189,7 @@ class Artifact:
         self._source_version: str | None = None
         self._source_artifact: Artifact | None = None
         self._is_link: bool = False
-        self._type: str = type
+        self._type: str = validate_artifact_type(type, name)
         self._description: str | None = description
         self._metadata: dict = self._normalize_metadata(metadata)
         self._ttl_duration_seconds: int | None = None
@@ -2177,7 +2173,7 @@ class Artifact:
 
         Args:
             root: The directory to verify. If None artifact will be downloaded to
-                './artifacts/self.name/'
+                './artifacts/self.name/'.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.

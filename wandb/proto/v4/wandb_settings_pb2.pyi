@@ -139,10 +139,7 @@ global___OpenMetricsFilters = OpenMetricsFilters
 
 @typing_extensions.final
 class RunMoment(google.protobuf.message.Message):
-    """Serialized representation of the RunMoment class in wandb.sdk.lib.run_moment.
-    Used to communicate the moment in a run at which forking or resuming should
-    take place.
-    """
+    """A point in a run from which another run can be branched."""
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -150,11 +147,11 @@ class RunMoment(google.protobuf.message.Message):
     VALUE_FIELD_NUMBER: builtins.int
     METRIC_FIELD_NUMBER: builtins.int
     run: builtins.str
-    """The name of the run to fork from."""
+    """The ID of the run to branch from."""
     value: builtins.float
-    """The value of the metric to fork at."""
+    """The value of the metric to branch at."""
     metric: builtins.str
-    """The name of the metric to use to find a fork point."""
+    """The name of the metric to use to find a branch point."""
     def __init__(
         self,
         *,
