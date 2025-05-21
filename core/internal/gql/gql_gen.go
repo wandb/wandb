@@ -1369,8 +1369,9 @@ func (v *UpsertBucketResponse) GetUpsertBucket() *UpsertBucketUpsertBucketUpsert
 
 // UpsertBucketUpsertBucketUpsertBucketPayload includes the requested fields of the GraphQL type UpsertBucketPayload.
 type UpsertBucketUpsertBucketUpsertBucketPayload struct {
-	Bucket   *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun `json:"bucket"`
-	Inserted *bool                                                 `json:"inserted"`
+	Bucket                  *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun `json:"bucket"`
+	Inserted                *bool                                                 `json:"inserted"`
+	IsCoreWeaveOrganization *bool                                                 `json:"isCoreWeaveOrganization"`
 }
 
 // GetBucket returns UpsertBucketUpsertBucketUpsertBucketPayload.Bucket, and is useful for accessing the field via an interface.
@@ -1380,6 +1381,11 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayload) GetBucket() *UpsertBucketU
 
 // GetInserted returns UpsertBucketUpsertBucketUpsertBucketPayload.Inserted, and is useful for accessing the field via an interface.
 func (v *UpsertBucketUpsertBucketUpsertBucketPayload) GetInserted() *bool { return v.Inserted }
+
+// GetIsCoreWeaveOrganization returns UpsertBucketUpsertBucketUpsertBucketPayload.IsCoreWeaveOrganization, and is useful for accessing the field via an interface.
+func (v *UpsertBucketUpsertBucketUpsertBucketPayload) GetIsCoreWeaveOrganization() *bool {
+	return v.IsCoreWeaveOrganization
+}
 
 // UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun includes the requested fields of the GraphQL type Run.
 type UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun struct {
@@ -3011,6 +3017,7 @@ mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: St
 			historyLineCount
 		}
 		inserted
+		isCoreWeaveOrganization
 	}
 }
 `

@@ -1267,6 +1267,12 @@ func (s *Sender) upsertRun(
 		if sweepID := nullify.ZeroIfNil(bucket.GetSweepName()); sweepID != "" {
 			s.startState.SweepID = sweepID
 		}
+
+		// Collect CoreWeave-specific compute environment metadata if running on CoreWeave.
+		isCoreWeaveOrganization := data.GetUpsertBucket().GetIsCoreWeaveOrganization()
+		if isCoreWeaveOrganization != nil && *isCoreWeaveOrganization {
+			// TODO:
+		}
 	}
 
 	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
