@@ -587,6 +587,8 @@ class Run:
     _launch_artifacts: dict[str, Any] | None
     _printer: printer.Printer
 
+    summary: wandb_summary.Summary
+
     def __init__(
         self,
         settings: Settings,
