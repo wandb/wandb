@@ -186,6 +186,7 @@ def _log_table_artifact(val: "Media", key: str, run: "LocalRun") -> None:
     sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
 
     if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
+        val.ensure_single_run_target(run)
         if run.resumed:
             incremental_table_util.handle_resumed_run(val, run, key)
         art = incremental_table_util.init_artifact(run, sanitized_key)

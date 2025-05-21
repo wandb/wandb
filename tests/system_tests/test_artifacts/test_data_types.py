@@ -435,3 +435,26 @@ def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch
     assert incremental_table.data == expected_full_data
 
     verification_run.finish()
+
+
+def test_incremental_tables_cannot_be_logged_on_multiple_runs(
+    user,
+    test_settings,
+):
+    """
+    Test that incrementally logged tables cannot be logged to multiple runs.
+    """
+    wandb.setup(wandb.Settings(reinit="create_new"))
+
+    with wandb.init() as run1:
+        incr_table = wandb.Table(columns=["step", "value"], log_mode="INCREMENTAL")
+
+        incr_table.add_data(0, "0")
+        run1.log({"table": incr_table})
+        incr_table.add_data(1, "1")
+        run1.log({"table": incr_table})
+
+        with wandb.init() as run2:
+            incr_table.add_data(2, "2")
+            with pytest.raises(AssertionError):
+                run2.log({"table": incr_table})

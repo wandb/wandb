@@ -25,6 +25,8 @@ from .utils import _json_helper
 if TYPE_CHECKING:
     from wandb.sdk.artifacts import artifact
 
+    from ...wandb_run import Run as LocalRun
+
 
 class _TableLinkMixin:
     def set_table(self, table):
@@ -257,6 +259,7 @@ class Table(Media):
             self._last_logged_idx: int | None = None
             self._previous_increments_paths: list[str] = []
             self._resume_handled: bool = False
+            self._run_target_for_increments: wandb.Run | None = None
         self._pk_col = None
         self._fk_cols: set[str] = set()
         if allow_mixed_types:
@@ -356,6 +359,19 @@ class Table(Media):
         if increment_num:
             self._increment_num = increment_num
         self._resume_handled = True
+
+    def ensure_single_run_target(self, run: "LocalRun"):
+        """Handle setting up the run target for incremental table logging.
+
+        This method is called when a table is being logged incrementally to ensure
+        that all increments are logged to the same run.
+        """
+        if self._run_target_for_increments is None:
+            self._run_target_for_increments = run
+
+        assert (
+            self._run_target_for_increments == run
+        ), "Cannot log table incrementally to multiple runs"
 
     @allow_relogging_after_mutation
     def cast(self, col_name, dtype, optional=False):
