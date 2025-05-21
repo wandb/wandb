@@ -3,7 +3,7 @@ LABEL maintainer='Weights & Biases <support@wandb.com>'
 
 # Install dependencies
 RUN apt-get update && apt-get upgrade -y \
-    && apt-get install -y git gcc python3-dev curl \
+    && apt-get install -y git gcc python3-dev curl --no-install-recommends \
     && apt-get -qy autoremove \
     && apt-get clean && rm -r /var/lib/apt/lists/*
 
