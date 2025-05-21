@@ -831,11 +831,7 @@ class SendManager:
     def _setup_fork(self, server_run: dict):
         assert self._run
         assert self._run.branch_point
-        assert (
-            self._run.branch_point.type
-            == wandb_internal_pb2.BranchPointRecord.BRANCH_POINT_FORK
-        )
-        first_step = int(self._run.branch_point.metric_value) + 1
+        first_step = int(self._run.branch_point.value) + 1
         self._resume_state.step = first_step
         self._resume_state.history = server_run.get("historyLineCount", 0)
         self._run.forked = True
@@ -843,16 +839,12 @@ class SendManager:
 
     def _load_rewind_state(self, run: "RunRecord"):
         assert run.branch_point
-        assert (
-            run.branch_point.type
-            == wandb_internal_pb2.BranchPointRecord.BRANCH_POINT_REWIND
-        )
         self._rewind_response = self._api.rewind_run(
             run_name=run.run_id,
             entity=run.entity or None,
             project=run.project or None,
-            metric_name=run.branch_point.metric_name,
-            metric_value=run.branch_point.metric_value,
+            metric_name=run.branch_point.metric,
+            metric_value=run.branch_point.value,
             program_path=self._settings.program or None,
         )
         self._resume_state.history = self._rewind_response.get("historyLineCount", 0)
@@ -863,13 +855,9 @@ class SendManager:
     def _install_rewind_state(self):
         assert self._run
         assert self._run.branch_point
-        assert (
-            self._run.branch_point.type
-            == wandb_internal_pb2.BranchPointRecord.BRANCH_POINT_REWIND
-        )
         assert self._rewind_response
 
-        first_step = int(self._run.branch_point.metric_value) + 1
+        first_step = int(self._run.branch_point.value) + 1
         self._resume_state.step = first_step
 
         # We set the fork flag here because rewind uses the forking
@@ -913,18 +901,8 @@ class SendManager:
             config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
-        do_fork = (
-            run.HasField("branch_point")
-            and run.branch_point.type
-            == wandb_internal_pb2.BranchPointRecord.BRANCH_POINT_FORK
-            and is_wandb_init
-        )
-        do_rewind = (
-            run.HasField("branch_point")
-            and run.branch_point.type
-            == wandb_internal_pb2.BranchPointRecord.BRANCH_POINT_REWIND
-            and is_wandb_init
-        )
+        do_rewind = run.branch_point.run == run.run_id
+        do_fork = not do_rewind and run.branch_point.run != ""
         do_resume = bool(self._settings.resume)
 
         num_resume_options_set = sum([do_fork, do_rewind, do_resume])
