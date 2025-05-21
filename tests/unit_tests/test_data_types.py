@@ -395,6 +395,30 @@ def test_fail_to_make_file(
         wb_image.bind_to_run(mock_run(), "my key: an identifier", 0)
 
 
+def test_image_bounding_boxes_with_pytorch_tensors():
+    image = np.random.randint(255, size=(4, 4, 3))
+    boxes = [
+        {
+            "position": {
+                "middle": torch.from_numpy(np.array([1, 1])),
+                "width": 1,
+                "height": 1,
+            },
+            "domain": "pixel",
+            "class_id": 1,
+        },
+    ]
+
+    wandb.Image(image, boxes={"predictions": {"box_data": boxes}})
+
+
+def test_image_masks_with_pytorch_tensors():
+    image = np.random.randint(255, size=(4, 4, 3))
+    mask = torch.from_numpy(np.array([[1, 0], [0, 1]]))
+
+    wandb.Image(image, masks={"predictions": {"mask_data": mask}})
+
+
 ################################################################################
 # Test wandb.Audio
 ################################################################################
@@ -1428,6 +1452,58 @@ def test_partitioned_table():
     assert len([(ndx, row) for ndx, row in partition_table.iterrows()]) == 0
     assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
     assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")
+
+
+################################################################################
+# Test wandb.Html
+################################################################################
+
+
+def test_wandb_html_with_directory(tmp_path):
+    html = wandb.Html(str(tmp_path), inject=False)
+
+    assert html._is_tmp is True
+    assert html._path is not None
+    assert os.path.exists(html._path)
+    with open(html._path) as f:
+        assert f.read() == str(tmp_path)
+
+
+def test_wandb_html_with_html_file(tmp_path):
+    html_file = tmp_path / "index.html"
+    html_file.write_text("Hello, world!")
+
+    html = wandb.Html(str(html_file), inject=False)
+
+    assert html._is_tmp is False
+    assert html._path is not None
+    assert html._path == str(html_file)
+    assert os.path.exists(html._path)
+    with open(html._path) as f:
+        assert f.read() == "Hello, world!"
+
+
+def test_wandb_html_with_html_file_skip_file_check(tmp_path):
+    html_file = tmp_path / "index.html"
+    html_file.write_text("Hello, world!")
+
+    html = wandb.Html(str(html_file), inject=False, data_is_not_path=True)
+
+    assert html._is_tmp is True
+    assert html._path is not None
+    with open(html._path) as f:
+        assert f.read() == str(html_file)
+
+
+def test_wandb_html_with_non_html_file(tmp_path):
+    file = tmp_path / "index.txt"
+    file.write_text("Hello, world!")
+
+    html = wandb.Html(str(file), inject=False)
+
+    assert html._is_tmp is True
+    with open(html._path) as f:
+        assert f.read() == str(file)
 
 
 ################################################################################

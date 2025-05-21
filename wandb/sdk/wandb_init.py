@@ -62,20 +62,6 @@ def _huggingface_version() -> str | None:
     return None
 
 
-def _maybe_mp_process(backend: Backend) -> bool:
-    parent_process = getattr(
-        backend._multiprocessing, "parent_process", None
-    )  # New in version 3.8.
-    if parent_process:
-        return parent_process() is not None
-    process = backend._multiprocessing.current_process()
-    if process.name == "MainProcess":
-        return False
-    if process.name.startswith("Process-"):
-        return True
-    return False
-
-
 def _handle_launch_config(settings: Settings) -> dict[str, Any]:
     launch_run_config: dict[str, Any] = {}
     if not settings.launch:
@@ -859,35 +845,45 @@ class _WandbInit:
             f"\nconfig: {config.base_no_artifacts}"
         )
 
-        if wandb.run is not None and os.getpid() == wandb.run._init_pid:
+        if previous_run := self._wl.most_recent_active_run:
             if (
                 settings.reinit in (True, "finish_previous")
                 # calling wandb.init() in notebooks finishes previous runs
                 # by default for user convenience.
                 or (settings.reinit == "default" and wb_ipython.in_notebook())
             ):
-                self._logger.info("finishing previous run: %s", wandb.run.id)
-                wandb.run.finish()
-            else:
-                self._logger.info("wandb.init() called while a run is active")
+                run_printer.display(
+                    "Finishing previous runs because reinit is set"
+                    f" to {settings.reinit!r}."
+                )
+                self._wl.finish_all_active_runs()
 
-                # NOTE: Updates telemetry on the pre-existing run.
-                with telemetry.context() as tel:
+            elif settings.reinit == "create_new":
+                self._logger.info(
+                    "wandb.init() called while a run is active,"
+                    " and reinit is set to 'create_new', so continuing"
+                )
+
+            else:
+                run_printer.display(
+                    "wandb.init() called while a run is active and reinit is"
+                    f" set to {settings.reinit!r}, so returning the previous"
+                    " run."
+                )
+
+                with telemetry.context(run=previous_run) as tel:
                     tel.feature.init_return_run = True
 
-                return wandb.run
+                return previous_run
 
         self._logger.info("starting backend")
 
-        if not settings.x_disable_service:
-            service = self._wl.ensure_service()
-            self._logger.info("sending inform_init request")
-            service.inform_init(
-                settings=settings.to_proto(),
-                run_id=settings.run_id,  # type: ignore
-            )
-        else:
-            service = None
+        service = self._wl.ensure_service()
+        self._logger.info("sending inform_init request")
+        service.inform_init(
+            settings=settings.to_proto(),
+            run_id=settings.run_id,  # type: ignore
+        )
 
         backend = Backend(settings=settings, service=service)
         backend.ensure_launched()
@@ -926,35 +922,12 @@ class _WandbInit:
             for module_name in telemetry.list_telemetry_imports(only_imported=True):
                 setattr(tel.imports_init, module_name, True)
 
-            # probe the active start method
-            active_start_method: str | None = None
-            if settings.start_method == "thread":
-                active_start_method = settings.start_method
-            else:
-                active_start_method = getattr(
-                    backend._multiprocessing, "get_start_method", lambda: None
-                )()
-
-            if active_start_method == "spawn":
-                tel.env.start_spawn = True
-            elif active_start_method == "fork":
-                tel.env.start_fork = True
-            elif active_start_method == "forkserver":
-                tel.env.start_forkserver = True
-            elif active_start_method == "thread":
-                tel.env.start_thread = True
-
             if os.environ.get("PEX"):
                 tel.env.pex = True
 
             if settings._aws_lambda:
                 tel.env.aws_lambda = True
 
-            if os.environ.get(wandb.env._DISABLE_SERVICE):
-                tel.feature.service_disabled = True
-
-            if service:
-                tel.feature.service = True
             if settings.x_flow_control_disabled:
                 tel.feature.flow_control_disabled = True
             if settings.x_flow_control_custom:
@@ -971,7 +944,8 @@ class _WandbInit:
             if settings.x_label:
                 tel.feature.user_provided_label = True
 
-            tel.env.maybe_mp = _maybe_mp_process(backend)
+            if wandb.env.dcgm_profiling_enabled():
+                tel.feature.dcgm_profiling_enabled = True
 
         if not settings.label_disable:
             if self.notebook:
@@ -1028,56 +1002,33 @@ class _WandbInit:
                     backend.interface,
                 )
 
-        # Raise an error if deliver_run failed.
-        #
-        # This is wrapped in a try-except to perform additional cleanup logic
-        # when x_disable_service is True.
-        #
-        # TODO: Remove try-except once x_disable_service is removed.
         try:
-            try:
-                result = wait_with_progress(
-                    run_init_handle,
-                    timeout=timeout,
-                    progress_after=1,
-                    display_progress=display_init_message,
-                )
+            result = wait_with_progress(
+                run_init_handle,
+                timeout=timeout,
+                progress_after=1,
+                display_progress=display_init_message,
+            )
 
-            except TimeoutError:
-                run_init_handle.cancel(backend.interface)
+        except TimeoutError:
+            run_init_handle.cancel(backend.interface)
 
-                # This may either be an issue with the W&B server (a CommError)
-                # or a bug in the SDK (an Error). We cannot distinguish between
-                # the two causes here.
-                raise CommError(
-                    f"Run initialization has timed out after {timeout} sec."
-                    " Please try increasing the timeout with the `init_timeout`"
-                    " setting: `wandb.init(settings=wandb.Settings(init_timeout=120))`."
-                )
+            # This may either be an issue with the W&B server (a CommError)
+            # or a bug in the SDK (an Error). We cannot distinguish between
+            # the two causes here.
+            raise CommError(
+                f"Run initialization has timed out after {timeout} sec."
+                " Please try increasing the timeout with the `init_timeout`"
+                " setting: `wandb.init(settings=wandb.Settings(init_timeout=120))`."
+            )
 
-            assert result.run_result
+        assert result.run_result
 
-            if error := ProtobufErrorHandler.to_exception(result.run_result.error):
-                raise error
+        if error := ProtobufErrorHandler.to_exception(result.run_result.error):
+            raise error
 
-            if not result.run_result.HasField("run"):
-                raise Error("Assertion failed: run_result is missing the run field")
-
-        except Exception:
-            if not service:
-                # Kill the background thread or process.
-                backend.cleanup()
-
-                # Do some Jupyter and logger cleanup.
-                #
-                # NOTE: This shouldn't be necessary. The logger is global,
-                #   so on any error outside of this try-catch, we fail to
-                #   clean it up, causing the next run to write some of its
-                #   initial logs to this run's log file. The Jupyter
-                #   monkeypatching should probably happen at the library level
-                #   (in wandb.setup()) rather than per-run.
-                self.teardown()
-            raise
+        if not result.run_result.HasField("run"):
+            raise Error("Assertion failed: run_result is missing the run field")
 
         if result.run_result.run.resumed:
             self._logger.info("run resumed")
@@ -1126,6 +1077,10 @@ class _WandbInit:
             run.use_artifact(job_artifact)
 
         self.backend = backend
+
+        if settings.reinit != "create_new":
+            _set_global_run(run)
+
         run._on_start()
         self._logger.info("run started, returning control to user process")
         return run
@@ -1202,8 +1157,34 @@ def _attach(
         raise UsageError(f"Failed to attach to run: {attach_response.error.message}")
 
     run._set_run_obj(attach_response.run)
+    _set_global_run(run)
     run._on_attach()
     return run
+
+
+def _set_global_run(run: Run) -> None:
+    """Set `wandb.run` and point some top-level functions to its methods.
+
+    Args:
+        run: The run to make global.
+    """
+    module.set_global(
+        run=run,
+        config=run.config,
+        log=run.log,
+        summary=run.summary,
+        save=run.save,
+        use_artifact=run.use_artifact,
+        log_artifact=run.log_artifact,
+        define_metric=run.define_metric,
+        alert=run.alert,
+        watch=run.watch,
+        unwatch=run.unwatch,
+        mark_preempting=run.mark_preempting,
+        log_model=run.log_model,
+        use_model=run.use_model,
+        link_model=run.link_model,
+    )
 
 
 def _monkeypatch_openai_gym() -> None:
@@ -1237,16 +1218,40 @@ def try_create_root_dir(settings: Settings) -> None:
             This function may update the root_dir to a temporary directory
             if the parent directory is not writable.
     """
+    fallback_to_temp_dir = False
+
     try:
-        if not os.path.exists(settings.root_dir):
-            os.makedirs(settings.root_dir, exist_ok=True)
+        os.makedirs(settings.root_dir, exist_ok=True)
     except OSError:
-        temp_dir = tempfile.gettempdir()
         wandb.termwarn(
-            f"Path {settings.root_dir} wasn't writable, using system temp directory {temp_dir}.",
+            f"Unable to create root directory {settings.root_dir}",
             repeat=False,
         )
-        settings.root_dir = temp_dir
+        fallback_to_temp_dir = True
+    else:
+        if not os.access(settings.root_dir, os.W_OK | os.R_OK):
+            wandb.termwarn(
+                f"Path {settings.root_dir} wasn't read/writable",
+                repeat=False,
+            )
+            fallback_to_temp_dir = True
+
+    if not fallback_to_temp_dir:
+        return
+
+    tmp_dir = tempfile.gettempdir()
+    if not os.access(tmp_dir, os.W_OK | os.R_OK):
+        raise ValueError(
+            f"System temp directory ({tmp_dir}) is not writable/readable, "
+            "please set the `dir` argument in `wandb.init()` to a writable/readable directory."
+        )
+
+    settings.root_dir = tmp_dir
+    wandb.termwarn(
+        f"Falling back to temporary directory {tmp_dir}.",
+        repeat=False,
+    )
+    os.makedirs(settings.root_dir, exist_ok=True)
 
 
 def init(  # noqa: C901
@@ -1273,6 +1278,7 @@ def init(  # noqa: C901
             "default",
             "return_previous",
             "finish_previous",
+            "create_new",
         ]
     ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
@@ -1566,6 +1572,10 @@ def init(  # noqa: C901
             init_telemetry.feature.set_init_tags = True
         if run_settings._offline:
             init_telemetry.feature.offline = True
+        if run_settings.fork_from is not None:
+            init_telemetry.feature.fork_mode = True
+        if run_settings.resume_from is not None:
+            init_telemetry.feature.rewind_mode = True
 
         wi.set_run_id(run_settings)
         run_printer = printer.new_printer(run_settings)

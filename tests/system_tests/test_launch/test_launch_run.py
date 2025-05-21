@@ -3,6 +3,7 @@ from unittest import mock
 
 import wandb
 from wandb.apis import internal, public
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.internal import job_builder
 from wandb.sdk.launch._project_spec import _inject_wandb_config_env_vars
 from wandb.util import make_artifact_name_safe
@@ -15,7 +16,7 @@ def test_run_use_job_env_var(runner, wandb_backend_spy, user):
     with runner.isolated_filesystem(), mock.patch.dict(
         "os.environ", WANDB_ARTIFACTS=artifact_env
     ):
-        artifact = job_builder.JobArtifact(name=art_name)
+        artifact = InternalArtifact(name=art_name, type=job_builder.JOB_ARTIFACT_TYPE)
         filename = "file1.txt"
         with open(filename, "w") as fp:
             fp.write("hello!")

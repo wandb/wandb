@@ -829,23 +829,22 @@ class SendManager:
         # TODO: do something if sync spell is not successful?
 
     def _setup_fork(self, server_run: dict):
-        assert self._settings.fork_from
-        assert self._settings.fork_from.metric == "_step"
         assert self._run
-        first_step = int(self._settings.fork_from.value) + 1
+        assert self._run.branch_point
+        first_step = int(self._run.branch_point.value) + 1
         self._resume_state.step = first_step
         self._resume_state.history = server_run.get("historyLineCount", 0)
         self._run.forked = True
         self._run.starting_step = first_step
 
     def _load_rewind_state(self, run: "RunRecord"):
-        assert self._settings.resume_from
+        assert run.branch_point
         self._rewind_response = self._api.rewind_run(
             run_name=run.run_id,
             entity=run.entity or None,
             project=run.project or None,
-            metric_name=self._settings.resume_from.metric,
-            metric_value=self._settings.resume_from.value,
+            metric_name=run.branch_point.metric,
+            metric_value=run.branch_point.value,
             program_path=self._settings.program or None,
         )
         self._resume_state.history = self._rewind_response.get("historyLineCount", 0)
@@ -854,12 +853,11 @@ class SendManager:
         )
 
     def _install_rewind_state(self):
-        assert self._settings.resume_from
-        assert self._settings.resume_from.metric == "_step"
         assert self._run
+        assert self._run.branch_point
         assert self._rewind_response
 
-        first_step = int(self._settings.resume_from.value) + 1
+        first_step = int(self._run.branch_point.value) + 1
         self._resume_state.step = first_step
 
         # We set the fork flag here because rewind uses the forking
@@ -903,8 +901,8 @@ class SendManager:
             config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
-        do_fork = self._settings.fork_from is not None and is_wandb_init
-        do_rewind = self._settings.resume_from is not None and is_wandb_init
+        do_rewind = run.branch_point.run == run.run_id
+        do_fork = not do_rewind and run.branch_point.run != ""
         do_resume = bool(self._settings.resume)
 
         num_resume_options_set = sum([do_fork, do_rewind, do_resume])
@@ -1444,7 +1442,7 @@ class SendManager:
         )
         if (client_id or server_id) and portfolio_name and entity and project:
             try:
-                self._api.link_artifact(
+                response = self._api.link_artifact(
                     client_id,
                     server_id,
                     portfolio_name,
@@ -1453,9 +1451,12 @@ class SendManager:
                     aliases,
                     organization,
                 )
+                result.response.link_artifact_response.version_index = response[
+                    "versionIndex"
+                ]
             except Exception as e:
                 org_or_entity = organization or entity
-                result.response.log_artifact_response.error_message = (
+                result.response.link_artifact_response.error_message = (
                     f"error linking artifact to "
                     f'"{org_or_entity}/{project}/{portfolio_name}"; error: {e}'
                 )

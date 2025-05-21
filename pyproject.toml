@@ -20,11 +20,14 @@ dependencies = [
     # setuptools is needed for distutils in dependencies after Python 3.12 :(
     # One such dependency is docker-pycreds, where the latest release is 0.4.0
     # which was released in 2018.
-    "setuptools",
-    "protobuf>=3.12.0,!=4.21.0,!=5.28.0,<6; python_version < '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<6; python_version == '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<6; python_version > '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<6; sys_platform != 'linux'",
+    # Pinning to 80.7 due to removal of pkg_resources causing CI failures.
+    # TODO(@jacobromero): remove version constraint
+    # after migrating away from pkg_resources
+    "setuptools<80.7",
+    "protobuf>=3.12.0,!=4.21.0,!=5.28.0,<7; python_version < '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<7; python_version == '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; python_version > '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; sys_platform != 'linux'",
     "PyYAML",
     "setproctitle",
     "platformdirs",
@@ -222,8 +225,18 @@ ignore-decorators = [
 # - D102: Require docstrings in public methods
 # - D103: Require docstrings in public functions
 # - D417: Require descriptions for all arguments
-"!wandb/apis/public/api.py" = ["D101", "D102", "D103", "D417"]  # "Public API" module
-"!wandb/automations/**/*.py" = ["D101", "D102", "D103", "D417"] # Automations submodules
+"!wandb/apis/public/api.py" = [
+    "D101",
+    "D102",
+    "D103",
+    "D417",
+] # "Public API" module
+"!wandb/automations/**/*.py" = [
+    "D101",
+    "D102",
+    "D103",
+    "D417",
+] # Automations submodules
 
 "**/__init__.py" = ["E402", "F401"]
 "wandb/__init__.py" = ["I001"]

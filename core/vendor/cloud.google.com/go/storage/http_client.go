@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -34,6 +33,7 @@ import (
 	"cloud.google.com/go/iam/apiv1/iampb"
 	"cloud.google.com/go/internal/optional"
 	"cloud.google.com/go/internal/trace"
+	"github.com/google/uuid"
 	"github.com/googleapis/gax-go/v2/callctx"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/googleapi"
@@ -344,6 +344,10 @@ func (c *httpStorageClient) ListObjects(ctx context.Context, bucket string, q *Q
 		it.query = *q
 	}
 	fetch := func(pageSize int, pageToken string) (string, error) {
+		var err error
+		// Add trace span around List API call within the fetch.
+		ctx, _ = startSpan(ctx, "httpStorageClient.ObjectsListCall")
+		defer func() { endSpan(ctx, err) }()
 		req := c.raw.Objects.List(bucket)
 		if it.query.SoftDeleted {
 			req.SoftDeleted(it.query.SoftDeleted)
@@ -372,7 +376,6 @@ func (c *httpStorageClient) ListObjects(ctx context.Context, bucket string, q *Q
 			req.MaxResults(int64(pageSize))
 		}
 		var resp *raw.Objects
-		var err error
 		err = run(it.ctx, func(ctx context.Context) error {
 			resp, err = req.Context(ctx).Do()
 			return err
@@ -857,6 +860,7 @@ func (c *httpStorageClient) NewRangeReader(ctx context.Context, params *newRange
 }
 
 func (c *httpStorageClient) newRangeReaderXML(ctx context.Context, params *newRangeReaderParams, s *settings) (r *Reader, err error) {
+	requestID := uuid.New()
 	u := &url.URL{
 		Scheme:  c.scheme,
 		Host:    c.xmlHost,
@@ -914,7 +918,7 @@ func (c *httpStorageClient) newRangeReaderXML(ctx context.Context, params *newRa
 			timer := time.After(stallTimeout)
 			select {
 			case <-timer:
-				log.Printf("stalled read-req (%p) cancelled after %fs", req, stallTimeout.Seconds())
+				log.Printf("[%s] stalled read-req cancelled after %fs", requestID, stallTimeout.Seconds())
 				cancel()
 				<-done
 				if res != nil && res.Body != nil {
@@ -1426,7 +1430,7 @@ func readerReopen(ctx context.Context, header http.Header, params *newRangeReade
 			//      https://cloud.google.com/storage/docs/transcoding#range,
 			// thus we have to manually move the body forward by seen bytes.
 			if decompressiveTranscoding(res) && seen > 0 {
-				_, _ = io.CopyN(ioutil.Discard, res.Body, seen)
+				_, _ = io.CopyN(io.Discard, res.Body, seen)
 			}
 
 			// If a generation hasn't been specified, and this is the first response we get, let's record the

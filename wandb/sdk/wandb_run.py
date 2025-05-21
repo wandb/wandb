@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import atexit
 import functools
 import glob
 import json
@@ -30,6 +29,8 @@ from typing import (
     TypeVar,
 )
 
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
 if sys.version_info < (3, 10):
     from typing_extensions import Concatenate, ParamSpec
 else:
@@ -41,10 +42,9 @@ import wandb
 import wandb.env
 import wandb.util
 from wandb import trigger
-from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
-from wandb.errors import CommError, UnsupportedError, UsageError
+from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
@@ -475,54 +475,6 @@ def _raise_if_finished(
     return wrapper_fn
 
 
-def _noop_if_forked_with_no_service(
-    func: Callable[Concatenate[Run, _P], None],
-) -> Callable[Concatenate[Run, _P], None]:
-    """Do nothing if called in a forked process and service is disabled.
-
-    Disabling the service is a very old and barely supported setting.
-    """
-
-    @functools.wraps(func)
-    def wrapper(self: Run, *args, **kwargs) -> None:
-        # The _attach_id attribute is only None when running in the "disable
-        # service" mode.
-        #
-        # Since it is set early in `__init__` and included in the run's pickled
-        # state, the attribute always exists.
-        is_using_service = self._attach_id is not None
-
-        # This is the PID in which the Run object was constructed. The attribute
-        # always exists because it is set early in `__init__` and is included
-        # in the pickled state in `__getstate__` and `__setstate__`.
-        #
-        # It is not equal to the current PID if the process was forked or if
-        # the Run object was pickled and sent to another process.
-        init_pid = self._init_pid
-
-        if is_using_service or init_pid == os.getpid():
-            return func(self, *args, **kwargs)
-
-        message = (
-            f"`{func.__name__}` ignored (called from pid={os.getpid()},"
-            f" `init` called from pid={init_pid})."
-            f" See: {url_registry.url('multiprocess')}"
-        )
-
-        # This attribute may not exist because it is not included in the run's
-        # pickled state.
-        settings = getattr(self, "_settings", None)
-        if settings and settings.strict:
-            wandb.termerror(message, repeat=False)
-            raise UnsupportedError(
-                f"`{func.__name__}` does not support multiprocessing"
-            )
-        wandb.termwarn(message, repeat=False)
-        return None
-
-    return wrapper
-
-
 @dataclass
 class RunStatus:
     sync_items_total: int = field(default=0)
@@ -635,6 +587,8 @@ class Run:
     _launch_artifacts: dict[str, Any] | None
     _printer: printer.Printer
 
+    summary: wandb_summary.Summary
+
     def __init__(
         self,
         settings: Settings,
@@ -691,8 +645,6 @@ class Run:
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
         #  does the total time get calculated right (not as 2 days and 15 minutes)?
         self._start_time = time.time()
-
-        _datatypes_set_callback(self._datatypes_callback)
 
         self._printer = printer.new_printer(settings)
 
@@ -777,8 +729,7 @@ class Run:
         self._attach_pid = os.getpid()
         self._forked = False
         # for now, use runid as attach id, this could/should be versioned in the future
-        if not self._settings.x_disable_service:
-            self._attach_id = self._settings.run_id
+        self._attach_id = self._settings.run_id
 
     def _handle_launch_artifact_overrides(self) -> None:
         if self._settings.launch and (os.environ.get("WANDB_ARTIFACTS") is not None):
@@ -852,7 +803,7 @@ class Run:
     def __getstate__(self) -> Any:
         """Return run state as a custom pickle."""
         # We only pickle in service mode
-        if not self._settings or self._settings.x_disable_service:
+        if not self._settings:
             return
 
         _attach_id = self._attach_id
@@ -1204,7 +1155,7 @@ class Run:
                     f"{self._settings.project}-{self._settings.program_relpath}"
                 )
             name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
-        art = wandb.Artifact(name, "code")
+        art = InternalArtifact(name, "code")
         files_added = False
         if root is not None:
             root = os.path.abspath(root)
@@ -1225,7 +1176,14 @@ class Run:
             )
             return None
 
-        return self._log_artifact(art)
+        artifact = self._log_artifact(art)
+
+        self._config.update(
+            {"_wandb": {"code_path": artifact.name}},
+            allow_val_change=True,
+        )
+
+        return artifact
 
     @_log_to_run
     def get_sweep_url(self) -> str | None:
@@ -1508,7 +1466,16 @@ class Run:
             self._backend.interface._publish_metric(metric_record)
 
     @_log_to_run
-    def _datatypes_callback(self, fname: str) -> None:
+    def _publish_file(self, fname: str) -> None:
+        """Mark a run file to be uploaded with the run.
+
+        This is a W&B-internal function: it can be used by other internal
+        wandb code.
+
+        Args:
+            fname: The path to the file in the run's files directory, relative
+                to the run's files directory.
+        """
         if not self._backend or not self._backend.interface:
             return
         files: FilesDict = dict(files=[(GlobStr(fname), "now")])
@@ -1794,7 +1761,6 @@ class Run:
             self._step += 1
 
     @_log_to_run
-    @_noop_if_forked_with_no_service
     @_raise_if_finished
     @_attach
     def log(
@@ -2261,7 +2227,6 @@ class Run:
         )
 
     @_log_to_run
-    @_noop_if_forked_with_no_service
     @_attach
     def finish(
         self,
@@ -2300,6 +2265,11 @@ class Run:
         self,
         exit_code: int | None = None,
     ) -> None:
+        if self._is_finished:
+            return
+
+        assert self._wl
+
         logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
@@ -2313,6 +2283,7 @@ class Run:
         # Early-stage hooks may use methods that require _is_finished
         # to be False, so we set this after running those hooks.
         self._is_finished = True
+        self._wl.remove_active_run(self)
 
         try:
             self._atexit_cleanup(exit_code=exit_code)
@@ -2328,16 +2299,15 @@ class Run:
             #
             # TODO: Why not do this in _atexit_cleanup()?
             if self._settings.run_id:
-                assert self._wl
                 service = self._wl.assert_service()
                 service.inform_finish(run_id=self._settings.run_id)
 
         finally:
-            module.unset_globals()
+            if wandb.run is self:
+                module.unset_globals()
             wandb._sentry.end_session()
 
     @_log_to_run
-    @_noop_if_forked_with_no_service
     @_attach
     def join(self, exit_code: int | None = None) -> None:
         """Deprecated alias for `finish()` - use finish instead."""
@@ -2385,25 +2355,6 @@ class Run:
         }
         self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
-    def _set_globals(self) -> None:
-        module.set_global(
-            run=self,
-            config=self.config,
-            log=self.log,
-            summary=self.summary,
-            save=self.save,
-            use_artifact=self.use_artifact,
-            log_artifact=self.log_artifact,
-            define_metric=self.define_metric,
-            alert=self.alert,
-            watch=self.watch,
-            unwatch=self.unwatch,
-            mark_preempting=self.mark_preempting,
-            log_model=self.log_model,
-            use_model=self.use_model,
-            link_model=self.link_model,
-        )
-
     def _redirect(
         self,
         stdout_slave_fd: int | None,
@@ -2414,10 +2365,7 @@ class Run:
             console = self._settings.console
         # only use raw for service to minimize potential changes
         if console == "wrap":
-            if not self._settings.x_disable_service:
-                console = "wrap_raw"
-            else:
-                console = "wrap_emu"
+            console = "wrap_raw"
         logger.info("redirect: %s", console)
 
         out_redir: redirect.RedirectBase
@@ -2573,11 +2521,6 @@ class Run:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
 
-        if self.settings.x_disable_service:
-            self._hooks.hook()
-            # NB: manager will perform atexit hook like behavior for outstanding runs
-            atexit.register(lambda: self._atexit_cleanup())
-
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
     def _console_stop(self) -> None:
@@ -2587,10 +2530,6 @@ class Run:
             self._output_writer = None
 
     def _on_start(self) -> None:
-        # would like to move _set_global to _on_ready to unify _on_start and _on_attach
-        # (we want to do the set globals after attach)
-        # TODO(console) However _console_start calls Redirect that uses `wandb.run` hence breaks
-        self._set_globals()
         self._header()
 
         if self._settings.save_code and self._settings.code_dir is not None:
@@ -2621,7 +2560,6 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.attach = True
 
-        self._set_globals()
         self._is_attached = True
         self._on_ready()
 
@@ -2653,6 +2591,9 @@ class Run:
 
     def _on_ready(self) -> None:
         """Event triggered when run is ready for the user."""
+        assert self._wl
+        self._wl.add_active_run(self)
+
         self._register_telemetry_import_hooks()
 
         # start reporting any telemetry changes
@@ -2693,7 +2634,7 @@ class Run:
         installed_packages_list: list[str],
         patch_path: os.PathLike | None = None,
     ) -> Artifact:
-        job_artifact = job_builder.JobArtifact(name)
+        job_artifact = InternalArtifact(name, job_builder.JOB_ARTIFACT_TYPE)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:
@@ -3095,7 +3036,7 @@ class Run:
         artifact: Artifact,
         target_path: str,
         aliases: list[str] | None = None,
-    ) -> None:
+    ) -> Artifact | None:
         """Link the given artifact to a portfolio (a promoted collection of artifacts).
 
         The linked artifact will be visible in the UI for the specified portfolio.
@@ -3109,7 +3050,7 @@ class Run:
             The alias "latest" will always be applied to the latest version of an artifact that is linked.
 
         Returns:
-            None
+            The linked artifact if linking was successful, otherwise None.
 
         """
         portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
@@ -3117,7 +3058,7 @@ class Run:
             aliases = []
 
         if not self._backend or not self._backend.interface:
-            return
+            return None
 
         if artifact.is_draft() and not artifact._is_draft_save_started():
             artifact = self._log_artifact(artifact)
@@ -3131,12 +3072,13 @@ class Run:
 
         organization = ""
         if is_artifact_registry_project(project):
-            organization = entity
+            organization = entity or self.settings.organization or ""
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
             entity = artifact._source_entity
+        project = project or self.project
+        entity = entity or self.entity
         handle = self._backend.interface.deliver_link_artifact(
-            self,
             artifact,
             portfolio,
             aliases,
@@ -3152,6 +3094,24 @@ class Run:
         response = result.response.link_artifact_response
         if response.error_message:
             wandb.termerror(response.error_message)
+        if response.version_index is None:
+            wandb.termerror(
+                "Error fetching the linked artifact's version index after linking"
+            )
+            return None
+
+        try:
+            artifact_name = f"{entity}/{project}/{portfolio}:v{response.version_index}"
+            if is_artifact_registry_project(project):
+                if organization:
+                    artifact_name = f"{organization}/{project}/{portfolio}:v{response.version_index}"
+                else:
+                    artifact_name = f"{project}/{portfolio}:v{response.version_index}"
+            linked_artifact = self._public_api()._artifact(artifact_name)
+        except Exception as e:
+            wandb.termerror(f"Error fetching link artifact after linking: {e}")
+            return None
+        return linked_artifact
 
     @_log_to_run
     @_raise_if_finished
@@ -3696,7 +3656,7 @@ class Run:
         registered_model_name: str,
         name: str | None = None,
         aliases: list[str] | None = None,
-    ) -> None:
+    ) -> Artifact | None:
         """Log a model artifact version and link it to a registered model in the model registry.
 
         The linked model version will be visible in the UI for the specified registered model.
@@ -3758,7 +3718,7 @@ class Run:
             ValueError: if name has invalid special characters
 
         Returns:
-            None
+            The linked artifact if linking was successful, otherwise None.
         """
         name_parts = registered_model_name.split("/")
         if len(name_parts) != 1:
@@ -3787,7 +3747,9 @@ class Run:
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type="model"
             )
-        self.link_artifact(artifact=artifact, target_path=target_path, aliases=aliases)
+        return self.link_artifact(
+            artifact=artifact, target_path=target_path, aliases=aliases
+        )
 
     @_log_to_run
     @_raise_if_finished

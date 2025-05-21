@@ -66,7 +66,7 @@ func (s *Lexer) makeError(format string, args ...interface{}) (Token, *gqlerror.
 			Column: column,
 			Src:    s.Source,
 		},
-	}, gqlerror.ErrorLocf(s.Source.Name, s.line, column, format, args...)
+	}, gqlerror.ErrorLocf(s.Name, s.line, column, format, args...)
 }
 
 // ReadToken gets the next token from the source starting at the given position.

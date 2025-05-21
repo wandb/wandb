@@ -1,6 +1,7 @@
 package tensorboard_test
 
 import (
+	"context"
 	"encoding/binary"
 	"os"
 	"path/filepath"
@@ -60,11 +61,13 @@ func TestReadsSequenceOfFiles(t *testing.T) {
 		tensorboard.TFEventsFileFilter{},
 		observability.NewNoOpLogger(),
 	)
+	backgroundCtx := context.Background()
+	noopOnFile := func(path paths.AbsolutePath) {}
 
-	result1, err1 := reader.NextEvent(func(path paths.AbsolutePath) {})
-	result2, err2 := reader.NextEvent(func(path paths.AbsolutePath) {})
-	result3, err3 := reader.NextEvent(func(path paths.AbsolutePath) {})
-	result4, err4 := reader.NextEvent(func(path paths.AbsolutePath) {})
+	result1, err1 := reader.NextEvent(backgroundCtx, noopOnFile)
+	result2, err2 := reader.NextEvent(backgroundCtx, noopOnFile)
+	result3, err3 := reader.NextEvent(backgroundCtx, noopOnFile)
+	result4, err4 := reader.NextEvent(backgroundCtx, noopOnFile)
 
 	assert.True(t, proto.Equal(event1, result1))
 	assert.True(t, proto.Equal(event2, result2))

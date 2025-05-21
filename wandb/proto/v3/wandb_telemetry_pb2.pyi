@@ -434,7 +434,6 @@ class Feature(google.protobuf.message.Message):
     LAUNCH_FIELD_NUMBER: builtins.int
     TORCH_PROFILER_TRACE_FIELD_NUMBER: builtins.int
     SB3_FIELD_NUMBER: builtins.int
-    SERVICE_FIELD_NUMBER: builtins.int
     INIT_RETURN_RUN_FIELD_NUMBER: builtins.int
     LIGHTGBM_WANDB_CALLBACK_FIELD_NUMBER: builtins.int
     LIGHTGBM_LOG_SUMMARY_FIELD_NUMBER: builtins.int
@@ -456,7 +455,6 @@ class Feature(google.protobuf.message.Message):
     SYNC_FIELD_NUMBER: builtins.int
     FLOW_CONTROL_DISABLED_FIELD_NUMBER: builtins.int
     FLOW_CONTROL_CUSTOM_FIELD_NUMBER: builtins.int
-    SERVICE_DISABLED_FIELD_NUMBER: builtins.int
     OPEN_METRICS_FIELD_NUMBER: builtins.int
     ULTRALYTICS_YOLOV8_FIELD_NUMBER: builtins.int
     IMPORTER_MLFLOW_FIELD_NUMBER: builtins.int
@@ -481,6 +479,9 @@ class Feature(google.protobuf.message.Message):
     SHARED_MODE_FIELD_NUMBER: builtins.int
     SERVER_SIDE_DERIVED_SUMMARY_FIELD_NUMBER: builtins.int
     USER_PROVIDED_LABEL_FIELD_NUMBER: builtins.int
+    DCGM_PROFILING_ENABLED_FIELD_NUMBER: builtins.int
+    FORK_MODE_FIELD_NUMBER: builtins.int
+    REWIND_MODE_FIELD_NUMBER: builtins.int
     watch: builtins.bool
     """wandb.watch() called"""
     finish: builtins.bool
@@ -527,8 +528,6 @@ class Feature(google.protobuf.message.Message):
     """wandb.profiler.torch_trace_handler() called"""
     sb3: builtins.bool
     """Using stable_baselines3 integration"""
-    service: builtins.bool
-    """Using wandb service internal process"""
     init_return_run: builtins.bool
     """wandb.init() called in the same process returning previous run"""
     lightgbm_wandb_callback: builtins.bool
@@ -571,8 +570,6 @@ class Feature(google.protobuf.message.Message):
     """Flow control disabled by user"""
     flow_control_custom: builtins.bool
     """Flow control customized by user"""
-    service_disabled: builtins.bool
-    """Service disabled by user"""
     open_metrics: builtins.bool
     """Consuming metrics from an OpenMetrics endpoint"""
     ultralytics_yolov8: builtins.bool
@@ -621,6 +618,12 @@ class Feature(google.protobuf.message.Message):
     """server-side derived summary computation was enabled"""
     user_provided_label: builtins.bool
     """User set the x_label value"""
+    dcgm_profiling_enabled: builtins.bool
+    """DCGM profiling was enabled"""
+    fork_mode: builtins.bool
+    """User created a forked run"""
+    rewind_mode: builtins.bool
+    """User created a rewound run"""
     def __init__(
         self,
         *,
@@ -646,7 +649,6 @@ class Feature(google.protobuf.message.Message):
         launch: builtins.bool = ...,
         torch_profiler_trace: builtins.bool = ...,
         sb3: builtins.bool = ...,
-        service: builtins.bool = ...,
         init_return_run: builtins.bool = ...,
         lightgbm_wandb_callback: builtins.bool = ...,
         lightgbm_log_summary: builtins.bool = ...,
@@ -668,7 +670,6 @@ class Feature(google.protobuf.message.Message):
         sync: builtins.bool = ...,
         flow_control_disabled: builtins.bool = ...,
         flow_control_custom: builtins.bool = ...,
-        service_disabled: builtins.bool = ...,
         open_metrics: builtins.bool = ...,
         ultralytics_yolov8: builtins.bool = ...,
         importer_mlflow: builtins.bool = ...,
@@ -693,8 +694,11 @@ class Feature(google.protobuf.message.Message):
         shared_mode: builtins.bool = ...,
         server_side_derived_summary: builtins.bool = ...,
         user_provided_label: builtins.bool = ...,
+        dcgm_profiling_enabled: builtins.bool = ...,
+        fork_mode: builtins.bool = ...,
+        rewind_mode: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact_incremental", b"artifact_incremental", "async_uploads", b"async_uploads", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "cohere_autolog", b"cohere_autolog", "core", b"core", "diffusers_autolog", b"diffusers_autolog", "estimator_hook", b"estimator_hook", "finish", b"finish", "flow_control_custom", b"flow_control_custom", "flow_control_disabled", b"flow_control_disabled", "flow_control_overflow", b"flow_control_overflow", "grpc", b"grpc", "hf_pipeline_autolog", b"hf_pipeline_autolog", "importer_mlflow", b"importer_mlflow", "init_return_run", b"init_return_run", "keras", b"keras", "keras_metrics_logger", b"keras_metrics_logger", "keras_model_checkpoint", b"keras_model_checkpoint", "keras_wandb_eval_callback", b"keras_wandb_eval_callback", "kfp_wandb_log", b"kfp_wandb_log", "langchain_tracer", b"langchain_tracer", "launch", b"launch", "lib_c", b"lib_c", "lib_cpp", b"lib_cpp", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "lightning_fabric_logger", b"lightning_fabric_logger", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "metric_goal", b"metric_goal", "metric_hidden", b"metric_hidden", "metric_step_sync", b"metric_step_sync", "metric_summary", b"metric_summary", "offline", b"offline", "open_metrics", b"open_metrics", "openai_autolog", b"openai_autolog", "openai_finetuning", b"openai_finetuning", "prodigy", b"prodigy", "resumed", b"resumed", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "server_side_derived_summary", b"server_side_derived_summary", "service", b"service", "service_disabled", b"service_disabled", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "set_step_log", b"set_step_log", "set_summary", b"set_summary", "shared_mode", b"shared_mode", "sync", b"sync", "sync_tfevents", b"sync_tfevents", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "ultralytics_yolov8", b"ultralytics_yolov8", "user_provided_label", b"user_provided_label", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact_incremental", b"artifact_incremental", "async_uploads", b"async_uploads", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "cohere_autolog", b"cohere_autolog", "core", b"core", "dcgm_profiling_enabled", b"dcgm_profiling_enabled", "diffusers_autolog", b"diffusers_autolog", "estimator_hook", b"estimator_hook", "finish", b"finish", "flow_control_custom", b"flow_control_custom", "flow_control_disabled", b"flow_control_disabled", "flow_control_overflow", b"flow_control_overflow", "fork_mode", b"fork_mode", "grpc", b"grpc", "hf_pipeline_autolog", b"hf_pipeline_autolog", "importer_mlflow", b"importer_mlflow", "init_return_run", b"init_return_run", "keras", b"keras", "keras_metrics_logger", b"keras_metrics_logger", "keras_model_checkpoint", b"keras_model_checkpoint", "keras_wandb_eval_callback", b"keras_wandb_eval_callback", "kfp_wandb_log", b"kfp_wandb_log", "langchain_tracer", b"langchain_tracer", "launch", b"launch", "lib_c", b"lib_c", "lib_cpp", b"lib_cpp", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "lightning_fabric_logger", b"lightning_fabric_logger", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "metric_goal", b"metric_goal", "metric_hidden", b"metric_hidden", "metric_step_sync", b"metric_step_sync", "metric_summary", b"metric_summary", "offline", b"offline", "open_metrics", b"open_metrics", "openai_autolog", b"openai_autolog", "openai_finetuning", b"openai_finetuning", "prodigy", b"prodigy", "resumed", b"resumed", "rewind_mode", b"rewind_mode", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "server_side_derived_summary", b"server_side_derived_summary", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "set_step_log", b"set_step_log", "set_summary", b"set_summary", "shared_mode", b"shared_mode", "sync", b"sync", "sync_tfevents", b"sync_tfevents", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "ultralytics_yolov8", b"ultralytics_yolov8", "user_provided_label", b"user_provided_label", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
 
 global___Feature = Feature
 
@@ -705,11 +709,6 @@ class Env(google.protobuf.message.Message):
     KAGGLE_FIELD_NUMBER: builtins.int
     WINDOWS_FIELD_NUMBER: builtins.int
     M1_GPU_FIELD_NUMBER: builtins.int
-    START_SPAWN_FIELD_NUMBER: builtins.int
-    START_FORK_FIELD_NUMBER: builtins.int
-    START_FORKSERVER_FIELD_NUMBER: builtins.int
-    START_THREAD_FIELD_NUMBER: builtins.int
-    MAYBE_MP_FIELD_NUMBER: builtins.int
     TRAINIUM_FIELD_NUMBER: builtins.int
     PEX_FIELD_NUMBER: builtins.int
     COLAB_FIELD_NUMBER: builtins.int
@@ -724,16 +723,6 @@ class Env(google.protobuf.message.Message):
     """windows detected"""
     m1_gpu: builtins.bool
     """apple silicon M1 gpu found"""
-    start_spawn: builtins.bool
-    """multiprocessing spawn"""
-    start_fork: builtins.bool
-    """multiprocessing fork"""
-    start_forkserver: builtins.bool
-    """multiprocessing forkserver"""
-    start_thread: builtins.bool
-    """thread start method"""
-    maybe_mp: builtins.bool
-    """maybe user running multiprocessing"""
     trainium: builtins.bool
     """AWS Trainium env detected"""
     pex: builtins.bool
@@ -753,11 +742,6 @@ class Env(google.protobuf.message.Message):
         kaggle: builtins.bool = ...,
         windows: builtins.bool = ...,
         m1_gpu: builtins.bool = ...,
-        start_spawn: builtins.bool = ...,
-        start_fork: builtins.bool = ...,
-        start_forkserver: builtins.bool = ...,
-        start_thread: builtins.bool = ...,
-        maybe_mp: builtins.bool = ...,
         trainium: builtins.bool = ...,
         pex: builtins.bool = ...,
         colab: builtins.bool = ...,
@@ -765,7 +749,7 @@ class Env(google.protobuf.message.Message):
         aws_lambda: builtins.bool = ...,
         amd_gpu: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["amd_gpu", b"amd_gpu", "aws_lambda", b"aws_lambda", "colab", b"colab", "ipython", b"ipython", "jupyter", b"jupyter", "kaggle", b"kaggle", "m1_gpu", b"m1_gpu", "maybe_mp", b"maybe_mp", "pex", b"pex", "start_fork", b"start_fork", "start_forkserver", b"start_forkserver", "start_spawn", b"start_spawn", "start_thread", b"start_thread", "trainium", b"trainium", "windows", b"windows"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["amd_gpu", b"amd_gpu", "aws_lambda", b"aws_lambda", "colab", b"colab", "ipython", b"ipython", "jupyter", b"jupyter", "kaggle", b"kaggle", "m1_gpu", b"m1_gpu", "pex", b"pex", "trainium", b"trainium", "windows", b"windows"]) -> None: ...
 
 global___Env = Env
 

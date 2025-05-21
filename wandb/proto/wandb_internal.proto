@@ -122,6 +122,18 @@ message FooterRecord {
   _RecordInfo _info = 200;
 }
 
+// A point in a run from which another run can be branched.
+message BranchPoint {
+  // The ID of the run to branch from.
+  string run = 1;
+
+  // The value of the metric to branch at.
+  double value = 2;
+
+  // The name of the metric to use to find a branch point.
+  string metric = 3;
+}
+
 /*
  * RunRecord: wandb/sdk/wandb_run/Run
  */
@@ -148,6 +160,10 @@ message RunRecord {
   int32 runtime = 20;
   GitRepoRecord git = 21;
   bool forked = 22;
+
+  // Information about the source if this is a fork or rewind of another run.
+  BranchPoint branch_point = 23;
+
   _RecordInfo _info = 200;
 }
 
@@ -392,7 +408,7 @@ message FilesItem {
     ARTIFACT = 3;
   }
 
-  // A path or Unix glob relative to the W&B files directory.
+  // A path or Unix glob relative to the run's files directory.
   string path = 1;
 
   // When to upload the file.
@@ -503,6 +519,7 @@ message LinkArtifactRequest {
 
 message LinkArtifactResponse {
   string error_message = 1;
+  optional int32 version_index = 2;
 }
 
 // Indicates a directory of TensorBoard tfevents files to sync with the run.
@@ -1412,6 +1429,18 @@ enum ServerFeature {
 
   // Indicates that the server supports expanding defined metric globs on the server side.
   EXPAND_DEFINED_METRIC_GLOBS = 8;
+
+  // Indicates that the server supports automation event RUN_METRIC.
+  AUTOMATION_EVENT_RUN_METRIC = 9;
+
+  // Indicates that the server supports automation event RUN_METRIC_CHANGE.
+  AUTOMATION_EVENT_RUN_METRIC_CHANGE = 10;
+
+  // Indicates that the server supports automation action NO_OP.
+  AUTOMATION_ACTION_NO_OP = 11;
+
+  // Indicates that the server supports including artifact types in registry creation.
+  INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION = 12;
 }
 
 /**
