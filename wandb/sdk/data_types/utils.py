@@ -72,6 +72,8 @@ def val_to_json(
             "val_to_json must be called with a namespace(a step number, or 'summary') argument"
         )
 
+    from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
     converted = val
 
     if isinstance(val, (int, float, str, bool)):
@@ -101,7 +103,7 @@ def val_to_json(
 
             items = _prune_max_seq(val)
 
-            if _server_accepts_image_filenames():
+            if _server_accepts_image_filenames(run):
                 for item in items:
                     item.bind_to_run(
                         run=run,
@@ -150,7 +152,7 @@ def val_to_json(
             ]:
                 # Sanitize the key to meet the constraints of artifact names.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
-                art = wandb.Artifact(f"run-{run.id}-{sanitized_key}", "run_table")
+                art = InternalArtifact(f"run-{run.id}-{sanitized_key}", "run_table")
                 art.add(val, key)
                 run.log_artifact(art)
 

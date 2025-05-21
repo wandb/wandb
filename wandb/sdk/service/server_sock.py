@@ -5,6 +5,7 @@ import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import wandb
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -156,27 +157,31 @@ class SockServerReadThread(threading.Thread):
             inform_attach_response=inform_attach_response,
         )
         self._sock_client.send_server_response(response)
-        iface = self._mux.get_stream(stream_id).interface
-
-        assert iface
 
     def server_record_communicate(self, sreq: "spb.ServerRequest") -> None:
-        record = sreq.record_communicate
-        # encode relay information so the right socket picks up the data
-        record.control.relay_id = self._sock_client._sockid
-        stream_id = record._info.stream_id
-        iface = self._mux.get_stream(stream_id).interface
-        assert iface.record_q
-        iface.record_q.put(record)
+        self._put_record(sreq.record_communicate)
 
     def server_record_publish(self, sreq: "spb.ServerRequest") -> None:
-        record = sreq.record_publish
+        self._put_record(sreq.record_publish)
+
+    def _put_record(self, record: "pb.Record") -> None:
         # encode relay information so the right socket picks up the data
         record.control.relay_id = self._sock_client._sockid
         stream_id = record._info.stream_id
-        iface = self._mux.get_stream(stream_id).interface
-        assert iface.record_q
-        iface.record_q.put(record)
+
+        try:
+            iface = self._mux.get_stream(stream_id).interface
+
+        except KeyError:
+            # We should log the error but cannot because it may print to console
+            # due to how logging is set up. This error usually happens if
+            # a record is sent when no run is active, but during this time the
+            # logger prints to the console.
+            pass
+
+        else:
+            assert iface.record_q
+            iface.record_q.put(record)
 
     def server_inform_finish(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_finish

@@ -1,15 +1,15 @@
 package tensorboard
 
 import (
+	"context"
 	"fmt"
-	"os"
-	"path/filepath"
+	"io"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/wandb/wandb/core/internal/paths"
+	"gocloud.dev/blob"
 )
 
 // nextTFEventsFile returns the tfevents file that comes after the given one.
@@ -18,36 +18,48 @@ import (
 // file after it finishes writing to the previous one, and the files are meant
 // to be read in order.
 //
-// This function takes a directory `dir` containing tfevents files and returns
-// the first path matching `filter` that's ordered after `path`. If `path` is "",
-// then the first (according to the order) matching path is returned. If the
-// next file does not exist, then an empty string is returned.
+// This function works with local filesystems as well as cloud storage.
+// In both cases, a prefixed bucket is used to represent a directory.
 //
-// This returns an error if the directory doesn't exist.
+// Returns the key of the first object in the bucket that's ordered after
+// `lastFile` and whose key matches `filter`. If `lastFile` is "", then the
+// first matching key is returned. If there is no next object, an empty string
+// is returned.
+//
+// Returns an error if the directory doesn't exist or if a network error
+// prevents iterating over it.
 func nextTFEventsFile(
-	dir paths.AbsolutePath,
-	path *paths.AbsolutePath,
+	ctx context.Context,
+	bucket *blob.Bucket,
+	lastFile string,
 	filter TFEventsFileFilter,
-) (*paths.AbsolutePath, error) {
-	name := []rune(filepath.Base(path.OrEmpty()))
+) (string, error) {
+	lastFileRunes := []rune(lastFile)
 
-	entries, err := os.ReadDir(string(dir))
-	if err != nil {
-		return nil, err
-	}
+	// bucket.List() returns values in lexicographical order of UTF-8 encoded
+	// keys.
+	//
+	// TensorBoard sorts files using Python string comparison:
+	// https://github.com/tensorflow/tensorboard/blob/ae7d0b9250f5986dd0f0c238fcaf3c8d7f4312ca/tensorboard/backend/event_processing/directory_watcher.py#L208-L212
+	//
+	// Python uses Unicode code point numbers when comparing strings.
+	// https://docs.python.org/3/tutorial/datastructures.html#comparing-sequences-and-other-types
+	//
+	// Lexicographically sorting UTF-32 strings (i.e. Unicode code points)
+	// and UTF-8 strings produces the same result, so these are the same.
+	sortedEntries := bucket.List(nil)
 
-	if len(entries) == 0 {
-		return nil, fmt.Errorf("tensorboard: directory is empty")
-	}
+	for {
+		obj, err := sortedEntries.Next(ctx)
 
-	next := ""
-	for _, entry := range entries {
-		// TensorBoard sorts files using Python string comparison:
-		// https://github.com/tensorflow/tensorboard/blob/ae7d0b9250f5986dd0f0c238fcaf3c8d7f4312ca/tensorboard/backend/event_processing/directory_watcher.py#L208-L212
-		//
-		// Python uses Unicode code point numbers when comparing strings:
-		// https://docs.python.org/3/tutorial/datastructures.html#comparing-sequences-and-other-types
-		//
+		if err == io.EOF {
+			return "", nil
+		}
+
+		if err != nil {
+			return "", fmt.Errorf("tensorboard: nextTFEventsFile: %v", err)
+		}
+
 		// It's not clear whether Go's < operator for strings compares runes
 		// (Unicode code points) or bytes, but strings are able to hold
 		// arbitrary bytes, so we explicitly compare runes here.
@@ -55,26 +67,11 @@ func nextTFEventsFile(
 		// In practice it's not clear this will matter, since tfevents file
 		// names are probably ASCII other than the "hostname" portion which
 		// could be arbitrary.
-		if slices.Compare([]rune(entry.Name()), name) <= 0 {
-			continue
+		if slices.Compare([]rune(obj.Key), lastFileRunes) > 0 &&
+			filter.Matches(obj.Key) {
+			return obj.Key, nil
 		}
-
-		if next != "" && slices.Compare([]rune(entry.Name()), []rune(next)) >= 0 {
-			continue
-		}
-
-		if !filter.Matches(entry.Name()) {
-			continue
-		}
-
-		next = entry.Name()
 	}
-
-	if next == "" {
-		return nil, nil
-	}
-
-	return paths.Absolute(filepath.Join(string(dir), next))
 }
 
 // TFEventsFileFilter is the information necessary to select related
@@ -95,10 +92,8 @@ type TFEventsFileFilter struct {
 	Hostname string
 }
 
-// Matches returns whether the path is accepted by the filter.
-func (f TFEventsFileFilter) Matches(path string) bool {
-	name := filepath.Base(path)
-
+// Matches returns whether the tfevents file name is accepted by the filter.
+func (f TFEventsFileFilter) Matches(name string) bool {
 	switch {
 	// The TensorFlow profiler creates an empty tfevents file with this suffix.
 	case strings.HasSuffix(name, ".profile-empty"):

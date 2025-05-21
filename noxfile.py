@@ -185,6 +185,32 @@ def unit_tests(session: nox.Session) -> None:
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
+def unit_tests_pydantic_v1(session: nox.Session) -> None:
+    """Runs a subset of Python unit tests with pydantic v1."""
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_test.txt",
+    )
+    # force-downgrade pydantic to v1
+    install_timed(session, "pydantic<2")
+
+    run_pytest(
+        session,
+        paths=session.posargs
+        or [
+            "tests/unit_tests/test_wandb_settings.py",
+            "tests/unit_tests/test_wandb_metadata.py",
+            "tests/unit_tests/test_wandb_run.py",
+            "tests/unit_tests/test_pydantic_v1_compat.py",
+            "tests/unit_tests/test_artifacts",
+        ],
+        opts={"n": "4"},
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
 def system_tests(session: nox.Session) -> None:
     install_wandb(session)
     install_timed(
@@ -433,7 +459,7 @@ def _generate_proto_go(session: nox.Session) -> None:
 
 
 @nox.session(name="proto-python", tags=["proto"], python="3.10")
-@nox.parametrize("pb", [3, 4, 5])
+@nox.parametrize("pb", [3, 4, 5, 6])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
 
@@ -460,8 +486,14 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
         session.install("mypy-protobuf~=3.6.0")
         session.install("grpcio~=1.64.1")
         session.install("grpcio-tools~=1.64.1")
+    elif pb == 6:
+        session.install("mypy-protobuf==3.6.0")
+        # TODO: update to 1.72.0 when released
+        session.install("grpcio==1.72.0rc1")
+        session.install("grpcio-tools==1.72.0rc1")
+        session.install("protobuf==6.30.2")
     else:
-        session.error("Invalid protobuf version given. `pb` must be 3, 4, or 5.")
+        session.error("Invalid protobuf version given. `pb` must be 3, 4, 5, or 6.")
 
     session.install("packaging")
 
@@ -549,7 +581,10 @@ def mypy_report(session: nox.Session) -> None:
         "types-pytz",
         "types-PyYAML",
         "types-requests",
-        "types-setuptools",
+        # Fix for removal of pkg_resources
+        # TODO(@jacobromero): remove version constraint
+        # after migrating away from pkg_resources
+        "types-setuptools < 80.7",
         "types-six",
         "types-tqdm",
     )

@@ -188,7 +188,7 @@ func (t *TPU) IsAvailable() bool {
 // Close closes the gRPC connection and releases resources.
 func (t *TPU) Close() {
 	if t.conn != nil {
-		t.conn.Close()
+		_ = t.conn.Close()
 		t.conn = nil
 		t.client = nil
 	}

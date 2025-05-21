@@ -13,14 +13,12 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gitops"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
-	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -45,7 +43,6 @@ const (
 type HandlerParams struct {
 	// Commit is the W&B Git commit hash
 	Commit            string
-	FeatureProvider   *featurechecker.ServerFeaturesCache
 	FileTransferStats filetransfer.FileTransferStats
 	FwdChan           chan runwork.Work
 	Logger            *observability.CoreLogger
@@ -60,18 +57,9 @@ type HandlerParams struct {
 
 // Handler handles the incoming messages, processes them, and passes them to the writer.
 type Handler struct {
-	// clientID is an ID for this process.
-	//
-	// This identifies the process that uploaded a set of metrics when
-	// running in "shared" mode, where there may be multiple writers for
-	// the same run.
-	clientID string
 
 	// commit is the W&B Git commit hash
 	commit string
-
-	// featureProvider provides server features and capabilities
-	featureProvider *featurechecker.ServerFeaturesCache
 
 	// fileTransferStats reports file upload/download statistics
 	fileTransferStats filetransfer.FileTransferStats
@@ -144,9 +132,7 @@ func NewHandler(
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		clientID:             randomid.GenerateUniqueID(32),
 		commit:               params.Commit,
-		featureProvider:      params.FeatureProvider,
 		fileTransferStats:    params.FileTransferStats,
 		fwdChan:              params.FwdChan,
 		logger:               params.Logger,
@@ -293,6 +279,7 @@ func (h *Handler) handleRequest(record *spb.Record) {
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
 	case *spb.Request_Defer:
+	case *spb.Request_ServerFeature:
 		// The above been removed from the client but are kept here for now.
 		// Should be removed in the future.
 
@@ -352,8 +339,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestJobInput(record)
 	case *spb.Request_RunFinishWithoutExit:
 		h.handleRequestRunFinishWithoutExit(record)
-	case *spb.Request_ServerFeature:
-		h.handleRequestServerFeature(record, x.ServerFeature)
 	case *spb.Request_Operations:
 		h.handleRequestOperations(record)
 	case nil:
@@ -1066,6 +1051,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	for _, newMetric := range newMetricDefs {
 		// We don't mark the record 'Local' because partial history updates
 		// are not already written to the transaction log.
+		newMetric.ExpandedFromGlob = true
 		rec := &spb.Record{
 			RecordType: &spb.Record_Metric{Metric: newMetric},
 		}
@@ -1149,25 +1135,6 @@ func (h *Handler) handleRequestSampledHistory(record *spb.Record) {
 		ResponseType: &spb.Response_SampledHistoryResponse{
 			SampledHistoryResponse: &spb.SampledHistoryResponse{
 				Item: h.runHistorySampler.Get(),
-			},
-		},
-	})
-}
-
-// handleRequestServerFeature gets the server features requested by the client,
-// and responds with the details of the feature provided by the server.
-func (h *Handler) handleRequestServerFeature(
-	record *spb.Record,
-	request *spb.ServerFeatureRequest,
-) {
-	serverFeatureValue := h.featureProvider.GetFeature(request.GetFeature())
-	h.respond(record, &spb.Response{
-		ResponseType: &spb.Response_ServerFeatureResponse{
-			ServerFeatureResponse: &spb.ServerFeatureResponse{
-				Feature: &spb.ServerFeatureItem{
-					Enabled: serverFeatureValue.Enabled,
-					Name:    serverFeatureValue.Name,
-				},
 			},
 		},
 	})

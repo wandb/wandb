@@ -53,9 +53,7 @@ class Molecule(BatchableMedia):
         caption: Optional[str] = None,
         **kwargs: str,
     ) -> None:
-        super().__init__()
-
-        self._caption = caption
+        super().__init__(caption=caption)
 
         if hasattr(data_or_path, "name"):
             # if the file has a path, we just detect the type and copy it from there
@@ -208,8 +206,6 @@ class Molecule(BatchableMedia):
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
-        if self._caption:
-            json_dict["caption"] = self._caption
         return json_dict
 
     @classmethod

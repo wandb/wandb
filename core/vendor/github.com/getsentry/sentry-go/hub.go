@@ -293,14 +293,14 @@ func (hub *Hub) AddBreadcrumb(breadcrumb *Breadcrumb, hint *BreadcrumbHint) {
 		return
 	}
 
-	max := client.options.MaxBreadcrumbs
+	limit := client.options.MaxBreadcrumbs
 	switch {
-	case max < 0:
+	case limit < 0:
 		return
-	case max == 0:
-		max = defaultMaxBreadcrumbs
-	case max > maxBreadcrumbs:
-		max = maxBreadcrumbs
+	case limit == 0:
+		limit = defaultMaxBreadcrumbs
+	case limit > maxBreadcrumbs:
+		limit = maxBreadcrumbs
 	}
 
 	if client.options.BeforeBreadcrumb != nil {
@@ -308,12 +308,12 @@ func (hub *Hub) AddBreadcrumb(breadcrumb *Breadcrumb, hint *BreadcrumbHint) {
 			hint = &BreadcrumbHint{}
 		}
 		if breadcrumb = client.options.BeforeBreadcrumb(breadcrumb, hint); breadcrumb == nil {
-			Logger.Println("breadcrumb dropped due to BeforeBreadcrumb callback.")
+			DebugLogger.Println("breadcrumb dropped due to BeforeBreadcrumb callback.")
 			return
 		}
 	}
 
-	hub.Scope().AddBreadcrumb(breadcrumb, max)
+	hub.Scope().AddBreadcrumb(breadcrumb, limit)
 }
 
 // Recover calls the method of a same name on currently bound Client instance

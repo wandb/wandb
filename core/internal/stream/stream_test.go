@@ -60,8 +60,10 @@ func TestProxyFn(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set environment variables for the test
 			for env, value := range tt.envProxy {
-				os.Setenv(env, value)
-				defer os.Unsetenv(env)
+				_ = os.Setenv(env, value)
+				defer func(env string) {
+					_ = os.Unsetenv(env)
+				}(env)
 			}
 
 			req, err := http.NewRequest("GET", tt.requestURL, nil)
