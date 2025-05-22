@@ -3,8 +3,6 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-import wandb
-
 if TYPE_CHECKING:
     from wandb import Table
     from wandb.sdk.artifacts.artifact import Artifact
@@ -47,6 +45,9 @@ def handle_resumed_run(incr_table: Table, run: LocalRun, key: str):
 
     incr_table.handle_resumed_run(previous_increments_paths, increment_num)
 
+def _get_artifact_name(run: LocalRun, sanitized_key: str):
+    return f"run-{run.id}-incr-{sanitized_key}"
+
 
 def init_artifact(run: LocalRun, sanitized_key: str) -> Artifact:
     """Initialize a new artifact for an incremental table.
@@ -58,13 +59,13 @@ def init_artifact(run: LocalRun, sanitized_key: str) -> Artifact:
     Returns:
         A wandb Artifact configured for incremental table storage
     """
-    artifact_name = f"run-{run.id}-incr-{sanitized_key}"
-    artifact = wandb.Artifact(
-        artifact_name,
-        "placeholder-run-incremental-table",
+    from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
+    artifact = InternalArtifact(
+        _get_artifact_name(run, sanitized_key),
+        ART_TYPE,
         incremental=True,
     )
-    artifact._type = ART_TYPE  # get around type restriction for system artifact
     return artifact
 
 

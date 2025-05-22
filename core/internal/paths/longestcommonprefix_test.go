@@ -1,6 +1,7 @@
 package paths_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,4 +38,35 @@ func TestLongestCommonPrefix_TooFewDirectories(t *testing.T) {
 
 	assert.ErrorContains(t, err, "too few paths")
 	assert.Nil(t, prefix)
+}
+
+func TestLongestCommonPrefixStr_OfSingleString_IsInput(t *testing.T) {
+	prefix := paths.LongestCommonPrefixStr(
+		slices.Values([]string{"some/strange//path/"}),
+		"/",
+	)
+
+	assert.Equal(t, "some/strange//path/", prefix)
+}
+
+func TestLongestCommonPrefixStr_OfNothing_Empty(t *testing.T) {
+	prefix := paths.LongestCommonPrefixStr(
+		slices.Values([]string{}),
+		"/",
+	)
+
+	assert.Equal(t, "", prefix)
+}
+
+func TestLongestCommonPrefixStr_ComparesComponents(t *testing.T) {
+	prefix := paths.LongestCommonPrefixStr(
+		slices.Values([]string{
+			"parent_child",
+			"parent_children",
+		}),
+		"_",
+	)
+
+	// NOTE: Not "parent_child".
+	assert.Equal(t, "parent", prefix)
 }

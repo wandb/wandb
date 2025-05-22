@@ -29,17 +29,15 @@ message OpenMetricsFilters {
   }
 }
 
-// Serialized representation of the RunMoment class in wandb.sdk.lib.run_moment.
-// Used to communicate the moment in a run at which forking or resuming should
-// take place.
+// A point in a run from which another run can be branched.
 message RunMoment {
-  // The name of the run to fork from.
+  // The ID of the run to branch from.
   string run = 1;
 
-  // The value of the metric to fork at.
+  // The value of the metric to branch at.
   double value = 2;
 
-  // The name of the metric to use to find a fork point.
+  // The name of the metric to use to find a branch point.
   string metric = 3;
 }
 
@@ -54,7 +52,7 @@ message RunMoment {
 //
 // Next ID: 191
 message Settings {
-  reserved 3, 6, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 100, 136, 137, 176;
+  reserved 3, 6, 8, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 100, 136, 137, 176;
 
   // The W&B API key.
   //
@@ -386,7 +384,6 @@ message Settings {
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue x_cli_only_mode = 4;
   google.protobuf.BoolValue _colab = 5;
-  google.protobuf.BoolValue x_disable_service = 8;
   google.protobuf.BoolValue x_disable_setproctitle = 9;
   google.protobuf.BoolValue x_disable_viewer = 11;
   google.protobuf.BoolValue x_flow_control_custom = 16;

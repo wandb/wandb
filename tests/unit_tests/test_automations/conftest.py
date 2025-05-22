@@ -101,10 +101,8 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
             "createdAt": "2021-01-01T00:00:00Z",
             "tags": {"edges": []},
         },
+        is_sequence=False,
     )
-
-    # Patch the private _is_sequence attribute to False, to simulate a non-sequence artifact collection.
-    collection._is_sequence = False
 
     return collection
 

@@ -59,7 +59,11 @@ from wandb.sdk.artifacts._generated import (
     RunOutputArtifactsProjectRunOutputArtifacts,
 )
 from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
-from wandb.sdk.artifacts._validators import validate_artifact_name
+from wandb.sdk.artifacts._validators import (
+    SOURCE_ARTIFACT_COLLECTION_TYPE,
+    validate_artifact_name,
+    validate_artifact_type,
+)
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
 
@@ -287,6 +291,7 @@ class ArtifactCollection:
         type: str,
         organization: Optional[str] = None,
         attrs: Optional[Mapping[str, Any]] = None,
+        is_sequence: Optional[bool] = None,
     ):
         self.client = client
         self.entity = entity
@@ -296,7 +301,10 @@ class ArtifactCollection:
         self._type = type
         self._saved_type = type
         self._attrs = attrs
-        if self._attrs is None:
+        if is_sequence is not None:
+            self._is_sequence = is_sequence
+        is_loaded = attrs is not None and is_sequence is not None
+        if not is_loaded:
             self.load()
         self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
         self._description = self._attrs["description"]
@@ -359,7 +367,7 @@ class ArtifactCollection:
         sequence = type_.artifact_sequence
         self._is_sequence = (
             sequence is not None
-        ) and sequence.typename__ == "ArtifactSequence"
+        ) and sequence.typename__ == SOURCE_ARTIFACT_COLLECTION_TYPE
 
         if self._attrs is None:
             self._attrs = collection.model_dump(exclude_unset=True)
@@ -371,6 +379,17 @@ class ArtifactCollection:
             field_name=Deprecated.artifact_collection__change_type,
             warning_message="ArtifactCollection.change_type(type) is deprecated, use ArtifactCollection.save() instead.",
         )
+
+        if self._saved_type != new_type:
+            try:
+                validate_artifact_type(self._saved_type, self.name)
+            except ValueError as e:
+                raise ValueError(
+                    f"The current type '{self._saved_type!r}' is an internal type and cannot be changed."
+                ) from e
+
+        # Check that the new type is not going to conflict with internal types
+        validate_artifact_type(new_type, self.name)
 
         if not self.is_sequence():
             raise ValueError("Artifact collection needs to be a sequence")
@@ -496,6 +515,19 @@ class ArtifactCollection:
 
     def save(self) -> None:
         """Persist any changes made to the artifact collection."""
+        if self._saved_type != self.type:
+            try:
+                validate_artifact_type(self.type, self._name)
+            except ValueError as e:
+                raise ValueError(f"Failed to save artifact collection: {e}") from e
+            try:
+                validate_artifact_type(self._saved_type, self._name)
+            except ValueError as e:
+                raise ValueError(
+                    f"Failed to save artifact collection '{self._name}': "
+                    f"The current type '{self._saved_type!r}' is an internal type and cannot be changed."
+                ) from e
+
         self._update_collection()
 
         if self.is_sequence() and (self._saved_type != self._type):
@@ -709,7 +741,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         names: Optional[Sequence[str]] = None,
         per_page: int = 50,
     ):
-        self.query_via_membership = InternalApi()._check_server_feature_with_fallback(
+        self.query_via_membership = InternalApi()._server_supports(
             ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         )
         self.artifact = artifact

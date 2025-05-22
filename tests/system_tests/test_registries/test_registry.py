@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from wandb import Api
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
@@ -105,7 +107,7 @@ def test_registry_create_edit_artifact_types(default_organization):
     registry.artifact_types.append(artifact_type_1)
     with pytest.raises(
         ValueError,
-        match="Cannot update artifact types when `allows_all_artifact_types` is `true`. Set it to `false` first.",
+        match="Cannot update artifact types when `allows_all_artifact_types` is True. Set it to False first.",
     ):
         registry.save()
     # Reset for valid save
@@ -251,3 +253,54 @@ def test_create_registry_invalid_visibility_input(default_organization):
             name=registry_name,
             visibility="invalid",
         )
+
+
+def test_create_registry_invalid_registry_name(default_organization):
+    api = Api()
+    registry_name = "::::????"
+    with pytest.raises(ValueError, match="Invalid project/registry name"):
+        api.create_registry(
+            organization=default_organization,
+            name=registry_name,
+            visibility="invalid",
+        )
+
+    registry = api.create_registry(
+        organization=default_organization,
+        name="test",
+        visibility="organization",
+    )
+    assert registry
+    registry.name = "p" * 200
+    with pytest.raises(ValueError, match="must be 113 characters or less"):
+        registry.save()
+
+
+@patch("wandb.apis.public.registries.registry.wandb.termlog")
+def test_edit_registry_name(mock_termlog, default_organization):
+    api = Api()
+    registry_name = "test"
+    registry = api.create_registry(
+        organization=default_organization,
+        name=registry_name,
+        visibility="organization",
+        description="This is the initial description",
+    )
+
+    new_registry_name = "new-name"
+    registry.name = new_registry_name
+    assert registry._saved_name == registry_name
+    registry.save()
+    assert registry.name == new_registry_name
+    assert registry._saved_name == new_registry_name
+    assert registry.description == "This is the initial description"
+
+    # Double check we didn't create a new registry instead of renaming the old one
+    with pytest.raises(ValueError, match="Failed to load registry"):
+        api.registry(registry_name, default_organization)
+
+    new_name_registry = api.registry(new_registry_name, default_organization)
+    assert new_name_registry
+    assert new_name_registry.description == "This is the initial description"
+    # Assert that the rename termlog was called as we never created a new registry
+    mock_termlog.assert_not_called()
