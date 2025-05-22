@@ -80,7 +80,8 @@ media = [
     "numpy",
     "moviepy>=1.0.0",
     # imageio is a dependency of moviepy but incase that changes we also pin it here
-    "imageio",
+    # imageio versions before 2.28.1 do not work properly when encoding videos.
+    "imageio>=2.28.1",
     "pillow",
     "bokeh",
     "soundfile",
