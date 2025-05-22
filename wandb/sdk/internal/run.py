@@ -5,12 +5,7 @@ Semi-stubbed run for internal process use.
 
 """
 
-import sys
-
-if sys.version_info >= (3, 12):
-    from typing import override
-else:
-    from typing_extensions import override
+from typing_extensions import override
 
 from wandb.sdk import wandb_run
 
