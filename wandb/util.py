@@ -36,10 +36,8 @@ from types import ModuleType
 from typing import (
     IO,
     TYPE_CHECKING,
-    Any,
     Callable,
     Dict,
-    Generator,
     Iterable,
     List,
     Mapping,
@@ -47,17 +45,12 @@ from typing import (
     Sequence,
     TextIO,
     Tuple,
-    TypeVar,
     Union,
 )
 
-if sys.version_info < (3, 10):
-    from typing_extensions import TypeGuard
-else:
-    from typing import TypeGuard
-
 import requests
 import yaml
+from typing_extensions import Any, Generator, TypeGuard, TypeVar
 
 import wandb
 import wandb.env

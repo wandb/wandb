@@ -21,12 +21,9 @@ import platform
 import sys
 import tempfile
 import time
-from typing import TYPE_CHECKING, Any, Iterable, Iterator, Literal, Protocol, Sequence
+from typing import TYPE_CHECKING, Iterable, Iterator, Sequence
 
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
+from typing_extensions import Any, Literal, Protocol, Self
 
 import wandb
 import wandb.env

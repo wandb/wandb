@@ -11,7 +11,9 @@ eval-type-backport~=0.2.0; python_version >= '3.8' and python_version < '3.10'
 Pillow
 pandas
 polars
-moviepy >= 1.0.0
+# Version 2.0.0 removes moviepy.editor, used by TensorBoard in some tests
+# to log videos.
+moviepy~=1.0
 imageio[ffmpeg]
 matplotlib
 soundfile
