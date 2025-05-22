@@ -41,6 +41,8 @@ func absoluteTmpdir(t *testing.T) paths.AbsolutePath {
 
 func TestReadsSequenceOfFiles(t *testing.T) {
 	tmpdir := absoluteTmpdir(t)
+	tmpdirAsPath, err := tensorboard.ParseTBPath(string(tmpdir))
+	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(
 		filepath.Join(string(tmpdir), "tfevents.1.hostname"),
 		slices.Concat(encodeEvent(event1), encodeEvent(event2)),
@@ -57,12 +59,12 @@ func TestReadsSequenceOfFiles(t *testing.T) {
 		os.ModePerm,
 	))
 	reader := tensorboard.NewTFEventReader(
-		tmpdir,
+		tmpdirAsPath,
 		tensorboard.TFEventsFileFilter{},
 		observability.NewNoOpLogger(),
 	)
 	backgroundCtx := context.Background()
-	noopOnFile := func(path paths.AbsolutePath) {}
+	noopOnFile := func(path *tensorboard.LocalOrCloudPath) {}
 
 	result1, err1 := reader.NextEvent(backgroundCtx, noopOnFile)
 	result2, err2 := reader.NextEvent(backgroundCtx, noopOnFile)
