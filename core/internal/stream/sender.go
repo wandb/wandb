@@ -40,6 +40,7 @@ import (
 	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	"github.com/wandb/wandb/core/pkg/launch"
+	"github.com/wandb/wandb/core/pkg/monitor"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -1272,6 +1273,16 @@ func (s *Sender) upsertRun(
 		isCoreWeaveOrganization := data.GetUpsertBucket().GetIsCoreWeaveOrganization()
 		if isCoreWeaveOrganization != nil && *isCoreWeaveOrganization {
 			// TODO:
+			cwm, _ := monitor.NewCoreWeaveMetadata(
+				monitor.CoreWeaveMetadataParams{
+					Logger: s.logger,
+				},
+			)
+			if cwm != nil {
+				if cwid, err := cwm.Get(); err == nil {
+					fmt.Printf("%+v\n", cwid)
+				}
+			}
 		}
 	}
 
