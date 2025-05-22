@@ -699,7 +699,7 @@ class Scheduler(ABC):
         if entry_point:
             wandb.termwarn(
                 f"{LOG_PREFIX}Sweep command {entry_point} will override"
-                f' {"job" if _job else "image_uri"} entrypoint'
+                f" {'job' if _job else 'image_uri'} entrypoint"
             )
 
         # override resource and args of job

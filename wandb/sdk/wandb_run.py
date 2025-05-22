@@ -273,9 +273,7 @@ class RunStatusChecker:
                     wandb.termlog(f"{hr.http_response_text}")
                 else:
                     wandb.termlog(
-                        "{} encountered ({}), retrying request".format(
-                            hr.http_status_code, hr.http_response_text.rstrip()
-                        )
+                        f"{hr.http_status_code} encountered ({hr.http_response_text.rstrip()}), retrying request"
                     )
 
         with wb_logging.log_to_run(self._run_id):
@@ -3118,9 +3116,7 @@ class Run:
             artifact = public_api._artifact(type=type, name=name)
             if type is not None and type != artifact.type:
                 raise ValueError(
-                    "Supplied type {} does not match type {} of artifact {}".format(
-                        type, artifact.type, artifact.name
-                    )
+                    f"Supplied type {type} does not match type {artifact.type} of artifact {artifact.name}"
                 )
             api.use_artifact(
                 artifact.id,

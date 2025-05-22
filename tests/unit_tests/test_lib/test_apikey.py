@@ -13,7 +13,7 @@ def test_write_netrc(mock_wandb_log):
     assert mock_wandb_log.logged("No netrc file found, creating one.")
     with open(wandb_lib.apikey.get_netrc_file_path()) as f:
         assert f.read() == (
-            "machine localhost\n  login vanpelt\n  password {}\n".format(api_key)
+            f"machine localhost\n  login vanpelt\n  password {api_key}\n"
         )
 
 
@@ -38,9 +38,7 @@ def test_write_netrc_update_existing(tmp_path):
     with open(netrc_path) as f:
         assert f.read() == (
             "machine otherhost\n  login other-user\n  password password123\n"
-            "machine localhost\n  login random-user\n  password {}\n".format(
-                new_api_key
-            )
+            f"machine localhost\n  login random-user\n  password {new_api_key}\n"
         )
 
 

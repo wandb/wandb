@@ -323,8 +323,7 @@ def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
     docker_image = launch_spec.get("docker", {}).get("docker_image")
     if bool(job) == bool(docker_image):
         raise LaunchError(
-            "Exactly one of job or docker_image must be specified in the launch "
-            "spec."
+            "Exactly one of job or docker_image must be specified in the launch spec."
         )
 
 
