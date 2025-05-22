@@ -290,15 +290,13 @@ func (*OpenMetricsFilters_Sequence) isOpenMetricsFilters_Value() {}
 
 func (*OpenMetricsFilters_Mapping) isOpenMetricsFilters_Value() {}
 
-// Serialized representation of the RunMoment class in wandb.sdk.lib.run_moment.
-// Used to communicate the moment in a run at which forking or resuming should
-// take place.
+// A point in a run from which another run can be branched.
 type RunMoment struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// The name of the run to branch off of.
+	// The ID of the run to branch from.
 	Run string `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`
 	// The value of the metric to branch at.
 	Value float64 `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`

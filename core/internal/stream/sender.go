@@ -927,9 +927,9 @@ func (s *Sender) setConfigOnRunRecord(record *spb.RunRecord) {
 func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
 	fork := run.GetBranchPoint()
 	err := runbranch.NewForkBranch(
-		fork.GetSourceRun(),
-		fork.GetMetricName(),
-		fork.GetMetricValue(),
+		fork.GetRun(),
+		fork.GetMetric(),
+		fork.GetValue(),
 	).UpdateForFork(s.startState)
 
 	if err != nil {
@@ -976,9 +976,9 @@ func (s *Sender) sendRewindRun(record *spb.Record, run *spb.RunRecord) {
 	err := runbranch.NewRewindBranch(
 		s.runWork.BeforeEndCtx(),
 		s.graphqlClient,
-		rewind.GetSourceRun(),
-		rewind.GetMetricName(),
-		rewind.GetMetricValue(),
+		rewind.GetRun(),
+		rewind.GetMetric(),
+		rewind.GetValue(),
 	).UpdateForRewind(s.startState, s.runConfig)
 
 	if err != nil {
@@ -1095,8 +1095,8 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 	s.startState = runbranch.NewRunParams(run, s.settings)
 
 	isResume := s.settings.GetResume()
-	isRewind := run.GetBranchPoint() != nil && run.GetBranchPoint().Type == spb.BranchPointRecord_BRANCH_POINT_REWIND
-	isFork := run.GetBranchPoint() != nil && run.GetBranchPoint().Type == spb.BranchPointRecord_BRANCH_POINT_FORK
+	isRewind := run.GetBranchPoint().GetRun() == run.RunId
+	isFork := !isRewind && run.GetBranchPoint().GetRun() != ""
 	switch {
 	case isResume != "" && isRewind || isResume != "" && isFork || isRewind && isFork:
 		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
