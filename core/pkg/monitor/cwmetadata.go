@@ -100,6 +100,7 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 	return cwm, nil
 }
 
+//gocyclo:ignore
 func (cwm *CoreWeaveMetadata) Get() (*CoreWeaveInstanceData, error) {
 	fullURL := cwm.baseURL.JoinPath(cwm.endpoint).String()
 	req, err := retryablehttp.NewRequest("GET", fullURL, nil) // Use fullURL here
