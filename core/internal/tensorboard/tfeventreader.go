@@ -9,10 +9,8 @@ import (
 	"slices"
 
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"gocloud.dev/blob"
-	"gocloud.dev/blob/fileblob"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -21,7 +19,7 @@ type TFEventReader struct {
 	// fileFilter selects the tfevents files to read.
 	fileFilter TFEventsFileFilter
 
-	tfeventsPath   paths.AbsolutePath
+	tfeventsPath   *LocalOrCloudPath
 	tfeventsBucket *blob.Bucket
 
 	logger *observability.CoreLogger
@@ -32,7 +30,7 @@ type TFEventReader struct {
 }
 
 func NewTFEventReader(
-	logDir paths.AbsolutePath,
+	logDir *LocalOrCloudPath,
 	fileFilter TFEventsFileFilter,
 	logger *observability.CoreLogger,
 ) *TFEventReader {
@@ -54,7 +52,7 @@ func NewTFEventReader(
 // New files encountered are passed to `onNewFile`.
 func (s *TFEventReader) NextEvent(
 	ctx context.Context,
-	onNewFile func(paths.AbsolutePath),
+	onNewFile func(*LocalOrCloudPath),
 ) (*tbproto.TFEvent, error) {
 	// FORMAT: https://github.com/tensorflow/tensorboard/blob/f3f26b46981da5bd46a5bb93fcf02d9eb7608bc1/tensorboard/summary/writer/record_writer.py#L31-L40
 	//
@@ -136,7 +134,7 @@ func (s *TFEventReader) NextEvent(
 func (s *TFEventReader) ensureBuffer(
 	ctx context.Context,
 	count uint64,
-	onNewFile func(paths.AbsolutePath),
+	onNewFile func(*LocalOrCloudPath),
 ) bool {
 	if uint64(len(s.buffer)) >= count {
 		return true
@@ -188,18 +186,19 @@ func (s *TFEventReader) ensureBuffer(
 }
 
 // emitCurrentFile passes the current tfevents file path to the callback.
-func (s *TFEventReader) emitCurrentFile(onNewFile func(paths.AbsolutePath)) {
+func (s *TFEventReader) emitCurrentFile(onNewFile func(*LocalOrCloudPath)) {
 	if s.currentFile == "" {
 		return
 	}
 
-	maybeCurrentFile, err := paths.Relative(s.currentFile)
+	child, err := s.tfeventsPath.Child(s.currentFile)
+
 	if err != nil {
 		s.logger.Warn("tensorboard: bad file name, not uploading", "error", err)
+		return
 	}
-	currentFile := *maybeCurrentFile
 
-	onNewFile(s.tfeventsPath.Join(currentFile))
+	onNewFile(child)
 }
 
 // nextTFEventsFile finds the tfevents file that comes after the current one.
@@ -208,7 +207,7 @@ func (s *TFEventReader) emitCurrentFile(onNewFile func(paths.AbsolutePath)) {
 func (s *TFEventReader) nextTFEventsFile(ctx context.Context) string {
 	if s.tfeventsBucket == nil {
 		var err error
-		s.tfeventsBucket, err = fileblob.OpenBucket(string(s.tfeventsPath), nil)
+		s.tfeventsBucket, err = s.tfeventsPath.Bucket(ctx)
 		if err != nil {
 			s.logger.Warn(
 				"tensorboard: failed to open tfevents logging directory",

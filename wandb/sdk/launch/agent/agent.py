@@ -123,7 +123,7 @@ class InternalAgentLogger:
     def warn(self, message: str):
         if self._print_to_terminal:
             wandb.termwarn(f"{LOG_PREFIX}{message}")
-        _logger.warn(f"{LOG_PREFIX}{message}")
+        _logger.warning(f"{LOG_PREFIX}{message}")
 
     def info(self, message: str):
         if self._print_to_terminal:
@@ -850,7 +850,7 @@ class LaunchAgent:
                     )
                     return True
                 wandb.termlog(
-                    f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeueing..."
+                    f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeuing..."
                 )
 
                 if "sweep_id" in config:
