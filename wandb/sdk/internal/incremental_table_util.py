@@ -45,6 +45,7 @@ def handle_resumed_run(incr_table: Table, run: LocalRun, key: str):
 
     incr_table.handle_resumed_run(previous_increments_paths, increment_num)
 
+
 def _get_artifact_name(run: LocalRun, sanitized_key: str):
     return f"run-{run.id}-incr-{sanitized_key}"
 
