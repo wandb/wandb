@@ -509,7 +509,7 @@ class LaunchProject:
                     # Different versions of pkg_resources throw different errors
                     # just catch them all and ignore packages we can't parse
                     except Exception as e:
-                        _logger.warn(f"Unable to parse requirements.txt: {e}")
+                        _logger.warning(f"Unable to parse requirements.txt: {e}")
                         continue
             requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
             if "wandb" not in requirements_line:

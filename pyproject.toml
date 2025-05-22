@@ -31,7 +31,7 @@ dependencies = [
     "PyYAML",
     "setproctitle",
     "platformdirs",
-    "typing_extensions>=4.4,<5",
+    "typing_extensions>=4.8,<5",
     "pydantic<3",
     "eval_type_backport; python_version < '3.10'",
 ]

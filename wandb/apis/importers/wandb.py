@@ -151,7 +151,7 @@ class WandbRun:
         if self._parquet_history_paths:
             rows = self._get_rows_from_parquet_history_paths()
         else:
-            logger.warn(
+            logger.warning(
                 "No parquet files detected; using scan history (this may not be reliable)"
             )
             rows = self.run.scan_history()
@@ -453,13 +453,13 @@ class WandbImporter:
         try:
             dst_collection = self.dst_api.artifact_collection(art_type, art_name)
         except (wandb.CommError, ValueError):
-            logger.warn(f"Collection doesn't exist {art_type=}, {art_name=}")
+            logger.warning(f"Collection doesn't exist {art_type=}, {art_name=}")
             return
 
         try:
             dst_collection.delete()
         except (wandb.CommError, ValueError) as e:
-            logger.warn(f"Collection can't be deleted, {art_type=}, {art_name=}, {e=}")
+            logger.warning(f"Collection can't be deleted, {art_type=}, {art_name=}, {e=}")
             return
 
     def _import_artifact_sequence(
@@ -475,7 +475,7 @@ class WandbImporter:
         if not seq.artifacts:
             # The artifact sequence has no versions.  This usually means all artifacts versions were deleted intentionally,
             # but it can also happen if the sequence represents run history and that run was deleted.
-            logger.warn(f"Artifact {seq=} has no artifacts, skipping.")
+            logger.warning(f"Artifact {seq=} has no artifacts, skipping.")
             return
 
         if namespace is None:
@@ -517,7 +517,7 @@ class WandbImporter:
 
                 # Could be logged by None (rare) or ValueError
                 if wandb_run is None:
-                    logger.warn(
+                    logger.warning(
                         f"Run for {art.name=} does not exist (deleted?), using {run_or_dummy=}"
                     )
                     wandb_run = run_or_dummy
@@ -546,7 +546,7 @@ class WandbImporter:
             retry_arts_func = internal.exp_retry(self._dst_api.artifacts)
             dst_arts = list(retry_arts_func(seq.type_, seq.name))
         except wandb.CommError:
-            logger.warn(f"{seq=} does not exist in dst.  Has it already been deleted?")
+            logger.warning(f"{seq=} does not exist in dst.  Has it already been deleted?")
             return
         except TypeError as e:
             logger.error(f"Problem getting dst versions (try again later) {e=}")
@@ -562,7 +562,7 @@ class WandbImporter:
                 art.delete(delete_aliases=True)
             except wandb.CommError as e:
                 if "cannot delete system managed artifact" in str(e):
-                    logger.warn("Cannot delete system managed artifact")
+                    logger.warning("Cannot delete system managed artifact")
                 else:
                     raise e
 
@@ -732,7 +732,7 @@ class WandbImporter:
             api.create_project(project, entity)
         except requests.exceptions.HTTPError as e:
             if e.response.status_code != 409:
-                logger.warn(f"Issue upserting {entity=}/{project=}, {e=}")
+                logger.warning(f"Issue upserting {entity=}/{project=}, {e=}")
 
         logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
         api.client.execute(
@@ -1482,7 +1482,7 @@ def _get_run_or_dummy_from_art(art: Artifact, api=None):
     try:
         run = art.logged_by()
     except ValueError as e:
-        logger.warn(
+        logger.warning(
             f"Can't log artifact because run doesn't exist, {art=}, {run=}, {e=}"
         )
 
