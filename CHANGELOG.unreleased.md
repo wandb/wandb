@@ -13,7 +13,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-- wandb.Table: Added new constructor param, `log_mode`, with options `"IMMUTABLE"` and `"MUTABLE"`. `IMMUTABLE` log mode (default) is existing behavior that only allows a table to be logged once. `MUTABLE` log mode allows the table to be logged again if it has been mutated.
+- wandb.Table: Added new constructor param, `log_mode`, with options `"IMMUTABLE"` and `"MUTABLE"`. `IMMUTABLE` log mode (default) is existing behavior that only allows a table to be logged once. `MUTABLE` log mode allows the table to be logged again if it has been mutated. (@domphan-wandb in https://github.com/wandb/wandb/pull/9758)
 
 ### Notable Changes
 
@@ -34,5 +34,5 @@ This version removes the ability to disable the `service` process. This is a bre
 ### Fixed
 
 - Calling `wandb.teardown()` in a child of a process that called `wandb.setup()` no longer raises `WandbServiceNotOwnedError` (@timoffex in https://github.com/wandb/wandb/pull/9875)
-    - This error could have manifested when using W&B Sweeps
+  - This error could have manifested when using W&B Sweeps
 - Offline runs with requested branching (fork or rewind) sync correctly (@dmitryduev in https://github.com/wandb/wandb/pull/9876)
