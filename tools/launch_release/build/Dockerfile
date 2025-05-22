@@ -16,16 +16,21 @@ ENV PATH="/usr/local/go/bin:${PATH}"
 # Set up Go environment for bootstrap
 ENV GOPATH=/go
 ENV PATH=$PATH:/usr/local/go-bootstrap/bin:$GOPATH/bin
+ENV GOTOOLCHAIN=local
 
 # Clone Go source and build with updated dependencies
 # remove bootstrap version of go
 RUN git clone https://go.googlesource.com/go /usr/local/go-source && \
     cd /usr/local/go-source && \
-    git checkout go1.24.2 && \
+    git checkout go1.24.3 && \
     # Update dependencies in the Go source
-    cd src && \
-    go mod edit -require=golang.org/x/crypto@v0.37.0 && \
-    go mod edit -require=golang.org/x/net@v0.39.0 && \
+    cd /usr/local/go-source/src/crypto/internal/fips140/sha3/_asm && \
+    go mod edit -require=golang.org/x/crypto@v0.38.0 && \
+    go mod tidy && \
+    cd /usr/local/go-source/src && \
+    go mod edit -require=golang.org/x/crypto@v0.38.0 && \
+    go mod edit -require=golang.org/x/net@v0.40.0 && \
+    go mod tidy && \
     go mod download && \
     ./make.bash && \
     cd / && \
