@@ -9,16 +9,11 @@ import platform
 import sys
 from typing import Callable, Iterator
 
-import wandb.util
-
-if sys.version_info >= (3, 12):
-    from typing import override
-else:
-    from typing_extensions import override
-
 import click
+from typing_extensions import override
 
 import wandb
+import wandb.util
 from wandb.errors import term
 from wandb.sdk import wandb_setup
 
