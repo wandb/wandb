@@ -360,18 +360,16 @@ class Table(Media):
             self._increment_num = increment_num
         self._resume_handled = True
 
-    def ensure_single_run_target(self, run: "LocalRun") -> None:
-        """Handle setting up the run target for incremental table logging.
+    def _set_incremental_table_run_target(self, run: "LocalRun") -> None:
+        """Associate a Run object with this incremental Table.
 
-        This method is called when a table is being logged incrementally to ensure
-        that all increments are logged to the same run.
+        A Table object in incremental mode can only be logged to a single Run.
+        Raises an error if the table is already associated to a different run.
         """
         if self._run_target_for_increments is None:
             self._run_target_for_increments = run
-        else:
-            assert (
-                self._run_target_for_increments == run
-            ), "Cannot log table incrementally to multiple runs"
+        elif self._run_target_for_increments is not run:
+            raise AssertionError("An incremental Table can only be logged to one Run.")
 
     @allow_relogging_after_mutation
     def cast(self, col_name, dtype, optional=False):
