@@ -337,6 +337,9 @@ pub struct Feature {
     /// Using stable_baselines3 integration
     #[prost(bool, tag = "22")]
     pub sb3: bool,
+    /// Using wandb service internal process
+    #[prost(bool, tag = "23")]
+    pub service: bool,
     /// wandb.init() called in the same process returning previous run
     #[prost(bool, tag = "24")]
     pub init_return_run: bool,

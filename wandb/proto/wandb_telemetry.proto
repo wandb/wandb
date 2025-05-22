@@ -138,7 +138,7 @@ message Imports {
 }
 
 message Feature {
-  reserved 23, 45;
+  reserved 45;
 
   bool watch = 1;                         // wandb.watch() called
   bool finish = 2;                        // wandb.finish() called
@@ -163,6 +163,7 @@ message Feature {
   bool launch = 20;                       // run is created through wandb launch
   bool torch_profiler_trace = 21;         // wandb.profiler.torch_trace_handler() called
   bool sb3 = 22;                          // Using stable_baselines3 integration
+  bool service = 23;                      // Using wandb service internal process
   bool init_return_run = 24;              // wandb.init() called in the same process returning previous run
   bool lightgbm_wandb_callback = 25;      // lightgbm callback used
   bool lightgbm_log_summary = 26;         // lightgbm log summary used
