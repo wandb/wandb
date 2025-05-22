@@ -28,26 +28,11 @@ Usage:
     ```
 """
 
-import sys
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import (
-    Callable,
-    Dict,
-    Generic,
-    Optional,
-    Protocol,
-    Sequence,
-    Type,
-    TypeVar,
-    Union,
-    runtime_checkable,
-)
+from typing import Callable, Dict, Generic, Optional, Sequence, Type, Union
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
+from typing_extensions import Protocol, TypeAlias, TypeVar, runtime_checkable
 
 T_FsmInputs = TypeVar("T_FsmInputs", contravariant=True)
 T_FsmContext = TypeVar("T_FsmContext")
