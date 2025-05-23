@@ -35,6 +35,27 @@ if TYPE_CHECKING:  # pragma: no cover
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 
+def _warn_on_invalid_data_range(
+    data: "np.ndarray",
+    normalize: bool = True,
+) -> None:
+    if not normalize:
+        return
+
+    np = util.get_module(
+        "numpy",
+        required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
+    )
+
+    if np.min(data) < 0 or np.max(data) > 255:
+        wandb.termwarn(
+            "Data passed to `wandb.Image` should consist of values in the range [0, 255], "
+            "image data will be normalized to this range, "
+            "but behavior will be removed in a future version of wandb.",
+            repeat=False,
+        )
+
+
 def _server_accepts_image_filenames(run: "LocalRun") -> bool:
     if run.offline:
         return True
@@ -101,8 +122,12 @@ class Image(BatchableMedia):
         Args:
             data_or_path: Accepts numpy array/pytorch tensor of image data,
                 a PIL image object, or a path to an image file.
-                If a numpy array or pytorch tensor,
+
+                If a numpy array or pytorch tensor is provided,
                 the image data will be saved to the given file type.
+                If the values are not in the range [0, 255] or all values are in the range [0, 1],
+                the image pixel values will be normalized to the range [0, 255]
+                unless `normalize` is set to False.
                 - pytorch tensor should be in the format (channel, height, width)
                 - numpy array should be in the format (height, width, channel)
             mode: The PIL mode for an image. Most common are "L", "RGB",
@@ -336,7 +361,7 @@ class Image(BatchableMedia):
             mode = mode or self.guess_mode(data, file_type)
             data = data.permute(1, 2, 0).cpu().numpy()
 
-            self.warn_on_invalid_data_range(data, normalize)
+            _warn_on_invalid_data_range(data, normalize)
 
             data = self.normalize(data) if normalize else data
             data = self.convert_to_uint8(data)
@@ -354,7 +379,7 @@ class Image(BatchableMedia):
             if data.ndim > 2:
                 data = data.squeeze()  # get rid of trivial dimensions as a convenience
 
-            self.warn_on_invalid_data_range(data, normalize)
+            _warn_on_invalid_data_range(data, normalize)
 
             mode = mode or self.guess_mode(data, file_type)
             data = self.normalize(data) if normalize else data
@@ -367,28 +392,6 @@ class Image(BatchableMedia):
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
-
-    @classmethod
-    def warn_on_invalid_data_range(
-        cls,
-        data: "np.ndarray",
-        normalize: bool = True,
-    ) -> None:
-        if not normalize:
-            return
-
-        np = util.get_module(
-            "numpy",
-            required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
-        )
-
-        if data.dtype.kind == "f" or np.min(data) < 0:
-            wandb.termwarn(
-                "Image data is expected to be integer values in the range [0, 255], "
-                "image data will be normalized to this range. "
-                "This behavior will be removed in a future version of wandb.",
-                repeat=False,
-            )
 
     @classmethod
     def from_json(
@@ -564,12 +567,11 @@ class Image(BatchableMedia):
             required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
         )
 
-        data = data - np.min(data)
+        if np.min(data) < 0 and np.ptp(data) != 0:
+            data = (data - np.min(data)) / np.ptp(data)
 
-        data_max = np.max(data)
-        if data_max > 0:
-            data = data / data_max
-        data = 255 * data
+        if np.max(data) <= 1.0:
+            data = (255 * data).astype(np.int32)
 
         return data.clip(0, 255)
 
