@@ -1502,7 +1502,7 @@ class SendManager:
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
     ) -> Optional[Dict]:
-        from wandb.util import parse_version
+        from packaging.version import parse
 
         assert self._pusher
         saver = ArtifactSaver(
@@ -1515,9 +1515,7 @@ class SendManager:
 
         if artifact.distributed_id:
             max_cli_version = self._max_cli_version()
-            if max_cli_version is None or parse_version(
-                max_cli_version
-            ) < parse_version("0.10.16"):
+            if max_cli_version is None or parse(max_cli_version) < parse("0.10.16"):
                 logger.warning(
                     "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
@@ -1553,13 +1551,11 @@ class SendManager:
         return res
 
     def send_alert(self, record: "Record") -> None:
-        from wandb.util import parse_version
+        from packaging.version import parse
 
         alert = record.alert
         max_cli_version = self._max_cli_version()
-        if max_cli_version is None or parse_version(max_cli_version) < parse_version(
-            "0.10.9"
-        ):
+        if max_cli_version is None or parse(max_cli_version) < parse("0.10.9"):
             logger.warning(
                 "This W&B server doesn't support alerts, "
                 "have your administrator install wandb/local >= 0.9.31"

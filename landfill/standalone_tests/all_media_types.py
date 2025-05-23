@@ -15,9 +15,9 @@ import wandb
 
 
 def dummy_torch_tensor(size, requires_grad=True):
-    from wandb.util import parse_version
+    from packaging.version import parse
 
-    if parse_version(torch.__version__) >= parse_version("0.4"):
+    if parse(torch.__version__) >= parse("0.4"):
         return torch.ones(size, requires_grad=requires_grad)
     else:
         return torch.autograd.Variable(torch.ones(size), requires_grad=requires_grad)
