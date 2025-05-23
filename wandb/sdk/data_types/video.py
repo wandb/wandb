@@ -1,6 +1,7 @@
 import functools
 import logging
 import os
+import pathlib
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Type, Union
 
@@ -71,7 +72,7 @@ class Video(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union["np.ndarray", str, "TextIO", "BytesIO"],
+        data_or_path: Union[str, pathlib.Path, "np.ndarray", "TextIO", "BytesIO"],
         caption: Optional[str] = None,
         fps: Optional[int] = None,
         format: Optional[Literal["gif", "mp4", "webm", "ogg"]] = None,
@@ -145,7 +146,9 @@ class Video(BatchableMedia):
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
             self._set_file(filename, is_tmp=True)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             _, ext = os.path.splitext(data_or_path)
             ext = ext[1:].lower()
             if ext not in Video.EXTS:
