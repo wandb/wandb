@@ -141,6 +141,14 @@ func (sm *SystemMonitor) initializeAssets(
 		sm.assets = append(sm.assets, trainium)
 	}
 
+	// CoreWeave compute environment metadata.
+	if cwm, err := NewCoreWeaveMetadata(CoreWeaveMetadataParams{Logger: sm.logger}); cwm != nil {
+		sm.assets = append(sm.assets, cwm)
+	} else if err != nil {
+		sm.logger.CaptureError(
+			fmt.Errorf("monitor: failed to initialize CoreWeave metadata asset: %v", err))
+	}
+
 	// DCGM Exporter.
 	if url := settings.GetStatsDcgmExporter(); url != "" {
 		params := DCGMExporterParams{

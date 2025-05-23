@@ -70,6 +70,10 @@ type CoreWeaveMetadataParams struct {
 }
 
 func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, error) {
+	if params.Logger == nil {
+		// No logger - no problem.
+		params.Logger = observability.NewNoOpLogger()
+	}
 	if params.Client == nil {
 		params.Client = retryablehttp.NewClient()
 		params.Client.Logger = params.Logger
@@ -103,69 +107,69 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 	return cwm, nil
 }
 
-// Need this for Asset Interface complience
+// Sample is a no-op method.
+//
+// Required for CoreWeaveMetadata to implement the Asset interface.
 func (cwm *CoreWeaveMetadata) Sample() (*spb.StatsRecord, error) {
 	return nil, nil
 }
 
-// TODO: convert Get to Probe
-
+// Probe collects metadata about the CoreWeave compute environment.
 func (cwm *CoreWeaveMetadata) Probe() *spb.MetadataRequest {
-	return nil
+
+	instanceData, err := cwm.Get()
+	if err != nil {
+		cwm.logger.Error("coreweave metadata: error collecting data", "error", err)
+		return nil
+	}
+
+	return &spb.MetadataRequest{
+		Coreweave: &spb.CoreWeaveInfo{
+			ClusterName: instanceData.ClusterName,
+			OrgId:       instanceData.OrgID,
+			Region:      instanceData.Region,
+		},
+	}
 }
 
-//gocyclo:ignore
 func (cwm *CoreWeaveMetadata) Get() (*CoreWeaveInstanceData, error) {
 	fullURL := cwm.baseURL.JoinPath(cwm.endpoint).String()
 	req, err := retryablehttp.NewRequest("GET", fullURL, nil) // Use fullURL here
 	if err != nil {
-		return nil, fmt.Errorf("coreweave metadata: failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	if cwm.logger != nil {
-		cwm.logger.Debug("coreweave metadata: sending request", "url", fullURL)
-	}
+	cwm.logger.Debug("coreweave metadata: sending request", "url", fullURL)
 
 	fmt.Println(fullURL)
 	fmt.Printf("%+v\n", cwm)
 
 	resp, err := cwm.client.Do(req)
 	if err != nil {
-		if cwm.logger != nil {
-			cwm.logger.Error("coreweave metadata: request failed", "error", err, "url", fullURL)
-		}
-		return nil, fmt.Errorf("coreweave metadata: request to %s failed: %w", fullURL, err)
+		return nil, fmt.Errorf("request to %s failed: %w", fullURL, err)
 	}
 	defer func() {
 		if resp != nil && resp.Body != nil {
 			_, err := io.Copy(io.Discard, resp.Body) // Read and discard remaining body
-			if err != nil && cwm.logger != nil {
+			if err != nil {
 				cwm.logger.Error("coreweave metadata: error discarding response body", "error", err)
 			}
 			err = resp.Body.Close()
-			if err != nil && cwm.logger != nil {
+			if err != nil {
 				cwm.logger.Error("coreweave metadata: error closing response body", "error", err)
 			}
 		}
 	}()
 
-	if resp == nil { // Should not happen if err is nil, but good for defensive programming
-		if cwm.logger != nil {
-			cwm.logger.Error("coreweave metadata: received nil response without error", "url", fullURL)
-		}
-		return nil, fmt.Errorf("coreweave metadata: could not fetch metadata from endpoint %s (nil response)", fullURL)
+	if resp == nil { // Should not happen if err is nil, but good for defensive programming.
+		return nil, fmt.Errorf("could not fetch metadata from endpoint %s (nil response)", fullURL)
 	}
 
-	if cwm.logger != nil {
-		cwm.logger.Debug("coreweave metadata: received response", "url", fullURL, "status_code", resp.StatusCode)
-	}
+	cwm.logger.Debug("coreweave metadata: received response", "url", fullURL, "status_code", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body) // Attempt to read body for error context
-		errMsg := fmt.Sprintf("coreweave metadata: unexpected status code %d from %s. Body: %s", resp.StatusCode, fullURL, string(bodyBytes))
-		if cwm.logger != nil {
-			cwm.logger.Error(errMsg)
-		}
+		errMsg := fmt.Sprintf("unexpected status code %d from %s. Body: %s", resp.StatusCode, fullURL, string(bodyBytes))
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
@@ -194,9 +198,7 @@ func (cwm *CoreWeaveMetadata) Get() (*CoreWeaveInstanceData, error) {
 
 		parts := strings.SplitN(line, ":", 2)
 		if len(parts) != 2 {
-			if cwm.logger != nil {
-				cwm.logger.Warn("coreweave metadata: malformed line", "line_number", lineNumber, "line_content", line)
-			}
+			cwm.logger.Debug("coreweave metadata: malformed line", "line_number", lineNumber, "line_content", line)
 			continue // Skip malformed lines
 		}
 
@@ -211,28 +213,23 @@ func (cwm *CoreWeaveMetadata) Get() (*CoreWeaveInstanceData, error) {
 				bVal, err := strconv.ParseBool(value)
 				if err == nil {
 					field.SetBool(bVal)
-				} else if cwm.logger != nil {
-					cwm.logger.Warn("coreweave metadata: could not parse bool", "key", key, "value", value, "error", err)
+				} else {
+					cwm.logger.Debug("coreweave metadata: could not parse bool", "key", key, "value", value, "error", err)
 				}
 			default:
-				if cwm.logger != nil {
-					cwm.logger.Warn("coreweave metadata: unhandled field type", "key", key, "type", field.Kind())
-				}
+				cwm.logger.Debug("coreweave metadata: unhandled field type", "key", key, "type", field.Kind())
 			}
-		} else if cwm.logger != nil {
-			cwm.logger.Warn("coreweave metadata: unknown or unsettable field", "key", key, "value", value)
+		} else {
+			cwm.logger.Debug("coreweave metadata: unknown or unsettable field", "key", key, "value", value)
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		if cwm.logger != nil {
-			cwm.logger.Error("coreweave metadata: error reading response body", "error", err, "url", fullURL)
-		}
-		return nil, fmt.Errorf("coreweave metadata: error reading response body from %s: %w", fullURL, err)
+		return nil, fmt.Errorf("error reading response body from %s: %w", fullURL, err)
 	}
 
 	if cwm.logger != nil {
-		cwm.logger.Info("coreweave metadata: successfully parsed metadata", "data", data)
+		cwm.logger.Debug("coreweave metadata: successfully parsed metadata", "data", data)
 	}
 
 	return data, nil
