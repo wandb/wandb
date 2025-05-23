@@ -246,13 +246,12 @@ class Table(Media):
                 logging attempts after the table has been mutated will be no-ops.
                 - "MUTABLE": Table can be re-logged after mutations, creating
                 a new artifact version each time it's logged.
-                - "INCREMENTAL": Table data is logged incrementally, with each log creating
-                a new artifact entry containing the new data since the last log.
         """
         super().__init__()
         self._validate_log_mode(log_mode)
         self.log_mode = log_mode
         if self.log_mode == "INCREMENTAL":
+            wandb.termwarn("INCREMENTAL log mode is not ready for use yet. Please use IMMUTABLE or MUTABLE mode instead.")
             self._increment_num = 0
             self._last_logged_idx: int | None = None
             self._previous_increments_paths: list[str] = []
