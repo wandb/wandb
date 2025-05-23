@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	// DefaultCoreWeaveMetadataBaseURL  = "http://169.254.169.254"
-	DefaultCoreWeaveMetadataBaseURL  = "http://127.0.0.1:3000"
+	DefaultCoreWeaveMetadataBaseURL = "http://169.254.169.254"
+	// DefaultCoreWeaveMetadataBaseURL  = "http://127.0.0.1:3000"
 	DefaultCoreWeaveMetadataEndpoint = "/api/v2/cloud-init/meta-data"
 )
 
@@ -61,7 +61,7 @@ type CoreWeaveMetadataParams struct {
 
 	// The scheme and hostname for contacting the metadata server,
 	// not including a final slash. For example, "http://localhost:8080".
-	BaseURL *url.URL
+	BaseURL string
 
 	// The relative path on the server to which to make requests.
 	//
@@ -84,15 +84,16 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 		params.Client.HTTPClient.Timeout = DefaultOpenMetricsTimeout
 		params.Client.Backoff = clients.ExponentialBackoffWithJitter
 	}
-	if params.BaseURL == nil {
-		baseURL, err := url.Parse(DefaultCoreWeaveMetadataBaseURL)
-		if err != nil {
-			return nil, err
-		}
-		params.BaseURL = baseURL
+	if params.BaseURL == "" {
+		params.BaseURL = DefaultCoreWeaveMetadataBaseURL
 	}
 	if params.Endpoint == "" {
 		params.Endpoint = DefaultCoreWeaveMetadataEndpoint
+	}
+
+	baseURL, err := url.Parse(params.BaseURL)
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO: call OrganizationCoreWeaveOrganizationID here
@@ -100,7 +101,7 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 	cwm := &CoreWeaveMetadata{
 		client:   params.Client,
 		logger:   params.Logger,
-		baseURL:  params.BaseURL,
+		baseURL:  baseURL,
 		endpoint: params.Endpoint,
 	}
 

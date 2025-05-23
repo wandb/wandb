@@ -142,7 +142,13 @@ func (sm *SystemMonitor) initializeAssets(
 	}
 
 	// CoreWeave compute environment metadata.
-	if cwm, err := NewCoreWeaveMetadata(CoreWeaveMetadataParams{Logger: sm.logger}); cwm != nil {
+	if cwm, err := NewCoreWeaveMetadata(
+		CoreWeaveMetadataParams{
+			Logger: sm.logger,
+			BaseURL: settings.GetStatsCoreWeaveMetadataBaseURL(),
+			Endpoint: settings.GetStatsCoreWeaveMetadataEndpoint(),
+		},
+	); cwm != nil {
 		sm.assets = append(sm.assets, cwm)
 	} else if err != nil {
 		sm.logger.CaptureError(

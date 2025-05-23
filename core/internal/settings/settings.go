@@ -506,6 +506,16 @@ func (s *Settings) GetStatsOpenMetricsHeaders() map[string]string {
 	return s.Proto.XStatsOpenMetricsHttpHeaders.GetValue()
 }
 
+// The scheme and hostname for contacting the CoreWeave metadata server.
+func (s *Settings) GetStatsCoreWeaveMetadataBaseURL() string {
+	return s.Proto.XStatsCoreweaveMetadataBaseUrl.GetValue()
+}
+
+// The relative path on the CoreWeave metadata server to which to make requests.
+func (s *Settings) GetStatsCoreWeaveMetadataEndpoint() string {
+	return s.Proto.XStatsCoreweaveMetadataEndpoint.GetValue()
+}
+
 // The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()

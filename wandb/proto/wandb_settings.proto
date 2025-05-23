@@ -381,6 +381,12 @@ message Settings {
   // Whether to delegate glob matching of metrics in define_metric to the server.
   google.protobuf.BoolValue x_server_side_expand_glob_metrics = 190;
 
+  // The scheme and hostname for contacting the CoreWeave metadata server.
+  google.protobuf.StringValue x_stats_coreweave_metadata_base_url = 191;
+
+  // The relative path on the CoreWeave metadata server to which to make requests.
+  google.protobuf.StringValue x_stats_coreweave_metadata_endpoint = 192;
+
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue x_cli_only_mode = 4;
   google.protobuf.BoolValue _colab = 5;
