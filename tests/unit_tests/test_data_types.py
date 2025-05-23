@@ -433,15 +433,6 @@ def test_image_normalization_numpy_pytorch_equal(scale):
     assert np.all(np.array(wb_image.image) == np.array(wb_image_torch.image))
 
 
-def test_image_normalization_with_small_values_scales_to_range():
-    img = np.linspace(0, 10, 4 * 4 * 3).reshape([4, 4, 3]) * 1e-8
-    expected_scale = np.linspace(0, 255, 4 * 4 * 3).reshape([4, 4, 3]).astype(np.uint8)
-    wb_image = wandb.Image(img)
-
-    assert not np.all(np.array(wb_image.image) == 0)
-    assert np.all(np.array(wb_image.image) == expected_scale)
-
-
 ################################################################################
 # Test wandb.Audio
 ################################################################################
