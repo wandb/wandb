@@ -33,6 +33,7 @@ This version removes the ability to disable the `service` process. This is a bre
 ### Deprecated
 
 - The `start_method` setting is deprecated and has no effect; it is safely ignored (@kptkin in https://github.com/wandb/wandb/pull/9837)
+- The property `Artifact.use_as` and parameter `use_as` for `run.use_artifact()` are deprecated since these have not been in use for W&B Launch (@ibindlish in https://github.com/wandb/wandb/pull/9760)
 
 ### Fixed
 
