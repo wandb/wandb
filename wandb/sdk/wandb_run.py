@@ -18,25 +18,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from types import TracebackType
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Literal,
-    NamedTuple,
-    Sequence,
-    TextIO,
-    TypeVar,
-)
-
-from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-
-if sys.version_info < (3, 10):
-    from typing_extensions import Concatenate, ParamSpec
-else:
-    from typing import Concatenate, ParamSpec
+from typing import TYPE_CHECKING, Callable, Sequence, TextIO, TypeVar
 
 import requests
+from typing_extensions import Any, Concatenate, Literal, NamedTuple, ParamSpec
 
 import wandb
 import wandb.env
@@ -56,6 +41,7 @@ from wandb.proto.wandb_internal_pb2 import (
     Result,
     RunRecord,
 )
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib import asyncio_compat, wb_logging
@@ -586,6 +572,8 @@ class Run:
 
     _launch_artifacts: dict[str, Any] | None
     _printer: printer.Printer
+
+    summary: wandb_summary.Summary
 
     def __init__(
         self,
