@@ -251,7 +251,9 @@ class Table(Media):
         self._validate_log_mode(log_mode)
         self.log_mode = log_mode
         if self.log_mode == "INCREMENTAL":
-            wandb.termwarn("INCREMENTAL log mode is not ready for use yet. Please use IMMUTABLE or MUTABLE mode instead.")
+            wandb.termwarn(
+                "INCREMENTAL log mode is not ready for use yet. Please use IMMUTABLE or MUTABLE mode instead."
+            )
             self._increment_num = 0
             self._last_logged_idx: int | None = None
             self._previous_increments_paths: list[str] = []
