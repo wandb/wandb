@@ -765,13 +765,13 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_stats_coreweave_metadata_base_url: str = "http://169.254.169.254"
     """The scheme and hostname for contacting the CoreWeave metadata server.
-    
+
     Only accessible from within a CoreWeave cluster.
     """
 
     x_stats_coreweave_metadata_endpoint: str = "/api/v2/cloud-init/meta-data"
     """The relative path on the CoreWeave metadata server to which to make requests.
-    
+
     This must not include the schema and hostname prefix.
     Only accessible from within a CoreWeave cluster.
     """
@@ -1065,7 +1065,7 @@ class Settings(BaseModel, validate_assignment=True):
             repeat=False,
         )
         return value
-    
+
     @field_validator("x_stats_coreweave_metadata_base_url", mode="after")
     @classmethod
     def validate_x_stats_coreweave_metadata_base_url(cls, value):
