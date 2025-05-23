@@ -182,13 +182,12 @@ ignore = [
     "B904",
     "E501",
     # pydocstyle rules: https://docs.astral.sh/ruff/rules/#pydocstyle-d
-    "D100",  # Allow missing docstrings in modules.
-    "D101",  # Allow missing docstrings in classes.
-    "D104",  # Allow missing docstrings in packages.
-    "D105",  # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
-    "D106",  # Allow missing docstrings in nested classes.
-    "D107",  # Allow missing docstrings in __init__ methods.
-    "UP032", # Allow using format instead of f-string.
+    "D100", # Allow missing docstrings in modules.
+    "D101", # Allow missing docstrings in classes.
+    "D104", # Allow missing docstrings in packages.
+    "D105", # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
+    "D106", # Allow missing docstrings in nested classes.
+    "D107", # Allow missing docstrings in __init__ methods.
 ]
 
 [tool.ruff.format]
@@ -244,6 +243,7 @@ ignore-decorators = [
 "wandb/__init__.py" = ["I001"]
 "wandb/__init__.pyi" = ["UP006", "UP007"]
 "wandb/__init__.template.pyi" = ["UP006", "UP007", "D415", "N999"]
+"wandb/apis/public/**" = ["UP032"]
 "wandb/cli/cli.py" = ["C901"]
 "wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
 "wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]

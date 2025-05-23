@@ -94,8 +94,7 @@ class GcpEnvironment(AbstractEnvironment):
         region = config.get("region", None)
         if not region:
             raise LaunchError(
-                "Could not create GcpEnvironment from config. Missing 'region' "
-                "field."
+                "Could not create GcpEnvironment from config. Missing 'region' field."
             )
         return cls(region=region)
 

@@ -490,9 +490,7 @@ class TBHistory:
                     dropped_keys.append(k)
                     del self._data[k]
             wandb.termwarn(
-                "Step {} exceeds max data limit, dropping {} of the largest keys:".format(
-                    self._step, len(dropped_keys)
-                )
+                f"Step {self._step} exceeds max data limit, dropping {len(dropped_keys)} of the largest keys:"
             )
             print("\t" + ("\n\t".join(dropped_keys)))  # noqa: T201
         self._data["_step"] = self._step
