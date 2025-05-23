@@ -16,6 +16,7 @@ ENV PATH="/usr/local/go/bin:${PATH}"
 # Set up Go environment for bootstrap
 ENV GOPATH=/go
 ENV PATH=$PATH:/usr/local/go-bootstrap/bin:$GOPATH/bin
+# Prevents go from downloading potentially vulnerable packages
 ENV GOTOOLCHAIN=local
 
 # Clone Go source and build with updated dependencies
