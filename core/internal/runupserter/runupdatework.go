@@ -1,4 +1,4 @@
-package runmetadata
+package runupserter
 
 import (
 	"context"
@@ -20,16 +20,17 @@ const (
 	runUpsertDebounceSeconds = 5
 )
 
-type StreamRunMetadata interface {
-	// SetRun is called when a new run is created successfully.
+type StreamRunUpserter interface {
+	// SetRunUpserter is called when a new run is created successfully.
 	//
-	// It is called from the Sender goroutine and only if GetRun returns nil.
-	SetRun(metadata *RunMetadata) error
+	// It is called from the Sender goroutine and only if GetRunUpserter returns
+	// nil.
+	SetRunUpserter(upserter *RunUpserter) error
 
-	// Metadata returns the run set by a previous call to SetRun, or nil.
+	// GetRunUpserter returns the run set by a previous call to SetRunUpserter.
 	//
 	// It is called from the Sender goroutine.
-	Metadata() (*RunMetadata, error)
+	GetRunUpserter() (*RunUpserter, error)
 }
 
 // RunUpdateWork implements Work to initialize or update a run.
@@ -37,8 +38,8 @@ type RunUpdateWork struct {
 	// Record contains the RunRecord that triggered this work.
 	Record *spb.Record
 
-	// StreamRunMetadata is used to update the stream's run information.
-	StreamRunMetadata StreamRunMetadata
+	// StreamRunUpserter is used to update the stream's run information.
+	StreamRunUpserter StreamRunUpserter
 
 	// Respond is used to respond to the record, if necessary.
 	//
@@ -65,21 +66,21 @@ func (w *RunUpdateWork) Save(write func(*spb.Record)) {
 
 // Process implements Work.Process.
 func (w *RunUpdateWork) Process(_ func(*spb.Record)) {
-	if metadata, _ := w.StreamRunMetadata.Metadata(); metadata != nil {
-		w.updateRun(metadata)
+	if upserter, _ := w.StreamRunUpserter.GetRunUpserter(); upserter != nil {
+		w.updateRun(upserter)
 	} else {
 		w.initRun()
 	}
 }
 
 // updateRun updates an existing run.
-func (w *RunUpdateWork) updateRun(run *RunMetadata) {
+func (w *RunUpdateWork) updateRun(run *RunUpserter) {
 	run.Update(w.Record.GetRun())
 }
 
 // initRun creates a run for the first time.
 func (w *RunUpdateWork) initRun() {
-	metadata, err := InitRun(w.Record, RunMetadataParams{
+	upserter, err := InitRun(w.Record, RunUpserterParams{
 		Settings: w.Settings,
 
 		DebounceDelay: waiting.NewDelay(runUpsertDebounceSeconds * time.Second),
@@ -92,7 +93,7 @@ func (w *RunUpdateWork) initRun() {
 	})
 
 	if err != nil {
-		w.Logger.Error("runmetadata: failed to init run", "error", err)
+		w.Logger.Error("runupserter: failed to init run", "error", err)
 
 		if w.Record.Control.GetMailboxSlot() != "" {
 			w.Respond(w.Record, runInitErrorResult(err))
@@ -101,11 +102,11 @@ func (w *RunUpdateWork) initRun() {
 		return
 	}
 
-	err = w.StreamRunMetadata.SetRun(metadata)
+	err = w.StreamRunUpserter.SetRunUpserter(upserter)
 	if err != nil {
 		w.Logger.CaptureError(
 			fmt.Errorf(
-				"runmetadata: failed to set run after initializing: %v",
+				"runupserter: failed to set run after initializing: %v",
 				err))
 
 		if w.Record.Control.GetMailboxSlot() != "" {
@@ -117,7 +118,7 @@ func (w *RunUpdateWork) initRun() {
 
 	if w.Record.Control.GetMailboxSlot() != "" {
 		updatedRun := proto.CloneOf(w.Record.GetRun())
-		metadata.FillRunRecord(updatedRun)
+		upserter.FillRunRecord(updatedRun)
 		w.Respond(w.Record, &spb.RunUpdateResult{Run: updatedRun})
 	}
 }

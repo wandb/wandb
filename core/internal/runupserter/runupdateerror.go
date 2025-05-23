@@ -1,4 +1,4 @@
-package runmetadata
+package runupserter
 
 import (
 	"errors"
