@@ -487,7 +487,7 @@ class LaunchProject:
         return env_vars
 
     def parse_existing_requirements(self) -> str:
-        from packaging.requirements import Requirement
+        from packaging.requirements import InvalidRequirement, Requirement
 
         requirements_line = ""
         assert self.project_dir is not None
@@ -499,9 +499,16 @@ class LaunchProject:
                     if line.strip() == "":
                         continue
 
-                    req = Requirement(line)
-                    name = req.name.lower()
-                    include_only.add(shlex_quote(name))
+                    try:
+                        req = Requirement(line)
+                        name = req.name.lower()
+                        include_only.add(shlex_quote(name))
+                    except InvalidRequirement as e:
+                        _logger.warning(
+                            f"Unable to parse line {line} in requirements.txt: {e}"
+                        )
+                        continue
+
             requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
             if "wandb" not in requirements_line:
                 wandb.termwarn(f"{LOG_PREFIX}wandb is not present in requirements.txt.")

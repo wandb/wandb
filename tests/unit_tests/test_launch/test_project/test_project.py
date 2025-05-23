@@ -199,6 +199,23 @@ def mock_project_args():
     }
 
 
+def test_project_parse_existing_requirements_invalid_requirement(
+    mocker, tmp_path, mock_project_args
+):
+    mocker.logger = MagicMock()
+    mocker.patch("wandb.sdk.launch._project_spec._logger", mocker.logger)
+    mocker.termwarn = MagicMock()
+    mocker.patch("wandb.termwarn", mocker.termwarn)
+    project = LaunchProject(**mock_project_args)
+    project.project_dir = tmp_path
+    (tmp_path / "requirements.txt").write_text("invalid requirement")
+
+    project.parse_existing_requirements()
+
+    mocker.logger.warning.assert_called_once()
+    assert "Unable to parse line" in mocker.logger.warning.call_args.args[0]
+
+
 def test_get_env_vars_dict(mock_project_args, test_api):
     """Test that env vars are correctly set from a launch project."""
     project = LaunchProject(**mock_project_args)
