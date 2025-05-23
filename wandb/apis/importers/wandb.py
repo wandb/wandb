@@ -459,7 +459,9 @@ class WandbImporter:
         try:
             dst_collection.delete()
         except (wandb.CommError, ValueError) as e:
-            logger.warning(f"Collection can't be deleted, {art_type=}, {art_name=}, {e=}")
+            logger.warning(
+                f"Collection can't be deleted, {art_type=}, {art_name=}, {e=}"
+            )
             return
 
     def _import_artifact_sequence(
@@ -546,7 +548,9 @@ class WandbImporter:
             retry_arts_func = internal.exp_retry(self._dst_api.artifacts)
             dst_arts = list(retry_arts_func(seq.type_, seq.name))
         except wandb.CommError:
-            logger.warning(f"{seq=} does not exist in dst.  Has it already been deleted?")
+            logger.warning(
+                f"{seq=} does not exist in dst.  Has it already been deleted?"
+            )
             return
         except TypeError as e:
             logger.error(f"Problem getting dst versions (try again later) {e=}")
