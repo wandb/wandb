@@ -150,6 +150,9 @@ def run_pytest(
     pytest_env.update(go_coverage_env(session))
     session.notify("coverage")
 
+    if session.python == "3.8":
+        pytest_opts.extend(["-k", "not test_launch"])
+
     session.run(
         "pytest",
         *pytest_opts,
@@ -176,13 +179,9 @@ def unit_tests(session: nox.Session) -> None:
         "polyfactory",
     )
 
-    paths = session.posargs or ["tests/unit_tests"]
-    if session.python < (3, 9):
-        paths.append("-k 'not test_launch'")
-
     run_pytest(
         session,
-        paths=paths,
+        paths=session.posargs or ["tests/unit_tests"],
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={"n": "8"},
     )
