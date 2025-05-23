@@ -22,6 +22,10 @@ This version removes the ability to disable the `service` process. This is a bre
 ### Added
 
 - Support for pytorch.tensor for `masks` and `boxes` parameters when creating a `wandb.Image` object. (jacobromero in https://github.com/wandb/wandb/pull/9802)
+- `sync_tensorboard` now supports syncing tfevents files stored in S3, GCS and Azure (@timoffex in https://github.com/wandb/wandb/pull/9849)
+    - GCS paths use the format `gs://bucket/path/to/log/dir` and rely on application-default credentials, which can be configured using `gcloud auth application-default login`
+    - S3 paths use the format `s3://bucket/path/to/log/dir` and rely on the default credentials set through `aws configure`
+    - Azure paths use the format `az://account/container/path/to/log/dir` and the `az login` credentials, but also require the `AZURE_STORAGE_ACCOUNT` and `AZURE_STORAGE_KEY` environment variables to be set. Some other environment variables are supported as well, see [here](https://pkg.go.dev/gocloud.dev@v0.41.0/blob/azureblob#hdr-URLs).
 
 ### Removed
 

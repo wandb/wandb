@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import math
-import sys
 import threading
 from typing import TYPE_CHECKING
+
+from typing_extensions import override
 
 from wandb.proto import wandb_server_pb2 as spb
 
@@ -13,11 +14,6 @@ from .mailbox_handle import HandleAbandonedError, MailboxHandle
 # Necessary to break an import loop.
 if TYPE_CHECKING:
     from wandb.sdk.interface import interface
-
-if sys.version_info >= (3, 12):
-    from typing import override
-else:
-    from typing_extensions import override
 
 
 class MailboxResponseHandle(MailboxHandle[spb.ServerResponse]):
