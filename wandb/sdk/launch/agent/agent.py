@@ -1,6 +1,7 @@
 """Implementation of launch agent."""
 
 import asyncio
+import hashlib
 import logging
 import os
 import pprint
@@ -11,16 +12,23 @@ from dataclasses import dataclass
 from multiprocessing import Event
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import yaml
+import aiohttp
+import kubernetes_asyncio
+from kubernetes_asyncio.client import AppsV1Api, CoreV1Api
 
 import wandb
+import yaml
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.runner.local_process import LocalProcessRunner
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
-from wandb.sdk.launch.utils import LAUNCH_CONFIG_FILE, resolve_build_and_registry_config
+from wandb.sdk.launch.utils import (
+    LAUNCH_CONFIG_FILE,
+    get_kube_context_and_api_client,
+    resolve_build_and_registry_config,
+)
 from wandb.sdk.lib import runid
 
 from .. import loader
@@ -421,6 +429,22 @@ class LaunchAgent:
         """Removes the job from our list for now."""
         with self._jobs_lock:
             job_and_run_status = self._jobs[thread_id]
+
+        try:
+            if hasattr(job_and_run_status, "vllm_server_namespace"):
+                namespace = job_and_run_status.vllm_server_namespace
+                _, api_client = await get_kube_context_and_api_client(
+                    kubernetes_asyncio, {}
+                )
+                async with api_client:
+                    v1 = CoreV1Api(api_client)
+                    wandb.termlog(f"{LOG_PREFIX}Deleting namespace: {namespace}")
+                    await v1.delete_namespace(name=namespace)
+        except Exception as cleanup_error:
+            wandb.termwarn(
+                f"{LOG_PREFIX}Error during vLLM server cleanup: {str(cleanup_error)}"
+            )
+
         if (
             job_and_run_status.entity is not None
             and job_and_run_status.entity != self._entity
@@ -727,6 +751,131 @@ class LaunchAgent:
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )
+
+        requires_inference = (
+            job.get("runSpec", {})
+            .get("overrides", {})
+            .get("requiresInferenceServer", False)
+        )
+
+        if requires_inference:
+            # thread_id should be unique here, but we can't use it directly since
+            # it contains non-alphanumeric characters.
+            namespace = f"evals-{hashlib.md5(str(thread_id).encode()).hexdigest()}"
+            wandb.termlog(
+                f"{LOG_PREFIX}Creating Hello World server in namespace: {namespace}"
+            )
+
+            # ConfigMap
+            configmap_params = yaml.load(
+                open(os.path.join("agent_k8s", "hello-world-configmap.yaml")),
+                Loader=yaml.SafeLoader,
+            )
+            configmap_params["metadata"]["namespace"] = namespace
+
+            # Secret
+            secret_params = yaml.load(
+                open(os.path.join("agent_k8s", "secret.yaml")),
+                Loader=yaml.SafeLoader,
+            )
+            secret_params["metadata"]["namespace"] = namespace
+
+            # Volume
+            volume_params = yaml.load(
+                open(os.path.join("agent_k8s", "volume.yaml")),
+                Loader=yaml.SafeLoader,
+            )
+            volume_params["metadata"]["namespace"] = namespace
+
+            # Deployment
+            deployment_params = yaml.load(
+                open(os.path.join("agent_k8s", "hello-world-deployment.yaml")),
+                Loader=yaml.SafeLoader,
+            )
+            deployment_params["metadata"]["namespace"] = namespace
+
+            # Service
+            service_params = yaml.load(
+                open(os.path.join("agent_k8s", "hello-world-service.yaml")),
+                Loader=yaml.SafeLoader,
+            )
+            service_params["metadata"]["namespace"] = namespace
+
+            _, api_client = await get_kube_context_and_api_client(
+                kubernetes_asyncio, {}
+            )
+            async with api_client:
+                v1 = CoreV1Api(api_client)
+                apps_v1 = AppsV1Api(api_client)
+
+                try:
+                    await v1.create_namespace(body={"metadata": {"name": namespace}})
+
+                    await v1.create_namespaced_config_map(
+                        namespace=namespace, body=configmap_params
+                    )
+
+                    await v1.create_namespaced_secret(
+                        namespace=namespace, body=secret_params
+                    )
+
+                    await v1.create_namespaced_persistent_volume_claim(
+                        namespace=namespace, body=volume_params
+                    )
+
+                    await apps_v1.create_namespaced_deployment(
+                        namespace=namespace, body=deployment_params
+                    )
+
+                    await v1.create_namespaced_service(
+                        namespace=namespace, body=service_params
+                    )
+
+                    async def readiness_check():
+                        timeout = 120
+                        retry_interval = 5.0
+                        endpoint = "http://localhost:30080"
+
+                        start_time = time.time()
+                        while time.time() - start_time < timeout:
+                            try:
+                                wandb.termlog(
+                                    f"{LOG_PREFIX}Checking endpoint: {endpoint}"
+                                )
+                                async with aiohttp.ClientSession() as session:
+                                    async with session.get(endpoint) as response:
+                                        wandb.termlog(
+                                            f"{LOG_PREFIX}Got response status: {response.status}"
+                                        )
+                                        if response.status == 200:
+                                            wandb.termlog(
+                                                f"{LOG_PREFIX}Hello World server is ready at {endpoint}"
+                                            )
+                                            return
+                            except Exception as e:
+                                wandb.termlog(f"{LOG_PREFIX}Connection error: {str(e)}")
+
+                            wandb.termlog(
+                                f"{LOG_PREFIX}Retrying in {retry_interval} seconds..."
+                            )
+                            await asyncio.sleep(retry_interval)
+
+                        wandb.termwarn(
+                            f"{LOG_PREFIX}Hello World server did not become ready within the timeout period"
+                        )
+
+                    await readiness_check()
+
+                    job_tracker.vllm_server_namespace = namespace
+
+                except Exception as e:
+                    self._internal_logger.warn(
+                        f"Failed to create Hello World deployment: {str(e)}"
+                    )
+                    wandb.termwarn(
+                        f"{LOG_PREFIX}Failed to create Hello World server: {str(e)}"
+                    )
+
         if not (
             project.docker_image
             or project.job_base_image
