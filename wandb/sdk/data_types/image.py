@@ -567,6 +567,8 @@ class Image(BatchableMedia):
             required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
         )
 
+        # if an image has negative values, set all values to be in the range [0, 1]
+        # This can lead to inconsistent behavior when an image has only a single negative value
         if np.min(data) < 0 and np.ptp(data) != 0:
             data = (data - np.min(data)) / np.ptp(data)
 
