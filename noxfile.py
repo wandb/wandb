@@ -176,9 +176,13 @@ def unit_tests(session: nox.Session) -> None:
         "polyfactory",
     )
 
+    paths = session.posargs or ["tests/unit_tests"]
+    if session.python < (3, 9):
+        paths.append("-k 'not test_launch'")
+
     run_pytest(
         session,
-        paths=session.posargs or ["tests/unit_tests"],
+        paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={"n": "8"},
     )

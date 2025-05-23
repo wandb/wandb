@@ -110,11 +110,7 @@ commands:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
           command: >
-            if [ "<<parameters.python>>" = "3.8" ]; then
-              nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose -k "not test_launch"
-            else
-              nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
-            fi
+            nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
       - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
