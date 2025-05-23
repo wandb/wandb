@@ -503,9 +503,11 @@ class LaunchProject:
                         req = Requirement(line)
                         name = req.name.lower()
                         include_only.add(shlex_quote(name))
-                    except InvalidRequirement as e:
+                    except InvalidRequirement:
                         _logger.warning(
-                            f"Unable to parse line {line} in requirements.txt: {e}"
+                            "Unable to parse line %s in requirements.txt",
+                            line,
+                            exc_info=True,
                         )
                         continue
 

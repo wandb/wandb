@@ -17,6 +17,9 @@ dependencies = [
     "psutil>=5.0.0",
     "sentry-sdk>=2.0.0",
     "docker-pycreds>=0.4.0",
+    # setuptools is needed for distutils in dependencies after Python 3.12 :(
+    # One such dependency is docker-pycreds, where the latest release is 0.4.0
+    # which was released in 2018.
     # Prior versions of setuptools cause failures in tests.
     # 66.1.0 is the oldest version that passes tests.
     "setuptools>=66.1.0",
