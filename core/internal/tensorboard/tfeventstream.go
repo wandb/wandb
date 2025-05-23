@@ -1,6 +1,7 @@
 package tensorboard
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -18,6 +19,7 @@ type tfEventStream struct {
 	// readDelay is how long to wait before checking for a new event.
 	readDelay waiting.Delay
 	logger    *observability.CoreLogger
+	ctx       context.Context
 
 	reader *TFEventReader
 	events chan *tbproto.TFEvent
@@ -28,6 +30,7 @@ type tfEventStream struct {
 }
 
 func NewTFEventStream(
+	ctx context.Context,
 	logDir paths.AbsolutePath,
 	readDelay waiting.Delay,
 	fileFilter TFEventsFileFilter,
@@ -36,6 +39,7 @@ func NewTFEventStream(
 	return &tfEventStream{
 		readDelay: readDelay,
 		logger:    logger,
+		ctx:       ctx,
 
 		reader: NewTFEventReader(logDir, fileFilter, logger),
 
@@ -91,7 +95,7 @@ func (s *tfEventStream) loop() {
 	isFinishing := false
 
 	for {
-		event, err := s.reader.NextEvent(s.emitFilePath /*onNewFile*/)
+		event, err := s.reader.NextEvent(s.ctx, s.emitFilePath /*onNewFile*/)
 		if err != nil {
 			s.logger.CaptureError(
 				fmt.Errorf(

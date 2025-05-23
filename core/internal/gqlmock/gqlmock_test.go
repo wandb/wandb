@@ -18,7 +18,7 @@ func TestUnstubbedRequest_ErrorContainsRequest(t *testing.T) {
 		context.Background(),
 		&graphql.Request{
 			Query: "hero { name }",
-			Variables: map[string]string{
+			Variables: map[string]any{
 				"x": "y",
 			},
 		},
@@ -26,7 +26,7 @@ func TestUnstubbedRequest_ErrorContainsRequest(t *testing.T) {
 	)
 
 	assert.ErrorContains(t, err, "hero { name }")
-	assert.ErrorContains(t, err, "map[x:y]")
+	assert.ErrorContains(t, err, `x: "y"`)
 }
 
 func TestStubbedRequest_UsesStub(t *testing.T) {

@@ -1,5 +1,4 @@
 import copy
-import os
 import platform
 
 import numpy as np
@@ -231,22 +230,6 @@ def test_deprecated_run_log_sync(mock_run, mock_wandb_log):
     assert mock_wandb_log.warned(
         "`sync` argument is deprecated"
         " and does not affect the behaviour of `wandb.log`"
-    )
-
-
-def test_run_log_mp_warn(mock_run, test_settings, monkeypatch, mock_wandb_log):
-    monkeypatch.setenv("WANDB_DISABLE_SERVICE", "true")
-    settings = test_settings()
-    settings.update_from_env_vars(os.environ)
-
-    run = mock_run(settings=settings)
-    run._init_pid = os.getpid()
-    run._init_pid += 1
-    run.log(dict(this=1))
-
-    assert mock_wandb_log.warned(
-        f"`log` ignored (called from pid={os.getpid()}, "
-        f"`init` called from pid={run._init_pid})"
     )
 
 
