@@ -1,5 +1,6 @@
 import hashlib
 import os
+import pathlib
 import platform
 import re
 import shutil
@@ -118,7 +119,10 @@ class Media(WBValue):
         self._caption = caption
 
     def _set_file(
-        self, path: str, is_tmp: bool = False, extension: Optional[str] = None
+        self,
+        path: str,
+        is_tmp: bool = False,
+        extension: Optional[str] = None,
     ) -> None:
         self._path = path
         self._is_tmp = is_tmp
@@ -329,7 +333,10 @@ class Media(WBValue):
         )
 
     @staticmethod
-    def path_is_reference(path: Optional[str]) -> bool:
+    def path_is_reference(path: Optional[Union[str, pathlib.Path]]) -> bool:
+        if path is None or isinstance(path, pathlib.Path):
+            return False
+
         return bool(path and re.match(r"^(gs|s3|https?)://", path))
 
 

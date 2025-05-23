@@ -194,7 +194,7 @@ def unit_tests_pydantic_v1(session: nox.Session) -> None:
     install_timed(
         session,
         "-r",
-        "requirements_test.txt",
+        "requirements_dev.txt",
     )
     # force-downgrade pydantic to v1
     install_timed(session, "pydantic<2")
@@ -565,6 +565,7 @@ def mypy_report(session: nox.Session) -> None:
     If the report parameter is set to True, it will also generate an html report.
     """
     session.install(
+        "bokeh",
         "ipython",
         "lxml",
         # https://github.com/python/mypy/issues/17166
