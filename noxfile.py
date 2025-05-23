@@ -150,6 +150,9 @@ def run_pytest(
     pytest_env.update(go_coverage_env(session))
     session.notify("coverage")
 
+    if session.python == "3.8":
+        pytest_opts.extend(["-k", "not test_launch"])
+
     session.run(
         "pytest",
         *pytest_opts,

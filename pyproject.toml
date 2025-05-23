@@ -112,6 +112,7 @@ launch = [
     "typing_extensions",
     "tomli",
     "PyYAML>=6.0.0",
+    "tornado>=6.5.0;python_version>='3.9'",
 ]
 models = ["cloudpickle"]
 perf = ["orjson"]
