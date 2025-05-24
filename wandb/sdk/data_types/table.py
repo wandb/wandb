@@ -25,6 +25,8 @@ from .utils import _json_helper
 if TYPE_CHECKING:
     from wandb.sdk.artifacts import artifact
 
+    from ...wandb_run import Run as LocalRun
+
 
 class _TableLinkMixin:
     def set_table(self, table):
@@ -246,18 +248,18 @@ class Table(Media):
                 logging attempts after the table has been mutated will be no-ops.
                 - "MUTABLE": Table can be re-logged after mutations, creating
                 a new artifact version each time it's logged.
+                - "INCREMENTAL": Table data is logged incrementally, with each log creating
+                a new artifact entry containing the new data since the last log.
         """
         super().__init__()
         self._validate_log_mode(log_mode)
         self.log_mode = log_mode
         if self.log_mode == "INCREMENTAL":
-            wandb.termwarn(
-                "INCREMENTAL log mode is not ready for use yet. Please use IMMUTABLE or MUTABLE mode instead."
-            )
             self._increment_num = 0
             self._last_logged_idx: int | None = None
             self._previous_increments_paths: list[str] = []
             self._resume_handled: bool = False
+            self._run_target_for_increments: wandb.Run | None = None
         self._pk_col = None
         self._fk_cols: set[str] = set()
         if allow_mixed_types:
@@ -364,6 +366,17 @@ class Table(Media):
         if increment_num:
             self._increment_num = increment_num
         self._resume_handled = True
+
+    def _set_incremental_table_run_target(self, run: "LocalRun") -> None:
+        """Associate a Run object with this incremental Table.
+
+        A Table object in incremental mode can only be logged to a single Run.
+        Raises an error if the table is already associated to a different run.
+        """
+        if self._run_target_for_increments is None:
+            self._run_target_for_increments = run
+        elif self._run_target_for_increments is not run:
+            raise AssertionError("An incremental Table can only be logged to one Run.")
 
     @allow_relogging_after_mutation
     def cast(self, col_name, dtype, optional=False):
