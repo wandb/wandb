@@ -1308,6 +1308,13 @@ message TPUInfo {
   uint32 count = 4;
 }
 
+// CoreWeaveInfo stores information about a CoreWeave compute environment
+message CoreWeaveInfo {
+  string cluster_name = 1;
+  string org_id = 2;
+  string region = 3;
+}
+
 message MetadataRequest {
   string os = 1;
   string python = 2;
@@ -1341,6 +1348,7 @@ message MetadataRequest {
   string cuda_version = 30;
   TrainiumInfo trainium = 31;
   TPUInfo tpu = 32;
+  CoreWeaveInfo coreweave = 33;
 
   // Flag indicating whether the request originated from the user.
   optional bool _user_modified = 200 [json_name = "_user_modified"];
