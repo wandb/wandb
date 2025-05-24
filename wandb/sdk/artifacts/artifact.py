@@ -1435,6 +1435,7 @@ class Artifact:
         name: str | None = None,
         skip_cache: bool | None = False,
         policy: Literal["mutable", "immutable"] | None = "mutable",
+        overwrite: bool = False,
     ) -> None:
         """Add a local directory to the artifact.
 
@@ -1447,6 +1448,7 @@ class Artifact:
             policy: "mutable" | "immutable". By default, "mutable"
                 "mutable": Create a temporary copy of the file to prevent corruption during upload.
                 "immutable": Disable protection, rely on the user not to delete or change the file.
+            overwrite: If `True`, overwrite the file if it already exists.
 
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current artifact
@@ -1480,6 +1482,7 @@ class Artifact:
                 path=physical_path,
                 skip_cache=skip_cache,
                 policy=policy,
+                overwrite=overwrite,
             )
 
         num_threads = 8

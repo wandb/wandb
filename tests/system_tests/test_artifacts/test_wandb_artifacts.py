@@ -401,6 +401,20 @@ def test_add_named_dir(artifact):
     }
 
 
+@pytest.mark.parametrize("overwrite", [True, False])
+def test_add_dir_again_after_edit(overwrite, artifact):
+    filepath = Path("file1.txt")
+    filepath.write_text("hello")
+
+    artifact.add_dir(".")
+
+    # If we explicitly pass overwrite=True, allow rewriting an existing file in dir
+    filepath.write_text("Potato")
+    expectation = nullcontext() if overwrite else pytest.raises(ValueError)
+    with expectation:
+        artifact.add_dir(".", overwrite=overwrite)
+
+
 def test_multi_add(artifact):
     size = 2**27  # 128MB, large enough that it takes >1ms to add.
     filename = "data.bin"
