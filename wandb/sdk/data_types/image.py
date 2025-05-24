@@ -462,7 +462,7 @@ class Image(BatchableMedia):
                 }
 
         elif not isinstance(run_or_artifact, Run):
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise TypeError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         if self._boxes:
             json_dict["boxes"] = {

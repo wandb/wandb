@@ -145,7 +145,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         from wandb.sdk.wandb_run import Run
 
         if isinstance(run_or_artifact, Run):
-            raise ValueError("SavedModel cannot be added to run - must use artifact")
+            raise TypeError("SavedModel cannot be added to run - must use artifact")
         artifact = run_or_artifact
         json_obj = {
             "type": self._log_type,

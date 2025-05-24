@@ -25,5 +25,5 @@ def test_add_any():
         _add_any(artifact, "wandb.txt", "sample-file")
         _add_any(artifact, "non_existing_file.txt", "another-one")
 
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             _add_any(artifact, ["invalid input type"], "invalid")

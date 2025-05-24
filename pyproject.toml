@@ -191,6 +191,9 @@ select = [
     "C90", # mccabe
     "UP",  # pyupgrade
     "T20", # flake8-print
+
+    # tryceratops
+    "TRY004", # type-check-without-type-error
 ]
 ignore = [
     "B904",

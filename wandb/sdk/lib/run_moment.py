@@ -33,11 +33,11 @@ class RunMoment:
                 f"Only the metric '_step' is supported, got '{self.metric}'."
             )
         if not isinstance(self.value, (int, float)):
-            raise ValueError(
+            raise TypeError(
                 f"Only int or float values are supported, got '{self.value}'."
             )
         if not isinstance(self.run, str):
-            raise ValueError(f"Only string run names are supported, got '{self.run}'.")
+            raise TypeError(f"Only string run names are supported, got '{self.run}'.")
 
     @classmethod
     def from_uri(cls, uri: str) -> RunMoment:
