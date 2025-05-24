@@ -320,7 +320,7 @@ class BoundingBoxes2D(JSONMetadata):
             # an object with a _type key. Will need to push this change to the UI first to ensure backwards compat
             return self._val
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb.Artifact")
+            raise TypeError("to_json accepts wandb_run.Run or wandb.Artifact")
 
     @classmethod
     def from_json(

@@ -17,5 +17,5 @@ def test_protobuf_error_handler(error, expected):
 
 
 def test_protobuf_error_handler_exception():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         ProtobufErrorHandler.from_exception(Exception(""))  # type: ignore

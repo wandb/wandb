@@ -918,7 +918,7 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if not isinstance(artifact, wandb.Artifact):
-            raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")
+            raise TypeError("You must pass a wandb.Api().artifact() to use_artifact")
         if artifact.is_draft():
             raise ValueError(
                 "Only existing artifacts are accepted by this api. "
