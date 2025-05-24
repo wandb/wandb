@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 191
+// Next ID: 194
 message Settings {
   reserved 3, 6, 8, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 100, 136, 137, 176;
 
@@ -381,11 +381,20 @@ message Settings {
   // Whether to delegate glob matching of metrics in define_metric to the server.
   google.protobuf.BoolValue x_server_side_expand_glob_metrics = 190;
 
+  // Whether to skip saving the run events to the transaction log.
+  //
+  // This is only relevant for online runs. Can be used to reduce the
+  // amount of data written to disk.
+  //
+  // Should be used with caution, as it removes the gurantees about
+  // recoverability.
+  google.protobuf.BoolValue x_skip_transaction_log = 191;
+
   // The scheme and hostname for contacting the CoreWeave metadata server.
-  google.protobuf.StringValue x_stats_coreweave_metadata_base_url = 191;
+  google.protobuf.StringValue x_stats_coreweave_metadata_base_url = 192;
 
   // The relative path on the CoreWeave metadata server to which to make requests.
-  google.protobuf.StringValue x_stats_coreweave_metadata_endpoint = 192;
+  google.protobuf.StringValue x_stats_coreweave_metadata_endpoint = 193;
 
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue x_cli_only_mode = 4;

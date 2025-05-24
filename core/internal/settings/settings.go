@@ -93,6 +93,17 @@ func (s *Settings) GetTransactionLogPath() string {
 	return s.Proto.SyncFile.GetValue()
 }
 
+// Whether to skip saving the run events to the transaction log.
+//
+// This is only relevant for online runs. Can be used to reduce the
+// amount of data written to disk.
+//
+// Should be used with caution, as it removes the gurantees about
+// recoverability.
+func (s *Settings) IsSkipTransactionLog() bool {
+	return s.Proto.XSkipTransactionLog.GetValue()
+}
+
 // Whether we are in shared mode.
 //
 // In "shared" mode, multiple processes can write to the same run,

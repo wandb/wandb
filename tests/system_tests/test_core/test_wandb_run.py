@@ -6,7 +6,6 @@ import sys
 import numpy as np
 import pytest
 import wandb
-import wandb.env
 from wandb.errors import UsageError
 
 
@@ -73,11 +72,6 @@ def test_invalid_project_name(user, project_name):
     with pytest.raises(UsageError) as e:
         wandb.init(project=project_name)
         assert f'Invalid project name "{project_name}"' in str(e.value)
-
-
-def test_resume_must_failure(user):
-    with pytest.raises(wandb.UsageError):
-        wandb.init(resume="must")
 
 
 def test_unlogged_artifact_in_config(user, test_settings):
@@ -163,31 +157,6 @@ def test_except_hook(user, test_settings):
         assert "".join(stderr) == "Exception: After wandb.init()\n"
 
         sys.stderr.write = old_stderr_write
-
-
-def assertion(run_id, found, stderr):
-    msg = (
-        "`resume` will be ignored since W&B syncing is set to `offline`. "
-        f"Starting a new run with run id {run_id}"
-    )
-    return msg in stderr if found else msg not in stderr
-
-
-@pytest.mark.parametrize(
-    "resume, found",
-    [
-        ("auto", True),
-        ("allow", True),
-        ("never", True),
-        ("must", True),
-        (True, True),
-        (None, False),
-    ],
-)
-def test_offline_resume(user, test_settings, capsys, resume, found):
-    with wandb.init(mode="offline", resume=resume, settings=test_settings()) as run:
-        captured = capsys.readouterr()
-        assert assertion(run.id, found, captured.err)
 
 
 def test_ignore_globs_wandb_files(wandb_backend_spy):

@@ -202,6 +202,79 @@ func TestInitRun_Offline(t *testing.T) {
 	assert.NotNil(t, metadata)
 }
 
+func TestResume(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+	mockClient.StubMatchOnce(
+		gqlmock.WithOpName("UpsertBucket"),
+		fakeUpsertBucketResponseJSON(),
+	)
+
+	params := testParams()
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
+
+	metadata, err := runmetadata.InitRun(runRecord(&spb.RunRecord{}), params)
+	defer metadata.Finish()
+
+	assert.NoError(t, err)
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+func TestResume_Offline_Succeeds(t *testing.T) {
+	params := testParams()
+	params.GraphqlClientOrNil = nil
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
+
+	metadata, err := runmetadata.InitRun(runRecord(&spb.RunRecord{}), params)
+	defer metadata.Finish()
+
+	assert.NoError(t, err)
+}
+
+func TestRewind(t *testing.T) {
+	// NOTE: Rewinding works offline.
+	runInitRecord := runRecord(
+		&spb.RunRecord{
+			RunId: "run to rewind",
+			BranchPoint: &spb.BranchPoint{
+				Run:    "run to rewind",
+				Metric: "_step",
+				Value:  123,
+			},
+		})
+
+	metadata, err := runmetadata.InitRun(runInitRecord, testParams())
+	defer metadata.Finish()
+
+	assert.NoError(t, err)
+	run := &spb.RunRecord{}
+	metadata.FillRunRecord(run)
+	assert.EqualValues(t, run.StartingStep, 124)
+}
+
+func TestFork(t *testing.T) {
+	// NOTE: Forking works offline.
+	runInitRecord := runRecord(
+		&spb.RunRecord{
+			RunId: "run",
+			BranchPoint: &spb.BranchPoint{
+				Run:    "other run",
+				Metric: "_step",
+				Value:  10,
+			},
+		},
+	)
+
+	metadata, err := runmetadata.InitRun(runInitRecord, testParams())
+	defer metadata.Finish()
+
+	assert.NoError(t, err)
+	run := &spb.RunRecord{}
+	metadata.FillRunRecord(run)
+	assert.EqualValues(t, run.StartingStep, 11)
+}
+
 type variablesForUpdateTest struct {
 	MockClient    *gqlmock.MockClient
 	DebounceDelay *waitingtest.FakeDelay

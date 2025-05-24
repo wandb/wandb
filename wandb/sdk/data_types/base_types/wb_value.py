@@ -220,9 +220,7 @@ class WBValue:
     ) -> None:
         assert (
             self._artifact_source is None
-        ), "Cannot update artifact_source. Existing source: {}/{}".format(
-            self._artifact_source.artifact, self._artifact_source.name
-        )
+        ), f"Cannot update artifact_source. Existing source: {self._artifact_source.artifact}/{self._artifact_source.name}"
         self._artifact_source = _WBValueArtifactSource(artifact, name)
 
     def _set_artifact_target(
@@ -230,9 +228,7 @@ class WBValue:
     ) -> None:
         assert (
             self._artifact_target is None
-        ), "Cannot update artifact_target. Existing target: {}/{}".format(
-            self._artifact_target.artifact, self._artifact_target.name
-        )
+        ), f"Cannot update artifact_target. Existing target: {self._artifact_target.artifact}/{self._artifact_target.name}"
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
     def _get_artifact_entry_ref_url(self) -> Optional[str]:
@@ -250,10 +246,7 @@ class WBValue:
             and self._artifact_target.artifact._final
             and _server_accepts_client_ids()
         ):
-            return "wandb-client-artifact://{}/{}".format(
-                self._artifact_target.artifact._client_id,
-                type(self).with_suffix(self._artifact_target.name),
-            )
+            return f"wandb-client-artifact://{self._artifact_target.artifact._client_id}/{type(self).with_suffix(self._artifact_target.name)}"
         # Else if we do not support client IDs, but online, then block on upload
         # Note: this is old behavior just to stay backwards compatible
         # with older server versions. This code path should be removed
@@ -281,10 +274,7 @@ class WBValue:
             and self._artifact_target.artifact._final
             and _server_accepts_client_ids()
         ):
-            return "wandb-client-artifact://{}:latest/{}".format(
-                self._artifact_target.artifact._sequence_client_id,
-                type(self).with_suffix(self._artifact_target.name),
-            )
+            return f"wandb-client-artifact://{self._artifact_target.artifact._sequence_client_id}:latest/{type(self).with_suffix(self._artifact_target.name)}"
         # Else if we do not support client IDs, then block on upload
         # Note: this is old behavior just to stay backwards compatible
         # with older server versions. This code path should be removed
