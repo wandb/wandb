@@ -589,7 +589,7 @@ class LaunchAgent:
                 )
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
-                    raise KeyboardInterrupt
+                    raise KeyboardInterrupt  # noqa: TRY301
                 if self.num_running_jobs < self._max_jobs:
                     # only check for new jobs if we're not at max
                     job_and_queue = await self.get_job_and_queue()
