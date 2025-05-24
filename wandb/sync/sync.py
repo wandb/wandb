@@ -241,7 +241,7 @@ class SyncThread(threading.Thread):
                 )
                 return None
             else:
-                raise e
+                raise
 
     def run(self):
         if self._log_path is not None:

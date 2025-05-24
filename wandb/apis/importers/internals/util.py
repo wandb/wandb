@@ -55,7 +55,7 @@ def parallelize(
                 f"Exception: {func=} {args=} {kwargs=} {e=} {filename=} {lineno=}. {traceback_details=}"
             )
             if raise_on_error:
-                raise e
+                raise
 
     results = []
     with ThreadPoolExecutor(max_workers) as exc:

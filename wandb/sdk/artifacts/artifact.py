@@ -1369,7 +1369,7 @@ class Artifact:
                 f"Failed to open the provided file ({type(e).__name__}: {e}). Please "
                 f"provide the proper encoding."
             )
-            raise e
+            raise
 
         self.add_file(
             path, name=name, policy="immutable", skip_cache=True, overwrite=overwrite
