@@ -682,8 +682,5 @@ def request_with_retry(
                 error_message = response.json()["error"]  # todo: clean this up
             except Exception:
                 pass
-            logger.error(f"requests_with_retry error: {error_message}")
-            logger.exception(
-                "requests_with_retry encountered unretryable exception: %s", e
-            )
+            logger.exception(f"requests_with_retry error: {error_message}")
             return e

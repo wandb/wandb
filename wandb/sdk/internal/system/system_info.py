@@ -119,8 +119,8 @@ class SystemInfo:
             ValueError,
             subprocess.CalledProcessError,
             subprocess.TimeoutExpired,
-        ) as e:
-            logger.error(f"Error generating diff: {e}")
+        ):
+            logger.exception("Error generating diff.")
         logger.debug("Saving git patches done")
 
     def _probe_git(self, data: Dict[str, Any]) -> Dict[str, Any]:
