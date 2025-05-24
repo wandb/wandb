@@ -96,6 +96,7 @@ def test_launch_sweep_param_validation(user):
         ),
     ],
 )
+@pytest.mark.wandb_core_only
 def test_launch_sweep_scheduler_resources(user, scheduler_args, msg):
     # make proj and job
     settings = wandb.Settings(project="model-registry")
