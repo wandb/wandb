@@ -1070,6 +1070,7 @@ class Settings(BaseModel, validate_assignment=True):
     @classmethod
     def validate_x_stats_coreweave_metadata_base_url(cls, value):
         validate_url(value)
+        return value.rstrip("/")
 
     @field_validator("x_stats_gpu_device_ids", mode="before")
     @classmethod

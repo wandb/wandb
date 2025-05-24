@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,16 +11,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-)
-
-const (
-	DefaultCoreWeaveMetadataBaseURL = "http://169.254.169.254"
-	// DefaultCoreWeaveMetadataBaseURL  = "http://127.0.0.1:3000"
-	DefaultCoreWeaveMetadataEndpoint = "/api/v2/cloud-init/meta-data"
 )
 
 // CoreWeaveInstanceData holds the parsed metadata from the CoreWeave endpoint.
@@ -41,32 +39,39 @@ type CoreWeaveInstanceData struct {
 	APIServer           string `meta:"apiserver"`
 }
 
+type CoreWeaveMetadataParams struct {
+	Ctx           context.Context
+	Client        *retryablehttp.Client
+	Logger        *observability.CoreLogger
+	GraphqlClient graphql.Client
+	Settings      *settings.Settings
+}
+
 // CoreWeaveMetadata is used to capture the metadata about the compute environment
 // for jobs running on CoreWeave.
 type CoreWeaveMetadata struct {
-	// client is the HTTP client used to call the metadata endpoint
+	ctx context.Context
+
+	// HTTP client to communicate with the CoreWeave metadata server.
 	client *retryablehttp.Client
 
+	// GraphQL client to communicate with the W&B backend.
+	graphqlClient graphql.Client
+
+	// Stream settings.
+	settings *settings.Settings
+
+	// Internal debug logger
 	logger *observability.CoreLogger
-
-	baseURL  *url.URL
-	endpoint string
-}
-
-type CoreWeaveMetadataParams struct {
-	Client *retryablehttp.Client
-	Logger *observability.CoreLogger
-
-	// TODO: add these as configurable settings
 
 	// The scheme and hostname for contacting the metadata server,
 	// not including a final slash. For example, "http://localhost:8080".
-	BaseURL string
+	baseURL *url.URL
 
 	// The relative path on the server to which to make requests.
 	//
 	// This must not include the schema and hostname prefix.
-	Endpoint string
+	endpoint string
 }
 
 func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, error) {
@@ -84,25 +89,21 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 		params.Client.HTTPClient.Timeout = DefaultOpenMetricsTimeout
 		params.Client.Backoff = clients.ExponentialBackoffWithJitter
 	}
-	if params.BaseURL == "" {
-		params.BaseURL = DefaultCoreWeaveMetadataBaseURL
-	}
-	if params.Endpoint == "" {
-		params.Endpoint = DefaultCoreWeaveMetadataEndpoint
-	}
 
-	baseURL, err := url.Parse(params.BaseURL)
+	baseURL, err := url.Parse(params.Settings.GetStatsCoreWeaveMetadataBaseURL())
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO: call OrganizationCoreWeaveOrganizationID here
+	endpoint := params.Settings.GetStatsCoreWeaveMetadataEndpoint()
 
 	cwm := &CoreWeaveMetadata{
-		client:   params.Client,
-		logger:   params.Logger,
-		baseURL:  baseURL,
-		endpoint: params.Endpoint,
+		ctx:           params.Ctx,
+		client:        params.Client,
+		graphqlClient: params.GraphqlClient,
+		settings:      params.Settings,
+		logger:        params.Logger,
+		baseURL:       baseURL,
+		endpoint:      endpoint,
 	}
 
 	return cwm, nil
@@ -117,6 +118,27 @@ func (cwm *CoreWeaveMetadata) Sample() (*spb.StatsRecord, error) {
 
 // Probe collects metadata about the CoreWeave compute environment.
 func (cwm *CoreWeaveMetadata) Probe() *spb.MetadataRequest {
+	// TODO: call OrganizationCoreWeaveOrganizationID here
+	if cwm.graphqlClient == nil {
+		cwm.logger.Error("coreweave metadata: error collecting data", "error", fmt.Errorf("GraphQL client is nil"))
+		return nil
+	}
+
+	// Check whether this entity's organization is on CoreWeave.
+	//
+	// This is done to limit collecting metadata to the relevant orgs only.
+	data, err := gql.OrganizationCoreWeaveOrganizationID(
+		cwm.ctx,
+		cwm.graphqlClient,
+		cwm.settings.GetEntity(),
+	)
+	if err != nil || data == nil || data.GetEntity() == nil || data.GetEntity().GetOrganization() == nil {
+		return nil
+	}
+	coreWeaveOrgID := data.GetEntity().GetOrganization().GetCoreWeaveOrganizationId()
+	if coreWeaveOrgID == nil || *coreWeaveOrgID == "" {
+		return nil
+	}
 
 	instanceData, err := cwm.Get()
 	if err != nil {
@@ -141,9 +163,6 @@ func (cwm *CoreWeaveMetadata) Get() (*CoreWeaveInstanceData, error) {
 	}
 
 	cwm.logger.Debug("coreweave metadata: sending request", "url", fullURL)
-
-	fmt.Println(fullURL)
-	fmt.Printf("%+v\n", cwm)
 
 	resp, err := cwm.client.Do(req)
 	if err != nil {
