@@ -860,7 +860,7 @@ class Table(Media):
 
         try:
             self.cast(name, _dtypes.UnknownType(), optional=optional)
-        except TypeError as err:
+        except TypeError:
             # Undo the changes
             if is_first_col:
                 self.data = []
@@ -869,7 +869,7 @@ class Table(Media):
                 for ndx in range(len(self.data)):
                     self.data[ndx] = self.data[ndx][:-1]
                 self.columns = self.columns[:-1]
-            raise err
+            raise
 
     def get_column(self, name, convert_to=None):
         """Retrieves a column from the table and optionally converts it to a NumPy object.
