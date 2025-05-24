@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import platform
-from typing import Any, Dict, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 import dockerpycreds  # type: ignore
 
@@ -409,14 +409,7 @@ def _load_legacy_config(
 ) -> Dict[str, Dict[str, Union[str, Dict[str, str]]]]:
     log.debug("Attempting to parse legacy auth file format")
     try:
-        data = []
-        with open(config_file) as f:
-            for line in f.readlines():
-                data.append(line.strip().split(" = ")[1])
-            if len(data) < 2:
-                # Not enough data
-                raise InvalidConfigFileError("Invalid or empty configuration file!")
-
+        data = _read_config_file(config_file)
         username, password = decode_auth(data[0])
         return {
             "auths": {
@@ -433,3 +426,16 @@ def _load_legacy_config(
 
     log.debug("All parsing attempts failed - returning empty config")
     return {}
+
+
+def _read_config_file(config_file: str) -> List[str]:
+    data = []
+    with open(config_file) as f:
+        for line in f.readlines():
+            data.append(line.strip().split(" = ")[1])
+
+    if len(data) < 2:
+        # Not enough data
+        raise InvalidConfigFileError("Invalid or empty configuration file!")
+
+    return data
