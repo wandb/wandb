@@ -14,9 +14,9 @@ import (
 func newTestSystemMonitor() *monitor.SystemMonitor {
 	return monitor.NewSystemMonitor(
 		monitor.SystemMonitorParams{
-			Logger: observability.NewNoOpLogger(),
-			Settings: settings.From(&spb.Settings{}),
-			ExtraWork: runworktest.New(),
+			Logger:             observability.NewNoOpLogger(),
+			Settings:           settings.From(&spb.Settings{}),
+			ExtraWork:          runworktest.New(),
 			GpuResourceManager: monitor.NewGPUResourceManager(false),
 		},
 	)
