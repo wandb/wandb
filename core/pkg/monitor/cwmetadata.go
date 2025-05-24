@@ -120,7 +120,7 @@ func (cwm *CoreWeaveMetadata) Sample() (*spb.StatsRecord, error) {
 func (cwm *CoreWeaveMetadata) Probe() *spb.MetadataRequest {
 	// TODO: call OrganizationCoreWeaveOrganizationID here
 	if cwm.graphqlClient == nil {
-		cwm.logger.Error("coreweave metadata: error collecting data", "error", fmt.Errorf("GraphQL client is nil"))
+		cwm.logger.Debug("coreweave metadata: error collecting data", "error", fmt.Errorf("GraphQL client is nil"))
 		return nil
 	}
 
