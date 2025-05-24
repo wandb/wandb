@@ -257,6 +257,7 @@ class Table(Media):
             self._increment_num = 0
             self._last_logged_idx: int | None = None
             self._previous_increments_paths: list[str] = []
+            self._resume_handled: bool = False
         self._pk_col = None
         self._fk_cols: set[str] = set()
         if allow_mixed_types:
@@ -345,6 +346,24 @@ class Table(Media):
         self._column_types = _dtypes.TypedDictType({})
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
+
+    def handle_resumed_run(
+        self,
+        prev_increments_paths: Optional[List[str]] = None,
+        increment_num: Optional[int] = None,
+    ):
+        """Handle updating incremental table state for resumed runs.
+
+        This method is called when a run is resumed and there are previous
+        increments of this table that need to be preserved. It updates the
+        table's internal state to track previous increments and the current
+        increment number.
+        """
+        if prev_increments_paths:
+            self._previous_increments_paths = prev_increments_paths
+        if increment_num:
+            self._increment_num = increment_num
+        self._resume_handled = True
 
     @allow_relogging_after_mutation
     def cast(self, col_name, dtype, optional=False):
