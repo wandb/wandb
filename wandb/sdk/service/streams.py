@@ -421,8 +421,8 @@ class StreamMux:
     def loop(self) -> None:
         try:
             self._loop()
-        except Exception as e:
-            raise e
+        except Exception:
+            raise
 
     def cleanup(self) -> None:
         pass

@@ -568,7 +568,7 @@ class WandbImporter:
                 if "cannot delete system managed artifact" in str(e):
                     logger.warning("Cannot delete system managed artifact")
                 else:
-                    raise e
+                    raise
 
     def _get_dst_art(
         self, src_art: Run, entity: Optional[str] = None, project: Optional[str] = None
@@ -1475,7 +1475,7 @@ def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
             return None
         if "error parsing ndjson" in str(e):
             return None
-        raise e
+        raise
 
     return df
 

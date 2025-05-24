@@ -489,12 +489,12 @@ class FileStreamApi:
         # TODO: Consolidate with internal_util.ExceptionThread
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             exc_info = sys.exc_info()
             self._exc_info = exc_info
             logger.exception("generic exception in filestream thread")
             wandb._sentry.exception(exc_info)
-            raise e
+            raise
 
     def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:
         """Log dropped chunks and updates dynamic settings."""
