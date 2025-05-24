@@ -377,8 +377,8 @@ class GPU:
             return True
         except pynvml.NVMLError_LibraryNotFound:  # type: ignore
             return False
-        except Exception as e:
-            logger.error(f"Error initializing NVML: {e}")
+        except Exception:
+            logger.exception("Error initializing NVML.")
             return False
 
     def start(self) -> None:
@@ -410,7 +410,7 @@ class GPU:
 
         except pynvml.NVMLError:
             pass
-        except Exception as e:
-            logger.error(f"Error Probing GPU: {e}")
+        except Exception:
+            logger.exception("Error Probing GPU.")
 
         return info

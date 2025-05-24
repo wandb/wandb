@@ -136,8 +136,8 @@ class MetricsMonitor:
                         logger.info(f"Process {metric.name} has exited.")
                         self._shutdown_event.set()
                         break
-                    except Exception as e:
-                        logger.error(f"Failed to sample metric: {e}")
+                    except Exception:
+                        logger.exception("Failed to sample metric.")
                 self._shutdown_event.wait(self.sampling_interval)
                 if self._shutdown_event.is_set():
                     break
@@ -153,8 +153,8 @@ class MetricsMonitor:
                 # aggregated_metrics = wandb.util.merge_dicts(
                 #     aggregated_metrics, metric.serialize()
                 # )
-            except Exception as e:
-                logger.error(f"Failed to serialize metric: {e}")
+            except Exception:
+                logger.exception("Failed to serialize metric.")
         return aggregated_metrics
 
     def publish(self) -> None:
@@ -165,8 +165,8 @@ class MetricsMonitor:
                 self._interface.publish_stats(aggregated_metrics)
             for metric in self.metrics:
                 metric.clear()
-        except Exception as e:
-            logger.error(f"Failed to publish metrics: {e}")
+        except Exception:
+            logger.exception("Failed to publish metrics.")
 
     def start(self) -> None:
         if (self._process is not None) or self._shutdown_event.is_set():

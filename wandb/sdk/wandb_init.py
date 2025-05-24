@@ -364,7 +364,7 @@ class _WandbInit:
                 return None
 
             except KeyError:
-                self._logger.error(
+                self._logger.exception(
                     f"resume file at {resume_file} did not store a run_id"
                 )
                 return None
