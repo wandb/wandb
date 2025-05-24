@@ -401,6 +401,33 @@ def test_add_named_dir(artifact):
     }
 
 
+@pytest.mark.parametrize("merge", [True, False])
+def test_add_dir_again_after_edit(merge, artifact, tmp_path_factory):
+    rootdir = tmp_path_factory.mktemp("test-dir", numbered=True)
+
+    file_changed = rootdir / "file1.txt"
+    file_changed.write_text("will be updated")
+
+    file_not_changed = rootdir / "file2.txt"
+    file_not_changed.write_text("something never changes")
+
+    artifact.add_dir(str(rootdir))
+
+    # If we explicitly pass overwrite=True, allow rewriting an existing file in dir
+    file_changed.write_text("this is the update")
+    expectation = nullcontext() if merge else pytest.raises(ValueError)
+    with expectation:
+        artifact.add_dir(rootdir, merge=merge)
+        # make sure we have two files
+        assert len(artifact.manifest.to_manifest_json()["contents"]) == 2
+
+    # Delete the file, call add_dir again, regardless of merge, we still have the files
+    # we already added because of the mutable policy copy the files.
+    file_changed.unlink()
+    artifact.add_dir(rootdir, merge=merge)
+    assert len(artifact.manifest.to_manifest_json()["contents"]) == 2
+
+
 def test_multi_add(artifact):
     size = 2**27  # 128MB, large enough that it takes >1ms to add.
     filename = "data.bin"
