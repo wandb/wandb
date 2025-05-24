@@ -87,9 +87,9 @@ class GitRepo:
             return None
         try:
             return self.repo.git.rev_parse("--show-toplevel")
-        except GitCommandError as e:
+        except GitCommandError:
             # todo: collect telemetry on this
-            logger.error(f"git root error: {e}")
+            logger.exception("git root error")
             return None
 
     @property

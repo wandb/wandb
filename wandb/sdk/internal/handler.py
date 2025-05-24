@@ -704,8 +704,8 @@ class HandleManager:
         ):
             try:
                 self._metadata = Metadata(**self._system_monitor.probe(publish=True))
-            except Exception as e:
-                logger.error("Error probing system metadata: %s", e)
+            except Exception:
+                logger.exception("Error probing system metadata.")
 
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run

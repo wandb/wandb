@@ -1,4 +1,3 @@
-import ast
 import base64
 import datetime
 import functools
@@ -398,8 +397,7 @@ class Api:
         except requests.exceptions.HTTPError as err:
             response = err.response
             assert response is not None
-            logger.error(f"{response.status_code} response executing GraphQL.")
-            logger.error(response.text)
+            logger.exception("Error executing GraphQL.")
             for error in parse_backend_error_messages(response):
                 wandb.termerror(f"Error while calling W&B API: {error} ({response})")
             raise
@@ -2984,11 +2982,8 @@ class Api:
                 logger.debug("upload_file: %s complete", url)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error(f"upload_file exception {url}: {e}")
-            request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers!r}")
+            logger.exception(f"upload_file exception for {url=}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = status_code == 400 and "RequestTimeout" in str(
@@ -3050,11 +3045,8 @@ class Api:
                     logger.debug("upload_file: %s complete", url)
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error(f"upload_file exception {url}: {e}")
-            request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers}")
+            logger.exception(f"upload_file exception for {url=}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = (
@@ -3181,10 +3173,8 @@ class Api:
                 },
                 timeout=60,
             )
-        except Exception as e:
-            # GQL raises exceptions with stringified python dictionaries :/
-            message = ast.literal_eval(e.args[0])["message"]
-            logger.error("Error communicating with W&B: %s", message)
+        except Exception:
+            logger.exception("Error communicating with W&B.")
             return []
         else:
             result: List[Dict[str, Any]] = json.loads(

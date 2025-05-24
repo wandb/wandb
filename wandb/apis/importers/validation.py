@@ -92,8 +92,8 @@ def _check_entry_is_downloable(entry):
 
     try:
         resp = requests.head(url, allow_redirects=True)
-    except Exception as e:
-        logger.error(f"Problem validating {entry=}, {e=}")
+    except Exception:
+        logger.exception(f"Problem validating {entry=}")
         return False
 
     if resp.status_code != 200:
