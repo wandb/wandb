@@ -195,6 +195,7 @@ select = [
     # tryceratops
     "TRY004", # type-check-without-type-error
     "TRY201", # verbose-raise
+    "TRY203", # useless-try-except
 ]
 ignore = [
     "B904",
