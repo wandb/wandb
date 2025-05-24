@@ -6,21 +6,10 @@ import abc
 import dataclasses
 import json
 import re
-import sys
 import threading
-from typing import Any
 
 import fastapi
-
-if sys.version_info >= (3, 12):
-    from typing import override
-else:
-    from typing_extensions import override
-
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
+from typing_extensions import Any, TypeAlias, override
 
 # Matches queries containing a line in one of the following forms:
 #   mutation OpName(
