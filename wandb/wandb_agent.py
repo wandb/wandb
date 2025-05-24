@@ -94,14 +94,11 @@ class AgentProcess:
         if self._popen:
             # if on windows, wait() will block and we won't be able to interrupt
             if platform.system() == "Windows":
-                try:
-                    while True:
-                        p = self._popen.poll()
-                        if p is not None:
-                            return p
-                        time.sleep(1)
-                except KeyboardInterrupt:
-                    raise
+                while True:
+                    p = self._popen.poll()
+                    if p is not None:
+                        return p
+                    time.sleep(1)
             return self._popen.wait()
         return self._proc.join()
 
