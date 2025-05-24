@@ -141,6 +141,7 @@ def test_launch_sweep_scheduler_resources(user, scheduler_args, msg):
         "num-workers-str",
     ],
 )
+@pytest.mark.wandb_core_only
 def test_launch_sweep_launch_uri(user, image_uri, launch_config):
     queue = "test"
     api = InternalApi()
@@ -186,6 +187,7 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config):
     assert "Scheduler added to launch queue (test)" in out.decode("utf-8")
 
 
+@pytest.mark.wandb_core_only
 def test_launch_sweep_launch_resume(user):
     api = InternalApi()
     public_api = Api()
