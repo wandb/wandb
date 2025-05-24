@@ -1713,10 +1713,10 @@ class Run:
         commit: bool | None = None,
     ) -> None:
         if not isinstance(data, Mapping):
-            raise ValueError("wandb.log must be passed a dictionary")
+            raise TypeError("wandb.log must be passed a dictionary")
 
         if any(not isinstance(key, str) for key in data.keys()):
-            raise ValueError("Key values passed to `wandb.log` must be strings.")
+            raise TypeError("Key values passed to `wandb.log` must be strings.")
 
         self._partial_history_callback(data, step, commit)
 
@@ -3450,7 +3450,7 @@ class Run:
         else:
             artifact = artifact_or_path
         if not isinstance(artifact, wandb.Artifact):
-            raise ValueError(
+            raise TypeError(
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"
             )
@@ -3704,7 +3704,7 @@ class Run:
         if isinstance(wait_duration, int) or isinstance(wait_duration, float):
             wait_duration = timedelta(seconds=wait_duration)
         elif not callable(getattr(wait_duration, "total_seconds", None)):
-            raise ValueError(
+            raise TypeError(
                 "wait_duration must be an int, float, or datetime.timedelta"
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
