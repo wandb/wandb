@@ -56,6 +56,35 @@ def _warn_on_invalid_data_range(
         )
 
 
+def _normalize(data: "np.ndarray") -> "np.ndarray":
+    """Normalizes and converts image pixel values to uint8 in the range [0, 255]."""
+    np = util.get_module(
+        "numpy",
+        required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
+    )
+
+    # if an image has negative values, set all values to be in the range [0, 1]
+    # This can lead to inconsistent behavior when an image has only a single negative value
+    if np.min(data) < 0:
+        data = data - np.min(data)
+
+    if np.ptp(data) != 0:
+        data = data / np.ptp(data)
+
+    if np.max(data) <= 1.0:
+        data = (255 * data).astype(np.int32)
+
+    return data.clip(0, 255)
+
+
+def _convert_to_uint8(data: "np.ndarray") -> "np.ndarray":
+    np = util.get_module(
+        "numpy",
+        required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
+    )
+    return data.astype(np.uint8)
+
+
 def _server_accepts_image_filenames(run: "LocalRun") -> bool:
     if run.offline:
         return True
@@ -363,8 +392,8 @@ class Image(BatchableMedia):
 
             _warn_on_invalid_data_range(data, normalize)
 
-            data = self.normalize(data) if normalize else data
-            data = self.convert_to_uint8(data)
+            data = _normalize(data) if normalize else data
+            data = _convert_to_uint8(data)
 
             if data.ndim > 2:
                 data = data.squeeze()
@@ -382,8 +411,8 @@ class Image(BatchableMedia):
             _warn_on_invalid_data_range(data, normalize)
 
             mode = mode or self.guess_mode(data, file_type)
-            data = self.normalize(data) if normalize else data
-            data = self.convert_to_uint8(data)
+            data = _normalize(data) if normalize else data
+            data = _convert_to_uint8(data)
             self._image = pil_image.fromarray(
                 data,
                 mode=mode,
@@ -558,32 +587,6 @@ class Image(BatchableMedia):
             raise ValueError(
                 f"Un-supported shape for image conversion {list(data.shape)}"
             )
-
-    @classmethod
-    def normalize(cls, data: "np.ndarray") -> "np.ndarray":
-        """Normalizes and converts image pixel values to uint8 in the range [0, 255]."""
-        np = util.get_module(
-            "numpy",
-            required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
-        )
-
-        # if an image has negative values, set all values to be in the range [0, 1]
-        # This can lead to inconsistent behavior when an image has only a single negative value
-        if np.min(data) < 0 and np.ptp(data) != 0:
-            data = (data - np.min(data)) / np.ptp(data)
-
-        if np.max(data) <= 1.0:
-            data = (255 * data).astype(np.int32)
-
-        return data.clip(0, 255)
-
-    @classmethod
-    def convert_to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
-        np = util.get_module(
-            "numpy",
-            required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
-        )
-        return data.astype(np.uint8)
 
     @classmethod
     def seq_to_json(
