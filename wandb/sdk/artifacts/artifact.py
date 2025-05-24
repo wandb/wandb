@@ -649,9 +649,10 @@ class Artifact:
         if not self.is_link:
             return self
         if self._source_artifact is None:
+            if self._client is None:
+                raise ValueError("Client is not initialized")
+
             try:
-                if self._client is None:
-                    raise ValueError("Client is not initialized")
                 artifact = self._from_name(
                     entity=self.source_entity,
                     project=self.source_project,

@@ -329,7 +329,7 @@ class Agent:
             elif command_type == "resume":
                 result = self._command_run(command)
             else:
-                raise AgentError(f"No such command: {command_type}")
+                raise AgentError(f"No such command: {command_type}")  # noqa: TRY301
             response["result"] = result
         except Exception:
             logger.exception("Exception while processing command: %s", command)

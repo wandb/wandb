@@ -440,11 +440,11 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
 
         # Raise and capture real exceptions so we have a stack trace in the event.
         try:
-            raise Exception(expected_other_sentry_response.message)
+            raise Exception(expected_other_sentry_response.message)  # noqa: TRY301
         except Exception as e:
             other_sentry_event_id = sentry_sdk.capture_exception(e)
         try:
-            raise Exception(expected_wandb_sentry_response.message)
+            raise Exception(expected_wandb_sentry_response.message)  # noqa: TRY301
         except Exception as e:
             wandb_sentry_event_id = wandb_sentry.exception(e)
 
