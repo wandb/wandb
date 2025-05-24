@@ -31,8 +31,7 @@ def get_service_token() -> ServiceToken | None:
 
     if version != _CURRENT_VERSION:
         raise ValueError(
-            f"Expected version {_CURRENT_VERSION},"
-            f" but got {version} (token={token})"
+            f"Expected version {_CURRENT_VERSION}, but got {version} (token={token})"
         )
     if transport not in _SUPPORTED_TRANSPORTS:
         raise ValueError(
