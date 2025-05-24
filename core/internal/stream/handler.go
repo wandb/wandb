@@ -73,6 +73,8 @@ type Handler struct {
 	mailbox *mailbox.Mailbox
 
 	// metadata stores the run metadata including system stats
+	//
+	// The Sender also tracks run metadata, but it is not syncronized with this.
 	metadata *spb.MetadataRequest
 
 	// metricHandler is the metric handler for the stream

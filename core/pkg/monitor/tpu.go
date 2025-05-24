@@ -181,10 +181,6 @@ func (t *TPU) Sample() (*spb.StatsRecord, error) {
 	return marshal(metrics, timestamppb.Now()), nil
 }
 
-func (t *TPU) IsAvailable() bool {
-	return t.count > 0
-}
-
 // Close closes the gRPC connection and releases resources.
 func (t *TPU) Close() {
 	if t.conn != nil {
