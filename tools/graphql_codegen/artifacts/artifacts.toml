@@ -10,14 +10,13 @@ target_package_name = "_generated"
 include_all_inputs = false # Only generate input types needed for queries
 include_all_enums = false  # Only generate enums needed for queries
 
-plugins = [
-    "ariadne_codegen.contrib.extract_operations.ExtractOperationsPlugin",
-    "graphql_codegen.plugin.FixFragmentOrder",
-    "graphql_codegen.plugin.GraphQLCodegenPlugin",
-]
+plugins = ["graphql_codegen.plugin"]
 
 [tool.ariadne-codegen.scalars.ID]
 type = "wandb._pydantic.GQLId"
+
+[tool.ariadne-codegen.scalars.JSONString]
+type = "str"
 
 [tool.ariadne-codegen.scalars.DateTime]
 # `DateTime` fields here will continue to be parsed as plain strings here

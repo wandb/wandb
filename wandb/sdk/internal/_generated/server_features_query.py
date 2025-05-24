@@ -5,13 +5,11 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase
 
 
 class ServerFeaturesQuery(GQLBase):
-    server_info: Optional[ServerFeaturesQueryServerInfo] = Field(alias="serverInfo")
+    server_info: Optional[ServerFeaturesQueryServerInfo]
 
 
 class ServerFeaturesQueryServerInfo(GQLBase):
@@ -20,7 +18,7 @@ class ServerFeaturesQueryServerInfo(GQLBase):
 
 class ServerFeaturesQueryServerInfoFeatures(GQLBase):
     name: str
-    is_enabled: bool = Field(alias="isEnabled")
+    is_enabled: bool
 
 
 ServerFeaturesQuery.model_rebuild()

@@ -41,11 +41,11 @@ def base_class_names(class_def: ast.ClassDef) -> list[str]:
 def is_redundant_subclass_def(stmt: ast.ClassDef) -> TypeGuard[ast.ClassDef]:
     """Return True if this class definition is a redundant subclass definition.
 
-    A redundant subclass will look like:
+    A redundant subclass will look like, e.g.:
+
         class MyClass(ParentClass):
             pass
 
-    is redundant if it has only one base class, and
     """
     return (
         is_class_def(stmt)
@@ -78,6 +78,15 @@ def is_import_from(stmt: ast.stmt) -> TypeGuard[ast.ImportFrom]:
     return isinstance(stmt, ast.ImportFrom)
 
 
+def is_union(node: ast.stmt) -> TypeGuard[ast.Subscript]:
+    """Return True if this node is a `Union[...]` expression."""
+    return (
+        isinstance(node, ast.Subscript)
+        and (node.value.id == "Union")
+        and isinstance(node.slice, ast.Tuple)
+    )
+
+
 def is_model_rebuild(node: ast.stmt) -> TypeGuard[ast.Expr]:
     """Return True if this node is a generated `PydanticModel.model_rebuild()` statement.
 
@@ -99,6 +108,15 @@ def is_model_rebuild(node: ast.stmt) -> TypeGuard[ast.Expr]:
         and isinstance(node.value, ast.Call)
         and isinstance(node.value.func, ast.Attribute)
         and (node.value.func.attr == "model_rebuild")
+    )
+
+
+def is_pydantic_field(node: ast.stmt) -> TypeGuard[ast.Call]:
+    """Return True if this node is a pydantic `Field(...)` call."""
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and (node.func.id == "Field")
     )
 
 
@@ -145,3 +163,24 @@ def make_import_from(
     return ast.ImportFrom(
         module=module, names=[ast.alias(name) for name in names], level=level
     )
+
+
+def make_subscript(name: str, slice_: ast.expr) -> ast.Subscript:
+    """Generate the AST node for a `Subscript` expression.
+
+    In practice, these would be used to generate special/generic type annotations, e.g.:
+    - `Annotated[MyType, ...]`
+    - `Literal[...]`
+    - `Union[..., MyType, ...]`
+    """
+    return ast.Subscript(value=ast.Name(id=name), slice=slice_)
+
+
+def make_literal(slice_: ast.expr) -> ast.Subscript:
+    """Generate the AST node for a `Literal[...]` expression."""
+    return make_subscript("Literal", slice_)
+
+
+def make_annotated(elts: Iterable[ast.expr]) -> ast.Subscript:
+    """Generate the AST node for an `Annotated[...]` expression."""
+    return make_subscript("Annotated", ast.Tuple(elts=elts))

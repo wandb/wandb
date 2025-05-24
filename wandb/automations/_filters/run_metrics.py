@@ -74,7 +74,7 @@ class ChangeDir(LenientStrEnum):  # from: RunMetricChangeDirection
     DEC = DECREASE
 
 
-class BaseMetricFilter(GQLBase, ABC, extra="forbid"):
+class BaseMetricFilter(GQLBase, ABC, extra="forbid", alias_generator=None):
     name: str
     """Name of the observed metric."""
 

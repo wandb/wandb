@@ -5,21 +5,17 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase, GQLId, Typename
 
 
 class MoveArtifactCollection(GQLBase):
-    move_artifact_sequence: Optional[MoveArtifactCollectionMoveArtifactSequence] = (
-        Field(alias="moveArtifactSequence")
-    )
+    move_artifact_sequence: Optional[MoveArtifactCollectionMoveArtifactSequence]
 
 
 class MoveArtifactCollectionMoveArtifactSequence(GQLBase):
     artifact_collection: Optional[
         MoveArtifactCollectionMoveArtifactSequenceArtifactCollection
-    ] = Field(alias="artifactCollection")
+    ]
 
 
 class MoveArtifactCollectionMoveArtifactSequenceArtifactCollection(GQLBase):
