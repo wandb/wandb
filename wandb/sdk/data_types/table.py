@@ -24,9 +24,7 @@ from .utils import _json_helper
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts import artifact
-
     from ...wandb_run import Run as LocalRun
-
 
 class _TableLinkMixin:
     def set_table(self, table):
@@ -788,7 +786,7 @@ class Table(Media):
                 }
             )
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise TypeError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         return json_dict
 

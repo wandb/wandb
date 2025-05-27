@@ -220,7 +220,7 @@ class ImageMask(Media):
             # Nothing special to add (used to add "digest", but no longer used.)
             return json_dict
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb.Artifact")
+            raise TypeError("to_json accepts wandb_run.Run or wandb.Artifact")
 
     @classmethod
     def type_name(cls: Type["ImageMask"]) -> str:

@@ -30,6 +30,11 @@ This version removes the ability to disable the `service` process. This is a bre
 - Added support for initializing some Media objects with `pathlib.Path` (@jacobromero in https://github.com/wandb/wandb/pull/9692)
 - New setting `x_skip_transaction_log` that allows to skip the transaction log. Note: Should be used with caution, as it removes the gurantees about
     recoverability. (@kptkin in https://github.com/wandb/wandb/pull/9064)
+- `normalize` parameter to `wandb.Image` initialization to normalize pixel values for Images initialized with a numpy array or pytorch tensor. (@jacobromero in https://github.com/wandb/wandb/pull/9883)
+
+### Changed
+
+- Various APIs now raise `TypeError` instead of `ValueError` or other generic errors when given an argument of the wrong type. (@timoffex in https://github.com/wandb/wandb/pull/9902)
 
 ### Removed
 
@@ -45,3 +50,6 @@ This version removes the ability to disable the `service` process. This is a bre
 - Calling `wandb.teardown()` in a child of a process that called `wandb.setup()` no longer raises `WandbServiceNotOwnedError` (@timoffex in https://github.com/wandb/wandb/pull/9875)
   - This error could have manifested when using W&B Sweeps
 - Offline runs with requested branching (fork or rewind) sync correctly (@dmitryduev in https://github.com/wandb/wandb/pull/9876)
+- Log exception as string when raising exception in Job wait_until_running method (@KyleGoyette in https://github.com/wandb/wandb/pull/9607)
+- `wandb.Image` initialized with tensorflow data would be normalized differently than when initialized with a numpy array (@jacobromero in https://github.com/wandb/wandb/pull/9883)
+- Using `wandb login` no longer prints a warning about `wandb.require("legacy-service")` (@timoffex in https://github.com/wandb/wandb/pull/9912)

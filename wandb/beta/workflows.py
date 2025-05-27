@@ -47,8 +47,9 @@ def _add_any(
             with artifact.new_file(name) as f:
                 f.write(json.dumps(path_or_obj, sort_keys=True))
     else:
-        raise ValueError(
-            f"Expected `path_or_obj` to be instance of `ArtifactManifestEntry`, `WBValue`, or `str, found {type(path_or_obj)}"
+        raise TypeError(
+            "Expected `path_or_obj` to be instance of `ArtifactManifestEntry`,"
+            f" `WBValue`, or `str, found {type(path_or_obj)}"
         )
 
 

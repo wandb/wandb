@@ -571,6 +571,7 @@ def mypy_report(session: nox.Session) -> None:
         # https://github.com/python/mypy/issues/17166
         "mypy != 1.10.0",
         "numpy",
+        "packaging",
         "pandas-stubs",
         "pip",
         "platformdirs",
@@ -588,7 +589,7 @@ def mypy_report(session: nox.Session) -> None:
         # Fix for removal of pkg_resources
         # TODO(@jacobromero): remove version constraint
         # after migrating away from pkg_resources
-        "types-setuptools < 80.7",
+        "types-setuptools",
         "types-six",
         "types-tqdm",
     )
