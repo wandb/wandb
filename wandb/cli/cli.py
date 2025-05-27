@@ -31,6 +31,7 @@ from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
 from wandb.errors.links import url_registry
+from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.internal.internal_api import Api as SDKInternalApi
@@ -118,9 +119,6 @@ _api = None  # caching api instance allows patching from unit tests
 
 def _get_cling_api(reset=None):
     """Get a reference to the internal api with cling settings."""
-    # TODO: move CLI to wandb-core backend
-    wandb.require("legacy-service")
-
     global _api
     if reset:
         _api = None
@@ -128,7 +126,10 @@ def _get_cling_api(reset=None):
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
         # only override the necessary setting
-        wandb.setup(settings=wandb.Settings(x_cli_only_mode=True))
+        wandb_setup._setup(
+            settings=wandb.Settings(x_cli_only_mode=True),
+            start_service=False,
+        )
         _api = InternalApi()
     return _api
 
@@ -231,9 +232,6 @@ def projects(entity, display=True):
 )
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
-    # TODO: move CLI to wandb-core backend
-    wandb.require("legacy-service")
-
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
@@ -242,11 +240,12 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     key = key[0] if key is not None and len(key) > 0 else None
     relogin = True if key or relogin else False
 
-    wandb.setup(
+    wandb_setup._setup(
         settings=wandb.Settings(
             x_cli_only_mode=True,
             x_disable_viewer=relogin and not verify,
-        )
+        ),
+        start_service=False,
     )
 
     wandb.login(
