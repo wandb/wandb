@@ -351,10 +351,10 @@ class Table(Media):
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
 
-    def handle_resumed_run(
+    def _load_incr_state_from_resumed_run(
         self,
-        prev_increments_paths: Optional[List[str]] = None,
-        increment_num: Optional[int] = None,
+        run: "LocalRun",
+        key: str
     ):
         """Handle updating incremental table state for resumed runs.
 
@@ -363,11 +363,32 @@ class Table(Media):
         table's internal state to track previous increments and the current
         increment number.
         """
-        if prev_increments_paths:
-            self._previous_increments_paths = prev_increments_paths
-        if increment_num:
-            self._increment_num = increment_num
+        self._set_incremental_table_run_target(run)
+
+        summary_from_key = run.summary.get(key)
+
+        if (
+            summary_from_key is None
+            or not isinstance(summary_from_key, dict)
+            or summary_from_key.get("_type") != "incremental-table-file"
+        ):
+            return
+        
+        previous_increments_paths = summary_from_key.get("previous_increments_paths", [])
+
+        # add the artifact path of the last logged increment
+        last_artifact_path = summary_from_key.get("artifact_path")
+
+        if last_artifact_path:
+            previous_increments_paths.append(last_artifact_path)
+
+        # add 1 because a new increment is being logged
+        last_increment_num = summary_from_key.get("increment_num", 0)
+
+        self._increment_num = last_increment_num + 1
+        self._previous_increments_paths = previous_increments_paths
         self._resume_handled = True
+        
 
     def _set_incremental_table_run_target(self, run: "LocalRun") -> None:
         """Associate a Run object with this incremental Table.

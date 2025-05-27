@@ -12,40 +12,6 @@ if TYPE_CHECKING:
 ART_TYPE = "wandb-run-incremental-table"
 
 
-def handle_resumed_run(incr_table: Table, run: LocalRun, key: str):
-    """Set state on incrementally logged Table from resumed run.
-
-    Handles setting recordkeeping data members to maintain continuity for
-    previously logged incremental tables on the same history key.
-    """
-    if not run.resumed or incr_table._resume_handled:
-        return
-
-    summary = run.summary
-
-    summary_from_key = summary.get(key)
-
-    if (
-        summary_from_key is None
-        or not isinstance(summary_from_key, dict)
-        or summary_from_key.get("_type") != "incremental-table-file"
-    ):
-        incr_table.handle_resumed_run()
-        return
-
-    previous_increments_paths = summary_from_key.get("previous_increments_paths", [])
-
-    # add the artifact path of the last logged increment
-    last_artifact_path = summary_from_key.get("artifact_path")
-    if last_artifact_path:
-        previous_increments_paths.append(last_artifact_path)
-
-    # add 1 because a new increment is being logged
-    increment_num = summary_from_key.get("increment_num", 0) + 1
-
-    incr_table.handle_resumed_run(previous_increments_paths, increment_num)
-
-
 def _get_artifact_name(run: LocalRun, sanitized_key: str) -> str:
     return f"run-{run.id}-incr-{sanitized_key}"
 
