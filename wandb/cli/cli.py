@@ -2734,18 +2734,22 @@ def enabled(service):
 
 @cli.command(
     context_settings=CONTEXT,
-    help="""Checks and verifies local instance of W&B. Checks include
+    help="""Checks and verifies local instance of W&B. W&B checks for the following:
 
-    * Host Check: Ensures that the host is not api.wandb.ai because verification cannot be run against this host.
-    * Login Check: Verifies if the user is logged in correctly using the provided API key.
-    * Secure Requests: Ensures that requests are made over HTTPS.
-    * CORS Configuration: Validates the CORS (Cross-Origin Resource Sharing) configuration of the object store.
-    * Run Check: Logs metrics, saves, and downloads files to check if runs are correctly recorded and accessible.
-    * Artifact Check: Saves and downloads artifacts to verify that the artifact storage and retrieval system is working as expected.
-    * GraphQL PUT Check: Tests the GraphQL endpoint by uploading a file to ensure it can handle signed URL uploads.
-    * Large Payload Check: Ensures the ability to send large payloads through the proxy.
-    * W&B Version Check: Verifies that the installed version of the W&B package is up-to-date and compatible with the server.
-    * Sweeps Check: Creates and executes a sweep to ensure that sweep functionality is working correctly.
+    Checks that the host is not api.wandb.ai (host check).
+    Verifies if the user is logged in correctly using the provided API key (login check).
+    Checks that requests are made over HTTPS (secure requests).
+    Validates the CORS (Cross-Origin Resource Sharing) configuration of the
+    object store (CORS configuration). Logs metrics, saves, and downloads files
+    to check if runs are correctly recorded and accessible (run check).
+    Saves and downloads artifacts to verify that the artifact storage and
+    retrieval system is working as expected (artifact check). Tests the GraphQL
+    endpoint by uploading a file to ensure it can handle signed URL
+    uploads (GraphQL PUT check). Checks the ability to send large payloads
+    through the proxy (large payload check). Verifies that the installed
+    version of the W&B package is up-to-date and
+    compatible with the server (W&B version check). Creates and executes a
+    sweep to ensure that sweep functionality is working correctly (sweeps check).
 """,
 )
 @click.option("--host", default=None, help="Test a specific instance of W&B")
