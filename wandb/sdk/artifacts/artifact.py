@@ -157,7 +157,10 @@ class Artifact:
                 f"Artifact name may only contain alphanumeric characters, dashes, "
                 f"underscores, and dots. Invalid name: {name}"
             )
-        if incremental:
+
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
+        if incremental and not isinstance(self, InternalArtifact):
             termwarn("Using experimental arg `incremental`")
 
         # Internal.
