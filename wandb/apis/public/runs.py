@@ -400,7 +400,14 @@ class Run(Attrs):
         return new_name
 
     @classmethod
-    def create(cls, api, run_id=None, project=None, entity=None, state: Literal["running", "pending"] = "running"):
+    def create(
+        cls,
+        api,
+        run_id=None,
+        project=None,
+        entity=None,
+        state: Literal["running", "pending"] = "running",
+    ):
         """Create a run for the given project."""
         run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
@@ -421,7 +428,12 @@ class Run(Attrs):
         }
         """
         )
-        variables = {"entity": entity, "project": project, "name": run_id, "state": state}
+        variables = {
+            "entity": entity,
+            "project": project,
+            "name": run_id,
+            "state": state,
+        }
         res = api.client.execute(mutation, variable_values=variables)
         res = res["upsertBucket"]["bucket"]
         return Run(
