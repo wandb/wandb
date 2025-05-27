@@ -21,6 +21,7 @@ import wandb
 from wandb.apis import InternalApi
 from wandb.errors import term
 from wandb.errors.links import url_registry
+from wandb.sdk import wandb_setup
 from wandb.util import _is_databricks, isatty, prompt_choices
 
 if TYPE_CHECKING:
@@ -316,7 +317,7 @@ def write_key(
 
 def api_key(settings: Settings | None = None) -> str | None:
     if settings is None:
-        settings = wandb.setup().settings
+        settings = wandb_setup._setup(start_service=False).settings
     if settings.api_key:
         return settings.api_key
 

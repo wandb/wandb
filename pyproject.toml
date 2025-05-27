@@ -20,10 +20,9 @@ dependencies = [
     # setuptools is needed for distutils in dependencies after Python 3.12 :(
     # One such dependency is docker-pycreds, where the latest release is 0.4.0
     # which was released in 2018.
-    # Pinning to 80.7 due to removal of pkg_resources causing CI failures.
-    # TODO(@jacobromero): remove version constraint
-    # after migrating away from pkg_resources
-    "setuptools<80.7",
+    # Prior versions of setuptools cause failures in tests.
+    # 66.1.0 is the oldest version that passes tests.
+    "setuptools>=66.1.0",
     "protobuf>=3.12.0,!=4.21.0,!=5.28.0,<7; python_version < '3.9' and sys_platform == 'linux'",
     "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<7; python_version == '3.9' and sys_platform == 'linux'",
     "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; python_version > '3.9' and sys_platform == 'linux'",
@@ -34,6 +33,7 @@ dependencies = [
     "typing_extensions>=4.8,<5",
     "pydantic<3",
     "eval_type_backport; python_version < '3.10'",
+    "packaging",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -191,6 +191,9 @@ select = [
     "C90", # mccabe
     "UP",  # pyupgrade
     "T20", # flake8-print
+
+    # tryceratops
+    "TRY004", # type-check-without-type-error
 ]
 ignore = [
     "B904",

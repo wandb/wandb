@@ -1623,8 +1623,9 @@ class Artifact:
             data_types._SavedModel,
         )
         if not isinstance(obj, allowed_types):
-            raise ValueError(
-                f"Found object of type {obj.__class__}, expected one of: {allowed_types}"
+            raise TypeError(
+                f"Found object of type {obj.__class__}, expected one of:"
+                f" {allowed_types}"
             )
 
         obj_id = id(obj)
