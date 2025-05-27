@@ -358,6 +358,9 @@ class Table(Media):
         table's internal state to track previous increments and the current
         increment number.
         """
+        if self._previous_increments_paths is not None or self._increment_num is not None:
+            raise AssertionError("The table has been initialized for a resumed run already")
+
         self._set_incremental_table_run_target(run)
 
         summary_from_key = run.summary.get(key)
