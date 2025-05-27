@@ -400,7 +400,7 @@ class Run(Attrs):
         return new_name
 
     @classmethod
-    def create(cls, api, run_id=None, project=None, entity=None, state: Optional[str] = "running"):
+    def create(cls, api, run_id=None, project=None, entity=None, state: Literal["running", "pending"] = "running"):
         """Create a run for the given project."""
         run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
