@@ -69,7 +69,7 @@ class SagemakerSubmittedRun(AbstractRun):
             )
             assert "events" in res
             return "\n".join(
-                [f'{event["timestamp"]}:{event["message"]}' for event in res["events"]]
+                [f"{event['timestamp']}:{event['message']}" for event in res["events"]]
             )
         except self.log_client.exceptions.ResourceNotFoundException:
             wandb.termwarn(
@@ -398,9 +398,7 @@ async def launch_sagemaker_job(
     wandb.termlog(
         f"{LOG_PREFIX}Run job submitted with arn: {resp.get('TrainingJobArn')}"
     )
-    url = "https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/jobs/{job_name}".format(
-        region=sagemaker_client.meta.region_name, job_name=training_job_name
-    )
+    url = f"https://{sagemaker_client.meta.region_name}.console.aws.amazon.com/sagemaker/home?region={sagemaker_client.meta.region_name}#/jobs/{training_job_name}"
     wandb.termlog(f"{LOG_PREFIX}See training job status at: {url}")
     return run
 

@@ -260,82 +260,94 @@ def test_datetime_conversion():
     ]
 
 
-class TestTableLoggingModes:
-    """Tests for different table logging modes."""
+def test_table_logging_mode_validation(self):
+    """Test that invalid logging modes raise an error."""
+    with pytest.raises(AssertionError):
+        wandb.Table(log_mode="INVALID_MODE")
 
-    def test_table_logging_mode_validation(self):
-        """Test that invalid logging modes raise an error."""
-        with pytest.raises(AssertionError):
-            wandb.Table(log_mode="INVALID_MODE")
 
-    def test_table_logging_mode_mutable(self):
-        """Test that MUTABLE mode allows re-logging after mutations."""
-        t = wandb.Table(columns=["a", "b"], log_mode="MUTABLE")
-        t._run = "dummy_run"
-        t._artifact_target = "dummy_target"
-        t.add_data(1, 2)
-        assert t._run is None
-        assert t._artifact_target is None
+def test_table_logging_mode_mutable(self):
+    """Test that MUTABLE mode allows re-logging after mutations."""
+    t = wandb.Table(columns=["a", "b"], log_mode="MUTABLE")
+    t._run = "dummy_run"
+    t._artifact_target = "dummy_target"
 
-    def test_table_logging_mode_immutable(self):
-        """Test that IMMUTABLE mode preserves state after mutations."""
-        t = wandb.Table(columns=["a", "b"], log_mode="IMMUTABLE")
-        t._run = "dummy_run"
-        t._artifact_target = "dummy_target"
-        t.add_data(1, 2)
-        assert t._run == "dummy_run"
-        assert t._artifact_target == "dummy_target"
+    t.add_data(1, 2)
 
-    def test_table_logging_mode_incremental(self):
-        """Test that INCREMENTAL mode handles partial logging correctly."""
-        t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
-        assert hasattr(t, "_increment_num")
-        assert t._increment_num == 0
+    assert t._run is None
+    assert t._artifact_target is None
 
-        t.add_data("Yes", "No")
 
-        assert t._increment_num == 0
+def test_table_logging_mode_immutable(self):
+    """Test that IMMUTABLE mode preserves state after mutations."""
+    t = wandb.Table(columns=["a", "b"], log_mode="IMMUTABLE")
+    t._run = "dummy_run"
+    t._artifact_target = "dummy_target"
 
-        # simulate logging
-        t._set_artifact_target(wandb.Artifact("dummy_art", "placeholder"), "dummy_art")
+    t.add_data(1, 2)
 
-        t.add_data("Yes", "No")
-        assert t._increment_num == 1
-        assert t._artifact_target is None
+    assert t._run == "dummy_run"
+    assert t._artifact_target == "dummy_target"
 
-    def test_table_logging_mode_incremental_operations(self, mock_wandb_log):
-        """Test that INCREMENTAL mode correctly handles unsupported operations."""
-        t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
 
-        # Test that add_column is not supported
-        with pytest.raises(wandb.Error) as e:
-            t.add_column("c", [1, 2])
+def test_table_logging_mode_incremental(self):
+    """Test that INCREMENTAL mode handles partial logging correctly."""
+    t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
+
+    assert hasattr(t, "_increment_num")
+    assert t._increment_num == 0
+
+    t.add_data("Yes", "No")
+
+    assert t._increment_num == 0
+
+    # simulate logging
+    t._set_artifact_target(wandb.Artifact("dummy_art", "placeholder"), "dummy_art")
+
+    t.add_data("Yes", "No")
+
+    assert t._increment_num == 1
+    assert t._artifact_target is None
+
+
+def test_table_logging_mode_incremental_operations(self, mock_wandb_log):
+    """Test that INCREMENTAL mode correctly handles unsupported operations."""
+    t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
+
+    # Test that add_column is not supported
+    with pytest.raises(wandb.Error) as e:
+        t.add_column("c", [1, 2])
+
+    assert (
+        "Operation 'add_column' is not supported for tables with"
+        " log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
+    ) in str(e)
+
+    # Test that add_computed_columns is not supported
+    def compute_fn(ndx, row):
+        return {"c": row["a"] + 1}
+
+    with pytest.raises(wandb.Error) as e:
+        t.add_computed_columns(compute_fn)
+
         assert (
-            "Operation 'add_column' is not supported for tables with"
+            "Operation 'add_computed_columns' is not supported for tables with"
             " log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
         ) in str(e)
 
-        # Test that add_computed_columns is not supported
-        def compute_fn(ndx, row):
-            return {"c": row["a"] + 1}
 
-        with pytest.raises(wandb.Error) as e:
-            t.add_computed_columns(compute_fn)
-            assert (
-                "Operation 'add_computed_columns' is not supported for tables with"
-                " log_mode='INCREMENTAL'. Use a different log mode like 'MUTABLE' or 'IMMUTABLE'."
-            ) in str(e)
+def test_table_logging_mode_incremental_warnings(self, mock_wandb_log):
+    """Test that INCREMENTAL mode shows warning when exceeding 100 increments"""
 
-    def test_table_logging_mode_incremental_warnings(self, mock_wandb_log):
-        """Test that INCREMENTAL mode shows warning when exceeding 100 increments"""
+    t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
 
-        t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
+    # Test warning for max increments
+    t._increment_num = 99
+    t._set_artifact_target(wandb.Artifact("dummy_art", "placeholder"), "dummy_art")
 
-        # Test warning for max increments
-        t._increment_num = 99
-        t._set_artifact_target(wandb.Artifact("dummy_art", "placeholder"), "dummy_art")
-        t.add_data("test", "test")
-        assert mock_wandb_log.warned(
-            "You have exceeded 100 increments for this table. "
-            "Only the latest 100 increments will be visualized in the run workspace."
-        )
+    t.add_data("test", "test")
+
+    assert mock_wandb_log.warned(
+        "You have exceeded 100 increments for this table. "
+        "Only the latest 100 increments will be visualized in the run workspace."
+    )

@@ -46,7 +46,7 @@ def handle_resumed_run(incr_table: Table, run: LocalRun, key: str):
     incr_table.handle_resumed_run(previous_increments_paths, increment_num)
 
 
-def _get_artifact_name(run: LocalRun, sanitized_key: str):
+def _get_artifact_name(run: LocalRun, sanitized_key: str) -> str:
     return f"run-{run.id}-incr-{sanitized_key}"
 
 
@@ -81,5 +81,5 @@ def get_entry_name(incr_table: Table, key: str) -> str:
     Returns:
         A unique string name for the table entry
     """
-    epoch = str(int(time.time() * 1000))
+    epoch = time.time_ns() // 1_000_000
     return f"{incr_table._increment_num}-{epoch}.{key}"

@@ -161,7 +161,7 @@ def val_to_json(
         res = val.to_json(run)
 
         if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
-            # Set the _last_logged_idx after the Table has been logged and
+            # Set the _last_logged_idx AFTER the Table has been logged and
             # bound to the run.
             val._last_logged_idx = len(val.data) - 1
         return res

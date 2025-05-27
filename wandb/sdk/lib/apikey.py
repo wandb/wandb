@@ -237,9 +237,7 @@ def write_netrc(host: str, entity: str, key: str):
     _, key_suffix = key.split("-", 1) if "-" in key else ("", key)
     if len(key_suffix) != 40:
         raise ValueError(
-            "API-key must be exactly 40 characters long: {} ({} chars)".format(
-                key_suffix, len(key_suffix)
-            )
+            f"API-key must be exactly 40 characters long: {key_suffix} ({len(key_suffix)} chars)"
         )
 
     normalized_host = urlparse(host).netloc
@@ -276,7 +274,7 @@ def write_netrc(host: str, entity: str, key: str):
                     elif skip:
                         skip -= 1
                     else:
-                        f.write("{}\n".format(line))
+                        f.write(f"{line}\n")
 
             wandb.termlog(
                 f"Appending key for {normalized_host} to your netrc file: {netrc_path}"
@@ -311,9 +309,7 @@ def write_key(
     _, suffix = key.split("-", 1) if "-" in key else ("", key)
 
     if len(suffix) != 40:
-        raise ValueError(
-            "API key must be 40 characters long, yours was {}".format(len(key))
-        )
+        raise ValueError(f"API key must be 40 characters long, yours was {len(key)}")
 
     write_netrc(settings.base_url, "user", key)
 
