@@ -702,7 +702,7 @@ class Table(Media):
                 }
             )
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise TypeError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         return json_dict
 

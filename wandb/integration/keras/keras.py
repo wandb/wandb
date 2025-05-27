@@ -1048,7 +1048,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if not isinstance(
             self.model, (tf.keras.models.Sequential, tf.keras.models.Model)
         ):
-            raise ValueError(
+            raise TypeError(
                 "Calculating FLOPS is only supported for "
                 "`tf.keras.Model` and `tf.keras.Sequential` instances."
             )
