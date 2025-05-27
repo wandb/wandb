@@ -74,10 +74,10 @@ def allow_incremental_logging_after_append(
         self._sha256 = None
 
         if self._increment_num is None:
-                raise ValueError(
-                    "_increment_num must be set if incremental table has been"
-                    " logged already"
-                )
+            raise ValueError(
+                "_increment_num must be set if incremental table has been"
+                " logged already"
+            )
 
         self._increment_num += 1
         if self._increment_num > 99:
