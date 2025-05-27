@@ -774,11 +774,11 @@ class LaunchAgent:
             configmap_params["metadata"]["namespace"] = namespace
 
             # Secret
-            secret_params = yaml.load(
-                open(os.path.join("agent_k8s", "secret.yaml")),
-                Loader=yaml.SafeLoader,
-            )
-            secret_params["metadata"]["namespace"] = namespace
+            # secret_params = yaml.load(
+            #     open(os.path.join("agent_k8s", "secret.yaml")),
+            #     Loader=yaml.SafeLoader,
+            # )
+            # secret_params["metadata"]["namespace"] = namespace
 
             # Volume
             volume_params = yaml.load(
@@ -815,9 +815,9 @@ class LaunchAgent:
                         namespace=namespace, body=configmap_params
                     )
 
-                    await v1.create_namespaced_secret(
-                        namespace=namespace, body=secret_params
-                    )
+                    # await v1.create_namespaced_secret(
+                    #     namespace=namespace, body=secret_params
+                    # )
 
                     await v1.create_namespaced_persistent_volume_claim(
                         namespace=namespace, body=volume_params
