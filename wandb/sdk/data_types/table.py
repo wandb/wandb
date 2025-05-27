@@ -257,10 +257,9 @@ class Table(Media):
         self._validate_log_mode(log_mode)
         self.log_mode = log_mode
         if self.log_mode == "INCREMENTAL":
-            self._increment_num = 0
+            self._increment_num: int | None = None
             self._last_logged_idx: int | None = None
-            self._previous_increments_paths: list[str] = []
-            self._resume_handled: bool = False
+            self._previous_increments_paths: list[str] | None = None
             self._run_target_for_increments: wandb.Run | None = None
         self._pk_col = None
         self._fk_cols: set[str] = set()
@@ -351,11 +350,7 @@ class Table(Media):
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
 
-    def _load_incr_state_from_resumed_run(
-        self,
-        run: "LocalRun",
-        key: str
-    ):
+    def _load_incremental_table_state_from_resumed_run(self, run: "LocalRun", key: str):
         """Handle updating incremental table state for resumed runs.
 
         This method is called when a run is resumed and there are previous
@@ -373,8 +368,10 @@ class Table(Media):
             or summary_from_key.get("_type") != "incremental-table-file"
         ):
             return
-        
-        previous_increments_paths = summary_from_key.get("previous_increments_paths", [])
+
+        previous_increments_paths = summary_from_key.get(
+            "previous_increments_paths", []
+        )
 
         # add the artifact path of the last logged increment
         last_artifact_path = summary_from_key.get("artifact_path")
@@ -387,8 +384,6 @@ class Table(Media):
 
         self._increment_num = last_increment_num + 1
         self._previous_increments_paths = previous_increments_paths
-        self._resume_handled = True
-        
 
     def _set_incremental_table_run_target(self, run: "LocalRun") -> None:
         """Associate a Run object with this incremental Table.
@@ -688,6 +683,11 @@ class Table(Media):
         json_dict = super().to_json(run_or_artifact)
 
         if self.log_mode == "INCREMENTAL":
+            if self._previous_increments_paths is None:
+                self._previous_increments_paths = []
+            if self._increment_num is None:
+                self._increment_num = 0
+
             json_dict.update(
                 {
                     "increment_num": self._increment_num,

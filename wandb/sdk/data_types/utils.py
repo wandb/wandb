@@ -189,7 +189,7 @@ def _log_table_artifact(val: "Media", key: str, run: "LocalRun") -> None:
 
     if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
         if run.resumed:
-            val._load_incr_state_from_resumed_run(run, key)
+            val._load_incremental_table_state_from_resumed_run(run, key)
         else:
             val._set_incremental_table_run_target(run)
         art = incremental_table_util.init_artifact(run, sanitized_key)
