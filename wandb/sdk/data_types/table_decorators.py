@@ -62,11 +62,23 @@ def allow_incremental_logging_after_append(
 
         art_entry_url = self._get_artifact_entry_ref_url()
         if art_entry_url is not None:
+            if self._previous_increments_paths is None:
+                raise ValueError(
+                    "_previous_increments_paths must be set if incremental"
+                    " table has been logged already"
+                )
             self._previous_increments_paths.append(art_entry_url)
         self._run = None
         self._artifact_target = None
         self._path = None
         self._sha256 = None
+
+        if self._increment_num is None:
+                raise ValueError(
+                    "_increment_num must be set if incremental table has been"
+                    " logged already"
+                )
+
         self._increment_num += 1
         if self._increment_num > 99:
             wandb.termwarn(

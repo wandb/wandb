@@ -260,7 +260,7 @@ class Table(Media):
             self._increment_num: int | None = None
             self._last_logged_idx: int | None = None
             self._previous_increments_paths: list[str] | None = None
-            self._run_target_for_increments: wandb.Run | None = None
+            self._run_target_for_increments: "LocalRun" | None = None
         self._pk_col = None
         self._fk_cols: set[str] = set()
         if allow_mixed_types:
