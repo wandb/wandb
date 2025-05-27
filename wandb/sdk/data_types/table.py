@@ -375,6 +375,8 @@ class Table(Media):
             or not isinstance(summary_from_key, dict)
             or summary_from_key.get("_type") != "incremental-table-file"
         ):
+            # The key was never logged to the run or its last logged
+            # value was not an incrementally logged table.
             return
 
         previous_increments_paths = summary_from_key.get(
