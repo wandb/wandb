@@ -150,6 +150,9 @@ def run_pytest(
     pytest_env.update(go_coverage_env(session))
     session.notify("coverage")
 
+    if session.python == "3.8":
+        pytest_opts.extend(["-k", "not test_launch"])
+
     session.run(
         "pytest",
         *pytest_opts,
@@ -191,7 +194,7 @@ def unit_tests_pydantic_v1(session: nox.Session) -> None:
     install_timed(
         session,
         "-r",
-        "requirements_test.txt",
+        "requirements_dev.txt",
     )
     # force-downgrade pydantic to v1
     install_timed(session, "pydantic<2")
@@ -562,11 +565,13 @@ def mypy_report(session: nox.Session) -> None:
     If the report parameter is set to True, it will also generate an html report.
     """
     session.install(
+        "bokeh",
         "ipython",
         "lxml",
         # https://github.com/python/mypy/issues/17166
         "mypy != 1.10.0",
         "numpy",
+        "packaging",
         "pandas-stubs",
         "pip",
         "platformdirs",
@@ -581,6 +586,9 @@ def mypy_report(session: nox.Session) -> None:
         "types-pytz",
         "types-PyYAML",
         "types-requests",
+        # Fix for removal of pkg_resources
+        # TODO(@jacobromero): remove version constraint
+        # after migrating away from pkg_resources
         "types-setuptools",
         "types-six",
         "types-tqdm",

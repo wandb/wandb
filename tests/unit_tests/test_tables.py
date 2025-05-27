@@ -258,3 +258,32 @@ def test_datetime_conversion():
         [975628800000, 975628800000, 975628800000, 1],
         [975715200000, 975715200000, 975715200000, 2],
     ]
+
+
+def test_table_logging_mode_validation():
+    with pytest.raises(AssertionError):
+        wandb.Table(log_mode="INVALID_MODE")
+
+
+def test_table_logging_mode_mutable():
+    """Assert that in MUTABLE log_mode the run is unbounded and artifact target is reset after
+    mutable table operations
+    """
+    t = wandb.Table(columns=["a", "b"], log_mode="MUTABLE")
+    t._run = "dummy_run"
+    t._artifact_target = "dummy_target"
+    t.add_data(1, 2)
+    assert t._run is None
+    assert t._artifact_target is None
+
+
+def test_table_logging_mode_immutable_decorator():
+    """Assert that in IMMUTABLE log_mode the run does not get unbounded and artifact target
+    does not get reset after mutable table operations
+    """
+    t = wandb.Table(columns=["a", "b"], log_mode="IMMUTABLE")
+    t._run = "dummy_run"
+    t._artifact_target = "dummy_target"
+    t.add_data(1, 2)
+    assert t._run == "dummy_run"
+    assert t._artifact_target == "dummy_target"

@@ -308,7 +308,7 @@ func (hub *Hub) AddBreadcrumb(breadcrumb *Breadcrumb, hint *BreadcrumbHint) {
 			hint = &BreadcrumbHint{}
 		}
 		if breadcrumb = client.options.BeforeBreadcrumb(breadcrumb, hint); breadcrumb == nil {
-			Logger.Println("breadcrumb dropped due to BeforeBreadcrumb callback.")
+			DebugLogger.Println("breadcrumb dropped due to BeforeBreadcrumb callback.")
 			return
 		}
 	}

@@ -307,12 +307,12 @@ class _WandbSetup:
         if not self._connection:
             return
 
-        internal_exit_code = self._connection.teardown(exit_code or 0)
-
         # Reset to None so that setup() creates a new connection.
+        connection = self._connection
         self._connection = None
 
-        if internal_exit_code != 0:
+        internal_exit_code = connection.teardown(exit_code or 0)
+        if internal_exit_code not in (None, 0):
             sys.exit(internal_exit_code)
 
     def ensure_service(self) -> ServiceConnection:

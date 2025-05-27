@@ -50,6 +50,7 @@ from wandb.sdk.artifacts._validators import (
     is_artifact_registry_project,
     validate_aliases,
     validate_artifact_name,
+    validate_artifact_type,
     validate_tags,
 )
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
@@ -122,7 +123,8 @@ class Artifact:
             and differentiate artifacts. You can use any string that contains letters,
             numbers, underscores, hyphens, and dots. Common types include `dataset` or `model`.
             Include `model` within your type string if you want to link the artifact
-            to the W&B Model Registry.
+            to the W&B Model Registry. Note that some types reserved for internal use
+            and cannot be set by users. Such types include `job` and types that start with `wandb-`.
         description (str | None) = None: A description of the artifact. For Model or Dataset Artifacts,
             add documentation for your standardized team model or dataset card. View
             an artifact's description programmatically with the `Artifact.description`
@@ -132,7 +134,7 @@ class Artifact:
             dictionary of key-value pairs. You can specify no more than 100 total keys.
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
-        use_as: W&B Launch specific parameter. Not recommended for general use.
+        use_as: Deprecated.
         is_link: Boolean indication of if the artifact is a linked artifact(`True`) or source artifact(`False`).
 
     Returns:
@@ -155,11 +157,6 @@ class Artifact:
             raise ValueError(
                 f"Artifact name may only contain alphanumeric characters, dashes, "
                 f"underscores, and dots. Invalid name: {name}"
-            )
-        if type == "job" or type.startswith("wandb-"):
-            raise ValueError(
-                "Artifact types 'job' and 'wandb-*' are reserved for internal use. "
-                "Please use a different type."
             )
         if incremental:
             termwarn("Using experimental arg `incremental`")
@@ -193,7 +190,7 @@ class Artifact:
         self._source_version: str | None = None
         self._source_artifact: Artifact | None = None
         self._is_link: bool = False
-        self._type: str = type
+        self._type: str = validate_artifact_type(type, name)
         self._description: str | None = description
         self._metadata: dict = self._normalize_metadata(metadata)
         self._ttl_duration_seconds: int | None = None
@@ -205,7 +202,14 @@ class Artifact:
         self._saved_tags: list[str] = []
         self._distributed_id: str | None = None
         self._incremental: bool = incremental
-        self._use_as: str | None = use_as
+        if use_as is not None:
+            deprecate(
+                field_name=Deprecated.artifact__init_use_as,
+                warning_message=(
+                    "`use_as` argument is deprecated and does not affect the behaviour of `wandb.Artifact()`"
+                ),
+            )
+        self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
         self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
             ArtifactManifestV1(self._storage_policy)
@@ -915,6 +919,11 @@ class Artifact:
 
     @property
     def use_as(self) -> str | None:
+        """Deprecated."""
+        deprecate(
+            field_name=Deprecated.artifact__use_as,
+            warning_message=("The use_as property of Artifact is deprecated."),
+        )
         return self._use_as
 
     @property
@@ -1460,7 +1469,7 @@ class Artifact:
             ValueError: Policy must be "mutable" or "immutable"
         """
         if not os.path.isdir(local_path):
-            raise ValueError("Path is not a directory: {}".format(local_path))
+            raise ValueError(f"Path is not a directory: {local_path}")
 
         termlog(
             "Adding directory to artifact ({})... ".format(
@@ -1631,8 +1640,9 @@ class Artifact:
             data_types._SavedModel,
         )
         if not isinstance(obj, allowed_types):
-            raise ValueError(
-                f"Found object of type {obj.__class__}, expected one of: {allowed_types}"
+            raise TypeError(
+                f"Found object of type {obj.__class__}, expected one of:"
+                f" {allowed_types}"
             )
 
         obj_id = id(obj)
@@ -1767,7 +1777,7 @@ class Artifact:
         name = LogicalPath(name)
         entry = self.manifest.entries.get(name) or self._get_obj_entry(name)[0]
         if entry is None:
-            raise KeyError("Path not contained in artifact: {}".format(name))
+            raise KeyError(f"Path not contained in artifact: {name}")
         entry._parent_artifact = self
         return entry
 
@@ -1985,9 +1995,7 @@ class Artifact:
         if nfiles > 5000 or size > 50 * 1024 * 1024:
             log = True
             termlog(
-                "Downloading large artifact {}, {:.2f}MB. {} files... ".format(
-                    self.name, size / (1024 * 1024), nfiles
-                ),
+                f"Downloading large artifact {self.name}, {size / (1024 * 1024):.2f}MB. {nfiles} files... ",
             )
             start_time = datetime.now()
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
@@ -2187,7 +2195,7 @@ class Artifact:
 
         Args:
             root: The directory to verify. If None artifact will be downloaded to
-                `./artifacts/self.name/`
+                './artifacts/self.name/'.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -2203,16 +2211,14 @@ class Artifact:
                     self.get_entry(artifact_path)
                 except KeyError:
                     raise ValueError(
-                        "Found file {} which is not a member of artifact {}".format(
-                            full_path, self.name
-                        )
+                        f"Found file {full_path} which is not a member of artifact {self.name}"
                     )
 
         ref_count = 0
         for entry in self.manifest.entries.values():
             if entry.ref is None:
                 if md5_file_b64(os.path.join(root, entry.path)) != entry.digest:
-                    raise ValueError("Digest mismatch for file: {}".format(entry.path))
+                    raise ValueError(f"Digest mismatch for file: {entry.path}")
             else:
                 ref_count += 1
         if ref_count > 0:

@@ -937,8 +937,7 @@ def use_artifact(
         - name:alias
         type: The type of artifact to use.
         aliases: Aliases to apply to this artifact
-        use_as: Optional string indicating what purpose the artifact was used with.
-                                   Will be shown in UI.
+        use_as: This argument is deprecated and does nothing.
 
     Returns:
         An `Artifact` object.

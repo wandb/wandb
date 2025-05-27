@@ -176,7 +176,7 @@ class StepUpload:
                 self._artifacts[event.artifact_id]["pending_count"] += 1
             self._start_upload_job(event)
         else:
-            raise Exception("Programming error: unhandled event: {}".format(str(event)))
+            raise TypeError(f"Event has unexpected type: {event!s}")
 
     def _start_upload_job(self, event: RequestUpload) -> None:
         # Operations on a single backend file must be serialized. if

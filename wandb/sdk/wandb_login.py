@@ -13,6 +13,7 @@ from requests.exceptions import ConnectionError
 import wandb
 from wandb.errors import AuthenticationError, UsageError
 from wandb.old.settings import Settings as OldSettings
+from wandb.sdk import wandb_setup
 
 from ..apis import InternalApi
 from .internal.internal_api import Api
@@ -116,7 +117,7 @@ class _WandbLogin:
         }
         self.is_anonymous = anonymous == "must"
 
-        self._wandb_setup = wandb.setup()
+        self._wandb_setup = wandb_setup._setup(start_service=False)
         self._wandb_setup.settings.update_from_dict(login_settings)
         self._settings = self._wandb_setup.settings
 

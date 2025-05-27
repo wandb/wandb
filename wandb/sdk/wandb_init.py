@@ -21,12 +21,9 @@ import platform
 import sys
 import tempfile
 import time
-from typing import TYPE_CHECKING, Any, Iterable, Iterator, Literal, Protocol, Sequence
+from typing import TYPE_CHECKING, Iterable, Iterator, Sequence
 
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
+from typing_extensions import Any, Literal, Protocol, Self
 
 import wandb
 import wandb.env
@@ -1541,6 +1538,10 @@ def init(  # noqa: C901
             init_telemetry.feature.set_init_tags = True
         if run_settings._offline:
             init_telemetry.feature.offline = True
+        if run_settings.fork_from is not None:
+            init_telemetry.feature.fork_mode = True
+        if run_settings.resume_from is not None:
+            init_telemetry.feature.rewind_mode = True
 
         wi.set_run_id(run_settings)
         run_printer = printer.new_printer(run_settings)

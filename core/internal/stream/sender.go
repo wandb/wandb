@@ -925,7 +925,7 @@ func (s *Sender) setConfigOnRunRecord(record *spb.RunRecord) {
 }
 
 func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
-	fork := s.settings.GetForkFrom()
+	fork := run.GetBranchPoint()
 	err := runbranch.NewForkBranch(
 		fork.GetRun(),
 		fork.GetMetric(),
@@ -972,7 +972,7 @@ func (s *Sender) sendRewindRun(record *spb.Record, run *spb.RunRecord) {
 		return
 	}
 
-	rewind := s.settings.GetResumeFrom()
+	rewind := run.GetBranchPoint()
 	err := runbranch.NewRewindBranch(
 		s.runWork.BeforeEndCtx(),
 		s.graphqlClient,
@@ -1095,10 +1095,10 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 	s.startState = runbranch.NewRunParams(run, s.settings)
 
 	isResume := s.settings.GetResume()
-	isRewind := s.settings.GetResumeFrom()
-	isFork := s.settings.GetForkFrom()
+	isRewind := run.GetBranchPoint().GetRun() == run.RunId
+	isFork := !isRewind && run.GetBranchPoint().GetRun() != ""
 	switch {
-	case isResume != "" && isRewind != nil || isResume != "" && isFork != nil || isRewind != nil && isFork != nil:
+	case isResume != "" && isRewind || isResume != "" && isFork || isRewind && isFork:
 		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 			s.respond(record,
 				&spb.RunUpdateResult{
@@ -1113,9 +1113,9 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 		s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
 	case isResume != "":
 		s.sendResumeRun(record, run)
-	case isRewind != nil:
+	case isRewind:
 		s.sendRewindRun(record, run)
-	case isFork != nil:
+	case isFork:
 		s.sendForkRun(record, run)
 	default:
 		s.upsertRun(record, run, true /*updateStartState*/)
