@@ -1551,7 +1551,7 @@ def launch(
 
         except Exception as e:
             wandb._sentry.exception(e)
-            raise e
+            raise
 
 
 @cli.command(
@@ -1642,7 +1642,7 @@ def launch_agent(
         _launch.create_and_run_agent(api, agent_config)
     except Exception as e:
         wandb._sentry.exception(e)
-        raise e
+        raise
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1720,7 +1720,7 @@ def scheduler(
         _scheduler.start()
     except Exception as e:
         wandb._sentry.exception(e)
-        raise e
+        raise
 
 
 @cli.group(help="Commands for managing and viewing W&B jobs")

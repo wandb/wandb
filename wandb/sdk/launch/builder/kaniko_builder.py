@@ -358,7 +358,7 @@ class KanikoBuilder(AbstractBuilder):
             wandb.termerror(
                 f"{LOG_PREFIX}Exception when creating Kubernetes resources: {e}\n"
             )
-            raise e
+            raise
         finally:
             wandb.termlog(f"{LOG_PREFIX}Cleaning up resources")
             try:
