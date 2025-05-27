@@ -20,7 +20,10 @@ dependencies = [
     # setuptools is needed for distutils in dependencies after Python 3.12 :(
     # One such dependency is docker-pycreds, where the latest release is 0.4.0
     # which was released in 2018.
-    "setuptools",
+    # Pinning to 80.7 due to removal of pkg_resources causing CI failures.
+    # TODO(@jacobromero): remove version constraint
+    # after migrating away from pkg_resources
+    "setuptools<80.7",
     "protobuf>=3.12.0,!=4.21.0,!=5.28.0,<7; python_version < '3.9' and sys_platform == 'linux'",
     "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<7; python_version == '3.9' and sys_platform == 'linux'",
     "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; python_version > '3.9' and sys_platform == 'linux'",
@@ -28,7 +31,7 @@ dependencies = [
     "PyYAML",
     "setproctitle",
     "platformdirs",
-    "typing_extensions>=4.4,<5",
+    "typing_extensions>=4.8,<5",
     "pydantic<3",
     "eval_type_backport; python_version < '3.10'",
 ]
@@ -77,7 +80,8 @@ media = [
     "numpy",
     "moviepy>=1.0.0",
     # imageio is a dependency of moviepy but incase that changes we also pin it here
-    "imageio",
+    # imageio versions before 2.28.1 do not work properly when encoding videos.
+    "imageio>=2.28.1",
     "pillow",
     "bokeh",
     "soundfile",
@@ -108,6 +112,7 @@ launch = [
     "typing_extensions",
     "tomli",
     "PyYAML>=6.0.0",
+    "tornado>=6.5.0;python_version>='3.9'",
 ]
 models = ["cloudpickle"]
 perf = ["orjson"]
@@ -171,23 +176,33 @@ extend-exclude = [
 ]
 target-version = "py38"
 
+[tool.ruff.format]
+docstring-code-format = true
+
 [tool.ruff.lint]
-select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP", "T20"]
+select = [
+    "F",   # Pyflakes
+    "E",   # pycodestyle Error
+    "W",   # pycodestyle Warning
+    "B",   # flake8-bugbear
+    "I",   # isort
+    "N",   # pep8-naming
+    "D",   # pydocstyle
+    "C90", # mccabe
+    "UP",  # pyupgrade
+    "T20", # flake8-print
+]
 ignore = [
     "B904",
     "E501",
     # pydocstyle rules: https://docs.astral.sh/ruff/rules/#pydocstyle-d
-    "D100",  # Allow missing docstrings in modules.
-    "D101",  # Allow missing docstrings in classes.
-    "D104",  # Allow missing docstrings in packages.
-    "D105",  # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
-    "D106",  # Allow missing docstrings in nested classes.
-    "D107",  # Allow missing docstrings in __init__ methods.
-    "UP032", # Allow using format instead of f-string.
+    "D100", # Allow missing docstrings in modules.
+    "D101", # Allow missing docstrings in classes.
+    "D104", # Allow missing docstrings in packages.
+    "D105", # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
+    "D106", # Allow missing docstrings in nested classes.
+    "D107", # Allow missing docstrings in __init__ methods.
 ]
-
-[tool.ruff.format]
-docstring-code-format = true
 
 [tool.ruff.lint.mccabe]
 max-complexity = 18
@@ -203,58 +218,67 @@ classmethod-decorators = [
     "wandb._pydantic.field_validator",
 ]
 
-[tool.ruff.lint.pycodestyle]
-ignore-overlong-task-comments = true
-
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 ignore-decorators = [
     # Allow undocumented @property descriptors for now.
-    # As of May 2024, many in the public API module(s) currently lack docs, or may plausibly have been intended
-    # for internal use only.  Consider removing this exemption in the future, when/if/as appropriate.
+    #
+    # As of May 2024, many in the public API module(s) currently lack docs,
+    # or may plausibly have been intended for internal use only. Consider
+    # removing this exemption in the future, when/if/as appropriate.
     "property",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Ensure stricter docstring requirements:
+# Ignore some docstring requirements everywhere except in some public APIs.
 # - D101: Require docstrings in public classes
 # - D102: Require docstrings in public methods
 # - D103: Require docstrings in public functions
 # - D417: Require descriptions for all arguments
-"!wandb/apis/public/api.py" = ["D101", "D102", "D103", "D417"]  # "Public API" module
-"!wandb/automations/**/*.py" = ["D101", "D102", "D103", "D417"] # Automations submodules
+"!wandb/apis/public/api.py" = [
+    "D101",
+    "D102",
+    "D103",
+    "D417",
+] # "Public API" module
+"!wandb/automations/**/*.py" = [
+    "D101",
+    "D102",
+    "D103",
+    "D417",
+] # Automations submodules
 
-"**/__init__.py" = ["E402", "F401"]
+# Relax docstring and print() statement requirements in tests.
+"tests/**" = ["D", "T20"]
+
+# Allow internal tools to use print().
+"tools/**" = ["T20"]
+
+# Ignore unused imports in all __init__.py files.
+# TODO: Unignore this lint and add symbols to __all__ instead.
+"**/__init__.py" = ["F401"]
+
+# TODO: Fix UP006, UP007 in wandb_run.py, then remove ignores here.
 "wandb/__init__.py" = ["I001"]
 "wandb/__init__.pyi" = ["UP006", "UP007"]
 "wandb/__init__.template.pyi" = ["UP006", "UP007", "D415", "N999"]
+
+# TODO: Use f-strings in wandb/apis/public/ for GraphQL statements.
+#   To preserve GraphQL syntax highlighting, add #graphql at the start of
+#   the f-strings. Do not auto-fix the lint, as that will break syntax
+#   highlights and harm readability.
+"wandb/apis/public/**" = ["UP032"]
+
+# TODO: Fix these lints and remove the ignores.
 "wandb/cli/cli.py" = ["C901"]
-"wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
-"wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]
 "wandb/integration/metaflow/metaflow.py" = ["F811"]
-"wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/old/**" = ["B006", "B020", "D", "F822"]
-"wandb/wandb_controller.py" = ["N806"]
-
-# Launch is planned to be removed in the future
-# so we can avoid fixing these errors
+"wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/sdk/launch/**" = ["T20"]
-"tests/system_tests/test_launch/**" = ["T20"]
-
-"tests/system_tests/relay.py" = [
-    "T20", # relay is for internal use only and planned to be removed
-]
-"tests/**" = [
-    "D", # Don't require docstrings on test functions.
-]
-"tests/assets/**" = [
-    "T20", # assets may include test data that need to use print statements
-]
-"tools/**" = [
-    "T20", # tools is for internal use only
-]
-"landfill/**" = ["F405", "N806", "D415"]
+"wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
+"wandb/wandb_controller.py" = ["N806"]
+"wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]
 
 # Ignore specific naming rules on codegen scripts or plugins.
 # Codegen logic relies on Python's `ast` module, in which implementing a custom
@@ -263,20 +287,27 @@ ignore-decorators = [
 # See: https://docs.python.org/3/library/ast.html#ast.NodeTransformer
 "tools/graphql_codegen/**" = ["N802"]
 
-# On generated (pydantic) code:
+# Ignore lints on generated code.
 "wandb/**/_generated/**/*.py" = [
-    "N8",    # Ignore naming rules, as names from the GraphQL schema may not respect PEP8
-    "UP006", # Avoid using standard library generics e.g. `list[...]`, as this can cause issues with earlier pydantic versions
-    "UP007", # Avoid using `X | Y` for union fields, as this can cause issues with pydantic < 2.6
+    # Generated code names may not respect PEP8.
+    "N8",
+
+    # Standard library generics (list[...]) can cause issues with older
+    # Pydantic versions.
+    "UP006",
+
+    # The `X | Y` syntax can cause issues with pydantic < 2.6
+    "UP007",
 ]
 
-# For other pydantic code, disable:
-# - UP006: Avoid using standard library generics e.g. `list[...]`, as this can cause issues with earlier pydantic versions
-# - UP007: Avoid using `X | Y` for union fields, as this can cause issues with pydantic < 2.6
+# Pydantic code requires an older style for type annotations.
 "wandb/sdk/wandb_settings.py" = ["UP006", "UP007"]
 "wandb/sdk/wandb_metadata.py" = ["UP006", "UP007"]
 "wandb/sdk/lib/run_moment.py" = ["UP006", "UP007"]
 "wandb/automations/**" = ["UP006", "UP007"]
+
+# TODO: Remove the landfill/ directory.
+"landfill/**" = ["F405", "N806", "D415"]
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]

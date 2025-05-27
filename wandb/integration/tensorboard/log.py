@@ -167,11 +167,8 @@ def tf_summary_to_dict(  # noqa: C901
                         )
                     except ValueError:
                         wandb.termwarn(
-                            'Not logging key "{}". '
-                            "Histograms must have fewer than {} bins".format(
-                                namespaced_tag(value.tag, namespace),
-                                wandb.Histogram.MAX_LENGTH,
-                            ),
+                            f'Not logging key "{namespaced_tag(value.tag, namespace)}". '
+                            f"Histograms must have fewer than {wandb.Histogram.MAX_LENGTH} bins",
                             repeat=False,
                         )
             elif plugin_name == "pr_curves":

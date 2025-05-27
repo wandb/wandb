@@ -139,7 +139,7 @@ def _unwatch(
             models = (models,)
         for model in models:
             if not hasattr(model, "_wandb_hook_names"):
-                wandb.termwarn("{} model has not been watched".format(model))
+                wandb.termwarn(f"{model} model has not been watched")
             else:
                 for name in model._wandb_hook_names:
                     run._torch.unhook(name)

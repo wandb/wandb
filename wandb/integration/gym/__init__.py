@@ -9,8 +9,7 @@ _gym_version_lt_0_26: Optional[bool] = None
 _gymnasium_version_lt_1_0_0: Optional[bool] = None
 
 _required_error_msg = (
-    "Couldn't import the gymnasium python package, "
-    "install with `pip install gymnasium`"
+    "Couldn't import the gymnasium python package, install with `pip install gymnasium`"
 )
 GymLib = Literal["gym", "gymnasium"]
 
