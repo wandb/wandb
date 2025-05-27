@@ -1,5 +1,5 @@
-// Package runmetadata manages run data that's uploaded via UpsertBucket.
-package runmetadata
+// Package runupserter manages run data that's uploaded via UpsertBucket.
+package runupserter
 
 import (
 	"context"
@@ -28,12 +28,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// RunMetadata manages and syncs info about a run that's usually set on init and
+// RunUpserter manages and syncs info about a run that's usually set on init and
 // rarely changed.
 //
-// The RunMetadata object makes "UpsertBucket" requests when values change,
+// The RunUpserter object makes "UpsertBucket" requests when values change,
 // debouncing them to avoid rapid-fire network requests.
-type RunMetadata struct {
+type RunUpserter struct {
 	mu sync.Mutex
 	wg sync.WaitGroup
 
@@ -60,7 +60,7 @@ type RunMetadata struct {
 	metrics   *runmetric.RunConfigMetrics
 }
 
-type RunMetadataParams struct {
+type RunUpserterParams struct {
 	DebounceDelay waiting.Delay
 
 	Settings           *settings.Settings
@@ -71,18 +71,18 @@ type RunMetadataParams struct {
 	Logger             *observability.CoreLogger
 }
 
-func (params *RunMetadataParams) panicIfNotFilled() {
+func (params *RunUpserterParams) panicIfNotFilled() {
 	switch {
 	case params.DebounceDelay == nil:
-		panic("runmetadata: DebounceDelay is nil")
+		panic("runupserter: DebounceDelay is nil")
 	case params.Settings == nil:
-		panic("runmetadata: Settings is nil")
+		panic("runupserter: Settings is nil")
 	case params.BeforeRunEndCtx == nil:
-		panic("runmetadata: BeforeRunEndCtx is nil")
+		panic("runupserter: BeforeRunEndCtx is nil")
 	case params.FeatureProvider == nil:
-		panic("runmetadata: FeatureProvider is nil")
+		panic("runupserter: FeatureProvider is nil")
 	case params.Logger == nil:
-		panic("runmetadata: Logger is nil")
+		panic("runupserter: Logger is nil")
 	}
 }
 
@@ -93,13 +93,13 @@ func (params *RunMetadataParams) panicIfNotFilled() {
 // The returned error may wrap a RunUpdateError.
 func InitRun(
 	record *spb.Record,
-	params RunMetadataParams,
-) (*RunMetadata, error) {
+	params RunUpserterParams,
+) (*RunUpserter, error) {
 	params.panicIfNotFilled()
 
 	runRecord := record.GetRun()
 	if runRecord == nil {
-		panic("runmetadata: RunRecord is nil")
+		panic("runupserter: RunRecord is nil")
 	}
 
 	// Initialize the run config.
@@ -107,7 +107,7 @@ func InitRun(
 	config.ApplyChangeRecord(runRecord.Config,
 		func(err error) {
 			params.Logger.Error(
-				"runmetadata: error updating config",
+				"runupserter: error updating config",
 				"error", err,
 			)
 		})
@@ -125,7 +125,7 @@ func InitRun(
 		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
 	).Enabled {
 		params.Logger.Warn(
-			"runmetadata: server does not expand metric globs" +
+			"runupserter: server does not expand metric globs" +
 				" but the x_server_side_expand_glob_metrics setting is set;" +
 				" ignoring")
 		enableServerExpandedMetrics = false
@@ -135,7 +135,7 @@ func InitRun(
 	// Initialize other run metadata.
 	runParams := runbranch.NewRunParams(runRecord, params.Settings)
 
-	metadata := &RunMetadata{
+	upserter := &RunUpserter{
 		debounceDelay: params.DebounceDelay,
 
 		settings:           params.Settings,
@@ -153,9 +153,9 @@ func InitRun(
 		metrics:   metrics,
 	}
 
-	operation := metadata.operations.New("creating run")
+	operation := upserter.operations.New("creating run")
 	defer operation.Finish()
-	ctx := operation.Context(metadata.beforeRunEndCtx)
+	ctx := operation.Context(upserter.beforeRunEndCtx)
 
 	// If resuming, rewinding or forking, we need to modify metadata
 	// in special ways before upserting the run.
@@ -167,7 +167,7 @@ func InitRun(
 	branchPoint := runRecord.BranchPoint
 	switch {
 	case params.Settings.GetResume() != "":
-		err := metadata.updateMetadataForResume(params.Settings.GetResume())
+		err := upserter.updateMetadataForResume(params.Settings.GetResume())
 
 		if err != nil {
 			return nil, runUpdateErrorFromBranchError(err)
@@ -175,7 +175,7 @@ func InitRun(
 
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
 		// Branching a run from an earlier point in its history is rewinding.
-		err := metadata.updateMetadataForRewind(branchPoint)
+		err := upserter.updateMetadataForRewind(branchPoint)
 
 		if err != nil {
 			return nil, runUpdateErrorFromBranchError(err)
@@ -183,7 +183,7 @@ func InitRun(
 
 	case branchPoint != nil && branchPoint.GetRun() != "":
 		// Creating a new run by branching is forking.
-		err := metadata.updateMetadataForFork(branchPoint)
+		err := upserter.updateMetadataForFork(branchPoint)
 
 		if err != nil {
 			return nil, runUpdateErrorFromBranchError(err)
@@ -191,15 +191,15 @@ func InitRun(
 	}
 
 	// If we're offline, skip upserting.
-	if metadata.graphqlClientOrNil == nil {
-		return metadata, nil
+	if upserter.graphqlClientOrNil == nil {
+		return upserter, nil
 	}
 
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
 
 	// Upsert the run.
-	response, err := metadata.lockedDoUpsert(
+	response, err := upserter.lockedDoUpsert(
 		ctx,
 		/*uploadParams=*/ true,
 		/*uploadConfig=*/ true,
@@ -214,95 +214,95 @@ func InitRun(
 	}
 
 	// Fill some metadata based on the server response.
-	metadata.lockedUpdateFromUpsert(response)
+	upserter.lockedUpdateFromUpsert(response)
 
 	// Begin processing updates.
-	metadata.wg.Add(1)
+	upserter.wg.Add(1)
 	go func() {
-		defer metadata.wg.Done()
-		metadata.syncPeriodically()
+		defer upserter.wg.Done()
+		upserter.syncPeriodically()
 	}()
 
-	return metadata, nil
+	return upserter, nil
 }
 
 // Update schedules an update to some part of the run metadata.
-func (metadata *RunMetadata) Update(runRecord *spb.RunRecord) {
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
+func (upserter *RunUpserter) Update(runRecord *spb.RunRecord) {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
 
-	metadata.params.Update(runRecord, metadata.settings)
+	upserter.params.Update(runRecord, upserter.settings)
 
-	metadata.isParamsDirty = true
-	metadata.signalDirty()
+	upserter.isParamsDirty = true
+	upserter.signalDirty()
 }
 
 // UpdateConfig schedules an update to the run's config.
-func (metadata *RunMetadata) UpdateConfig(config *spb.ConfigRecord) {
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
+func (upserter *RunUpserter) UpdateConfig(config *spb.ConfigRecord) {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
 
-	metadata.config.ApplyChangeRecord(config,
+	upserter.config.ApplyChangeRecord(config,
 		func(err error) {
-			metadata.logger.CaptureError(
-				fmt.Errorf("runmetadata: error updating config: %v", err))
+			upserter.logger.CaptureError(
+				fmt.Errorf("runupserter: error updating config: %v", err))
 		})
 
-	metadata.isConfigDirty = true
-	metadata.signalDirty()
+	upserter.isConfigDirty = true
+	upserter.signalDirty()
 }
 
 // UpdateTelemetry schedules an update to the run's telemetry.
-func (metadata *RunMetadata) UpdateTelemetry(telemetry *spb.TelemetryRecord) {
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
+func (upserter *RunUpserter) UpdateTelemetry(telemetry *spb.TelemetryRecord) {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
 
-	proto.Merge(metadata.telemetry, telemetry)
+	proto.Merge(upserter.telemetry, telemetry)
 
-	metadata.config.AddTelemetryAndMetrics(
-		metadata.telemetry,
-		metadata.metrics.ToRunConfigData(),
+	upserter.config.AddTelemetryAndMetrics(
+		upserter.telemetry,
+		upserter.metrics.ToRunConfigData(),
 	)
 
-	metadata.isConfigDirty = true
-	metadata.signalDirty()
+	upserter.isConfigDirty = true
+	upserter.signalDirty()
 }
 
 // UpdateMetrics schedules an update to the run's metrics in the config.
-func (metadata *RunMetadata) UpdateMetrics(metric *spb.MetricRecord) {
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
+func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
 
 	// Skip uploading expanded metrics if the server expands them itself.
-	if metadata.metrics.IsServerExpandGlobMetrics() &&
+	if upserter.metrics.IsServerExpandGlobMetrics() &&
 		metric.GetExpandedFromGlob() {
 		return
 	}
 
-	err := metadata.metrics.ProcessRecord(metric)
+	err := upserter.metrics.ProcessRecord(metric)
 	if err != nil {
-		metadata.logger.CaptureError(
-			fmt.Errorf("runmetadata: failed to process metric: %v", err))
+		upserter.logger.CaptureError(
+			fmt.Errorf("runupserter: failed to process metric: %v", err))
 		return
 	}
 
-	metadata.config.AddTelemetryAndMetrics(
-		metadata.telemetry,
-		metadata.metrics.ToRunConfigData(),
+	upserter.config.AddTelemetryAndMetrics(
+		upserter.telemetry,
+		upserter.metrics.ToRunConfigData(),
 	)
 
-	metadata.isConfigDirty = true
-	metadata.signalDirty()
+	upserter.isConfigDirty = true
+	upserter.signalDirty()
 }
 
 // FillRunRecord populates fields on a RunRecord representing the run metadata.
-func (metadata *RunMetadata) FillRunRecord(record *spb.RunRecord) {
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
-	metadata.params.SetOnProto(record)
+func (upserter *RunUpserter) FillRunRecord(record *spb.RunRecord) {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	upserter.params.SetOnProto(record)
 
 	record.Config = &spb.ConfigRecord{}
-	for key, value := range metadata.config.CloneTree() {
+	for key, value := range upserter.config.CloneTree() {
 		valueJSON, _ := simplejsonext.MarshalToString(map[string]any{
 			"value": value,
 		})
@@ -316,78 +316,78 @@ func (metadata *RunMetadata) FillRunRecord(record *spb.RunRecord) {
 }
 
 // RunPath returns the run's entity, project and run ID.
-func (metadata *RunMetadata) RunPath() runbranch.RunPath {
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
+func (upserter *RunUpserter) RunPath() runbranch.RunPath {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
 	return runbranch.RunPath{
-		Entity:  metadata.params.Entity,
-		Project: metadata.params.Project,
-		RunID:   metadata.params.RunID,
+		Entity:  upserter.params.Entity,
+		Project: upserter.params.Project,
+		RunID:   upserter.params.RunID,
 	}
 }
 
 // ConfigYAML returns the run's config as a YAML string.
-func (metadata *RunMetadata) ConfigYAML() ([]byte, error) {
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
-	return metadata.config.Serialize(runconfig.FormatYaml)
+func (upserter *RunUpserter) ConfigYAML() ([]byte, error) {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.config.Serialize(runconfig.FormatYaml)
 }
 
 // ConfigMap returns a copy of the run's config as nested maps.
-func (metadata *RunMetadata) ConfigMap() map[string]any {
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
-	return metadata.config.CloneTree()
+func (upserter *RunUpserter) ConfigMap() map[string]any {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.config.CloneTree()
 }
 
-func (metadata *RunMetadata) StartTime() time.Time {
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
-	return metadata.params.StartTime
+func (upserter *RunUpserter) StartTime() time.Time {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.params.StartTime
 }
 
-func (metadata *RunMetadata) DisplayName() string {
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
-	return metadata.params.DisplayName
+func (upserter *RunUpserter) DisplayName() string {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.params.DisplayName
 }
 
-func (metadata *RunMetadata) FileStreamOffsets() filestream.FileStreamOffsetMap {
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
-	return metadata.params.FileStreamOffset
+func (upserter *RunUpserter) FileStreamOffsets() filestream.FileStreamOffsetMap {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.params.FileStreamOffset
 }
 
 // Finish uploads any remaining changes and ends the uploading goroutine.
-func (metadata *RunMetadata) Finish() {
+func (upserter *RunUpserter) Finish() {
 	select {
-	case <-metadata.done:
+	case <-upserter.done:
 		return
 
 	// Continue only if not already done.
 	default:
 	}
 
-	close(metadata.done)
-	metadata.wg.Wait()
+	close(upserter.done)
+	upserter.wg.Wait()
 }
 
 // signalDirty pushes to the dirty channel to trigger an upload.
 //
 // The corresponding flags should be updated separately.
-func (metadata *RunMetadata) signalDirty() {
+func (upserter *RunUpserter) signalDirty() {
 	select {
-	case metadata.dirty <- struct{}{}:
+	case upserter.dirty <- struct{}{}:
 	default:
 	}
 }
 
 // updateMetadataForResume updates run metadata based on the existing run
 // that's being resumed.
-func (metadata *RunMetadata) updateMetadataForResume(
+func (upserter *RunUpserter) updateMetadataForResume(
 	resumeSetting string,
 ) error {
-	if metadata.graphqlClientOrNil == nil {
+	if upserter.graphqlClientOrNil == nil {
 		// Ignore the resume mode when offline.
 		//
 		// A warning is printed by the client during wandb.init().
@@ -397,52 +397,52 @@ func (metadata *RunMetadata) updateMetadataForResume(
 	}
 
 	return runbranch.NewResumeBranch(
-		metadata.beforeRunEndCtx,
-		metadata.graphqlClientOrNil,
+		upserter.beforeRunEndCtx,
+		upserter.graphqlClientOrNil,
 		resumeSetting,
 	).UpdateForResume(
-		metadata.params,
-		metadata.config,
+		upserter.params,
+		upserter.config,
 	)
 }
 
 // updateMetadataForRewind updates run metadata based on the existing run
 // that's being rewound.
-func (metadata *RunMetadata) updateMetadataForRewind(
+func (upserter *RunUpserter) updateMetadataForRewind(
 	rewindSetting *spb.BranchPoint,
 ) error {
 	return runbranch.NewRewindBranch(
-		metadata.beforeRunEndCtx,
-		metadata.graphqlClientOrNil,
+		upserter.beforeRunEndCtx,
+		upserter.graphqlClientOrNil,
 		rewindSetting.Run,
 		rewindSetting.Metric,
 		rewindSetting.Value,
 	).UpdateForRewind(
-		metadata.params,
-		metadata.config,
+		upserter.params,
+		upserter.config,
 	)
 }
 
 // updateMetadataForFork updates configures run metadata for a forked run.
-func (metadata *RunMetadata) updateMetadataForFork(
+func (upserter *RunUpserter) updateMetadataForFork(
 	forkSetting *spb.BranchPoint,
 ) error {
 	return runbranch.NewForkBranch(
 		forkSetting.Run,
 		forkSetting.Metric,
 		forkSetting.Value,
-	).UpdateForFork(metadata.params)
+	).UpdateForFork(upserter.params)
 }
 
 // syncPeriodically uploads changes in a loop.
-func (metadata *RunMetadata) syncPeriodically() {
+func (upserter *RunUpserter) syncPeriodically() {
 	for {
 		select {
-		case <-metadata.dirty:
-			metadata.debounceAndUploadChanges()
+		case <-upserter.dirty:
+			upserter.debounceAndUploadChanges()
 
-		case <-metadata.done:
-			metadata.debounceAndUploadChanges()
+		case <-upserter.done:
+			upserter.debounceAndUploadChanges()
 			return
 		}
 	}
@@ -451,40 +451,40 @@ func (metadata *RunMetadata) syncPeriodically() {
 // debounce accumulates changes for some time to avoid rapid-fire updates.
 //
 // It is immediate if finishing.
-func (metadata *RunMetadata) debounce() {
-	delay, cancel := metadata.debounceDelay.Wait()
+func (upserter *RunUpserter) debounce() {
+	delay, cancel := upserter.debounceDelay.Wait()
 	defer cancel()
 
 	select {
 	case <-delay:
-	case <-metadata.done:
+	case <-upserter.done:
 	}
 }
 
 // debounceAndUploadChanges uploads any changes to the run's metadata.
-func (metadata *RunMetadata) debounceAndUploadChanges() {
-	operation := metadata.operations.New("updating run metadata")
+func (upserter *RunUpserter) debounceAndUploadChanges() {
+	operation := upserter.operations.New("updating run metadata")
 	defer operation.Finish()
-	ctx := operation.Context(metadata.beforeRunEndCtx)
+	ctx := operation.Context(upserter.beforeRunEndCtx)
 
-	metadata.debounce()
+	upserter.debounce()
 
-	metadata.mu.Lock()
-	defer metadata.mu.Unlock()
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
 
-	if !metadata.isParamsDirty && !metadata.isConfigDirty {
+	if !upserter.isParamsDirty && !upserter.isConfigDirty {
 		return
 	}
 
-	_, err := metadata.lockedDoUpsert(
+	_, err := upserter.lockedDoUpsert(
 		ctx,
-		metadata.isParamsDirty,
-		metadata.isConfigDirty,
+		upserter.isParamsDirty,
+		upserter.isConfigDirty,
 	)
 
 	if err != nil {
-		metadata.logger.Error(
-			"runmetadata: failed to upload changes",
+		upserter.logger.Error(
+			"runupserter: failed to upload changes",
 			"error", err,
 		)
 	}
@@ -493,12 +493,12 @@ func (metadata *RunMetadata) debounceAndUploadChanges() {
 // serializeConfig returns the serialized run config.
 //
 // If an error happens, it is logged an an empty string is returned.
-func (metadata *RunMetadata) serializeConfig() string {
-	serializedConfig, err := metadata.config.Serialize(runconfig.FormatJson)
+func (upserter *RunUpserter) serializeConfig() string {
+	serializedConfig, err := upserter.config.Serialize(runconfig.FormatJson)
 
 	if err != nil {
-		metadata.logger.Error(
-			"runmetadata: failed to serialize config",
+		upserter.logger.Error(
+			"runupserter: failed to serialize config",
 			"error", err,
 		)
 		return ""
@@ -511,25 +511,25 @@ func (metadata *RunMetadata) serializeConfig() string {
 // metadata.
 //
 // The mutex must be held. It is temporarily unlocked during the request.
-func (metadata *RunMetadata) lockedDoUpsert(
+func (upserter *RunUpserter) lockedDoUpsert(
 	ctx context.Context,
 	uploadParams, uploadConfig bool,
 ) (*gql.UpsertBucketResponse, error) {
-	if metadata.graphqlClientOrNil == nil {
-		return nil, errors.New("runmetadata: cannot upsert when offline")
+	if upserter.graphqlClientOrNil == nil {
+		return nil, errors.New("runupserter: cannot upsert when offline")
 	}
 
 	// Clear dirty state.
 	select {
-	case <-metadata.dirty:
+	case <-upserter.dirty:
 	default:
 	}
-	metadata.isParamsDirty = !uploadParams && metadata.isParamsDirty
-	metadata.isConfigDirty = !uploadConfig && metadata.isConfigDirty
+	upserter.isParamsDirty = !uploadParams && upserter.isParamsDirty
+	upserter.isConfigDirty = !uploadConfig && upserter.isConfigDirty
 
-	name := nullify.NilIfZero(metadata.params.RunID)
-	project := nullify.NilIfZero(metadata.params.Project)
-	entity := nullify.NilIfZero(metadata.params.Entity)
+	name := nullify.NilIfZero(upserter.params.RunID)
+	project := nullify.NilIfZero(upserter.params.Project)
+	entity := nullify.NilIfZero(upserter.params.Entity)
 
 	// NOTE: The only reason not to upload these short strings on every request
 	//   is because of shared mode, where there may be multiple machines writing
@@ -548,26 +548,26 @@ func (metadata *RunMetadata) lockedDoUpsert(
 	var sweepID *string
 	var tags []string
 	if uploadParams {
-		storageID = nullify.NilIfZero(metadata.params.StorageID)
-		groupName = nullify.NilIfZero(metadata.params.GroupName)
-		displayName = nullify.NilIfZero(metadata.params.DisplayName)
-		notes = nullify.NilIfZero(metadata.params.Notes)
-		commit = nullify.NilIfZero(metadata.params.Commit)
-		host = nullify.NilIfZero(metadata.params.Host)
-		program = nullify.NilIfZero(metadata.params.Program)
-		repo = nullify.NilIfZero(metadata.params.RemoteURL)
-		jobType = nullify.NilIfZero(metadata.params.JobType)
-		sweepID = nullify.NilIfZero(metadata.params.SweepID)
-		tags = slices.Clone(metadata.params.Tags)
+		storageID = nullify.NilIfZero(upserter.params.StorageID)
+		groupName = nullify.NilIfZero(upserter.params.GroupName)
+		displayName = nullify.NilIfZero(upserter.params.DisplayName)
+		notes = nullify.NilIfZero(upserter.params.Notes)
+		commit = nullify.NilIfZero(upserter.params.Commit)
+		host = nullify.NilIfZero(upserter.params.Host)
+		program = nullify.NilIfZero(upserter.params.Program)
+		repo = nullify.NilIfZero(upserter.params.RemoteURL)
+		jobType = nullify.NilIfZero(upserter.params.JobType)
+		sweepID = nullify.NilIfZero(upserter.params.SweepID)
+		tags = slices.Clone(upserter.params.Tags)
 	}
 
 	var config *string
 	if uploadConfig {
-		config = nullify.NilIfZero(metadata.serializeConfig())
+		config = nullify.NilIfZero(upserter.serializeConfig())
 	}
 
-	metadata.mu.Unlock()
-	defer metadata.mu.Lock()
+	upserter.mu.Unlock()
+	defer upserter.mu.Lock()
 
 	// Use a special retry policy for UpsertBucket requests.
 	ctx = context.WithValue(
@@ -578,7 +578,7 @@ func (metadata *RunMetadata) lockedDoUpsert(
 
 	return gql.UpsertBucket(
 		ctx,
-		metadata.graphqlClientOrNil,
+		upserter.graphqlClientOrNil,
 		storageID,
 		name,
 		project,
@@ -605,34 +605,34 @@ func (metadata *RunMetadata) lockedDoUpsert(
 // the server.
 //
 // The mutex must be held.
-func (metadata *RunMetadata) lockedUpdateFromUpsert(
+func (upserter *RunUpserter) lockedUpdateFromUpsert(
 	response *gql.UpsertBucketResponse,
 ) {
 	if response.GetUpsertBucket() == nil ||
 		response.GetUpsertBucket().GetBucket() == nil {
-		metadata.logger.Error("runmetadata: upsert bucket response empty")
+		upserter.logger.Error("runupserter: upsert bucket response empty")
 		return
 	}
 
 	bucket := response.GetUpsertBucket().GetBucket()
 
-	metadata.params.StorageID = bucket.GetId()
-	metadata.params.RunID = bucket.GetName()
-	metadata.params.DisplayName = nullify.ZeroIfNil(bucket.GetDisplayName())
-	metadata.params.SweepID = nullify.ZeroIfNil(bucket.GetSweepName())
+	upserter.params.StorageID = bucket.GetId()
+	upserter.params.RunID = bucket.GetName()
+	upserter.params.DisplayName = nullify.ZeroIfNil(bucket.GetDisplayName())
+	upserter.params.SweepID = nullify.ZeroIfNil(bucket.GetSweepName())
 
 	if lineCount := nullify.ZeroIfNil(bucket.GetHistoryLineCount()); lineCount > 0 {
-		metadata.params.FileStreamOffset = filestream.FileStreamOffsetMap{
+		upserter.params.FileStreamOffset = filestream.FileStreamOffsetMap{
 			filestream.HistoryChunk: lineCount,
 		}
 	}
 
 	if project := bucket.GetProject(); project == nil {
-		metadata.logger.Error("runmetadata: upsert bucket project is nil")
+		upserter.logger.Error("runupserter: upsert bucket project is nil")
 	} else {
 		entity := project.GetEntity()
 
-		metadata.params.Entity = entity.GetName()
-		metadata.params.Project = project.GetName()
+		upserter.params.Entity = entity.GetName()
+		upserter.params.Project = project.GetName()
 	}
 }
