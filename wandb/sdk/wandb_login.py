@@ -116,7 +116,7 @@ class _WandbLogin:
         }
         self.is_anonymous = anonymous == "must"
 
-        self._wandb_setup = wandb_setup._setup(start_service=False)
+        self._wandb_setup = wandb_setup.singleton()
         self._wandb_setup.settings.update_from_dict(login_settings)
         self._settings = self._wandb_setup.settings
 
