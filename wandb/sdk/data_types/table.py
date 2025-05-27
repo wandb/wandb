@@ -4,6 +4,7 @@ import codecs
 import datetime
 import logging
 import os
+from typing import Literal, Optional
 
 import wandb
 from wandb import util
@@ -180,6 +181,30 @@ class _ForeignIndexType(_dtypes.Type):
         return cls(table)
 
 
+def allow_relogging_after_mutation(method):
+    def wrapper(self, *args, **kwargs):
+        res = method(self, *args, **kwargs)
+
+        has_been_logged = self._run is not None or self._artifact_target is not None
+
+        if self.log_mode == "MUTABLE":
+            self._run = None
+            self._artifact_target = None
+        elif self.log_mode == "IMMUTABLE" and has_been_logged:
+            logging.warning(
+                "You are mutating a Table with log_mode='IMMUTABLE' that has been"
+                "logged already. Subsequent log() calls will have no effect."
+                "Set log_mode='MUTABLE' to enable re-logging after mutations"
+            )
+
+        return res
+
+    return wrapper
+
+
+supported_logging_modes = ["IMMUTABLE", "MUTABLE"]
+
+
 class Table(Media):
     """The Table class used to display and analyze tabular data.
 
@@ -190,21 +215,6 @@ class Table(Media):
 
     This class is the primary class used to generate the Table Visualizer
     in the UI: https://docs.wandb.ai/guides/data-vis/tables.
-
-    Args:
-        columns: (List[str]) Names of the columns in the table.
-            Defaults to ["Input", "Output", "Expected"].
-        data: (List[List[any]]) 2D row-oriented array of values.
-        dataframe: (pandas.DataFrame) DataFrame object used to create the table.
-            When set, `data` and `columns` arguments are ignored.
-        optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
-            - If a singular bool value, then the optionality is enforced for all
-            columns specified at construction time
-            - If a list of bool values, then the optionality is applied to each
-            column - should be the same length as `columns`
-            applies to all columns. A list of bool values applies to each respective column.
-        allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
-            (disables type validation). Defaults to False
     """
 
     MAX_ROWS = 10000
@@ -221,15 +231,39 @@ class Table(Media):
         dtype=None,
         optional=True,
         allow_mixed_types=False,
+        log_mode: Optional[Literal["IMMUTABLE", "MUTABLE"]] = "IMMUTABLE",
     ):
         """Initializes a Table object.
 
         The rows is available for legacy reasons and should not be used.
         The Table class uses data to mimic the Pandas API.
+
+        Args:
+            columns: (List[str]) Names of the columns in the table.
+                Defaults to ["Input", "Output", "Expected"].
+            data: (List[List[any]]) 2D row-oriented array of values.
+            dataframe: (pandas.DataFrame) DataFrame object used to create the table.
+                When set, `data` and `columns` arguments are ignored.
+            optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
+                - If a singular bool value, then the optionality is enforced for all
+                columns specified at construction time
+                - If a list of bool values, then the optionality is applied to each
+                column - should be the same length as `columns`
+                applies to all columns. A list of bool values applies to each respective column.
+            allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
+                (disables type validation). Defaults to False
+            log_mode: (Optional[Literal["IMMUTABLE", "MUTABLE"]]) Controls how the Table is logged when mutations occur.
+                Options:
+                - "IMMUTABLE" (default): Table can only be logged once; subsequent
+                logging attempts after the table has been mutated will be no-ops.
+                - "MUTABLE": Table can be re-logged after mutations, creating
+                a new artifact version each time it's logged.
         """
         super().__init__()
+        self._validate_log_mode(log_mode)
+        self.log_mode = log_mode
         self._pk_col = None
-        self._fk_cols = set()
+        self._fk_cols: set[str] = set()
         if allow_mixed_types:
             dtype = _dtypes.AnyType
 
@@ -257,6 +291,11 @@ class Table(Media):
             # Default empty case
             else:
                 self._init_from_list([], columns, optional, dtype)
+
+    def _validate_log_mode(self, log_mode):
+        assert (
+            log_mode in supported_logging_modes
+        ), f"Invalid log_mode: {log_mode}. Must be one of {supported_logging_modes}"
 
     @staticmethod
     def _assert_valid_columns(columns):
@@ -312,6 +351,7 @@ class Table(Media):
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
 
+    @allow_relogging_after_mutation
     def cast(self, col_name, dtype, optional=False):
         """Casts a column to a specific data type.
 
@@ -336,11 +376,7 @@ class Table(Media):
             result_type = wbtype.assign(row[col_ndx])
             if isinstance(result_type, _dtypes.InvalidType):
                 raise TypeError(
-                    "Existing data {}, of type {} cannot be cast to {}".format(
-                        row[col_ndx],
-                        _dtypes.TypeRegistry.type_of(row[col_ndx]),
-                        wbtype,
-                    )
+                    f"Existing data {row[col_ndx]}, of type {_dtypes.TypeRegistry.type_of(row[col_ndx])} cannot be cast to {wbtype}"
                 )
             wbtype = result_type
 
@@ -359,9 +395,7 @@ class Table(Media):
         if is_pk:
             assert (
                 self._pk_col is None
-            ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
-                self._pk_col
-            )
+            ), f"Cannot have multiple primary keys - {self._pk_col} is already set as the primary key."
 
         # Update the column type
         self._column_types.params["type_map"][col_name] = wbtype
@@ -375,23 +409,21 @@ class Table(Media):
 
     def _eq_debug(self, other, should_assert=False):
         eq = isinstance(other, Table)
-        assert not should_assert or eq, "Found type {}, expected {}".format(
-            other.__class__, Table
-        )
+        assert (
+            not should_assert or eq
+        ), f"Found type {other.__class__}, expected {Table}"
         eq = eq and len(self.data) == len(other.data)
-        assert not should_assert or eq, "Found {} rows, expected {}".format(
-            len(other.data), len(self.data)
-        )
+        assert (
+            not should_assert or eq
+        ), f"Found {len(other.data)} rows, expected {len(self.data)}"
         eq = eq and self.columns == other.columns
-        assert not should_assert or eq, "Found columns {}, expected {}".format(
-            other.columns, self.columns
-        )
+        assert (
+            not should_assert or eq
+        ), f"Found columns {other.columns}, expected {self.columns}"
         eq = eq and self._column_types == other._column_types
         assert (
             not should_assert or eq
-        ), "Found column type {}, expected column type {}".format(
-            other._column_types, self._column_types
-        )
+        ), f"Found column type {other._column_types}, expected column type {self._column_types}"
         if eq:
             for row_ndx in range(len(self.data)):
                 for col_ndx in range(len(self.data[row_ndx])):
@@ -402,12 +434,7 @@ class Table(Media):
                     eq = eq and _eq
                     assert (
                         not should_assert or eq
-                    ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
-                        row_ndx,
-                        col_ndx,
-                        other.data[row_ndx][col_ndx],
-                        self.data[row_ndx][col_ndx],
-                    )
+                    ), f"Unequal data at row_ndx {row_ndx} col_ndx {col_ndx}: found {other.data[row_ndx][col_ndx]}, expected {self.data[row_ndx][col_ndx]}"
                     if not eq:
                         return eq
         return eq
@@ -415,11 +442,13 @@ class Table(Media):
     def __eq__(self, other):
         return self._eq_debug(other)
 
+    @allow_relogging_after_mutation
     def add_row(self, *row):
         """Deprecated; use add_data instead."""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
+    @allow_relogging_after_mutation
     def add_data(self, *data):
         """Adds a new row of data to the table. The maximum amount of rows in a table is determined by `wandb.Table.MAX_ARTIFACT_ROWS`.
 
@@ -427,9 +456,7 @@ class Table(Media):
         """
         if len(data) != len(self.columns):
             raise ValueError(
-                "This table expects {} columns: {}, found {}".format(
-                    len(self.columns), self.columns, len(data)
-                )
+                f"This table expects {len(self.columns)} columns: {self.columns}, found {len(data)}"
             )
 
         # Special case to pre-emptively cast a column as a key.
@@ -468,9 +495,7 @@ class Table(Media):
         result_type = current_type.assign(incoming_row_dict)
         if isinstance(result_type, _dtypes.InvalidType):
             raise TypeError(
-                "Data row contained incompatible types:\n{}".format(
-                    current_type.explain(incoming_row_dict)
-                )
+                f"Data row contained incompatible types:\n{current_type.explain(incoming_row_dict)}"
             )
         return result_type
 
@@ -521,6 +546,7 @@ class Table(Media):
         column_types = None
         np_deserialized_columns = {}
         timestamp_column_indices = set()
+        log_mode = json_obj.get("log_mode", "IMMUTABLE")
         if json_obj.get("column_types") is not None:
             column_types = _dtypes.TypeRegistry.type_from_dict(
                 json_obj["column_types"], source_artifact
@@ -583,7 +609,9 @@ class Table(Media):
                 column_types.params["type_map"][str(col)] for col in json_obj["columns"]
             ]
 
-        new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes)
+        new_obj = cls(
+            columns=json_obj["columns"], data=data, dtype=dtypes, log_mode=log_mode
+        )
 
         if column_types is not None:
             new_obj._column_types = column_types
@@ -600,6 +628,7 @@ class Table(Media):
                     "_type": "table-file",
                     "ncols": len(self.columns),
                     "nrows": len(self.data),
+                    "log_mode": self.log_mode,
                 }
             )
 
@@ -669,6 +698,7 @@ class Table(Media):
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
                     "column_types": self._column_types.to_json(artifact),
+                    "log_mode": self.log_mode,
                 }
             )
         else:
@@ -692,11 +722,13 @@ class Table(Media):
             index.set_table(self)
             yield index, self.data[ndx]
 
+    @allow_relogging_after_mutation
     def set_pk(self, col_name):
         # TODO: Docs
         assert col_name in self.columns
         self.cast(col_name, _PrimaryKeyType())
 
+    @allow_relogging_after_mutation
     def set_fk(self, col_name, table, table_col):
         # TODO: Docs
         assert col_name in self.columns
@@ -737,9 +769,7 @@ class Table(Media):
             # If there is a removed FK
             if len(self._fk_cols - _fk_cols) > 0:
                 raise AssertionError(
-                    "Cannot unset foreign key. Attempted to unset ({})".format(
-                        self._fk_cols - _fk_cols
-                    )
+                    f"Cannot unset foreign key. Attempted to unset ({self._fk_cols - _fk_cols})"
                 )
 
             self._pk_col = _pk_col
@@ -799,6 +829,7 @@ class Table(Media):
             for row_ndx in range(len(self.data)):
                 update_row(row_ndx)
 
+    @allow_relogging_after_mutation
     def add_column(self, name, data, optional=False):
         """Adds a column of data to the table.
 
@@ -889,6 +920,7 @@ class Table(Media):
         _index.set_table(self)
         return _index
 
+    @allow_relogging_after_mutation
     def add_computed_columns(self, fn):
         """Adds one or more computed columns based on existing data.
 
@@ -992,9 +1024,7 @@ class PartitionedTable(Media):
                 columns = part.columns
             elif columns != part.columns:
                 raise ValueError(
-                    "Table parts have non-matching columns. {} != {}".format(
-                        columns, part.columns
-                    )
+                    f"Table parts have non-matching columns. {columns} != {part.columns}"
                 )
             for _, row in part.iterrows():
                 yield ndx, row
@@ -1137,13 +1167,13 @@ class JoinedTable(Media):
 
     def _eq_debug(self, other, should_assert=False):
         eq = isinstance(other, JoinedTable)
-        assert not should_assert or eq, "Found type {}, expected {}".format(
-            other.__class__, JoinedTable
-        )
+        assert (
+            not should_assert or eq
+        ), f"Found type {other.__class__}, expected {JoinedTable}"
         eq = eq and self._join_key == other._join_key
-        assert not should_assert or eq, "Found {} join key, expected {}".format(
-            other._join_key, self._join_key
-        )
+        assert (
+            not should_assert or eq
+        ), f"Found {other._join_key} join key, expected {self._join_key}"
         eq = eq and self._table1._eq_debug(other._table1, should_assert)
         eq = eq and self._table2._eq_debug(other._table2, should_assert)
         return eq

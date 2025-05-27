@@ -237,10 +237,10 @@ def test_docker_run_digest(runner, docker, monkeypatch):
             "-e",
             "WANDB_API_KEY=test",
             "-e",
-            "WANDB_DOCKER={}".format(DOCKER_SHA),
+            f"WANDB_DOCKER={DOCKER_SHA}",
             "--runtime",
             "nvidia",
-            "{}".format(DOCKER_SHA),
+            f"{DOCKER_SHA}",
         ]
     )
 
@@ -549,7 +549,7 @@ def test_local_default(runner, docker, local_settings):
                 "--name",
                 "wandb-local",
                 "-e",
-                "LOCAL_USERNAME={}".format(user),
+                f"LOCAL_USERNAME={user}",
                 "-d",
                 "wandb/local",
             ]
@@ -574,7 +574,7 @@ def test_local_custom_port(runner, docker, local_settings):
             "--name",
             "wandb-local",
             "-e",
-            "LOCAL_USERNAME={}".format(user),
+            f"LOCAL_USERNAME={user}",
             "-d",
             "wandb/local",
         ]
@@ -599,7 +599,7 @@ def test_local_custom_env(runner, docker, local_settings):
             "--name",
             "wandb-local",
             "-e",
-            "LOCAL_USERNAME={}".format(user),
+            f"LOCAL_USERNAME={user}",
             "-e",
             "FOO=bar",
             "-d",

@@ -1,4 +1,4 @@
-package runmetadata_test
+package runupserter_test
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/runmetadata"
+	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/waiting"
@@ -31,9 +31,9 @@ func runRecord(run *spb.RunRecord) *spb.Record {
 	}
 }
 
-// testParams returns metadata parameters with default values for testing.
-func testParams() runmetadata.RunMetadataParams {
-	return runmetadata.RunMetadataParams{
+// testParams returns upserter parameters with default values for testing.
+func testParams() runupserter.RunUpserterParams {
+	return runupserter.RunUpserterParams{
 		DebounceDelay:   waiting.NoDelay(),
 		Settings:        settings.New(),
 		BeforeRunEndCtx: context.Background(),
@@ -76,7 +76,7 @@ func TestInitRun_MakesCorrectRequest(t *testing.T) {
 		fakeUpsertBucketResponseJSON(),
 	)
 
-	metadata, _ := runmetadata.InitRun(
+	upserter, _ := runupserter.InitRun(
 		runRecord(&spb.RunRecord{
 			// In order of UpsertBucket parameters.
 			StorageId:   "storage ID",
@@ -104,7 +104,7 @@ func TestInitRun_MakesCorrectRequest(t *testing.T) {
 		}),
 		params,
 	)
-	defer metadata.Finish()
+	defer upserter.Finish()
 
 	requests := mockClient.AllRequests()
 	assert.Len(t, requests, 1)
@@ -162,11 +162,11 @@ func TestInitRun_ReadsResponse(t *testing.T) {
 		}`,
 	)
 
-	metadata, err := runmetadata.InitRun(runRecord(&spb.RunRecord{}), params)
-	defer metadata.Finish()
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	defer upserter.Finish()
 
 	run := &spb.RunRecord{}
-	metadata.FillRunRecord(run)
+	upserter.FillRunRecord(run)
 	assert.Nil(t, err)
 	assert.Equal(t, "storage ID", run.StorageId)
 	assert.Equal(t, "run ID", run.RunId)
@@ -185,9 +185,9 @@ func TestInitRun_UpsertError(t *testing.T) {
 		errors.New("test error"),
 	)
 
-	metadata, err := runmetadata.InitRun(runRecord(&spb.RunRecord{}), params)
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
 
-	assert.Nil(t, metadata)
+	assert.Nil(t, upserter)
 	assert.ErrorContains(t, err, "test error")
 }
 
@@ -195,20 +195,93 @@ func TestInitRun_Offline(t *testing.T) {
 	params := testParams()
 	params.GraphqlClientOrNil = nil
 
-	metadata, err := runmetadata.InitRun(runRecord(&spb.RunRecord{}), params)
-	defer metadata.Finish()
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	defer upserter.Finish()
 
 	assert.Nil(t, err)
-	assert.NotNil(t, metadata)
+	assert.NotNil(t, upserter)
+}
+
+func TestResume(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+	mockClient.StubMatchOnce(
+		gqlmock.WithOpName("UpsertBucket"),
+		fakeUpsertBucketResponseJSON(),
+	)
+
+	params := testParams()
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	defer upserter.Finish()
+
+	assert.NoError(t, err)
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+func TestResume_Offline_Succeeds(t *testing.T) {
+	params := testParams()
+	params.GraphqlClientOrNil = nil
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	defer upserter.Finish()
+
+	assert.NoError(t, err)
+}
+
+func TestRewind(t *testing.T) {
+	// NOTE: Rewinding works offline.
+	runInitRecord := runRecord(
+		&spb.RunRecord{
+			RunId: "run to rewind",
+			BranchPoint: &spb.BranchPoint{
+				Run:    "run to rewind",
+				Metric: "_step",
+				Value:  123,
+			},
+		})
+
+	upserter, err := runupserter.InitRun(runInitRecord, testParams())
+	defer upserter.Finish()
+
+	assert.NoError(t, err)
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.EqualValues(t, run.StartingStep, 124)
+}
+
+func TestFork(t *testing.T) {
+	// NOTE: Forking works offline.
+	runInitRecord := runRecord(
+		&spb.RunRecord{
+			RunId: "run",
+			BranchPoint: &spb.BranchPoint{
+				Run:    "other run",
+				Metric: "_step",
+				Value:  10,
+			},
+		},
+	)
+
+	upserter, err := runupserter.InitRun(runInitRecord, testParams())
+	defer upserter.Finish()
+
+	assert.NoError(t, err)
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.EqualValues(t, run.StartingStep, 11)
 }
 
 type variablesForUpdateTest struct {
 	MockClient    *gqlmock.MockClient
 	DebounceDelay *waitingtest.FakeDelay
-	Metadata      *runmetadata.RunMetadata
+	Upserter      *runupserter.RunUpserter
 }
 
-// setupUpdateTest returns an initialized RunMetadata and a mock GraphQL client
+// setupUpdateTest returns an initialized RunUpserter and a mock GraphQL client
 // stubbed to expect one more UpsertBucket request.
 func setupUpdateTest(t *testing.T) variablesForUpdateTest {
 	t.Helper()
@@ -227,25 +300,25 @@ func setupUpdateTest(t *testing.T) variablesForUpdateTest {
 		)
 	}
 
-	metadata, err := runmetadata.InitRun(runRecord(&spb.RunRecord{}), params)
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
 
 	require.NoError(t, err)
 	return variablesForUpdateTest{
 		MockClient:    mockClient,
 		DebounceDelay: fakeDebounceDelay,
-		Metadata:      metadata,
+		Upserter:      upserter,
 	}
 }
 
 func TestUpdate_Debounces(t *testing.T) {
 	vars := setupUpdateTest(t)
 
-	vars.Metadata.Update(&spb.RunRecord{})
-	vars.Metadata.UpdateConfig(&spb.ConfigRecord{})
-	vars.Metadata.UpdateTelemetry(&spb.TelemetryRecord{})
-	vars.Metadata.UpdateMetrics(&spb.MetricRecord{})
+	vars.Upserter.Update(&spb.RunRecord{})
+	vars.Upserter.UpdateConfig(&spb.ConfigRecord{})
+	vars.Upserter.UpdateTelemetry(&spb.TelemetryRecord{})
+	vars.Upserter.UpdateMetrics(&spb.MetricRecord{})
 	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
-	vars.Metadata.Finish()
+	vars.Upserter.Finish()
 
 	requests := vars.MockClient.AllRequests()
 	assert.Len(t, requests, 2)
@@ -254,9 +327,9 @@ func TestUpdate_Debounces(t *testing.T) {
 func TestUpdate_Uploads(t *testing.T) {
 	vars := setupUpdateTest(t)
 
-	vars.Metadata.Update(&spb.RunRecord{RunId: "test run ID"})
+	vars.Upserter.Update(&spb.RunRecord{RunId: "test run ID"})
 	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
-	vars.Metadata.Finish()
+	vars.Upserter.Finish()
 
 	requests := vars.MockClient.AllRequests()
 	assert.Len(t, requests, 2)
@@ -269,7 +342,7 @@ func TestUpdate_Uploads(t *testing.T) {
 func TestUpdateConfig_Uploads(t *testing.T) {
 	vars := setupUpdateTest(t)
 
-	vars.Metadata.UpdateConfig(
+	vars.Upserter.UpdateConfig(
 		&spb.ConfigRecord{
 			Update: []*spb.ConfigItem{{
 				Key:       "test key",
@@ -278,7 +351,7 @@ func TestUpdateConfig_Uploads(t *testing.T) {
 		},
 	)
 	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
-	vars.Metadata.Finish()
+	vars.Upserter.Finish()
 
 	requests := vars.MockClient.AllRequests()
 	assert.Len(t, requests, 2)
@@ -295,11 +368,11 @@ func TestUpdateConfig_Uploads(t *testing.T) {
 func TestUpdateTelemetry_Uploads(t *testing.T) {
 	vars := setupUpdateTest(t)
 
-	vars.Metadata.UpdateTelemetry(
+	vars.Upserter.UpdateTelemetry(
 		&spb.TelemetryRecord{PythonVersion: "test python version"},
 	)
 	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
-	vars.Metadata.Finish()
+	vars.Upserter.Finish()
 
 	requests := vars.MockClient.AllRequests()
 	assert.Len(t, requests, 2)
@@ -322,9 +395,9 @@ func TestUpdateTelemetry_Uploads(t *testing.T) {
 func TestUpdateMetrics_Uploads(t *testing.T) {
 	vars := setupUpdateTest(t)
 
-	vars.Metadata.UpdateMetrics(&spb.MetricRecord{Name: "test metric"})
+	vars.Upserter.UpdateMetrics(&spb.MetricRecord{Name: "test metric"})
 	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
-	vars.Metadata.Finish()
+	vars.Upserter.Finish()
 
 	requests := vars.MockClient.AllRequests()
 	assert.Len(t, requests, 2)

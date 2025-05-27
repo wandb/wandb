@@ -1,3 +1,7 @@
+# v1.7.2 (2025-05-22)
+
+* **Bug Fix**: Handle checksum for unseekable body with 0 content length
+
 # v1.7.1 (2025-04-28)
 
 * **Bug Fix**: Don't emit warnings about lack of checksum validation for non-200 responses.

@@ -133,7 +133,7 @@ class Artifact:
             dictionary of key-value pairs. You can specify no more than 100 total keys.
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
-        use_as: W&B Launch specific parameter. Not recommended for general use.
+        use_as: Deprecated.
         is_link: Boolean indication of if the artifact is a linked artifact(`True`) or source artifact(`False`).
 
     Returns:
@@ -201,7 +201,14 @@ class Artifact:
         self._saved_tags: list[str] = []
         self._distributed_id: str | None = None
         self._incremental: bool = incremental
-        self._use_as: str | None = use_as
+        if use_as is not None:
+            deprecate(
+                field_name=Deprecated.artifact__init_use_as,
+                warning_message=(
+                    "`use_as` argument is deprecated and does not affect the behaviour of `wandb.Artifact()`"
+                ),
+            )
+        self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
         self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
             ArtifactManifestV1(self._storage_policy)
@@ -908,6 +915,11 @@ class Artifact:
 
     @property
     def use_as(self) -> str | None:
+        """Deprecated."""
+        deprecate(
+            field_name=Deprecated.artifact__use_as,
+            warning_message=("The use_as property of Artifact is deprecated."),
+        )
         return self._use_as
 
     @property
@@ -1442,7 +1454,7 @@ class Artifact:
             ValueError: Policy must be "mutable" or "immutable"
         """
         if not os.path.isdir(local_path):
-            raise ValueError("Path is not a directory: {}".format(local_path))
+            raise ValueError(f"Path is not a directory: {local_path}")
 
         termlog(
             "Adding directory to artifact ({})... ".format(
@@ -1743,7 +1755,7 @@ class Artifact:
         name = LogicalPath(name)
         entry = self.manifest.entries.get(name) or self._get_obj_entry(name)[0]
         if entry is None:
-            raise KeyError("Path not contained in artifact: {}".format(name))
+            raise KeyError(f"Path not contained in artifact: {name}")
         entry._parent_artifact = self
         return entry
 
@@ -1959,9 +1971,7 @@ class Artifact:
         if nfiles > 5000 or size > 50 * 1024 * 1024:
             log = True
             termlog(
-                "Downloading large artifact {}, {:.2f}MB. {} files... ".format(
-                    self.name, size / (1024 * 1024), nfiles
-                ),
+                f"Downloading large artifact {self.name}, {size / (1024 * 1024):.2f}MB. {nfiles} files... ",
             )
             start_time = datetime.now()
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
@@ -2177,16 +2187,14 @@ class Artifact:
                     self.get_entry(artifact_path)
                 except KeyError:
                     raise ValueError(
-                        "Found file {} which is not a member of artifact {}".format(
-                            full_path, self.name
-                        )
+                        f"Found file {full_path} which is not a member of artifact {self.name}"
                     )
 
         ref_count = 0
         for entry in self.manifest.entries.values():
             if entry.ref is None:
                 if md5_file_b64(os.path.join(root, entry.path)) != entry.digest:
-                    raise ValueError("Digest mismatch for file: {}".format(entry.path))
+                    raise ValueError(f"Digest mismatch for file: {entry.path}")
             else:
                 ref_count += 1
         if ref_count > 0:
