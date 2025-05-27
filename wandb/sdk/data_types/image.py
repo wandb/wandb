@@ -6,6 +6,8 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
 from urllib import parse
 
+from packaging.version import parse as parse_version
+
 import wandb
 from wandb import util
 from wandb.sdk.lib import hashutil, runid
@@ -94,10 +96,9 @@ def _server_accepts_image_filenames(run: "LocalRun") -> bool:
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
-    from wandb.util import parse_version
 
-    accepts_image_filenames: bool = parse_version("0.12.10") <= parse_version(
-        max_cli_version
+    accepts_image_filenames: bool = parse_version(max_cli_version) >= parse_version(
+        "0.12.10"
     )
     return accepts_image_filenames
 
@@ -110,7 +111,7 @@ def _server_accepts_artifact_path(run: "LocalRun") -> bool:
     if max_cli_version is None:
         return False
 
-    return util.parse_version("0.12.14") <= util.parse_version(max_cli_version)
+    return parse_version(max_cli_version) >= parse_version("0.12.14")
 
 
 class Image(BatchableMedia):

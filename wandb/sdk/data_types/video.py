@@ -35,14 +35,14 @@ if TYPE_CHECKING:  # pragma: no cover
 def write_gif_with_image_io(
     clip: Any, filename: str, fps: Optional[int] = None
 ) -> None:
-    from wandb.util import parse_version
+    from packaging.version import parse
 
     imageio = util.get_module(
         "imageio",
         required='wandb.Video requires imageio when passing raw data. Install with "pip install wandb[media]"',
     )
 
-    if parse_version(imageio.__version__) < parse_version("2.28.1"):
+    if parse(imageio.__version__) < parse("2.28.1"):
         raise ValueError(
             "imageio version 2.28.1 or higher is required to encode gifs. "
             "Please upgrade imageio with `pip install imageio>=2.28.1`"
