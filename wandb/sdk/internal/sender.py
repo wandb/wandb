@@ -754,9 +754,7 @@ class SendManager:
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
-                error.message = "resume='must' but could not resume ({}) ".format(
-                    run.run_id
-                )
+                error.message = f"resume='must' but could not resume ({run.run_id}) "
                 return error
 
         # TODO: Do we need to restore config / summary?
@@ -772,7 +770,7 @@ class SendManager:
         self._resume_state.summary = summary
         self._resume_state.tags = tags
         self._resume_state.resumed = True
-        logger.info("configured resuming with: {}".format(self._resume_state))
+        logger.info(f"configured resuming with: {self._resume_state}")
         return None
 
     def _telemetry_get_framework(self) -> str:
@@ -816,9 +814,7 @@ class SendManager:
             self._interface.publish_config(
                 key=("_wandb", "spell_url"), val=env.get("SPELL_RUN_URL")
             )
-            url = "{}/{}/{}/runs/{}".format(
-                self._api.app_url, self._run.entity, self._run.project, self._run.run_id
-            )
+            url = f"{self._api.app_url}/{self._run.entity}/{self._run.project}/runs/{self._run.run_id}"
             requests.put(
                 env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
                 json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
@@ -1500,9 +1496,7 @@ class SendManager:
             logger.info(f"sent artifact {artifact.name} - {res}")
         except Exception as e:
             logger.error(
-                'send_artifact: failed for artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
-                )
+                f'send_artifact: failed for artifact "{artifact.type}/{artifact.name}": {e}'
             )
 
     def _send_artifact(

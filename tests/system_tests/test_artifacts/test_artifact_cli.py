@@ -31,7 +31,7 @@ def test_artifact(runner, user):
     if platform.system() == "Windows":
         head, tail = os.path.splitdrive(path)
         path = head + tail.replace(":", "-")
-    assert "Artifact downloaded to {}".format(os.path.abspath(path)) in result.output
+    assert f"Artifact downloaded to {os.path.abspath(path)}" in result.output
     assert os.path.exists(path)
 
 
