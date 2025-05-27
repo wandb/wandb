@@ -190,6 +190,30 @@ class _ForeignIndexType(_dtypes.Type):
         return cls(table)
 
 
+def allow_relogging_after_mutation(method):
+    def wrapper(self, *args, **kwargs):
+        res = method(self, *args, **kwargs)
+
+        has_been_logged = self._run is not None or self._artifact_target is not None
+
+        if self.log_mode == "MUTABLE":
+            self._run = None
+            self._artifact_target = None
+        elif self.log_mode == "IMMUTABLE" and has_been_logged:
+            logging.warning(
+                "You are mutating a Table with log_mode='IMMUTABLE' that has been"
+                "logged already. Subsequent log() calls will have no effect."
+                "Set log_mode='MUTABLE' to enable re-logging after mutations"
+            )
+
+        return res
+
+    return wrapper
+
+
+supported_logging_modes = ["IMMUTABLE", "MUTABLE"]
+
+
 class Table(Media):
     """The Table class used to display and analyze tabular data.
 
@@ -371,11 +395,7 @@ class Table(Media):
             result_type = wbtype.assign(row[col_ndx])
             if isinstance(result_type, _dtypes.InvalidType):
                 raise TypeError(
-                    "Existing data {}, of type {} cannot be cast to {}".format(
-                        row[col_ndx],
-                        _dtypes.TypeRegistry.type_of(row[col_ndx]),
-                        wbtype,
-                    )
+                    f"Existing data {row[col_ndx]}, of type {_dtypes.TypeRegistry.type_of(row[col_ndx])} cannot be cast to {wbtype}"
                 )
             wbtype = result_type
 
@@ -394,9 +414,7 @@ class Table(Media):
         if is_pk:
             assert (
                 self._pk_col is None
-            ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
-                self._pk_col
-            )
+            ), f"Cannot have multiple primary keys - {self._pk_col} is already set as the primary key."
 
         # Update the column type
         self._column_types.params["type_map"][col_name] = wbtype
@@ -410,23 +428,21 @@ class Table(Media):
 
     def _eq_debug(self, other, should_assert=False):
         eq = isinstance(other, Table)
-        assert not should_assert or eq, "Found type {}, expected {}".format(
-            other.__class__, Table
-        )
+        assert (
+            not should_assert or eq
+        ), f"Found type {other.__class__}, expected {Table}"
         eq = eq and len(self.data) == len(other.data)
-        assert not should_assert or eq, "Found {} rows, expected {}".format(
-            len(other.data), len(self.data)
-        )
+        assert (
+            not should_assert or eq
+        ), f"Found {len(other.data)} rows, expected {len(self.data)}"
         eq = eq and self.columns == other.columns
-        assert not should_assert or eq, "Found columns {}, expected {}".format(
-            other.columns, self.columns
-        )
+        assert (
+            not should_assert or eq
+        ), f"Found columns {other.columns}, expected {self.columns}"
         eq = eq and self._column_types == other._column_types
         assert (
             not should_assert or eq
-        ), "Found column type {}, expected column type {}".format(
-            other._column_types, self._column_types
-        )
+        ), f"Found column type {other._column_types}, expected column type {self._column_types}"
         if eq:
             for row_ndx in range(len(self.data)):
                 for col_ndx in range(len(self.data[row_ndx])):
@@ -437,12 +453,7 @@ class Table(Media):
                     eq = eq and _eq
                     assert (
                         not should_assert or eq
-                    ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
-                        row_ndx,
-                        col_ndx,
-                        other.data[row_ndx][col_ndx],
-                        self.data[row_ndx][col_ndx],
-                    )
+                    ), f"Unequal data at row_ndx {row_ndx} col_ndx {col_ndx}: found {other.data[row_ndx][col_ndx]}, expected {self.data[row_ndx][col_ndx]}"
                     if not eq:
                         return eq
         return eq
@@ -465,9 +476,7 @@ class Table(Media):
         """
         if len(data) != len(self.columns):
             raise ValueError(
-                "This table expects {} columns: {}, found {}".format(
-                    len(self.columns), self.columns, len(data)
-                )
+                f"This table expects {len(self.columns)} columns: {self.columns}, found {len(data)}"
             )
 
         # Special case to pre-emptively cast a column as a key.
@@ -506,9 +515,7 @@ class Table(Media):
         result_type = current_type.assign(incoming_row_dict)
         if isinstance(result_type, _dtypes.InvalidType):
             raise TypeError(
-                "Data row contained incompatible types:\n{}".format(
-                    current_type.explain(incoming_row_dict)
-                )
+                f"Data row contained incompatible types:\n{current_type.explain(incoming_row_dict)}"
             )
         return result_type
 
@@ -808,9 +815,7 @@ class Table(Media):
             # If there is a removed FK
             if len(self._fk_cols - _fk_cols) > 0:
                 raise AssertionError(
-                    "Cannot unset foreign key. Attempted to unset ({})".format(
-                        self._fk_cols - _fk_cols
-                    )
+                    f"Cannot unset foreign key. Attempted to unset ({self._fk_cols - _fk_cols})"
                 )
 
             self._pk_col = _pk_col
@@ -1067,9 +1072,7 @@ class PartitionedTable(Media):
                 columns = part.columns
             elif columns != part.columns:
                 raise ValueError(
-                    "Table parts have non-matching columns. {} != {}".format(
-                        columns, part.columns
-                    )
+                    f"Table parts have non-matching columns. {columns} != {part.columns}"
                 )
             for _, row in part.iterrows():
                 yield ndx, row
@@ -1212,13 +1215,13 @@ class JoinedTable(Media):
 
     def _eq_debug(self, other, should_assert=False):
         eq = isinstance(other, JoinedTable)
-        assert not should_assert or eq, "Found type {}, expected {}".format(
-            other.__class__, JoinedTable
-        )
+        assert (
+            not should_assert or eq
+        ), f"Found type {other.__class__}, expected {JoinedTable}"
         eq = eq and self._join_key == other._join_key
-        assert not should_assert or eq, "Found {} join key, expected {}".format(
-            other._join_key, self._join_key
-        )
+        assert (
+            not should_assert or eq
+        ), f"Found {other._join_key} join key, expected {self._join_key}"
         eq = eq and self._table1._eq_debug(other._table1, should_assert)
         eq = eq and self._table2._eq_debug(other._table2, should_assert)
         return eq

@@ -26,6 +26,9 @@ This version removes the ability to disable the `service` process. This is a bre
     - GCS paths use the format `gs://bucket/path/to/log/dir` and rely on application-default credentials, which can be configured using `gcloud auth application-default login`
     - S3 paths use the format `s3://bucket/path/to/log/dir` and rely on the default credentials set through `aws configure`
     - Azure paths use the format `az://account/container/path/to/log/dir` and the `az login` credentials, but also require the `AZURE_STORAGE_ACCOUNT` and `AZURE_STORAGE_KEY` environment variables to be set. Some other environment variables are supported as well, see [here](https://pkg.go.dev/gocloud.dev@v0.41.0/blob/azureblob#hdr-URLs).
+- Added support for initializing some Media objects with `pathlib.Path` (@jacobromero in https://github.com/wandb/wandb/pull/9692)
+- New setting `x_skip_transaction_log` that allows to skip the transaction log. Note: Should be used with caution, as it removes the gurantees about
+    recoverability. (@kptkin in https://github.com/wandb/wandb/pull/9064)
 
 ### Removed
 
@@ -34,6 +37,7 @@ This version removes the ability to disable the `service` process. This is a bre
 ### Deprecated
 
 - The `start_method` setting is deprecated and has no effect; it is safely ignored (@kptkin in https://github.com/wandb/wandb/pull/9837)
+- The property `Artifact.use_as` and parameter `use_as` for `run.use_artifact()` are deprecated since these have not been in use for W&B Launch (@ibindlish in https://github.com/wandb/wandb/pull/9760)
 
 ### Fixed
 

@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import os
+import pathlib
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
 from urllib import parse
@@ -30,7 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
     ImageDataType = Union[
         "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
     ]
-    ImageDataOrPathType = Union[str, "Image", ImageDataType]
+    ImageDataOrPathType = Union[str, pathlib.Path, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 
@@ -169,7 +170,9 @@ class Image(BatchableMedia):
         # only overriding additional metadata passed in. If this pattern is compelling, we can generalize.
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             if self.path_is_reference(data_or_path):
                 self._initialize_from_reference(data_or_path)
             else:
@@ -501,7 +504,7 @@ class Image(BatchableMedia):
                 return "RGBA"
         else:
             raise ValueError(
-                "Un-supported shape for image conversion {}".format(list(data.shape))
+                f"Un-supported shape for image conversion {list(data.shape)}"
             )
 
     @classmethod
