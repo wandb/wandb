@@ -295,14 +295,15 @@ def test_table_logging_mode_incremental():
     t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
 
     assert hasattr(t, "_increment_num")
-    assert t._increment_num == 0
+    assert t._increment_num == None
 
     t.add_data("Yes", "No")
 
-    assert t._increment_num == 0
+    assert t._increment_num == None
 
     # simulate logging
     t._set_artifact_target(wandb.Artifact("dummy_art", "placeholder"), "dummy_art")
+    t._increment_num = 0
 
     t.add_data("Yes", "No")
 
