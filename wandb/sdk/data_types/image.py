@@ -35,6 +35,56 @@ if TYPE_CHECKING:  # pragma: no cover
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 
+def _warn_on_invalid_data_range(
+    data: "np.ndarray",
+    normalize: bool = True,
+) -> None:
+    if not normalize:
+        return
+
+    np = util.get_module(
+        "numpy",
+        required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
+    )
+
+    if np.min(data) < 0 or np.max(data) > 255:
+        wandb.termwarn(
+            "Data passed to `wandb.Image` should consist of values in the range [0, 255], "
+            "image data will be normalized to this range, "
+            "but behavior will be removed in a future version of wandb.",
+            repeat=False,
+        )
+
+
+def _normalize(data: "np.ndarray") -> "np.ndarray":
+    """Normalizes and converts image pixel values to uint8 in the range [0, 255]."""
+    np = util.get_module(
+        "numpy",
+        required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
+    )
+
+    # if an image has negative values, set all values to be in the range [0, 1]
+    # This can lead to inconsistent behavior when an image has only a single negative value
+    if np.min(data) < 0:
+        data = data - np.min(data)
+
+    if np.ptp(data) != 0:
+        data = data / np.ptp(data)
+
+    if np.max(data) <= 1.0:
+        data = (255 * data).astype(np.int32)
+
+    return data.clip(0, 255)
+
+
+def _convert_to_uint8(data: "np.ndarray") -> "np.ndarray":
+    np = util.get_module(
+        "numpy",
+        required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
+    )
+    return data.astype(np.uint8)
+
+
 def _server_accepts_image_filenames(run: "LocalRun") -> bool:
     if run.offline:
         return True
@@ -64,65 +114,7 @@ def _server_accepts_artifact_path(run: "LocalRun") -> bool:
 
 
 class Image(BatchableMedia):
-    """Format images for logging to W&B.
-
-    Args:
-        data_or_path: (numpy array, string, io) Accepts numpy array of
-            image data, or a PIL image. The class attempts to infer
-            the data format and converts it.
-        mode: (string) The PIL mode for an image. Most common are "L", "RGB",
-            "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
-        caption: (string) Label for display of image.
-
-    Note : When logging a `torch.Tensor` as a `wandb.Image`, images are normalized. If you do not want to normalize your images, please convert your tensors to a PIL Image.
-
-    Examples:
-        ### Create a wandb.Image from a numpy array
-        ```python
-        import numpy as np
-        import wandb
-
-        with wandb.init() as run:
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                image = wandb.Image(pixels, caption=f"random field {i}")
-                examples.append(image)
-            run.log({"examples": examples})
-        ```
-
-        ### Create a wandb.Image from a PILImage
-        ```python
-        import numpy as np
-        from PIL import Image as PILImage
-        import wandb
-
-        with wandb.init() as run:
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(
-                    low=0, high=256, size=(100, 100, 3), dtype=np.uint8
-                )
-                pil_image = PILImage.fromarray(pixels, mode="RGB")
-                image = wandb.Image(pil_image, caption=f"random field {i}")
-                examples.append(image)
-            run.log({"examples": examples})
-        ```
-
-        ### log .jpg rather than .png (default)
-        ```python
-        import numpy as np
-        import wandb
-
-        with wandb.init() as run:
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                image = wandb.Image(pixels, caption=f"random field {i}", file_type="jpg")
-                examples.append(image)
-            run.log({"examples": examples})
-        ```
-    """
+    """A class for logging images to W&B."""
 
     MAX_ITEMS = 108
 
@@ -152,7 +144,85 @@ class Image(BatchableMedia):
         boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
         file_type: Optional[str] = None,
+        normalize: bool = True,
     ) -> None:
+        """Initialize a wandb.Image object.
+
+        Args:
+            data_or_path: Accepts numpy array/pytorch tensor of image data,
+                a PIL image object, or a path to an image file.
+
+                If a numpy array or pytorch tensor is provided,
+                the image data will be saved to the given file type.
+                If the values are not in the range [0, 255] or all values are in the range [0, 1],
+                the image pixel values will be normalized to the range [0, 255]
+                unless `normalize` is set to False.
+                - pytorch tensor should be in the format (channel, height, width)
+                - numpy array should be in the format (height, width, channel)
+            mode: The PIL mode for an image. Most common are "L", "RGB",
+                "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
+            caption: Label for display of image.
+            grouping: The grouping number for the image.
+            classes: A list of class information for the image,
+                used for labeling bounding boxes, and image masks.
+            boxes: A dictionary containing bounding box information for the image.
+                see: https://docs.wandb.ai/ref/python/data-types/boundingboxes2d/
+            masks: A dictionary containing mask information for the image.
+                see: https://docs.wandb.ai/ref/python/data-types/imagemask/
+            file_type: The file type to save the image as.
+                This parameter has no effect if data_or_path is a path to an image file.
+            normalize: If True, normalize the image pixel values to fall within the range of [0, 255].
+                Normalize is only applied if data_or_path is a numpy array or pytorch tensor.
+
+        Examples:
+            ### Create a wandb.Image from a numpy array
+            ```python
+            import numpy as np
+            import wandb
+
+            with wandb.init() as run:
+                examples = []
+                for i in range(3):
+                    pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                    image = wandb.Image(pixels, caption=f"random field {i}")
+                    examples.append(image)
+                run.log({"examples": examples})
+            ```
+
+            ### Create a wandb.Image from a PILImage
+            ```python
+            import numpy as np
+            from PIL import Image as PILImage
+            import wandb
+
+            with wandb.init() as run:
+                examples = []
+                for i in range(3):
+                    pixels = np.random.randint(
+                        low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+                    )
+                    pil_image = PILImage.fromarray(pixels, mode="RGB")
+                    image = wandb.Image(pil_image, caption=f"random field {i}")
+                    examples.append(image)
+                run.log({"examples": examples})
+            ```
+
+            ### log .jpg rather than .png (default)
+            ```python
+            import numpy as np
+            import wandb
+
+            with wandb.init() as run:
+                examples = []
+                for i in range(3):
+                    pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                    image = wandb.Image(
+                        pixels, caption=f"random field {i}", file_type="jpg"
+                    )
+                    examples.append(image)
+                run.log({"examples": examples})
+            ```
+        """
         super().__init__(caption=caption)
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
@@ -178,7 +248,7 @@ class Image(BatchableMedia):
             else:
                 self._initialize_from_path(data_or_path)
         else:
-            self._initialize_from_data(data_or_path, mode, file_type)
+            self._initialize_from_data(data_or_path, mode, file_type, normalize)
         self._set_initialization_meta(
             grouping, caption, classes, boxes, masks, file_type
         )
@@ -291,6 +361,7 @@ class Image(BatchableMedia):
         data: "ImageDataType",
         mode: Optional[str] = None,
         file_type: Optional[str] = None,
+        normalize: bool = True,
     ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
@@ -312,17 +383,23 @@ class Image(BatchableMedia):
         elif isinstance(data, pil_image.Image):
             self._image = data
         elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
-            vis_util = util.get_module(
-                "torchvision.utils", "torchvision is required to render images"
-            )
             if hasattr(data, "requires_grad") and data.requires_grad:
                 data = data.detach()  # type: ignore
             if hasattr(data, "dtype") and str(data.dtype) == "torch.uint8":
                 data = data.to(float)
-            data = vis_util.make_grid(data, normalize=True)
             mode = mode or self.guess_mode(data, file_type)
+            data = data.permute(1, 2, 0).cpu().numpy()
+
+            _warn_on_invalid_data_range(data, normalize)
+
+            data = _normalize(data) if normalize else data
+            data = _convert_to_uint8(data)
+
+            if data.ndim > 2:
+                data = data.squeeze()
+
             self._image = pil_image.fromarray(
-                data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy(),
+                data,
                 mode=mode,
             )
         else:
@@ -331,9 +408,13 @@ class Image(BatchableMedia):
             if data.ndim > 2:
                 data = data.squeeze()  # get rid of trivial dimensions as a convenience
 
+            _warn_on_invalid_data_range(data, normalize)
+
             mode = mode or self.guess_mode(data, file_type)
+            data = _normalize(data) if normalize else data
+            data = _convert_to_uint8(data)
             self._image = pil_image.fromarray(
-                self.to_uint8(data),
+                data,
                 mode=mode,
             )
 
@@ -488,7 +569,7 @@ class Image(BatchableMedia):
         else:
             num_channels = data.shape[-1]
 
-        if ndims == 2:
+        if ndims == 2 or num_channels == 1:
             return "L"
         elif num_channels == 3:
             return "RGB"
@@ -506,31 +587,6 @@ class Image(BatchableMedia):
             raise ValueError(
                 f"Un-supported shape for image conversion {list(data.shape)}"
             )
-
-    @classmethod
-    def to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
-        """Convert image data to uint8.
-
-        Convert floating point image on the range [0,1] and integer images on the range
-        [0,255] to uint8, clipping if necessary.
-        """
-        np = util.get_module(
-            "numpy",
-            required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
-        )
-
-        # I think it's better to check the image range vs the data type, since many
-        # image libraries will return floats between 0 and 255
-
-        # some images have range -1...1 or 0-1
-        dmin = np.min(data)
-        if dmin < 0:
-            data = (data - np.min(data)) / np.ptp(data)
-        if np.max(data) <= 1.0:
-            data = (data * 255).astype(np.int32)
-
-        # assert issubclass(data.dtype.type, np.integer), 'Illegal image format.'
-        return data.clip(0, 255).astype(np.uint8)
 
     @classmethod
     def seq_to_json(
