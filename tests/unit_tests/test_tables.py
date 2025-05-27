@@ -260,13 +260,13 @@ def test_datetime_conversion():
     ]
 
 
-def test_table_logging_mode_validation(self):
+def test_table_logging_mode_validation():
     """Test that invalid logging modes raise an error."""
     with pytest.raises(AssertionError):
         wandb.Table(log_mode="INVALID_MODE")
 
 
-def test_table_logging_mode_mutable(self):
+def test_table_logging_mode_mutable():
     """Test that MUTABLE mode allows re-logging after mutations."""
     t = wandb.Table(columns=["a", "b"], log_mode="MUTABLE")
     t._run = "dummy_run"
@@ -278,7 +278,7 @@ def test_table_logging_mode_mutable(self):
     assert t._artifact_target is None
 
 
-def test_table_logging_mode_immutable(self):
+def test_table_logging_mode_immutable():
     """Test that IMMUTABLE mode preserves state after mutations."""
     t = wandb.Table(columns=["a", "b"], log_mode="IMMUTABLE")
     t._run = "dummy_run"
@@ -290,7 +290,7 @@ def test_table_logging_mode_immutable(self):
     assert t._artifact_target == "dummy_target"
 
 
-def test_table_logging_mode_incremental(self):
+def test_table_logging_mode_incremental():
     """Test that INCREMENTAL mode handles partial logging correctly."""
     t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
 
@@ -310,7 +310,7 @@ def test_table_logging_mode_incremental(self):
     assert t._artifact_target is None
 
 
-def test_table_logging_mode_incremental_operations(self, mock_wandb_log):
+def test_table_logging_mode_incremental_operations(mock_wandb_log):
     """Test that INCREMENTAL mode correctly handles unsupported operations."""
     t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
 
@@ -336,7 +336,7 @@ def test_table_logging_mode_incremental_operations(self, mock_wandb_log):
         ) in str(e)
 
 
-def test_table_logging_mode_incremental_warnings(self, mock_wandb_log):
+def test_table_logging_mode_incremental_warnings(mock_wandb_log):
     """Test that INCREMENTAL mode shows warning when exceeding 100 increments"""
 
     t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
