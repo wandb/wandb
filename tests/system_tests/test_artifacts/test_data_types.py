@@ -271,7 +271,6 @@ def test_resumed_run_incremental_table(user, test_settings):
     t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
     resumed_run.log({"table": t})
 
-    assert t._resume_handled
     assert len(t._previous_increments_paths) == 2
     assert t._increment_num == 2
 

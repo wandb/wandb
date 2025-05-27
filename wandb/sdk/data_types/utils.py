@@ -188,7 +188,11 @@ def _log_table_artifact(val: "Media", key: str, run: "LocalRun") -> None:
     sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
 
     if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
-        if run.resumed:
+        if (
+            run.resumed
+            and val._previous_increments_paths is None
+            and val._increment_num is None
+        ):
             val._load_incremental_table_state_from_resumed_run(run, key)
         else:
             val._set_incremental_table_run_target(run)
