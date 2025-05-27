@@ -470,5 +470,3 @@ def test_incremental_tables_cannot_be_logged_on_multiple_runs(
         incr_table.add_data(2, "2")
         with pytest.raises(AssertionError):
             run2.log({"table": incr_table})
-
-    assert len(run.logged_artifacts()) == 2

@@ -24,7 +24,9 @@ from .utils import _json_helper
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts import artifact
+
     from ...wandb_run import Run as LocalRun
+
 
 class _TableLinkMixin:
     def set_table(self, table):
