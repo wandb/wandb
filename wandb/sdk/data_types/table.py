@@ -190,6 +190,9 @@ class _ForeignIndexType(_dtypes.Type):
         return cls(table)
 
 
+_SUPPORTED_LOGGING_MODES = ["IMMUTABLE", "MUTABLE", "INCREMENTAL"]
+
+
 class Table(Media):
     """The Table class used to display and analyze tabular data.
 
@@ -206,7 +209,6 @@ class Table(Media):
     MAX_ARTIFACT_ROWS = 200000
     _MAX_EMBEDDING_DIMENSIONS = 150
     _log_type = "table"
-    supported_logging_modes = ["IMMUTABLE", "MUTABLE", "INCREMENTAL"]
 
     def __init__(
         self,
@@ -252,7 +254,8 @@ class Table(Media):
         self.log_mode = log_mode
         if self.log_mode == "INCREMENTAL":
             wandb.termwarn(
-                "INCREMENTAL log mode is not ready for use yet. Please use IMMUTABLE or MUTABLE mode instead."
+                "INCREMENTAL log mode is not ready for use yet."
+                " Please use IMMUTABLE or MUTABLE mode instead."
             )
             self._increment_num = 0
             self._last_logged_idx: int | None = None
@@ -289,8 +292,8 @@ class Table(Media):
 
     def _validate_log_mode(self, log_mode):
         assert (
-            log_mode in Table.supported_logging_modes
-        ), f"Invalid log_mode: {log_mode}. Must be one of {Table.supported_logging_modes}"
+            log_mode in _SUPPORTED_LOGGING_MODES
+        ), f"Invalid log_mode: {log_mode}. Must be one of {_SUPPORTED_LOGGING_MODES}"
 
     @staticmethod
     def _assert_valid_columns(columns):
@@ -602,14 +605,15 @@ class Table(Media):
             unprocessed_table_data = json_obj["data"]
 
         for r_ndx, row in enumerate(unprocessed_table_data):
-            processed_row = _process_table_row(
-                row,
-                timestamp_column_indices,
-                np_deserialized_columns,
-                source_artifact,
-                r_ndx,
+            data.append(
+                _process_table_row(
+                    row,
+                    timestamp_column_indices,
+                    np_deserialized_columns,
+                    source_artifact,
+                    r_ndx,
+                )
             )
-            data.append(processed_row)
 
         # construct Table with dtypes for each column if type information exists
         dtypes = None
