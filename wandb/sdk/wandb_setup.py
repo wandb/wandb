@@ -1,14 +1,25 @@
-#
-"""Setup wandb session.
+"""Global W&B library state.
 
-This module configures a wandb session which can extend to multiple wandb runs.
+This module manages global state, which for wandb includes:
 
-Functions:
-    setup(): Configure wandb session.
+- Settings configured through `wandb.setup()`
+- The list of active runs
+- A subprocess ("the internal service") that asynchronously uploads metrics
 
-Early logging keeps track of logger output until the call to wandb.init() when the
-run_id can be resolved.
+This module is fork-aware: in a forked process such as that spawned by the
+`multiprocessing` module, `wandb.singleton()` returns a new object, not the
+one inherited from the parent process. This requirement comes from backward
+compatibility with old design choices: the hardest one to fix is that wandb
+was originally designed to have a single run for the entire process that
+`wandb.init()` was meant to return. Back then, the only way to create
+multiple simultaneous runs in a single script was to run subprocesses, and since
+the built-in `multiprocessing` module forks by default, this required a PID
+check to make `wandb.init()` ignore the inherited global run.
 
+Another reason for fork-awareness is that the process that starts up
+the internal service owns it and is responsible for shutting it down,
+and child processes shouldn't also try to do that. This is easier to
+redesign.
 """
 
 from __future__ import annotations
@@ -307,12 +318,12 @@ class _WandbSetup:
         if not self._connection:
             return
 
-        internal_exit_code = self._connection.teardown(exit_code or 0)
-
         # Reset to None so that setup() creates a new connection.
+        connection = self._connection
         self._connection = None
 
-        if internal_exit_code != 0:
+        internal_exit_code = connection.teardown(exit_code or 0)
+        if internal_exit_code not in (None, 0):
             sys.exit(internal_exit_code)
 
     def ensure_service(self) -> ServiceConnection:
@@ -344,10 +355,25 @@ The value is invalid and must not be used if `os.getpid() != _singleton._pid`.
 """
 
 
-def singleton() -> _WandbSetup | None:
-    """Returns the W&B singleton if it exists for the current process.
+def singleton() -> _WandbSetup:
+    """The W&B singleton for the current process.
 
-    Unlike setup(), this does not create the singleton if it doesn't exist.
+    The first call to this in this process (which may be a fork of another
+    process) creates the singleton, and all subsequent calls return it
+    until teardown(). This does not start the service process.
+    """
+    return _setup(start_service=False)
+
+
+def singleton_if_setup() -> _WandbSetup | None:
+    """The W&B singleton for the current process or None if it isn't set up.
+
+    Always prefer singleton() over this function.
+
+    Unlike singleton(), this never creates the singleton and therefore never
+    initializes global settings from the environment. This is useful only
+    during tests, which may modify the environment after having imported wandb
+    and called certain functions.
     """
     if _singleton and _singleton._pid == os.getpid():
         return _singleton

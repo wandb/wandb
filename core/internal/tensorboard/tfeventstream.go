@@ -1,11 +1,11 @@
 package tensorboard
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/internal/waiting"
 )
@@ -18,17 +18,19 @@ type tfEventStream struct {
 	// readDelay is how long to wait before checking for a new event.
 	readDelay waiting.Delay
 	logger    *observability.CoreLogger
+	ctx       context.Context
 
 	reader *TFEventReader
 	events chan *tbproto.TFEvent
-	files  chan paths.AbsolutePath
+	files  chan *LocalOrCloudPath
 
 	done chan struct{}
 	wg   sync.WaitGroup
 }
 
 func NewTFEventStream(
-	logDir paths.AbsolutePath,
+	ctx context.Context,
+	logDir *LocalOrCloudPath,
 	readDelay waiting.Delay,
 	fileFilter TFEventsFileFilter,
 	logger *observability.CoreLogger,
@@ -36,11 +38,12 @@ func NewTFEventStream(
 	return &tfEventStream{
 		readDelay: readDelay,
 		logger:    logger,
+		ctx:       ctx,
 
 		reader: NewTFEventReader(logDir, fileFilter, logger),
 
 		events: make(chan *tbproto.TFEvent),
-		files:  make(chan paths.AbsolutePath),
+		files:  make(chan *LocalOrCloudPath),
 
 		done: make(chan struct{}),
 	}
@@ -54,11 +57,11 @@ func (s *tfEventStream) Events() <-chan *tbproto.TFEvent {
 // Files returns the channel of tfevents file paths.
 //
 // The emitted paths are always absolute.
-func (s *tfEventStream) Files() <-chan paths.AbsolutePath {
+func (s *tfEventStream) Files() <-chan *LocalOrCloudPath {
 	return s.files
 }
 
-func (s *tfEventStream) emitFilePath(path paths.AbsolutePath) {
+func (s *tfEventStream) emitFilePath(path *LocalOrCloudPath) {
 	s.files <- path
 }
 
@@ -91,7 +94,7 @@ func (s *tfEventStream) loop() {
 	isFinishing := false
 
 	for {
-		event, err := s.reader.NextEvent(s.emitFilePath /*onNewFile*/)
+		event, err := s.reader.NextEvent(s.ctx, s.emitFilePath /*onNewFile*/)
 		if err != nil {
 			s.logger.CaptureError(
 				fmt.Errorf(

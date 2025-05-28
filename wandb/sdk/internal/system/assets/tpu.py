@@ -91,7 +91,7 @@ class TPU:
     ) -> str:
         if service_addr is not None:
             if tpu_name is not None:
-                logger.warn(
+                logger.warning(
                     "Both service_addr and tpu_name arguments provided. "
                     "Ignoring tpu_name and using service_addr."
                 )

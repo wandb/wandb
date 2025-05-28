@@ -157,13 +157,13 @@ class SyncThread(threading.Thread):
         proto_run.entity = self._entity
         proto_run.telemetry.feature.sync_tfevents = True
 
-        url = "{}/{}/{}/runs/{}".format(
-            self._app_url,
-            url_quote(proto_run.entity),
-            url_quote(proto_run.project),
-            url_quote(proto_run.run_id),
+        url = (
+            f"{self._app_url}"
+            f"/{url_quote(proto_run.entity)}"
+            f"/{url_quote(proto_run.project)}"
+            f"/runs/{url_quote(proto_run.run_id)}"
         )
-        print("Syncing: {} ...".format(url))  # noqa: T201
+        print(f"Syncing: {url} ...")  # noqa: T201
         sys.stdout.flush()
         # using a handler here automatically handles the step
         # logic, adds summaries to the run, and handles different
@@ -241,7 +241,7 @@ class SyncThread(threading.Thread):
                 )
                 return None
             else:
-                raise e
+                raise
 
     def run(self):
         if self._log_path is not None:
@@ -305,13 +305,13 @@ class SyncThread(threading.Thread):
                     if not shown and result_type == "run_result":
                         r = result.run_result.run
                         # TODO(jhr): hardcode until we have settings in sync
-                        url = "{}/{}/{}/runs/{}".format(
-                            self._app_url,
-                            url_quote(r.entity),
-                            url_quote(r.project),
-                            url_quote(r.run_id),
+                        url = (
+                            f"{self._app_url}"
+                            f"/{url_quote(r.entity)}"
+                            f"/{url_quote(r.project)}"
+                            f"/runs/{url_quote(r.run_id)}"
                         )
-                        print("Syncing: {} ... ".format(url), end="")  # noqa: T201
+                        print(f"Syncing: {url} ... ", end="")  # noqa: T201
                         sys.stdout.flush()
                         shown = True
             sm.finish()

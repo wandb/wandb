@@ -1,6 +1,7 @@
 package tensorboard_test
 
 import (
+	"context"
 	"encoding/binary"
 	"os"
 	"path/filepath"
@@ -40,6 +41,8 @@ func absoluteTmpdir(t *testing.T) paths.AbsolutePath {
 
 func TestReadsSequenceOfFiles(t *testing.T) {
 	tmpdir := absoluteTmpdir(t)
+	tmpdirAsPath, err := tensorboard.ParseTBPath(string(tmpdir))
+	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(
 		filepath.Join(string(tmpdir), "tfevents.1.hostname"),
 		slices.Concat(encodeEvent(event1), encodeEvent(event2)),
@@ -56,15 +59,17 @@ func TestReadsSequenceOfFiles(t *testing.T) {
 		os.ModePerm,
 	))
 	reader := tensorboard.NewTFEventReader(
-		tmpdir,
+		tmpdirAsPath,
 		tensorboard.TFEventsFileFilter{},
 		observability.NewNoOpLogger(),
 	)
+	backgroundCtx := context.Background()
+	noopOnFile := func(path *tensorboard.LocalOrCloudPath) {}
 
-	result1, err1 := reader.NextEvent(func(path paths.AbsolutePath) {})
-	result2, err2 := reader.NextEvent(func(path paths.AbsolutePath) {})
-	result3, err3 := reader.NextEvent(func(path paths.AbsolutePath) {})
-	result4, err4 := reader.NextEvent(func(path paths.AbsolutePath) {})
+	result1, err1 := reader.NextEvent(backgroundCtx, noopOnFile)
+	result2, err2 := reader.NextEvent(backgroundCtx, noopOnFile)
+	result3, err3 := reader.NextEvent(backgroundCtx, noopOnFile)
+	result4, err4 := reader.NextEvent(backgroundCtx, noopOnFile)
 
 	assert.True(t, proto.Equal(event1, result1))
 	assert.True(t, proto.Equal(event2, result2))

@@ -2,6 +2,7 @@ import codecs
 import itertools
 import json
 import os
+import pathlib
 from typing import (
     TYPE_CHECKING,
     ClassVar,
@@ -187,9 +188,8 @@ class Object3D(BatchableMedia):
     """W&B class for 3D point clouds.
 
     Args:
-        data_or_path: Object3D can be initialized from a file or a NumPy
-            array. You can pass a path to a file or an io object and a
-            file_type which must be one of SUPPORTED_TYPES.
+        data_or_path: (numpy array, pathlib.Path, string, io)
+            Object3D can be initialized from a file or a numpy array.
 
     Examples:
     The shape of the numpy array must be one of either
@@ -214,14 +214,16 @@ class Object3D(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union["np.ndarray", str, "TextIO", dict],
+        data_or_path: Union["np.ndarray", str, pathlib.Path, "TextIO", dict],
         caption: Optional[str] = None,
         **kwargs: Optional[Union[str, "FileFormat3D"]],
     ) -> None:
         super().__init__(caption=caption)
 
-        if hasattr(data_or_path, "name"):
-            # if the file has a path, we just detect the type and copy it from there
+        if hasattr(data_or_path, "name") and not isinstance(data_or_path, pathlib.Path):
+            # if the file has a path, we just detect the type and copy it from there.
+            # this does not work for pathlib.Path objects,
+            # where `.name` returns the last directory in the path.
             data_or_path = data_or_path.name
 
         if hasattr(data_or_path, "read"):
@@ -247,7 +249,9 @@ class Object3D(BatchableMedia):
                 f.write(object_3d)
 
             self._set_file(tmp_path, is_tmp=True, extension=extension)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             path = data_or_path
             extension = None
             for supported_type in Object3D.SUPPORTED_TYPES:
