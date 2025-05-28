@@ -1215,13 +1215,15 @@ def async_call(
         )
         thread.daemon = True
         thread.start()
+
         try:
             result = q.get(True, timeout)
-            if isinstance(result, Exception):
-                raise result.with_traceback(sys.exc_info()[2])
-            return result, thread
         except queue.Empty:
             return None, thread
+
+        if isinstance(result, Exception):
+            raise result.with_traceback(sys.exc_info()[2])
+        return result, thread
 
     return wrapper
 
@@ -1439,10 +1441,11 @@ def are_paths_on_same_drive(path1: str, path2: str) -> bool:
     try:
         path1_drive = pathlib.Path(path1).resolve().drive
         path2_drive = pathlib.Path(path2).resolve().drive
-        return path1_drive == path2_drive
-    # If either path is not a valid windows path, an OSError is raised.
     except OSError:
+        # If either path is not a valid Windows path, an OSError is raised.
         return False
+
+    return path1_drive == path2_drive
 
 
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
@@ -1537,13 +1540,18 @@ def is_unicode_safe(stream: TextIO) -> bool:
 
 
 def _has_internet() -> bool:
-    """Attempt to open a DNS connection to Googles root servers."""
+    """Returns whether we have internet access.
+
+    Checks for internet access by attempting to open a DNS connection to
+    Google's root servers.
+    """
     try:
         s = socket.create_connection(("8.8.8.8", 53), 0.5)
         s.close()
-        return True
     except OSError:
         return False
+
+    return True
 
 
 def rand_alphanumeric(

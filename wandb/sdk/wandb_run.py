@@ -1338,13 +1338,12 @@ class Run:
 
         try:
             from IPython import display
-
-            display.display(display.HTML(self.to_html(height, hidden)))
-            return True
-
         except ImportError:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
+
+        display.display(display.HTML(self.to_html(height, hidden)))
+        return True
 
     @_log_to_run
     @_attach
@@ -3814,20 +3813,15 @@ class Run:
             logger.exception("Timeout getting run metadata.")
             return None
 
-        try:
-            response = result.response.get_system_metadata_response
+        response = result.response.get_system_metadata_response
 
-            # Temporarily disable the callback to prevent triggering
-            # an update call to wandb-core with the callback.
-            with self.__metadata.disable_callback():
-                # Values stored in the metadata object take precedence.
-                self.__metadata.update_from_proto(response.metadata, skip_existing=True)
+        # Temporarily disable the callback to prevent triggering
+        # an update call to wandb-core with the callback.
+        with self.__metadata.disable_callback():
+            # Values stored in the metadata object take precedence.
+            self.__metadata.update_from_proto(response.metadata, skip_existing=True)
 
-            return self.__metadata
-        except Exception:
-            logger.exception("Error getting run metadata.")
-
-        return None
+        return self.__metadata
 
     @_log_to_run
     @_raise_if_finished

@@ -669,8 +669,7 @@ class DiffusersMultiModalPipelineResolver:
                 )
 
             # Return the WandB loggable dict
-            loggable_dict = self.prepare_loggable_dict(pipeline, response, kwargs)
-            return loggable_dict
+            return self.prepare_loggable_dict(pipeline, response, kwargs)
         except Exception as e:
             logger.warning(e)
         return None
