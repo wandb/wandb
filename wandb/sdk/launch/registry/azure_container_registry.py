@@ -15,12 +15,12 @@ if TYPE_CHECKING:
     from azure.core.exceptions import ResourceNotFoundError  # type: ignore
 
 
-ContainerRegistryClient = get_module(  # noqa: F811
+ContainerRegistryClient = get_module(
     "azure.containerregistry",
     required="The azure-containerregistry package is required to use launch with Azure. Please install it with `pip install azure-containerregistry`.",
 ).ContainerRegistryClient
 
-ResourceNotFoundError = get_module(  # noqa: F811
+ResourceNotFoundError = get_module(
     "azure.core.exceptions",
     required="The azure-core package is required to use launch with Azure. Please install it with `pip install azure-core`.",
 ).ResourceNotFoundError

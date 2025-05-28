@@ -9,11 +9,11 @@ import wandb
 @pytest.mark.wandb_core_only
 def test_tqdm(wandb_backend_spy):
     with wandb.init(settings={"console": "auto"}) as run:
-        print("before progress")  # noqa: T201
+        print("before progress")
         for i in tqdm.tqdm(range(10), ascii=" 123456789#"):
-            print(f"progress {i}")  # noqa: T201
-        print("after progress", file=sys.stderr)  # noqa: T201
-        print("final progress")  # noqa: T201
+            print(f"progress {i}")
+        print("after progress", file=sys.stderr)
+        print("final progress")
 
     with wandb_backend_spy.freeze() as snapshot:
         output = snapshot.output(run_id=run.id)
@@ -29,10 +29,10 @@ def test_tqdm(wandb_backend_spy):
 @pytest.mark.wandb_core_only
 def test_emoji(wandb_backend_spy):
     with wandb.init(settings={"console": "auto"}) as run:
-        print("before emoji")  # noqa: T201
+        print("before emoji")
         for i in range(10):
-            print(f"line-{i}-\N{GRINNING FACE}")  # noqa: T201
-        print("after emoji", file=sys.stderr)  # noqa: T201
+            print(f"line-{i}-\N{GRINNING FACE}")
+        print("after emoji", file=sys.stderr)
 
     with wandb_backend_spy.freeze() as snapshot:
         output = snapshot.output(run_id=run.id)
@@ -45,15 +45,15 @@ def test_emoji(wandb_backend_spy):
 @pytest.mark.skip(reason="order seems to be wrong")
 def test_tqdm_nested(wandb_backend_spy):
     with wandb.init(settings={"console": "auto"}) as run:
-        print("before progress")  # noqa: T201
+        print("before progress")
         for outer in tqdm.tqdm([10, 20, 30, 40, 50], desc=" outer", position=0):
             for inner in tqdm.tqdm(
                 range(outer), desc=" inner loop", position=1, leave=False
             ):
                 run.log(dict(outer=outer, inner=inner))
-        print("done!")  # noqa: T201
-        print("after progress", file=sys.stderr)  # noqa: T201
-        print("final progress")  # noqa: T201
+        print("done!")
+        print("after progress", file=sys.stderr)
+        print("final progress")
 
     with wandb_backend_spy.freeze() as snapshot:
         output = snapshot.output(run_id=run.id)

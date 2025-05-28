@@ -103,7 +103,9 @@ class RetryingClient:
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
-    def execute(self, *args, **kwargs):  # noqa: D102  # User not encouraged to use this class directly
+    def execute(
+        self, *args, **kwargs
+    ):  # User not encouraged to use this class directly
         try:
             return self._client.execute(*args, **kwargs)
         except requests.exceptions.ReadTimeout:
@@ -122,7 +124,9 @@ class RetryingClient:
             self._server_info = self.execute(self.INFO_QUERY).get("serverInfo")
         return self._server_info
 
-    def version_supported(self, min_version: str) -> bool:  # noqa: D102  # User not encouraged to use this class directly
+    def version_supported(
+        self, min_version: str
+    ) -> bool:  # User not encouraged to use this class directly
         from packaging.version import parse
 
         return parse(min_version) <= parse(

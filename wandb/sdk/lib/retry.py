@@ -94,7 +94,7 @@ class Retry(Generic[_R]):
         """The number of iterations the previous __call__ retried."""
         return self._num_iter
 
-    def __call__(self, *args: Any, **kwargs: Any) -> _R:  # noqa: C901
+    def __call__(self, *args: Any, **kwargs: Any) -> _R:
         """Call the wrapped function, with retries.
 
         Args:
