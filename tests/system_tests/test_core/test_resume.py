@@ -168,7 +168,7 @@ def test_resume_output_log(wandb_backend_spy):
         ),
     ) as run:
         run_id = run.id
-        print(f"started {run_id}")  # noqa: T201
+        print(f"started {run_id}")
 
     with wandb.init(
         id=run_id,
@@ -179,7 +179,7 @@ def test_resume_output_log(wandb_backend_spy):
             console_multipart=True,
         ),
     ) as run:
-        print(f"resumed {run_id}")  # noqa: T201
+        print(f"resumed {run_id}")
         run.log({"metric": 1})
 
     with wandb_backend_spy.freeze() as snapshot:
