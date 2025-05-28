@@ -247,8 +247,6 @@ func (h *Handler) handleRecord(record *spb.Record) {
 		h.handleMetric(record)
 	case *spb.Record_Request:
 		h.handleRequest(record)
-	case *spb.Record_Run:
-		h.handleRun(record)
 	case *spb.Record_Summary:
 		h.handleSummary(x.Summary)
 	case *spb.Record_Tbrecord:
@@ -740,14 +738,6 @@ func (h *Handler) handleRequestResume() {
 	h.systemMonitor.Resume()
 }
 
-func (h *Handler) handleRun(record *spb.Record) {
-	h.fwdRecordWithControl(record,
-		func(control *spb.Control) {
-			control.AlwaysSend = true
-		},
-	)
-}
-
 func (h *Handler) handleRequestRunFinishWithoutExit(record *spb.Record) {
 	h.runTimer.Pause()
 	h.updateRunTiming()
@@ -1138,8 +1128,4 @@ func (h *Handler) handleRequestSampledHistory(record *spb.Record) {
 			},
 		},
 	})
-}
-
-func (h *Handler) GetRun() *spb.RunRecord {
-	return h.runRecord
 }
