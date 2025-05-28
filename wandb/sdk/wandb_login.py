@@ -249,17 +249,17 @@ class _WandbLogin:
 
         try:
             is_api_key_valid = api.validate_api_key()
-
-            if not is_api_key_valid:
-                raise AuthenticationError(
-                    "API key verification failed. Make sure your API key is valid."
-                )
         except ConnectionError:
             raise AuthenticationError(
                 "Unable to connect to server to verify API token."
             )
         except Exception:
             raise AuthenticationError("An error occurred while verifying the API key.")
+
+        if not is_api_key_valid:
+            raise AuthenticationError(
+                "API key verification failed. Make sure your API key is valid."
+            )
 
 
 def _login(

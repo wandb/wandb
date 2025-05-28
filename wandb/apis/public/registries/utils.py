@@ -125,16 +125,16 @@ def _fetch_org_entity_from_organization(client: "Client", organization: str) -> 
     )
     try:
         response = client.execute(query, variable_values={"organization": organization})
-        if response["organization"] and response["organization"]["orgEntity"]:
-            if response["organization"]["orgEntity"]["name"]:
-                return response["organization"]["orgEntity"]["name"]
-            return ValueError(
-                f"Organization entity for organization: {organization} is empty"
-            )
-        raise ValueError(
-            f"Organization entity for organization: {organization} not found"
-        )
     except Exception as e:
         raise ValueError(
             f"Error fetching org entity for organization: {organization}"
         ) from e
+
+    if (
+        not (org := response["organization"])
+        or not (org_entity := org["orgEntity"])
+        or not (org_name := org_entity["name"])
+    ):
+        raise ValueError(f"Organization entity for {organization} not found.")
+
+    return org_name
