@@ -552,8 +552,8 @@ class WandbImporter:
                 f"{seq=} does not exist in dst.  Has it already been deleted?"
             )
             return
-        except TypeError as e:
-            logger.error(f"Problem getting dst versions (try again later) {e=}")
+        except TypeError:
+            logger.exception("Problem getting dst versions (try again later).")
             return
 
         for art in dst_arts:
@@ -705,7 +705,7 @@ class WandbImporter:
                 )
             except ValueError as e:
                 if "Could not find project" in str(e):
-                    logger.error("Could not find project, does it exist?")
+                    logger.exception("Could not find project, does it exist?")
                     continue
 
             for run in runs:
@@ -1173,8 +1173,8 @@ class WandbImporter:
             for art in seq:
                 try:
                     logged_by = _get_run_or_dummy_from_art(art, self.src_api)
-                except requests.HTTPError as e:
-                    logger.error(f"Failed to get run, skipping: {art=}, {e=}")
+                except requests.HTTPError:
+                    logger.exception(f"Failed to get run, skipping: {art=}")
                     continue
 
                 if art.type == "wandb-history" and isinstance(logged_by, _DummyRun):
@@ -1219,9 +1219,10 @@ class WandbImporter:
                     art = seq.artifacts[0]
                     try:
                         logged_by = _get_run_or_dummy_from_art(art, self.src_api)
-                    except requests.HTTPError as e:
-                        logger.error(
-                            f"Validate Artifact http error: {art.entity=}, {art.project=}, {art.name=}, {e=}"
+                    except requests.HTTPError:
+                        logger.exception(
+                            f"Validate Artifact http error: {art.entity=},"
+                            f" {art.project=}, {art.name=}"
                         )
                         continue
 
@@ -1351,8 +1352,8 @@ class WandbImporter:
                 types = []
                 try:
                     types = [t for t in api.artifact_types(ns.path)]
-                except Exception as e:
-                    logger.error(f"Failed to get artifact types {e=}")
+                except Exception:
+                    logger.exception("Failed to get artifact types.")
 
                 for t in types:
                     collections = []
@@ -1363,8 +1364,8 @@ class WandbImporter:
 
                     try:
                         collections = t.collections()
-                    except Exception as e:
-                        logger.error(f"Failed to get artifact collections {e=}")
+                    except Exception:
+                        logger.exception("Failed to get artifact collections.")
 
                     for c in collections:
                         if c.is_sequence():
@@ -1542,8 +1543,8 @@ def _download_art(art: Artifact, root: str) -> Optional[str]:
     try:
         with patch("click.echo"):
             return art.download(root=root, skip_cache=True)
-    except Exception as e:
-        logger.error(f"Error downloading artifact {art=}, {e=}")
+    except Exception:
+        logger.exception(f"Error downloading artifact {art=}")
 
 
 def _clone_art(art: Artifact, root: Optional[str] = None):

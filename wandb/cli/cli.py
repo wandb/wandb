@@ -105,7 +105,7 @@ def display_error(func):
         except wandb.Error as e:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-            logger.error("".join(lines))
+            logger.exception("".join(lines))
             wandb.termerror(f"Find detailed error logs at: {_wandb_log_path}")
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
@@ -1510,11 +1510,11 @@ def launch(
                 wandb.termerror("Launched run exited with non-zero status")
                 sys.exit(1)
         except LaunchError as e:
-            logger.error("=== %s ===", e)
+            logger.exception("An error occurred.")
             wandb._sentry.exception(e)
             sys.exit(e)
         except ExecutionError as e:
-            logger.error("=== %s ===", e)
+            logger.exception("An error occurred.")
             wandb._sentry.exception(e)
             sys.exit(e)
         except asyncio.CancelledError:
