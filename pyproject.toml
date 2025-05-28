@@ -198,6 +198,7 @@ select = [
     "TRY203", # useless-try-except
     "TRY301", # raise-within-try
     "TRY400", # error-instead-of-exception
+    "TRY401", # verbose-log-message
 ]
 ignore = [
     "B904",

@@ -104,8 +104,8 @@ class GPUAMDStats:
             if cards:
                 self.samples.append(cards)
 
-        except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
-            logger.exception(f"GPU stats error: {e}")
+        except (OSError, ValueError, TypeError, subprocess.CalledProcessError):
+            logger.exception("GPU stats error")
 
     def clear(self) -> None:
         self.samples.clear()
@@ -228,6 +228,6 @@ class GPUAMD:
                 for key in stats.keys()
                 if key.startswith("card")
             ]
-        except Exception as e:
-            logger.exception(f"GPUAMD probe error: {e}")
+        except Exception:
+            logger.exception("GPUAMD probe error")
         return info

@@ -728,9 +728,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if self.compute_flops and _can_compute_flops():
             try:
                 wandb.summary["GFLOPs"] = self.get_flops()
-            except Exception as e:
+            except Exception:
+                logger.exception("Error computing FLOPs")
                 wandb.termwarn("Unable to compute FLOPs for this model.")
-                logger.exception(e)
 
     def on_train_end(self, logs=None):
         if self._model_trained_since_last_eval:
@@ -1012,12 +1012,12 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 self.model.save(self.filepath, overwrite=True)
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
         # also saw `TypeError: can't pickle _thread.RLock objects`
-        except (ImportError, RuntimeError, TypeError, AttributeError) as e:
+        except (ImportError, RuntimeError, TypeError, AttributeError):
+            logger.exception("Error saving model in the h5py format")
             wandb.termerror(
                 "Can't save model in the h5py format. The model will be saved as "
                 "as an W&B Artifact in the 'tf' format."
             )
-            logger.exception(e)
 
     def _save_model_as_artifact(self, epoch):
         if wandb.run.disabled:
