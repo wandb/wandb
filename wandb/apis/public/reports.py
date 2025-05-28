@@ -32,9 +32,11 @@ class Reports(SizedPaginator["BetaReport"]):
                             user {
                                 username
                                 photoUrl
+                                email
                             }
                             spec
                             updatedAt
+                            createdAt
                         }
                         cursor
                     }
@@ -111,11 +113,16 @@ class BetaReport(Attrs):
     WARNING: this API will likely change in a future release
 
     Attributes:
+        id (string): unique identifier of the report
         name (string): report name
-        description (string): report description;
+        display_name (string): display name of the report
+        description (string): report description
         user (User): the user that created the report
-        spec (dict): the spec off the report;
+        spec (dict): the spec of the report
         updated_at (string): timestamp of last update
+        created_at (string): timestamp when the report was created
+        username (string): username of the report creator
+        user_email (string): email of the report creator
     """
 
     def __init__(self, client, attrs, entity=None, project=None):
@@ -156,6 +163,38 @@ class BetaReport(Attrs):
     @property
     def updated_at(self):
         return self._attrs["updatedAt"]
+        
+    @property
+    def id(self):
+        return self._attrs["id"]
+
+    @property
+    def name(self):
+        return self._attrs["name"]
+
+    @property
+    def display_name(self):
+        return self._attrs["displayName"]
+
+    @property
+    def description(self):
+        return self._attrs["description"]
+
+    @property
+    def user(self):
+        return self._attrs["user"]
+
+    @property
+    def created_at(self):
+        return self._attrs["createdAt"]
+
+    @property
+    def username(self):
+        return self._attrs["user"]["username"]
+
+    @property
+    def user_email(self):
+        return self._attrs["user"]["email"]
 
     @property
     def url(self):
