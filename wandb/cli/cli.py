@@ -126,10 +126,7 @@ def _get_cling_api(reset=None):
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
         # only override the necessary setting
-        wandb_setup._setup(
-            settings=wandb.Settings(x_cli_only_mode=True),
-            start_service=False,
-        )
+        wandb_setup.singleton().settings.x_cli_only_mode = True
         _api = InternalApi()
     return _api
 
@@ -240,13 +237,9 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     key = key[0] if key is not None and len(key) > 0 else None
     relogin = True if key or relogin else False
 
-    wandb_setup._setup(
-        settings=wandb.Settings(
-            x_cli_only_mode=True,
-            x_disable_viewer=relogin and not verify,
-        ),
-        start_service=False,
-    )
+    global_settings = wandb_setup.singleton().settings
+    global_settings.x_cli_only_mode = True
+    global_settings.x_disable_viewer = relogin and not verify
 
     wandb.login(
         anonymous=anon_mode,
@@ -1551,7 +1544,7 @@ def launch(
 
         except Exception as e:
             wandb._sentry.exception(e)
-            raise e
+            raise
 
 
 @cli.command(
@@ -1642,7 +1635,7 @@ def launch_agent(
         _launch.create_and_run_agent(api, agent_config)
     except Exception as e:
         wandb._sentry.exception(e)
-        raise e
+        raise
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1720,7 +1713,7 @@ def scheduler(
         _scheduler.start()
     except Exception as e:
         wandb._sentry.exception(e)
-        raise e
+        raise
 
 
 @cli.group(help="Commands for managing and viewing W&B jobs")

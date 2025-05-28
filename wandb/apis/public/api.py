@@ -2145,7 +2145,7 @@ class Api:
 
             # Not a (known) recoverable HTTP error
             wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
-            raise e
+            raise
 
         try:
             result = UpdateAutomation.model_validate(data).result

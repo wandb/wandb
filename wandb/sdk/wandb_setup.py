@@ -344,10 +344,25 @@ The value is invalid and must not be used if `os.getpid() != _singleton._pid`.
 """
 
 
-def singleton() -> _WandbSetup | None:
-    """Returns the W&B singleton if it exists for the current process.
+def singleton() -> _WandbSetup:
+    """The W&B singleton for the current process.
 
-    Unlike setup(), this does not create the singleton if it doesn't exist.
+    The first call to this in this process (which may be a fork of another
+    process) creates the singleton, and all subsequent calls return it
+    until teardown(). This does not start the service process.
+    """
+    return _setup(start_service=False)
+
+
+def singleton_if_setup() -> _WandbSetup | None:
+    """The W&B singleton for the current process or None if it isn't set up.
+
+    Always prefer singleton() over this function.
+
+    Unlike singleton(), this never creates the singleton and therefore never
+    initializes global settings from the environment. This is useful only
+    during tests, which may modify the environment after having imported wandb
+    and called certain functions.
     """
     if _singleton and _singleton._pid == os.getpid():
         return _singleton
