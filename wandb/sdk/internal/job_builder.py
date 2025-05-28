@@ -426,6 +426,7 @@ class JobBuilder:
         build_context: Optional[str] = None,
         dockerfile: Optional[str] = None,
         base_image: Optional[str] = None,
+        requires_inference_server: bool = False,
     ) -> Optional[Artifact]:
         """Build a job artifact from the current run.
 
@@ -437,6 +438,7 @@ class JobBuilder:
             dockerfile (Optional[str]): Path within the build context the
                 Dockerfile. Saved as part of the job for future builds.
             base_image (Optional[str]): The base image used to run the job code.
+            requires_inference_server (bool): Whether the job requires an inference server.
 
         Returns:
             Optional[Artifact]: The job artifact if it was successfully built,
@@ -542,6 +544,7 @@ class JobBuilder:
             "input_types": input_types,
             "output_types": output_types,
             "runtime": runtime,
+            "requires_inference_server": requires_inference_server,
         }
 
         assert source_info is not None

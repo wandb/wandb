@@ -69,6 +69,9 @@ class Job:
         self._output_types = TypeRegistry.type_from_dict(
             self._job_info.get("output_types")
         )
+        self._requires_inference_server = self._job_info.get(
+            "requires_inference_server", False
+        )
         if self._job_info.get("source_type") == "artifact":
             self._set_configure_launch_project(self._configure_launch_project_artifact)
         if self._job_info.get("source_type") == "repo":

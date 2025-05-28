@@ -437,6 +437,7 @@ class LaunchProject:
             )
         job.configure_launch_project(self)  # Why is this a method of the job?
         self._job_artifact = job._job_artifact
+        self._requires_inference_server = job._requires_inference_server
 
     def get_env_vars_dict(self, api: Api, max_env_length: int) -> Dict[str, str]:
         """Generate environment variables for the project.

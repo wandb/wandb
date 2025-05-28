@@ -11,9 +11,8 @@ from dataclasses import dataclass
 from multiprocessing import Event
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import yaml
-
 import wandb
+import yaml
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
@@ -706,6 +705,12 @@ class LaunchAgent:
         job_tracker.update_run_info(project)
         self._internal_logger.info("Fetching and validating project...")
         project.fetch_and_validate_project()
+        wandb.termlog(
+            f"Job requires_inference_server: {project._requires_inference_server}"
+        )
+        wandb.termlog(
+            f"Launch spec requires_inference_server config: {launch_spec.get('inferenceServerConfig', None)}"
+        )
         self._internal_logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local-container"
         backend_config: Dict[str, Any] = {
