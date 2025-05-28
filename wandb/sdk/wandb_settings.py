@@ -162,7 +162,7 @@ class Settings(BaseModel, validate_assignment=True):
     This class manages configuration settings for the W&B SDK,
     ensuring type safety and validation of all settings. Settings are accessible
     as attributes and can be initialized programmatically, through environment
-    variables (WANDB_ prefix), and via configuration files.
+    variables (`WANDB_ prefix`), and with configuration files.
 
     The settings are organized into three categories:
     1. Public settings: Core configuration options that users can safely modify to customize
@@ -173,6 +173,133 @@ class Settings(BaseModel, validate_assignment=True):
        versions.
     3. Computed settings: Read-only settings that are automatically derived from other settings or
        the environment.
+
+    Args:
+        allow_offline_artifacts (bool): Flag to allow table artifacts to be
+            synced in offline mode.
+        allow_val_change (bool): Flag to allow modification of `Config` values
+            after they've been set.
+        anonymous (Optional[Literal["allow", "must", "never"]]): Controls
+            anonymous data logging. Possible values are:
+        - "never": requires you to link your W&B account before
+        tracking the run, so you don't accidentally create an anonymous
+        run.
+        - "allow": lets a logged-in user track runs with their account, but
+        lets someone who is running the script without a W&B account see
+        the charts in the UI.
+        - "must": sends the run to an anonymous account instead of to a
+        signed-up user account.
+        api_key (Optional[str]): The W&B API key.
+        azure_account_url_to_access_key (Optional[Dict[str, str]]): Mapping of
+            Azure account URLs to their corresponding access keys for Azure
+            integration.
+        base_url (str): The URL of the W&B backend for data synchronization.
+        code_dir (Optional[str]): Directory containing the code to be
+            tracked by W&B.
+        config_paths (Optional[Sequence[str]]): Paths to files to load
+            configuration from into the `Config` object.
+        console (Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"]): The
+            type of console capture to be applied. Possible values are:
+        - "auto" - Automatically selects the console capture method based on the
+        system environment and settings.
+        - "off" - Disables console capture.
+        - "redirect" - Redirects low-level file descriptors for capturing output.
+        - "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will
+        be mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
+        - "wrap_raw" - Same as "wrap" but captures raw output directly instead of
+        through an emulator. Derived from the `wrap` setting and should not be set manually.
+        - "wrap_emu" - Same as "wrap" but captures output through an emulator.
+          Derived from the `wrap` setting and should not be set manually.
+        console_multipart (bool): Whether to produce multipart console log files.
+        credentials_file (str): Path to file for writing temporary access tokens.
+        disable_code (bool): Whether to disable capturing the code.
+        disable_git (bool): Whether to disable capturing the git state.
+        disable_job_creation (bool): Whether to disable the creation of a
+            job artifact for W&B Launch.
+        docker (Optional[str]): The Docker image used to execute the script.
+        email (Optional[str]): The email address of the user.
+        entity (Optional[str]): The W&B entity, such as a user or a team.
+        organization (Optional[str]): The W&B organization.
+        force (bool): Whether to pass the `force` flag to `wandb.login()`.
+        fork_from (Optional[RunMoment]): Specifies a point in a previous
+            execution of a run to fork from. The point is defined by the
+            run ID, a metric, and its value. Only the metric '_step' is supported.
+        git_commit (Optional[str]): The git commit hash to associate with
+            the run.
+        git_remote (str): The git remote to associate with the run.
+        git_remote_url (Optional[str]): The URL of the git remote repository.
+        git_root (Optional[str]): Root directory of the git repository.
+        heartbeat_seconds (int): Interval in seconds between heartbeat signals
+            sent to the W&B servers.
+        host (Optional[str]): Hostname of the machine running the script.
+        http_proxy (Optional[str]): Custom proxy servers for http requests to W&B.
+        https_proxy (Optional[str]): Custom proxy servers for https requests to W&B.
+        identity_token_file (Optional[str]): Path to file containing an identity token (JWT) for authentication.
+        ignore_globs (Sequence[str]): Unix glob patterns relative to `files_dir` specifying files to exclude from upload.
+        init_timeout (float): Time in seconds to wait for the `wandb.init` call to complete before timing out.
+        insecure_disable_ssl (bool): Whether to disable SSL verification.
+        job_name (Optional[str]): Name of the Launch job running the script.
+        job_source (Optional[Literal["repo", "artifact", "image"]]): Source type for Launch.
+        label_disable (bool): Whether to disable automatic labeling features.
+        launch (bool): Flag to indicate if the run is being launched through W&B Launch.
+        launch_config_path (Optional[str]): Path to the launch configuration file.
+        login_timeout (Optional[float]): Time in seconds to wait for login operations before timing out.
+        mode (Literal["online", "offline", "dryrun", "disabled", "run", "shared"]): The operating mode for W&B logging and synchronization.
+        notebook_name (Optional[str]): Name of the notebook if running in a Jupyter-like environment.
+        program (Optional[str]): Path to the script that created the run, if available.
+        program_abspath (Optional[str]): The absolute path from the root
+            repository directory to the script that created the run. Root
+            repository directory is defined as the directory containing
+            the .git directory, if it exists. Otherwise, it's the current working directory.
+        program_relpath (Optional[str]): The relative path to the script that created the run.
+        project (Optional[str]): The W&B project ID.
+        quiet (bool): Flag to suppress non-essential output.
+        reinit (Union[Literal["default", "return_previous", "finish_previous", "create_new"], bool]): What
+            to do when `wandb.init()` is called while a run is active. Options are
+        - "default": Use "finish_previous" in notebooks and "return_previous" otherwise.
+        - "return_previous": Return the most recently created run that is not yet finished.
+        This does not update `wandb.run`; see the "create_new" option.
+        - "finish_previous": Finish all active runs, then return a new run.
+        - "create_new": Create a new run without modifying other active runs.
+        Does not update `wandb.run` and top-level functions like
+        `wandb.log`. Because of this, some older integrations that rely on
+        the global run will not work.
+        relogin (bool): Whether to force a new login attempt.
+        resume (Optional[Literal["allow", "must", "never", "auto"]]): Specifies
+            the resume behavior for the run. The available options are
+        - "must": Resumes from an existing run with the same ID. If no such run exists, it will result in failure.
+        - "allow": Attempts to resume from an existing run with the same ID. If none is found, a new run will be created.
+        - "never": Always starts a new run. If a run with the same ID already exists, it will result in failure.
+        - "auto": Automatically resumes from the most recent failed run on the same machine.
+        resume_from (Optional[RunMoment]): Specifies a point in a previous execution of a run to resume from. The point is defined by the run ID, a metric, and its value.
+            Currently, only the metric '_step' is supported.
+        resumed (bool): Indication from the server about the state of the run. This is different from resume, a user provided flag.
+        root_dir (str): The root directory to use as the base for all run-related paths. Used to derive the wandb directory and the run directory.
+        run_group (Optional[str]): Group identifier for related runs. Used for grouping runs in the UI.
+        run_id (Optional[str]): The ID of the run.
+        run_job_type (Optional[str]): Type of job being run (e.g., training, evaluation).
+        run_name (Optional[str]): Human-readable name for the run.
+        run_notes (Optional[str]): Additional notes or description for the run.
+        run_tags (Optional[Tuple[str, ...]]): Tags to associate with the run for organization and filtering.
+        sagemaker_disable (bool): Flag to disable SageMaker-specific functionality.
+        save_code (Optional[bool]): Whether to save the code associated with the run.
+        settings_system (Optional[str]): Path to the system-wide settings file.
+        show_colors (Optional[bool]): Whether to use colored output in the console.
+        show_emoji (Optional[bool]): Whether to show emoji in the console output.
+        show_errors (bool): Whether to display error messages.
+        show_info (bool): Whether to display informational messages.
+        show_warnings (bool): Whether to display warning messages.
+        silent (bool): Flag to suppress all output.
+        start_method (Optional[str]): Method to use for starting subprocesses.
+        strict (Optional[bool]): Whether to enable strict mode for validation and error checking.
+        summary_timeout (int): Time in seconds to wait for summary operations before timing out.
+        summary_warnings (int): Maximum number of summary warnings to display.
+        sweep_id (Optional[str]): Identifier of the sweep this run belongs to.
+        sweep_param_path (Optional[str]): Path to the sweep parameters configuration.
+        symlink (bool): Whether to use symlinks for run directories.
+        sync_tensorboard (Optional[bool]): Whether to synchronize TensorBoard logs with W&B.
+        table_raise_on_max_row_limit_exceeded (bool): Whether to raise an exception when table row limits are exceeded.
+        username (Optional[str]): Username of the user.
     """
 
     # Pydantic Model configuration.
@@ -186,190 +313,60 @@ class Settings(BaseModel, validate_assignment=True):
     # Public settings.
 
     allow_offline_artifacts: bool = True
-    """Flag to allow table artifacts to be synced in offline mode.
-
-    To revert to the old behavior, set this to False.
-    """
-
     allow_val_change: bool = False
-    """Flag to allow modification of `Config` values after they've been set."""
-
     anonymous: Optional[Literal["allow", "must", "never"]] = None
-    """Controls anonymous data logging.
-
-    Possible values are:
-    - "never": requires you to link your W&B account before
-       tracking the run, so you don't accidentally create an anonymous
-       run.
-    - "allow": lets a logged-in user track runs with their account, but
-       lets someone who is running the script without a W&B account see
-       the charts in the UI.
-    - "must": sends the run to an anonymous account instead of to a
-       signed-up user account.
-    """
-
     api_key: Optional[str] = None
-    """The W&B API key."""
-
     azure_account_url_to_access_key: Optional[Dict[str, str]] = None
-    """Mapping of Azure account URLs to their corresponding access keys for Azure integration."""
-
     base_url: str = "https://api.wandb.ai"
-    """The URL of the W&B backend for data synchronization."""
-
     code_dir: Optional[str] = None
-    """Directory containing the code to be tracked by W&B."""
-
     config_paths: Optional[Sequence[str]] = None
-    """Paths to files to load configuration from into the `Config` object."""
-
     console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = Field(
         default="auto",
         validate_default=True,
     )
-    """The type of console capture to be applied.
-
-    Possible values are:
-     "auto" - Automatically selects the console capture method based on the
-      system environment and settings.
-
-      "off" - Disables console capture.
-
-      "redirect" - Redirects low-level file descriptors for capturing output.
-
-      "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
-      mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
-
-      "wrap_raw" - Same as "wrap" but captures raw output directly instead of
-      through an emulator. Derived from the `wrap` setting and should not be set manually.
-
-      "wrap_emu" - Same as "wrap" but captures output through an emulator.
-      Derived from the `wrap` setting and should not be set manually.
-    """
-
     console_multipart: bool = False
-    """Whether to produce multipart console log files."""
-
     credentials_file: str = Field(
         default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
     )
-    """Path to file for writing temporary access tokens."""
-
     disable_code: bool = False
-    """Whether to disable capturing the code."""
-
     disable_git: bool = False
-    """Whether to disable capturing the git state."""
-
     disable_job_creation: bool = True
-    """Whether to disable the creation of a job artifact for W&B Launch."""
-
     docker: Optional[str] = None
-    """The Docker image used to execute the script."""
-
     email: Optional[str] = None
-    """The email address of the user."""
-
     entity: Optional[str] = None
-    """The W&B entity, such as a user or a team."""
-
     organization: Optional[str] = None
-    """The W&B organization."""
-
     force: bool = False
-    """Whether to pass the `force` flag to `wandb.login()`."""
-
     fork_from: Optional[RunMoment] = None
-    """Specifies a point in a previous execution of a run to fork from.
-
-    The point is defined by the run ID, a metric, and its value.
-    Currently, only the metric '_step' is supported.
-    """
-
     git_commit: Optional[str] = None
-    """The git commit hash to associate with the run."""
-
     git_remote: str = "origin"
-    """The git remote to associate with the run."""
-
     git_remote_url: Optional[str] = None
-    """The URL of the git remote repository."""
-
     git_root: Optional[str] = None
-    """Root directory of the git repository."""
-
     heartbeat_seconds: int = 30
-    """Interval in seconds between heartbeat signals sent to the W&B servers."""
-
     host: Optional[str] = None
-    """Hostname of the machine running the script."""
-
     http_proxy: Optional[str] = None
-    """Custom proxy servers for http requests to W&B."""
-
     https_proxy: Optional[str] = None
-    """Custom proxy servers for https requests to W&B."""
 
     # Path to file containing an identity token (JWT) for authentication.
     identity_token_file: Optional[str] = None
-    """Path to file containing an identity token (JWT) for authentication."""
-
     ignore_globs: Sequence[str] = ()
-    """Unix glob patterns relative to `files_dir` specifying files to exclude from upload."""
-
     init_timeout: float = 90.0
-    """Time in seconds to wait for the `wandb.init` call to complete before timing out."""
-
     insecure_disable_ssl: bool = False
-    """Whether to insecurely disable SSL verification."""
-
     job_name: Optional[str] = None
-    """Name of the Launch job running the script."""
-
     job_source: Optional[Literal["repo", "artifact", "image"]] = None
-    """Source type for Launch."""
-
     label_disable: bool = False
-    """Whether to disable automatic labeling features."""
-
     launch: bool = False
-    """Flag to indicate if the run is being launched through W&B Launch."""
-
     launch_config_path: Optional[str] = None
-    """Path to the launch configuration file."""
-
     login_timeout: Optional[float] = None
-    """Time in seconds to wait for login operations before timing out."""
-
     mode: Literal["online", "offline", "dryrun", "disabled", "run", "shared"] = Field(
         default="online",
         validate_default=True,
     )
-    """The operating mode for W&B logging and synchronization."""
-
     notebook_name: Optional[str] = None
-    """Name of the notebook if running in a Jupyter-like environment."""
-
     program: Optional[str] = None
-    """Path to the script that created the run, if available."""
-
     program_abspath: Optional[str] = None
-    """The absolute path from the root repository directory to the script that
-    created the run.
-
-    Root repository directory is defined as the directory containing the
-    .git directory, if it exists. Otherwise, it's the current working directory.
-    """
-
     program_relpath: Optional[str] = None
-    """The relative path to the script that created the run."""
-
     project: Optional[str] = None
-    """The W&B project ID."""
-
     quiet: bool = False
-    """Flag to suppress non-essential output."""
-
     reinit: Union[
         Literal[
             "default",
@@ -379,143 +376,38 @@ class Settings(BaseModel, validate_assignment=True):
         ],
         bool,
     ] = "default"
-    """What to do when `wandb.init()` is called while a run is active.
-
-    Options:
-    - "default": Use "finish_previous" in notebooks and "return_previous"
-        otherwise.
-    - "return_previous": Return the most recently created run
-        that is not yet finished. This does not update `wandb.run`; see
-        the "create_new" option.
-    - "finish_previous": Finish all active runs, then return a new run.
-    - "create_new": Create a new run without modifying other active runs.
-        Does not update `wandb.run` and top-level functions like `wandb.log`.
-        Because of this, some older integrations that rely on the global run
-        will not work.
-
-    Can also be a boolean, but this is deprecated. False is the same as
-    "return_previous", and True is the same as "finish_previous".
-    """
-
     relogin: bool = False
-    """Flag to force a new login attempt."""
-
     resume: Optional[Literal["allow", "must", "never", "auto"]] = None
-    """Specifies the resume behavior for the run.
-
-    The available options are:
-
-      "must": Resumes from an existing run with the same ID. If no such run exists,
-      it will result in failure.
-
-      "allow": Attempts to resume from an existing run with the same ID. If none is
-      found, a new run will be created.
-
-      "never": Always starts a new run. If a run with the same ID already exists,
-      it will result in failure.
-
-      "auto": Automatically resumes from the most recent failed run on the same
-      machine.
-    """
-
     resume_from: Optional[RunMoment] = None
-    """Specifies a point in a previous execution of a run to resume from.
-
-    The point is defined by the run ID, a metric, and its value.
-    Currently, only the metric '_step' is supported.
-    """
-
     resumed: bool = False
-    """Indication from the server about the state of the run.
-
-    This is different from resume, a user provided flag.
-    """
-
     root_dir: str = Field(default_factory=lambda: os.path.abspath(os.getcwd()))
-    """The root directory to use as the base for all run-related paths.
-
-    In particular, this is used to derive the wandb directory and the run directory.
-    """
-
     run_group: Optional[str] = None
-    """Group identifier for related runs.
-
-    Used for grouping runs in the UI.
-    """
-
     run_id: Optional[str] = None
-    """The ID of the run."""
-
     run_job_type: Optional[str] = None
-    """Type of job being run (e.g., training, evaluation)."""
-
     run_name: Optional[str] = None
-    """Human-readable name for the run."""
-
     run_notes: Optional[str] = None
-    """Additional notes or description for the run."""
-
     run_tags: Optional[Tuple[str, ...]] = None
-    """Tags to associate with the run for organization and filtering."""
-
     sagemaker_disable: bool = False
-    """Flag to disable SageMaker-specific functionality."""
-
     save_code: Optional[bool] = None
-    """Whether to save the code associated with the run."""
-
     settings_system: Optional[str] = None
-    """Path to the system-wide settings file."""
-
     show_colors: Optional[bool] = None
-    """Whether to use colored output in the console."""
-
     show_emoji: Optional[bool] = None
-    """Whether to show emoji in the console output."""
-
     show_errors: bool = True
-    """Whether to display error messages."""
-
     show_info: bool = True
-    """Whether to display informational messages."""
-
     show_warnings: bool = True
-    """Whether to display warning messages."""
-
     silent: bool = False
-    """Flag to suppress all output."""
-
     start_method: Optional[str] = None
-    """Method to use for starting subprocesses."""
-
     strict: Optional[bool] = None
-    """Whether to enable strict mode for validation and error checking."""
-
     summary_timeout: int = 60
-    """Time in seconds to wait for summary operations before timing out."""
-
     summary_warnings: int = 5  # TODO: kill this with fire
-    """Maximum number of summary warnings to display."""
-
     sweep_id: Optional[str] = None
-    """Identifier of the sweep this run belongs to."""
-
     sweep_param_path: Optional[str] = None
-    """Path to the sweep parameters configuration."""
-
     symlink: bool = Field(
         default_factory=lambda: False if platform.system() == "Windows" else True
     )
-    """Whether to use symlinks (True by default except on Windows)."""
-
     sync_tensorboard: Optional[bool] = None
-    """Whether to synchronize TensorBoard logs with W&B."""
-
     table_raise_on_max_row_limit_exceeded: bool = False
-    """Whether to raise an exception when table row limits are exceeded."""
-
     username: Optional[str] = None
-    """Username."""
 
     # Internal settings.
     #
@@ -803,6 +695,10 @@ class Settings(BaseModel, validate_assignment=True):
 
         @model_validator(mode="after")
         def validate_mutual_exclusion_of_branching_args(self) -> Self:
+            """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
+
+            <!-- lazydoc-ignore: internal -->
+            """
             if (
                 sum(
                     o is not None
@@ -818,6 +714,10 @@ class Settings(BaseModel, validate_assignment=True):
 
         @model_validator(mode="after")
         def validate_skip_transaction_log(self):
+            """Check if `x_skip_transaction_log` is set in offline mode.
+
+            <!-- lazydoc-ignore: internal -->
+            """
             if self._offline and self.x_skip_transaction_log:
                 raise ValueError("Cannot skip transaction log in offline mode")
             return self
@@ -826,6 +726,10 @@ class Settings(BaseModel, validate_assignment=True):
         @root_validator(pre=False)  # type: ignore [call-overload]
         @classmethod
         def validate_mutual_exclusion_of_branching_args(cls, values):
+            """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
+
+            <!-- lazydoc-ignore: internal -->
+            """
             if (
                 sum(
                     values.get(o) is not None
@@ -842,6 +746,7 @@ class Settings(BaseModel, validate_assignment=True):
         @root_validator(pre=False)  # type: ignore [call-overload]
         @classmethod
         def validate_skip_transaction_log(cls, values):
+            """Check if `x_skip_transaction_log` is set in offline mode."""
             if values.get("_offline") and values.get("x_skip_transaction_log"):
                 raise ValueError("Cannot skip transaction log in offline mode")
             return values
@@ -850,6 +755,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("api_key", mode="after")
     @classmethod
     def validate_api_key(cls, value):
+        """Validate the API key.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is not None and (len(value) > len(value.strip())):
             raise UsageError("API key cannot start or end with whitespace")
         return value
@@ -857,6 +766,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("base_url", mode="after")
     @classmethod
     def validate_base_url(cls, value):
+        """Validate the base URL.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         validate_url(value)
         # wandb.ai-specific checks
         if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
@@ -871,6 +784,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("code_dir", mode="before")
     @classmethod
     def validate_code_dir(cls, value):
+        """Validate the code directory.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -879,6 +796,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("console", mode="after")
     @classmethod
     def validate_console(cls, value, values):
+        """Validate the console capture method.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value != "auto":
             return value
 
@@ -887,6 +808,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_executable", mode="before")
     @classmethod
     def validate_x_executable(cls, value):
+        """Validate the Python executable path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -895,6 +820,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_file_stream_max_line_bytes", mode="after")
     @classmethod
     def validate_file_stream_max_line_bytes(cls, value):
+        """Validate the maximum line length for filestream JSONL files.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is not None and value < 1:
             raise ValueError("File stream max line bytes must be greater than 0")
         return value
@@ -902,6 +831,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_files_dir", mode="before")
     @classmethod
     def validate_x_files_dir(cls, value):
+        """Validate the files directory.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -910,6 +843,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("fork_from", mode="before")
     @classmethod
     def validate_fork_from(cls, value, values) -> Optional[RunMoment]:
+        """Validate the fork_from field.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         run_moment = cls._runmoment_preprocessor(value)
 
         if hasattr(values, "data"):
@@ -934,6 +871,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("http_proxy", mode="after")
     @classmethod
     def validate_http_proxy(cls, value):
+        """Validate the HTTP proxy.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return None
         validate_url(value)
@@ -942,6 +883,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("https_proxy", mode="after")
     @classmethod
     def validate_https_proxy(cls, value):
+        """Validate the HTTPS proxy.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return None
         validate_url(value)
@@ -950,11 +895,19 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("ignore_globs", mode="after")
     @classmethod
     def validate_ignore_globs(cls, value):
+        """Validate the ignore globs.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return tuple(value) if not isinstance(value, tuple) else value
 
     @field_validator("program", mode="before")
     @classmethod
     def validate_program(cls, value):
+        """Validate the program path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -963,6 +916,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("program_abspath", mode="before")
     @classmethod
     def validate_program_abspath(cls, value):
+        """Validate the absolute program path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -971,6 +928,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("program_relpath", mode="before")
     @classmethod
     def validate_program_relpath(cls, value):
+        """Validate the relative program path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -979,6 +940,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("project", mode="after")
     @classmethod
     def validate_project(cls, value, values):
+        """Validate the project name.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return None
         invalid_chars_list = list("/\\#?%:")
@@ -996,6 +961,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("resume", mode="before")
     @classmethod
     def validate_resume(cls, value):
+        """Validate the resume behavior.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is False:
             return None
         if value is True:
@@ -1005,6 +974,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("resume_from", mode="before")
     @classmethod
     def validate_resume_from(cls, value, values) -> Optional[RunMoment]:
+        """Validate the resume_from field.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         run_moment = cls._runmoment_preprocessor(value)
 
         if hasattr(values, "data"):
@@ -1027,6 +1000,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("root_dir", mode="before")
     @classmethod
     def validate_root_dir(cls, value):
+        """Validate the root directory.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -1035,6 +1012,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("run_id", mode="after")
     @classmethod
     def validate_run_id(cls, value, values):
+        """Validate the run ID.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return None
 
@@ -1049,6 +1030,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("settings_system", mode="after")
     @classmethod
     def validate_settings_system(cls, value):
+        """Validate the system settings file path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return None
         elif isinstance(value, pathlib.Path):
@@ -1059,6 +1044,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_service_wait", mode="after")
     @classmethod
     def validate_service_wait(cls, value):
+        """Validate the service wait time.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value < 0:
             raise UsageError("Service wait time cannot be negative")
         return value
@@ -1066,6 +1055,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("start_method", mode="after")
     @classmethod
     def validate_start_method(cls, value):
+        """Validate the start method for subprocesses.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return value
         wandb.termwarn(
@@ -1078,6 +1071,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_gpu_device_ids", mode="before")
     @classmethod
     def validate_x_stats_gpu_device_ids(cls, value):
+        """Validate the GPU device IDs.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if isinstance(value, str):
             return json.loads(value)
         return value
@@ -1085,6 +1082,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_neuron_monitor_config_path", mode="before")
     @classmethod
     def validate_x_stats_neuron_monitor_config_path(cls, value):
+        """Validate the path to the neuron-monitor config file.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -1093,6 +1094,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_open_metrics_endpoints", mode="before")
     @classmethod
     def validate_stats_open_metrics_endpoints(cls, value):
+        """Validate the OpenMetrics endpoints.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if isinstance(value, str):
             return json.loads(value)
         return value
@@ -1100,6 +1105,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_open_metrics_filters", mode="before")
     @classmethod
     def validate_stats_open_metrics_filters(cls, value):
+        """Validate the OpenMetrics filters.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if isinstance(value, str):
             return json.loads(value)
         return value
@@ -1107,6 +1116,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_open_metrics_http_headers", mode="before")
     @classmethod
     def validate_stats_open_metrics_http_headers(cls, value):
+        """Validate the OpenMetrics HTTP headers.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if isinstance(value, str):
             return json.loads(value)
         return value
@@ -1114,6 +1127,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_sampling_interval", mode="after")
     @classmethod
     def validate_stats_sampling_interval(cls, value):
+        """Validate the stats sampling interval.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value < 0.1:
             raise UsageError("Stats sampling interval cannot be less than 0.1 seconds")
         return value
@@ -1121,6 +1138,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("sweep_id", mode="after")
     @classmethod
     def validate_sweep_id(cls, value):
+        """Validate the sweep ID.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return None
         if len(value) == 0:
@@ -1134,6 +1155,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("sweep_param_path", mode="before")
     @classmethod
     def validate_sweep_param_path(cls, value):
+        """Validate the sweep parameter path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -1333,6 +1358,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def run_mode(self) -> Literal["run", "offline-run"]:
+        """The mode of the run. Can be either "run" or "offline-run"."""
         return "run" if not self._offline else "offline-run"
 
     @computed_field  # type: ignore[prop-decorator]
@@ -1366,6 +1392,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_dir(self) -> str:
+        """The directory for storing the run's files."""
         return _path_convert(
             self.wandb_dir,
             f"{self.run_mode}-{self.timespec}-{self.run_id}",
@@ -1380,11 +1407,13 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_symlink_latest(self) -> str:
+        """Path to the symlink to the most recent run's transaction log file."""
         return _path_convert(self.wandb_dir, "latest-run")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def timespec(self) -> str:
+        """The time specification for the run."""
         return self._start_datetime
 
     @computed_field  # type: ignore[prop-decorator]
@@ -1407,7 +1436,10 @@ class Settings(BaseModel, validate_assignment=True):
     # wandb/sdk/wandb_setup.py::_WandbSetup._settings_setup.
 
     def update_from_system_config_file(self):
-        """Update settings from the system config file."""
+        """Update settings from the system config file.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if not self.settings_system or not os.path.exists(self.settings_system):
             return
         for key, value in self._load_config_file(self.settings_system).items():
@@ -1415,7 +1447,10 @@ class Settings(BaseModel, validate_assignment=True):
                 setattr(self, key, value)
 
     def update_from_workspace_config_file(self):
-        """Update settings from the workspace config file."""
+        """Update settings from the workspace config file.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if not self.settings_workspace or not os.path.exists(self.settings_workspace):
             return
         for key, value in self._load_config_file(self.settings_workspace).items():
@@ -1423,7 +1458,10 @@ class Settings(BaseModel, validate_assignment=True):
                 setattr(self, key, value)
 
     def update_from_env_vars(self, environ: Dict[str, Any]):
-        """Update settings from environment variables."""
+        """Update settings from environment variables.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         env_prefix: str = "WANDB_"
         private_env_prefix: str = env_prefix + "_"
         special_env_var_names = {
@@ -1460,7 +1498,10 @@ class Settings(BaseModel, validate_assignment=True):
                 setattr(self, key, value)
 
     def update_from_system_environment(self):
-        """Update settings from the system environment."""
+        """Update settings from the system environment.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # For code saving, only allow env var override if value from server is true, or
         # if no preference was specified.
         if (self.save_code is True or self.save_code is None) and (
@@ -1546,7 +1587,10 @@ class Settings(BaseModel, validate_assignment=True):
                 setattr(self, key, value)
 
     def update_from_settings(self, settings: Settings) -> None:
-        """Update settings from another instance of `Settings`."""
+        """Update settings from another instance of `Settings`.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         d = {field: getattr(settings, field) for field in settings.model_fields_set}
         if d:
             self.update_from_dict(d)
@@ -1554,7 +1598,10 @@ class Settings(BaseModel, validate_assignment=True):
     # Helper methods.
 
     def to_proto(self) -> wandb_settings_pb2.Settings:
-        """Generate a protobuf representation of the settings."""
+        """Generate a protobuf representation of the settings.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         settings_proto = wandb_settings_pb2.Settings()
         for k, v in self.model_dump(exclude_none=True).items():
             # Client-only settings that don't exist on the protobuf.
