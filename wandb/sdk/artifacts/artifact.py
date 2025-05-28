@@ -1092,9 +1092,7 @@ class Artifact:
             with telemetry.context() as tel:
                 tel.feature.artifact_incremental = True
 
-        singleton = wandb_setup._setup(start_service=False)
-
-        if run := singleton.most_recent_active_run:
+        if run := wandb_setup.singleton().most_recent_active_run:
             # TODO: Deprecate and encourage explicit log_artifact().
             run.log_artifact(self)
         else:
@@ -1913,7 +1911,7 @@ class Artifact:
 
         # TODO: Create a special stream instead of relying on an existing run.
         if wandb.run is None:
-            wl = wandb.setup()
+            wl = wandb_setup.singleton()
 
             stream_id = generate_id()
 
@@ -2352,9 +2350,7 @@ class Artifact:
                 "Linking to a link artifact will result in directly linking to the source artifact of that link artifact."
             )
 
-        singleton = wandb_setup._setup(start_service=False)
-
-        if run := singleton.most_recent_active_run:
+        if run := wandb_setup.singleton().most_recent_active_run:
             # TODO: Deprecate and encourage explicit link_artifact().
             return run.link_artifact(self, target_path, aliases)
 
