@@ -1463,9 +1463,10 @@ class Api:
         """
         try:
             self._artifact(name, type)
-            return True
         except wandb.errors.CommError:
             return False
+
+        return True
 
     @normalize_exceptions
     def artifact_collection_exists(self, name: str, type: str) -> bool:
@@ -1482,9 +1483,10 @@ class Api:
         """
         try:
             self.artifact_collection(type, name)
-            return True
         except wandb.errors.CommError:
             return False
+
+        return True
 
     def registries(
         self,
