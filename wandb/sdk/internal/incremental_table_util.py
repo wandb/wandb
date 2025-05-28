@@ -36,7 +36,7 @@ def init_artifact(run: LocalRun, sanitized_key: str) -> Artifact:
     return artifact
 
 
-def get_entry_name(run: LocalRun, incr_table: Table, key: str) -> str:
+def get_entry_name(incr_table: Table, key: str) -> str:
     """Generate a unique entry name for a table increment.
 
     Args:

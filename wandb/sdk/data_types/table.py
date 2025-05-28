@@ -25,6 +25,8 @@ from .utils import _json_helper
 if TYPE_CHECKING:
     from wandb.sdk.artifacts import artifact
 
+    from ...wandb_run import Run as LocalRun
+
 
 class _TableLinkMixin:
     def set_table(self, table):
@@ -248,18 +250,17 @@ class Table(Media):
                 logging attempts after the table has been mutated will be no-ops.
                 - "MUTABLE": Table can be re-logged after mutations, creating
                 a new artifact version each time it's logged.
+                - "INCREMENTAL": Table data is logged incrementally, with each log creating
+                a new artifact entry containing the new data since the last log.
         """
         super().__init__()
         self._validate_log_mode(log_mode)
         self.log_mode = log_mode
         if self.log_mode == "INCREMENTAL":
-            wandb.termwarn(
-                "INCREMENTAL log mode is not ready for use yet."
-                " Please use IMMUTABLE or MUTABLE mode instead."
-            )
-            self._increment_num = 0
+            self._increment_num: int | None = None
             self._last_logged_idx: int | None = None
-            self._previous_increments_paths: list[str] = []
+            self._previous_increments_paths: list[str] | None = None
+            self._run_target_for_increments: LocalRun | None = None
         self._pk_col = None
         self._fk_cols: set[str] = set()
         if allow_mixed_types:
@@ -348,6 +349,62 @@ class Table(Media):
         self._column_types = _dtypes.TypedDictType({})
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
+
+    def _load_incremental_table_state_from_resumed_run(self, run: "LocalRun", key: str):
+        """Handle updating incremental table state for resumed runs.
+
+        This method is called when a run is resumed and there are previous
+        increments of this table that need to be preserved. It updates the
+        table's internal state to track previous increments and the current
+        increment number.
+        """
+        if (
+            self._previous_increments_paths is not None
+            or self._increment_num is not None
+        ):
+            raise AssertionError(
+                "The table has been initialized for a resumed run already"
+            )
+
+        self._set_incremental_table_run_target(run)
+
+        summary_from_key = run.summary.get(key)
+
+        if (
+            summary_from_key is None
+            or not isinstance(summary_from_key, dict)
+            or summary_from_key.get("_type") != "incremental-table-file"
+        ):
+            # The key was never logged to the run or its last logged
+            # value was not an incrementally logged table.
+            return
+
+        previous_increments_paths = summary_from_key.get(
+            "previous_increments_paths", []
+        )
+
+        # add the artifact path of the last logged increment
+        last_artifact_path = summary_from_key.get("artifact_path")
+
+        if last_artifact_path:
+            previous_increments_paths.append(last_artifact_path)
+
+        # add 1 because a new increment is being logged
+        last_increment_num = summary_from_key.get("increment_num", 0)
+
+        self._increment_num = last_increment_num + 1
+        self._previous_increments_paths = previous_increments_paths
+
+    def _set_incremental_table_run_target(self, run: "LocalRun") -> None:
+        """Associate a Run object with this incremental Table.
+
+        A Table object in incremental mode can only be logged to a single Run.
+        Raises an error if the table is already associated to a different run.
+        """
+        if self._run_target_for_increments is None:
+            self._run_target_for_increments = run
+        elif self._run_target_for_increments is not run:
+            raise AssertionError("An incremental Table can only be logged to one Run.")
 
     @allow_relogging_after_mutation
     def cast(self, col_name, dtype, optional=False):
@@ -636,6 +693,11 @@ class Table(Media):
         json_dict = super().to_json(run_or_artifact)
 
         if self.log_mode == "INCREMENTAL":
+            if self._previous_increments_paths is None:
+                self._previous_increments_paths = []
+            if self._increment_num is None:
+                self._increment_num = 0
+
             json_dict.update(
                 {
                     "increment_num": self._increment_num,
