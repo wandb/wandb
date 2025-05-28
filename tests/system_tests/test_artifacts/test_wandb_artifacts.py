@@ -17,7 +17,11 @@ import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 from wandb import Artifact, util
-from wandb.sdk.artifacts._validators import ARTIFACT_NAME_MAXLEN
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+from wandb.sdk.artifacts._validators import (
+    ARTIFACT_NAME_MAXLEN,
+    RESERVED_ARTIFACT_TYPE_PREFIX,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
@@ -1517,7 +1521,7 @@ def test_add_obj_wbtable_images(assets_path, artifact):
             "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
             "size": 71,
         },
-        "my-table.table.json": {"digest": "apPaCuFMSlFoP7rztfZq5Q==", "size": 1290},
+        "my-table.table.json": {"digest": "UN1SfxHpRdt/OOy7TrjvdQ==", "size": 1315},
     }
 
 
@@ -1547,7 +1551,7 @@ def test_add_obj_wbtable_images_duplicate_name(assets_path, artifact):
             "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
             "size": 8837,
         },
-        "my-table.table.json": {"digest": "hjWyKjD8J/wFtikBxnFOeA==", "size": 981},
+        "my-table.table.json": {"digest": "rkNgqyX3yGEQ1UxM7hsGjQ==", "size": 1006},
     }
 
 
@@ -1631,6 +1635,46 @@ def test_change_artifact_collection_type(user):
     with wandb.init() as run:
         artifact = run.use_artifact("image_data:latest")
         assert artifact.type == "lucas_type"
+
+
+def test_change_artifact_collection_type_to_internal_type(user):
+    with wandb.init() as run:
+        artifact = Artifact("image_data", "data")
+        run.log_artifact(artifact).wait()
+
+    internal_type = RESERVED_ARTIFACT_TYPE_PREFIX + "invalid"
+    collection = artifact.collection
+    with wandb.init() as run:
+        # test deprecated change_type errors for changing to internal type
+        with pytest.raises(ValueError, match="is reserved for internal use"):
+            collection.change_type(internal_type)
+
+        # test .save()
+        with pytest.raises(ValueError, match="is reserved for internal use"):
+            collection.type = internal_type
+            collection.save()
+
+
+def test_change_type_of_internal_artifact_collection(user):
+    internal_type = RESERVED_ARTIFACT_TYPE_PREFIX + "invalid"
+    with wandb.init() as run:
+        artifact = InternalArtifact("test-internal", internal_type)
+        run.log_artifact(artifact).wait()
+
+    collection = artifact.collection
+    with wandb.init() as run:
+        # test deprecated change_type
+        with pytest.raises(
+            ValueError, match="is an internal type and cannot be changed"
+        ):
+            collection.change_type("model")
+
+        # test .save()
+        with pytest.raises(
+            ValueError, match="is an internal type and cannot be changed"
+        ):
+            collection.type = "model"
+            collection.save()
 
 
 @pytest.mark.parametrize(

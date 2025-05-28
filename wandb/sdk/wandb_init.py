@@ -21,12 +21,9 @@ import platform
 import sys
 import tempfile
 import time
-from typing import TYPE_CHECKING, Any, Iterable, Iterator, Literal, Protocol, Sequence
+from typing import TYPE_CHECKING, Iterable, Iterator, Sequence
 
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
+from typing_extensions import Any, Literal, Protocol, Self
 
 import wandb
 import wandb.env
@@ -205,15 +202,11 @@ class _WandbInit:
         Returns:
             A callback to print any generated warnings.
         """
-        singleton = wandb_setup.singleton()
-        if singleton is None:
-            return _noop_printer_callback()
-
         exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
         # check if environment variables have changed
         singleton_env = {
             k: v
-            for k, v in singleton._environ.items()
+            for k, v in wandb_setup.singleton()._environ.items()
             if k.startswith("WANDB_") and k not in exclude_env_vars
         }
         os_env = {
@@ -367,7 +360,7 @@ class _WandbInit:
                 return None
 
             except KeyError:
-                self._logger.error(
+                self._logger.exception(
                     f"resume file at {resume_file} did not store a run_id"
                 )
                 return None
@@ -1112,7 +1105,7 @@ def _attach(
         )
     wandb._assert_is_user_process()  # type: ignore
 
-    _wl = wandb.setup()
+    _wl = wandb_setup.singleton()
     logger = _wl._get_logger()
 
     service = _wl.ensure_service()
@@ -1551,7 +1544,7 @@ def init(  # noqa: C901
     wl: wandb_setup._WandbSetup | None = None
 
     try:
-        wl = wandb_setup._setup(start_service=False)
+        wl = wandb_setup.singleton()
 
         wi = _WandbInit(wl, init_telemetry)
 
@@ -1572,6 +1565,10 @@ def init(  # noqa: C901
             init_telemetry.feature.set_init_tags = True
         if run_settings._offline:
             init_telemetry.feature.offline = True
+        if run_settings.fork_from is not None:
+            init_telemetry.feature.fork_mode = True
+        if run_settings.resume_from is not None:
+            init_telemetry.feature.rewind_mode = True
 
         wi.set_run_id(run_settings)
         run_printer = printer.new_printer(run_settings)

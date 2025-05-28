@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 import abc
-import sys
-from typing import TYPE_CHECKING, Callable, Generic, TypeVar
+from typing import TYPE_CHECKING, Callable, Generic
+
+from typing_extensions import TypeVar, override
 
 # Necessary to break an import loop.
 if TYPE_CHECKING:
     from wandb.sdk.interface import interface
-
-if sys.version_info >= (3, 12):
-    from typing import override
-else:
-    from typing_extensions import override
 
 
 _T = TypeVar("_T")

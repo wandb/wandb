@@ -29,17 +29,15 @@ message OpenMetricsFilters {
   }
 }
 
-// Serialized representation of the RunMoment class in wandb.sdk.lib.run_moment.
-// Used to communicate the moment in a run at which forking or resuming should
-// take place.
+// A point in a run from which another run can be branched.
 message RunMoment {
-  // The name of the run to fork from.
+  // The ID of the run to branch from.
   string run = 1;
 
-  // The value of the metric to fork at.
+  // The value of the metric to branch at.
   double value = 2;
 
-  // The name of the metric to use to find a fork point.
+  // The name of the metric to use to find a branch point.
   string metric = 3;
 }
 
@@ -52,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 191
+// Next ID: 192
 message Settings {
   reserved 3, 6, 8, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 100, 136, 137, 176;
 
@@ -382,6 +380,15 @@ message Settings {
 
   // Whether to delegate glob matching of metrics in define_metric to the server.
   google.protobuf.BoolValue x_server_side_expand_glob_metrics = 190;
+
+  // Whether to skip saving the run events to the transaction log.
+  //
+  // This is only relevant for online runs. Can be used to reduce the
+  // amount of data written to disk.
+  //
+  // Should be used with caution, as it removes the gurantees about
+  // recoverability.
+  google.protobuf.BoolValue x_skip_transaction_log = 191;
 
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue x_cli_only_mode = 4;

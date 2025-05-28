@@ -55,9 +55,7 @@ class SystemInfo:
         )
         program_absolute = os.path.join(root, program_relative)
         if not os.path.exists(program_absolute):
-            logger.warning(
-                "unable to save code -- can't find {}".format(program_absolute)
-            )
+            logger.warning(f"unable to save code -- can't find {program_absolute}")
             return None
         saved_program = os.path.join(self.settings.files_dir, "code", program_relative)
         self.saved_program = program_relative  # type: ignore
@@ -121,8 +119,8 @@ class SystemInfo:
             ValueError,
             subprocess.CalledProcessError,
             subprocess.TimeoutExpired,
-        ) as e:
-            logger.error("Error generating diff: {}".format(e))
+        ):
+            logger.exception("Error generating diff.")
         logger.debug("Saving git patches done")
 
     def _probe_git(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -220,8 +218,8 @@ class SystemInfo:
                     stderr=subprocess.DEVNULL,
                     timeout=15,  # add timeout since conda env export could take a really long time
                 )
-        except Exception as e:
-            logger.exception(f"Error saving conda packages: {e}")
+        except Exception:
+            logger.exception("Error saving conda packages")
         logger.debug("Saving conda packages done")
 
     def publish(self, system_info: dict) -> None:

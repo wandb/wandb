@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 from typing import List
 
 import pytest
@@ -24,7 +25,13 @@ def test_launch_sweep_param_validation(user):
     run.finish()
 
     base = ["wandb", "launch-sweep"]
-    _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
+    # In python 3.12, Click returns with an exit code of 2 when there are
+    # missing arguments.
+    if sys.version_info >= (3, 12):
+        with pytest.raises(subprocess.CalledProcessError):
+            _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
+    else:
+        _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
 
     base += ["-e", user, "-p", "p"]
     err_msg = "'config' and/or 'resume_id' required"
@@ -89,6 +96,7 @@ def test_launch_sweep_param_validation(user):
         ),
     ],
 )
+@pytest.mark.wandb_core_only
 def test_launch_sweep_scheduler_resources(user, scheduler_args, msg):
     # make proj and job
     settings = wandb.Settings(project="model-registry")
@@ -134,6 +142,7 @@ def test_launch_sweep_scheduler_resources(user, scheduler_args, msg):
         "num-workers-str",
     ],
 )
+@pytest.mark.wandb_core_only
 def test_launch_sweep_launch_uri(user, image_uri, launch_config):
     queue = "test"
     api = InternalApi()
@@ -179,6 +188,7 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config):
     assert "Scheduler added to launch queue (test)" in out.decode("utf-8")
 
 
+@pytest.mark.wandb_core_only
 def test_launch_sweep_launch_resume(user):
     api = InternalApi()
     public_api = Api()

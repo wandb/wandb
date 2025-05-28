@@ -122,6 +122,18 @@ message FooterRecord {
   _RecordInfo _info = 200;
 }
 
+// A point in a run from which another run can be branched.
+message BranchPoint {
+  // The ID of the run to branch from.
+  string run = 1;
+
+  // The value of the metric to branch at.
+  double value = 2;
+
+  // The name of the metric to use to find a branch point.
+  string metric = 3;
+}
+
 /*
  * RunRecord: wandb/sdk/wandb_run/Run
  */
@@ -148,6 +160,10 @@ message RunRecord {
   int32 runtime = 20;
   GitRepoRecord git = 21;
   bool forked = 22;
+
+  // Information about the source if this is a fork or rewind of another run.
+  BranchPoint branch_point = 23;
+
   _RecordInfo _info = 200;
 }
 
