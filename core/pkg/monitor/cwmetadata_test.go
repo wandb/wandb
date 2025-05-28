@@ -1,37 +1,3 @@
-// package monitor_test
-
-// import (
-// 	"context"
-// 	"testing"
-
-// 	"github.com/wandb/wandb/core/internal/gqlmock"
-// 	"github.com/wandb/wandb/core/internal/observability"
-// 	"github.com/wandb/wandb/core/internal/settings"
-// 	"github.com/wandb/wandb/core/pkg/monitor"
-// )
-
-// func TestCoreWeaveMetadataProbe(t *testing.T) {
-// 	mockGQL := gqlmock.NewMockClient()
-// 	mockGQL.StubMatchOnce(
-// 		gqlmock.WithOpName("OrganizationCoreWeaveOrganizationID"),
-// 		`{"Entity":{"Organization":{"CoreWeaveOrganizationId":"cw1337"}}}`,
-// 	)
-
-// 	s := settings.New()
-// 	s.UpdateEntity("roga-and-kopyta")
-
-// 	cwm, _ := monitor.NewCoreWeaveMetadata(
-// 		monitor.CoreWeaveMetadataParams{
-// 			context.Background(),
-// 			nil,
-// 			observability.NewNoOpLogger(),
-// 			mockGQL,
-// 			s,
-// 		},
-// 	)
-
-// }
-
 package monitor_test
 
 import (
