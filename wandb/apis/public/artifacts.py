@@ -66,6 +66,7 @@ from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
 from wandb.sdk.artifacts._validators import (
     SOURCE_ARTIFACT_COLLECTION_TYPE,
     validate_artifact_name,
+    validate_artifact_type,
 )
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
@@ -443,6 +444,17 @@ class ArtifactCollection:
             warning_message="ArtifactCollection.change_type(type) is deprecated, use ArtifactCollection.save() instead.",
         )
 
+        if self._saved_type != new_type:
+            try:
+                validate_artifact_type(self._saved_type, self.name)
+            except ValueError as e:
+                raise ValueError(
+                    f"The current type '{self._saved_type!r}' is an internal type and cannot be changed."
+                ) from e
+
+        # Check that the new type is not going to conflict with internal types
+        validate_artifact_type(new_type, self.name)
+
         if not self.is_sequence():
             raise ValueError("Artifact collection needs to be a sequence")
         termlog(
@@ -571,6 +583,19 @@ class ArtifactCollection:
 
     def save(self) -> None:
         """Persist any changes made to the artifact collection."""
+        if self._saved_type != self.type:
+            try:
+                validate_artifact_type(self.type, self._name)
+            except ValueError as e:
+                raise ValueError(f"Failed to save artifact collection: {e}") from e
+            try:
+                validate_artifact_type(self._saved_type, self._name)
+            except ValueError as e:
+                raise ValueError(
+                    f"Failed to save artifact collection '{self._name}': "
+                    f"The current type '{self._saved_type!r}' is an internal type and cannot be changed."
+                ) from e
+
         self._update_collection()
 
         if self.is_sequence() and (self._saved_type != self._type):

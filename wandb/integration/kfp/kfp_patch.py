@@ -10,12 +10,11 @@ try:
     from kfp.components import structures
     from kfp.components._components import _create_task_factory_from_component_spec
     from kfp.components._python_op import _func_to_component_spec
-
-    from wandb.util import parse_version
+    from packaging.version import parse
 
     MIN_KFP_VERSION = "1.6.1"
 
-    if parse_version(kfp_version) < parse_version(MIN_KFP_VERSION):
+    if parse(kfp_version) < parse(MIN_KFP_VERSION):
         wandb.termwarn(
             f"Your version of kfp {kfp_version} may not work.  This integration requires kfp>={MIN_KFP_VERSION}"
         )

@@ -123,9 +123,9 @@ class RetryingClient:
         return self._server_info
 
     def version_supported(self, min_version: str) -> bool:  # noqa: D102  # User not encouraged to use this class directly
-        from wandb.util import parse_version
+        from packaging.version import parse
 
-        return parse_version(min_version) <= parse_version(
+        return parse(min_version) <= parse(
             self.server_info["cliVersionInfo"]["max_cli_version"]
         )
 
@@ -1463,9 +1463,10 @@ class Api:
         """
         try:
             self._artifact(name, type)
-            return True
         except wandb.errors.CommError:
             return False
+
+        return True
 
     @normalize_exceptions
     def artifact_collection_exists(self, name: str, type: str) -> bool:
@@ -1482,9 +1483,10 @@ class Api:
         """
         try:
             self.artifact_collection(type, name)
-            return True
         except wandb.errors.CommError:
             return False
+
+        return True
 
     def registries(
         self,
@@ -2145,7 +2147,7 @@ class Api:
 
             # Not a (known) recoverable HTTP error
             wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
-            raise e
+            raise
 
         try:
             result = UpdateAutomation.model_validate(data).result

@@ -176,16 +176,24 @@ def test_infer_organization_from_create_load(default_organization):
 
 def test_input_invalid_organizations(default_organization):
     """Tests that invalid organization inputs raise errors."""
+    bad_org_name = f"{default_organization}_wrong_organization"
+
     api = Api()
     registry_name = "test"
-    with pytest.raises(ValueError, match="Error fetching org entity for organization"):
+    with pytest.raises(
+        ValueError,
+        match=f"Organization entity for {bad_org_name} not found.",
+    ):
         api.create_registry(
             name=registry_name,
             visibility="organization",
-            organization=f"{default_organization}_wrong_organization",
+            organization=bad_org_name,
         )
 
-    with pytest.raises(ValueError, match="Error fetching org entity for organization"):
+    with pytest.raises(
+        ValueError,
+        match=f"Organization entity for {bad_org_name} not found.",
+    ):
         api.registry(registry_name, f"{default_organization}_wrong_organization")
 
 

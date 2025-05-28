@@ -419,10 +419,7 @@ class StreamMux:
         self._action_q.join()
 
     def loop(self) -> None:
-        try:
-            self._loop()
-        except Exception as e:
-            raise e
+        self._loop()
 
     def cleanup(self) -> None:
         pass

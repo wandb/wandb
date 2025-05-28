@@ -66,13 +66,13 @@ def dict_from_config_file(
 ) -> Optional[Dict[str, Any]]:
     if not os.path.exists(filename):
         if must_exist:
-            raise ConfigError("config file {} doesn't exist".format(filename))
-        logger.debug("no default config file found in {}".format(filename))
+            raise ConfigError(f"config file {filename} doesn't exist")
+        logger.debug(f"no default config file found in {filename}")
         return None
     try:
         conf_file = open(filename)
     except OSError:
-        raise ConfigError("Couldn't read config file: {}".format(filename))
+        raise ConfigError(f"Couldn't read config file: {filename}")
     try:
         loaded = load_yaml(conf_file)
     except yaml.parser.ParserError:

@@ -698,6 +698,15 @@ class Settings(BaseModel, validate_assignment=True):
     x_service_wait: float = 30.0
     """Time in seconds to wait for the wandb-core internal service to start."""
 
+    x_skip_transaction_log: bool = False
+    """Whether to skip saving the run events to the transaction log.
+
+    This is only relevant for online runs. Can be used to reduce the amount of
+    data written to disk.
+
+    Should be used with caution, as it removes the gurantees about
+    recoverability."""
+
     x_start_time: Optional[float] = None
     """The start time of the run in seconds since the Unix epoch."""
 
@@ -806,6 +815,12 @@ class Settings(BaseModel, validate_assignment=True):
                     "Please specify only one of them."
                 )
             return self
+
+        @model_validator(mode="after")
+        def validate_skip_transaction_log(self):
+            if self._offline and self.x_skip_transaction_log:
+                raise ValueError("Cannot skip transaction log in offline mode")
+            return self
     else:
 
         @root_validator(pre=False)  # type: ignore [call-overload]
@@ -822,6 +837,13 @@ class Settings(BaseModel, validate_assignment=True):
                     "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
                     "Please specify only one of them."
                 )
+            return values
+
+        @root_validator(pre=False)  # type: ignore [call-overload]
+        @classmethod
+        def validate_skip_transaction_log(cls, values):
+            if values.get("_offline") and values.get("x_skip_transaction_log"):
+                raise ValueError("Cannot skip transaction log in offline mode")
             return values
 
     # Field validators.
