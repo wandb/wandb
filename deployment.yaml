@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wandb-launch-test
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: wandb-secret
+  namespace: wandb-launch-test
+type: Opaque
+stringData:
+  wandb-api-key: "1e7f67880e7f6c749b230db422bab91995e0cd13"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wandb-launch-agent
+  namespace: wandb-launch-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wandb-launch-agent
+  template:
+    metadata:
+      labels:
+        app: wandb-launch-agent
+    spec:
+      containers:
+      - name: wandb-launch-agent
+        image: nicholaspun/launch-agent-test:v2
+        imagePullPolicy: Always
+        args:
+          - "--entity"
+          - "wandb-tables-gcp-byob-testing"
+          - "--queue"
+          - "launch-tutorial-1-queue"
+
+        env:
+        - name: WANDB_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: wandb-secret
+              key: wandb-api-key
+
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
