@@ -102,7 +102,7 @@ def new_printer(settings: wandb.Settings | None = None) -> Printer:
             has been called, then global settings are used. Otherwise,
             settings (such as silent mode) are ignored.
     """
-    if not settings and (singleton := wandb_setup.singleton()):
+    if not settings and (singleton := wandb_setup.singleton_if_setup()):
         settings = singleton.settings
 
     if ipython.in_jupyter():

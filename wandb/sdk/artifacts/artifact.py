@@ -157,7 +157,10 @@ class Artifact:
                 f"Artifact name may only contain alphanumeric characters, dashes, "
                 f"underscores, and dots. Invalid name: {name}"
             )
-        if incremental:
+
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
+        if incremental and not isinstance(self, InternalArtifact):
             termwarn("Using experimental arg `incremental`")
 
         # Internal.
@@ -646,9 +649,10 @@ class Artifact:
         if not self.is_link:
             return self
         if self._source_artifact is None:
+            if self._client is None:
+                raise ValueError("Client is not initialized")
+
             try:
-                if self._client is None:
-                    raise ValueError("Client is not initialized")
                 artifact = self._from_name(
                     entity=self.source_entity,
                     project=self.source_project,
@@ -1089,9 +1093,7 @@ class Artifact:
             with telemetry.context() as tel:
                 tel.feature.artifact_incremental = True
 
-        singleton = wandb_setup._setup(start_service=False)
-
-        if run := singleton.most_recent_active_run:
+        if run := wandb_setup.singleton().most_recent_active_run:
             # TODO: Deprecate and encourage explicit log_artifact().
             run.log_artifact(self)
         else:
@@ -1369,7 +1371,7 @@ class Artifact:
                 f"Failed to open the provided file ({type(e).__name__}: {e}). Please "
                 f"provide the proper encoding."
             )
-            raise e
+            raise
 
         self.add_file(
             path, name=name, policy="immutable", skip_cache=True, overwrite=overwrite
@@ -1620,8 +1622,9 @@ class Artifact:
             data_types._SavedModel,
         )
         if not isinstance(obj, allowed_types):
-            raise ValueError(
-                f"Found object of type {obj.__class__}, expected one of: {allowed_types}"
+            raise TypeError(
+                f"Found object of type {obj.__class__}, expected one of:"
+                f" {allowed_types}"
             )
 
         obj_id = id(obj)
@@ -1909,7 +1912,7 @@ class Artifact:
 
         # TODO: Create a special stream instead of relying on an existing run.
         if wandb.run is None:
-            wl = wandb.setup()
+            wl = wandb_setup.singleton()
 
             stream_id = generate_id()
 
@@ -2348,9 +2351,7 @@ class Artifact:
                 "Linking to a link artifact will result in directly linking to the source artifact of that link artifact."
             )
 
-        singleton = wandb_setup._setup(start_service=False)
-
-        if run := singleton.most_recent_active_run:
+        if run := wandb_setup.singleton().most_recent_active_run:
             # TODO: Deprecate and encourage explicit link_artifact().
             return run.link_artifact(self, target_path, aliases)
 

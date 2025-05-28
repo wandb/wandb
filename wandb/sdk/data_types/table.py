@@ -2,9 +2,10 @@ import base64
 import binascii
 import codecs
 import datetime
+import json
 import logging
 import os
-from typing import Literal, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple
 
 import wandb
 from wandb import util
@@ -14,7 +15,17 @@ from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import Media, _numpy_arrays_to_lists
 from .base_types.wb_value import WBValue
+from .table_decorators import (
+    allow_incremental_logging_after_append,
+    allow_relogging_after_mutation,
+    ensure_not_incremental,
+)
 from .utils import _json_helper
+
+if TYPE_CHECKING:
+    from wandb.sdk.artifacts import artifact
+
+    from ...wandb_run import Run as LocalRun
 
 
 class _TableLinkMixin:
@@ -181,28 +192,7 @@ class _ForeignIndexType(_dtypes.Type):
         return cls(table)
 
 
-def allow_relogging_after_mutation(method):
-    def wrapper(self, *args, **kwargs):
-        res = method(self, *args, **kwargs)
-
-        has_been_logged = self._run is not None or self._artifact_target is not None
-
-        if self.log_mode == "MUTABLE":
-            self._run = None
-            self._artifact_target = None
-        elif self.log_mode == "IMMUTABLE" and has_been_logged:
-            logging.warning(
-                "You are mutating a Table with log_mode='IMMUTABLE' that has been"
-                "logged already. Subsequent log() calls will have no effect."
-                "Set log_mode='MUTABLE' to enable re-logging after mutations"
-            )
-
-        return res
-
-    return wrapper
-
-
-supported_logging_modes = ["IMMUTABLE", "MUTABLE"]
+_SUPPORTED_LOGGING_MODES = ["IMMUTABLE", "MUTABLE", "INCREMENTAL"]
 
 
 class Table(Media):
@@ -231,7 +221,9 @@ class Table(Media):
         dtype=None,
         optional=True,
         allow_mixed_types=False,
-        log_mode: Optional[Literal["IMMUTABLE", "MUTABLE"]] = "IMMUTABLE",
+        log_mode: Optional[
+            Literal["IMMUTABLE", "MUTABLE", "INCREMENTAL"]
+        ] = "IMMUTABLE",
     ):
         """Initializes a Table object.
 
@@ -252,16 +244,23 @@ class Table(Media):
                 applies to all columns. A list of bool values applies to each respective column.
             allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
                 (disables type validation). Defaults to False
-            log_mode: (Optional[Literal["IMMUTABLE", "MUTABLE"]]) Controls how the Table is logged when mutations occur.
+            log_mode: Optional[str] Controls how the Table is logged when mutations occur.
                 Options:
                 - "IMMUTABLE" (default): Table can only be logged once; subsequent
                 logging attempts after the table has been mutated will be no-ops.
                 - "MUTABLE": Table can be re-logged after mutations, creating
                 a new artifact version each time it's logged.
+                - "INCREMENTAL": Table data is logged incrementally, with each log creating
+                a new artifact entry containing the new data since the last log.
         """
         super().__init__()
         self._validate_log_mode(log_mode)
         self.log_mode = log_mode
+        if self.log_mode == "INCREMENTAL":
+            self._increment_num: int | None = None
+            self._last_logged_idx: int | None = None
+            self._previous_increments_paths: list[str] | None = None
+            self._run_target_for_increments: LocalRun | None = None
         self._pk_col = None
         self._fk_cols: set[str] = set()
         if allow_mixed_types:
@@ -294,8 +293,8 @@ class Table(Media):
 
     def _validate_log_mode(self, log_mode):
         assert (
-            log_mode in supported_logging_modes
-        ), f"Invalid log_mode: {log_mode}. Must be one of {supported_logging_modes}"
+            log_mode in _SUPPORTED_LOGGING_MODES
+        ), f"Invalid log_mode: {log_mode}. Must be one of {_SUPPORTED_LOGGING_MODES}"
 
     @staticmethod
     def _assert_valid_columns(columns):
@@ -350,6 +349,62 @@ class Table(Media):
         self._column_types = _dtypes.TypedDictType({})
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
+
+    def _load_incremental_table_state_from_resumed_run(self, run: "LocalRun", key: str):
+        """Handle updating incremental table state for resumed runs.
+
+        This method is called when a run is resumed and there are previous
+        increments of this table that need to be preserved. It updates the
+        table's internal state to track previous increments and the current
+        increment number.
+        """
+        if (
+            self._previous_increments_paths is not None
+            or self._increment_num is not None
+        ):
+            raise AssertionError(
+                "The table has been initialized for a resumed run already"
+            )
+
+        self._set_incremental_table_run_target(run)
+
+        summary_from_key = run.summary.get(key)
+
+        if (
+            summary_from_key is None
+            or not isinstance(summary_from_key, dict)
+            or summary_from_key.get("_type") != "incremental-table-file"
+        ):
+            # The key was never logged to the run or its last logged
+            # value was not an incrementally logged table.
+            return
+
+        previous_increments_paths = summary_from_key.get(
+            "previous_increments_paths", []
+        )
+
+        # add the artifact path of the last logged increment
+        last_artifact_path = summary_from_key.get("artifact_path")
+
+        if last_artifact_path:
+            previous_increments_paths.append(last_artifact_path)
+
+        # add 1 because a new increment is being logged
+        last_increment_num = summary_from_key.get("increment_num", 0)
+
+        self._increment_num = last_increment_num + 1
+        self._previous_increments_paths = previous_increments_paths
+
+    def _set_incremental_table_run_target(self, run: "LocalRun") -> None:
+        """Associate a Run object with this incremental Table.
+
+        A Table object in incremental mode can only be logged to a single Run.
+        Raises an error if the table is already associated to a different run.
+        """
+        if self._run_target_for_increments is None:
+            self._run_target_for_increments = run
+        elif self._run_target_for_increments is not run:
+            raise AssertionError("An incremental Table can only be logged to one Run.")
 
     @allow_relogging_after_mutation
     def cast(self, col_name, dtype, optional=False):
@@ -449,6 +504,7 @@ class Table(Media):
         self.add_data(*row)
 
     @allow_relogging_after_mutation
+    @allow_incremental_logging_after_append
     def add_data(self, *data):
         """Adds a new row of data to the table. The maximum amount of rows in a table is determined by `wandb.Table.MAX_ARTIFACT_ROWS`.
 
@@ -521,7 +577,16 @@ class Table(Media):
                     f"this may cause slower queries in the W&B UI."
                 )
             logging.warning(f"Truncating wandb.Table object to {max_rows} rows.")
-        return {"columns": self.columns, "data": self.data[:max_rows]}
+
+        if self.log_mode == "INCREMENTAL" and self._last_logged_idx is not None:
+            return {
+                "columns": self.columns,
+                "data": self.data[
+                    self._last_logged_idx + 1 : self._last_logged_idx + 1 + max_rows
+                ],
+            }
+        else:
+            return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
         # We set `warn=False` since Tables will now always be logged to both
@@ -541,7 +606,7 @@ class Table(Media):
         return os.path.join("media", "table")
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def from_json(cls, json_obj, source_artifact: "artifact.Artifact"):
         data = []
         column_types = None
         np_deserialized_columns = {}
@@ -573,6 +638,10 @@ class Table(Media):
                     and ndarray_type._get_serialization_path() is not None
                 ):
                     serialization_path = ndarray_type._get_serialization_path()
+
+                    if serialization_path is None:
+                        continue
+
                     np = util.get_module(
                         "numpy",
                         required="Deserializing NumPy columns requires NumPy to be installed.",
@@ -585,22 +654,23 @@ class Table(Media):
                     )
                     ndarray_type._clear_serialization_path()
 
-        for r_ndx, row in enumerate(json_obj["data"]):
-            row_data = []
-            for c_ndx, item in enumerate(row):
-                cell = item
-                if c_ndx in timestamp_column_indices and isinstance(item, (int, float)):
-                    cell = datetime.datetime.fromtimestamp(
-                        item / 1000, tz=datetime.timezone.utc
-                    )
-                elif c_ndx in np_deserialized_columns:
-                    cell = np_deserialized_columns[c_ndx][r_ndx]
-                elif isinstance(item, dict) and "_type" in item:
-                    obj = WBValue.init_from_json(item, source_artifact)
-                    if obj is not None:
-                        cell = obj
-                row_data.append(cell)
-            data.append(row_data)
+        if log_mode == "INCREMENTAL":
+            unprocessed_table_data = _get_data_from_increments(
+                json_obj, source_artifact
+            )
+        else:
+            unprocessed_table_data = json_obj["data"]
+
+        for r_ndx, row in enumerate(unprocessed_table_data):
+            data.append(
+                _process_table_row(
+                    row,
+                    timestamp_column_indices,
+                    np_deserialized_columns,
+                    source_artifact,
+                    r_ndx,
+                )
+            )
 
         # construct Table with dtypes for each column if type information exists
         dtypes = None
@@ -622,10 +692,28 @@ class Table(Media):
     def to_json(self, run_or_artifact):
         json_dict = super().to_json(run_or_artifact)
 
-        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+        if self.log_mode == "INCREMENTAL":
+            if self._previous_increments_paths is None:
+                self._previous_increments_paths = []
+            if self._increment_num is None:
+                self._increment_num = 0
+
             json_dict.update(
                 {
-                    "_type": "table-file",
+                    "increment_num": self._increment_num,
+                    "previous_increments_paths": self._previous_increments_paths,
+                }
+            )
+
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+            if self.log_mode == "INCREMENTAL":
+                wbvalue_type = "incremental-table-file"
+            else:
+                wbvalue_type = "table-file"
+
+            json_dict.update(
+                {
+                    "_type": wbvalue_type,
                     "ncols": len(self.columns),
                     "nrows": len(self.data),
                     "log_mode": self.log_mode,
@@ -702,7 +790,7 @@ class Table(Media):
                 }
             )
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise TypeError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         return json_dict
 
@@ -829,6 +917,7 @@ class Table(Media):
             for row_ndx in range(len(self.data)):
                 update_row(row_ndx)
 
+    @ensure_not_incremental
     @allow_relogging_after_mutation
     def add_column(self, name, data, optional=False):
         """Adds a column of data to the table.
@@ -860,7 +949,7 @@ class Table(Media):
 
         try:
             self.cast(name, _dtypes.UnknownType(), optional=optional)
-        except TypeError as err:
+        except TypeError:
             # Undo the changes
             if is_first_col:
                 self.data = []
@@ -869,7 +958,7 @@ class Table(Media):
                 for ndx in range(len(self.data)):
                     self.data[ndx] = self.data[ndx][:-1]
                 self.columns = self.columns[:-1]
-            raise err
+            raise
 
     def get_column(self, name, convert_to=None):
         """Retrieves a column from the table and optionally converts it to a NumPy object.
@@ -920,6 +1009,7 @@ class Table(Media):
         _index.set_table(self)
         return _index
 
+    @ensure_not_incremental
     @allow_relogging_after_mutation
     def add_computed_columns(self, fn):
         """Adds one or more computed columns based on existing data.
@@ -1237,3 +1327,112 @@ _dtypes.TypeRegistry.add(_PartitionedTableType)
 _dtypes.TypeRegistry.add(_ForeignKeyType)
 _dtypes.TypeRegistry.add(_PrimaryKeyType)
 _dtypes.TypeRegistry.add(_ForeignIndexType)
+
+
+def _get_data_from_increments(
+    json_obj: Dict[str, Any], source_artifact: "artifact.Artifact"
+) -> List[Any]:
+    """Get data from incremental table artifacts.
+
+    Args:
+        json_obj: The JSON object containing table metadata.
+        source_artifact: The source artifact containing the table data.
+
+    Returns:
+        List of table rows from all increments.
+    """
+    if "latest" not in source_artifact.aliases:
+        wandb.termwarn(
+            (
+                "It is recommended to use the latest version of the "
+                "incremental table artifact for ordering guarantees."
+            ),
+            repeat=False,
+        )
+    data: List[Any] = []
+    increment_num = json_obj.get("increment_num", None)
+    if increment_num is None:
+        return data
+
+    # Sort by increment number first, then by timestamp if present
+    # Format of name is: "{incr_num}-{timestamp_ms}.{key}.table.json"
+    def get_sort_key(key: str) -> Tuple[int, int]:
+        try:
+            parts = key.split(".")
+            increment_parts = parts[0].split("-")
+            increment_num = int(increment_parts[0])
+            # If there's a timestamp part, use it for secondary sorting
+            timestamp = int(increment_parts[1]) if len(increment_parts) > 1 else 0
+            return (increment_num, timestamp)
+        except (ValueError, IndexError):
+            wandb.termwarn(
+                (
+                    f"Could not parse artifact entry for increment {key}."
+                    " The entry name does not follow the naming convention"
+                    " <increment_number>-<timestamp>.<key>.table.json"
+                    " The data in the table will be out of order."
+                ),
+                repeat=False,
+            )
+            return (0, 0)
+
+    sorted_increment_keys = []
+    for entry_key in source_artifact.manifest.entries:
+        if entry_key.endswith(".table.json"):
+            sorted_increment_keys.append(entry_key)
+
+    sorted_increment_keys.sort(key=get_sort_key)
+
+    for entry_key in sorted_increment_keys:
+        try:
+            with open(source_artifact.manifest.entries[entry_key].download()) as f:
+                table_data = json.load(f)
+            data.extend(table_data["data"])
+        except (json.JSONDecodeError, KeyError) as e:
+            raise wandb.Error(f"Invalid table file {entry_key}") from e
+    return data
+
+
+def _process_table_row(
+    row: List[Any],
+    timestamp_column_indices: Set[_dtypes.TimestampType],
+    np_deserialized_columns: Dict[int, Any],
+    source_artifact: "artifact.Artifact",
+    row_idx: int,
+) -> List[Any]:
+    """Convert special columns in a table row to Python types.
+
+    Processes a single row of table data by converting timestamp values to
+    datetime objects, replacing np typed cells with numpy array data,
+    and initializing media objects from their json value.
+
+
+    Args:
+        row: The row data to process.
+        timestamp_column_indices: Set of column indices containing timestamps.
+        np_deserialized_columns: Dictionary mapping column indices to numpy arrays.
+        source_artifact: The source artifact containing the table data.
+        row_idx: The index of the current row.
+
+    Returns:
+        Processed row data.
+    """
+    row_data = []
+    for c_ndx, item in enumerate(row):
+        cell: Any
+        if c_ndx in timestamp_column_indices and isinstance(item, (int, float)):
+            cell = datetime.datetime.fromtimestamp(
+                item / 1000, tz=datetime.timezone.utc
+            )
+        elif c_ndx in np_deserialized_columns:
+            cell = np_deserialized_columns[c_ndx][row_idx]
+        elif (
+            isinstance(item, dict)
+            and "_type" in item
+            and (obj := WBValue.init_from_json(item, source_artifact))
+        ):
+            cell = obj
+        else:
+            cell = item
+        row_data.append(cell)
+    return row_data

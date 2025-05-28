@@ -284,7 +284,7 @@ def image_id_from_registry(image_name: str) -> Optional[str]:
         )
         res.raise_for_status()
     except requests.RequestException:
-        log.error(f"Received {res} when attempting to get digest for {image_name}")
+        log.exception(f"Received {res} when attempting to get digest for {image_name}")
         return None
     return "@".join([registry + "/" + repository, res.headers["Docker-Content-Digest"]])
 
@@ -295,11 +295,12 @@ def image_id(image_name: str) -> Optional[str]:
         return image_name
     else:
         digests = shell(["inspect", image_name, "--format", "{{json .RepoDigests}}"])
+
+        if digests is None:
+            return image_id_from_registry(image_name)
+
         try:
-            if digests is None:
-                raise ValueError
-            im_id: str = json.loads(digests)[0]
-            return im_id
+            return json.loads(digests)[0]
         except (ValueError, IndexError):
             return image_id_from_registry(image_name)
 

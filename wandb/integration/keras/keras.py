@@ -20,10 +20,9 @@ from wandb.util import add_import_hook
 
 def _check_keras_version():
     from keras import __version__ as keras_version
+    from packaging.version import parse
 
-    from wandb.util import parse_version
-
-    if parse_version(keras_version) < parse_version("2.4.0"):
+    if parse(keras_version) < parse("2.4.0"):
         wandb.termwarn(
             f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
         )
@@ -31,9 +30,9 @@ def _check_keras_version():
 
 def _can_compute_flops() -> bool:
     """FLOPS computation is restricted to TF 2.x as it requires tf.compat.v1."""
-    from wandb.util import parse_version
+    from packaging.version import parse
 
-    if parse_version(tf.__version__) >= parse_version("2.0.0"):
+    if parse(tf.__version__) >= parse("2.0.0"):
         return True
 
     return False
@@ -75,15 +74,10 @@ def is_generator_like(data):
 
 
 def patch_tf_keras():  # noqa: C901
+    from packaging.version import parse
     from tensorflow.python.eager import context
 
-    from wandb.util import parse_version
-
-    if (
-        parse_version("2.6.0")
-        <= parse_version(tf.__version__)
-        < parse_version("2.13.0")
-    ):
+    if parse("2.6.0") <= parse(tf.__version__) < parse("2.13.0"):
         keras_engine = "keras.engine"
         try:
             from keras.engine import training
@@ -238,9 +232,9 @@ patch_tf_keras()
 
 
 def _get_custom_optimizer_parent_class():
-    from wandb.util import parse_version
+    from packaging.version import parse
 
-    if parse_version(tf.__version__) >= parse_version("2.9.0"):
+    if parse(tf.__version__) >= parse("2.9.0"):
         custom_optimizer_parent_class = tf.keras.optimizers.legacy.Optimizer
     else:
         custom_optimizer_parent_class = tf.keras.optimizers.Optimizer
@@ -734,9 +728,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if self.compute_flops and _can_compute_flops():
             try:
                 wandb.summary["GFLOPs"] = self.get_flops()
-            except Exception as e:
+            except Exception:
+                logger.exception("Error computing FLOPs")
                 wandb.termwarn("Unable to compute FLOPs for this model.")
-                logger.exception(e)
 
     def on_train_end(self, logs=None):
         if self._model_trained_since_last_eval:
@@ -1018,12 +1012,12 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 self.model.save(self.filepath, overwrite=True)
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
         # also saw `TypeError: can't pickle _thread.RLock objects`
-        except (ImportError, RuntimeError, TypeError, AttributeError) as e:
+        except (ImportError, RuntimeError, TypeError, AttributeError):
+            logger.exception("Error saving model in the h5py format")
             wandb.termerror(
                 "Can't save model in the h5py format. The model will be saved as "
                 "as an W&B Artifact in the 'tf' format."
             )
-            logger.exception(e)
 
     def _save_model_as_artifact(self, epoch):
         if wandb.run.disabled:
@@ -1054,7 +1048,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if not isinstance(
             self.model, (tf.keras.models.Sequential, tf.keras.models.Model)
         ):
-            raise ValueError(
+            raise TypeError(
                 "Calculating FLOPS is only supported for "
                 "`tf.keras.Model` and `tf.keras.Sequential` instances."
             )

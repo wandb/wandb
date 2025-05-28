@@ -94,14 +94,11 @@ class AgentProcess:
         if self._popen:
             # if on windows, wait() will block and we won't be able to interrupt
             if platform.system() == "Windows":
-                try:
-                    while True:
-                        p = self._popen.poll()
-                        if p is not None:
-                            return p
-                        time.sleep(1)
-                except KeyboardInterrupt:
-                    raise
+                while True:
+                    p = self._popen.poll()
+                    if p is not None:
+                        return p
+                    time.sleep(1)
             return self._popen.wait()
         return self._proc.join()
 
@@ -332,7 +329,7 @@ class Agent:
             elif command_type == "resume":
                 result = self._command_run(command)
             else:
-                raise AgentError(f"No such command: {command_type}")
+                raise AgentError(f"No such command: {command_type}")  # noqa: TRY301
             response["result"] = result
         except Exception:
             logger.exception("Exception while processing command: %s", command)

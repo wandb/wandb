@@ -268,13 +268,13 @@ class Agent:
                     wandb.termlog("Ctrl + C detected. Stopping sweep.")
                     self._exit()
                     return
-                except Exception as e:
+                except Exception:
                     if self._exit_flag:
                         logger.debug("Exiting main loop due to exit flag.")
                         wandb.termlog("Sweep Agent: Killed.")
                         return
                     else:
-                        raise e
+                        raise
         finally:
             _INSTANCES -= 1
 
@@ -301,8 +301,8 @@ class Agent:
 
             self._function()
             wandb.finish()
-        except KeyboardInterrupt as ki:
-            raise ki
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             wandb.finish(exit_code=1)
             if self._run_status[run_id] == RunStatus.RUNNING:
@@ -339,7 +339,7 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
         count (int, optional): the number of trials to run.
     """
     if not callable(function):
-        raise Exception("function parameter must be callable!")
+        raise TypeError("function parameter must be callable!")
     agent = Agent(
         sweep_id,
         function=function,

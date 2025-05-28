@@ -1713,10 +1713,10 @@ class Run:
         commit: bool | None = None,
     ) -> None:
         if not isinstance(data, Mapping):
-            raise ValueError("wandb.log must be passed a dictionary")
+            raise TypeError("wandb.log must be passed a dictionary")
 
         if any(not isinstance(key, str) for key in data.keys()):
-            raise ValueError("Key values passed to `wandb.log` must be strings.")
+            raise TypeError("Key values passed to `wandb.log` must be strings.")
 
         self._partial_history_callback(data, step, commit)
 
@@ -2445,7 +2445,7 @@ class Run:
             logger.info("Redirects installed.")
         except Exception as e:
             wandb.termwarn(f"Failed to redirect: {e}")
-            logger.error("Failed to redirect.", exc_info=e)
+            logger.exception("Failed to redirect.")
         return
 
     def _restore(self) -> None:
@@ -2486,9 +2486,9 @@ class Run:
                 wandb.termerror("Control-C detected -- Run data was not synced")
             raise
 
-        except Exception as e:
+        except Exception:
             self._console_stop()
-            logger.error("Problem finishing run", exc_info=e)
+            logger.exception("Problem finishing run")
             wandb.termerror("Problem finishing run")
             raise
 
@@ -2586,8 +2586,8 @@ class Run:
 
         try:
             self._detect_and_apply_job_inputs()
-        except Exception as e:
-            logger.error("Problem applying launch job inputs", exc_info=e)
+        except Exception:
+            logger.exception("Problem applying launch job inputs")
 
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
@@ -3450,7 +3450,7 @@ class Run:
         else:
             artifact = artifact_or_path
         if not isinstance(artifact, wandb.Artifact):
-            raise ValueError(
+            raise TypeError(
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"
             )
@@ -3704,7 +3704,7 @@ class Run:
         if isinstance(wait_duration, int) or isinstance(wait_duration, float):
             wait_duration = timedelta(seconds=wait_duration)
         elif not callable(getattr(wait_duration, "total_seconds", None)):
-            raise ValueError(
+            raise TypeError(
                 "wait_duration must be an int, float, or datetime.timedelta"
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
@@ -3784,8 +3784,8 @@ class Run:
             try:
                 response = result.response.get_system_metrics_response
                 return pb_to_dict(response) if response else {}
-            except Exception as e:
-                logger.error("Error getting system metrics: %s", e)
+            except Exception:
+                logger.exception("Error getting system metrics.")
                 return {}
 
     @property
@@ -3810,7 +3810,7 @@ class Run:
         try:
             result = handle.wait_or(timeout=1)
         except TimeoutError:
-            logger.error("Error getting run metadata: timeout")
+            logger.exception("Timeout getting run metadata.")
             return None
 
         try:
@@ -3823,8 +3823,8 @@ class Run:
                 self.__metadata.update_from_proto(response.metadata, skip_existing=True)
 
             return self.__metadata
-        except Exception as e:
-            logger.error("Error getting run metadata: %s", e)
+        except Exception:
+            logger.exception("Error getting run metadata.")
 
         return None
 
