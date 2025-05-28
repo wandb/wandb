@@ -352,11 +352,17 @@ def _start_container(*, name: str) -> _WandbContainerPorts:
         type=click.Choice(["always", "never", "missing"]),
     )
 
+    x = {"addr": "pubsub://127.0.0.1:8085/playground-111/run-updates-shadow/run-updates-shadow","subscriptions": {"flatRunFieldsUpdater": "pubsub://127.0.0.1:8085/playground-111/run-updates-shadow/flat-run-fields-updater"},"overflow-bucket": {"store": "s3://wandb:wandbwandb@127.0.0.1:8000/run-updates-gorilla-overflow"}}
+
     docker_flags = [
         "--rm",
         "--detach",
         *["--pull", pull],
         *["-e", "WANDB_ENABLE_TEST_CONTAINER=true"],
+        *["-e", "GORILLA_RUN_STORE_ONPREM_MIGRATE_CREATE_RUN_TABLES=true"],
+        *["-e", "GORILLA_RUN_STORE_ONPREM_MIGRATE_CREATE_RUN_STORE=true"],
+        *["-e", "GORILLA_RUN_STORE_ONPREM_MIGRATE_SHADOW_RUN_UPDATES=true"],
+        *["-e", f"GORILLA_RUN_UPDATE_SHADOW_QUEUE={json.dumps(x)}"],
         *["--name", name],
         *["--volume", f"{name}-vol:/vol"],
         # Expose ports to the host.
