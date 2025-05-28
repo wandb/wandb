@@ -352,7 +352,15 @@ def _start_container(*, name: str) -> _WandbContainerPorts:
         type=click.Choice(["always", "never", "missing"]),
     )
 
-    x = {"addr": "pubsub://127.0.0.1:8085/playground-111/run-updates-shadow/run-updates-shadow","subscriptions": {"flatRunFieldsUpdater": "pubsub://127.0.0.1:8085/playground-111/run-updates-shadow/flat-run-fields-updater"},"overflow-bucket": {"store": "s3://wandb:wandbwandb@127.0.0.1:8000/run-updates-gorilla-overflow"}}
+    x = {
+        "addr": "pubsub://127.0.0.1:8085/playground-111/run-updates-shadow/run-updates-shadow",
+        "subscriptions": {
+            "flatRunFieldsUpdater": "pubsub://127.0.0.1:8085/playground-111/run-updates-shadow/flat-run-fields-updater"
+        },
+        "overflow-bucket": {
+            "store": "s3://wandb:wandbwandb@127.0.0.1:8000/run-updates-gorilla-overflow"
+        },
+    }
 
     docker_flags = [
         "--rm",
