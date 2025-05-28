@@ -163,7 +163,7 @@ class BetaReport(Attrs):
     @property
     def updated_at(self):
         return self._attrs["updatedAt"]
-        
+
     @property
     def id(self):
         return self._attrs["id"]
