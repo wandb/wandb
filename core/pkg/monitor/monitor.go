@@ -55,7 +55,7 @@ type SystemMonitor struct {
 	// extraWork accepts outgoing messages for the run
 	extraWork runwork.ExtraWork
 
-	// The metrics buffer for the system monitor
+	// The in-memory metrics buffer for the system monitor
 	buffer *Buffer
 
 	// settings is the settings for the system monitor

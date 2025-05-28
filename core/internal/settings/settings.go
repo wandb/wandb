@@ -567,3 +567,13 @@ func (s *Settings) UpdateRunID(runID string) {
 func (s *Settings) UpdateServerSideDerivedSummary(enable bool) {
 	s.Proto.XServerSideDerivedSummary = &wrapperspb.BoolValue{Value: enable}
 }
+
+// Updates the scheme and hostname for contacting the CoreWeave metadata server.
+func (s *Settings) UpdateStatsCoreWeaveMetadataBaseURL(baseURL string) {
+	s.Proto.XStatsCoreweaveMetadataBaseUrl = &wrapperspb.StringValue{Value: baseURL}
+}
+
+// Updates the relative path on the CoreWeave metadata server to which to make requests.
+func (s *Settings) UpdateStatsCoreWeaveMetadataEndpoint(endpoint string) {
+	s.Proto.XStatsCoreweaveMetadataEndpoint = &wrapperspb.StringValue{Value: endpoint}
+}

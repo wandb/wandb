@@ -117,16 +117,18 @@ func (cwm *CoreWeaveMetadata) Sample() (*spb.StatsRecord, error) {
 }
 
 // Probe collects metadata about the CoreWeave compute environment.
+//
+// It first checks if the current W&B entity's organization is using
+// CoreWeave by querying the W&B backend. If so, it fetches instance
+// metadata from the CoreWeave metadata endpoint using the Get method.
 func (cwm *CoreWeaveMetadata) Probe() *spb.MetadataRequest {
-	// TODO: call OrganizationCoreWeaveOrganizationID here
 	if cwm.graphqlClient == nil {
 		cwm.logger.Debug("coreweave metadata: error collecting data", "error", fmt.Errorf("GraphQL client is nil"))
 		return nil
 	}
 
-	// Check whether this entity's organization is on CoreWeave.
-	//
-	// This is done to limit collecting metadata to the relevant orgs only.
+	// Check whether this entity's organization is on CoreWeave
+	// to limit collecting metadata to the relevant organizations.
 	data, err := gql.OrganizationCoreWeaveOrganizationID(
 		cwm.ctx,
 		cwm.graphqlClient,
@@ -155,6 +157,7 @@ func (cwm *CoreWeaveMetadata) Probe() *spb.MetadataRequest {
 	}
 }
 
+// Get fetches and parses metadata from the CoreWeave instance metadata endpoint.
 func (cwm *CoreWeaveMetadata) Get() (*CoreWeaveInstanceData, error) {
 	fullURL := cwm.baseURL.JoinPath(cwm.endpoint).String()
 	req, err := retryablehttp.NewRequest("GET", fullURL, nil) // Use fullURL here
