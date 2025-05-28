@@ -130,11 +130,11 @@ def process_sar_files(log_dir: str) -> None:
         subprocess.run("killall sar", check=True, shell=True)
         logger.info("kill sar executed successfully.")
     except FileNotFoundError:
-        logger.error(
+        logger.exception(
             "Command not found. Make sure 'killall' is installed and in your PATH."
         )
-    except Exception as e:
-        logger.error(f"An unexpected error occurred: {e}")
+    except Exception:
+        logger.exception("An unexpected error occurred.")
 
     log_files = ["cpu.log", "mem.log", "network.sock.log", "paging.log"]
 

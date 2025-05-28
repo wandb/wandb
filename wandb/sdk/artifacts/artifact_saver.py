@@ -273,7 +273,5 @@ class ArtifactSaver:
                     if artifact_id is None:
                         raise RuntimeError(f"Could not resolve client id {client_id}")
                     entry.ref = URIStr(
-                        "wandb-artifact://{}/{}".format(
-                            b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
-                        )
+                        f"wandb-artifact://{b64_to_hex_id(B64MD5(artifact_id))}/{artifact_file_path}"
                     )

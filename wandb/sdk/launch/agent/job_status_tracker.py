@@ -48,6 +48,6 @@ class JobAndRunStatusTracker:
         check_stop = event_loop_thread_exec(api.api.check_stop_requested)
         try:
             return bool(await check_stop(self.project, self.entity, self.run_id))
-        except CommError as e:
-            _logger.error(f"CommError when checking if wandb run stopped: {e}")
+        except CommError:
+            _logger.exception("CommError when checking if wandb run stopped")
         return False

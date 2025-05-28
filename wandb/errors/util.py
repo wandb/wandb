@@ -47,7 +47,7 @@ class ProtobufErrorHandler:
             The corresponding protobuf error message.
         """
         if not isinstance(exc, Error):
-            raise ValueError("exc must be a subclass of wandb.errors.Error")
+            raise TypeError("exc must be a subclass of wandb.errors.Error")
 
         code = None
         for subclass in type(exc).__mro__:

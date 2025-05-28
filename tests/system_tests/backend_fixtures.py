@@ -12,12 +12,6 @@ from typing import Any, ClassVar, Final, Literal
 
 import httpx
 
-if sys.version_info < (3, 12):
-    from typing_extensions import dataclass_transform
-else:
-    from typing import dataclass_transform
-
-
 #: The root directory of this repo.
 REPO_ROOT: Final[Path] = Path(__file__).parent.parent.parent
 
@@ -66,7 +60,6 @@ def connect_to_local_wandb_backend(name: str) -> LocalWandbBackendAddress:
 
 
 @dataclass(frozen=True)
-@dataclass_transform(frozen_default=True)
 class FixtureCmd:
     path: ClassVar[str]  # e.g. "db/user"
 

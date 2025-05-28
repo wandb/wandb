@@ -1,6 +1,7 @@
 import functools
 import logging
 import os
+import pathlib
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Type, Union
 
@@ -34,12 +35,26 @@ if TYPE_CHECKING:  # pragma: no cover
 def write_gif_with_image_io(
     clip: Any, filename: str, fps: Optional[int] = None
 ) -> None:
+    from packaging.version import parse
+
     imageio = util.get_module(
         "imageio",
         required='wandb.Video requires imageio when passing raw data. Install with "pip install wandb[media]"',
     )
 
-    writer = imageio.save(filename, fps=clip.fps, quantizer=0, palettesize=256, loop=0)
+    if parse(imageio.__version__) < parse("2.28.1"):
+        raise ValueError(
+            "imageio version 2.28.1 or higher is required to encode gifs. "
+            "Please upgrade imageio with `pip install imageio>=2.28.1`"
+        )
+
+    writer = imageio.save(
+        filename,
+        quantizer=0,
+        palettesize=256,
+        loop=0,
+        duration=1000 / clip.fps,
+    )
 
     for frame in clip.iter_frames(fps=fps, dtype="uint8"):
         writer.append_data(frame)
@@ -57,7 +72,7 @@ class Video(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union["np.ndarray", str, "TextIO", "BytesIO"],
+        data_or_path: Union[str, pathlib.Path, "np.ndarray", "TextIO", "BytesIO"],
         caption: Optional[str] = None,
         fps: Optional[int] = None,
         format: Optional[Literal["gif", "mp4", "webm", "ogg"]] = None,
@@ -84,6 +99,7 @@ class Video(BatchableMedia):
                 or io object. This parameter will be used to determine the format
                 to use when encoding the video data. Accepted values are "gif",
                 "mp4", "webm", or "ogg".
+                If no value is provided, the default format will be "gif".
 
         Examples:
             ### Log a numpy array as a video
@@ -130,7 +146,9 @@ class Video(BatchableMedia):
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
             self._set_file(filename, is_tmp=True)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             _, ext = os.path.splitext(data_or_path)
             ext = ext[1:].lower()
             if ext not in Video.EXTS:

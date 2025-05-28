@@ -749,14 +749,12 @@ class SendManager:
                 self._resume_state.wandb_runtime = new_runtime
             tags = resume_status.get("tags") or []
 
-        except (IndexError, ValueError) as e:
-            logger.error("unable to load resume tails", exc_info=e)
+        except (IndexError, ValueError):
+            logger.exception("unable to load resume tails")
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
-                error.message = "resume='must' but could not resume ({}) ".format(
-                    run.run_id
-                )
+                error.message = f"resume='must' but could not resume ({run.run_id}) "
                 return error
 
         # TODO: Do we need to restore config / summary?
@@ -772,7 +770,7 @@ class SendManager:
         self._resume_state.summary = summary
         self._resume_state.tags = tags
         self._resume_state.resumed = True
-        logger.info("configured resuming with: {}".format(self._resume_state))
+        logger.info(f"configured resuming with: {self._resume_state}")
         return None
 
     def _telemetry_get_framework(self) -> str:
@@ -816,9 +814,7 @@ class SendManager:
             self._interface.publish_config(
                 key=("_wandb", "spell_url"), val=env.get("SPELL_RUN_URL")
             )
-            url = "{}/{}/{}/runs/{}".format(
-                self._api.app_url, self._run.entity, self._run.project, self._run.run_id
-            )
+            url = f"{self._api.app_url}/{self._run.entity}/{self._run.project}/runs/{self._run.run_id}"
             requests.put(
                 env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
                 json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
@@ -829,23 +825,22 @@ class SendManager:
         # TODO: do something if sync spell is not successful?
 
     def _setup_fork(self, server_run: dict):
-        assert self._settings.fork_from
-        assert self._settings.fork_from.metric == "_step"
         assert self._run
-        first_step = int(self._settings.fork_from.value) + 1
+        assert self._run.branch_point
+        first_step = int(self._run.branch_point.value) + 1
         self._resume_state.step = first_step
         self._resume_state.history = server_run.get("historyLineCount", 0)
         self._run.forked = True
         self._run.starting_step = first_step
 
     def _load_rewind_state(self, run: "RunRecord"):
-        assert self._settings.resume_from
+        assert run.branch_point
         self._rewind_response = self._api.rewind_run(
             run_name=run.run_id,
             entity=run.entity or None,
             project=run.project or None,
-            metric_name=self._settings.resume_from.metric,
-            metric_value=self._settings.resume_from.value,
+            metric_name=run.branch_point.metric,
+            metric_value=run.branch_point.value,
             program_path=self._settings.program or None,
         )
         self._resume_state.history = self._rewind_response.get("historyLineCount", 0)
@@ -854,12 +849,11 @@ class SendManager:
         )
 
     def _install_rewind_state(self):
-        assert self._settings.resume_from
-        assert self._settings.resume_from.metric == "_step"
         assert self._run
+        assert self._run.branch_point
         assert self._rewind_response
 
-        first_step = int(self._settings.resume_from.value) + 1
+        first_step = int(self._run.branch_point.value) + 1
         self._resume_state.step = first_step
 
         # We set the fork flag here because rewind uses the forking
@@ -903,8 +897,8 @@ class SendManager:
             config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
-        do_fork = self._settings.fork_from is not None and is_wandb_init
-        do_rewind = self._settings.resume_from is not None and is_wandb_init
+        do_rewind = run.branch_point.run == run.run_id
+        do_fork = not do_rewind and run.branch_point.run != ""
         do_resume = bool(self._settings.resume)
 
         num_resume_options_set = sum([do_fork, do_rewind, do_resume])
@@ -1188,7 +1182,7 @@ class SendManager:
             try:
                 d[item.key] = json.loads(item.value_json)
             except json.JSONDecodeError:
-                logger.error("error decoding stats json: %s", item.value_json)
+                logger.exception("error decoding stats json: %s", item.value_json)
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
@@ -1500,17 +1494,15 @@ class SendManager:
         try:
             res = self._send_artifact(artifact)
             logger.info(f"sent artifact {artifact.name} - {res}")
-        except Exception as e:
-            logger.error(
-                'send_artifact: failed for artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
-                )
+        except Exception:
+            logger.exception(
+                f'send_artifact: failed for artifact "{artifact.type}/{artifact.name}"'
             )
 
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
     ) -> Optional[Dict]:
-        from wandb.util import parse_version
+        from packaging.version import parse
 
         assert self._pusher
         saver = ArtifactSaver(
@@ -1523,9 +1515,7 @@ class SendManager:
 
         if artifact.distributed_id:
             max_cli_version = self._max_cli_version()
-            if max_cli_version is None or parse_version(
-                max_cli_version
-            ) < parse_version("0.10.16"):
+            if max_cli_version is None or parse(max_cli_version) < parse("0.10.16"):
                 logger.warning(
                     "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
@@ -1561,13 +1551,11 @@ class SendManager:
         return res
 
     def send_alert(self, record: "Record") -> None:
-        from wandb.util import parse_version
+        from packaging.version import parse
 
         alert = record.alert
         max_cli_version = self._max_cli_version()
-        if max_cli_version is None or parse_version(max_cli_version) < parse_version(
-            "0.10.9"
-        ):
+        if max_cli_version is None or parse(max_cli_version) < parse("0.10.9"):
             logger.warning(
                 "This W&B server doesn't support alerts, "
                 "have your administrator install wandb/local >= 0.9.31"
@@ -1580,8 +1568,8 @@ class SendManager:
                     level=alert.level,
                     wait_duration=alert.wait_duration,
                 )
-            except Exception as e:
-                logger.error(f"send_alert: failed for alert {alert.title!r}: {e}")
+            except Exception:
+                logger.exception(f"send_alert: failed for alert {alert.title!r}")
 
     def finish(self) -> None:
         logger.info("shutting down sender")

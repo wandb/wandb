@@ -11,16 +11,21 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/getsentry/sentry-go/attribute"
 )
 
-// eventType is the type of an error event.
 const eventType = "event"
-
-// transactionType is the type of a transaction event.
 const transactionType = "transaction"
-
-// checkInType is the type of a check in event.
 const checkInType = "check_in"
+
+var logEvent = struct {
+	Type        string
+	ContentType string
+}{
+	"log",
+	"application/vnd.sentry.items.log+json",
+}
 
 // Level marks the severity of the event.
 type Level string
@@ -34,7 +39,7 @@ const (
 	LevelFatal   Level = "fatal"
 )
 
-// SdkInfo contains all metadata about about the SDK being used.
+// SdkInfo contains all metadata about the SDK.
 type SdkInfo struct {
 	Name         string       `json:"name,omitempty"`
 	Version      string       `json:"version,omitempty"`
@@ -94,6 +99,60 @@ func (b *Breadcrumb) MarshalJSON() ([]byte, error) {
 		}{breadcrumb: (*breadcrumb)(b)})
 	}
 	return json.Marshal((*breadcrumb)(b))
+}
+
+type Logger interface {
+	// Write implements the io.Writer interface. Currently, the [sentry.Hub] is
+	// context aware, in order to get the correct trace correlation. Using this
+	// might result in incorrect span association on logs. If you need to use
+	// Write it is recommended to create a NewLogger so that the associated context
+	// is passed correctly.
+	Write(p []byte) (n int, err error)
+	// Trace emits a [LogLevelTrace] log to Sentry.
+	// Arguments are handled in the manner of [fmt.Print].
+	Trace(ctx context.Context, v ...interface{})
+	// Debug emits a [LogLevelDebug] log to Sentry.
+	// Arguments are handled in the manner of [fmt.Print].
+	Debug(ctx context.Context, v ...interface{})
+	// Info emits a [LogLevelInfo] log to Sentry.
+	// Arguments are handled in the manner of [fmt.Print].
+	Info(ctx context.Context, v ...interface{})
+	// Warn emits a [LogLevelWarn] log to Sentry.
+	// Arguments are handled in the manner of [fmt.Print].
+	Warn(ctx context.Context, v ...interface{})
+	// Error emits a [LogLevelError] log to Sentry.
+	// Arguments are handled in the manner of [fmt.Print].
+	Error(ctx context.Context, v ...interface{})
+	// Fatal emits a [LogLevelFatal] log to Sentry followed by a call to [os.Exit](1).
+	// Arguments are handled in the manner of [fmt.Print].
+	Fatal(ctx context.Context, v ...interface{})
+	// Panic emits a [LogLevelFatal] log to Sentry followed by a call to panic().
+	// Arguments are handled in the manner of [fmt.Print].
+	Panic(ctx context.Context, v ...interface{})
+
+	// Tracef emits a [LogLevelTrace] log to Sentry.
+	// Arguments are handled in the manner of [fmt.Printf].
+	Tracef(ctx context.Context, format string, v ...interface{})
+	// Debugf emits a [LogLevelDebug] log to Sentry.
+	// Arguments are handled in the manner of [fmt.Printf].
+	Debugf(ctx context.Context, format string, v ...interface{})
+	// Infof emits a [LogLevelInfo] log to Sentry.
+	// Arguments are handled in the manner of [fmt.Printf].
+	Infof(ctx context.Context, format string, v ...interface{})
+	// Warnf emits a [LogLevelWarn] log to Sentry.
+	// Arguments are handled in the manner of [fmt.Printf].
+	Warnf(ctx context.Context, format string, v ...interface{})
+	// Errorf emits a [LogLevelError] log to Sentry.
+	// Arguments are handled in the manner of [fmt.Printf].
+	Errorf(ctx context.Context, format string, v ...interface{})
+	// Fatalf emits a [LogLevelFatal] log to Sentry followed by a call to [os.Exit](1).
+	// Arguments are handled in the manner of [fmt.Printf].
+	Fatalf(ctx context.Context, format string, v ...interface{})
+	// Panicf emits a [LogLevelFatal] log to Sentry followed by a call to panic().
+	// Arguments are handled in the manner of [fmt.Printf].
+	Panicf(ctx context.Context, format string, v ...interface{})
+	// SetAttributes allows attaching parameters to the log message using the attribute API.
+	SetAttributes(...attribute.Builder)
 }
 
 // Attachment allows associating files with your events to aid in investigation.
@@ -325,6 +384,9 @@ type Event struct {
 	CheckIn       *CheckIn       `json:"check_in,omitempty"`
 	MonitorConfig *MonitorConfig `json:"monitor_config,omitempty"`
 
+	// The fields below are only relevant for logs
+	Logs []Log `json:"items,omitempty"`
+
 	// The fields below are not part of the final JSON payload.
 
 	sdkMetaData SDKMetaData
@@ -546,4 +608,18 @@ type EventHint struct {
 	Context            context.Context
 	Request            *http.Request
 	Response           *http.Response
+}
+
+type Log struct {
+	Timestamp  time.Time            `json:"timestamp,omitempty"`
+	TraceID    TraceID              `json:"trace_id,omitempty"`
+	Level      Level                `json:"level"`
+	Severity   int                  `json:"severity_number,omitempty"`
+	Body       string               `json:"body,omitempty"`
+	Attributes map[string]Attribute `json:"attributes,omitempty"`
+}
+
+type Attribute struct {
+	Value any    `json:"value"`
+	Type  string `json:"type"`
 }

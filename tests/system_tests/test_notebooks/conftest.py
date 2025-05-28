@@ -5,7 +5,7 @@ import re
 import shutil
 import sys
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, List
+from typing import Dict, List
 from unittest.mock import MagicMock
 
 import filelock
@@ -17,13 +17,8 @@ import wandb
 import wandb.util
 from nbclient import NotebookClient
 from nbclient.client import CellExecutionError
+from typing_extensions import Any, Generator, override
 from wandb.sdk.lib import ipython
-
-if sys.version_info >= (3, 12):
-    from typing import override
-else:
-    from typing_extensions import override
-
 
 _NOTEBOOK_LOCKFILE = os.path.join(
     os.path.dirname(__file__),

@@ -1,4 +1,3 @@
-import ast
 import base64
 import datetime
 import functools
@@ -398,8 +397,7 @@ class Api:
         except requests.exceptions.HTTPError as err:
             response = err.response
             assert response is not None
-            logger.error(f"{response.status_code} response executing GraphQL.")
-            logger.error(response.text)
+            logger.exception("Error executing GraphQL.")
             for error in parse_backend_error_messages(response):
                 wandb.termerror(f"Error while calling W&B API: {error} ({response})")
             raise
@@ -2089,9 +2087,7 @@ class Api:
             )
             if default is None or default.get("queueID") is None:
                 raise CommError(
-                    "Unable to create default queue for {}/{}. No queues for agent to poll".format(
-                        entity, project
-                    )
+                    f"Unable to create default queue for {entity}/{project}. No queues for agent to poll"
                 )
             project_queues = [{"id": default["queueID"], "name": "default"}]
         polling_queue_ids = [
@@ -2568,15 +2564,11 @@ class Api:
         res = self.gql(query, variable_values)
         if res.get("project") is None:
             raise CommError(
-                "Error fetching run info for {}/{}/{}. Check that this project exists and you have access to this entity and project".format(
-                    entity, project, name
-                )
+                f"Error fetching run info for {entity}/{project}/{name}. Check that this project exists and you have access to this entity and project"
             )
         elif res["project"].get("run") is None:
             raise CommError(
-                "Error fetching run info for {}/{}/{}. Check that this run id exists".format(
-                    entity, project, name
-                )
+                f"Error fetching run info for {entity}/{project}/{name}. Check that this run id exists"
             )
         run_info: dict = res["project"]["run"]["runInfo"]
         return run_info
@@ -2990,11 +2982,8 @@ class Api:
                 logger.debug("upload_file: %s complete", url)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error(f"upload_file exception {url}: {e}")
-            request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers!r}")
+            logger.exception(f"upload_file exception for {url=}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = status_code == 400 and "RequestTimeout" in str(
@@ -3056,11 +3045,8 @@ class Api:
                     logger.debug("upload_file: %s complete", url)
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error(f"upload_file exception {url}: {e}")
-            request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers}")
+            logger.exception(f"upload_file exception for {url=}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = (
@@ -3187,10 +3173,8 @@ class Api:
                 },
                 timeout=60,
             )
-        except Exception as e:
-            # GQL raises exceptions with stringified python dictionaries :/
-            message = ast.literal_eval(e.args[0])["message"]
-            logger.error("Error communicating with W&B: %s", message)
+        except Exception:
+            logger.exception("Error communicating with W&B.")
             return []
         else:
             result: List[Dict[str, Any]] = json.loads(
@@ -3232,10 +3216,8 @@ class Api:
                         parameter["distribution"] = "uniform"
                     else:
                         raise ValueError(
-                            "Parameter {} is ambiguous, please specify bounds as both floats (for a float_"
-                            "uniform distribution) or ints (for an int_uniform distribution).".format(
-                                parameter_name
-                            )
+                            f"Parameter {parameter_name} is ambiguous, please specify bounds as both floats (for a float_"
+                            "uniform distribution) or ints (for an int_uniform distribution)."
                         )
         return config
 
@@ -3384,8 +3366,8 @@ class Api:
                     variable_values=variables,
                     check_retry_fn=util.no_retry_4xx,
                 )
-            except UsageError as e:
-                raise e
+            except UsageError:
+                raise
             except Exception as e:
                 # graphql schema exception is generic
                 err = e
@@ -4560,9 +4542,9 @@ class Api:
         s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
         curr_state = s["state"].upper()
         if state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
-            raise Exception("Cannot pause {} sweep.".format(curr_state.lower()))
+            raise Exception(f"Cannot pause {curr_state.lower()} sweep.")
         elif state != "RUNNING" and curr_state not in ("RUNNING", "PAUSED", "PENDING"):
-            raise Exception("Sweep already {}.".format(curr_state.lower()))
+            raise Exception(f"Sweep already {curr_state.lower()}.")
         sweep_id = s["id"]
         mutation = gql(
             """
