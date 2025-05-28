@@ -1,0 +1,109 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Python cache and build files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Test files and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+htmlcov/
+.tox/
+.nox/
+
+# Documentation
+# docs/
+# *.md
+# !README.md
+
+# CI/CD files
+.github/
+.circleci/
+.codecov.yml
+
+# Development tools
+.pre-commit-config.yaml
+.bumpversion.*.cfg
+noxfile.py
+requirements_dev.txt
+requirements_test.txt
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Logs
+*.log
+logs/
+
+# Cache directories
+.ruff_cache/
+.mypy_cache/
+
+# Landfill directory (mentioned in pyproject.toml)
+landfill/
+
+# Experimental directory
+experimental/
+
+# Tools directory
+tools/
+
+# Tests directory
+tests/
+
+# Assets directory
+assets/
