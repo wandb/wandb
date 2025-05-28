@@ -1,14 +1,25 @@
-#
-"""Setup wandb session.
+"""Global W&B library state.
 
-This module configures a wandb session which can extend to multiple wandb runs.
+This module manages global state, which for wandb includes:
 
-Functions:
-    setup(): Configure wandb session.
+- Settings configured through `wandb.setup()`
+- The list of active runs
+- A subprocess ("the internal service") that asynchronously uploads metrics
 
-Early logging keeps track of logger output until the call to wandb.init() when the
-run_id can be resolved.
+This module is fork-aware: in a forked process such as that spawned by the
+`multiprocessing` module, `wandb.singleton()` returns a new object, not the
+one inherited from the parent process. This requirement comes from backward
+compatibility with old design choices: the hardest one to fix is that wandb
+was originally designed to have a single run for the entire process that
+`wandb.init()` was meant to return. Back then, the only way to create
+multiple simultaneous runs in a single script was to run subprocesses, and since
+the built-in `multiprocessing` module forks by default, this required a PID
+check to make `wandb.init()` ignore the inherited global run.
 
+Another reason for fork-awareness is that the process that starts up
+the internal service owns it and is responsible for shutting it down,
+and child processes shouldn't also try to do that. This is easier to
+redesign.
 """
 
 from __future__ import annotations
