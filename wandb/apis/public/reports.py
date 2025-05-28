@@ -162,39 +162,41 @@ class BetaReport(Attrs):
 
     @property
     def updated_at(self):
-        return self._attrs["updatedAt"]
+        return self._attrs.get("updatedAt")
 
     @property
     def id(self):
-        return self._attrs["id"]
+        return self._attrs.get("id")
 
     @property
     def name(self):
-        return self._attrs["name"]
+        return self._attrs.get("name")
 
     @property
     def display_name(self):
-        return self._attrs["displayName"]
+        return self._attrs.get("displayName") or self._attrs.get("display_name")
 
     @property
     def description(self):
-        return self._attrs["description"]
+        return self._attrs.get("description")
 
     @property
     def user(self):
-        return self._attrs["user"]
+        return self._attrs.get("user")
 
     @property
     def created_at(self):
-        return self._attrs["createdAt"]
+        return self._attrs.get("createdAt")
 
     @property
     def username(self):
-        return self._attrs["user"]["username"]
+        user = self._attrs.get("user")
+        return user.get("username") if user else None
 
     @property
     def user_email(self):
-        return self._attrs["user"]["email"]
+        user = self._attrs.get("user")
+        return user.get("email") if user else None
 
     @property
     def url(self):
