@@ -354,7 +354,7 @@ class Scheduler(ABC):
             wandb.termlog(f"{LOG_PREFIX}Scheduler failed with exception {e}")
             self.state = SchedulerState.FAILED
             self.exit()
-            raise e
+            raise
         else:
             # scheduler succeeds if at runcap
             if self.state == SchedulerState.FLUSH_RUNS and self.at_runcap:

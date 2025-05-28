@@ -95,9 +95,9 @@ class ProgressWidget:
             if not self._displayed:
                 self._displayed = True
                 self._ipython_display.display(self._widget)
-        except Exception as e:
+        except Exception:
+            logger.exception("Error in ProgressWidget.update()")
             self._disabled = True
-            logger.exception(e)
             wandb.termwarn(
                 "Unable to render progress bar, see the user log for details"
             )

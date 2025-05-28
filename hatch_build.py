@@ -116,16 +116,16 @@ class CustomBuildHook(BuildHookInterface):
         return [output.as_posix()]
 
     def _git_commit_sha(self) -> str:
-        try:
-            import subprocess
+        import subprocess
 
-            src_dir = pathlib.Path(__file__).parent
-            commit = (
+        src_dir = pathlib.Path(__file__).parent
+
+        try:
+            return (
                 subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=src_dir)
                 .decode("utf-8")
                 .strip()
             )
-            return commit
         except Exception:
             return ""
 

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 import wandb
 from wandb import util
 
+from ..internal import incremental_table_util
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue
 from .image import _server_accepts_image_filenames
@@ -71,8 +72,6 @@ def val_to_json(
         raise ValueError(
             "val_to_json must be called with a namespace(a step number, or 'summary') argument"
         )
-
-    from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
     converted = val
 
@@ -150,11 +149,7 @@ def val_to_json(
                 "partitioned-table",
                 "joined-table",
             ]:
-                # Sanitize the key to meet the constraints of artifact names.
-                sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
-                art = InternalArtifact(f"run-{run.id}-{sanitized_key}", "run_table")
-                art.add(val, key)
-                run.log_artifact(art)
+                _log_table_artifact(val, key, run)
 
             # Partitioned tables and joined tables do not support being bound to runs.
             if not (
@@ -163,9 +158,52 @@ def val_to_json(
             ):
                 val.bind_to_run(run, key, namespace)
 
-        return val.to_json(run)
+        res = val.to_json(run)
+
+        if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
+            # Set the _last_logged_idx AFTER the Table has been logged and
+            # bound to the run.
+            val._last_logged_idx = len(val.data) - 1
+        return res
 
     return converted  # type: ignore
+
+
+def _log_table_artifact(val: "Media", key: str, run: "LocalRun") -> None:
+    """Log a table to the run based on the table type and logging mode.
+
+    Creates and logs a `run_table` type for Table, PartitionedTable, and
+    JoinedTable values. For tables with log_mode="INCREMENTAL", creates and
+    logs an incremental artifact of type `wandb-run-incremental-table.`
+
+    Args:
+        val: A wbvalue with log_type "table", "partitioned-table",
+            or "joined-table."
+        key: The key used to log val.
+        run: The LocalRun used to log val.
+    """
+    from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
+    # Sanitize the key to meet the constraints of artifact names.
+    sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
+
+    if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
+        if (
+            run.resumed
+            and val._previous_increments_paths is None
+            and val._increment_num is None
+        ):
+            val._load_incremental_table_state_from_resumed_run(run, key)
+        else:
+            val._set_incremental_table_run_target(run)
+        art = incremental_table_util.init_artifact(run, sanitized_key)
+        entry_name = incremental_table_util.get_entry_name(val, key)
+    else:
+        art = InternalArtifact(f"run-{run.id}-{sanitized_key}", "run_table")
+        entry_name = key
+
+    art.add(val, entry_name)
+    run.log_artifact(art)
 
 
 def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:

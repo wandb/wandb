@@ -202,15 +202,11 @@ class _WandbInit:
         Returns:
             A callback to print any generated warnings.
         """
-        singleton = wandb_setup.singleton()
-        if singleton is None:
-            return _noop_printer_callback()
-
         exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
         # check if environment variables have changed
         singleton_env = {
             k: v
-            for k, v in singleton._environ.items()
+            for k, v in wandb_setup.singleton()._environ.items()
             if k.startswith("WANDB_") and k not in exclude_env_vars
         }
         os_env = {
@@ -364,7 +360,7 @@ class _WandbInit:
                 return None
 
             except KeyError:
-                self._logger.error(
+                self._logger.exception(
                     f"resume file at {resume_file} did not store a run_id"
                 )
                 return None
@@ -1109,7 +1105,7 @@ def _attach(
         )
     wandb._assert_is_user_process()  # type: ignore
 
-    _wl = wandb.setup()
+    _wl = wandb_setup.singleton()
     logger = _wl._get_logger()
 
     service = _wl.ensure_service()
@@ -1548,7 +1544,7 @@ def init(  # noqa: C901
     wl: wandb_setup._WandbSetup | None = None
 
     try:
-        wl = wandb_setup._setup(start_service=False)
+        wl = wandb_setup.singleton()
 
         wi = _WandbInit(wl, init_telemetry)
 

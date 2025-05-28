@@ -47,8 +47,9 @@ def _add_any(
             with artifact.new_file(name) as f:
                 f.write(json.dumps(path_or_obj, sort_keys=True))
     else:
-        raise ValueError(
-            f"Expected `path_or_obj` to be instance of `ArtifactManifestEntry`, `WBValue`, or `str, found {type(path_or_obj)}"
+        raise TypeError(
+            "Expected `path_or_obj` to be instance of `ArtifactManifestEntry`,"
+            f" `WBValue`, or `str, found {type(path_or_obj)}"
         )
 
 
@@ -86,7 +87,7 @@ def _log_artifact_version(
         Artifact
 
     """
-    run = wandb_setup._setup(start_service=False).most_recent_active_run
+    run = wandb_setup.singleton().most_recent_active_run
     if not run:
         run = wandb.init(
             project=project,
@@ -217,7 +218,7 @@ def use_model(aliased_path: str, unsafe: bool = False) -> "_SavedModel":
         )
 
     # Returns a _SavedModel instance
-    if run := wandb_setup._setup(start_service=False).most_recent_active_run:
+    if run := wandb_setup.singleton().most_recent_active_run:
         artifact = run.use_artifact(aliased_path)
         sm = artifact.get("index")
 
@@ -262,7 +263,7 @@ def link_model(
     """
     aliases = wandb.util._resolve_aliases(aliases)
 
-    if run := wandb_setup._setup(start_service=False).most_recent_active_run:
+    if run := wandb_setup.singleton().most_recent_active_run:
         # _artifact_source, if it exists, points to a Public Artifact.
         # Its existence means that _SavedModel was deserialized from a logged artifact, most likely from `use_model`.
         if model._artifact_source:

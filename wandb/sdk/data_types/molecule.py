@@ -146,9 +146,7 @@ class Molecule(BatchableMedia):
         elif isinstance(data_or_path, rdkit_chem.rdchem.Mol):
             molecule = data_or_path
         else:
-            raise ValueError(
-                "Data must be file name or an rdkit.Chem.rdchem.Mol object"
-            )
+            raise TypeError("Data must be file name or an rdkit.Chem.rdchem.Mol object")
 
         if convert_to_3d_and_optimize:
             molecule = rdkit_chem.AddHs(molecule)

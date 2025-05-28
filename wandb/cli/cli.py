@@ -31,6 +31,7 @@ from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
 from wandb.errors.links import url_registry
+from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.internal.internal_api import Api as SDKInternalApi
@@ -104,7 +105,7 @@ def display_error(func):
         except wandb.Error as e:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-            logger.error("".join(lines))
+            logger.exception("".join(lines))
             wandb.termerror(f"Find detailed error logs at: {_wandb_log_path}")
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
@@ -118,9 +119,6 @@ _api = None  # caching api instance allows patching from unit tests
 
 def _get_cling_api(reset=None):
     """Get a reference to the internal api with cling settings."""
-    # TODO: move CLI to wandb-core backend
-    wandb.require("legacy-service")
-
     global _api
     if reset:
         _api = None
@@ -128,7 +126,7 @@ def _get_cling_api(reset=None):
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
         # only override the necessary setting
-        wandb.setup(settings=wandb.Settings(x_cli_only_mode=True))
+        wandb_setup.singleton().settings.x_cli_only_mode = True
         _api = InternalApi()
     return _api
 
@@ -231,9 +229,6 @@ def projects(entity, display=True):
 )
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
-    # TODO: move CLI to wandb-core backend
-    wandb.require("legacy-service")
-
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
@@ -242,12 +237,9 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     key = key[0] if key is not None and len(key) > 0 else None
     relogin = True if key or relogin else False
 
-    wandb.setup(
-        settings=wandb.Settings(
-            x_cli_only_mode=True,
-            x_disable_viewer=relogin and not verify,
-        )
-    )
+    global_settings = wandb_setup.singleton().settings
+    global_settings.x_cli_only_mode = True
+    global_settings.x_disable_viewer = relogin and not verify
 
     wandb.login(
         anonymous=anon_mode,
@@ -1518,11 +1510,11 @@ def launch(
                 wandb.termerror("Launched run exited with non-zero status")
                 sys.exit(1)
         except LaunchError as e:
-            logger.error("=== %s ===", e)
+            logger.exception("An error occurred.")
             wandb._sentry.exception(e)
             sys.exit(e)
         except ExecutionError as e:
-            logger.error("=== %s ===", e)
+            logger.exception("An error occurred.")
             wandb._sentry.exception(e)
             sys.exit(e)
         except asyncio.CancelledError:
@@ -1552,7 +1544,7 @@ def launch(
 
         except Exception as e:
             wandb._sentry.exception(e)
-            raise e
+            raise
 
 
 @cli.command(
@@ -1643,7 +1635,7 @@ def launch_agent(
         _launch.create_and_run_agent(api, agent_config)
     except Exception as e:
         wandb._sentry.exception(e)
-        raise e
+        raise
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1721,7 +1713,7 @@ def scheduler(
         _scheduler.start()
     except Exception as e:
         wandb._sentry.exception(e)
-        raise e
+        raise
 
 
 @cli.group(help="Commands for managing and viewing W&B jobs")
