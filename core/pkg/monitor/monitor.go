@@ -169,9 +169,11 @@ func (sm *SystemMonitor) initializeAssets(
 	if cwm, err := NewCoreWeaveMetadata(
 		CoreWeaveMetadataParams{
 			Ctx:           sm.ctx,
-			Settings:      sm.settings,
 			GraphqlClient: sm.graphqlClient,
 			Logger:        sm.logger,
+			Entity:        settings.GetEntity(),
+			BaseURL:       settings.GetStatsCoreWeaveMetadataBaseURL(),
+			Endpoint:      settings.GetStatsCoreWeaveMetadataEndpoint(),
 		},
 	); cwm != nil {
 		sm.assets = append(sm.assets, cwm)

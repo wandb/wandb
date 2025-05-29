@@ -16,7 +16,6 @@ import (
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -44,7 +43,9 @@ type CoreWeaveMetadataParams struct {
 	Client        *retryablehttp.Client
 	Logger        *observability.CoreLogger
 	GraphqlClient graphql.Client
-	Settings      *settings.Settings
+	Entity        string
+	BaseURL       string
+	Endpoint      string
 }
 
 // CoreWeaveMetadata is used to capture the metadata about the compute environment
@@ -58,10 +59,10 @@ type CoreWeaveMetadata struct {
 	// GraphQL client to communicate with the W&B backend.
 	graphqlClient graphql.Client
 
-	// Stream settings.
-	settings *settings.Settings
+	// W&B entity to use with the gql.OrganizationCoreWeaveOrganizationID query.
+	entity string
 
-	// Internal debug logger
+	// Internal debug logger.
 	logger *observability.CoreLogger
 
 	// The scheme and hostname for contacting the metadata server,
@@ -90,18 +91,18 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 		params.Client.Backoff = clients.ExponentialBackoffWithJitter
 	}
 
-	baseURL, err := url.Parse(params.Settings.GetStatsCoreWeaveMetadataBaseURL())
+	baseURL, err := url.Parse(params.BaseURL)
 	if err != nil {
 		return nil, err
 	}
-	endpoint := params.Settings.GetStatsCoreWeaveMetadataEndpoint()
+	endpoint := params.Endpoint
 
 	cwm := &CoreWeaveMetadata{
 		ctx:           params.Ctx,
 		client:        params.Client,
 		graphqlClient: params.GraphqlClient,
-		settings:      params.Settings,
 		logger:        params.Logger,
+		entity:        params.Entity,
 		baseURL:       baseURL,
 		endpoint:      endpoint,
 	}
@@ -132,7 +133,7 @@ func (cwm *CoreWeaveMetadata) Probe() *spb.MetadataRequest {
 	data, err := gql.OrganizationCoreWeaveOrganizationID(
 		cwm.ctx,
 		cwm.graphqlClient,
-		cwm.settings.GetEntity(),
+		cwm.entity,
 	)
 	if err != nil || data == nil || data.GetEntity() == nil || data.GetEntity().GetOrganization() == nil {
 		return nil
