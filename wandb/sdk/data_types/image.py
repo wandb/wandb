@@ -387,13 +387,13 @@ class Image(BatchableMedia):
             if hasattr(data, "requires_grad") and data.requires_grad:
                 data = data.detach()  # type: ignore
             if hasattr(data, "dtype") and str(data.dtype) == "torch.uint8":
-                data = data.to(float)
+                data = data.to(float)  # type: ignore [union-attr]
             mode = mode or self.guess_mode(data, file_type)
-            data = data.permute(1, 2, 0).cpu().numpy()
+            data = data.permute(1, 2, 0).cpu().numpy()  # type: ignore [union-attr]
 
             _warn_on_invalid_data_range(data, normalize)
 
-            data = _normalize(data) if normalize else data
+            data = _normalize(data) if normalize else data  # type: ignore [arg-type]
             data = _convert_to_uint8(data)
 
             if data.ndim > 2:
@@ -406,14 +406,15 @@ class Image(BatchableMedia):
         else:
             if hasattr(data, "numpy"):  # TF data eager tensors
                 data = data.numpy()
-            if data.ndim > 2:
-                data = data.squeeze()  # get rid of trivial dimensions as a convenience
+            if data.ndim > 2:  # type: ignore [union-attr]
+                # get rid of trivial dimensions as a convenience
+                data = data.squeeze()  # type: ignore [union-attr]
 
-            _warn_on_invalid_data_range(data, normalize)
+            _warn_on_invalid_data_range(data, normalize)  # type: ignore [arg-type]
 
             mode = mode or self.guess_mode(data, file_type)
-            data = _normalize(data) if normalize else data
-            data = _convert_to_uint8(data)
+            data = _normalize(data) if normalize else data  # type: ignore [arg-type]
+            data = _convert_to_uint8(data)  # type: ignore [arg-type]
             self._image = pil_image.fromarray(
                 data,
                 mode=mode,
