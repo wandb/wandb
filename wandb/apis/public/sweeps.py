@@ -61,7 +61,7 @@ class Sweep(Attrs):
     """The set of runs associated with the sweep.
 
     Attributes:
-        runs (`Runs`): List of runs
+        runs (Runs): List of runs
         id (str): Sweep ID
         project (str): The name of the project the sweep belongs to
         config (dict): Dictionary containing the sweep configuration

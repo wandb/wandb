@@ -1,6 +1,3 @@
-"""QueryGenerator is a helper object to write filters for runs."""
-
-
 class QueryGenerator:
     """QueryGenerator is a helper object to write filters for runs.
 
