@@ -237,12 +237,12 @@ class Runs(SizedPaginator["Run"]):
             return None
 
     @property
-    def more(self):
-        """Returns `True` if there are more runs to fetch. Returns
-        `False` if there are no more runs to fetch.
-        """
+    def more(self) -> bool:
+        """Returns whether there are more runs to fetch."""
         if self.last_response:
-            return self.last_response["project"]["runs"]["pageInfo"]["hasNextPage"]
+            return bool(
+                self.last_response["project"]["runs"]["pageInfo"]["hasNextPage"]
+            )
         else:
             return True
 
@@ -816,7 +816,7 @@ class Run(Attrs):
 
     @normalize_exceptions
     def upload_file(self, path, root="."):
-        """Uploads a local file to W&B, associating it with this run.
+        """Upload a local file to W&B, associating it with this run.
 
         Args:
             path (str): Path to the file to upload. Can be absolute or relative.

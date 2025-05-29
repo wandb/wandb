@@ -83,10 +83,12 @@ class Reports(SizedPaginator["BetaReport"]):
             return None
 
     @property
-    def more(self):
+    def more(self) -> bool:
         """Returns whether there are more files to fetch."""
         if self.last_response:
-            return self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
+            return bool(
+                self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
+            )
         else:
             return True
 
