@@ -4,9 +4,8 @@ import os
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-import yaml
-
 import wandb
+import yaml
 from wandb.apis.internal import Api
 
 from . import loader

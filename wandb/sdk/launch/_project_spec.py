@@ -123,9 +123,9 @@ class LaunchProject:
             "docker_image"
         ) or launch_spec.get("image_uri")  # type: ignore [assignment]
         self.docker_user_id = docker_config.get("user_id", 1000)
-        self._entry_point: Optional[
-            EntryPoint
-        ] = None  # todo: keep multiple entrypoint support?
+        self._entry_point: Optional[EntryPoint] = (
+            None  # todo: keep multiple entrypoint support?
+        )
         self.init_overrides(overrides)
         self.init_source()
         self.init_git(git_info)
