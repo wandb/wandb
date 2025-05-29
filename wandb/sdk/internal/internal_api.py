@@ -362,6 +362,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
+        self.server_supports_create_custom_chart: Optional[bool] = None
         self._server_features_cache: Optional[Dict[str, bool]] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
@@ -865,6 +866,13 @@ class Api:
     def update_run_queue_item_warning_introspection(self) -> bool:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
+
+    @normalize_exceptions
+    def create_custom_chart_introspection(self) -> bool:
+        if self.server_supports_create_custom_chart is None:
+            _, _, mutations = self.server_info_introspection()
+            self.server_supports_create_custom_chart = "createCustomChart" in mutations
+        return self.server_supports_create_custom_chart
 
     def _server_features(self) -> Dict[str, bool]:
         # NOTE: Avoid caching via `@cached_property`, due to undocumented
@@ -4661,3 +4669,62 @@ class Api:
         success: bool = response["stopRun"].get("success")
 
         return success
+
+
+    @normalize_exceptions
+    def create_custom_chart(
+        self,
+        entity: str,
+        name: str,
+        display_name: str,
+        spec_type: str,
+        access: str,
+        spec: Union[str, Mapping[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        if not self.create_custom_chart_introspection():
+            raise UnsupportedError(
+                "custom chart creation is not supported by this version of wandb server."
+            )
+
+        if not isinstance(spec, str):
+            spec = json.dumps(spec)
+
+        mutation = gql(
+            """
+            mutation CreateCustomChart(
+                $entity: String!
+                $name: String!
+                $displayName: String!
+                $type: String!
+                $access: String!
+                $spec: JSONString!
+            ) {
+                createCustomChart(
+                    input: {
+                        entity: $entity
+                        name: $name
+                        displayName: $displayName
+                        type: $type
+                        access: $access
+                        spec: $spec
+                    }
+                ) {
+                    chart { id }
+                }
+            }
+            """
+        )
+
+        variable_values = {
+            "entity": entity,
+            "name": name,
+            "displayName": display_name,
+            "type": spec_type,
+            "access": access,
+            "spec": spec,
+        }
+
+        result: Optional[Dict[str, Any]] = self.gql(mutation, variable_values)[
+            "createCustomChart"
+        ]
+        return result
