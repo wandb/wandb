@@ -517,6 +517,16 @@ func (s *Settings) GetStatsOpenMetricsHeaders() map[string]string {
 	return s.Proto.XStatsOpenMetricsHttpHeaders.GetValue()
 }
 
+// The scheme and hostname for contacting the CoreWeave metadata server.
+func (s *Settings) GetStatsCoreWeaveMetadataBaseURL() string {
+	return s.Proto.XStatsCoreweaveMetadataBaseUrl.GetValue()
+}
+
+// The relative path on the CoreWeave metadata server to which to make requests.
+func (s *Settings) GetStatsCoreWeaveMetadataEndpoint() string {
+	return s.Proto.XStatsCoreweaveMetadataEndpoint.GetValue()
+}
+
 // The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()
@@ -556,4 +566,14 @@ func (s *Settings) UpdateRunID(runID string) {
 // Update server-side derived summary computation setting.
 func (s *Settings) UpdateServerSideDerivedSummary(enable bool) {
 	s.Proto.XServerSideDerivedSummary = &wrapperspb.BoolValue{Value: enable}
+}
+
+// Updates the scheme and hostname for contacting the CoreWeave metadata server.
+func (s *Settings) UpdateStatsCoreWeaveMetadataBaseURL(baseURL string) {
+	s.Proto.XStatsCoreweaveMetadataBaseUrl = &wrapperspb.StringValue{Value: baseURL}
+}
+
+// Updates the relative path on the CoreWeave metadata server to which to make requests.
+func (s *Settings) UpdateStatsCoreWeaveMetadataEndpoint(endpoint string) {
+	s.Proto.XStatsCoreweaveMetadataEndpoint = &wrapperspb.StringValue{Value: endpoint}
 }
