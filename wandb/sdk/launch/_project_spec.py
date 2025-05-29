@@ -135,6 +135,7 @@ class LaunchProject:
         self._queue_name: Optional[str] = None
         self._queue_entity: Optional[str] = None
         self._run_queue_item_id: Optional[str] = None
+        self._requires_inference_server: Optional[bool] = None
 
     def init_source(self) -> None:
         if self.docker_image is not None:
