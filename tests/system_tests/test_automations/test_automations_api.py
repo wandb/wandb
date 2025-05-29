@@ -237,7 +237,7 @@ def test_create_automation_for_run_metric_threshold_event(
     server_supports_event = api._supports_automation(event=event.event_type)
 
     if not server_supports_event:
-        with raises(ValueError):
+        with raises(CommError):
             api.create_automation(
                 (event >> action), name=automation_name, description="test description"
             )
