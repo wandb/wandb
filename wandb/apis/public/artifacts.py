@@ -373,6 +373,7 @@ class ArtifactCollection:
             self._attrs = collection.model_dump(exclude_unset=True)
         return self._attrs
 
+    @normalize_exceptions
     def change_type(self, new_type: str) -> None:
         """Deprecated, change type directly with `save` instead."""
         deprecate.deprecate(
@@ -513,6 +514,7 @@ class ArtifactCollection:
             },
         )
 
+    @normalize_exceptions
     def save(self) -> None:
         """Persist any changes made to the artifact collection."""
         if self._saved_type != self.type:
