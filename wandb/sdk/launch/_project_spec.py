@@ -121,7 +121,7 @@ class LaunchProject:
         ).get("base_image") or resource_args_build.get("cuda", {}).get("base_image")
         self.docker_image: Optional[str] = docker_config.get(
             "docker_image"
-        ) or launch_spec.get("image_uri")
+        ) or launch_spec.get("image_uri")  # type: ignore [assignment]
         self.docker_user_id = docker_config.get("user_id", 1000)
         self._entry_point: Optional[EntryPoint] = (
             None  # todo: keep multiple entrypoint support?
@@ -215,7 +215,7 @@ class LaunchProject:
             launch_spec.get("docker", {}),
             launch_spec.get("git", {}),
             launch_spec.get("overrides", {}),
-            launch_spec.get("resource", None),
+            launch_spec.get("resource", None),  # type: ignore [arg-type]
             launch_spec.get("resource_args", {}),
             launch_spec.get("run_id", None),
             launch_spec.get("sweep_id", {}),
