@@ -933,6 +933,36 @@ func (v *NotifyScriptableRunAlertResponse) GetNotifyScriptableRunAlert() *Notify
 	return v.NotifyScriptableRunAlert
 }
 
+// OrganizationCoreWeaveOrganizationIDEntity includes the requested fields of the GraphQL type Entity.
+type OrganizationCoreWeaveOrganizationIDEntity struct {
+	Organization *OrganizationCoreWeaveOrganizationIDEntityOrganization `json:"organization"`
+}
+
+// GetOrganization returns OrganizationCoreWeaveOrganizationIDEntity.Organization, and is useful for accessing the field via an interface.
+func (v *OrganizationCoreWeaveOrganizationIDEntity) GetOrganization() *OrganizationCoreWeaveOrganizationIDEntityOrganization {
+	return v.Organization
+}
+
+// OrganizationCoreWeaveOrganizationIDEntityOrganization includes the requested fields of the GraphQL type Organization.
+type OrganizationCoreWeaveOrganizationIDEntityOrganization struct {
+	CoreWeaveOrganizationId *string `json:"coreWeaveOrganizationId"`
+}
+
+// GetCoreWeaveOrganizationId returns OrganizationCoreWeaveOrganizationIDEntityOrganization.CoreWeaveOrganizationId, and is useful for accessing the field via an interface.
+func (v *OrganizationCoreWeaveOrganizationIDEntityOrganization) GetCoreWeaveOrganizationId() *string {
+	return v.CoreWeaveOrganizationId
+}
+
+// OrganizationCoreWeaveOrganizationIDResponse is returned by OrganizationCoreWeaveOrganizationID on success.
+type OrganizationCoreWeaveOrganizationIDResponse struct {
+	Entity *OrganizationCoreWeaveOrganizationIDEntity `json:"entity"`
+}
+
+// GetEntity returns OrganizationCoreWeaveOrganizationIDResponse.Entity, and is useful for accessing the field via an interface.
+func (v *OrganizationCoreWeaveOrganizationIDResponse) GetEntity() *OrganizationCoreWeaveOrganizationIDEntity {
+	return v.Entity
+}
+
 // RewindRunResponse is returned by RewindRun on success.
 type RewindRunResponse struct {
 	RewindRun *RewindRunRewindRunRewindRunPayload `json:"rewindRun"`
@@ -1836,6 +1866,14 @@ func (v *__NotifyScriptableRunAlertInput) GetSeverity() *AlertSeverity { return 
 // GetWaitDuration returns __NotifyScriptableRunAlertInput.WaitDuration, and is useful for accessing the field via an interface.
 func (v *__NotifyScriptableRunAlertInput) GetWaitDuration() *int64 { return v.WaitDuration }
 
+// __OrganizationCoreWeaveOrganizationIDInput is used internally by genqlient
+type __OrganizationCoreWeaveOrganizationIDInput struct {
+	EntityName string `json:"entityName"`
+}
+
+// GetEntityName returns __OrganizationCoreWeaveOrganizationIDInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__OrganizationCoreWeaveOrganizationIDInput) GetEntityName() string { return v.EntityName }
+
 // __RewindRunInput is used internally by genqlient
 type __RewindRunInput struct {
 	RunName     string  `json:"runName"`
@@ -2631,6 +2669,42 @@ func NotifyScriptableRunAlert(
 	}
 
 	data_ = &NotifyScriptableRunAlertResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by OrganizationCoreWeaveOrganizationID.
+const OrganizationCoreWeaveOrganizationID_Operation = `
+query OrganizationCoreWeaveOrganizationID ($entityName: String!) {
+	entity(name: $entityName) {
+		organization {
+			coreWeaveOrganizationId
+		}
+	}
+}
+`
+
+func OrganizationCoreWeaveOrganizationID(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName string,
+) (data_ *OrganizationCoreWeaveOrganizationIDResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "OrganizationCoreWeaveOrganizationID",
+		Query:  OrganizationCoreWeaveOrganizationID_Operation,
+		Variables: &__OrganizationCoreWeaveOrganizationIDInput{
+			EntityName: entityName,
+		},
+	}
+
+	data_ = &OrganizationCoreWeaveOrganizationIDResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
