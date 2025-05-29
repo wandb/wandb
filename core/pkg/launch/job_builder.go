@@ -151,11 +151,12 @@ type JobSourceMetadata struct {
 	// this field is used by launch to determine the flow for launching the job
 	// see public.py.Job for more info
 
-	SourceType  SourceType                    `json:"source_type"`
-	InputTypes  data_types.TypeRepresentation `json:"input_types"`
-	OutputTypes data_types.TypeRepresentation `json:"output_types"`
-	Runtime     *string                       `json:"runtime,omitempty"`
-	Partial     *string                       `json:"_partial,omitempty"`
+	SourceType              SourceType                    `json:"source_type"`
+	InputTypes              data_types.TypeRepresentation `json:"input_types"`
+	OutputTypes             data_types.TypeRepresentation `json:"output_types"`
+	Runtime                 *string                       `json:"runtime,omitempty"`
+	Partial                 *string                       `json:"_partial,omitempty"`
+	RequiresInferenceServer bool                          `json:"requires_inference_server,omitempty"`
 }
 
 type ArtifactInfoForJob struct {
@@ -634,6 +635,8 @@ func (j *JobBuilder) Build(
 		metadataString = ""
 		sourceInfo.InputTypes = data_types.ResolveTypes(runConfig)
 	}
+
+	_, sourceInfo.RequiresInferenceServer = os.LookupEnv("WANDB_REQUIRES_INFERENCE_SERVER")
 
 	baseArtifact := &spb.ArtifactRecord{
 		Entity:           j.settings.GetEntity().GetValue(),

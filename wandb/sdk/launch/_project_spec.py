@@ -123,9 +123,9 @@ class LaunchProject:
             "docker_image"
         ) or launch_spec.get("image_uri")  # type: ignore [assignment]
         self.docker_user_id = docker_config.get("user_id", 1000)
-        self._entry_point: Optional[EntryPoint] = (
-            None  # todo: keep multiple entrypoint support?
-        )
+        self._entry_point: Optional[
+            EntryPoint
+        ] = None  # todo: keep multiple entrypoint support?
         self.init_overrides(overrides)
         self.init_source()
         self.init_git(git_info)
@@ -473,6 +473,8 @@ class LaunchProject:
             env_vars[wandb.env.LAUNCH_QUEUE_ENTITY] = self.queue_entity
         if self.run_queue_item_id:
             env_vars[wandb.env.LAUNCH_TRACE_ID] = self.run_queue_item_id
+        if self._requires_inference_server:
+            env_vars["WANDB_REQUIRES_INFERENCE_SERVER"] = "True"
 
         _inject_wandb_config_env_vars(self.override_config, env_vars, max_env_length)
         _inject_file_overrides_env_vars(self.override_files, env_vars, max_env_length)

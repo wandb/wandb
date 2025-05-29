@@ -1507,6 +1507,7 @@ def launch(
                     synchronous=(not run_async),
                     run_id=run_id,
                     repository=repository,
+                    requires_inference_server=requires_inference_server,
                 )
             )
             if asyncio.run(run.get_status()).state in [
