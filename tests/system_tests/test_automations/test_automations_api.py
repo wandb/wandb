@@ -4,7 +4,6 @@ import math
 from collections import deque
 from typing import Any, Callable
 
-import requests
 import wandb
 from pytest import FixtureRequest, fixture, mark, raises, skip
 from wandb.apis.public import ArtifactCollection, Project

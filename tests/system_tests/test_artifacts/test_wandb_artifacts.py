@@ -15,9 +15,9 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
-from wandb.errors.errors import CommError
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 from wandb import Artifact, util
+from wandb.errors.errors import CommError
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts._validators import (
     ARTIFACT_NAME_MAXLEN,
