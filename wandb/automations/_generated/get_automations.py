@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase
 
@@ -13,7 +14,9 @@ from .fragments import ProjectConnectionFields
 
 
 class GetAutomations(GQLBase):
-    search_scope: Optional[GetAutomationsSearchScope] = Field(alias="searchScope")
+    search_scope: Annotated[
+        Optional[GetAutomationsSearchScope], Field(alias="searchScope")
+    ]
 
 
 class GetAutomationsSearchScope(GQLBase):

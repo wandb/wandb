@@ -6,20 +6,23 @@ from __future__ import annotations
 from typing import List, Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase, GQLId
 
 
 class RegistryFragment(GQLBase):
     id: GQLId
-    allow_all_artifact_types_in_registry: bool = Field(
-        alias="allowAllArtifactTypesInRegistry"
-    )
-    artifact_types: RegistryFragmentArtifactTypes = Field(alias="artifactTypes")
+    allow_all_artifact_types_in_registry: Annotated[
+        bool, Field(alias="allowAllArtifactTypesInRegistry")
+    ]
+    artifact_types: Annotated[
+        RegistryFragmentArtifactTypes, Field(alias="artifactTypes")
+    ]
     name: str
     description: Optional[str]
-    created_at: str = Field(alias="createdAt")
-    updated_at: Optional[str] = Field(alias="updatedAt")
+    created_at: Annotated[str, Field(alias="createdAt")]
+    updated_at: Annotated[Optional[str], Field(alias="updatedAt")]
     access: Optional[str]
 
 

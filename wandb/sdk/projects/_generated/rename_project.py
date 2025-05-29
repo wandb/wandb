@@ -6,12 +6,15 @@ from __future__ import annotations
 from typing import Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase
 
 
 class RenameProject(GQLBase):
-    rename_project: Optional[RenameProjectRenameProject] = Field(alias="renameProject")
+    rename_project: Annotated[
+        Optional[RenameProjectRenameProject], Field(alias="renameProject")
+    ]
 
 
 class RenameProjectRenameProject(GQLBase):

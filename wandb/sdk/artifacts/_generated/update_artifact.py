@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Optional
 
 from pydantic import Field
+from typing_extensions import Annotated
 
 from wandb._pydantic import GQLBase
 
@@ -13,9 +14,9 @@ from .fragments import ArtifactFragment
 
 
 class UpdateArtifact(GQLBase):
-    update_artifact: Optional[UpdateArtifactUpdateArtifact] = Field(
-        alias="updateArtifact"
-    )
+    update_artifact: Annotated[
+        Optional[UpdateArtifactUpdateArtifact], Field(alias="updateArtifact")
+    ]
 
 
 class UpdateArtifactUpdateArtifact(GQLBase):
