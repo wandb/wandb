@@ -4670,7 +4670,6 @@ class Api:
 
         return success
 
-
     @normalize_exceptions
     def create_custom_chart(
         self,

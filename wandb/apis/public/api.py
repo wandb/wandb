@@ -477,7 +477,6 @@ class Api:
         spec: Union[str, dict],
     ) -> str:
         """Create a custom chart preset and return its id."""
-
         api = InternalApi(retry_timedelta=RETRY_TIMEDELTA)
         result = api.create_custom_chart(
             entity=entity,
