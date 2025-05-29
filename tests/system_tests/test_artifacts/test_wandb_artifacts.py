@@ -15,6 +15,7 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
+from wandb.errors.errors import CommError
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 from wandb import Artifact, util
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
@@ -1646,11 +1647,11 @@ def test_change_artifact_collection_type_to_internal_type(user):
     collection = artifact.collection
     with wandb.init() as run:
         # test deprecated change_type errors for changing to internal type
-        with pytest.raises(ValueError, match="is reserved for internal use"):
+        with pytest.raises(CommError, match="is reserved for internal use"):
             collection.change_type(internal_type)
 
         # test .save()
-        with pytest.raises(ValueError, match="is reserved for internal use"):
+        with pytest.raises(CommError, match="is reserved for internal use"):
             collection.type = internal_type
             collection.save()
 
@@ -1665,13 +1666,13 @@ def test_change_type_of_internal_artifact_collection(user):
     with wandb.init() as run:
         # test deprecated change_type
         with pytest.raises(
-            ValueError, match="is an internal type and cannot be changed"
+            CommError, match="is an internal type and cannot be changed"
         ):
             collection.change_type("model")
 
         # test .save()
         with pytest.raises(
-            ValueError, match="is an internal type and cannot be changed"
+            CommError, match="is an internal type and cannot be changed"
         ):
             collection.type = "model"
             collection.save()

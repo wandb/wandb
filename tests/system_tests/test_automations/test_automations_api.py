@@ -25,6 +25,7 @@ from wandb.automations import (
 from wandb.automations.actions import SavedNoOpAction, SavedWebhookAction
 from wandb.automations.events import RunMetricFilter
 from wandb.automations.scopes import ArtifactCollectionScopeTypes
+from wandb.errors.errors import CommError
 
 
 @fixture
@@ -145,7 +146,7 @@ def test_create_existing_automation_raises_by_default_if_existing(
         (event >> action),
         name=automation_name,
     )
-    with raises(ValueError):
+    with raises(CommError):
         api.create_automation((event >> action), name=created.name)
 
     # Fetching the automation by name should return the original automation,
@@ -296,7 +297,7 @@ def test_create_automation_for_run_metric_change_event(
     server_supports_event = api._supports_automation(event=event.event_type)
 
     if not server_supports_event:
-        with raises(ValueError):
+        with raises(CommError):
             api.create_automation(
                 (event >> action), name=automation_name, description="test description"
             )
@@ -364,15 +365,15 @@ def test_automation_cannot_be_deleted_again(
         api.automation(name=automation_name)
 
     # Deleting the automation again (by object or ID) should raise the same error
-    with raises(requests.HTTPError):
+    with raises(CommError):
         api.delete_automation(created_automation)
-    with raises(requests.HTTPError):
+    with raises(CommError):
         api.delete_automation(created_automation.id)
 
 
 @mark.usefixtures(reset_automations.__name__)
 def test_delete_automation_raises_on_invalid_id(api: wandb.Api):
-    with raises(requests.HTTPError):
+    with raises(CommError):
         api.delete_automation("invalid-automation-id")
 
 
@@ -543,7 +544,7 @@ class TestUpdateAutomation:
         """Updating automation scope to an artifact collection fails if the event type doesn't support it."""
         assert old_automation.event.event_type == event_type  # Consistency check
 
-        with raises(requests.HTTPError):
+        with raises(CommError):
             old_automation.scope = artifact_collection
             api.update_automation(old_automation)
 
