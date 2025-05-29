@@ -467,6 +467,30 @@ class Api:
             _default_resource_config=config,
         )
 
+    def create_custom_chart(
+        self,
+        entity: str,
+        name: str,
+        display_name: str,
+        spec_type: str,
+        access: str,
+        spec: Union[str, dict],
+    ) -> str:
+        """Create a custom chart preset and return its id."""
+
+        api = InternalApi(retry_timedelta=RETRY_TIMEDELTA)
+        result = api.create_custom_chart(
+            entity=entity,
+            name=name,
+            display_name=display_name,
+            spec_type=spec_type,
+            access=access,
+            spec=spec,
+        )
+        if result is None or result.get("chart") is None:
+            raise wandb.Error("failed to create custom chart")
+        return result["chart"]["id"]
+
     def upsert_run_queue(
         self,
         name: str,
