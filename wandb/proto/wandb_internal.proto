@@ -122,6 +122,18 @@ message FooterRecord {
   _RecordInfo _info = 200;
 }
 
+// A point in a run from which another run can be branched.
+message BranchPoint {
+  // The ID of the run to branch from.
+  string run = 1;
+
+  // The value of the metric to branch at.
+  double value = 2;
+
+  // The name of the metric to use to find a branch point.
+  string metric = 3;
+}
+
 /*
  * RunRecord: wandb/sdk/wandb_run/Run
  */
@@ -148,6 +160,10 @@ message RunRecord {
   int32 runtime = 20;
   GitRepoRecord git = 21;
   bool forked = 22;
+
+  // Information about the source if this is a fork or rewind of another run.
+  BranchPoint branch_point = 23;
+
   _RecordInfo _info = 200;
 }
 
@@ -1292,6 +1308,13 @@ message TPUInfo {
   uint32 count = 4;
 }
 
+// CoreWeaveInfo stores information about a CoreWeave compute environment
+message CoreWeaveInfo {
+  string cluster_name = 1;
+  string org_id = 2;
+  string region = 3;
+}
+
 message MetadataRequest {
   string os = 1;
   string python = 2;
@@ -1325,6 +1348,7 @@ message MetadataRequest {
   string cuda_version = 30;
   TrainiumInfo trainium = 31;
   TPUInfo tpu = 32;
+  CoreWeaveInfo coreweave = 33;
 
   // Flag indicating whether the request originated from the user.
   optional bool _user_modified = 200 [json_name = "_user_modified"];

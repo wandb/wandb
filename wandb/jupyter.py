@@ -148,7 +148,7 @@ class WandBMagics(Magics):
         if path:
             _display_by_wandb_path(path, height=height)
             displayed = True
-        elif run := wandb_setup._setup(start_service=False).most_recent_active_run:
+        elif run := wandb_setup.singleton().most_recent_active_run:
             _display_wandb_run(run, height=height)
             displayed = True
         else:

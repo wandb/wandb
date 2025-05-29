@@ -21,20 +21,6 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-const validUpsertBucketResponse = `{
-	"upsertBucket": {
-		"bucket": {
-			"displayName": "FakeName",
-			"project": {
-				"name": "FakeProject",
-				"entity": {
-					"name": "FakeEntity"
-				}
-			}
-		}
-	}
-}`
-
 const validLinkArtifactResponse = `{
 	"linkArtifact": { "versionIndex": 0 }
 }`
@@ -92,46 +78,6 @@ func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Send
 		},
 	)
 	return sender
-}
-
-// Verify that project and entity are properly passed through to graphql
-func TestSendRun(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("UpsertBucket"),
-		validUpsertBucketResponse,
-	)
-	outChan := make(chan *spb.Result, 1)
-	sender := makeSender(mockGQL, outChan)
-
-	run := &spb.Record{
-		RecordType: &spb.Record_Run{
-			Run: &spb.RunRecord{
-				Config: &spb.ConfigRecord{
-					Update: []*spb.ConfigItem{
-						{
-							Key:       "_wandb",
-							ValueJson: "{}",
-						},
-					},
-				},
-				Project: "testProject",
-				Entity:  "testEntity",
-			}},
-		Control: &spb.Control{
-			MailboxSlot: "junk",
-		},
-	}
-
-	sender.SendRecord(run)
-	<-outChan
-
-	requests := mockGQL.AllRequests()
-	assert.Len(t, requests, 1)
-	gqlmock.AssertVariables(t,
-		requests[0],
-		gqlmock.GQLVar("project", gomock.Eq("testProject")),
-		gqlmock.GQLVar("entity", gomock.Eq("testEntity")))
 }
 
 // Verify that arguments are properly passed through to graphql

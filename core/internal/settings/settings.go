@@ -93,6 +93,17 @@ func (s *Settings) GetTransactionLogPath() string {
 	return s.Proto.SyncFile.GetValue()
 }
 
+// Whether to skip saving the run events to the transaction log.
+//
+// This is only relevant for online runs. Can be used to reduce the
+// amount of data written to disk.
+//
+// Should be used with caution, as it removes the gurantees about
+// recoverability.
+func (s *Settings) IsSkipTransactionLog() bool {
+	return s.Proto.XSkipTransactionLog.GetValue()
+}
+
 // Whether we are in shared mode.
 //
 // In "shared" mode, multiple processes can write to the same run,
@@ -506,6 +517,16 @@ func (s *Settings) GetStatsOpenMetricsHeaders() map[string]string {
 	return s.Proto.XStatsOpenMetricsHttpHeaders.GetValue()
 }
 
+// The scheme and hostname for contacting the CoreWeave metadata server.
+func (s *Settings) GetStatsCoreWeaveMetadataBaseURL() string {
+	return s.Proto.XStatsCoreweaveMetadataBaseUrl.GetValue()
+}
+
+// The relative path on the CoreWeave metadata server to which to make requests.
+func (s *Settings) GetStatsCoreWeaveMetadataEndpoint() string {
+	return s.Proto.XStatsCoreweaveMetadataEndpoint.GetValue()
+}
+
 // The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()
@@ -545,4 +566,14 @@ func (s *Settings) UpdateRunID(runID string) {
 // Update server-side derived summary computation setting.
 func (s *Settings) UpdateServerSideDerivedSummary(enable bool) {
 	s.Proto.XServerSideDerivedSummary = &wrapperspb.BoolValue{Value: enable}
+}
+
+// Updates the scheme and hostname for contacting the CoreWeave metadata server.
+func (s *Settings) UpdateStatsCoreWeaveMetadataBaseURL(baseURL string) {
+	s.Proto.XStatsCoreweaveMetadataBaseUrl = &wrapperspb.StringValue{Value: baseURL}
+}
+
+// Updates the relative path on the CoreWeave metadata server to which to make requests.
+func (s *Settings) UpdateStatsCoreWeaveMetadataEndpoint(endpoint string) {
+	s.Proto.XStatsCoreweaveMetadataEndpoint = &wrapperspb.StringValue{Value: endpoint}
 }

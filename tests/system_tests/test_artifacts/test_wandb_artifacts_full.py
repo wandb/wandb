@@ -11,7 +11,11 @@ import wandb
 from wandb import Api, Artifact
 from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
-from wandb.sdk.artifacts._validators import ARTIFACT_NAME_MAXLEN
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+from wandb.sdk.artifacts._validators import (
+    ARTIFACT_NAME_MAXLEN,
+    RESERVED_ARTIFACT_TYPE_PREFIX,
+)
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import md5_string
@@ -777,3 +781,13 @@ def test_used_artifacts_preserve_original_project(user, api, logged_artifact):
 
     assert run_from_api.project == new_project
     assert art_from_run.project == orig_project
+
+
+def test_internal_artifacts(user):
+    internal_type = RESERVED_ARTIFACT_TYPE_PREFIX + "invalid"
+    with wandb.init() as run:
+        with pytest.raises(ValueError, match="is reserved for internal use"):
+            artifact = wandb.Artifact(name="test-artifact", type=internal_type)
+
+        artifact = InternalArtifact(name="test-artifact", type=internal_type)
+        run.log_artifact(artifact)

@@ -126,9 +126,7 @@ class DataStore:
             return None
         assert (
             len(header) == LEVELDBLOG_HEADER_LEN
-        ), "record header is {} bytes instead of the expected {}".format(
-            len(header), LEVELDBLOG_HEADER_LEN
-        )
+        ), f"record header is {len(header)} bytes instead of the expected {LEVELDBLOG_HEADER_LEN}"
         fields = struct.unpack("<IHB", header)
         checksum, dlength, dtype = fields
         # check len, better fit in the block
@@ -195,9 +193,7 @@ class DataStore:
         header = self._fp.read(LEVELDBLOG_HEADER_LEN)
         assert (
             len(header) == LEVELDBLOG_HEADER_LEN
-        ), "header is {} bytes instead of the expected {}".format(
-            len(header), LEVELDBLOG_HEADER_LEN
-        )
+        ), f"header is {len(header)} bytes instead of the expected {LEVELDBLOG_HEADER_LEN}"
         ident, magic, version = struct.unpack("<4sHB", header)
         if ident != strtobytes(LEVELDBLOG_HEADER_IDENT):
             raise Exception("Invalid header")
