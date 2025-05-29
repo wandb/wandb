@@ -117,12 +117,10 @@ class BetaReport(Attrs):
         name (string): report name
         display_name (string): display name of the report
         description (string): report description
-        user (User): the user that created the report
+        user (User): the user that created the report (contains username and email)
         spec (dict): the spec of the report
         updated_at (string): timestamp of last update
         created_at (string): timestamp when the report was created
-        username (string): username of the report creator
-        user_email (string): email of the report creator
     """
 
     def __init__(self, client, attrs, entity=None, project=None):
@@ -188,15 +186,7 @@ class BetaReport(Attrs):
     def created_at(self):
         return self._attrs.get("createdAt")
 
-    @property
-    def username(self):
-        user = self._attrs.get("user")
-        return user.get("username") if user else None
 
-    @property
-    def user_email(self):
-        user = self._attrs.get("user")
-        return user.get("email") if user else None
 
     @property
     def url(self):
