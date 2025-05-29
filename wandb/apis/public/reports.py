@@ -186,8 +186,6 @@ class BetaReport(Attrs):
     def created_at(self):
         return self._attrs.get("createdAt")
 
-
-
     @property
     def url(self):
         return self.client.app_url + "/".join(
