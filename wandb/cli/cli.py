@@ -2205,7 +2205,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
                 "A new version of the W&B server is available, upgrade by calling `wandb server start --upgrade`"
             )
     running = subprocess.check_output(
-        ["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"]
+        ["docker", "ps", "--filter", "name=^wandb-local$", "--format", "{{.ID}}"]
     )
     if running != b"":
         if upgrade:
