@@ -512,7 +512,6 @@ def log(
     data: dict[str, Any],
     step: int | None = None,
     commit: bool | None = None,
-    sync: bool | None = None,
 ) -> None:
     """Upload run data.
 
@@ -617,7 +616,6 @@ def log(
             accumulate data for the step. See the notes in the description.
             If `step` is `None`, then the default is `commit=True`;
             otherwise, the default is `commit=False`.
-        sync: This argument is deprecated and does nothing.
 
     Examples:
         For more and more detailed examples, see
