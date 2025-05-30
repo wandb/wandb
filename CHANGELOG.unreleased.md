@@ -35,7 +35,7 @@ This version removes the ability to disable the `service` process. This is a bre
 ### Changed
 
 - Various APIs now raise `TypeError` instead of `ValueError` or other generic errors when given an argument of the wrong type. (@timoffex in https://github.com/wandb/wandb/pull/9902)
-- Various Artifacts and Automations APIs now raise `CommError` instead of `ValueErrors` upon encountering server errors, so as to surface the server error message. (@ibindlish in https://github.com/wandb/wandb/pull/9933)
+- Various Artifacts and Automations APIs now raise `CommError` instead of `ValueError` upon encountering server errors, so as to surface the server error message. (@ibindlish in https://github.com/wandb/wandb/pull/9933)
 
 ### Changed
 
