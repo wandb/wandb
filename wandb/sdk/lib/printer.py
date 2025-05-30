@@ -9,16 +9,11 @@ import platform
 import sys
 from typing import Callable, Iterator
 
-import wandb.util
-
-if sys.version_info >= (3, 12):
-    from typing import override
-else:
-    from typing_extensions import override
-
 import click
+from typing_extensions import override
 
 import wandb
+import wandb.util
 from wandb.errors import term
 from wandb.sdk import wandb_setup
 
@@ -107,7 +102,7 @@ def new_printer(settings: wandb.Settings | None = None) -> Printer:
             has been called, then global settings are used. Otherwise,
             settings (such as silent mode) are ignored.
     """
-    if not settings and (singleton := wandb_setup.singleton()):
+    if not settings and (singleton := wandb_setup.singleton_if_setup()):
         settings = singleton.settings
 
     if ipython.in_jupyter():

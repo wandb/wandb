@@ -686,9 +686,7 @@ class ListType(Type):
             for ndx, obj in enumerate(list(other)):
                 _new_element_type = new_element_type.assign(obj)
                 if isinstance(_new_element_type, InvalidType):
-                    exp += "\n{}Index {}:\n{}".format(
-                        gap, ndx, new_element_type.explain(obj, depth + 1)
-                    )
+                    exp += f"\n{gap}Index {ndx}:\n{new_element_type.explain(obj, depth + 1)}"
                     break
                 new_element_type = _new_element_type
         return exp
@@ -727,9 +725,7 @@ class NDArrayType(Type):
             return cls(shape)
         else:
             raise TypeError(
-                "NDArrayType.from_obj expects py_obj to be ndarray or list, found {}".format(
-                    py_obj.__class__
-                )
+                f"NDArrayType.from_obj expects py_obj to be ndarray or list, found {py_obj.__class__}"
             )
 
     def assign_type(self, wb_type: "Type") -> t.Union["NDArrayType", InvalidType]:

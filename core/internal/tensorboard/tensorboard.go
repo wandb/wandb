@@ -13,11 +13,9 @@
 package tensorboard
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -44,29 +42,14 @@ type TBHandler struct {
 	// wg is done after all work is done.
 	wg sync.WaitGroup
 
-	extraWork     runwork.ExtraWork
-	logger        *observability.CoreLogger
-	settings      *settings.Settings
-	fileReadDelay waiting.Delay
+	rootDirGuesser *RootDirGuesser
+	extraWork      runwork.ExtraWork
+	logger         *observability.CoreLogger
+	settings       *settings.Settings
+	fileReadDelay  waiting.Delay
 
 	// streams is the list of event streams for all tracked directories.
 	streams []*tfEventStream
-
-	// rootDir is the inferred "root" directory for TB logs.
-	//
-	// The Python side of this integration creates TBRecords when
-	// TensorBoard starts to write to a new directory. TensorBoard internally
-	// creates this directory by joining a namespace like "train" or
-	// "validation" to a root path, and we would like to use the namespace
-	// as a prefix for logged metrics, like "train/epoch_loss" vs
-	// "validation/epoch_loss".
-	//
-	// The namespace itself may include slashes, so we cannot break apart
-	// a log directory into a (root, namespace) pair until we are tracking
-	// at least two directories.
-	rootDir     *paths.AbsolutePath
-	rootDirCond *sync.Cond
-	trackedDirs []paths.AbsolutePath
 }
 
 type Params struct {
@@ -84,15 +67,13 @@ func NewTBHandler(params Params) *TBHandler {
 	}
 
 	tb := &TBHandler{
-		extraWork:     params.ExtraWork,
-		logger:        params.Logger,
-		settings:      params.Settings,
-		fileReadDelay: params.FileReadDelay,
+		rootDirGuesser: NewRootDirGuesser(params.Logger),
+		extraWork:      params.ExtraWork,
+		logger:         params.Logger,
+		settings:       params.Settings,
+		fileReadDelay:  params.FileReadDelay,
 
 		streams: make([]*tfEventStream, 0),
-
-		rootDirCond: sync.NewCond(&sync.Mutex{}),
-		trackedDirs: make([]paths.AbsolutePath, 0),
 	}
 
 	return tb
@@ -100,36 +81,15 @@ func NewTBHandler(params Params) *TBHandler {
 
 // Handle begins processing the events in a TensorBoard logs directory.
 func (tb *TBHandler) Handle(record *spb.TBRecord) error {
-	// Make log_dir absolute.
-	maybeLogDir, err := paths.Absolute(record.LogDir)
+	logDir, err := ParseTBPath(record.LogDir)
 	if err != nil {
-		return fmt.Errorf(
-			"tensorboard: cannot make logDir %v absolute: %v",
-			record.LogDir,
-			err)
-	}
-	logDir := *maybeLogDir
-
-	// Make root_dir absolute, if set.
-	var explicitRootDir *paths.AbsolutePath
-	if record.GetRootDir() != "" {
-		var err error
-		explicitRootDir, err = paths.Absolute(record.GetRootDir())
-		if err != nil {
-			return fmt.Errorf(
-				"tensorboard: cannot make rootDir %v absolute: %v",
-				record.GetRootDir(),
-				err)
-		}
+		return fmt.Errorf("tensorboard: failed to parse path: %v", err)
 	}
 
-	// Update the inferred root directory.
-	if err := tb.updateRootDirFromLogDir(logDir); err != nil {
-		return err
-	}
+	tb.rootDirGuesser.AddLogDirectory(logDir)
 
-	// Create the event stream.
 	stream := NewTFEventStream(
+		tb.extraWork.BeforeEndCtx(),
 		logDir,
 		tb.fileReadDelay,
 		TFEventsFileFilter{
@@ -143,6 +103,12 @@ func (tb *TBHandler) Handle(record *spb.TBRecord) error {
 	tb.streams = append(tb.streams, stream)
 	tb.mu.Unlock()
 
+	var explicitRootDir *RootDir
+
+	if record.RootDir != "" {
+		explicitRootDir = NewRootDir(record.RootDir)
+	}
+
 	tb.startStream(stream, logDir, explicitRootDir, record.Save)
 
 	return nil
@@ -153,8 +119,8 @@ func (tb *TBHandler) Handle(record *spb.TBRecord) error {
 // The stream should not already be started.
 func (tb *TBHandler) startStream(
 	stream *tfEventStream,
-	logDir paths.AbsolutePath,
-	explicitRootDir *paths.AbsolutePath,
+	logDir *LocalOrCloudPath,
+	explicitRootDir *RootDir,
 	shouldSave bool,
 ) {
 	tb.wg.Add(1)
@@ -162,29 +128,51 @@ func (tb *TBHandler) startStream(
 	go func() {
 		defer tb.wg.Done()
 
-		// We may have to wait a short time for the root directory if
-		// it is not set explicitly.
-		var rootDir paths.AbsolutePath
-		var namespace string
-		if explicitRootDir != nil {
-			rootDir = *explicitRootDir
-			namespace = tb.getNamespace(logDir, rootDir)
-		} else {
-			inferredRootDir, inferredNamespace, err := tb.inferRootDirAndNamespace(logDir)
+		rootDir := explicitRootDir
+		namespace := ""
+
+		// If the root wasn't given explicitly, try to guess it.
+		if rootDir == nil {
+			rootDir = tb.rootDirGuesser.InferRootOrTimeout(
+				logDir,
+				10*time.Second,
+			)
+		}
+
+		if rootDir != nil {
+			// If we guessed the root, or if it was given explicitly,
+			// use it for the namespace.
+			var err error
+			namespace, err = rootDir.TrimFrom(logDir)
 
 			if err != nil {
-				tb.logger.CaptureError(
-					fmt.Errorf(
-						"tensorboard: failed to infer root directory: %v",
-						err,
-					))
-				tb.startWG.Done()
-				return
+				namespace = ""
+				tb.logger.Warn(
+					"tensorboard: failed to compute namespace, using default",
+					"error", err,
+					"default", namespace)
 			}
 
-			rootDir = *inferredRootDir
-			namespace = inferredNamespace
+		} else if logDir.LocalPath != nil {
+			// Otherwise, if we're on a local filesystem, try using the
+			// current working directory as the root. The namespace will
+			// be empty.
+			var err error
+			rootDir, err = RootDirFromCWD()
+
+			if err != nil {
+				tb.logger.Warn(
+					"tensorboard: failed to use current working directory"+
+						" as the root directory",
+					"error", err)
+			}
 		}
+
+		tb.logger.Info(
+			"tensorboard: tracking new log directory",
+			"rootDir", rootDir,
+			"logDir", logDir,
+			"namespace", namespace)
 
 		stream.Start()
 		tb.startWG.Done()
@@ -198,7 +186,7 @@ func (tb *TBHandler) startStream(
 func (tb *TBHandler) watch(
 	stream *tfEventStream,
 	namespace string,
-	rootDir paths.AbsolutePath,
+	rootDir *RootDir,
 	save bool,
 ) {
 	wg := &sync.WaitGroup{}
@@ -228,82 +216,6 @@ func (tb *TBHandler) Finish() {
 	tb.wg.Wait()
 }
 
-// updateRootDirFromLogDir updates the inferred rootDir.
-func (tb *TBHandler) updateRootDirFromLogDir(
-	newLogDir paths.AbsolutePath,
-) error {
-	tb.rootDirCond.L.Lock()
-	defer tb.rootDirCond.L.Unlock()
-
-	tb.trackedDirs = append(tb.trackedDirs, newLogDir)
-
-	if len(tb.trackedDirs) > 1 {
-		rootDir, err := paths.LongestCommonPrefix(tb.trackedDirs)
-
-		if err != nil {
-			return fmt.Errorf("tensorboard: %v", err)
-		}
-
-		tb.rootDir = rootDir
-		tb.rootDirCond.Broadcast()
-	}
-
-	return nil
-}
-
-// inferRootDirAndNamespace blocks until rootDir is set, then uses
-// it to infer a namespace for the given log directory.
-//
-// After a timeout, this just returns the current working directory
-// and an empty namespace.
-func (tb *TBHandler) inferRootDirAndNamespace(
-	logDir paths.AbsolutePath,
-) (*paths.AbsolutePath, string, error) {
-	resultChan := make(chan paths.AbsolutePath, 1)
-	go func() {
-		tb.rootDirCond.L.Lock()
-		defer tb.rootDirCond.L.Unlock()
-
-		for tb.rootDir == nil {
-			tb.rootDirCond.Wait()
-		}
-
-		resultChan <- *tb.rootDir
-	}()
-
-	// The root directory can be inferred after at least two log directories
-	// are identified. Often this is a "train" and a "validate" directory.
-	//
-	// We get those directories by spying on TensorBoard internals via
-	// monkeypatching in Python (!?), so we don't control it and don't
-	// know whether it will or will not emit more than one. If it doesn't,
-	// then we just default to the current working directory as a root.
-	select {
-	case result := <-resultChan:
-		namespace := tb.getNamespace(logDir, result)
-
-		tb.logger.Info(
-			"tensorboard: inferred root directory",
-			"rootDir", string(result),
-			"logDir", string(logDir),
-			"namespace", namespace)
-
-		return &result, namespace, nil
-
-	case <-time.After(10 * time.Second):
-		tb.logger.Info(
-			"tensorboard: no root directory after 10 seconds," +
-				" using working directory")
-
-		cwd, err := paths.CWD()
-		if err != nil {
-			return nil, "", fmt.Errorf("error getting working directory: %v", err)
-		}
-
-		return cwd, "", nil
-	}
-}
-
 func (tb *TBHandler) convertToRunHistory(
 	events <-chan *tbproto.TFEvent,
 	namespace string,
@@ -324,14 +236,36 @@ func (tb *TBHandler) convertToRunHistory(
 }
 
 func (tb *TBHandler) saveFiles(
-	files <-chan paths.AbsolutePath,
+	files <-chan *LocalOrCloudPath,
 	shouldSave bool,
-	rootDir paths.AbsolutePath,
+	rootDir *RootDir,
 ) {
 	for file := range files {
-		if shouldSave {
-			tb.saveFile(file, rootDir)
+		if !shouldSave {
+			continue
 		}
+
+		if file.LocalPath == nil {
+			tb.logger.Warn(
+				"tensorboard: not saving tfevents file because it is in"+
+					" the cloud",
+				"file", file.CloudPath)
+			continue
+		}
+		localPath := *file.LocalPath
+
+		runPath, err := rootDir.TrimFrom(file)
+
+		if err != nil {
+			tb.logger.Error(
+				"tensorboard: failed to infer path where to save file",
+				"file", localPath,
+				"error", err,
+			)
+			continue
+		}
+
+		tb.saveFile(localPath, runPath)
 	}
 }
 
@@ -341,45 +275,35 @@ func (tb *TBHandler) saveFiles(
 //  1. Symlinks the file into the run's directory.
 //  2. Saves a record to upload the file at the end of the run.
 //
-// The `rootDir` must be an ancestor of `path`. The file's upload path is
-// determined by its path relative to the `rootDir`.
-func (tb *TBHandler) saveFile(path, rootDir paths.AbsolutePath) {
-	tb.logger.Debug(
+// The file's path in the run's files directory is given by runPath.
+func (tb *TBHandler) saveFile(
+	fileLocation paths.AbsolutePath,
+	runPath string,
+) {
+	tb.logger.Info(
 		"tensorboard: saving file",
-		"path", path,
-		"rootDir", rootDir,
+		"fileLocation", fileLocation,
+		"runPath", runPath,
 	)
 
-	maybeRelPath, err := path.RelativeTo(rootDir)
-	if err != nil {
-		tb.logger.CaptureError(
-			fmt.Errorf("tensorboard: error getting relative path: %v", err),
-			"rootDir", rootDir,
-			"path", path)
-		return
-	}
-	relPath := *maybeRelPath
-
-	if !relPath.IsLocal() {
-		tb.logger.CaptureError(
-			errors.New("tensorboard: file is not under TB root"),
-			"rootDir", rootDir,
-			"path", path,
-		)
+	if !filepath.IsLocal(runPath) {
+		tb.logger.Error(
+			"tensorboard: invalid run file path",
+			"runPath", runPath)
 		return
 	}
 
 	// Symlink the file.
-	targetPath := filepath.Join(tb.settings.GetFilesDir(), string(relPath))
+	targetPath := filepath.Join(tb.settings.GetFilesDir(), runPath)
 	if err := os.MkdirAll(filepath.Dir(targetPath), os.ModePerm); err != nil {
 		tb.logger.Error("tensorboard: error creating directory",
 			"directory", filepath.Dir(targetPath),
 			"error", err)
 		return
 	}
-	if err := os.Symlink(string(path), targetPath); err != nil {
+	if err := os.Symlink(string(fileLocation), targetPath); err != nil {
 		tb.logger.Error("tensorboard: error creating symlink",
-			"target", path,
+			"target", fileLocation,
 			"symlink", targetPath,
 			"error", err)
 		return
@@ -392,33 +316,9 @@ func (tb *TBHandler) saveFile(path, rootDir paths.AbsolutePath) {
 				RecordType: &spb.Record_Files{
 					Files: &spb.FilesRecord{
 						Files: []*spb.FilesItem{
-							{Policy: spb.FilesItem_END, Path: string(relPath)},
+							{Policy: spb.FilesItem_END, Path: runPath},
 						},
 					},
 				},
 			}))
-}
-
-// getNamespace computes the namespace corresponding to a log directory.
-//
-// The namespace is used as a prefix for logged metrics in W&B.
-func (tb *TBHandler) getNamespace(logDir, rootDir paths.AbsolutePath) string {
-	namespace, success := strings.CutPrefix(string(logDir), string(rootDir))
-
-	if !success {
-		tb.logger.CaptureError(
-			errors.New("tensorboard: rootDir not prefix of logDir"),
-			"rootDir", rootDir,
-			"logDir", logDir,
-		)
-		return ""
-	}
-
-	return strings.Trim(
-		strings.ReplaceAll(
-			namespace,
-			string(filepath.Separator),
-			"/"),
-		"/",
-	)
 }

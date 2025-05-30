@@ -199,7 +199,7 @@ def create_sweep_command(command: Optional[List] = None) -> List:
             for m in matches[::-1]:
                 # Default to just leaving as is if environment variable does not exist
                 _var: str = os.environ.get(m.group(1), m.group(1))
-                command[i] = f"{command[i][:m.start()]}{_var}{command[i][m.end():]}"
+                command[i] = f"{command[i][: m.start()]}{_var}{command[i][m.end() :]}"
     return command
 
 
@@ -211,7 +211,7 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
 
     """
     if "args" not in command:
-        raise ValueError('No "args" found in command: {}'.format(command))
+        raise ValueError(f'No "args" found in command: {command}')
     # four different formats of command args
     # (1) standard command line flags (e.g. --foo=bar)
     flags: List[str] = []
@@ -232,7 +232,7 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
         try:
             _value: Any = config["value"]
         except KeyError:
-            raise ValueError('No "value" found for command["args"]["{}"]'.format(param))
+            raise ValueError(f'No "value" found for command["args"]["{param}"]')
 
         _flag: str = f"{param}={_value}"
         flags.append("--" + _flag)

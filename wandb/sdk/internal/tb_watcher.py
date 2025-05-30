@@ -288,9 +288,9 @@ class TBDirWatcher:
     def _thread_except_body(self) -> None:
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             logger.exception("generic exception in TBDirWatcher thread")
-            raise e
+            raise
 
     def _thread_body(self) -> None:
         """Check for new events every second."""
@@ -394,9 +394,9 @@ class TBEventConsumer:
     def _thread_except_body(self) -> None:
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             logger.exception("generic exception in TBEventConsumer thread")
-            raise e
+            raise
 
     def _thread_body(self) -> None:
         while True:
@@ -490,9 +490,7 @@ class TBHistory:
                     dropped_keys.append(k)
                     del self._data[k]
             wandb.termwarn(
-                "Step {} exceeds max data limit, dropping {} of the largest keys:".format(
-                    self._step, len(dropped_keys)
-                )
+                f"Step {self._step} exceeds max data limit, dropping {len(dropped_keys)} of the largest keys:"
             )
             print("\t" + ("\n\t".join(dropped_keys)))  # noqa: T201
         self._data["_step"] = self._step

@@ -30,7 +30,8 @@ def docker(request, mocker, monkeypatch):
         "wandb.apis.InternalApi.api_key", new_callable=mocker.PropertyMock
     )
     api_key.return_value = "test"
-    monkeypatch.setattr(cli, "find_executable", lambda name: True)
+    monkeypatch.setattr(cli, "_HAS_NVIDIA_DOCKER", True)
+    monkeypatch.setattr(cli, "_HAS_DOCKER", True)
     old_call = subprocess.call
 
     def new_call(command, **kwargs):
@@ -237,10 +238,10 @@ def test_docker_run_digest(runner, docker, monkeypatch):
             "-e",
             "WANDB_API_KEY=test",
             "-e",
-            "WANDB_DOCKER={}".format(DOCKER_SHA),
+            f"WANDB_DOCKER={DOCKER_SHA}",
             "--runtime",
             "nvidia",
-            "{}".format(DOCKER_SHA),
+            f"{DOCKER_SHA}",
         ]
     )
 
@@ -262,7 +263,7 @@ def test_docker_run_bad_image(runner, docker, monkeypatch):
 
 
 def test_docker_run_no_nvidia(runner, docker, monkeypatch):
-    monkeypatch.setattr(cli, "find_executable", lambda name: False)
+    monkeypatch.setattr(cli, "_HAS_NVIDIA_DOCKER", False)
     result = runner.invoke(cli.docker_run, ["run", "-v", "cool:/cool", "rad"])
     assert result.exit_code == 0
     docker.assert_called_once_with(
@@ -306,7 +307,7 @@ def test_docker_run_nvidia(runner, docker):
 
 def test_docker(runner, docker):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.docker, ["test"])
+        result = runner.invoke(cli.docker, ["test"], input="n")
         docker.assert_called_once_with(
             [
                 "docker",
@@ -335,7 +336,7 @@ def test_docker(runner, docker):
 
 
 def test_docker_basic(runner, docker, git_repo):
-    result = runner.invoke(cli.docker, ["test:abc123"])
+    result = runner.invoke(cli.docker, ["test:abc123"], input="n")
     assert "Launching docker container" in result.output
     docker.assert_called_once_with(
         [
@@ -365,7 +366,7 @@ def test_docker_basic(runner, docker, git_repo):
 
 
 def test_docker_sha(runner, docker):
-    result = runner.invoke(cli.docker, ["test@sha256:abc123"])
+    result = runner.invoke(cli.docker, ["test@sha256:abc123"], input="n")
     docker.assert_called_once_with(
         [
             "docker",
@@ -394,7 +395,7 @@ def test_docker_sha(runner, docker):
 
 
 def test_docker_no_dir(runner, docker):
-    result = runner.invoke(cli.docker, ["test:abc123", "--no-dir"])
+    result = runner.invoke(cli.docker, ["test:abc123", "--no-dir"], input="n")
     docker.assert_called_once_with(
         [
             "docker",
@@ -420,7 +421,9 @@ def test_docker_no_dir(runner, docker):
 
 def test_docker_no_interactive_custom_command(runner, docker, git_repo):
     result = runner.invoke(
-        cli.docker, ["test:abc123", "--no-tty", "--cmd", "python foo.py"]
+        cli.docker,
+        ["test:abc123", "--no-tty", "--cmd", "python foo.py"],
+        input="n",
     )
     docker.assert_called_once_with(
         [
@@ -452,7 +455,7 @@ def test_docker_no_interactive_custom_command(runner, docker, git_repo):
 
 def test_docker_jupyter(runner, docker):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.docker, ["test", "--jupyter"])
+        result = runner.invoke(cli.docker, ["test", "--jupyter"], input="n")
         docker.assert_called_once_with(
             [
                 "docker",
@@ -490,7 +493,7 @@ def test_docker_jupyter(runner, docker):
 
 def test_docker_args(runner, docker):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.docker, ["test", "-v", "/tmp:/tmp"])
+        result = runner.invoke(cli.docker, ["test", "-v", "/tmp:/tmp"], input="n")
         docker.assert_called_with(
             [
                 "docker",
@@ -547,7 +550,7 @@ def test_local_default(runner, docker, local_settings):
                 "--name",
                 "wandb-local",
                 "-e",
-                "LOCAL_USERNAME={}".format(user),
+                f"LOCAL_USERNAME={user}",
                 "-d",
                 "wandb/local",
             ]
@@ -572,7 +575,7 @@ def test_local_custom_port(runner, docker, local_settings):
             "--name",
             "wandb-local",
             "-e",
-            "LOCAL_USERNAME={}".format(user),
+            f"LOCAL_USERNAME={user}",
             "-d",
             "wandb/local",
         ]
@@ -597,7 +600,7 @@ def test_local_custom_env(runner, docker, local_settings):
             "--name",
             "wandb-local",
             "-e",
-            "LOCAL_USERNAME={}".format(user),
+            f"LOCAL_USERNAME={user}",
             "-e",
             "FOO=bar",
             "-d",

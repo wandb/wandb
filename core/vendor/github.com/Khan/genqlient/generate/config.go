@@ -71,13 +71,14 @@ type PackageBinding struct {
 type CasingAlgorithm string
 
 const (
-	CasingDefault CasingAlgorithm = "default"
-	CasingRaw     CasingAlgorithm = "raw"
+	CasingDefault       CasingAlgorithm = "default"
+	CasingRaw           CasingAlgorithm = "raw"
+	CasingAutoCamelCase CasingAlgorithm = "auto_camel_case"
 )
 
 func (algo CasingAlgorithm) validate() error {
 	switch algo {
-	case CasingDefault, CasingRaw:
+	case CasingDefault, CasingRaw, CasingAutoCamelCase:
 		return nil
 	default:
 		return errorf(nil, "unknown casing algorithm: %s", algo)
@@ -89,11 +90,17 @@ func (algo CasingAlgorithm) validate() error {
 //
 // [genqlient.yaml docs]: https://github.com/Khan/genqlient/blob/main/docs/genqlient.yaml
 type Casing struct {
+	Default  CasingAlgorithm            `yaml:"default"`
 	AllEnums CasingAlgorithm            `yaml:"all_enums"`
 	Enums    map[string]CasingAlgorithm `yaml:"enums"`
 }
 
 func (casing *Casing) validate() error {
+	if casing.Default != "" {
+		if err := casing.Default.validate(); err != nil {
+			return err
+		}
+	}
 	if casing.AllEnums != "" {
 		if err := casing.AllEnums.validate(); err != nil {
 			return err
@@ -107,6 +114,13 @@ func (casing *Casing) validate() error {
 	return nil
 }
 
+func (casing *Casing) getDefault() CasingAlgorithm {
+	if casing.Default != "" {
+		return casing.Default
+	}
+	return CasingDefault
+}
+
 func (casing *Casing) forEnum(graphQLTypeName string) CasingAlgorithm {
 	if specificConfig, ok := casing.Enums[graphQLTypeName]; ok {
 		return specificConfig
@@ -114,7 +128,7 @@ func (casing *Casing) forEnum(graphQLTypeName string) CasingAlgorithm {
 	if casing.AllEnums != "" {
 		return casing.AllEnums
 	}
-	return CasingDefault
+	return casing.getDefault()
 }
 
 // pathJoin is like filepath.Join but 1) it only takes two argsuments,
@@ -369,4 +383,9 @@ func findCfgInDir(dir string) string {
 		}
 	}
 	return ""
+}
+
+// GetDefaultCasingAlgorithm returns the default casing algorithm for the config.
+func (c *Config) GetDefaultCasingAlgorithm() CasingAlgorithm {
+	return c.Casing.getDefault()
 }

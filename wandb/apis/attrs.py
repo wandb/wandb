@@ -28,13 +28,12 @@ class Attrs:
 
         try:
             from IPython import display
-
-            display.display(display.HTML(html))
-            return True
-
         except ImportError:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
+
+        display.display(display.HTML(html))
+        return True
 
     def to_html(self, *args, **kwargs):
         return None

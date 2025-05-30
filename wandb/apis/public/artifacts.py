@@ -1,20 +1,11 @@
 """Public API: artifacts."""
 
+from __future__ import annotations
+
 import json
 import re
 from copy import copy
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Iterable,
-    List,
-    Literal,
-    Mapping,
-    Optional,
-    Sequence,
-    Type,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Iterable, Literal, Mapping, Sequence
 
 from typing_extensions import override
 from wandb_gql import Client, gql
@@ -62,6 +53,7 @@ from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
 from wandb.sdk.artifacts._validators import (
     SOURCE_ARTIFACT_COLLECTION_TYPE,
     validate_artifact_name,
+    validate_artifact_type,
 )
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
@@ -69,13 +61,15 @@ from wandb.sdk.lib import deprecate
 from .utils import gql_compat
 
 if TYPE_CHECKING:
-    from wandb.apis.public import RetryingClient, Run
+    from wandb.sdk.artifacts.artifact import Artifact
+
+    from . import RetryingClient, Run
 
 
 class ArtifactTypes(Paginator["ArtifactType"]):
     QUERY = gql(PROJECT_ARTIFACT_TYPES_GQL)
 
-    last_response: Optional[ArtifactTypesFragment]
+    last_response: ArtifactTypesFragment | None
 
     def __init__(
         self,
@@ -117,7 +111,7 @@ class ArtifactTypes(Paginator["ArtifactType"]):
         return self.last_response.page_info.has_next_page
 
     @property
-    def cursor(self) -> Optional[str]:
+    def cursor(self) -> str | None:
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
@@ -125,7 +119,7 @@ class ArtifactTypes(Paginator["ArtifactType"]):
     def update_variables(self) -> None:
         self.variables.update({"cursor": self.cursor})
 
-    def convert_objects(self) -> List["ArtifactType"]:
+    def convert_objects(self) -> list[ArtifactType]:
         if self.last_response is None:
             return []
 
@@ -149,7 +143,7 @@ class ArtifactType:
         entity: str,
         project: str,
         type_name: str,
-        attrs: Optional[Mapping[str, Any]] = None,
+        attrs: Mapping[str, Any] | None = None,
     ):
         self.client = client
         self.entity = entity
@@ -159,8 +153,8 @@ class ArtifactType:
         if self._attrs is None:
             self.load()
 
-    def load(self):
-        data: Optional[Mapping[str, Any]] = self.client.execute(
+    def load(self) -> Mapping[str, Any]:
+        data: Mapping[str, Any] | None = self.client.execute(
             gql(PROJECT_ARTIFACT_TYPE_GQL),
             variable_values={
                 "entityName": self.entity,
@@ -176,29 +170,29 @@ class ArtifactType:
         return self._attrs
 
     @property
-    def id(self):
+    def id(self) -> str:
         return self._attrs["id"]
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._attrs["name"]
 
     @normalize_exceptions
-    def collections(self, per_page=50):
+    def collections(self, per_page: int = 50) -> ArtifactCollections:
         """Artifact collections."""
         return ArtifactCollections(self.client, self.entity, self.project, self.type)
 
-    def collection(self, name):
+    def collection(self, name: str) -> ArtifactCollection:
         return ArtifactCollection(
             self.client, self.entity, self.project, name, self.type
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<ArtifactType {self.type}>"
 
 
 class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
-    last_response: Optional[ArtifactCollectionsFragment]
+    last_response: ArtifactCollectionsFragment | None
 
     def __init__(
         self,
@@ -266,7 +260,10 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
     def update_variables(self) -> None:
         self.variables.update({"cursor": self.cursor})
 
-    def convert_objects(self) -> List["ArtifactCollection"]:
+    def convert_objects(self) -> list[ArtifactCollection]:
+        if self.last_response is None:
+            return []
+
         return [
             ArtifactCollection(
                 client=self.client,
@@ -288,9 +285,9 @@ class ArtifactCollection:
         project: str,
         name: str,
         type: str,
-        organization: Optional[str] = None,
-        attrs: Optional[Mapping[str, Any]] = None,
-        is_sequence: Optional[bool] = None,
+        organization: str | None = None,
+        attrs: Mapping[str, Any] | None = None,
+        is_sequence: bool | None = None,
     ):
         self.client = client
         self.entity = entity
@@ -302,8 +299,7 @@ class ArtifactCollection:
         self._attrs = attrs
         if is_sequence is not None:
             self._is_sequence = is_sequence
-        is_loaded = attrs is not None and is_sequence is not None
-        if not is_loaded:
+        if (attrs is None) or (is_sequence is None):
             self.load()
         self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
         self._description = self._attrs["description"]
@@ -317,7 +313,7 @@ class ArtifactCollection:
         return self._attrs["id"]
 
     @normalize_exceptions
-    def artifacts(self, per_page: int = 50) -> "Artifacts":
+    def artifacts(self, per_page: int = 50) -> Artifacts:
         """Artifacts."""
         return Artifacts(
             client=self.client,
@@ -329,7 +325,7 @@ class ArtifactCollection:
         )
 
     @property
-    def aliases(self) -> List[str]:
+    def aliases(self) -> list[str]:
         """Artifact Collection Aliases."""
         return self._aliases
 
@@ -379,6 +375,17 @@ class ArtifactCollection:
             warning_message="ArtifactCollection.change_type(type) is deprecated, use ArtifactCollection.save() instead.",
         )
 
+        if self._saved_type != new_type:
+            try:
+                validate_artifact_type(self._saved_type, self.name)
+            except ValueError as e:
+                raise ValueError(
+                    f"The current type '{self._saved_type!r}' is an internal type and cannot be changed."
+                ) from e
+
+        # Check that the new type is not going to conflict with internal types
+        validate_artifact_type(new_type, self.name)
+
         if not self.is_sequence():
             raise ValueError("Artifact collection needs to be a sequence")
         termlog(
@@ -416,16 +423,16 @@ class ArtifactCollection:
         return self._description
 
     @description.setter
-    def description(self, description: Optional[str]) -> None:
+    def description(self, description: str | None) -> None:
         self._description = description
 
     @property
-    def tags(self) -> List[str]:
+    def tags(self) -> list[str]:
         """The tags associated with the artifact collection."""
         return self._tags
 
     @tags.setter
-    def tags(self, tags: List[str]) -> None:
+    def tags(self, tags: list[str]) -> None:
         if any(not re.match(r"^[-\w]+([ ]+[-\w]+)*$", tag) for tag in tags):
             raise ValueError(
                 "Tags must only contain alphanumeric characters or underscores separated by spaces or hyphens"
@@ -447,7 +454,7 @@ class ArtifactCollection:
         return self._type
 
     @type.setter
-    def type(self, type: List[str]) -> None:
+    def type(self, type: list[str]) -> None:
         if not self.is_sequence():
             raise ValueError(
                 "Type can only be changed if the artifact collection is a sequence."
@@ -503,6 +510,19 @@ class ArtifactCollection:
 
     def save(self) -> None:
         """Persist any changes made to the artifact collection."""
+        if self._saved_type != self.type:
+            try:
+                validate_artifact_type(self.type, self._name)
+            except ValueError as e:
+                raise ValueError(f"Failed to save artifact collection: {e}") from e
+            try:
+                validate_artifact_type(self._saved_type, self._name)
+            except ValueError as e:
+                raise ValueError(
+                    f"Failed to save artifact collection '{self._name}': "
+                    f"The current type '{self._saved_type!r}' is an internal type and cannot be changed."
+                ) from e
+
         self._update_collection()
 
         if self.is_sequence() and (self._saved_type != self._type):
@@ -520,13 +540,13 @@ class ArtifactCollection:
         return f"<ArtifactCollection {self._name} ({self._type})>"
 
 
-class Artifacts(SizedPaginator["wandb.Artifact"]):
+class Artifacts(SizedPaginator["Artifact"]):
     """An iterable collection of artifact versions associated with a project and optional filter.
 
     This is generally used indirectly via the `Api`.artifact_versions method.
     """
 
-    last_response: Optional[ArtifactsFragment]
+    last_response: ArtifactsFragment | None
 
     def __init__(
         self,
@@ -535,10 +555,10 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
         project: str,
         collection_name: str,
         type: str,
-        filters: Optional[Mapping[str, Any]] = None,
-        order: Optional[str] = None,
+        filters: Mapping[str, Any] | None = None,
+        order: str | None = None,
         per_page: int = 50,
-        tags: Optional[Union[str, List[str]]] = None,
+        tags: str | list[str] | None = None,
     ):
         self.entity = entity
         self.collection_name = collection_name
@@ -586,7 +606,7 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
         self.last_response = ArtifactsFragment.model_validate(conn)
 
     @property
-    def length(self) -> Optional[int]:
+    def length(self) -> int | None:
         if self.last_response is None:
             return None
         return self.last_response.total_count
@@ -598,12 +618,15 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
         return self.last_response.page_info.has_next_page
 
     @property
-    def cursor(self) -> Optional[str]:
+    def cursor(self) -> str | None:
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
 
-    def convert_objects(self) -> List["wandb.Artifact"]:
+    def convert_objects(self) -> list[Artifact]:
+        if self.last_response is None:
+            return []
+
         artifact_edges = (edge for edge in self.last_response.edges if edge.node)
         artifacts = (
             wandb.Artifact._from_attrs(
@@ -619,24 +642,22 @@ class Artifacts(SizedPaginator["wandb.Artifact"]):
         return [art for art in artifacts if required_tags.issubset(art.tags)]
 
 
-class RunArtifacts(SizedPaginator["wandb.Artifact"]):
-    last_response: Union[
-        RunOutputArtifactsProjectRunOutputArtifacts,
-        RunInputArtifactsProjectRunInputArtifacts,
-    ]
+class RunArtifacts(SizedPaginator["Artifact"]):
+    last_response: (
+        RunOutputArtifactsProjectRunOutputArtifacts
+        | RunInputArtifactsProjectRunInputArtifacts
+    )
 
     #: The pydantic model used to parse the (inner part of the) raw response.
-    _response_cls: Type[
-        Union[
-            RunOutputArtifactsProjectRunOutputArtifacts,
-            RunInputArtifactsProjectRunInputArtifacts,
-        ]
+    _response_cls: type[
+        RunOutputArtifactsProjectRunOutputArtifacts
+        | RunInputArtifactsProjectRunInputArtifacts
     ]
 
     def __init__(
         self,
         client: Client,
-        run: "Run",
+        run: Run,
         mode: Literal["logged", "used"] = "logged",
         per_page: int = 50,
     ):
@@ -675,7 +696,7 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
         self.last_response = self._response_cls.model_validate(inner_data)
 
     @property
-    def length(self) -> Optional[int]:
+    def length(self) -> int | None:
         if self.last_response is None:
             return None
         return self.last_response.total_count
@@ -687,33 +708,38 @@ class RunArtifacts(SizedPaginator["wandb.Artifact"]):
         return self.last_response.page_info.has_next_page
 
     @property
-    def cursor(self) -> Optional[str]:
+    def cursor(self) -> str | None:
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
 
-    def convert_objects(self) -> List["wandb.Artifact"]:
+    def convert_objects(self) -> list[Artifact]:
+        if self.last_response is None:
+            return []
+
         return [
             wandb.Artifact._from_attrs(
-                entity=node.artifact_sequence.project.entity_name,
-                project=node.artifact_sequence.project.name,
-                name=f"{node.artifact_sequence.name}:v{node.version_index}",
+                entity=proj.entity_name,
+                project=proj.name,
+                name=f"{artifact_seq.name}:v{node.version_index}",
                 attrs=node.model_dump(exclude_unset=True),
                 client=self.client,
             )
-            for r in self.last_response.edges
-            if (node := r.node)
+            for edge in self.last_response.edges
+            if (node := edge.node)
+            and (artifact_seq := node.artifact_sequence)
+            and (proj := artifact_seq.project)
         ]
 
 
 class ArtifactFiles(SizedPaginator["public.File"]):
-    last_response: Optional[FilesFragment]
+    last_response: FilesFragment | None
 
     def __init__(
         self,
         client: Client,
-        artifact: "wandb.Artifact",
-        names: Optional[Sequence[str]] = None,
+        artifact: Artifact,
+        names: Sequence[str] | None = None,
         per_page: int = 50,
     ):
         self.query_via_membership = InternalApi()._server_supports(
@@ -767,7 +793,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         self.last_response = FilesFragment.model_validate(conn)
 
     @property
-    def path(self) -> List[str]:
+    def path(self) -> list[str]:
         return [self.artifact.entity, self.artifact.project, self.artifact.name]
 
     @property
@@ -781,7 +807,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         return self.last_response.page_info.has_next_page
 
     @property
-    def cursor(self) -> Optional[str]:
+    def cursor(self) -> str | None:
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
@@ -789,7 +815,10 @@ class ArtifactFiles(SizedPaginator["public.File"]):
     def update_variables(self) -> None:
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
-    def convert_objects(self) -> List["public.File"]:
+    def convert_objects(self) -> list[public.File]:
+        if self.last_response is None:
+            return []
+
         return [
             public.File(
                 client=self.client,
@@ -805,7 +834,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
 
 def server_supports_artifact_collections_gql_edges(
-    client: "RetryingClient", warn: bool = False
+    client: RetryingClient, warn: bool = False
 ) -> bool:
     # TODO: Validate this version
     # Edges were merged into core on Mar 2, 2022: https://github.com/wandb/core/commit/81c90b29eaacfe0a96dc1ebd83c53560ca763e8b

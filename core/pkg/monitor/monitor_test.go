@@ -13,10 +13,12 @@ import (
 
 func newTestSystemMonitor() *monitor.SystemMonitor {
 	return monitor.NewSystemMonitor(
-		observability.NewNoOpLogger(),
-		settings.From(&spb.Settings{}),
-		runworktest.New(),
-		monitor.NewGPUResourceManager(false),
+		monitor.SystemMonitorParams{
+			Logger:             observability.NewNoOpLogger(),
+			Settings:           settings.From(&spb.Settings{}),
+			ExtraWork:          runworktest.New(),
+			GpuResourceManager: monitor.NewGPUResourceManager(false),
+		},
 	)
 }
 

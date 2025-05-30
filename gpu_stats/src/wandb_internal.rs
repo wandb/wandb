@@ -475,6 +475,12 @@ pub struct Feature {
     /// DCGM profiling was enabled
     #[prost(bool, tag = "70")]
     pub dcgm_profiling_enabled: bool,
+    /// User created a forked run
+    #[prost(bool, tag = "71")]
+    pub fork_mode: bool,
+    /// User created a rewound run
+    #[prost(bool, tag = "72")]
+    pub rewind_mode: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
@@ -595,6 +601,15 @@ pub struct Deprecated {
     /// wandb.run.get_sweep_url() called
     #[prost(bool, tag = "24")]
     pub run_get_sweep_url: bool,
+    /// wandb.run.use_artifact(use_as=...) called
+    #[prost(bool, tag = "25")]
+    pub run_use_artifact_use_as: bool,
+    /// wandb.sdk.artifacts.artifact.Artifact.use_as() called
+    #[prost(bool, tag = "26")]
+    pub artifact_use_as: bool,
+    /// wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
+    #[prost(bool, tag = "27")]
+    pub artifact_init_use_as: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
@@ -775,6 +790,19 @@ pub struct FooterRecord {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
+/// A point in a run from which another run can be branched.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BranchPoint {
+    /// The ID of the run to branch from.
+    #[prost(string, tag = "1")]
+    pub run: ::prost::alloc::string::String,
+    /// The value of the metric to branch at.
+    #[prost(double, tag = "2")]
+    pub value: f64,
+    /// The name of the metric to use to find a branch point.
+    #[prost(string, tag = "3")]
+    pub metric: ::prost::alloc::string::String,
+}
 ///
 /// RunRecord: wandb/sdk/wandb_run/Run
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -821,6 +849,9 @@ pub struct RunRecord {
     pub git: ::core::option::Option<GitRepoRecord>,
     #[prost(bool, tag = "22")]
     pub forked: bool,
+    /// Information about the source if this is a fork or rewind of another run.
+    #[prost(message, optional, tag = "23")]
+    pub branch_point: ::core::option::Option<BranchPoint>,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
@@ -2657,6 +2688,16 @@ pub struct TpuInfo {
     #[prost(uint32, tag = "4")]
     pub count: u32,
 }
+/// CoreWeaveInfo stores information about a CoreWeave compute environment
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CoreWeaveInfo {
+    #[prost(string, tag = "1")]
+    pub cluster_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub org_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub region: ::prost::alloc::string::String,
+}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MetadataRequest {
     #[prost(string, tag = "1")]
@@ -2726,6 +2767,8 @@ pub struct MetadataRequest {
     pub trainium: ::core::option::Option<TrainiumInfo>,
     #[prost(message, optional, tag = "32")]
     pub tpu: ::core::option::Option<TpuInfo>,
+    #[prost(message, optional, tag = "33")]
+    pub coreweave: ::core::option::Option<CoreWeaveInfo>,
     /// Flag indicating whether the request originated from the user.
     #[prost(bool, optional, tag = "200")]
     pub user_modified: ::core::option::Option<bool>,

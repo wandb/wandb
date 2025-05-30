@@ -22,7 +22,7 @@ def _is_maybe_offline() -> bool:
     Returns:
         Whether the user likely configured wandb to be offline.
     """
-    singleton = wandb_setup._setup(start_service=False)
+    singleton = wandb_setup.singleton()
 
     # First check: if there's a run, check if it is offline.
     #
@@ -37,7 +37,7 @@ def _is_maybe_offline() -> bool:
 
 
 def _server_accepts_client_ids() -> bool:
-    from wandb.util import parse_version
+    from packaging.version import parse
 
     # There are versions of W&B Server that cannot accept client IDs. Those versions of
     # the backend have a max_cli_version of less than "0.11.0." If the backend cannot
@@ -51,7 +51,7 @@ def _server_accepts_client_ids() -> bool:
     # client IDs.
 
     if _is_maybe_offline():
-        singleton = wandb_setup._setup(start_service=False)
+        singleton = wandb_setup.singleton()
 
         if run := singleton.most_recent_active_run:
             return run._settings.allow_offline_artifacts
@@ -63,7 +63,7 @@ def _server_accepts_client_ids() -> bool:
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
-    accepts_client_ids: bool = parse_version("0.11.0") <= parse_version(max_cli_version)
+    accepts_client_ids: bool = parse(max_cli_version) >= parse("0.11.0")
     return accepts_client_ids
 
 
@@ -220,9 +220,7 @@ class WBValue:
     ) -> None:
         assert (
             self._artifact_source is None
-        ), "Cannot update artifact_source. Existing source: {}/{}".format(
-            self._artifact_source.artifact, self._artifact_source.name
-        )
+        ), f"Cannot update artifact_source. Existing source: {self._artifact_source.artifact}/{self._artifact_source.name}"
         self._artifact_source = _WBValueArtifactSource(artifact, name)
 
     def _set_artifact_target(
@@ -230,9 +228,7 @@ class WBValue:
     ) -> None:
         assert (
             self._artifact_target is None
-        ), "Cannot update artifact_target. Existing target: {}/{}".format(
-            self._artifact_target.artifact, self._artifact_target.name
-        )
+        ), f"Cannot update artifact_target. Existing target: {self._artifact_target.artifact}/{self._artifact_target.name}"
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
     def _get_artifact_entry_ref_url(self) -> Optional[str]:
@@ -250,10 +246,7 @@ class WBValue:
             and self._artifact_target.artifact._final
             and _server_accepts_client_ids()
         ):
-            return "wandb-client-artifact://{}/{}".format(
-                self._artifact_target.artifact._client_id,
-                type(self).with_suffix(self._artifact_target.name),
-            )
+            return f"wandb-client-artifact://{self._artifact_target.artifact._client_id}/{type(self).with_suffix(self._artifact_target.name)}"
         # Else if we do not support client IDs, but online, then block on upload
         # Note: this is old behavior just to stay backwards compatible
         # with older server versions. This code path should be removed
@@ -281,10 +274,7 @@ class WBValue:
             and self._artifact_target.artifact._final
             and _server_accepts_client_ids()
         ):
-            return "wandb-client-artifact://{}:latest/{}".format(
-                self._artifact_target.artifact._sequence_client_id,
-                type(self).with_suffix(self._artifact_target.name),
-            )
+            return f"wandb-client-artifact://{self._artifact_target.artifact._sequence_client_id}:latest/{type(self).with_suffix(self._artifact_target.name)}"
         # Else if we do not support client IDs, then block on upload
         # Note: this is old behavior just to stay backwards compatible
         # with older server versions. This code path should be removed

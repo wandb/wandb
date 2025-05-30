@@ -176,9 +176,15 @@ def unit_tests(session: nox.Session) -> None:
         "polyfactory",
     )
 
+    paths = session.posargs or ["tests/unit_tests"]
+
+    # Launch is not supported on 3.8
+    if session.python == "3.8":
+        paths.append("--ignore=tests/unit_tests/test_launch")
+
     run_pytest(
         session,
-        paths=session.posargs or ["tests/unit_tests"],
+        paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={"n": "8"},
     )
@@ -191,7 +197,7 @@ def unit_tests_pydantic_v1(session: nox.Session) -> None:
     install_timed(
         session,
         "-r",
-        "requirements_test.txt",
+        "requirements_dev.txt",
     )
     # force-downgrade pydantic to v1
     install_timed(session, "pydantic<2")
@@ -220,18 +226,21 @@ def system_tests(session: nox.Session) -> None:
         "annotated-types",  # for test_reports
     )
 
+    paths = session.posargs or [
+        "tests/system_tests",
+        "--ignore=tests/system_tests/test_importers",
+        "--ignore=tests/system_tests/test_notebooks",
+        "--ignore=tests/system_tests/test_functional",
+        "--ignore=tests/system_tests/test_experimental",
+    ]
+
+    # Launch is not supported on 3.8
+    if session.python == "3.8":
+        paths.append("--ignore=tests/system_tests/test_launch")
+
     run_pytest(
         session,
-        paths=(
-            session.posargs
-            or [
-                "tests/system_tests",
-                "--ignore=tests/system_tests/test_importers",
-                "--ignore=tests/system_tests/test_notebooks",
-                "--ignore=tests/system_tests/test_functional",
-                "--ignore=tests/system_tests/test_experimental",
-            ]
-        ),
+        paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={"n": "8"},
     )
@@ -562,11 +571,13 @@ def mypy_report(session: nox.Session) -> None:
     If the report parameter is set to True, it will also generate an html report.
     """
     session.install(
+        "bokeh",
         "ipython",
         "lxml",
         # https://github.com/python/mypy/issues/17166
         "mypy != 1.10.0",
         "numpy",
+        "packaging",
         "pandas-stubs",
         "pip",
         "platformdirs",
@@ -581,6 +592,9 @@ def mypy_report(session: nox.Session) -> None:
         "types-pytz",
         "types-PyYAML",
         "types-requests",
+        # Fix for removal of pkg_resources
+        # TODO(@jacobromero): remove version constraint
+        # after migrating away from pkg_resources
         "types-setuptools",
         "types-six",
         "types-tqdm",

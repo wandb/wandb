@@ -698,6 +698,15 @@ class Settings(BaseModel, validate_assignment=True):
     x_service_wait: float = 30.0
     """Time in seconds to wait for the wandb-core internal service to start."""
 
+    x_skip_transaction_log: bool = False
+    """Whether to skip saving the run events to the transaction log.
+
+    This is only relevant for online runs. Can be used to reduce the amount of
+    data written to disk.
+
+    Should be used with caution, as it removes the gurantees about
+    recoverability."""
+
     x_start_time: Optional[float] = None
     """The start time of the run in seconds since the Unix epoch."""
 
@@ -763,6 +772,19 @@ class Settings(BaseModel, validate_assignment=True):
     Can be accessed via run._system_metrics.
     """
 
+    x_stats_coreweave_metadata_base_url: str = "http://169.254.169.254"
+    """The scheme and hostname for contacting the CoreWeave metadata server.
+
+    Only accessible from within a CoreWeave cluster.
+    """
+
+    x_stats_coreweave_metadata_endpoint: str = "/api/v2/cloud-init/meta-data"
+    """The relative path on the CoreWeave metadata server to which to make requests.
+
+    This must not include the schema and hostname prefix.
+    Only accessible from within a CoreWeave cluster.
+    """
+
     x_sync: bool = False
     """Flag to indicate whether we are syncing a run from the transaction log."""
 
@@ -806,6 +828,12 @@ class Settings(BaseModel, validate_assignment=True):
                     "Please specify only one of them."
                 )
             return self
+
+        @model_validator(mode="after")
+        def validate_skip_transaction_log(self):
+            if self._offline and self.x_skip_transaction_log:
+                raise ValueError("Cannot skip transaction log in offline mode")
+            return self
     else:
 
         @root_validator(pre=False)  # type: ignore [call-overload]
@@ -822,6 +850,13 @@ class Settings(BaseModel, validate_assignment=True):
                     "`fork_from`, `resume`, or `resume_from` are mutually exclusive. "
                     "Please specify only one of them."
                 )
+            return values
+
+        @root_validator(pre=False)  # type: ignore [call-overload]
+        @classmethod
+        def validate_skip_transaction_log(cls, values):
+            if values.get("_offline") and values.get("x_skip_transaction_log"):
+                raise ValueError("Cannot skip transaction log in offline mode")
             return values
 
     # Field validators.
@@ -1052,6 +1087,12 @@ class Settings(BaseModel, validate_assignment=True):
             repeat=False,
         )
         return value
+
+    @field_validator("x_stats_coreweave_metadata_base_url", mode="after")
+    @classmethod
+    def validate_x_stats_coreweave_metadata_base_url(cls, value):
+        validate_url(value)
+        return value.rstrip("/")
 
     @field_validator("x_stats_gpu_device_ids", mode="before")
     @classmethod

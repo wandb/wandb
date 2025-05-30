@@ -1,5 +1,10 @@
 import pytest
-from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
+from wandb.sdk.artifacts._validators import (
+    REGISTRY_PREFIX,
+    RESERVED_ARTIFACT_TYPE_PREFIX,
+    validate_artifact_type,
+    validate_project_name,
+)
 
 
 @pytest.mark.parametrize(
@@ -30,3 +35,30 @@ def test_validate_project_name_invalid(project_name, expected_output):
 )
 def test_validate_project_name_valid(project_name):
     validate_project_name(project_name)
+
+
+@pytest.mark.parametrize(
+    "artifact_type, name",
+    [
+        (RESERVED_ARTIFACT_TYPE_PREFIX + "invalid", "name"),
+        ("job", "name"),
+        ("run_table", "run-name"),
+        ("code", "source-name"),
+    ],
+)
+def test_validate_artifact_type_invalid(artifact_type, name):
+    with pytest.raises(ValueError, match="is reserved for internal use"):
+        validate_artifact_type(artifact_type, name)
+
+
+@pytest.mark.parametrize(
+    "artifact_type, name",
+    [
+        ("dataset", "name"),
+        ("wandbtype", "name"),
+        ("code", "name"),
+        ("run_table", "name"),
+    ],
+)
+def test_validate_artifact_type_valid(artifact_type, name):
+    assert validate_artifact_type(artifact_type, name) == artifact_type

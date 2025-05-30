@@ -360,21 +360,6 @@ func (de *DCGMExporter) Sample() (*spb.StatsRecord, error) {
 	return marshal(metrics, timestamppb.Now()), nil
 }
 
-// IsAvailable checks if the endpoint is accessible.
-func (o *DCGMExporter) IsAvailable() bool {
-	// try to fetch the metrics once to check if the endpoint is available
-	_, err := o.Sample()
-	if err != nil {
-		o.logger.Warn(
-			"monitor: openmetrics: failed to fetch metrics from endpoint",
-			"url", o.baseUrl,
-			"error", err,
-		)
-		return false
-	}
-	return true
-}
-
 // Probe fetches the Nvidia GPU metadata from the endpoint and returns it as a MetadataRequest.
 //
 // A GPU is identified by its model name and UUID.

@@ -126,8 +126,8 @@ class NeuronCoreStats:
                         self.raw_samples.append(raw_data)
                 process.kill()
                 process.wait()
-        except Exception as e:
-            logger.error("neuron-monitor failed: {}".format(e))
+        except Exception:
+            logger.exception("neuron-monitor failed")
 
     def __init__(
         self,
@@ -168,8 +168,8 @@ class NeuronCoreStats:
             self.shutdown_event.set()
             assert self.neuron_monitor_thread is not None
             self.neuron_monitor_thread.join()
-        except Exception as e:
-            logger.error("neuron-monitor thread failed to stop: {}".format(e))
+        except Exception:
+            logger.exception("neuron-monitor thread failed to stop")
         finally:
             self.neuron_monitor_thread = None
 
@@ -388,6 +388,6 @@ class Trainium:
                 pass
 
             return {self.name: neuron_hardware_info}
-        except Exception as e:
-            logger.error("neuron-monitor failed: {}".format(e))
+        except Exception:
+            logger.exception("neuron-monitor failed")
             return {}

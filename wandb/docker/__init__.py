@@ -1,11 +1,11 @@
 import json
 import logging
 import os
+import shutil
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
-from dockerpycreds.utils import find_executable  # type: ignore
 
 from wandb.docker import auth, www_authenticate
 from wandb.errors import Error
@@ -74,7 +74,7 @@ def is_buildx_installed() -> bool:
     global _buildx_installed
     if _buildx_installed is not None:
         return _buildx_installed  # type: ignore
-    if not find_executable("docker"):
+    if not shutil.which("docker"):
         _buildx_installed = False
     else:
         help_output = shell(["buildx", "--help"])
@@ -203,7 +203,7 @@ def default_image(gpu: bool = False) -> str:
     tag = "all"
     if not gpu:
         tag += "-cpu"
-    return "wandb/deepo:{}".format(tag)
+    return f"wandb/deepo:{tag}"
 
 
 def parse_repository_tag(repo_name: str) -> Tuple[str, Optional[str]]:
@@ -284,7 +284,7 @@ def image_id_from_registry(image_name: str) -> Optional[str]:
         )
         res.raise_for_status()
     except requests.RequestException:
-        log.error(f"Received {res} when attempting to get digest for {image_name}")
+        log.exception(f"Received {res} when attempting to get digest for {image_name}")
         return None
     return "@".join([registry + "/" + repository, res.headers["Docker-Content-Digest"]])
 
@@ -295,11 +295,12 @@ def image_id(image_name: str) -> Optional[str]:
         return image_name
     else:
         digests = shell(["inspect", image_name, "--format", "{{json .RepoDigests}}"])
+
+        if digests is None:
+            return image_id_from_registry(image_name)
+
         try:
-            if digests is None:
-                raise ValueError
-            im_id: str = json.loads(digests)[0]
-            return im_id
+            return json.loads(digests)[0]
         except (ValueError, IndexError):
             return image_id_from_registry(image_name)
 
