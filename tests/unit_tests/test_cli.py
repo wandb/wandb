@@ -9,6 +9,7 @@ from unittest import mock
 
 import pytest
 import wandb
+import wandb.docker
 from wandb.apis.internal import InternalApi
 from wandb.cli import cli
 from wandb.sdk.lib.apikey import get_netrc_file_path
