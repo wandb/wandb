@@ -4139,6 +4139,29 @@ class TPUInfo(google.protobuf.message.Message):
 global___TPUInfo = TPUInfo
 
 @typing_extensions.final
+class CoreWeaveInfo(google.protobuf.message.Message):
+    """CoreWeaveInfo stores information about a CoreWeave compute environment"""
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    CLUSTER_NAME_FIELD_NUMBER: builtins.int
+    ORG_ID_FIELD_NUMBER: builtins.int
+    REGION_FIELD_NUMBER: builtins.int
+    cluster_name: builtins.str
+    org_id: builtins.str
+    region: builtins.str
+    def __init__(
+        self,
+        *,
+        cluster_name: builtins.str = ...,
+        org_id: builtins.str = ...,
+        region: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["cluster_name", b"cluster_name", "org_id", b"org_id", "region", b"region"]) -> None: ...
+
+global___CoreWeaveInfo = CoreWeaveInfo
+
+@typing_extensions.final
 class MetadataRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -4208,6 +4231,7 @@ class MetadataRequest(google.protobuf.message.Message):
     CUDA_VERSION_FIELD_NUMBER: builtins.int
     TRAINIUM_FIELD_NUMBER: builtins.int
     TPU_FIELD_NUMBER: builtins.int
+    COREWEAVE_FIELD_NUMBER: builtins.int
     _USER_MODIFIED_FIELD_NUMBER: builtins.int
     os: builtins.str
     python: builtins.str
@@ -4254,6 +4278,8 @@ class MetadataRequest(google.protobuf.message.Message):
     def trainium(self) -> global___TrainiumInfo: ...
     @property
     def tpu(self) -> global___TPUInfo: ...
+    @property
+    def coreweave(self) -> global___CoreWeaveInfo: ...
     _user_modified: builtins.bool
     """Flag indicating whether the request originated from the user."""
     def __init__(
@@ -4291,10 +4317,11 @@ class MetadataRequest(google.protobuf.message.Message):
         cuda_version: builtins.str = ...,
         trainium: global___TrainiumInfo | None = ...,
         tpu: global___TPUInfo | None = ...,
+        coreweave: global___CoreWeaveInfo | None = ...,
         _user_modified: builtins.bool | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["X_user_modified", b"X_user_modified", "_user_modified", b"_user_modified", "apple", b"apple", "cpu", b"cpu", "git", b"git", "heartbeat_at", b"heartbeat_at", "memory", b"memory", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["X_user_modified", b"X_user_modified", "_user_modified", b"_user_modified", "apple", b"apple", "args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeat_at", b"heartbeat_at", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "started_at", b"started_at", "state", b"state", "tpu", b"tpu", "trainium", b"trainium", "username", b"username"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["X_user_modified", b"X_user_modified", "_user_modified", b"_user_modified", "apple", b"apple", "coreweave", b"coreweave", "cpu", b"cpu", "git", b"git", "heartbeat_at", b"heartbeat_at", "memory", b"memory", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["X_user_modified", b"X_user_modified", "_user_modified", b"_user_modified", "apple", b"apple", "args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "coreweave", b"coreweave", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeat_at", b"heartbeat_at", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "started_at", b"started_at", "state", b"state", "tpu", b"tpu", "trainium", b"trainium", "username", b"username"]) -> None: ...
     def WhichOneof(self, oneof_group: typing_extensions.Literal["X_user_modified", b"X_user_modified"]) -> typing_extensions.Literal["_user_modified"] | None: ...
 
 global___MetadataRequest = MetadataRequest
