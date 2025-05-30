@@ -153,7 +153,7 @@ class ArtifactType:
         if self._attrs is None:
             self.load()
 
-    def load(self):
+    def load(self) -> Mapping[str, Any]:
         data: Mapping[str, Any] | None = self.client.execute(
             gql(PROJECT_ARTIFACT_TYPE_GQL),
             variable_values={
@@ -170,24 +170,24 @@ class ArtifactType:
         return self._attrs
 
     @property
-    def id(self):
+    def id(self) -> str:
         return self._attrs["id"]
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._attrs["name"]
 
     @normalize_exceptions
-    def collections(self, per_page=50):
+    def collections(self, per_page: int = 50) -> ArtifactCollections:
         """Artifact collections."""
         return ArtifactCollections(self.client, self.entity, self.project, self.type)
 
-    def collection(self, name):
+    def collection(self, name: str) -> ArtifactCollection:
         return ArtifactCollection(
             self.client, self.entity, self.project, name, self.type
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<ArtifactType {self.type}>"
 
 
@@ -261,6 +261,9 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
         self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self) -> list[ArtifactCollection]:
+        if self.last_response is None:
+            return []
+
         return [
             ArtifactCollection(
                 client=self.client,
@@ -621,6 +624,9 @@ class Artifacts(SizedPaginator["Artifact"]):
         return self.last_response.edges[-1].cursor
 
     def convert_objects(self) -> list[Artifact]:
+        if self.last_response is None:
+            return []
+
         artifact_edges = (edge for edge in self.last_response.edges if edge.node)
         artifacts = (
             wandb.Artifact._from_attrs(
@@ -708,16 +714,21 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         return self.last_response.edges[-1].cursor
 
     def convert_objects(self) -> list[Artifact]:
+        if self.last_response is None:
+            return []
+
         return [
             wandb.Artifact._from_attrs(
-                entity=node.artifact_sequence.project.entity_name,
-                project=node.artifact_sequence.project.name,
-                name=f"{node.artifact_sequence.name}:v{node.version_index}",
+                entity=proj.entity_name,
+                project=proj.name,
+                name=f"{artifact_seq.name}:v{node.version_index}",
                 attrs=node.model_dump(exclude_unset=True),
                 client=self.client,
             )
-            for r in self.last_response.edges
-            if (node := r.node)
+            for edge in self.last_response.edges
+            if (node := edge.node)
+            and (artifact_seq := node.artifact_sequence)
+            and (proj := artifact_seq.project)
         ]
 
 
@@ -805,6 +816,9 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self) -> list[public.File]:
+        if self.last_response is None:
+            return []
+
         return [
             public.File(
                 client=self.client,
