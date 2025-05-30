@@ -1934,6 +1934,7 @@ class Api:
             iterator = filter(lambda x: x.name == name, iterator)
         yield from iterator
 
+    @normalize_exceptions
     def create_automation(
         self,
         obj: "NewAutomation",
@@ -2040,6 +2041,7 @@ class Api:
 
         return Automation.model_validate(result.trigger)
 
+    @normalize_exceptions
     def update_automation(
         self,
         obj: "Automation",
@@ -2161,6 +2163,7 @@ class Api:
 
         return Automation.model_validate(result.trigger)
 
+    @normalize_exceptions
     def delete_automation(self, obj: Union["Automation", str]) -> Literal[True]:
         """Delete an automation.
 
