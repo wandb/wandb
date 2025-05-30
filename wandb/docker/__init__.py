@@ -1,11 +1,11 @@
 import json
 import logging
 import os
+import shutil
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
-from dockerpycreds.utils import find_executable  # type: ignore
 
 from wandb.docker import auth, www_authenticate
 from wandb.errors import Error
@@ -74,7 +74,7 @@ def is_buildx_installed() -> bool:
     global _buildx_installed
     if _buildx_installed is not None:
         return _buildx_installed  # type: ignore
-    if not find_executable("docker"):
+    if not shutil.which("docker"):
         _buildx_installed = False
     else:
         help_output = shell(["buildx", "--help"])
