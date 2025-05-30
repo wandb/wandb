@@ -79,11 +79,6 @@ When preparing a release that can include breaking changes, consider applying ch
     - Deprecated in 0.20.0 (https://github.com/wandb/wandb/pull/9837)
     - Can do in >=0.21
 
-- Remove `RunDisabled` object:
-    - Owner: @dmitryduev
-    - Deprecated in 0.17.6 (https://github.com/wandb/wandb/pull/8064)
-    - Can do in >=0.20
-
 - Remove normalization of image data on `wandb.Image`
     - Owner: @jacobromero
     - can do in >=0.21
