@@ -7,12 +7,11 @@ import enum
 import json
 import logging
 import os
+import shlex
 import shutil
 import tempfile
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
-
-from six.moves import shlex_quote
 
 import wandb
 from wandb.apis.internal import Api
@@ -502,7 +501,7 @@ class LaunchProject:
                     try:
                         req = Requirement(line)
                         name = req.name.lower()
-                        include_only.add(shlex_quote(name))
+                        include_only.add(shlex.quote(name))
                     except InvalidRequirement:
                         _logger.warning(
                             "Unable to parse line %s in requirements.txt",
