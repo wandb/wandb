@@ -1651,6 +1651,7 @@ class Api:
         except ValueError:
             existing_registry = None
         if existing_registry:
+            raise ValueError(f"{existing_registry=}")
             raise ValueError(
                 f"Registry {name!r} already exists in organization {organization!r},"
                 " please use a different name."
