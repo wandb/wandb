@@ -115,6 +115,7 @@ def _create_job(
     build_context: Optional[str] = None,
     dockerfile: Optional[str] = None,
     base_image: Optional[str] = None,
+    requires_inference_server: bool = False,
 ) -> Tuple[Optional[Artifact], str, List[str]]:
     wandb.termlog(f"Creating launch job of type: {job_type}...")
 
@@ -191,6 +192,7 @@ def _create_job(
         dockerfile=dockerfile,
         build_context=build_context,
         base_image=base_image,
+        requires_inference_server=requires_inference_server,
     )
     if not artifact:
         wandb.termerror("JobBuilder failed to build a job")

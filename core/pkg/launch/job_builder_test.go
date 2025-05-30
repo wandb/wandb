@@ -370,10 +370,70 @@ func TestJobBuilderImage(t *testing.T) {
 				assert.Equal(t, "3.11.2", data["runtime"])
 				assert.Equal(t, "image", data["source_type"])
 				assert.Equal(t, "testImage:testTag", data["source"].(map[string]interface{})["image"])
+
+				_, exists := data["requires_inference_server"]
+				assert.False(t, exists, "requires_inference_server field should not be present when env var is not set")
+			}
+		}
+	})
+
+	t.Run("Build image sourced job with requires_inference_server", func(t *testing.T) {
+		os.Setenv("WANDB_REQUIRES_INFERENCE_SERVER", "true")
+		defer os.Unsetenv("WANDB_REQUIRES_INFERENCE_SERVER")
+
+		ctx := context.Background()
+		gql := gqlmock.NewMockClient()
+		metadata := map[string]interface{}{
+			"docker": "testImage:testTag",
+			"python": "3.11.2",
+		}
+
+		fdir := filepath.Join(os.TempDir(), "test")
+		err := os.MkdirAll(fdir, 0777)
+		assert.Nil(t, err)
+		writeRequirements(t, fdir)
+		writeWandbMetadata(t, fdir, metadata)
+
+		defer func() {
+			_ = os.RemoveAll(fdir)
+		}()
+
+		settings := &spb.Settings{
+			Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
+			Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
+			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
+			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
+		assert.Nil(t, err)
+		assert.Equal(t, "job-testImage", artifact.Name)
+		assert.Equal(t, "testProject", artifact.Project)
+		assert.Equal(t, "testEntity", artifact.Entity)
+		assert.Equal(t, "testRunId", artifact.RunId)
+		assert.Equal(t, 2, len(artifact.Manifest.Contents))
+		assert.Equal(t, "e6fb2799efb0fae312b578a5769ed7d4", artifact.Digest)
+		assert.Equal(t, []string{"testTag", "latest"}, artifact.Aliases)
+		for _, content := range artifact.Manifest.Contents {
+			if content.Path == "wandb-job.json" {
+				jobFile, err := os.Open(content.LocalPath)
+				assert.Nil(t, err)
+				defer func() {
+					_ = jobFile.Close()
+				}()
+				assert.Nil(t, err)
+				data := make(map[string]interface{})
+				err = json.NewDecoder(jobFile).Decode(&data)
+				assert.Nil(t, err)
+				assert.Equal(t, "3.11.2", data["runtime"])
+				assert.Equal(t, "image", data["source_type"])
+				assert.Equal(t, "testImage:testTag", data["source"].(map[string]interface{})["image"])
+				assert.Equal(t, true, data["requires_inference_server"])
 			}
 		}
 	})
 }
+
 func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 	t.Run("Disabled", func(t *testing.T) {
 		ctx := context.Background()
