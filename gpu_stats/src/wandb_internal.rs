@@ -544,9 +544,6 @@ pub struct Deprecated {
     /// wandb.plots.* called
     #[prost(bool, tag = "5")]
     pub plots: bool,
-    /// wandb.run.log(sync=...) called
-    #[prost(bool, tag = "6")]
-    pub run_log_sync: bool,
     /// wandb.init(config_include_keys=...) called
     #[prost(bool, tag = "7")]
     pub init_config_include_keys: bool,

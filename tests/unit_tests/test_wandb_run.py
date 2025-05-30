@@ -222,17 +222,6 @@ def test_run_pub_history(mock_run, record_q, parse_records):
     assert history[1]["that"] == "2"
 
 
-def test_deprecated_run_log_sync(mock_run, mock_wandb_log):
-    run = mock_run()
-
-    run.log(dict(this=1), sync=True)
-
-    assert mock_wandb_log.warned(
-        "`sync` argument is deprecated"
-        " and does not affect the behaviour of `wandb.log`"
-    )
-
-
 def test_use_artifact_offline(mock_run):
     run = mock_run(settings=wandb.Settings(mode="offline"))
     with pytest.raises(Exception) as e_info:
