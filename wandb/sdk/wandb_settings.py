@@ -200,18 +200,23 @@ class Settings(BaseModel, validate_assignment=True):
             configuration from into the `Config` object.
         console (Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"]): The
             type of console capture to be applied. Possible values are:
-        - "auto" - Automatically selects the console capture method based on the
-        system environment and settings.
+        - "auto" - Automatically selects the console capture method based on
+        the system environment and settings.
         - "off" - Disables console capture.
-        - "redirect" - Redirects low-level file descriptors for capturing output.
+        - "redirect" - Redirects low-level file descriptors for capturing
+        output.
         - "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will
-        be mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
-        - "wrap_raw" - Same as "wrap" but captures raw output directly instead of
-        through an emulator. Derived from the `wrap` setting and should not be set manually.
+        be mapped to either "wrap_raw" or "wrap_emu" based on the state of the
+        system.
+        - "wrap_raw" - Same as "wrap" but captures raw output directly instead
+        of through an emulator. Derived from the `wrap` setting and should not
+        be set manually.
         - "wrap_emu" - Same as "wrap" but captures output through an emulator.
           Derived from the `wrap` setting and should not be set manually.
-        console_multipart (bool): Whether to produce multipart console log files.
-        credentials_file (str): Path to file for writing temporary access tokens.
+        console_multipart (bool): Whether to produce multipart console
+            log files.
+        credentials_file (str): Path to file for writing temporary access
+            tokens.
         disable_code (bool): Whether to disable capturing the code.
         disable_git (bool): Whether to disable capturing the git state.
         disable_job_creation (bool): Whether to disable the creation of a
@@ -223,7 +228,8 @@ class Settings(BaseModel, validate_assignment=True):
         force (bool): Whether to pass the `force` flag to `wandb.login()`.
         fork_from (Optional[RunMoment]): Specifies a point in a previous
             execution of a run to fork from. The point is defined by the
-            run ID, a metric, and its value. Only the metric '_step' is supported.
+            run ID, a metric, and its value. Only the metric '_step' is
+            supported.
         git_commit (Optional[str]): The git commit hash to associate with
             the run.
         git_remote (str): The git remote to associate with the run.
@@ -232,33 +238,47 @@ class Settings(BaseModel, validate_assignment=True):
         heartbeat_seconds (int): Interval in seconds between heartbeat signals
             sent to the W&B servers.
         host (Optional[str]): Hostname of the machine running the script.
-        http_proxy (Optional[str]): Custom proxy servers for http requests to W&B.
-        https_proxy (Optional[str]): Custom proxy servers for https requests to W&B.
-        identity_token_file (Optional[str]): Path to file containing an identity token (JWT) for authentication.
-        ignore_globs (Sequence[str]): Unix glob patterns relative to `files_dir` specifying files to exclude from upload.
-        init_timeout (float): Time in seconds to wait for the `wandb.init` call to complete before timing out.
+        http_proxy (Optional[str]): Custom proxy servers for http requests
+            to W&B.
+        https_proxy (Optional[str]): Custom proxy servers for https requests
+            to W&B.
+        identity_token_file (Optional[str]): Path to file containing an
+            identity token (JWT) for authentication.
+        ignore_globs (Sequence[str]): Unix glob patterns relative to
+            `files_dir` specifying files to exclude from upload.
+        init_timeout (float): Time in seconds to wait for the `wandb.init`
+            call to complete before timing out.
         insecure_disable_ssl (bool): Whether to disable SSL verification.
         job_name (Optional[str]): Name of the Launch job running the script.
-        job_source (Optional[Literal["repo", "artifact", "image"]]): Source type for Launch.
+        job_source (Optional[Literal["repo", "artifact", "image"]]): Source
+            type for Launch.
         label_disable (bool): Whether to disable automatic labeling features.
-        launch (bool): Flag to indicate if the run is being launched through W&B Launch.
-        launch_config_path (Optional[str]): Path to the launch configuration file.
-        login_timeout (Optional[float]): Time in seconds to wait for login operations before timing out.
-        mode (Literal["online", "offline", "dryrun", "disabled", "run", "shared"]): The operating mode for W&B logging and synchronization.
-        notebook_name (Optional[str]): Name of the notebook if running in a Jupyter-like environment.
-        program (Optional[str]): Path to the script that created the run, if available.
+        launch (bool): Flag to indicate if the run is being launched through
+            W&B Launch.
+        launch_config_path (Optional[str]): Path to the launch
+            configuration file.
+        login_timeout (Optional[float]): Time in seconds to wait for login
+            operations before timing out.
+        mode (Literal["online", "offline", "dryrun", "disabled", "run", "shared"]): The
+            operating mode for W&B logging and synchronization.
+        notebook_name (Optional[str]): Name of the notebook if running in a
+            Jupyter-like environment.
+        program (Optional[str]): Path to the script that created the
+            run, if available.
         program_abspath (Optional[str]): The absolute path from the root
             repository directory to the script that created the run. Root
             repository directory is defined as the directory containing
-            the .git directory, if it exists. Otherwise, it's the current working directory.
-        program_relpath (Optional[str]): The relative path to the script that created the run.
+            the .git directory, if it exists. Otherwise, it's the current
+            working directory.
+        program_relpath (Optional[str]): The relative path to the script that
+            created the run.
         project (Optional[str]): The W&B project ID.
         quiet (bool): Flag to suppress non-essential output.
         reinit (Union[Literal["default", "return_previous", "finish_previous", "create_new"], bool]): What
             to do when `wandb.init()` is called while a run is active. Options are
         - "default": Use "finish_previous" in notebooks and "return_previous" otherwise.
-        - "return_previous": Return the most recently created run that is not yet finished.
-        This does not update `wandb.run`; see the "create_new" option.
+        - "return_previous": Return the most recently created run that is not
+        yet finished. This does not update `wandb.run`; see the "create_new" option.
         - "finish_previous": Finish all active runs, then return a new run.
         - "create_new": Create a new run without modifying other active runs.
         Does not update `wandb.run` and top-level functions like
@@ -267,22 +287,36 @@ class Settings(BaseModel, validate_assignment=True):
         relogin (bool): Whether to force a new login attempt.
         resume (Optional[Literal["allow", "must", "never", "auto"]]): Specifies
             the resume behavior for the run. The available options are
-        - "must": Resumes from an existing run with the same ID. If no such run exists, it will result in failure.
-        - "allow": Attempts to resume from an existing run with the same ID. If none is found, a new run will be created.
-        - "never": Always starts a new run. If a run with the same ID already exists, it will result in failure.
-        - "auto": Automatically resumes from the most recent failed run on the same machine.
-        resume_from (Optional[RunMoment]): Specifies a point in a previous execution of a run to resume from. The point is defined by the run ID, a metric, and its value.
+        - "must": Resumes from an existing run with the same ID. If no such run
+        exists, it will result in failure.
+        - "allow": Attempts to resume from an existing run with the same ID.
+        If none is found, a new run will be created.
+        - "never": Always starts a new run. If a run with the same ID already
+        exists, it will result in failure.
+        - "auto": Automatically resumes from the most recent failed run on the
+        same machine.
+        resume_from (Optional[RunMoment]): Specifies a point in a previous
+            execution of a run to resume from. The point is defined by the
+            run ID, a metric, and its value.
             Currently, only the metric '_step' is supported.
-        resumed (bool): Indication from the server about the state of the run. This is different from resume, a user provided flag.
-        root_dir (str): The root directory to use as the base for all run-related paths. Used to derive the wandb directory and the run directory.
-        run_group (Optional[str]): Group identifier for related runs. Used for grouping runs in the UI.
+        resumed (bool): Indication from the server about the state of the run.
+            This is different from resume, a user provided flag.
+        root_dir (str): The root directory to use as the base for all
+            run-related paths. Used to derive the wandb directory and the
+            run directory.
+        run_group (Optional[str]): Group identifier for related runs. Used for
+            grouping runs in the UI.
         run_id (Optional[str]): The ID of the run.
-        run_job_type (Optional[str]): Type of job being run (e.g., training, evaluation).
+        run_job_type (Optional[str]): Type of job being run
+            (e.g., training, evaluation).
         run_name (Optional[str]): Human-readable name for the run.
         run_notes (Optional[str]): Additional notes or description for the run.
-        run_tags (Optional[Tuple[str, ...]]): Tags to associate with the run for organization and filtering.
-        sagemaker_disable (bool): Flag to disable SageMaker-specific functionality.
-        save_code (Optional[bool]): Whether to save the code associated with the run.
+        run_tags (Optional[Tuple[str, ...]]): Tags to associate with the run
+            for organization and filtering.
+        sagemaker_disable (bool): Flag to disable SageMaker-specific
+            functionality.
+        save_code (Optional[bool]): Whether to save the code associated with
+            the run.
         settings_system (Optional[str]): Path to the system-wide settings file.
         show_colors (Optional[bool]): Whether to use colored output in the console.
         show_emoji (Optional[bool]): Whether to show emoji in the console output.
@@ -291,14 +325,19 @@ class Settings(BaseModel, validate_assignment=True):
         show_warnings (bool): Whether to display warning messages.
         silent (bool): Flag to suppress all output.
         start_method (Optional[str]): Method to use for starting subprocesses.
-        strict (Optional[bool]): Whether to enable strict mode for validation and error checking.
-        summary_timeout (int): Time in seconds to wait for summary operations before timing out.
+        strict (Optional[bool]): Whether to enable strict mode for validation
+            and error checking.
+        summary_timeout (int): Time in seconds to wait for summary operations
+            before timing out.
         summary_warnings (int): Maximum number of summary warnings to display.
         sweep_id (Optional[str]): Identifier of the sweep this run belongs to.
-        sweep_param_path (Optional[str]): Path to the sweep parameters configuration.
+        sweep_param_path (Optional[str]): Path to the sweep parameters
+            configuration.
         symlink (bool): Whether to use symlinks for run directories.
-        sync_tensorboard (Optional[bool]): Whether to synchronize TensorBoard logs with W&B.
-        table_raise_on_max_row_limit_exceeded (bool): Whether to raise an exception when table row limits are exceeded.
+        sync_tensorboard (Optional[bool]): Whether to synchronize TensorBoard
+            logs with W&B.
+        table_raise_on_max_row_limit_exceeded (bool): Whether to raise an
+            exception when table row limits are exceeded.
         username (Optional[str]): Username of the user.
     """
 
