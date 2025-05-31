@@ -313,60 +313,190 @@ class Settings(BaseModel, validate_assignment=True):
     # Public settings.
 
     allow_offline_artifacts: bool = True
+    """Flag to allow table artifacts to be synced in offline mode.
+
+    To revert to the old behavior, set this to False.
+    """
+
     allow_val_change: bool = False
+    """Flag to allow modification of `Config` values after they've been set."""
+
     anonymous: Optional[Literal["allow", "must", "never"]] = None
+    """Controls anonymous data logging.
+
+    Possible values are:
+    - "never": requires you to link your W&B account before
+       tracking the run, so you don't accidentally create an anonymous
+       run.
+    - "allow": lets a logged-in user track runs with their account, but
+       lets someone who is running the script without a W&B account see
+       the charts in the UI.
+    - "must": sends the run to an anonymous account instead of to a
+       signed-up user account.
+    """
+
     api_key: Optional[str] = None
+    """The W&B API key."""
+
     azure_account_url_to_access_key: Optional[Dict[str, str]] = None
+    """Mapping of Azure account URLs to their corresponding access keys for Azure integration."""
+
     base_url: str = "https://api.wandb.ai"
+    """The URL of the W&B backend for data synchronization."""
+
     code_dir: Optional[str] = None
+    """Directory containing the code to be tracked by W&B."""
+
     config_paths: Optional[Sequence[str]] = None
+    """Paths to files to load configuration from into the `Config` object."""
+
     console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = Field(
         default="auto",
         validate_default=True,
     )
+    """The type of console capture to be applied.
+
+    Possible values are:
+     "auto" - Automatically selects the console capture method based on the
+      system environment and settings.
+
+      "off" - Disables console capture.
+
+      "redirect" - Redirects low-level file descriptors for capturing output.
+
+      "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
+      mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
+
+      "wrap_raw" - Same as "wrap" but captures raw output directly instead of
+      through an emulator. Derived from the `wrap` setting and should not be set manually.
+
+      "wrap_emu" - Same as "wrap" but captures output through an emulator.
+      Derived from the `wrap` setting and should not be set manually.
+    """
+
     console_multipart: bool = False
+    """Whether to produce multipart console log files."""
+
     credentials_file: str = Field(
         default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
     )
+    """Path to file for writing temporary access tokens."""
+
     disable_code: bool = False
+    """Whether to disable capturing the code."""
+
     disable_git: bool = False
+    """Whether to disable capturing the git state."""
+
     disable_job_creation: bool = True
+    """Whether to disable the creation of a job artifact for W&B Launch."""
+
     docker: Optional[str] = None
+    """The Docker image used to execute the script."""
+
     email: Optional[str] = None
+    """The email address of the user."""
+
     entity: Optional[str] = None
+    """The W&B entity, such as a user or a team."""
+
     organization: Optional[str] = None
+    """The W&B organization."""
+
     force: bool = False
+    """Whether to pass the `force` flag to `wandb.login()`."""
+
     fork_from: Optional[RunMoment] = None
+    """Specifies a point in a previous execution of a run to fork from.
+
+    The point is defined by the run ID, a metric, and its value.
+    Currently, only the metric '_step' is supported.
+    """
+
     git_commit: Optional[str] = None
+    """The git commit hash to associate with the run."""
+
     git_remote: str = "origin"
+    """The git remote to associate with the run."""
+
     git_remote_url: Optional[str] = None
+    """The URL of the git remote repository."""
+
     git_root: Optional[str] = None
+    """Root directory of the git repository."""
+
     heartbeat_seconds: int = 30
+    """Interval in seconds between heartbeat signals sent to the W&B servers."""
+
     host: Optional[str] = None
+    """Hostname of the machine running the script."""
+
     http_proxy: Optional[str] = None
+    """Custom proxy servers for http requests to W&B."""
+
     https_proxy: Optional[str] = None
+    """Custom proxy servers for https requests to W&B."""
 
     # Path to file containing an identity token (JWT) for authentication.
     identity_token_file: Optional[str] = None
+    """Path to file containing an identity token (JWT) for authentication."""
+
     ignore_globs: Sequence[str] = ()
+    """Unix glob patterns relative to `files_dir` specifying files to exclude from upload."""
+
     init_timeout: float = 90.0
+    """Time in seconds to wait for the `wandb.init` call to complete before timing out."""
+
     insecure_disable_ssl: bool = False
+    """Whether to insecurely disable SSL verification."""
+
     job_name: Optional[str] = None
+    """Name of the Launch job running the script."""
+
     job_source: Optional[Literal["repo", "artifact", "image"]] = None
+    """Source type for Launch."""
+
     label_disable: bool = False
+    """Whether to disable automatic labeling features."""
+
     launch: bool = False
+    """Flag to indicate if the run is being launched through W&B Launch."""
+
     launch_config_path: Optional[str] = None
+    """Path to the launch configuration file."""
+
     login_timeout: Optional[float] = None
+    """Time in seconds to wait for login operations before timing out."""
+
     mode: Literal["online", "offline", "dryrun", "disabled", "run", "shared"] = Field(
         default="online",
         validate_default=True,
     )
+    """The operating mode for W&B logging and synchronization."""
+
     notebook_name: Optional[str] = None
+    """Name of the notebook if running in a Jupyter-like environment."""
+
     program: Optional[str] = None
+    """Path to the script that created the run, if available."""
+
     program_abspath: Optional[str] = None
+    """The absolute path from the root repository directory to the script that
+    created the run.
+
+    Root repository directory is defined as the directory containing the
+    .git directory, if it exists. Otherwise, it's the current working directory.
+    """
+
     program_relpath: Optional[str] = None
+    """The relative path to the script that created the run."""
+
     project: Optional[str] = None
+    """The W&B project ID."""
+
     quiet: bool = False
+    """Flag to suppress non-essential output."""
+
     reinit: Union[
         Literal[
             "default",
@@ -376,38 +506,143 @@ class Settings(BaseModel, validate_assignment=True):
         ],
         bool,
     ] = "default"
+    """What to do when `wandb.init()` is called while a run is active.
+
+    Options:
+    - "default": Use "finish_previous" in notebooks and "return_previous"
+        otherwise.
+    - "return_previous": Return the most recently created run
+        that is not yet finished. This does not update `wandb.run`; see
+        the "create_new" option.
+    - "finish_previous": Finish all active runs, then return a new run.
+    - "create_new": Create a new run without modifying other active runs.
+        Does not update `wandb.run` and top-level functions like `wandb.log`.
+        Because of this, some older integrations that rely on the global run
+        will not work.
+
+    Can also be a boolean, but this is deprecated. False is the same as
+    "return_previous", and True is the same as "finish_previous".
+    """
+
     relogin: bool = False
+    """Flag to force a new login attempt."""
+
     resume: Optional[Literal["allow", "must", "never", "auto"]] = None
+    """Specifies the resume behavior for the run.
+
+    The available options are:
+
+      "must": Resumes from an existing run with the same ID. If no such run exists,
+      it will result in failure.
+
+      "allow": Attempts to resume from an existing run with the same ID. If none is
+      found, a new run will be created.
+
+      "never": Always starts a new run. If a run with the same ID already exists,
+      it will result in failure.
+
+      "auto": Automatically resumes from the most recent failed run on the same
+      machine.
+    """
+
     resume_from: Optional[RunMoment] = None
+    """Specifies a point in a previous execution of a run to resume from.
+
+    The point is defined by the run ID, a metric, and its value.
+    Currently, only the metric '_step' is supported.
+    """
+
     resumed: bool = False
+    """Indication from the server about the state of the run.
+
+    This is different from resume, a user provided flag.
+    """
+
     root_dir: str = Field(default_factory=lambda: os.path.abspath(os.getcwd()))
+    """The root directory to use as the base for all run-related paths.
+
+    In particular, this is used to derive the wandb directory and the run directory.
+    """
+
     run_group: Optional[str] = None
+    """Group identifier for related runs.
+
+    Used for grouping runs in the UI.
+    """
+
     run_id: Optional[str] = None
+    """The ID of the run."""
+
     run_job_type: Optional[str] = None
+    """Type of job being run (e.g., training, evaluation)."""
+
     run_name: Optional[str] = None
+    """Human-readable name for the run."""
+
     run_notes: Optional[str] = None
+    """Additional notes or description for the run."""
+
     run_tags: Optional[Tuple[str, ...]] = None
+    """Tags to associate with the run for organization and filtering."""
+
     sagemaker_disable: bool = False
+    """Flag to disable SageMaker-specific functionality."""
+
     save_code: Optional[bool] = None
+    """Whether to save the code associated with the run."""
+
     settings_system: Optional[str] = None
+    """Path to the system-wide settings file."""
+
     show_colors: Optional[bool] = None
+    """Whether to use colored output in the console."""
+
     show_emoji: Optional[bool] = None
+    """Whether to show emoji in the console output."""
+
     show_errors: bool = True
+    """Whether to display error messages."""
+
     show_info: bool = True
+    """Whether to display informational messages."""
+
     show_warnings: bool = True
+    """Whether to display warning messages."""
+
     silent: bool = False
+    """Flag to suppress all output."""
+
     start_method: Optional[str] = None
+    """Method to use for starting subprocesses."""
+
     strict: Optional[bool] = None
+    """Whether to enable strict mode for validation and error checking."""
+
     summary_timeout: int = 60
+    """Time in seconds to wait for summary operations before timing out."""
+
     summary_warnings: int = 5  # TODO: kill this with fire
+    """Maximum number of summary warnings to display."""
+
     sweep_id: Optional[str] = None
+    """Identifier of the sweep this run belongs to."""
+
     sweep_param_path: Optional[str] = None
+    """Path to the sweep parameters configuration."""
+
     symlink: bool = Field(
         default_factory=lambda: False if platform.system() == "Windows" else True
     )
+    """Whether to use symlinks (True by default except on Windows)."""
+
     sync_tensorboard: Optional[bool] = None
+    """Whether to synchronize TensorBoard logs with W&B."""
+
     table_raise_on_max_row_limit_exceeded: bool = False
+    """Whether to raise an exception when table row limits are exceeded."""
+
     username: Optional[str] = None
+    """Username."""
 
     # Internal settings.
     #
