@@ -75,10 +75,10 @@ def test_console_redirect(wandb_backend_spy, capfd):
 
 def test_console_wrap_raw(wandb_backend_spy):
     with wandb.init(settings={"console": "wrap_raw"}) as run:
-        print("Testing...")  # noqa: T201
-        print("abc", end="")  # noqa: T201
-        print("\rxyz", end="")  # noqa: T201
-        print("\x1b[A\rV", end="")  # noqa: T201
+        print("Testing...")
+        print("abc", end="")
+        print("\rxyz", end="")
+        print("\x1b[A\rV", end="")
 
     with wandb_backend_spy.freeze() as snapshot:
         output = snapshot.output(run_id=run.id)
@@ -92,10 +92,10 @@ def test_console_wrap_raw(wandb_backend_spy):
 @pytest.mark.skip_wandb_core(reason="wrap_emu mode not implemented in core")
 def test_console_wrap_emu(wandb_backend_spy):
     with wandb.init(settings={"console": "wrap_emu"}) as run:
-        print("Testing...")  # noqa: T201
-        print("abc", end="")  # noqa: T201
-        print("\rxyz", end="")  # noqa: T201
-        print("\x1b[A\rV", end="")  # noqa: T201
+        print("Testing...")
+        print("abc", end="")
+        print("\rxyz", end="")
+        print("\x1b[A\rV", end="")
 
     with wandb_backend_spy.freeze() as snapshot:
         output = snapshot.output(run_id=run.id)
@@ -113,13 +113,13 @@ def test_offline_compression(user):
         for _ in tqdm.tqdm(range(100), ncols=139, ascii=" 123456789#"):
             time.sleep(0.05)
 
-        print("\n" * 1000)  # noqa: T201
+        print("\n" * 1000)
 
-        print("QWERT")  # noqa: T201
-        print("YUIOP")  # noqa: T201
-        print("12345")  # noqa: T201
+        print("QWERT")
+        print("YUIOP")
+        print("12345")
 
-        print("\x1b[A\r\x1b[J\x1b[A\r\x1b[1J")  # noqa: T201
+        print("\x1b[A\r\x1b[J\x1b[A\r\x1b[1J")
 
     _wait_for_legacy_service_transaction_log()
 
@@ -154,9 +154,9 @@ def test_very_long_output(user):
         }
     ) as run:
         run_dir, run_id = run.dir, run.id
-        print("LOG" * 1000000)  # noqa: T201
-        print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m" * 100)  # noqa: T201
-        print("===finish===")  # noqa: T201
+        print("LOG" * 1000000)
+        print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m" * 100)
+        print("===finish===")
 
     _wait_for_legacy_service_transaction_log()
 
@@ -179,7 +179,7 @@ def test_no_numpy(wandb_backend_spy):
     ):
         # Use "wrap_emu" to make sure TerminalEmulator's usage of _Numpy works.
         with wandb.init(settings={"console": "wrap_emu"}) as run:
-            print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m")  # noqa: T201
+            print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m")
 
     with wandb_backend_spy.freeze() as snapshot:
         output = snapshot.output(run_id=run.id)
@@ -193,6 +193,6 @@ def test_memory_leak2(user):
     #   https://github.com/wandb/wandb/pull/2111/files#r640819752
     with wandb.init(settings={"console": "wrap_emu"}) as run:
         for _ in range(1000):
-            print("ABCDEFGH")  # noqa: T201
+            print("ABCDEFGH")
         time.sleep(3)
         assert len(run._out_redir._emulator.buffer) < 1000

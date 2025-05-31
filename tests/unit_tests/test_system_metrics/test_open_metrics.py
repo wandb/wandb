@@ -161,7 +161,7 @@ def test_dcgm(test_settings):
         assert not interface.telemetry_queue.empty()
 
         while not interface.metrics_queue.empty():
-            print(interface.metrics_queue.get())  # noqa: T201
+            print(interface.metrics_queue.get())
 
 
 @pytest.mark.parametrize(

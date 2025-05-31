@@ -51,7 +51,7 @@ def mocked_ipython(monkeypatch):
     monkeypatch.setattr(ipython, "in_jupyter", lambda: True)
 
     def run_cell(cell):
-        print("Running cell: ", cell)  # noqa: T201
+        print("Running cell: ", cell)
         exec(cell)
 
     mock_get_ipython_result = MagicMock()

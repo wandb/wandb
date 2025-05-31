@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Iterable, Iterator
 
 from ariadne_codegen import Plugin
-from graphlib import TopologicalSorter  # noqa # Run this only with python 3.9+
+from graphlib import TopologicalSorter  # Run this only with python 3.9+
 from graphql import FragmentDefinitionNode, GraphQLSchema
 
 from .plugin_utils import (

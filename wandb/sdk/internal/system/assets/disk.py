@@ -33,7 +33,7 @@ class DiskUsagePercent:
             try:
                 psutil.disk_usage(path)
                 self.paths.append(path)
-            except Exception as e:  # noqa
+            except Exception as e:
                 termwarn(f"Could not access disk path {path}: {e}", repeat=False)
 
     def sample(self) -> None:
@@ -74,7 +74,7 @@ class DiskUsage:
             try:
                 psutil.disk_usage(path)
                 self.paths.append(path)
-            except Exception as e:  # noqa
+            except Exception as e:
                 termwarn(f"Could not access disk path {path}: {e}", repeat=False)
 
     def sample(self) -> None:
@@ -198,7 +198,7 @@ class Disk:
                     "total": total,
                     "used": used,
                 }
-            except Exception as e:  # noqa
+            except Exception as e:
                 termwarn(f"Could not access disk path {disk_path}: {e}", repeat=False)
 
         return {self.name: disk_metrics}
