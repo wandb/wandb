@@ -1358,6 +1358,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_coreweave_metadata_base_url", mode="after")
     @classmethod
     def validate_x_stats_coreweave_metadata_base_url(cls, value):
+        """Validate the CoreWeave metadata base URL.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         validate_url(value)
         return value.rstrip("/")
 
