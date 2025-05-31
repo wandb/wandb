@@ -872,16 +872,16 @@ func (s *Sender) streamSummary() {
 		return
 	}
 
-	update, err := s.runSummary.ToRecords()
+	summaryJSON, err := s.runSummary.Serialize()
 
-	// `update` may be non-empty even on error.
 	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: error flattening summary: %v", err))
+			fmt.Errorf("sender: error serializing summary: %v", err))
+		return
 	}
 
 	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
-		Record: &spb.SummaryRecord{Update: update},
+		SummaryJSON: string(summaryJSON),
 	})
 }
 
