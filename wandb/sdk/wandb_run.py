@@ -3042,6 +3042,7 @@ class Run:
         response = result.response.link_artifact_response
         if response.error_message:
             wandb.termerror(response.error_message)
+            return None
         if response.version_index is None:
             wandb.termerror(
                 "Error fetching the linked artifact's version index after linking"
@@ -3454,7 +3455,7 @@ class Run:
                 name
                 or f"run-{self._settings.run_id}-{os.path.basename(artifact_or_path)}"
             )
-            artifact = wandb.Artifact(name, type or "unspecified")
+            artifact = Artifact(name, type or "unspecified")
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(str(artifact_or_path))
             elif os.path.isdir(artifact_or_path):
@@ -3468,7 +3469,7 @@ class Run:
                 )
         else:
             artifact = artifact_or_path
-        if not isinstance(artifact, wandb.Artifact):
+        if not isinstance(artifact, Artifact):
             raise TypeError(
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"

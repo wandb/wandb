@@ -147,7 +147,7 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.field!s}: {self.op!r})"
 
-    def __rich_repr__(self) -> RichReprResult:  # type: ignore[override]
+    def __rich_repr__(self) -> RichReprResult:
         # https://rich.readthedocs.io/en/stable/pretty.html
         yield self.field, self.op
 
