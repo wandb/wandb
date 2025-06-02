@@ -4,13 +4,81 @@ import dataclasses
 import os
 
 from wandb import env
+from wandb.sdk.lib.sock_client import SockClient
 
 _CURRENT_VERSION = "2"
-_SUPPORTED_TRANSPORTS = "tcp"
+_SUPPORTED_TRANSPORTS = ("tcp",)
 
 
-def get_service_token() -> ServiceToken | None:
-    """Reads the token from environment variables.
+class WandbServiceConnectionError(Exception):
+    """Failed to connect to the service process."""
+
+
+def connect_to_service_in_env() -> SockClient | None:
+    """Connect to the service specified in environment variables.
+
+    Returns:
+        A socket client connected to the service if the correct environment
+        variable is set, or None.
+
+    Raises:
+        ValueError: If the environment variable is set but cannot be
+            parsed.
+        WandbServiceConnectionError: if the environment variable is set, but
+            we fail to connect to the service.
+    """
+    token = _get_service_token()  # May raise ValueError.
+    if not token:
+        return None
+
+    if token.host != "localhost":
+        raise WandbServiceConnectionError(f"Cannot connect to {token}")
+
+    client = SockClient()
+
+    try:
+        # TODO: This may block indefinitely if the service is unhealthy.
+        client.connect(token.port)
+    except Exception as e:
+        raise WandbServiceConnectionError(f"Failed to connect to {token}") from e
+
+    return client
+
+
+def set_service_in_env(parent_pid: int, transport: str, host: str, port: int) -> None:
+    """Store a service token in an environment variable.
+
+    Args:
+        parent_pid: The process ID of the process that started the service.
+        transport: The transport used to communicate with the service.
+        host: The host part of the internet address on which the service
+            is listening (e.g. localhost).
+        port: The port the service is listening on.
+
+    Raises:
+        ValueError: If given an unsupported transport.
+    """
+    if transport not in _SUPPORTED_TRANSPORTS:
+        raise ValueError(f"Unsupported transport: {transport}")
+
+    os.environ[env.SERVICE] = "-".join(
+        (
+            _CURRENT_VERSION,
+            str(parent_pid),
+            transport,
+            host,
+            str(port),
+        )
+    )
+
+
+def clear_service_in_env() -> None:
+    """Clear the environment variable storing the service token."""
+    os.environ.pop(env.SERVICE, None)
+
+
+def _get_service_token() -> _ServiceToken | None:
+    """Read the token from environment variables.
 
     Returns:
         The token if the correct environment variable is set, or None.
@@ -39,7 +107,7 @@ def get_service_token() -> ServiceToken | None:
         )
 
     try:
-        return ServiceToken(
+        return _ServiceToken(
             version=version,
             pid=int(pid_str),
             transport=transport,
@@ -50,40 +118,8 @@ def get_service_token() -> ServiceToken | None:
         raise ValueError(f"Invalid token: {token}") from e
 
 
-def set_service_token(parent_pid: int, transport: str, host: str, port: int) -> None:
-    """Stores a service token in an environment variable.
-
-    Args:
-        parent_pid: The process ID of the process that started the service.
-        transport: The transport used to communicate with the service.
-        host: The host part of the internet address on which the service
-            is listening (e.g. localhost).
-        port: The port the service is listening on.
-
-    Raises:
-        ValueError: If given an unsupported transport.
-    """
-    if transport not in _SUPPORTED_TRANSPORTS:
-        raise ValueError(f"Unsupported transport: {transport}")
-
-    os.environ[env.SERVICE] = "-".join(
-        (
-            _CURRENT_VERSION,
-            str(parent_pid),
-            transport,
-            host,
-            str(port),
-        )
-    )
-
-
-def clear_service_token() -> None:
-    """Clears the environment variable storing the service token."""
-    os.environ.pop(env.SERVICE, None)
-
-
 @dataclasses.dataclass(frozen=True)
-class ServiceToken:
+class _ServiceToken:
     """An identifier for a running service process."""
 
     version: str
