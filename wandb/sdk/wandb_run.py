@@ -469,7 +469,18 @@ class RunStatus:
 class Run:
     """A unit of computation logged by wandb. Typically, this is an ML experiment.
 
-    Create a run with `wandb.init()`:
+    See the documentation for `wandb.init` for more on creating runs, or check out
+    [our guide to `wandb.init`](https://docs.wandb.ai/guides/track/launch).
+
+    In distributed training, you can either create a single run in the rank 0 process
+    and then log information only from that process, or you can create a run in each process,
+    logging from each separately, and group the results together with the `group` argument
+    to `wandb.init`. For more details on distributed training with W&B, check out
+    [our guide](https://docs.wandb.ai/guides/track/log/distributed-training).
+
+    Examples:
+    Create a run with `wandb.init()`.
+
     ```python
     import wandb
 
@@ -478,6 +489,7 @@ class Run:
 
     There is only ever at most one active `wandb.Run` in any process,
     and it is accessible as `wandb.run`:
+
     ```python
     import wandb
 
@@ -492,6 +504,7 @@ class Run:
     If you want to start more runs in the same script or notebook, you'll need to
     finish the run that is in-flight. Runs can be finished with `wandb.finish` or
     by using them in a `with` block:
+
     ```python
     import wandb
 
@@ -505,24 +518,6 @@ class Run:
 
     assert wandb.run is None
     ```
-
-    See the documentation for `wandb.init` for more on creating runs, or check out
-    [our guide to `wandb.init`](https://docs.wandb.ai/guides/track/launch).
-
-    In distributed training, you can either create a single run in the rank 0 process
-    and then log information only from that process, or you can create a run in each process,
-    logging from each separately, and group the results together with the `group` argument
-    to `wandb.init`. For more details on distributed training with W&B, check out
-    [our guide](https://docs.wandb.ai/guides/track/log/distributed-training).
-
-    Currently, there is a parallel `Run` object in the `wandb.Api`. Eventually these
-    two objects will be merged.
-
-    Attributes:
-        summary: (Summary) Single values set for each `wandb.log()` key. By
-            default, summary is set to the last value logged. You can manually
-            set summary to the best value, like max accuracy, instead of the
-            final value.
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
@@ -1077,7 +1072,7 @@ class Run:
 
         Args:
             root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
-            name: (str, optional) The name of our code artifact. By default, we'll name
+            name: The name of our code artifact. By default, we'll name
                 the artifact `source-$PROJECT_ID-$ENTRYPOINT_RELPATH`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
             include_fn: A callable that accepts a file path and (optionally) root path and
@@ -1787,8 +1782,6 @@ class Run:
         For optimal performance, limit your logging to once every N iterations,
         or collect data over multiple iterations and log it in a single step.
 
-        ### The W&B step
-
         With basic usage, each call to `log` creates a new "step".
         The step must always increase, and it is not possible to log
         to a previous step.
@@ -1797,7 +1790,7 @@ class Run:
         In many cases, it is better to treat the W&B step like
         you'd treat a timestamp rather than a training step.
 
-        ```
+        ```python
         # Example: log an "epoch" metric for use as an X axis.
         run.log({"epoch": 40, "train-loss": 0.5})
         ```
@@ -1808,7 +1801,7 @@ class Run:
         the same step with the `step` and `commit` parameters.
         The following are all equivalent:
 
-        ```
+        ```python
         # Normal usage:
         run.log({"train-loss": 0.5, "accuracy": 0.8})
         run.log({"train-loss": 0.4, "accuracy": 0.9})
@@ -1841,132 +1834,125 @@ class Run:
                 If `step` is `None`, then the default is `commit=True`;
                 otherwise, the default is `commit=False`.
 
-        Examples:
-            For more and more detailed examples, see
-            [our guides to logging](https://docs.wandb.com/guides/track/log).
-
-            ### Basic usage
-            ```python
-            import wandb
-
-            run = wandb.init()
-            run.log({"accuracy": 0.9, "epoch": 5})
-            ```
-
-            ### Incremental logging
-            ```python
-            import wandb
-
-            run = wandb.init()
-            run.log({"loss": 0.2}, commit=False)
-            # Somewhere else when I'm ready to report this step:
-            run.log({"accuracy": 0.8})
-            ```
-
-            ### Histogram
-            ```python
-            import numpy as np
-            import wandb
-
-            # sample gradients at random from normal distribution
-            gradients = np.random.randn(100, 100)
-            run = wandb.init()
-            run.log({"gradients": wandb.Histogram(gradients)})
-            ```
-
-            ### Image from numpy
-            ```python
-            import numpy as np
-            import wandb
-
-            run = wandb.init()
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                image = wandb.Image(pixels, caption=f"random field {i}")
-                examples.append(image)
-            run.log({"examples": examples})
-            ```
-
-            ### Image from PIL
-            ```python
-            import numpy as np
-            from PIL import Image as PILImage
-            import wandb
-
-            run = wandb.init()
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(
-                    low=0,
-                    high=256,
-                    size=(100, 100, 3),
-                    dtype=np.uint8,
-                )
-                pil_image = PILImage.fromarray(pixels, mode="RGB")
-                image = wandb.Image(pil_image, caption=f"random field {i}")
-                examples.append(image)
-            run.log({"examples": examples})
-            ```
-
-            ### Video from numpy
-            ```python
-            import numpy as np
-            import wandb
-
-            run = wandb.init()
-            # axes are (time, channel, height, width)
-            frames = np.random.randint(
-                low=0,
-                high=256,
-                size=(10, 3, 100, 100),
-                dtype=np.uint8,
-            )
-            run.log({"video": wandb.Video(frames, fps=4)})
-            ```
-
-            ### Matplotlib Plot
-            ```python
-            from matplotlib import pyplot as plt
-            import numpy as np
-            import wandb
-
-            run = wandb.init()
-            fig, ax = plt.subplots()
-            x = np.linspace(0, 10)
-            y = x * x
-            ax.plot(x, y)  # plot y = x^2
-            run.log({"chart": fig})
-            ```
-
-            ### PR Curve
-            ```python
-            import wandb
-
-            run = wandb.init()
-            run.log({"pr": wandb.plot.pr_curve(y_test, y_probas, labels)})
-            ```
-
-            ### 3D Object
-            ```python
-            import wandb
-
-            run = wandb.init()
-            run.log(
-                {
-                    "generated_samples": [
-                        wandb.Object3D(open("sample.obj")),
-                        wandb.Object3D(open("sample.gltf")),
-                        wandb.Object3D(open("sample.glb")),
-                    ]
-                }
-            )
-            ```
-
         Raises:
             wandb.Error: if called before `wandb.init`
             ValueError: if invalid data is passed
 
+        Examples:
+        ```python
+        # Basic usage
+        import wandb
+
+        run = wandb.init()
+        run.log({"accuracy": 0.9, "epoch": 5})
+        ```
+
+        ```python
+        # Incremental logging
+        import wandb
+
+        run = wandb.init()
+        run.log({"loss": 0.2}, commit=False)
+        # Somewhere else when I'm ready to report this step:
+        run.log({"accuracy": 0.8})
+        ```
+
+        ```python
+        # Histogram
+        import numpy as np
+        import wandb
+
+        # sample gradients at random from normal distribution
+        gradients = np.random.randn(100, 100)
+        run = wandb.init()
+        run.log({"gradients": wandb.Histogram(gradients)})
+        ```
+
+        ```python
+        # Image from numpy
+        import numpy as np
+        import wandb
+
+        run = wandb.init()
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+            image = wandb.Image(pixels, caption=f"random field {i}")
+            examples.append(image)
+        run.log({"examples": examples})
+        ```
+
+        ```python
+        # Image from PIL
+        import numpy as np
+        from PIL import Image as PILImage
+        import wandb
+
+        run = wandb.init()
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(
+                low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+            )
+            pil_image = PILImage.fromarray(pixels, mode="RGB")
+            image = wandb.Image(pil_image, caption=f"random field {i}")
+            examples.append(image)
+        run.log({"examples": examples})
+        ```
+
+        ```python
+        # Video from numpy
+        import numpy as np
+        import wandb
+
+        run = wandb.init()
+        # axes are (time, channel, height, width)
+        frames = np.random.randint(
+            low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
+        )
+        run.log({"video": wandb.Video(frames, fps=4)})
+        ```
+
+        ```python
+        # Matplotlib Plot
+        from matplotlib import pyplot as plt
+        import numpy as np
+        import wandb
+
+        run = wandb.init()
+        fig, ax = plt.subplots()
+        x = np.linspace(0, 10)
+        y = x * x
+        ax.plot(x, y)  # plot y = x^2
+        run.log({"chart": fig})
+        ```
+
+        ```python
+        # PR Curve
+        import wandb
+
+        run = wandb.init()
+        run.log({"pr": wandb.plot.pr_curve(y_test, y_probas, labels)})
+        ```
+
+        ```python
+        # 3D Object
+        import wandb
+
+        run = wandb.init()
+        run.log(
+            {
+                "generated_samples": [
+                    wandb.Object3D(open("sample.obj")),
+                    wandb.Object3D(open("sample.gltf")),
+                    wandb.Object3D(open("sample.glb")),
+                ]
+            }
+        )
+        ```
+
+        For more and more detailed examples, see
+        [our guides to logging](https://docs.wandb.com/guides/track/log).
         """
         if step is not None:
             with telemetry.context(run=self) as tel:
@@ -2001,9 +1987,25 @@ class Run:
         A `base_path` may be provided to control the directory structure of
         uploaded files. It should be a prefix of `glob_str`, and the directory
         structure beneath it is preserved. It's best understood through
-        examples:
 
-        ```
+        Note: when given an absolute path or glob and no `base_path`, one
+        directory level is preserved as in the example above.
+
+        Args:
+            glob_str: A relative or absolute path or Unix glob.
+            base_path: A path to use to infer a directory structure; see examples.
+            policy: One of `live`, `now`, or `end`.
+            - live: upload the file as it changes, overwriting the previous version
+            - now: upload the file once now
+            - end: upload file when the run ends
+
+        Returns:
+            Paths to the symlinks created for the matched files.
+
+            For historical reasons, this may return a boolean in legacy code.
+
+        Examples:
+        ```python
         wandb.save("these/are/myfiles/*")
         # => Saves files in a "these/are/myfiles/" folder in the run.
 
@@ -2020,22 +2022,6 @@ class Run:
         # => Saves each "saveme.txt" file in an appropriate subdirectory
         #    of "files/".
         ```
-
-        Note: when given an absolute path or glob and no `base_path`, one
-        directory level is preserved as in the example above.
-
-        Args:
-            glob_str: A relative or absolute path or Unix glob.
-            base_path: A path to use to infer a directory structure; see examples.
-            policy: One of `live`, `now`, or `end`.
-                * live: upload the file as it changes, overwriting the previous version
-                * now: upload the file once now
-                * end: upload file when the run ends
-
-        Returns:
-            Paths to the symlinks created for the matched files.
-
-            For historical reasons, this may return a boolean in legacy code.
         """
         if isinstance(glob_str, bytes):
             # Preserved for backward compatibility: allow bytes inputs.
@@ -2888,19 +2874,13 @@ class Run:
         extended to support arbitrary machine learning models in the future.
 
         Args:
-            models (Union[torch.nn.Module, Sequence[torch.nn.Module]]):
-                A single model or a sequence of models to be monitored.
-            criterion (Optional[torch.F]):
-                The loss function being optimized (optional).
-            log (Optional[Literal["gradients", "parameters", "all"]]):
-                Specifies whether to log "gradients", "parameters", or "all".
-                Set to None to disable logging. (default="gradients")
-            log_freq (int):
-                Frequency (in batches) to log gradients and parameters. (default=1000)
-            idx (Optional[int]):
-                Index used when tracking multiple models with `wandb.watch`. (default=None)
-            log_graph (bool):
-                Whether to log the model's computational graph. (default=False)
+            models: A single model or a sequence of models to be monitored.
+            criterion: The loss function being optimized (optional).
+            log: Specifies whether
+                to log "gradients", "parameters", or "all". Set to None to disable logging. (default="gradients")
+            log_freq: Frequency (in batches) to log gradients and parameters. (default=1000)
+            idx: Index used when tracking multiple models with `wandb.watch`. (default=None)
+            log_graph: Whether to log the model's computational graph. (default=False)
 
         Raises:
             ValueError:
@@ -2917,8 +2897,7 @@ class Run:
         """Remove pytorch model topology, gradient and parameter hooks.
 
         Args:
-            models (torch.nn.Module | Sequence[torch.nn.Module]):
-                Optional list of pytorch models that have had watch called on them
+            models: Optional list of pytorch models that have had watch called on them
         """
         wandb.sdk._unwatch(self, models=models)
 
@@ -2940,7 +2919,7 @@ class Run:
 
         Args:
             artifact: the (public or local) artifact which will be linked
-            target_path: `str` - takes the following forms: `{portfolio}`, `{project}/{portfolio}`,
+            target_path: takes the following forms: `{portfolio}`, `{project}/{portfolio}`,
                 or `{entity}/{project}/{portfolio}`
             aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact
                                    inside the portfolio.
@@ -3026,15 +3005,15 @@ class Run:
         Call `download` or `file` on the returned object to get the contents locally.
 
         Args:
-            artifact_or_name: (str or Artifact) An artifact name.
-                May be prefixed with project/ or entity/project/.
+            artifact_or_name: An artifact name.
+                May be prefixed with project/ or entity/project/. You can also pass an Artifact object
+                created by calling `wandb.Artifact`.
                 If no entity is specified in the name, the Run or API setting's entity is used.
                 Valid names can be in the following forms:
-                    - name:version
-                    - name:alias
-                You can also pass an Artifact object created by calling `wandb.Artifact`
-            type: (str, optional) The type of artifact to use.
-            aliases: (list, optional) Aliases to apply to this artifact
+            - name:version
+            - name:alias
+            type: The type of artifact to use.
+            aliases: Aliases to apply to this artifact
             use_as: This argument is deprecated and does nothing.
 
         Returns:
@@ -3121,23 +3100,22 @@ class Run:
         """Declare an artifact as an output of a run.
 
         Args:
-            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
-                can be in the following forms:
-                    - `/local/directory`
-                    - `/local/directory/file.txt`
-                    - `s3://bucket/path`
-                You can also pass an Artifact object created by calling
-                `wandb.Artifact`.
-            name: (str, optional) An artifact name. Valid names can be in the following forms:
-                    - name:version
-                    - name:alias
-                    - digest
-                This will default to the basename of the path prepended with the current
-                run id  if not specified.
-            type: (str) The type of artifact to log, examples include `dataset`, `model`
-            aliases: (list, optional) Aliases to apply to this artifact,
+            artifact_or_path: A path to the contents of this artifact,
+                can be in the following forms
+            - `/local/directory`
+            - `/local/directory/file.txt`
+            - `s3://bucket/path`
+            name: An artifact name. Defaults to the basename of the path
+                prepended with the current run id if not specified.
+                Valid names can be in the following forms:
+            - name:version
+            - name:alias
+            - digest
+            type: The type of artifact to log. Common examples include
+                `dataset` and `model`
+            aliases: Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            tags: (list, optional) Tags to apply to this artifact, if any.
+            tags: Tags to apply to this artifact, if any.
 
         Returns:
             An `Artifact` object.
@@ -3167,24 +3145,24 @@ class Run:
         This is useful when distributed jobs need to all contribute to the same artifact.
 
         Args:
-            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
+            artifact_or_path: A path to the contents of this artifact,
                 can be in the following forms:
                     - `/local/directory`
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name: (str, optional) An artifact name. May be prefixed with entity/project.
+            name: An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
                     - name:version
                     - name:alias
                     - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type: (str) The type of artifact to log, examples include `dataset`, `model`
-            aliases: (list, optional) Aliases to apply to this artifact,
+            type: The type of artifact to log, examples include `dataset`, `model`
+            aliases: Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
+            distributed_id: Unique string that all distributed jobs share. If None,
                 defaults to the run's group name.
 
         Returns:
@@ -3221,24 +3199,24 @@ class Run:
         Subsequent "upserts" with the same distributed ID will result in a new version.
 
         Args:
-            artifact_or_path: (str or Artifact) A path to the contents of this artifact,
+            artifact_or_path: A path to the contents of this artifact,
                 can be in the following forms:
                     - `/local/directory`
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name: (str, optional) An artifact name. May be prefixed with entity/project.
+            name: An artifact name. May be prefixed with entity/project.
                 Valid names can be in the following forms:
                     - name:version
                     - name:alias
                     - digest
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            type: (str) The type of artifact to log, examples include `dataset`, `model`
-            aliases: (list, optional) Aliases to apply to this artifact,
+            type: The type of artifact to log, examples include `dataset`, `model`
+            aliases: Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            distributed_id: (string, optional) Unique string that all distributed jobs share. If None,
+            distributed_id: Unique string that all distributed jobs share. If None,
                 defaults to the run's group name.
 
         Returns:
@@ -3416,44 +3394,46 @@ class Run:
         name: str | None = None,
         aliases: list[str] | None = None,
     ) -> None:
-        """Logs a model artifact containing the contents inside the 'path' to a run and marks it as an output to this run.
+        """Logs a model artifact as an output of this run.
 
         Args:
-            path: (str) A path to the contents of this model,
-                can be in the following forms:
-                    - `/local/directory`
-                    - `/local/directory/file.txt`
-                    - `s3://bucket/path`
-            name: (str, optional) A name to assign to the model artifact that the file contents will be added to.
-                The string must contain only the following alphanumeric characters: dashes, underscores, and dots.
+            path: A path to the contents of this model, can be in the following forms
+            - `/local/directory`
+            - `/local/directory/file.txt`
+            - `s3://bucket/path`
+            name: A name to assign to the model artifact that the file
+                contents will be added to.
+                The string must contain only alphanumeric characters such as
+                dashes, underscores, and dots.
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            aliases: (list, optional) Aliases to apply to the created model artifact,
+            aliases: Aliases to apply to the created model artifact,
                     defaults to `["latest"]`
-
-        Examples:
-            ```python
-            run.log_model(
-                path="/local/directory",
-                name="my_model_artifact",
-                aliases=["production"],
-            )
-            ```
-
-            Invalid usage
-            ```python
-            run.log_model(
-                path="/local/directory",
-                name="my_entity/my_project/my_model_artifact",
-                aliases=["production"],
-            )
-            ```
-
-        Raises:
-            ValueError: if name has invalid special characters
 
         Returns:
             None
+
+        Raises:
+            ValueError: if name has invalid special characters.
+
+        Examples:
+        ```python
+        run.log_model(
+            path="/local/directory",
+            name="my_model_artifact",
+            aliases=["production"],
+        )
+        ```
+
+        Invalid usage
+
+        ```python
+        run.log_model(
+            path="/local/directory",
+            name="my_entity/my_project/my_model_artifact",
+            aliases=["production"],
+        )
+        ```
         """
         self._log_artifact(
             artifact_or_path=path, name=name, type="model", aliases=aliases
@@ -3463,43 +3443,44 @@ class Run:
     @_raise_if_finished
     @_attach
     def use_model(self, name: str) -> FilePathStr:
-        """Download the files logged in a model artifact 'name'.
+        """Download the files logged in a model artifact `name`.
 
         Args:
-            name: (str) A model artifact name. 'name' must match the name of an existing logged
-                model artifact.
-                May be prefixed with entity/project/. Valid names
-                can be in the following forms:
-                    - model_artifact_name:version
-                    - model_artifact_name:alias
-
-        Examples:
-            ```python
-            run.use_model(
-                name="my_model_artifact:latest",
-            )
-
-            run.use_model(
-                name="my_project/my_model_artifact:v0",
-            )
-
-            run.use_model(
-                name="my_entity/my_project/my_model_artifact:<digest>",
-            )
-            ```
-
-            Invalid usage
-            ```python
-            run.use_model(
-                name="my_entity/my_project/my_model_artifact",
-            )
-            ```
+            name: A model artifact name. `name` must match the name of
+                an existing logged model artifact. May be prefixed
+                with entity/project/. Valid names can be in the following forms:
+            - model_artifact_name:version
+            - model_artifact_name:alias
 
         Raises:
-            AssertionError: if model artifact 'name' is of a type that does not contain the substring 'model'.
+            AssertionError: if model artifact `name` is of a type
+                that does not contain the substring 'model'.
 
         Returns:
-            path: (str) path to downloaded model artifact file(s).
+            path: path to downloaded model artifact file(s).
+
+        Examples:
+        ```python
+        run.use_model(
+            name="my_model_artifact:latest",
+        )
+
+        run.use_model(
+            name="my_project/my_model_artifact:v0",
+        )
+
+        run.use_model(
+            name="my_entity/my_project/my_model_artifact:<digest>",
+        )
+        ```
+
+        Invalid usage
+
+        ```python
+        run.use_model(
+            name="my_entity/my_project/my_model_artifact",
+        )
+        ```
         """
         if self._settings._offline:
             # Downloading artifacts is not supported when offline.
@@ -3533,66 +3514,63 @@ class Run:
     ) -> Artifact | None:
         """Log a model artifact version and link it to a registered model in the model registry.
 
-        The linked model version will be visible in the UI for the specified registered model.
-
-        Steps:
-            - Check if 'name' model artifact has been logged. If so, use the artifact version that matches the files
-            located at 'path' or log a new version. Otherwise log files under 'path' as a new model artifact, 'name'
-            of type 'model'.
-            - Check if registered model with name 'registered_model_name' exists in the 'model-registry' project.
-            If not, create a new registered model with name 'registered_model_name'.
-            - Link version of model artifact 'name' to registered model, 'registered_model_name'.
-            - Attach aliases from 'aliases' list to the newly linked model artifact version.
+        The linked model version will be visible in the UI for the
+        specified registered model.
 
         Args:
-            path: (str) A path to the contents of this model,
-                can be in the following forms:
-                    - `/local/directory`
-                    - `/local/directory/file.txt`
-                    - `s3://bucket/path`
-            registered_model_name: (str) - the name of the registered model that the model is to be linked to.
-                A registered model is a collection of model versions linked to the model registry, typically representing a
-                team's specific ML Task. The entity that this registered model belongs to will be derived from the run
-            name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
-                default to the basename of the path prepended with the current run id  if not specified.
-            aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
+            path: A path to the contents of this model, can be in the following forms:
+            - `/local/directory`
+            - `/local/directory/file.txt`
+            - `s3://bucket/path`
+            registered_model_name: The name of the registered model that
+                the model is to be linked to. A registered model is a
+                collection of model versions linked to the model registry,
+                typically representing a team's specific ML Task.
+                The entity that this registered model belongs to will be derived from the run
+            name: The name of the model artifact that files in `path`
+                will be logged to. This will default to the basename of
+                the path prepended with the current run id  if not specified.
+            aliases: Alias(es) that will only be applied on this linked artifact
                 inside the registered model.
-                The alias "latest" will always be applied to the latest version of an artifact that is linked.
-
-        Examples:
-            ```python
-            run.link_model(
-                path="/local/directory",
-                registered_model_name="my_reg_model",
-                name="my_model_artifact",
-                aliases=["production"],
-            )
-            ```
-
-            Invalid usage
-            ```python
-            run.link_model(
-                path="/local/directory",
-                registered_model_name="my_entity/my_project/my_reg_model",
-                name="my_model_artifact",
-                aliases=["production"],
-            )
-
-            run.link_model(
-                path="/local/directory",
-                registered_model_name="my_reg_model",
-                name="my_entity/my_project/my_model_artifact",
-                aliases=["production"],
-            )
-            ```
+                The alias "latest" will always be applied to the latest
+                version of an artifact that is linked.
 
         Raises:
-            AssertionError: if registered_model_name is a path or
-                if model artifact 'name' is of a type that does not contain the substring 'model'
+            AssertionError: If registered_model_name is a path or
+                if model artifact `name` is of a type that does not
+                contain the substring 'model'
             ValueError: if name has invalid special characters
 
         Returns:
             The linked artifact if linking was successful, otherwise None.
+
+        Examples:
+        ```python
+        run.link_model(
+            path="/local/directory",
+            registered_model_name="my_reg_model",
+            name="my_model_artifact",
+            aliases=["production"],
+        )
+        ```
+
+        Invalid usage
+
+        ```python
+        run.link_model(
+            path="/local/directory",
+            registered_model_name="my_entity/my_project/my_reg_model",
+            name="my_model_artifact",
+            aliases=["production"],
+        )
+
+        run.link_model(
+            path="/local/directory",
+            registered_model_name="my_reg_model",
+            name="my_entity/my_project/my_model_artifact",
+            aliases=["production"],
+        )
+        ```
         """
         name_parts = registered_model_name.split("/")
         if len(name_parts) != 1:
@@ -3638,10 +3616,10 @@ class Run:
         """Launch an alert with the given title and text.
 
         Args:
-            title: (str) The title of the alert, must be less than 64 characters long.
-            text: (str) The text body of the alert.
-            level: (str or AlertLevel, optional) The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
-            wait_duration: (int, float, or timedelta, optional) The time to wait (in seconds) before sending another
+            title: The title of the alert, must be less than 64 characters long.
+            text: The text body of the alert.
+            level: The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
+            wait_duration: The time to wait (in seconds) before sending another
                 alert with this title.
         """
         level = level or AlertLevel.INFO
@@ -4100,11 +4078,12 @@ def restore(
 
     Args:
         name: the name of the file
-        run_path: optional path to a run to pull files from, i.e. `username/project_name/run_id`
-            if wandb.init has not been called, this is required.
+        run_path: Path to a run to pull files from
+            `username/project_name/run_id`. If `wandb.init`
+            has not been called, this is required.
         replace: whether to download the file even if it already exists locally
         root: the directory to download the file to.  Defaults to the current
-            directory or the run directory if wandb.init was called.
+            directory or the run directory if `wandb.init` was called.
 
     Returns:
         None if it can't find the file, otherwise a file object open for reading
@@ -4168,7 +4147,8 @@ def finish(
     Args:
         exit_code: Integer indicating the run's exit status. Use 0 for success,
             any other value marks the run as failed.
-        quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
+        quiet: Deprecated. Configure logging verbosity
+            using `wandb.Settings(quiet=...)`.
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
