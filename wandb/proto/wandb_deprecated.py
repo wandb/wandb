@@ -4,7 +4,6 @@ from typing import Literal
 DEPRECATED_FEATURES = Literal[
     "keras_callback__data_type",
     "run__save_no_args",
-    "run__join",
     "plots",
     "init__config_include_keys",
     "init__config_exclude_keys",
@@ -32,7 +31,6 @@ DEPRECATED_FEATURES = Literal[
 class Deprecated:
     keras_callback__data_type: DEPRECATED_FEATURES = "keras_callback__data_type"
     run__save_no_args: DEPRECATED_FEATURES = "run__save_no_args"
-    run__join: DEPRECATED_FEATURES = "run__join"
     plots: DEPRECATED_FEATURES = "plots"
     init__config_include_keys: DEPRECATED_FEATURES = "init__config_include_keys"
     init__config_exclude_keys: DEPRECATED_FEATURES = "init__config_exclude_keys"

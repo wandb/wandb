@@ -44,6 +44,7 @@ This version removes the ability to disable the `service` process. This is a bre
   - `wandb.docker` is not part of `wandb`'s public interface and is subject to breaking changes. Please do not use it.
 - Removed no-op `sync` argument from `wandb.Run::log` function (@kptkin in https://github.com/wandb/wandb/pull/9940)
 - Removed deprecated `wandb.sdk.wandb_run.Run.mode` property (@dmitryduev in https://github.com/wandb/wandb/pull/9958)
+- Removed deprecated `wandb.sdk.wandb_run.Run::join` method (@dmitryduev in https://github.com/wandb/wandb/pull/9959)
 
 ### Deprecated
 

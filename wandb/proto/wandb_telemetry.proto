@@ -235,11 +235,10 @@ message Labels {
 }
 
 message Deprecated {
-  reserved 2, 6;
+  reserved 2, 4, 6;
 
   bool keras_callback__data_type = 1;   // wandb.integration.keras.WandbCallback(data_type=...) called
   bool run__save_no_args = 3;           // wandb.run.save() called without arguments
-  bool run__join = 4;                   // wandb.run.join() called
   bool plots = 5;                       // wandb.plots.* called
   bool init__config_include_keys = 7;   // wandb.init(config_include_keys=...) called
   bool init__config_exclude_keys = 8;   // wandb.init(config_exclude_keys=...) called

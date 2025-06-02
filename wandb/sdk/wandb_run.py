@@ -2266,20 +2266,6 @@ class Run:
             wandb._sentry.end_session()
 
     @_log_to_run
-    @_attach
-    def join(self, exit_code: int | None = None) -> None:
-        """Deprecated alias for `finish()` - use finish instead."""
-        if hasattr(self, "_telemetry_obj"):
-            deprecate.deprecate(
-                field_name=Deprecated.run__join,
-                warning_message=(
-                    "wandb.run.join() is deprecated, please use wandb.run.finish()."
-                ),
-                run=self,
-            )
-        self._finish(exit_code=exit_code)
-
-    @_log_to_run
     @_raise_if_finished
     @_attach
     def status(
