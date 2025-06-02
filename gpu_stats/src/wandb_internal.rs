@@ -532,9 +532,6 @@ pub struct Deprecated {
     /// wandb.integration.keras.WandbCallback(data_type=...) called
     #[prost(bool, tag = "1")]
     pub keras_callback_data_type: bool,
-    /// wandb.run.save() called without arguments
-    #[prost(bool, tag = "3")]
-    pub run_save_no_args: bool,
     /// wandb.plots.* called
     #[prost(bool, tag = "5")]
     pub plots: bool,
