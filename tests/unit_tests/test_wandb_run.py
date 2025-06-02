@@ -26,7 +26,6 @@ REFERENCE_ATTRIBUTES = set(
         "group",
         "id",
         "job_type",
-        "join",
         "link_artifact",
         "link_model",
         "log",
