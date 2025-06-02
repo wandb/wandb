@@ -64,7 +64,7 @@ class BaseOp(GQLBase, SupportsLogicalOpSyntax):
         values_repr = ", ".join(map(repr, self.model_dump().values()))
         return f"{type(self).__name__}({values_repr})"
 
-    def __rich_repr__(self) -> RichReprResult:  # type: ignore[override]
+    def __rich_repr__(self) -> RichReprResult:
         # Display field values as positional args:
         # https://rich.readthedocs.io/en/stable/pretty.html
         yield from ((None, v) for v in self.model_dump().values())

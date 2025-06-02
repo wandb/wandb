@@ -1,7 +1,6 @@
 import datetime
 import logging
 import os
-import re
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
@@ -184,9 +183,6 @@ def _log_table_artifact(val: "Media", key: str, run: "LocalRun") -> None:
     """
     from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
-    # Sanitize the key to meet the constraints of artifact names.
-    sanitized_key = re.sub(r"[^a-zA-Z0-9_\-.]+", "", key)
-
     if isinstance(val, wandb.Table) and val.log_mode == "INCREMENTAL":
         if (
             run.resumed
@@ -196,10 +192,10 @@ def _log_table_artifact(val: "Media", key: str, run: "LocalRun") -> None:
             val._load_incremental_table_state_from_resumed_run(run, key)
         else:
             val._set_incremental_table_run_target(run)
-        art = incremental_table_util.init_artifact(run, sanitized_key)
+        art = incremental_table_util.init_artifact(run, key)
         entry_name = incremental_table_util.get_entry_name(val, key)
     else:
-        art = InternalArtifact(f"run-{run.id}-{sanitized_key}", "run_table")
+        art = InternalArtifact(f"run-{run.id}-{key}", "run_table")
         entry_name = key
 
     art.add(val, entry_name)

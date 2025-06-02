@@ -12,8 +12,10 @@ if TYPE_CHECKING:
 ART_TYPE = "wandb-run-incremental-table"
 
 
-def _get_artifact_name(run: LocalRun, sanitized_key: str) -> str:
-    return f"run-{run.id}-incr-{sanitized_key}"
+def _get_artifact_name(run: LocalRun, key: str) -> str:
+    from wandb.sdk.artifacts._internal_artifact import sanitize_artifact_name
+
+    return sanitize_artifact_name(f"run-{run.id}-incr-{key}")
 
 
 def init_artifact(run: LocalRun, sanitized_key: str) -> Artifact:
