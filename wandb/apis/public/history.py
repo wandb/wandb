@@ -1,4 +1,13 @@
-"""Public API: history."""
+"""W&B Public API for Run History.
+
+This module provides classes for efficiently scanning and sampling run
+history data.
+
+Note:
+    This module is part of the W&B Public API and provides methods
+    to access run history data. It handles pagination automatically and offers
+    both complete and sampled access to metrics logged during training runs.
+"""
 
 import json
 
@@ -12,6 +21,16 @@ from wandb.sdk.lib import retry
 
 
 class HistoryScan:
+    """Iterator for scanning complete run history.
+
+    Args:
+        client: (`wandb.apis.internal.Api`) The client instance to use
+        run: (`wandb.sdk.internal.Run`) The run object to scan history for
+        min_step: (int) The minimum step to start scanning from
+        max_step: (int) The maximum step to scan up to
+        page_size: (int) Number of samples per page (default is 1000)
+    """
+
     QUERY = gql(
         """
         query HistoryPage($entity: String!, $project: String!, $run: String!, $minStep: Int64!, $maxStep: Int64!, $pageSize: Int!) {
@@ -41,6 +60,10 @@ class HistoryScan:
         return self
 
     def __next__(self):
+        """Return the next row of history data with automatic pagination.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         while True:
             if self.scan_offset < len(self.rows):
                 row = self.rows[self.scan_offset]
@@ -78,6 +101,17 @@ class HistoryScan:
 
 
 class SampledHistoryScan:
+    """Iterator for sampling run history data.
+
+    Args:
+        client: (`wandb.apis.internal.Api`) The client instance to use
+        run: (`wandb.sdk.internal.Run`) The run object to sample history from
+        keys: (list) List of keys to sample from the history
+        min_step: (int) The minimum step to start sampling from
+        max_step: (int) The maximum step to sample up to
+        page_size: (int) Number of samples per page (default is 1000)
+    """
+
     QUERY = gql(
         """
         query SampledHistoryPage($entity: String!, $project: String!, $run: String!, $spec: JSONString!) {
@@ -108,6 +142,10 @@ class SampledHistoryScan:
         return self
 
     def __next__(self):
+        """Return the next row of sampled history data with automatic pagination.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         while True:
             if self.scan_offset < len(self.rows):
                 row = self.rows[self.scan_offset]

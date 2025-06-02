@@ -1,4 +1,39 @@
-"""Public API: files."""
+"""W&B Public API for File objects.
+
+This module provides classes for interacting with files stored in W&B.
+
+Example:
+```python
+from wandb.apis.public import Api
+
+# Initialize API
+api = Api()
+
+# Get files from a specific run
+run = api.run("entity/project/run_id")
+files = run.files()
+
+# Work with files
+for file in files:
+    print(f"File: {file.name}")
+    print(f"Size: {file.size} bytes")
+    print(f"Type: {file.mimetype}")
+
+    # Download file
+    if file.size < 1000000:  # Less than 1MB
+        file.download(root="./downloads")
+
+    # Get S3 URI for large files
+    if file.size >= 1000000:
+        print(f"S3 URI: {file.path_uri}")
+```
+
+Note:
+    This module is part of the W&B Public API and provides methods to access,
+    download, and manage files stored in W&B. Files are typically associated
+    with specific runs and can include model weights, datasets, visualizations,
+    and other artifacts.
+"""
 
 import io
 import os
@@ -42,7 +77,42 @@ FILE_FRAGMENT = """fragment RunFilesFragment on Run {
 
 
 class Files(SizedPaginator["File"]):
-    """An iterable collection of `File` objects."""
+    """An iterable collection of `File` objects.
+
+    Access and manage files uploaded to W&B during a run. Handles pagination
+    automatically when iterating through large collections of files.
+
+    Args:
+        client: The run object that contains the files
+        run: The run object that contains the files
+        names (list, optional): A list of file names to filter the files
+        per_page (int, optional): The number of files to fetch per page
+        upload (bool, optional): If `True`, fetch the upload URL for each file
+
+    Example:
+    ```python
+    from wandb.apis.public.files import Files
+    from wandb.apis.public.api import Api
+
+    # Initialize the API client
+    api = Api()
+
+    # Example run object
+    run = api.run("entity/project/run-id")
+
+    # Create a Files object to iterate over files in the run
+    files = Files(api.client, run)
+
+    # Iterate over files
+    for file in files:
+        print(file.name)
+        print(file.url)
+        print(file.size)
+
+        # Download the file
+        file.download(root="download_directory", replace=True)
+    ```
+    """
 
     QUERY = gql(
         """
@@ -73,6 +143,7 @@ class Files(SizedPaginator["File"]):
 
     @property
     def length(self):
+        """The number of files saved to the specified run."""
         if self.last_response:
             return self.last_response["project"]["run"]["fileCount"]
         else:
@@ -80,6 +151,7 @@ class Files(SizedPaginator["File"]):
 
     @property
     def more(self):
+        """Returns whether there are more files to fetch."""
         if self.last_response:
             return self.last_response["project"]["run"]["files"]["pageInfo"][
                 "hasNextPage"
@@ -89,15 +161,18 @@ class Files(SizedPaginator["File"]):
 
     @property
     def cursor(self):
+        """Returns the cursor position for pagination of file results."""
         if self.last_response:
             return self.last_response["project"]["run"]["files"]["edges"][-1]["cursor"]
         else:
             return None
 
     def update_variables(self):
+        """Updates the GraphQL query variables for pagination."""
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self):
+        """Converts GraphQL edges to File objects."""
         return [
             File(self.client, r["node"], self.run)
             for r in self.last_response["project"]["run"]["files"]["edges"]
@@ -108,17 +183,75 @@ class Files(SizedPaginator["File"]):
 
 
 class File(Attrs):
-    """File is a class associated with a file saved by wandb.
+    """File saved to W&B.
 
-    Attributes:
-        name (string): filename
-        url (string): path to file
-        direct_url (string): path to file in the bucket
-        md5 (string): md5 of file
-        mimetype (string): mimetype of file
-        updated_at (string): timestamp of last update
-        size (int): size of file in bytes
-        path_uri (str): path to file in the bucket, currently only available for files stored in S3
+    Represents a single file stored in W&B. Includes access to file metadata.
+    Files are associated with a specific run and
+    can include text files, model weights, datasets, visualizations, and other
+    artifacts. You can download the file, delete the file, and access file
+    properties.
+
+    Specify one or more attributes in a dictionary to fine a specific
+    file logged to a specific run. You can search using the following keys:
+
+    - id (str): The ID of the run that contains the file
+    - name (str): Name of the file
+    - url (str): path to file
+    - direct_url (str): path to file in the bucket
+    - sizeBytes (int): size of file in bytes
+    - md5 (str): md5 of file
+    - mimetype (str): mimetype of file
+    - updated_at (str): timestamp of last update
+    - path_uri (str): path to file in the bucket, currently only available for files stored in S3
+
+    Args:
+        client: The run object that contains the file
+        attrs (dict): A dictionary of attributes that define the file
+        run: The run object that contains the file
+
+    Example:
+    ```python
+    from wandb.apis.public.files import File
+    from wandb.apis.public.api import Api
+
+    # Initialize the API client
+    api = Api()
+
+    # Example attributes dictionary
+    file_attrs = {
+        "id": "file-id",
+        "name": "example_file.txt",
+        "url": "https://example.com/file",
+        "direct_url": "https://example.com/direct_file",
+        "sizeBytes": 1024,
+        "mimetype": "text/plain",
+        "updated_at": "2025-03-25T21:43:51Z",
+        "md5": "d41d8cd98f00b204e9800998ecf8427e",
+    }
+
+    # Example run object
+    run = api.run("entity/project/run-id")
+
+    # Create a File object
+    file = File(api.client, file_attrs, run)
+
+    # Access some of the attributes
+    print("File ID:", file.id)
+    print("File Name:", file.name)
+    print("File URL:", file.url)
+    print("File MIME Type:", file.mimetype)
+    print("File Updated At:", file.updated_at)
+
+    # Access File properties
+    print("File Size:", file.size)
+    print("File Path URI:", file.path_uri)
+
+    # Download the file
+    file.download(root="download_directory", replace=True)
+
+    # Delete the file
+    file.delete()
+    ```
     """
 
     def __init__(self, client, attrs, run=None):
@@ -130,6 +263,7 @@ class File(Attrs):
 
     @property
     def size(self):
+        """Returns the size of the file in bytes."""
         size_bytes = self._attrs["sizeBytes"]
         if size_bytes is not None:
             return int(size_bytes)
@@ -138,7 +272,7 @@ class File(Attrs):
     @property
     def path_uri(self) -> str:
         """
-        Returns the uri path to the file in the storage bucket.
+        Returns the URI path to the file in the storage bucket.
         """
         path_uri = ""
         try:
@@ -165,15 +299,17 @@ class File(Attrs):
         """Downloads a file previously saved by a run from the wandb server.
 
         Args:
-            replace (boolean): If `True`, download will overwrite a local file
+            root: Local directory to save the file.  Defaults to ".".
+            replace: If `True`, download will overwrite a local file
                 if it exists. Defaults to `False`.
-            root (str): Local directory to save the file.  Defaults to ".".
-            exist_ok (boolean): If `True`, will not raise ValueError if file already
-                exists and will not re-download unless replace=True. Defaults to `False`.
-            api (Api, optional): If given, the `Api` instance used to download the file.
+            exist_ok: If `True`, will not raise ValueError if file already
+                exists and will not re-download unless replace=True.
+                Defaults to `False`.
+            api: If specified, the `Api` instance used to download the file.
 
         Raises:
-            `ValueError` if file already exists, replace=False and exist_ok=False.
+            `ValueError` if file already exists, `replace=False` and
+            `exist_ok=False`.
         """
         if api is None:
             api = wandb.Api()
@@ -192,6 +328,7 @@ class File(Attrs):
 
     @normalize_exceptions
     def delete(self):
+        """Delete the file from the W&B server."""
         project_id_mutation_fragment = ""
         project_id_variable_fragment = ""
         variable_values = {
