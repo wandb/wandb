@@ -306,7 +306,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
         self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self) -> list[ArtifactCollection]:
-        """Convert the raw response data into a list of ArtifactCollection objects."""      
+        """Convert the raw response data into a list of ArtifactCollection objects."""
         if self.last_response is None:
             return []
         return [
@@ -320,7 +320,6 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
             for edge in self.last_response.edges
             if (node := edge.node)
         ]
-
 
 class ArtifactCollection:
     """An artifact collection that represents a group of related artifacts.
@@ -707,7 +706,7 @@ class Artifacts(SizedPaginator["Artifact"]):
         return self.last_response.edges[-1].cursor
 
     def convert_objects(self) -> list[Artifact]:
-        """Convert the raw response data into a list of wandb.Artifact objects."""      
+        """Convert the raw response data into a list of wandb.Artifact objects."""
         if self.last_response is None:
             return []
 
@@ -909,7 +908,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self) -> list[public.File]:
-        """Convert the raw response data into a list of public.File objects."""      
+        """Convert the raw response data into a list of public.File objects."""
         if self.last_response is None:
             return []
 
