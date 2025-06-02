@@ -2534,7 +2534,7 @@ class Artifact:
             return api._artifact(linked_path)
         except Exception as e:
             wandb.termerror(f"Error fetching link artifact after linking: {e}")
-            return None
+            raise
 
     @ensure_logged
     def unlink(self) -> None:

@@ -13,13 +13,20 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Fixed
+
+- Allow s3 style CoreWeave uris for reference artifacts. (@estellazx in https://github.com/wandb/wandb/pull/9979)
+
 ### Notable Changes
 
 This version removes the legacy implementaion of the `service` process. This is a breaking change.
 
+This version raises errors that would previously have suppressed during calls to `Artifact.link()` or `Run.link_artifact()`.  While this prevents undetected failures in those methods, it is also a breaking change.
+
 ### Changed
 
 - Calling `Artifact.link()` no longer instantiates a throwaway placeholder run. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9828)
+- Errors encountered while linking an artifact are no longer suppressed/silenced. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9968)
 - `wandb` now attempts to use Unix sockets for IPC instead of listening on localhost, making it work in environments with more restrictive permissions (such as Databricks) (@timoffex in https://github.com/wandb/wandb/pull/9995)
 - `Api.artifact()` will now display a warning while fetching artifacts from migrated model registry collections. (@ibindlish in https://github.com/wandb/wandb/pull/10047)
 
