@@ -93,11 +93,6 @@ When preparing a release that can include breaking changes, consider applying ch
     - Deprecated in 0.12.10 (https://github.com/wandb/wandb/pull/3028)
     - Can do in >=0.14
 
-- Remove `wandb.Run::mode`:
-    - Owner: @dmitryduev
-    - Deprecated in 0.12.10 (https://github.com/wandb/wandb/pull/3028)
-    - Can do in >=0.14
-
 - Remove `wandb.Run::project_name()`:
     - Owner: @kptkin
     - Deprecated in 0.19.10 (https://github.com/wandb/wandb/pull/8925)

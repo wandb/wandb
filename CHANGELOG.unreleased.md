@@ -43,6 +43,7 @@ This version removes the ability to disable the `service` process. This is a bre
 - Removed ability to use `wandb.docker` after only importing `wandb` (@timoffex in https://github.com/wandb/wandb/pull/9941)
   - `wandb.docker` is not part of `wandb`'s public interface and is subject to breaking changes. Please do not use it.
 - Removed no-op `sync` argument from `wandb.Run::log` function (@kptkin in https://github.com/wandb/wandb/pull/9940)
+- Removed deprecated `wandb.sdk.wandb_run.Run.mode` property (@dmitryduev in https://github.com/wandb/wandb/pull/9958)
 - Removed `best` option of the summary argument and `goal` argument in `wandb.Run::define_metric` (@dmitryduev in https://github.com/wandb/wandb/pull/9963)
 
 ### Deprecated
@@ -58,5 +59,5 @@ This version removes the ability to disable the `service` process. This is a bre
 - Log exception as string when raising exception in Job wait_until_running method (@KyleGoyette in https://github.com/wandb/wandb/pull/9607)
 - `wandb.Image` initialized with tensorflow data would be normalized differently than when initialized with a numpy array (@jacobromero in https://github.com/wandb/wandb/pull/9883)
 - Using `wandb login` no longer prints a warning about `wandb.require("legacy-service")` (@timoffex in https://github.com/wandb/wandb/pull/9912)
-- Logging a `Table` (or other objects that create internal artifacts) no longer raises `ValueError` when logged from a run whose ID contains special characters.  (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9943)
+- Logging a `Table` (or other objects that create internal artifacts) no longer raises `ValueError` when logged from a run whose ID contains special characters. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9943)
 - `wandb.Api` initialized with the `base_url` now respects the provided url, rather than the last login url (@jacobromero in https://github.com/wandb/wandb/pull/9942)

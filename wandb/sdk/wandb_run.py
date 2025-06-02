@@ -975,21 +975,6 @@ class Run:
     @property
     @_log_to_run
     @_attach
-    def mode(self) -> str:
-        """For compatibility with `0.9.x` and earlier, deprecate eventually."""
-        deprecate.deprecate(
-            field_name=Deprecated.run__mode,
-            warning_message=(
-                "The mode property of wandb.run is deprecated "
-                "and will be removed in a future release."
-            ),
-            run=self,
-        )
-        return "dryrun" if self._settings._offline else "run"
-
-    @property
-    @_log_to_run
-    @_attach
     def offline(self) -> bool:
         return self._settings._offline
 
