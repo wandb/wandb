@@ -34,24 +34,24 @@ def pr_curve(
     a model's performance.
 
     Args:
-        y_true (Iterable): True binary labels. The shape should be (`num_samples`,).
-        y_probas (Iterable): Predicted scores or probabilities for each class.
+        y_true: True binary labels. The shape should be (`num_samples`,).
+        y_probas: Predicted scores or probabilities for each class.
             These can be probability estimates, confidence scores, or non-thresholded
             decision values. The shape should be (`num_samples`, `num_classes`).
-        labels (list[str] | None): Optional list of class names to replace
+        labels: Optional list of class names to replace
             numeric values in `y_true` for easier plot interpretation.
             For example, `labels = ['dog', 'cat', 'owl']` will replace 0 with
             'dog', 1 with 'cat', and 2 with 'owl' in the plot. If not provided,
             numeric values from `y_true` will be used.
-        classes_to_plot (list | None): Optional list of unique class values from
+        classes_to_plot: Optional list of unique class values from
             y_true to be included in the plot. If not specified, all unique
             classes in y_true will be plotted.
-        interp_size (int): Number of points to interpolate recall values. The
+        interp_size: Number of points to interpolate recall values. The
             recall values will be fixed to `interp_size` uniformly distributed
             points in the range [0, 1], and the precision will be interpolated
             accordingly.
-        title (str): Title of the plot. Defaults to "Precision-Recall Curve".
-        split_table (bool): Whether the table should be split into a separate section
+        title: Title of the plot. Defaults to "Precision-Recall Curve".
+        split_table: Whether the table should be split into a separate section
             in the W&B UI. If `True`, the table will be displayed in a section named
             "Custom Chart Tables". Default is `False`.
 
@@ -60,34 +60,35 @@ def pr_curve(
             chart, pass it to `wandb.log()`.
 
     Raises:
-        wandb.Error: If numpy, pandas, or scikit-learn is not installed.
+        wandb.Error: If NumPy, pandas, or scikit-learn is not installed.
 
 
     Example:
-        ```
-        import wandb
 
-        # Example for spam detection (binary classification)
-        y_true = [0, 1, 1, 0, 1]  # 0 = not spam, 1 = spam
-        y_probas = [
-            [0.9, 0.1],  # Predicted probabilities for the first sample (not spam)
-            [0.2, 0.8],  # Second sample (spam), and so on
-            [0.1, 0.9],
-            [0.8, 0.2],
-            [0.3, 0.7],
-        ]
+    ```python
+    import wandb
 
-        labels = ["not spam", "spam"]  # Optional class names for readability
+    # Example for spam detection (binary classification)
+    y_true = [0, 1, 1, 0, 1]  # 0 = not spam, 1 = spam
+    y_probas = [
+        [0.9, 0.1],  # Predicted probabilities for the first sample (not spam)
+        [0.2, 0.8],  # Second sample (spam), and so on
+        [0.1, 0.9],
+        [0.8, 0.2],
+        [0.3, 0.7],
+    ]
 
-        with wandb.init(project="spam-detection") as run:
-            pr_curve = wandb.plot.pr_curve(
-                y_true=y_true,
-                y_probas=y_probas,
-                labels=labels,
-                title="Precision-Recall Curve for Spam Detection",
-            )
-            run.log({"pr-curve": pr_curve})
-        ```
+    labels = ["not spam", "spam"]  # Optional class names for readability
+
+    with wandb.init(project="spam-detection") as run:
+        pr_curve = wandb.plot.pr_curve(
+            y_true=y_true,
+            y_probas=y_probas,
+            labels=labels,
+            title="Precision-Recall Curve for Spam Detection",
+        )
+        run.log({"pr-curve": pr_curve})
+    ```
     """
     np = util.get_module(
         "numpy",
