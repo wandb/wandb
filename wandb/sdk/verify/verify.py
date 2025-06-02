@@ -474,13 +474,12 @@ def check_wandb_version(api: Api) -> None:
     min_cli_version = server_info.get("cliVersionInfo", {}).get(
         "min_cli_version", "0.0.1"
     )
-    from wandb.util import parse_version
 
-    if parse_version(wandb.__version__) < parse_version(min_cli_version):
-        fail_string = "wandb version out of date, please run pip install --upgrade wandb=={}".format(
-            max_cli_version
-        )
-    elif parse_version(wandb.__version__) > parse_version(max_cli_version):
+    from packaging.version import parse
+
+    if parse(wandb.__version__) < parse(min_cli_version):
+        fail_string = f"wandb version out of date, please run pip install --upgrade wandb=={max_cli_version}"
+    elif parse(wandb.__version__) > parse(max_cli_version):
         fail_string = (
             "wandb version is not supported by your local installation. This could "
             "cause some issues. If you're having problems try: please run `pip "

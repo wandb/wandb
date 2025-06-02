@@ -9,6 +9,7 @@ from unittest import mock
 
 import pytest
 import wandb
+import wandb.docker
 from wandb.apis.internal import InternalApi
 from wandb.cli import cli
 from wandb.sdk.lib.apikey import get_netrc_file_path
@@ -30,7 +31,8 @@ def docker(request, mocker, monkeypatch):
         "wandb.apis.InternalApi.api_key", new_callable=mocker.PropertyMock
     )
     api_key.return_value = "test"
-    monkeypatch.setattr(cli, "find_executable", lambda name: True)
+    monkeypatch.setattr(cli, "_HAS_NVIDIA_DOCKER", True)
+    monkeypatch.setattr(cli, "_HAS_DOCKER", True)
     old_call = subprocess.call
 
     def new_call(command, **kwargs):
@@ -91,9 +93,9 @@ def test_login_key_arg(runner, dummy_api_key):
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         # reload(wandb)
         result = runner.invoke(cli.login, [dummy_api_key])
-        print("Output: ", result.output)  # noqa: T201
-        print("Exception: ", result.exception)  # noqa: T201
-        print("Traceback: ", traceback.print_tb(result.exc_info[2]))  # noqa: T201
+        print("Output: ", result.output)
+        print("Exception: ", result.exception)
+        print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
@@ -134,9 +136,9 @@ def test_login_onprem_key_arg(runner, dummy_api_key):
         onprem_key = "test-" + dummy_api_key
         # with runner.isolated_filesystem():
         result = runner.invoke(cli.login, [onprem_key])
-        print("Output: ", result.output)  # noqa: T201
-        print("Exception: ", result.exception)  # noqa: T201
-        print("Traceback: ", traceback.print_tb(result.exc_info[2]))  # noqa: T201
+        print("Output: ", result.output)
+        print("Exception: ", result.exception)
+        print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
@@ -162,9 +164,9 @@ def test_login_anonymously(runner, dummy_api_key, monkeypatch, empty_netrc):
             lambda *args, **kwargs: dummy_api_key,
         )
         result = runner.invoke(cli.login, ["--anonymously"])
-        print("Output: ", result.output)  # noqa: T201
-        print("Exception: ", result.exception)  # noqa: T201
-        print("Traceback: ", traceback.print_tb(result.exc_info[2]))  # noqa: T201
+        print("Output: ", result.output)
+        print("Exception: ", result.exception)
+        print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
@@ -220,7 +222,7 @@ def test_cli_login_reprompts_when_no_key_specified(runner, mocker, dummy_api_key
         # happened
         result = runner.invoke(cli.login, input=f"\n{dummy_api_key[:-1]}q\n")
         with open(get_netrc_file_path()) as f:
-            print(f.read())  # noqa: T201
+            print(f.read())
         assert "ERROR No API key specified." in result.output
 
 
@@ -237,10 +239,10 @@ def test_docker_run_digest(runner, docker, monkeypatch):
             "-e",
             "WANDB_API_KEY=test",
             "-e",
-            "WANDB_DOCKER={}".format(DOCKER_SHA),
+            f"WANDB_DOCKER={DOCKER_SHA}",
             "--runtime",
             "nvidia",
-            "{}".format(DOCKER_SHA),
+            f"{DOCKER_SHA}",
         ]
     )
 
@@ -262,7 +264,7 @@ def test_docker_run_bad_image(runner, docker, monkeypatch):
 
 
 def test_docker_run_no_nvidia(runner, docker, monkeypatch):
-    monkeypatch.setattr(cli, "find_executable", lambda name: False)
+    monkeypatch.setattr(cli, "_HAS_NVIDIA_DOCKER", False)
     result = runner.invoke(cli.docker_run, ["run", "-v", "cool:/cool", "rad"])
     assert result.exit_code == 0
     docker.assert_called_once_with(
@@ -306,7 +308,7 @@ def test_docker_run_nvidia(runner, docker):
 
 def test_docker(runner, docker):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.docker, ["test"])
+        result = runner.invoke(cli.docker, ["test"], input="n")
         docker.assert_called_once_with(
             [
                 "docker",
@@ -335,7 +337,7 @@ def test_docker(runner, docker):
 
 
 def test_docker_basic(runner, docker, git_repo):
-    result = runner.invoke(cli.docker, ["test:abc123"])
+    result = runner.invoke(cli.docker, ["test:abc123"], input="n")
     assert "Launching docker container" in result.output
     docker.assert_called_once_with(
         [
@@ -365,7 +367,7 @@ def test_docker_basic(runner, docker, git_repo):
 
 
 def test_docker_sha(runner, docker):
-    result = runner.invoke(cli.docker, ["test@sha256:abc123"])
+    result = runner.invoke(cli.docker, ["test@sha256:abc123"], input="n")
     docker.assert_called_once_with(
         [
             "docker",
@@ -394,7 +396,7 @@ def test_docker_sha(runner, docker):
 
 
 def test_docker_no_dir(runner, docker):
-    result = runner.invoke(cli.docker, ["test:abc123", "--no-dir"])
+    result = runner.invoke(cli.docker, ["test:abc123", "--no-dir"], input="n")
     docker.assert_called_once_with(
         [
             "docker",
@@ -420,7 +422,9 @@ def test_docker_no_dir(runner, docker):
 
 def test_docker_no_interactive_custom_command(runner, docker, git_repo):
     result = runner.invoke(
-        cli.docker, ["test:abc123", "--no-tty", "--cmd", "python foo.py"]
+        cli.docker,
+        ["test:abc123", "--no-tty", "--cmd", "python foo.py"],
+        input="n",
     )
     docker.assert_called_once_with(
         [
@@ -452,7 +456,7 @@ def test_docker_no_interactive_custom_command(runner, docker, git_repo):
 
 def test_docker_jupyter(runner, docker):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.docker, ["test", "--jupyter"])
+        result = runner.invoke(cli.docker, ["test", "--jupyter"], input="n")
         docker.assert_called_once_with(
             [
                 "docker",
@@ -490,7 +494,7 @@ def test_docker_jupyter(runner, docker):
 
 def test_docker_args(runner, docker):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.docker, ["test", "-v", "/tmp:/tmp"])
+        result = runner.invoke(cli.docker, ["test", "-v", "/tmp:/tmp"], input="n")
         docker.assert_called_with(
             [
                 "docker",
@@ -532,8 +536,8 @@ def test_docker_digest(runner, docker):
 def test_local_default(runner, docker, local_settings):
     with runner.isolated_filesystem():
         result = runner.invoke(cli.server, ["start"])
-        print(result.output)  # noqa: T201
-        print(traceback.print_tb(result.exc_info[2]))  # noqa: T201
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
         user = getpass.getuser()
         docker.assert_called_with(
             [
@@ -547,7 +551,7 @@ def test_local_default(runner, docker, local_settings):
                 "--name",
                 "wandb-local",
                 "-e",
-                "LOCAL_USERNAME={}".format(user),
+                f"LOCAL_USERNAME={user}",
                 "-d",
                 "wandb/local",
             ]
@@ -557,8 +561,8 @@ def test_local_default(runner, docker, local_settings):
 @pytest.mark.wandb_args(check_output=b"")
 def test_local_custom_port(runner, docker, local_settings):
     result = runner.invoke(cli.server, ["start", "-p", "3030"])
-    print(result.output)  # noqa: T201
-    print(traceback.print_tb(result.exc_info[2]))  # noqa: T201
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
     user = getpass.getuser()
     docker.assert_called_with(
         [
@@ -572,7 +576,7 @@ def test_local_custom_port(runner, docker, local_settings):
             "--name",
             "wandb-local",
             "-e",
-            "LOCAL_USERNAME={}".format(user),
+            f"LOCAL_USERNAME={user}",
             "-d",
             "wandb/local",
         ]
@@ -582,8 +586,8 @@ def test_local_custom_port(runner, docker, local_settings):
 @pytest.mark.wandb_args(check_output=b"")
 def test_local_custom_env(runner, docker, local_settings):
     result = runner.invoke(cli.server, ["start", "-e", b"FOO=bar"])
-    print(result.output)  # noqa: T201
-    print(traceback.print_tb(result.exc_info[2]))  # noqa: T201
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
     user = getpass.getuser()
     docker.assert_called_with(
         [
@@ -597,7 +601,7 @@ def test_local_custom_env(runner, docker, local_settings):
             "--name",
             "wandb-local",
             "-e",
-            "LOCAL_USERNAME={}".format(user),
+            f"LOCAL_USERNAME={user}",
             "-e",
             "FOO=bar",
             "-d",

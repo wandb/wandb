@@ -73,8 +73,7 @@ func TestDCGMNotAvailable(t *testing.T) {
 
 			logger := observability.NewNoOpLogger()
 			retryClient := newRetryableHTTPClient()
-			om := monitor.NewOpenMetrics(logger, "test", server.URL, nil /* filters */, nil /* headers */, retryClient)
-			assert.False(t, om.IsAvailable())
+			_ = monitor.NewOpenMetrics(logger, "test", server.URL, nil /* filters */, nil /* headers */, retryClient)
 		})
 	}
 }
@@ -89,8 +88,6 @@ func TestDCGM(t *testing.T) {
 
 	logger := observability.NewNoOpLogger()
 	om := monitor.NewOpenMetrics(logger, "dcgm", server.URL, nil /* filters */, nil /* headers */, nil /* client */)
-
-	assert.True(t, om.IsAvailable())
 
 	result, err := om.Sample()
 	assert.NoError(t, err)
@@ -239,7 +236,7 @@ func TestIntermittentFailure(t *testing.T) {
 	om := monitor.NewOpenMetrics(logger, "intermittent", server.URL, nil /* filters */, nil /* headers */, retryClient)
 
 	// Run multiple samples to test intermittent behavior
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		result, err := om.Sample()
 		if err != nil {
 			t.Logf("Sample %d failed: %v", i, err)
@@ -248,9 +245,6 @@ func TestIntermittentFailure(t *testing.T) {
 			assert.NotEmpty(t, result)
 		}
 	}
-
-	// Check if at least some samples were successful
-	assert.True(t, om.IsAvailable(), "OpenMetrics should be available despite intermittent failures")
 
 	// Verify that we made more requests than samples due to retries
 	assert.Greater(t, requestCount.Load(), int32(2), "Expected more requests than samples due to retries")

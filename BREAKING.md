@@ -47,6 +47,11 @@ When preparing a release that can include breaking changes, consider applying ch
     - Deprecated in 0.17.9 (https://github.com/wandb/wandb/pull/8219)
     - Can do in >=0.20
 
+- Remove `summary="copy"` from `run.define_metric()`
+    - Owner: @timoffex
+    - Deprecated in 0.17.6 (https://github.com/wandb/wandb/pull/8219)
+    - Can do in >=0.20
+
 - Remove `config_{exclude,include}_keys` from `wandb.init()`
     - Owner: @timoffex
     - Deprecated in 0.12.15 (https://github.com/wandb/wandb/pull/3510)
@@ -73,3 +78,52 @@ When preparing a release that can include breaking changes, consider applying ch
     - Owner: @kptkin
     - Deprecated in 0.20.0 (https://github.com/wandb/wandb/pull/9837)
     - Can do in >=0.21
+
+- Remove `RunDisabled` object:
+    - Owner: @dmitryduev
+    - Deprecated in 0.17.6 (https://github.com/wandb/wandb/pull/8064)
+    - Can do in >=0.20
+
+- Remove normalization of image data on `wandb.Image`
+    - Owner: @jacobromero
+    - can do in >=0.21
+
+- Remove `wandb.Run::join()` setting:
+    - Owner: @dmitryduev
+    - Deprecated in 0.12.10 (https://github.com/wandb/wandb/pull/3028)
+    - Can do in >=0.14
+
+- Disallow calling `wandb.save` without args:
+    - Owner: @dmitryduev
+    - Deprecated in 0.12.10 (https://github.com/wandb/wandb/pull/3028)
+    - Can do in >=0.14
+
+- Remove `wandb.Run::mode`:
+    - Owner: @dmitryduev
+    - Deprecated in 0.12.10 (https://github.com/wandb/wandb/pull/3028)
+    - Can do in >=0.14
+
+- Remove `wandb.Run::project_name()`:
+    - Owner: @kptkin
+    - Deprecated in 0.19.10 (https://github.com/wandb/wandb/pull/8925)
+    - Can do in >=0.21
+
+- Remove `wandb.Run::get_url()`:
+    - Owner: @kptkin
+    - Deprecated in 0.19.10 (https://github.com/wandb/wandb/pull/8925)
+    - Can do in >=0.21
+
+- Remove `wandb.Run::get_project_url()`:
+    - Owner: @kptkin
+    - Deprecated in 0.19.10 (https://github.com/wandb/wandb/pull/8925)
+    - Can do in >=0.21
+
+- Remove `wandb.Run::get_sweep_url()`:
+    - Owner: @kptkin
+    - Deprecated in 0.19.10 (https://github.com/wandb/wandb/pull/8925)
+    - Can do in >=0.21
+
+- Remove `wandb.run(sync=...)`:
+    - Owner: @kptkin
+    - Deprecated in 0.12.11 (https://github.com/wandb/wandb/pull/3137)
+    - Can do in >=0.14

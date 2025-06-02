@@ -254,7 +254,7 @@ class WandbStoragePolicy(StoragePolicy):
                     if env.is_debug():
                         logger.debug(f"Error writing chunk to file: {e}")
                     download_has_error.set()
-                    raise e
+                    raise
             else:
                 raise ValueError(f"Unknown queue item type: {type(item)}")
 
@@ -340,7 +340,7 @@ class WandbStoragePolicy(StoragePolicy):
                 if env.is_debug():
                     logger.debug(f"Error downloading file: {e}")
                 download_has_error.set()
-                raise e
+                raise
             finally:
                 # Always signal the writer to stop
                 q.put(_CHUNK_QUEUE_SENTINEL)

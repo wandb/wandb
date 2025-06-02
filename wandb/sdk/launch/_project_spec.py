@@ -7,12 +7,11 @@ import enum
 import json
 import logging
 import os
+import shlex
 import shutil
 import tempfile
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
-
-from six.moves import shlex_quote
 
 import wandb
 from wandb.apis.internal import Api
@@ -121,7 +120,7 @@ class LaunchProject:
         ).get("base_image") or resource_args_build.get("cuda", {}).get("base_image")
         self.docker_image: Optional[str] = docker_config.get(
             "docker_image"
-        ) or launch_spec.get("image_uri")
+        ) or launch_spec.get("image_uri")  # type: ignore [assignment]
         self.docker_user_id = docker_config.get("user_id", 1000)
         self._entry_point: Optional[EntryPoint] = (
             None  # todo: keep multiple entrypoint support?
@@ -215,7 +214,7 @@ class LaunchProject:
             launch_spec.get("docker", {}),
             launch_spec.get("git", {}),
             launch_spec.get("overrides", {}),
-            launch_spec.get("resource", None),
+            launch_spec.get("resource", None),  # type: ignore [arg-type]
             launch_spec.get("resource_args", {}),
             launch_spec.get("run_id", None),
             launch_spec.get("sweep_id", {}),
@@ -487,30 +486,30 @@ class LaunchProject:
         return env_vars
 
     def parse_existing_requirements(self) -> str:
-        import pkg_resources
+        from packaging.requirements import InvalidRequirement, Requirement
 
         requirements_line = ""
         assert self.project_dir is not None
         base_requirements = os.path.join(self.project_dir, "requirements.txt")
         if os.path.exists(base_requirements):
             include_only = set()
-            with open(base_requirements) as f:
-                iter = pkg_resources.parse_requirements(f)
-                while True:
-                    try:
-                        pkg = next(iter)
-                        if hasattr(pkg, "name"):
-                            name = pkg.name.lower()
-                        else:
-                            name = str(pkg)
-                        include_only.add(shlex_quote(name))
-                    except StopIteration:
-                        break
-                    # Different versions of pkg_resources throw different errors
-                    # just catch them all and ignore packages we can't parse
-                    except Exception as e:
-                        _logger.warn(f"Unable to parse requirements.txt: {e}")
+            with open(base_requirements) as f2:
+                for line in f2:
+                    if line.strip() == "":
                         continue
+
+                    try:
+                        req = Requirement(line)
+                        name = req.name.lower()
+                        include_only.add(shlex.quote(name))
+                    except InvalidRequirement:
+                        _logger.warning(
+                            "Unable to parse line %s in requirements.txt",
+                            line,
+                            exc_info=True,
+                        )
+                        continue
+
             requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
             if "wandb" not in requirements_line:
                 wandb.termwarn(f"{LOG_PREFIX}wandb is not present in requirements.txt.")

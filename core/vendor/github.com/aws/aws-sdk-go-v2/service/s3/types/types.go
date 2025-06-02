@@ -590,13 +590,13 @@ type CreateBucketConfiguration struct {
 	// Specifies the location where the bucket will be created.
 	//
 	// Directory buckets - The location type is Availability Zone or Local Zone. To
-	// use the Local Zone location type, your account must be enabled for Dedicated
-	// Local Zones. Otherwise, you get an HTTP 403 Forbidden error with the error code
-	// AccessDenied . To learn more, see [Enable accounts for Dedicated Local Zones] in the Amazon S3 User Guide.
+	// use the Local Zone location type, your account must be enabled for Local Zones.
+	// Otherwise, you get an HTTP 403 Forbidden error with the error code AccessDenied
+	// . To learn more, see [Enable accounts for Local Zones]in the Amazon S3 User Guide.
 	//
 	// This functionality is only supported by directory buckets.
 	//
-	// [Enable accounts for Dedicated Local Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/opt-in-directory-bucket-lz.html
+	// [Enable accounts for Local Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/opt-in-directory-bucket-lz.html
 	Location *LocationInfo
 
 	// Specifies the Region where the bucket will be created. You might choose a
@@ -2353,8 +2353,9 @@ type LifecycleRule struct {
 	Expiration *LifecycleExpiration
 
 	// The Filter is used to identify objects that a Lifecycle Rule applies to. A
-	// Filter must have exactly one of Prefix , Tag , or And specified. Filter is
-	// required if the LifecycleRule does not contain a Prefix element.
+	// Filter must have exactly one of Prefix , Tag , ObjectSizeGreaterThan ,
+	// ObjectSizeLessThan , or And specified. Filter is required if the LifecycleRule
+	// does not contain a Prefix element.
 	//
 	// Tag filters are not supported for directory buckets.
 	Filter *LifecycleRuleFilter

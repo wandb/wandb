@@ -36,10 +36,8 @@ from types import ModuleType
 from typing import (
     IO,
     TYPE_CHECKING,
-    Any,
     Callable,
     Dict,
-    Generator,
     Iterable,
     List,
     Mapping,
@@ -47,17 +45,12 @@ from typing import (
     Sequence,
     TextIO,
     Tuple,
-    TypeVar,
     Union,
 )
 
-if sys.version_info < (3, 10):
-    from typing_extensions import TypeGuard
-else:
-    from typing import TypeGuard
-
 import requests
 import yaml
+from typing_extensions import Any, Generator, TypeGuard, TypeVar
 
 import wandb
 import wandb.env
@@ -74,8 +67,6 @@ from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
-    import packaging.version  # type: ignore[import-not-found]
-
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
     from wandb.sdk.artifacts.artifact import Artifact
@@ -628,9 +619,7 @@ def json_friendly(  # noqa: C901
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
         wandb.termwarn(
-            "Serializing object of type {} that is {} bytes".format(
-                type(obj).__name__, getsizeof(obj)
-            )
+            f"Serializing object of type {type(obj).__name__} that is {getsizeof(obj)} bytes"
         )
     return obj, converted
 
@@ -1941,21 +1930,6 @@ def working_set() -> Iterable[InstalledDistribution]:
             yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
         except (KeyError, UnicodeDecodeError):
             pass
-
-
-def parse_version(version: str) -> "packaging.version.Version":
-    """Parse a version string into a version object.
-
-    This function is a wrapper around the `packaging.version.parse` function, which
-    is used to parse version strings into version objects. If the `packaging` library
-    is not installed, it falls back to the `pkg_resources` library.
-    """
-    try:
-        from packaging.version import parse as parse_version  # type: ignore
-    except ImportError:
-        from pkg_resources import parse_version  # type: ignore[assignment]
-
-    return parse_version(version)
 
 
 def get_core_path() -> str:

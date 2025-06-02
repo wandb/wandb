@@ -15,15 +15,15 @@ import (
 // RewindBranch is a used to manage the state of the changes that need to be
 // applied to a run when a rewind from a previous run is requested.s
 type RewindBranch struct {
-	ctx    context.Context
-	client graphql.Client
-	branch BranchPoint
+	ctx         context.Context
+	clientOrNil graphql.Client
+	branch      BranchPoint
 }
 
 func NewRewindBranch(
 
 	ctx context.Context,
-	client graphql.Client,
+	clientOrNil graphql.Client,
 
 	// runid is the id of the run to rewind
 	runid string,
@@ -37,8 +37,8 @@ func NewRewindBranch(
 ) *RewindBranch {
 
 	return &RewindBranch{
-		ctx:    ctx,
-		client: client,
+		ctx:         ctx,
+		clientOrNil: clientOrNil,
 		branch: BranchPoint{
 			RunID:       runid,
 			MetricName:  metricName,
@@ -79,9 +79,17 @@ func (rb RewindBranch) UpdateForRewind(
 		return &BranchError{Err: err, Response: info}
 	}
 
+	params.StartingStep = int64(rb.branch.MetricValue) + 1
+	params.Forked = true
+
+	// When offline, we assume the run exists and we don't pull its past data.
+	if rb.clientOrNil == nil {
+		return nil
+	}
+
 	response, err := gql.RewindRun(
 		rb.ctx,
-		rb.client,
+		rb.clientOrNil,
 		params.RunID,
 		nullify.NilIfZero(params.Entity),
 		nullify.NilIfZero(params.Project),
@@ -146,8 +154,6 @@ func (rb RewindBranch) UpdateForRewind(
 	if id := data.GetSweepName(); id != nil && *id != "" {
 		params.SweepID = *id
 	}
-	params.StartingStep = int64(rb.branch.MetricValue) + 1
-	params.Forked = true
 
 	return err
 }

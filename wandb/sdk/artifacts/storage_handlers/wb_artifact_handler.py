@@ -116,11 +116,7 @@ class WBArtifactHandler(StorageHandler):
         assert target_artifact is not None
         assert target_artifact.id is not None
         path = URIStr(
-            "{}://{}/{}".format(
-                self._scheme,
-                b64_to_hex_id(B64MD5(target_artifact.id)),
-                artifact_file_path,
-            )
+            f"{self._scheme}://{b64_to_hex_id(B64MD5(target_artifact.id))}/{artifact_file_path}"
         )
 
         # Return the new entry

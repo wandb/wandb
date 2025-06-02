@@ -5,10 +5,10 @@ import logging
 import traceback
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import kubernetes_asyncio  # type: ignore # noqa: F401
+import kubernetes_asyncio  # type: ignore
 import urllib3
 from kubernetes_asyncio import watch
-from kubernetes_asyncio.client import (  # type: ignore  # noqa: F401
+from kubernetes_asyncio.client import (  # type: ignore
     ApiException,
     BatchV1Api,
     CoreV1Api,

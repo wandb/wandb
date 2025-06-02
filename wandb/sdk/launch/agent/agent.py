@@ -123,7 +123,7 @@ class InternalAgentLogger:
     def warn(self, message: str):
         if self._print_to_terminal:
             wandb.termwarn(f"{LOG_PREFIX}{message}")
-        _logger.warn(f"{LOG_PREFIX}{message}")
+        _logger.warning(f"{LOG_PREFIX}{message}")
 
     def info(self, message: str):
         if self._print_to_terminal:
@@ -589,7 +589,7 @@ class LaunchAgent:
                 )
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
-                    raise KeyboardInterrupt
+                    raise KeyboardInterrupt  # noqa: TRY301
                 if self.num_running_jobs < self._max_jobs:
                     # only check for new jobs if we're not at max
                     job_and_queue = await self.get_job_and_queue()
@@ -850,7 +850,7 @@ class LaunchAgent:
                     )
                     return True
                 wandb.termlog(
-                    f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeueing..."
+                    f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeuing..."
                 )
 
                 if "sweep_id" in config:

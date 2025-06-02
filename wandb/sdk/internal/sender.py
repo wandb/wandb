@@ -749,14 +749,12 @@ class SendManager:
                 self._resume_state.wandb_runtime = new_runtime
             tags = resume_status.get("tags") or []
 
-        except (IndexError, ValueError) as e:
-            logger.error("unable to load resume tails", exc_info=e)
+        except (IndexError, ValueError):
+            logger.exception("unable to load resume tails")
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
-                error.message = "resume='must' but could not resume ({}) ".format(
-                    run.run_id
-                )
+                error.message = f"resume='must' but could not resume ({run.run_id}) "
                 return error
 
         # TODO: Do we need to restore config / summary?
@@ -772,7 +770,7 @@ class SendManager:
         self._resume_state.summary = summary
         self._resume_state.tags = tags
         self._resume_state.resumed = True
-        logger.info("configured resuming with: {}".format(self._resume_state))
+        logger.info(f"configured resuming with: {self._resume_state}")
         return None
 
     def _telemetry_get_framework(self) -> str:
@@ -816,9 +814,7 @@ class SendManager:
             self._interface.publish_config(
                 key=("_wandb", "spell_url"), val=env.get("SPELL_RUN_URL")
             )
-            url = "{}/{}/{}/runs/{}".format(
-                self._api.app_url, self._run.entity, self._run.project, self._run.run_id
-            )
+            url = f"{self._api.app_url}/{self._run.entity}/{self._run.project}/runs/{self._run.run_id}"
             requests.put(
                 env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
                 json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
@@ -1186,7 +1182,7 @@ class SendManager:
             try:
                 d[item.key] = json.loads(item.value_json)
             except json.JSONDecodeError:
-                logger.error("error decoding stats json: %s", item.value_json)
+                logger.exception("error decoding stats json: %s", item.value_json)
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
@@ -1498,17 +1494,15 @@ class SendManager:
         try:
             res = self._send_artifact(artifact)
             logger.info(f"sent artifact {artifact.name} - {res}")
-        except Exception as e:
-            logger.error(
-                'send_artifact: failed for artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
-                )
+        except Exception:
+            logger.exception(
+                f'send_artifact: failed for artifact "{artifact.type}/{artifact.name}"'
             )
 
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
     ) -> Optional[Dict]:
-        from wandb.util import parse_version
+        from packaging.version import parse
 
         assert self._pusher
         saver = ArtifactSaver(
@@ -1521,9 +1515,7 @@ class SendManager:
 
         if artifact.distributed_id:
             max_cli_version = self._max_cli_version()
-            if max_cli_version is None or parse_version(
-                max_cli_version
-            ) < parse_version("0.10.16"):
+            if max_cli_version is None or parse(max_cli_version) < parse("0.10.16"):
                 logger.warning(
                     "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
@@ -1559,13 +1551,11 @@ class SendManager:
         return res
 
     def send_alert(self, record: "Record") -> None:
-        from wandb.util import parse_version
+        from packaging.version import parse
 
         alert = record.alert
         max_cli_version = self._max_cli_version()
-        if max_cli_version is None or parse_version(max_cli_version) < parse_version(
-            "0.10.9"
-        ):
+        if max_cli_version is None or parse(max_cli_version) < parse("0.10.9"):
             logger.warning(
                 "This W&B server doesn't support alerts, "
                 "have your administrator install wandb/local >= 0.9.31"
@@ -1578,8 +1568,8 @@ class SendManager:
                     level=alert.level,
                     wait_duration=alert.wait_duration,
                 )
-            except Exception as e:
-                logger.error(f"send_alert: failed for alert {alert.title!r}: {e}")
+            except Exception:
+                logger.exception(f"send_alert: failed for alert {alert.title!r}")
 
     def finish(self) -> None:
         logger.info("shutting down sender")

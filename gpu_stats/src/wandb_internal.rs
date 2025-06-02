@@ -601,6 +601,15 @@ pub struct Deprecated {
     /// wandb.run.get_sweep_url() called
     #[prost(bool, tag = "24")]
     pub run_get_sweep_url: bool,
+    /// wandb.run.use_artifact(use_as=...) called
+    #[prost(bool, tag = "25")]
+    pub run_use_artifact_use_as: bool,
+    /// wandb.sdk.artifacts.artifact.Artifact.use_as() called
+    #[prost(bool, tag = "26")]
+    pub artifact_use_as: bool,
+    /// wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
+    #[prost(bool, tag = "27")]
+    pub artifact_init_use_as: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
@@ -2679,6 +2688,16 @@ pub struct TpuInfo {
     #[prost(uint32, tag = "4")]
     pub count: u32,
 }
+/// CoreWeaveInfo stores information about a CoreWeave compute environment
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CoreWeaveInfo {
+    #[prost(string, tag = "1")]
+    pub cluster_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub org_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub region: ::prost::alloc::string::String,
+}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MetadataRequest {
     #[prost(string, tag = "1")]
@@ -2748,6 +2767,8 @@ pub struct MetadataRequest {
     pub trainium: ::core::option::Option<TrainiumInfo>,
     #[prost(message, optional, tag = "32")]
     pub tpu: ::core::option::Option<TpuInfo>,
+    #[prost(message, optional, tag = "33")]
+    pub coreweave: ::core::option::Option<CoreWeaveInfo>,
     /// Flag indicating whether the request originated from the user.
     #[prost(bool, optional, tag = "200")]
     pub user_modified: ::core::option::Option<bool>,

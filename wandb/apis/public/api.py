@@ -103,7 +103,9 @@ class RetryingClient:
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
-    def execute(self, *args, **kwargs):  # noqa: D102  # User not encouraged to use this class directly
+    def execute(
+        self, *args, **kwargs
+    ):  # User not encouraged to use this class directly
         try:
             return self._client.execute(*args, **kwargs)
         except requests.exceptions.ReadTimeout:
@@ -122,10 +124,12 @@ class RetryingClient:
             self._server_info = self.execute(self.INFO_QUERY).get("serverInfo")
         return self._server_info
 
-    def version_supported(self, min_version: str) -> bool:  # noqa: D102  # User not encouraged to use this class directly
-        from wandb.util import parse_version
+    def version_supported(
+        self, min_version: str
+    ) -> bool:  # User not encouraged to use this class directly
+        from packaging.version import parse
 
-        return parse_version(min_version) <= parse_version(
+        return parse(min_version) <= parse(
             self.server_info["cliVersionInfo"]["max_cli_version"]
         )
 
@@ -272,20 +276,21 @@ class Api:
         api_key: Optional[str] = None,
     ) -> None:
         self.settings = InternalApi().settings()
+
         _overrides = overrides or {}
-        self._api_key = api_key
-        if self.api_key is None and _thread_local_api_settings.cookies is None:
-            wandb.login(host=_overrides.get("base_url"))
         self.settings.update(_overrides)
+        self.settings["base_url"] = self.settings["base_url"].rstrip("/")
+        if "organization" in _overrides:
+            self.settings["organization"] = _overrides["organization"]
         if "username" in _overrides and "entity" not in _overrides:
             wandb.termwarn(
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
             self.settings["entity"] = _overrides["username"]
-        self.settings["base_url"] = self.settings["base_url"].rstrip("/")
 
-        if "organization" in _overrides:
-            self.settings["organization"] = _overrides["organization"]
+        self._api_key = api_key
+        if self.api_key is None and _thread_local_api_settings.cookies is None:
+            wandb.login(host=_overrides.get("base_url"))
 
         self._viewer = None
         self._projects = {}
@@ -1463,9 +1468,10 @@ class Api:
         """
         try:
             self._artifact(name, type)
-            return True
         except wandb.errors.CommError:
             return False
+
+        return True
 
     @normalize_exceptions
     def artifact_collection_exists(self, name: str, type: str) -> bool:
@@ -1482,9 +1488,10 @@ class Api:
         """
         try:
             self.artifact_collection(type, name)
-            return True
         except wandb.errors.CommError:
             return False
+
+        return True
 
     def registries(
         self,
@@ -1932,6 +1939,7 @@ class Api:
             iterator = filter(lambda x: x.name == name, iterator)
         yield from iterator
 
+    @normalize_exceptions
     def create_automation(
         self,
         obj: "NewAutomation",
@@ -2038,6 +2046,7 @@ class Api:
 
         return Automation.model_validate(result.trigger)
 
+    @normalize_exceptions
     def update_automation(
         self,
         obj: "Automation",
@@ -2145,7 +2154,7 @@ class Api:
 
             # Not a (known) recoverable HTTP error
             wandb.termerror(f"Got response status {status!r}: {e.response.text!r}")
-            raise e
+            raise
 
         try:
             result = UpdateAutomation.model_validate(data).result
@@ -2159,6 +2168,7 @@ class Api:
 
         return Automation.model_validate(result.trigger)
 
+    @normalize_exceptions
     def delete_automation(self, obj: Union["Automation", str]) -> Literal[True]:
         """Delete an automation.
 

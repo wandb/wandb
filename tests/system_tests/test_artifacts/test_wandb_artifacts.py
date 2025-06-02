@@ -17,6 +17,7 @@ import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 from wandb import Artifact, util
+from wandb.errors.errors import CommError
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts._validators import (
     ARTIFACT_NAME_MAXLEN,
@@ -399,6 +400,33 @@ def test_add_named_dir(artifact):
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
         "size": 5,
     }
+
+
+@pytest.mark.parametrize("merge", [True, False])
+def test_add_dir_again_after_edit(merge, artifact, tmp_path_factory):
+    rootdir = tmp_path_factory.mktemp("test-dir", numbered=True)
+
+    file_changed = rootdir / "file1.txt"
+    file_changed.write_text("will be updated")
+
+    file_not_changed = rootdir / "file2.txt"
+    file_not_changed.write_text("something never changes")
+
+    artifact.add_dir(str(rootdir))
+
+    # If we explicitly pass overwrite=True, allow rewriting an existing file in dir
+    file_changed.write_text("this is the update")
+    expectation = nullcontext() if merge else pytest.raises(ValueError)
+    with expectation:
+        artifact.add_dir(rootdir, merge=merge)
+        # make sure we have two files
+        assert len(artifact.manifest.to_manifest_json()["contents"]) == 2
+
+    # Delete the file, call add_dir again, regardless of merge, we still have the files
+    # we already added because of the mutable policy copy the files.
+    file_changed.unlink()
+    artifact.add_dir(rootdir, merge=merge)
+    assert len(artifact.manifest.to_manifest_json()["contents"]) == 2
 
 
 def test_multi_add(artifact):
@@ -1521,7 +1549,7 @@ def test_add_obj_wbtable_images(assets_path, artifact):
             "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
             "size": 71,
         },
-        "my-table.table.json": {"digest": "apPaCuFMSlFoP7rztfZq5Q==", "size": 1290},
+        "my-table.table.json": {"digest": "UN1SfxHpRdt/OOy7TrjvdQ==", "size": 1315},
     }
 
 
@@ -1551,7 +1579,7 @@ def test_add_obj_wbtable_images_duplicate_name(assets_path, artifact):
             "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
             "size": 8837,
         },
-        "my-table.table.json": {"digest": "hjWyKjD8J/wFtikBxnFOeA==", "size": 981},
+        "my-table.table.json": {"digest": "rkNgqyX3yGEQ1UxM7hsGjQ==", "size": 1006},
     }
 
 
@@ -1646,11 +1674,11 @@ def test_change_artifact_collection_type_to_internal_type(user):
     collection = artifact.collection
     with wandb.init() as run:
         # test deprecated change_type errors for changing to internal type
-        with pytest.raises(ValueError, match="is reserved for internal use"):
+        with pytest.raises(CommError, match="is reserved for internal use"):
             collection.change_type(internal_type)
 
         # test .save()
-        with pytest.raises(ValueError, match="is reserved for internal use"):
+        with pytest.raises(CommError, match="is reserved for internal use"):
             collection.type = internal_type
             collection.save()
 
@@ -1665,13 +1693,13 @@ def test_change_type_of_internal_artifact_collection(user):
     with wandb.init() as run:
         # test deprecated change_type
         with pytest.raises(
-            ValueError, match="is an internal type and cannot be changed"
+            CommError, match="is an internal type and cannot be changed"
         ):
             collection.change_type("model")
 
         # test .save()
         with pytest.raises(
-            ValueError, match="is an internal type and cannot be changed"
+            CommError, match="is an internal type and cannot be changed"
         ):
             collection.type = "model"
             collection.save()

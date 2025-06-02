@@ -400,14 +400,21 @@ class Run(Attrs):
         return new_name
 
     @classmethod
-    def create(cls, api, run_id=None, project=None, entity=None):
+    def create(
+        cls,
+        api,
+        run_id=None,
+        project=None,
+        entity=None,
+        state: Literal["running", "pending"] = "running",
+    ):
         """Create a run for the given project."""
         run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
         mutation = gql(
             """
-        mutation UpsertBucket($project: String, $entity: String, $name: String!) {
-            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name}) {
+        mutation UpsertBucket($project: String, $entity: String, $name: String!, $state: String) {
+            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name, state: $state}) {
                 bucket {
                     project {
                         name
@@ -421,7 +428,12 @@ class Run(Attrs):
         }
         """
         )
-        variables = {"entity": entity, "project": project, "name": run_id}
+        variables = {
+            "entity": entity,
+            "project": project,
+            "name": run_id,
+            "state": state,
+        }
         res = api.client.execute(mutation, variable_values=variables)
         res = res["upsertBucket"]["bucket"]
         return Run(
@@ -437,7 +449,7 @@ class Run(Attrs):
                 "tags": [],
                 "description": None,
                 "notes": None,
-                "state": "running",
+                "state": state,
             },
         )
 
@@ -918,7 +930,7 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if not isinstance(artifact, wandb.Artifact):
-            raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")
+            raise TypeError("You must pass a wandb.Api().artifact() to use_artifact")
         if artifact.is_draft():
             raise ValueError(
                 "Only existing artifacts are accepted by this api. "
