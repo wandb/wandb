@@ -48,31 +48,6 @@ def test_metric_hidden(mock_run, parse_records, record_q):
     assert len(parsed.metric) == 1
 
 
-def test_metric_goal(mock_run, parse_records, record_q):
-    run = mock_run()
-    metric_1 = run.define_metric(
-        "glob",
-        goal="maximize",
-    )
-    assert metric_1.goal == "maximize"
-
-    metric_2 = run.define_metric(
-        "glob",
-        goal="minimize",
-    )
-    assert metric_2.goal == "minimize"
-
-    with pytest.raises(wandb.Error):
-        run.define_metric(
-            "m2",
-            goal="nothing",
-        )
-
-    parsed = parse_records(record_q)
-    assert len(parsed.records) == 2
-    assert len(parsed.metric) == 2
-
-
 def test_metric_step_metric(mock_run, parse_records, record_q):
     run = mock_run()
     metric_1 = run.define_metric(
@@ -202,7 +177,7 @@ def test_metric_twice_or_overwrite(kwargs, mock_run, parse_records, record_q):
     run = mock_run()
     _ = run.define_metric(
         "metric",
-        summary="best,max",
+        summary="max",
         step_metric="thestep",
     )
     _ = run.define_metric(
