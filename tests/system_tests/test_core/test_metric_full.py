@@ -103,25 +103,6 @@ def test_metric_summary(summary, expected):
         assert run.summary["val"][summary] == expected
 
 
-@pytest.mark.skip_wandb_core(reason="deprecated, not implemented in core")
-@pytest.mark.parametrize(
-    "goal,expected",
-    [
-        ("minimize", 1),
-        ("maximize", 4),
-    ],
-)
-def test_metric_best(goal, expected):
-    with wandb.init(mode="offline") as run:
-        run.define_metric("val", summary="best", goal=goal)
-        run.log({"val": 2})
-        run.log({"val": 1})
-        run.log({"val": 4})
-        run.log({"val": 3})
-
-        assert run.summary["val"]["best"] == expected
-
-
 @pytest.mark.parametrize(
     "summary,expected",
     [

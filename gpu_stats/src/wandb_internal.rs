@@ -577,9 +577,6 @@ pub struct Deprecated {
     /// wandb.integration.keras.WandbCallback used
     #[prost(bool, tag = "17")]
     pub keras_callback: bool,
-    /// wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
-    #[prost(bool, tag = "18")]
-    pub run_define_metric_best_goal: bool,
     /// wandb.run.finish(quiet=...) called
     #[prost(bool, tag = "19")]
     pub run_finish_quiet: bool,
@@ -1120,56 +1117,12 @@ pub struct MetricRecord {
     pub options: ::core::option::Option<MetricOptions>,
     #[prost(message, optional, tag = "7")]
     pub summary: ::core::option::Option<MetricSummary>,
-    #[prost(enumeration = "metric_record::MetricGoal", tag = "8")]
-    pub goal: i32,
     #[prost(message, optional, tag = "9")]
     pub control: ::core::option::Option<MetricControl>,
     #[prost(bool, tag = "10")]
     pub expanded_from_glob: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
-}
-/// Nested message and enum types in `MetricRecord`.
-pub mod metric_record {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
-    #[repr(i32)]
-    pub enum MetricGoal {
-        GoalUnset = 0,
-        GoalMinimize = 1,
-        GoalMaximize = 2,
-    }
-    impl MetricGoal {
-        /// String value of the enum field names used in the ProtoBuf definition.
-        ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-        pub fn as_str_name(&self) -> &'static str {
-            match self {
-                Self::GoalUnset => "GOAL_UNSET",
-                Self::GoalMinimize => "GOAL_MINIMIZE",
-                Self::GoalMaximize => "GOAL_MAXIMIZE",
-            }
-        }
-        /// Creates an enum from field names used in the ProtoBuf definition.
-        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-            match value {
-                "GOAL_UNSET" => Some(Self::GoalUnset),
-                "GOAL_MINIMIZE" => Some(Self::GoalMinimize),
-                "GOAL_MAXIMIZE" => Some(Self::GoalMaximize),
-                _ => None,
-            }
-        }
-    }
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct MetricResult {}
@@ -1196,8 +1149,6 @@ pub struct MetricSummary {
     pub max: bool,
     #[prost(bool, tag = "3")]
     pub mean: bool,
-    #[prost(bool, tag = "4")]
-    pub best: bool,
     #[prost(bool, tag = "5")]
     pub last: bool,
     #[prost(bool, tag = "6")]

@@ -18,7 +18,6 @@ DEPRECATED_FEATURES = Literal[
     "run__define_metric_copy",
     "run_disabled",
     "keras_callback",
-    "run__define_metric_best_goal",
     "run__finish_quiet",
     "run__reinit_bool",
     "run__get_url",
@@ -47,7 +46,6 @@ class Deprecated:
     run__define_metric_copy: DEPRECATED_FEATURES = "run__define_metric_copy"
     run_disabled: DEPRECATED_FEATURES = "run_disabled"
     keras_callback: DEPRECATED_FEATURES = "keras_callback"
-    run__define_metric_best_goal: DEPRECATED_FEATURES = "run__define_metric_best_goal"
     run__finish_quiet: DEPRECATED_FEATURES = "run__finish_quiet"
     run__reinit_bool: DEPRECATED_FEATURES = "run__reinit_bool"
     run__get_url: DEPRECATED_FEATURES = "run__get_url"

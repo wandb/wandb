@@ -286,6 +286,8 @@ message OutputRawResult {}
  * MetricRecord: wandb/sdk/wandb_metric/Metric
  */
 message MetricRecord {
+  reserved 8;
+
   // only name or globname is set
   string name = 1;
   string glob_name = 2;
@@ -297,16 +299,10 @@ message MetricRecord {
 
   MetricOptions options = 6;
   MetricSummary summary = 7;
-  MetricGoal goal = 8;
   MetricControl _control = 9;
 
   bool expanded_from_glob = 10;
 
-  enum MetricGoal {
-    GOAL_UNSET = 0;
-    GOAL_MINIMIZE = 1;
-    GOAL_MAXIMIZE = 2;
-  }
   _RecordInfo _info = 200;
 }
 
@@ -323,10 +319,11 @@ message MetricControl {
 }
 
 message MetricSummary {
+  reserved 4;
+
   bool min = 1;
   bool max = 2;
   bool mean = 3;
-  bool best = 4;
   bool last = 5;
   bool none = 6;
   bool copy = 7;

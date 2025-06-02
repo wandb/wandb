@@ -5,14 +5,6 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-type metricGoal uint64
-
-const (
-	metricGoalUnset metricGoal = iota
-	metricGoalMinimize
-	metricGoalMaximize
-)
-
 type definedMetric struct {
 	// SyncStep is whether to automatically insert values of this metric's
 	// step metric into the run history.
@@ -33,9 +25,6 @@ type definedMetric struct {
 
 	// SummaryTypes is the set of summary statistics to track.
 	SummaryTypes runsummary.SummaryTypeFlags
-
-	// MetricGoal is how to interpret the "best" summary type.
-	MetricGoal metricGoal
 }
 
 // With returns this metric definition updated with the information
@@ -68,13 +57,6 @@ func (m definedMetric) With(
 		if record.Summary.Last {
 			m.SummaryTypes |= runsummary.Latest
 		}
-	}
-
-	switch record.Goal {
-	case spb.MetricRecord_GOAL_MAXIMIZE:
-		m.MetricGoal = metricGoalMaximize
-	case spb.MetricRecord_GOAL_MINIMIZE:
-		m.MetricGoal = metricGoalMinimize
 	}
 
 	if len(record.Name) > 0 {
@@ -120,13 +102,6 @@ func (m definedMetric) ToRecord(name string, isGlob bool) *spb.MetricRecord {
 	}
 	if m.SummaryTypes.HasAny(runsummary.Latest) {
 		rec.Summary.Last = true
-	}
-
-	switch m.MetricGoal {
-	case metricGoalMaximize:
-		rec.Goal = spb.MetricRecord_GOAL_MAXIMIZE
-	case metricGoalMinimize:
-		rec.Goal = spb.MetricRecord_GOAL_MINIMIZE
 	}
 
 	return rec
