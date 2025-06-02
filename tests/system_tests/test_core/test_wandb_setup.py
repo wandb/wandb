@@ -2,9 +2,7 @@ import json
 import os
 from unittest import mock
 
-import pytest
 import wandb
-
 
 
 def test_service_logging_level_debug():
@@ -25,7 +23,6 @@ def test_service_logging_level_debug():
         assert "DEBUG" in levels
 
 
-
 def test_service_logging_level_info():
     """Test the service logging is info.
 
@@ -44,7 +41,6 @@ def test_service_logging_level_info():
         assert "DEBUG" not in levels
 
 
-(reason="does not depend on service")
 def test_remove_active_run_twice():
     run = wandb.init(mode="offline")
     wl = wandb.setup()
@@ -56,7 +52,6 @@ def test_remove_active_run_twice():
     assert wl.most_recent_active_run is None
 
 
-(reason="does not depend on service")
 def test_setup_uses_config_dir_env_var(tmp_path, monkeypatch):
     monkeypatch.setenv("WANDB_CONFIG_DIR", str(tmp_path))
     with mock.patch.dict(os.environ, {"WANDB_CONFIG_DIR": str(tmp_path)}):
