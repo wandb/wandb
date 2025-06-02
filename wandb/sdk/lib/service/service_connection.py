@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import atexit
-import os
 from typing import Callable
 
 from wandb.proto import wandb_internal_pb2 as pb
@@ -43,20 +42,10 @@ def _start_and_connect_service(
     it to complete. The hook does not run in processes started using the
     multiprocessing module.
     """
-    proc = service_process._Service(settings)
-    proc.start()
+    proc = service_process.start(settings)
 
-    port = proc.sock_port
-    assert port
-
-    token = service_token.TCPServiceToken(
-        parent_pid=os.getpid(),
-        port=port,
-    )
-
-    client = token.connect()
-
-    token.save_to_env()
+    client = proc.token.connect()
+    proc.token.save_to_env()
 
     hooks = ExitHooks()
     hooks.hook()
@@ -81,7 +70,7 @@ class ServiceConnection:
     def __init__(
         self,
         client: SockClient,
-        proc: service_process._Service | None,
+        proc: service_process.ServiceProcess | None,
         cleanup: Callable[[], None] | None = None,
     ):
         """Returns a new ServiceConnection.
