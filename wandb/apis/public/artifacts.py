@@ -118,7 +118,7 @@ class ArtifactTypes(Paginator["ArtifactType"]):
 
     @property
     def cursor(self) -> str | None:
-      """Returns the cursor for the next page of results."""
+        """Returns the cursor for the next page of results."""
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
@@ -197,7 +197,7 @@ class ArtifactType:
 
     @property
     def name(self) -> str:
-        """The name of the artifact type."""      
+        """The name of the artifact type."""
         return self._attrs["name"]
 
     @normalize_exceptions
@@ -215,7 +215,7 @@ class ArtifactType:
 
         Args:
             name (str): The name of the artifact collection to retrieve.
-        """      
+        """
         return ArtifactCollection(
             self.client, self.entity, self.project, name, self.type
         )
