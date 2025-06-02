@@ -34,7 +34,6 @@ REFERENCE_ATTRIBUTES = set(
         "log_code",
         "log_model",
         "mark_preempting",
-        "mode",
         "name",
         "notes",
         "offline",
