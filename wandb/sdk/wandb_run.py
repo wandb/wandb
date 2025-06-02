@@ -1338,13 +1338,12 @@ class Run:
 
         try:
             from IPython import display
-
-            display.display(display.HTML(self.to_html(height, hidden)))
-            return True
-
         except ImportError:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
+
+        display.display(display.HTML(self.to_html(height, hidden)))
+        return True
 
     @_log_to_run
     @_attach
@@ -1752,7 +1751,6 @@ class Run:
         data: dict[str, Any],
         step: int | None = None,
         commit: bool | None = None,
-        sync: bool | None = None,
     ) -> None:
         """Upload run data.
 
@@ -1857,7 +1855,6 @@ class Run:
                 accumulate data for the step. See the notes in the description.
                 If `step` is `None`, then the default is `commit=True`;
                 otherwise, the default is `commit=False`.
-            sync: This argument is deprecated and does nothing.
 
         Examples:
             For more and more detailed examples, see
@@ -1990,14 +1987,6 @@ class Run:
             with telemetry.context(run=self) as tel:
                 tel.feature.set_step_log = True
 
-        if sync is not None:
-            deprecate.deprecate(
-                field_name=Deprecated.run__log_sync,
-                warning_message=(
-                    "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
-                ),
-                run=self,
-            )
         if self._settings._shared and step is not None:
             wandb.termwarn(
                 "In shared mode, the use of `wandb.log` with the step argument is not supported "
@@ -3814,20 +3803,15 @@ class Run:
             logger.exception("Timeout getting run metadata.")
             return None
 
-        try:
-            response = result.response.get_system_metadata_response
+        response = result.response.get_system_metadata_response
 
-            # Temporarily disable the callback to prevent triggering
-            # an update call to wandb-core with the callback.
-            with self.__metadata.disable_callback():
-                # Values stored in the metadata object take precedence.
-                self.__metadata.update_from_proto(response.metadata, skip_existing=True)
+        # Temporarily disable the callback to prevent triggering
+        # an update call to wandb-core with the callback.
+        with self.__metadata.disable_callback():
+            # Values stored in the metadata object take precedence.
+            self.__metadata.update_from_proto(response.metadata, skip_existing=True)
 
-            return self.__metadata
-        except Exception:
-            logger.exception("Error getting run metadata.")
-
-        return None
+        return self.__metadata
 
     @_log_to_run
     @_raise_if_finished

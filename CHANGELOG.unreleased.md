@@ -42,6 +42,7 @@ This version removes the ability to disable the `service` process. This is a bre
 - Removed support for disabling the `service` process. The `x_disable_service`/`_disable_service` setting and the `WANDB_DISABLE_SERVICE`/`WANDB_X_DISABLE_SERVICE` environment variable have been deprecated and will now raise an error if used (@kptkin in https://github.com/wandb/wandb/pull/9829)
 - Removed ability to use `wandb.docker` after only importing `wandb` (@timoffex in https://github.com/wandb/wandb/pull/9941)
   - `wandb.docker` is not part of `wandb`'s public interface and is subject to breaking changes. Please do not use it.
+- Removed no-op `sync` argument from `wandb.Run::log` function (@kptkin in https://github.com/wandb/wandb/pull/9940)
 
 ### Deprecated
 
