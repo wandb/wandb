@@ -19,8 +19,6 @@ from pytest_mock import MockerFixture
 from wandb.errors import term
 
 # Don't write to Sentry in wandb.
-#
-# For wandb-core, this setting is configured below.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
 import git

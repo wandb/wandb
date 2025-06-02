@@ -528,12 +528,6 @@ class Settings(BaseModel, validate_assignment=True):
     x_disable_meta: bool = False
     """Flag to disable the collection of system metadata."""
 
-    x_disable_setproctitle: bool = False
-    """Flag to disable using setproctitle for the internal process in the legacy service.
-
-    This is deprecated and will be removed in future versions.
-    """
-
     x_disable_stats: bool = False
     """Flag to disable the collection of system metrics."""
 
