@@ -169,7 +169,6 @@ gym = _lazyloader.LazyLoader("wandb.gym", globals(), "wandb.integration.gym")
 lightgbm = _lazyloader.LazyLoader(
     "wandb.lightgbm", globals(), "wandb.integration.lightgbm"
 )
-docker = _lazyloader.LazyLoader("wandb.docker", globals(), "wandb.docker")
 jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
 sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sacred")
 

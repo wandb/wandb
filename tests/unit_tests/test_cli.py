@@ -9,6 +9,7 @@ from unittest import mock
 
 import pytest
 import wandb
+import wandb.docker
 from wandb.apis.internal import InternalApi
 from wandb.cli import cli
 from wandb.sdk.lib.apikey import get_netrc_file_path
@@ -30,7 +31,8 @@ def docker(request, mocker, monkeypatch):
         "wandb.apis.InternalApi.api_key", new_callable=mocker.PropertyMock
     )
     api_key.return_value = "test"
-    monkeypatch.setattr(cli, "find_executable", lambda name: True)
+    monkeypatch.setattr(cli, "_HAS_NVIDIA_DOCKER", True)
+    monkeypatch.setattr(cli, "_HAS_DOCKER", True)
     old_call = subprocess.call
 
     def new_call(command, **kwargs):
@@ -262,7 +264,7 @@ def test_docker_run_bad_image(runner, docker, monkeypatch):
 
 
 def test_docker_run_no_nvidia(runner, docker, monkeypatch):
-    monkeypatch.setattr(cli, "find_executable", lambda name: False)
+    monkeypatch.setattr(cli, "_HAS_NVIDIA_DOCKER", False)
     result = runner.invoke(cli.docker_run, ["run", "-v", "cool:/cool", "rad"])
     assert result.exit_code == 0
     docker.assert_called_once_with(
