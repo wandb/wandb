@@ -2,7 +2,6 @@
 
 import argparse
 import multiprocessing
-import os
 from typing import List, Tuple
 
 import _load_profiles
