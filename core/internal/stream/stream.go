@@ -83,6 +83,9 @@ type Stream struct {
 
 	// sentryClient is the client used to report errors to sentry.io
 	sentryClient *sentry_ext.Client
+
+	// clientID is a unique ID for the stream
+	clientID string
 }
 
 func streamLogger(
@@ -179,8 +182,8 @@ func NewStream(
 		logger:       logger,
 		settings:     params.Settings,
 		sentryClient: params.Sentry,
+		clientID:     randomid.GenerateUniqueID(32),
 	}
-	clientId := randomid.GenerateUniqueID(32)
 
 	// TODO: replace this with a logger that can be read by the user
 	peeker := &observability.Peeker{}
@@ -202,7 +205,7 @@ func NewStream(
 			backendOrNil,
 			params.Settings,
 			peeker,
-			clientId,
+			s.clientID,
 		)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
@@ -211,7 +214,7 @@ func NewStream(
 			terminalPrinter,
 			params.Settings,
 			peeker,
-			clientId,
+			s.clientID,
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,

@@ -73,7 +73,7 @@ type Handler struct {
 	mailbox *mailbox.Mailbox
 
 	// metadata stores the run metadata including system stats
-	metadata *spb.MetadataRequest
+	metadata *spb.MetadataRecord
 
 	// metricHandler is the metric handler for the stream
 	metricHandler *runmetric.MetricHandler
@@ -251,6 +251,8 @@ func (h *Handler) handleRecord(record *spb.Record) {
 		h.handleSummary(x.Summary)
 	case *spb.Record_Tbrecord:
 		h.handleTBrecord(x.Tbrecord)
+	case *spb.Record_Metadata:
+		h.handleMetadata(x.Metadata)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRecord: record type is nil"))
@@ -283,8 +285,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 
 	case *spb.Request_RunStatus:
 		h.handleRequestRunStatus(record)
-	case *spb.Request_Metadata:
-		h.handleMetadata(x.Metadata)
 	case *spb.Request_Status:
 		h.handleRequestStatus(record)
 	case *spb.Request_SenderMark:
@@ -493,24 +493,26 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 		}
 	}
 
-	metadata := &spb.MetadataRequest{
-		Os:            h.settings.GetOS(),
-		Python:        h.settings.GetPython(),
-		Host:          h.settings.GetHostProcessorName(),
-		Program:       h.settings.GetProgram(),
-		CodePath:      h.settings.GetProgramRelativePath(),
-		CodePathLocal: h.settings.GetProgramRelativePathFromCwd(),
-		Email:         h.settings.GetEmail(),
-		Root:          h.settings.GetRootDir(),
-		Username:      h.settings.GetUserName(),
-		Docker:        h.settings.GetDockerImageName(),
-		Executable:    h.settings.GetExecutable(),
-		Args:          h.settings.GetArgs(),
-		Colab:         h.settings.GetColabURL(),
-		StartedAt:     run.GetStartTime(),
-		Git:           git,
+	metadataRecord := &spb.MetadataRecord{
+		Metadata: &spb.Metadata{
+			Os:            h.settings.GetOS(),
+			Python:        h.settings.GetPython(),
+			Host:          h.settings.GetHostProcessorName(),
+			Program:       h.settings.GetProgram(),
+			CodePath:      h.settings.GetProgramRelativePath(),
+			CodePathLocal: h.settings.GetProgramRelativePathFromCwd(),
+			Email:         h.settings.GetEmail(),
+			Root:          h.settings.GetRootDir(),
+			Username:      h.settings.GetUserName(),
+			Docker:        h.settings.GetDockerImageName(),
+			Executable:    h.settings.GetExecutable(),
+			Args:          h.settings.GetArgs(),
+			Colab:         h.settings.GetColabURL(),
+			StartedAt:     run.GetStartTime(),
+			Git:           git,
+		},
 	}
-	h.handleMetadata(metadata)
+	h.handleMetadata(metadataRecord)
 
 	// start the system monitor
 	if !h.settings.IsDisableStats() && !h.settings.IsDisableMachineInfo() {
@@ -657,14 +659,14 @@ func (h *Handler) handlePatchSave() {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
+func (h *Handler) handleMetadata(request *spb.MetadataRecord) {
 	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimary() {
 		return
 	}
 
 	if h.metadata == nil {
 		// Save the metadata on the first call.
-		h.metadata = proto.Clone(request).(*spb.MetadataRequest)
+		h.metadata = proto.Clone(request).(*spb.MetadataRecord)
 	} else {
 		// Merge the metadata on subsequent calls.
 		// The order of the merge depends on the origin of the request.
@@ -681,7 +683,7 @@ func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
 		Indent: "  ",
 		// EmitUnpopulated: true,
 	}
-	jsonBytes, err := mo.Marshal(h.metadata)
+	jsonBytes, err := mo.Marshal(h.metadata.Metadata)
 	if err != nil {
 		h.logger.CaptureError(
 			fmt.Errorf("error marshalling metadata: %v", err))
@@ -828,7 +830,7 @@ func (h *Handler) handleRequestGetSystemMetadata(record *spb.Record) {
 	response := &spb.Response{
 		ResponseType: &spb.Response_GetSystemMetadataResponse{
 			GetSystemMetadataResponse: &spb.GetSystemMetadataResponse{
-				Metadata: h.metadata,
+				Metadata: h.metadata.Metadata,
 			},
 		},
 	}
