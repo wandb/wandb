@@ -174,16 +174,17 @@ docstring-code-format = true
 
 [tool.ruff.lint]
 select = [
-    "F",   # Pyflakes
-    "E",   # pycodestyle Error
-    "W",   # pycodestyle Warning
-    "B",   # flake8-bugbear
-    "I",   # isort
-    "N",   # pep8-naming
-    "D",   # pydocstyle
-    "C90", # mccabe
-    "UP",  # pyupgrade
-    "T20", # flake8-print
+    "F",      # Pyflakes
+    "E",      # pycodestyle Error
+    "W",      # pycodestyle Warning
+    "B",      # flake8-bugbear
+    "I",      # isort
+    "N",      # pep8-naming
+    "D",      # pydocstyle
+    "C90",    # mccabe
+    "UP",     # pyupgrade
+    "T20",    # flake8-print
+    "RUF100", # unused-noqa
 
     # tryceratops
     "TRY004", # type-check-without-type-error
