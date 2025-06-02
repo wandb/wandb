@@ -1986,7 +1986,7 @@ class Run:
     @_attach
     def save(
         self,
-        glob_str: str | os.PathLike | None = None,
+        glob_str: str | os.PathLike,
         base_path: str | os.PathLike | None = None,
         policy: PolicyName = "live",
     ) -> bool | list[str]:
@@ -2037,18 +2037,6 @@ class Run:
 
             For historical reasons, this may return a boolean in legacy code.
         """
-        if glob_str is None:
-            # noop for historical reasons, run.save() may be called in legacy code
-            deprecate.deprecate(
-                field_name=Deprecated.run__save_no_args,
-                warning_message=(
-                    "Calling wandb.run.save without any arguments is deprecated."
-                    "Changes to attributes are automatically persisted."
-                ),
-                run=self,
-            )
-            return True
-
         if isinstance(glob_str, bytes):
             # Preserved for backward compatibility: allow bytes inputs.
             glob_str = glob_str.decode("utf-8")
