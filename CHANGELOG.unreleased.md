@@ -13,9 +13,11 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+
 ### Changed
 
 - Calling `Artifact.link()` no longer instantiates a throwaway placeholder run. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9828)
+- Errors encountered while linking an artifact are no longer suppressed/silenced. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9968)
 
 ### Fixed
 
@@ -24,6 +26,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Notable Changes
 
 This version removes the legacy implementaion of the `service` process. This is a breaking change.
+
+This version raises errors that would previously have suppressed during calls to `Artifact.link()` or `Run.link_artifact()`.  While this prevents undetected failures in those methods, it is also a breaking change.
 
 ### Removed
 
