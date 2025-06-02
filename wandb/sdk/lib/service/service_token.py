@@ -1,16 +1,31 @@
 from __future__ import annotations
 
-import dataclasses
+import abc
 import os
+import re
+
+from typing_extensions import final, override
 
 from wandb import env
+from wandb.sdk.lib.sock_client import SockClient
 
 _CURRENT_VERSION = "2"
-_SUPPORTED_TRANSPORTS = "tcp"
+
+# Token format(s):
+_TCP_TOKEN_RE = re.compile(rf"{_CURRENT_VERSION}-(\d+)-tcp-localhost-(\d+)")
 
 
-def get_service_token() -> ServiceToken | None:
-    """Reads the token from environment variables.
+class WandbServiceConnectionError(Exception):
+    """Failed to connect to the service process."""
+
+
+def clear_service_in_env() -> None:
+    """Clear the environment variable that stores the service token."""
+    os.environ.pop(env.SERVICE, None)
+
+
+def from_env() -> ServiceToken | None:
+    """Read the token from environment variables.
 
     Returns:
         The token if the correct environment variable is set, or None.
@@ -23,71 +38,75 @@ def get_service_token() -> ServiceToken | None:
     if not token:
         return None
 
-    parts = token.split("-")
-    if len(parts) != 5:
-        raise ValueError(f"Invalid token: {token}")
+    if tcp_token := TCPServiceToken.from_env_string(token):
+        return tcp_token
 
-    version, pid_str, transport, host, port_str = parts
+    raise ValueError(f"Failed to parse {env.SERVICE}={token!r}")
 
-    if version != _CURRENT_VERSION:
-        raise ValueError(
-            f"Expected version {_CURRENT_VERSION}, but got {version} (token={token})"
+
+class ServiceToken(abc.ABC):
+    """A way of connecting to a running service process."""
+
+    @abc.abstractmethod
+    def connect(self) -> SockClient:
+        """Connect to the service process.
+
+        Returns:
+            A socket object for communicating with the service.
+
+        Raises:
+            WandbServiceConnectionError: on failure to connect.
+        """
+
+    def save_to_env(self) -> None:
+        """Save the token in this process's environment variables."""
+        os.environ[env.SERVICE] = self._as_env_string()
+
+    @abc.abstractmethod
+    def _as_env_string(self) -> str:
+        """Returns a string representation of this token."""
+
+
+@final
+class TCPServiceToken(ServiceToken):
+    """Connects to the service using TCP over a localhost socket."""
+
+    def __init__(self, *, parent_pid: int, port: int) -> None:
+        self._parent_pid = parent_pid
+        self._port = port
+
+    @override
+    def connect(self) -> SockClient:
+        client = SockClient()
+
+        try:
+            # TODO: This may block indefinitely if the service is unhealthy.
+            client.connect(self._port)
+        except Exception as e:
+            raise WandbServiceConnectionError(
+                f"Failed to connect to service on port {self._port}",
+            ) from e
+
+        return client
+
+    @override
+    def _as_env_string(self):
+        return "-".join(
+            (
+                _CURRENT_VERSION,
+                str(self._parent_pid),
+                "tcp",
+                "localhost",
+                str(self._port),
+            )
         )
-    if transport not in _SUPPORTED_TRANSPORTS:
-        raise ValueError(
-            f"Unsupported transport: {transport} (token={token})",
-        )
 
-    try:
-        return ServiceToken(
-            version=version,
-            pid=int(pid_str),
-            transport=transport,
-            host=host,
-            port=int(port_str),
-        )
-    except ValueError as e:
-        raise ValueError(f"Invalid token: {token}") from e
+    @staticmethod
+    def from_env_string(token: str) -> TCPServiceToken | None:
+        """Returns a TCP service token parsed from the env var."""
+        match = _TCP_TOKEN_RE.fullmatch(token)
+        if not match:
+            return None
 
-
-def set_service_token(parent_pid: int, transport: str, host: str, port: int) -> None:
-    """Stores a service token in an environment variable.
-
-    Args:
-        parent_pid: The process ID of the process that started the service.
-        transport: The transport used to communicate with the service.
-        host: The host part of the internet address on which the service
-            is listening (e.g. localhost).
-        port: The port the service is listening on.
-
-    Raises:
-        ValueError: If given an unsupported transport.
-    """
-    if transport not in _SUPPORTED_TRANSPORTS:
-        raise ValueError(f"Unsupported transport: {transport}")
-
-    os.environ[env.SERVICE] = "-".join(
-        (
-            _CURRENT_VERSION,
-            str(parent_pid),
-            transport,
-            host,
-            str(port),
-        )
-    )
-
-
-def clear_service_token() -> None:
-    """Clears the environment variable storing the service token."""
-    os.environ.pop(env.SERVICE, None)
-
-
-@dataclasses.dataclass(frozen=True)
-class ServiceToken:
-    """An identifier for a running service process."""
-
-    version: str
-    pid: int
-    transport: str
-    host: str
-    port: int
+        parent_pid, port = match.groups()
+        return TCPServiceToken(parent_pid=int(parent_pid), port=int(port))
