@@ -115,7 +115,68 @@ def _server_accepts_artifact_path(run: "LocalRun") -> bool:
 
 
 class Image(BatchableMedia):
-    """A class for logging images to W&B."""
+    """A class for logging images to W&B.
+
+    See https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
+    for more information on modes.
+
+    Args:
+        data_or_path: Accepts numpy array of image data, or a PIL image.
+            The class attempts to infer the data format and converts it.
+        mode: The PIL mode for an image. Most common are "L", "RGB", "RGBA".
+        caption: Label for display of image.
+
+    When logging a `torch.Tensor` as a `wandb.Image`, images are normalized.
+    If you do not want to normalize your images, convert your tensors
+    to a PIL Image.
+
+    Examples:
+    ```python
+    # Create a wandb.Image from a numpy array
+    import numpy as np
+    import wandb
+
+    with wandb.init() as run:
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+            image = wandb.Image(pixels, caption=f"random field {i}")
+            examples.append(image)
+        run.log({"examples": examples})
+    ```
+
+    ```python
+    # Create a wandb.Image from a PILImage
+    import numpy as np
+    from PIL import Image as PILImage
+    import wandb
+
+    with wandb.init() as run:
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(
+                low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+            )
+            pil_image = PILImage.fromarray(pixels, mode="RGB")
+            image = wandb.Image(pil_image, caption=f"random field {i}")
+            examples.append(image)
+        run.log({"examples": examples})
+    ```
+
+    ```python
+    # log .jpg rather than .png (default)
+    import numpy as np
+    import wandb
+
+    with wandb.init() as run:
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+            image = wandb.Image(pixels, caption=f"random field {i}", file_type="jpg")
+            examples.append(image)
+        run.log({"examples": examples})
+    ```
+    """
 
     MAX_ITEMS = 108
 
@@ -428,6 +489,10 @@ class Image(BatchableMedia):
     def from_json(
         cls: Type["Image"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Image":
+        """Factory method to create an Audio object from a JSON object.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         classes: Optional[Classes] = None
         if json_obj.get("classes") is not None:
             value = source_artifact.get(json_obj["classes"]["path"])
@@ -462,6 +527,10 @@ class Image(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Image"]) -> str:
+        """Get media subdirectory.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return os.path.join("media", "images")
 
     def bind_to_run(
@@ -472,6 +541,10 @@ class Image(BatchableMedia):
         id_: Optional[Union[int, str]] = None,
         ignore_copy_err: Optional[bool] = None,
     ) -> None:
+        """Bind this object to a run.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # For Images, we are going to avoid copying the image file to the run.
         # We should make this common functionality for all media types, but that
         # requires a broader UI refactor. This model can easily be moved to the
@@ -506,6 +579,10 @@ class Image(BatchableMedia):
                 )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         from wandb.sdk.wandb_run import Run
 
         json_dict = super().to_json(run_or_artifact)
@@ -598,7 +675,10 @@ class Image(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
-        """Combine a list of images into a meta dictionary object describing the child images."""
+        """Convert a sequence of Image objects to a JSON representation.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if TYPE_CHECKING:
             seq = cast(Sequence["Image"], seq)
 
@@ -672,6 +752,10 @@ class Image(BatchableMedia):
         run_key: str,
         step: Union[int, str],
     ) -> Union[List[Optional[dict]], bool]:
+        """Collect all masks from a list of images.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         all_mask_groups: List[Optional[dict]] = []
         for image in images:
             if image._masks:
@@ -695,6 +779,10 @@ class Image(BatchableMedia):
         run_key: str,
         step: Union[int, str],
     ) -> Union[List[Optional[dict]], bool]:
+        """Collect all boxes from a list of images.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         all_box_groups: List[Optional[dict]] = []
         for image in images:
             if image._boxes:
@@ -714,6 +802,10 @@ class Image(BatchableMedia):
     def all_captions(
         cls: Type["Image"], images: Sequence["Media"]
     ) -> Union[bool, Sequence[Optional[str]]]:
+        """Get captions from a list of images.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return cls.captions(images)
 
     def __ne__(self, other: object) -> bool:
@@ -744,6 +836,10 @@ class Image(BatchableMedia):
             )
 
     def to_data_array(self) -> List[Any]:
+        """Convert to data array.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         res = []
         if self.image is not None:
             data = list(self.image.getdata())

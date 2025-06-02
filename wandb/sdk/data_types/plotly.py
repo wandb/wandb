@@ -31,10 +31,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Plotly(Media):
-    """Wandb class for plotly plots.
+    """W&B class for Plotly plots.
 
     Args:
-        val: matplotlib or plotly figure
+        val: Matplotlib or Plotly figure.
     """
 
     _log_type = "plotly-file"
