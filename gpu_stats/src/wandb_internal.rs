@@ -535,9 +535,6 @@ pub struct Deprecated {
     /// wandb.run.save() called without arguments
     #[prost(bool, tag = "3")]
     pub run_save_no_args: bool,
-    /// wandb.run.join() called
-    #[prost(bool, tag = "4")]
-    pub run_join: bool,
     /// wandb.plots.* called
     #[prost(bool, tag = "5")]
     pub plots: bool,

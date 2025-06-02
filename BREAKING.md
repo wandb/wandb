@@ -88,11 +88,6 @@ When preparing a release that can include breaking changes, consider applying ch
     - Owner: @jacobromero
     - can do in >=0.21
 
-- Remove `wandb.Run::join()` setting:
-    - Owner: @dmitryduev
-    - Deprecated in 0.12.10 (https://github.com/wandb/wandb/pull/3028)
-    - Can do in >=0.14
-
 - Disallow calling `wandb.save` without args:
     - Owner: @dmitryduev
     - Deprecated in 0.12.10 (https://github.com/wandb/wandb/pull/3028)
