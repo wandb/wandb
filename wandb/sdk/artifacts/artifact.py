@@ -2546,12 +2546,7 @@ class Artifact:
 
         # Fetch the linked artifact to return it
         linked_path = f"{target.to_str()}:v{version_idx}"
-
-        try:
-            return api._artifact(linked_path)
-        except Exception as e:
-            wandb.termerror(f"Error fetching link artifact after linking: {e}")
-            return None
+        return api._artifact(linked_path)
 
     @ensure_logged
     def unlink(self) -> None:
