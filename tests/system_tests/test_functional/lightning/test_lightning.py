@@ -1,7 +1,5 @@
 import pathlib
 
-import pytest
-
 
 def test_strategy_ddp_spawn(wandb_backend_spy, execute_script):
     script_path = pathlib.Path(__file__).parent / "strategy_ddp_spawn.py"

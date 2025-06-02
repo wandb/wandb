@@ -1,8 +1,6 @@
 import pathlib
 import subprocess
 
-import pytest
-
 
 def test_flow_decoboth(wandb_backend_spy):
     """Test that the flow_decoboth.py script runs correctly."""

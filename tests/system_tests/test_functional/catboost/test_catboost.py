@@ -1,7 +1,5 @@
 import pathlib
 
-import pytest
-
 
 def test_regression(wandb_backend_spy, execute_script):
     script_path = pathlib.Path(__file__).parent / "regression.py"

@@ -7,7 +7,6 @@ import contextlib
 import time
 from typing import Iterable, Iterator, NoReturn
 
-from wandb import env
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface import interface
 from wandb.sdk.lib import asyncio_compat

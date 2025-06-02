@@ -7,8 +7,6 @@ Based on:
 
 import pathlib
 
-import pytest
-
 
 def test_tune_with_callback(wandb_backend_spy, execute_script):
     """Example for using a WandbLoggerCallback with the function API."""

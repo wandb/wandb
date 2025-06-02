@@ -2,8 +2,6 @@ import os
 import pathlib
 import subprocess
 
-import pytest
-
 
 def test_client_sharp(wandb_backend_spy):
     script_path = (

@@ -1,6 +1,5 @@
 """Tests for tensorboardX integration."""
 
-import pytest
 import torch
 import wandb
 from tensorboardX import SummaryWriter

@@ -11,7 +11,7 @@ import sys
 import click
 
 import wandb
-from wandb.errors import UsageError, WandbCoreNotAvailableError
+from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk.wandb_sync import _sync
 from wandb.util import get_core_path
 

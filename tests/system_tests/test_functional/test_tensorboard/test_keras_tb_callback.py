@@ -4,7 +4,6 @@ Test that the Keras TensorBoard callback works with W&B.
 
 import keras
 import numpy as np
-import pytest
 import tensorflow as tf
 import wandb
 
