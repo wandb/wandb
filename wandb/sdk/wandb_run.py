@@ -1751,7 +1751,6 @@ class Run:
         data: dict[str, Any],
         step: int | None = None,
         commit: bool | None = None,
-        sync: bool | None = None,
     ) -> None:
         """Upload run data.
 
@@ -1856,7 +1855,6 @@ class Run:
                 accumulate data for the step. See the notes in the description.
                 If `step` is `None`, then the default is `commit=True`;
                 otherwise, the default is `commit=False`.
-            sync: This argument is deprecated and does nothing.
 
         Examples:
             For more and more detailed examples, see
@@ -1989,14 +1987,6 @@ class Run:
             with telemetry.context(run=self) as tel:
                 tel.feature.set_step_log = True
 
-        if sync is not None:
-            deprecate.deprecate(
-                field_name=Deprecated.run__log_sync,
-                warning_message=(
-                    "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
-                ),
-                run=self,
-            )
         if self._settings._shared and step is not None:
             wandb.termwarn(
                 "In shared mode, the use of `wandb.log` with the step argument is not supported "
