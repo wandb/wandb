@@ -41,11 +41,3 @@ def test_metadata_access(user):
         run.log({"acc": 1})
         assert run._metadata is not None
         run._metadata.email = "lol@wandb.ai"
-
-    with open(run.settings.log_internal) as f:
-        debug_log = f.readlines()
-
-    joined = "".join(debug_log)
-
-    if run.settings.x_require_legacy_service:
-        assert "Metadata updates are ignored when using the legacy service" in joined

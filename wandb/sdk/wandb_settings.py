@@ -674,9 +674,6 @@ class Settings(BaseModel, validate_assignment=True):
     x_runqueue_item_id: Optional[str] = None
     """ID of the Launch run queue item being processed."""
 
-    x_require_legacy_service: bool = False
-    """Force the use of legacy wandb service."""
-
     x_save_requirements: bool = True
     """Flag to save the requirements file."""
 
