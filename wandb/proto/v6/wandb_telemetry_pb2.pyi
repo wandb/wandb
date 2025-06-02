@@ -798,7 +798,6 @@ class Deprecated(google.protobuf.message.Message):
     RUN__DEFINE_METRIC_COPY_FIELD_NUMBER: builtins.int
     RUN_DISABLED_FIELD_NUMBER: builtins.int
     KERAS_CALLBACK_FIELD_NUMBER: builtins.int
-    RUN__DEFINE_METRIC_BEST_GOAL_FIELD_NUMBER: builtins.int
     RUN__FINISH_QUIET_FIELD_NUMBER: builtins.int
     RUN__REINIT_BOOL_FIELD_NUMBER: builtins.int
     RUN__GET_URL_FIELD_NUMBER: builtins.int
@@ -838,8 +837,6 @@ class Deprecated(google.protobuf.message.Message):
     """wandb.sdk.lib.disabled.RunDisabled used"""
     keras_callback: builtins.bool
     """wandb.integration.keras.WandbCallback used"""
-    run__define_metric_best_goal: builtins.bool
-    """wandb.run.define_metric() called with summary="best" and goal="maximize/minimize" """
     run__finish_quiet: builtins.bool
     """wandb.run.finish(quiet=...) called"""
     run__reinit_bool: builtins.bool
@@ -876,7 +873,6 @@ class Deprecated(google.protobuf.message.Message):
         run__define_metric_copy: builtins.bool = ...,
         run_disabled: builtins.bool = ...,
         keras_callback: builtins.bool = ...,
-        run__define_metric_best_goal: builtins.bool = ...,
         run__finish_quiet: builtins.bool = ...,
         run__reinit_bool: builtins.bool = ...,
         run__get_url: builtins.bool = ...,
@@ -887,7 +883,7 @@ class Deprecated(google.protobuf.message.Message):
         artifact__use_as: builtins.bool = ...,
         artifact__init_use_as: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact__init_use_as", b"artifact__init_use_as", "artifact__use_as", b"artifact__use_as", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__finish_quiet", b"run__finish_quiet", "run__get_project_url", b"run__get_project_url", "run__get_sweep_url", b"run__get_sweep_url", "run__get_url", b"run__get_url", "run__join", b"run__join", "run__project_name", b"run__project_name", "run__reinit_bool", b"run__reinit_bool", "run__save_no_args", b"run__save_no_args", "run__use_artifact_use_as", b"run__use_artifact_use_as", "run_disabled", b"run_disabled"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact__init_use_as", b"artifact__init_use_as", "artifact__use_as", b"artifact__use_as", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_copy", b"run__define_metric_copy", "run__finish_quiet", b"run__finish_quiet", "run__get_project_url", b"run__get_project_url", "run__get_sweep_url", b"run__get_sweep_url", "run__get_url", b"run__get_url", "run__join", b"run__join", "run__project_name", b"run__project_name", "run__reinit_bool", b"run__reinit_bool", "run__save_no_args", b"run__save_no_args", "run__use_artifact_use_as", b"run__use_artifact_use_as", "run_disabled", b"run_disabled"]) -> None: ...
 
 global___Deprecated = Deprecated
 

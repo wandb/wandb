@@ -144,27 +144,21 @@ def test_metric_summary(mock_run, parse_records, record_q):
     )
     assert not metric_2.summary
 
-    metirc_3 = run.define_metric(
-        "metric",
-        summary="best",
-    )
-    assert metirc_3.summary == ("best",)
-
-    metric_4 = run.define_metric(
+    metric_3 = run.define_metric(
         "metric",
         summary="mean",
     )
-    assert metric_4.summary == ("mean",)
+    assert metric_3.summary == ("mean",)
 
-    metric_5 = run.define_metric(
+    metric_4 = run.define_metric(
         "metric",
         summary="",
     )
-    assert not metric_5.summary
+    assert not metric_4.summary
 
     parsed = parse_records(record_q)
-    assert len(parsed.records) == 5
-    assert len(parsed.metric) == 5
+    assert len(parsed.records) == 4
+    assert len(parsed.metric) == 4
 
 
 @pytest.mark.parametrize(

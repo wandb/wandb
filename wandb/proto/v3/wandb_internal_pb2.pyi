@@ -897,28 +897,12 @@ class MetricRecord(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    class _MetricGoal:
-        ValueType = typing.NewType("ValueType", builtins.int)
-        V: typing_extensions.TypeAlias = ValueType
-
-    class _MetricGoalEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[MetricRecord._MetricGoal.ValueType], builtins.type):  # noqa: F821
-        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
-        GOAL_UNSET: MetricRecord._MetricGoal.ValueType  # 0
-        GOAL_MINIMIZE: MetricRecord._MetricGoal.ValueType  # 1
-        GOAL_MAXIMIZE: MetricRecord._MetricGoal.ValueType  # 2
-
-    class MetricGoal(_MetricGoal, metaclass=_MetricGoalEnumTypeWrapper): ...
-    GOAL_UNSET: MetricRecord.MetricGoal.ValueType  # 0
-    GOAL_MINIMIZE: MetricRecord.MetricGoal.ValueType  # 1
-    GOAL_MAXIMIZE: MetricRecord.MetricGoal.ValueType  # 2
-
     NAME_FIELD_NUMBER: builtins.int
     GLOB_NAME_FIELD_NUMBER: builtins.int
     STEP_METRIC_FIELD_NUMBER: builtins.int
     STEP_METRIC_INDEX_FIELD_NUMBER: builtins.int
     OPTIONS_FIELD_NUMBER: builtins.int
     SUMMARY_FIELD_NUMBER: builtins.int
-    GOAL_FIELD_NUMBER: builtins.int
     _CONTROL_FIELD_NUMBER: builtins.int
     EXPANDED_FROM_GLOB_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
@@ -935,7 +919,6 @@ class MetricRecord(google.protobuf.message.Message):
     def options(self) -> global___MetricOptions: ...
     @property
     def summary(self) -> global___MetricSummary: ...
-    goal: global___MetricRecord.MetricGoal.ValueType
     @property
     def _control(self) -> global___MetricControl: ...
     expanded_from_glob: builtins.bool
@@ -950,13 +933,12 @@ class MetricRecord(google.protobuf.message.Message):
         step_metric_index: builtins.int = ...,
         options: global___MetricOptions | None = ...,
         summary: global___MetricSummary | None = ...,
-        goal: global___MetricRecord.MetricGoal.ValueType = ...,
         _control: global___MetricControl | None = ...,
         expanded_from_glob: builtins.bool = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_control", b"_control", "_info", b"_info", "options", b"options", "summary", b"summary"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_control", b"_control", "_info", b"_info", "expanded_from_glob", b"expanded_from_glob", "glob_name", b"glob_name", "goal", b"goal", "name", b"name", "options", b"options", "step_metric", b"step_metric", "step_metric_index", b"step_metric_index", "summary", b"summary"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_control", b"_control", "_info", b"_info", "expanded_from_glob", b"expanded_from_glob", "glob_name", b"glob_name", "name", b"name", "options", b"options", "step_metric", b"step_metric", "step_metric_index", b"step_metric_index", "summary", b"summary"]) -> None: ...
 
 global___MetricRecord = MetricRecord
 
@@ -1010,14 +992,12 @@ class MetricSummary(google.protobuf.message.Message):
     MIN_FIELD_NUMBER: builtins.int
     MAX_FIELD_NUMBER: builtins.int
     MEAN_FIELD_NUMBER: builtins.int
-    BEST_FIELD_NUMBER: builtins.int
     LAST_FIELD_NUMBER: builtins.int
     NONE_FIELD_NUMBER: builtins.int
     COPY_FIELD_NUMBER: builtins.int
     min: builtins.bool
     max: builtins.bool
     mean: builtins.bool
-    best: builtins.bool
     last: builtins.bool
     none: builtins.bool
     copy: builtins.bool
@@ -1027,12 +1007,11 @@ class MetricSummary(google.protobuf.message.Message):
         min: builtins.bool = ...,
         max: builtins.bool = ...,
         mean: builtins.bool = ...,
-        best: builtins.bool = ...,
         last: builtins.bool = ...,
         none: builtins.bool = ...,
         copy: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["best", b"best", "copy", b"copy", "last", b"last", "max", b"max", "mean", b"mean", "min", b"min", "none", b"none"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["copy", b"copy", "last", b"last", "max", b"max", "mean", b"mean", "min", b"min", "none", b"none"]) -> None: ...
 
 global___MetricSummary = MetricSummary
 

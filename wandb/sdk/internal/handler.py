@@ -295,8 +295,6 @@ class HandleManager:
                 self._metric_track[last_key] = float_v
                 _dict_nested_set(self._consolidated_summary, last_key, v)
                 updated = True
-        if s.best:
-            best_key = tuple(kl + ["best"])
         if s.max or best_key and goal_max:
             max_key = tuple(kl + ["max"])
             old_max = self._metric_track.get(max_key)

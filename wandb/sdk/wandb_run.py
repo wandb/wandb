@@ -2765,7 +2765,6 @@ class Run:
         step_sync: bool | None = None,
         hidden: bool | None = None,
         summary: str | None = None,
-        goal: str | None = None,
         overwrite: bool | None = None,
     ) -> wandb_metric.Metric:
         """Customize metrics logged with `wandb.log()`.
@@ -2780,11 +2779,8 @@ class Run:
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
                 Supported aggregations include "min", "max", "mean", "last",
-                "best", "copy" and "none". "best" is used together with the
-                goal parameter. "none" prevents a summary from being generated.
+                "copy" and "none". "none" prevents a summary from being generated.
                 "copy" is deprecated and should not be used.
-            goal: Specify how to interpret the "best" summary type.
-                Supported options are "minimize" and "maximize".
             overwrite: If false, then this call is merged with previous
                 `define_metric` calls for the same metric by using their
                 values for any unspecified parameters. If true, then
@@ -2801,21 +2797,12 @@ class Run:
                 self,
             )
 
-        if (summary and "best" in summary) or goal is not None:
-            deprecate.deprecate(
-                Deprecated.run__define_metric_best_goal,
-                "define_metric(summary='best', goal=...) is deprecated and will be removed. "
-                "Use define_metric(summary='min') or define_metric(summary='max') instead.",
-                self,
-            )
-
         return self._define_metric(
             name,
             step_metric,
             step_sync,
             hidden,
             summary,
-            goal,
             overwrite,
         )
 
@@ -2826,7 +2813,6 @@ class Run:
         step_sync: bool | None = None,
         hidden: bool | None = None,
         summary: str | None = None,
-        goal: str | None = None,
         overwrite: bool | None = None,
     ) -> wandb_metric.Metric:
         if not name:
@@ -2839,7 +2825,6 @@ class Run:
             ("step_sync", step_sync, bool),
             ("hidden", hidden, bool),
             ("summary", summary, str),
-            ("goal", goal, str),
             ("overwrite", overwrite, bool),
         ):
             # NOTE: type checking is broken for isinstance and str
@@ -2857,7 +2842,7 @@ class Run:
         if summary:
             summary_items = [s.lower() for s in summary.split(",")]
             summary_ops = []
-            valid = {"min", "max", "mean", "best", "last", "copy", "none"}
+            valid = {"min", "max", "mean", "last", "copy", "none"}
             # TODO: deprecate copy and best
             for i in summary_items:
                 if i not in valid:
@@ -2865,15 +2850,6 @@ class Run:
                 summary_ops.append(i)
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_summary = True
-        # TODO: deprecate goal
-        goal_cleaned: str | None = None
-        if goal is not None:
-            goal_cleaned = goal[:3].lower()
-            valid_goal = {"min", "max"}
-            if goal_cleaned not in valid_goal:
-                raise wandb.Error(f"Unhandled define_metric() arg: goal: {goal}")
-            with telemetry.context(run=self) as tel:
-                tel.feature.metric_goal = True
         if hidden:
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_hidden = True
@@ -2890,7 +2866,6 @@ class Run:
             step_sync=step_sync,
             summary=summary_ops,
             hidden=hidden,
-            goal=goal_cleaned,
             overwrite=overwrite,
         )
         m._set_callback(self._metric_callback)
