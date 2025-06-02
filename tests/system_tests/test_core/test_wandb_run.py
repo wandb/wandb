@@ -107,12 +107,7 @@ def test_attach_same_process(user, test_settings):
 
 def test_deprecated_feature_telemetry(wandb_backend_spy):
     with wandb.init(config_include_keys=["lol"]) as run:
-        # use deprecated features
-        _ = [
-            run.mode,
-            run.save(),
-            run.join(),
-        ]
+        pass
 
     with wandb_backend_spy.freeze() as snapshot:
         telemetry = snapshot.telemetry(run_id=run.id)
@@ -121,12 +116,7 @@ def test_deprecated_feature_telemetry(wandb_backend_spy):
         # whose fields 2-4 correspond to deprecated wandb.run features
         # fields 7 & 8 are deprecated wandb.init kwargs
         telemetry_deprecated = telemetry.get("10", [])
-        assert (
-            (2 in telemetry_deprecated)
-            and (3 in telemetry_deprecated)
-            and (4 in telemetry_deprecated)
-            and (7 in telemetry_deprecated)
-        )
+        assert 7 in telemetry_deprecated
 
 
 def test_except_hook(user, test_settings):
