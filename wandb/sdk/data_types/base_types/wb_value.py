@@ -22,7 +22,7 @@ def _is_maybe_offline() -> bool:
     Returns:
         Whether the user likely configured wandb to be offline.
     """
-    singleton = wandb_setup._setup(start_service=False)
+    singleton = wandb_setup.singleton()
 
     # First check: if there's a run, check if it is offline.
     #
@@ -51,7 +51,7 @@ def _server_accepts_client_ids() -> bool:
     # client IDs.
 
     if _is_maybe_offline():
-        singleton = wandb_setup._setup(start_service=False)
+        singleton = wandb_setup.singleton()
 
         if run := singleton.most_recent_active_run:
             return run._settings.allow_offline_artifacts

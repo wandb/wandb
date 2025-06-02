@@ -177,8 +177,8 @@ class SystemMonitor:
             # publish telemetry
             self.publish_telemetry()
             self.aggregate_and_publish_asset_metrics()
-        except Exception as e:
-            logger.error(f"Error publishing last batch of metrics: {e}")
+        except Exception:
+            logger.exception("Error publishing last batch of metrics.")
 
     def start(self) -> None:
         self._shutdown_event.clear()
@@ -199,8 +199,8 @@ class SystemMonitor:
             asset.finish()
         try:
             self._process.join()
-        except Exception as e:
-            logger.error(f"Error joining system monitor process: {e}")
+        except Exception:
+            logger.exception("Error joining system monitor process.")
         self._process = None
 
     def probe(self, publish: bool = True) -> dict:

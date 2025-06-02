@@ -199,9 +199,9 @@ class Media(WBValue):
         else:
             try:
                 shutil.copy(self._path, new_path)
-            except shutil.SameFileError as e:
+            except shutil.SameFileError:
                 if not ignore_copy_err:
-                    raise e
+                    raise
             self._path = new_path
             run._publish_file(media_path)
 

@@ -288,9 +288,9 @@ class TBDirWatcher:
     def _thread_except_body(self) -> None:
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             logger.exception("generic exception in TBDirWatcher thread")
-            raise e
+            raise
 
     def _thread_body(self) -> None:
         """Check for new events every second."""
@@ -394,9 +394,9 @@ class TBEventConsumer:
     def _thread_except_body(self) -> None:
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             logger.exception("generic exception in TBEventConsumer thread")
-            raise e
+            raise
 
     def _thread_body(self) -> None:
         while True:

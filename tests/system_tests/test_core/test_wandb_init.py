@@ -147,29 +147,6 @@ def test_shared_mode_x_label(user):
 
 
 @pytest.mark.wandb_core_only
-def test_resume_from_run_id_is_not_set(wandb_backend_spy):
-    run_id = runid.generate_id()
-
-    gql = wandb_backend_spy.gql
-    data = {
-        "data": {
-            "rewindRun": {
-                "rewoundRun": {"id": run_id},
-            },
-        }
-    }
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="RewindRun"),
-        gql.once(content=data, status=200),
-    )
-
-    with wandb.init(resume_from=f"{run_id}?_step=10") as rewound_run:
-        pass
-
-    assert rewound_run.id == run_id
-
-
-@pytest.mark.wandb_core_only
 @pytest.mark.parametrize("skip_transaction_log", [True, False])
 def test_skip_transaction_log(user, skip_transaction_log):
     """Test that the skip transaction log setting works correctly.

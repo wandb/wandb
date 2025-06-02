@@ -627,9 +627,9 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
     try:
         docker.run(["docker", "image", "inspect", docker_image])
         return True
-    except (docker.DockerError, ValueError) as e:
+    except (docker.DockerError, ValueError):
         if should_raise:
-            raise e
+            raise
         _logger.info("Base image not found. Generating new base image")
         return False
 

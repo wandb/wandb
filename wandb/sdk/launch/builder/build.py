@@ -4,9 +4,8 @@ import logging
 import os
 import pathlib
 import shlex
+import shutil
 from typing import Any, Dict, List, Tuple
-
-from dockerpycreds.utils import find_executable  # type: ignore
 
 import wandb
 import wandb.env
@@ -38,7 +37,7 @@ _WANDB_DOCKERFILE_NAME = "Dockerfile.wandb"
 
 async def validate_docker_installation() -> None:
     """Verify if Docker is installed on host machine."""
-    find_exec = event_loop_thread_exec(find_executable)
+    find_exec = event_loop_thread_exec(shutil.which)
     if not await find_exec("docker"):
         raise ExecutionError(
             "Could not find Docker executable. "

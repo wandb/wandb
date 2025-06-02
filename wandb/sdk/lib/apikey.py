@@ -317,7 +317,7 @@ def write_key(
 
 def api_key(settings: Settings | None = None) -> str | None:
     if settings is None:
-        settings = wandb_setup._setup(start_service=False).settings
+        settings = wandb_setup.singleton().settings
     if settings.api_key:
         return settings.api_key
 

@@ -749,8 +749,8 @@ class SendManager:
                 self._resume_state.wandb_runtime = new_runtime
             tags = resume_status.get("tags") or []
 
-        except (IndexError, ValueError) as e:
-            logger.error("unable to load resume tails", exc_info=e)
+        except (IndexError, ValueError):
+            logger.exception("unable to load resume tails")
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
@@ -1182,7 +1182,7 @@ class SendManager:
             try:
                 d[item.key] = json.loads(item.value_json)
             except json.JSONDecodeError:
-                logger.error("error decoding stats json: %s", item.value_json)
+                logger.exception("error decoding stats json: %s", item.value_json)
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
@@ -1494,9 +1494,9 @@ class SendManager:
         try:
             res = self._send_artifact(artifact)
             logger.info(f"sent artifact {artifact.name} - {res}")
-        except Exception as e:
-            logger.error(
-                f'send_artifact: failed for artifact "{artifact.type}/{artifact.name}": {e}'
+        except Exception:
+            logger.exception(
+                f'send_artifact: failed for artifact "{artifact.type}/{artifact.name}"'
             )
 
     def _send_artifact(
@@ -1568,8 +1568,8 @@ class SendManager:
                     level=alert.level,
                     wait_duration=alert.wait_duration,
                 )
-            except Exception as e:
-                logger.error(f"send_alert: failed for alert {alert.title!r}: {e}")
+            except Exception:
+                logger.exception(f"send_alert: failed for alert {alert.title!r}")
 
     def finish(self) -> None:
         logger.info("shutting down sender")

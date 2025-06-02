@@ -119,8 +119,8 @@ class SystemInfo:
             ValueError,
             subprocess.CalledProcessError,
             subprocess.TimeoutExpired,
-        ) as e:
-            logger.error(f"Error generating diff: {e}")
+        ):
+            logger.exception("Error generating diff.")
         logger.debug("Saving git patches done")
 
     def _probe_git(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -218,8 +218,8 @@ class SystemInfo:
                     stderr=subprocess.DEVNULL,
                     timeout=15,  # add timeout since conda env export could take a really long time
                 )
-        except Exception as e:
-            logger.exception(f"Error saving conda packages: {e}")
+        except Exception:
+            logger.exception("Error saving conda packages")
         logger.debug("Saving conda packages done")
 
     def publish(self, system_info: dict) -> None:
