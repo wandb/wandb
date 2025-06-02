@@ -23,18 +23,18 @@ from wandb.errors import term
 # For wandb-core, this setting is configured below.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
-import git  # noqa: E402
-import pytest  # noqa: E402
-import wandb  # noqa: E402
-import wandb.old.settings  # noqa: E402
-import wandb.sdk.lib.apikey  # noqa: E402
-import wandb.util  # noqa: E402
-from click.testing import CliRunner  # noqa: E402
-from wandb import Api  # noqa: E402
-from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
-from wandb.sdk.lib import filesystem, module, runid  # noqa: E402
-from wandb.sdk.lib.gitlib import GitRepo  # noqa: E402
-from wandb.sdk.lib.paths import StrPath  # noqa: E402
+import git
+import pytest
+import wandb
+import wandb.old.settings
+import wandb.sdk.lib.apikey
+import wandb.util
+from click.testing import CliRunner
+from wandb import Api
+from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.lib import filesystem, module, runid
+from wandb.sdk.lib.gitlib import GitRepo
+from wandb.sdk.lib.paths import StrPath
 
 # --------------------------------
 # Global pytest configuration
@@ -314,7 +314,7 @@ def filesystem_isolate(tmp_path, monkeypatch):
     else:
         new_covfile = str(pathlib.Path(os.getcwd()) / ".coverage")
 
-    print(f"Setting COVERAGE_FILE to {new_covfile}", file=sys.stderr)  # noqa: T201
+    print(f"Setting COVERAGE_FILE to {new_covfile}", file=sys.stderr)
     monkeypatch.setenv("COVERAGE_FILE", new_covfile)
 
     with CliRunner().isolated_filesystem(temp_dir=tmp_path):

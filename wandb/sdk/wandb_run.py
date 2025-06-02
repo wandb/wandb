@@ -3033,6 +3033,7 @@ class Run:
         response = result.response.link_artifact_response
         if response.error_message:
             wandb.termerror(response.error_message)
+            return None
         if response.version_index is None:
             wandb.termerror(
                 "Error fetching the linked artifact's version index after linking"

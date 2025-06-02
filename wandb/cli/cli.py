@@ -20,9 +20,6 @@ import click
 import yaml
 from click.exceptions import ClickException
 
-# pycreds has a find_executable that works in windows
-from dockerpycreds.utils import find_executable
-
 import wandb
 import wandb.env
 import wandb.errors
@@ -67,6 +64,9 @@ logging.basicConfig(
 )
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("wandb")
+
+_HAS_DOCKER = bool(shutil.which("docker"))
+_HAS_NVIDIA_DOCKER = bool(shutil.which("nvidia-docker"))
 
 # Click Contexts
 CONTEXT = {"default_map": {}}
@@ -1966,13 +1966,13 @@ def docker_run(ctx, docker_run_args):
 
     See `docker run --help` for more details.
     """
+    import wandb.docker
+
     api = InternalApi()
     args = list(docker_run_args)
     if len(args) > 0 and args[0] == "run":
         args.pop(0)
-    if len([a for a in args if a.startswith("--runtime")]) == 0 and find_executable(
-        "nvidia-docker"
-    ):
+    if len([a for a in args if a.startswith("--runtime")]) == 0 and _HAS_NVIDIA_DOCKER:
         args = ["--runtime", "nvidia"] + args
     #  TODO: image_from_docker_args uses heuristics to find the docker image arg, there are likely cases
     #  where this won't work
@@ -2001,7 +2001,7 @@ def docker_run(ctx, docker_run_args):
 @click.argument("docker_image", required=False)
 @click.option(
     "--nvidia/--no-nvidia",
-    default=find_executable("nvidia-docker") is not None,
+    default=_HAS_NVIDIA_DOCKER,
     help="Use the nvidia runtime, defaults to nvidia if nvidia-docker is present",
 )
 @click.option(
@@ -2058,8 +2058,11 @@ def docker(
     variable to an existing docker run command, see the wandb docker-run command.
     """
     api = InternalApi()
-    if not find_executable("docker"):
+    if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
+
+    import wandb.docker
+
     args = list(docker_run_args)
     image = docker_image or ""
     # remove run for users used to nvidia-docker
@@ -2185,8 +2188,11 @@ def server():
 @display_error
 def start(ctx, port, env, daemon, upgrade, edge):
     api = InternalApi()
-    if not find_executable("docker"):
+    if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
+
+    import wandb.docker
+
     local_image_sha = wandb.docker.image_id("wandb/local").split("wandb/local")[-1]
     registry_image_sha = wandb.docker.image_id_from_registry("wandb/local").split(
         "wandb/local"
@@ -2199,7 +2205,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
                 "A new version of the W&B server is available, upgrade by calling `wandb server start --upgrade`"
             )
     running = subprocess.check_output(
-        ["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"]
+        ["docker", "ps", "--filter", "name=^wandb-local$", "--format", "{{.ID}}"]
     )
     if running != b"":
         if upgrade:
@@ -2255,7 +2261,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
 
 @server.command(context_settings=RUN_CONTEXT, help="Stop a local W&B server")
 def stop():
-    if not find_executable("docker"):
+    if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
     subprocess.call(["docker", "stop", "wandb-local"])
 
