@@ -1,3 +1,4 @@
+import os
 import sys
 from unittest import mock
 
@@ -6,6 +7,11 @@ import wandb
 from wandb import Api
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
+
+
+@pytest.fixture
+def set_api_key():
+    os.environ["WANDB_API_KEY"] = "A" * 40
 
 
 def test_api_auto_login_no_tty():
@@ -65,7 +71,7 @@ def test_parse_project_path():
         assert project == "proj"
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "set_api_key")
 def test_parse_project_path_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
         entity, project = Api()._parse_project_path("proj")
@@ -73,7 +79,7 @@ def test_parse_project_path_proj():
         assert project == "proj"
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "set_api_key")
 def test_parse_path_docker_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
         user, project, run = Api()._parse_path("proj:run")
@@ -82,7 +88,7 @@ def test_parse_path_docker_proj():
         assert run == "run"
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "set_api_key")
 def test_parse_path_user_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
         user, project, run = Api()._parse_path("proj/run")
@@ -91,7 +97,7 @@ def test_parse_path_user_proj():
         assert run == "run"
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "set_api_key")
 def test_parse_path_proj():
     with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity"}):
         user, project, run = Api()._parse_path("proj")
@@ -100,7 +106,7 @@ def test_parse_path_proj():
         assert run == "proj"
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "set_api_key")
 def test_parse_path_id():
     with mock.patch.dict(
         "os.environ", {"WANDB_ENTITY": "mock_entity", "WANDB_PROJECT": "proj"}
@@ -132,7 +138,7 @@ def test_from_path_project_type(path):
         assert isinstance(project, wandb.apis.public.Project)
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "set_api_key")
 def test_report_to_html():
     path = "test/test/reports/My-Report--XYZ"
     report = Api().from_path(path)

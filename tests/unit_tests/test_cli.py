@@ -92,7 +92,7 @@ def test_login_key_arg(runner, dummy_api_key):
         # If the test was run from a directory containing .wandb, then __stage_dir__
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         # reload(wandb)
-        result = runner.invoke(cli.login, [dummy_api_key])
+        result = runner.invoke(cli.login, args=["--no-verify"], input=dummy_api_key)
         print("Output: ", result.output)
         print("Exception: ", result.exception)
         print("Traceback: ", traceback.print_tb(result.exc_info[2]))
@@ -107,7 +107,7 @@ def test_login_host_trailing_slash_fix_invalid(runner, dummy_api_key, local_sett
         with open(get_netrc_file_path(), "w") as f:
             f.write(f"machine \n  login user\npassword {dummy_api_key}")
         result = runner.invoke(
-            cli.login, ["--host", "https://google.com/", dummy_api_key]
+            cli.login, ["--no-verify", "--host", "https://google.com/", dummy_api_key]
         )
         assert result.exit_code == 0
         with open(get_netrc_file_path()) as f:
@@ -135,10 +135,7 @@ def test_login_onprem_key_arg(runner, dummy_api_key):
     with runner.isolated_filesystem():
         onprem_key = "test-" + dummy_api_key
         # with runner.isolated_filesystem():
-        result = runner.invoke(cli.login, [onprem_key])
-        print("Output: ", result.output)
-        print("Exception: ", result.exception)
-        print("Traceback: ", traceback.print_tb(result.exc_info[2]))
+        result = runner.invoke(cli.login, ["--no-verify", onprem_key])
         assert result.exit_code == 0
         with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
@@ -148,7 +145,7 @@ def test_login_onprem_key_arg(runner, dummy_api_key):
 def test_login_invalid_key_arg(runner, dummy_api_key):
     with runner.isolated_filesystem():
         invalid_key = "test--" + dummy_api_key
-        result = runner.invoke(cli.login, [invalid_key])
+        result = runner.invoke(cli.login, ["--no-verify", invalid_key])
         assert "API key must be 40 characters long, yours was" in str(result)
         assert result.exit_code == 1
 
@@ -173,7 +170,8 @@ def test_login_anonymously(runner, dummy_api_key, monkeypatch, empty_netrc):
         assert dummy_api_key in generated_netrc
 
 
-def test_sync_gc(runner):
+def test_sync_gc(runner, monkeypatch):
+    monkeypatch.setattr(wandb.apis.internal.Api, "is_authenticated", True)
     with runner.isolated_filesystem():
         if not os.path.isdir("wandb"):
             os.mkdir("wandb")
@@ -220,7 +218,11 @@ def test_cli_login_reprompts_when_no_key_specified(runner, mocker, dummy_api_key
         # expected) to terminate the prompt finally we grep for the
         # Error: No API key specified to assert that the re-prompt
         # happened
-        result = runner.invoke(cli.login, input=f"\n{dummy_api_key[:-1]}q\n")
+        result = runner.invoke(
+            cli.login,
+            input=f"\n{dummy_api_key[:-1]}q\n",
+            args=["--no-verify"],
+        )
         with open(get_netrc_file_path()) as f:
             print(f.read())
         assert "ERROR No API key specified." in result.output

@@ -15,7 +15,7 @@ settings.load_profile("ci")
 
 
 @pytest.fixture(autouse=True)
-def mock_servier_viewer_api_call():
+def mock_server_viewer_api_call():
     with mock.patch(
         "wandb.sdk.internal.internal_api.Api.viewer_server_info",
         return_value=(

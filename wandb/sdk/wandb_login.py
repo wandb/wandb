@@ -262,30 +262,6 @@ class _WandbLogin:
             )
 
 
-def _verify_login() -> bool:
-    from . import wandb_setup
-
-    singleton = wandb_setup.singleton()
-
-    assert singleton is not None
-    if singleton._server is None:
-        from .lib import server
-
-        singleton._server = server.Server(singleton._settings)
-
-    # Make call to backend server to verify API key is valid.
-    if not singleton._server._viewer:
-        singleton._server.query_with_timeout()
-
-    viewer = singleton._server._viewer
-
-    if not viewer:
-        raise AuthenticationError(
-            "API key verification failed. Make sure your API key is valid."
-        )
-    return True
-
-
 def _login(
     *,
     anonymous: Optional[Literal["allow", "must", "never"]] = None,
@@ -338,7 +314,7 @@ def _login(
         else:
             key, key_status = wlogin.prompt_api_key(referrer=referrer)
 
-    if verify:
+    if verify and key:
         wlogin._verify_login(key)
 
     if not key_is_pre_configured:
