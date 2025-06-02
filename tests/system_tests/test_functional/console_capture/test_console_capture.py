@@ -1,8 +1,6 @@
 import pathlib
 import subprocess
 
-import pytest
-
 
 def test_patch_stdout_and_stderr():
     script = pathlib.Path(__file__).parent / "patch_stdout_and_stderr.py"
