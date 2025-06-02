@@ -167,7 +167,6 @@ class ServiceConnection:
             handle = self._mailbox.require_response(request)
             self._client.send_server_request(request)
             response = handle.wait_or(timeout=10)
-            return response.inform_attach_response.settings
 
         except (MailboxClosedError, HandleAbandonedError, SockClientClosedError):
             raise WandbAttachFailedError(
@@ -180,6 +179,9 @@ class ServiceConnection:
                 " the current service process, or because the service"
                 " process is busy (unlikely)."
             ) from None
+
+        else:
+            return response.inform_attach_response.settings
 
     def inform_start(
         self,
