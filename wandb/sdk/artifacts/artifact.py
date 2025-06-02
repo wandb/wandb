@@ -1469,14 +1469,12 @@ class Artifact:
             skip_cache: If set to `True`, W&B will not copy/move files to
                 the cache while uploading
             policy: By default, "mutable".
-            - "mutable": Create a temporary copy of the file to prevent
-                    corruption during upload.
-            - "immutable": Disable protection, rely on the user not to
-                    delete or change the file.
+            - mutable: Create a temporary copy of the file to prevent corruption during upload.
+            - immutable: Disable protection, rely on the user not to delete or change the file.
             merge: If `False` (default), throws ValueError if a file was already added in a previous add_dir call
                 and its content has changed. If `True`, overwrites existing files with changed content.
                 Always adds new files and never removes files. To replace an entire directory, pass a name when adding the directory
-                using `add_dir(local_path, name=my_prefix)` and call `remove(my_prefix)` to remove the directory, then add it again.                    
+                using `add_dir(local_path, name=my_prefix)` and call `remove(my_prefix)` to remove the directory, then add it again.
 
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current
