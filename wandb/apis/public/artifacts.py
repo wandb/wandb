@@ -234,6 +234,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
         type_name: The name of the artifact type for which to fetch collections.
         per_page: The number of artifact collections to fetch per page. Default is 50.
     """
+    
     last_response: ArtifactCollectionsFragment | None
 
     def __init__(
@@ -320,6 +321,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
             for edge in self.last_response.edges
             if (node := edge.node)
         ]
+
 
 class ArtifactCollection:
     """An artifact collection that represents a group of related artifacts.
@@ -624,7 +626,6 @@ class Artifacts(SizedPaginator["Artifact"]):
         per_page: The number of artifact versions to fetch per page. Default is 50.
         tags: Optional string or list of strings to filter artifacts by tags.
     """
-
     last_response: ArtifactsFragment | None
 
     def __init__(
