@@ -11,11 +11,12 @@ from wandb.sdk import wandb_settings
 from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_sock import InterfaceSock
 from wandb.sdk.interface.router_sock import MessageSockRouter
-from wandb.sdk.lib import service_token
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.sock_client import SockClient, SockClientClosedError
 from wandb.sdk.mailbox import HandleAbandonedError, Mailbox, MailboxClosedError
 from wandb.sdk.service import service
+
+from . import service_token
 
 
 class WandbServiceConnectionError(Exception):
