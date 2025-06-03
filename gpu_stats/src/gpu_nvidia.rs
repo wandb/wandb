@@ -704,7 +704,12 @@ impl NvidiaGpu {
 
         let n_gpu = match samples.get("_gpu.count") {
             Some(MetricValue::Int(n_gpu)) => *n_gpu as u32,
-            _ => return metadata,
+            _ => {
+                return MetadataRecord {
+                    metadata: Some(metadata),
+                    ..Default::default()
+                }
+            }
         };
 
         metadata.gpu_nvidia = [].to_vec();
@@ -757,10 +762,7 @@ impl NvidiaGpu {
         }
 
         MetadataRecord {
-            metadata: Some(Metadata {
-                gpu_nvidia: Some(metadata),
-                ..Default::default()
-            }),
+            metadata: Some(metadata),
             ..Default::default()
         }
     }
