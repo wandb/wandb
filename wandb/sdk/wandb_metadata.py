@@ -432,9 +432,9 @@ class Metadata(BaseModel, validate_assignment=True):
         dt = datetime.fromtimestamp(ts.seconds, tz=timezone.utc)
         return dt.replace(microsecond=ts.nanos // 1000)
 
-    def to_proto(self) -> wandb_internal_pb2.MetadataRequest:  # noqa: C901
+    def to_proto(self) -> wandb_internal_pb2.Metadata:  # noqa: C901
         """Convert the metadata to a protobuf message."""
-        proto = wandb_internal_pb2.MetadataRequest()
+        proto = wandb_internal_pb2.Metadata()
 
         # A flag to indicate that the metadata has been modified by the user.
         # Updates to the metadata object originating from the user take precedence
@@ -520,13 +520,13 @@ class Metadata(BaseModel, validate_assignment=True):
 
     def update_from_proto(  # noqa: C901
         self,
-        proto: wandb_internal_pb2.MetadataRequest,
+        proto: wandb_internal_pb2.Metadata,
         skip_existing: bool = False,
     ):
         """Update the metadata from a protobuf message.
 
         Args:
-            proto (wandb_internal_pb2.MetadataRequest): The protobuf message.
+            proto (wandb_internal_pb2.Metadata): The protobuf message.
             skip_existing (bool, optional): Skip updating fields that are already set.
         """
         data: Dict[str, Any] = {}
