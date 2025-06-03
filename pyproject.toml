@@ -16,13 +16,6 @@ dependencies = [
     "requests>=2.0.0,<3",
     "psutil>=5.0.0",
     "sentry-sdk>=2.0.0",
-    "docker-pycreds>=0.4.0",
-    # setuptools is needed for distutils in dependencies after Python 3.12 :(
-    # One such dependency is docker-pycreds, where the latest release is 0.4.0
-    # which was released in 2018.
-    # Prior versions of setuptools cause failures in tests.
-    # 66.1.0 is the oldest version that passes tests.
-    "setuptools>=66.1.0",
     "protobuf>=3.12.0,!=4.21.0,!=5.28.0,<7; python_version < '3.9' and sys_platform == 'linux'",
     "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<7; python_version == '3.9' and sys_platform == 'linux'",
     "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; python_version > '3.9' and sys_platform == 'linux'",
@@ -181,21 +174,23 @@ docstring-code-format = true
 
 [tool.ruff.lint]
 select = [
-    "F",   # Pyflakes
-    "E",   # pycodestyle Error
-    "W",   # pycodestyle Warning
-    "B",   # flake8-bugbear
-    "I",   # isort
-    "N",   # pep8-naming
-    "D",   # pydocstyle
-    "C90", # mccabe
-    "UP",  # pyupgrade
-    "T20", # flake8-print
+    "F",      # Pyflakes
+    "E",      # pycodestyle Error
+    "W",      # pycodestyle Warning
+    "B",      # flake8-bugbear
+    "I",      # isort
+    "N",      # pep8-naming
+    "D",      # pydocstyle
+    "C90",    # mccabe
+    "UP",     # pyupgrade
+    "T20",    # flake8-print
+    "RUF100", # unused-noqa
 
     # tryceratops
     "TRY004", # type-check-without-type-error
     "TRY201", # verbose-raise
     "TRY203", # useless-try-except
+    "TRY300", # try-consider-else
     "TRY301", # raise-within-try
     "TRY400", # error-instead-of-exception
     "TRY401", # verbose-log-message
@@ -283,7 +278,21 @@ ignore-decorators = [
 "wandb/integration/metaflow/metaflow.py" = ["F811"]
 "wandb/old/**" = ["B006", "B020", "D", "F822"]
 "wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
+"wandb/sdk/internal/file_stream.py" = ["TRY300"]
+"wandb/sdk/internal/internal_api.py" = ["TRY300"]
+"wandb/sdk/internal/system/assets/gpu.py" = ["TRY300"]
+"wandb/sdk/internal/system/assets/trainium.py" = ["TRY300"]
 "wandb/sdk/launch/**" = ["T20"]
+"wandb/sdk/launch/agent/agent.py" = ["TRY300"]
+"wandb/sdk/launch/builder/templates/_wandb_bootstrap.py" = ["TRY300"]
+"wandb/sdk/launch/environment/aws_environment.py" = ["TRY300"]
+"wandb/sdk/launch/environment/gcp_environment.py" = ["TRY300"]
+"wandb/sdk/launch/registry/azure_container_registry.py" = ["TRY300"]
+"wandb/sdk/launch/runner/abstract.py" = ["TRY300"]
+"wandb/sdk/launch/runner/kubernetes_runner.py" = ["TRY300"]
+"wandb/sdk/launch/sweeps/scheduler.py" = ["TRY300"]
+"wandb/sdk/launch/utils.py" = ["TRY300"]
+"wandb/sdk/lib/retry.py" = ["TRY300"]
 "wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
 "wandb/wandb_controller.py" = ["N806"]
 "wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]

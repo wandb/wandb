@@ -975,21 +975,6 @@ class Run:
     @property
     @_log_to_run
     @_attach
-    def mode(self) -> str:
-        """For compatibility with `0.9.x` and earlier, deprecate eventually."""
-        deprecate.deprecate(
-            field_name=Deprecated.run__mode,
-            warning_message=(
-                "The mode property of wandb.run is deprecated "
-                "and will be removed in a future release."
-            ),
-            run=self,
-        )
-        return "dryrun" if self._settings._offline else "run"
-
-    @property
-    @_log_to_run
-    @_attach
     def offline(self) -> bool:
         return self._settings._offline
 
@@ -1338,13 +1323,12 @@ class Run:
 
         try:
             from IPython import display
-
-            display.display(display.HTML(self.to_html(height, hidden)))
-            return True
-
         except ImportError:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
+
+        display.display(display.HTML(self.to_html(height, hidden)))
+        return True
 
     @_log_to_run
     @_attach
@@ -1752,7 +1736,6 @@ class Run:
         data: dict[str, Any],
         step: int | None = None,
         commit: bool | None = None,
-        sync: bool | None = None,
     ) -> None:
         """Upload run data.
 
@@ -1857,7 +1840,6 @@ class Run:
                 accumulate data for the step. See the notes in the description.
                 If `step` is `None`, then the default is `commit=True`;
                 otherwise, the default is `commit=False`.
-            sync: This argument is deprecated and does nothing.
 
         Examples:
             For more and more detailed examples, see
@@ -1990,14 +1972,6 @@ class Run:
             with telemetry.context(run=self) as tel:
                 tel.feature.set_step_log = True
 
-        if sync is not None:
-            deprecate.deprecate(
-                field_name=Deprecated.run__log_sync,
-                warning_message=(
-                    "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
-                ),
-                run=self,
-            )
         if self._settings._shared and step is not None:
             wandb.termwarn(
                 "In shared mode, the use of `wandb.log` with the step argument is not supported "
@@ -2012,7 +1986,7 @@ class Run:
     @_attach
     def save(
         self,
-        glob_str: str | os.PathLike | None = None,
+        glob_str: str | os.PathLike,
         base_path: str | os.PathLike | None = None,
         policy: PolicyName = "live",
     ) -> bool | list[str]:
@@ -2063,18 +2037,6 @@ class Run:
 
             For historical reasons, this may return a boolean in legacy code.
         """
-        if glob_str is None:
-            # noop for historical reasons, run.save() may be called in legacy code
-            deprecate.deprecate(
-                field_name=Deprecated.run__save_no_args,
-                warning_message=(
-                    "Calling wandb.run.save without any arguments is deprecated."
-                    "Changes to attributes are automatically persisted."
-                ),
-                run=self,
-            )
-            return True
-
         if isinstance(glob_str, bytes):
             # Preserved for backward compatibility: allow bytes inputs.
             glob_str = glob_str.decode("utf-8")
@@ -2290,20 +2252,6 @@ class Run:
             if wandb.run is self:
                 module.unset_globals()
             wandb._sentry.end_session()
-
-    @_log_to_run
-    @_attach
-    def join(self, exit_code: int | None = None) -> None:
-        """Deprecated alias for `finish()` - use finish instead."""
-        if hasattr(self, "_telemetry_obj"):
-            deprecate.deprecate(
-                field_name=Deprecated.run__join,
-                warning_message=(
-                    "wandb.run.join() is deprecated, please use wandb.run.finish()."
-                ),
-                run=self,
-            )
-        self._finish(exit_code=exit_code)
 
     @_log_to_run
     @_raise_if_finished
@@ -3043,6 +2991,7 @@ class Run:
         response = result.response.link_artifact_response
         if response.error_message:
             wandb.termerror(response.error_message)
+            return None
         if response.version_index is None:
             wandb.termerror(
                 "Error fetching the linked artifact's version index after linking"
@@ -3435,7 +3384,7 @@ class Run:
                 name
                 or f"run-{self._settings.run_id}-{os.path.basename(artifact_or_path)}"
             )
-            artifact = wandb.Artifact(name, type or "unspecified")
+            artifact = Artifact(name, type or "unspecified")
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(str(artifact_or_path))
             elif os.path.isdir(artifact_or_path):
@@ -3449,7 +3398,7 @@ class Run:
                 )
         else:
             artifact = artifact_or_path
-        if not isinstance(artifact, wandb.Artifact):
+        if not isinstance(artifact, Artifact):
             raise TypeError(
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"
@@ -3813,20 +3762,15 @@ class Run:
             logger.exception("Timeout getting run metadata.")
             return None
 
-        try:
-            response = result.response.get_system_metadata_response
+        response = result.response.get_system_metadata_response
 
-            # Temporarily disable the callback to prevent triggering
-            # an update call to wandb-core with the callback.
-            with self.__metadata.disable_callback():
-                # Values stored in the metadata object take precedence.
-                self.__metadata.update_from_proto(response.metadata, skip_existing=True)
+        # Temporarily disable the callback to prevent triggering
+        # an update call to wandb-core with the callback.
+        with self.__metadata.disable_callback():
+            # Values stored in the metadata object take precedence.
+            self.__metadata.update_from_proto(response.metadata, skip_existing=True)
 
-            return self.__metadata
-        except Exception:
-            logger.exception("Error getting run metadata.")
-
-        return None
+        return self.__metadata
 
     @_log_to_run
     @_raise_if_finished

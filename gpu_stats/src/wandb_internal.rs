@@ -532,21 +532,9 @@ pub struct Deprecated {
     /// wandb.integration.keras.WandbCallback(data_type=...) called
     #[prost(bool, tag = "1")]
     pub keras_callback_data_type: bool,
-    /// wandb.run.mode called
-    #[prost(bool, tag = "2")]
-    pub run_mode: bool,
-    /// wandb.run.save() called without arguments
-    #[prost(bool, tag = "3")]
-    pub run_save_no_args: bool,
-    /// wandb.run.join() called
-    #[prost(bool, tag = "4")]
-    pub run_join: bool,
     /// wandb.plots.* called
     #[prost(bool, tag = "5")]
     pub plots: bool,
-    /// wandb.run.log(sync=...) called
-    #[prost(bool, tag = "6")]
-    pub run_log_sync: bool,
     /// wandb.init(config_include_keys=...) called
     #[prost(bool, tag = "7")]
     pub init_config_include_keys: bool,
@@ -3035,7 +3023,7 @@ pub mod system_monitor_service_client {
     }
     impl<T> SystemMonitorServiceClient<T>
     where
-        T: tonic::client::GrpcService<tonic::body::BoxBody>,
+        T: tonic::client::GrpcService<tonic::body::Body>,
         T::Error: Into<StdError>,
         T::ResponseBody: Body<Data = Bytes> + std::marker::Send + 'static,
         <T::ResponseBody as Body>::Error: Into<StdError> + std::marker::Send,
@@ -3056,13 +3044,13 @@ pub mod system_monitor_service_client {
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
+                http::Request<tonic::body::Body>,
                 Response = http::Response<
-                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
+                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
                 >,
             >,
             <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
+                http::Request<tonic::body::Body>,
             >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             SystemMonitorServiceClient::new(InterceptedService::new(inner, interceptor))
@@ -3288,7 +3276,7 @@ pub mod system_monitor_service_server {
         B: Body + std::marker::Send + 'static,
         B::Error: Into<StdError> + std::marker::Send + 'static,
     {
-        type Response = http::Response<tonic::body::BoxBody>;
+        type Response = http::Response<tonic::body::Body>;
         type Error = std::convert::Infallible;
         type Future = BoxFuture<Self::Response, Self::Error>;
         fn poll_ready(
@@ -3439,7 +3427,9 @@ pub mod system_monitor_service_server {
                 }
                 _ => {
                     Box::pin(async move {
-                        let mut response = http::Response::new(empty_body());
+                        let mut response = http::Response::new(
+                            tonic::body::Body::default(),
+                        );
                         let headers = response.headers_mut();
                         headers
                             .insert(

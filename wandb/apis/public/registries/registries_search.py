@@ -10,12 +10,12 @@ from wandb_gql import gql
 
 import wandb
 from wandb.apis.paginator import Paginator
-from wandb.apis.public.artifacts import ArtifactCollection
-from wandb.apis.public.registries.utils import _ensure_registry_prefix_on_names
 from wandb.sdk.artifacts._graphql_fragments import (
     _gql_artifact_fragment,
     _gql_registry_fragment,
 )
+
+from .utils import _ensure_registry_prefix_on_names
 
 
 class Registries(Paginator):
@@ -286,6 +286,8 @@ class Collections(Paginator):
             return None
 
     def convert_objects(self):
+        from wandb.apis.public import ArtifactCollection
+
         if not self.last_response:
             return []
         if (

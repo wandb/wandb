@@ -26,7 +26,6 @@ REFERENCE_ATTRIBUTES = set(
         "group",
         "id",
         "job_type",
-        "join",
         "link_artifact",
         "link_model",
         "log",
@@ -34,7 +33,6 @@ REFERENCE_ATTRIBUTES = set(
         "log_code",
         "log_model",
         "mark_preempting",
-        "mode",
         "name",
         "notes",
         "offline",
@@ -220,17 +218,6 @@ def test_run_pub_history(mock_run, record_q, parse_records):
     assert len(history) == 2
     assert history[0]["this"] == "1"
     assert history[1]["that"] == "2"
-
-
-def test_deprecated_run_log_sync(mock_run, mock_wandb_log):
-    run = mock_run()
-
-    run.log(dict(this=1), sync=True)
-
-    assert mock_wandb_log.warned(
-        "`sync` argument is deprecated"
-        " and does not affect the behaviour of `wandb.log`"
-    )
 
 
 def test_use_artifact_offline(mock_run):
