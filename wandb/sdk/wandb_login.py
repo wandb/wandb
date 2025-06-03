@@ -45,7 +45,7 @@ def login(
     host: Optional[str] = None,
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
-    verify: bool = False,
+    verify: bool = True,
     referrer: Optional[str] = None,
 ) -> bool:
     """Set up W&B login credentials.
@@ -270,7 +270,7 @@ def _login(
     host: Optional[str] = None,
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
-    verify: bool = False,
+    verify: bool = True,
     referrer: str = "models",
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
@@ -314,7 +314,7 @@ def _login(
         else:
             key, key_status = wlogin.prompt_api_key(referrer=referrer)
 
-    if verify:
+    if verify and key:
         wlogin._verify_login(key)
 
     if not key_is_pre_configured:

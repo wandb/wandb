@@ -122,7 +122,10 @@ def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
         assert job_builder._is_notebook_run is True
 
 
-def test_build_artifact_job(runner, api):
+def test_build_artifact_job(runner, api, monkeypatch):
+    import wandb
+
+    monkeypatch.setattr(wandb.apis.internal.Api, "validate_api_key", True)
     metadata = {
         "codePath": "blah/test.py",
         "args": ["--test", "test"],

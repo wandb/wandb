@@ -223,7 +223,7 @@ def projects(entity, display=True):
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
 @click.option(
     "--verify/--no-verify",
-    default=False,
+    default=True,
     is_flag=True,
     help="Verify login credentials",
 )

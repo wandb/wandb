@@ -197,7 +197,7 @@ def test_cli_offline(user, runner):
 
 def test_login_key_arg(runner):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.login, ["A" * 40])
+        result = runner.invoke(cli.login, ["--no-verify", "A" * 40])
         assert result.exit_code == 0
         with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
@@ -210,7 +210,7 @@ def test_login_key_prompt(monkeypatch):
     runner = CliRunner()
 
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.login, input=f"{'A'*40}\n")
+        result = runner.invoke(cli.login, args=["--no-verify"], input=f"{'A' * 40}\n")
         assert result.exit_code == 0
         with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()

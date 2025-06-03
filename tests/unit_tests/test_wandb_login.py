@@ -110,14 +110,14 @@ def test_login_timeout_env_invalid(mock_tty):
 
 
 def test_relogin_timeout(dummy_api_key):
-    logged_in = wandb.login(relogin=True, key=dummy_api_key)
+    logged_in = wandb.login(relogin=True, key=dummy_api_key, verify=False)
     assert logged_in is True
-    logged_in = wandb.login()
+    logged_in = wandb.login(verify=False)
     assert logged_in is True
 
 
 def test_login_key(capsys):
-    wandb.login(key="A" * 40)
+    wandb.login(key="A" * 40, verify=False)
     # TODO: this was a bug when tests were leaking out to the global config
     # wandb.api.set_setting("base_url", "http://localhost:8080")
     _, err = capsys.readouterr()
@@ -135,7 +135,7 @@ def test_login(test_settings):
 
 def test_login_anonymous():
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
-        wandb.login(anonymous="must")
+        wandb.login(anonymous="must", verify=False)
         assert wandb.api.api_key == "ANONYMOOSE" * 4
         assert wandb.setup().settings.anonymous == "must"
 
@@ -143,11 +143,11 @@ def test_login_anonymous():
 def test_login_sets_api_base_url(local_settings):
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
         base_url = "https://api.test.host.ai"
-        wandb.login(anonymous="must", host=base_url)
+        wandb.login(anonymous="must", host=base_url, verify=False)
         api = wandb.Api()
         assert api.settings["base_url"] == base_url
         base_url = "https://api.wandb.ai"
-        wandb.login(anonymous="must", host=base_url)
+        wandb.login(anonymous="must", host=base_url, verify=False)
         api = wandb.Api()
         assert api.settings["base_url"] == base_url
 

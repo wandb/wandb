@@ -419,7 +419,7 @@ def clean_up():
 
 @pytest.fixture
 def api() -> wandb.PublicApi:
-    return Api()
+    return Api(api_key="A" * 40)
 
 
 # --------------------------------
