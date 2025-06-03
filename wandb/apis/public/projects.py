@@ -9,6 +9,7 @@ from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
+from wandb.apis.public.api import RetryingClient
 from wandb.sdk.lib import ipython
 
 PROJECT_FRAGMENT = """fragment ProjectFragment on Project {
@@ -43,7 +44,19 @@ class Projects(Paginator["Project"]):
         """.format(PROJECT_FRAGMENT)
     )
 
-    def __init__(self, client, entity, per_page=50):
+    def __init__(
+        self,
+        client: RetryingClient,
+        entity: str,
+        per_page: int = 50,
+    ):
+        """An iterable collection of `Project` objects.
+
+        Args:
+            client: (RetryingClient) The API client used to query W&B.
+            entity: (str) The entity which owns the projects.
+            per_page: (int) The number of projects to fetch per request to the API.
+        """
         self.client = client
         self.entity = entity
         variables = {
@@ -83,7 +96,31 @@ class Projects(Paginator["Project"]):
 class Project(Attrs):
     """A project is a namespace for runs."""
 
-    def __init__(self, client, entity, project, attrs):
+    QUERY = gql(
+        """
+        query Project($project: String!, $entity: String!) {
+            project(name: $project, entityName: $entity) {
+                id
+            }
+        }
+        """
+    )
+
+    def __init__(
+        self,
+        client: RetryingClient,
+        entity: str,
+        project: str,
+        attrs: dict,
+    ):
+        """A single project associated with an entity.
+
+        Args:
+            client: (Api) The API client used to query W&B.
+            entity: (str) The entity which owns the project.
+            project: (str) The name of the project to query.
+            attrs: (dict) The attributes of the project.
+        """
         super().__init__(dict(attrs))
         self.client = client
         self.name = project
@@ -143,7 +180,7 @@ class Project(Attrs):
         )
         variable_values = {"project": self.name, "entity": self.entity}
         ret = self.client.execute(query, variable_values)
-        if ret["project"]["totalSweeps"] < 1:
+        if not ret.get("project") or ret["project"]["totalSweeps"] < 1:
             return []
 
         return [
@@ -178,7 +215,11 @@ class Project(Attrs):
         variable_values = {"projectName": self.name, "entityName": self.entity}
         try:
             data = self.client.execute(self._PROJECT_ID, variable_values)
-            self._attrs["id"] = data["project"]["id"]
+
+            if not data.get("project"):
+                raise ValueError(f"Project {self.name} not found")
+
+            self._attrs["id"] = data["project"].get("id", None)
             return self._attrs["id"]
         except (HTTPError, LookupError, TypeError) as e:
             raise ValueError(f"Unable to fetch project ID: {variable_values!r}") from e
