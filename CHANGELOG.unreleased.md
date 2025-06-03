@@ -20,6 +20,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 This version removes the ability to disable the `service` process. This is a breaking change.
 
+This version raises errors that would previously have suppressed during calls to `Artifact.link()` or `Run.link_artifact()`.  While this prevents failures in those methods from going undetected, it is also a breaking change.
+
 ### Added
 
 - Added `merge` parameter to `Artifact.add_dir` to allow overwrite of previously-added artifact files (@pingleiwandb in https://github.com/wandb/wandb/pull/9907)
@@ -38,6 +40,7 @@ This version removes the ability to disable the `service` process. This is a bre
 - Various Artifacts and Automations APIs now raise `CommError` instead of `ValueError` upon encountering server errors, so as to surface the server error message. (@ibindlish in https://github.com/wandb/wandb/pull/9933)
 - `wandb.sdk.wandb_run.Run::save` method now requires the `glob_str` argument (@dmitryduev in https://github.com/wandb/wandb/pull/9962)
 - Calling `Artifact.link()` no longer instantiates a throwaway placeholder run. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9828)
+- Errors encountered while linking an artifact are no longer suppressed/silenced. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9968)
 
 ### Removed
 
