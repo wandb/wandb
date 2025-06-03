@@ -449,6 +449,8 @@ func (s *Sender) sendRecord(record *spb.Record) {
 		s.sendUseArtifact(record)
 	case *spb.Record_Artifact:
 		s.sendArtifact(record, x.Artifact)
+	case *spb.Record_Metadata:
+		// TODO: update config["wandb"]["metadata"]
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendRecord: nil RecordType"))
