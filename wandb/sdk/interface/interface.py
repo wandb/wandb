@@ -217,8 +217,12 @@ class InterfaceBase:
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
         raise NotImplementedError
 
-    def publish_metadata(self, metadata: pb.MetadataRecord) -> None:
-        self._publish_metadata(metadata)
+    def publish_metadata(self, metadata: pb.Metadata) -> None:
+        # Indicate that the metadata has been modified by the user with the _user_modified flag.
+        # Updates to the metadata object originating from the user take precedence
+        # over automatic updates.
+        metadata_record = pb.MetadataRecord(metadata=metadata, _user_modified=True)
+        self._publish_metadata(metadata_record)
 
     @abstractmethod
     def _publish_metadata(self, metadata: pb.MetadataRecord) -> None:

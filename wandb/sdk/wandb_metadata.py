@@ -436,11 +436,6 @@ class Metadata(BaseModel, validate_assignment=True):
         """Convert the metadata to a protobuf message."""
         proto = wandb_internal_pb2.Metadata()
 
-        # A flag to indicate that the metadata has been modified by the user.
-        # Updates to the metadata object originating from the user take precedence
-        # over automatic updates.
-        proto._user_modified = True
-
         # Handle all scalar fields
         if self.os is not None:
             proto.os = self.os

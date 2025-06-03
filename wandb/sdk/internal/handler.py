@@ -660,6 +660,9 @@ class HandleManager:
     def handle_footer(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_metadata(self, _: Record) -> None:
+        logger.warning("Metadata updates are ignored when using the legacy service.")
+
     def handle_request_attach(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
         attach_id = record.request.attach.attach_id
