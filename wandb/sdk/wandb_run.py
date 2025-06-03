@@ -34,9 +34,8 @@ from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_deprecated import Deprecated
+from wandb.proto.wandb_internal_pb2 import Metadata as MetadataProto
 from wandb.proto.wandb_internal_pb2 import (
-    Metadata as MetadataProto,
-    MetadataRecord,
     MetricRecord,
     PollExitResponse,
     Result,
