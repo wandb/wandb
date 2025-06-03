@@ -88,20 +88,12 @@ pub struct Imports {
     pub autogluon: bool,
     #[prost(bool, tag = "16")]
     pub autokeras: bool,
-    /// bool avalanche = 17;
     #[prost(bool, tag = "18")]
     pub catalyst: bool,
-    /// bool dalle_pytorch = 19;
-    /// bool datasets = 20;
     #[prost(bool, tag = "21")]
     pub deepchem: bool,
     #[prost(bool, tag = "22")]
     pub deepctr: bool,
-    /// bool deeppavlov = 23;
-    /// bool detectron = 24;
-    /// bool paddle = 25;
-    /// bool parlai = 26;
-    /// bool prophet = 27;
     #[prost(bool, tag = "28")]
     pub pycaret: bool,
     #[prost(bool, tag = "29")]
@@ -156,8 +148,6 @@ pub struct Imports {
     pub joblib: bool,
     #[prost(bool, tag = "54")]
     pub dask: bool,
-    #[prost(bool, tag = "55")]
-    pub asyncio: bool,
     #[prost(bool, tag = "56")]
     pub paddleocr: bool,
     #[prost(bool, tag = "57")]
