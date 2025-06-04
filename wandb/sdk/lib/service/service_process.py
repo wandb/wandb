@@ -13,9 +13,9 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 from wandb import _sentry
 from wandb.env import core_debug, dcgm_profiling_enabled, error_reporting_enabled
 from wandb.errors import Error, WandbCoreNotAvailableError
-from wandb.util import get_core_path
-
-from . import port_file
+from wandb.errors.term import termlog, termwarn
+from wandb.sdk.service import port_file
+from wandb.util import get_core_path, get_module
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
@@ -34,18 +34,14 @@ class ServiceStartPortError(Error):
 
 
 class _Service:
-    _settings: "Settings"
-    _sock_port: Optional[int]
-    _internal_proc: Optional[subprocess.Popen]
-
     def __init__(
         self,
         settings: "Settings",
     ) -> None:
         self._settings = settings
         self._stub = None
-        self._sock_port = None
-        self._internal_proc = None
+        self._sock_port: Optional[int] = None
+        self._internal_proc: Optional[subprocess.Popen] = None
 
         _sentry.configure_scope(tags=dict(settings), process_context="service")
 
