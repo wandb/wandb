@@ -1599,7 +1599,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 80, 81, 82, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1677,8 +1677,6 @@ pub mod request {
         LinkArtifact(super::LinkArtifactRequest),
         #[prost(message, tag = "79")]
         RunFinishWithoutExit(super::RunFinishWithoutExitRequest),
-        #[prost(message, tag = "80")]
-        GetSystemMetadata(super::GetSystemMetadataRequest),
         #[prost(message, tag = "81")]
         SyncFinish(super::SyncFinishRequest),
         /// Requests information about tasks the service is performing.
@@ -1694,7 +1692,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 73, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1750,8 +1748,6 @@ pub mod response {
         SyncResponse(super::SyncResponse),
         #[prost(message, tag = "72")]
         RunFinishWithoutExitResponse(super::RunFinishWithoutExitResponse),
-        #[prost(message, tag = "73")]
-        GetSystemMetadataResponse(super::GetSystemMetadataResponse),
         #[prost(message, tag = "74")]
         OperationsResponse(super::OperationStatsResponse),
         #[prost(message, tag = "1000")]
@@ -1913,18 +1909,6 @@ pub struct GetSystemMetricsResponse {
         ::prost::alloc::string::String,
         SystemMetricsBuffer,
     >,
-}
-///
-/// GetSystemMetadataRequest: request system metadata
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetSystemMetadataRequest {
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RequestInfo>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetSystemMetadataResponse {
-    #[prost(message, optional, tag = "1")]
-    pub metadata: ::core::option::Option<MetadataRequest>,
 }
 ///
 /// StatusRequest:

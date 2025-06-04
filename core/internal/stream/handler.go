@@ -325,8 +325,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestCancel(x.Cancel)
 	case *spb.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record)
-	case *spb.Request_GetSystemMetadata:
-		h.handleRequestGetSystemMetadata(record)
 	case *spb.Request_InternalMessages:
 		h.handleRequestInternalMessages(record)
 	case *spb.Request_SyncFinish:
@@ -819,18 +817,6 @@ func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 		response.GetGetSystemMetricsResponse().SystemMetrics[key] = &spb.SystemMetricsBuffer{
 			Record: buffer,
 		}
-	}
-
-	h.respond(record, response)
-}
-
-func (h *Handler) handleRequestGetSystemMetadata(record *spb.Record) {
-	response := &spb.Response{
-		ResponseType: &spb.Response_GetSystemMetadataResponse{
-			GetSystemMetadataResponse: &spb.GetSystemMetadataResponse{
-				Metadata: h.metadata,
-			},
-		},
 	}
 
 	h.respond(record, response)

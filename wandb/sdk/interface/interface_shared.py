@@ -418,12 +418,6 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(get_system_metrics=get_system_metrics)
         return self._deliver_record(record)
 
-    def _deliver_get_system_metadata(
-        self, get_system_metadata: pb.GetSystemMetadataRequest
-    ) -> MailboxHandle[pb.Result]:
-        record = self._make_request(get_system_metadata=get_system_metadata)
-        return self._deliver_record(record)
-
     def _deliver_exit(
         self,
         exit_data: pb.RunExitRecord,

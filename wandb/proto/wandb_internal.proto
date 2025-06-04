@@ -579,7 +579,7 @@ message AlertResult {}
  * Request: all non persistent messages
  */
 message Request {
-  reserved 75, 76;
+  reserved 75, 76, 80;
 
   oneof request_type {
     StopStatusRequest stop_status = 1;
@@ -617,7 +617,6 @@ message Request {
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
     RunFinishWithoutExitRequest run_finish_without_exit = 79;
-    GetSystemMetadataRequest get_system_metadata = 80;
     SyncFinishRequest sync_finish = 81;
 
     // Requests information about tasks the service is performing.
@@ -631,6 +630,8 @@ message Request {
  * Response: all non persistent responses to Requests
  */
 message Response {
+  reserved 73;
+
   oneof response_type {
     KeepaliveResponse keepalive_response = 18;
     StopStatusResponse stop_status_response = 19;
@@ -656,7 +657,6 @@ message Response {
     LinkArtifactResponse link_artifact_response = 71;
     SyncResponse sync_response = 70;
     RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
-    GetSystemMetadataResponse get_system_metadata_response = 73;
     OperationStatsResponse operations_response = 74;
     TestInjectResponse test_inject_response = 1000;
   }
@@ -744,17 +744,6 @@ message SystemMetricsBuffer {
 
 message GetSystemMetricsResponse {
   map<string, SystemMetricsBuffer> system_metrics = 1;
-}
-
-/*
- * GetSystemMetadataRequest: request system metadata
- */
-message GetSystemMetadataRequest {
-  _RequestInfo _info = 200;
-}
-
-message GetSystemMetadataResponse {
-  MetadataRequest metadata = 1;
 }
 
 /*

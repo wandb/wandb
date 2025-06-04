@@ -993,16 +993,6 @@ class InterfaceBase:
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_get_system_metadata(self) -> MailboxHandle[pb.Result]:
-        get_system_metadata = pb.GetSystemMetadataRequest()
-        return self._deliver_get_system_metadata(get_system_metadata)
-
-    @abstractmethod
-    def _deliver_get_system_metadata(
-        self, get_system_metadata: pb.GetSystemMetadataRequest
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
     def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle[pb.Result]:
         exit_data = self._make_exit(exit_code)
         return self._deliver_exit(exit_data)
