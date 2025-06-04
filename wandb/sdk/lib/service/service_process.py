@@ -23,9 +23,8 @@ from wandb.env import (
 )
 from wandb.errors import Error, WandbCoreNotAvailableError
 from wandb.errors.term import termlog, termwarn
+from wandb.sdk.service import port_file
 from wandb.util import get_core_path, get_module
-
-from . import _startup_debug, port_file
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
@@ -44,27 +43,16 @@ class ServiceStartPortError(Error):
 
 
 class _Service:
-    _settings: "Settings"
-    _sock_port: Optional[int]
-    _internal_proc: Optional[subprocess.Popen]
-    _startup_debug_enabled: bool
-
     def __init__(
         self,
         settings: "Settings",
     ) -> None:
         self._settings = settings
         self._stub = None
-        self._sock_port = None
-        self._internal_proc = None
-        self._startup_debug_enabled = _startup_debug.is_enabled()
+        self._sock_port: Optional[int] = None
+        self._internal_proc: Optional[subprocess.Popen] = None
 
         _sentry.configure_scope(tags=dict(settings), process_context="service")
-
-    def _startup_debug_print(self, message: str) -> None:
-        if not self._startup_debug_enabled:
-            return
-        _startup_debug.print_message(message)
 
     def _wait_for_ports(
         self, fname: str, proc: Optional[subprocess.Popen] = None
@@ -134,8 +122,6 @@ class _Service:
         # References for starting processes
         # - https://github.com/wandb/wandb/blob/archive/old-cli/wandb/__init__.py
         # - https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
-        self._startup_debug_print("launch")
-
         kwargs: Dict[str, Any] = dict(close_fds=True)
         # flags to handle keyboard interrupt signal that is causing a hang
         if platform.system() == "Windows":
@@ -229,14 +215,11 @@ class _Service:
             except Exception as e:
                 _sentry.reraise(e)
 
-            self._startup_debug_print("wait_ports")
             try:
                 self._wait_for_ports(fname, proc=internal_proc)
             except Exception as e:
                 _sentry.reraise(e)
-            self._startup_debug_print("wait_ports_done")
             self._internal_proc = internal_proc
-        self._startup_debug_print("launch_done")
 
     def start(self) -> None:
         self._launch_server()

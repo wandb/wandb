@@ -192,7 +192,7 @@ jobs:
       matrix:
         os:
           - ubuntu-22.04
-          - windows-2019
+          - windows-2022
           - macos-14
 
     steps:
@@ -375,7 +375,7 @@ jobs:
       matrix:
         os:
           - ubuntu-22.04
-          - windows-2019
+          - windows-2022
           - macos-14
         use_legacy_service: [false, true]
 
