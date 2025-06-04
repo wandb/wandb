@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import aiohttp
 import kubernetes_asyncio
 from kubernetes_asyncio.client import AppsV1Api, CoreV1Api
+import kubernetes_asyncio.utils
 
 import wandb
 import yaml
@@ -752,54 +753,16 @@ class LaunchAgent:
             resource, api, backend_config, environment, registry
         )
 
-        requires_inference = (
-            job.get("runSpec", {})
-            .get("overrides", {})
-            .get("requiresInferenceServer", False)
-        )
+        additional_services = job.get("runSpec", {}).get("additional_services", [])
 
-        if requires_inference:
+        if additional_services:
             # thread_id should be unique here, but we can't use it directly since
             # it contains non-alphanumeric characters.
             namespace = f"evals-{hashlib.md5(str(thread_id).encode()).hexdigest()}"
+            job_tracker.vllm_server_namespace = namespace
             wandb.termlog(
                 f"{LOG_PREFIX}Creating Hello World server in namespace: {namespace}"
             )
-
-            # ConfigMap
-            configmap_params = yaml.load(
-                open(os.path.join("agent_k8s", "hello-world-configmap.yaml")),
-                Loader=yaml.SafeLoader,
-            )
-            configmap_params["metadata"]["namespace"] = namespace
-
-            # Secret
-            # secret_params = yaml.load(
-            #     open(os.path.join("agent_k8s", "secret.yaml")),
-            #     Loader=yaml.SafeLoader,
-            # )
-            # secret_params["metadata"]["namespace"] = namespace
-
-            # Volume
-            volume_params = yaml.load(
-                open(os.path.join("agent_k8s", "volume.yaml")),
-                Loader=yaml.SafeLoader,
-            )
-            volume_params["metadata"]["namespace"] = namespace
-
-            # Deployment
-            deployment_params = yaml.load(
-                open(os.path.join("agent_k8s", "hello-world-deployment.yaml")),
-                Loader=yaml.SafeLoader,
-            )
-            deployment_params["metadata"]["namespace"] = namespace
-
-            # Service
-            service_params = yaml.load(
-                open(os.path.join("agent_k8s", "hello-world-service.yaml")),
-                Loader=yaml.SafeLoader,
-            )
-            service_params["metadata"]["namespace"] = namespace
 
             _, api_client = await get_kube_context_and_api_client(
                 kubernetes_asyncio, {}
@@ -810,71 +773,91 @@ class LaunchAgent:
 
                 try:
                     await v1.create_namespace(body={"metadata": {"name": namespace}})
+                    wandb.termlog(f"{LOG_PREFIX}Created namespace: {namespace}")
 
-                    await v1.create_namespaced_config_map(
-                        namespace=namespace, body=configmap_params
-                    )
-
-                    # await v1.create_namespaced_secret(
-                    #     namespace=namespace, body=secret_params
-                    # )
-
-                    await v1.create_namespaced_persistent_volume_claim(
-                        namespace=namespace, body=volume_params
-                    )
-
-                    await apps_v1.create_namespaced_deployment(
-                        namespace=namespace, body=deployment_params
-                    )
-
-                    await v1.create_namespaced_service(
-                        namespace=namespace, body=service_params
-                    )
-
-                    async def readiness_check():
-                        timeout = 120
-                        retry_interval = 5.0
-                        endpoint = "http://localhost:30080"
-
-                        start_time = time.time()
-                        while time.time() - start_time < timeout:
-                            try:
-                                wandb.termlog(
-                                    f"{LOG_PREFIX}Checking endpoint: {endpoint}"
-                                )
-                                async with aiohttp.ClientSession() as session:
-                                    async with session.get(endpoint) as response:
-                                        wandb.termlog(
-                                            f"{LOG_PREFIX}Got response status: {response.status}"
-                                        )
-                                        if response.status == 200:
-                                            wandb.termlog(
-                                                f"{LOG_PREFIX}Hello World server is ready at {endpoint}"
-                                            )
-                                            return
-                            except Exception as e:
-                                wandb.termlog(f"{LOG_PREFIX}Connection error: {str(e)}")
-
+                    async def prepare_service(service: Dict[str, Any]) -> None:
+                        service_config = service.get("config")
+                        if service_config:
+                            service_config.setdefault("metadata", {})[
+                                "namespace"
+                            ] = namespace
                             wandb.termlog(
-                                f"{LOG_PREFIX}Retrying in {retry_interval} seconds..."
+                                f"{LOG_PREFIX}Creating service: {service_config}"
                             )
-                            await asyncio.sleep(retry_interval)
 
-                        wandb.termwarn(
-                            f"{LOG_PREFIX}Hello World server did not become ready within the timeout period"
-                        )
+                            if service_config["kind"] == "ConfigMap":
+                                await v1.create_namespaced_config_map(
+                                    namespace=namespace, body=service_config
+                                )
+                            elif service_config["kind"] == "Secret":
+                                await v1.create_namespaced_secret(
+                                    namespace=namespace, body=service_config
+                                )
+                            elif service_config["kind"] == "PersistentVolumeClaim":
+                                await v1.create_namespaced_persistent_volume_claim(
+                                    namespace=namespace, body=service_config
+                                )
+                            elif service_config["kind"] == "Deployment":
+                                # TODO: there has to be a better way to figure out which API client to use
+                                await apps_v1.create_namespaced_deployment(
+                                    namespace=namespace, body=service_config
+                                )
+                            elif service_config["kind"] == "Service":
+                                await v1.create_namespaced_service(
+                                    namespace=namespace, body=service_config
+                                )
 
-                    await readiness_check()
+                            # await kubernetes_asyncio.utils.create_from_dict(
+                            #     v1,
+                            #     service_config,
+                            #     namespace=namespace,
+                            # )
 
-                    job_tracker.vllm_server_namespace = namespace
+                    wandb.termlog(
+                        f"{LOG_PREFIX}Additional services: {additional_services}"
+                    )
+                    await asyncio.gather(
+                        *[prepare_service(service) for service in additional_services],
+                    )
+
+                    # async def readiness_check():
+                    #     timeout = 120
+                    #     retry_interval = 5.0
+                    #     endpoint = "http://localhost:30080"
+
+                    #     start_time = time.time()
+                    #     while time.time() - start_time < timeout:
+                    #         try:
+                    #             wandb.termlog(
+                    #                 f"{LOG_PREFIX}Checking endpoint: {endpoint}"
+                    #             )
+                    #             async with aiohttp.ClientSession() as session:
+                    #                 async with session.get(endpoint) as response:
+                    #                     wandb.termlog(
+                    #                         f"{LOG_PREFIX}Got response status: {response.status}"
+                    #                     )
+                    #                     if response.status == 200:
+                    #                         wandb.termlog(
+                    #                             f"{LOG_PREFIX}Hello World server is ready at {endpoint}"
+                    #                         )
+                    #                         return
+                    #         except Exception as e:
+                    #             wandb.termlog(f"{LOG_PREFIX}Connection error: {str(e)}")
+
+                    #         wandb.termlog(
+                    #             f"{LOG_PREFIX}Retrying in {retry_interval} seconds..."
+                    #         )
+                    #         await asyncio.sleep(retry_interval)
+
+                    #     wandb.termwarn(
+                    #         f"{LOG_PREFIX}Hello World server did not become ready within the timeout period"
+                    #     )
+
+                    # await readiness_check()
 
                 except Exception as e:
-                    self._internal_logger.warn(
-                        f"Failed to create Hello World deployment: {str(e)}"
-                    )
-                    wandb.termwarn(
-                        f"{LOG_PREFIX}Failed to create Hello World server: {str(e)}"
-                    )
+                    self._internal_logger.warn(f"Failed to create deployment: {str(e)}")
+                    wandb.termwarn(f"{LOG_PREFIX}Failed to create deployment: {str(e)}")
 
         if not (
             project.docker_image

@@ -1,5 +1,5 @@
 FROM python:3.11-slim-bookworm
-# LABEL maintainer='Weights & Biases <support@wandb.com>'
+LABEL maintainer='Weights & Biases <support@wandb.com>'
 
 # Install dependencies
 RUN apt-get update && apt-get upgrade -y \
@@ -44,28 +44,14 @@ ENV PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
 # Install Rust minimally and build wandb
 ARG REF="main"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --component cargo && \
-    export PATH="/root/.cargo/bin:${PATH}"
-
-COPY . /home/wandb/wandb-sdk
-
-RUN pip install --upgrade pip && \
+    export PATH="/root/.cargo/bin:${PATH}" && \
+    pip install --upgrade pip && \
     pip uninstall -y setuptools && \
-    pip install --no-cache-dir /home/wandb/wandb-sdk && \
-    pip install --no-cache-dir /home/wandb/wandb-sdk[launch]
-
-RUN rm -rf /root/.cargo /root/.rustup && \
+    pip install --no-cache-dir git+https://github.com/wandb/wandb.git@$REF#egg=wandb[launch] && \
+    rm -rf /root/.cargo /root/.rustup && \
     apt-get remove -y curl && \
     apt-get -qy autoremove && \
     apt-get clean && rm -r /var/lib/apt/lists/*
-
-RUN rm -rf /home/wandb/wandb-sdk
-
-# Install Docker CLI
-RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
-    apt-get update && \
-    apt-get install -y docker-ce-cli && \
-    rm -rf /var/lib/apt/lists/*
 
 # user set up
 RUN useradd -m -s /bin/bash --create-home --no-log-init -u 1000 -g 0 launch_agent

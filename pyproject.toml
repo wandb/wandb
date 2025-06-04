@@ -104,7 +104,6 @@ launch = [
     "tomli",
     "PyYAML>=6.0.0",
     "tornado>=6.5.0;python_version>='3.9'",
-    "aiohttp",
 ]
 models = ["cloudpickle"]
 perf = ["orjson"]
@@ -417,9 +416,3 @@ module = [
     "wandb.vendor.pynvml.pynvml.*",
 ]
 ignore_missing_imports = true
-
-[tool.hatch.build.targets.wheel]
-packages = ["wandb"]
-include = [
-    "agent_k8s/*.yaml",
-]
