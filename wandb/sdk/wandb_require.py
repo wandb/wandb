@@ -30,6 +30,21 @@ class _Requires:
     def require_require(self) -> None:
         pass
 
+    def require_service(self) -> None:
+        # Legacy no-op kept solely for backward compatibility:
+        # some integrations (e.g. PyTorch Lightning) still call
+        # `wandb.require('service')`, which routes here.
+        wandb.termwarn(
+            "`wandb.require('service')` is a no-op as it is now the default behavior."
+        )
+
+    def require_core(self) -> None:
+        # Legacy no-op kept solely for backward compatibility:
+        # many public codebases still call `wandb.require('core')`.
+        wandb.termwarn(
+            "`wandb.require('core')` is a no-op as it is now the default behavior."
+        )
+
     def apply(self) -> None:
         """Call require_* method for supported features."""
         last_message: str = ""
