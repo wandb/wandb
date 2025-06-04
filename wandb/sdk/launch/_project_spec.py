@@ -134,6 +134,7 @@ class LaunchProject:
         self._queue_name: Optional[str] = None
         self._queue_entity: Optional[str] = None
         self._run_queue_item_id: Optional[str] = None
+        self._requires_inference_server: Optional[bool] = None
 
     def init_source(self) -> None:
         if self.docker_image is not None:
@@ -436,6 +437,7 @@ class LaunchProject:
             )
         job.configure_launch_project(self)  # Why is this a method of the job?
         self._job_artifact = job._job_artifact
+        self._requires_inference_server = job._requires_inference_server
 
     def get_env_vars_dict(self, api: Api, max_env_length: int) -> Dict[str, str]:
         """Generate environment variables for the project.
@@ -471,6 +473,8 @@ class LaunchProject:
             env_vars[wandb.env.LAUNCH_QUEUE_ENTITY] = self.queue_entity
         if self.run_queue_item_id:
             env_vars[wandb.env.LAUNCH_TRACE_ID] = self.run_queue_item_id
+        if self._requires_inference_server:
+            env_vars["WANDB_REQUIRES_INFERENCE_SERVER"] = "True"
 
         _inject_wandb_config_env_vars(self.override_config, env_vars, max_env_length)
         _inject_file_overrides_env_vars(self.override_files, env_vars, max_env_length)

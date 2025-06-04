@@ -17,6 +17,10 @@ from functools import wraps
 from typing import Any, Dict, Optional
 
 import click
+import wandb
+import wandb.env
+import wandb.errors
+import wandb.sdk.verify.verify as wandb_verify
 import yaml
 from click.exceptions import ClickException
 
@@ -1306,6 +1310,12 @@ def launch_sweep(
     help="""When --queue is passed, set the priority of the job. Launch jobs with higher priority
     are served first.  The order, from highest to lowest priority, is: critical, high, medium, low""",
 )
+@click.option(
+    "--requires-inference-server",
+    is_flag=True,
+    hidden=True,
+    help="Run the job with an inference server",
+)
 @display_error
 def launch(
     uri,
@@ -1330,6 +1340,7 @@ def launch(
     dockerfile,
     priority,
     job_name,
+    requires_inference_server,
 ):
     """Start a W&B run from the given URI.
 
@@ -1419,6 +1430,7 @@ def launch(
             build_context=build_context,
             dockerfile=dockerfile,
             entity=entity,
+            requires_inference_server=requires_inference_server,
         )
         if artifact is None:
             raise LaunchError(f"Failed to create job from uri: {uri}")
@@ -1470,6 +1482,7 @@ def launch(
                     synchronous=(not run_async),
                     run_id=run_id,
                     repository=repository,
+                    requires_inference_server=requires_inference_server,
                 )
             )
             if asyncio.run(run.get_status()).state in [
