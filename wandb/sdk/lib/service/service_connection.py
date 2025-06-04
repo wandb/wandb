@@ -14,9 +14,8 @@ from wandb.sdk.interface.router_sock import MessageSockRouter
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.sock_client import SockClient, SockClientClosedError
 from wandb.sdk.mailbox import HandleAbandonedError, Mailbox, MailboxClosedError
-from wandb.sdk.service import service
 
-from . import service_token
+from . import service_process, service_token
 
 
 class WandbAttachFailedError(Exception):
@@ -44,7 +43,7 @@ def _start_and_connect_service(
     it to complete. The hook does not run in processes started using the
     multiprocessing module.
     """
-    proc = service._Service(settings)
+    proc = service_process._Service(settings)
     proc.start()
 
     port = proc.sock_port
@@ -82,7 +81,7 @@ class ServiceConnection:
     def __init__(
         self,
         client: SockClient,
-        proc: service._Service | None,
+        proc: service_process._Service | None,
         cleanup: Callable[[], None] | None = None,
     ):
         """Returns a new ServiceConnection.
