@@ -71,7 +71,7 @@ func processPRCurves(
 		ColumnLabels: []string{"recall", "precision"},
 	}
 
-	for i := 0; i < len(precision); i++ {
+	for i := range precision {
 		table.Rows = append(table.Rows,
 			[]any{recall[i], precision[i]})
 	}
