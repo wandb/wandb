@@ -588,7 +588,7 @@ func TestRecoverMultipleBlocks(t *testing.T) {
 func verifyLastBlockRecover(recs *testRecords) error {
 	r := NewReader(bytes.NewReader(recs.buf))
 	// Loop to one element larger than the number of records to verify EOF.
-	for i := range len(recs.records)+1 {
+	for i := range len(recs.records) + 1 {
 		_, err := r.Next()
 		switch i {
 		case len(recs.records) - 1:
