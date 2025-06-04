@@ -1966,6 +1966,8 @@ def docker_run(ctx, docker_run_args):
 
     See `docker run --help` for more details.
     """
+    import wandb.docker
+
     api = InternalApi()
     args = list(docker_run_args)
     if len(args) > 0 and args[0] == "run":
@@ -2058,6 +2060,9 @@ def docker(
     api = InternalApi()
     if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
+
+    import wandb.docker
+
     args = list(docker_run_args)
     image = docker_image or ""
     # remove run for users used to nvidia-docker
@@ -2185,6 +2190,9 @@ def start(ctx, port, env, daemon, upgrade, edge):
     api = InternalApi()
     if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
+
+    import wandb.docker
+
     local_image_sha = wandb.docker.image_id("wandb/local").split("wandb/local")[-1]
     registry_image_sha = wandb.docker.image_id_from_registry("wandb/local").split(
         "wandb/local"
@@ -2197,7 +2205,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
                 "A new version of the W&B server is available, upgrade by calling `wandb server start --upgrade`"
             )
     running = subprocess.check_output(
-        ["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"]
+        ["docker", "ps", "--filter", "name=^wandb-local$", "--format", "{{.ID}}"]
     )
     if running != b"":
         if upgrade:

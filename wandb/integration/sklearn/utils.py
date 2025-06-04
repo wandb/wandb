@@ -114,10 +114,11 @@ def test_fitted(model):
                 ],
                 all_or_any=any,
             )
-            return True
         except sklearn.exceptions.NotFittedError:
             wandb.termerror("Please fit the model before passing it in.")
             return False
+        else:
+            return True
     except Exception:
         # Assume it's fitted, since ``NotFittedError`` wasn't raised
         return True

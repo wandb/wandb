@@ -171,13 +171,13 @@ class BackendFixtureFactory:
         # trigger fixture
         endpoint = str(self._client.base_url.join(path))
         # FIXME: Figure out how SDK team preferences/conventions for replacing print statements
-        print(f"Triggering fixture on {endpoint!r}: {data!r}", file=sys.stderr)  # noqa: T201
+        print(f"Triggering fixture on {endpoint!r}: {data!r}", file=sys.stderr)
         try:
             response = self._client.post(path, json=data)
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
             # FIXME: Figure out how SDK team preferences/conventions for replacing print statements
-            print(e.response.json(), file=sys.stderr)  # noqa: T201
+            print(e.response.json(), file=sys.stderr)
 
     def cleanup(self) -> None:
         while True:

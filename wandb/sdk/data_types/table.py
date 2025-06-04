@@ -1363,7 +1363,6 @@ def _get_data_from_increments(
             increment_num = int(increment_parts[0])
             # If there's a timestamp part, use it for secondary sorting
             timestamp = int(increment_parts[1]) if len(increment_parts) > 1 else 0
-            return (increment_num, timestamp)
         except (ValueError, IndexError):
             wandb.termwarn(
                 (
@@ -1375,6 +1374,8 @@ def _get_data_from_increments(
                 repeat=False,
             )
             return (0, 0)
+
+        return (increment_num, timestamp)
 
     sorted_increment_keys = []
     for entry_key in source_artifact.manifest.entries:

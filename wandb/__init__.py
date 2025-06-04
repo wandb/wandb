@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.19.12.dev1"
+__version__ = "0.20.1.dev1"
 
 
 from wandb.errors import Error
@@ -169,7 +169,6 @@ gym = _lazyloader.LazyLoader("wandb.gym", globals(), "wandb.integration.gym")
 lightgbm = _lazyloader.LazyLoader(
     "wandb.lightgbm", globals(), "wandb.integration.lightgbm"
 )
-docker = _lazyloader.LazyLoader("wandb.docker", globals(), "wandb.docker")
 jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
 sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sacred")
 

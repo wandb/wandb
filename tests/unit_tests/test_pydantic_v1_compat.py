@@ -152,7 +152,9 @@ def test_model_fields_class_property():
 def test_model_fields_set_property():
     class Model(CompatBaseModel):
         x: int
-        y: Optional[str] = None  # noqa: UP007  # `Optional[X]` instead of `X | None` for pydantic<2.6 compatibility
+        y: Optional[str] = (
+            None  # `Optional[X]` instead of `X | None` for pydantic<2.6 compatibility
+        )
 
     obj = Model(x=1)
     assert obj.model_fields_set == {"x"}
