@@ -8,6 +8,8 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Sequence
 from urllib.parse import parse_qsl, urlparse
 
+from botocore.client import Config
+
 from wandb import util
 from wandb.errors import CommError
 from wandb.errors.term import termlog
@@ -56,6 +58,7 @@ class S3Handler(StorageHandler):
             "s3",
             endpoint_url=os.getenv("AWS_S3_ENDPOINT_URL"),
             region_name=os.getenv("AWS_REGION"),
+            config=Config(s3={"addressing_style": "virtual"}),
         )
         self._botocore = util.get_module("botocore")
         return self._s3
