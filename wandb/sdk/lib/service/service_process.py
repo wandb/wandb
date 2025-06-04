@@ -13,9 +13,8 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 from wandb import _sentry
 from wandb.env import core_debug, dcgm_profiling_enabled, error_reporting_enabled
 from wandb.errors import Error, WandbCoreNotAvailableError
-from wandb.errors.term import termlog, termwarn
 from wandb.sdk.service import port_file
-from wandb.util import get_core_path, get_module
+from wandb.util import get_core_path
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
