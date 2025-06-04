@@ -107,8 +107,7 @@ class ProgressPrinter:
         progress_text_area: p.DynamicText | None,
         default_text: str,
     ) -> None:
-        # Not implemented by the legacy service.
-        self._show_operation_stats = not env.is_require_legacy_service()
+        self._show_operation_stats = True
         self._printer = printer
         self._progress_text_area = progress_text_area
         self._default_text = default_text

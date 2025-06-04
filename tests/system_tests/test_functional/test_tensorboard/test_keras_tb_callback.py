@@ -19,7 +19,6 @@ class MyModel(keras.Model):
         return outputs
 
 
-@pytest.mark.wandb_core_only
 def test_tb_callback(wandb_backend_spy):
     np.random.seed(42)
 

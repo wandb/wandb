@@ -118,7 +118,6 @@ def test_sweeps_on_launch(
     assert res["runSpec"]["resource"] == "local-process"
 
 
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_job_with_queue(runner, user, mocker):
     # Can't download artifacts in tests, so patch this
     mocker.patch("wandb.sdk.launch.sweeps.utils.check_job_exists", return_value=True)

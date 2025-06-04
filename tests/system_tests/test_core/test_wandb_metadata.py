@@ -3,7 +3,6 @@ import wandb
 
 
 @pytest.mark.parametrize("disabled", [False, True])
-@pytest.mark.wandb_core_only
 def test_metadata_ops(user, disabled: bool):
     run = wandb.init(
         settings=wandb.Settings(

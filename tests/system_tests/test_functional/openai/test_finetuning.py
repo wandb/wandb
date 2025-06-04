@@ -5,7 +5,7 @@ from openai import OpenAI
 from wandb.integration.openai.fine_tuning import WandbLogger
 
 
-@pytest.mark.wandb_core_only(
+(
     reason="This test is order-dependent and must only run once.",
 )
 def test_finetuning(wandb_backend_spy):

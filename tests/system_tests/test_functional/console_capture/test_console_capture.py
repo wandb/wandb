@@ -4,7 +4,7 @@ import subprocess
 import pytest
 
 
-@pytest.mark.wandb_core_only(reason="Test does not depend on service process.")
+(reason="Test does not depend on service process.")
 def test_patch_stdout_and_stderr():
     script = pathlib.Path(__file__).parent / "patch_stdout_and_stderr.py"
 
@@ -20,14 +20,14 @@ def test_patch_stdout_and_stderr():
     assert exit_code == 0
 
 
-@pytest.mark.wandb_core_only(reason="Test does not depend on service process.")
+(reason="Test does not depend on service process.")
 def test_patching_exception():
     script = pathlib.Path(__file__).parent / "patching_exception.py"
 
     subprocess.check_call(["python", str(script)])
 
 
-@pytest.mark.wandb_core_only(reason="Test does not depend on service process.")
+(reason="Test does not depend on service process.")
 def test_uncapturing():
     script = pathlib.Path(__file__).parent / "uncapturing.py"
 

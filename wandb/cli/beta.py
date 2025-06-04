@@ -24,12 +24,6 @@ def beta():
 
     wandb._sentry.configure_scope(process_context="wandb_beta")
 
-    if wandb.env.is_require_legacy_service():
-        raise UsageError(
-            "wandb beta commands can only be used with wandb-core. "
-            f"Please make sure that `{wandb.env._REQUIRE_LEGACY_SERVICE}` is not set."
-        )
-
     try:
         get_core_path()
     except WandbCoreNotAvailableError as e:

@@ -5,7 +5,7 @@ import subprocess
 import pytest
 
 
-@pytest.mark.wandb_core_only(reason="does not depend on service")
+(reason="does not depend on service")
 def test_asyncio_compat_run_stops_on_keyboard_interrupt():
     script = pathlib.Path(__file__).parent / "pass_if_cancelled.py"
     proc = subprocess.Popen(
