@@ -925,8 +925,6 @@ class _WandbInit:
                 tel.feature.flow_control_disabled = True
             if settings.x_flow_control_custom:
                 tel.feature.flow_control_custom = True
-            if not settings.x_require_legacy_service:
-                tel.feature.core = True
             if settings._shared:
                 wandb.termwarn(
                     "The `shared` mode feature is experimental and may change. "

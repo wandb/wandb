@@ -209,7 +209,6 @@ class Sentry:
             "sweep_url",
             "sweep_id",
             "deployment",
-            "x_require_legacy_service",
             "launch",
             "_platform",
         )

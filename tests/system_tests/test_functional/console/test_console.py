@@ -6,7 +6,6 @@ import tqdm
 import wandb
 
 
-@pytest.mark.wandb_core_only
 def test_tqdm(wandb_backend_spy):
     with wandb.init(settings={"console": "auto"}) as run:
         print("before progress")
@@ -26,7 +25,6 @@ def test_tqdm(wandb_backend_spy):
         assert "final progress" in output[13]
 
 
-@pytest.mark.wandb_core_only
 def test_emoji(wandb_backend_spy):
     with wandb.init(settings={"console": "auto"}) as run:
         print("before emoji")

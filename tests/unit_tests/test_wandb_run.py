@@ -4,7 +4,6 @@ import platform
 import numpy as np
 import pytest
 import wandb
-import wandb.errors
 from wandb import wandb_sdk
 
 REFERENCE_ATTRIBUTES = set(
@@ -13,7 +12,6 @@ REFERENCE_ATTRIBUTES = set(
         "config",
         "config_static",
         "define_metric",
-        "detach",
         "dir",
         "disabled",
         "display",
