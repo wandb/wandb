@@ -54,11 +54,18 @@ class S3Handler(StorageHandler):
             required="s3:// references requires the boto3 library, run pip install wandb[aws]",
             lazy=False,
         )
+
+        s3_endpoint = os.getenv("AWS_S3_ENDPOINT_URL")
+        config = (
+            Config(s3={"addressing_style": "virtual"})
+            if s3_endpoint and self._is_coreweave_endpoint(s3_endpoint)
+            else None
+        )
         self._s3 = boto.session.Session().resource(
             "s3",
-            endpoint_url=os.getenv("AWS_S3_ENDPOINT_URL"),
+            endpoint_url=s3_endpoint,
             region_name=os.getenv("AWS_REGION"),
-            config=Config(s3={"addressing_style": "virtual"}),
+            config=config,
         )
         self._botocore = util.get_module("botocore")
         return self._s3
@@ -299,3 +306,10 @@ class S3Handler(StorageHandler):
         if hasattr(obj, "version_id") and obj.version_id and obj.version_id != "null":
             extra["versionID"] = obj.version_id
         return extra
+
+    def _is_coreweave_endpoint(self, endpoint_url: str) -> bool:
+        coreweave_endpoints = [
+            "https://cwobject.com",
+            "http://cwlota.com",
+        ]
+        return endpoint_url in coreweave_endpoints or "coreweave.com" in endpoint_url
