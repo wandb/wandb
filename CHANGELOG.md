@@ -23,7 +23,7 @@ This version removes the ability to disable the `service` process. This is a bre
 ### Added
 
 - Added `merge` parameter to `Artifact.add_dir` to allow overwrite of previously-added artifact files (@pingleiwandb in https://github.com/wandb/wandb/pull/9907)
-- Support for pytorch.tensor for `masks` and `boxes` parameters when creating a `wandb.Image` object. (jacobromero in https://github.com/wandb/wandb/pull/9802)
+- Support for pytorch.tensor for `masks` and `boxes` parameters when creating a `wandb.Image` object. (@jacobromero in https://github.com/wandb/wandb/pull/9802)
 - `sync_tensorboard` now supports syncing tfevents files stored in S3, GCS and Azure (@timoffex in https://github.com/wandb/wandb/pull/9849)
   - GCS paths use the format `gs://bucket/path/to/log/dir` and rely on application-default credentials, which can be configured using `gcloud auth application-default login`
   - S3 paths use the format `s3://bucket/path/to/log/dir` and rely on the default credentials set through `aws configure`

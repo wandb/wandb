@@ -3,26 +3,27 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 from wandb_gql import gql
 
 import wandb
-from wandb.apis.public.registries._freezable_list import AddOnlyArtifactTypesList
-from wandb.apis.public.registries.registries_search import Collections, Versions
-from wandb.apis.public.registries.utils import (
-    _fetch_org_entity_from_organization,
-    _format_gql_artifact_types_input,
-    _gql_to_registry_visibility,
-    _registry_visibility_to_gql,
-)
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.projects._generated.delete_project import DeleteProject
-from wandb.sdk.projects._generated.operations import (
+from wandb.sdk.projects._generated import (
     DELETE_PROJECT_GQL,
     FETCH_REGISTRY_GQL,
     RENAME_PROJECT_GQL,
     UPSERT_REGISTRY_PROJECT_GQL,
+    DeleteProject,
+    RenameProject,
+    UpsertRegistryProject,
 )
-from wandb.sdk.projects._generated.rename_project import RenameProject
-from wandb.sdk.projects._generated.upsert_registry_project import UpsertRegistryProject
+
+from ._freezable_list import AddOnlyArtifactTypesList
+from ._utils import (
+    fetch_org_entity_from_organization,
+    format_gql_artifact_types_input,
+    gql_to_registry_visibility,
+    registry_visibility_to_gql,
+)
+from .registries_search import Collections, Versions
 
 if TYPE_CHECKING:
     from wandb_gql import Client
@@ -62,7 +63,7 @@ class Registry:
         )
         self._created_at = attrs.get("createdAt", "")
         self._updated_at = attrs.get("updatedAt", "")
-        self._visibility = _gql_to_registry_visibility(attrs.get("access", ""))
+        self._visibility = gql_to_registry_visibility(attrs.get("access", ""))
 
     @property
     def full_name(self) -> str:
@@ -220,13 +221,13 @@ class Registry:
             ValueError: If a registry with the same name already exists in the
                 organization or if the creation fails.
         """
-        org_entity = _fetch_org_entity_from_organization(client, organization)
+        org_entity = fetch_org_entity_from_organization(client, organization)
         full_name = REGISTRY_PREFIX + name
         validate_project_name(full_name)
         accepted_artifact_types = []
         if artifact_types:
-            accepted_artifact_types = _format_gql_artifact_types_input(artifact_types)
-        visibility_value = _registry_visibility_to_gql(visibility)
+            accepted_artifact_types = format_gql_artifact_types_input(artifact_types)
+        visibility_value = registry_visibility_to_gql(visibility)
         registry_creation_error = (
             f"Failed to create registry {name!r} in organization {organization!r}."
         )
@@ -310,8 +311,8 @@ class Registry:
             )
 
         validate_project_name(self.full_name)
-        visibility_value = _registry_visibility_to_gql(self.visibility)
-        newly_added_types = _format_gql_artifact_types_input(self.artifact_types.draft)
+        visibility_value = registry_visibility_to_gql(self.visibility)
+        newly_added_types = format_gql_artifact_types_input(self.artifact_types.draft)
         registry_save_error = f"Failed to save and update registry: {self.name} in organization: {self.organization}"
         full_saved_name = f"{REGISTRY_PREFIX}{self._saved_name}"
         try:
