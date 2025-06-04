@@ -12,3 +12,11 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Notable Changes
+
+This version removes the legacy implementaion of the `service` process. This is a breaking change.
+
+### Removed
+
+- Removed the legacy python implementation of the `service` process. The `legacy-service`, `service` and `core` options of `wandb.require` as well as the `x_require_legacy_service` and `x_disable_setproctitle` settings with the corresponding environment variable have been removed and will now raise an error if used (@dmitryduev in https://github.com/wandb/wandb/pull/9965)

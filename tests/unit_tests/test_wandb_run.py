@@ -13,7 +13,6 @@ REFERENCE_ATTRIBUTES = set(
         "config",
         "config_static",
         "define_metric",
-        "detach",
         "dir",
         "disabled",
         "display",

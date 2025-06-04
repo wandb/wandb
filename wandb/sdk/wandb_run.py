@@ -2922,9 +2922,6 @@ class Run:
         """
         wandb.sdk._unwatch(self, models=models)
 
-    def _detach(self) -> None:
-        pass
-
     @_log_to_run
     @_raise_if_finished
     @_attach
