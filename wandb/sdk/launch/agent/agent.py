@@ -799,6 +799,7 @@ class LaunchAgent:
                                 )
                             elif service_config["kind"] == "Deployment":
                                 # TODO: there has to be a better way to figure out which API client to use
+                                #       so that we can use the create_from_dict function below.
                                 await apps_v1.create_namespaced_deployment(
                                     namespace=namespace, body=service_config
                                 )
@@ -807,6 +808,7 @@ class LaunchAgent:
                                     namespace=namespace, body=service_config
                                 )
 
+                            # TODO: Ideally, we can use this instead of the above
                             # await kubernetes_asyncio.utils.create_from_dict(
                             #     v1,
                             #     service_config,
@@ -819,41 +821,6 @@ class LaunchAgent:
                     await asyncio.gather(
                         *[prepare_service(service) for service in additional_services],
                     )
-
-                    # async def readiness_check():
-                    #     timeout = 120
-                    #     retry_interval = 5.0
-                    #     endpoint = "http://localhost:30080"
-
-                    #     start_time = time.time()
-                    #     while time.time() - start_time < timeout:
-                    #         try:
-                    #             wandb.termlog(
-                    #                 f"{LOG_PREFIX}Checking endpoint: {endpoint}"
-                    #             )
-                    #             async with aiohttp.ClientSession() as session:
-                    #                 async with session.get(endpoint) as response:
-                    #                     wandb.termlog(
-                    #                         f"{LOG_PREFIX}Got response status: {response.status}"
-                    #                     )
-                    #                     if response.status == 200:
-                    #                         wandb.termlog(
-                    #                             f"{LOG_PREFIX}Hello World server is ready at {endpoint}"
-                    #                         )
-                    #                         return
-                    #         except Exception as e:
-                    #             wandb.termlog(f"{LOG_PREFIX}Connection error: {str(e)}")
-
-                    #         wandb.termlog(
-                    #             f"{LOG_PREFIX}Retrying in {retry_interval} seconds..."
-                    #         )
-                    #         await asyncio.sleep(retry_interval)
-
-                    #     wandb.termwarn(
-                    #         f"{LOG_PREFIX}Hello World server did not become ready within the timeout period"
-                    #     )
-
-                    # await readiness_check()
 
                 except Exception as e:
                     self._internal_logger.warn(f"Failed to create deployment: {str(e)}")
