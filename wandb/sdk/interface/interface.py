@@ -217,13 +217,6 @@ class InterfaceBase:
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
         raise NotImplementedError
 
-    def publish_metadata(self, metadata: pb.MetadataRequest) -> None:
-        self._publish_metadata(metadata)
-
-    @abstractmethod
-    def _publish_metadata(self, metadata: pb.MetadataRequest) -> None:
-        raise NotImplementedError
-
     @abstractmethod
     def _publish_metric(self, metric: pb.MetricRecord) -> None:
         raise NotImplementedError

@@ -304,10 +304,6 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(summary=summary)
         self._publish(rec)
 
-    def _publish_metadata(self, metadata: pb.MetadataRequest) -> None:
-        rec = self._make_request(metadata=metadata)
-        self._publish(rec)
-
     def _publish_metric(self, metric: pb.MetricRecord) -> None:
         rec = self._make_record(metric=metric)
         self._publish(rec)
