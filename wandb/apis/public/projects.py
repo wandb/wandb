@@ -49,13 +49,13 @@ class Projects(Paginator["Project"]):
         client: RetryingClient,
         entity: str,
         per_page: int = 50,
-    ):
+    ) -> "Projects":
         """An iterable collection of `Project` objects.
 
         Args:
-            client: (RetryingClient) The API client used to query W&B.
-            entity: (str) The entity which owns the projects.
-            per_page: (int) The number of projects to fetch per request to the API.
+            client: The API client used to query W&B.
+            entity: The entity which owns the projects.
+            per_page: The number of projects to fetch per request to the API.
         """
         self.client = client
         self.entity = entity
@@ -112,14 +112,14 @@ class Project(Attrs):
         entity: str,
         project: str,
         attrs: dict,
-    ):
+    ) -> "Project":
         """A single project associated with an entity.
 
         Args:
-            client: (Api) The API client used to query W&B.
-            entity: (str) The entity which owns the project.
-            project: (str) The name of the project to query.
-            attrs: (dict) The attributes of the project.
+            client: The API client used to query W&B.
+            entity: The entity which owns the project.
+            project: The name of the project to query.
+            attrs: The attributes of the project.
         """
         super().__init__(dict(attrs))
         self.client = client
@@ -216,10 +216,10 @@ class Project(Attrs):
         try:
             data = self.client.execute(self._PROJECT_ID, variable_values)
 
-            if not data.get("project"):
+            if not data.get("project") or not data["project"].get("id"):
                 raise ValueError(f"Project {self.name} not found")
 
-            self._attrs["id"] = data["project"].get("id", None)
+            self._attrs["id"] = data["project"]["id"]
             return self._attrs["id"]
         except (HTTPError, LookupError, TypeError) as e:
             raise ValueError(f"Unable to fetch project ID: {variable_values!r}") from e

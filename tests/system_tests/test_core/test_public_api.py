@@ -520,7 +520,7 @@ def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend
 
     with pytest.raises(ValueError):
         project = Api().project(user, "test")
-        project.id
+        project.id  # noqa: B018
 
 
 def test_project_get_sweeps(user, wandb_backend_spy):
