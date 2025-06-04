@@ -107,7 +107,6 @@ def main():
     parser.add_argument(
         "--mode", type=str, default="online", choices=("online", "offline")
     )
-    parser.add_argument("--core", type=str, default="", choices=("true", "false"))
     parser.add_argument("--use-spawn", action="store_true")
 
     args = parser.parse_args()
