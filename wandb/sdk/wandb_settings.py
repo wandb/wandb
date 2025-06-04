@@ -528,12 +528,6 @@ class Settings(BaseModel, validate_assignment=True):
     x_disable_meta: bool = False
     """Flag to disable the collection of system metadata."""
 
-    x_disable_setproctitle: bool = False
-    """Flag to disable using setproctitle for the internal process in the legacy service.
-
-    This is deprecated and will be removed in future versions.
-    """
-
     x_disable_stats: bool = False
     """Flag to disable the collection of system metrics."""
 
@@ -673,9 +667,6 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_runqueue_item_id: Optional[str] = None
     """ID of the Launch run queue item being processed."""
-
-    x_require_legacy_service: bool = False
-    """Force the use of legacy wandb service."""
 
     x_save_requirements: bool = True
     """Flag to save the requirements file."""
