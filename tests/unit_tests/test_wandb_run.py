@@ -4,7 +4,6 @@ import platform
 import numpy as np
 import pytest
 import wandb
-import wandb.errors
 from wandb import wandb_sdk
 
 REFERENCE_ATTRIBUTES = set(
