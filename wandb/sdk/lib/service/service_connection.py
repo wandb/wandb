@@ -11,58 +11,34 @@ from wandb.sdk import wandb_settings
 from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_sock import InterfaceSock
 from wandb.sdk.interface.router_sock import MessageSockRouter
-from wandb.sdk.lib import service_token
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.sock_client import SockClient, SockClientClosedError
 from wandb.sdk.mailbox import HandleAbandonedError, Mailbox, MailboxClosedError
 from wandb.sdk.service import service
 
-
-class WandbServiceConnectionError(Exception):
-    """Raised on failure to connect to the service process."""
+from . import service_token
 
 
 class WandbAttachFailedError(Exception):
-    """Raised if attaching to a run fails."""
+    """Failed to attach to a run."""
 
 
 def connect_to_service(
     settings: wandb_settings.Settings,
 ) -> ServiceConnection:
-    """Connects to the service process, starting one up if necessary."""
-    conn = _try_connect_to_existing_service()
-    if conn:
-        return conn
+    """Connect to the service process, starting one up if necessary."""
+    token = service_token.from_env()
 
-    return _start_and_connect_service(settings)
-
-
-def _try_connect_to_existing_service() -> ServiceConnection | None:
-    """Attempts to connect to an existing service process."""
-    token = service_token.get_service_token()
-    if not token:
-        return None
-
-    # Only localhost sockets are supported below.
-    assert token.host == "localhost"
-    client = SockClient()
-
-    try:
-        # TODO: This may block indefinitely if the service is unhealthy.
-        client.connect(token.port)
-
-    except Exception as e:
-        raise WandbServiceConnectionError(
-            "Failed to connect to internal service."
-        ) from e
-
-    return ServiceConnection(client=client, proc=None)
+    if token:
+        return ServiceConnection(client=token.connect(), proc=None)
+    else:
+        return _start_and_connect_service(settings)
 
 
 def _start_and_connect_service(
     settings: wandb_settings.Settings,
 ) -> ServiceConnection:
-    """Starts a service process and returns a connection to it.
+    """Start a service process and returns a connection to it.
 
     An atexit hook is registered to tear down the service process and wait for
     it to complete. The hook does not run in processes started using the
@@ -73,15 +49,15 @@ def _start_and_connect_service(
 
     port = proc.sock_port
     assert port
-    client = SockClient()
-    client.connect(port)
 
-    service_token.set_service_token(
+    token = service_token.TCPServiceToken(
         parent_pid=os.getpid(),
-        transport="tcp",
-        host="localhost",
         port=port,
     )
+
+    client = token.connect()
+
+    token.save_to_env()
 
     hooks = ExitHooks()
     hooks.hook()
@@ -132,7 +108,7 @@ class ServiceConnection:
         return InterfaceSock(self._client, self._mailbox, stream_id=stream_id)
 
     def send_record(self, record: pb.Record) -> None:
-        """Sends data to the service."""
+        """Send data to the service."""
         self._client.send_record_publish(record)
 
     def inform_init(
@@ -140,14 +116,14 @@ class ServiceConnection:
         settings: wandb_settings_pb2.Settings,
         run_id: str,
     ) -> None:
-        """Sends an init request to the service."""
+        """Send an init request to the service."""
         request = spb.ServerInformInitRequest()
         request.settings.CopyFrom(settings)
         request._info.stream_id = run_id
         self._client.send_server_request(spb.ServerRequest(inform_init=request))
 
     def inform_finish(self, run_id: str) -> None:
-        """Sends an finish request to the service."""
+        """Send an finish request to the service."""
         request = spb.ServerInformFinishRequest()
         request._info.stream_id = run_id
         self._client.send_server_request(spb.ServerRequest(inform_finish=request))
@@ -156,7 +132,7 @@ class ServiceConnection:
         self,
         attach_id: str,
     ) -> wandb_settings_pb2.Settings:
-        """Sends an attach request to the service.
+        """Send an attach request to the service.
 
         Raises a WandbAttachFailedError if attaching is not possible.
         """
@@ -188,7 +164,7 @@ class ServiceConnection:
         settings: wandb_settings_pb2.Settings,
         run_id: str,
     ) -> None:
-        """Sends a start request to the service."""
+        """Send a start request to the service."""
         request = spb.ServerInformStartRequest()
         request.settings.CopyFrom(settings)
         request._info.stream_id = run_id
@@ -221,7 +197,7 @@ class ServiceConnection:
             return None
 
         # Clear the service token to prevent new connections to the process.
-        service_token.clear_service_token()
+        service_token.clear_service_in_env()
 
         self._client.send_server_request(
             spb.ServerRequest(
