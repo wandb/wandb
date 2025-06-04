@@ -10,7 +10,6 @@ import (
 
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"golang.org/x/time/rate"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -71,9 +70,6 @@ type Handler struct {
 	logger *observability.CoreLogger
 
 	mailbox *mailbox.Mailbox
-
-	// metadata stores the run metadata including system stats
-	metadata *spb.MetadataRequest
 
 	// metricHandler is the metric handler for the stream
 	metricHandler *runmetric.MetricHandler
@@ -237,6 +233,7 @@ func (h *Handler) handleRecord(record *spb.Record) {
 	case *spb.Record_Stats:
 	case *spb.Record_Telemetry:
 	case *spb.Record_UseArtifact:
+	case *spb.Record_Metadata:
 		// The above are no-ops in the handler.
 
 	case *spb.Record_Exit:
@@ -283,8 +280,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 
 	case *spb.Request_RunStatus:
 		h.handleRequestRunStatus(record)
-	case *spb.Request_Metadata:
-		h.handleMetadata(x.Metadata)
 	case *spb.Request_Status:
 		h.handleRequestStatus(record)
 	case *spb.Request_SenderMark:
@@ -491,7 +486,7 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 		}
 	}
 
-	metadata := &spb.MetadataRequest{
+	metadata := &spb.MetadataRecord{Metadata: &spb.Metadata{
 		Os:            h.settings.GetOS(),
 		Python:        h.settings.GetPython(),
 		Host:          h.settings.GetHostProcessorName(),
@@ -507,8 +502,9 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 		Colab:         h.settings.GetColabURL(),
 		StartedAt:     run.GetStartTime(),
 		Git:           git,
-	}
-	h.handleMetadata(metadata)
+	}}
+	metadataRecord := &spb.Record{RecordType: &spb.Record_Metadata{Metadata: metadata}}
+	h.fwdRecord(metadataRecord)
 
 	// start the system monitor
 	if !h.settings.IsDisableStats() && !h.settings.IsDisableMachineInfo() {
@@ -655,57 +651,42 @@ func (h *Handler) handlePatchSave() {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
-	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimary() {
-		return
-	}
+// func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
+// 	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimary() {
+// 		return
+// 	}
 
-	if h.metadata == nil {
-		// Save the metadata on the first call.
-		h.metadata = proto.Clone(request).(*spb.MetadataRequest)
-	} else {
-		// Merge the metadata on subsequent calls.
-		// The order of the merge depends on the origin of the request.
-		// The request originating from the user should take precedence.
-		if request.GetXUserModified() {
-			proto.Merge(h.metadata, request)
-		} else {
-			proto.Merge(request, h.metadata)
-			h.metadata = request
-		}
-	}
+// 	mo := protojson.MarshalOptions{
+// 		Indent: "  ",
+// 		// EmitUnpopulated: true,
+// 	}
+// 	jsonBytes, err := mo.Marshal(h.metadata)
+// 	if err != nil {
+// 		h.logger.CaptureError(
+// 			fmt.Errorf("error marshalling metadata: %v", err))
+// 		return
+// 	}
+// 	filePath := filepath.Join(h.settings.GetFilesDir(), MetaFileName)
+// 	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
+// 		h.logger.CaptureError(
+// 			fmt.Errorf("error writing metadata file: %v", err))
+// 		return
+// 	}
 
-	mo := protojson.MarshalOptions{
-		Indent: "  ",
-		// EmitUnpopulated: true,
-	}
-	jsonBytes, err := mo.Marshal(h.metadata)
-	if err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("error marshalling metadata: %v", err))
-		return
-	}
-	filePath := filepath.Join(h.settings.GetFilesDir(), MetaFileName)
-	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("error writing metadata file: %v", err))
-		return
-	}
-
-	record := &spb.Record{
-		RecordType: &spb.Record_Files{
-			Files: &spb.FilesRecord{
-				Files: []*spb.FilesItem{
-					{
-						Path: MetaFileName,
-						Type: spb.FilesItem_WANDB,
-					},
-				},
-			},
-		},
-	}
-	h.fwdRecord(record)
-}
+// 	record := &spb.Record{
+// 		RecordType: &spb.Record_Files{
+// 			Files: &spb.FilesRecord{
+// 				Files: []*spb.FilesItem{
+// 					{
+// 						Path: MetaFileName,
+// 						Type: spb.FilesItem_WANDB,
+// 					},
+// 				},
+// 			},
+// 		},
+// 	}
+// 	h.fwdRecord(record)
+// }
 
 func (h *Handler) handleRequestAttach(record *spb.Record) {
 	response := &spb.Response{

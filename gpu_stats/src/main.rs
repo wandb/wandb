@@ -1,9 +1,9 @@
-//! System metrics service for Weights & Biases.
+//! System metrics service for the Weights & Biases SDK.
 //!
 //! This service collects system metrics from various sources and exposes them via gRPC.
 //!
 //! Metrics are collected from the following sources:
-//! - Nvidia GPUs (Linux and Windows only)
+//! - Nvidia GPUs via NVML and DCGM (Linux and Windows only)
 //! - Apple ARM Mac GPUs and CPUs (ARM Mac only)
 //! - AMD GPUs (Linux only)
 mod analytics;
@@ -45,11 +45,10 @@ use gpu_nvidia_dcgm::DcgmClient;
 use prost_types::Timestamp;
 use wandb_internal::{
     record::RecordType,
-    request::RequestType,
     stats_record::StatsType,
     system_monitor_service_server::{SystemMonitorService, SystemMonitorServiceServer},
-    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, MetadataRequest,
-    Record, Request as Req, StatsItem, StatsRecord, TearDownRequest, TearDownResponse,
+    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, Metadata,
+    MetadataRecord, Record, StatsItem, StatsRecord, TearDownRequest, TearDownResponse,
 };
 
 fn current_timestamp() -> Timestamp {
@@ -335,7 +334,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
             .map(|(name, value)| (name.to_string(), value))
             .collect();
 
-        let mut metadata_request = MetadataRequest {
+        let mut metadata = Metadata {
             ..Default::default()
         };
 
@@ -344,7 +343,9 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         {
             if let Some(apple_sampler) = &self.apple_sampler {
                 let apple_metadata = apple_sampler.get_metadata(&samples);
-                metadata_request.apple = apple_metadata.apple;
+                if let Some(m) = apple_metadata.metadata {
+                    metadata.apple = m.apple;
+                }
             }
         }
 
@@ -353,11 +354,13 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         {
             if let Some(nvidia_gpu) = &self.nvidia_gpu {
                 let nvidia_metadata = nvidia_gpu.lock().await.get_metadata(&samples);
-                if nvidia_metadata.gpu_count > 0 {
-                    metadata_request.gpu_count = nvidia_metadata.gpu_count;
-                    metadata_request.gpu_type = nvidia_metadata.gpu_type;
-                    metadata_request.cuda_version = nvidia_metadata.cuda_version;
-                    metadata_request.gpu_nvidia = nvidia_metadata.gpu_nvidia;
+                if let Some(m) = nvidia_metadata.metadata {
+                    if m.gpu_count > 0 {
+                        metadata.gpu_count = m.gpu_count;
+                        metadata.gpu_type = m.gpu_type;
+                        metadata.cuda_version = m.cuda_version;
+                        metadata.gpu_nvidia = m.gpu_nvidia;
+                    }
                 }
             }
         }
@@ -367,16 +370,18 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         {
             if let Some(amd_gpu) = &self.amd_gpu {
                 if let Ok(amd_metadata) = amd_gpu.get_metadata() {
-                    metadata_request.gpu_count = amd_metadata.gpu_count;
-                    metadata_request.gpu_type = amd_metadata.gpu_type;
-                    metadata_request.gpu_amd = amd_metadata.gpu_amd;
+                    if let Some(m) = amd_metadata.metadata {
+                        metadata.gpu_count = m.gpu_count;
+                        metadata.gpu_type = m.gpu_type;
+                        metadata.gpu_amd = m.gpu_amd;
+                    }
                 }
             }
         }
 
         let record = Record {
-            record_type: Some(RecordType::Request(Req {
-                request_type: Some(RequestType::Metadata(metadata_request)),
+            record_type: Some(RecordType::Metadata(MetadataRecord {
+                metadata: Some(metadata),
                 ..Default::default()
             })),
             ..Default::default()

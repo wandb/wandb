@@ -50,6 +50,7 @@ message Record {
     // Removed but kept to avoid panics in `wandb sync`.
     google.protobuf.Empty noop_link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
+    MetadataRecord metadata = 26;
 
     // request field does not belong here longterm
     Request request = 100;
@@ -579,7 +580,7 @@ message AlertResult {}
  * Request: all non persistent messages
  */
 message Request {
-  reserved 75, 76, 80;
+  reserved 22, 75, 76, 80;
 
   oneof request_type {
     StopStatusRequest stop_status = 1;
@@ -600,7 +601,6 @@ message Request {
     ServerFeatureRequest server_feature = 18;
     RunStatusRequest run_status = 20;
     CancelRequest cancel = 21;
-    MetadataRequest metadata = 22;
     InternalMessagesRequest internal_messages = 23;
     PythonPackagesRequest python_packages = 24;
     ShutdownRequest shutdown = 64;
@@ -1233,7 +1233,7 @@ message CancelRequest {
 message CancelResponse {}
 
 /*
- * MetadataRequest
+ * Run Metadata
  */
 message DiskInfo {
   uint64 total = 1;
@@ -1304,7 +1304,7 @@ message CoreWeaveInfo {
   string region = 3;
 }
 
-message MetadataRequest {
+message Metadata {
   string os = 1;
   string python = 2;
   google.protobuf.Timestamp heartbeat_at = 3 [json_name = "heartbeatAt"];
@@ -1338,9 +1338,12 @@ message MetadataRequest {
   TrainiumInfo trainium = 31;
   TPUInfo tpu = 32;
   CoreWeaveInfo coreweave = 33;
+}
 
-  // Flag indicating whether the request originated from the user.
-  optional bool _user_modified = 200 [json_name = "_user_modified"];
+message MetadataRecord {
+  Metadata metadata = 1;
+
+  _RecordInfo _info = 200;
 }
 
 message PythonPackagesRequest {

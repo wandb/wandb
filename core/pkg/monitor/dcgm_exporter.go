@@ -363,7 +363,7 @@ func (de *DCGMExporter) Sample() (*spb.StatsRecord, error) {
 // Probe fetches the Nvidia GPU metadata from the endpoint and returns it as a MetadataRequest.
 //
 // A GPU is identified by its model name and UUID.
-func (de *DCGMExporter) Probe() *spb.MetadataRequest {
+func (de *DCGMExporter) Probe() *spb.MetadataRecord {
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultOpenMetricsTimeout)
 	defer cancel()
 
@@ -423,9 +423,9 @@ func (de *DCGMExporter) Probe() *spb.MetadataRequest {
 		gpuNvidia = append(gpuNvidia, gpu)
 	}
 
-	return &spb.MetadataRequest{
+	return &spb.MetadataRecord{Metadata: &spb.Metadata{
 		GpuNvidia: gpuNvidia,
 		GpuCount:  uint32(len(gpuNvidia)),
 		GpuType:   gpuNvidia[0].Name, // TODO: handle multiple GPU types
-	}
+	}}
 }

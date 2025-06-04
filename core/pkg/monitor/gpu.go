@@ -67,12 +67,12 @@ func (g *GPU) Sample() (*spb.StatsRecord, error) {
 }
 
 // Probe returns metadata about the GPU.
-func (g *GPU) Probe() *spb.MetadataRequest {
+func (g *GPU) Probe() *spb.MetadataRecord {
 	metadata, err := g.client.GetMetadata(context.Background(), &spb.GetMetadataRequest{})
 	if err != nil {
 		return nil
 	}
-	return metadata.GetRecord().GetRequest().GetMetadata()
+	return metadata.GetRecord().GetMetadata()
 }
 
 // Close shuts down the gpu_stats binary and releases resources.
