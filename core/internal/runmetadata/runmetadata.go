@@ -54,5 +54,9 @@ func (rm *RunMetadata) ToRunConfigData() map[string]any {
 		return nil
 	}
 
+	if len(m) == 0 {
+		return nil
+	}
+
 	return map[string]any{rm.clientID: m}
 }
