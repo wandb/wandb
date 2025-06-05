@@ -9,7 +9,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Sequence
 from urllib.parse import parse_qsl, urlparse
 
-from botocore.client import Config
+from botocore.client import Config  # type: ignore
 
 from wandb import util
 from wandb.errors import CommError
