@@ -315,16 +315,18 @@ class S3Handler(StorageHandler):
         if endpoint_url.endswith("/"):
             endpoint_url = endpoint_url[:-1]
 
-        # Only cwlota.com is supported for HTTP
+        # Only http://cwlota.com is supported using HTTP
         if endpoint_url.startswith("http://"):
             return endpoint_url == "http://cwlota.com"
 
         if endpoint_url.startswith("https://"):
             endpoint_url = endpoint_url[8:]
 
+        # Match for https://cwobject.com
         if endpoint_url == "cwobject.com":
             return True
 
+        # Check for legacy endpoints
         # Match accelerated endpoints. Example: "accel-object.<region>.coreweave.com"
         if re.fullmatch(r"accel-object\.[a-z0-9-]+\.coreweave\.com", endpoint_url):
             return True
