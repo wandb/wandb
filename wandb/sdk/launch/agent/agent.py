@@ -12,10 +12,9 @@ from dataclasses import dataclass
 from multiprocessing import Event
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import aiohttp
 import kubernetes_asyncio
-from kubernetes_asyncio.client import AppsV1Api, CoreV1Api
 import kubernetes_asyncio.utils
+from kubernetes_asyncio.client import AppsV1Api, CoreV1Api
 
 import wandb
 import yaml
@@ -432,8 +431,8 @@ class LaunchAgent:
             job_and_run_status = self._jobs[thread_id]
 
         try:
-            if hasattr(job_and_run_status, "vllm_server_namespace"):
-                namespace = job_and_run_status.vllm_server_namespace
+            if hasattr(job_and_run_status, "additional_objects_namespace"):
+                namespace = job_and_run_status.additional_objects_namespace
                 _, api_client = await get_kube_context_and_api_client(
                     kubernetes_asyncio, {}
                 )
@@ -759,9 +758,9 @@ class LaunchAgent:
             # thread_id should be unique here, but we can't use it directly since
             # it contains non-alphanumeric characters.
             namespace = f"evals-{hashlib.md5(str(thread_id).encode()).hexdigest()}"
-            job_tracker.vllm_server_namespace = namespace
+            job_tracker.additional_objects_namespace = namespace
             wandb.termlog(
-                f"{LOG_PREFIX}Creating Hello World server in namespace: {namespace}"
+                f"{LOG_PREFIX}Creating additional objects in namespace: {namespace}"
             )
 
             _, api_client = await get_kube_context_and_api_client(
@@ -773,7 +772,6 @@ class LaunchAgent:
 
                 try:
                     await v1.create_namespace(body={"metadata": {"name": namespace}})
-                    wandb.termlog(f"{LOG_PREFIX}Created namespace: {namespace}")
 
                     async def prepare_service(service: Dict[str, Any]) -> None:
                         service_config = service.get("config")
@@ -781,9 +779,6 @@ class LaunchAgent:
                             service_config.setdefault("metadata", {})[
                                 "namespace"
                             ] = namespace
-                            wandb.termlog(
-                                f"{LOG_PREFIX}Creating service: {service_config}"
-                            )
 
                             if service_config["kind"] == "ConfigMap":
                                 await v1.create_namespaced_config_map(
@@ -815,11 +810,8 @@ class LaunchAgent:
                             #     namespace=namespace,
                             # )
 
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Additional services: {additional_services}"
-                    )
                     await asyncio.gather(
-                        *[prepare_service(service) for service in additional_services],
+                        *[prepare_service(service) for service in additional_services]
                     )
 
                 except Exception as e:

@@ -26,6 +26,7 @@ class JobAndRunStatusTracker:
     completed_status: Optional[str] = None
     is_scheduler: bool = False
     err_stage: str = "agent"
+    
 
     @property
     def job_completed(self) -> bool:
