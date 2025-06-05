@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Sequence
@@ -308,8 +309,28 @@ class S3Handler(StorageHandler):
         return extra
 
     def _is_coreweave_endpoint(self, endpoint_url: str) -> bool:
-        coreweave_endpoints = [
-            "https://cwobject.com",
-            "http://cwlota.com",
-        ]
-        return endpoint_url in coreweave_endpoints or "coreweave.com" in endpoint_url
+        if not endpoint_url:
+            return False
+
+        if endpoint_url.endswith("/"):
+            endpoint_url = endpoint_url[:-1]
+
+        # Only cwlota.com is supported for HTTP
+        if endpoint_url.startswith("http://"):
+            return endpoint_url == "http://cwlota.com"
+
+        if endpoint_url.startswith("https://"):
+            endpoint_url = endpoint_url[8:]
+
+        if endpoint_url == "cwobject.com":
+            return True
+
+        # Match accelerated endpoints. Example: "accel-object.<region>.coreweave.com"
+        if re.fullmatch(r"accel-object\.[a-z0-9-]+\.coreweave\.com", endpoint_url):
+            return True
+
+        # For URLs like "object.<region>.coreweave.com"
+        if re.fullmatch(r"object\.[a-z0-9-]+\.coreweave\.com", endpoint_url):
+            return True
+
+        return False
