@@ -65,6 +65,7 @@ type RunUpserter struct {
 type RunUpserterParams struct {
 	DebounceDelay waiting.Delay
 
+	ClientID           string
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
@@ -105,7 +106,7 @@ func InitRun(
 	}
 
 	// Initialize run metadata.
-	metadata := runmetadata.New()
+	metadata := runmetadata.New(params.ClientID)
 
 	// Initialize the run config.
 	config := runconfig.New()
@@ -119,10 +120,10 @@ func InitRun(
 	telemetry := &spb.TelemetryRecord{}
 	proto.Merge(telemetry, runRecord.Telemetry)
 	telemetry.CoreVersion = version.Version
-	config.AddTelemetryMetricsAndMetadata(
+	config.AddInternalData(
 		telemetry,
 		make([]map[string]any, 0),
-		metadata.ToMap(),
+		metadata.ToRunConfigData(),
 	)
 
 	// Initialize the run metrics.
@@ -266,10 +267,10 @@ func (upserter *RunUpserter) UpdateTelemetry(telemetry *spb.TelemetryRecord) {
 
 	proto.Merge(upserter.telemetry, telemetry)
 
-	upserter.config.AddTelemetryMetricsAndMetadata(
+	upserter.config.AddInternalData(
 		upserter.telemetry,
 		upserter.metrics.ToRunConfigData(),
-		upserter.metadata.ToMap(),
+		upserter.metadata.ToRunConfigData(),
 	)
 
 	upserter.isConfigDirty = true
@@ -283,12 +284,10 @@ func (upserter *RunUpserter) UpdateMetadata(metadata *spb.MetadataRecord) {
 
 	upserter.metadata.ProcessRecord(metadata)
 
-	fmt.Println("+++", upserter.metadata)
-
-	upserter.config.AddTelemetryMetricsAndMetadata(
+	upserter.config.AddInternalData(
 		upserter.telemetry,
 		upserter.metrics.ToRunConfigData(),
-		upserter.metadata.ToMap(),
+		upserter.metadata.ToRunConfigData(),
 	)
 
 	upserter.isConfigDirty = true
@@ -313,10 +312,10 @@ func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
 		return
 	}
 
-	upserter.config.AddTelemetryMetricsAndMetadata(
+	upserter.config.AddInternalData(
 		upserter.telemetry,
 		upserter.metrics.ToRunConfigData(),
-		upserter.metadata.ToMap(),
+		upserter.metadata.ToRunConfigData(),
 	)
 
 	upserter.isConfigDirty = true
@@ -366,6 +365,12 @@ func (upserter *RunUpserter) ConfigMap() map[string]any {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
 	return upserter.config.CloneTree()
+}
+
+func (upserter *RunUpserter) MetadataJSON() ([]byte, error) {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.metadata.ToJSON()
 }
 
 func (upserter *RunUpserter) StartTime() time.Time {

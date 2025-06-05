@@ -1417,6 +1417,10 @@ class SendManager:
         # tbrecord watching threads are handled by handler.py
         pass
 
+    def send_metadata(self, record: Record) -> None:
+        # TODO: create and upload wandb-metadata.json file
+        pass
+
     def send_request_link_artifact(self, record: "Record") -> None:
         if not (record.control.req_resp or record.control.mailbox_slot):
             raise ValueError(

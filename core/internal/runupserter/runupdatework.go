@@ -46,6 +46,7 @@ type RunUpdateWork struct {
 	// It is called from the Sender goroutine.
 	Respond func(*spb.Record, *spb.RunUpdateResult)
 
+	ClientID           string
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
@@ -85,6 +86,7 @@ func (w *RunUpdateWork) initRun() {
 
 		DebounceDelay: waiting.NewDelay(runUpsertDebounceSeconds * time.Second),
 
+		ClientID:           w.ClientID,
 		BeforeRunEndCtx:    w.BeforeRunEndCtx,
 		Operations:         w.Operations,
 		FeatureProvider:    w.FeatureProvider,

@@ -233,8 +233,7 @@ func (h *Handler) handleRecord(record *spb.Record) {
 	case *spb.Record_Stats:
 	case *spb.Record_Telemetry:
 	case *spb.Record_UseArtifact:
-	case *spb.Record_Metadata:
-		// The above are no-ops in the handler.
+	// The above are no-ops in the handler.
 
 	case *spb.Record_Exit:
 		h.handleExit(record, x.Exit)
@@ -248,6 +247,8 @@ func (h *Handler) handleRecord(record *spb.Record) {
 		h.handleSummary(x.Summary)
 	case *spb.Record_Tbrecord:
 		h.handleTBrecord(x.Tbrecord)
+	case *spb.Record_Metadata:
+		h.handleMetadata(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRecord: record type is nil"))
@@ -651,42 +652,13 @@ func (h *Handler) handlePatchSave() {
 	h.fwdRecord(record)
 }
 
-// func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
-// 	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimary() {
-// 		return
-// 	}
+func (h *Handler) handleMetadata(record *spb.Record) {
+	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimary() {
+		return
+	}
 
-// 	mo := protojson.MarshalOptions{
-// 		Indent: "  ",
-// 		// EmitUnpopulated: true,
-// 	}
-// 	jsonBytes, err := mo.Marshal(h.metadata)
-// 	if err != nil {
-// 		h.logger.CaptureError(
-// 			fmt.Errorf("error marshalling metadata: %v", err))
-// 		return
-// 	}
-// 	filePath := filepath.Join(h.settings.GetFilesDir(), MetaFileName)
-// 	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
-// 		h.logger.CaptureError(
-// 			fmt.Errorf("error writing metadata file: %v", err))
-// 		return
-// 	}
-
-// 	record := &spb.Record{
-// 		RecordType: &spb.Record_Files{
-// 			Files: &spb.FilesRecord{
-// 				Files: []*spb.FilesItem{
-// 					{
-// 						Path: MetaFileName,
-// 						Type: spb.FilesItem_WANDB,
-// 					},
-// 				},
-// 			},
-// 		},
-// 	}
-// 	h.fwdRecord(record)
-// }
+	h.fwdRecord(record)
+}
 
 func (h *Handler) handleRequestAttach(record *spb.Record) {
 	response := &spb.Response{

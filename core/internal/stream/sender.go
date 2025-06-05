@@ -816,10 +816,43 @@ func (s *Sender) sendMetadata(_ *spb.Record, metadata *spb.MetadataRecord) {
 		return
 	}
 
-	// TODO: conditionally generate and send wandb-metadata.json file, if the server
-	// does not understand metadata in the config.
-
 	upserter.UpdateMetadata(metadata)
+
+	// TODO: only upload the wandb-metadata.json file if the server
+	// does not understand metadata in the config.
+	s.uploadMetadataFile()
+}
+
+func (s *Sender) uploadMetadataFile() {
+	if s.runfilesUploader == nil {
+		return
+	}
+
+	if !s.settings.IsPrimary() {
+		return
+	}
+
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureError(fmt.Errorf("sender: uploadMetadataFile: %v", err))
+		return
+	}
+
+	metadata, err := upserter.MetadataJSON()
+	if err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to serialize run metadata: %v", err))
+		return
+	}
+
+	if err := s.scheduleFileUpload(
+		metadata,
+		MetaFileName,
+		filetransfer.RunFileKindWandb,
+	); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to upload run metadata: %v", err))
+	}
 }
 
 func (s *Sender) sendPreempting(record *spb.RunPreemptingRecord) {
