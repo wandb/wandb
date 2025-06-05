@@ -12,10 +12,6 @@ from dataclasses import dataclass
 from multiprocessing import Event
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import kubernetes_asyncio
-import kubernetes_asyncio.utils
-from kubernetes_asyncio.client import AppsV1Api, CoreV1Api
-
 import wandb
 import yaml
 from wandb.apis.internal import Api
@@ -30,6 +26,7 @@ from wandb.sdk.launch.utils import (
     resolve_build_and_registry_config,
 )
 from wandb.sdk.lib import runid
+from wandb.util import get_module
 
 from .. import loader
 from .._project_spec import LaunchProject
@@ -432,6 +429,14 @@ class LaunchAgent:
 
         try:
             if hasattr(job_and_run_status, "additional_objects_namespace"):
+                get_module(
+                    "kubernetes_asyncio",
+                    required="Managing additional objects in a job requires the kubernetes_asyncio package. Please install it with `pip install wandb[launch]`.",
+                )
+
+                import kubernetes_asyncio
+                from kubernetes_asyncio.client import CoreV1Api
+
                 namespace = job_and_run_status.additional_objects_namespace
                 _, api_client = await get_kube_context_and_api_client(
                     kubernetes_asyncio, {}
@@ -755,6 +760,15 @@ class LaunchAgent:
         additional_services = job.get("runSpec", {}).get("additional_services", [])
 
         if additional_services:
+            get_module(
+                "kubernetes_asyncio",
+                required="Managing additional objects in a job requires the kubernetes_asyncio package. Please install it with `pip install wandb[launch]`.",
+            )
+
+            import kubernetes_asyncio
+            import kubernetes_asyncio.utils
+            from kubernetes_asyncio.client import AppsV1Api, CoreV1Api
+
             # thread_id should be unique here, but we can't use it directly since
             # it contains non-alphanumeric characters.
             namespace = f"evals-{hashlib.md5(str(thread_id).encode()).hexdigest()}"
