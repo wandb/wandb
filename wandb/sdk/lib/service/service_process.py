@@ -3,34 +3,21 @@
 from __future__ import annotations
 
 import os
+import pathlib
 import platform
 import subprocess
 import tempfile
-import time
 from typing import TYPE_CHECKING
 
 from wandb import _sentry
 from wandb.env import core_debug, dcgm_profiling_enabled, error_reporting_enabled
-from wandb.errors import Error, WandbCoreNotAvailableError
-from wandb.sdk.service import port_file
+from wandb.errors import WandbCoreNotAvailableError
 from wandb.util import get_core_path
 
-from . import service_token
+from . import service_port_file, service_token
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
-
-
-class ServiceStartProcessError(Error):
-    """Raised when a known error occurs when launching wandb service."""
-
-
-class ServiceStartTimeoutError(Error):
-    """Raised when service start times out."""
-
-
-class ServiceStartPortError(Error):
-    """Raised when service start fails to find a port."""
 
 
 def start(settings: Settings) -> ServiceProcess:
@@ -38,11 +25,6 @@ def start(settings: Settings) -> ServiceProcess:
 
     Returns:
         A handle to the process.
-
-    Raises:
-        ServiceStartProcessError: if the process dies on startup.
-        ServiceStartTimeoutError: if the process fails to become healthy.
-        ServiceStartPortError: if we cannot connect to the process.
     """
     _sentry.configure_scope(tags=dict(settings), process_context="service")
 
@@ -74,67 +56,6 @@ class ServiceProcess:
         return self._process.wait()
 
 
-def _wait_for_ports(
-    fname: str,
-    proc: subprocess.Popen,
-    settings: Settings,
-) -> int:
-    """Wait for the service to write the port file and then read it.
-
-    Args:
-        fname: The path to the port file.
-        proc: The process to wait for.
-        settings: W&B settings.
-
-    Returns:
-        The port number for connecting to the service process.
-
-    Raises:
-        ServiceStartTimeoutError: If the service takes too long to start.
-        ServiceStartPortError: If the service writes an invalid port file or unable to read it.
-        ServiceStartProcessError: If the service process exits unexpectedly.
-    """
-    time_max = time.monotonic() + settings.x_service_wait
-    while time.monotonic() < time_max:
-        if proc.poll():
-            context = dict(
-                command=proc.args,
-                proc_out=proc.stdout.read() if proc.stdout else "",
-                proc_err=proc.stderr.read() if proc.stderr else "",
-            )
-            raise ServiceStartProcessError(
-                f"The wandb-core process exited with {proc.returncode}.",
-                context=context,
-            )
-
-        if not os.path.isfile(fname):
-            time.sleep(0.2)
-            continue
-
-        try:
-            pf = port_file.PortFile()
-            pf.read(fname)
-        except Exception as e:
-            # todo: point at the docs. this could be due to a number of reasons,
-            #  for example, being unable to write to the port file etc.
-            raise ServiceStartPortError(
-                f"Failed to allocate port for wandb service: {e}."
-            )
-
-        if not pf.is_valid:
-            time.sleep(0.2)
-            continue
-
-        assert pf.sock_port
-        return pf.sock_port
-
-    raise ServiceStartTimeoutError(
-        "Timed out waiting for wandb service to start after"
-        f" {settings.x_service_wait} seconds."
-        " Try increasing the timeout with the `_service_wait` setting."
-    )
-
-
 def _launch_server(settings: Settings) -> ServiceProcess:
     """Launch server and set ports."""
     if platform.system() == "Windows":
@@ -147,7 +68,7 @@ def _launch_server(settings: Settings) -> ServiceProcess:
     pid = str(os.getpid())
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        fname = os.path.join(tmpdir, f"port-{pid}.txt")
+        port_file = pathlib.Path(tmpdir, f"port-{pid}.txt")
         service_args: list[str] = []
 
         try:
@@ -168,7 +89,7 @@ def _launch_server(settings: Settings) -> ServiceProcess:
 
         service_args += [
             "--port-filename",
-            fname,
+            str(port_file),
             "--pid",
             pid,
         ]
@@ -180,11 +101,11 @@ def _launch_server(settings: Settings) -> ServiceProcess:
             creationflags=creationflags,
             start_new_session=start_new_session,
         )
-        port = _wait_for_ports(fname, proc, settings)
 
-        token = service_token.TCPServiceToken(
-            parent_pid=os.getpid(),
-            port=port,
+        token = service_port_file.poll_for_token(
+            port_file,
+            proc,
+            timeout=settings.x_service_wait,
         )
 
         return ServiceProcess(connection_token=token, process=proc)
