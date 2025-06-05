@@ -145,11 +145,12 @@ func (sm *SystemMonitor) initializeAssets(
 	neuronMonitorConfigPath := settings.GetStatsNeuronMonitorConfigPath()
 	gpuDeviceIds := settings.GetStatsGpuDeviceIds()
 
-	// assets to be monitored.
+	// TODO: pass cpu (logical) count from settings
 	if system := NewSystem(pid, diskPaths); system != nil {
 		sm.assets = append(sm.assets, system)
 	}
 
+	// TODO: pass gpu count and type from settings
 	if gpu, err := NewGPU(gpuResourceManager, pid, gpuDeviceIds); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	} else if err != nil {

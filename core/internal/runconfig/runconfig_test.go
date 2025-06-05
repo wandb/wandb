@@ -98,9 +98,10 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 	runConfig := runconfig.New()
 	telemetry := &spb.TelemetryRecord{}
 
-	runConfig.AddTelemetryAndMetrics(
+	runConfig.AddTelemetryMetricsAndMetadata(
 		telemetry,
 		[]map[string]any{},
+		map[string]any{},
 	)
 
 	assert.Equal(t,
@@ -108,6 +109,7 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 			"_wandb": map[string]any{
 				"t": corelib.ProtoEncodeToDict(telemetry),
 				"m": []map[string]any{},
+				"d": map[string]any{},
 			},
 		},
 		runConfig.CloneTree(),

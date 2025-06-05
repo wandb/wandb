@@ -97,9 +97,10 @@ func (rc *RunConfig) ApplyChangeRecord(
 }
 
 // Inserts W&B-internal values into the run's configuration.
-func (rc *RunConfig) AddTelemetryAndMetrics(
+func (rc *RunConfig) AddTelemetryMetricsAndMetadata(
 	telemetry *spb.TelemetryRecord,
-	metrics []map[string]interface{},
+	metrics []map[string]any,
+	metadata map[string]any,
 ) {
 	if telemetry.GetCliVersion() != "" {
 		rc.pathTree.Set(
@@ -122,6 +123,11 @@ func (rc *RunConfig) AddTelemetryAndMetrics(
 	rc.pathTree.Set(
 		pathtree.PathOf("_wandb", "m"),
 		metrics,
+	)
+
+	rc.pathTree.Set(
+		pathtree.PathOf("_wandb", "d"),
+		metadata,
 	)
 }
 
