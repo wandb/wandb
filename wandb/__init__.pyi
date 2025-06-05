@@ -1155,9 +1155,9 @@ def use_model(name: str) -> FilePathStr:
     """Download the files logged in a model artifact `name`.
 
     Args:
-        name: A model artifact name. `name` must match the name of
-            an existing logged model artifact. May be prefixed
-            with entity/project/. Valid names can be in the following forms:
+        name: A model artifact name. 'name' must match the name of an existing logged
+            model artifact. May be prefixed with `entity/project/`. Valid names
+            can be in the following forms
         - model_artifact_name:version
         - model_artifact_name:alias
 
@@ -1378,13 +1378,12 @@ def restore(
     By default, will only download the file if it doesn't already exist.
 
     Args:
-        name: the name of the file
-        run_path: Path to a run to pull files from
-            `username/project_name/run_id`. If `wandb.init`
-            has not been called, this is required.
-        replace: whether to download the file even if it already exists locally
-        root: the directory to download the file to.  Defaults to the current
-            directory or the run directory if `wandb.init` was called.
+        name: The name of the file.
+        run_path: Optional path to a run to pull files from, i.e. `username/project_name/run_id`
+            if wandb.init has not been called, this is required.
+        replace: Whether to download the file even if it already exists locally
+        root: The directory to download the file to.  Defaults to the current
+            directory or the run directory if wandb.init was called.
 
     Returns:
         None if it can't find the file, otherwise a file object open for reading.
