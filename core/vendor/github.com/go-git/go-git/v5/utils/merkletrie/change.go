@@ -131,7 +131,9 @@ func (l *Changes) addRecursive(root noder.Path, ctor noderToChangeFn) error {
 	}
 
 	if !root.IsDir() {
-		l.Add(ctor(root))
+		if !root.Skip() {
+			l.Add(ctor(root))
+		}
 		return nil
 	}
 
