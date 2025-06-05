@@ -758,79 +758,10 @@ class LaunchAgent:
         )
 
         additional_services = job.get("runSpec", {}).get("additional_services", [])
-
         if additional_services:
-            get_module(
-                "kubernetes_asyncio",
-                required="Managing additional objects in a job requires the kubernetes_asyncio package. Please install it with `pip install wandb[launch]`.",
+            await self._deploy_additional_services(
+                additional_services, thread_id, job_tracker
             )
-
-            import kubernetes_asyncio
-            import kubernetes_asyncio.utils
-            from kubernetes_asyncio.client import AppsV1Api, CoreV1Api
-
-            # thread_id should be unique here, but we can't use it directly since
-            # it contains non-alphanumeric characters.
-            namespace = f"evals-{hashlib.md5(str(thread_id).encode()).hexdigest()}"
-            job_tracker.additional_objects_namespace = namespace
-            wandb.termlog(
-                f"{LOG_PREFIX}Creating additional objects in namespace: {namespace}"
-            )
-
-            _, api_client = await get_kube_context_and_api_client(
-                kubernetes_asyncio, {}
-            )
-            async with api_client:
-                v1 = CoreV1Api(api_client)
-                apps_v1 = AppsV1Api(api_client)
-
-                try:
-                    await v1.create_namespace(body={"metadata": {"name": namespace}})
-
-                    async def prepare_service(service: Dict[str, Any]) -> None:
-                        service_config = service.get("config")
-                        if service_config:
-                            service_config.setdefault("metadata", {})[
-                                "namespace"
-                            ] = namespace
-
-                            if service_config["kind"] == "ConfigMap":
-                                await v1.create_namespaced_config_map(
-                                    namespace=namespace, body=service_config
-                                )
-                            elif service_config["kind"] == "Secret":
-                                await v1.create_namespaced_secret(
-                                    namespace=namespace, body=service_config
-                                )
-                            elif service_config["kind"] == "PersistentVolumeClaim":
-                                await v1.create_namespaced_persistent_volume_claim(
-                                    namespace=namespace, body=service_config
-                                )
-                            elif service_config["kind"] == "Deployment":
-                                # TODO: there has to be a better way to figure out which API client to use
-                                #       so that we can use the create_from_dict function below.
-                                await apps_v1.create_namespaced_deployment(
-                                    namespace=namespace, body=service_config
-                                )
-                            elif service_config["kind"] == "Service":
-                                await v1.create_namespaced_service(
-                                    namespace=namespace, body=service_config
-                                )
-
-                            # TODO: Ideally, we can use this instead of the above
-                            # await kubernetes_asyncio.utils.create_from_dict(
-                            #     v1,
-                            #     service_config,
-                            #     namespace=namespace,
-                            # )
-
-                    await asyncio.gather(
-                        *[prepare_service(service) for service in additional_services]
-                    )
-
-                except Exception as e:
-                    self._internal_logger.warn(f"Failed to create deployment: {str(e)}")
-                    wandb.termwarn(f"{LOG_PREFIX}Failed to create deployment: {str(e)}")
 
         if not (
             project.docker_image
@@ -887,6 +818,72 @@ class LaunchAgent:
         # types of runners in general
         if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:
             run._command_proc.kill()
+
+    async def _deploy_additional_services(
+        self,
+        additional_services: List[Dict[str, Any]],
+        thread_id: int,
+        job_tracker: JobAndRunStatusTracker,
+    ) -> None:
+        """Deploy additional Kubernetes services for a job."""
+        get_module(
+            "kubernetes_asyncio",
+            required="Managing additional objects in a job requires the kubernetes_asyncio package. Please install it with `pip install wandb[launch]`.",
+        )
+
+        import kubernetes_asyncio
+        import kubernetes_asyncio.utils
+        from kubernetes_asyncio.client import AppsV1Api, CoreV1Api
+
+        namespace = f"evals-{hashlib.md5(str(thread_id).encode()).hexdigest()}"
+        job_tracker.additional_objects_namespace = namespace
+        wandb.termlog(
+            f"{LOG_PREFIX}Creating additional objects in namespace: {namespace}"
+        )
+
+        _, api_client = await get_kube_context_and_api_client(kubernetes_asyncio, {})
+        async with api_client:
+            v1 = CoreV1Api(api_client)
+            apps_v1 = AppsV1Api(api_client)
+
+            try:
+                await v1.create_namespace(body={"metadata": {"name": namespace}})
+
+                async def prepare_service(service: Dict[str, Any]) -> None:
+                    service_config = service.get("config")
+                    if service_config:
+                        service_config.setdefault("metadata", {})["namespace"] = (
+                            namespace
+                        )
+
+                        if service_config["kind"] == "ConfigMap":
+                            await v1.create_namespaced_config_map(
+                                namespace=namespace, body=service_config
+                            )
+                        elif service_config["kind"] == "Secret":
+                            await v1.create_namespaced_secret(
+                                namespace=namespace, body=service_config
+                            )
+                        elif service_config["kind"] == "PersistentVolumeClaim":
+                            await v1.create_namespaced_persistent_volume_claim(
+                                namespace=namespace, body=service_config
+                            )
+                        elif service_config["kind"] == "Deployment":
+                            await apps_v1.create_namespaced_deployment(
+                                namespace=namespace, body=service_config
+                            )
+                        elif service_config["kind"] == "Service":
+                            await v1.create_namespaced_service(
+                                namespace=namespace, body=service_config
+                            )
+
+                await asyncio.gather(
+                    *[prepare_service(service) for service in additional_services]
+                )
+
+            except Exception as e:
+                self._internal_logger.warn(f"Failed to create deployment: {str(e)}")
+                wandb.termwarn(f"{LOG_PREFIX}Failed to create deployment: {str(e)}")
 
     async def check_sweep_state(self, launch_spec: Dict[str, Any], api: Api) -> None:
         """Check the state of a sweep before launching a run for the sweep."""
