@@ -1417,7 +1417,7 @@ class SendManager:
         # tbrecord watching threads are handled by handler.py
         pass
 
-    def send_metadata(self, record: Record) -> None:
+    def send_metadata(self, record: "Record") -> None:
         # TODO: create and upload wandb-metadata.json file
         pass
 
