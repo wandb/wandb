@@ -6,11 +6,11 @@ import datetime
 import json
 import logging
 import os
+import uuid
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-import yaml
-
 import wandb
+import yaml
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -149,6 +149,7 @@ class KubernetesSubmittedRun(AbstractRun):
             await asyncio.sleep(5)
 
         await self._delete_secret()
+        await self._delete_namespace()
         return (
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
@@ -157,6 +158,7 @@ class KubernetesSubmittedRun(AbstractRun):
         status = LaunchKubernetesMonitor.get_status(self.name)
         if status in ["stopped", "failed", "finished", "preempted"]:
             await self._delete_secret()
+            await self._delete_namespace()
         return status
 
     async def cancel(self) -> None:
@@ -167,6 +169,7 @@ class KubernetesSubmittedRun(AbstractRun):
                 name=self.name,
             )
             await self._delete_secret()
+            await self._delete_namespace()
         except ApiException as e:
             raise LaunchError(
                 f"Failed to delete Kubernetes Job {self.name} in namespace {self.namespace}: {str(e)}"
@@ -180,6 +183,9 @@ class KubernetesSubmittedRun(AbstractRun):
                 namespace=self.secret.metadata.namespace,
             )
             self.secret = None
+
+    async def _delete_namespace(self) -> None:
+        await self.core_api.delete_namespace(name=self.namespace)
 
 
 class CrdSubmittedRun(AbstractRun):
@@ -366,6 +372,7 @@ class KubernetesRunner(AbstractRunner):
             job_metadata["generateName"] = make_name_dns_safe(
                 f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
             )
+        job_metadata["namespace"] = namespace
 
         for i, cont in enumerate(containers):
             if "name" not in cont:
@@ -630,10 +637,33 @@ class KubernetesRunner(AbstractRunner):
 
         batch_api = kubernetes_asyncio.client.BatchV1Api(api_client)
         core_api = kubernetes_asyncio.client.CoreV1Api(api_client)
-        namespace = self.get_namespace(resource_args, context)
+
+        namespace = f"job-{uuid.uuid4()}"
+        try:
+            await core_api.create_namespace(body={"metadata": {"name": namespace}})
+            wandb.termlog(f"{LOG_PREFIX}Created namespace: {namespace}")
+        except ApiException as e:
+            raise LaunchError(f"Failed to create namespace {namespace}: {str(e)}")
+
         job, secret = await self._inject_defaults(
             resource_args, launch_project, image_uri, namespace, core_api
         )
+
+        additional_services = launch_project.launch_spec.get("additional_services", [])
+        if additional_services:
+            wandb.termlog(
+                f"{LOG_PREFIX}Creating additional services: {additional_services}"
+            )
+            await asyncio.gather(
+                *[
+                    kubernetes_asyncio.utils.create_from_dict(
+                        api_client, service["config"], namespace=namespace
+                    )
+                    for service in additional_services
+                    if service.get("config", {})
+                ]
+            )
+
         msg = "Creating Kubernetes job"
         if "name" in resource_args:
             msg += f": {resource_args['name']}"
