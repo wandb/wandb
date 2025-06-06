@@ -240,6 +240,7 @@ class MockCoreV1Api:
         self.pods = dict()
         self.secrets = []
         self.calls = {"delete": 0}
+        self.namespaces = []
 
     async def list_namespaced_pod(
         self, label_selector=None, namespace="default", field_selector=None
@@ -272,6 +273,12 @@ class MockCoreV1Api:
         for s in self.secrets:
             if s[0] == namespace and s[1].metadata.name == name:
                 return s[1]
+
+    async def create_namespace(self, namespace):
+        self.namespaces.append(namespace)
+
+    async def delete_namespace(self, namespace):
+        self.namespaces.remove(namespace)
 
 
 class MockCustomObjectsApi:

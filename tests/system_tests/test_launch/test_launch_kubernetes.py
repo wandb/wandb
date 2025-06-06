@@ -299,6 +299,7 @@ class MockCoreV1Api:
     def __init__(self, mock_api_client, pods):
         # self.context = mock_api_client["context_name"]
         self.pods = pods
+        self.namespaces = []
 
     async def list_namespaced_pod(self, label_selector, namespace, **kwargs):
         ret = []
@@ -308,6 +309,12 @@ class MockCoreV1Api:
                 if pod.job_name == v:
                     ret.append(pod)
         return MockPodList(ret)
+
+    async def create_namespace(self, namespace):
+        self.namespaces.append(namespace)
+
+    async def delete_namespace(self, namespace):
+        self.namespaces.remove(namespace)
 
 
 def pods(job_name):
