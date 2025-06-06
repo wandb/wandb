@@ -19,8 +19,6 @@ from pytest_mock import MockerFixture
 from wandb.errors import term
 
 # Don't write to Sentry in wandb.
-#
-# For wandb-core, this setting is configured below.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
 import git
@@ -60,55 +58,6 @@ def setup_wandb_env_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     # Set the _network_buffer setting to 1000 to increase the likelihood
     # of triggering flow control logic.
     monkeypatch.setenv("WANDB_X_NETWORK_BUFFER", "1000")
-
-
-@pytest.fixture(autouse=True)
-def toggle_legacy_service(
-    monkeypatch: pytest.MonkeyPatch,
-    request: pytest.FixtureRequest,
-) -> None:
-    """Sets WANDB_X_REQUIRE_LEGACY_SERVICE in each test.
-
-    This fixture is used to run each test both with and without wandb-core.
-    """
-    monkeypatch.setenv("WANDB_X_REQUIRE_LEGACY_SERVICE", str(request.param))
-
-
-def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
-    # See https://docs.pytest.org/en/7.1.x/how-to/parametrize.html#basic-pytest-generate-tests-example
-
-    # Run each test both with and without wandb-core.
-    if toggle_legacy_service.__name__ in metafunc.fixturenames:
-        # Allow tests to opt-out of wandb-core until we have feature parity.
-        skip_wandb_core = False
-        wandb_core_only = False
-        for mark in metafunc.definition.iter_markers():
-            if mark.name == "skip_wandb_core":
-                skip_wandb_core = True
-            elif mark.name == "wandb_core_only":
-                wandb_core_only = True
-
-        if wandb_core_only:
-            # Don't merge tests like this. Implement the feature first.
-            assert (
-                not skip_wandb_core
-            ), "Cannot mark test both skip_wandb_core and wandb_core_only"
-
-            values = [False]
-            ids = ["wandb_core"]
-        elif skip_wandb_core:
-            values = [True]
-            ids = ["no_wandb_core"]
-        else:
-            values = [True, False]
-            ids = ["no_wandb_core", "wandb_core"]
-
-        metafunc.parametrize(
-            toggle_legacy_service.__name__,
-            values,
-            ids=ids,
-            indirect=True,  # Causes the fixture to be invoked.
-        )
 
 
 # --------------------------------

@@ -147,7 +147,7 @@ SYMBOLS_TYPING = {
     "annotations",
 }
 
-SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
+SYMBOLS_SERVICE = {"attach", "_attach", "teardown", "_teardown"}
 
 SYMBOLS_ANALYTICS = {"analytics", "_Sentry", "_sentry"}
 

@@ -203,7 +203,6 @@ def test_summary_from_history(wandb_backend_spy):
         assert summary["a"] == 2
 
 
-@pytest.mark.wandb_core_only
 def test_summary_remove(wandb_backend_spy):
     with wandb.init() as run:
         run.log({"a": 2})
@@ -214,7 +213,6 @@ def test_summary_remove(wandb_backend_spy):
         assert "a" not in summary
 
 
-@pytest.mark.wandb_core_only
 def test_summary_remove_nested(wandb_backend_spy):
     with wandb.init(allow_val_change=True) as run:
         run.log({"a": {"b": 2}})
@@ -272,7 +270,6 @@ def test_error_when_using_attributes_of_finished_run(user, attribute, value):
             setattr(run, attribute, value)
 
 
-@pytest.mark.wandb_core_only
 @pytest.mark.parametrize(
     "update_finish_state",
     [True, False],

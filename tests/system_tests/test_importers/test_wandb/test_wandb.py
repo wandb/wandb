@@ -6,7 +6,6 @@ from wandb.apis.importers.wandb import WandbImporter
 
 
 @pytest.mark.xfail(reason="TODO: Breaks on server > 0.57.4")
-@pytest.mark.wandb_core_only
 def test_import_runs(
     local_wandb_backend,
     local_wandb_backend_importers,
@@ -51,7 +50,6 @@ def test_import_runs(
 
 
 @pytest.mark.skip(reason="This test is flaking")
-@pytest.mark.wandb_core_only
 def test_import_artifact_sequences(
     local_wandb_backend,
     local_wandb_backend_importers,
@@ -114,7 +112,6 @@ def test_import_artifact_sequences(
                 assert src_entry.size == dst_entry.size
 
 
-@pytest.mark.wandb_core_only
 def test_import_reports(
     local_wandb_backend,
     local_wandb_backend_importers,
