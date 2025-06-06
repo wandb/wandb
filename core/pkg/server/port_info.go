@@ -6,6 +6,12 @@ import (
 )
 
 type PortInfo struct {
+	// UnixPath is the path of a Unix domain socket for connecting to
+	// the server.
+	//
+	// An empty string means a Unix domain socket cannot be used to connect.
+	UnixPath string
+
 	// LocalhostPort is the port for connecting to the server via localhost.
 	//
 	// The zero value means localhost cannot be used to connect.
@@ -44,6 +50,11 @@ func (info PortInfo) writeToNewFile(path string) (err error) {
 		}
 	}()
 
+	if info.UnixPath != "" {
+		if _, err = fmt.Fprintf(f, "unix=%s\n", info.UnixPath); err != nil {
+			return fmt.Errorf("server: write Unix path to port file: %v", err)
+		}
+	}
 	if info.LocalhostPort != 0 {
 		if _, err = fmt.Fprintf(f, "sock=%d\n", info.LocalhostPort); err != nil {
 			return fmt.Errorf("server: write port to port file: %v", err)

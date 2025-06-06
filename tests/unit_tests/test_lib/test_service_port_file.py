@@ -30,6 +30,20 @@ def finished_process():
     return proc
 
 
+def test_reads_unix_token(tmp_path, running_process):
+    port_file = tmp_path / "ports"
+    port_file.write_text("unix=/some/path\nsock=123\nEOF")
+
+    token = service_port_file.poll_for_token(
+        port_file,
+        running_process,
+        timeout=1,
+    )
+
+    assert isinstance(token, service_token.UnixServiceToken)
+    assert token._path == "/some/path"
+
+
 def test_reads_tcp_token(tmp_path, running_process):
     port_file = tmp_path / "ports"
     port_file.write_text("sock=123\nEOF")
