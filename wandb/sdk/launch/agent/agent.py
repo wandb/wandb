@@ -11,9 +11,8 @@ from dataclasses import dataclass
 from multiprocessing import Event
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import yaml
-
 import wandb
+import yaml
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
@@ -421,6 +420,7 @@ class LaunchAgent:
         """Removes the job from our list for now."""
         with self._jobs_lock:
             job_and_run_status = self._jobs[thread_id]
+
         if (
             job_and_run_status.entity is not None
             and job_and_run_status.entity != self._entity
@@ -727,6 +727,7 @@ class LaunchAgent:
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )
+
         if not (
             project.docker_image
             or project.job_base_image
