@@ -220,12 +220,6 @@ def test_run_settags(user):
     assert run.tags == ("tag1", "tag2")
 
 
-def test_run_mode(user):
-    run = wandb.init(mode="dryrun")
-    run.finish()
-    assert run.mode == "dryrun"
-
-
 def test_run_offline(user):
     run = wandb.init(mode="offline")
     run.finish()

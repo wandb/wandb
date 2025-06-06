@@ -17,16 +17,16 @@ from .abstract import AbstractRegistry
 
 _logger = logging.getLogger(__name__)
 
-google = get_module(  # noqa: F811
+google = get_module(
     "google",
     required="The google package is required to use launch with Google. Please install it with `pip install wandb[launch]`.",
 )
-google.auth = get_module(  # noqa: F811
+google.auth = get_module(
     "google.auth",
     required="The google-auth package is required to use launch with Google. Please install it with `pip install wandb[launch]`.",
 )
 
-google.cloud.artifactregistry = get_module(  # noqa: F811
+google.cloud.artifactregistry = get_module(
     "google.cloud.artifactregistry",
     required="The google-cloud-artifactregistry package is required to use launch with Google. Please install it with `pip install wandb[launch]`.",
 )

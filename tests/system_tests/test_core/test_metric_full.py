@@ -103,25 +103,6 @@ def test_metric_summary(summary, expected):
         assert run.summary["val"][summary] == expected
 
 
-@pytest.mark.skip_wandb_core(reason="deprecated, not implemented in core")
-@pytest.mark.parametrize(
-    "goal,expected",
-    [
-        ("minimize", 1),
-        ("maximize", 4),
-    ],
-)
-def test_metric_best(goal, expected):
-    with wandb.init(mode="offline") as run:
-        run.define_metric("val", summary="best", goal=goal)
-        run.log({"val": 2})
-        run.log({"val": 1})
-        run.log({"val": 4})
-        run.log({"val": 3})
-
-        assert run.summary["val"]["best"] == expected
-
-
 @pytest.mark.parametrize(
     "summary,expected",
     [
@@ -220,9 +201,6 @@ def test_metric_goal(wandb_backend_spy):
         assert metrics and len(metrics) == 3
 
 
-@pytest.mark.wandb_core_only(
-    reason="deviates from legacy behavior as nan value should be respected"
-)
 def test_metric_nan_mean(wandb_backend_spy):
     with wandb.init() as run:
         run.define_metric("val", summary="mean")
@@ -235,9 +213,6 @@ def test_metric_nan_mean(wandb_backend_spy):
         assert math.isnan(summary["val"]["mean"])
 
 
-@pytest.mark.wandb_core_only(
-    reason="deviates from legacy behavior as nan value should be respected"
-)
 def test_metric_nan_min_norm(wandb_backend_spy):
     with wandb.init() as run:
         run.define_metric("val", summary="min")
@@ -248,9 +223,6 @@ def test_metric_nan_min_norm(wandb_backend_spy):
         assert math.isnan(summary["val"]["min"])
 
 
-@pytest.mark.wandb_core_only(
-    reason="deviates from legacy behavior as nan value should be respected"
-)
 def test_metric_nan_min_more(wandb_backend_spy):
     with wandb.init() as run:
         run.define_metric("val", summary="min")
@@ -370,9 +342,6 @@ def test_metric_overwrite_true(wandb_backend_spy, name):
         assert metrics[0]["7"] == [2]  # summary; 2=max
 
 
-@pytest.mark.wandb_core_only(
-    reason="server side expand glob metrics only implemented in core"
-)
 @pytest.mark.parametrize(
     "enable_expand_glob_metrics,server_supports_expand_glob_metrics,expected_metrics",
     [

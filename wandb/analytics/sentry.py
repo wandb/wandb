@@ -209,7 +209,6 @@ class Sentry:
             "sweep_url",
             "sweep_id",
             "deployment",
-            "x_require_legacy_service",
             "launch",
             "_platform",
         )
@@ -255,7 +254,7 @@ class Sentry:
 
         email = tags.get("email")
         if email:
-            self.scope.user = {"email": email}  # noqa
+            self.scope.user = {"email": email}
 
         # todo: add back the option to pass general tags see: c645f625d1c1a3db4a6b0e2aa8e924fee101904c (wandb/util.py)
 

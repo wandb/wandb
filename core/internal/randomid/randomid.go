@@ -28,7 +28,7 @@ func GenerateUniqueID(length int) string {
 		panic(err)
 	}
 
-	for i := 0; i < length; i++ {
+	for i := range length {
 		b[i] = lowercaseAlphanumericChars[int(b[i])%charsLen]
 	}
 	return string(b)
@@ -38,7 +38,7 @@ func GenerateUniqueID(length int) string {
 // using alphanumeric characters.
 func GenerateAlphanumericSequence(length int) string {
 	var result string
-	for i := 0; i < length; i++ {
+	for range length {
 		index := mathrand.Intn(len(alphanumericChars))
 		result += string(alphanumericChars[index])
 	}

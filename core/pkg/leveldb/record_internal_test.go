@@ -29,7 +29,7 @@ func big(partial string, n int) string {
 // TestZeroBlocks tests that reading nothing but all-zero blocks gives io.EOF.
 // This includes decoding an empty stream.
 func TestZeroBlocks(t *testing.T) {
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		r := NewReader(bytes.NewReader(make([]byte, i*blockSize)))
 		if _, err := r.Next(); err != io.EOF {
 			t.Fatalf("%d blocks: got %v, want %v", i, err, io.EOF)
@@ -227,7 +227,7 @@ func TestNonExhaustiveRead(t *testing.T) {
 	rnd := rand.New(rand.NewSource(1))
 
 	w := NewWriter(buf)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		length := len(p) + rnd.Intn(3*blockSize)
 		s := string(uint8(i)) + "123456789abcdefgh"
 		ww, _ := w.Next()
@@ -238,7 +238,7 @@ func TestNonExhaustiveRead(t *testing.T) {
 	}
 
 	r := NewReader(buf)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		rr, _ := r.Next()
 		_, err := io.ReadFull(rr, p)
 		if err != nil {
@@ -588,7 +588,7 @@ func TestRecoverMultipleBlocks(t *testing.T) {
 func verifyLastBlockRecover(recs *testRecords) error {
 	r := NewReader(bytes.NewReader(recs.buf))
 	// Loop to one element larger than the number of records to verify EOF.
-	for i := 0; i < len(recs.records)+1; i++ {
+	for i := range len(recs.records) + 1 {
 		_, err := r.Next()
 		switch i {
 		case len(recs.records) - 1:

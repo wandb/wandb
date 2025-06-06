@@ -11,7 +11,7 @@ from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
-    from wandb.sdk.lib import service_connection
+    from wandb.sdk.lib.service import service_connection
 
 logger = logging.getLogger("wandb")
 

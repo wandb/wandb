@@ -491,7 +491,7 @@ class KubernetesRunner(AbstractRunner):
 
     async def run(
         self, launch_project: LaunchProject, image_uri: str
-    ) -> Optional[AbstractRun]:  # noqa: C901
+    ) -> Optional[AbstractRun]:
         """Execute a launch project on Kubernetes.
 
         Arguments:

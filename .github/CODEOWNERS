@@ -6,6 +6,7 @@
 /wandb/__init__.py @wandb/sdk-team
 
 # Updating core tools and testing infrastructure
+/tests/backend_fixtures.py @wandb/sdk-team
 /tests/conftest.py @wandb/sdk-team
 
 /tests/system_tests/backend_fixtures.py @wandb/sdk-team
@@ -32,10 +33,11 @@
 /MANIFEST.in @wandb/sdk-team
 /CONTRIBUTING.md @wandb/sdk-team
 
-# wandb-core backend. TODO: relax after initial roll-out
+# Core code owned by the SDK team
 /core/ @wandb/sdk-team
+/wandb/ @wandb/sdk-team
 
-# system metrics
+# System metrics
 /gpu_stats/ @wandb/sdk-team
 
 # CircleCI configuration
@@ -45,7 +47,7 @@
 /.github @wandb/sdk-team
 
 
-# ML Workflows team
+# Artifacts, Automations, and Launch teams
 /core/pkg/artifacts/ @wandb/mlw-team
 /wandb/sdk/artifacts/ @wandb/mlw-team
 /wandb/automations/ @wandb/mlw-team

@@ -58,25 +58,39 @@ def _warn_on_invalid_data_range(
         )
 
 
-def _normalize(data: "np.ndarray") -> "np.ndarray":
-    """Normalizes and converts image pixel values to uint8 in the range [0, 255]."""
-    np = util.get_module(
-        "numpy",
-        required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
-    )
+def _guess_and_rescale_to_0_255(data: "np.ndarray") -> "np.ndarray":
+    """Guess the image's format and rescale its values to the range [0, 255].
 
-    # if an image has negative values, set all values to be in the range [0, 1]
-    # This can lead to inconsistent behavior when an image has only a single negative value
-    if np.min(data) < 0:
-        data = data - np.min(data)
+    This is an unfortunate design flaw carried forward for backward
+    compatibility. A better design would have been to document the expected
+    data format and not mangle the data provided by the user.
 
-    if np.ptp(data) != 0:
-        data = data / np.ptp(data)
+    If given data in the range [0, 1], we multiply all values by 255
+    and round down to get integers.
 
-    if np.max(data) <= 1.0:
-        data = (255 * data).astype(np.int32)
+    If given data in the range [-1, 1], we rescale it by mapping -1 to 0 and
+    1 to 255, then round down to get integers.
 
-    return data.clip(0, 255)
+    We clip and round all other data.
+    """
+    try:
+        import numpy as np
+    except ImportError:
+        raise wandb.Error(
+            "wandb.Image requires numpy if not supplying PIL images: pip install numpy"
+        ) from None
+
+    data_min: float = data.min()
+    data_max: float = data.max()
+
+    if 0 <= data_min and data_max <= 1:
+        return (data * 255).astype(np.uint8)
+
+    elif -1 <= data_min and data_max <= 1:
+        return (255 * 0.5 * (data + 1)).astype(np.uint8)
+
+    else:
+        return data.clip(0, 255).astype(np.uint8)
 
 
 def _convert_to_uint8(data: "np.ndarray") -> "np.ndarray":
@@ -393,7 +407,7 @@ class Image(BatchableMedia):
 
             _warn_on_invalid_data_range(data, normalize)
 
-            data = _normalize(data) if normalize else data  # type: ignore [arg-type]
+            data = _guess_and_rescale_to_0_255(data) if normalize else data  # type: ignore [arg-type]
             data = _convert_to_uint8(data)
 
             if data.ndim > 2:
@@ -413,7 +427,7 @@ class Image(BatchableMedia):
             _warn_on_invalid_data_range(data, normalize)  # type: ignore [arg-type]
 
             mode = mode or self.guess_mode(data, file_type)
-            data = _normalize(data) if normalize else data  # type: ignore [arg-type]
+            data = _guess_and_rescale_to_0_255(data) if normalize else data  # type: ignore [arg-type]
             data = _convert_to_uint8(data)  # type: ignore [arg-type]
             self._image = pil_image.fromarray(
                 data,

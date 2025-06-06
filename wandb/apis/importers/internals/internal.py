@@ -364,9 +364,6 @@ def send_run(
     sm = AlternateSendManager(
         settings, sm_record_q, result_q, interface, context_keeper
     )
-    # wm = WriteManager(
-    #     settings, wm_record_q, result_q, sm_record_q, interface, context_keeper
-    # )
 
     if extra_arts or extra_used_arts:
         records = rm.make_artifacts_only_records(extra_arts, extra_used_arts)

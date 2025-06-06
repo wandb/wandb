@@ -66,6 +66,22 @@ def test_log_dataframe(user, test_settings):
     assert len(run.logged_artifacts()) == 1
 
 
+@pytest.mark.parametrize("log_mode", ["IMMUTABLE", "MUTABLE", "INCREMENTAL"])
+def test_table_logged_from_run_with_special_characters_in_name(
+    user, test_settings, log_mode
+):
+    name_and_id = "random-run-id-=1234567-seed-0"  # Contains special characters
+
+    with wandb.init(name=name_and_id, id=name_and_id) as run:
+        table = wandb.Table(
+            ["col1", "col2", "col3"],
+            [[1, 4.6, "hello"], [5, 4.5, "world"]],
+            allow_mixed_types=True,
+            log_mode=log_mode,
+        )
+        run.log({"my-table": table}, step=1)
+
+
 @pytest.mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
 def test_reference_table_logging(
     user, test_settings, wandb_backend_spy, max_cli_version

@@ -2,7 +2,6 @@
 
 import argparse
 import multiprocessing
-import os
 from typing import List, Tuple
 
 import _load_profiles
@@ -68,16 +67,8 @@ def run_parallel(args):
         p.join()
 
 
-def setup(args):
-    if args.core == "true":
-        os.environ["WANDB_X_REQUIRE_LEGACY_SERVICE"] = "false"
-    elif args.core == "false":
-        os.environ["WANDB_X_REQUIRE_LEGACY_SERVICE"] = "true"
-
-
 def teardown(args):
     wandb.teardown()
-    os.environ.pop("WANDB_X_REQUIRE_LEGACY_SERVICE", None)
 
 
 @_timing.timeit(TIMING_DATA)
@@ -89,7 +80,6 @@ def time_load(args):
 
 
 def run_load(args):
-    setup(args)
     time_load(args)
     teardown(args)
 
@@ -117,7 +107,6 @@ def main():
     parser.add_argument(
         "--mode", type=str, default="online", choices=("online", "offline")
     )
-    parser.add_argument("--core", type=str, default="", choices=("true", "false"))
     parser.add_argument("--use-spawn", action="store_true")
 
     args = parser.parse_args()

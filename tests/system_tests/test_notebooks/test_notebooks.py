@@ -180,7 +180,7 @@ def test_mocked_notebook_html_default(user, run_id, mocked_ipython):
         run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
-        print(f"[{i}]: {html}")  # noqa: T201
+        print(f"[{i}]: {html}")
     assert any(run_id in html for html in displayed_html)
     assert any("Run history:" in html for html in displayed_html)
 
@@ -191,7 +191,7 @@ def test_mocked_notebook_html_quiet(user, run_id, mocked_ipython):
     run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
-        print(f"[{i}]: {html}")  # noqa: T201
+        print(f"[{i}]: {html}")
     assert any(run_id in html for html in displayed_html)
     assert not any("Run history:" in html for html in displayed_html)
 
@@ -201,7 +201,7 @@ def test_mocked_notebook_run_display(user, mocked_ipython):
         run.display()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
-        print(f"[{i}]: {html}")  # noqa: T201
+        print(f"[{i}]: {html}")
     assert any("<iframe" in html for html in displayed_html)
 
 

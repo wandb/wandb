@@ -21,7 +21,6 @@ from wandb.sdk.launch.sweeps.utils import construct_scheduler_args
 from .test_wandb_sweep import SWEEP_CONFIG_RANDOM
 
 
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_load():
     _scheduler = load_scheduler("wandb")
     assert _scheduler == SweepScheduler
@@ -42,7 +41,6 @@ def _patch_wandb_run(monkeypatch, config=None):
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_entity_project_sweep_id(
     user,
     monkeypatch,
@@ -67,7 +65,6 @@ def test_sweep_scheduler_entity_project_sweep_id(
         )
 
 
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_start_failed(user, monkeypatch):
     _patch_wandb_run(monkeypatch)
     sweep_config = SWEEP_CONFIG_RANDOM
@@ -106,7 +103,6 @@ def test_sweep_scheduler_start_failed(user, monkeypatch):
     assert scheduler.state == SchedulerState.CANCELLED
 
 
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_runcap(user, monkeypatch):
     launch_config = {"launch": {}}
     _patch_wandb_run(monkeypatch, launch_config)
@@ -166,7 +162,6 @@ def test_sweep_scheduler_runcap(user, monkeypatch):
     assert scheduler._num_runs_launched == 2
 
 
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_sweep_id_no_job(user, monkeypatch):
     _patch_wandb_run(monkeypatch)
     sweep_config = SWEEP_CONFIG_RANDOM
@@ -191,7 +186,6 @@ def test_sweep_scheduler_sweep_id_no_job(user, monkeypatch):
     assert scheduler.state == SchedulerState.FAILED
 
 
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_sweep_id_with_job(user, monkeypatch):
     _patch_wandb_run(monkeypatch)
     sweep_config = SWEEP_CONFIG_RANDOM
@@ -225,7 +219,6 @@ def test_sweep_scheduler_sweep_id_with_job(user, monkeypatch):
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_base_scheduler_states(user, monkeypatch):
     sweep_config = SWEEP_CONFIG_RANDOM
     _patch_wandb_run(monkeypatch)
@@ -317,7 +310,6 @@ def test_sweep_scheduler_base_scheduler_states(user, monkeypatch):
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_base_run_states(user, monkeypatch):
     sweep_config = SWEEP_CONFIG_RANDOM
     _patch_wandb_run(monkeypatch)
@@ -386,7 +378,6 @@ def test_sweep_scheduler_base_run_states(user, monkeypatch):
 
 
 @patch.multiple(Scheduler, __abstractmethods__=set())
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_base_add_to_launch_queue(user, monkeypatch):
     sweep_config = SWEEP_CONFIG_RANDOM
     _patch_wandb_run(monkeypatch)
@@ -481,7 +472,6 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, monkeypatch):
     assert _scheduler2._runs["foo_run"].queued_run.args()[-2] == _project_queue
 
 
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_sweeps_stop_agent_heartbeat(user, monkeypatch):
     sweep_config = SWEEP_CONFIG_RANDOM
     _patch_wandb_run(monkeypatch)
@@ -520,7 +510,6 @@ def test_sweep_scheduler_sweeps_stop_agent_heartbeat(user, monkeypatch):
     assert scheduler.state == SchedulerState.STOPPED
 
 
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(user, monkeypatch):
     sweep_config = SWEEP_CONFIG_RANDOM
     _patch_wandb_run(monkeypatch)
@@ -583,7 +572,6 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(user, monkeypatch):
     assert _scheduler.is_alive is False
 
 
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler_sweeps_run_and_heartbeat(user, monkeypatch):
     sweep_config = SWEEP_CONFIG_RANDOM
     _patch_wandb_run(monkeypatch)
@@ -648,7 +636,6 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(user, monkeypatch):
     assert "mock-run-id-1" not in _scheduler._runs
 
 
-@pytest.mark.wandb_core_only
 def test_launch_sweep_scheduler_try_executable_works(user, test_settings, monkeypatch):
     _patch_wandb_run(monkeypatch)
     _project = "test-project"
@@ -673,7 +660,6 @@ def test_launch_sweep_scheduler_try_executable_works(user, test_settings, monkey
     assert _scheduler._try_load_executable()
 
 
-@pytest.mark.wandb_core_only
 def test_launch_sweep_scheduler_try_executable_fails(user, monkeypatch):
     _patch_wandb_run(monkeypatch)
     _project = "test-project"
@@ -695,7 +681,6 @@ def test_launch_sweep_scheduler_try_executable_fails(user, monkeypatch):
     assert _scheduler.state == SchedulerState.FAILED
 
 
-@pytest.mark.wandb_core_only
 def test_launch_sweep_scheduler_try_executable_image(user, monkeypatch):
     _patch_wandb_run(monkeypatch)
     _project = "test-project"
@@ -719,7 +704,6 @@ def test_launch_sweep_scheduler_try_executable_image(user, monkeypatch):
     "sweep_config",
     [{"job": "job:v9"}, {"image_uri": "image:latest"}],
 )
-@pytest.mark.wandb_core_only
 def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
     queue = "queue"
     project = "test"
@@ -760,7 +744,6 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         ["python", "train.py", "--float", 1.99999, "${args_json}"],
     ],
 )
-@pytest.mark.wandb_core_only
 def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
     _patch_wandb_run(monkeypatch)
 

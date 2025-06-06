@@ -144,7 +144,6 @@ def test_scalar(wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.wandb_core_only
 def test_add_pr_curve(wandb_backend_spy):
     with wandb.init(sync_tensorboard=True) as run:
         with tf.summary.create_file_writer("test/logs").as_default():
@@ -170,7 +169,6 @@ def test_add_pr_curve(wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.wandb_core_only
 def test_add_pr_curve_plugin(wandb_backend_spy):
     with wandb.init(sync_tensorboard=True) as run:
         with tf.compat.v1.Session() as sess:

@@ -42,7 +42,6 @@ def test_invalid_field_type():
         Settings(api_key=271828)  # must be a string
 
 
-@pytest.mark.wandb_core_only
 def test_program_python_m():
     with tempfile.TemporaryDirectory() as tmpdir:
         path_module = os.path.join(tmpdir, "module")

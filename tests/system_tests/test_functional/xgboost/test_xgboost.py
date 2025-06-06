@@ -1,9 +1,6 @@
 import pathlib
 
-import pytest
 
-
-@pytest.mark.wandb_core_only
 def test_classification(wandb_backend_spy, execute_script):
     script_path = pathlib.Path(__file__).parent / "classification.py"
     execute_script(script_path)
@@ -32,7 +29,6 @@ def test_classification(wandb_backend_spy, execute_script):
         assert 31 in telemetry["3"]  # feature=xgboost_wandb_callback
 
 
-@pytest.mark.wandb_core_only
 def test_regression(wandb_backend_spy, execute_script):
     script_path = pathlib.Path(__file__).parent / "regression.py"
     execute_script(script_path)

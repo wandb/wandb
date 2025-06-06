@@ -79,7 +79,6 @@ SYMBOLS_ROOT_OTHER = {
     "data_types",
     "division",
     "docker",
-    "wandb.docker",  # what is this?
     "dummy",
     "ensure_configured",
     "env",
@@ -110,7 +109,6 @@ SYMBOLS_ROOT_OTHER = {
     "sync",
     "sys",
     "tensorboard",
-    "wandb.tensorboard",  # TODO: much like wandb.docker, this mysteriously failed in CI...?
     "tensorflow",
     "termerror",
     "termlog",
@@ -149,7 +147,7 @@ SYMBOLS_TYPING = {
     "annotations",
 }
 
-SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
+SYMBOLS_SERVICE = {"attach", "_attach", "teardown", "_teardown"}
 
 SYMBOLS_ANALYTICS = {"analytics", "_Sentry", "_sentry"}
 

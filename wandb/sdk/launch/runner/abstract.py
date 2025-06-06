@@ -6,12 +6,11 @@ of runs launched in different environments (e.g. runs launched locally or in a c
 
 import logging
 import os
+import shutil
 import subprocess
 import sys
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Literal, Optional, Union
-
-from dockerpycreds.utils import find_executable  # type: ignore
 
 import wandb
 from wandb.apis.internal import Api
@@ -145,10 +144,11 @@ class AbstractRunner(ABC):
         self._namespace = runid.generate_id()
 
     def find_executable(
-        self, cmd: str
-    ) -> Any:  # should return a string, but mypy doesn't trust find_executable
+        self,
+        cmd: str,
+    ) -> Union[str, None]:
         """Cross platform utility for checking if a program is available."""
-        return find_executable(cmd)
+        return shutil.which(cmd)
 
     @property
     def api_key(self) -> Any:

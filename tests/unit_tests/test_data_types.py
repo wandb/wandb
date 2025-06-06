@@ -419,6 +419,31 @@ def test_image_masks_with_pytorch_tensors():
     wandb.Image(image, masks={"predictions": {"mask_data": mask}})
 
 
+def test_image_normalize_neg1_to_1():
+    # Sometimes images are represented with values in range [-1, 1].
+    data = np.array([[-0.2, 0.6]])
+
+    transformed_data = wandb.Image(data).to_data_array()
+
+    assert transformed_data == [[102, 204]]
+
+
+def test_image_normalize_0_to_1():
+    data = np.array([[0.2, 0.3]])
+
+    transformed_data = wandb.Image(data).to_data_array()
+
+    assert transformed_data == [[51, 76]]
+
+
+def test_image_normalize_clips_bad_range():
+    data = np.array([[-9, 0.1, 100, 254.5, 270]])
+
+    transformed_data = wandb.Image(data).to_data_array()
+
+    assert transformed_data == [[0, 0, 100, 254, 255]]
+
+
 @pytest.mark.parametrize(
     "scale",
     [1e-8, 1e-5, 1e0, 1e1, -1e-8, -1e-5, -1e0, -1e1],
