@@ -310,11 +310,11 @@ class MockCoreV1Api:
                     ret.append(pod)
         return MockPodList(ret)
 
-    async def create_namespace(self, namespace):
-        self.namespaces.append(namespace)
+    async def create_namespace(self, body):
+        self.namespaces.append(body)
 
-    async def delete_namespace(self, namespace):
-        self.namespaces.remove(namespace)
+    async def delete_namespace(self, name):
+        self.namespaces.remove(name)
 
 
 def pods(job_name):

@@ -274,11 +274,11 @@ class MockCoreV1Api:
             if s[0] == namespace and s[1].metadata.name == name:
                 return s[1]
 
-    async def create_namespace(self, namespace):
-        self.namespaces.append(namespace)
+    async def create_namespace(self, body):
+        self.namespaces.append(body)
 
-    async def delete_namespace(self, namespace):
-        self.namespaces.remove(namespace)
+    async def delete_namespace(self, name):
+        self.namespaces.remove(name)
 
 
 class MockCustomObjectsApi:
