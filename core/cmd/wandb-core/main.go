@@ -38,6 +38,10 @@ func mainWithExitCode() int {
 		"Enables automatic server shutdown when the external process identified by the PID terminates.")
 	enableDCGMProfiling := flag.Bool("enable-dcgm-profiling", false,
 		"Enables collection of profiling metrics for Nvidia GPUs using DCGM. Requires a running `nvidia-dcgm` service.")
+	listenOnLocalhost := flag.Bool("listen-on-localhost", false,
+		"Whether to listen on a localhost socket. This is less secure than"+
+			" Unix sockets, but some clients do not support them"+
+			" (in particular, Python on Windows).")
 
 	// Custom usage function to add a header, version, and commit info
 	flag.Usage = func() {
@@ -110,6 +114,7 @@ func mainWithExitCode() int {
 		server.ServerParams{
 			Commit:              commit,
 			EnableDCGMProfiling: *enableDCGMProfiling,
+			ListenOnLocalhost:   *listenOnLocalhost,
 			LoggerPath:          loggerPath,
 			LogLevel:            slog.Level(*logLevel),
 			ParentPID:           *pid,

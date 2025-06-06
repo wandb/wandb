@@ -8,6 +8,7 @@ import socket
 from typing_extensions import final, override
 
 from wandb import env
+from wandb.sdk.lib.service import ipc_support
 from wandb.sdk.lib.sock_client import SockClient
 
 _CURRENT_VERSION = "3"
@@ -81,6 +82,9 @@ class UnixServiceToken(ServiceToken):
 
     @override
     def connect(self) -> SockClient:
+        if not ipc_support.SUPPORTS_UNIX:
+            raise WandbServiceConnectionError("AF_UNIX socket not supported")
+
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
         try:
