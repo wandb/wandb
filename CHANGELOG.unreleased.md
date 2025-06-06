@@ -21,6 +21,7 @@ This version removes the legacy implementaion of the `service` process. This is 
 
 - Setting `x_stats_track_process_tree` to track process-specific metrics such as the RSS, CPU%, and thread count in use for the entire process tree, starting from `x_stats_pid`. This can be expensive and is disabled by default (@dmitryduev in https://github.com/wandb/wandb/pull/10089)
 - Notes are now returned to the client when resuming a run (@kptkin in https://github.com/wandb/wandb/pull/9739)
+- Added support for creating custom Vega chart presets through the API. Users can now define and upload custom chart specifications that can be then reused across runs with wandb.plot_table() (@thanos-wandb in https://github.com/wandb/wandb/pull/9931)
 
 ### Changed
 
