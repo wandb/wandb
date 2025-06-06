@@ -308,31 +308,32 @@ class S3Handler(StorageHandler):
             extra["versionID"] = obj.version_id
         return extra
 
+    _CW_LEGACY_NETLOC_REGEX: re.Pattern[str] = re.compile(
+        r"""
+        # accelerated endpoints like "accel-object.<region>.coreweave.com"
+        accel-object\.[a-z0-9-]+\.coreweave\.com
+        |
+        # URLs like "object.<region>.coreweave.com"
+        object\.[a-z0-9-]+\.coreweave\.com
+        """,
+        flags=re.VERBOSE,
+    )
+
     def _is_coreweave_endpoint(self, endpoint_url: str) -> bool:
-        if not endpoint_url:
+        if not (url := endpoint_url.strip().rstrip("/")):
             return False
 
-        if endpoint_url.endswith("/"):
-            endpoint_url = endpoint_url[:-1]
-
         # Only http://cwlota.com is supported using HTTP
-        if endpoint_url.startswith("http://"):
-            return endpoint_url == "http://cwlota.com"
-
-        if endpoint_url.startswith("https://"):
-            endpoint_url = endpoint_url[8:]
-
-        # Match for https://cwobject.com
-        if endpoint_url == "cwobject.com":
+        if url == "http://cwlota.com":
             return True
 
-        # Check for legacy endpoints
-        # Match accelerated endpoints. Example: "accel-object.<region>.coreweave.com"
-        if re.fullmatch(r"accel-object\.[a-z0-9-]+\.coreweave\.com", endpoint_url):
-            return True
-
-        # For URLs like "object.<region>.coreweave.com"
-        if re.fullmatch(r"object\.[a-z0-9-]+\.coreweave\.com", endpoint_url):
-            return True
-
-        return False
+        # Enforce HTTPS otherwise
+        https_url = url if url.startswith("https://") else f"https://{url}"
+        netloc = urlparse(https_url).netloc
+        return bool(
+            # Match for https://cwobject.com
+            (netloc == "cwobject.com")
+            or
+            # Check for legacy endpoints
+            self._CW_LEGACY_NETLOC_REGEX.fullmatch(netloc)
+        )
