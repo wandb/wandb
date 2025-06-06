@@ -1419,7 +1419,14 @@ class SendManager:
 
     def send_metadata(self, record: "Record") -> None:
         # TODO: create and upload wandb-metadata.json file
-        pass
+        import os
+
+        from wandb.sdk.lib.filenames import METADATA_FNAME
+
+        metadata_json = json.dumps(proto_util.message_to_dict(record.metadata.metadata))
+
+        with open(os.path.join(self._settings.files_dir, METADATA_FNAME), "w") as f:
+            f.write(metadata_json)
 
     def send_request_link_artifact(self, record: "Record") -> None:
         if not (record.control.req_resp or record.control.mailbox_slot):
