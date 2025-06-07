@@ -65,6 +65,7 @@ def poll_for_token(
     )
 
 
+_UNIX_NAME_RE = re.compile(r"unix=(.+)")
 _TCP_PORT_RE = re.compile(r"sock=(\d+)")
 
 
@@ -87,7 +88,12 @@ def _poll_once(file: pathlib.Path) -> service_token.ServiceToken | None:
         return None
 
     for line in lines:
-        if match := _TCP_PORT_RE.fullmatch(line):
+        if match := _UNIX_NAME_RE.fullmatch(line):
+            return service_token.UnixServiceToken(
+                parent_pid=os.getpid(),
+                path=match.group(1),
+            )
+        elif match := _TCP_PORT_RE.fullmatch(line):
             return service_token.TCPServiceToken(
                 parent_pid=os.getpid(),
                 port=int(match.group(1)),

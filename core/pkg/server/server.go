@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/sentry_ext"
@@ -22,6 +23,11 @@ const (
 
 // Server is the top-level object for the wandb-core process.
 type Server struct {
+	// connNumber is the number of the last connection created.
+	//
+	// It is used to generate unique IDs for connections.
+	connNumber atomic.Int64
+
 	// serverLifetimeCtx is cancelled when the server should shut down.
 	serverLifetimeCtx context.Context
 
@@ -99,14 +105,11 @@ func (s *Server) exitWhenParentIsGone() {
 }
 
 func (s *Server) Serve(portFile string) error {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, portInfo, err := s.makeListener()
 	if err != nil {
-		return fmt.Errorf("server: failed to listen on localhost: %v", err)
+		return err
 	}
 
-	portInfo := PortInfo{
-		LocalhostPort: listener.Addr().(*net.TCPAddr).Port,
-	}
 	if err := portInfo.WriteToFile(portFile); err != nil {
 		return err
 	}
@@ -135,6 +138,29 @@ func (s *Server) Serve(portFile string) error {
 
 	slog.Info("server is closed")
 	return nil
+}
+
+// makeListener starts listening on a socket and returns its connection info.
+func (s *Server) makeListener() (net.Listener, PortInfo, error) {
+	listener, portInfo, err := MakeUnixListener(s.parentPID)
+	if err == nil {
+		return listener, portInfo, nil
+	}
+	slog.Warn("server: failed to listen on Unix domain socket", "error", err)
+
+	return s.makeTCPListener()
+}
+
+// makeTCPListener starts listening on a localhost socket.
+func (s *Server) makeTCPListener() (net.Listener, PortInfo, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, PortInfo{}, fmt.Errorf(
+			"server: failed to listen on localhost: %v", err)
+	}
+
+	portInfo := PortInfo{LocalhostPort: listener.Addr().(*net.TCPAddr).Port}
+	return listener, portInfo, nil
 }
 
 // acceptConnections accepts incoming connections on the listener.
@@ -181,10 +207,18 @@ func (s *Server) acceptConnections(listener net.Listener) {
 //
 // This blocks until the connection closes.
 func (s *Server) handleConnection(conn net.Conn) {
+	var id string
+	if addr := conn.RemoteAddr().String(); addr != "" {
+		id = fmt.Sprintf("%d(%s)", s.connNumber.Add(1), addr)
+	} else {
+		id = fmt.Sprintf("%d", s.connNumber.Add(1))
+	}
+
 	NewConnection(
 		s.serverLifetimeCtx,
 		s.stopServer,
 		ConnectionParams{
+			ID:                 id,
 			Conn:               conn,
 			StreamMux:          s.streamMux,
 			GPUResourceManager: s.gpuResourceManager,
