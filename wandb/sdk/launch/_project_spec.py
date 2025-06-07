@@ -111,7 +111,10 @@ class LaunchProject:
         self.resource_args = resource_args_copy
         self.sweep_id = sweep_id
         self.author = launch_spec.get("author")
-        self.python_version: Optional[str] = launch_spec.get("python_version")
+        python_version_value = launch_spec.get("python_version")
+        self.python_version: Optional[str] = (
+            str(python_version_value) if python_version_value is not None else None
+        )
         self._job_dockerfile: Optional[str] = None
         self._job_build_context: Optional[str] = None
         self._job_base_image: Optional[str] = None
