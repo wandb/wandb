@@ -26,9 +26,9 @@ require (
 	github.com/wandb/simplejsonext v0.0.0-20241203202201-90635f1d8677
 	gocloud.dev v0.41.0
 	golang.org/x/sync v0.15.0
-	golang.org/x/time v0.11.0
+	golang.org/x/time v0.12.0
 	google.golang.org/api v0.236.0
-	google.golang.org/grpc v1.72.2
+	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v3 v3.0.1
 )
