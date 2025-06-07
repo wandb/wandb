@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Literal, Optional
+from typing import List, Optional
 
-from pydantic import Field
+from typing_extensions import Literal
 
 from wandb._pydantic import GQLBase, GQLId, Typename
 
@@ -13,8 +13,8 @@ from .enums import ArtifactState
 
 
 class ArtifactCollectionsFragment(GQLBase):
-    page_info: ArtifactCollectionsFragmentPageInfo = Field(alias="pageInfo")
-    total_count: int = Field(alias="totalCount")
+    page_info: ArtifactCollectionsFragmentPageInfo
+    total_count: int
     edges: List[ArtifactCollectionsFragmentEdges]
 
 
@@ -30,44 +30,36 @@ class ArtifactCollectionsFragmentEdgesNode(GQLBase):
     id: GQLId
     name: str
     description: Optional[str]
-    created_at: str = Field(alias="createdAt")
+    created_at: str
 
 
 class ArtifactCollectionsFragmentPageInfo(GQLBase):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
+    end_cursor: Optional[str]
+    has_next_page: bool
 
 
 class ArtifactFragment(GQLBase):
     id: GQLId
-    artifact_sequence: ArtifactFragmentArtifactSequence = Field(
-        alias="artifactSequence"
-    )
-    version_index: Optional[int] = Field(alias="versionIndex")
-    artifact_type: ArtifactFragmentArtifactType = Field(alias="artifactType")
+    artifact_sequence: ArtifactFragmentArtifactSequence
+    version_index: Optional[int]
+    artifact_type: ArtifactFragmentArtifactType
     description: Optional[str]
-    metadata: Optional[Any]
-    ttl_duration_seconds: Optional[Any] = Field(
-        alias="ttlDurationSeconds", default=None
-    )
-    ttl_is_inherited: Optional[bool] = Field(alias="ttlIsInherited", default=None)
+    metadata: Optional[str]
+    ttl_duration_seconds: Optional[int] = None
+    ttl_is_inherited: Optional[bool] = None
     aliases: Optional[List[ArtifactFragmentAliases]] = None
     tags: Optional[List[ArtifactFragmentTags]] = None
-    history_step: Optional[Any] = Field(alias="historyStep", default=None)
+    history_step: Optional[int] = None
     state: ArtifactState
-    current_manifest: Optional[ArtifactFragmentCurrentManifest] = Field(
-        alias="currentManifest"
-    )
-    commit_hash: Optional[str] = Field(alias="commitHash")
-    file_count: Any = Field(alias="fileCount")
-    created_at: str = Field(alias="createdAt")
-    updated_at: Optional[str] = Field(alias="updatedAt")
+    current_manifest: Optional[ArtifactFragmentCurrentManifest]
+    commit_hash: Optional[str]
+    file_count: int
+    created_at: str
+    updated_at: Optional[str]
 
 
 class ArtifactFragmentAliases(GQLBase):
-    artifact_collection: Optional[ArtifactFragmentAliasesArtifactCollection] = Field(
-        alias="artifactCollection"
-    )
+    artifact_collection: Optional[ArtifactFragmentAliasesArtifactCollection]
     alias: str
 
 
@@ -80,7 +72,7 @@ class ArtifactFragmentAliasesArtifactCollection(GQLBase):
 
 
 class ArtifactFragmentAliasesArtifactCollectionProject(GQLBase):
-    entity_name: str = Field(alias="entityName")
+    entity_name: str
     name: str
 
 
@@ -90,7 +82,7 @@ class ArtifactFragmentArtifactSequence(GQLBase):
 
 
 class ArtifactFragmentArtifactSequenceProject(GQLBase):
-    entity_name: str = Field(alias="entityName")
+    entity_name: str
     name: str
 
 
@@ -103,7 +95,7 @@ class ArtifactFragmentCurrentManifest(GQLBase):
 
 
 class ArtifactFragmentCurrentManifestFile(GQLBase):
-    direct_url: str = Field(alias="directUrl")
+    direct_url: str
 
 
 class ArtifactFragmentTags(GQLBase):
@@ -111,28 +103,28 @@ class ArtifactFragmentTags(GQLBase):
 
 
 class ArtifactPortfolioTypeFields(GQLBase):
-    typename__: Typename[Literal["ArtifactPortfolio"]] = "ArtifactPortfolio"
+    typename__: Typename[str] = "ArtifactPortfolio"
     id: GQLId
     name: str
 
 
 class ArtifactSequenceTypeFields(GQLBase):
-    typename__: Typename[Literal["ArtifactSequence"]] = "ArtifactSequence"
+    typename__: Typename[str] = "ArtifactSequence"
     id: GQLId
     name: str
 
 
 class ArtifactTypeFragment(GQLBase):
-    typename__: Typename[Literal["ArtifactType"]] = "ArtifactType"
+    typename__: Typename[str] = "ArtifactType"
     id: GQLId
     name: str
     description: Optional[str]
-    created_at: str = Field(alias="createdAt")
+    created_at: str
 
 
 class ArtifactTypesFragment(GQLBase):
     edges: List[ArtifactTypesFragmentEdges]
-    page_info: ArtifactTypesFragmentPageInfo = Field(alias="pageInfo")
+    page_info: ArtifactTypesFragmentPageInfo
 
 
 class ArtifactTypesFragmentEdges(GQLBase):
@@ -141,14 +133,14 @@ class ArtifactTypesFragmentEdges(GQLBase):
 
 
 class ArtifactTypesFragmentPageInfo(GQLBase):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
+    end_cursor: Optional[str]
+    has_next_page: bool
 
 
 class ArtifactsFragment(GQLBase):
-    total_count: int = Field(alias="totalCount")
+    total_count: int
     edges: List[ArtifactsFragmentEdges]
-    page_info: ArtifactsFragmentPageInfo = Field(alias="pageInfo")
+    page_info: ArtifactsFragmentPageInfo
 
 
 class ArtifactsFragmentEdges(GQLBase):
@@ -158,13 +150,13 @@ class ArtifactsFragmentEdges(GQLBase):
 
 
 class ArtifactsFragmentPageInfo(GQLBase):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
+    end_cursor: Optional[str]
+    has_next_page: bool
 
 
 class FilesFragment(GQLBase):
     edges: List[FilesFragmentEdges]
-    page_info: FilesFragmentPageInfo = Field(alias="pageInfo")
+    page_info: FilesFragmentPageInfo
 
 
 class FilesFragmentEdges(GQLBase):
@@ -176,18 +168,18 @@ class FilesFragmentEdgesNode(GQLBase):
     id: GQLId
     name: str
     url: Optional[str]
-    size_bytes: Any = Field(alias="sizeBytes")
-    storage_path: Optional[str] = Field(alias="storagePath", default=None)
+    size_bytes: int
+    storage_path: Optional[str] = None
     mimetype: Optional[str]
-    updated_at: Optional[str] = Field(alias="updatedAt")
+    updated_at: Optional[str]
     digest: Optional[str]
-    md_5: Optional[str] = Field(alias="md5")
-    direct_url: str = Field(alias="directUrl")
+    md_5: Optional[str]
+    direct_url: str
 
 
 class FilesFragmentPageInfo(GQLBase):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
+    end_cursor: Optional[str]
+    has_next_page: bool
 
 
 ArtifactCollectionsFragment.model_rebuild()
