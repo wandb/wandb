@@ -2,6 +2,7 @@ package runmetadata
 
 import (
 	"encoding/json"
+	"sync"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -10,6 +11,9 @@ import (
 
 // RunMetadata tracks the metadata for a run's writer.
 type RunMetadata struct {
+	// mu protects the metadata field
+	mu sync.Mutex
+
 	// Unique ID of a writer to the run.
 	clientID string
 
@@ -24,10 +28,16 @@ func New(clientID string) *RunMetadata {
 }
 
 func (rm *RunMetadata) ProcessRecord(metadata *spb.MetadataRecord) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
 	proto.Merge(rm.metadata, metadata)
 }
 
 func (rm *RunMetadata) ToJSON() ([]byte, error) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
 	mo := protojson.MarshalOptions{
 		Indent: "  ",
 		// EmitUnpopulated: true,
