@@ -417,9 +417,6 @@ pub struct Feature {
     /// HuggingFace Autologging
     #[prost(bool, tag = "54")]
     pub hf_pipeline_autolog: bool,
-    /// Using wandb core internal process
-    #[prost(bool, tag = "55")]
-    pub core: bool,
     /// Using c wandb library
     #[prost(bool, tag = "56")]
     pub lib_c: bool,
