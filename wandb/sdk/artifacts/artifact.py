@@ -2485,7 +2485,9 @@ class Artifact:
         entity = target.prefix
 
         # Parse the entity appropriately, depending on whether we're linking to a registry
-        if is_registry_target := is_artifact_registry_project(target.project):
+        if target.project and (
+            is_registry_target := is_artifact_registry_project(target.project)
+        ):
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
             organization = target.prefix or api.settings.get("organization") or ""
