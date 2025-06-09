@@ -9,8 +9,6 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Sequence
 from urllib.parse import parse_qsl, urlparse
 
-from botocore.client import Config  # type: ignore
-
 from wandb import util
 from wandb.errors import CommError
 from wandb.errors.term import termlog
@@ -55,6 +53,8 @@ class S3Handler(StorageHandler):
             required="s3:// references requires the boto3 library, run pip install wandb[aws]",
             lazy=False,
         )
+
+        from botocore.client import Config  # type: ignore
 
         s3_endpoint = os.getenv("AWS_S3_ENDPOINT_URL")
         config = (
