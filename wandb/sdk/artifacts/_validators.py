@@ -6,7 +6,7 @@ import json
 import re
 from dataclasses import astuple, dataclass, field
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVar, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import Self
@@ -266,8 +266,9 @@ def is_artifact_registry_project(project: str) -> bool:
 
 @pydantic_dataclass
 class ArtifactPath:
-    prefix: str | None  #: E.g. an org or entity name.
-    project: str | None
+    #: Prefix is often an org or entity name.
+    prefix: Optional[str]  # noqa: UP007
+    project: Optional[str]  # noqa: UP007
     collection: str
 
     @classmethod
