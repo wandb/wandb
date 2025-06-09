@@ -577,8 +577,10 @@ class KubernetesRunner(AbstractRunner):
         env_vars = launch_project.get_env_vars_dict(
             self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
-
-        add_wandb_env(config, env_vars.get("WANDB_CONFIG", {}))
+        wandb_config_env = {
+            "WANDB_CONFIG": env_vars.get("WANDB_CONFIG", "{}"),
+        }
+        add_wandb_env(config, wandb_config_env)
 
         await kubernetes_asyncio.utils.create_from_dict(
             api_client, config, namespace=namespace
