@@ -33,9 +33,7 @@ def user(
 
 
 @fixture(scope="session")
-def team_and_org(
-    backend_fixture_factory: BackendFixtureFactory, user: str
-) -> TeamAndOrgNames:
+def team_and_org(user: str, backend_fixture_factory) -> TeamAndOrgNames:
     return backend_fixture_factory.make_team(username=user)
 
 
@@ -79,7 +77,7 @@ def source_artifact(team: str) -> Artifact:
     # within a team entity, NOT the user's personal entity.
     with wandb.init(entity=team) as run:
         artifact = wandb.Artifact(name="test-artifact", type="dataset")
-        return run.log_artifact(artifact).wait()
+        return run.log_artifact(artifact)
 
 
 @fixture
@@ -102,12 +100,12 @@ def aliases(request: FixtureRequest) -> list[str] | None:
 
 def test_artifact_link_vs_run_link_artifact_on_registry_collection(
     user: str,
-    aliases: list[str] | None,
     team: str,
     org: str,
     org_entity: str,
     registry: Registry,
     source_artifact: Artifact,
+    aliases: list[str] | None,
     target_collection_name: str,
 ):
     # Link to a new collection for each test run
