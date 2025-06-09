@@ -2476,17 +2476,16 @@ class Artifact:
 
         api = Api()
 
-        target = ArtifactPath.from_str(
-            target_path,
-            default_prefix=api.settings.get("entity") or api.default_entity,
-            default_project=api.settings.get("project") or "uncategorized",
+        target = ArtifactPath.from_str(target_path).with_defaults(
+            prefix=api.settings.get("entity") or api.default_entity,
+            project=api.settings.get("project") or "uncategorized",
         )
 
         entity = target.prefix
 
         # Parse the entity appropriately, depending on whether we're linking to a registry
-        if target.project and (
-            is_registry_target := is_artifact_registry_project(target.project)
+        if (project := target.project) and (
+            is_registry_target := is_artifact_registry_project(project)
         ):
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
@@ -2499,15 +2498,16 @@ class Artifact:
             portfolio_entity = self.source_entity
 
         # Prepare the validated GQL input, send it
+        alias_inputs = [
+            ArtifactAliasInput(artifact_collection_name=target.name, alias=a)
+            for a in (aliases or [])
+        ]
         gql_input = LinkArtifactInput(
             artifact_id=self.id,
             artifact_portfolio_name=target.name,
             entity_name=portfolio_entity,
             project_name=target.project,
-            aliases=[
-                dict(artifact_collection_name=target.name, alias=a)
-                for a in (aliases or [])
-            ],
+            aliases=alias_inputs,
         )
         gql_vars = {"input": gql_input.model_dump(exclude_none=True)}
         gql_op = gql(LINK_ARTIFACT_GQL)

@@ -2949,16 +2949,22 @@ class Run:
         if artifact.is_draft() and not artifact._is_draft_save_started():
             artifact = self._log_artifact(artifact)
 
+            # Wait until the artifact is committed before trying to link it.
+            artifact.wait()
+
         if self._settings._offline:
             # TODO: implement offline mode + sync
             raise NotImplementedError
 
-        parsed_target = ArtifactPath.from_str(
-            target_path,
-            default_prefix=self.entity,
-            default_project=self.project,
+        target_path = (
+            ArtifactPath.from_str(target_path)
+            .with_defaults(
+                prefix=self.entity,
+                project=self.project,
+            )
+            .to_str()
         )
-        return artifact.link(parsed_target.to_str(), aliases)
+        return artifact.link(target_path, aliases)
 
     @_log_to_run
     @_raise_if_finished
