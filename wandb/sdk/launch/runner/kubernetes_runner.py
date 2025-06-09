@@ -731,7 +731,7 @@ class KubernetesRunner(AbstractRunner):
             wandb.termlog(
                 f"{LOG_PREFIX}Creating additional services: {additional_services}"
             )
-            auxiliary_resource_label_key = f"job-{uuid.uuid4()}"
+            auxiliary_resource_label_key = f"aux-{uuid.uuid4()}"
             await asyncio.gather(
                 *[
                     self._prepare_resource(
