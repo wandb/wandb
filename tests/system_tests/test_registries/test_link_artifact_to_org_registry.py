@@ -4,11 +4,13 @@ import os
 from typing import TYPE_CHECKING
 
 import wandb
-from pytest import FixtureRequest, fixture
+from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
 from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.registries.registry import Registry
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.util import random_string
 
 if TYPE_CHECKING:
@@ -55,6 +57,8 @@ def api(user, org) -> wandb.Api:
 
 @fixture(scope="session")
 def org_entity(api: wandb.Api, org: str) -> str:
+    if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
+        skip("Cannot fetch org entity on this server version.")
     return fetch_org_entity_from_organization(api.client, org)
 
 
