@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import astuple, dataclass, field
+from dataclasses import astuple, dataclass, field, replace
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVar, cast
 
@@ -266,40 +266,31 @@ def is_artifact_registry_project(project: str) -> bool:
 
 @pydantic_dataclass
 class ArtifactPath:
-    #: Prefix is often an org or entity name.
-    prefix: Optional[str]  # noqa: UP007
-    #: The project name, which can also be a registry name.
-    project: Optional[str]  # noqa: UP007
     #: The collection name.
     name: str
+    #: The project name, which can also be a registry name.
+    project: Optional[str] = None  # noqa: UP007
+    #: Prefix is often an org or entity name.
+    prefix: Optional[str] = None  # noqa: UP007
 
     @classmethod
-    def from_str(
-        cls,
-        path: str,
-        *,
-        default_prefix: str | None = None,
-        default_project: str | None = None,
-    ) -> Self:
-        """Instantiate by parsing an artifact path.
-
-        Args:
-            path: The artifact path to parse.
-            default_prefix: The prefix to use as a default.  Ignored if the path already contains a prefix (e.g. entity name).
-            default_project: The project to use as a default.  Ignored if the path already contains a project.
-        """
+    def from_str(cls, path: str) -> Self:
+        """Instantiate by parsing an artifact path."""
         parts = path.split("/")
-        num_parts = len(parts)
-        if num_parts == 1:
-            return cls(default_prefix, default_project, *parts)
-        if num_parts == 2:
-            return cls(default_prefix, *parts)
-        if num_parts == 3:
-            return cls(*parts)
-        raise ValueError(
-            f"Invalid path.  Expected `name`, `project/name`, or `entity/project/name`, got: {str(path)!r}",
-        )
+        if len(parts) > 3:
+            raise ValueError(
+                f"Invalid path.  Expected `name`, `project/name`, or `entity/project/name`, got: {str(path)!r}",
+            )
+        return cls(*reversed(parts))
 
     def to_str(self) -> str:
         """Convert this instance to its string path representation."""
-        return "/".join(filter(bool, astuple(self)))
+        return "/".join(filter(bool, reversed(astuple(self))))
+
+    def with_defaults(
+        self, prefix: str | None = None, project: str | None = None
+    ) -> Self:
+        """Return a new instance, assigning the given defaults ONLY if the current values are missing."""
+        return replace(
+            self, prefix=self.prefix or prefix, project=self.project or project
+        )
