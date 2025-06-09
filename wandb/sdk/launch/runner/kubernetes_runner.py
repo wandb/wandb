@@ -554,16 +554,17 @@ class KubernetesRunner(AbstractRunner):
         namespace: str,
         run_id: str,
         auxiliary_resource_label_key: str,
+        launch_project: LaunchProject,
     ) -> None:
         """Prepare a service for launch.
 
         Arguments:
             api_client: The Kubernetes API client.
-            service: The service to prepare.
-            namespace: The namespace to create the service in.
-            run_id: The run ID to label the service with.
-            label_key: The key of the label to add to the service.
-            label_value: The value of the label to add to the service.
+            config: The resource configuration to prepare.
+            namespace: The namespace to create the resource in.
+            run_id: The run ID to label the resource with.
+            auxiliary_resource_label_key: The key of the auxiliary resource label.
+            launch_project: The launch project to get environment variables from.
         """
         config.setdefault("metadata", {})
         config["metadata"].setdefault("labels", {})
@@ -572,6 +573,12 @@ class KubernetesRunner(AbstractRunner):
             auxiliary_resource_label_key
         )
         config["metadata"]["labels"]["wandb.ai/created-by"] = "launch-agent"
+
+        env_vars = launch_project.get_env_vars_dict(
+            self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        )
+
+        add_wandb_env(config, env_vars.get("WANDB_CONFIG", {}))
 
         await kubernetes_asyncio.utils.create_from_dict(
             api_client, config, namespace=namespace
@@ -740,6 +747,7 @@ class KubernetesRunner(AbstractRunner):
                         namespace,
                         launch_project.run_id,
                         auxiliary_resource_label_key,
+                        launch_project,
                     )
                     for resource in additional_services
                     if resource.get("config", {})
