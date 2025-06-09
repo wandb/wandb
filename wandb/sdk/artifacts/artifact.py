@@ -2499,11 +2499,11 @@ class Artifact:
         # Prepare the validated GQL input, send it
         gql_input = LinkArtifactInput(
             artifact_id=self.id,
-            artifact_portfolio_name=target.collection,
+            artifact_portfolio_name=target.name,
             entity_name=portfolio_entity,
             project_name=target.project,
             aliases=[
-                dict(artifact_collection_name=target.collection, alias=a)
+                dict(artifact_collection_name=target.name, alias=a)
                 for a in (aliases or [])
             ],
         )
@@ -2517,7 +2517,7 @@ class Artifact:
 
         # Fetch the linked artifact to return it
         try:
-            linked_path = f"{target.project}/{target.collection}:v{version_idx}"
+            linked_path = f"{target.project}/{target.name}:v{version_idx}"
 
             # If appropriate, prepend the org or entity to the fetched path
             if is_registry_target and organization:

@@ -268,8 +268,10 @@ def is_artifact_registry_project(project: str) -> bool:
 class ArtifactPath:
     #: Prefix is often an org or entity name.
     prefix: Optional[str]  # noqa: UP007
+    #: The project name, which can also be a registry name.
     project: Optional[str]  # noqa: UP007
-    collection: str
+    #: The collection name.
+    name: str
 
     @classmethod
     def from_str(
