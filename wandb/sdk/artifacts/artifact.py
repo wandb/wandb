@@ -2465,7 +2465,7 @@ class Artifact:
             )
 
         if self._client is None:
-            raise RuntimeError("Client not initialized for artifact mutations")
+            raise ValueError("Client not initialized for artifact mutations")
 
         # Save the artifact first if necessary
         if self.is_draft() and not self._is_draft_save_started():
@@ -2480,8 +2480,6 @@ class Artifact:
             prefix=api.settings.get("entity") or api.default_entity,
             project=api.settings.get("project") or "uncategorized",
         )
-
-        entity = target.prefix
 
         # Parse the entity appropriately, depending on whether we're linking to a registry
         if (project := target.project) and (
@@ -2518,17 +2516,16 @@ class Artifact:
             raise ValueError("Unable to parse linked artifact version from response")
 
         # Fetch the linked artifact to return it
+        linked_path = f"{target.project}/{target.name}:v{version_idx}"
+
+        # If appropriate, prepend the org or entity to the fetched path
+        if is_registry_target and organization:
+            linked_path = f"{organization}/{linked_path}"
+        elif not is_registry_target:
+            linked_path = f"{target.prefix}/{linked_path}"
+
         try:
-            linked_path = f"{target.project}/{target.name}:v{version_idx}"
-
-            # If appropriate, prepend the org or entity to the fetched path
-            if is_registry_target and organization:
-                linked_path = f"{organization}/{linked_path}"
-            elif not is_registry_target:
-                linked_path = f"{entity}/{linked_path}"
-
             return api._artifact(linked_path)
-
         except Exception as e:
             wandb.termerror(f"Error fetching link artifact after linking: {e}")
             return None

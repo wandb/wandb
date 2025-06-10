@@ -2943,25 +2943,17 @@ class Run:
             The linked artifact if linking was successful, otherwise None.
 
         """
-        if not self._backend or not self._backend.interface:
-            return None
-
         if artifact.is_draft() and not artifact._is_draft_save_started():
             artifact = self._log_artifact(artifact)
-
-            # Wait until the artifact is committed before trying to link it.
-            artifact.wait()
 
         if self._settings._offline:
             # TODO: implement offline mode + sync
             raise NotImplementedError
 
+        # Normalize the target path
         target_path = (
             ArtifactPath.from_str(target_path)
-            .with_defaults(
-                prefix=self.entity,
-                project=self.project,
-            )
+            .with_defaults(prefix=self.entity, project=self.project)
             .to_str()
         )
         return artifact.link(target_path, aliases)

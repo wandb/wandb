@@ -276,21 +276,24 @@ class ArtifactPath:
     @classmethod
     def from_str(cls, path: str) -> Self:
         """Instantiate by parsing an artifact path."""
-        parts = path.split("/")
-        if len(parts) > 3:
-            raise ValueError(
-                f"Invalid path.  Expected `name`, `project/name`, or `entity/project/name`, got: {str(path)!r}",
-            )
-        return cls(*reversed(parts))
+        if len(parts := path.split("/")) <= 3:
+            return cls(*reversed(parts))
+        raise ValueError(
+            f"Expected a valid path like `name`, `project/name`, or `prefix/project/name`.  Got: {path!r}"
+        )
 
     def to_str(self) -> str:
         """Returns the slash-separated string representation of the path."""
         return "/".join(filter(bool, reversed(astuple(self))))
 
     def with_defaults(
-        self, prefix: str | None = None, project: str | None = None
+        self,
+        prefix: str | None = None,
+        project: str | None = None,
     ) -> Self:
         """Returns this path with missing values set to the given defaults."""
         return replace(
-            self, prefix=self.prefix or prefix, project=self.project or project
+            self,
+            prefix=self.prefix or prefix,
+            project=self.project or project,
         )
