@@ -17,9 +17,9 @@ if TYPE_CHECKING:
     from ..backend_fixtures import BackendFixtureFactory, TeamAndOrgNames
 
 
-@fixture(scope="session")
+@fixture(scope="module")
 def user(
-    session_mocker: MockerFixture,
+    module_mocker: MockerFixture,
     backend_fixture_factory: BackendFixtureFactory,
 ) -> str:
     username = backend_fixture_factory.make_user()
@@ -28,49 +28,49 @@ def user(
         "WANDB_ENTITY": username,
         "WANDB_USERNAME": username,
     }
-    session_mocker.patch.dict(os.environ, envvars)
+    module_mocker.patch.dict(os.environ, envvars)
     return username
 
 
-@fixture(scope="session")
+@fixture(scope="module")
 def team_and_org(user: str, backend_fixture_factory) -> TeamAndOrgNames:
     return backend_fixture_factory.make_team(username=user)
 
 
-@fixture(scope="session")
+@fixture(scope="module")
 def team(team_and_org: TeamAndOrgNames) -> str:
     return team_and_org.team
 
 
-@fixture(scope="session")
+@fixture(scope="module")
 def org(team_and_org: TeamAndOrgNames) -> str:
     """Set up backend resources for testing link_artifact within a registry."""
     return team_and_org.org
 
 
-@fixture(scope="session")
+@fixture(scope="module")
 def api(user, org) -> wandb.Api:
     return wandb.Api()
 
 
-@fixture(scope="session")
+@fixture(scope="module")
 def org_entity(api: wandb.Api, org: str) -> str:
     if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
         skip("Cannot fetch org entity on this server version.")
     return fetch_org_entity_from_organization(api.client, org)
 
 
-@fixture(scope="session")
+@fixture(scope="module")
 def registry(api: wandb.Api, org: str) -> Registry:
     # Full name will be "wandb-registry-model"
     return api.create_registry("model", visibility="organization", organization=org)
 
 
-@fixture(scope="session")
+@fixture(scope="module")
 def source_artifact(team: str) -> Artifact:
     """Create a source artifact logged within a team entity.
 
-    Log this once per session to reduce overhead for each test run.
+    Log this once per module to reduce overhead for each test run.
     This should be fine as long as we're mainly testing linking functionality.
     """
     # In order to link to an org registry, the source artifact must be logged
