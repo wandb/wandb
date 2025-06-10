@@ -21,7 +21,17 @@ from datetime import datetime, timedelta
 from functools import partial
 from itertools import filterfalse
 from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Iterator, Literal, Sequence, Type, final
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Collection,
+    Iterator,
+    Literal,
+    Sequence,
+    Type,
+    final,
+)
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
@@ -63,8 +73,10 @@ from ._generated import (
     FETCH_LINKED_ARTIFACTS_GQL,
     LINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
+    AddAliasesInput,
     ArtifactAliasInput,
     ArtifactCollectionAliasInput,
+    DeleteAliasesInput,
     FetchLinkedArtifacts,
     LinkArtifact,
     LinkArtifactInput,
@@ -1186,17 +1198,37 @@ class Artifact:
             # That requires greater refactoring for commitArtifact to return the artifact collection type.
             self._assign_attrs(attrs, is_link=False)
 
+    def _prepare_add_aliases_input(self, aliases: Collection[str]) -> AddAliasesInput:
+        props = {
+            "entity_name": self.entity,
+            "project_name": self.project,
+            "artifact_collection_name": self.name.split(":")[0],
+        }
+        return AddAliasesInput(
+            artifact_id=self.id,
+            aliases=[ArtifactCollectionAliasInput(**props, alias=a) for a in aliases],
+        )
+
+    def _prepare_delete_aliases_input(
+        self, aliases: Collection[str]
+    ) -> DeleteAliasesInput:
+        props = {
+            "entity_name": self.entity,
+            "project_name": self.project,
+            "artifact_collection_name": self.name.split(":")[0],
+        }
+        return DeleteAliasesInput(
+            artifact_id=self.id,
+            aliases=[ArtifactCollectionAliasInput(**props, alias=a) for a in aliases],
+        )
+
     @normalize_exceptions
     def _update(self) -> None:
         """Persists artifact changes to the wandb backend."""
         if self._client is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        entity = self.entity
-        project = self.project
-        collection = self.name.split(":")[0]
-
-        aliases = None
+        alias_inputs = None
         introspect_query = gql(
             """
             query ProbeServerAddAliasesInput {
@@ -1212,24 +1244,12 @@ class Artifact:
 
         data = self._client.execute(introspect_query)
         if data.get("AddAliasesInputInfoType"):  # wandb backend version >= 0.13.0
-            alias_props = {
-                "entity_name": entity,
-                "project_name": project,
-                "artifact_collection_name": collection,
-            }
             if aliases_to_add := (set(self.aliases) - set(self._saved_aliases)):
-                add_mutation = gql(ADD_ALIASES_GQL)
-                add_alias_inputs = [
-                    ArtifactCollectionAliasInput(**alias_props, alias=alias)
-                    for alias in aliases_to_add
-                ]
+                input_ = self._prepare_add_aliases_input(aliases_to_add)
                 try:
                     self._client.execute(
-                        add_mutation,
-                        variable_values={
-                            "artifactID": self.id,
-                            "aliases": [a.model_dump() for a in add_alias_inputs],
-                        },
+                        gql(ADD_ALIASES_GQL),
+                        variable_values={"input": input_.model_dump(exclude_none=True)},
                     )
                 except CommError as e:
                     raise CommError(
@@ -1239,18 +1259,11 @@ class Artifact:
                     ) from e
 
             if aliases_to_delete := (set(self._saved_aliases) - set(self.aliases)):
-                delete_mutation = gql(DELETE_ALIASES_GQL)
-                delete_alias_inputs = [
-                    ArtifactCollectionAliasInput(**alias_props, alias=alias)
-                    for alias in aliases_to_delete
-                ]
+                input_ = self._prepare_delete_aliases_input(aliases_to_delete)
                 try:
                     self._client.execute(
-                        delete_mutation,
-                        variable_values={
-                            "artifactID": self.id,
-                            "aliases": [a.model_dump() for a in delete_alias_inputs],
-                        },
+                        gql(DELETE_ALIASES_GQL),
+                        variable_values={"input": input_.model_dump(exclude_none=True)},
                     )
                 except CommError as e:
                     raise CommError(
@@ -1262,11 +1275,10 @@ class Artifact:
             self._saved_aliases = copy(self.aliases)
 
         else:  # wandb backend version < 0.13.0
-            aliases = [
-                ArtifactAliasInput(
-                    artifact_collection_name=collection, alias=alias
-                ).model_dump()
-                for alias in self.aliases
+            collection = self.name.split(":")[0]
+            alias_inputs = [
+                ArtifactAliasInput(artifact_collection_name=collection, alias=a)
+                for a in (self.aliases or [])
             ]
 
         omit_fields = omit_artifact_fields(api=InternalApi())
@@ -1292,7 +1304,7 @@ class Artifact:
 
             omit_variables |= {"tagsToAdd", "tagsToDelete"}
 
-        mutation = gql_compat(
+        gql_mutation = gql_compat(
             UPDATE_ARTIFACT_GQL, omit_variables=omit_variables, omit_fields=omit_fields
         )
 
@@ -1301,12 +1313,16 @@ class Artifact:
             "description": self.description,
             "metadata": json_dumps_safer(self.metadata),
             "ttlDurationSeconds": self._ttl_duration_seconds_to_gql(),
-            "aliases": aliases,
+            "aliases": (
+                None
+                if (alias_inputs is None)
+                else [obj.model_dump() for obj in alias_inputs]
+            ),
             "tagsToAdd": [TagInput(tag_name=t).model_dump() for t in tags_to_add],
             "tagsToDelete": [TagInput(tag_name=t).model_dump() for t in tags_to_del],
         }
 
-        data = self._client.execute(mutation, variable_values=gql_vars)
+        data = self._client.execute(gql_mutation, variable_values=gql_vars)
 
         result = UpdateArtifact.model_validate(data).update_artifact
         if not (result and (artifact := result.artifact)):
@@ -2341,6 +2357,23 @@ class Artifact:
             },
         )
 
+    def _prepare_link_artifact_input(
+        self,
+        target: ArtifactPath,
+        entity: str,
+        aliases: list[str] | None,
+    ) -> LinkArtifactInput:
+        return LinkArtifactInput(
+            artifact_id=self.id,
+            artifact_portfolio_name=target.name,
+            entity_name=entity,
+            project_name=target.project,
+            aliases=[
+                ArtifactAliasInput(artifact_collection_name=target.name, alias=a)
+                for a in (aliases or [])
+            ],
+        )
+
     @normalize_exceptions
     def link(
         self, target_path: str, aliases: list[str] | None = None
@@ -2375,11 +2408,9 @@ class Artifact:
         if self._client is None:
             raise ValueError("Client not initialized for artifact mutations")
 
-        # Save the artifact first if necessary
+        # If necessary, save the artifact first and wait until it is committed before trying to link it.
         if self.is_draft() and not self._is_draft_save_started():
             self.save(project=self.source_project)
-
-        # Wait until the artifact is committed before trying to link it.
         self.wait()
 
         api = Api()
@@ -2390,37 +2421,32 @@ class Artifact:
         )
 
         # Parse the entity appropriately, depending on whether we're linking to a registry
-        if (project := target.project) and (
-            is_registry_target := is_artifact_registry_project(project)
+        if is_registry_target := (
+            target.project and is_artifact_registry_project(target.project)
         ):
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
             organization = target.prefix or api.settings.get("organization") or ""
-            portfolio_entity = InternalApi()._resolve_org_entity_name(
+            target_entity = InternalApi()._resolve_org_entity_name(
                 self.source_entity, organization
             )
         else:
             organization = ""
-            portfolio_entity = self.source_entity
+            target_entity = self.source_entity
 
         # Prepare the validated GQL input, send it
-        alias_inputs = [
-            ArtifactAliasInput(artifact_collection_name=target.name, alias=a)
-            for a in (aliases or [])
-        ]
-        gql_input = LinkArtifactInput(
-            artifact_id=self.id,
-            artifact_portfolio_name=target.name,
-            entity_name=portfolio_entity,
-            project_name=target.project,
-            aliases=alias_inputs,
+        gql_input = self._prepare_link_artifact_input(
+            target,
+            entity=target_entity,
+            aliases=aliases,
         )
-        gql_vars = {"input": gql_input.model_dump(exclude_none=True)}
-        gql_op = gql(LINK_ARTIFACT_GQL)
-        data = self._client.execute(gql_op, variable_values=gql_vars)
+        data = self._client.execute(
+            gql(LINK_ARTIFACT_GQL),
+            variable_values={"input": gql_input.model_dump(exclude_none=True)},
+        )
 
         result = LinkArtifact.model_validate(data).link_artifact
-        if not (result and (version_idx := result.version_index) is not None):
+        if (result is None) or ((version_idx := result.version_index) is None):
             raise ValueError("Unable to parse linked artifact version from response")
 
         # Fetch the linked artifact to return it
