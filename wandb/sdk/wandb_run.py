@@ -2946,9 +2946,6 @@ class Run:
         if artifact.is_draft() and not artifact._is_draft_save_started():
             artifact = self._log_artifact(artifact)
 
-            # Wait until the artifact is committed before trying to link it.
-            artifact.wait()
-
         if self._settings._offline:
             # TODO: implement offline mode + sync
             raise NotImplementedError
