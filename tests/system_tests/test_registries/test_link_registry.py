@@ -1,108 +1,148 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
+from typing import TYPE_CHECKING
 
-import pytest
 import wandb
-from wandb.proto import wandb_internal_pb2 as pb
+from pytest import FixtureRequest, fixture, skip
+from pytest_mock import MockerFixture
+from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
+from wandb.apis.public.registries.registry import Registry
+from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.util import random_string
+
+if TYPE_CHECKING:
+    from ..backend_fixtures import BackendFixtureFactory, TeamAndOrgNames
 
 
-@dataclass
-class LinkArtifactExpectation:
-    entity: str = ""
-    org: str = ""
-    project: str = ""
-    collection: str = ""
+@fixture(scope="module")
+def user(backend_fixture_factory: BackendFixtureFactory) -> str:
+    return backend_fixture_factory.make_user()
 
 
-@pytest.mark.skip(
-    reason="LinkArtifact operation bypasses this codepath to avoid throwaway runs"
+@fixture(scope="module")
+def team_and_org(user: str, backend_fixture_factory) -> TeamAndOrgNames:
+    return backend_fixture_factory.make_team(username=user)
+
+
+@fixture(scope="module")
+def team(team_and_org: TeamAndOrgNames) -> str:
+    return team_and_org.team
+
+
+@fixture(scope="module")
+def org(team_and_org: TeamAndOrgNames) -> str:
+    """Set up backend resources for testing link_artifact within a registry."""
+    return team_and_org.org
+
+
+@fixture(scope="module")
+def api(module_mocker: MockerFixture, user: str, org: str) -> wandb.Api:
+    envvars = {
+        "WANDB_API_KEY": user,
+        "WANDB_ENTITY": user,
+        "WANDB_USERNAME": user,
+        "WANDB_ORGANIZATION": org,
+    }
+    module_mocker.patch.dict(os.environ, envvars)
+    return wandb.Api()
+
+
+@fixture(scope="module")
+def org_entity(api: wandb.Api, org: str) -> str:
+    if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
+        skip("Cannot fetch org entity on this server version.")
+    return fetch_org_entity_from_organization(api.client, org)
+
+
+@fixture(scope="module")
+def registry(api: wandb.Api, org: str) -> Registry:
+    # Full name will be "wandb-registry-model"
+    return api.create_registry("model", visibility="organization", organization=org)
+
+
+@fixture(scope="module")
+def source_artifact(team: str) -> Artifact:
+    """Create a source artifact logged within a team entity.
+
+    Log this once per module to reduce overhead for each test run.
+    This should be fine as long as we're mainly testing linking functionality.
+    """
+    # In order to link to an org registry, the source artifact must be logged
+    # within a team entity, NOT the user's personal entity.
+    with wandb.init(entity=team) as run:
+        artifact = wandb.Artifact(name="test-artifact", type="dataset")
+        return run.log_artifact(artifact)
+
+
+@fixture
+def target_collection_name(worker_id: str) -> str:
+    return f"collection-{worker_id}-{random_string(8)}"
+
+
+@fixture(
+    params=[
+        ["alias1", "alias2"],
+        ["alias1"],
+        [],
+        None,
+    ]
 )
-@pytest.mark.parametrize(
-    (
-        "link_artifact_path",
-        "expected",
-    ),
-    (
-        (
-            "org-name/wandb-registry-model/test-collection",
-            LinkArtifactExpectation(
-                org="org-name",
-                project="wandb-registry-model",
-                collection="test-collection",
-            ),
-        ),
-        (
-            "org-entity-name/wandb-registry-model/test-collection",
-            LinkArtifactExpectation(
-                org="org-entity-name",
-                project="wandb-registry-model",
-                collection="test-collection",
-            ),
-        ),
-        (
-            "wandb-registry-model/test-collection",
-            LinkArtifactExpectation(
-                project="wandb-registry-model",
-                collection="test-collection",
-            ),
-        ),
-        (
-            "random-entity/not-registry/test-collection",
-            LinkArtifactExpectation(
-                entity="random-entity",
-                project="not-registry",
-                collection="test-collection",
-            ),
-        ),
-        (
-            "not-registry/test-collection",
-            LinkArtifactExpectation(
-                project="not-registry",
-                collection="test-collection",
-            ),
-        ),
-    ),
+def aliases(request: FixtureRequest) -> list[str] | None:
+    """Test aliases to apply when linking an artifact."""
+    return request.param
+
+
+@fixture(
+    params=[
+        "{org_entity}/{registry.full_name}/{target_collection_name}",
+        "{registry.full_name}/{target_collection_name}",
+    ]
 )
-def test_link_artifact_client_handles_registry_paths(
-    tmp_path,
-    user,
-    api,
-    link_artifact_path,
-    expected,
-    mocker,
+def target_path(
+    request: FixtureRequest,
+    org_entity: str,
+    registry: Registry,
+    target_collection_name: str,
+) -> str:
+    """Test target path to link to.
+
+    Parameterized over equivalent valid representations of the same target.
+    """
+    # Link to a new collection for each test run
+    path_template = request.param
+    return path_template.format(
+        org_entity=org_entity,
+        registry=registry,
+        target_collection_name=target_collection_name,
+    )
+
+
+def test_artifact_link_vs_run_link_artifact_on_registry_collection(
+    # user: str,
+    # team: str,
+    # org: str,
+    org_entity: str,
+    target_path: str,
+    registry: Registry,
+    source_artifact: Artifact,
+    aliases: list[str] | None,
+    target_collection_name: str,
 ):
-    # Tests link_artifact for registry paths correctly passes in
-    # the expected variables to the backend.
-    project = "test"
-    artifact_name = "test-artifact"
-    artifact_type = "test-type"
+    # target_path = f"{org_entity}/{registry.full_name}/{target_collection_name}"
 
-    artifact_filepath = tmp_path / "boom.txt"
-    artifact_filepath.write_text("testing")
+    linked = source_artifact.link(target_path, aliases=aliases)
 
-    run = wandb.init(entity=user, project=project)
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-    artifact.add_file(str(artifact_filepath), "test-name")
+    assert linked is not None
 
-    # Assign tags when logging
-    run.log_artifact(artifact)
-    artifact.wait()
+    assert set(linked.aliases) == {"latest", *(aliases or [])}
+    assert linked.collection.name == target_collection_name
+    assert linked.collection.entity == org_entity
+    assert linked.project == registry.full_name
 
-    mock__deliver_link_artifact = mocker.patch(
-        "wandb.sdk.interface.interface_shared.InterfaceShared._deliver_link_artifact"
+    expected_linked_full_name = (
+        f"{org_entity}/{registry.full_name}/{target_collection_name}:{linked.version}"
     )
-
-    # Link the artifact
-    run.link_artifact(artifact, link_artifact_path)
-    link_artifact_request = pb.LinkArtifactRequest(
-        server_id=artifact.id,
-        portfolio_name=expected.collection,
-        portfolio_aliases=[],
-        portfolio_entity=expected.entity or user,
-        portfolio_project=expected.project,
-        portfolio_organization=expected.org,
-    )
-    mock__deliver_link_artifact.assert_called_once_with(link_artifact_request)
-
-    run.finish()
+    assert expected_linked_full_name == linked.qualified_name
