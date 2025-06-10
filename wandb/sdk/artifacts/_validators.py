@@ -261,6 +261,7 @@ def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
 
 
 def is_artifact_registry_project(project: str) -> bool:
+    """Returns True if the project name is an artifact registry."""
     return project.startswith(REGISTRY_PREFIX)
 
 
