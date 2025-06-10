@@ -222,9 +222,7 @@ class BackendFixtureFactory:
         )
 
         # Register command(s) to delete the team(s) on cleanup
-        self._cleanup_stack.append(
-            TeamCmd("down"),
-        )
+        self._cleanup_stack.append(TeamCmd("down"))
         return TeamAndOrgNames(team=name, org=org_name)
 
     def send_cmds(self, *cmds: FixtureCmd) -> None:
