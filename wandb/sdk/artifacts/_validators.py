@@ -290,7 +290,7 @@ class ArtifactPath:
     def with_defaults(
         self, prefix: str | None = None, project: str | None = None
     ) -> Self:
-        """Return a new instance, assigning the given defaults ONLY if the current values are missing."""
+        """Returns this path with missing values set to the given defaults."""
         return replace(
             self, prefix=self.prefix or prefix, project=self.project or project
         )
