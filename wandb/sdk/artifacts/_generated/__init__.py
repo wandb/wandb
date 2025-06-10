@@ -74,8 +74,10 @@ from .fragments import (
     FilesFragmentPageInfo,
 )
 from .input_types import (
+    AddAliasesInput,
     ArtifactAliasInput,
     ArtifactCollectionAliasInput,
+    DeleteAliasesInput,
     LinkArtifactInput,
     TagInput,
 )
@@ -264,8 +266,10 @@ __all__ = [
     "UpdateArtifactUpdateArtifact",
     "LinkArtifact",
     "LinkArtifactLinkArtifact",
+    "AddAliasesInput",
     "ArtifactAliasInput",
     "ArtifactCollectionAliasInput",
+    "DeleteAliasesInput",
     "LinkArtifactInput",
     "TagInput",
     "ArtifactCollectionsFragment",

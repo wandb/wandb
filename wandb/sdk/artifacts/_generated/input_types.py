@@ -37,6 +37,18 @@ class ArtifactCollectionAliasInput(GQLBase):
     artifact_collection_name: str = Field(alias="artifactCollectionName")
 
 
+class AddAliasesInput(GQLBase):
+    aliases: List[ArtifactCollectionAliasInput]
+    artifact_id: GQLId = Field(alias="artifactID")
+    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+
+
+class DeleteAliasesInput(GQLBase):
+    aliases: List[ArtifactCollectionAliasInput]
+    artifact_id: GQLId = Field(alias="artifactID")
+    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+
+
 class TagInput(GQLBase):
     tag_category_name: Optional[str] = Field(alias="tagCategoryName", default=None)
     tag_name: str = Field(alias="tagName")
@@ -44,3 +56,5 @@ class TagInput(GQLBase):
 
 
 LinkArtifactInput.model_rebuild()
+AddAliasesInput.model_rebuild()
+DeleteAliasesInput.model_rebuild()
