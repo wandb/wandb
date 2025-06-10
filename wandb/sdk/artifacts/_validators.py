@@ -284,7 +284,7 @@ class ArtifactPath:
         return cls(*reversed(parts))
 
     def to_str(self) -> str:
-        """Convert this instance to its string path representation."""
+        """Returns the slash-separated string representation of the path."""
         return "/".join(filter(bool, reversed(astuple(self))))
 
     def with_defaults(
