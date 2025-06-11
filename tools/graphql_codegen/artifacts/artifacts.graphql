@@ -57,6 +57,42 @@ fragment ArtifactsFragment on VersionedArtifactConnection {
     }
 }
 
+# ------------------------------------------------------------------------------
+query ArtifactByID($id: ID!) {
+    artifact(id: $id) {
+        ...ArtifactFragment
+    }
+}
+
+query ArtifactByName(
+    $entityName: String!,
+    $projectName: String!,
+    $name: String!,
+    $enableTracking: Boolean,
+) {
+    project(name: $projectName, entityName: $entityName) {
+        artifact(name: $name, enableTracking: $enableTracking) {
+            ...ArtifactFragment
+        }
+    }
+}
+
+query ArtifactManifest(
+    $entityName: String!,
+    $projectName: String!,
+    $name: String!
+) {
+    project(entityName: $entityName, name: $projectName) {
+        artifact(name: $name) {
+            currentManifest {
+                file {
+                    directUrl
+                }
+            }
+        }
+    }
+}
+
 query ProjectArtifacts(
     $project: String!,
     $entity: String!,
@@ -187,8 +223,27 @@ mutation UpdateArtifact(
     }
 }
 
+mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
+    deleteArtifact(input: {
+        artifactID: $artifactID
+        deleteAliases: $deleteAliases
+    }) {
+        artifact {
+            id
+        }
+    }
+}
+
 mutation LinkArtifact($input: LinkArtifactInput!) {
     linkArtifact(input: $input) {
         versionIndex
+    }
+}
+
+mutation UnlinkArtifact($input: UnlinkArtifactInput!) {
+    unlinkArtifact(input: $input) {
+        artifactID
+        success
+        clientMutationId
     }
 }
