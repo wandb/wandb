@@ -1,3 +1,7 @@
+# v1.7.3 (2025-06-10)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.7.2 (2025-05-22)
 
 * **Bug Fix**: Handle checksum for unseekable body with 0 content length
