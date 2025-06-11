@@ -3,11 +3,17 @@
 
 __all__ = [
     "ADD_ALIASES_GQL",
+    "ARTIFACT_BY_ID_GQL",
+    "ARTIFACT_BY_NAME_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL",
+    "ARTIFACT_MANIFEST_GQL",
+    "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
+    "ARTIFACT_TYPE_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ALIASES_GQL",
     "DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
+    "DELETE_ARTIFACT_GQL",
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
@@ -20,6 +26,7 @@ __all__ = [
     "PROJECT_ARTIFACT_TYPE_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
+    "UNLINK_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
     "UPDATE_ARTIFACT_SEQUENCE_GQL",
@@ -304,6 +311,205 @@ fragment ArtifactTypeFragment on ArtifactType {
   name
   description
   createdAt
+}
+"""
+
+ARTIFACT_BY_ID_GQL = """
+query ArtifactByID($id: ID!) {
+  artifact(id: $id) {
+    ...ArtifactFragment
+  }
+}
+
+fragment ArtifactFragment on Artifact {
+  id
+  artifactSequence {
+    project {
+      entityName
+      name
+    }
+    name
+  }
+  versionIndex
+  artifactType {
+    name
+  }
+  description
+  metadata
+  ttlDurationSeconds @include(if: true)
+  ttlIsInherited @include(if: true)
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+  tags @include(if: true) {
+    name
+  }
+  historyStep @include(if: true)
+  state
+  currentManifest {
+    file {
+      directUrl
+    }
+  }
+  commitHash
+  fileCount
+  createdAt
+  updatedAt
+}
+"""
+
+ARTIFACT_BY_NAME_GQL = """
+query ArtifactByName($entityName: String!, $projectName: String!, $name: String!, $enableTracking: Boolean) {
+  project(name: $projectName, entityName: $entityName) {
+    artifact(name: $name, enableTracking: $enableTracking) {
+      ...ArtifactFragment
+    }
+  }
+}
+
+fragment ArtifactFragment on Artifact {
+  id
+  artifactSequence {
+    project {
+      entityName
+      name
+    }
+    name
+  }
+  versionIndex
+  artifactType {
+    name
+  }
+  description
+  metadata
+  ttlDurationSeconds @include(if: true)
+  ttlIsInherited @include(if: true)
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+  tags @include(if: true) {
+    name
+  }
+  historyStep @include(if: true)
+  state
+  currentManifest {
+    file {
+      directUrl
+    }
+  }
+  commitHash
+  fileCount
+  createdAt
+  updatedAt
+}
+"""
+
+ARTIFACT_MEMBERSHIP_BY_NAME_GQL = """
+query ArtifactMembershipByName($entityName: String!, $projectName: String!, $name: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactCollectionMembership(name: $name) {
+      id
+      artifactCollection {
+        __typename
+        id
+        name
+        project {
+          id
+          entityName
+          name
+        }
+      }
+      artifact {
+        ...ArtifactFragment
+      }
+    }
+  }
+}
+
+fragment ArtifactFragment on Artifact {
+  id
+  artifactSequence {
+    project {
+      entityName
+      name
+    }
+    name
+  }
+  versionIndex
+  artifactType {
+    name
+  }
+  description
+  metadata
+  ttlDurationSeconds @include(if: true)
+  ttlIsInherited @include(if: true)
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+  tags @include(if: true) {
+    name
+  }
+  historyStep @include(if: true)
+  state
+  currentManifest {
+    file {
+      directUrl
+    }
+  }
+  commitHash
+  fileCount
+  createdAt
+  updatedAt
+}
+"""
+
+ARTIFACT_MANIFEST_GQL = """
+query ArtifactManifest($entityName: String!, $projectName: String!, $name: String!) {
+  project(entityName: $entityName, name: $projectName) {
+    artifact(name: $name) {
+      currentManifest {
+        file {
+          directUrl
+        }
+      }
+    }
+  }
+}
+"""
+
+ARTIFACT_TYPE_GQL = """
+query ArtifactType($entityName: String, $projectName: String, $name: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    artifact(name: $name) {
+      artifactType {
+        name
+      }
+    }
+  }
 }
 """
 
@@ -611,10 +817,30 @@ fragment ArtifactFragment on Artifact {
 }
 """
 
+DELETE_ARTIFACT_GQL = """
+mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
+  deleteArtifact(input: {artifactID: $artifactID, deleteAliases: $deleteAliases}) {
+    artifact {
+      id
+    }
+  }
+}
+"""
+
 LINK_ARTIFACT_GQL = """
 mutation LinkArtifact($input: LinkArtifactInput!) {
   linkArtifact(input: $input) {
     versionIndex
+  }
+}
+"""
+
+UNLINK_ARTIFACT_GQL = """
+mutation UnlinkArtifact($input: UnlinkArtifactInput!) {
+  unlinkArtifact(input: $input) {
+    artifactID
+    success
+    clientMutationId
   }
 }
 """
