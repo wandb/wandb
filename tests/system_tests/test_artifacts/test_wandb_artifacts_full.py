@@ -691,7 +691,7 @@ def test_retrieve_missing_artifact(logged_artifact):
     with pytest.raises(CommError, match="must be specified as 'collection:alias'"):
         Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz")
 
-    with pytest.raises(CommError, match="failed to find artifact collection"):
+    with pytest.raises(CommError, match="artifact 'baz:v0' not found"):
         Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz:v0")
 
 
