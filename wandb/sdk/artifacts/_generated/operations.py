@@ -540,16 +540,16 @@ query FetchLinkedArtifacts($artifactID: ID!) {
 """
 
 ADD_ALIASES_GQL = """
-mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
-  addAliases(input: {artifactID: $artifactID, aliases: $aliases}) {
+mutation AddAliases($input: AddAliasesInput!) {
+  addAliases(input: $input) {
     success
   }
 }
 """
 
 DELETE_ALIASES_GQL = """
-mutation DeleteAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
-  deleteAliases(input: {artifactID: $artifactID, aliases: $aliases}) {
+mutation DeleteAliases($input: DeleteAliasesInput!) {
+  deleteAliases(input: $input) {
     success
   }
 }
