@@ -555,6 +555,7 @@ class KubernetesRunner(AbstractRunner):
         run_id: str,
         auxiliary_resource_label_key: str,
         launch_project: LaunchProject,
+        api_key_secret: Optional["V1Secret"] = None,
     ) -> None:
         """Prepare a service for launch.
 
@@ -565,6 +566,7 @@ class KubernetesRunner(AbstractRunner):
             run_id: The run ID to label the resource with.
             auxiliary_resource_label_key: The key of the auxiliary resource label.
             launch_project: The launch project to get environment variables from.
+            api_key_secret: The API key secret to inject.
         """
         config.setdefault("metadata", {})
         config["metadata"].setdefault("labels", {})
@@ -581,6 +583,22 @@ class KubernetesRunner(AbstractRunner):
             "WANDB_CONFIG": env_vars.get("WANDB_CONFIG", "{}"),
         }
         add_wandb_env(config, wandb_config_env)
+
+        if api_key_secret:
+            for cont in yield_containers(config):
+                env = cont.setdefault("env", [])
+                env.append(
+                    {
+                        "name": "WANDB_API_KEY",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": api_key_secret.metadata.name,
+                                "key": "password",
+                            }
+                        },
+                    }
+                )
+                cont["env"] = env
 
         await kubernetes_asyncio.utils.create_from_dict(
             api_client, config, namespace=namespace
@@ -750,6 +768,7 @@ class KubernetesRunner(AbstractRunner):
                         launch_project.run_id,
                         auxiliary_resource_label_key,
                         launch_project,
+                        secret,
                     )
                     for resource in additional_services
                     if resource.get("config", {})
