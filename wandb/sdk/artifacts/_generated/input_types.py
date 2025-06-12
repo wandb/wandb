@@ -30,6 +30,12 @@ class LinkArtifactInput(GQLBase):
     client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
 
 
+class UnlinkArtifactInput(GQLBase):
+    artifact_id: GQLId = Field(alias="artifactID")
+    artifact_portfolio_id: GQLId = Field(alias="artifactPortfolioID")
+    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+
+
 class ArtifactCollectionAliasInput(GQLBase):
     alias: str
     entity_name: str = Field(alias="entityName")
