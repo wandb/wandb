@@ -277,7 +277,7 @@ func (sm *SystemMonitor) Start() {
 		return // Already started or paused
 	}
 
-	sm.logger.Info("Starting system monitor")
+	sm.logger.Info("monitor: starting system monitor")
 	// Start collecting metrics for all assets.
 	for _, asset := range sm.assets {
 		sm.wg.Add(1)
@@ -304,14 +304,14 @@ func (sm *SystemMonitor) Start() {
 // to prevent the overhead of starting and stopping the monitor for each cell.
 func (sm *SystemMonitor) Pause() {
 	if sm.state.CompareAndSwap(StateRunning, StatePaused) {
-		sm.logger.Info("Pausing system monitor")
+		sm.logger.Info("monitor: pausing system monitor")
 	}
 }
 
 // Resume restarts the monitoring process after it has been paused.
 func (sm *SystemMonitor) Resume() {
 	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
-		sm.logger.Info("Resuming system monitor")
+		sm.logger.Info("monitor: resuming system monitor")
 	}
 }
 
@@ -406,7 +406,7 @@ func (sm *SystemMonitor) Finish() {
 		return // Already stopped
 	}
 
-	sm.logger.Info("Stopping system monitor")
+	sm.logger.Info("monitor: stopping system monitor")
 
 	// signal to stop monitoring the assets
 	sm.cancel()
@@ -418,5 +418,5 @@ func (sm *SystemMonitor) Finish() {
 			closer.Close()
 		}
 	}
-	sm.logger.Info("Stopped system monitor")
+	sm.logger.Info("monitor: stopped system monitor")
 }
