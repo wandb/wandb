@@ -576,17 +576,18 @@ class KubernetesRunner(AbstractRunner):
         )
         config["metadata"]["labels"]["wandb.ai/created-by"] = "launch-agent"
 
-        if config.get("kind") == "Service":
+        if config.get("kind") == "Service" or config.get("kind") == "Deployment":
             config.setdefault("metadata", {})
-            original_name = config["metadata"].get("name", "service")
+            original_name = config["metadata"].get("name", config.get("kind"))
+            safe_name = make_name_dns_safe(original_name)
             safe_entity = make_name_dns_safe(launch_project.target_entity or "")
             safe_project = make_name_dns_safe(launch_project.target_project or "")
             safe_run_id = make_name_dns_safe(run_id or "")
 
-            new_name = f"{original_name}-{safe_entity}-{safe_project}-{safe_run_id}"
+            new_name = f"{safe_name}-{safe_entity}-{safe_project}-{safe_run_id}"
             config["metadata"]["name"] = new_name
             wandb.termlog(
-                f"{LOG_PREFIX}Modified service name from '{original_name}' to '{new_name}'"
+                f"{LOG_PREFIX}Modified {config.get('kind')} name from '{original_name}' to '{new_name}'"
             )
 
         env_vars = launch_project.get_env_vars_dict(
