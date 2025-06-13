@@ -1,9 +1,7 @@
 import jax.numpy as jnp
-import pytest
 import wandb
 
 
-@pytest.mark.wandb_core_only
 def test_log_bfloat16(wandb_backend_spy):
     run = wandb.init()
     m1 = jnp.array(1.0, dtype=jnp.float32)

@@ -13,8 +13,8 @@ from typing_extensions import override
 
 # A small hack to allow importing build scripts from the source tree.
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from core import hatch as hatch_core  # noqa: I001 E402
-from gpu_stats import hatch as hatch_gpu_stats  # noqa: I001 E402
+from core import hatch as hatch_core
+from gpu_stats import hatch as hatch_gpu_stats
 
 # Necessary inputs for releases.
 _WANDB_RELEASE_COMMIT = "WANDB_RELEASE_COMMIT"

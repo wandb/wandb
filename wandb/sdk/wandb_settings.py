@@ -528,12 +528,6 @@ class Settings(BaseModel, validate_assignment=True):
     x_disable_meta: bool = False
     """Flag to disable the collection of system metadata."""
 
-    x_disable_setproctitle: bool = False
-    """Flag to disable using setproctitle for the internal process in the legacy service.
-
-    This is deprecated and will be removed in future versions.
-    """
-
     x_disable_stats: bool = False
     """Flag to disable the collection of system metrics."""
 
@@ -673,9 +667,6 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_runqueue_item_id: Optional[str] = None
     """ID of the Launch run queue item being processed."""
-
-    x_require_legacy_service: bool = False
-    """Force the use of legacy wandb service."""
 
     x_save_requirements: bool = True
     """Flag to save the requirements file."""
@@ -1641,21 +1632,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     def _get_program(self) -> Optional[str]:
         """Get the program that started the current process."""
-        if not self._jupyter:
-            # If not in a notebook, try to get the program from the environment
-            # or the __main__ module for scripts run as `python -m ...`.
-            program = os.getenv(env.PROGRAM)
-            if program is not None:
-                return program
-            try:
-                import __main__
-
-                if __main__.__spec__ is None:
-                    return __main__.__file__
-                return f"-m {__main__.__spec__.name}"
-            except (ImportError, AttributeError):
-                return None
-        else:
+        if self._jupyter:
             # If in a notebook, try to get the program from the notebook metadata.
             if self.notebook_name:
                 return self.notebook_name
@@ -1665,8 +1642,29 @@ class Settings(BaseModel, validate_assignment=True):
 
             if self.x_jupyter_path.startswith("fileId="):
                 return self.x_jupyter_name
+
+            return self.x_jupyter_path
+
+        # If not in a notebook, try to get the program from the environment
+        # or the __main__ module for scripts run as `python -m ...`.
+        program = os.getenv(env.PROGRAM)
+        if program is not None:
+            return program
+
+        try:
+            import __main__
+        except ImportError:
+            return None
+
+        try:
+            if __main__.__spec__ is None:
+                python_args = __main__.__file__
             else:
-                return self.x_jupyter_path
+                python_args = f"-m {__main__.__spec__.name}"
+        except AttributeError:
+            return None
+
+        return python_args
 
     @staticmethod
     def _get_program_relpath(program: str, root: Optional[str] = None) -> Optional[str]:

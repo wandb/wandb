@@ -7,10 +7,7 @@ Based on:
 
 import pathlib
 
-import pytest
 
-
-@pytest.mark.wandb_core_only
 def test_tune_with_callback(wandb_backend_spy, execute_script):
     """Example for using a WandbLoggerCallback with the function API."""
     train_script_path = pathlib.Path(__file__).parent / "tune_with_callback.py"

@@ -3,7 +3,6 @@ import logging
 import pathlib
 from typing import Iterator
 
-import pytest
 from wandb.sdk.lib import wb_logging
 
 wb_logging.configure_wandb_logger()
@@ -22,7 +21,6 @@ def _wandb_file_handler(
         logging.getLogger("wandb").removeHandler(handler)
 
 
-@pytest.mark.wandb_core_only(reason="does not depend on service")
 def test_filters_log_messages(tmp_path: pathlib.Path):
     run1_log_path = tmp_path / "run1.log"
     run2_log_path = tmp_path / "run2.log"

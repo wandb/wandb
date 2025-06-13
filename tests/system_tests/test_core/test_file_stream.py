@@ -34,7 +34,8 @@ def test_ignores_malformed_response(wandb_backend_spy):
 
 
 # The retry behavior is different in the legacy service.
-@pytest.mark.wandb_core_only
+
+
 @pytest.mark.parametrize(
     "status_code",
     [400, 401, 403, 404, 409, 410],

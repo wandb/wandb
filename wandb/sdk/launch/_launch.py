@@ -55,7 +55,7 @@ def set_launch_logfile(logfile: str) -> None:
     _launch_logger.log(logging.INFO, "Internal agent logs printing to %s", logfile)
 
 
-def resolve_agent_config(  # noqa: C901
+def resolve_agent_config(
     entity: Optional[str],
     max_jobs: Optional[int],
     queues: Optional[Tuple[str]],

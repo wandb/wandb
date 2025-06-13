@@ -69,12 +69,7 @@ try:
             return decoded
 
     else:
-        from json import (  # type: ignore[assignment] # noqa: F401
-            dump,
-            dumps,
-            load,
-            loads,
-        )
+        from json import dump, dumps, load, loads  # type: ignore[assignment]
 
 except ImportError:
     from json import dump, dumps, load, loads  # type: ignore[assignment] # noqa: F401

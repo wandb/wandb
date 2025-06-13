@@ -41,7 +41,7 @@ from .lib import config_util, server
 
 if TYPE_CHECKING:
     from wandb.sdk import wandb_run
-    from wandb.sdk.lib.service_connection import ServiceConnection
+    from wandb.sdk.lib.service.service_connection import ServiceConnection
     from wandb.sdk.wandb_settings import Settings
 
 
@@ -331,7 +331,7 @@ class _WandbSetup:
         if self._connection:
             return self._connection
 
-        from wandb.sdk.lib import service_connection
+        from wandb.sdk.lib.service import service_connection
 
         self._connection = service_connection.connect_to_service(self._settings)
         return self._connection

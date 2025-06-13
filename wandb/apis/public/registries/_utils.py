@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 from wandb_gql import gql
 
 
-class _Visibility(str, Enum):
+class Visibility(str, Enum):
     # names are what users see/pass into Python methods
     # values are what's expected by backend API
     organization = "PRIVATE"
@@ -27,7 +27,7 @@ class _Visibility(str, Enum):
         )
 
 
-def _format_gql_artifact_types_input(
+def format_gql_artifact_types_input(
     artifact_types: Optional[List[str]] = None,
 ):
     """Format the artifact types for the GQL input.
@@ -44,7 +44,7 @@ def _format_gql_artifact_types_input(
     return [{"name": type} for type in new_types]
 
 
-def _gql_to_registry_visibility(
+def gql_to_registry_visibility(
     visibility: str,
 ) -> Literal["organization", "restricted"]:
     """Convert the GQL visibility to the registry visibility.
@@ -56,25 +56,25 @@ def _gql_to_registry_visibility(
         The registry visibility.
     """
     try:
-        return _Visibility(visibility).name
+        return Visibility(visibility).name
     except ValueError:
         raise ValueError(f"Invalid visibility: {visibility!r} from backend")
 
 
-def _registry_visibility_to_gql(
+def registry_visibility_to_gql(
     visibility: Literal["organization", "restricted"],
 ) -> str:
     """Convert the registry visibility to the GQL visibility."""
     try:
-        return _Visibility[visibility].value
+        return Visibility[visibility].value
     except KeyError:
         raise ValueError(
             f"Invalid visibility: {visibility!r}. "
-            f"Must be one of: {', '.join(map(repr, (e.name for e in _Visibility)))}"
+            f"Must be one of: {', '.join(map(repr, (e.name for e in Visibility)))}"
         )
 
 
-def _ensure_registry_prefix_on_names(query, in_name=False):
+def ensure_registry_prefix_on_names(query, in_name=False):
     """Traverse the filter to prepend the `name` key value with the registry prefix unless the value is a regex.
 
     - in_name: True if we are under a "name" key (or propagating from one).
@@ -89,23 +89,23 @@ def _ensure_registry_prefix_on_names(query, in_name=False):
         new_dict = {}
         for key, obj in dct.items():
             if key == "name":
-                new_dict[key] = _ensure_registry_prefix_on_names(obj, in_name=True)
+                new_dict[key] = ensure_registry_prefix_on_names(obj, in_name=True)
             elif key == "$regex":
                 # For regex operator, we skip transformation of its value.
                 new_dict[key] = obj
             else:
                 # For any other key, propagate the in_name and skip_transform flags as-is.
-                new_dict[key] = _ensure_registry_prefix_on_names(obj, in_name=in_name)
+                new_dict[key] = ensure_registry_prefix_on_names(obj, in_name=in_name)
         return new_dict
     if isinstance((objs := query), Sequence):
         return list(
-            map(lambda x: _ensure_registry_prefix_on_names(x, in_name=in_name), objs)
+            map(lambda x: ensure_registry_prefix_on_names(x, in_name=in_name), objs)
         )
     return query
 
 
 @lru_cache(maxsize=10)
-def _fetch_org_entity_from_organization(client: "Client", organization: str) -> str:
+def fetch_org_entity_from_organization(client: "Client", organization: str) -> str:
     """Fetch the org entity from the organization.
 
     Args:

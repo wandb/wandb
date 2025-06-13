@@ -377,7 +377,7 @@ func TestConvertHistogramRebin(t *testing.T) {
 	// Sum of weights should remain the same.
 	converter := tensorboard.TFEventConverter{Namespace: "train"}
 	inputTensor := make([]float32, 1000*3)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		// Left edge, right edge, weight.
 		inputTensor[i*3+0] = float32(i)
 		inputTensor[i*3+1] = float32(i + 1)

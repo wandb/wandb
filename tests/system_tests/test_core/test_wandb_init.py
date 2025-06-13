@@ -123,7 +123,6 @@ def test_init_param_not_set_telemetry(wandb_backend_spy):
         assert 16 not in features  # set_init_config
 
 
-@pytest.mark.wandb_core_only
 def test_shared_mode_x_label(user):
     _ = user  # Create a fake user on the backend server.
 
@@ -146,7 +145,6 @@ def test_shared_mode_x_label(user):
         assert run.settings.x_label == "node-rank"
 
 
-@pytest.mark.wandb_core_only
 @pytest.mark.parametrize("skip_transaction_log", [True, False])
 def test_skip_transaction_log(user, skip_transaction_log):
     """Test that the skip transaction log setting works correctly.

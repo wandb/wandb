@@ -143,7 +143,6 @@ def test_run_queue(user):
         queue.delete()
 
 
-@pytest.mark.wandb_core_only
 def test_from_path(user):
     api = Api()
 
@@ -154,7 +153,6 @@ def test_from_path(user):
     assert isinstance(sweep, wandb.apis.public.Sweep)
 
 
-@pytest.mark.wandb_core_only
 def test_sweep(user):
     api = Api()
 
@@ -169,7 +167,6 @@ def test_sweep(user):
     assert str(sweep) == f"<Sweep {user}/{project}/{sweep_id} (PENDING)>"
 
 
-@pytest.mark.wandb_core_only
 def test_to_html(user):
     project = "my-first-sweep"
     sweep_id = wandb.sweep(sweep=SWEEP_CONFIGURATION, project=project)

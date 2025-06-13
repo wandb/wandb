@@ -214,11 +214,12 @@ class GitRepo:
                         most_recent_ancestor = ancestor
                     elif self.repo.is_ancestor(most_recent_ancestor, ancestor):  # type: ignore
                         most_recent_ancestor = ancestor
-            return most_recent_ancestor
         except GitCommandError as e:
             logger.debug("git remote upstream fork point could not be found")
             logger.debug(str(e))
             return None
+
+        return most_recent_ancestor
 
     def tag(self, name: str, message: Optional[str]) -> Any:
         if not self.repo:

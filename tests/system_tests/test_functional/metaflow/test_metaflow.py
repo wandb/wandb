@@ -1,10 +1,7 @@
 import pathlib
 import subprocess
 
-import pytest
 
-
-@pytest.mark.wandb_core_only
 def test_flow_decoboth(wandb_backend_spy):
     """Test that the flow_decoboth.py script runs correctly."""
     script_path = pathlib.Path(__file__).parent / "flow_decoboth.py"
@@ -29,7 +26,6 @@ def test_flow_decoboth(wandb_backend_spy):
             assert exit_code == 0
 
 
-@pytest.mark.wandb_core_only
 def test_flow_decoclass(wandb_backend_spy):
     """Test that the flow_decoclass.py script runs correctly."""
     script_path = pathlib.Path(__file__).parent / "flow_decoclass.py"
@@ -54,7 +50,6 @@ def test_flow_decoclass(wandb_backend_spy):
             assert exit_code == 0
 
 
-@pytest.mark.wandb_core_only
 def test_flow_decostep(wandb_backend_spy):
     """Test that the flow_decostep.py script runs correctly."""
     script_path = pathlib.Path(__file__).parent / "flow_decostep.py"
@@ -79,7 +74,6 @@ def test_flow_decostep(wandb_backend_spy):
             assert exit_code == 0
 
 
-@pytest.mark.wandb_core_only
 def test_flow_foreach(wandb_backend_spy):
     """Test that the flow_foreach.py script runs correctly."""
     script_path = pathlib.Path(__file__).parent / "flow_foreach.py"
@@ -104,7 +98,6 @@ def test_flow_foreach(wandb_backend_spy):
             assert exit_code == 0
 
 
-@pytest.mark.wandb_core_only
 def test_flow_pytorch(wandb_backend_spy):
     """Test that the flow_pytorch.py script runs correctly."""
     script_path = pathlib.Path(__file__).parent / "flow_pytorch.py"

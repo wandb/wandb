@@ -10,9 +10,7 @@ import wandb
 from torch.utils.tensorboard import SummaryWriter
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard", reason="hangs on processing tensorboard data"
-)
+@pytest.mark.skip(reason="hangs on processing tensorboard data")
 def test_add_scalar(wandb_backend_spy):
     """Test adding a scalar to TensorBoard and syncing it to W&B."""
 
@@ -91,7 +89,6 @@ def test_add_image(wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.wandb_core_only
 def test_add_gif(wandb_backend_spy):
     with wandb.init(sync_tensorboard=True) as run, SummaryWriter() as writer:
         for i in range(10):
@@ -168,9 +165,7 @@ def test_add_histogram(wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard", reason="old style TensorBoard not implemented"
-)
+@pytest.mark.skip(reason="old style TensorBoard not implemented")
 def test_add_pr_curve(wandb_backend_spy):
     """Test adding a precision-recall curve to TensorBoard and syncing it to W&B."""
     with wandb.init(sync_tensorboard=True) as run, SummaryWriter() as writer:
@@ -191,7 +186,6 @@ def test_add_pr_curve(wandb_backend_spy):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.wandb_core_only
 def test_add_pr_curve_wandb_core(wandb_backend_spy):
     """Test adding a precision-recall curve to TensorBoard and syncing it to W&B."""
     with wandb.init(sync_tensorboard=True) as run, SummaryWriter() as writer:
