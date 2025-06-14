@@ -508,8 +508,8 @@ class Api:
                 "data": {"name": "wandb"},
                 "encoding": {
                     "x": {"field": "${field:x}", "type": "ordinal"},
-                    "y": {"field": "${field:y}", "type": "quantitative"}
-                }
+                    "y": {"field": "${field:y}", "type": "quantitative"},
+                },
             }
 
             # Create the custom chart
@@ -519,14 +519,14 @@ class Api:
                 display_name="My Custom Bar Chart",
                 spec_type="vega2",
                 access="PRIVATE",
-                spec=vega_spec
+                spec=vega_spec,
             )
 
             # Use with wandb.plot_table()
             chart = wandb.plot_table(
                 vega_spec_name=chart_id,
                 data_table=my_table,
-                fields={"x": "category", "y": "value"}
+                fields={"x": "category", "y": "value"},
             )
         """
         api = InternalApi(retry_timedelta=RETRY_TIMEDELTA)
