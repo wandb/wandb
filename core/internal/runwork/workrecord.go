@@ -68,8 +68,6 @@ func (wr WorkRecord) Process(fn func(*spb.Record), _ chan<- *spb.Result) {
 	fn(wr.Record)
 }
 
-func (wr WorkRecord) Sentinel() any { return nil }
-
 func (wr WorkRecord) DebugInfo() string {
 	var recordType string
 	switch x := wr.Record.RecordType.(type) {
