@@ -34,8 +34,8 @@ from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_deprecated import Deprecated
+from wandb.proto.wandb_internal_pb2 import Metadata as MetadataProto
 from wandb.proto.wandb_internal_pb2 import (
-    MetadataRequest,
     MetricRecord,
     PollExitResponse,
     Result,
@@ -3774,7 +3774,7 @@ class Run:
     @_attach
     def _metadata_callback(
         self,
-        metadata: MetadataRequest,
+        metadata: MetadataProto,
     ) -> None:
         """Callback to publish Metadata to wandb-core upon user updates."""
         # ignore updates if the attached to another run

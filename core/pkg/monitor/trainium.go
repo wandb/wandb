@@ -447,13 +447,13 @@ func (t *Trainium) Close() {
 	t.SetRunningState(false)
 }
 
-func (t *Trainium) Probe() *spb.MetadataRequest {
-	info := &spb.MetadataRequest{
+func (t *Trainium) Probe() *spb.MetadataRecord {
+	info := &spb.MetadataRecord{Metadata: &spb.Metadata{
 		Trainium: &spb.TrainiumInfo{
 			Name:   "Trainium",
 			Vendor: "AWS",
 		},
-	}
+	}}
 
 	// Wait for the first sample, but no more than 5 seconds.
 	startTime := time.Now()
@@ -478,11 +478,11 @@ func (t *Trainium) Probe() *spb.MetadataRequest {
 
 	neuronDeviceCount, ok := neuronHardwareInfo["neuron_device_count"].(uint32)
 	if ok {
-		info.Trainium.NeuronDeviceCount = neuronDeviceCount
+		info.Metadata.Trainium.NeuronDeviceCount = neuronDeviceCount
 	}
 	neuroncorePerDeviceCount, ok := neuronHardwareInfo["neuroncore_per_device_count"].(uint32)
 	if ok {
-		info.Trainium.NeuroncorePerDeviceCount = neuroncorePerDeviceCount
+		info.Metadata.Trainium.NeuroncorePerDeviceCount = neuroncorePerDeviceCount
 	}
 
 	return info
