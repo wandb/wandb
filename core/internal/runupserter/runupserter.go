@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/internal/runmetadata"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
@@ -58,11 +59,13 @@ type RunUpserter struct {
 	config    *runconfig.RunConfig
 	telemetry *spb.TelemetryRecord
 	metrics   *runmetric.RunConfigMetrics
+	metadata  *runmetadata.RunMetadata
 }
 
 type RunUpserterParams struct {
 	DebounceDelay waiting.Delay
 
+	ClientID           string
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
@@ -102,6 +105,9 @@ func InitRun(
 		panic("runupserter: RunRecord is nil")
 	}
 
+	// Initialize run metadata.
+	metadata := runmetadata.New(params.ClientID)
+
 	// Initialize the run config.
 	config := runconfig.New()
 	config.ApplyChangeRecord(runRecord.Config,
@@ -114,9 +120,10 @@ func InitRun(
 	telemetry := &spb.TelemetryRecord{}
 	proto.Merge(telemetry, runRecord.Telemetry)
 	telemetry.CoreVersion = version.Version
-	config.AddTelemetryAndMetrics(
+	config.AddInternalData(
 		telemetry,
 		make([]map[string]any, 0),
+		metadata.ToRunConfigData(),
 	)
 
 	// Initialize the run metrics.
@@ -151,6 +158,7 @@ func InitRun(
 		config:    config,
 		telemetry: telemetry,
 		metrics:   metrics,
+		metadata:  metadata,
 	}
 
 	operation := upserter.operations.New("creating run")
@@ -259,9 +267,27 @@ func (upserter *RunUpserter) UpdateTelemetry(telemetry *spb.TelemetryRecord) {
 
 	proto.Merge(upserter.telemetry, telemetry)
 
-	upserter.config.AddTelemetryAndMetrics(
+	upserter.config.AddInternalData(
 		upserter.telemetry,
 		upserter.metrics.ToRunConfigData(),
+		upserter.metadata.ToRunConfigData(),
+	)
+
+	upserter.isConfigDirty = true
+	upserter.signalDirty()
+}
+
+// UpdateMetadata schedules an update to the run's metadata in the config.
+func (upserter *RunUpserter) UpdateMetadata(metadata *spb.MetadataRecord) {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+
+	upserter.metadata.ProcessRecord(metadata)
+
+	upserter.config.AddInternalData(
+		upserter.telemetry,
+		upserter.metrics.ToRunConfigData(),
+		upserter.metadata.ToRunConfigData(),
 	)
 
 	upserter.isConfigDirty = true
@@ -286,9 +312,10 @@ func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
 		return
 	}
 
-	upserter.config.AddTelemetryAndMetrics(
+	upserter.config.AddInternalData(
 		upserter.telemetry,
 		upserter.metrics.ToRunConfigData(),
+		upserter.metadata.ToRunConfigData(),
 	)
 
 	upserter.isConfigDirty = true
@@ -338,6 +365,12 @@ func (upserter *RunUpserter) ConfigMap() map[string]any {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
 	return upserter.config.CloneTree()
+}
+
+func (upserter *RunUpserter) MetadataJSON() ([]byte, error) {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.metadata.ToJSON()
 }
 
 func (upserter *RunUpserter) StartTime() time.Time {

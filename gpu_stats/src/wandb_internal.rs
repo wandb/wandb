@@ -612,7 +612,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -663,6 +663,8 @@ pub mod record {
         NoopLinkArtifact(()),
         #[prost(message, tag = "25")]
         UseArtifact(super::UseArtifactRecord),
+        #[prost(message, tag = "26")]
+        Metadata(super::MetadataRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1596,7 +1598,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 80, 81, 82, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1640,8 +1642,6 @@ pub mod request {
         RunStatus(super::RunStatusRequest),
         #[prost(message, tag = "21")]
         Cancel(super::CancelRequest),
-        #[prost(message, tag = "22")]
-        Metadata(super::MetadataRequest),
         #[prost(message, tag = "23")]
         InternalMessages(super::InternalMessagesRequest),
         #[prost(message, tag = "24")]
@@ -1674,8 +1674,6 @@ pub mod request {
         LinkArtifact(super::LinkArtifactRequest),
         #[prost(message, tag = "79")]
         RunFinishWithoutExit(super::RunFinishWithoutExitRequest),
-        #[prost(message, tag = "80")]
-        GetSystemMetadata(super::GetSystemMetadataRequest),
         #[prost(message, tag = "81")]
         SyncFinish(super::SyncFinishRequest),
         /// Requests information about tasks the service is performing.
@@ -1691,7 +1689,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 73, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1747,8 +1745,6 @@ pub mod response {
         SyncResponse(super::SyncResponse),
         #[prost(message, tag = "72")]
         RunFinishWithoutExitResponse(super::RunFinishWithoutExitResponse),
-        #[prost(message, tag = "73")]
-        GetSystemMetadataResponse(super::GetSystemMetadataResponse),
         #[prost(message, tag = "74")]
         OperationsResponse(super::OperationStatsResponse),
         #[prost(message, tag = "1000")]
@@ -1910,18 +1906,6 @@ pub struct GetSystemMetricsResponse {
         ::prost::alloc::string::String,
         SystemMetricsBuffer,
     >,
-}
-///
-/// GetSystemMetadataRequest: request system metadata
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetSystemMetadataRequest {
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RequestInfo>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetSystemMetadataResponse {
-    #[prost(message, optional, tag = "1")]
-    pub metadata: ::core::option::Option<MetadataRequest>,
 }
 ///
 /// StatusRequest:
@@ -2562,7 +2546,7 @@ pub struct CancelRequest {
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct CancelResponse {}
 ///
-/// MetadataRequest
+/// Run Metadata
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct DiskInfo {
     #[prost(uint64, tag = "1")]
@@ -2674,7 +2658,7 @@ pub struct CoreWeaveInfo {
     pub region: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MetadataRequest {
+pub struct Metadata {
     #[prost(string, tag = "1")]
     pub os: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
@@ -2744,9 +2728,13 @@ pub struct MetadataRequest {
     pub tpu: ::core::option::Option<TpuInfo>,
     #[prost(message, optional, tag = "33")]
     pub coreweave: ::core::option::Option<CoreWeaveInfo>,
-    /// Flag indicating whether the request originated from the user.
-    #[prost(bool, optional, tag = "200")]
-    pub user_modified: ::core::option::Option<bool>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MetadataRecord {
+    #[prost(message, optional, tag = "1")]
+    pub metadata: ::core::option::Option<Metadata>,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PythonPackagesRequest {

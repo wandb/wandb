@@ -34,7 +34,7 @@ const (
 // Asset defines the interface for system assets to be monitored.
 type Asset interface {
 	Sample() (*spb.StatsRecord, error)
-	Probe() *spb.MetadataRequest
+	Probe() *spb.MetadataRecord
 }
 
 // SystemMonitor is responsible for monitoring system metrics across various assets.
@@ -145,11 +145,12 @@ func (sm *SystemMonitor) initializeAssets(
 	neuronMonitorConfigPath := settings.GetStatsNeuronMonitorConfigPath()
 	gpuDeviceIds := settings.GetStatsGpuDeviceIds()
 
-	// assets to be monitored.
+	// TODO: pass cpu (logical) count from settings
 	if system := NewSystem(pid, diskPaths); system != nil {
 		sm.assets = append(sm.assets, system)
 	}
 
+	// TODO: pass gpu count and type from settings
 	if gpu, err := NewGPU(gpuResourceManager, pid, gpuDeviceIds); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	} else if err != nil {
@@ -246,7 +247,7 @@ func (sm *SystemMonitor) probe() *spb.Record {
 		}
 	}()
 
-	systemInfo := spb.MetadataRequest{}
+	systemInfo := spb.MetadataRecord{}
 	for _, asset := range sm.assets {
 		probeResponse := asset.Probe()
 		if probeResponse != nil {
@@ -254,15 +255,7 @@ func (sm *SystemMonitor) probe() *spb.Record {
 		}
 	}
 
-	return &spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_Metadata{
-					Metadata: &systemInfo,
-				},
-			},
-		},
-	}
+	return &spb.Record{RecordType: &spb.Record_Metadata{Metadata: &systemInfo}}
 }
 
 // Start begins the monitoring process for all assets and probes system information.
@@ -285,6 +278,7 @@ func (sm *SystemMonitor) Start() {
 	}
 
 	// Probe the asset information.
+	// TODO: check if metadata collection is turned off in settings.
 	go func() {
 		sm.extraWork.AddWorkOrCancel(
 			sm.ctx.Done(),
