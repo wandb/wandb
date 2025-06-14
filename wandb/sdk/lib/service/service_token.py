@@ -3,15 +3,17 @@ from __future__ import annotations
 import abc
 import os
 import re
+import socket
 
 from typing_extensions import final, override
 
 from wandb import env
 from wandb.sdk.lib.sock_client import SockClient
 
-_CURRENT_VERSION = "2"
+_CURRENT_VERSION = "3"
 
-# Token format(s):
+# Token formats:
+_UNIX_TOKEN_RE = re.compile(rf"{_CURRENT_VERSION}-(\d+)-unix-(.+)")
 _TCP_TOKEN_RE = re.compile(rf"{_CURRENT_VERSION}-(\d+)-tcp-localhost-(\d+)")
 
 
@@ -38,6 +40,8 @@ def from_env() -> ServiceToken | None:
     if not token:
         return None
 
+    if unix_token := UnixServiceToken.from_env_string(token):
+        return unix_token
     if tcp_token := TCPServiceToken.from_env_string(token):
         return tcp_token
 
@@ -68,6 +72,50 @@ class ServiceToken(abc.ABC):
 
 
 @final
+class UnixServiceToken(ServiceToken):
+    """Connects to the service using a Unix domain socket."""
+
+    def __init__(self, *, parent_pid: int, path: str) -> None:
+        self._parent_pid = parent_pid
+        self._path = path
+
+    @override
+    def connect(self) -> SockClient:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+
+        try:
+            # TODO: This may block indefinitely if the service is unhealthy.
+            sock.connect(self._path)
+        except Exception as e:
+            raise WandbServiceConnectionError(
+                f"Failed to connect to service on socket {self._path}",
+            ) from e
+
+        return SockClient(sock)
+
+    @override
+    def _as_env_string(self):
+        return "-".join(
+            (
+                _CURRENT_VERSION,
+                str(self._parent_pid),
+                "unix",
+                str(self._path),
+            )
+        )
+
+    @staticmethod
+    def from_env_string(token: str) -> UnixServiceToken | None:
+        """Returns a Unix service token parsed from the env var."""
+        match = _UNIX_TOKEN_RE.fullmatch(token)
+        if not match:
+            return None
+
+        parent_pid, path = match.groups()
+        return UnixServiceToken(parent_pid=int(parent_pid), path=path)
+
+
+@final
 class TCPServiceToken(ServiceToken):
     """Connects to the service using TCP over a localhost socket."""
 
@@ -77,17 +125,17 @@ class TCPServiceToken(ServiceToken):
 
     @override
     def connect(self) -> SockClient:
-        client = SockClient()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         try:
             # TODO: This may block indefinitely if the service is unhealthy.
-            client.connect(self._port)
+            sock.connect(("localhost", self._port))
         except Exception as e:
             raise WandbServiceConnectionError(
                 f"Failed to connect to service on port {self._port}",
             ) from e
 
-        return client
+        return SockClient(sock)
 
     @override
     def _as_env_string(self):

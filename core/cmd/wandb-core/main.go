@@ -19,6 +19,11 @@ import (
 var commit string
 
 func main() {
+	exitCode := mainWithExitCode()
+	os.Exit(exitCode)
+}
+
+func mainWithExitCode() int {
 	// Flags to control the server
 	portFilename := flag.String("port-filename", "port_file.txt",
 		"Specifies the filename where the server will write the port number it uses to "+
@@ -65,7 +70,7 @@ func main() {
 
 	var loggerPath string
 	if file, err := observability.GetLoggerPath(); err != nil {
-		slog.Error("failed to get logger path", "error", err)
+		slog.Error("main: failed to get logger path", "error", err)
 	} else {
 		logger := slog.New(
 			slog.NewJSONHandler(
@@ -97,25 +102,27 @@ func main() {
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-c
-		slog.Info("received shutdown signal", "signal", sig)
+		slog.Info("main: received shutdown signal", "signal", sig)
 		os.Exit(0)
 	}()
 
-	srv, err := server.NewServer(
-		&server.ServerParams{
-			ListenIPAddress:     "127.0.0.1:0",
-			PortFilename:        *portFilename,
-			ParentPid:           *pid,
-			SentryClient:        sentryClient,
+	srv := server.NewServer(
+		server.ServerParams{
 			Commit:              commit,
+			EnableDCGMProfiling: *enableDCGMProfiling,
 			LoggerPath:          loggerPath,
 			LogLevel:            slog.Level(*logLevel),
-			EnableDCGMProfiling: *enableDCGMProfiling,
+			ParentPID:           *pid,
+			SentryClient:        sentryClient,
 		},
 	)
+
+	err := srv.Serve(*portFilename)
+
 	if err != nil {
-		slog.Error("failed to start server, exiting", "error", err)
-		return
+		slog.Error("main: Serve() returned error", "error", err)
+		return 1
 	}
-	srv.Serve()
+
+	return 0
 }

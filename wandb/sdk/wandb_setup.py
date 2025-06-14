@@ -28,7 +28,6 @@ import logging
 import os
 import pathlib
 import sys
-import threading
 from typing import TYPE_CHECKING, Any, Union
 
 import wandb
@@ -113,7 +112,6 @@ class _WandbSetup:
 
         wandb.termsetup(self._settings, None)
 
-        self._check()
         self._setup()
 
     def add_active_run(self, run: wandb_run.Run) -> None:
@@ -283,15 +281,6 @@ class _WandbSetup:
             user_settings["email"] = email
 
         return user_settings
-
-    def _check(self) -> None:
-        if hasattr(threading, "main_thread"):
-            if threading.current_thread() is not threading.main_thread():
-                pass
-        elif threading.current_thread().name != "MainThread":
-            wandb.termwarn(f"bad thread2: {threading.current_thread().name}")
-        if getattr(sys, "frozen", False):
-            wandb.termwarn("frozen, could be trouble")
 
     def _setup(self) -> None:
         sweep_path = self._settings.sweep_param_path

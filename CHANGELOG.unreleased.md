@@ -13,6 +13,9 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Fixed
+- Allow s3 style CoreWeave uris for reference artifacts. (@estellazx in https://github.com/wandb/wandb/pull/9979)
+
 ### Notable Changes
 
 This version removes the legacy implementaion of the `service` process. This is a breaking change.
