@@ -164,11 +164,6 @@ func (w *RunUpdateWork) BypassOfflineMode() bool {
 	return true
 }
 
-// Sentinel implements Work.Sentinel.
-func (w *RunUpdateWork) Sentinel() any {
-	return nil
-}
-
 // DebugInfo implements Work.DebugInfo.
 func (w *RunUpdateWork) DebugInfo() string {
 	return fmt.Sprintf("RunUpdateWork; Control(%v)", w.Record.GetControl())
