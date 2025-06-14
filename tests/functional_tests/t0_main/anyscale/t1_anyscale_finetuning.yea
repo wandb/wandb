@@ -1,0 +1,19 @@
+id: 0.llm-openai.09-finetuning.wandblogger
+plugin:
+  - wandb
+tag:
+  shard: llm
+  skips:
+    - platform: win
+depend:
+    requirements:
+        - "openai>=1.0.1"
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[0][name]: 'eftjob_h9imeeee8z2rkqml6ljy7w81we'
+  - :wandb:runs[0][summary][fine_tuned_model]: 'meta-llama/Llama-2-7b-chat-hf:anish:wb04pSW'
+  - :wandb:runs[0][summary][status]: 'succeeded'
+  - :wandb:runs[0][config][training_file]: 'file_3yic9tr54wxmevq61nri3xmlmq'
+  - :wandb:runs[0][config][validation_file]: 'file_7wj4xsu7tcnty2nmkv7dz93nnz'
+
