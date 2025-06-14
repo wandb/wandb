@@ -5,8 +5,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase
 
 from .fragments import ArtifactTypeFragment
@@ -17,7 +15,7 @@ class ProjectArtifactType(GQLBase):
 
 
 class ProjectArtifactTypeProject(GQLBase):
-    artifact_type: Optional[ArtifactTypeFragment] = Field(alias="artifactType")
+    artifact_type: Optional[ArtifactTypeFragment]
 
 
 ProjectArtifactType.model_rebuild()

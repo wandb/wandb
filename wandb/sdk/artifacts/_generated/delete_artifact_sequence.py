@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Optional
 
-from pydantic import Field
+from typing_extensions import Literal
 
 from wandb._pydantic import GQLBase, Typename
 
@@ -13,15 +13,11 @@ from .enums import ArtifactCollectionState
 
 
 class DeleteArtifactSequence(GQLBase):
-    delete_artifact_sequence: Optional[DeleteArtifactSequenceDeleteArtifactSequence] = (
-        Field(alias="deleteArtifactSequence")
-    )
+    delete_artifact_sequence: Optional[DeleteArtifactSequenceDeleteArtifactSequence]
 
 
 class DeleteArtifactSequenceDeleteArtifactSequence(GQLBase):
-    artifact_collection: DeleteArtifactSequenceDeleteArtifactSequenceArtifactCollection = Field(
-        alias="artifactCollection"
-    )
+    artifact_collection: DeleteArtifactSequenceDeleteArtifactSequenceArtifactCollection
 
 
 class DeleteArtifactSequenceDeleteArtifactSequenceArtifactCollection(GQLBase):
