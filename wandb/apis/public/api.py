@@ -477,7 +477,7 @@ class Api:
         spec: Union[str, dict],
     ) -> str:
         """Create a custom chart preset and return its id.
-        
+
         Args:
             entity: The entity (user or team) that owns the chart
             name: Unique identifier for the chart preset
@@ -487,20 +487,20 @@ class Api:
                 - "PRIVATE": Chart is only accessible to the entity that created it
                 - "PUBLIC": Chart is publicly accessible
             spec: The Vega/Vega-Lite specification as a dictionary or JSON string
-                
+
         Returns:
             The ID of the created chart preset in the format "entity/name"
-            
+
         Raises:
             wandb.Error: If chart creation fails
             UnsupportedError: If the server doesn't support custom charts
-            
+
         Example:
             ```python
             import wandb
-            
+
             api = wandb.Api()
-            
+
             # Define a simple bar chart specification
             vega_spec = {
                 "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
@@ -511,7 +511,7 @@ class Api:
                     "y": {"field": "${field:y}", "type": "quantitative"}
                 }
             }
-            
+
             # Create the custom chart
             chart_id = api.create_custom_chart(
                 entity="my-team",
@@ -521,7 +521,7 @@ class Api:
                 access="PRIVATE",
                 spec=vega_spec
             )
-            
+
             # Use with wandb.plot_table()
             chart = wandb.plot_table(
                 vega_spec_name=chart_id,
