@@ -495,8 +495,8 @@ class Api:
             wandb.Error: If chart creation fails
             UnsupportedError: If the server doesn't support custom charts
 
-        Example:
-            ```python
+        Example::
+
             import wandb
 
             api = wandb.Api()
@@ -528,7 +528,6 @@ class Api:
                 data_table=my_table,
                 fields={"x": "category", "y": "value"}
             )
-            ```
         """
         api = InternalApi(retry_timedelta=RETRY_TIMEDELTA)
         result = api.create_custom_chart(
@@ -747,14 +746,13 @@ class Api:
     def from_path(self, path):
         """Return a run, sweep, project or report from a path.
 
-        Examples:
-            ```
+        Examples::
+
             project = api.from_path("my_project")
             team_project = api.from_path("my_team/my_project")
             run = api.from_path("my_team/my_project/runs/id")
             sweep = api.from_path("my_team/my_project/sweeps/id")
             report = api.from_path("my_team/my_project/reports/My-Report-Vm11dsdf")
-            ```
 
         Args:
             path: (str) The path to the project, run, sweep or report
