@@ -79,17 +79,17 @@ class SockBuffer:
 
 
 class SockClient:
-    _sock: socket.socket
-    _sockid: str
-    _retry_delay: float
-    _lock: "threading.Lock"
-    _bufsize: int
-    _buffer: SockBuffer
-
     # current header is magic byte "W" followed by 4 byte length of the message
     HEADLEN = 1 + 4
 
-    def __init__(self) -> None:
+    def __init__(self, sock: socket.socket) -> None:
+        """Create a SockClient.
+
+        Args:
+            sock: A connected socket.
+        """
+        self._sock = sock
+
         # TODO: use safe uuid's (python3.7+) or emulate this
         self._sockid = uuid.uuid4().hex
         self._retry_delay = 0.1
@@ -97,10 +97,6 @@ class SockClient:
         self._bufsize = 4096
         self._buffer = SockBuffer()
 
-    def connect(self, port: int) -> None:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(("localhost", port))
-        self._sock = s
         self._detect_bufsize()
 
     def _detect_bufsize(self) -> None:
