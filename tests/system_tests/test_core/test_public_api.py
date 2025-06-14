@@ -487,6 +487,93 @@ def test_projects(user, wandb_backend_spy):
     assert sum([1 for _ in projects]) == 2
 
 
+def test_project_get_id(user, wandb_backend_spy):
+    body = {
+        "data": {
+            "project": {
+                "id": "123",
+            },
+        },
+    }
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ProjectID"),
+        gql.Constant(content=body),
+    )
+
+    project = Api().project(user, "test")
+
+    assert project.id == "123"
+
+
+def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend_spy):
+    body = {
+        "data": {
+            "project": None,
+        },
+    }
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ProjectID"),
+        gql.Constant(content=body),
+    )
+
+    with pytest.raises(ValueError):
+        project = Api().project(user, "test")
+        project.id  # noqa: B018
+
+
+def test_project_get_sweeps(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    body = {
+        "data": {
+            "project": {
+                "totalSweeps": 1,
+                "sweeps": {
+                    "edges": [
+                        {
+                            "node": {
+                                "name": "test",
+                                "id": "test",
+                                "sweep_name": None,
+                            },
+                        },
+                    ],
+                    "pageInfo": {
+                        "endCursor": None,
+                        "hasNextPage": False,
+                    },
+                },
+            },
+        },
+    }
+    sweep_gql_body = {
+        "data": {
+            "project": {
+                "sweep": {
+                    "name": "test",
+                    "id": "test",
+                    "state": "finished",
+                },
+            },
+        },
+    }
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetSweeps"),
+        gql.Constant(content=body),
+    )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Sweep"),
+        gql.Constant(content=sweep_gql_body),
+    )
+
+    project = Api().project(user, "test")
+
+    sweeps = project.sweeps()
+    assert len(sweeps) == 1
+    assert sweeps[0].id == "test"
+
+
 def test_delete_files_for_multiple_runs(
     user,
     wandb_backend_spy,
