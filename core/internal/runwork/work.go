@@ -1,6 +1,8 @@
 package runwork
 
 import (
+	"sync"
+
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -12,6 +14,17 @@ import (
 // that exist only for this purpose, but it is not an appropriate
 // use of protos, and it is very limiting.
 type Work interface {
+	// Schedule inserts work into the pipeline.
+	//
+	// This is a step "outside" the pipeline, that happens upon receiving
+	// records from the client or reading them from the transaction log.
+	// This step can defer record processing until some condition has occurred,
+	// without blocking the ingestion of other records---thereby reordering
+	// them.
+	//
+	// The WaitGroup is used to signal when proceed() has been invoked.
+	Schedule(wg *sync.WaitGroup, proceed func())
+
 	// Accept indicates the work has entered the pipeline.
 	//
 	// It returns true if the work should continue through the pipeline,
@@ -50,3 +63,30 @@ type Work interface {
 	// that can be logged for debugging.
 	DebugInfo() string
 }
+
+// SimpleScheduleMixin implements Work.Schedule by immediately invoking
+// the callback.
+type SimpleScheduleMixin struct{}
+
+func (m SimpleScheduleMixin) Schedule(wg *sync.WaitGroup, proceed func()) {
+	proceed()
+}
+
+// AlwaysAcceptMixin implements Work.Accept by returning true.
+type AlwaysAcceptMixin struct{}
+
+func (m AlwaysAcceptMixin) Accept(func(*spb.Record)) bool { return true }
+
+// NoopProcessMixin implements Work.Process by doing nothing.
+//
+// Since Process is a no-op, BypassOfflineMode is implemented to return false
+type NoopProcessMixin struct{}
+
+func (m NoopProcessMixin) BypassOfflineMode() bool { return false }
+
+func (m NoopProcessMixin) Process(func(*spb.Record), chan<- *spb.Result) {}
+
+// NotASentinelMixin implements Work.Sentinel by returning nil.
+type NotASentinelMixin struct{}
+
+func (m NotASentinelMixin) Sentinel() any { return nil }
