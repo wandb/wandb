@@ -63,6 +63,7 @@ class Reports(SizedPaginator["BetaReport"]):
 
     @property
     def length(self):
+        # TODO: Add the count the backend
         if self.last_response:
             return len(self.objects)
         else:
@@ -179,7 +180,7 @@ class BetaReport(Attrs):
 
     @property
     def display_name(self):
-        return self._attrs.get("displayName") or self._attrs.get("display_name")
+        return self._attrs.get("displayName")
 
     @property
     def description(self):
@@ -246,6 +247,7 @@ class PythonMongoishQueryGenerator:
         "Relative Time (Wall)": "_absolute_runtime",
         "Relative Time (Process)": "_runtime",
         "Wall Time": "_timestamp",
+        # "GroupedRuns": "__wb_group_by_all"
     }
     FRONTEND_NAME_MAPPING_REVERSED = {v: k for k, v in FRONTEND_NAME_MAPPING.items()}
     AST_OPERATORS = {
@@ -276,10 +278,12 @@ class PythonMongoishQueryGenerator:
         self.panel_metrics_helper = PanelMetricsHelper()
 
     def _handle_compare(self, node):
+        # only left side can be a col
         left = self.front_to_back(self._handle_fields(node.left))
         op = self._handle_ops(node.ops[0])
         right = self._handle_fields(node.comparators[0])
 
+        # Eq has no op for some reason
         if op == "=":
             return {left: right}
         else:
@@ -309,6 +313,7 @@ class PythonMongoishQueryGenerator:
                     and right.isdigit()  # .2
                 ):
                     numeric_dots.append(i)
+        # Edge: Catch number ending in dot at end of string
         if s[-2].isdigit() and s[-1] == ".":
             numeric_dots.append(len(s) - 1)
         numeric_dots = [-1] + numeric_dots + [len(s)]
@@ -370,12 +375,14 @@ class PythonMongoishQueryGenerator:
         elif (
             name.startswith("config.") and ".value" in name
         ):  # may be brittle: originally "endswith", but that doesn't work with nested keys...
+            # strip is weird sometimes (??)
             return name.replace("config.", "").replace(".value", "")
         elif name.startswith("summary_metrics."):
             return name.replace("summary_metrics.", "")
         wandb.termerror(f"Unknown token: {name}")
         return name
 
+    # These are only used for ParallelCoordinatesPlot because it has weird backend names...
     def pc_front_to_back(self, name):
         name, *rest = name.split(".")
         rest = "." + ".".join(rest) if rest else ""
@@ -433,6 +440,7 @@ class PanelMetricsHelper:
             return self.FRONTEND_NAME_MAPPING_REVERSED[name]
         return name
 
+    # ScatterPlot and ParallelCoords have weird conventions
     def special_front_to_back(self, name):
         if name is None:
             return name
@@ -440,10 +448,12 @@ class PanelMetricsHelper:
         name, *rest = name.split(".")
         rest = "." + ".".join(rest) if rest else ""
 
+        # special case for config
         if name.startswith("c::"):
             name = name[3:]
             return f"config:{name}.value{rest}"
 
+        # special case for summary
         if name.startswith("s::"):
             name = name[3:] + rest
             return f"summary:{name}"
