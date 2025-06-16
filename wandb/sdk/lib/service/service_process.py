@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from wandb import _sentry
 from wandb.env import core_debug, dcgm_profiling_enabled, error_reporting_enabled
 from wandb.errors import WandbCoreNotAvailableError
+from wandb.sdk.lib.service import ipc_support
 from wandb.util import get_core_path
 
 from . import service_port_file, service_token
@@ -87,12 +88,11 @@ def _launch_server(settings: Settings) -> ServiceProcess:
         if dcgm_profiling_enabled():
             service_args.append("--enable-dcgm-profiling")
 
-        service_args += [
-            "--port-filename",
-            str(port_file),
-            "--pid",
-            pid,
-        ]
+        service_args.extend(["--port-filename", str(port_file)])
+        service_args.extend(["--pid", pid])
+
+        if not ipc_support.SUPPORTS_UNIX:
+            service_args.append("--listen-on-localhost")
 
         proc = subprocess.Popen(
             service_args,

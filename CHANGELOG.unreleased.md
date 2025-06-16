@@ -20,6 +20,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 This version removes the legacy implementaion of the `service` process. This is a breaking change.
 
+### Changed
+
+- `wandb` now attempts to use Unix sockets for IPC instead of listening on localhost, making it work in environments with more restrictive permissions (such as Databricks) (@timoffex in https://github.com/wandb/wandb/pull/9995)
+
 ### Removed
 
 - Removed the legacy python implementation of the `service` process. The `legacy-service` option of `wandb.require` as well as the `x_require_legacy_service` and `x_disable_setproctitle` settings with the corresponding environment variables have been removed and will now raise an error if used (@dmitryduev in https://github.com/wandb/wandb/pull/9965)
