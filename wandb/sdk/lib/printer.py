@@ -349,13 +349,13 @@ class _PrinterTerm(Printer):
         text = text or " " * 79
         wandb.termlog(text)
 
-    @override
     @property
+    @override
     def supports_html(self) -> bool:
         return False
 
-    @override
     @property
+    @override
     def supports_unicode(self) -> bool:
         return wandb.util.is_unicode_safe(sys.stderr)
 
@@ -464,10 +464,9 @@ class _PrinterJupyter(Printer):
 
         if handle:
             yield _DynamicJupyterText(handle)
+            handle.update(self._ipython_display.HTML(""))
         else:
             yield None
-
-        handle.update(self._ipython_display.HTML(""))
 
     @override
     def display(
@@ -483,13 +482,13 @@ class _PrinterJupyter(Printer):
         text = "<br>".join(text.splitlines())
         self._ipython_display.display(self._ipython_display.HTML(text))
 
-    @override
     @property
+    @override
     def supports_html(self) -> bool:
         return True
 
-    @override
     @property
+    @override
     def supports_unicode(self) -> bool:
         return True
 
@@ -540,7 +539,7 @@ class _PrinterJupyter(Printer):
         self._progress.update(percent_done, text)
 
     @override
-    def progress_close(self, _: str | None = None) -> None:
+    def progress_close(self, text: str | None = None) -> None:
         if self._progress:
             self._progress.close()
 
