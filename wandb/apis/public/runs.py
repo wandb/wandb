@@ -85,6 +85,29 @@ RUN_FRAGMENT = """fragment RunFragment on Run {
     historyKeys
 }"""
 
+# Lightweight fragment for listing operations - excludes heavy fields
+LIGHTWEIGHT_RUN_FRAGMENT = """fragment LightweightRunFragment on Run {
+    id
+    tags
+    name
+    displayName
+    sweepName
+    state
+    group
+    jobType
+    commit
+    readOnly
+    createdAt
+    heartbeatAt
+    description
+    notes
+    historyLineCount
+    user {
+        name
+        username
+    }
+}"""
+
 
 @normalize_exceptions
 def _server_provides_internal_id_for_project(client) -> bool:
@@ -201,10 +224,14 @@ class Runs(SizedPaginator["Run"]):
         order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
+        lightweight: bool = True,
     ):
         if not order:
             order = "+created_at"
 
+        # Choose fragment based on lightweight mode
+        run_fragment = LIGHTWEIGHT_RUN_FRAGMENT if lightweight else RUN_FRAGMENT
+        
         self.QUERY = gql(
             f"""#graphql
             query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
@@ -215,8 +242,8 @@ class Runs(SizedPaginator["Run"]):
                     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
                         edges {{
                             node {{
-                                {"projectId" if _server_provides_internal_id_for_project(client) else ""}
-                                ...RunFragment
+                                {"" if _server_provides_internal_id_for_project(client) else "internalId"}
+                                ...{run_fragment.split()[1]}
                             }}
                             cursor
                         }}
@@ -227,7 +254,7 @@ class Runs(SizedPaginator["Run"]):
                     }}
                 }}
             }}
-            {RUN_FRAGMENT}
+            {run_fragment}
             """
         )
 
@@ -238,6 +265,7 @@ class Runs(SizedPaginator["Run"]):
         self.order = order
         self._sweeps = {}
         self._include_sweeps = include_sweeps
+        self._lightweight = lightweight
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -296,6 +324,7 @@ class Runs(SizedPaginator["Run"]):
                 run_response["node"]["name"],
                 run_response["node"],
                 include_sweeps=self._include_sweeps,
+                lightweight=self._lightweight,
             )
             objs.append(run)
 
@@ -465,6 +494,7 @@ class Run(Attrs):
         run_id: str,
         attrs: Mapping | None = None,
         include_sweeps: bool = True,
+        lightweight: bool = True,
     ):
         """Initialize a Run object.
 
@@ -481,6 +511,7 @@ class Run(Attrs):
         self.id = run_id
         self.sweep = None
         self._include_sweeps = include_sweeps
+        self._lightweight = lightweight
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
@@ -597,20 +628,29 @@ class Run(Attrs):
         )
 
     def load(self, force=False):
-        if force or not self._attrs:
-            self._is_loaded = False
-            query = gql(f"""#graphql
-            query Run($project: String!, $entity: String!, $name: String!) {{
-                project(name: $project, entityName: $entity) {{
-                    run(name: $name) {{
-                        {"projectId" if _server_provides_internal_id_for_project(self.client) else ""}
-                        ...RunFragment
-                    }}
+        # Use appropriate fragment based on lightweight mode
+        run_fragment = LIGHTWEIGHT_RUN_FRAGMENT if self._lightweight else RUN_FRAGMENT
+        
+        query = gql(
+            """
+        query Run($project: String!, $entity: String!, $name: String!) {{
+            project(name: $project, entityName: $entity) {{
+                run(name: $name) {{
+                    {}
+                    ...{}
                 }}
             }}
-            {RUN_FRAGMENT}
-            """)
-
+        }}
+        {}
+        """.format(
+                "projectId"
+                if _server_provides_internal_id_for_project(self.client)
+                else "",
+                run_fragment.split()[1],  # Extract fragment name
+                run_fragment,
+            )
+        )
+        if force or not self._attrs:
             response = self._exec(query)
             if (
                 response is None
@@ -652,15 +692,40 @@ class Run(Attrs):
         else:
             self._project_internal_id = None
 
+        try:
+            self._attrs["summaryMetrics"] = (
+                json.loads(self._attrs["summaryMetrics"])
+                if self._attrs.get("summaryMetrics")
+                else {}
+            )
+        except (json.decoder.JSONDecodeError, KeyError):
+            # Handle lightweight mode or invalid data gracefully
+            self._attrs["summaryMetrics"] = {}
+            
+        try:
+            self._attrs["systemMetrics"] = (
+                json.loads(self._attrs["systemMetrics"])
+                if self._attrs.get("systemMetrics")
+                else {}
+            )
+        except (json.decoder.JSONDecodeError, KeyError):
+            # Handle lightweight mode or invalid data gracefully
+            self._attrs["systemMetrics"] = {}
         if self._attrs.get("user"):
             self.user = public.User(self.client, self._attrs["user"])
+            
         config_user, config_raw = {}, {}
-        for key, value in self._attrs.get("config").items():
-            config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
-            if isinstance(value, dict) and "value" in value:
-                config[key] = value["value"]
-            else:
-                config[key] = value
+        try:
+            for key, value in json.loads(self._attrs.get("config") or "{}").items():
+                config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
+                if isinstance(value, dict) and "value" in value:
+                    config[key] = value["value"]
+                else:
+                    config[key] = value
+        except (json.decoder.JSONDecodeError, KeyError):
+            # Handle lightweight mode gracefully
+            pass
+            
         config_raw.update(config_user)
         self._attrs["config"] = config_user
         self._attrs["rawconfig"] = config_raw
@@ -1126,15 +1191,54 @@ class Run(Attrs):
         )
         return artifact
 
+    def load_full_data(self, force=False):
+        """Load full run data including heavy fields like config, systemMetrics, summaryMetrics.
+        
+        This method is useful when you initially used lightweight=True for listing runs,
+        but need access to the full data for specific runs.
+        
+        Args:
+            force (bool): Force reload even if data is already loaded
+        """
+        if not self._lightweight and not force:
+            # Already in full mode, no need to reload
+            return self._attrs
+            
+        # Temporarily switch to full mode for this load
+        original_lightweight = self._lightweight
+        self._lightweight = False
+        try:
+            result = self.load(force=True)  # Force reload with full data
+            return result
+        finally:
+            # Restore original lightweight setting
+            self._lightweight = original_lightweight
+
+    @property
+    def config(self):
+        """Get run config. Auto-loads full data if in lightweight mode."""
+        if self._lightweight and not self._attrs.get("config"):
+            self.load_full_data()
+        return self._attrs.get("config", {})
+
     @property
     def summary(self):
-        """A mutable dict-like property that holds summary values associated with the run."""
+        """Get run summary metrics. Auto-loads full data if in lightweight mode."""
+        if self._lightweight and not self._attrs.get("summaryMetrics"):
+            self.load_full_data()
         if self._summary is None:
             from wandb.old.summary import HTTPSummary
 
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(self, self.client, summary=self.summary_metrics)
         return self._summary
+
+    @property
+    def system_metrics(self):
+        """Get run system metrics. Auto-loads full data if in lightweight mode."""
+        if self._lightweight and not self._attrs.get("systemMetrics"):
+            self.load_full_data()
+        return self._attrs.get("systemMetrics", {})
 
     @property
     def path(self):
