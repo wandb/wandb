@@ -2,7 +2,7 @@ package version
 
 import "strings"
 
-const Version = "0.20.2.dev1"
+const Version = "0.20.2rc20250616"
 
 const MinServerVersion = "0.40.0"
 
