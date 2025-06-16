@@ -131,7 +131,7 @@ message Imports {
 }
 
 message Feature {
-  reserved 23, 45;
+  reserved 23, 45, 55;
 
   bool watch = 1;                         // wandb.watch() called
   bool finish = 2;                        // wandb.finish() called
@@ -186,7 +186,6 @@ message Feature {
   bool langchain_tracer = 52;             // Langchain wandb tracer callback used
   bool cohere_autolog = 53;               // Cohere autolog used
   bool hf_pipeline_autolog = 54;          // HuggingFace Autologging
-  bool core = 55;                         // Using wandb core internal process
   bool lib_c = 56;                        // Using c wandb library
   bool lib_cpp = 57;                      // Using cpp wandb library
   bool openai_finetuning = 58;            // Using openai finetuning WandbLogger
