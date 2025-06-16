@@ -8,12 +8,14 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/pkg/monitor"
+	"github.com/wandb/wandb/core/pkg/server/listeners"
 )
 
 const (
@@ -23,6 +25,11 @@ const (
 
 // Server is the top-level object for the wandb-core process.
 type Server struct {
+	// connNumber is the number of the last connection created.
+	//
+	// It is used to generate unique IDs for connections.
+	connNumber atomic.Int64
+
 	// serverLifetimeCtx is cancelled when the server should shut down.
 	serverLifetimeCtx context.Context
 
@@ -50,6 +57,10 @@ type Server struct {
 	// commit is the W&B Git commit hash.
 	commit string
 
+	// listenOnLocalhost is whether to open a localhost socket even if Unix
+	// sockets are supported.
+	listenOnLocalhost bool
+
 	// loggerPath is the default logger path
 	loggerPath string
 
@@ -60,6 +71,7 @@ type Server struct {
 type ServerParams struct {
 	Commit              string
 	EnableDCGMProfiling bool
+	ListenOnLocalhost   bool
 	LoggerPath          string
 	LogLevel            slog.Level
 	ParentPID           int
@@ -80,6 +92,7 @@ func NewServer(params ServerParams) *Server {
 		wg:                 sync.WaitGroup{},
 		parentPID:          params.ParentPID,
 		commit:             params.Commit,
+		listenOnLocalhost:  params.ListenOnLocalhost,
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
 	}
@@ -101,14 +114,14 @@ func (s *Server) exitWhenParentIsGone() {
 }
 
 func (s *Server) Serve(portFile string) error {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listenerList, portInfo, err := listeners.Config{
+		ParentPID:         s.parentPID,
+		ListenOnLocalhost: s.listenOnLocalhost,
+	}.MakeListeners()
 	if err != nil {
-		return fmt.Errorf("server: failed to listen on localhost: %v", err)
+		return err
 	}
 
-	portInfo := PortInfo{
-		LocalhostPort: listener.Addr().(*net.TCPAddr).Port,
-	}
 	if err := portInfo.WriteToFile(portFile); err != nil {
 		return err
 	}
@@ -117,19 +130,23 @@ func (s *Server) Serve(portFile string) error {
 		go s.exitWhenParentIsGone()
 	}
 
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.acceptConnections(listener)
-	}()
+	for _, listener := range listenerList {
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.acceptConnections(listener)
+		}()
+	}
 
 	// Wait for the signal to shut down.
 	<-s.serverLifetimeCtx.Done()
 	slog.Info("server is shutting down")
 
 	// Stop accepting new connections.
-	if err := listener.Close(); err != nil {
-		slog.Error("failed to Close listener", "error", err)
+	for idx, listener := range listenerList {
+		if err := listener.Close(); err != nil {
+			slog.Error("failed to Close listener", "index", idx, "error", err)
+		}
 	}
 
 	// Wait for asynchronous work to finish.
@@ -193,10 +210,18 @@ func (s *Server) acceptConnections(listener net.Listener) {
 //
 // This blocks until the connection closes.
 func (s *Server) handleConnection(conn net.Conn) {
+	var id string
+	if addr := conn.RemoteAddr().String(); addr != "" {
+		id = fmt.Sprintf("%d(%s)", s.connNumber.Add(1), addr)
+	} else {
+		id = fmt.Sprintf("%d", s.connNumber.Add(1))
+	}
+
 	NewConnection(
 		s.serverLifetimeCtx,
 		s.stopServer,
 		ConnectionParams{
+			ID:                 id,
 			Conn:               conn,
 			StreamMux:          s.streamMux,
 			GPUResourceManager: s.gpuResourceManager,
