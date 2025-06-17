@@ -3,7 +3,7 @@ import pathlib
 import socket
 
 import pytest
-from wandb.sdk.lib.service import service_token
+from wandb.sdk.lib.service import ipc_support, service_token
 
 
 @pytest.fixture
@@ -17,6 +17,10 @@ def chdir_to_tmp_path(tmp_path):
         os.chdir(cwd)
 
 
+@pytest.mark.skipif(
+    not ipc_support.SUPPORTS_UNIX,
+    reason="AF_UNIX sockets not supported",
+)
 def test_unix_token(chdir_to_tmp_path):
     # Unix socket paths are limited to ~100 characters, and tmp_path can be
     # too long on some systems. So instead, we cd into it and use a relative

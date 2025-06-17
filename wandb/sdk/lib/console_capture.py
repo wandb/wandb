@@ -35,7 +35,11 @@ class CannotCaptureConsoleError(Exception):
 
 
 class _WriteCallback(Protocol):
-    """A callback that receives intercepted bytes or string data."""
+    """A callback that receives intercepted bytes or string data.
+
+    This may be called from any thread, but is only called from one thread
+    at a time.
+    """
 
     def __call__(
         self,
@@ -52,7 +56,9 @@ class _WriteCallback(Protocol):
         """
 
 
-_module_lock = threading.Lock()
+# A reentrant lock is used to catch callbacks that write to stderr/stdout.
+_module_lock = threading.RLock()
+_is_writing = False
 
 _patch_exception: CannotCaptureConsoleError | None = None
 
@@ -67,9 +73,6 @@ def capture_stdout(callback: _WriteCallback) -> Callable[[], None]:
 
     Args:
         callback: A callback to invoke after running `sys.stdout.write`.
-            This may be called from any thread, so it must be thread-safe.
-            Exceptions are propagated to the caller of `write`.
-            See `_WriteCallback` for the exact protocol.
 
     Returns:
         A function to uninstall the callback.
@@ -92,9 +95,6 @@ def capture_stderr(callback: _WriteCallback) -> Callable[[], None]:
 
     Args:
         callback: A callback to invoke after running `sys.stderr.write`.
-            This may be called from any thread, so it must be thread-safe.
-            Exceptions are propagated to the caller of `write`.
-            See `_WriteCallback` for the exact protocol.
 
     Returns:
         A function to uninstall the callback.
@@ -144,15 +144,21 @@ def _patch(
     orig_write: Callable[[AnyStr], int]
 
     def write_with_callbacks(s: AnyStr, /) -> int:
+        global _is_writing
         n = orig_write(s)
 
-        # We make a copy here because callbacks could, in theory, modify
-        # the list of callbacks.
+        # NOTE: Since _module_lock is reentrant, this is safe. It will not
+        # deadlock if a callback invokes write() again.
         with _module_lock:
-            callbacks_copy = list(callbacks.values())
+            if _is_writing:
+                return n
 
-        for cb in callbacks_copy:
-            cb(s, n)
+            _is_writing = True
+            try:
+                for cb in callbacks.values():
+                    cb(s, n)
+            finally:
+                _is_writing = False
 
         return n
 
