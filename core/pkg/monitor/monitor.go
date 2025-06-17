@@ -136,28 +136,23 @@ func NewSystemMonitor(params SystemMonitorParams) *SystemMonitor {
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
 	// Initialize the assets to monitor
-	sm.initializeAssets(sm.settings, params.GpuResourceManager)
+	sm.initializeAssets(params.GpuResourceManager)
 
 	return sm
 }
 
 // initializeAssets sets up the assets to be monitored based on the provided settings.
-func (sm *SystemMonitor) initializeAssets(
-	settings *settings.Settings,
-	gpuResourceManager *GPUResourceManager,
-) {
-	pid := settings.GetStatsPid()
-	diskPaths := settings.GetStatsDiskPaths()
-	samplingInterval := settings.GetStatsSamplingInterval()
-	neuronMonitorConfigPath := settings.GetStatsNeuronMonitorConfigPath()
-	gpuDeviceIds := settings.GetStatsGpuDeviceIds()
+func (sm *SystemMonitor) initializeAssets(gpuResourceManager *GPUResourceManager) {
+	pid := sm.settings.GetStatsPid()
+	diskPaths := sm.settings.GetStatsDiskPaths()
+	samplingInterval := sm.settings.GetStatsSamplingInterval()
+	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
+	gpuDeviceIds := sm.settings.GetStatsGpuDeviceIds()
 
-	// TODO: pass cpu (logical) count from settings
 	if system := NewSystem(pid, diskPaths); system != nil {
 		sm.assets = append(sm.assets, system)
 	}
 
-	// TODO: pass gpu count and type from settings
 	if gpu, err := NewGPU(gpuResourceManager, pid, gpuDeviceIds); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	} else if err != nil {
@@ -179,9 +174,9 @@ func (sm *SystemMonitor) initializeAssets(
 			Ctx:           sm.ctx,
 			GraphqlClient: sm.graphqlClient,
 			Logger:        sm.logger,
-			Entity:        settings.GetEntity(),
-			BaseURL:       settings.GetStatsCoreWeaveMetadataBaseURL(),
-			Endpoint:      settings.GetStatsCoreWeaveMetadataEndpoint(),
+			Entity:        sm.settings.GetEntity(),
+			BaseURL:       sm.settings.GetStatsCoreWeaveMetadataBaseURL(),
+			Endpoint:      sm.settings.GetStatsCoreWeaveMetadataEndpoint(),
 		},
 	); cwm != nil {
 		sm.assets = append(sm.assets, cwm)
@@ -191,10 +186,10 @@ func (sm *SystemMonitor) initializeAssets(
 	}
 
 	// DCGM Exporter.
-	if url := settings.GetStatsDcgmExporter(); url != "" {
+	if url := sm.settings.GetStatsDcgmExporter(); url != "" {
 		params := DCGMExporterParams{
 			URL:     url,
-			Headers: settings.GetStatsOpenMetricsHeaders(),
+			Headers: sm.settings.GetStatsOpenMetricsHeaders(),
 			Logger:  sm.logger,
 		}
 		if de := NewDCGMExporter(params); de != nil {
@@ -203,10 +198,10 @@ func (sm *SystemMonitor) initializeAssets(
 	}
 
 	// OpenMetrics endpoints to monitor.
-	if endpoints := settings.GetStatsOpenMetricsEndpoints(); endpoints != nil {
+	if endpoints := sm.settings.GetStatsOpenMetricsEndpoints(); endpoints != nil {
 		for name, url := range endpoints {
-			filters := settings.GetStatsOpenMetricsFilters()
-			headers := settings.GetStatsOpenMetricsHeaders()
+			filters := sm.settings.GetStatsOpenMetricsFilters()
+			headers := sm.settings.GetStatsOpenMetricsHeaders()
 			if om := NewOpenMetrics(sm.logger, name, url, filters, headers, nil); om != nil {
 				sm.assets = append(sm.assets, om)
 			}
@@ -254,8 +249,6 @@ func (sm *SystemMonitor) probe(git *spb.GitRepoRecord) *spb.Record {
 		}
 	}()
 
-	fmt.Println("+++ PROBING")
-
 	systemInfo := spb.MetadataRecord{Metadata: &spb.Metadata{
 		Os:            sm.settings.GetOS(),
 		Python:        sm.settings.GetPython(),
@@ -283,6 +276,20 @@ func (sm *SystemMonitor) probe(git *spb.GitRepoRecord) *spb.Record {
 		}
 	}
 
+	// Overwrite auto-detected metadata with user-provided values.
+	if sm.settings.GetStatsCpuCount() > 0 {
+		systemInfo.Metadata.CpuCount = uint32(sm.settings.GetStatsCpuCount())
+	}
+	if sm.settings.GetStatsCpuLogicalCount() > 0 {
+		systemInfo.Metadata.CpuCountLogical = uint32(sm.settings.GetStatsCpuLogicalCount())
+	}
+	if sm.settings.GetStatsGpuCount() > 0 {
+		systemInfo.Metadata.GpuCount = uint32(sm.settings.GetStatsGpuCount())
+	}
+	if sm.settings.GetStatsGpuType() != "" {
+		systemInfo.Metadata.GpuType = sm.settings.GetStatsGpuType()
+	}
+
 	return &spb.Record{RecordType: &spb.Record_Metadata{Metadata: &systemInfo}}
 }
 
@@ -298,7 +305,7 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 		return // Already started or paused
 	}
 
-	sm.logger.Info("Starting system monitor")
+	sm.logger.Debug("monitor: starting")
 	// Start collecting metrics for all assets.
 	for _, asset := range sm.assets {
 		sm.wg.Add(1)

@@ -140,10 +140,7 @@ func (w *Writer) writeRecord(record *spb.Record) {
 		w.logger.Error("writer: writeRecord: nil record type")
 
 	default:
-		fmt.Println(&record, record)
-		fmt.Println("++", record.Num)
 		w.applyRecordNumber(record)
-		fmt.Println("==", record.Num)
 		w.storeRecord(record)
 	}
 }

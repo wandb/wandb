@@ -745,7 +745,7 @@ class Settings(google.protobuf.message.Message):
         """
 
     @property
-    def x_stats_gpu_type(self) -> google.protobuf.wrappers_pb2.Int32Value:
+    def x_stats_gpu_type(self) -> google.protobuf.wrappers_pb2.StringValue:
         """GPU type.
 
         If set, overrides the auto-detected value saved in the run metadata.
@@ -1096,7 +1096,7 @@ class Settings(google.protobuf.message.Message):
         x_stats_cpu_count: google.protobuf.wrappers_pb2.Int32Value | None = ...,
         x_stats_cpu_logical_count: google.protobuf.wrappers_pb2.Int32Value | None = ...,
         x_stats_gpu_count: google.protobuf.wrappers_pb2.Int32Value | None = ...,
-        x_stats_gpu_type: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        x_stats_gpu_type: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_label: google.protobuf.wrappers_pb2.StringValue | None = ...,
         x_primary: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         x_update_finish_state: google.protobuf.wrappers_pb2.BoolValue | None = ...,

@@ -343,7 +343,7 @@ message Settings {
   // GPU type.
   //
   // If set, overrides the auto-detected value saved in the run metadata.
-  google.protobuf.Int32Value x_stats_gpu_type = 197;
+  google.protobuf.StringValue x_stats_gpu_type = 197;
 
   // Label to assign to system metrics and console logs collected for the run
   // to group by on the frontend. Can be used to distinguish data from different

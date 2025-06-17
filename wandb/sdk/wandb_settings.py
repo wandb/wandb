@@ -753,25 +753,25 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_cpu_count: Optional[int] = None
     """System CPU count.
 
-    If set, overrides the auto-detected value saved in the run metadata.
+    If set, overrides the auto-detected value in the run metadata.
     """
 
     x_stats_cpu_logical_count: Optional[int] = None
     """Logical CPU count.
 
-    If set, overrides the auto-detected value saved in the run metadata.
+    If set, overrides the auto-detected value in the run metadata.
     """
 
     x_stats_gpu_count: Optional[int] = None
     """GPU device count.
 
-    If set, overrides the auto-detected value saved in the run metadata.
+    If set, overrides the auto-detected value in the run metadata.
     """
 
-    x_stats_gpu_type: Optional[int] = None
+    x_stats_gpu_type: Optional[str] = None
     """GPU device type.
 
-    If set, overrides the auto-detected value saved in the run metadata.
+    If set, overrides the auto-detected value in the run metadata.
     """
 
     x_stats_gpu_device_ids: Optional[Sequence[int]] = None

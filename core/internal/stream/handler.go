@@ -154,7 +154,6 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.GetRunID())
 	for work := range allWork {
-		fmt.Println("$$$ GOT WORK TO HANDLE", work)
 		h.logger.Debug(
 			"handler: got work",
 			"work", work,
