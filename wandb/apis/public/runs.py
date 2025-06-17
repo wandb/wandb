@@ -231,7 +231,7 @@ class Runs(SizedPaginator["Run"]):
 
         # Choose fragment based on lightweight mode
         run_fragment = LIGHTWEIGHT_RUN_FRAGMENT if lightweight else RUN_FRAGMENT
-        
+
         self.QUERY = gql(
             f"""#graphql
             query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
@@ -630,7 +630,7 @@ class Run(Attrs):
     def load(self, force=False):
         # Use appropriate fragment based on lightweight mode
         run_fragment = LIGHTWEIGHT_RUN_FRAGMENT if self._lightweight else RUN_FRAGMENT
-        
+
         query = gql(
             """
         query Run($project: String!, $entity: String!, $name: String!) {{
@@ -701,7 +701,7 @@ class Run(Attrs):
         except (json.decoder.JSONDecodeError, KeyError):
             # Handle lightweight mode or invalid data gracefully
             self._attrs["summaryMetrics"] = {}
-            
+
         try:
             self._attrs["systemMetrics"] = (
                 json.loads(self._attrs["systemMetrics"])
@@ -713,7 +713,7 @@ class Run(Attrs):
             self._attrs["systemMetrics"] = {}
         if self._attrs.get("user"):
             self.user = public.User(self.client, self._attrs["user"])
-            
+
         config_user, config_raw = {}, {}
         try:
             for key, value in json.loads(self._attrs.get("config") or "{}").items():
@@ -725,7 +725,7 @@ class Run(Attrs):
         except (json.decoder.JSONDecodeError, KeyError):
             # Handle lightweight mode gracefully
             pass
-            
+
         config_raw.update(config_user)
         self._attrs["config"] = config_user
         self._attrs["rawconfig"] = config_raw
@@ -1193,17 +1193,17 @@ class Run(Attrs):
 
     def load_full_data(self, force=False):
         """Load full run data including heavy fields like config, systemMetrics, summaryMetrics.
-        
+
         This method is useful when you initially used lightweight=True for listing runs,
         but need access to the full data for specific runs.
-        
+
         Args:
             force (bool): Force reload even if data is already loaded
         """
         if not self._lightweight and not force:
             # Already in full mode, no need to reload
             return self._attrs
-            
+
         # Temporarily switch to full mode for this load
         original_lightweight = self._lightweight
         self._lightweight = False
