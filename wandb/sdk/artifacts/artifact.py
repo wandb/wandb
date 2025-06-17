@@ -74,6 +74,7 @@ from ._validators import (
     _LinkArtifactFields,
     ensure_logged,
     ensure_not_finalized,
+    get_registry_name_from_project,
     is_artifact_registry_project,
     validate_aliases,
     validate_artifact_name,
@@ -743,7 +744,7 @@ class Artifact:
         )
         return urljoin(
             base_url,
-            f"orgs/{org.display_name}/registry/{self._type}?selectionPath={selection_path}&view=membership&version={self._version}",
+            f"orgs/{org.display_name}/registry/{get_registry_name_from_project(self.project)}?selectionPath={selection_path}&view=membership&version={self._version}",
         )
 
     def _construct_model_registry_url(self, base_url: str) -> str:

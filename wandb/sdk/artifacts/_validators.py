@@ -259,3 +259,9 @@ def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
 
 def is_artifact_registry_project(project: str) -> bool:
     return project.startswith(REGISTRY_PREFIX)
+
+
+def get_registry_name_from_project(project: str) -> str:
+    if not is_artifact_registry_project(project):
+        raise ValueError(f"Project '{project}' is not a model registry project")
+    return project[len(REGISTRY_PREFIX) :]
