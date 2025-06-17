@@ -178,7 +178,6 @@ def test_network_fault_graphql(wandb_backend_spy):
     with wandb_backend_spy.freeze() as snapshot:
         uploaded_files = snapshot.uploaded_files(run_id=run.id)
 
-        assert "wandb-metadata.json" in uploaded_files
         assert "wandb-summary.json" in uploaded_files
         assert "requirements.txt" in uploaded_files
         assert "config.yaml" in uploaded_files

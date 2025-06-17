@@ -307,15 +307,6 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 		return // Already started or paused
 	}
 
-	// Start collecting metrics.
-	if !sm.settings.IsDisableStats() && !sm.settings.IsDisableMachineInfo() {
-		sm.logger.Debug("monitor: starting")
-		for _, asset := range sm.assets {
-			sm.wg.Add(1)
-			go sm.monitorAsset(asset)
-		}
-	}
-
 	// Probe the asset metadata.
 	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() && sm.settings.IsPrimary() {
 		go func() {
@@ -326,6 +317,15 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 				),
 			)
 		}()
+	}
+
+	// Start collecting metrics.
+	if !sm.settings.IsDisableStats() && !sm.settings.IsDisableMachineInfo() {
+		sm.logger.Debug("monitor: starting")
+		for _, asset := range sm.assets {
+			sm.wg.Add(1)
+			go sm.monitorAsset(asset)
+		}
 	}
 }
 
