@@ -487,9 +487,7 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	}
 
 	// start the system monitor
-	if !h.settings.IsDisableStats() && !h.settings.IsDisableMachineInfo() {
-		h.systemMonitor.Start(git)
-	}
+	h.systemMonitor.Start(git)
 
 	// save code and patch
 	if h.settings.IsSaveCode() && !h.settings.IsDisableMachineInfo() {

@@ -249,6 +249,8 @@ func (sm *SystemMonitor) probe(git *spb.GitRepoRecord) *spb.Record {
 		}
 	}()
 
+	sm.logger.Debug("monitor: probing resources")
+
 	systemInfo := spb.MetadataRecord{Metadata: &spb.Metadata{
 		Os:            sm.settings.GetOS(),
 		Python:        sm.settings.GetPython(),
@@ -305,16 +307,16 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 		return // Already started or paused
 	}
 
-	sm.logger.Debug("monitor: starting")
-	// Start collecting metrics for all assets.
-	for _, asset := range sm.assets {
-		sm.wg.Add(1)
-		go sm.monitorAsset(asset)
+	// Start collecting metrics.
+	if !sm.settings.IsDisableStats() && !sm.settings.IsDisableMachineInfo() {
+		sm.logger.Debug("monitor: starting")
+		for _, asset := range sm.assets {
+			sm.wg.Add(1)
+			go sm.monitorAsset(asset)
+		}
 	}
 
-	// Probe the asset information.
-	// TODO: separate disabling metadata and stats collection in the system monitor settings.
-	// Currently, disabling stats will also disable metadata collection, which is incorrect.
+	// Probe the asset metadata.
 	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() && sm.settings.IsPrimary() {
 		go func() {
 			sm.extraWork.AddWorkOrCancel(
