@@ -14,14 +14,12 @@ dependencies = [
     "Click>=7.1,!=8.0.0",
     "GitPython>=1.0.0,!=3.1.29",
     "requests>=2.0.0,<3",
-    "psutil>=5.0.0",
     "sentry-sdk>=2.0.0",
     "protobuf>=3.12.0,!=4.21.0,!=5.28.0,<7; python_version < '3.9' and sys_platform == 'linux'",
     "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<7; python_version == '3.9' and sys_platform == 'linux'",
     "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; python_version > '3.9' and sys_platform == 'linux'",
     "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<7; sys_platform != 'linux'",
     "PyYAML",
-    "setproctitle",
     "platformdirs",
     "typing_extensions>=4.8,<5",
     "pydantic<3",
@@ -280,8 +278,6 @@ ignore-decorators = [
 "wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/sdk/internal/file_stream.py" = ["TRY300"]
 "wandb/sdk/internal/internal_api.py" = ["TRY300"]
-"wandb/sdk/internal/system/assets/gpu.py" = ["TRY300"]
-"wandb/sdk/internal/system/assets/trainium.py" = ["TRY300"]
 "wandb/sdk/launch/**" = ["T20"]
 "wandb/sdk/launch/agent/agent.py" = ["TRY300"]
 "wandb/sdk/launch/builder/templates/_wandb_bootstrap.py" = ["TRY300"]
@@ -413,7 +409,6 @@ module = [
     "psutil.*",
     "tensorboard.*",
     "grpc.*",
-    "setproctitle.*",
     "ultralytics.*",
     "wandb_gql.*",
     "wandb_graphql.*",

@@ -22,7 +22,7 @@ func TestInvokesCallback(t *testing.T) {
 	line := &RunLogsLine{}
 	line.Content = []rune("content")
 	writer.OnChanged(1, line)
-	writer.Wait()
+	writer.Finish()
 
 	select {
 	case lines := <-flushes:

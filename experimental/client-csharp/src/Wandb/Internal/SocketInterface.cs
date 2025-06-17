@@ -16,14 +16,14 @@ namespace Wandb.Internal
         /// <summary>
         /// Initializes a new instance of the <see cref="SocketInterface"/> class.
         /// </summary>
-        /// <param name="port">The port to connect to.</param>
+        /// <param name="connectionProtocol">How to connect to the service.</param>
         /// <param name="streamId">The stream identifier.</param>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="streamId"/> is <c>null</c>.</exception>
-        public SocketInterface(int port, string streamId)
+        public SocketInterface(IServiceConnectionProtocol connectionProtocol, string streamId)
         {
-            _client = new WandbTcpClient();
-            _client.Connect("localhost", port);
-            _streamId = streamId ?? throw new ArgumentNullException(nameof(streamId));
+            ArgumentNullException.ThrowIfNull(connectionProtocol);
+            ArgumentNullException.ThrowIfNullOrEmpty(streamId);
+            _client = new WandbTcpClient(connectionProtocol.Connect());
+            _streamId = streamId;
         }
 
         /// <summary>
