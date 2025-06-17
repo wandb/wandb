@@ -110,6 +110,22 @@ def _server_provides_internal_id_for_project(client) -> bool:
     ]
 
 
+def _convert_to_dict(value):
+    if value is None:
+        return {}
+
+    if isinstance(value, dict):
+        return value
+    elif isinstance(value, (str, bytes, bytearray)):
+        try:
+            return json.loads(value)
+        except json.decoder.JSONDecodeError:
+            # ignore invalid utf-8 or control characters
+            return json.loads(value, strict=False)
+    else:
+        return {}
+
+
 class Runs(SizedPaginator["Run"]):
     """An iterable collection of runs associated with a project and optional filter.
 
@@ -599,32 +615,23 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
+        self._attrs["config"] = _convert_to_dict(self._attrs.get("config"))
+        self._attrs["summaryMetrics"] = _convert_to_dict(
+            self._attrs.get("summaryMetrics")
+        )
+        self._attrs["systemMetrics"] = _convert_to_dict(
+            self._attrs.get("systemMetrics")
+        )
+
         if "projectId" in self._attrs:
             self._project_internal_id = int(self._attrs["projectId"])
         else:
             self._project_internal_id = None
 
-        try:
-            self._attrs["summaryMetrics"] = (
-                json.loads(self._attrs["summaryMetrics"])
-                if self._attrs.get("summaryMetrics")
-                else {}
-            )
-        except json.decoder.JSONDecodeError:
-            # ignore invalid utf-8 or control characters
-            self._attrs["summaryMetrics"] = json.loads(
-                self._attrs["summaryMetrics"],
-                strict=False,
-            )
-        self._attrs["systemMetrics"] = (
-            json.loads(self._attrs["systemMetrics"])
-            if self._attrs.get("systemMetrics")
-            else {}
-        )
         if self._attrs.get("user"):
             self.user = public.User(self.client, self._attrs["user"])
         config_user, config_raw = {}, {}
-        for key, value in json.loads(self._attrs.get("config") or "{}").items():
+        for key, value in self._attrs.get("config", {}).items():
             config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
             if isinstance(value, dict) and "value" in value:
                 config[key] = value["value"]
