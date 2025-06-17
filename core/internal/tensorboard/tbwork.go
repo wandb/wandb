@@ -38,10 +38,8 @@ func (w *TBWork) Schedule(wg *sync.WaitGroup, process func()) {
 	process()
 }
 
-// Save implements Work.Save.
-func (w *TBWork) Save(write func(*spb.Record)) {
-	write(w.Record)
-}
+// ToRecord implements Work.ToRecord.
+func (w *TBWork) ToRecord() *spb.Record { return w.Record }
 
 // DebugInfo implements Work.DebugInfo
 func (w *TBWork) DebugInfo() string {
