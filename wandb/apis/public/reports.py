@@ -196,7 +196,13 @@ class BetaReport(Attrs):
 
     @property
     def url(self):
-        if not self.client or not self.entity or not self.project or not self.display_name or not self.id:
+        if (
+            not self.client
+            or not self.entity
+            or not self.project
+            or not self.display_name
+            or not self.id
+        ):
             return None
         return self.client.app_url + "/".join(
             [

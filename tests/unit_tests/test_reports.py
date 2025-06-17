@@ -1,4 +1,3 @@
-import sys
 from unittest import mock
 
 import pytest
@@ -13,7 +12,7 @@ def test_report_properties_from_path():
     path = "test/test/reports/My-Report--XYZ"
     with mock.patch.object(wandb, "login", mock.MagicMock()):
         report = Api().from_path(path)
-        
+
         assert report.id is not None
         assert isinstance(report.display_name, (str, type(None)))
         assert isinstance(report.name, (str, type(None)))
@@ -35,11 +34,11 @@ def test_report_properties_full():
         "user": {"username": "testuser", "email": "test@example.com"},
         "spec": {"panels": []},
         "updatedAt": "2023-01-01T00:00:00Z",
-        "createdAt": "2023-01-01T00:00:00Z"
+        "createdAt": "2023-01-01T00:00:00Z",
     }
-    
+
     report = BetaReport(None, attrs, "test-entity", "test-project")
-    
+
     assert report.id == "test-id"
     assert report.name == "Test Report"
     assert report.display_name == "Test Display Name"
@@ -57,9 +56,9 @@ def test_report_properties_missing_attributes():
         "id": "test-id",
         "displayName": "Test Display Name",
     }
-    
+
     report = BetaReport(None, attrs, "test-entity", "test-project")
-    
+
     assert report.id == "test-id"
     assert report.display_name == "Test Display Name"
     assert report.name is None
@@ -77,9 +76,9 @@ def test_report_user_property_access():
         "id": "test-id",
         "user": {"username": "testuser", "email": "test@example.com"},
     }
-    
+
     report = BetaReport(None, attrs, "test-entity", "test-project")
-    
+
     assert report.user["username"] == "testuser"
     assert report.user["email"] == "test@example.com"
 
@@ -90,7 +89,7 @@ def test_report_user_property_missing():
     attrs = {
         "id": "test-id",
     }
-    
+
     report = BetaReport(None, attrs, "test-entity", "test-project")
-    
+
     assert report.user is None
