@@ -13,6 +13,9 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+- `api.artifact()` will now print a warning while fetching artifacts from migrated model registry collections. (@ibindlish in https://github.com/wandb/wandb/pull/10047)
+
 ### Fixed
 - Allow s3 style CoreWeave uris for reference artifacts. (@estellazx in https://github.com/wandb/wandb/pull/9979)
 
