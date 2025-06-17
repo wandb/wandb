@@ -491,11 +491,10 @@ class Runs(SizedPaginator["Run"]):
             """
         )
         
-        # Upgrade any existing runs in the cache
-        for runs_page in self._objects:
-            for run in runs_page:
-                if hasattr(run, '_lightweight') and run._lightweight:
-                    run.load_full_data()
+        # Upgrade any existing runs that have been loaded
+        for run in self.objects:
+            if hasattr(run, '_lightweight') and run._lightweight:
+                run.load_full_data()
 
 
 class Run(Attrs):
