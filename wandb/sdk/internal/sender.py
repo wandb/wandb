@@ -65,6 +65,7 @@ if TYPE_CHECKING:
         ArtifactRecord,
         HttpResponse,
         LocalInfo,
+        MetadataRecord,
         Record,
         Result,
         RunExitResult,
@@ -212,6 +213,7 @@ class SendManager:
     _context_keeper: context.ContextKeeper
 
     _telemetry_obj: telemetry.TelemetryRecord
+    _metadata_obj: "MetadataRecord"
     _fs: Optional["file_stream.FileStreamApi"]
     _run: Optional["RunRecord"]
     _entity: Optional[str]
@@ -268,6 +270,7 @@ class SendManager:
 
         self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
+        self._metadata_obj = wandb_internal_pb2.MetadataRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
         self._metadata_summary: Dict[str, Any] = defaultdict()
         self._cached_summary: Dict[str, Any] = dict()
@@ -790,12 +793,12 @@ class SendManager:
 
     def _config_backend_dict(self) -> sender_config.BackendConfigDict:
         config = self._consolidated_config or sender_config.ConfigState()
-
         return config.to_backend_dict(
             telemetry_record=self._telemetry_obj,
             framework=self._telemetry_get_framework(),
             start_time_millis=self._start_time,
             metric_pbdicts=self._config_metric_pbdict_list,
+            metadata_record=self._metadata_obj,
         )
 
     def _config_save(
@@ -1379,11 +1382,11 @@ class SendManager:
             next_idx = len(self._config_metric_pbdict_list)
             self._config_metric_pbdict_list.append(md)
             self._config_metric_index_dict[metric.name] = next_idx
-        self._update_config()
+        self._debounce_config()
 
     def _update_telemetry_record(self, telemetry: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telemetry)
-        self._update_config()
+        self._debounce_config()
 
     def send_telemetry(self, record: "Record") -> None:
         self._update_telemetry_record(record.telemetry)
@@ -1417,8 +1420,14 @@ class SendManager:
         # tbrecord watching threads are handled by handler.py
         pass
 
+    def _update_metadata_record(self, metadata: "MetadataRecord") -> None:
+        self._metadata_obj.MergeFrom(metadata)
+        self._debounce_config()
+
     def send_metadata(self, record: "Record") -> None:
-        """Convert a Metadata Record to JSON and upload as a file."""
+        """Inject metadata into config and upload as a JSON file."""
+        self._update_metadata_record(record.metadata)
+
         metadata_json = json.dumps(proto_util.message_to_dict(record.metadata.metadata))
 
         with open(
