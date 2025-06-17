@@ -42,6 +42,7 @@ var streamProviders = wire.NewSet(
 	featurechecker.NewServerFeaturesCache,
 	filestream.FileStreamProviders,
 	filetransfer.NewFileTransferStats,
+	flowControlProviders,
 	handlerProviders,
 	mailbox.New,
 	monitor.SystemMonitorProviders,
