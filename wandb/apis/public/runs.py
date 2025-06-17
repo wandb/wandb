@@ -451,6 +451,52 @@ class Runs(SizedPaginator["Run"]):
     def __repr__(self):
         return f"<Runs {self.entity}/{self.project}>"
 
+    def upgrade_to_full(self):
+        """Upgrade this Runs collection from lightweight to full mode.
+        
+        This regenerates the GraphQL query to use the full fragment and 
+        upgrades any already-loaded Run objects to have full data.
+        """
+        if not self._lightweight:
+            return  # Already in full mode
+            
+        # Switch to full mode
+        self._lightweight = False
+        
+        # Regenerate query with full fragment
+        run_fragment = RUN_FRAGMENT
+        self.QUERY = gql(
+            f"""#graphql
+            query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
+                project(name: $project, entityName: $entity) {{
+                    internalId
+                    runCount(filters: $filters)
+                    readOnly
+                    runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
+                        edges {{
+                            node {{
+                                {"" if _server_provides_internal_id_for_project(self.client) else "internalId"}
+                                ...{run_fragment.split()[1]}
+                            }}
+                            cursor
+                        }}
+                        pageInfo {{
+                            endCursor
+                            hasNextPage
+                        }}
+                    }}
+                }}
+            }}
+            {run_fragment}
+            """
+        )
+        
+        # Upgrade any existing runs in the cache
+        for runs_page in self._objects:
+            for run in runs_page:
+                if hasattr(run, '_lightweight') and run._lightweight:
+                    run.load_full_data()
+
 
 class Run(Attrs):
     """A single run associated with an entity and project.
