@@ -9,6 +9,7 @@ package runwork
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -120,6 +121,7 @@ func (rw *runWork) AddWorkOrCancel(
 	cancel <-chan struct{},
 	work Work,
 ) {
+	fmt.Println("ADDING WORK", work)
 	rw.incAddWork()
 	defer rw.decAddWork()
 

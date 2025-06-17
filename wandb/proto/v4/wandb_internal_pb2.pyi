@@ -4117,6 +4117,11 @@ global___CoreWeaveInfo = CoreWeaveInfo
 
 @typing_extensions.final
 class Metadata(google.protobuf.message.Message):
+    """Contains system, environment, and execution details for a specific context.
+
+    This information is captured by a single "writer" to a run.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     @typing_extensions.final
@@ -4155,21 +4160,18 @@ class Metadata(google.protobuf.message.Message):
 
     OS_FIELD_NUMBER: builtins.int
     PYTHON_FIELD_NUMBER: builtins.int
-    HEARTBEAT_AT_FIELD_NUMBER: builtins.int
     STARTED_AT_FIELD_NUMBER: builtins.int
     DOCKER_FIELD_NUMBER: builtins.int
-    CUDA_FIELD_NUMBER: builtins.int
     ARGS_FIELD_NUMBER: builtins.int
-    STATE_FIELD_NUMBER: builtins.int
     PROGRAM_FIELD_NUMBER: builtins.int
     CODE_PATH_FIELD_NUMBER: builtins.int
+    CODE_PATH_LOCAL_FIELD_NUMBER: builtins.int
     GIT_FIELD_NUMBER: builtins.int
     EMAIL_FIELD_NUMBER: builtins.int
     ROOT_FIELD_NUMBER: builtins.int
     HOST_FIELD_NUMBER: builtins.int
     USERNAME_FIELD_NUMBER: builtins.int
     EXECUTABLE_FIELD_NUMBER: builtins.int
-    CODE_PATH_LOCAL_FIELD_NUMBER: builtins.int
     COLAB_FIELD_NUMBER: builtins.int
     CPU_COUNT_FIELD_NUMBER: builtins.int
     CPU_COUNT_LOGICAL_FIELD_NUMBER: builtins.int
@@ -4180,79 +4182,102 @@ class Metadata(google.protobuf.message.Message):
     CPU_FIELD_NUMBER: builtins.int
     APPLE_FIELD_NUMBER: builtins.int
     GPU_NVIDIA_FIELD_NUMBER: builtins.int
+    CUDA_VERSION_FIELD_NUMBER: builtins.int
     GPU_AMD_FIELD_NUMBER: builtins.int
     SLURM_FIELD_NUMBER: builtins.int
-    CUDA_VERSION_FIELD_NUMBER: builtins.int
     TRAINIUM_FIELD_NUMBER: builtins.int
     TPU_FIELD_NUMBER: builtins.int
     COREWEAVE_FIELD_NUMBER: builtins.int
     os: builtins.str
+    """Operating system, e.g., "macOS-14.4.1-arm64-arm-64bit"."""
     python: builtins.str
+    """Version of the Python interpreter, e.g., "3.11.8"."""
     @property
-    def heartbeat_at(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
-    @property
-    def started_at(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    def started_at(self) -> google.protobuf.timestamp_pb2.Timestamp:
+        """Timestamp when the writer started."""
     docker: builtins.str
-    cuda: builtins.str
+    """Docker image ID, if running in a Docker container."""
     @property
-    def args(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    state: builtins.str
+    def args(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
+        """Command-line arguments passed to the script."""
     program: builtins.str
+    """The name of the program or script being executed."""
     code_path: builtins.str
-    @property
-    def git(self) -> global___GitRepoRecord: ...
-    email: builtins.str
-    root: builtins.str
-    host: builtins.str
-    username: builtins.str
-    executable: builtins.str
+    """Path to the program or script."""
     code_path_local: builtins.str
+    """The local filesystem path to the code being executed."""
+    @property
+    def git(self) -> global___GitRepoRecord:
+        """Information about the Git repository, if applicable."""
+    email: builtins.str
+    """Email of the logged-in user."""
+    root: builtins.str
+    """Root directory where the script was executed."""
+    host: builtins.str
+    """Hostname of the machine."""
+    username: builtins.str
+    """Username of the user running the script."""
+    executable: builtins.str
+    """Path to the executable that is running the script (e.g., path to python)."""
     colab: builtins.str
+    """URL of the Colab notebook, if running in Google Colab."""
     cpu_count: builtins.int
+    """Number of physical CPU cores."""
     cpu_count_logical: builtins.int
+    """Number of logical CPU cores."""
     gpu_type: builtins.str
+    """Primary GPU type or name."""
     gpu_count: builtins.int
+    """Total number of GPUs."""
     @property
-    def disk(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___DiskInfo]: ...
+    def disk(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___DiskInfo]:
+        """Detailed information about mounted disk volumes."""
     @property
-    def memory(self) -> global___MemoryInfo: ...
+    def memory(self) -> global___MemoryInfo:
+        """Information about system memory."""
     @property
-    def cpu(self) -> global___CpuInfo: ...
+    def cpu(self) -> global___CpuInfo:
+        """CPU information."""
     @property
-    def apple(self) -> global___AppleInfo: ...
+    def apple(self) -> global___AppleInfo:
+        """Information specific to Apple Silicon hardware."""
     @property
-    def gpu_nvidia(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___GpuNvidiaInfo]: ...
-    @property
-    def gpu_amd(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___GpuAmdInfo]: ...
-    @property
-    def slurm(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]: ...
+    def gpu_nvidia(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___GpuNvidiaInfo]:
+        """Detailed information for each NVIDIA GPU."""
     cuda_version: builtins.str
+    """Version of the CUDA toolkit, if available."""
     @property
-    def trainium(self) -> global___TrainiumInfo: ...
+    def gpu_amd(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___GpuAmdInfo]:
+        """Detailed information for each AMD GPU."""
     @property
-    def tpu(self) -> global___TPUInfo: ...
+    def slurm(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]:
+        """Information from the Slurm workload manager, if present."""
     @property
-    def coreweave(self) -> global___CoreWeaveInfo: ...
+    def trainium(self) -> global___TrainiumInfo:
+        """Information about AWS Trainium hardware."""
+    @property
+    def tpu(self) -> global___TPUInfo:
+        """Information about Google TPU hardware."""
+    @property
+    def coreweave(self) -> global___CoreWeaveInfo:
+        """Information about CoreWeave cloud environment."""
     def __init__(
         self,
         *,
         os: builtins.str = ...,
         python: builtins.str = ...,
-        heartbeat_at: google.protobuf.timestamp_pb2.Timestamp | None = ...,
         started_at: google.protobuf.timestamp_pb2.Timestamp | None = ...,
         docker: builtins.str = ...,
-        cuda: builtins.str = ...,
         args: collections.abc.Iterable[builtins.str] | None = ...,
-        state: builtins.str = ...,
         program: builtins.str = ...,
         code_path: builtins.str = ...,
+        code_path_local: builtins.str = ...,
         git: global___GitRepoRecord | None = ...,
         email: builtins.str = ...,
         root: builtins.str = ...,
         host: builtins.str = ...,
         username: builtins.str = ...,
         executable: builtins.str = ...,
-        code_path_local: builtins.str = ...,
         colab: builtins.str = ...,
         cpu_count: builtins.int = ...,
         cpu_count_logical: builtins.int = ...,
@@ -4263,36 +4288,59 @@ class Metadata(google.protobuf.message.Message):
         cpu: global___CpuInfo | None = ...,
         apple: global___AppleInfo | None = ...,
         gpu_nvidia: collections.abc.Iterable[global___GpuNvidiaInfo] | None = ...,
+        cuda_version: builtins.str = ...,
         gpu_amd: collections.abc.Iterable[global___GpuAmdInfo] | None = ...,
         slurm: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
-        cuda_version: builtins.str = ...,
         trainium: global___TrainiumInfo | None = ...,
         tpu: global___TPUInfo | None = ...,
         coreweave: global___CoreWeaveInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["apple", b"apple", "coreweave", b"coreweave", "cpu", b"cpu", "git", b"git", "heartbeat_at", b"heartbeat_at", "memory", b"memory", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["apple", b"apple", "args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "coreweave", b"coreweave", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeat_at", b"heartbeat_at", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "started_at", b"started_at", "state", b"state", "tpu", b"tpu", "trainium", b"trainium", "username", b"username"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["apple", b"apple", "coreweave", b"coreweave", "cpu", b"cpu", "git", b"git", "memory", b"memory", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["apple", b"apple", "args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "coreweave", b"coreweave", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium", "username", b"username"]) -> None: ...
 
 global___Metadata = Metadata
 
 @typing_extensions.final
 class MetadataRecord(google.protobuf.message.Message):
+    """Encapsulates the metadata from a single writer session for a given run.
+
+    A single W&B Run can have multiple "writers" - unique client sessions
+    that contribute data to the run. Examples include:
+      - Multiple processes initializing `wandb.init(id="<run-id>", mode="shared")`
+        in a distributed training setup.
+      - A user resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
+        which creates a new writer session, potentially on a different machine.
+
+    Because each writer can have a different environment (e.g., different OS,
+    hardware, or git state), this message namespaces the captured `Metadata`
+    by a unique `client_id` for each writer.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     METADATA_FIELD_NUMBER: builtins.int
+    CLIENT_ID_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     @property
-    def metadata(self) -> global___Metadata: ...
+    def metadata(self) -> global___Metadata:
+        """The environment and system metadata captured by this specific writer."""
+    client_id: builtins.str
+    """A unique identifier for this writer session.
+
+    This ID distinguishes this writer's metadata from that of other writers
+    that may be contributing to the same run.
+    """
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
         metadata: global___Metadata | None = ...,
+        client_id: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "metadata", b"metadata"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "metadata", b"metadata"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "client_id", b"client_id", "metadata", b"metadata"]) -> None: ...
 
 global___MetadataRecord = MetadataRecord
 

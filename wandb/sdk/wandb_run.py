@@ -1643,7 +1643,7 @@ class Run:
     def _populate_git_info(self) -> None:
         from .lib.gitlib import GitRepo
 
-        # Use user provided git info if available otherwise resolve it from the environment
+        # Use user-provided git info if available, otherwise resolve it from the environment
         try:
             repo = GitRepo(
                 root=self._settings.git_root,

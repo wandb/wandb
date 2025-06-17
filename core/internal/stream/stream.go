@@ -304,6 +304,7 @@ func NewStream(
 				ExtraWork:          s.runWork,
 				GpuResourceManager: params.GPUResourceManager,
 				GraphqlClient:      s.graphqlClientOrNil,
+				ClientID:           s.clientID,
 			}),
 			TBHandler:       tbHandler,
 			TerminalPrinter: terminalPrinter,

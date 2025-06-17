@@ -154,6 +154,7 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.GetRunID())
 	for work := range allWork {
+		fmt.Println("$$$ GOT WORK TO HANDLE", work)
 		h.logger.Debug(
 			"handler: got work",
 			"work", work,
@@ -233,6 +234,7 @@ func (h *Handler) handleRecord(record *spb.Record) {
 	case *spb.Record_Stats:
 	case *spb.Record_Telemetry:
 	case *spb.Record_UseArtifact:
+	case *spb.Record_Metadata:
 	// The above are no-ops in the handler.
 
 	case *spb.Record_Exit:
@@ -247,8 +249,6 @@ func (h *Handler) handleRecord(record *spb.Record) {
 		h.handleSummary(x.Summary)
 	case *spb.Record_Tbrecord:
 		h.handleTBrecord(x.Tbrecord)
-	case *spb.Record_Metadata:
-		h.handleMetadata(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRecord: record type is nil"))
@@ -478,7 +478,7 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
 
-	// initialize the run metadata from settings
+	// TODO: Move computation of git state to wandb-core.
 	var git *spb.GitRepoRecord
 	if run.GetGit().GetRemoteUrl() != "" || run.GetGit().GetCommit() != "" {
 		git = &spb.GitRepoRecord{
@@ -487,29 +487,9 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 		}
 	}
 
-	metadata := &spb.MetadataRecord{Metadata: &spb.Metadata{
-		Os:            h.settings.GetOS(),
-		Python:        h.settings.GetPython(),
-		Host:          h.settings.GetHostProcessorName(),
-		Program:       h.settings.GetProgram(),
-		CodePath:      h.settings.GetProgramRelativePath(),
-		CodePathLocal: h.settings.GetProgramRelativePathFromCwd(),
-		Email:         h.settings.GetEmail(),
-		Root:          h.settings.GetRootDir(),
-		Username:      h.settings.GetUserName(),
-		Docker:        h.settings.GetDockerImageName(),
-		Executable:    h.settings.GetExecutable(),
-		Args:          h.settings.GetArgs(),
-		Colab:         h.settings.GetColabURL(),
-		StartedAt:     run.GetStartTime(),
-		Git:           git,
-	}}
-	metadataRecord := &spb.Record{RecordType: &spb.Record_Metadata{Metadata: metadata}}
-	h.fwdRecord(metadataRecord)
-
 	// start the system monitor
 	if !h.settings.IsDisableStats() && !h.settings.IsDisableMachineInfo() {
-		h.systemMonitor.Start()
+		h.systemMonitor.Start(git)
 	}
 
 	// save code and patch
@@ -649,14 +629,6 @@ func (h *Handler) handlePatchSave() {
 			},
 		},
 	}
-	h.fwdRecord(record)
-}
-
-func (h *Handler) handleMetadata(record *spb.Record) {
-	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimary() {
-		return
-	}
-
 	h.fwdRecord(record)
 }
 

@@ -2657,82 +2657,128 @@ pub struct CoreWeaveInfo {
     #[prost(string, tag = "3")]
     pub region: ::prost::alloc::string::String,
 }
+/// Contains system, environment, and execution details for a specific context.
+///
+/// This information is captured by a single "writer" to a run.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Metadata {
+    /// Operating system, e.g., "macOS-14.4.1-arm64-arm-64bit".
     #[prost(string, tag = "1")]
     pub os: ::prost::alloc::string::String,
+    /// Version of the Python interpreter, e.g., "3.11.8".
     #[prost(string, tag = "2")]
     pub python: ::prost::alloc::string::String,
+    /// Timestamp when the writer started.
     #[prost(message, optional, tag = "3")]
-    pub heartbeat_at: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(message, optional, tag = "4")]
     pub started_at: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(string, tag = "5")]
+    /// Docker image ID, if running in a Docker container.
+    #[prost(string, tag = "4")]
     pub docker: ::prost::alloc::string::String,
-    #[prost(string, tag = "6")]
-    pub cuda: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag = "7")]
+    /// Command-line arguments passed to the script.
+    #[prost(string, repeated, tag = "5")]
     pub args: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(string, tag = "8")]
-    pub state: ::prost::alloc::string::String,
-    #[prost(string, tag = "9")]
+    /// The name of the program or script being executed.
+    #[prost(string, tag = "6")]
     pub program: ::prost::alloc::string::String,
-    #[prost(string, tag = "10")]
+    /// Path to the program or script.
+    #[prost(string, tag = "7")]
     pub code_path: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "11")]
-    pub git: ::core::option::Option<GitRepoRecord>,
-    #[prost(string, tag = "12")]
-    pub email: ::prost::alloc::string::String,
-    #[prost(string, tag = "13")]
-    pub root: ::prost::alloc::string::String,
-    #[prost(string, tag = "14")]
-    pub host: ::prost::alloc::string::String,
-    #[prost(string, tag = "15")]
-    pub username: ::prost::alloc::string::String,
-    #[prost(string, tag = "16")]
-    pub executable: ::prost::alloc::string::String,
-    #[prost(string, tag = "17")]
+    /// The local filesystem path to the code being executed.
+    #[prost(string, tag = "8")]
     pub code_path_local: ::prost::alloc::string::String,
-    #[prost(string, tag = "18")]
+    /// Information about the Git repository, if applicable.
+    #[prost(message, optional, tag = "9")]
+    pub git: ::core::option::Option<GitRepoRecord>,
+    /// Email of the logged-in user.
+    #[prost(string, tag = "10")]
+    pub email: ::prost::alloc::string::String,
+    /// Root directory where the script was executed.
+    #[prost(string, tag = "11")]
+    pub root: ::prost::alloc::string::String,
+    /// Hostname of the machine.
+    #[prost(string, tag = "12")]
+    pub host: ::prost::alloc::string::String,
+    /// Username of the user running the script.
+    #[prost(string, tag = "13")]
+    pub username: ::prost::alloc::string::String,
+    /// Path to the executable that is running the script (e.g., path to python).
+    #[prost(string, tag = "14")]
+    pub executable: ::prost::alloc::string::String,
+    /// URL of the Colab notebook, if running in Google Colab.
+    #[prost(string, tag = "15")]
     pub colab: ::prost::alloc::string::String,
-    #[prost(uint32, tag = "19")]
+    /// Number of physical CPU cores.
+    #[prost(uint32, tag = "16")]
     pub cpu_count: u32,
-    #[prost(uint32, tag = "20")]
+    /// Number of logical CPU cores.
+    #[prost(uint32, tag = "17")]
     pub cpu_count_logical: u32,
-    #[prost(string, tag = "21")]
+    /// Primary GPU type or name.
+    #[prost(string, tag = "18")]
     pub gpu_type: ::prost::alloc::string::String,
-    #[prost(uint32, tag = "22")]
+    /// Total number of GPUs.
+    #[prost(uint32, tag = "19")]
     pub gpu_count: u32,
-    #[prost(map = "string, message", tag = "23")]
+    /// Detailed information about mounted disk volumes.
+    #[prost(map = "string, message", tag = "20")]
     pub disk: ::std::collections::HashMap<::prost::alloc::string::String, DiskInfo>,
-    #[prost(message, optional, tag = "24")]
+    /// Information about system memory.
+    #[prost(message, optional, tag = "21")]
     pub memory: ::core::option::Option<MemoryInfo>,
-    #[prost(message, optional, tag = "25")]
+    /// CPU information.
+    #[prost(message, optional, tag = "22")]
     pub cpu: ::core::option::Option<CpuInfo>,
-    #[prost(message, optional, tag = "26")]
+    /// Information specific to Apple Silicon hardware.
+    #[prost(message, optional, tag = "23")]
     pub apple: ::core::option::Option<AppleInfo>,
-    #[prost(message, repeated, tag = "27")]
+    /// Detailed information for each NVIDIA GPU.
+    #[prost(message, repeated, tag = "24")]
     pub gpu_nvidia: ::prost::alloc::vec::Vec<GpuNvidiaInfo>,
-    #[prost(message, repeated, tag = "28")]
+    /// Version of the CUDA toolkit, if available.
+    #[prost(string, tag = "25")]
+    pub cuda_version: ::prost::alloc::string::String,
+    /// Detailed information for each AMD GPU.
+    #[prost(message, repeated, tag = "26")]
     pub gpu_amd: ::prost::alloc::vec::Vec<GpuAmdInfo>,
-    #[prost(map = "string, string", tag = "29")]
+    /// Information from the Slurm workload manager, if present.
+    #[prost(map = "string, string", tag = "27")]
     pub slurm: ::std::collections::HashMap<
         ::prost::alloc::string::String,
         ::prost::alloc::string::String,
     >,
-    #[prost(string, tag = "30")]
-    pub cuda_version: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "31")]
+    /// Information about AWS Trainium hardware.
+    #[prost(message, optional, tag = "28")]
     pub trainium: ::core::option::Option<TrainiumInfo>,
-    #[prost(message, optional, tag = "32")]
+    /// Information about Google TPU hardware.
+    #[prost(message, optional, tag = "29")]
     pub tpu: ::core::option::Option<TpuInfo>,
-    #[prost(message, optional, tag = "33")]
+    /// Information about CoreWeave cloud environment.
+    #[prost(message, optional, tag = "30")]
     pub coreweave: ::core::option::Option<CoreWeaveInfo>,
 }
+/// Encapsulates the metadata from a single writer session for a given run.
+///
+/// A single W&B Run can have multiple "writers" - unique client sessions
+/// that contribute data to the run. Examples include:
+///    - Multiple processes initializing `wandb.init(id="<run-id>", mode="shared")`
+///      in a distributed training setup.
+///    - A user resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
+///      which creates a new writer session, potentially on a different machine.
+///
+/// Because each writer can have a different environment (e.g., different OS,
+/// hardware, or git state), this message namespaces the captured `Metadata`
+/// by a unique `client_id` for each writer.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MetadataRecord {
+    /// The environment and system metadata captured by this specific writer.
     #[prost(message, optional, tag = "1")]
     pub metadata: ::core::option::Option<Metadata>,
+    /// A unique identifier for this writer session.
+    ///
+    /// This ID distinguishes this writer's metadata from that of other writers
+    /// that may be contributing to the same run.
+    #[prost(string, tag = "2")]
+    pub client_id: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

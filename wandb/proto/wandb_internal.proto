@@ -1304,44 +1304,93 @@ message CoreWeaveInfo {
   string region = 3;
 }
 
+// Contains system, environment, and execution details for a specific context.
+//
+// This information is captured by a single "writer" to a run.
 message Metadata {
+  // Operating system, e.g., "macOS-14.4.1-arm64-arm-64bit".
   string os = 1;
+  // Version of the Python interpreter, e.g., "3.11.8".
   string python = 2;
-  google.protobuf.Timestamp heartbeat_at = 3 [json_name = "heartbeatAt"];
-  google.protobuf.Timestamp started_at = 4 [json_name = "startedAt"];
-  string docker = 5;
-  string cuda = 6;
-  repeated string args = 7;
-  string state = 8;
-  string program = 9;
-  string code_path = 10 [json_name = "codePath"];
-  GitRepoRecord git = 11;
-  string email = 12;
-  string root = 13;
-  string host = 14;
-  string username = 15;
-  string executable = 16;
-  string code_path_local = 17 [json_name = "codePathLocal"];
-  string colab = 18;
-  uint32 cpu_count = 19 [json_name = "cpu_count"];
-  uint32 cpu_count_logical = 20 [json_name = "cpu_count_logical"];
-  string gpu_type = 21 [json_name = "gpu"];
-  uint32 gpu_count = 22 [json_name = "gpu_count"];
-  map<string, DiskInfo> disk = 23;
-  MemoryInfo memory = 24;
-  CpuInfo cpu = 25;
-  AppleInfo apple = 26;
-  repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
-  repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
-  map<string, string> slurm = 29;
-  string cuda_version = 30;
-  TrainiumInfo trainium = 31;
-  TPUInfo tpu = 32;
-  CoreWeaveInfo coreweave = 33;
+  // Timestamp when the writer started.
+  google.protobuf.Timestamp started_at = 3 [json_name = "startedAt"];
+  // Docker image ID, if running in a Docker container.
+  string docker = 4;
+  // Command-line arguments passed to the script.
+  repeated string args = 5;
+  // The name of the program or script being executed.
+  string program = 6;
+  // Path to the program or script.
+  string code_path = 7 [json_name = "codePath"];
+  // The local filesystem path to the code being executed.
+  string code_path_local = 8 [json_name = "codePathLocal"];
+  // Information about the Git repository, if applicable.
+  GitRepoRecord git = 9;
+  // Email of the logged-in user.
+  string email = 10;
+  // Root directory where the script was executed.
+  string root = 11;
+  // Hostname of the machine.
+  string host = 12;
+  // Username of the user running the script.
+  string username = 13;
+  // Path to the executable that is running the script (e.g., path to python).
+  string executable = 14;
+  // URL of the Colab notebook, if running in Google Colab.
+  string colab = 15;
+  // Number of physical CPU cores.
+  uint32 cpu_count = 16 [json_name = "cpu_count"];
+  // Number of logical CPU cores.
+  uint32 cpu_count_logical = 17 [json_name = "cpu_count_logical"];
+  // Primary GPU type or name.
+  string gpu_type = 18 [json_name = "gpu"];
+  // Total number of GPUs.
+  uint32 gpu_count = 19 [json_name = "gpu_count"];
+  // Detailed information about mounted disk volumes.
+  map<string, DiskInfo> disk = 20;
+  // Information about system memory.
+  MemoryInfo memory = 21;
+  // CPU information.
+  CpuInfo cpu = 22;
+  // Information specific to Apple Silicon hardware.
+  AppleInfo apple = 23;
+  // Detailed information for each NVIDIA GPU.
+  repeated GpuNvidiaInfo gpu_nvidia = 24 [json_name = "gpu_nvidia"];
+  // Version of the CUDA toolkit, if available.
+  string cuda_version = 25;
+  // Detailed information for each AMD GPU.
+  repeated GpuAmdInfo gpu_amd = 26 [json_name = "gpu_amd"];
+  // Information from the Slurm workload manager, if present.
+  map<string, string> slurm = 27;
+  // Information about AWS Trainium hardware.
+  TrainiumInfo trainium = 28;
+  // Information about Google TPU hardware.
+  TPUInfo tpu = 29;
+  // Information about CoreWeave cloud environment.
+  CoreWeaveInfo coreweave = 30;
 }
 
+// Encapsulates the metadata from a single writer session for a given run.
+//
+// A single W&B Run can have multiple "writers" - unique client sessions
+// that contribute data to the run. Examples include:
+//   - Multiple processes initializing `wandb.init(id="<run-id>", mode="shared")`
+//     in a distributed training setup.
+//   - A user resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
+//     which creates a new writer session, potentially on a different machine.
+//
+// Because each writer can have a different environment (e.g., different OS,
+// hardware, or git state), this message namespaces the captured `Metadata`
+// by a unique `client_id` for each writer.
 message MetadataRecord {
+  // The environment and system metadata captured by this specific writer.
   Metadata metadata = 1;
+
+  // A unique identifier for this writer session.
+  //
+  // This ID distinguishes this writer's metadata from that of other writers
+  // that may be contributing to the same run.
+  string client_id = 2;
 
   _RecordInfo _info = 200;
 }

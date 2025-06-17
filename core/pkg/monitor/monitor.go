@@ -39,36 +39,39 @@ type Asset interface {
 
 // SystemMonitor is responsible for monitoring system metrics across various assets.
 type SystemMonitor struct {
-	// The context for the system monitor
+	// The context for the system monitor.
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// The wait group for the system monitor
+	// The wait group for the system monitor.
 	wg sync.WaitGroup
 
-	// The state of the system monitor: stopped, running, or paused
+	// The state of the system monitor: stopped, running, or paused.
 	state atomic.Int32
 
-	// The list of assets to monitor
+	// The list of assets to monitor.
 	assets []Asset
 
-	// extraWork accepts outgoing messages for the run
+	// extraWork accepts outgoing messages for the run.
 	extraWork runwork.ExtraWork
 
-	// The in-memory metrics buffer for the system monitor
+	// The in-memory metrics buffer for the system monitor.
 	buffer *Buffer
 
-	// settings is the settings for the system monitor
+	// settings is the settings for the system monitor.
 	settings *settings.Settings
 
-	// The interval at which metrics are sampled
+	// The interval at which metrics are sampled.
 	samplingInterval time.Duration
 
 	// A logger for internal debug logging.
 	logger *observability.CoreLogger
 
-	// graphqlClient is the graphql client
+	// graphqlClient is the graphql client.
 	graphqlClient graphql.Client
+
+	// Unique identifier of the writer to the run.
+	clientID string
 }
 
 type SystemMonitorParams struct {
@@ -88,6 +91,9 @@ type SystemMonitorParams struct {
 
 	// graphqlClient is the GraphQL client to communicate with the W&B backend.
 	GraphqlClient graphql.Client
+
+	// Unique identifier of the writer to the run.
+	ClientID string
 }
 
 // NewSystemMonitor initializes and returns a new SystemMonitor instance.
@@ -107,6 +113,7 @@ func NewSystemMonitor(params SystemMonitorParams) *SystemMonitor {
 		extraWork:        params.ExtraWork,
 		samplingInterval: defaultSamplingInterval,
 		graphqlClient:    params.GraphqlClient,
+		clientID:         params.ClientID,
 	}
 
 	// Early return if stats collection is disabled
@@ -238,7 +245,7 @@ func (sm *SystemMonitor) GetState() int32 {
 }
 
 // probe gathers system information from all assets and merges their metadata.
-func (sm *SystemMonitor) probe() *spb.Record {
+func (sm *SystemMonitor) probe(git *spb.GitRepoRecord) *spb.Record {
 	defer func() {
 		if err := recover(); err != nil {
 			sm.logger.CaptureError(
@@ -247,7 +254,28 @@ func (sm *SystemMonitor) probe() *spb.Record {
 		}
 	}()
 
-	systemInfo := spb.MetadataRecord{}
+	fmt.Println("+++ PROBING")
+
+	systemInfo := spb.MetadataRecord{Metadata: &spb.Metadata{
+		Os:            sm.settings.GetOS(),
+		Python:        sm.settings.GetPython(),
+		Host:          sm.settings.GetHostProcessorName(),
+		Program:       sm.settings.GetProgram(),
+		CodePath:      sm.settings.GetProgramRelativePath(),
+		CodePathLocal: sm.settings.GetProgramRelativePathFromCwd(),
+		Email:         sm.settings.GetEmail(),
+		Root:          sm.settings.GetRootDir(),
+		Username:      sm.settings.GetUserName(),
+		Docker:        sm.settings.GetDockerImageName(),
+		Executable:    sm.settings.GetExecutable(),
+		Args:          sm.settings.GetArgs(),
+		Colab:         sm.settings.GetColabURL(),
+		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
+		Git:           git,
+	},
+		ClientId: sm.clientID,
+	}
+
 	for _, asset := range sm.assets {
 		probeResponse := asset.Probe()
 		if probeResponse != nil {
@@ -261,7 +289,7 @@ func (sm *SystemMonitor) probe() *spb.Record {
 // Start begins the monitoring process for all assets and probes system information.
 //
 // It is safe to call Start multiple times; only a stopped monitor will initiate.
-func (sm *SystemMonitor) Start() {
+func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 	if sm == nil {
 		return
 	}
@@ -278,15 +306,18 @@ func (sm *SystemMonitor) Start() {
 	}
 
 	// Probe the asset information.
-	// TODO: check if metadata collection is turned off in settings.
-	go func() {
-		sm.extraWork.AddWorkOrCancel(
-			sm.ctx.Done(),
-			runwork.WorkFromRecord(
-				sm.probe(),
-			),
-		)
-	}()
+	// TODO: separate disabling metadata and stats collection in the system monitor settings.
+	// Currently, disabling stats will also disable metadata collection, which is incorrect.
+	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() && sm.settings.IsPrimary() {
+		go func() {
+			sm.extraWork.AddWorkOrCancel(
+				sm.ctx.Done(),
+				runwork.WorkFromRecord(
+					sm.probe(git),
+				),
+			)
+		}()
+	}
 }
 
 // Pause temporarily stops the monitoring process.
@@ -298,14 +329,14 @@ func (sm *SystemMonitor) Start() {
 // to prevent the overhead of starting and stopping the monitor for each cell.
 func (sm *SystemMonitor) Pause() {
 	if sm.state.CompareAndSwap(StateRunning, StatePaused) {
-		sm.logger.Info("Pausing system monitor")
+		sm.logger.Debug("monitor: pausing")
 	}
 }
 
 // Resume restarts the monitoring process after it has been paused.
 func (sm *SystemMonitor) Resume() {
 	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
-		sm.logger.Info("Resuming system monitor")
+		sm.logger.Debug("monitor: resuming")
 	}
 }
 
@@ -400,7 +431,7 @@ func (sm *SystemMonitor) Finish() {
 		return // Already stopped
 	}
 
-	sm.logger.Info("Stopping system monitor")
+	sm.logger.Debug("monitor: stopping")
 
 	// signal to stop monitoring the assets
 	sm.cancel()
@@ -412,5 +443,5 @@ func (sm *SystemMonitor) Finish() {
 			closer.Close()
 		}
 	}
-	sm.logger.Info("Stopped system monitor")
+	sm.logger.Debug("monitor: stopped")
 }

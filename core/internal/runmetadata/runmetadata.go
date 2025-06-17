@@ -31,7 +31,7 @@ func (rm *RunMetadata) ProcessRecord(metadata *spb.MetadataRecord) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
-	proto.Merge(rm.metadata, metadata)
+	proto.Merge(rm.metadata, proto.Clone(metadata))
 }
 
 func (rm *RunMetadata) ToJSON() ([]byte, error) {
