@@ -3,6 +3,7 @@ package stream
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -13,7 +14,6 @@ import (
 type WriterParams struct {
 	Logger   *observability.CoreLogger
 	Settings *settings.Settings
-	FwdChan  chan runwork.Work
 }
 
 // Writer saves work to the transaction log.
@@ -21,11 +21,14 @@ type WriterParams struct {
 // The transaction log is primarily used for offline runs. During online runs,
 // it is used for data recovery in case there is an issue uploading data.
 type Writer struct {
-	settings *settings.Settings        // the run's settings
 	logger   *observability.CoreLogger // logger for debugging
+	settings *settings.Settings        // the run's settings
 
-	// fwdChan is a channel to which to pass work after saving it.
-	fwdChan chan runwork.Work
+	// out is the channel to which processed Work is added.
+	out chan runwork.MaybeSavedWork
+
+	// storeMu is a mutex for write operations to the store.
+	storeMu sync.Mutex
 
 	// store manages the underlying file.
 	store *Store
@@ -39,7 +42,7 @@ func NewWriter(params WriterParams) *Writer {
 	return &Writer{
 		logger:   params.Logger,
 		settings: params.Settings,
-		fwdChan:  params.FwdChan,
+		out:      make(chan runwork.MaybeSavedWork),
 	}
 }
 
@@ -52,9 +55,16 @@ func (w *Writer) startStore() {
 	}
 }
 
-// Do processes all records on the input channel.
+// Chan returns the output channel.
+func (w *Writer) Chan() <-chan runwork.MaybeSavedWork {
+	return w.out
+}
+
+// Do saves all input Work and pushes it to the output channel,
+// closing it at the end.
 func (w *Writer) Do(allWork <-chan runwork.Work) {
 	defer w.logger.Reraise()
+	defer close(w.out)
 	w.logger.Info("writer: started", "stream_id", w.settings.GetRunID())
 
 	w.startStore()
@@ -66,25 +76,34 @@ func (w *Writer) Do(allWork <-chan runwork.Work) {
 			"stream_id", w.settings.GetRunID(),
 		)
 
+		savedWork := runwork.MaybeSavedWork{Work: work}
+
 		record := work.ToRecord()
 		if !w.isLocal(record) {
-			w.setNumber(record)
-			w.tryWrite(record)
+			recordNum := w.setNumber(record)
+			offset, err := w.write(record)
+
+			if err != nil {
+				w.logger.CaptureError(
+					fmt.Errorf("writer: failed to save record: %v", err))
+			} else {
+				savedWork.IsSaved = true
+				savedWork.SavedOffset = offset
+				savedWork.RecordNumber = recordNum
+			}
 		}
 
 		if w.settings.IsOffline() && !work.BypassOfflineMode() {
 			continue
 		}
 
-		w.fwdChan <- work
+		w.out <- savedWork
 	}
 
 	if err := w.store.Close(); err != nil {
 		w.logger.CaptureError(
 			fmt.Errorf("writer: failed closing store: %v", err))
 	}
-
-	close(w.fwdChan)
 }
 
 // isLocal returns true if the record should not be written to disk.
@@ -96,17 +115,30 @@ func (w *Writer) isLocal(record *spb.Record) bool {
 }
 
 // setNumber sets the record's number and increments the current number.
-func (w *Writer) setNumber(record *spb.Record) {
+func (w *Writer) setNumber(record *spb.Record) int64 {
 	w.recordNum += 1
 	record.Num = w.recordNum
+	return w.recordNum
 }
 
-// tryWrite attempts to save the record to the transaction log.
-//
-// Errors are captured and logged.
-func (w *Writer) tryWrite(record *spb.Record) {
+// write saves the record to the transaction log.
+func (w *Writer) write(record *spb.Record) (int64, error) {
+	w.storeMu.Lock()
+	defer w.storeMu.Unlock()
+
 	if err := w.store.Write(record); err != nil {
-		w.logger.CaptureError(
-			fmt.Errorf("writer: failed to write record: %v", err))
+		return 0, err
+	}
+
+	return w.store.LastRecordOffset()
+}
+
+// Flush ensures all Work the Writer has output has been written to disk.
+func (w *Writer) Flush() {
+	w.storeMu.Lock()
+	defer w.storeMu.Unlock()
+
+	if err := w.store.Flush(); err != nil {
+		w.logger.CaptureError(fmt.Errorf("writer: failed to flush: %v", err))
 	}
 }
