@@ -50,8 +50,8 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 		name              string
 		setupGQLMock      func(mockGQL *gqlmock.MockClient)
 		httpServerHandler http.HandlerFunc
-		expectedMetadata  *spb.MetadataRecord // nil if Probe should return nil
-		expectCwmError    bool                // if NewCoreWeaveMetadata is expected to fail
+		expectedMetadata  *spb.MetadataRecord
+		expectCwmError    bool // if NewCoreWeaveMetadata is expected to fail
 	}{
 		{
 			name: "Success",
@@ -64,13 +64,13 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			httpServerHandler: func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(coreWeaveSampleMetadataResponse))
 			},
-			expectedMetadata: &spb.MetadataRecord{Metadata: &spb.Metadata{
+			expectedMetadata: &spb.MetadataRecord{
 				Coreweave: &spb.CoreWeaveInfo{
 					ClusterName: "cks-wb",
 					OrgId:       "b13ad0",
 					Region:      "us-east-04",
 				},
-			}},
+			},
 		},
 		{
 			name: "No CoreWeave Org ID from GQL",
@@ -129,13 +129,13 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			httpServerHandler: func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte("this is not valid key:value data\nnor is this"))
 			},
-			expectedMetadata: &spb.MetadataRecord{Metadata: &spb.Metadata{ // Expect empty fields as parsing will skip malformed lines
+			expectedMetadata: &spb.MetadataRecord{ // Expect empty fields as parsing will skip malformed lines
 				Coreweave: &spb.CoreWeaveInfo{
 					ClusterName: "",
 					OrgId:       "",
 					Region:      "",
 				},
-			}},
+			},
 		},
 		{
 			name: "Metadata Server Empty Response Body",
@@ -148,13 +148,13 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			httpServerHandler: func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte("")) // Empty body
 			},
-			expectedMetadata: &spb.MetadataRecord{Metadata: &spb.Metadata{ // Expect empty fields
+			expectedMetadata: &spb.MetadataRecord{ // Expect empty fields
 				Coreweave: &spb.CoreWeaveInfo{
 					ClusterName: "",
 					OrgId:       "",
 					Region:      "",
 				},
-			}},
+			},
 		},
 		{
 			name: "Metadata Server partial valid data",
@@ -167,13 +167,13 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			httpServerHandler: func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte("cluster_name: partial-cluster\norg_id: partial-org\ninvalid line\nregion: partial-region"))
 			},
-			expectedMetadata: &spb.MetadataRecord{Metadata: &spb.Metadata{
+			expectedMetadata: &spb.MetadataRecord{
 				Coreweave: &spb.CoreWeaveInfo{
 					ClusterName: "partial-cluster",
 					OrgId:       "partial-org",
 					Region:      "partial-region",
 				},
-			}},
+			},
 		},
 	}
 
@@ -219,8 +219,8 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, cwm)
 
-			metadata := cwm.Probe().GetMetadata()
-			expectedMetadata := tc.expectedMetadata.GetMetadata()
+			metadata := cwm.Probe()
+			expectedMetadata := tc.expectedMetadata
 
 			if tc.expectedMetadata == nil {
 				assert.Nil(t, metadata, "Probe() should return nil")

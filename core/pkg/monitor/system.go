@@ -294,7 +294,7 @@ func getSlurmEnvVars() map[string]string {
 //   - SLURM environment variables if running in a SLURM environment
 func (s *System) Probe() *spb.MetadataRecord {
 	// TODO: capture more detailed CPU information.
-	info := &spb.Metadata{
+	info := &spb.MetadataRecord{
 		Disk:   make(map[string]*spb.DiskInfo),
 		Memory: &spb.MemoryInfo{},
 	}
@@ -328,5 +328,5 @@ func (s *System) Probe() *spb.MetadataRecord {
 		maps.Copy(info.Slurm, slurmVars)
 	}
 
-	return &spb.MetadataRecord{Metadata: info}
+	return info
 }

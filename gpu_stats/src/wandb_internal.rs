@@ -2657,11 +2657,24 @@ pub struct CoreWeaveInfo {
     #[prost(string, tag = "3")]
     pub region: ::prost::alloc::string::String,
 }
+/// Encapsulates the metadata from a single writer session for a given run.
+///
 /// Contains system, environment, and execution details for a specific context.
 ///
-/// This information is captured by a single "writer" to a run.
+/// A single W&B Run can have multiple "writers" - unique client sessions
+/// that contribute data to the run. Examples include:
+///    - Multiple processes initializing `wandb.init(id="<run-id>", mode="shared")`
+///      in a distributed training setup.
+///    - A user resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
+///      which creates a new writer session, potentially on a different machine.
+///
+/// Because each writer can have a different environment (e.g., different OS,
+/// hardware, or git state), this message namespaces the captured `Metadata`
+/// by a unique `client_id` for each writer.
+///
+/// The environment and system metadata captured by this specific writer.
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Metadata {
+pub struct MetadataRecord {
     /// Operating system, e.g., "macOS-14.4.1-arm64-arm-64bit".
     #[prost(string, tag = "1")]
     pub os: ::prost::alloc::string::String,
@@ -2755,29 +2768,11 @@ pub struct Metadata {
     /// Information about CoreWeave cloud environment.
     #[prost(message, optional, tag = "30")]
     pub coreweave: ::core::option::Option<CoreWeaveInfo>,
-}
-/// Encapsulates the metadata from a single writer session for a given run.
-///
-/// A single W&B Run can have multiple "writers" - unique client sessions
-/// that contribute data to the run. Examples include:
-///    - Multiple processes initializing `wandb.init(id="<run-id>", mode="shared")`
-///      in a distributed training setup.
-///    - A user resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
-///      which creates a new writer session, potentially on a different machine.
-///
-/// Because each writer can have a different environment (e.g., different OS,
-/// hardware, or git state), this message namespaces the captured `Metadata`
-/// by a unique `client_id` for each writer.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MetadataRecord {
-    /// The environment and system metadata captured by this specific writer.
-    #[prost(message, optional, tag = "1")]
-    pub metadata: ::core::option::Option<Metadata>,
     /// A unique identifier for this writer session.
     ///
     /// This ID distinguishes this writer's metadata from that of other writers
     /// that may be contributing to the same run.
-    #[prost(string, tag = "2")]
+    #[prost(string, tag = "199")]
     pub client_id: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,

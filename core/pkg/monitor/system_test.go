@@ -21,12 +21,12 @@ func TestSLURMProbe(t *testing.T) {
 				"SLURM_JOB_NAME": "test_job",
 				"SOME_OTHER_VAR": "some_value",
 			},
-			expected: &spb.MetadataRecord{Metadata: &spb.Metadata{
+			expected: &spb.MetadataRecord{
 				Slurm: map[string]string{
 					"job_id":   "12345",
 					"job_name": "test_job",
 				},
-			}},
+			},
 		},
 	}
 
@@ -40,7 +40,7 @@ func TestSLURMProbe(t *testing.T) {
 			slurm := monitor.NewSystem(0, []string{"/"})
 			result := slurm.Probe()
 
-			if !reflect.DeepEqual(result.GetMetadata().Slurm, tt.expected.GetMetadata().Slurm) {
+			if !reflect.DeepEqual(result.Slurm, tt.expected.Slurm) {
 				t.Errorf("Probe() = %v, want %v", result, tt.expected)
 			}
 		})

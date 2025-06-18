@@ -243,7 +243,7 @@ func (sm *SystemMonitor) GetState() int32 {
 func (sm *SystemMonitor) probeEnvironment(git *spb.GitRepoRecord) *spb.Record {
 	sm.logger.Debug("monitor: probing environment")
 
-	systemInfo := spb.MetadataRecord{Metadata: &spb.Metadata{
+	systemInfo := spb.MetadataRecord{
 		Os:            sm.settings.GetOS(),
 		Python:        sm.settings.GetPython(),
 		Host:          sm.settings.GetHostProcessorName(),
@@ -259,7 +259,7 @@ func (sm *SystemMonitor) probeEnvironment(git *spb.GitRepoRecord) *spb.Record {
 		Colab:         sm.settings.GetColabURL(),
 		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
 		Git:           git,
-	},
+
 		ClientId: sm.clientID,
 	}
 
@@ -290,16 +290,16 @@ func (sm *SystemMonitor) probeAssets() *spb.Record {
 	// Overwrite auto-detected metadata with user-provided values.
 	// TODO: move this to the relevant resources instead.
 	if sm.settings.GetStatsCpuCount() > 0 {
-		systemInfo.Metadata.CpuCount = uint32(sm.settings.GetStatsCpuCount())
+		systemInfo.CpuCount = uint32(sm.settings.GetStatsCpuCount())
 	}
 	if sm.settings.GetStatsCpuLogicalCount() > 0 {
-		systemInfo.Metadata.CpuCountLogical = uint32(sm.settings.GetStatsCpuLogicalCount())
+		systemInfo.CpuCountLogical = uint32(sm.settings.GetStatsCpuLogicalCount())
 	}
 	if sm.settings.GetStatsGpuCount() > 0 {
-		systemInfo.Metadata.GpuCount = uint32(sm.settings.GetStatsGpuCount())
+		systemInfo.GpuCount = uint32(sm.settings.GetStatsGpuCount())
 	}
 	if sm.settings.GetStatsGpuType() != "" {
-		systemInfo.Metadata.GpuType = sm.settings.GetStatsGpuType()
+		systemInfo.GpuType = sm.settings.GetStatsGpuType()
 	}
 
 	return &spb.Record{RecordType: &spb.Record_Metadata{Metadata: &systemInfo}}

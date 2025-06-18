@@ -423,9 +423,9 @@ func (de *DCGMExporter) Probe() *spb.MetadataRecord {
 		gpuNvidia = append(gpuNvidia, gpu)
 	}
 
-	return &spb.MetadataRecord{Metadata: &spb.Metadata{
+	return &spb.MetadataRecord{
 		GpuNvidia: gpuNvidia,
 		GpuCount:  uint32(len(gpuNvidia)),
 		GpuType:   gpuNvidia[0].Name, // TODO: handle multiple GPU types
-	}}
+	}
 }

@@ -3964,10 +3964,22 @@ class CoreWeaveInfo(google.protobuf.message.Message):
 
 global___CoreWeaveInfo = CoreWeaveInfo
 
-class Metadata(google.protobuf.message.Message):
-    """Contains system, environment, and execution details for a specific context.
+class MetadataRecord(google.protobuf.message.Message):
+    """Encapsulates the metadata from a single writer session for a given run.
 
-    This information is captured by a single "writer" to a run.
+    Contains system, environment, and execution details for a specific context.
+
+    A single W&B Run can have multiple "writers" - unique client sessions
+    that contribute data to the run. Examples include:
+      - Multiple processes initializing `wandb.init(id="<run-id>", mode="shared")`
+        in a distributed training setup.
+      - A user resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
+        which creates a new writer session, potentially on a different machine.
+
+    Because each writer can have a different environment (e.g., different OS,
+    hardware, or git state), this message namespaces the captured `Metadata`
+    by a unique `client_id` for each writer.
+    The environment and system metadata captured by this specific writer.
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
@@ -4034,6 +4046,8 @@ class Metadata(google.protobuf.message.Message):
     TRAINIUM_FIELD_NUMBER: builtins.int
     TPU_FIELD_NUMBER: builtins.int
     COREWEAVE_FIELD_NUMBER: builtins.int
+    CLIENT_ID_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
     os: builtins.str
     """Operating system, e.g., "macOS-14.4.1-arm64-arm-64bit"."""
     python: builtins.str
@@ -4107,6 +4121,14 @@ class Metadata(google.protobuf.message.Message):
     @property
     def coreweave(self) -> global___CoreWeaveInfo:
         """Information about CoreWeave cloud environment."""
+    client_id: builtins.str
+    """A unique identifier for this writer session.
+
+    This ID distinguishes this writer's metadata from that of other writers
+    that may be contributing to the same run.
+    """
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
@@ -4140,52 +4162,11 @@ class Metadata(google.protobuf.message.Message):
         trainium: global___TrainiumInfo | None = ...,
         tpu: global___TPUInfo | None = ...,
         coreweave: global___CoreWeaveInfo | None = ...,
-    ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["apple", b"apple", "coreweave", b"coreweave", "cpu", b"cpu", "git", b"git", "memory", b"memory", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["apple", b"apple", "args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "coreweave", b"coreweave", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium", "username", b"username"]) -> None: ...
-
-global___Metadata = Metadata
-
-class MetadataRecord(google.protobuf.message.Message):
-    """Encapsulates the metadata from a single writer session for a given run.
-
-    A single W&B Run can have multiple "writers" - unique client sessions
-    that contribute data to the run. Examples include:
-      - Multiple processes initializing `wandb.init(id="<run-id>", mode="shared")`
-        in a distributed training setup.
-      - A user resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
-        which creates a new writer session, potentially on a different machine.
-
-    Because each writer can have a different environment (e.g., different OS,
-    hardware, or git state), this message namespaces the captured `Metadata`
-    by a unique `client_id` for each writer.
-    """
-
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    METADATA_FIELD_NUMBER: builtins.int
-    CLIENT_ID_FIELD_NUMBER: builtins.int
-    _INFO_FIELD_NUMBER: builtins.int
-    @property
-    def metadata(self) -> global___Metadata:
-        """The environment and system metadata captured by this specific writer."""
-    client_id: builtins.str
-    """A unique identifier for this writer session.
-
-    This ID distinguishes this writer's metadata from that of other writers
-    that may be contributing to the same run.
-    """
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-    def __init__(
-        self,
-        *,
-        metadata: global___Metadata | None = ...,
         client_id: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "metadata", b"metadata"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "client_id", b"client_id", "metadata", b"metadata"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "apple", b"apple", "coreweave", b"coreweave", "cpu", b"cpu", "git", b"git", "memory", b"memory", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "apple", b"apple", "args", b"args", "client_id", b"client_id", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "coreweave", b"coreweave", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium", "username", b"username"]) -> None: ...
 
 global___MetadataRecord = MetadataRecord
 

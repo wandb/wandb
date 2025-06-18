@@ -1304,10 +1304,23 @@ message CoreWeaveInfo {
   string region = 3;
 }
 
+// Encapsulates the metadata from a single writer session for a given run.
+//
 // Contains system, environment, and execution details for a specific context.
 //
-// This information is captured by a single "writer" to a run.
-message Metadata {
+// A single W&B Run can have multiple "writers" - unique client sessions
+// that contribute data to the run. Examples include:
+//   - Multiple processes initializing `wandb.init(id="<run-id>", mode="shared")`
+//     in a distributed training setup.
+//   - A user resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
+//     which creates a new writer session, potentially on a different machine.
+//
+// Because each writer can have a different environment (e.g., different OS,
+// hardware, or git state), this message namespaces the captured `Metadata`
+// by a unique `client_id` for each writer.
+message MetadataRecord {
+  // The environment and system metadata captured by this specific writer.
+
   // Operating system, e.g., "macOS-14.4.1-arm64-arm-64bit".
   string os = 1;
   // Version of the Python interpreter, e.g., "3.11.8".
@@ -1368,29 +1381,12 @@ message Metadata {
   TPUInfo tpu = 29;
   // Information about CoreWeave cloud environment.
   CoreWeaveInfo coreweave = 30;
-}
-
-// Encapsulates the metadata from a single writer session for a given run.
-//
-// A single W&B Run can have multiple "writers" - unique client sessions
-// that contribute data to the run. Examples include:
-//   - Multiple processes initializing `wandb.init(id="<run-id>", mode="shared")`
-//     in a distributed training setup.
-//   - A user resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
-//     which creates a new writer session, potentially on a different machine.
-//
-// Because each writer can have a different environment (e.g., different OS,
-// hardware, or git state), this message namespaces the captured `Metadata`
-// by a unique `client_id` for each writer.
-message MetadataRecord {
-  // The environment and system metadata captured by this specific writer.
-  Metadata metadata = 1;
 
   // A unique identifier for this writer session.
   //
   // This ID distinguishes this writer's metadata from that of other writers
   // that may be contributing to the same run.
-  string client_id = 2;
+  string client_id = 199;
 
   _RecordInfo _info = 200;
 }

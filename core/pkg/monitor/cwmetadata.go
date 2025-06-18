@@ -149,13 +149,13 @@ func (cwm *CoreWeaveMetadata) Probe() *spb.MetadataRecord {
 		return nil
 	}
 
-	return &spb.MetadataRecord{Metadata: &spb.Metadata{
+	return &spb.MetadataRecord{
 		Coreweave: &spb.CoreWeaveInfo{
 			ClusterName: instanceData.ClusterName,
 			OrgId:       instanceData.OrgID,
 			Region:      instanceData.Region,
 		},
-	}}
+	}
 }
 
 // Get fetches and parses metadata from the CoreWeave instance metadata endpoint.

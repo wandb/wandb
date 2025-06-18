@@ -442,7 +442,7 @@ func (s *Sender) sendRecord(record *spb.Record) {
 	case *spb.Record_Telemetry:
 		s.sendTelemetry(record, x.Telemetry)
 	case *spb.Record_Metadata:
-		s.sendMetadata(record, x.Metadata)
+		s.sendMetadata(x.Metadata)
 	case *spb.Record_Preempting:
 		s.sendPreempting(x.Preempting)
 	case *spb.Record_Request:
@@ -809,7 +809,7 @@ func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 	upserter.UpdateTelemetry(telemetry)
 }
 
-func (s *Sender) sendMetadata(_ *spb.Record, metadata *spb.MetadataRecord) {
+func (s *Sender) sendMetadata(metadata *spb.MetadataRecord) {
 	upserter, err := s.streamRun.GetRunUpserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendMetadata: %v", err))
