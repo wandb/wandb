@@ -1428,7 +1428,9 @@ class SendManager:
         """Inject metadata into config and upload as a JSON file."""
         self._update_metadata_record(record.metadata)
 
-        metadata_json = json.dumps(proto_util.message_to_dict(record.metadata.metadata))
+        metadata_json = json.dumps(
+            proto_util.message_to_dict(self._metadata_obj.metadata)
+        )
 
         with open(
             os.path.join(self._settings.files_dir, filenames.METADATA_FNAME), "w"

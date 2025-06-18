@@ -239,17 +239,9 @@ func (sm *SystemMonitor) GetState() int32 {
 	return sm.state.Load()
 }
 
-// probe gathers system information from all assets and merges their metadata.
-func (sm *SystemMonitor) probe(git *spb.GitRepoRecord) *spb.Record {
-	defer func() {
-		if err := recover(); err != nil {
-			sm.logger.CaptureError(
-				fmt.Errorf("monitor: panic: %v", err),
-			)
-		}
-	}()
-
-	sm.logger.Debug("monitor: probing resources")
+// probeEnvironment collects information about the compute environment.
+func (sm *SystemMonitor) probeEnvironment(git *spb.GitRepoRecord) *spb.Record {
+	sm.logger.Debug("monitor: probing environment")
 
 	systemInfo := spb.MetadataRecord{Metadata: &spb.Metadata{
 		Os:            sm.settings.GetOS(),
@@ -271,6 +263,23 @@ func (sm *SystemMonitor) probe(git *spb.GitRepoRecord) *spb.Record {
 		ClientId: sm.clientID,
 	}
 
+	return &spb.Record{RecordType: &spb.Record_Metadata{Metadata: &systemInfo}}
+}
+
+// probeAssets gathers system information from all assets and merges their metadata.
+func (sm *SystemMonitor) probeAssets() *spb.Record {
+	defer func() {
+		if err := recover(); err != nil {
+			sm.logger.CaptureError(
+				fmt.Errorf("monitor: panic: %v", err),
+			)
+		}
+	}()
+
+	sm.logger.Debug("monitor: probing resources")
+
+	systemInfo := spb.MetadataRecord{}
+
 	for _, asset := range sm.assets {
 		probeResponse := asset.Probe()
 		if probeResponse != nil {
@@ -279,6 +288,7 @@ func (sm *SystemMonitor) probe(git *spb.GitRepoRecord) *spb.Record {
 	}
 
 	// Overwrite auto-detected metadata with user-provided values.
+	// TODO: move this to the relevant resources instead.
 	if sm.settings.GetStatsCpuCount() > 0 {
 		systemInfo.Metadata.CpuCount = uint32(sm.settings.GetStatsCpuCount())
 	}
@@ -307,13 +317,20 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 		return // Already started or paused
 	}
 
-	// Probe the asset metadata.
+	// Probe the environment and asset metadata.
 	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() && sm.settings.IsPrimary() {
+		sm.extraWork.AddWorkOrCancel(
+			sm.ctx.Done(),
+			runwork.WorkFromRecord(
+				sm.probeEnvironment(git),
+			),
+		)
 		go func() {
+			// This operation may take some time, so we perform it on a best-effort basis.
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
 				runwork.WorkFromRecord(
-					sm.probe(git),
+					sm.probeAssets(),
 				),
 			)
 		}()
