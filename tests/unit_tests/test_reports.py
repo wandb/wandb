@@ -111,16 +111,16 @@ def test_report_url_creation():
     # Mock the client with app_url
     mock_client = mock.MagicMock()
     mock_client.app_url = "https://wandb.ai/"
-    ENTITY = "test-entity"
-    PROJECT = "test-project"
+    test_entity = "test-entity"
+    test_project = "test-project"
     attrs = {
         "id": "test-id",
         "displayName": "Test Timestamp (25/05/01 09:28:29)",
     }
 
-    report = BetaReport(mock_client, attrs, ENTITY, PROJECT)
+    report = BetaReport(mock_client, attrs, test_entity, test_project)
 
     assert (
         report.url
-        == f"https://wandb.ai/{ENTITY}/{PROJECT}/reports/Test-Timestamp-25-05-01-09-28-29--test-id"
+        == f"https://wandb.ai/{test_entity}/{test_project}/reports/Test-Timestamp-25-05-01-09-28-29--test-id"
     )
