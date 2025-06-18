@@ -15,3 +15,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 - Correct the artifact url for organization registry artifacts to be independent of the artifact type. (@ibindlish in https://github.com/wandb/wandb/pull/10049)
+- Calling `load()` function on a public API run object no longer throws `TypeError`. (@jacobromero in https://github.com/wandb/wandb/pull/10050)
