@@ -265,6 +265,14 @@ def test_run_summary(wandb_backend_spy):
         assert snapshot.summary(run_id=run.storage_id)["cool"] == 1000
 
 
+def test_run_load_multiple_times(user):
+    run = Api().create_run()
+    run.summary.update({"cool": 1000})
+
+    run.load()
+    run.load()
+
+
 def test_run_create(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
     upsert_bucket_spy = gql.Capture()
