@@ -203,8 +203,8 @@ class Table(Media):
     This means you can embed `Images`, `Video`, `Audio`, and other sorts of rich, annotated media
     directly in Tables, alongside other traditional scalar values.
 
-    This class is the primary class used to generate the Table Visualizer
-    in the UI: https://docs.wandb.ai/guides/data-vis/tables.
+    This class is the primary class used to generate the W&B Tables
+    https://docs.wandb.ai/guides/models/tables/.
     """
 
     MAX_ROWS = 10000
