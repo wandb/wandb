@@ -357,7 +357,6 @@ class Artifact:
                         artifact {{
                             ...ArtifactFragment
                         }}
-                        versionIndex
                     }}
                 }}
             }}
