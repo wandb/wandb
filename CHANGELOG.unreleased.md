@@ -15,6 +15,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 - Allow s3 style CoreWeave uris for reference artifacts. (@estellazx in https://github.com/wandb/wandb/pull/9979)
+- Calling `load()` function on a public API run object no longer throws `TypeError`. (@jacobromero in https://github.com/wandb/wandb/pull/10050)
 
 ### Notable Changes
 
