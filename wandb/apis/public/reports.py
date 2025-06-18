@@ -119,6 +119,7 @@ class BetaReport(Attrs):
         description (string): report description
         user (User): the user that created the report (contains username and email)
         spec (dict): the spec of the report
+        url (string): the url of the report
         updated_at (string): timestamp of last update
         created_at (string): timestamp when the report was created
     """
@@ -129,6 +130,7 @@ class BetaReport(Attrs):
         self.entity = entity
         self.query_generator = public.QueryGenerator()
         super().__init__(dict(attrs))
+        
         if "spec" in self._attrs:
             if isinstance(self._attrs["spec"], str):
                 self._attrs["spec"] = json.loads(self._attrs["spec"])
@@ -137,12 +139,11 @@ class BetaReport(Attrs):
 
     @property
     def spec(self):
-        spec_dict = self._attrs.get("spec", {})
-        return None if not spec_dict else spec_dict
+        return self._attrs["spec"]
 
     @property
     def sections(self):
-        return self.spec.get("panelGroups", []) if self.spec else []
+        return self.spec["panelGroups"]
 
     def runs(self, section, per_page=50, only_selected=True):
         run_set_idx = section.get("openRunSet", 0)
@@ -154,6 +155,7 @@ class BetaReport(Attrs):
             order = "-" + order
         filters = self.query_generator.filter_to_mongo(run_set["filters"])
         if only_selected:
+            # TODO: handle this not always existing
             filters["$or"][0]["$and"].append(
                 {"name": {"$in": run_set["selections"]["tree"]}}
             )
@@ -165,10 +167,6 @@ class BetaReport(Attrs):
             order=order,
             per_page=per_page,
         )
-
-    @property
-    def updated_at(self):
-        return self._attrs.get("updatedAt")
 
     @property
     def id(self):
@@ -189,6 +187,10 @@ class BetaReport(Attrs):
     @property
     def user(self):
         return self._attrs.get("user")
+        
+    @property
+    def updated_at(self):
+        return self._attrs.get("updatedAt")
 
     @property
     def created_at(self):
@@ -220,7 +222,10 @@ class BetaReport(Attrs):
 
     def to_html(self, height=1024, hidden=False):
         """Generate HTML containing an iframe displaying this report."""
-        url = self.url + "?jupyter=true"
+        url = self.url
+        if url is None:
+            return f"<div>Report URL not available</div>"
+        url = url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
         if hidden:
