@@ -99,6 +99,39 @@ class OrgMemberState:
     role: Literal["admin", "member", "viewer"]
 
 
+@dataclass(frozen=True)
+class TeamCmd(FixtureCmd):
+    path: ClassVar[str] = "db/team"
+
+    command: Literal["up", "down"]
+
+    username: str | None = None
+    fixtureData: TeamOrgState | None = None  # noqa: N815
+
+
+@dataclass(frozen=True)
+class TeamOrgState:
+    planName: str  # noqa: N815
+    team: _Team
+    organization: _Organization
+
+
+@dataclass(frozen=True)
+class _Team:
+    name: str
+
+
+@dataclass(frozen=True)
+class _Organization:
+    name: str
+
+
+@dataclass(frozen=True)
+class TeamAndOrgNames:
+    team: str
+    org: str
+
+
 def random_string(alphabet: str = ascii_lowercase + digits, length: int = 12) -> str:
     """Generate a random string of a given length.
 
@@ -162,6 +195,35 @@ class BackendFixtureFactory:
             OrgCmd("down", orgName=name),
         )
         return name
+
+    def make_team(
+        self,
+        name: str | None = None,
+        *,
+        username: str,
+        org_name: str | None = None,
+        plan_name: str | None = None,
+    ) -> TeamAndOrgNames:
+        """Create a new team and return the team name."""
+        name = name or f"team-{self.worker_id}-{random_string()}"
+        org_name = org_name or f"org-{self.worker_id}-{random_string()}"
+        plan_name = plan_name or f"plan-{self.worker_id}-{random_string()}"
+
+        self.send_cmds(
+            TeamCmd(
+                "up",
+                username=username,
+                fixtureData=TeamOrgState(
+                    planName=plan_name,
+                    team=_Team(name=name),
+                    organization=_Organization(name=org_name),
+                ),
+            ),
+        )
+
+        # Register command(s) to delete the team(s) on cleanup
+        self._cleanup_stack.append(TeamCmd("down"))
+        return TeamAndOrgNames(team=name, org=org_name)
 
     def send_cmds(self, *cmds: FixtureCmd) -> None:
         for cmd in cmds:
