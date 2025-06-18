@@ -124,7 +124,7 @@ def _convert_to_dict(value: Any) -> Dict[str, Any]:
             # ignore invalid utf-8 or control characters
             return json.loads(value, strict=False)
     else:
-        raise ValueError(f"Unable to convert {value} to a dict")
+        raise TypeError(f"Unable to convert {value} to a dict")
 
 
 class Runs(SizedPaginator["Run"]):
@@ -476,6 +476,7 @@ class Run(Attrs):
         self._metadata: dict[str, Any] | None = None
         self._state = _attrs.get("state", "not found")
         self.server_provides_internal_id_field: bool | None = None
+        self._is_loaded: bool = False
 
         self.load(force=not _attrs)
 
@@ -583,6 +584,7 @@ class Run(Attrs):
 
     def load(self, force=False):
         if force or not self._attrs:
+            self._is_loaded = False
             query = gql(f"""#graphql
             query Run($project: String!, $entity: String!, $name: String!) {{
                 project(name: $project, entityName: $entity) {{
@@ -603,7 +605,6 @@ class Run(Attrs):
             ):
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
-            self._state = self._attrs["state"]
 
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
@@ -616,6 +617,14 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
+        if not self._is_loaded:
+            self._load_from_attrs()
+            self._is_loaded = True
+
+        return self._attrs
+
+    def _load_from_attrs(self):
+        self._state = self._attrs.get("state", None)
         self._attrs["config"] = _convert_to_dict(self._attrs.get("config"))
         self._attrs["summaryMetrics"] = _convert_to_dict(
             self._attrs.get("summaryMetrics")
@@ -641,7 +650,6 @@ class Run(Attrs):
         config_raw.update(config_user)
         self._attrs["config"] = config_user
         self._attrs["rawconfig"] = config_raw
-        return self._attrs
 
     @normalize_exceptions
     def wait_until_finished(self):
