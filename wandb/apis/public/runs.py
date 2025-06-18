@@ -99,7 +99,7 @@ def _convert_to_dict(value: Any) -> Dict[str, Any]:
             # ignore invalid utf-8 or control characters
             return json.loads(value, strict=False)
     else:
-        raise ValueError(f"Unable to convert {value} to a dict")
+        raise TypeError(f"Unable to convert {value} to a dict")
 
 
 class Runs(SizedPaginator["Run"]):
