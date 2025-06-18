@@ -8,13 +8,10 @@ if platform.system() == "Windows":
 
 pytest.importorskip("metaflow")
 
-import pandas as pd  # noqa: E402
-from metaflow import FlowSpec, step  # noqa: E402
-from sklearn.ensemble import (  # noqa: E402
-    GradientBoostingClassifier,
-    RandomForestClassifier,
-)
-from wandb.integration.metaflow import wandb_log, wandb_track, wandb_use  # noqa: E402
+import pandas as pd
+from metaflow import FlowSpec, step
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from wandb.integration.metaflow import wandb_log, wandb_track, wandb_use
 
 try:
     import torch

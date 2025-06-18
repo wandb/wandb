@@ -182,8 +182,7 @@ class GCE:
             "--maintenance-policy",
             self.config.maintenance_policy,
             "--image",
-            f"projects/{self.config.project}/global/images/"
-            f"{self.config.vm_image_name}",
+            f"projects/{self.config.project}/global/images/{self.config.vm_image_name}",
             "--boot-disk-size",
             self.config.disk_size,
             "--boot-disk-type",
