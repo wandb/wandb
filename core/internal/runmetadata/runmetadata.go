@@ -14,7 +14,7 @@ type RunMetadata struct {
 	// mu protects the metadata field
 	mu sync.Mutex
 
-	// Unique ID of a writer to the run.
+	// Unique ID of the writer to the run.
 	clientID string
 
 	metadata *spb.MetadataRecord
@@ -38,10 +38,7 @@ func (rm *RunMetadata) ToJSON() ([]byte, error) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
-	mo := protojson.MarshalOptions{
-		Indent: "  ",
-		// EmitUnpopulated: true,
-	}
+	mo := protojson.MarshalOptions{Indent: "  "}
 	jsonBytes, err := mo.Marshal(rm.metadata.GetMetadata())
 	if err != nil {
 		return nil, err
@@ -49,8 +46,7 @@ func (rm *RunMetadata) ToJSON() ([]byte, error) {
 	return jsonBytes, nil
 }
 
-// ToRunConfigData returns the data to store in the "d" (metadata) field of
-// the run config.
+// ToRunConfigData returns the data to store in the "d" (metadata) field of the run config.
 //
 // Metadata in the config is stored per unique client ID to support
 // multi-writer use cases (e.g. shared mode or resume).

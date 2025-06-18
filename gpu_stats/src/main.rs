@@ -324,7 +324,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         &self,
         request: Request<GetMetadataRequest>,
     ) -> Result<Response<GetMetadataResponse>, Status> {
-        debug!("Received a request to get metadata: {:?}", request);
+        debug!("Received a GetMetadata request: {:?}", request);
 
         // Do not apply any filters for metadata.
         // TODO: reconsider if necessary.
@@ -342,7 +342,9 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
             if let Some(apple_sampler) = &self.apple_sampler {
+                debug!("Collecting Apple metadata");
                 let apple_metadata = apple_sampler.get_metadata(&samples);
+                debug!("Collected Apple metadata");
                 if let Some(m) = apple_metadata.metadata {
                     metadata.apple = m.apple;
                 }
@@ -469,9 +471,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         LevelFilter::Info
     };
     Builder::new().filter_level(logging_level).init();
+    debug!("Starting system metrics service");
 
     // Initialize error reporting with Sentry
     analytics::setup_sentry();
+    debug!("Sentry set up");
 
     // Bind to the loopback interface.
     let addr = (std::net::Ipv4Addr::LOCALHOST, 0);
