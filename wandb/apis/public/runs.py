@@ -110,7 +110,8 @@ def _server_provides_internal_id_for_project(client) -> bool:
     ]
 
 
-def _convert_to_dict(value):
+@normalize_exceptions
+def _convert_to_dict(value: Any) -> Dict[str, Any]:
     if value is None:
         return {}
 
@@ -123,7 +124,7 @@ def _convert_to_dict(value):
             # ignore invalid utf-8 or control characters
             return json.loads(value, strict=False)
     else:
-        return {}
+        raise ValueError(f"Unable to convert {value} to a dict")
 
 
 class Runs(SizedPaginator["Run"]):
@@ -631,7 +632,7 @@ class Run(Attrs):
         if self._attrs.get("user"):
             self.user = public.User(self.client, self._attrs["user"])
         config_user, config_raw = {}, {}
-        for key, value in self._attrs.get("config", {}).items():
+        for key, value in self._attrs.get("config").items():
             config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
             if isinstance(value, dict) and "value" in value:
                 config[key] = value["value"]
