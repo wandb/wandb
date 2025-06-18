@@ -260,9 +260,9 @@ ignore-decorators = [
 # TODO: Unignore this lint and add symbols to __all__ instead.
 "**/__init__.py" = ["F401"]
 
-# TODO: Fix UP006, UP007 in wandb_run.py, then remove ignores here.
+# TODO: Fix UP006, UP007, UP045 in wandb_run.py, then remove ignores here.
 "wandb/__init__.py" = ["I001"]
-"wandb/__init__.pyi" = ["UP006", "UP007"]
+"wandb/__init__.pyi" = ["UP006", "UP007", "UP045"]
 "wandb/__init__.template.pyi" = ["UP006", "UP007", "D415", "N999"]
 
 # TODO: Use f-strings in wandb/apis/public/ for GraphQL statements.
@@ -311,13 +311,14 @@ ignore-decorators = [
 
     # The `X | Y` syntax can cause issues with pydantic < 2.6
     "UP007",
+    "UP045",
 ]
 
 # Pydantic code requires an older style for type annotations.
-"wandb/sdk/wandb_settings.py" = ["UP006", "UP007"]
-"wandb/sdk/wandb_metadata.py" = ["UP006", "UP007"]
-"wandb/sdk/lib/run_moment.py" = ["UP006", "UP007"]
-"wandb/automations/**" = ["UP006", "UP007"]
+"wandb/sdk/wandb_settings.py" = ["UP006", "UP007", "UP045"]
+"wandb/sdk/wandb_metadata.py" = ["UP006", "UP007", "UP045"]
+"wandb/sdk/lib/run_moment.py" = ["UP006", "UP007", "UP045"]
+"wandb/automations/**" = ["UP006", "UP007", "UP045"]
 
 # TODO: Remove the landfill/ directory.
 "landfill/**" = ["F405", "N806", "D415"]
