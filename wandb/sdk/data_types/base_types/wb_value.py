@@ -218,17 +218,17 @@ class WBValue:
     def _set_artifact_source(
         self, artifact: "Artifact", name: Optional[str] = None
     ) -> None:
-        assert (
-            self._artifact_source is None
-        ), f"Cannot update artifact_source. Existing source: {self._artifact_source.artifact}/{self._artifact_source.name}"
+        assert self._artifact_source is None, (
+            f"Cannot update artifact_source. Existing source: {self._artifact_source.artifact}/{self._artifact_source.name}"
+        )
         self._artifact_source = _WBValueArtifactSource(artifact, name)
 
     def _set_artifact_target(
         self, artifact: "Artifact", name: Optional[str] = None
     ) -> None:
-        assert (
-            self._artifact_target is None
-        ), f"Cannot update artifact_target. Existing target: {self._artifact_target.artifact}/{self._artifact_target.name}"
+        assert self._artifact_target is None, (
+            f"Cannot update artifact_target. Existing target: {self._artifact_target.artifact}/{self._artifact_target.name}"
+        )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
     def _get_artifact_entry_ref_url(self) -> Optional[str]:
