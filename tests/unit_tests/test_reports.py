@@ -1,8 +1,8 @@
+import json
 from unittest import mock
 
 import pytest
 import wandb
-import json
 from wandb import Api
 from wandb.apis.public.reports import BetaReport
 
@@ -31,7 +31,7 @@ def test_report_properties_full():
     # Mock the client with app_url
     mock_client = mock.MagicMock()
     mock_client.app_url = "https://wandb.ai/"
-    
+
     attrs = {
         "id": "test-id",
         "name": "Test Report",
@@ -42,9 +42,9 @@ def test_report_properties_full():
         "updatedAt": "2023-01-01T00:00:00Z",
         "createdAt": "2023-01-01T00:00:00Z",
     }
-    
+
     report = BetaReport(mock_client, attrs, "test-entity", "test-project")
-    
+
     assert report.id == "test-id"
     assert report.name == "Test Report"
     assert report.display_name == "Test Display Name"
@@ -53,7 +53,10 @@ def test_report_properties_full():
     assert report.spec == {"panels": []}
     assert report.updated_at == "2023-01-01T00:00:00Z"
     assert report.created_at == "2023-01-01T00:00:00Z"
-    assert report.url == "https://wandb.ai/test-entity/test-project/reports/Test-Display-Name--test-id"
+    assert (
+        report.url
+        == "https://wandb.ai/test-entity/test-project/reports/Test-Display-Name--test-id"
+    )
 
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
@@ -71,7 +74,7 @@ def test_report_properties_missing_attributes():
     assert report.name is None
     assert report.description is None
     assert report.user is None
-    assert report.spec == {} 
+    assert report.spec == {}
     assert report.updated_at is None
     assert report.created_at is None
 

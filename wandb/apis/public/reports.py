@@ -130,7 +130,7 @@ class BetaReport(Attrs):
         self.entity = entity
         self.query_generator = public.QueryGenerator()
         super().__init__(dict(attrs))
-        
+
         if "spec" in self._attrs:
             if isinstance(self._attrs["spec"], str):
                 self._attrs["spec"] = json.loads(self._attrs["spec"])
@@ -187,7 +187,7 @@ class BetaReport(Attrs):
     @property
     def user(self):
         return self._attrs.get("user")
-        
+
     @property
     def updated_at(self):
         return self._attrs.get("updatedAt")
@@ -224,7 +224,7 @@ class BetaReport(Attrs):
         """Generate HTML containing an iframe displaying this report."""
         url = self.url
         if url is None:
-            return f"<div>Report URL not available</div>"
+            return "<div>Report URL not available</div>"
         url = url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
