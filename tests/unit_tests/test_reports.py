@@ -103,3 +103,24 @@ def test_report_user_property_missing():
     report = BetaReport(None, attrs, "test-entity", "test-project")
 
     assert report.user is None
+
+
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+def test_report_url_creation():
+    """Test that url creation handles display names with symbols."""
+    # Mock the client with app_url
+    mock_client = mock.MagicMock()
+    mock_client.app_url = "https://wandb.ai/"
+    ENTITY = "test-entity"
+    PROJECT = "test-project"
+    attrs = {
+        "id": "test-id",
+        "displayName": "Test Timestamp (25/05/01 09:28:29)",
+    }
+
+    report = BetaReport(mock_client, attrs, ENTITY, PROJECT)
+
+    assert (
+        report.url
+        == f"https://wandb.ai/{ENTITY}/{PROJECT}/reports/Test-Timestamp-25-05-01-09-28-29--test-id"
+    )

@@ -2,6 +2,7 @@
 
 import ast
 import json
+import re
 import urllib
 
 from wandb_gql import gql
@@ -213,7 +214,12 @@ class BetaReport(Attrs):
                 "reports",
                 "--".join(
                     [
-                        urllib.parse.quote(self.display_name.replace(" ", "-")),
+                        # made this more closely match the url creation in the frontend (https://github.com/wandb/core/blob/76943979c8e967f7a62dae8bef0a001a2672584c/frontends/app/src/util/report/urls.ts#L19)
+                        urllib.parse.quote(
+                            re.sub(
+                                r"-+", "-", re.sub(r"\W", "-", self.display_name)
+                            ).strip("-")
+                        ),
                         self.id.replace("=", ""),
                     ]
                 ),
