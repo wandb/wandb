@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import time
 from contextlib import suppress
@@ -14,6 +15,7 @@ import wandb
 from bokeh.plotting import figure
 from pytest import MonkeyPatch, TempPathFactory, fail, fixture, raises
 from wandb.data_types import WBValue
+from wandb.sdk import wandb_setup
 from wandb.sdk.lib.hashutil import b64_to_hex_id
 
 TABLE_COLUMNS = [
@@ -608,6 +610,7 @@ def test_get_artifact_obj_by_name(
 
     This is the logical inverse of Artifact.add(name).
     """
+    wandb_setup.singleton().settings.update_from_env_vars(os.environ)
     artifact_name = "A2"
     artifact_type = "database"
 
@@ -707,6 +710,7 @@ def test_table_slice_reference_artifact(
     cleanup_temp_subdirs: Callable[[], None],
     anon_storage_handlers: None,
 ):
+    wandb_setup.singleton().settings.update_from_env_vars(os.environ)
     with wandb.init() as run:
         artifact = wandb.Artifact("table_data", "data")
         artifact.add(table, "table")

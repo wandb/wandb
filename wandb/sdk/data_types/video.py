@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Type, Union
 
 import wandb
 from wandb import util
+from wandb.sdk import wandb_setup
 from wandb.sdk.lib import filesystem, printer, printer_asyncio, runid
 
 from . import _dtypes
@@ -165,11 +166,16 @@ class Video(BatchableMedia):
                     "wandb.Video accepts a file path or numpy like data as input"
                 )
             fps = fps or 4
-            printer_asyncio.run_async_with_spinner(
-                printer.new_printer(),
-                "Encoding video...",
-                functools.partial(self.encode, fps=fps),
-            )
+
+            settings = wandb_setup.singleton().settings
+            if settings.quiet or settings.silent:
+                self.encode(fps=fps)
+            else:
+                printer_asyncio.run_async_with_spinner(
+                    printer.new_printer(),
+                    "Encoding video...",
+                    functools.partial(self.encode, fps=fps),
+                )
 
     def encode(self, fps: int = 4) -> None:
         """Encode the video data to a file.
