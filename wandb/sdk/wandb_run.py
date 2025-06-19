@@ -512,6 +512,8 @@ class Run:
     with wandb.init(entity="entity", project="project") as run:
         run.log({"accuracy": acc, "loss": loss})
     ```
+
+    <!-- lazydoc-ignore-init: internal -->
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
@@ -942,7 +944,10 @@ class Run:
     @_log_to_run
     @_attach
     def starting_step(self) -> int:
-        """The first step of the run."""
+        """The first step of the run.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return self._starting_step
 
     @property
@@ -959,6 +964,8 @@ class Run:
         """Current value of the step.
 
         This counter is incremented by `wandb.log`.
+
+        <!-- lazydoc-ignore: internal -->
         """
         return self._step
 
@@ -1340,7 +1347,10 @@ class Run:
     @_log_to_run
     @_attach
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
-        """Generate HTML containing an iframe displaying the current run."""
+        """Generate HTML containing an iframe displaying the current run.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         url = self._settings.run_url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
