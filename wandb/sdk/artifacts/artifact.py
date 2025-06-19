@@ -920,6 +920,10 @@ class Artifact:
 
     @property
     def distributed_id(self) -> str | None:
+        """The distributed ID of the artifact.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return self._distributed_id
 
     @distributed_id.setter
@@ -928,6 +932,10 @@ class Artifact:
 
     @property
     def incremental(self) -> bool:
+        """Boolean flag indicating if the artifact is an incremental artifact.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return self._incremental
 
     @property
