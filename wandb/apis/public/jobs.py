@@ -28,6 +28,10 @@ if TYPE_CHECKING:
 
 
 class Job:
+    """Represents a W&B job.
+    
+    <!-- lazydoc-ignore-init: internal -->
+    """
     _name: str
     _input_types: Type
     _output_types: Type
@@ -212,7 +216,10 @@ class Job:
 
 
 class QueuedRun:
-    """A single queued run associated with an entity and project. Call `run = queued_run.wait_until_running()` or `run = queued_run.wait_until_finished()` to access the run."""
+    """A single queued run associated with an entity and project. Call `run = queued_run.wait_until_running()` or `run = queued_run.wait_until_finished()` to access the run.
+    
+    <!-- lazydoc-ignore-init: internal -->
+    """
 
     def __init__(
         self,
@@ -327,6 +334,7 @@ class QueuedRun:
 
     @normalize_exceptions
     def wait_until_finished(self):
+        """Wait for the queued run to finish."""
         if not self._run:
             self.wait_until_running()
 
@@ -388,6 +396,7 @@ class QueuedRun:
 
     @normalize_exceptions
     def wait_until_running(self):
+        """Wait for the queued run to start running and return the Run object."""
         if self._run is not None:
             return self._run
 
@@ -426,6 +435,10 @@ RunQueuePrioritizationMode = Literal["DISABLED", "V0"]
 
 
 class RunQueue:
+    """Represents a queue of runs for a specific project and entity.
+    
+    <!-- lazydoc-ignore-init: internal -->
+    """
     def __init__(
         self,
         client: "RetryingClient",
