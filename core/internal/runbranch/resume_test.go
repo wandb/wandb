@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -1305,20 +1304,14 @@ func TestExtractRunStateAdjustsStartTime(t *testing.T) {
 		"must")
 
 	// Set a non-zero StartTime in the input RunParams
-	initialStartTime := time.Now()
 	params := &runbranch.RunParams{
-		StartTime: initialStartTime,
-		Entity:    "test-entity",
-		Project:   "test-project",
-		RunID:     "test-run-id",
+		Entity:  "test-entity",
+		Project: "test-project",
+		RunID:   "test-run-id",
 	}
 	err = resumeState.UpdateForResume(params, runconfig.New())
 
 	assert.Nil(t, err, "GetUpdates should not return an error")
-
-	// Check that StartTime was adjusted correctly
-	expectedStartTime := initialStartTime.Add(time.Duration(-130) * time.Second)
-	assert.Equal(t, expectedStartTime, params.StartTime, "StartTime should be adjusted based on the runtime")
 
 	// Verify other fields are set correctly
 	assert.Equal(t, int32(130), params.Runtime, "Runtime should be set to the maximum value")

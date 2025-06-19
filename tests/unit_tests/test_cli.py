@@ -93,9 +93,9 @@ def test_login_key_arg(runner, dummy_api_key):
         # was '.wandb' when imported by api.py, reload to fix. UGH!
         # reload(wandb)
         result = runner.invoke(cli.login, [dummy_api_key])
-        print("Output: ", result.output)  # noqa: T201
-        print("Exception: ", result.exception)  # noqa: T201
-        print("Traceback: ", traceback.print_tb(result.exc_info[2]))  # noqa: T201
+        print("Output: ", result.output)
+        print("Exception: ", result.exception)
+        print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
@@ -136,9 +136,9 @@ def test_login_onprem_key_arg(runner, dummy_api_key):
         onprem_key = "test-" + dummy_api_key
         # with runner.isolated_filesystem():
         result = runner.invoke(cli.login, [onprem_key])
-        print("Output: ", result.output)  # noqa: T201
-        print("Exception: ", result.exception)  # noqa: T201
-        print("Traceback: ", traceback.print_tb(result.exc_info[2]))  # noqa: T201
+        print("Output: ", result.output)
+        print("Exception: ", result.exception)
+        print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
@@ -164,9 +164,9 @@ def test_login_anonymously(runner, dummy_api_key, monkeypatch, empty_netrc):
             lambda *args, **kwargs: dummy_api_key,
         )
         result = runner.invoke(cli.login, ["--anonymously"])
-        print("Output: ", result.output)  # noqa: T201
-        print("Exception: ", result.exception)  # noqa: T201
-        print("Traceback: ", traceback.print_tb(result.exc_info[2]))  # noqa: T201
+        print("Output: ", result.output)
+        print("Exception: ", result.exception)
+        print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
@@ -222,7 +222,7 @@ def test_cli_login_reprompts_when_no_key_specified(runner, mocker, dummy_api_key
         # happened
         result = runner.invoke(cli.login, input=f"\n{dummy_api_key[:-1]}q\n")
         with open(get_netrc_file_path()) as f:
-            print(f.read())  # noqa: T201
+            print(f.read())
         assert "ERROR No API key specified." in result.output
 
 
@@ -536,8 +536,8 @@ def test_docker_digest(runner, docker):
 def test_local_default(runner, docker, local_settings):
     with runner.isolated_filesystem():
         result = runner.invoke(cli.server, ["start"])
-        print(result.output)  # noqa: T201
-        print(traceback.print_tb(result.exc_info[2]))  # noqa: T201
+        print(result.output)
+        print(traceback.print_tb(result.exc_info[2]))
         user = getpass.getuser()
         docker.assert_called_with(
             [
@@ -561,8 +561,8 @@ def test_local_default(runner, docker, local_settings):
 @pytest.mark.wandb_args(check_output=b"")
 def test_local_custom_port(runner, docker, local_settings):
     result = runner.invoke(cli.server, ["start", "-p", "3030"])
-    print(result.output)  # noqa: T201
-    print(traceback.print_tb(result.exc_info[2]))  # noqa: T201
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
     user = getpass.getuser()
     docker.assert_called_with(
         [
@@ -586,8 +586,8 @@ def test_local_custom_port(runner, docker, local_settings):
 @pytest.mark.wandb_args(check_output=b"")
 def test_local_custom_env(runner, docker, local_settings):
     result = runner.invoke(cli.server, ["start", "-e", b"FOO=bar"])
-    print(result.output)  # noqa: T201
-    print(traceback.print_tb(result.exc_info[2]))  # noqa: T201
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
     user = getpass.getuser()
     docker.assert_called_with(
         [

@@ -11,7 +11,7 @@ import (
 // isBoolMessage reports whether all fields in the message are boolean.
 func isBoolMessage(m protoreflect.Message) bool {
 	fds := m.Descriptor().Fields()
-	for i := 0; i < fds.Len(); i++ {
+	for i := range fds.Len() {
 		if fds.Get(i).Kind() != protoreflect.BoolKind {
 			return false
 		}

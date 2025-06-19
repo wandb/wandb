@@ -1,5 +1,4 @@
 import os
-import signal
 import subprocess
 import tempfile
 import time
@@ -11,7 +10,6 @@ from typing import Iterable, List, Optional
 
 import hypothesis.strategies as st
 import mlflow
-import psutil
 import pytest
 import requests
 from hypothesis.errors import NonInteractiveExampleWarning
@@ -195,16 +193,6 @@ def _check_mlflow_server_health(
     return False
 
 
-def _kill_child_processes(parent_pid, sig=signal.SIGTERM):
-    try:
-        parent = psutil.Process(parent_pid)
-    except psutil.NoSuchProcess:
-        return
-    children = parent.children(recursive=True)
-    for process in children:
-        process.send_signal(sig)
-
-
 @pytest.fixture
 def mssql_backend(): ...
 
@@ -307,7 +295,7 @@ def mlflow_server(mlflow_server_settings):
             mlflow_server_settings.artifacts_backend,
         ]
 
-    process = subprocess.Popen(start_cmd)  # process
+    _ = subprocess.Popen(start_cmd)  # process
     healthy = _check_mlflow_server_health(
         mlflow_server_settings.base_url,
         mlflow_server_settings.health_endpoint,
@@ -318,8 +306,6 @@ def mlflow_server(mlflow_server_settings):
         yield mlflow_server_settings
     else:
         raise Exception("MLflow server is not healthy")
-
-    _kill_child_processes(process.pid)
 
 
 @pytest.fixture
