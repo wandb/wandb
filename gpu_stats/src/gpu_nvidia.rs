@@ -1,5 +1,5 @@
 use crate::metrics::MetricValue;
-use crate::wandb_internal::{GpuNvidiaInfo, Metadata, MetadataRecord};
+use crate::wandb_internal::{GpuNvidiaInfo, MetadataRecord};
 
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
@@ -698,18 +698,13 @@ impl NvidiaGpu {
 
     /// Extract metadata about the GPUs in the system from the provided samples.
     pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> MetadataRecord {
-        let mut metadata = Metadata {
+        let mut metadata = MetadataRecord {
             ..Default::default()
         };
 
         let n_gpu = match samples.get("_gpu.count") {
             Some(MetricValue::Int(n_gpu)) => *n_gpu as u32,
-            _ => {
-                return MetadataRecord {
-                    metadata: Some(metadata),
-                    ..Default::default()
-                }
-            }
+            _ => return metadata,
         };
 
         metadata.gpu_nvidia = [].to_vec();
@@ -761,9 +756,6 @@ impl NvidiaGpu {
             metadata.gpu_nvidia.push(gpu_nvidia);
         }
 
-        MetadataRecord {
-            metadata: Some(metadata),
-            ..Default::default()
-        }
+        metadata
     }
 }

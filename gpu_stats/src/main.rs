@@ -47,8 +47,8 @@ use wandb_internal::{
     record::RecordType,
     stats_record::StatsType,
     system_monitor_service_server::{SystemMonitorService, SystemMonitorServiceServer},
-    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, Metadata,
-    MetadataRecord, Record, StatsItem, StatsRecord, TearDownRequest, TearDownResponse,
+    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, MetadataRecord,
+    Record, StatsItem, StatsRecord, TearDownRequest, TearDownResponse,
 };
 
 fn current_timestamp() -> Timestamp {
@@ -334,7 +334,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
             .map(|(name, value)| (name.to_string(), value))
             .collect();
 
-        let mut metadata = Metadata {
+        let mut metadata = MetadataRecord {
             ..Default::default()
         };
 
@@ -342,12 +342,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
             if let Some(apple_sampler) = &self.apple_sampler {
-                debug!("Collecting Apple metadata");
-                let apple_metadata = apple_sampler.get_metadata(&samples);
-                debug!("Collected Apple metadata");
-                if let Some(m) = apple_metadata.metadata {
-                    metadata.apple = m.apple;
-                }
+                metadata.apple = apple_sampler.get_metadata(&samples).apple;
             }
         }
 
@@ -382,10 +377,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         }
 
         let record = Record {
-            record_type: Some(RecordType::Metadata(MetadataRecord {
-                metadata: Some(metadata),
-                ..Default::default()
-            })),
+            record_type: Some(RecordType::Metadata(metadata)),
             ..Default::default()
         };
 

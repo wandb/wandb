@@ -27,7 +27,7 @@ use crate::gpu_apple_sources::{
     cfio_get_residencies, cfio_watts, libc_ram, libc_swap, IOHIDSensors, IOReport, SocInfo, SMC,
 };
 use crate::metrics::MetricValue;
-use crate::wandb_internal::{AppleInfo, Metadata, MetadataRecord};
+use crate::wandb_internal::{AppleInfo, MetadataRecord};
 use core_foundation::dictionary::CFDictionaryRef;
 use log::warn;
 use std::collections::HashMap;
@@ -576,10 +576,7 @@ impl ThreadSafeSampler {
             }
         }
         MetadataRecord {
-            metadata: Some(Metadata {
-                apple: Some(gpu_apple),
-                ..Default::default()
-            }),
+            apple: Some(gpu_apple),
             ..Default::default()
         }
     }

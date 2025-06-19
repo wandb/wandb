@@ -11,7 +11,7 @@ use which::which;
 
 use crate::{
     metrics::MetricValue,
-    wandb_internal::{GpuAmdInfo, Metadata, MetadataRecord},
+    wandb_internal::{GpuAmdInfo, MetadataRecord},
 };
 
 // AMD GPU stats are collecting using the rocm-smi tool.
@@ -324,12 +324,9 @@ impl GpuAmd {
             .collect();
 
         Ok(MetadataRecord {
-            metadata: Some(Metadata {
-                gpu_count: raw_stats.len() as u32,
-                gpu_type: gpu_amd[0].series.clone(),
-                gpu_amd: gpu_amd,
-                ..Default::default()
-            }),
+            gpu_count: raw_stats.len() as u32,
+            gpu_type: gpu_amd[0].series.clone(),
+            gpu_amd: gpu_amd,
             ..Default::default()
         })
     }
@@ -415,7 +412,7 @@ mod tests {
         fn get_metadata_with_stats(
             &self,
             stats: HashMap<String, GpuStats>,
-        ) -> Result<Metadata, std::io::Error> {
+        ) -> Result<MetadataRecord, std::io::Error> {
             let gpu_amd: Vec<GpuAmdInfo> = stats
                 .iter()
                 .map(|(k, _)| {
@@ -427,7 +424,7 @@ mod tests {
                 })
                 .collect();
 
-            Ok(Metadata {
+            Ok(MetadataRecord {
                 gpu_count: stats.len() as u32,
                 gpu_amd,
                 ..Default::default()
