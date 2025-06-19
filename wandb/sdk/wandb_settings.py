@@ -750,10 +750,34 @@ class Settings(BaseModel, validate_assignment=True):
     )
     """System paths to monitor for disk usage."""
 
+    x_stats_cpu_count: Optional[int] = None
+    """System CPU count.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_cpu_logical_count: Optional[int] = None
+    """Logical CPU count.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_gpu_count: Optional[int] = None
+    """GPU device count.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_gpu_type: Optional[str] = None
+    """GPU device type.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
     x_stats_gpu_device_ids: Optional[Sequence[int]] = None
     """GPU device indices to monitor.
 
-    If not set, captures metrics for all GPUs.
+    If not set, the system monitor captures metrics for all GPUs.
     Assumes 0-based indexing matching CUDA/ROCm device enumeration.
     """
 

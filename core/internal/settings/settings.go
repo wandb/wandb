@@ -527,6 +527,26 @@ func (s *Settings) GetStatsCoreWeaveMetadataEndpoint() string {
 	return s.Proto.XStatsCoreweaveMetadataEndpoint.GetValue()
 }
 
+// User-provided CPU count to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsCpuCount() int32 {
+	return s.Proto.XStatsCpuCount.GetValue()
+}
+
+// User-provided Logical CPU count to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsCpuLogicalCount() int32 {
+	return s.Proto.XStatsCpuLogicalCount.GetValue()
+}
+
+// User-provided GPU count to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsGpuCount() int32 {
+	return s.Proto.XStatsGpuCount.GetValue()
+}
+
+// User-provided GPU type to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsGpuType() string {
+	return s.Proto.XStatsGpuType.GetValue()
+}
+
 // The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()
