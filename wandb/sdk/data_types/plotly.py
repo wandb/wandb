@@ -43,6 +43,10 @@ class Plotly(Media):
     def make_plot_media(
         cls: Type["Plotly"], val: Union["plotly.Figure", "matplotlib.artist.Artist"]
     ) -> Union[Image, "Plotly"]:
+        """Create a Plotly object from a Plotly figure or a matplotlib artist.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if util.is_matplotlib_typename(util.get_full_typename(val)):
             if util.matplotlib_contains_images(val):
                 return Image(val)
@@ -74,9 +78,17 @@ class Plotly(Media):
 
     @classmethod
     def get_media_subdir(cls: Type["Plotly"]) -> str:
+        """Returns the media subdirectory for Plotly plots.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         return os.path.join("media", "plotly")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        """Convert the Plotly object to a JSON representation.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict

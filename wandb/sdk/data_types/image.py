@@ -639,7 +639,10 @@ class Image(BatchableMedia):
         data: Union["np.ndarray", "torch.Tensor"],
         file_type: Optional[str] = None,
     ) -> str:
-        """Guess what type of image the np.array is representing."""
+        """Guess what type of image the np.array is representing.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: do we want to support dimensions being at the beginning of the array?
         ndims = data.ndim
         if util.is_pytorch_tensor_typename(util.get_full_typename(data)):
