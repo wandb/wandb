@@ -17,7 +17,10 @@ if TYPE_CHECKING:
 
 
 class Automations(Paginator["Automation"]):
-    """An iterable collection of `Automation` objects."""
+    """An iterable collection of `Automation` objects.
+
+    <!-- lazydoc-ignore-init: internal -->
+    """
 
     last_response: ProjectConnectionFields | None
     _query: Document
@@ -36,14 +39,20 @@ class Automations(Paginator["Automation"]):
 
     @property
     def more(self) -> bool:
-        """Whether there are more items to fetch."""
+        """Whether there are more items to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self) -> str | None:
-        """The start cursor to use for the next page."""
+        """The start cursor to use for the next page.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return None
         return self.last_response.page_info.end_cursor
@@ -63,7 +72,10 @@ class Automations(Paginator["Automation"]):
             raise ValueError("Unexpected response data") from e
 
     def convert_objects(self) -> Iterable[Automation]:
-        """Parse the page data into a list of objects."""
+        """Parse the page data into a list of objects.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         from wandb.automations import Automation
 
         page = self.last_response

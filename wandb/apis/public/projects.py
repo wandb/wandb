@@ -124,6 +124,8 @@ class Projects(Paginator["Project"]):
     def more(self):
         """Returns `True` if there are more projects to fetch. Returns
         `False` if there are no more projects to fetch.
+
+        <!-- lazydoc-ignore: internal -->
         """
         if self.last_response:
             return self.last_response["models"]["pageInfo"]["hasNextPage"]
@@ -132,7 +134,10 @@ class Projects(Paginator["Project"]):
 
     @property
     def cursor(self):
-        """Returns the cursor position for pagination of project results."""
+        """Returns the cursor position for pagination of project results.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return self.last_response["models"]["edges"][-1]["cursor"]
         else:

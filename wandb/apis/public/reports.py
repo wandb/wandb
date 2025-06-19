@@ -84,7 +84,10 @@ class Reports(SizedPaginator["BetaReport"]):
 
     @property
     def more(self) -> bool:
-        """Returns whether there are more files to fetch."""
+        """Returns whether there are more files to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return bool(
                 self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
@@ -94,7 +97,10 @@ class Reports(SizedPaginator["BetaReport"]):
 
     @property
     def cursor(self):
-        """Returns the cursor position for pagination of file results."""
+        """Returns the cursor position for pagination of file results.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return self.last_response["project"]["allViews"]["edges"][-1]["cursor"]
         else:
@@ -218,7 +224,7 @@ class BetaReport(Attrs):
 class PythonMongoishQueryGenerator:
     """Converts Python-style query expressions to MongoDB-style queries for W&B reports.
 
-    <!-- lazydoc-ignore: internal -->
+    <!-- lazydoc-ignore-class: internal -->
     """
 
     SPACER = "----------"
@@ -435,7 +441,7 @@ class PythonMongoishQueryGenerator:
 class PanelMetricsHelper:
     """Converts Python-style query expressions to MongoDB-style queries for W&B reports.
 
-    <!-- lazydoc-ignore: internal -->
+    <!-- lazydoc-ignore-class: internal -->
     """
 
     FRONTEND_NAME_MAPPING = {

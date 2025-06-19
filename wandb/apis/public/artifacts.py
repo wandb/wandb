@@ -71,6 +71,10 @@ if TYPE_CHECKING:
 
 
 class ArtifactTypes(Paginator["ArtifactType"]):
+    """An iterable collection of artifact types for a specific project.
+
+    <!-- lazydoc-ignore-init: internal -->
+    """
     QUERY = gql(PROJECT_ARTIFACT_TYPES_GQL)
 
     last_response: ArtifactTypesFragment | None
@@ -105,30 +109,45 @@ class ArtifactTypes(Paginator["ArtifactType"]):
 
     @property
     def length(self) -> None:
-        """Returns `None`."""
+        """Returns `None`.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO
         return None
 
     @property
     def more(self) -> bool:
-        """Returns whether there are more artifact types to fetch."""
+        """Returns whether there are more artifact types to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self) -> str | None:
-        """Returns the cursor for the next page of results."""
+        """Returns the cursor for the next page of results.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
 
     def update_variables(self) -> None:
-        """Update the cursor variable for pagination."""
+        """Update the cursor variable for pagination.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self) -> list[ArtifactType]:
-        """Convert the raw response data into a list of ArtifactType objects."""
+        """Convert the raw response data into a list of ArtifactType objects.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return []
 
@@ -155,6 +174,8 @@ class ArtifactType:
         type_name: The name of the artifact type.
         attrs: Optional mapping of attributes to initialize the artifact type. If not provided,
             the object will load its attributes from W&B upon initialization.
+
+    <!-- lazydoc-ignore-init: internal -->
     """
 
     def __init__(
@@ -174,7 +195,10 @@ class ArtifactType:
             self.load()
 
     def load(self) -> Mapping[str, Any]:
-        """Load the artifact type attributes from W&B."""
+        """Load the artifact type attributes from W&B.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         data: Mapping[str, Any] | None = self.client.execute(
             gql(PROJECT_ARTIFACT_TYPE_GQL),
             variable_values={
@@ -233,10 +257,11 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
         project: The name of the project to query for artifact collections.
         type_name: The name of the artifact type for which to fetch collections.
         per_page: The number of artifact collections to fetch per page. Default is 50.
+
+    <!-- lazydoc-ignore-init: internal -->
     """
 
     last_response: ArtifactCollectionsFragment | None
-
     def __init__(
         self,
         client: Client,
@@ -284,30 +309,46 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
     @property
     def length(self):
+        """Returns the total number of artifact collections.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return None
         return self.last_response.total_count
 
     @property
     def more(self):
-        """Returns whether there are more artifacts to fetch."""
+        """Returns whether there are more artifacts to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self):
-        """Returns the cursor for the next page of results."""
+        """Returns the cursor for the next page of results.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
 
     def update_variables(self) -> None:
-        """Update the cursor variable for pagination."""
+        """Update the cursor variable for pagination.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self) -> list[ArtifactCollection]:
-        """Convert the raw response data into a list of ArtifactCollection objects."""
+        """Convert the raw response data into a list of ArtifactCollection objects.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return []
         return [
@@ -336,6 +377,8 @@ class ArtifactCollection:
         attrs: Optional mapping of attributes to initialize the artifact collection.
             If not provided, the object will load its attributes from W&B upon
             initialization.
+
+    <!-- lazydoc-ignore-init: internal -->
     """
 
     def __init__(
@@ -396,7 +439,10 @@ class ArtifactCollection:
         return self._created_at
 
     def load(self):
-        """Load the artifact collection attributes from W&B."""
+        """Load the artifact collection attributes from W&B.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if server_supports_artifact_collections_gql_edges(self.client):
             rename_fields = None
         else:
@@ -625,6 +671,8 @@ class Artifacts(SizedPaginator["Artifact"]):
         order: Optional string to specify the order of the results.
         per_page: The number of artifact versions to fetch per page. Default is 50.
         tags: Optional string or list of strings to filter artifacts by tags.
+
+    <!-- lazydoc-ignore-init: internal -->
     """
 
     last_response: ArtifactsFragment | None
@@ -688,27 +736,39 @@ class Artifacts(SizedPaginator["Artifact"]):
 
     @property
     def length(self) -> int | None:
-        """Returns the total number of artifacts in the collection."""
+        """Returns the total number of artifacts in the collection.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return None
         return self.last_response.total_count
 
     @property
     def more(self) -> bool:
-        """Returns whether there are more files to fetch."""
+        """Returns whether there are more files to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self) -> str | None:
-        """Returns the cursor for the next page of results."""
+        """Returns the cursor for the next page of results.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
 
     def convert_objects(self) -> list[Artifact]:
-        """Convert the raw response data into a list of wandb.Artifact objects."""
+        """Convert the raw response data into a list of wandb.Artifact objects.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return []
 
@@ -728,6 +788,10 @@ class Artifacts(SizedPaginator["Artifact"]):
 
 
 class RunArtifacts(SizedPaginator["Artifact"]):
+    """An iterable collection of artifacts associated with a specific run.
+
+    <!-- lazydoc-ignore-init: internal -->
+    """
     last_response: (
         RunOutputArtifactsProjectRunOutputArtifacts
         | RunInputArtifactsProjectRunInputArtifacts
@@ -782,27 +846,39 @@ class RunArtifacts(SizedPaginator["Artifact"]):
 
     @property
     def length(self) -> int | None:
-        """Returns the total number of artifacts in the collection."""
+        """Returns the total number of artifacts in the collection.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return None
         return self.last_response.total_count
 
     @property
     def more(self) -> bool:
-        """Returns whether there are more artifacts to fetch."""
+        """Returns whether there are more artifacts to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self) -> str | None:
-        """Returns the cursor for the next page of results."""
+        """Returns the cursor for the next page of results.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
 
     def convert_objects(self) -> list[Artifact]:
-        """Convert the raw response data into a list of wandb.Artifact objects."""
+        """Convert the raw response data into a list of wandb.Artifact objects.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return []
 
@@ -822,6 +898,10 @@ class RunArtifacts(SizedPaginator["Artifact"]):
 
 
 class ArtifactFiles(SizedPaginator["public.File"]):
+    """A paginator for files in an artifact.
+
+    <!-- lazydoc-ignore-init: internal -->
+    """
     last_response: FilesFragment | None
 
     def __init__(
@@ -888,29 +968,44 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
     @property
     def length(self) -> int:
-        """Returns the total number of files in the artifact."""
+        """Returns the total number of files in the artifact.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return self.artifact.file_count
 
     @property
     def more(self) -> bool:
-        """Returns whether there are more files to fetch."""
+        """Returns whether there are more files to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self) -> str | None:
-        """Returns the cursor for the next page of results."""
+        """Returns the cursor for the next page of results.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return None
         return self.last_response.edges[-1].cursor
 
     def update_variables(self) -> None:
-        """Update the variables dictionary with the cursor."""
+        """Update the variables dictionary with the cursor.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self) -> list[public.File]:
-        """Convert the raw response data into a list of public.File objects."""
+        """Convert the raw response data into a list of public.File objects.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return []
 
@@ -933,7 +1028,7 @@ def server_supports_artifact_collections_gql_edges(
 ) -> bool:
     """Check if W&B server supports GraphQL edges for artifact collections.
 
-    <!-- lazydoc-ignore: internal -->
+    <!-- lazydoc-ignore-function: internal -->
     """
     # TODO: Validate this version
     # Edges were merged into core on Mar 2, 2022: https://github.com/wandb/core/commit/81c90b29eaacfe0a96dc1ebd83c53560ca763e8b

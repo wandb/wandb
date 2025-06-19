@@ -1,7 +1,7 @@
 class QueryGenerator:
     """QueryGenerator is a helper object to write filters for runs.
 
-    <!-- lazydoc-ignore: internal -->
+    <!-- lazydoc-ignore-class: internal -->
     """
 
     INDIVIDUAL_OP_TO_MONGO = {

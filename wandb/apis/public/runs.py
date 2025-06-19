@@ -238,7 +238,10 @@ class Runs(SizedPaginator["Run"]):
 
     @property
     def more(self) -> bool:
-        """Returns whether there are more runs to fetch."""
+        """Returns whether there are more runs to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return bool(
                 self.last_response["project"]["runs"]["pageInfo"]["hasNextPage"]
@@ -248,7 +251,10 @@ class Runs(SizedPaginator["Run"]):
 
     @property
     def cursor(self):
-        """Returns the cursor position for pagination of runs results."""
+        """Returns the cursor position for pagination of runs results.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return self.last_response["project"]["runs"]["edges"][-1]["cursor"]
         else:
