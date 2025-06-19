@@ -15,6 +15,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 - Allow s3 style CoreWeave uris for reference artifacts. (@estellazx in https://github.com/wandb/wandb/pull/9979)
+- `wandb.Video` will not print a progress spinner while encoding video when `WANDB_SILENT`/`WANDB_QUIET` environment variables are set (@jacobromero in https://github.com/wandb/wandb/pull/10064)
 
 ### Notable Changes
 
