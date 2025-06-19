@@ -7038,6 +7038,11 @@ func awsRestxml_serializeOpHttpBindingsPutBucketOwnershipControlsInput(v *PutBuc
 		return fmt.Errorf("unsupported serialization of nil %T", v)
 	}
 
+	if len(v.ChecksumAlgorithm) > 0 {
+		locationName := "X-Amz-Sdk-Checksum-Algorithm"
+		encoder.SetHeader(locationName).String(string(v.ChecksumAlgorithm))
+	}
+
 	if v.ContentMD5 != nil {
 		locationName := "Content-Md5"
 		encoder.SetHeader(locationName).String(*v.ContentMD5)
