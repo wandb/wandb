@@ -82,6 +82,7 @@ class WebhookIntegrations(Paginator["WebhookIntegration"]):
 
     <!-- lazydoc-ignore-class: internal -->
     """
+
     last_response: GenericWebhookIntegrationConnectionFields | None
     _query: Document
 
@@ -145,6 +146,7 @@ class SlackIntegrations(Paginator["SlackIntegration"]):
 
     <!-- lazydoc-ignore-class: internal -->
     """
+
     last_response: SlackIntegrationConnectionFields | None
     _query: Document
 

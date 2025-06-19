@@ -75,6 +75,7 @@ class ArtifactTypes(Paginator["ArtifactType"]):
 
     <!-- lazydoc-ignore-init: internal -->
     """
+
     QUERY = gql(PROJECT_ARTIFACT_TYPES_GQL)
 
     last_response: ArtifactTypesFragment | None
@@ -262,6 +263,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
     """
 
     last_response: ArtifactCollectionsFragment | None
+
     def __init__(
         self,
         client: Client,
@@ -792,6 +794,7 @@ class RunArtifacts(SizedPaginator["Artifact"]):
 
     <!-- lazydoc-ignore-init: internal -->
     """
+
     last_response: (
         RunOutputArtifactsProjectRunOutputArtifacts
         | RunInputArtifactsProjectRunInputArtifacts
@@ -902,6 +905,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
     <!-- lazydoc-ignore-init: internal -->
     """
+
     last_response: FilesFragment | None
 
     def __init__(

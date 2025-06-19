@@ -79,6 +79,7 @@ class RetryingClient:
 
     <!-- lazydoc-ignore-class: internal -->
     """
+
     INFO_QUERY = gql(
         """
         query ServerInfo{
