@@ -28,7 +28,6 @@ import logging
 import os
 import pathlib
 import sys
-import threading
 from typing import TYPE_CHECKING, Any, Union
 
 import wandb
@@ -41,7 +40,7 @@ from .lib import config_util, server
 
 if TYPE_CHECKING:
     from wandb.sdk import wandb_run
-    from wandb.sdk.lib.service_connection import ServiceConnection
+    from wandb.sdk.lib.service.service_connection import ServiceConnection
     from wandb.sdk.wandb_settings import Settings
 
 
@@ -113,7 +112,6 @@ class _WandbSetup:
 
         wandb.termsetup(self._settings, None)
 
-        self._check()
         self._setup()
 
     def add_active_run(self, run: wandb_run.Run) -> None:
@@ -284,15 +282,6 @@ class _WandbSetup:
 
         return user_settings
 
-    def _check(self) -> None:
-        if hasattr(threading, "main_thread"):
-            if threading.current_thread() is not threading.main_thread():
-                pass
-        elif threading.current_thread().name != "MainThread":
-            wandb.termwarn(f"bad thread2: {threading.current_thread().name}")
-        if getattr(sys, "frozen", False):
-            wandb.termwarn("frozen, could be trouble")
-
     def _setup(self) -> None:
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
@@ -331,7 +320,7 @@ class _WandbSetup:
         if self._connection:
             return self._connection
 
-        from wandb.sdk.lib import service_connection
+        from wandb.sdk.lib.service import service_connection
 
         self._connection = service_connection.connect_to_service(self._settings)
         return self._connection

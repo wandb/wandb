@@ -253,36 +253,6 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
-)
-@click.option(
-    "--sock-port", default=None, type=int, help="The host port to bind socket service."
-)
-@click.option("--port-filename", default=None, help="Save allocated port to file.")
-@click.option("--address", default=None, help="The address to bind service.")
-@click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
-@click.option("--debug", is_flag=True, help="log debug info")
-@display_error
-def service(
-    sock_port=None,
-    port_filename=None,
-    address=None,
-    pid=None,
-    debug=False,
-):
-    from wandb.sdk.service.server import WandbServer
-
-    server = WandbServer(
-        sock_port=sock_port,
-        port_fname=port_filename,
-        address=address,
-        pid=pid,
-        debug=debug,
-    )
-    server.serve()
-
-
-@cli.command(
     context_settings=CONTEXT, help="Configure a directory with Weights & Biases"
 )
 @click.option("--project", "-p", help="The project to use.")

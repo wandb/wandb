@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -251,14 +250,6 @@ func processResponse(
 	// if we are resuming, we need to update the starting step
 	if params.FileStreamOffset[filestream.HistoryChunk] > 0 {
 		params.StartingStep += 1
-	}
-
-	// if we are resuming, we need to update the start time to be the start time
-	// of the last run minus the runtime for the duration computation
-	if !params.StartTime.IsZero() {
-		params.StartTime = params.StartTime.Add(
-			time.Duration(-params.Runtime) * time.Second,
-		)
 	}
 
 	// If the user provided tags when initializing, use them. Otherwise,
