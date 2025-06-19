@@ -326,8 +326,6 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
     ) -> Result<Response<GetMetadataResponse>, Status> {
         debug!("Received a GetMetadata request: {:?}", request);
 
-        // Do not apply any filters for metadata.
-        // TODO: reconsider if necessary.
         let all_metrics: Vec<(String, metrics::MetricValue)> = self.sample(0, None).await;
         let samples: HashMap<String, &metrics::MetricValue> = all_metrics
             .iter()
@@ -351,13 +349,11 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         {
             if let Some(nvidia_gpu) = &self.nvidia_gpu {
                 let nvidia_metadata = nvidia_gpu.lock().await.get_metadata(&samples);
-                if let Some(m) = nvidia_metadata.metadata {
-                    if m.gpu_count > 0 {
-                        metadata.gpu_count = m.gpu_count;
-                        metadata.gpu_type = m.gpu_type;
-                        metadata.cuda_version = m.cuda_version;
-                        metadata.gpu_nvidia = m.gpu_nvidia;
-                    }
+                if nvidia_metadata.gpu_count > 0 {
+                    metadata.gpu_count = nvidia_metadata.gpu_count;
+                    metadata.gpu_type = nvidia_metadata.gpu_type;
+                    metadata.cuda_version = nvidia_metadata.cuda_version;
+                    metadata.gpu_nvidia = nvidia_metadata.gpu_nvidia;
                 }
             }
         }
@@ -366,12 +362,11 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         #[cfg(target_os = "linux")]
         {
             if let Some(amd_gpu) = &self.amd_gpu {
-                if let Ok(amd_metadata) = amd_gpu.get_metadata() {
-                    if let Some(m) = amd_metadata.metadata {
-                        metadata.gpu_count = m.gpu_count;
-                        metadata.gpu_type = m.gpu_type;
-                        metadata.gpu_amd = m.gpu_amd;
-                    }
+                amd_metadata = amd_gpu.get_metadata();
+                if amd_metadata.gpu_count > 0 {
+                    metadata.gpu_count = amd_metadata.gpu_count;
+                    metadata.gpu_type = amd_metadata.gpu_type;
+                    metadata.gpu_amd = amd_metadata.gpu_amd;
                 }
             }
         }
