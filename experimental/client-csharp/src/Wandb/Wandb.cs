@@ -1,6 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Wandb.Internal;
-using WandbInternal;
 
 namespace Wandb
 {
@@ -11,8 +10,7 @@ namespace Wandb
     public class Session : IDisposable
     {
         private readonly Manager _manager;
-        private bool _isInitialized;
-        private int? _port;
+        private IServiceConnectionProtocol? _connectionProtocol;
 
         public Session()
         {
@@ -20,23 +18,23 @@ namespace Wandb
         }
 
         /// <summary>
-        /// Sets up the session by launching the wandb-core process if not already initialized.
+        /// Launches wandb-core if it hasn't been launched.
         /// </summary>
         /// <param name="timeout">
-        /// The timeout in seconds to wait for the core process to start. Defaults to 30 seconds.
+        /// The timeout in seconds to wait for the core process to start.
         /// </param>
-        /// <returns>A task representing the asynchronous operation.</returns>
-        public async Task Setup(
-            float timeout = 30.0f
-        )
+        /// <returns>A way to connect to the service.</returns>
+        public async Task<IServiceConnectionProtocol> Setup(float timeout = 30.0f)
         {
             // TODO: move this logic to manager
-            if (_isInitialized)
-            {
-                return;
-            }
-            _port = await _manager.LaunchCore(TimeSpan.FromSeconds(timeout)).ConfigureAwait(false);
-            _isInitialized = true;
+            if (_connectionProtocol != null)
+                return _connectionProtocol;
+
+            _connectionProtocol = await _manager.LaunchCore(
+                TimeSpan.FromSeconds(timeout)
+            ).ConfigureAwait(false);
+
+            return _connectionProtocol;
         }
 
         /// <summary>
@@ -48,13 +46,15 @@ namespace Wandb
         /// <returns>
         /// A task representing the asynchronous operation. The task result contains the initialized <see cref="Run"/>.
         /// </returns>
-        /// <exception cref="InvalidOperationException">Thrown if the port is not set.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown if the connection protocol is not set.
+        /// </exception>
         public async Task<Run> Init(
             Settings? settings = null,
             ILogger? logger = null
         )
         {
-            await Setup().ConfigureAwait(false);
+            var connectionProtocol = await Setup().ConfigureAwait(false);
 
             var _settings = settings ?? new Settings();
 
@@ -62,13 +62,11 @@ namespace Wandb
             Directory.CreateDirectory(_settings.SyncDir);
             Directory.CreateDirectory(_settings.FilesDir);
             Directory.CreateDirectory(_settings.LogDir);
-
-
-            if (_port == null)
-            {
-                throw new InvalidOperationException("Port not set");
-            }
-            var run = new Run(new SocketInterface((int)_port, _settings.RunId), _settings, logger);
+            var run = new Run(
+                new SocketInterface(connectionProtocol, _settings.RunId),
+                _settings,
+                logger
+            );
             await run.Init().ConfigureAwait(false);
 
             return run;
@@ -92,16 +90,11 @@ namespace Wandb
         /// <exception cref="InvalidOperationException"></exception>
         public async Task<string> Authenticate(string? apiKey = null, string? baseUrl = null)
         {
-            // ensure wandb-core is running
-            await Setup().ConfigureAwait(false);
+            var connectionProtocol = await Setup().ConfigureAwait(false);
 
-            if (_port == null)
-            {
-                throw new InvalidOperationException("Port not set");
-            }
             var randomStringGenerator = new Library.RandomStringGenerator();
             var streamId = randomStringGenerator.GenerateRandomString(8);
-            var _interface = new SocketInterface((int)_port, streamId);
+            var _interface = new SocketInterface(connectionProtocol, streamId);
 
             var result = await _interface.Authenticate(
                 apiKey ?? Environment.GetEnvironmentVariable("WANDB_API_KEY") ?? throw new InvalidOperationException("API key not set"),

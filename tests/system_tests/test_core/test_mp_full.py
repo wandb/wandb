@@ -52,5 +52,5 @@ def test_multiproc_spawn(runner, user):
 def test_missing_attach_id(user):
     run = wandb.init()
     with pytest.raises(UsageError):
-        wandb._attach(attach_id=None, run_id=None)
+        wandb.attach(attach_id=None, run_id=None)
     run.finish()

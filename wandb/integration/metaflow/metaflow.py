@@ -37,7 +37,7 @@ except ImportError as e:
 try:
     import pandas as pd
 
-    @dispatch  # noqa: F811
+    @dispatch
     def _wandb_use(
         name: str,
         data: pd.DataFrame,
@@ -54,7 +54,7 @@ try:
             run.use_artifact(f"{name}:latest")
             wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
-    @dispatch  # noqa: F811
+    @dispatch
     def wandb_track(
         name: str,
         data: pd.DataFrame,
@@ -83,7 +83,7 @@ try:
     import torch
     import torch.nn as nn
 
-    @dispatch  # noqa: F811
+    @dispatch
     def _wandb_use(
         name: str,
         data: nn.Module,
@@ -100,7 +100,7 @@ try:
             run.use_artifact(f"{name}:latest")
             wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
-    @dispatch  # noqa: F811
+    @dispatch
     def wandb_track(
         name: str,
         data: nn.Module,
@@ -128,7 +128,7 @@ except ImportError:
 try:
     from sklearn.base import BaseEstimator
 
-    @dispatch  # noqa: F811
+    @dispatch
     def _wandb_use(
         name: str,
         data: BaseEstimator,
@@ -145,7 +145,7 @@ try:
             run.use_artifact(f"{name}:latest")
             wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
-    @dispatch  # noqa: F811
+    @dispatch
     def wandb_track(
         name: str,
         data: BaseEstimator,
@@ -194,7 +194,7 @@ class ArtifactProxy:
         return getattr(self.flow, key)
 
 
-@dispatch  # noqa: F811
+@dispatch
 def wandb_track(
     name: str,
     data: Union[dict, list, set, str, int, float, bool],
@@ -209,7 +209,7 @@ def wandb_track(
     run.log({name: data})
 
 
-@dispatch  # noqa: F811
+@dispatch
 def wandb_track(
     name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs
 ):
@@ -227,7 +227,7 @@ def wandb_track(
 
 
 # this is the base case
-@dispatch  # noqa: F811
+@dispatch
 def wandb_track(
     name: str, data, others=False, run=None, testing=False, *args, **kwargs
 ):
@@ -242,7 +242,7 @@ def wandb_track(
         wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 
-@dispatch  # noqa: F811
+@dispatch
 def wandb_use(name: str, data, *args, **kwargs):
     try:
         return _wandb_use(name, data, *args, **kwargs)
@@ -254,14 +254,14 @@ def wandb_use(name: str, data, *args, **kwargs):
         )
 
 
-@dispatch  # noqa: F811
+@dispatch
 def wandb_use(
     name: str, data: Union[dict, list, set, str, int, float, bool], *args, **kwargs
 ):  # type: ignore
     pass  # do nothing for these types
 
 
-@dispatch  # noqa: F811
+@dispatch
 def _wandb_use(
     name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs
 ):  # type: ignore
@@ -273,7 +273,7 @@ def _wandb_use(
         wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
 
-@dispatch  # noqa: F811
+@dispatch
 def _wandb_use(name: str, data, others=False, run=None, testing=False, *args, **kwargs):  # type: ignore
     if testing:
         return "others" if others else None

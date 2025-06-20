@@ -15,11 +15,11 @@ if __name__ == "__main__":
             # KeyboardInterrupt exception at the end of the sleep, instead of
             # interrupting the sleep.
             if time.monotonic() - start_time >= 29:
-                print("FAIL: Got KeyboardInterrupt too late!", file=sys.stderr)  # noqa: T201
+                print("FAIL: Got KeyboardInterrupt too late!", file=sys.stderr)
                 sys.exit(1)
 
-            print("PASS: KeyboardInterrupt detected!", file=sys.stderr)  # noqa: T201
+            print("PASS: KeyboardInterrupt detected!", file=sys.stderr)
             sys.exit(0)
 
-    print("FAIL: No KeyboardInterrupt detected!", file=sys.stderr)  # noqa: T201
+    print("FAIL: No KeyboardInterrupt detected!", file=sys.stderr)
     sys.exit(1)

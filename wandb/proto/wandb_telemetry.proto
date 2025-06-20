@@ -29,6 +29,8 @@ message TelemetryRecord {
 message TelemetryResult {}
 
 message Imports {
+  reserved 17, 19, 20, 23, 24, 25, 26, 27, 55;
+
   bool torch = 1;
   bool keras = 2;
   bool tensorflow = 3;
@@ -45,17 +47,9 @@ message Imports {
   bool allennlp = 14;
   bool autogluon = 15;
   bool autokeras = 16;
-  // bool avalanche = 17;
   bool catalyst = 18;
-  // bool dalle_pytorch = 19;
-  // bool datasets = 20;
   bool deepchem = 21;
   bool deepctr = 22;
-  // bool deeppavlov = 23;
-  // bool detectron = 24;
-  // bool paddle = 25;
-  // bool parlai = 26;
-  // bool prophet = 27;
   bool pycaret = 28;
   bool pytorchvideo = 29;
   bool ray = 30;
@@ -83,7 +77,6 @@ message Imports {
   bool sacred = 52;
   bool joblib = 53;
   bool dask = 54;
-  bool asyncio = 55;
   bool paddleocr = 56;
   bool ppdet = 57;
   bool paddleseg = 58;
@@ -138,7 +131,7 @@ message Imports {
 }
 
 message Feature {
-  reserved 23, 45;
+  reserved 23, 45, 55;
 
   bool watch = 1;                         // wandb.watch() called
   bool finish = 2;                        // wandb.finish() called
@@ -193,7 +186,6 @@ message Feature {
   bool langchain_tracer = 52;             // Langchain wandb tracer callback used
   bool cohere_autolog = 53;               // Cohere autolog used
   bool hf_pipeline_autolog = 54;          // HuggingFace Autologging
-  bool core = 55;                         // Using wandb core internal process
   bool lib_c = 56;                        // Using c wandb library
   bool lib_cpp = 57;                      // Using cpp wandb library
   bool openai_finetuning = 58;            // Using openai finetuning WandbLogger
@@ -235,12 +227,10 @@ message Labels {
 }
 
 message Deprecated {
+  reserved 2, 3, 4, 6;
+
   bool keras_callback__data_type = 1;   // wandb.integration.keras.WandbCallback(data_type=...) called
-  bool run__mode = 2;                   // wandb.run.mode called
-  bool run__save_no_args = 3;           // wandb.run.save() called without arguments
-  bool run__join = 4;                   // wandb.run.join() called
   bool plots = 5;                       // wandb.plots.* called
-  bool run__log_sync = 6;               // wandb.run.log(sync=...) called
   bool init__config_include_keys = 7;   // wandb.init(config_include_keys=...) called
   bool init__config_exclude_keys = 8;   // wandb.init(config_exclude_keys=...) called
   bool keras_callback__save_model = 9;  // wandb.integration.keras.WandbCallback(save_model=True) called

@@ -68,42 +68,42 @@ if TYPE_CHECKING:
     class CreateArtifactFileSpecInput(TypedDict, total=False):
         """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql."""
 
-        artifactID: str  # noqa: N815
+        artifactID: str
         name: str
         md5: str
         mimetype: Optional[str]
-        artifactManifestID: Optional[str]  # noqa: N815
-        uploadPartsInput: Optional[List[Dict[str, object]]]  # noqa: N815
+        artifactManifestID: Optional[str]
+        uploadPartsInput: Optional[List[Dict[str, object]]]
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
         name: str
-        displayName: str  # noqa: N815
-        uploadUrl: Optional[str]  # noqa: N815
-        uploadHeaders: Sequence[str]  # noqa: N815
-        uploadMultipartUrls: "UploadPartsResponse"  # noqa: N815
-        storagePath: str  # noqa: N815
+        displayName: str
+        uploadUrl: Optional[str]
+        uploadHeaders: Sequence[str]
+        uploadMultipartUrls: "UploadPartsResponse"
+        storagePath: str
         artifact: "CreateArtifactFilesResponseFileNode"
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
         id: str
 
     class UploadPartsResponse(TypedDict):
-        uploadUrlParts: List["UploadUrlParts"]  # noqa: N815
-        uploadID: str  # noqa: N815
+        uploadUrlParts: List["UploadUrlParts"]
+        uploadID: str
 
     class UploadUrlParts(TypedDict):
-        partNumber: int  # noqa: N815
-        uploadUrl: str  # noqa: N815
+        partNumber: int
+        uploadUrl: str
 
     class CompleteMultipartUploadArtifactInput(TypedDict):
         """Corresponds to `type CompleteMultipartUploadArtifactInput` in schema.graphql."""
 
-        completeMultipartAction: str  # noqa: N815
-        completedParts: Dict[int, str]  # noqa: N815
-        artifactID: str  # noqa: N815
-        storagePath: str  # noqa: N815
-        uploadID: str  # noqa: N815
+        completeMultipartAction: str
+        completedParts: Dict[int, str]
+        artifactID: str
+        storagePath: str
+        uploadID: str
         md5: str
 
     class CompleteMultipartUploadArtifactResponse(TypedDict):
@@ -236,7 +236,7 @@ class Api:
             ]
         ] = None,
         load_settings: bool = True,
-        retry_timedelta: datetime.timedelta = datetime.timedelta(  # noqa: B008 # okay because it's immutable
+        retry_timedelta: datetime.timedelta = datetime.timedelta(  # okay because it's immutable
             days=7
         ),
         environ: MutableMapping = os.environ,

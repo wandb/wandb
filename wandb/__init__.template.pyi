@@ -107,7 +107,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.12.dev1"
+__version__: str = "0.20.2.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -196,13 +196,12 @@ def log(
     data: dict[str, Any],
     step: int | None = None,
     commit: bool | None = None,
-    sync: bool | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::log>"""
     ...
 
 def save(
-    glob_str: str | os.PathLike | None = None,
+    glob_str: str | os.PathLike,
     base_path: str | os.PathLike | None = None,
     policy: PolicyName = "live",
 ) -> bool | list[str]:

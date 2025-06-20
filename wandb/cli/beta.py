@@ -11,7 +11,7 @@ import sys
 import click
 
 import wandb
-from wandb.errors import UsageError, WandbCoreNotAvailableError
+from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk.wandb_sync import _sync
 from wandb.util import get_core_path
 
@@ -23,12 +23,6 @@ def beta():
     import wandb.env
 
     wandb._sentry.configure_scope(process_context="wandb_beta")
-
-    if wandb.env.is_require_legacy_service():
-        raise UsageError(
-            "wandb beta commands can only be used with wandb-core. "
-            f"Please make sure that `{wandb.env._REQUIRE_LEGACY_SERVICE}` is not set."
-        )
 
     try:
         get_core_path()

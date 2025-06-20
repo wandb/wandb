@@ -20,7 +20,6 @@ import wandb
         (False, {"output.log"}),
     ],
 )
-@pytest.mark.wandb_core_only
 def test_upload_wandb_files(wandb_backend_spy, x_primary, files):
     with wandb.init(settings=wandb.Settings(x_primary=x_primary)) as run:
         pass
@@ -37,7 +36,6 @@ def test_upload_wandb_files(wandb_backend_spy, x_primary, files):
         ("invalid?:label<>", {"output_invalid__label_.log"}),
     ],
 )
-@pytest.mark.wandb_core_only
 @pytest.mark.skipif(platform.system() != "Windows", reason="Windows only")
 def test_upload_wandb_files_windows_with_label(wandb_backend_spy, x_label, files):
     with wandb.init(
@@ -56,7 +54,6 @@ def test_upload_wandb_files_windows_with_label(wandb_backend_spy, x_label, files
         ("invalid/label", {"output_invalid_label.log"}),
     ],
 )
-@pytest.mark.wandb_core_only
 @pytest.mark.skipif(platform.system() != "Windows", reason="Linux only")
 def test_upload_wandb_files_non_windows_with_label(wandb_backend_spy, x_label, files):
     with wandb.init(

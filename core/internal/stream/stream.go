@@ -57,8 +57,11 @@ type Stream struct {
 	// It is nil for offline runs.
 	graphqlClientOrNil graphql.Client
 
-	// logger is the logger for the stream
+	// logger writes debug logs for the run.
 	logger *observability.CoreLogger
+
+	// loggerFile is the file (if any) to which the logger writes.
+	loggerFile *os.File
 
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
@@ -85,39 +88,61 @@ type Stream struct {
 	sentryClient *sentry_ext.Client
 }
 
+// symlinkDebugCore symlinks the debug-core.log file to the run's directory.
+func symlinkDebugCore(
+	settings *settings.Settings,
+	loggerPath string,
+) {
+	if loggerPath == "" {
+		return
+	}
+
+	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
+
+	err := os.Symlink(loggerPath, targetPath)
+	if err != nil {
+		slog.Error(
+			"error symlinking debug-core.log",
+			"loggerPath", loggerPath,
+			"targetPath", targetPath,
+			"error", err)
+	}
+}
+
+// streamLoggerFile returns the file to use for logging.
+func streamLoggerFile(settings *settings.Settings) *os.File {
+	path := settings.GetInternalLogFile()
+	loggerFile, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+
+	if err != nil {
+		slog.Error(
+			"error opening log file",
+			"path", path,
+			"error", err)
+		return nil
+	} else {
+		return loggerFile
+	}
+}
+
 func streamLogger(
+	loggerFile *os.File,
 	settings *settings.Settings,
 	sentryClient *sentry_ext.Client,
-	loggerPath string,
 	logLevel slog.Level,
 ) *observability.CoreLogger {
-	// TODO: when we add session concept re-do this to use user provided path
-	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
-	if path := loggerPath; path != "" {
-		// check path exists
-		if _, err := os.Stat(path); !os.IsNotExist(err) {
-			err := os.Symlink(path, targetPath)
-			if err != nil {
-				slog.Error("error creating symlink", "error", err)
-			}
-		}
-	}
-
-	var writers []io.Writer
-	name := settings.GetInternalLogFile()
-	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		slog.Error(fmt.Sprintf("error opening log file: %s", err))
-	} else {
-		writers = append(writers, file)
-	}
-	writer := io.MultiWriter(writers...)
-
 	sentryClient.SetUser(
 		settings.GetEntity(),
 		settings.GetEmail(),
 		settings.GetUserName(),
 	)
+
+	var writer io.Writer
+	if loggerFile != nil {
+		writer = loggerFile
+	} else {
+		writer = io.Discard
+	}
 
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(
@@ -133,10 +158,9 @@ func streamLogger(
 		},
 	)
 
-	logger.Info("stream: starting",
-		"core version", version.Version,
-		"symlink path", targetPath,
-	)
+	logger.Info(
+		"stream: starting",
+		"core version", version.Version)
 
 	tags := observability.Tags{
 		"run_id":   settings.GetRunID(),
@@ -166,17 +190,21 @@ type StreamParams struct {
 func NewStream(
 	params StreamParams,
 ) *Stream {
+	symlinkDebugCore(params.Settings, params.LoggerPath)
+	loggerFile := streamLoggerFile(params.Settings)
 	logger := streamLogger(
+		loggerFile,
 		params.Settings,
 		params.Sentry,
-		params.LoggerPath,
 		params.LogLevel,
 	)
+
 	s := &Stream{
 		runWork:      runwork.New(BufferSize, logger),
 		run:          NewStreamRun(),
 		operations:   wboperation.NewOperations(),
 		logger:       logger,
+		loggerFile:   loggerFile,
 		settings:     params.Settings,
 		sentryClient: params.Sentry,
 	}
@@ -411,17 +439,6 @@ func (s *Stream) HandleRecord(record *spb.Record) {
 			Record: record,
 
 			StreamRunUpserter: s.run,
-			Respond: func(record *spb.Record, result *spb.RunUpdateResult) {
-				// Write to the sender's output channel because this is called
-				// in the Sender goroutine.
-				s.sender.outChan <- &spb.Result{
-					ResultType: &spb.Result_RunResult{
-						RunResult: result,
-					},
-					Control: record.Control,
-					Uuid:    record.Uuid,
-				}
-			},
 
 			Settings:           s.settings,
 			BeforeRunEndCtx:    s.runWork.BeforeEndCtx(),
@@ -445,6 +462,11 @@ func (s *Stream) Close() {
 	s.runWork.Close()
 	s.wg.Wait()
 	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
+
+	if s.loggerFile != nil {
+		// Sync the file instead of closing it, in case we keep writing to it.
+		_ = s.loggerFile.Sync()
+	}
 }
 
 // FinishAndClose emits an exit record, waits for all run messages

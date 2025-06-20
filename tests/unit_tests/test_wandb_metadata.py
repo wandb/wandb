@@ -1,10 +1,8 @@
 import datetime
 
-import pytest
 from wandb.sdk.wandb_metadata import Metadata
 
 
-@pytest.mark.wandb_core_only
 def test_to_proto_update_from_proto():
     time_stamp = datetime.datetime.now(datetime.timezone.utc)
     metadata = Metadata(

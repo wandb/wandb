@@ -972,21 +972,6 @@ class Run:
     @property
     @_log_to_run
     @_attach
-    def mode(self) -> str:
-        """Compatible with W&B Python SDK version `0.9.x` and earlier."""
-        deprecate.deprecate(
-            field_name=Deprecated.run__mode,
-            warning_message=(
-                "The mode property of wandb.run is deprecated "
-                "and will be removed in a future release."
-            ),
-            run=self,
-        )
-        return "dryrun" if self._settings._offline else "run"
-
-    @property
-    @_log_to_run
-    @_attach
     def offline(self) -> bool:
         """True if the run is offline, False otherwise."""
         return self._settings._offline
@@ -1336,13 +1321,12 @@ class Run:
 
         try:
             from IPython import display
-
-            display.display(display.HTML(self.to_html(height, hidden)))
-            return True
-
         except ImportError:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
+
+        display.display(display.HTML(self.to_html(height, hidden)))
+        return True
 
     @_log_to_run
     @_attach
@@ -1753,7 +1737,6 @@ class Run:
         data: dict[str, Any],
         step: int | None = None,
         commit: bool | None = None,
-        sync: bool | None = None,
     ) -> None:
         """Upload run data.
 
@@ -1857,7 +1840,6 @@ class Run:
                 accumulate data for the step. See the notes in the description.
                 If `step` is `None`, then the default is `commit=True`;
                 otherwise, the default is `commit=False`.
-            sync: This argument is deprecated and does nothing.
 
         Examples:
         For more and more detailed examples, see
@@ -1999,14 +1981,6 @@ class Run:
             with telemetry.context(run=self) as tel:
                 tel.feature.set_step_log = True
 
-        if sync is not None:
-            deprecate.deprecate(
-                field_name=Deprecated.run__log_sync,
-                warning_message=(
-                    "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
-                ),
-                run=self,
-            )
         if self._settings._shared and step is not None:
             wandb.termwarn(
                 "In shared mode, the use of `wandb.log` with the step argument is not supported "
@@ -2021,7 +1995,7 @@ class Run:
     @_attach
     def save(
         self,
-        glob_str: str | os.PathLike | None = None,
+        glob_str: str | os.PathLike,
         base_path: str | os.PathLike | None = None,
         policy: PolicyName = "live",
     ) -> bool | list[str]:
@@ -2075,18 +2049,6 @@ class Run:
         #    of "files/".
         ```
         """
-        if glob_str is None:
-            # noop for historical reasons, run.save() may be called in legacy code
-            deprecate.deprecate(
-                field_name=Deprecated.run__save_no_args,
-                warning_message=(
-                    "Calling wandb.run.save without any arguments is deprecated."
-                    "Changes to attributes are automatically persisted."
-                ),
-                run=self,
-            )
-            return True
-
         if isinstance(glob_str, bytes):
             # Preserved for backward compatibility: allow bytes inputs.
             glob_str = glob_str.decode("utf-8")
@@ -2303,20 +2265,6 @@ class Run:
             if wandb.run is self:
                 module.unset_globals()
             wandb._sentry.end_session()
-
-    @_log_to_run
-    @_attach
-    def join(self, exit_code: int | None = None) -> None:
-        """This method is deprecated. Use `wandb.run.finish()` instead."""
-        if hasattr(self, "_telemetry_obj"):
-            deprecate.deprecate(
-                field_name=Deprecated.run__join,
-                warning_message=(
-                    "wandb.run.join() is deprecated, please use wandb.run.finish()."
-                ),
-                run=self,
-            )
-        self._finish(exit_code=exit_code)
 
     @_log_to_run
     @_raise_if_finished
@@ -2978,13 +2926,6 @@ class Run:
             models: Optional list of pytorch models that have had watch called on them.
         """
         wandb.sdk._unwatch(self, models=models)
-
-    def _detach(self) -> None:
-        """Detach the run from the current process.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        pass
 
     @_log_to_run
     @_raise_if_finished
@@ -3783,20 +3724,15 @@ class Run:
             logger.exception("Timeout getting run metadata.")
             return None
 
-        try:
-            response = result.response.get_system_metadata_response
+        response = result.response.get_system_metadata_response
 
-            # Temporarily disable the callback to prevent triggering
-            # an update call to wandb-core with the callback.
-            with self.__metadata.disable_callback():
-                # Values stored in the metadata object take precedence.
-                self.__metadata.update_from_proto(response.metadata, skip_existing=True)
+        # Temporarily disable the callback to prevent triggering
+        # an update call to wandb-core with the callback.
+        with self.__metadata.disable_callback():
+            # Values stored in the metadata object take precedence.
+            self.__metadata.update_from_proto(response.metadata, skip_existing=True)
 
-            return self.__metadata
-        except Exception:
-            logger.exception("Error getting run metadata.")
-
-        return None
+        return self.__metadata
 
     @_log_to_run
     @_raise_if_finished
@@ -3944,10 +3880,6 @@ class Run:
             printer=printer,
         )
         Run._footer_log_dir_info(settings=settings, printer=printer)
-        Run._footer_notify_wandb_core(
-            settings=settings,
-            printer=printer,
-        )
         Run._footer_internal_messages(
             internal_messages_response=internal_messages_response,
             settings=settings,
@@ -4093,23 +4025,6 @@ class Run:
 
         for message in internal_messages_response.messages.warning:
             printer.display(message, level="warn")
-
-    @staticmethod
-    def _footer_notify_wandb_core(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        """Prints a message advertising the upcoming core release."""
-        if settings.quiet or not settings.x_require_legacy_service:
-            return
-
-        printer.display(
-            "The legacy backend is deprecated. In future versions, `wandb-core` will become "
-            "the sole backend service, and the `wandb.require('legacy-service')` flag will be removed. "
-            f"For more information, visit {url_registry.url('wandb-core')}",
-            level="warn",
-        )
 
 
 # We define this outside of the run context to support restoring before init
