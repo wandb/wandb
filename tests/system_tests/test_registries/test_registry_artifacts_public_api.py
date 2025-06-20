@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import os
+from typing import TYPE_CHECKING, Iterator
 
 import pytest
 import wandb
@@ -12,10 +13,38 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.util import random_string
 
 if TYPE_CHECKING:
-    pass
+    from tests.system_tests.conftest import TeamAndOrgNames
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
+def registry_user(module_mocker, backend_fixture_factory) -> Iterator[str]:
+    username = backend_fixture_factory.make_user()
+    envvars = {
+        "WANDB_API_KEY": username,
+        "WANDB_ENTITY": username,
+        "WANDB_USERNAME": username,
+    }
+    module_mocker.patch.dict(os.environ, envvars)
+    yield username
+
+
+@pytest.fixture(scope="module")
+def team_and_org(registry_user: str, backend_fixture_factory) -> TeamAndOrgNames:
+    return backend_fixture_factory.make_team(username=registry_user)
+
+
+@pytest.fixture(scope="module")
+def team(team_and_org: TeamAndOrgNames) -> str:
+    return team_and_org.team
+
+
+@pytest.fixture(scope="module")
+def org(team_and_org: TeamAndOrgNames) -> str:
+    """Set up backend resources for testing link_artifact within a registry."""
+    return team_and_org.org
+
+
+@pytest.fixture(scope="module")
 def org_entity(org: str) -> str:
     api = wandb.Api(overrides={"organization": org})
     if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
@@ -23,14 +52,14 @@ def org_entity(org: str) -> str:
     return fetch_org_entity_from_organization(api.client, org)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def registry(org: str) -> Registry:
     api = wandb.Api(overrides={"organization": org})
     # Full name will be "wandb-registry-model"
     return api.create_registry("model", visibility="organization", organization=org)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def source_artifact(team: str) -> Artifact:
     """Create a source artifact logged within a team entity.
     Log this once per module to reduce overhead for each test run.
@@ -43,14 +72,14 @@ def source_artifact(team: str) -> Artifact:
         return run.log_artifact(artifact)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def target_collection_name(worker_id: str) -> str:
     return f"collection-{worker_id}-{random_string(8)}"
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def linked_artifact(
-    user: str,
+    registry_user: str,
     source_artifact: Artifact,
     registry: Registry,
     target_collection_name: str,
@@ -62,16 +91,16 @@ def linked_artifact(
 
 
 def test_fetch_migrated_registry_artifact(
-    user,
+    registry_user,
     api,
-    mocker,
+    module_mocker,
     capsys,
 ):
-    mocker.patch(
+    module_mocker.patch(
         "wandb.sdk.artifacts.artifact.Artifact._from_attrs",
     )
-    mock_fetch_artifact_by_name = mocker.patch.object(api.client, "execute")
-    
+    mock_fetch_artifact_by_name = module_mocker.patch.object(api.client, "execute")
+
     # Mock the GQL response to return the version in the new org registry
     mock_fetch_artifact_by_name.return_value = {
         "project": {
@@ -99,13 +128,17 @@ def test_fetch_migrated_registry_artifact(
     api.artifact("test-team/model-registry/test-collection:v0")
     mock_fetch_artifact_by_name.assert_called_once()
     captured = capsys.readouterr()
-    assert (
-        "This model registry has been migrated and will be discontinued" in captured.err
-    )
+    if InternalApi()._server_supports(
+        ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
+    ):
+        assert (
+            "This model registry has been migrated and will be discontinued"
+            in captured.err
+        )
 
 
 def test_fetch_registry_artifact(
-    user: str,
+    registry_user: str,
     org: str,
     org_entity: str,
     team: str,

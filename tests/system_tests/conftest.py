@@ -9,7 +9,6 @@ import pytest
 from .backend_fixtures import (
     BackendFixtureFactory,
     LocalWandbBackendAddress,
-    TeamAndOrgNames,
     connect_to_local_wandb_backend,
 )
 from .wandb_backend_spy import WandbBackendProxy, WandbBackendSpy, spy_proxy
@@ -147,22 +146,6 @@ def user_in_orgs_factory(
         return UserOrg(username=username, organization_names=orgs)
 
     yield _factory
-
-
-@pytest.fixture
-def team_and_org(user: str, backend_fixture_factory) -> TeamAndOrgNames:
-    return backend_fixture_factory.make_team(username=user)
-
-
-@pytest.fixture
-def team(team_and_org: TeamAndOrgNames) -> str:
-    return team_and_org.team
-
-
-@pytest.fixture
-def org(team_and_org: TeamAndOrgNames) -> str:
-    """Set up backend resources for testing link_artifact within a registry."""
-    return team_and_org.org
 
 
 @pytest.fixture(scope="session")
