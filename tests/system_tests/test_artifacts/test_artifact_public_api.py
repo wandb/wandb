@@ -339,7 +339,7 @@ def test_parse_artifact_path(user, api):
         ),
     ),
 )
-def test_fetch_registry_artifact(
+def test_fetch_registry_artifact_mocked(
     user,
     api,
     mocker,
@@ -365,7 +365,20 @@ def test_fetch_registry_artifact(
                 "artifact": {
                     "name": "test-collection",
                     "version": "v0",
-                }
+                },
+                "artifactCollectionMembership": {
+                    "artifact": {
+                        "name": "test-collection",
+                        "version": "v0",
+                    },
+                    "artifactCollection": {
+                        "name": "test-collection",
+                        "project": {
+                            "entityName": "org-entity-name",
+                            "name": "wandb-registry-model",
+                        },
+                    },
+                },
             }
         }
     else:

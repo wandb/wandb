@@ -56,6 +56,8 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """Indicates that the server supports automation action NO_OP."""
     INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION: _ServerFeature.ValueType  # 12
     """Indicates that the server supports including artifact types in registry creation."""
+    PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP: _ServerFeature.ValueType  # 13
+    """Indicates that the server supports querying for a artifact collection membership on the project."""
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -91,6 +93,8 @@ AUTOMATION_ACTION_NO_OP: ServerFeature.ValueType  # 11
 """Indicates that the server supports automation action NO_OP."""
 INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION: ServerFeature.ValueType  # 12
 """Indicates that the server supports including artifact types in registry creation."""
+PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP: ServerFeature.ValueType  # 13
+"""Indicates that the server supports querying for a artifact collection membership on the project."""
 global___ServerFeature = ServerFeature
 
 class Record(google.protobuf.message.Message):

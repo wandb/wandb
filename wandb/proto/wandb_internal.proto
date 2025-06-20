@@ -1449,6 +1449,9 @@ enum ServerFeature {
 
   // Indicates that the server supports including artifact types in registry creation.
   INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION = 12;
+
+  // Indicates that the server supports querying for a artifact collection membership on the project.
+  PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP = 13;
 }
 
 /**
