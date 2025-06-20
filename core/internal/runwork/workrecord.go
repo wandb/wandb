@@ -63,7 +63,7 @@ func (wr WorkRecord) BypassOfflineMode() bool {
 	return wr.Record.GetControl().GetAlwaysSend()
 }
 
-func (wr WorkRecord) Process(fn func(*spb.Record)) {
+func (wr WorkRecord) Process(fn func(*spb.Record), _ chan<- *spb.Result) {
 	fn(wr.Record)
 }
 
