@@ -844,8 +844,6 @@ class Api:
     ) -> "public.Reports":
         """Get reports for a given project path.
 
-        WARNING: This api is in beta and will likely change in a future release
-
         Args:
             path: (str) path to project the report resides in, should be in the form: "entity/project"
             name: (str, optional) optional name of the report requested.
@@ -853,6 +851,15 @@ class Api:
 
         Returns:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
+
+        Example:
+
+        ```python
+        import wandb
+
+        api = wandb.Api()
+        reports = api.reports(path="my-org/my-project")
+        ```            
         """
         entity, project, _ = self._parse_path(path + "/fake_run")
 

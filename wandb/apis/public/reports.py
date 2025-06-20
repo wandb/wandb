@@ -15,7 +15,17 @@ from wandb.sdk.lib import ipython
 
 
 class Reports(SizedPaginator["BetaReport"]):
-    """Reports is an iterable collection of `BetaReport` objects."""
+    """An iterable collection of `BetaReport` objects for a given W&B project.
+
+    Args:
+        client: The W&B API client to use for making requests.
+        project: The name of the project that the report belongs to.
+        name (str, optional): Human-readable name of the report to filter by. 
+            Returns all reports if not specified.
+        entity (str, optional): The entity (user or team) that owns the project.
+            Defaults to the entity of the project if not specified.
+        per_page (int, optional): Number of reports to fetch per page (default is 50).
+    """    
 
     QUERY = gql(
         """
@@ -109,20 +119,25 @@ class Reports(SizedPaginator["BetaReport"]):
 
 
 class BetaReport(Attrs):
-    """BetaReport is a class associated with reports created in wandb.
+    """Represents a report object in the W&B system. 
+
+    Provides access to report attributes (name, description, user, spec,
+    timestamps) and methods for retrieving associated runs,
+    sections, and for rendering the report as HTML.    
 
     WARNING: this API will likely change in a future release
 
     Attributes:
-        id (string): unique identifier of the report
-        name (string): report name
-        display_name (string): display name of the report
-        description (string): report description
-        user (User): the user that created the report (contains username and email)
-        spec (dict): the spec of the report
-        url (string): the url of the report
-        updated_at (string): timestamp of last update
-        created_at (string): timestamp when the report was created
+        id (string): Unique identifier of the report.
+        name (string): The name of the report.
+        display_name (string): Human-readable display name of the report.
+        description (string): Description of the report.
+        user (User): Dictionary containing user info (username, email) who
+            created the report.
+        spec (dict): The spec of the report.
+        url (string): The URL of the report.
+        updated_at (string): Timestamp of last update.
+        created_at (string): Timestamp when the report was created.
     """
 
     def __init__(self, client, attrs, entity=None, project=None):
