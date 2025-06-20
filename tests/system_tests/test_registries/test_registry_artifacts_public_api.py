@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     pass
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def org_entity(org: str) -> str:
     api = wandb.Api(overrides={"organization": org})
     if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
@@ -23,14 +23,14 @@ def org_entity(org: str) -> str:
     return fetch_org_entity_from_organization(api.client, org)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def registry(org: str) -> Registry:
     api = wandb.Api(overrides={"organization": org})
     # Full name will be "wandb-registry-model"
     return api.create_registry("model", visibility="organization", organization=org)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def source_artifact(team: str) -> Artifact:
     """Create a source artifact logged within a team entity.
     Log this once per module to reduce overhead for each test run.
@@ -43,12 +43,12 @@ def source_artifact(team: str) -> Artifact:
         return run.log_artifact(artifact)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def target_collection_name(worker_id: str) -> str:
     return f"collection-{worker_id}-{random_string(8)}"
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def linked_artifact(
     user: str,
     source_artifact: Artifact,
