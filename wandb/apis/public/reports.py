@@ -20,12 +20,12 @@ class Reports(SizedPaginator["BetaReport"]):
     Args:
         client: The W&B API client to use for making requests.
         project: The name of the project that the report belongs to.
-        name (str, optional): Human-readable name of the report to filter by. 
+        name (str, optional): Human-readable name of the report to filter by.
             Returns all reports if not specified.
         entity (str, optional): The entity (user or team) that owns the project.
             Defaults to the entity of the project if not specified.
         per_page (int, optional): Number of reports to fetch per page (default is 50).
-    """    
+    """
 
     QUERY = gql(
         """
@@ -119,11 +119,11 @@ class Reports(SizedPaginator["BetaReport"]):
 
 
 class BetaReport(Attrs):
-    """Represents a report object in the W&B system. 
+    """Represents a report object in the W&B system.
 
     Provides access to report attributes (name, description, user, spec,
     timestamps) and methods for retrieving associated runs,
-    sections, and for rendering the report as HTML.    
+    sections, and for rendering the report as HTML.
 
     WARNING: this API will likely change in a future release
 

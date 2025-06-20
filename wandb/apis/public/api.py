@@ -853,13 +853,12 @@ class Api:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
 
         Example:
-
         ```python
         import wandb
 
         api = wandb.Api()
         reports = api.reports(path="my-org/my-project")
-        ```            
+        ```
         """
         entity, project, _ = self._parse_path(path + "/fake_run")
 
