@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture(scope="module")
-def org_entity(user: str, org: str) -> str:
+def org_entity(org: str) -> str:
     api = wandb.Api(overrides={"organization": org})
     if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
         pytest.skip("Cannot fetch org entity on this server version.")
@@ -24,14 +24,14 @@ def org_entity(user: str, org: str) -> str:
 
 
 @pytest.fixture(scope="module")
-def registry(user: str, org: str) -> Registry:
+def registry(org: str) -> Registry:
     api = wandb.Api(overrides={"organization": org})
     # Full name will be "wandb-registry-model"
     return api.create_registry("model", visibility="organization", organization=org)
 
 
 @pytest.fixture(scope="module")
-def source_artifact(user: str, team: str) -> Artifact:
+def source_artifact(team: str) -> Artifact:
     """Create a source artifact logged within a team entity.
     Log this once per module to reduce overhead for each test run.
     This should be fine as long as we're mainly testing linking functionality.
