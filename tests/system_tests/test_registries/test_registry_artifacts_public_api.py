@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture(scope="module")
-def org_entity(org: str) -> str:
+def org_entity(user: str, org: str) -> str:
     api = wandb.Api(overrides={"organization": org})
     if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
         pytest.skip("Cannot fetch org entity on this server version.")
@@ -24,14 +24,14 @@ def org_entity(org: str) -> str:
 
 
 @pytest.fixture(scope="module")
-def registry(org: str) -> Registry:
+def registry(user: str, org: str) -> Registry:
     api = wandb.Api(overrides={"organization": org})
     # Full name will be "wandb-registry-model"
     return api.create_registry("model", visibility="organization", organization=org)
 
 
 @pytest.fixture(scope="module")
-def source_artifact(team: str) -> Artifact:
+def source_artifact(user: str, team: str) -> Artifact:
     """Create a source artifact logged within a team entity.
     Log this once per module to reduce overhead for each test run.
     This should be fine as long as we're mainly testing linking functionality.
@@ -50,6 +50,7 @@ def target_collection_name(worker_id: str) -> str:
 
 @pytest.fixture(scope="module")
 def linked_artifact(
+    user: str,
     source_artifact: Artifact,
     registry: Registry,
     target_collection_name: str,
@@ -60,8 +61,48 @@ def linked_artifact(
     )
 
 
-def test_fetch_registry_artifact(
+def test_fetch_migrated_registry_artifact(
     user,
+    api,
+    mocker,
+    capsys,
+):
+    mocker.patch(
+        "wandb.sdk.artifacts.artifact.Artifact._from_attrs",
+    )
+    mock_fetch_artifact_by_name = mocker.patch.object(api.client, "execute")
+    mock_fetch_artifact_by_name.return_value = {
+        "project": {
+            "artifact": {
+                "name": "test-collection",
+                "version": "v0",
+            },
+            "artifactCollectionMembership": {
+                "artifact": {
+                    "name": "test-collection",
+                    "version": "v0",
+                },
+                "artifactCollection": {
+                    "name": "test-collection",
+                    "project": {
+                        "entityName": "org-entity-name",
+                        "name": "wandb-registry-model",
+                    },
+                },
+            },
+        }
+    }
+
+    api.artifact("test-team/model-registry/test-collection:v0")
+    mock_fetch_artifact_by_name.assert_called_once()
+    captured = capsys.readouterr()
+    assert (
+        "This model registry has been migrated and will be discontinued" in captured.err
+    )
+
+
+def test_fetch_registry_artifact(
+    user: str,
     org: str,
     org_entity: str,
     team: str,
