@@ -16,21 +16,20 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture(scope="function")
-def api(user, team_and_org: TeamAndOrgNames) -> wandb.Api:
-    return wandb.Api(
-        overrides={"organization": team_and_org.org, "entity": team_and_org.team}
+def org_entity(org: str) -> str:
+    api = wandb.Api(
+        overrides={"organization": org}
     )
-
-
-@pytest.fixture(scope="function")
-def org_entity(api: wandb.Api, org: str) -> str:
     if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
         pytest.skip("Cannot fetch org entity on this server version.")
     return fetch_org_entity_from_organization(api.client, org)
 
 
 @pytest.fixture(scope="function")
-def registry(api: wandb.Api, org: str) -> Registry:
+def registry(org: str) -> Registry:
+    api = wandb.Api(
+        overrides={"organization": org}
+    )
     # Full name will be "wandb-registry-model"
     return api.create_registry("model", visibility="organization", organization=org)
 
@@ -67,14 +66,17 @@ def linked_artifact(
 
 def test_fetch_registry_artifact(
     user,
-    api: wandb.Api,
     org: str,
     org_entity: str,
+    team: str,
     registry: Registry,
     linked_artifact: Artifact,
     target_collection_name: str,
     source_artifact: Artifact,
 ):
+    api = wandb.Api(
+        overrides={"organization": org, "entity": team}
+    )
     artifact = api.artifact(
         f"{org}/{registry.full_name}/{target_collection_name}:latest"
     )
