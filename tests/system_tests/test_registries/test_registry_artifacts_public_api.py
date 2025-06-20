@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING
 
 import pytest
@@ -14,6 +13,7 @@ from wandb.util import random_string
 
 if TYPE_CHECKING:
     from ..backend_fixtures import TeamAndOrgNames
+
 
 @pytest.fixture(scope="function")
 def api(user, team_and_org: TeamAndOrgNames) -> wandb.Api:
