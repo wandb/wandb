@@ -77,19 +77,6 @@ def target_collection_name(worker_id: str) -> str:
     return f"collection-{worker_id}-{random_string(8)}"
 
 
-@pytest.fixture(scope="module")
-def linked_artifact(
-    registry_user: str,
-    source_artifact: Artifact,
-    registry: Registry,
-    target_collection_name: str,
-    org_entity: str,
-) -> str:
-    return source_artifact.link(
-        f"{org_entity}/{registry.full_name}/{target_collection_name}"
-    )
-
-
 def test_fetch_migrated_registry_artifact(
     registry_user,
     api,
@@ -143,11 +130,15 @@ def test_fetch_registry_artifact(
     org_entity: str,
     team: str,
     registry: Registry,
-    linked_artifact: Artifact,
     target_collection_name: str,
     source_artifact: Artifact,
 ):
+    source_artifact.link(
+        f"{org_entity}/{registry.full_name}/{target_collection_name}"
+    )
     api = wandb.Api(overrides={"organization": org, "entity": team})
+
+
     artifact = api.artifact(
         f"{org}/{registry.full_name}/{target_collection_name}:latest"
     )
