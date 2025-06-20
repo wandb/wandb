@@ -14,11 +14,11 @@ from wandb.util import get_module
 
 _logger = logging.getLogger(__name__)
 
-botocore = get_module(  # noqa: F811
+botocore = get_module(
     "botocore",
     required="The boto3 package is required to use launch with AWS. Please install it with `pip install wandb[launch]`.",
 )
-boto3 = get_module(  # noqa: F811
+boto3 = get_module(
     "boto3",
     required="The boto3 package is required to use launch with AWS. Please install it with `pip install wandb[launch]`.",
 )

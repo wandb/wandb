@@ -1,10 +1,8 @@
 import time
 
-import pytest
 import wandb
 
 
-@pytest.mark.wandb_core_only
 def test_run_system_metrics(wandb_backend_spy, test_settings):
     with wandb.init(
         settings=test_settings(

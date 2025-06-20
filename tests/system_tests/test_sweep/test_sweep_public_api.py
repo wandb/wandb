@@ -38,7 +38,6 @@ query Sweep($project: String, $entity: String, $name: String!) {
 )
 
 
-@pytest.mark.wandb_core_only
 @pytest.mark.parametrize(
     "sweep_config,expected_run_count",
     [
@@ -76,7 +75,6 @@ def test_sweep_api_expected_run_count(
     assert sweep._attrs["priorRuns"]["edges"][0]["node"]["name"] == run_id
 
 
-@pytest.mark.wandb_core_only
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_api(use_local_wandb_backend, user, sweep_config):
     _ = use_local_wandb_backend
@@ -91,7 +89,6 @@ def test_sweep_api(use_local_wandb_backend, user, sweep_config):
     assert str(sweep) == f"<Sweep {user}/test/{sweep_id} (PENDING)>"
 
 
-@pytest.mark.wandb_core_only
 def test_from_path(user):
     api = Api()
     sweep_id = wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")
@@ -99,7 +96,6 @@ def test_from_path(user):
     assert isinstance(sweep, wandb.apis.public.Sweep)
 
 
-@pytest.mark.wandb_core_only
 def test_project_sweeps(user):
     run = wandb.init(entity=user, project="testnosweeps")
     run.finish()
@@ -115,7 +111,6 @@ def test_project_sweeps(user):
     assert len(nspsweeps) == 0
 
 
-@pytest.mark.wandb_core_only
 def test_to_html(user):
     api = Api()
     sweep_id = wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")

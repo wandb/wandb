@@ -1,13 +1,9 @@
 import os
 
-import pytest
 from openai import OpenAI
 from wandb.integration.openai.fine_tuning import WandbLogger
 
 
-@pytest.mark.wandb_core_only(
-    reason="This test is order-dependent and must only run once.",
-)
 def test_finetuning(wandb_backend_spy):
     # TODO: this does not test much, it should be improved
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])

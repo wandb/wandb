@@ -1,9 +1,6 @@
 import pathlib
 
-import pytest
 
-
-@pytest.mark.wandb_core_only
 def test_strategy_ddp_spawn(wandb_backend_spy, execute_script):
     script_path = pathlib.Path(__file__).parent / "strategy_ddp_spawn.py"
     execute_script(script_path)
@@ -26,7 +23,6 @@ def test_strategy_ddp_spawn(wandb_backend_spy, execute_script):
         assert 106 in telemetry["2"]  # import=lightning
 
 
-@pytest.mark.wandb_core_only
 def test_strategy_ddp(wandb_backend_spy, execute_script):
     script_path = pathlib.Path(__file__).parent / "strategy_ddp.py"
     execute_script(script_path)
