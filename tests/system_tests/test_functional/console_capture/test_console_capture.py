@@ -12,6 +12,7 @@ def test_patch_stdout_and_stderr():
     )
 
     exit_code = proc.wait()  # on error, stderr may have useful details
+    assert proc.stderr and proc.stdout
     assert proc.stderr.read() == b"I AM STDERR\n"
     assert proc.stdout.read() == b"I AM STDOUT\n"
     assert exit_code == 0
@@ -19,6 +20,12 @@ def test_patch_stdout_and_stderr():
 
 def test_patching_exception():
     script = pathlib.Path(__file__).parent / "patching_exception.py"
+
+    subprocess.check_call(["python", str(script)])
+
+
+def test_removes_callback_on_error():
+    script = pathlib.Path(__file__).parent / "removes_callback_on_error.py"
 
     subprocess.check_call(["python", str(script)])
 
