@@ -439,17 +439,6 @@ func (s *Stream) HandleRecord(record *spb.Record) {
 			Record: record,
 
 			StreamRunUpserter: s.run,
-			Respond: func(record *spb.Record, result *spb.RunUpdateResult) {
-				// Write to the sender's output channel because this is called
-				// in the Sender goroutine.
-				s.sender.outChan <- &spb.Result{
-					ResultType: &spb.Result_RunResult{
-						RunResult: result,
-					},
-					Control: record.Control,
-					Uuid:    record.Uuid,
-				}
-			},
 
 			Settings:           s.settings,
 			BeforeRunEndCtx:    s.runWork.BeforeEndCtx(),
