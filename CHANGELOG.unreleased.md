@@ -13,9 +13,6 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-### Fixed
-- Allow s3 style CoreWeave uris for reference artifacts. (@estellazx in https://github.com/wandb/wandb/pull/9979)
-
 ### Notable Changes
 
 This version removes the legacy implementaion of the `service` process. This is a breaking change.
@@ -27,3 +24,7 @@ This version removes the legacy implementaion of the `service` process. This is 
 ### Removed
 
 - Removed the legacy python implementation of the `service` process. The `legacy-service` option of `wandb.require` as well as the `x_require_legacy_service` and `x_disable_setproctitle` settings with the corresponding environment variables have been removed and will now raise an error if used (@dmitryduev in https://github.com/wandb/wandb/pull/9965)
+
+### Fixed
+
+- Allow s3 style CoreWeave URIs for reference artifacts. (@estellazx in https://github.com/wandb/wandb/pull/9979)
