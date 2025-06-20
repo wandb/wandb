@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from ..backend_fixtures import BackendFixtureFactory, TeamAndOrgNames
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def user(
     module_mocker: MockerFixture,
     backend_fixture_factory: BackendFixtureFactory,
@@ -32,43 +32,43 @@ def user(
     return username
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def team_and_org(user: str, backend_fixture_factory) -> TeamAndOrgNames:
     return backend_fixture_factory.make_team(username=user)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def team(team_and_org: TeamAndOrgNames) -> str:
     return team_and_org.team
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def org(team_and_org: TeamAndOrgNames) -> str:
     """Set up backend resources for testing link_artifact within a registry."""
     return team_and_org.org
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def api(user, team_and_org: TeamAndOrgNames) -> wandb.Api:
     return wandb.Api(
         overrides={"organization": team_and_org.org, "entity": team_and_org.team}
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def org_entity(api: wandb.Api, org: str) -> str:
     if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
         pytest.skip("Cannot fetch org entity on this server version.")
     return fetch_org_entity_from_organization(api.client, org)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def registry(api: wandb.Api, org: str) -> Registry:
     # Full name will be "wandb-registry-model"
     return api.create_registry("model", visibility="organization", organization=org)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def source_artifact(team: str) -> Artifact:
     """Create a source artifact logged within a team entity.
     Log this once per module to reduce overhead for each test run.
@@ -81,7 +81,7 @@ def source_artifact(team: str) -> Artifact:
         return run.log_artifact(artifact)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def target_collection_name(worker_id: str) -> str:
     return f"collection-{worker_id}-{random_string(8)}"
 
