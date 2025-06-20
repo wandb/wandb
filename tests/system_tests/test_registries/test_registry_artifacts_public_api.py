@@ -76,17 +76,16 @@ def source_artifact(team: str) -> Artifact:
 def target_collection_name(worker_id: str) -> str:
     return f"collection-{worker_id}-{random_string(8)}"
 
-
 def test_fetch_migrated_registry_artifact(
-    registry_user,
+    user,
     api,
-    module_mocker,
+    mocker,
     capsys,
 ):
-    module_mocker.patch(
+    mocker.patch(
         "wandb.sdk.artifacts.artifact.Artifact._from_attrs",
     )
-    mock_fetch_artifact_by_name = module_mocker.patch.object(api.client, "execute")
+    mock_fetch_artifact_by_name = mocker.patch.object(api.client, "execute")
 
     # Mock the GQL response to return the version in the new org registry
     mock_fetch_artifact_by_name.return_value = {
