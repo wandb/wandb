@@ -137,7 +137,6 @@ class Imports(google.protobuf.message.Message):
     SACRED_FIELD_NUMBER: builtins.int
     JOBLIB_FIELD_NUMBER: builtins.int
     DASK_FIELD_NUMBER: builtins.int
-    ASYNCIO_FIELD_NUMBER: builtins.int
     PADDLEOCR_FIELD_NUMBER: builtins.int
     PPDET_FIELD_NUMBER: builtins.int
     PADDLESEG_FIELD_NUMBER: builtins.int
@@ -206,19 +205,9 @@ class Imports(google.protobuf.message.Message):
     autogluon: builtins.bool
     autokeras: builtins.bool
     catalyst: builtins.bool
-    """bool avalanche = 17;"""
     deepchem: builtins.bool
-    """bool dalle_pytorch = 19;
-    bool datasets = 20;
-    """
     deepctr: builtins.bool
     pycaret: builtins.bool
-    """bool deeppavlov = 23;
-    bool detectron = 24;
-    bool paddle = 25;
-    bool parlai = 26;
-    bool prophet = 27;
-    """
     pytorchvideo: builtins.bool
     ray: builtins.bool
     simpletransformers: builtins.bool
@@ -245,7 +234,6 @@ class Imports(google.protobuf.message.Message):
     sacred: builtins.bool
     joblib: builtins.bool
     dask: builtins.bool
-    asyncio: builtins.bool
     paddleocr: builtins.bool
     ppdet: builtins.bool
     paddleseg: builtins.bool
@@ -352,7 +340,6 @@ class Imports(google.protobuf.message.Message):
         sacred: builtins.bool = ...,
         joblib: builtins.bool = ...,
         dask: builtins.bool = ...,
-        asyncio: builtins.bool = ...,
         paddleocr: builtins.bool = ...,
         ppdet: builtins.bool = ...,
         paddleseg: builtins.bool = ...,
@@ -405,7 +392,7 @@ class Imports(google.protobuf.message.Message):
         orjson: builtins.bool = ...,
         lightning: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["TTS", b"TTS", "accelerate", b"accelerate", "albumentations", b"albumentations", "allennlp", b"allennlp", "anomalib", b"anomalib", "anthropic", b"anthropic", "asyncio", b"asyncio", "autogluon", b"autogluon", "autokeras", b"autokeras", "catalyst", b"catalyst", "catboost", b"catboost", "chromadb", b"chromadb", "cohere", b"cohere", "colossalai", b"colossalai", "composer", b"composer", "curated_transformers", b"curated_transformers", "dask", b"dask", "datasets", b"datasets", "deepchecks", b"deepchecks", "deepchem", b"deepchem", "deepctr", b"deepctr", "detectron2", b"detectron2", "dgl", b"dgl", "diffusers", b"diffusers", "elegy", b"elegy", "evaluate", b"evaluate", "fairseq", b"fairseq", "fastai", b"fastai", "flair", b"flair", "flash", b"flash", "flax", b"flax", "huggingface_hub", b"huggingface_hub", "hydra", b"hydra", "ignite", b"ignite", "jax", b"jax", "jina", b"jina", "joblib", b"joblib", "keras", b"keras", "keras_core", b"keras_core", "keras_cv", b"keras_cv", "kornia", b"kornia", "langchain", b"langchain", "langflow", b"langflow", "lightgbm", b"lightgbm", "lightning", b"lightning", "lightning_fabric", b"lightning_fabric", "llama_index", b"llama_index", "merlin", b"merlin", "metaflow", b"metaflow", "mmcls", b"mmcls", "mmcv", b"mmcv", "mmdet", b"mmdet", "mmengine", b"mmengine", "mmocr", b"mmocr", "mmseg", b"mmseg", "monai", b"monai", "nanodet", b"nanodet", "openai", b"openai", "optimum", b"optimum", "optuna", b"optuna", "orjson", b"orjson", "paddlenlp", b"paddlenlp", "paddleocr", b"paddleocr", "paddleseg", b"paddleseg", "peft", b"peft", "pinecone", b"pinecone", "ppdet", b"ppdet", "prefect", b"prefect", "prefect_ray", b"prefect_ray", "promptlayer", b"promptlayer", "pycaret", b"pycaret", "pytorch_lightning", b"pytorch_lightning", "pytorchvideo", b"pytorchvideo", "ray", b"ray", "recbole", b"recbole", "sacred", b"sacred", "segmentation_models_pytorch", b"segmentation_models_pytorch", "sentence_transformers", b"sentence_transformers", "simpletransformers", b"simpletransformers", "sklearn", b"sklearn", "skorch", b"skorch", "spacy", b"spacy", "sparseml", b"sparseml", "stability_sdk", b"stability_sdk", "syft", b"syft", "tensorflow", b"tensorflow", "timm", b"timm", "torch", b"torch", "torch_geometric", b"torch_geometric", "torchdrug", b"torchdrug", "torchtext", b"torchtext", "torchvision", b"torchvision", "transformers", b"transformers", "trl", b"trl", "trlx", b"trlx", "weaviate", b"weaviate", "xgboost", b"xgboost", "zenml", b"zenml"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["TTS", b"TTS", "accelerate", b"accelerate", "albumentations", b"albumentations", "allennlp", b"allennlp", "anomalib", b"anomalib", "anthropic", b"anthropic", "autogluon", b"autogluon", "autokeras", b"autokeras", "catalyst", b"catalyst", "catboost", b"catboost", "chromadb", b"chromadb", "cohere", b"cohere", "colossalai", b"colossalai", "composer", b"composer", "curated_transformers", b"curated_transformers", "dask", b"dask", "datasets", b"datasets", "deepchecks", b"deepchecks", "deepchem", b"deepchem", "deepctr", b"deepctr", "detectron2", b"detectron2", "dgl", b"dgl", "diffusers", b"diffusers", "elegy", b"elegy", "evaluate", b"evaluate", "fairseq", b"fairseq", "fastai", b"fastai", "flair", b"flair", "flash", b"flash", "flax", b"flax", "huggingface_hub", b"huggingface_hub", "hydra", b"hydra", "ignite", b"ignite", "jax", b"jax", "jina", b"jina", "joblib", b"joblib", "keras", b"keras", "keras_core", b"keras_core", "keras_cv", b"keras_cv", "kornia", b"kornia", "langchain", b"langchain", "langflow", b"langflow", "lightgbm", b"lightgbm", "lightning", b"lightning", "lightning_fabric", b"lightning_fabric", "llama_index", b"llama_index", "merlin", b"merlin", "metaflow", b"metaflow", "mmcls", b"mmcls", "mmcv", b"mmcv", "mmdet", b"mmdet", "mmengine", b"mmengine", "mmocr", b"mmocr", "mmseg", b"mmseg", "monai", b"monai", "nanodet", b"nanodet", "openai", b"openai", "optimum", b"optimum", "optuna", b"optuna", "orjson", b"orjson", "paddlenlp", b"paddlenlp", "paddleocr", b"paddleocr", "paddleseg", b"paddleseg", "peft", b"peft", "pinecone", b"pinecone", "ppdet", b"ppdet", "prefect", b"prefect", "prefect_ray", b"prefect_ray", "promptlayer", b"promptlayer", "pycaret", b"pycaret", "pytorch_lightning", b"pytorch_lightning", "pytorchvideo", b"pytorchvideo", "ray", b"ray", "recbole", b"recbole", "sacred", b"sacred", "segmentation_models_pytorch", b"segmentation_models_pytorch", "sentence_transformers", b"sentence_transformers", "simpletransformers", b"simpletransformers", "sklearn", b"sklearn", "skorch", b"skorch", "spacy", b"spacy", "sparseml", b"sparseml", "stability_sdk", b"stability_sdk", "syft", b"syft", "tensorflow", b"tensorflow", "timm", b"timm", "torch", b"torch", "torch_geometric", b"torch_geometric", "torchdrug", b"torchdrug", "torchtext", b"torchtext", "torchvision", b"torchvision", "transformers", b"transformers", "trl", b"trl", "trlx", b"trlx", "weaviate", b"weaviate", "xgboost", b"xgboost", "zenml", b"zenml"]) -> None: ...
 
 global___Imports = Imports
 
@@ -465,7 +452,6 @@ class Feature(google.protobuf.message.Message):
     LANGCHAIN_TRACER_FIELD_NUMBER: builtins.int
     COHERE_AUTOLOG_FIELD_NUMBER: builtins.int
     HF_PIPELINE_AUTOLOG_FIELD_NUMBER: builtins.int
-    CORE_FIELD_NUMBER: builtins.int
     LIB_C_FIELD_NUMBER: builtins.int
     LIB_CPP_FIELD_NUMBER: builtins.int
     OPENAI_FINETUNING_FIELD_NUMBER: builtins.int
@@ -589,8 +575,6 @@ class Feature(google.protobuf.message.Message):
     """Cohere autolog used"""
     hf_pipeline_autolog: builtins.bool
     """HuggingFace Autologging"""
-    core: builtins.bool
-    """Using wandb core internal process"""
     lib_c: builtins.bool
     """Using c wandb library"""
     lib_cpp: builtins.bool
@@ -680,7 +664,6 @@ class Feature(google.protobuf.message.Message):
         langchain_tracer: builtins.bool = ...,
         cohere_autolog: builtins.bool = ...,
         hf_pipeline_autolog: builtins.bool = ...,
-        core: builtins.bool = ...,
         lib_c: builtins.bool = ...,
         lib_cpp: builtins.bool = ...,
         openai_finetuning: builtins.bool = ...,
@@ -699,7 +682,7 @@ class Feature(google.protobuf.message.Message):
         fork_mode: builtins.bool = ...,
         rewind_mode: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["artifact_incremental", b"artifact_incremental", "async_uploads", b"async_uploads", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "cohere_autolog", b"cohere_autolog", "core", b"core", "dcgm_profiling_enabled", b"dcgm_profiling_enabled", "diffusers_autolog", b"diffusers_autolog", "estimator_hook", b"estimator_hook", "finish", b"finish", "flow_control_custom", b"flow_control_custom", "flow_control_disabled", b"flow_control_disabled", "flow_control_overflow", b"flow_control_overflow", "fork_mode", b"fork_mode", "grpc", b"grpc", "hf_pipeline_autolog", b"hf_pipeline_autolog", "importer_mlflow", b"importer_mlflow", "init_return_run", b"init_return_run", "keras", b"keras", "keras_metrics_logger", b"keras_metrics_logger", "keras_model_checkpoint", b"keras_model_checkpoint", "keras_wandb_eval_callback", b"keras_wandb_eval_callback", "kfp_wandb_log", b"kfp_wandb_log", "langchain_tracer", b"langchain_tracer", "launch", b"launch", "lib_c", b"lib_c", "lib_cpp", b"lib_cpp", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "lightning_fabric_logger", b"lightning_fabric_logger", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "metric_goal", b"metric_goal", "metric_hidden", b"metric_hidden", "metric_step_sync", b"metric_step_sync", "metric_summary", b"metric_summary", "offline", b"offline", "open_metrics", b"open_metrics", "openai_autolog", b"openai_autolog", "openai_finetuning", b"openai_finetuning", "prodigy", b"prodigy", "resumed", b"resumed", "rewind_mode", b"rewind_mode", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "server_side_derived_summary", b"server_side_derived_summary", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "set_step_log", b"set_step_log", "set_summary", b"set_summary", "shared_mode", b"shared_mode", "sync", b"sync", "sync_tfevents", b"sync_tfevents", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "ultralytics_yolov8", b"ultralytics_yolov8", "user_provided_label", b"user_provided_label", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["artifact_incremental", b"artifact_incremental", "async_uploads", b"async_uploads", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "cohere_autolog", b"cohere_autolog", "dcgm_profiling_enabled", b"dcgm_profiling_enabled", "diffusers_autolog", b"diffusers_autolog", "estimator_hook", b"estimator_hook", "finish", b"finish", "flow_control_custom", b"flow_control_custom", "flow_control_disabled", b"flow_control_disabled", "flow_control_overflow", b"flow_control_overflow", "fork_mode", b"fork_mode", "grpc", b"grpc", "hf_pipeline_autolog", b"hf_pipeline_autolog", "importer_mlflow", b"importer_mlflow", "init_return_run", b"init_return_run", "keras", b"keras", "keras_metrics_logger", b"keras_metrics_logger", "keras_model_checkpoint", b"keras_model_checkpoint", "keras_wandb_eval_callback", b"keras_wandb_eval_callback", "kfp_wandb_log", b"kfp_wandb_log", "langchain_tracer", b"langchain_tracer", "launch", b"launch", "lib_c", b"lib_c", "lib_cpp", b"lib_cpp", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "lightning_fabric_logger", b"lightning_fabric_logger", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "metric_goal", b"metric_goal", "metric_hidden", b"metric_hidden", "metric_step_sync", b"metric_step_sync", "metric_summary", b"metric_summary", "offline", b"offline", "open_metrics", b"open_metrics", "openai_autolog", b"openai_autolog", "openai_finetuning", b"openai_finetuning", "prodigy", b"prodigy", "resumed", b"resumed", "rewind_mode", b"rewind_mode", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "server_side_derived_summary", b"server_side_derived_summary", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "set_step_log", b"set_step_log", "set_summary", b"set_summary", "shared_mode", b"shared_mode", "sync", b"sync", "sync_tfevents", b"sync_tfevents", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "ultralytics_yolov8", b"ultralytics_yolov8", "user_provided_label", b"user_provided_label", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
 
 global___Feature = Feature
 
@@ -784,11 +767,7 @@ class Deprecated(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     KERAS_CALLBACK__DATA_TYPE_FIELD_NUMBER: builtins.int
-    RUN__MODE_FIELD_NUMBER: builtins.int
-    RUN__SAVE_NO_ARGS_FIELD_NUMBER: builtins.int
-    RUN__JOIN_FIELD_NUMBER: builtins.int
     PLOTS_FIELD_NUMBER: builtins.int
-    RUN__LOG_SYNC_FIELD_NUMBER: builtins.int
     INIT__CONFIG_INCLUDE_KEYS_FIELD_NUMBER: builtins.int
     INIT__CONFIG_EXCLUDE_KEYS_FIELD_NUMBER: builtins.int
     KERAS_CALLBACK__SAVE_MODEL_FIELD_NUMBER: builtins.int
@@ -812,16 +791,8 @@ class Deprecated(google.protobuf.message.Message):
     ARTIFACT__INIT_USE_AS_FIELD_NUMBER: builtins.int
     keras_callback__data_type: builtins.bool
     """wandb.integration.keras.WandbCallback(data_type=...) called"""
-    run__mode: builtins.bool
-    """wandb.run.mode called"""
-    run__save_no_args: builtins.bool
-    """wandb.run.save() called without arguments"""
-    run__join: builtins.bool
-    """wandb.run.join() called"""
     plots: builtins.bool
     """wandb.plots.* called"""
-    run__log_sync: builtins.bool
-    """wandb.run.log(sync=...) called"""
     init__config_include_keys: builtins.bool
     """wandb.init(config_include_keys=...) called"""
     init__config_exclude_keys: builtins.bool
@@ -868,11 +839,7 @@ class Deprecated(google.protobuf.message.Message):
         self,
         *,
         keras_callback__data_type: builtins.bool = ...,
-        run__mode: builtins.bool = ...,
-        run__save_no_args: builtins.bool = ...,
-        run__join: builtins.bool = ...,
         plots: builtins.bool = ...,
-        run__log_sync: builtins.bool = ...,
         init__config_include_keys: builtins.bool = ...,
         init__config_exclude_keys: builtins.bool = ...,
         keras_callback__save_model: builtins.bool = ...,
@@ -895,7 +862,7 @@ class Deprecated(google.protobuf.message.Message):
         artifact__use_as: builtins.bool = ...,
         artifact__init_use_as: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact__init_use_as", b"artifact__init_use_as", "artifact__use_as", b"artifact__use_as", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__finish_quiet", b"run__finish_quiet", "run__get_project_url", b"run__get_project_url", "run__get_sweep_url", b"run__get_sweep_url", "run__get_url", b"run__get_url", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__project_name", b"run__project_name", "run__reinit_bool", b"run__reinit_bool", "run__save_no_args", b"run__save_no_args", "run__use_artifact_use_as", b"run__use_artifact_use_as", "run_disabled", b"run_disabled"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact__init_use_as", b"artifact__init_use_as", "artifact__use_as", b"artifact__use_as", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__finish_quiet", b"run__finish_quiet", "run__get_project_url", b"run__get_project_url", "run__get_sweep_url", b"run__get_sweep_url", "run__get_url", b"run__get_url", "run__project_name", b"run__project_name", "run__reinit_bool", b"run__reinit_bool", "run__use_artifact_use_as", b"run__use_artifact_use_as", "run_disabled", b"run_disabled"]) -> None: ...
 
 global___Deprecated = Deprecated
 

@@ -13,7 +13,7 @@ Consider removing tests once Pydantic v1 support is dropped.
 
 # Ignored linter rules to ensure compatibility with older pydantic and/or python versions.
 # ruff: noqa: UP006  # allow e.g. `List[X]` instead of `list[x]`
-# ruff: noqa: UP007  # allow e.g. `Union[X, Y]` instead of `X | Y` (pydantic<2.6)
+# ruff: noqa: UP045  # allow e.g. `Optional[X]` instead of `X | None` (pydantic<2.6)
 
 from __future__ import annotations
 
@@ -152,7 +152,9 @@ def test_model_fields_class_property():
 def test_model_fields_set_property():
     class Model(CompatBaseModel):
         x: int
-        y: Optional[str] = None  # noqa: UP007  # `Optional[X]` instead of `X | None` for pydantic<2.6 compatibility
+        y: Optional[str] = (
+            None  # `Optional[X]` instead of `X | None` for pydantic<2.6 compatibility
+        )
 
     obj = Model(x=1)
     assert obj.model_fields_set == {"x"}
