@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 import wandb
-from pytest_mock import MockerFixture
 from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.registries.registry import Registry
 from wandb.proto.wandb_internal_pb2 import ServerFeature
@@ -14,39 +13,7 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.util import random_string
 
 if TYPE_CHECKING:
-    from ..backend_fixtures import BackendFixtureFactory, TeamAndOrgNames
-
-
-@pytest.fixture(scope="function")
-def user(
-    module_mocker: MockerFixture,
-    backend_fixture_factory: BackendFixtureFactory,
-) -> str:
-    username = backend_fixture_factory.make_user()
-    envvars = {
-        "WANDB_API_KEY": username,
-        "WANDB_ENTITY": username,
-        "WANDB_USERNAME": username,
-    }
-    module_mocker.patch.dict(os.environ, envvars)
-    return username
-
-
-@pytest.fixture(scope="function")
-def team_and_org(user: str, backend_fixture_factory) -> TeamAndOrgNames:
-    return backend_fixture_factory.make_team(username=user)
-
-
-@pytest.fixture(scope="function")
-def team(team_and_org: TeamAndOrgNames) -> str:
-    return team_and_org.team
-
-
-@pytest.fixture(scope="function")
-def org(team_and_org: TeamAndOrgNames) -> str:
-    """Set up backend resources for testing link_artifact within a registry."""
-    return team_and_org.org
-
+    from ..backend_fixtures import TeamAndOrgNames
 
 @pytest.fixture(scope="function")
 def api(user, team_and_org: TeamAndOrgNames) -> wandb.Api:
