@@ -272,6 +272,7 @@ func NewStream(
 		GraphqlClientOrNil: s.graphqlClientOrNil,
 		Logger:             s.logger,
 		Operations:         s.operations,
+		TBHandler:          tbHandler,
 		Run:                s.run,
 		Settings:           s.settings,
 	}
@@ -314,7 +315,6 @@ func NewStream(
 				GpuResourceManager: params.GPUResourceManager,
 				GraphqlClient:      s.graphqlClientOrNil,
 			}),
-			TBHandler:       tbHandler,
 			TerminalPrinter: terminalPrinter,
 		},
 	)
@@ -330,7 +330,6 @@ func NewStream(
 			FileTransferStats:   fileTransferStats,
 			FileWatcher:         fileWatcher,
 			RunfilesUploader:    runfilesUploaderOrNil,
-			TBHandler:           tbHandler,
 			Peeker:              peeker,
 			StreamRun:           s.run,
 			RunSummary:          runsummary.New(),
@@ -444,7 +443,7 @@ func (s *Stream) Start() {
 func (s *Stream) HandleRecord(record *spb.Record) {
 	s.logger.Debug("handling record", "record", record.GetRecordType())
 	work := s.recordParser.Parse(record)
-	s.runWork.AddWork(work)
+	work.Schedule(&sync.WaitGroup{}, func() { s.runWork.AddWork(work) })
 }
 
 // Close waits for all run messages to be fully processed.

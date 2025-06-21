@@ -17,6 +17,7 @@ import (
 // it its own implementation. Each Record type should have a corresponding
 // Work struct.
 type WorkRecord struct {
+	SimpleScheduleMixin
 	Record *spb.Record
 }
 
