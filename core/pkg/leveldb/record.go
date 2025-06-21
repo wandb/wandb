@@ -303,8 +303,19 @@ func (r *Reader) SeekRecord(offset int64) error {
 		return r.err
 	}
 
-	// Clear the state of the internal reader.
-	r.i, r.j, r.n = 0, 0, 0
+	// The first block is short: its first few bytes are a header.
+	if c == 0 {
+		n, err := io.ReadFull(r.r, r.buf[:])
+		if err != nil && err != io.ErrUnexpectedEOF {
+			return err
+		}
+		// TODO: Don't hardcode!
+		r.i, r.j, r.n = 7, 7, n
+	} else {
+		// Clear the state of the internal reader.
+		r.i, r.j, r.n = 0, 0, 0
+	}
+
 	r.started, r.recovering, r.last = false, false, false
 	if r.err = r.nextChunk(false); r.err != nil {
 		return r.err
