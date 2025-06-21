@@ -939,6 +939,7 @@ class Api:
         order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
+        lightweight: bool = True,
     ):
         """Return a set of runs from a project that match the filters provided.
 
@@ -1046,6 +1047,10 @@ class Api:
                 The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
             include_sweeps: (bool) Whether to include the sweep runs in the results.
+            lightweight: (bool) Whether to use lightweight mode for faster performance.
+                When True (default), only essential run metadata is loaded initially.
+                Heavy fields like config, summaryMetrics, and systemMetrics are loaded
+                on-demand when accessed. Set to False for full data upfront.
 
         Returns:
             A `Runs` object, which is an iterable collection of `Run` objects.
@@ -1053,16 +1058,26 @@ class Api:
         entity, project = self._parse_project_path(path)
         filters = filters or {}
         key = (path or "") + str(filters) + str(order)
-        if not self._runs.get(key):
-            self._runs[key] = public.Runs(
-                self.client,
-                entity,
-                project,
-                filters=filters,
-                order=order,
-                per_page=per_page,
-                include_sweeps=include_sweeps,
-            )
+        
+        # Check if we have cached results
+        if self._runs.get(key):
+            cached_runs = self._runs[key]
+            # If requesting full data but cached data is lightweight, upgrade it
+            if not lightweight and cached_runs._lightweight:
+                cached_runs.upgrade_to_full()
+            return cached_runs
+        
+        # Create new Runs object
+        self._runs[key] = public.Runs(
+            self.client,
+            entity,
+            project,
+            filters=filters,
+            order=order,
+            per_page=per_page,
+            include_sweeps=include_sweeps,
+            lightweight=lightweight,
+        )
         return self._runs[key]
 
     @normalize_exceptions
