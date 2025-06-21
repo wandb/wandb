@@ -125,8 +125,6 @@ class BetaReport(Attrs):
     timestamps) and methods for retrieving associated runs,
     sections, and for rendering the report as HTML.
 
-    WARNING: this API will likely change in a future release
-
     Attributes:
         id (string): Unique identifier of the report.
         name (string): The name of the report.
