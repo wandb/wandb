@@ -798,7 +798,7 @@ class SendManager:
             framework=self._telemetry_get_framework(),
             start_time_millis=self._start_time,
             metric_pbdicts=self._config_metric_pbdict_list,
-            metadata_record=self._metadata_obj,
+            environment_record=self._environment_obj,
         )
 
     def _config_save(
