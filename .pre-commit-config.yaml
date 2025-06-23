@@ -10,7 +10,7 @@ default_stages:
 default_install_hook_types: [pre-push, pre-commit]
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.8.2"
+    rev: "v0.12.0"
     hooks:
       - id: ruff
         args: [--fix]

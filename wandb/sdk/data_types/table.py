@@ -203,8 +203,8 @@ class Table(Media):
     This means you can embed `Images`, `Video`, `Audio`, and other sorts of rich, annotated media
     directly in Tables, alongside other traditional scalar values.
 
-    This class is the primary class used to generate the Table Visualizer
-    in the UI: https://docs.wandb.ai/guides/data-vis/tables.
+    This class is the primary class used to generate the W&B Tables
+    https://docs.wandb.ai/guides/models/tables/.
     """
 
     MAX_ROWS = 10000
@@ -292,9 +292,9 @@ class Table(Media):
                 self._init_from_list([], columns, optional, dtype)
 
     def _validate_log_mode(self, log_mode):
-        assert (
-            log_mode in _SUPPORTED_LOGGING_MODES
-        ), f"Invalid log_mode: {log_mode}. Must be one of {_SUPPORTED_LOGGING_MODES}"
+        assert log_mode in _SUPPORTED_LOGGING_MODES, (
+            f"Invalid log_mode: {log_mode}. Must be one of {_SUPPORTED_LOGGING_MODES}"
+        )
 
     @staticmethod
     def _assert_valid_columns(columns):
@@ -314,9 +314,9 @@ class Table(Media):
             self.add_data(*row)
 
     def _init_from_ndarray(self, ndarray, columns, optional=True, dtype=None):
-        assert util.is_numpy_array(
-            ndarray
-        ), "ndarray argument expects a `numpy.ndarray` object"
+        assert util.is_numpy_array(ndarray), (
+            "ndarray argument expects a `numpy.ndarray` object"
+        )
         self.data = []
         self._assert_valid_columns(columns)
         self.columns = columns
@@ -325,9 +325,9 @@ class Table(Media):
             self.add_data(*row)
 
     def _init_from_dataframe(self, dataframe, columns, optional=True, dtype=None):
-        assert util.is_pandas_data_frame(
-            dataframe
-        ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
+        assert util.is_pandas_data_frame(dataframe), (
+            "dataframe argument expects a `pandas.core.frame.DataFrame` object"
+        )
         self.data = []
         columns = list(dataframe.columns)
         self._assert_valid_columns(columns)
@@ -440,17 +440,17 @@ class Table(Media):
         is_fk = isinstance(wbtype, _ForeignKeyType)
         is_fi = isinstance(wbtype, _ForeignIndexType)
         if is_pk or is_fk or is_fi:
-            assert (
-                not optional
-            ), "Primary keys, foreign keys, and foreign indexes cannot be optional."
+            assert not optional, (
+                "Primary keys, foreign keys, and foreign indexes cannot be optional."
+            )
 
         if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
             raise AssertionError("Cannot set a foreign table reference to same table.")
 
         if is_pk:
-            assert (
-                self._pk_col is None
-            ), f"Cannot have multiple primary keys - {self._pk_col} is already set as the primary key."
+            assert self._pk_col is None, (
+                f"Cannot have multiple primary keys - {self._pk_col} is already set as the primary key."
+            )
 
         # Update the column type
         self._column_types.params["type_map"][col_name] = wbtype
@@ -464,21 +464,21 @@ class Table(Media):
 
     def _eq_debug(self, other, should_assert=False):
         eq = isinstance(other, Table)
-        assert (
-            not should_assert or eq
-        ), f"Found type {other.__class__}, expected {Table}"
+        assert not should_assert or eq, (
+            f"Found type {other.__class__}, expected {Table}"
+        )
         eq = eq and len(self.data) == len(other.data)
-        assert (
-            not should_assert or eq
-        ), f"Found {len(other.data)} rows, expected {len(self.data)}"
+        assert not should_assert or eq, (
+            f"Found {len(other.data)} rows, expected {len(self.data)}"
+        )
         eq = eq and self.columns == other.columns
-        assert (
-            not should_assert or eq
-        ), f"Found columns {other.columns}, expected {self.columns}"
+        assert not should_assert or eq, (
+            f"Found columns {other.columns}, expected {self.columns}"
+        )
         eq = eq and self._column_types == other._column_types
-        assert (
-            not should_assert or eq
-        ), f"Found column type {other._column_types}, expected column type {self._column_types}"
+        assert not should_assert or eq, (
+            f"Found column type {other._column_types}, expected column type {self._column_types}"
+        )
         if eq:
             for row_ndx in range(len(self.data)):
                 for col_ndx in range(len(self.data[row_ndx])):
@@ -487,9 +487,9 @@ class Table(Media):
                     if util.is_numpy_array(_eq):
                         _eq = ((_eq * -1) + 1).sum() == 0
                     eq = eq and _eq
-                    assert (
-                        not should_assert or eq
-                    ), f"Unequal data at row_ndx {row_ndx} col_ndx {col_ndx}: found {other.data[row_ndx][col_ndx]}, expected {self.data[row_ndx][col_ndx]}"
+                    assert not should_assert or eq, (
+                        f"Unequal data at row_ndx {row_ndx} col_ndx {col_ndx}: found {other.data[row_ndx][col_ndx]}, expected {self.data[row_ndx][col_ndx]}"
+                    )
                     if not eq:
                         return eq
         return eq
@@ -932,9 +932,9 @@ class Table(Media):
         assert isinstance(data, list) or is_np
         assert isinstance(optional, bool)
         is_first_col = len(self.columns) == 0
-        assert is_first_col or len(data) == len(
-            self.data
-        ), f"Expected length {len(self.data)}, found {len(data)}"
+        assert is_first_col or len(data) == len(self.data), (
+            f"Expected length {len(self.data)}, found {len(data)}"
+        )
 
         # Add the new data
         for ndx in range(max(len(data), len(self.data))):
@@ -1257,13 +1257,13 @@ class JoinedTable(Media):
 
     def _eq_debug(self, other, should_assert=False):
         eq = isinstance(other, JoinedTable)
-        assert (
-            not should_assert or eq
-        ), f"Found type {other.__class__}, expected {JoinedTable}"
+        assert not should_assert or eq, (
+            f"Found type {other.__class__}, expected {JoinedTable}"
+        )
         eq = eq and self._join_key == other._join_key
-        assert (
-            not should_assert or eq
-        ), f"Found {other._join_key} join key, expected {self._join_key}"
+        assert not should_assert or eq, (
+            f"Found {other._join_key} join key, expected {self._join_key}"
+        )
         eq = eq and self._table1._eq_debug(other._table1, should_assert)
         eq = eq and self._table2._eq_debug(other._table2, should_assert)
         return eq
