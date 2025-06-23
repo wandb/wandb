@@ -284,17 +284,17 @@ func (t *TPU) getMetrics(metricName TPUMetricName) ([]*tpuproto.Metric, error) {
 }
 
 // Probe returns the TPU metadata.
-func (t *TPU) Probe() *spb.MetadataRecord {
+func (t *TPU) Probe() *spb.EnvironmentRecord {
 	if t.count == 0 {
 		return nil
 	}
 
-	return &spb.MetadataRecord{Metadata: &spb.Metadata{
+	return &spb.EnvironmentRecord{
 		Tpu: &spb.TPUInfo{
 			Name:           t.chip.Name,
 			Count:          uint32(t.count),
 			HbmGib:         uint32(t.chip.HbmGiB),
 			DevicesPerChip: uint32(t.chip.DevicesPerChip),
 		},
-	}}
+	}
 }
