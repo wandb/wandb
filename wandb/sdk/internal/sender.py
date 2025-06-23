@@ -1428,9 +1428,7 @@ class SendManager:
         """Inject environment info into config and upload as a JSON file."""
         self._update_environment_record(record.environment)
 
-        environment_json = json.dumps(
-            proto_util.message_to_dict(self._environment_obj)
-        )
+        environment_json = json.dumps(proto_util.message_to_dict(self._environment_obj))
 
         with open(
             os.path.join(self._settings.files_dir, filenames.METADATA_FNAME), "w"
