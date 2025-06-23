@@ -109,7 +109,7 @@ func TestAddInternalData(t *testing.T) {
 			"_wandb": map[string]any{
 				"t": corelib.ProtoEncodeToDict(telemetry),
 				"m": []map[string]any{},
-				"d": map[string]any{"a": map[string]any{"b": "c"}},
+				"e": map[string]any{"a": map[string]any{"b": "c"}},
 			},
 		},
 		runConfig.CloneTree(),
