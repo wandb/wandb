@@ -53,6 +53,7 @@ func (re *RunEnvironment) ToJSON() ([]byte, error) {
 // multi-writer use cases (e.g. shared mode or resume).
 func (re *RunEnvironment) ToRunConfigData() map[string]any {
 	var m map[string]any
+	// TODO: avoid converting to and parsing JSON
 	environmentJSON, err := re.ToJSON()
 	if err != nil {
 		return nil
