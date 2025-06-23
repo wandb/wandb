@@ -7,6 +7,7 @@ import "github.com/wandb/simplejsonext"
 // The zero value is an empty summary.
 type metricSummary struct {
 	latest any
+	first  any
 	min    float64
 	max    float64
 	total  float64
@@ -27,6 +28,7 @@ type metricSummary struct {
 
 func (ms *metricSummary) Clear() {
 	ms.latest = nil
+	ms.first = nil
 	ms.hasData = false
 }
 
@@ -42,6 +44,9 @@ func (ms *metricSummary) SetExplicit(value any) {
 // UpdateFloat updates the metric's summary with the latest value
 // when it is a float.
 func (ms *metricSummary) UpdateFloat(value float64) {
+	if !ms.hasData {
+		ms.first = value
+	}
 	ms.latest = value
 	ms.hasData = true
 
@@ -59,6 +64,9 @@ func (ms *metricSummary) UpdateFloat(value float64) {
 // UpdateInt updates the metric's summary with the latest value
 // when it is an integer.
 func (ms *metricSummary) UpdateInt(value int64) {
+	if !ms.hasData {
+		ms.first = value
+	}
 	ms.latest = value
 	ms.hasData = true
 
@@ -76,6 +84,9 @@ func (ms *metricSummary) UpdateInt(value int64) {
 // UpdateOther updates the metric's summary with the latest value
 // when it's not a number.
 func (ms *metricSummary) UpdateOther(value any) {
+	if !ms.hasData {
+		ms.first = value
+	}
 	ms.latest = value
 	ms.hasData = true
 }
@@ -105,6 +116,9 @@ func (ms *metricSummary) ToMarshallableValue() any {
 	}
 	if ms.track.HasAny(Mean) {
 		summary["mean"] = ms.total / float64(ms.count)
+	}
+	if ms.track.HasAny(First) {
+		summary["first"] = ms.first
 	}
 
 	return summary
