@@ -17,13 +17,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 This version removes the legacy implementaion of the `service` process. This is a breaking change.
 
-### Added
-
-- `api.artifact()` will now display a warning while fetching artifacts from migrated model registry collections. (@ibindlish in https://github.com/wandb/wandb/pull/10047)
-
 ### Changed
 
 - `wandb` now attempts to use Unix sockets for IPC instead of listening on localhost, making it work in environments with more restrictive permissions (such as Databricks) (@timoffex in https://github.com/wandb/wandb/pull/9995)
+- `api.artifact()` will now display a warning while fetching artifacts from migrated model registry collections. (@ibindlish in https://github.com/wandb/wandb/pull/10047)
 
 ### Removed
 
