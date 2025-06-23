@@ -50,7 +50,7 @@ message Record {
     // Removed but kept to avoid panics in `wandb sync`.
     google.protobuf.Empty noop_link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
-    MetadataRecord metadata = 26;
+    EnvironmentRecord environment = 26;
 
     // request field does not belong here longterm
     Request request = 100;
@@ -1233,7 +1233,7 @@ message CancelRequest {
 message CancelResponse {}
 
 /*
- * Run Metadata
+ * Run environment including system, hardware, software, and execution parameters.
  */
 message DiskInfo {
   uint64 total = 1;
@@ -1297,28 +1297,27 @@ message TPUInfo {
   uint32 count = 4;
 }
 
-// CoreWeaveInfo stores information about a CoreWeave compute environment
+// CoreWeaveInfo stores information about a CoreWeave compute environment.
 message CoreWeaveInfo {
   string cluster_name = 1;
   string org_id = 2;
   string region = 3;
 }
 
-// Encapsulates the metadata from a single writer session for a given run.
+// EnvironmentRecord stores a snapshot of the system, hardware, software,
+// and execution parameters captured at a run writer initialization.
 //
-// Contains system, environment, and execution details for a specific context.
-//
-// A single W&B Run can have multiple "writers" - unique client sessions
-// that contribute data to the run. Examples include:
-//   - Multiple processes initializing `wandb.init(id="<run-id>", mode="shared")`
-//     in a distributed training setup.
-//   - A user resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
+// A single W&B Run can have multiple "writers" that contribute data to the run.
+// Examples include:
+//   - Multiple processes logging to the same run in a distributed training setup
+//     (`wandb.init(id="<run-id>", mode="shared")`)
+//   - Resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
 //     which creates a new writer session, potentially on a different machine.
 //
-// Because each writer can have a different environment (e.g., different OS,
-// hardware, or git state), this message namespaces the captured `Metadata`
-// by a unique `client_id` for each writer.
-message MetadataRecord {
+// Because each writer can have a distinct environment (e.g., different OS,
+// hardware, or git state), this record is associated with that writer's
+// unique `writer_id` to preserve its specific context.
+message EnvironmentRecord {
   // The environment and system metadata captured by this specific writer.
 
   // Operating system, e.g., "macOS-14.4.1-arm64-arm-64bit".
@@ -1386,7 +1385,7 @@ message MetadataRecord {
   //
   // This ID distinguishes this writer's metadata from that of other writers
   // that may be contributing to the same run.
-  string client_id = 199;
+  string writer_id = 199;
 
   _RecordInfo _info = 200;
 }

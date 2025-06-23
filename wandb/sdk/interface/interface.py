@@ -665,7 +665,7 @@ class InterfaceBase:
         raise NotImplementedError
 
     @abstractmethod
-    def publish_metadata(self, metadata: pb.MetadataRecord) -> None:
+    def publish_environment(self, environment: pb.EnvironmentRecord) -> None:
         raise NotImplementedError
 
     def publish_partial_history(

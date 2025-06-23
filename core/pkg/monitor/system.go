@@ -285,16 +285,16 @@ func getSlurmEnvVars() map[string]string {
 	return slurmVars
 }
 
-// Probe collects system information for metadata reporting.
+// Probe collects system information.
 //
 // Gathers hardware details about the system including:
 //   - CPU information (count, logical count)
 //   - Memory information (total available)
 //   - Disk information (space usage for monitored paths)
 //   - SLURM environment variables if running in a SLURM environment
-func (s *System) Probe() *spb.MetadataRecord {
+func (s *System) Probe() *spb.EnvironmentRecord {
 	// TODO: capture more detailed CPU information.
-	info := &spb.MetadataRecord{
+	info := &spb.EnvironmentRecord{
 		Disk:   make(map[string]*spb.DiskInfo),
 		Memory: &spb.MemoryInfo{},
 	}

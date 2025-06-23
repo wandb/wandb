@@ -63,9 +63,9 @@ if TYPE_CHECKING:
         ArtifactManifest,
         ArtifactManifestEntry,
         ArtifactRecord,
+        EnvironmentRecord,
         HttpResponse,
         LocalInfo,
-        MetadataRecord,
         Record,
         Result,
         RunExitResult,
@@ -213,7 +213,7 @@ class SendManager:
     _context_keeper: context.ContextKeeper
 
     _telemetry_obj: telemetry.TelemetryRecord
-    _metadata_obj: "MetadataRecord"
+    _environment_obj: "EnvironmentRecord"
     _fs: Optional["file_stream.FileStreamApi"]
     _run: Optional["RunRecord"]
     _entity: Optional[str]
@@ -270,7 +270,7 @@ class SendManager:
 
         self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
-        self._metadata_obj = wandb_internal_pb2.MetadataRecord()
+        self._environment_obj = wandb_internal_pb2.EnvironmentRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
         self._metadata_summary: Dict[str, Any] = defaultdict()
         self._cached_summary: Dict[str, Any] = dict()
@@ -1420,22 +1420,22 @@ class SendManager:
         # tbrecord watching threads are handled by handler.py
         pass
 
-    def _update_metadata_record(self, metadata: "MetadataRecord") -> None:
-        self._metadata_obj.MergeFrom(metadata)
+    def _update_environment_record(self, environment: "EnvironmentRecord") -> None:
+        self._environment_obj.MergeFrom(environment)
         self._debounce_config()
 
-    def send_metadata(self, record: "Record") -> None:
-        """Inject metadata into config and upload as a JSON file."""
-        self._update_metadata_record(record.metadata)
+    def send_environment(self, record: "Record") -> None:
+        """Inject environment info into config and upload as a JSON file."""
+        self._update_environment_record(record.environment)
 
-        metadata_json = json.dumps(
-            proto_util.message_to_dict(self._metadata_obj.metadata)
+        environment_json = json.dumps(
+            proto_util.message_to_dict(self._environment_obj)
         )
 
         with open(
             os.path.join(self._settings.files_dir, filenames.METADATA_FNAME), "w"
         ) as f:
-            f.write(metadata_json)
+            f.write(environment_json)
 
         self._save_file(interface.GlobStr(filenames.METADATA_FNAME), policy="now")
 

@@ -47,7 +47,7 @@ use wandb_internal::{
     record::RecordType,
     stats_record::StatsType,
     system_monitor_service_server::{SystemMonitorService, SystemMonitorServiceServer},
-    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, MetadataRecord,
+    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, EnvironmentRecord,
     Record, StatsItem, StatsRecord, TearDownRequest, TearDownResponse,
 };
 
@@ -332,7 +332,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
             .map(|(name, value)| (name.to_string(), value))
             .collect();
 
-        let mut metadata = MetadataRecord {
+        let mut metadata = EnvironmentRecord {
             ..Default::default()
         };
 
@@ -372,7 +372,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         }
 
         let record = Record {
-            record_type: Some(RecordType::Metadata(metadata)),
+            record_type: Some(RecordType::Environment(metadata)),
             ..Default::default()
         };
 

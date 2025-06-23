@@ -100,7 +100,7 @@ func (rc *RunConfig) ApplyChangeRecord(
 func (rc *RunConfig) AddInternalData(
 	telemetry *spb.TelemetryRecord,
 	metrics []map[string]any,
-	metadata map[string]any,
+	environment map[string]any,
 ) {
 	if telemetry.GetCliVersion() != "" {
 		rc.pathTree.Set(
@@ -125,10 +125,10 @@ func (rc *RunConfig) AddInternalData(
 		metrics,
 	)
 
-	if len(metadata) > 0 {
+	if len(environment) > 0 {
 		rc.pathTree.Set(
-			pathtree.PathOf("_wandb", "d"),
-			metadata,
+			pathtree.PathOf("_wandb", "e"),
+			environment,
 		)
 	}
 }

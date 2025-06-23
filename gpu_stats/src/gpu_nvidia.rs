@@ -1,5 +1,5 @@
 use crate::metrics::MetricValue;
-use crate::wandb_internal::{GpuNvidiaInfo, MetadataRecord};
+use crate::wandb_internal::{GpuNvidiaInfo, EnvironmentRecord};
 
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
@@ -697,8 +697,8 @@ impl NvidiaGpu {
     }
 
     /// Extract metadata about the GPUs in the system from the provided samples.
-    pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> MetadataRecord {
-        let mut metadata = MetadataRecord {
+    pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> EnvironmentRecord {
+        let mut metadata = EnvironmentRecord {
             ..Default::default()
         };
 

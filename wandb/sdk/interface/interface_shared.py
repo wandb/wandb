@@ -59,8 +59,8 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(telemetry=telem)
         self._publish(rec)
 
-    def publish_metadata(self, metadata: pb.MetadataRecord) -> None:
-        rec = self._make_record(metadata=metadata)
+    def publish_environment(self, environment: pb.EnvironmentRecord) -> None:
+        rec = self._make_record(environment=environment)
         self._publish(rec)
 
     def _publish_job_input(
@@ -210,7 +210,7 @@ class InterfaceShared(InterfaceBase):
         use_artifact: Optional[pb.UseArtifactRecord] = None,
         output: Optional[pb.OutputRecord] = None,
         output_raw: Optional[pb.OutputRawRecord] = None,
-        metadata: Optional[pb.MetadataRecord] = None,
+        environment: Optional[pb.EnvironmentRecord] = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -253,8 +253,8 @@ class InterfaceShared(InterfaceBase):
             record.output.CopyFrom(output)
         elif output_raw:
             record.output_raw.CopyFrom(output_raw)
-        elif metadata:
-            record.metadata.CopyFrom(metadata)
+        elif environment:
+            record.environment.CopyFrom(environment)
         else:
             raise Exception("Invalid record")
         return record

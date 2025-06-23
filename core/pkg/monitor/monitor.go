@@ -34,7 +34,7 @@ const (
 // Asset defines the interface for system assets to be monitored.
 type Asset interface {
 	Sample() (*spb.StatsRecord, error)
-	Probe() *spb.MetadataRecord
+	Probe() *spb.EnvironmentRecord
 }
 
 // SystemMonitor is responsible for monitoring system metrics across various assets.
@@ -71,7 +71,7 @@ type SystemMonitor struct {
 	graphqlClient graphql.Client
 
 	// Unique identifier of the writer to the run.
-	clientID string
+	writerID string
 }
 
 type SystemMonitorParams struct {
@@ -93,7 +93,7 @@ type SystemMonitorParams struct {
 	GraphqlClient graphql.Client
 
 	// Unique identifier of the writer to the run.
-	ClientID string
+	WriterID string
 }
 
 // NewSystemMonitor initializes and returns a new SystemMonitor instance.
@@ -113,7 +113,7 @@ func NewSystemMonitor(params SystemMonitorParams) *SystemMonitor {
 		extraWork:        params.ExtraWork,
 		samplingInterval: defaultSamplingInterval,
 		graphqlClient:    params.GraphqlClient,
-		clientID:         params.ClientID,
+		writerID:         params.WriterID,
 	}
 
 	// Early return if stats collection is disabled
@@ -241,9 +241,9 @@ func (sm *SystemMonitor) GetState() int32 {
 
 // probeEnvironment collects information about the compute environment.
 func (sm *SystemMonitor) probeEnvironment(git *spb.GitRepoRecord) *spb.Record {
-	sm.logger.Debug("monitor: probing environment")
+	sm.logger.Debug("monitor: probing execution environment")
 
-	systemInfo := spb.MetadataRecord{
+	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &spb.EnvironmentRecord{
 		Os:            sm.settings.GetOS(),
 		Python:        sm.settings.GetPython(),
 		Host:          sm.settings.GetHostProcessorName(),
@@ -260,10 +260,8 @@ func (sm *SystemMonitor) probeEnvironment(git *spb.GitRepoRecord) *spb.Record {
 		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
 		Git:           git,
 
-		ClientId: sm.clientID,
-	}
-
-	return &spb.Record{RecordType: &spb.Record_Metadata{Metadata: &systemInfo}}
+		WriterId: sm.writerID,
+	}}}
 }
 
 // probeAssets gathers system information from all assets and merges their metadata.
@@ -278,31 +276,31 @@ func (sm *SystemMonitor) probeAssets() *spb.Record {
 
 	sm.logger.Debug("monitor: probing resources")
 
-	systemInfo := spb.MetadataRecord{}
+	e := spb.EnvironmentRecord{WriterId: sm.writerID}
 
 	for _, asset := range sm.assets {
 		probeResponse := asset.Probe()
 		if probeResponse != nil {
-			proto.Merge(&systemInfo, probeResponse)
+			proto.Merge(&e, probeResponse)
 		}
 	}
 
 	// Overwrite auto-detected metadata with user-provided values.
 	// TODO: move this to the relevant resources instead.
 	if sm.settings.GetStatsCpuCount() > 0 {
-		systemInfo.CpuCount = uint32(sm.settings.GetStatsCpuCount())
+		e.CpuCount = uint32(sm.settings.GetStatsCpuCount())
 	}
 	if sm.settings.GetStatsCpuLogicalCount() > 0 {
-		systemInfo.CpuCountLogical = uint32(sm.settings.GetStatsCpuLogicalCount())
+		e.CpuCountLogical = uint32(sm.settings.GetStatsCpuLogicalCount())
 	}
 	if sm.settings.GetStatsGpuCount() > 0 {
-		systemInfo.GpuCount = uint32(sm.settings.GetStatsGpuCount())
+		e.GpuCount = uint32(sm.settings.GetStatsGpuCount())
 	}
 	if sm.settings.GetStatsGpuType() != "" {
-		systemInfo.GpuType = sm.settings.GetStatsGpuType()
+		e.GpuType = sm.settings.GetStatsGpuType()
 	}
 
-	return &spb.Record{RecordType: &spb.Record_Metadata{Metadata: &systemInfo}}
+	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &e}}
 }
 
 // Start begins the monitoring process for all assets and probes system information.

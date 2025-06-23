@@ -19,7 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/internal/runmetadata"
+	"github.com/wandb/wandb/core/internal/runenvironment"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
@@ -55,11 +55,11 @@ type RunUpserter struct {
 	isParamsDirty bool // whether params has un-uploaded changes
 	isConfigDirty bool // whether config has un-uploaded changes
 
-	params    *runbranch.RunParams
-	config    *runconfig.RunConfig
-	telemetry *spb.TelemetryRecord
-	metrics   *runmetric.RunConfigMetrics
-	metadata  *runmetadata.RunMetadata
+	params      *runbranch.RunParams
+	config      *runconfig.RunConfig
+	telemetry   *spb.TelemetryRecord
+	metrics     *runmetric.RunConfigMetrics
+	environment *runenvironment.RunEnvironment
 }
 
 type RunUpserterParams struct {
@@ -105,8 +105,8 @@ func InitRun(
 		panic("runupserter: RunRecord is nil")
 	}
 
-	// Initialize run metadata.
-	metadata := runmetadata.New(params.ClientID)
+	// Initialize run environment info.
+	environment := runenvironment.New(params.ClientID)
 
 	// Initialize the run config.
 	config := runconfig.New()
@@ -123,7 +123,7 @@ func InitRun(
 	config.AddInternalData(
 		telemetry,
 		make([]map[string]any, 0),
-		metadata.ToRunConfigData(),
+		environment.ToRunConfigData(),
 	)
 
 	// Initialize the run metrics.
@@ -154,11 +154,11 @@ func InitRun(
 		done:  make(chan struct{}),
 		dirty: make(chan struct{}, 1),
 
-		params:    runParams,
-		config:    config,
-		telemetry: telemetry,
-		metrics:   metrics,
-		metadata:  metadata,
+		params:      runParams,
+		config:      config,
+		telemetry:   telemetry,
+		metrics:     metrics,
+		environment: environment,
 	}
 
 	operation := upserter.operations.New("creating run")
@@ -270,24 +270,24 @@ func (upserter *RunUpserter) UpdateTelemetry(telemetry *spb.TelemetryRecord) {
 	upserter.config.AddInternalData(
 		upserter.telemetry,
 		upserter.metrics.ToRunConfigData(),
-		upserter.metadata.ToRunConfigData(),
+		upserter.environment.ToRunConfigData(),
 	)
 
 	upserter.isConfigDirty = true
 	upserter.signalDirty()
 }
 
-// UpdateMetadata schedules an update to the run's metadata in the config.
-func (upserter *RunUpserter) UpdateMetadata(metadata *spb.MetadataRecord) {
+// UpdateEnvironment schedules an update to the run's metadata in the config.
+func (upserter *RunUpserter) UpdateEnvironment(metadata *spb.EnvironmentRecord) {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
 
-	upserter.metadata.ProcessRecord(metadata)
+	upserter.environment.ProcessRecord(metadata)
 
 	upserter.config.AddInternalData(
 		upserter.telemetry,
 		upserter.metrics.ToRunConfigData(),
-		upserter.metadata.ToRunConfigData(),
+		upserter.environment.ToRunConfigData(),
 	)
 
 	upserter.isConfigDirty = true
@@ -315,7 +315,7 @@ func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
 	upserter.config.AddInternalData(
 		upserter.telemetry,
 		upserter.metrics.ToRunConfigData(),
-		upserter.metadata.ToRunConfigData(),
+		upserter.environment.ToRunConfigData(),
 	)
 
 	upserter.isConfigDirty = true
@@ -367,10 +367,11 @@ func (upserter *RunUpserter) ConfigMap() map[string]any {
 	return upserter.config.CloneTree()
 }
 
-func (upserter *RunUpserter) MetadataJSON() ([]byte, error) {
+// EnvironmentJSON returns the run's environment info snapshot as a JSON string.
+func (upserter *RunUpserter) EnvironmentJSON() ([]byte, error) {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
-	return upserter.metadata.ToJSON()
+	return upserter.environment.ToJSON()
 }
 
 func (upserter *RunUpserter) StartTime() time.Time {

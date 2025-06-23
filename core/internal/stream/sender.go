@@ -441,8 +441,8 @@ func (s *Sender) sendRecord(record *spb.Record) {
 		s.sendOutput(record, x.Output)
 	case *spb.Record_Telemetry:
 		s.sendTelemetry(record, x.Telemetry)
-	case *spb.Record_Metadata:
-		s.sendMetadata(x.Metadata)
+	case *spb.Record_Environment:
+		s.sendEnvironment(x.Environment)
 	case *spb.Record_Preempting:
 		s.sendPreempting(x.Preempting)
 	case *spb.Record_Request:
@@ -809,14 +809,14 @@ func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 	upserter.UpdateTelemetry(telemetry)
 }
 
-func (s *Sender) sendMetadata(metadata *spb.MetadataRecord) {
+func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
 	upserter, err := s.streamRun.GetRunUpserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendMetadata: %v", err))
 		return
 	}
 
-	upserter.UpdateMetadata(metadata)
+	upserter.UpdateEnvironment(environment)
 
 	// TODO: only upload the wandb-metadata.json file if the server
 	// does not understand metadata in the config.
@@ -838,20 +838,20 @@ func (s *Sender) uploadMetadataFile() {
 		return
 	}
 
-	metadata, err := upserter.MetadataJSON()
+	environment, err := upserter.EnvironmentJSON()
 	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to serialize run metadata: %v", err))
+			fmt.Errorf("sender: failed to serialize run environment info: %v", err))
 		return
 	}
 
 	if err := s.scheduleFileUpload(
-		metadata,
+		environment,
 		MetaFileName,
 		filetransfer.RunFileKindWandb,
 	); err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to upload run metadata: %v", err))
+			fmt.Errorf("sender: failed to upload run's %s file: %v", MetaFileName, err))
 	}
 }
 

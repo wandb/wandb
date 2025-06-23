@@ -79,7 +79,7 @@ class ConfigState:
         framework: Optional[str],
         start_time_millis: int,
         metric_pbdicts: Sequence[Dict[int, Any]],
-        metadata_record: wandb_internal_pb2.MetadataRecord,
+        environment_record: wandb_internal_pb2.EnvironmentRecord,
     ) -> BackendConfigDict:
         """Returns a dictionary representation expected by the backend.
 
@@ -127,12 +127,12 @@ class ConfigState:
             wandb_internal["m"] = metric_pbdicts
 
         ###################################################
-        # Metadata
+        # Environment
         ###################################################
-        client_id = metadata_record.client_id
-        if client_id:
-            metadata_dict = proto_util.message_to_dict(metadata_record.metadata)
-            wandb_internal["d"] = {client_id: metadata_dict}
+        writer_id = environment_record.writer_id
+        if writer_id:
+            environment_dict = proto_util.message_to_dict(environment_record)
+            wandb_internal["e"] = {writer_id: environment_dict}
 
         return BackendConfigDict(
             {

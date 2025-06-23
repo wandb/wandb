@@ -664,7 +664,7 @@ pub mod record {
         #[prost(message, tag = "25")]
         UseArtifact(super::UseArtifactRecord),
         #[prost(message, tag = "26")]
-        Metadata(super::MetadataRecord),
+        Environment(super::EnvironmentRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -2546,7 +2546,7 @@ pub struct CancelRequest {
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct CancelResponse {}
 ///
-/// Run Metadata
+/// Run environment including system, hardware, software, and execution parameters.
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct DiskInfo {
     #[prost(uint64, tag = "1")]
@@ -2647,7 +2647,7 @@ pub struct TpuInfo {
     #[prost(uint32, tag = "4")]
     pub count: u32,
 }
-/// CoreWeaveInfo stores information about a CoreWeave compute environment
+/// CoreWeaveInfo stores information about a CoreWeave compute environment.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CoreWeaveInfo {
     #[prost(string, tag = "1")]
@@ -2657,24 +2657,23 @@ pub struct CoreWeaveInfo {
     #[prost(string, tag = "3")]
     pub region: ::prost::alloc::string::String,
 }
-/// Encapsulates the metadata from a single writer session for a given run.
+/// EnvironmentRecord stores a snapshot of the system, hardware, software,
+/// and execution parameters captured at a run writer initialization.
 ///
-/// Contains system, environment, and execution details for a specific context.
-///
-/// A single W&B Run can have multiple "writers" - unique client sessions
-/// that contribute data to the run. Examples include:
-///    - Multiple processes initializing `wandb.init(id="<run-id>", mode="shared")`
-///      in a distributed training setup.
-///    - A user resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
+/// A single W&B Run can have multiple "writers" that contribute data to the run.
+/// Examples include:
+///    - Multiple processes logging to the same run in a distributed training setup
+///      (`wandb.init(id="<run-id>", mode="shared")`)
+///    - Resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
 ///      which creates a new writer session, potentially on a different machine.
 ///
-/// Because each writer can have a different environment (e.g., different OS,
-/// hardware, or git state), this message namespaces the captured `Metadata`
-/// by a unique `client_id` for each writer.
+/// Because each writer can have a distinct environment (e.g., different OS,
+/// hardware, or git state), this record is associated with that writer's
+/// unique `writer_id` to preserve its specific context.
 ///
 /// The environment and system metadata captured by this specific writer.
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MetadataRecord {
+pub struct EnvironmentRecord {
     /// Operating system, e.g., "macOS-14.4.1-arm64-arm-64bit".
     #[prost(string, tag = "1")]
     pub os: ::prost::alloc::string::String,
@@ -2773,7 +2772,7 @@ pub struct MetadataRecord {
     /// This ID distinguishes this writer's metadata from that of other writers
     /// that may be contributing to the same run.
     #[prost(string, tag = "199")]
-    pub client_id: ::prost::alloc::string::String,
+    pub writer_id: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

@@ -127,7 +127,7 @@ class Record(google.protobuf.message.Message):
     PREEMPTING_FIELD_NUMBER: builtins.int
     NOOP_LINK_ARTIFACT_FIELD_NUMBER: builtins.int
     USE_ARTIFACT_FIELD_NUMBER: builtins.int
-    METADATA_FIELD_NUMBER: builtins.int
+    ENVIRONMENT_FIELD_NUMBER: builtins.int
     REQUEST_FIELD_NUMBER: builtins.int
     CONTROL_FIELD_NUMBER: builtins.int
     UUID_FIELD_NUMBER: builtins.int
@@ -181,7 +181,7 @@ class Record(google.protobuf.message.Message):
     @property
     def use_artifact(self) -> global___UseArtifactRecord: ...
     @property
-    def metadata(self) -> global___MetadataRecord: ...
+    def environment(self) -> global___EnvironmentRecord: ...
     @property
     def request(self) -> global___Request:
         """request field does not belong here longterm"""
@@ -214,15 +214,15 @@ class Record(google.protobuf.message.Message):
         preempting: global___RunPreemptingRecord | None = ...,
         noop_link_artifact: google.protobuf.empty_pb2.Empty | None = ...,
         use_artifact: global___UseArtifactRecord | None = ...,
-        metadata: global___MetadataRecord | None = ...,
+        environment: global___EnvironmentRecord | None = ...,
         request: global___Request | None = ...,
         control: global___Control | None = ...,
         uuid: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "metadata", b"metadata", "metric", b"metric", "noop_link_artifact", b"noop_link_artifact", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "metadata", b"metadata", "metric", b"metric", "noop_link_artifact", b"noop_link_artifact", "num", b"num", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact", "uuid", b"uuid"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["record_type", b"record_type"]) -> typing.Literal["history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "metadata", "request"] | None: ...
+    def HasField(self, field_name: typing.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "environment", b"environment", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "metric", b"metric", "noop_link_artifact", b"noop_link_artifact", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "environment", b"environment", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "metric", b"metric", "noop_link_artifact", b"noop_link_artifact", "num", b"num", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact", "uuid", b"uuid"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["record_type", b"record_type"]) -> typing.Literal["history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "request"] | None: ...
 
 global___Record = Record
 
@@ -3893,7 +3893,7 @@ global___CancelResponse = CancelResponse
 @typing.final
 class DiskInfo(google.protobuf.message.Message):
     """
-    Run Metadata
+    Run environment including system, hardware, software, and execution parameters.
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
@@ -4106,7 +4106,7 @@ global___TPUInfo = TPUInfo
 
 @typing.final
 class CoreWeaveInfo(google.protobuf.message.Message):
-    """CoreWeaveInfo stores information about a CoreWeave compute environment"""
+    """CoreWeaveInfo stores information about a CoreWeave compute environment."""
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -4128,21 +4128,20 @@ class CoreWeaveInfo(google.protobuf.message.Message):
 global___CoreWeaveInfo = CoreWeaveInfo
 
 @typing.final
-class MetadataRecord(google.protobuf.message.Message):
-    """Encapsulates the metadata from a single writer session for a given run.
+class EnvironmentRecord(google.protobuf.message.Message):
+    """EnvironmentRecord stores a snapshot of the system, hardware, software,
+    and execution parameters captured at a run writer initialization.
 
-    Contains system, environment, and execution details for a specific context.
-
-    A single W&B Run can have multiple "writers" - unique client sessions
-    that contribute data to the run. Examples include:
-      - Multiple processes initializing `wandb.init(id="<run-id>", mode="shared")`
-        in a distributed training setup.
-      - A user resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
+    A single W&B Run can have multiple "writers" that contribute data to the run.
+    Examples include:
+      - Multiple processes logging to the same run in a distributed training setup
+        (`wandb.init(id="<run-id>", mode="shared")`)
+      - Resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
         which creates a new writer session, potentially on a different machine.
 
-    Because each writer can have a different environment (e.g., different OS,
-    hardware, or git state), this message namespaces the captured `Metadata`
-    by a unique `client_id` for each writer.
+    Because each writer can have a distinct environment (e.g., different OS,
+    hardware, or git state), this record is associated with that writer's
+    unique `writer_id` to preserve its specific context.
     The environment and system metadata captured by this specific writer.
     """
 
@@ -4212,7 +4211,7 @@ class MetadataRecord(google.protobuf.message.Message):
     TRAINIUM_FIELD_NUMBER: builtins.int
     TPU_FIELD_NUMBER: builtins.int
     COREWEAVE_FIELD_NUMBER: builtins.int
-    CLIENT_ID_FIELD_NUMBER: builtins.int
+    WRITER_ID_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     os: builtins.str
     """Operating system, e.g., "macOS-14.4.1-arm64-arm-64bit"."""
@@ -4248,7 +4247,7 @@ class MetadataRecord(google.protobuf.message.Message):
     """Total number of GPUs."""
     cuda_version: builtins.str
     """Version of the CUDA toolkit, if available."""
-    client_id: builtins.str
+    writer_id: builtins.str
     """A unique identifier for this writer session.
 
     This ID distinguishes this writer's metadata from that of other writers
@@ -4341,13 +4340,13 @@ class MetadataRecord(google.protobuf.message.Message):
         trainium: global___TrainiumInfo | None = ...,
         tpu: global___TPUInfo | None = ...,
         coreweave: global___CoreWeaveInfo | None = ...,
-        client_id: builtins.str = ...,
+        writer_id: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["_info", b"_info", "apple", b"apple", "coreweave", b"coreweave", "cpu", b"cpu", "git", b"git", "memory", b"memory", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info", "apple", b"apple", "args", b"args", "client_id", b"client_id", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "coreweave", b"coreweave", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium", "username", b"username"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["_info", b"_info", "apple", b"apple", "args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "coreweave", b"coreweave", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium", "username", b"username", "writer_id", b"writer_id"]) -> None: ...
 
-global___MetadataRecord = MetadataRecord
+global___EnvironmentRecord = EnvironmentRecord
 
 @typing.final
 class PythonPackagesRequest(google.protobuf.message.Message):

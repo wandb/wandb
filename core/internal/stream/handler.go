@@ -233,7 +233,7 @@ func (h *Handler) handleRecord(record *spb.Record) {
 	case *spb.Record_Stats:
 	case *spb.Record_Telemetry:
 	case *spb.Record_UseArtifact:
-	case *spb.Record_Metadata:
+	case *spb.Record_Environment:
 	// The above are no-ops in the handler.
 
 	case *spb.Record_Exit:
