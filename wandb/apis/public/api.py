@@ -844,9 +844,11 @@ class Api:
     ) -> "public.Reports":
         """Get reports for a given project path.
 
+        WARNING: This api is in beta and will likely change in a future release
+
         Args:
             path: (str) path to project the report resides in, should be in the form: "entity/project"
-            name: (str, optional) optional name of the report requested.
+            name: (str, optional) The name of the report.
             per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:

@@ -127,8 +127,8 @@ class BetaReport(Attrs):
 
     Attributes:
         id (string): Unique identifier of the report.
-        name (string): The name of the report.
         display_name (string): Human-readable display name of the report.
+        name (string): The name of the report. Use `display_name` for a more user-friendly name.
         description (string): Description of the report.
         user (User): Dictionary containing user info (username, email) who
             created the report.
