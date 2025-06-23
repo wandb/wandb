@@ -1072,6 +1072,11 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Run ID cannot start or end with whitespace")
         if not bool(value.strip()):
             raise UsageError("Run ID cannot contain only whitespace")
+
+        # check if the run id contains any reserved characters
+        reserved_chars = ":;,#?/'"
+        if any(char in reserved_chars for char in value):
+            raise UsageError(f"Run ID cannot contain the characters: {reserved_chars}")
         return value
 
     @field_validator("settings_system", mode="after")
@@ -1378,7 +1383,9 @@ class Settings(BaseModel, validate_assignment=True):
             return ""
 
         query = self._get_url_query_string()
-        return f"{project_url}/runs/{quote(self.run_id or '')}{query}"
+        # Exclude specific safe characters from URL encoding to prevent 404 errors
+        safe_chars = "=+&$@"
+        return f"{project_url}/runs/{quote(self.run_id or '', safe=safe_chars)}{query}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property

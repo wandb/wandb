@@ -289,7 +289,7 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 		)
 
 		s.mu.Lock()
-		work.Process(s.sendRecord)
+		work.Process(s.sendRecord, s.outChan)
 		s.observeSentinel(work)
 
 		// TODO: reevaluate the logic here

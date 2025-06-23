@@ -76,9 +76,9 @@ class JobSpecAndQueue:
 def _convert_access(access: str) -> str:
     """Convert access string to a value accepted by wandb."""
     access = access.upper()
-    assert (
-        access == "PROJECT" or access == "USER"
-    ), "Queue access must be either project or user"
+    assert access == "PROJECT" or access == "USER", (
+        "Queue access must be either project or user"
+    )
     return access
 
 

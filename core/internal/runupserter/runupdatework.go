@@ -41,11 +41,6 @@ type RunUpdateWork struct {
 	// StreamRunUpserter is used to update the stream's run information.
 	StreamRunUpserter StreamRunUpserter
 
-	// Respond is used to respond to the record, if necessary.
-	//
-	// It is called from the Sender goroutine.
-	Respond func(*spb.Record, *spb.RunUpdateResult)
-
 	ClientID           string
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
@@ -66,11 +61,14 @@ func (w *RunUpdateWork) Save(write func(*spb.Record)) {
 }
 
 // Process implements Work.Process.
-func (w *RunUpdateWork) Process(_ func(*spb.Record)) {
+func (w *RunUpdateWork) Process(
+	_ func(*spb.Record),
+	results chan<- *spb.Result,
+) {
 	if upserter, _ := w.StreamRunUpserter.GetRunUpserter(); upserter != nil {
 		w.updateRun(upserter)
 	} else {
-		w.initRun()
+		w.initRun(results)
 	}
 }
 
@@ -80,7 +78,7 @@ func (w *RunUpdateWork) updateRun(run *RunUpserter) {
 }
 
 // initRun creates a run for the first time.
-func (w *RunUpdateWork) initRun() {
+func (w *RunUpdateWork) initRun(results chan<- *spb.Result) {
 	upserter, err := InitRun(w.Record, RunUpserterParams{
 		Settings: w.Settings,
 
@@ -98,7 +96,7 @@ func (w *RunUpdateWork) initRun() {
 		w.Logger.Error("runupserter: failed to init run", "error", err)
 
 		if w.Record.Control.GetMailboxSlot() != "" {
-			w.Respond(w.Record, runInitErrorResult(err))
+			respondRunUpdate(results, w.Record, runInitErrorResult(err))
 		}
 
 		return
@@ -112,7 +110,7 @@ func (w *RunUpdateWork) initRun() {
 				err))
 
 		if w.Record.Control.GetMailboxSlot() != "" {
-			w.Respond(w.Record, runInitErrorResult(err))
+			respondRunUpdate(results, w.Record, runInitErrorResult(err))
 		}
 
 		return
@@ -121,7 +119,22 @@ func (w *RunUpdateWork) initRun() {
 	if w.Record.Control.GetMailboxSlot() != "" {
 		updatedRun := proto.CloneOf(w.Record.GetRun())
 		upserter.FillRunRecord(updatedRun)
-		w.Respond(w.Record, &spb.RunUpdateResult{Run: updatedRun})
+		respondRunUpdate(results, w.Record, &spb.RunUpdateResult{Run: updatedRun})
+	}
+}
+
+// respondRunUpdate pushes a RunUpdateResult to the result channel.
+func respondRunUpdate(
+	outChan chan<- *spb.Result,
+	record *spb.Record,
+	result *spb.RunUpdateResult,
+) {
+	outChan <- &spb.Result{
+		ResultType: &spb.Result_RunResult{
+			RunResult: result,
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
 	}
 }
 
