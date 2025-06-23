@@ -166,6 +166,7 @@ class RunStatusChecker:
         self,
         run_id: str,
         interface: InterfaceBase,
+        settings: Settings,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
         internal_messages_polling_interval: int = 10,
@@ -175,6 +176,7 @@ class RunStatusChecker:
         self._stop_polling_interval = stop_polling_interval
         self._retry_polling_interval = retry_polling_interval
         self._internal_messages_polling_interval = internal_messages_polling_interval
+        self._settings = settings
 
         self._join_event = threading.Event()
 
@@ -316,9 +318,15 @@ class RunStatusChecker:
 
     def check_internal_messages(self) -> None:
         def _process_internal_messages(result: Result) -> None:
+            if (
+                not self._settings.show_warnings
+                or self._settings.quiet
+                or self._settings.silent
+            ):
+                return
             internal_messages = result.response.internal_messages_response
             for msg in internal_messages.messages.warning:
-                wandb.termwarn(msg)
+                wandb.termwarn(msg, repeat=False)
 
         with wb_logging.log_to_run(self._run_id):
             try:
@@ -2477,6 +2485,7 @@ class Run:
             self._run_status_checker = RunStatusChecker(
                 self._settings.run_id,
                 interface=self._backend.interface,
+                settings=self._settings,
             )
             self._run_status_checker.start()
 
