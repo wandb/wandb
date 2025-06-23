@@ -32,3 +32,4 @@ This version removes the legacy implementaion of the `service` process. This is 
 ### Fixed
 
 - Allow s3 style CoreWeave URIs for reference artifacts. (@estellazx in https://github.com/wandb/wandb/pull/9979)
+- Fixed rare bug that made Ctrl+C ineffective after logging large amounts of data (@timoffex in https://github.com/wandb/wandb/pull/10071)
