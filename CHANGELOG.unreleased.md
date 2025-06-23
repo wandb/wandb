@@ -19,7 +19,7 @@ This version removes the legacy implementaion of the `service` process. This is 
 
 ### Added
 
-- `api.artifact()` will now print a warning while fetching artifacts from migrated model registry collections. (@ibindlish in https://github.com/wandb/wandb/pull/10047)
+- `api.artifact()` will now display a warning while fetching artifacts from migrated model registry collections. (@ibindlish in https://github.com/wandb/wandb/pull/10047)
 
 ### Changed
 
