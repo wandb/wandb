@@ -339,7 +339,7 @@ def test_parse_artifact_path(user, api):
         ),
     ),
 )
-def test_fetch_registry_artifact_mocked(
+def test_fetch_registry_artifact(
     user,
     api,
     mocker,
