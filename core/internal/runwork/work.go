@@ -36,7 +36,8 @@ type Work interface {
 	// Process performs the work.
 	//
 	// If this is a Record proto, the given function is called.
-	Process(func(*spb.Record))
+	// Responses are pushed into the Result channel.
+	Process(func(*spb.Record), chan<- *spb.Result)
 
 	// Sentinel returns the value passed to NewSentinel, or nil.
 	//
