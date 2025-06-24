@@ -78,14 +78,14 @@ func NewSystem(params SystemParams) *System {
 	}
 
 	// Keep only the devices present in IOCounters.
-    ios, _ := disk.IOCounters()
-    filtered := make(map[string]struct{})
-    for dev := range s.diskDevices {
-        if _, ok := ios[dev]; ok {
-            filtered[dev] = struct{}{}
-        }
-    }
-    s.diskDevices = filtered
+	ios, _ := disk.IOCounters()
+	filtered := make(map[string]struct{})
+	for dev := range s.diskDevices {
+		if _, ok := ios[dev]; ok {
+			filtered[dev] = struct{}{}
+		}
+	}
+	s.diskDevices = filtered
 
 	// Fallback: if nothing matched, watch every real block device.
 	if len(s.diskDevices) == 0 {
@@ -99,9 +99,9 @@ func NewSystem(params SystemParams) *System {
 		}
 	}
 
-	io, err := disk.IOCounters()
+	io, _ := disk.IOCounters()
 	fmt.Printf("%+v\n", io)
-	p, err := disk.Partitions(false)
+	p, _ := disk.Partitions(false)
 	fmt.Printf("%+v\n", p)
 
 	if ios, _ := DiskIOCounters(); len(ios) > 0 {
