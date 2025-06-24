@@ -15,8 +15,7 @@ __all__ = [
     "confusion_matrix",
     "line_series",
     "plot_table",
-    "visualize",
-    "plot",
+    "visualize", # doc:exclude
 ]
 
 from wandb.plot.bar import bar
