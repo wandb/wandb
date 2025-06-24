@@ -819,7 +819,7 @@ func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
 	upserter.UpdateEnvironment(environment)
 
 	// TODO: only upload the wandb-metadata.json file if the server
-	// does not understand metadata in the config.
+	// does not understand environment info in the config.
 	s.uploadMetadataFile()
 }
 
