@@ -750,10 +750,34 @@ class Settings(BaseModel, validate_assignment=True):
     )
     """System paths to monitor for disk usage."""
 
+    x_stats_cpu_count: Optional[int] = None
+    """System CPU count.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_cpu_logical_count: Optional[int] = None
+    """Logical CPU count.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_gpu_count: Optional[int] = None
+    """GPU device count.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_gpu_type: Optional[str] = None
+    """GPU device type.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
     x_stats_gpu_device_ids: Optional[Sequence[int]] = None
     """GPU device indices to monitor.
 
-    If not set, captures metrics for all GPUs.
+    If not set, the system monitor captures metrics for all GPUs.
     Assumes 0-based indexing matching CUDA/ROCm device enumeration.
     """
 
@@ -1128,6 +1152,11 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Run ID cannot start or end with whitespace")
         if not bool(value.strip()):
             raise UsageError("Run ID cannot contain only whitespace")
+
+        # check if the run id contains any reserved characters
+        reserved_chars = ":;,#?/'"
+        if any(char in reserved_chars for char in value):
+            raise UsageError(f"Run ID cannot contain the characters: {reserved_chars}")
         return value
 
     @field_validator("settings_system", mode="after")
@@ -1479,7 +1508,9 @@ class Settings(BaseModel, validate_assignment=True):
             return ""
 
         query = self._get_url_query_string()
-        return f"{project_url}/runs/{quote(self.run_id or '')}{query}"
+        # Exclude specific safe characters from URL encoding to prevent 404 errors
+        safe_chars = "=+&$@"
+        return f"{project_url}/runs/{quote(self.run_id or '', safe=safe_chars)}{query}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
