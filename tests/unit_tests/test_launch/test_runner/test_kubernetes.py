@@ -1463,8 +1463,201 @@ async def test_kubernetes_submitted_run_get_logs(pods, logs, expected):
         batch_api=MagicMock(),
         core_api=core_api,
         apps_api=MagicMock(),
+        networking_api=MagicMock(),
         namespace="wandb",
         name="test_run",
     )
     # Assert that we get the logs back.
     assert await submitted_run.get_logs() == expected
+
+
+@pytest.mark.asyncio
+async def test_job_network_policy_creation():
+    """Test that job network policy is created with correct structure."""
+    from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
+    from wandb.apis.internal import Api
+    from unittest.mock import AsyncMock, MagicMock
+    
+    created_policies = []
+    
+    async def mock_create_from_dict(api_client, manifest, namespace=None):
+        created_policies.append((manifest, namespace))
+        return [MagicMock()]
+    
+    runner = KubernetesRunner(
+        api=Api(),
+        backend_config={},
+        environment=MagicMock(),
+        registry=MagicMock(),
+    )
+    
+    import wandb.sdk.launch.runner.kubernetes_runner as kr
+    kr.kubernetes_asyncio.utils.create_from_dict = mock_create_from_dict
+    
+    api_client = MagicMock()
+    namespace = "test-namespace"
+    run_id = "test-run-123"
+    
+    await runner._create_job_network_policy(api_client, namespace, run_id)
+    
+    assert len(created_policies) == 1
+    policy, created_namespace = created_policies[0]
+    
+    assert created_namespace == namespace
+    
+    assert policy["apiVersion"] == "networking.k8s.io/v1"
+    assert policy["kind"] == "NetworkPolicy"
+    assert policy["metadata"]["labels"]["wandb.ai/run-id"] == run_id
+    assert policy["metadata"]["labels"]["wandb.ai/created-by"] == "launch-agent"
+    
+    expected_selector = {"wandb.ai/run-id": run_id, "wandb.ai/monitor": "true"}
+    assert policy["spec"]["podSelector"] == expected_selector
+    
+    assert policy["spec"]["policyTypes"] == ["Egress"]
+    
+    egress_rules = policy["spec"]["egress"]
+    assert len(egress_rules) == 3  # Auxiliary resources, external web, DNS
+    
+    aux_rule = egress_rules[0]
+    assert aux_rule["to"] == [{"podSelector": {"matchLabels": {"wandb.ai/run-id": run_id}}}]
+    assert aux_rule["ports"] == [{"protocol": "TCP", "port": 8000}]
+
+
+@pytest.mark.asyncio
+async def test_job_network_policy_failure_raises_launch_error():
+    """Test that network policy creation failure raises LaunchError."""
+    from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
+    from wandb.apis.internal import Api
+    from wandb.sdk.launch.errors import LaunchError
+    from unittest.mock import MagicMock
+
+    async def mock_create_from_dict_failure(api_client, manifest, namespace=None):
+        raise Exception("Simulated network policy creation failure")
+    
+    runner = KubernetesRunner(
+        api=Api(),
+        backend_config={},
+        environment=MagicMock(),
+        registry=MagicMock(),
+    )
+    
+    import wandb.sdk.launch.runner.kubernetes_runner as kr
+    kr.kubernetes_asyncio.utils.create_from_dict = mock_create_from_dict_failure
+    
+    api_client = MagicMock()
+    namespace = "test-namespace"
+    run_id = "test-run-123"
+    
+    with pytest.raises(LaunchError) as exc_info:
+        await runner._create_job_network_policy(api_client, namespace, run_id)
+    
+    assert "Failed to create NetworkPolicy for job pods" in str(exc_info.value)
+    assert namespace in str(exc_info.value)
+    assert "Simulated network policy creation failure" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_extract_container_ports():
+    """Test that container ports are correctly extracted from deployment configurations."""
+    from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
+    from wandb.apis.internal import Api
+    from unittest.mock import MagicMock
+
+    runner = KubernetesRunner(
+        api=Api(),
+        backend_config={},
+        environment=MagicMock(),
+        registry=MagicMock(),
+    )
+
+    # Test with multiple deployments with different container port configurations
+    additional_services = [
+        {
+            "config": {
+                "kind": "Deployment",
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [
+                                {
+                                    "name": "app",
+                                    "ports": [
+                                        {"containerPort": 8080},
+                                        {"containerPort": 8443}
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "config": {
+                "kind": "Deployment", 
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [
+                                {
+                                    "name": "worker",
+                                    "ports": [
+                                        {"containerPort": 9000}
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "config": {
+                "kind": "Service"  # Not a deployment, should be ignored
+            }
+        },
+        {
+            "config": {
+                "kind": "Deployment",
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [
+                                {
+                                    "name": "no-ports"
+                                    # No ports specified
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    ]
+
+    ports = runner._extract_container_ports(additional_services)
+    
+    # Should extract: 8080, 8443, 9000
+    assert sorted(ports) == [8080, 8443, 9000]
+
+    # Test with no deployments
+    assert runner._extract_container_ports([]) == []
+
+    # Test with deployments but no container ports
+    no_ports_deployments = [
+        {
+            "config": {
+                "kind": "Deployment",
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [
+                                {"name": "app"}  # No ports
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    ]
+    assert runner._extract_container_ports(no_ports_deployments) == []
