@@ -17,13 +17,13 @@ __all__ = (
     "finish",
     "setup",
     "login",
-    "save", # doc:exclude
+    "save",  # doc:exclude
     "sweep",
     "controller",
     "agent",
-    "config", # doc:exclude
-    "log", # doc:exclude
-    "summary", # doc:exclude
+    "config",  # doc:exclude
+    "log",  # doc:exclude
+    "summary",  # doc:exclude
     "Api",
     "Graph",  # doc:exclude
     "Image",
@@ -37,12 +37,12 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",  # doc:exclude
-    "log_artifact", # doc:exclude
-    "use_artifact", # doc:exclude
-    "log_model", # doc:exclude
-    "use_model", # doc:exclude
-    "link_model", # doc:exclude
-    "define_metric", # doc:exclude
+    "log_artifact",  # doc:exclude
+    "use_artifact",  # doc:exclude
+    "log_model",  # doc:exclude
+    "use_model",  # doc:exclude
+    "link_model",  # doc:exclude
+    "define_metric",  # doc:exclude
     "Error",  # doc:exclude
     "termsetup",  # doc:exclude
     "termlog",  # doc:exclude
@@ -51,12 +51,12 @@ __all__ = (
     "Artifact",
     "Settings",
     "teardown",
-    "watch", # doc:exclude
-    "unwatch", # doc:exclude
+    "watch",  # doc:exclude
+    "unwatch",  # doc:exclude
     "plot",
     "plot_table",
     "restore",
-    "Run"
+    "Run",
 )
 
 import os
