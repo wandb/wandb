@@ -112,7 +112,7 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 
 // Sample is a no-op method.
 //
-// Required for CoreWeaveMetadata to implement the Asset interface.
+// Required for CoreWeaveMetadata to implement the Resource interface.
 func (cwm *CoreWeaveMetadata) Sample() (*spb.StatsRecord, error) {
 	return nil, nil
 }

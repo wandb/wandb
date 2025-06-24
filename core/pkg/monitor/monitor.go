@@ -31,13 +31,13 @@ const (
 	StatePaused
 )
 
-// Asset defines the interface for system assets to be monitored.
-type Asset interface {
+// Resource defines the interface for system resources to be monitored.
+type Resource interface {
 	Sample() (*spb.StatsRecord, error)
 	Probe() *spb.EnvironmentRecord
 }
 
-// SystemMonitor is responsible for monitoring system metrics across various assets.
+// SystemMonitor is responsible for monitoring system metrics across various resources.
 type SystemMonitor struct {
 	// The context for the system monitor.
 	ctx    context.Context
@@ -49,8 +49,8 @@ type SystemMonitor struct {
 	// The state of the system monitor: stopped, running, or paused.
 	state atomic.Int32
 
-	// The list of assets to monitor.
-	assets []Asset
+	// The list of resources to monitor.
+	resources []Resource
 
 	// extraWork accepts outgoing messages for the run.
 	extraWork runwork.ExtraWork
@@ -98,7 +98,7 @@ type SystemMonitorParams struct {
 
 // NewSystemMonitor initializes and returns a new SystemMonitor instance.
 //
-// It sets up assets based on provided settings and configures the metrics buffer.
+// It sets up resources based on provided settings and configures the metrics buffer.
 func NewSystemMonitor(params SystemMonitorParams) *SystemMonitor {
 	if params.Ctx == nil {
 		params.Ctx = context.Background()
@@ -116,7 +116,6 @@ func NewSystemMonitor(params SystemMonitorParams) *SystemMonitor {
 		writerID:         params.WriterID,
 	}
 
-	// Early return if stats collection is disabled
 	if sm.settings.IsDisableStats() {
 		sm.logger.Debug("monitor: disabled")
 		return sm
@@ -135,14 +134,13 @@ func NewSystemMonitor(params SystemMonitorParams) *SystemMonitor {
 	}
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
-	// Initialize the assets to monitor
-	sm.initializeAssets(params.GpuResourceManager)
+	sm.initializeResources(params.GpuResourceManager)
 
 	return sm
 }
 
-// initializeAssets sets up the assets to be monitored based on the provided settings.
-func (sm *SystemMonitor) initializeAssets(gpuResourceManager *GPUResourceManager) {
+// initializeResources sets up the resources to be monitored based on the provided settings.
+func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceManager) {
 	pid := sm.settings.GetStatsPid()
 	diskPaths := sm.settings.GetStatsDiskPaths()
 	samplingInterval := sm.settings.GetStatsSamplingInterval()
@@ -150,22 +148,22 @@ func (sm *SystemMonitor) initializeAssets(gpuResourceManager *GPUResourceManager
 	gpuDeviceIds := sm.settings.GetStatsGpuDeviceIds()
 
 	if system := NewSystem(pid, diskPaths); system != nil {
-		sm.assets = append(sm.assets, system)
+		sm.resources = append(sm.resources, system)
 	}
 
 	if gpu, err := NewGPU(gpuResourceManager, pid, gpuDeviceIds); gpu != nil {
-		sm.assets = append(sm.assets, gpu)
+		sm.resources = append(sm.resources, gpu)
 	} else if err != nil {
 		sm.logger.CaptureError(
-			fmt.Errorf("monitor: failed to initialize GPU asset: %v", err))
+			fmt.Errorf("monitor: failed to initialize GPU resource: %v", err))
 	}
 
 	if tpu := NewTPU(); tpu != nil {
-		sm.assets = append(sm.assets, tpu)
+		sm.resources = append(sm.resources, tpu)
 	}
 
 	if trainium := NewTrainium(sm.logger, pid, samplingInterval, neuronMonitorConfigPath); trainium != nil {
-		sm.assets = append(sm.assets, trainium)
+		sm.resources = append(sm.resources, trainium)
 	}
 
 	// CoreWeave compute environment metadata.
@@ -179,10 +177,10 @@ func (sm *SystemMonitor) initializeAssets(gpuResourceManager *GPUResourceManager
 			Endpoint:      sm.settings.GetStatsCoreWeaveMetadataEndpoint(),
 		},
 	); cwm != nil {
-		sm.assets = append(sm.assets, cwm)
+		sm.resources = append(sm.resources, cwm)
 	} else if err != nil {
 		sm.logger.CaptureError(
-			fmt.Errorf("monitor: failed to initialize CoreWeave metadata asset: %v", err))
+			fmt.Errorf("monitor: failed to initialize CoreWeave metadata resource: %v", err))
 	}
 
 	// DCGM Exporter.
@@ -193,7 +191,7 @@ func (sm *SystemMonitor) initializeAssets(gpuResourceManager *GPUResourceManager
 			Logger:  sm.logger,
 		}
 		if de := NewDCGMExporter(params); de != nil {
-			sm.assets = append(sm.assets, de)
+			sm.resources = append(sm.resources, de)
 		}
 	}
 
@@ -203,7 +201,7 @@ func (sm *SystemMonitor) initializeAssets(gpuResourceManager *GPUResourceManager
 			filters := sm.settings.GetStatsOpenMetricsFilters()
 			headers := sm.settings.GetStatsOpenMetricsHeaders()
 			if om := NewOpenMetrics(sm.logger, name, url, filters, headers, nil); om != nil {
-				sm.assets = append(sm.assets, om)
+				sm.resources = append(sm.resources, om)
 			}
 		}
 	}
@@ -264,8 +262,8 @@ func (sm *SystemMonitor) probeExecutionContext(git *spb.GitRepoRecord) *spb.Reco
 	}}}
 }
 
-// probeAssets gathers system information from all assets and merges their metadata.
-func (sm *SystemMonitor) probeAssets() *spb.Record {
+// probeResources gathers system information from all resources and merges their metadata.
+func (sm *SystemMonitor) probeResources() *spb.Record {
 	defer func() {
 		if err := recover(); err != nil {
 			sm.logger.CaptureError(
@@ -278,8 +276,8 @@ func (sm *SystemMonitor) probeAssets() *spb.Record {
 
 	e := spb.EnvironmentRecord{WriterId: sm.writerID}
 
-	for _, asset := range sm.assets {
-		probeResponse := asset.Probe()
+	for _, resource := range sm.resources {
+		probeResponse := resource.Probe()
 		if probeResponse != nil {
 			proto.Merge(&e, probeResponse)
 		}
@@ -303,7 +301,7 @@ func (sm *SystemMonitor) probeAssets() *spb.Record {
 	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &e}}
 }
 
-// Start begins the monitoring process for all assets and probes system information.
+// Start begins the monitoring process for all resources and probes system information.
 //
 // It is safe to call Start multiple times; only a stopped monitor will initiate.
 func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
@@ -315,7 +313,7 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 		return // Already started or paused
 	}
 
-	// Probe the environment and asset metadata.
+	// Probe the environment and resource metadata.
 	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() && sm.settings.IsPrimary() {
 		sm.extraWork.AddWorkOrCancel(
 			sm.ctx.Done(),
@@ -328,7 +326,7 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
 				runwork.WorkFromRecord(
-					sm.probeAssets(),
+					sm.probeResources(),
 				),
 			)
 		}()
@@ -337,9 +335,9 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 	// Start collecting metrics.
 	if !sm.settings.IsDisableStats() && !sm.settings.IsDisableMachineInfo() {
 		sm.logger.Debug("monitor: starting")
-		for _, asset := range sm.assets {
+		for _, resource := range sm.resources {
 			sm.wg.Add(1)
-			go sm.monitorAsset(asset)
+			go sm.monitorResource(resource)
 		}
 	}
 }
@@ -364,12 +362,12 @@ func (sm *SystemMonitor) Resume() {
 	}
 }
 
-// monitorAsset handles the monitoring loop for a single asset.
+// monitorResource handles the monitoring loop for a single resource.
 //
 // It handles sampling, aggregation, and reporting of metrics
 // and is meant to run in its own goroutine.
-func (sm *SystemMonitor) monitorAsset(asset Asset) {
-	if asset == nil {
+func (sm *SystemMonitor) monitorResource(resource Resource) {
+	if resource == nil {
 		sm.wg.Done()
 		return
 	}
@@ -378,7 +376,7 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 	defer func() {
 		sm.wg.Done()
 		if err := recover(); err != nil {
-			if asset != nil {
+			if resource != nil {
 				sm.logger.CaptureError(fmt.Errorf("monitor: panic: %v", err))
 			}
 		}
@@ -397,7 +395,7 @@ func (sm *SystemMonitor) monitorAsset(asset Asset) {
 				continue // Skip work when not running
 			}
 
-			metrics, err := asset.Sample()
+			metrics, err := resource.Sample()
 			if err != nil {
 				sm.logger.CaptureError(fmt.Errorf("monitor: error sampling metrics: %v", err))
 				continue
@@ -446,7 +444,7 @@ func (sm *SystemMonitor) GetBuffer() map[string][]Measurement {
 
 // Finish stops the monitoring process and performs necessary cleanup.
 //
-// NOTE: asset.Close is a potentially expensive operation.
+// NOTE: resource.Close is a potentially expensive operation.
 func (sm *SystemMonitor) Finish() {
 	if sm == nil || sm.cancel == nil {
 		return
@@ -457,13 +455,13 @@ func (sm *SystemMonitor) Finish() {
 
 	sm.logger.Debug("monitor: stopping")
 
-	// signal to stop monitoring the assets
+	// signal to stop monitoring the resources
 	sm.cancel()
-	// wait for all assets to stop monitoring
+	// wait for all resources to stop monitoring
 	sm.wg.Wait()
-	// close the assets, if they require any cleanup
-	for _, asset := range sm.assets {
-		if closer, ok := asset.(interface{ Close() }); ok {
+	// close the resources, if they require any cleanup
+	for _, resource := range sm.resources {
+		if closer, ok := resource.(interface{ Close() }); ok {
 			closer.Close()
 		}
 	}

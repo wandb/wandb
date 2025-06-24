@@ -7,7 +7,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// Trainium is a dummy implementation of the Asset interface for Trainium.
+// Trainium is a dummy implementation of the Resource interface for Trainium.
 type Trainium struct{}
 
 func NewTrainium(
@@ -25,7 +25,7 @@ func (t *Trainium) Probe() *spb.EnvironmentRecord {
 	return nil
 }
 
-// TPU is a dummy implementation of the Asset interface for TPUs.
+// TPU is a dummy implementation of the Resource interface for TPUs.
 type TPU struct{}
 
 func NewTPU() *TPU {
