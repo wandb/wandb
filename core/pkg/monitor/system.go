@@ -41,8 +41,13 @@ type System struct {
 	networkBytesRecvInit int
 }
 
-func NewSystem(pid int32, diskPaths []string) *System {
-	s := &System{pid: pid, diskPaths: diskPaths}
+type SystemParams struct {
+	pid       int32
+	diskPaths []string
+}
+
+func NewSystem(params SystemParams) *System {
+	s := &System{pid: params.pid, diskPaths: params.diskPaths}
 
 	// Initialize disk I/O counters
 	ioCounters, err := disk.IOCounters()
