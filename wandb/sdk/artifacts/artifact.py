@@ -330,10 +330,11 @@ class Artifact:
             variable_values=query_variable_values,
         )
         if not (project_attrs := response.get("project")):
-            raise ValueError(f"project '{project}' not found under entity '{entity}'")
+            raise ValueError(f"project {project!r} not found under entity {entity!r}")
         if not (acm_attrs := project_attrs.get("artifactCollectionMembership")):
+            entity_project = f"{entity}/{project}"
             raise ValueError(
-                f"artifact membership '{name}' not found in '{entity}/{project}'"
+                f"artifact membership {name!r} not found in {entity_project!r}"
             )
         if not (ac_attrs := acm_attrs.get("artifactCollection")):
             raise ValueError("artifact collection not found")
@@ -353,7 +354,8 @@ class Artifact:
             entity = ac_entity
             project = ac_project
         if not (attrs := acm_attrs.get("artifact")):
-            raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
+            entity_project = f"{entity}/{project}"
+            raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
 
         return cls._from_attrs(entity, project, name, attrs, client)
 
