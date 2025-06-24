@@ -51,6 +51,9 @@ func NewSystem(params SystemParams) *System {
 
 	// Initialize disk I/O counters
 	ioCounters, err := disk.IOCounters()
+	fmt.Printf("%+v", ioCounters)
+	partitions, err := disk.Partitions(false)
+	fmt.Printf("%+v", partitions)
 	if err == nil && len(ioCounters) > 0 {
 		// Use the first disk as baseline if available
 		// TODO: monitor all disks
