@@ -269,9 +269,9 @@ class ArtifactPath:
     #: The collection name.
     name: str
     #: The project name, which can also be a registry name.
-    project: Optional[str] = None  # noqa: UP007
+    project: Optional[str] = None  # noqa: UP045
     #: Prefix is often an org or entity name.
-    prefix: Optional[str] = None  # noqa: UP007
+    prefix: Optional[str] = None  # noqa: UP045
 
     @classmethod
     def from_str(cls, path: str) -> Self:
