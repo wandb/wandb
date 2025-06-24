@@ -1643,9 +1643,7 @@ class Api:
         Find all collections in the registries with the name "my_collection" and the tag "my_tag"
 
         ```python
-        api.registries().collections(
-            filter={"name": "my_collection", "tag": "my_tag"}
-        )
+        api.registries().collections(filter={"name": "my_collection", "tag": "my_tag"})
         ```
 
         Find all artifact versions in the registries with a collection name that contains "my_collection" and a version that has the alias "best"
@@ -1662,7 +1660,7 @@ class Api:
         api.registries(filter={"name": {"$regex": "model"}}).versions(
             filter={"$or": [{"tag": "prod"}, {"alias": "best"}]}
         )
-        ```            
+        ```
         """
         if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
             raise RuntimeError(
@@ -1837,7 +1835,7 @@ class Api:
         ```
 
         Find only webhook integrations that post requests to "https://my-fake-url.com":
-        
+
         ```python
         webhook_integrations = api.webhook_integrations(entity="my-team")
         my_webhooks = [
