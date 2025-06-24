@@ -37,12 +37,12 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",  # doc:exclude
-    "log_artifact",
-    "use_artifact",
-    "log_model",
-    "use_model",
-    "link_model",
-    "define_metric",
+    "log_artifact", # doc:exclude
+    "use_artifact", # doc:exclude
+    "log_model", # doc:exclude
+    "use_model", # doc:exclude
+    "link_model", # doc:exclude
+    "define_metric", # doc:exclude
     "Error",  # doc:exclude
     "termsetup",  # doc:exclude
     "termlog",  # doc:exclude
@@ -51,8 +51,8 @@ __all__ = (
     "Artifact",
     "Settings",
     "teardown",
-    "watch",
-    "unwatch",
+    "watch", # doc:exclude
+    "unwatch", # doc:exclude
     "plot",
     "plot_table",
     "restore",
