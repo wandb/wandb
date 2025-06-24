@@ -251,53 +251,56 @@ class Image(BatchableMedia):
                 Normalize is only applied if data_or_path is a numpy array or pytorch tensor.
 
         Examples:
-            ### Create a wandb.Image from a numpy array
-            ```python
-            import numpy as np
-            import wandb
+        Create a wandb.Image from a numpy array
 
-            with wandb.init() as run:
-                examples = []
-                for i in range(3):
-                    pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                    image = wandb.Image(pixels, caption=f"random field {i}")
-                    examples.append(image)
-                run.log({"examples": examples})
-            ```
+        ```python
+        import numpy as np
+        import wandb
 
-            ### Create a wandb.Image from a PILImage
-            ```python
-            import numpy as np
-            from PIL import Image as PILImage
-            import wandb
+        with wandb.init() as run:
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                image = wandb.Image(pixels, caption=f"random field {i}")
+                examples.append(image)
+            run.log({"examples": examples})
+        ```
 
-            with wandb.init() as run:
-                examples = []
-                for i in range(3):
-                    pixels = np.random.randint(
-                        low=0, high=256, size=(100, 100, 3), dtype=np.uint8
-                    )
-                    pil_image = PILImage.fromarray(pixels, mode="RGB")
-                    image = wandb.Image(pil_image, caption=f"random field {i}")
-                    examples.append(image)
-                run.log({"examples": examples})
-            ```
+        Create a wandb.Image from a PILImage
 
-            ### log .jpg rather than .png (default)
-            ```python
-            import numpy as np
-            import wandb
+        ```python
+        import numpy as np
+        from PIL import Image as PILImage
+        import wandb
 
-            with wandb.init() as run:
-                examples = []
-                for i in range(3):
-                    pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                    image = wandb.Image(
-                        pixels, caption=f"random field {i}", file_type="jpg"
-                    )
-                    examples.append(image)
-                run.log({"examples": examples})
-            ```
+        with wandb.init() as run:
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(
+                    low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+                )
+                pil_image = PILImage.fromarray(pixels, mode="RGB")
+                image = wandb.Image(pil_image, caption=f"random field {i}")
+                examples.append(image)
+            run.log({"examples": examples})
+        ```
+
+        Log .jpg rather than .png (default)
+        
+        ```python
+        import numpy as np
+        import wandb
+
+        with wandb.init() as run:
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                image = wandb.Image(
+                    pixels, caption=f"random field {i}", file_type="jpg"
+                )
+                examples.append(image)
+            run.log({"examples": examples})
+        ```
         """
         super().__init__(caption=caption)
         # TODO: We should remove grouping, it's a terrible name and I don't
