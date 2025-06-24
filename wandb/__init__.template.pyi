@@ -36,14 +36,14 @@ __all__ = (
     "Object3D",
     "Molecule",
     "Histogram",
-    "ArtifactTTL",
+    "ArtifactTTL", # doc:exclude
     "log_artifact",
     "use_artifact",
     "log_model",
     "use_model",
     "link_model",
     "define_metric",
-    "Error",
+    "Error", # doc:exclude
     "termsetup",  # doc:exclude
     "termlog",  # doc:exclude
     "termerror",  # doc:exclude
