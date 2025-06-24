@@ -334,8 +334,9 @@ class Artifact:
             raise ValueError(f"project '{project}' not found under entity '{entity}'")
         acm_attrs = project_attrs.get("artifactCollectionMembership")
         if not acm_attrs:
+            entity_project = f"{entity}/{project}"
             raise ValueError(
-                f"artifact membership '{name}' not found in '{entity}/{project}'"
+                f"artifact membership {name!r} not found in {entity_project!r}"
             )
         ac_attrs = acm_attrs.get("artifactCollection")
         if not ac_attrs:
