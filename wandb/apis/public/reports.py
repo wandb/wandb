@@ -2,6 +2,7 @@
 
 import ast
 import json
+import re
 import urllib
 
 from wandb_gql import gql
@@ -32,9 +33,11 @@ class Reports(SizedPaginator["BetaReport"]):
                             user {
                                 username
                                 photoUrl
+                                email
                             }
                             spec
                             updatedAt
+                            createdAt
                         }
                         cursor
                     }
@@ -111,11 +114,15 @@ class BetaReport(Attrs):
     WARNING: this API will likely change in a future release
 
     Attributes:
+        id (string): unique identifier of the report
         name (string): report name
-        description (string): report description;
-        user (User): the user that created the report
-        spec (dict): the spec off the report;
+        display_name (string): display name of the report
+        description (string): report description
+        user (User): the user that created the report (contains username and email)
+        spec (dict): the spec of the report
+        url (string): the url of the report
         updated_at (string): timestamp of last update
+        created_at (string): timestamp when the report was created
     """
 
     def __init__(self, client, attrs, entity=None, project=None):
@@ -124,7 +131,16 @@ class BetaReport(Attrs):
         self.entity = entity
         self.query_generator = public.QueryGenerator()
         super().__init__(dict(attrs))
-        self._attrs["spec"] = json.loads(self._attrs["spec"])
+
+        if "spec" in self._attrs:
+            if isinstance(self._attrs["spec"], str):
+                self._attrs["spec"] = json.loads(self._attrs["spec"])
+        else:
+            self._attrs["spec"] = {}
+
+    @property
+    def spec(self):
+        return self._attrs["spec"]
 
     @property
     def sections(self):
@@ -154,11 +170,43 @@ class BetaReport(Attrs):
         )
 
     @property
+    def id(self):
+        return self._attrs.get("id")
+
+    @property
+    def name(self):
+        return self._attrs.get("name")
+
+    @property
+    def display_name(self):
+        return self._attrs.get("displayName")
+
+    @property
+    def description(self):
+        return self._attrs.get("description")
+
+    @property
+    def user(self):
+        return self._attrs.get("user")
+
+    @property
     def updated_at(self):
-        return self._attrs["updatedAt"]
+        return self._attrs.get("updatedAt")
+
+    @property
+    def created_at(self):
+        return self._attrs.get("createdAt")
 
     @property
     def url(self):
+        if (
+            not self.client
+            or not self.entity
+            or not self.project
+            or not self.display_name
+            or not self.id
+        ):
+            return None
         return self.client.app_url + "/".join(
             [
                 self.entity,
@@ -166,7 +214,12 @@ class BetaReport(Attrs):
                 "reports",
                 "--".join(
                     [
-                        urllib.parse.quote(self.display_name.replace(" ", "-")),
+                        # made this more closely match the url creation in the frontend (https://github.com/wandb/core/blob/76943979c8e967f7a62dae8bef0a001a2672584c/frontends/app/src/util/report/urls.ts#L19)
+                        urllib.parse.quote(
+                            re.sub(
+                                r"-+", "-", re.sub(r"\W", "-", self.display_name)
+                            ).strip("-")
+                        ),
                         self.id.replace("=", ""),
                     ]
                 ),
@@ -175,7 +228,10 @@ class BetaReport(Attrs):
 
     def to_html(self, height=1024, hidden=False):
         """Generate HTML containing an iframe displaying this report."""
-        url = self.url + "?jupyter=true"
+        url = self.url
+        if url is None:
+            return "<div>Report URL not available</div>"
+        url = url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
         if hidden:
