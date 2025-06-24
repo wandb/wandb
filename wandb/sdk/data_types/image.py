@@ -286,7 +286,7 @@ class Image(BatchableMedia):
         ```
 
         Log .jpg rather than .png (default)
-        
+
         ```python
         import numpy as np
         import wandb

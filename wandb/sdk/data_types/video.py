@@ -109,7 +109,7 @@ class Video(BatchableMedia):
         """Initialize a W&B Video object.
 
         Args:
-            data_or_path: Video can be initialized with a path to a file or an io object. 
+            data_or_path: Video can be initialized with a path to a file or an io object.
                 Video can be initialized with a numpy tensor. The numpy tensor
                 must be either 4 dimensional or 5 dimensional.
                 The dimensions should be (number of frames, channel, height, width) or
