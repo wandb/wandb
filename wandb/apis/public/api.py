@@ -1827,23 +1827,25 @@ class Api:
             Iterator[WebhookIntegration]: An iterator of webhook integrations.
 
         Examples:
-            Get all registered webhook integrations for the team "my-team":
-            ```python
-            import wandb
+        Get all registered webhook integrations for the team "my-team":
 
-            api = wandb.Api()
-            webhook_integrations = api.webhook_integrations(entity="my-team")
-            ```
+        ```python
+        import wandb
 
-            Find only webhook integrations that post requests to "https://my-fake-url.com":
-            ```python
-            webhook_integrations = api.webhook_integrations(entity="my-team")
-            my_webhooks = [
-                ig
-                for ig in webhook_integrations
-                if ig.url_endpoint.startswith("https://my-fake-url.com")
-            ]
-            ```
+        api = wandb.Api()
+        webhook_integrations = api.webhook_integrations(entity="my-team")
+        ```
+
+        Find only webhook integrations that post requests to "https://my-fake-url.com":
+        
+        ```python
+        webhook_integrations = api.webhook_integrations(entity="my-team")
+        my_webhooks = [
+            ig
+            for ig in webhook_integrations
+            if ig.url_endpoint.startswith("https://my-fake-url.com")
+        ]
+        ```
         """
         from wandb.apis.public.integrations import WebhookIntegrations
 
