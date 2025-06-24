@@ -53,7 +53,7 @@ __all__ = (
     "teardown",
     "watch",  # doc:exclude
     "unwatch",  # doc:exclude
-    "plot",
+    "plot",  # doc:exclude
     "plot_table",
     "restore",
     "Run",
