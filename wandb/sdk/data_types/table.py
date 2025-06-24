@@ -2,8 +2,10 @@ import base64
 import binascii
 import codecs
 import datetime
+import json
 import logging
 import os
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Set, Tuple
 
 import wandb
 from wandb import util
@@ -13,7 +15,17 @@ from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import Media, _numpy_arrays_to_lists
 from .base_types.wb_value import WBValue
+from .table_decorators import (
+    allow_incremental_logging_after_append,
+    allow_relogging_after_mutation,
+    ensure_not_incremental,
+)
 from .utils import _json_helper
+
+if TYPE_CHECKING:
+    from wandb.sdk.artifacts import artifact
+
+    from ...wandb_run import Run as LocalRun
 
 
 class _TableLinkMixin:
@@ -180,6 +192,9 @@ class _ForeignIndexType(_dtypes.Type):
         return cls(table)
 
 
+_SUPPORTED_LOGGING_MODES = ["IMMUTABLE", "MUTABLE", "INCREMENTAL"]
+
+
 class Table(Media):
     """The Table class used to display and analyze tabular data.
 
@@ -188,23 +203,8 @@ class Table(Media):
     This means you can embed `Images`, `Video`, `Audio`, and other sorts of rich, annotated media
     directly in Tables, alongside other traditional scalar values.
 
-    This class is the primary class used to generate the Table Visualizer
-    in the UI: https://docs.wandb.ai/guides/data-vis/tables.
-
-    Args:
-        columns: (List[str]) Names of the columns in the table.
-            Defaults to ["Input", "Output", "Expected"].
-        data: (List[List[any]]) 2D row-oriented array of values.
-        dataframe: (pandas.DataFrame) DataFrame object used to create the table.
-            When set, `data` and `columns` arguments are ignored.
-        optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
-            - If a singular bool value, then the optionality is enforced for all
-            columns specified at construction time
-            - If a list of bool values, then the optionality is applied to each
-            column - should be the same length as `columns`
-            applies to all columns. A list of bool values applies to each respective column.
-        allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
-            (disables type validation). Defaults to False
+    This class is the primary class used to generate the W&B Tables
+    https://docs.wandb.ai/guides/models/tables/.
     """
 
     MAX_ROWS = 10000
@@ -221,15 +221,48 @@ class Table(Media):
         dtype=None,
         optional=True,
         allow_mixed_types=False,
+        log_mode: Optional[
+            Literal["IMMUTABLE", "MUTABLE", "INCREMENTAL"]
+        ] = "IMMUTABLE",
     ):
         """Initializes a Table object.
 
         The rows is available for legacy reasons and should not be used.
         The Table class uses data to mimic the Pandas API.
+
+        Args:
+            columns: (List[str]) Names of the columns in the table.
+                Defaults to ["Input", "Output", "Expected"].
+            data: (List[List[any]]) 2D row-oriented array of values.
+            dataframe: (pandas.DataFrame) DataFrame object used to create the table.
+                When set, `data` and `columns` arguments are ignored.
+            optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
+                - If a singular bool value, then the optionality is enforced for all
+                columns specified at construction time
+                - If a list of bool values, then the optionality is applied to each
+                column - should be the same length as `columns`
+                applies to all columns. A list of bool values applies to each respective column.
+            allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
+                (disables type validation). Defaults to False
+            log_mode: Optional[str] Controls how the Table is logged when mutations occur.
+                Options:
+                - "IMMUTABLE" (default): Table can only be logged once; subsequent
+                logging attempts after the table has been mutated will be no-ops.
+                - "MUTABLE": Table can be re-logged after mutations, creating
+                a new artifact version each time it's logged.
+                - "INCREMENTAL": Table data is logged incrementally, with each log creating
+                a new artifact entry containing the new data since the last log.
         """
         super().__init__()
+        self._validate_log_mode(log_mode)
+        self.log_mode = log_mode
+        if self.log_mode == "INCREMENTAL":
+            self._increment_num: int | None = None
+            self._last_logged_idx: int | None = None
+            self._previous_increments_paths: list[str] | None = None
+            self._run_target_for_increments: LocalRun | None = None
         self._pk_col = None
-        self._fk_cols = set()
+        self._fk_cols: set[str] = set()
         if allow_mixed_types:
             dtype = _dtypes.AnyType
 
@@ -258,6 +291,11 @@ class Table(Media):
             else:
                 self._init_from_list([], columns, optional, dtype)
 
+    def _validate_log_mode(self, log_mode):
+        assert log_mode in _SUPPORTED_LOGGING_MODES, (
+            f"Invalid log_mode: {log_mode}. Must be one of {_SUPPORTED_LOGGING_MODES}"
+        )
+
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
@@ -276,9 +314,9 @@ class Table(Media):
             self.add_data(*row)
 
     def _init_from_ndarray(self, ndarray, columns, optional=True, dtype=None):
-        assert util.is_numpy_array(
-            ndarray
-        ), "ndarray argument expects a `numpy.ndarray` object"
+        assert util.is_numpy_array(ndarray), (
+            "ndarray argument expects a `numpy.ndarray` object"
+        )
         self.data = []
         self._assert_valid_columns(columns)
         self.columns = columns
@@ -287,9 +325,9 @@ class Table(Media):
             self.add_data(*row)
 
     def _init_from_dataframe(self, dataframe, columns, optional=True, dtype=None):
-        assert util.is_pandas_data_frame(
-            dataframe
-        ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
+        assert util.is_pandas_data_frame(dataframe), (
+            "dataframe argument expects a `pandas.core.frame.DataFrame` object"
+        )
         self.data = []
         columns = list(dataframe.columns)
         self._assert_valid_columns(columns)
@@ -312,6 +350,63 @@ class Table(Media):
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
 
+    def _load_incremental_table_state_from_resumed_run(self, run: "LocalRun", key: str):
+        """Handle updating incremental table state for resumed runs.
+
+        This method is called when a run is resumed and there are previous
+        increments of this table that need to be preserved. It updates the
+        table's internal state to track previous increments and the current
+        increment number.
+        """
+        if (
+            self._previous_increments_paths is not None
+            or self._increment_num is not None
+        ):
+            raise AssertionError(
+                "The table has been initialized for a resumed run already"
+            )
+
+        self._set_incremental_table_run_target(run)
+
+        summary_from_key = run.summary.get(key)
+
+        if (
+            summary_from_key is None
+            or not isinstance(summary_from_key, dict)
+            or summary_from_key.get("_type") != "incremental-table-file"
+        ):
+            # The key was never logged to the run or its last logged
+            # value was not an incrementally logged table.
+            return
+
+        previous_increments_paths = summary_from_key.get(
+            "previous_increments_paths", []
+        )
+
+        # add the artifact path of the last logged increment
+        last_artifact_path = summary_from_key.get("artifact_path")
+
+        if last_artifact_path:
+            previous_increments_paths.append(last_artifact_path)
+
+        # add 1 because a new increment is being logged
+        last_increment_num = summary_from_key.get("increment_num", 0)
+
+        self._increment_num = last_increment_num + 1
+        self._previous_increments_paths = previous_increments_paths
+
+    def _set_incremental_table_run_target(self, run: "LocalRun") -> None:
+        """Associate a Run object with this incremental Table.
+
+        A Table object in incremental mode can only be logged to a single Run.
+        Raises an error if the table is already associated to a different run.
+        """
+        if self._run_target_for_increments is None:
+            self._run_target_for_increments = run
+        elif self._run_target_for_increments is not run:
+            raise AssertionError("An incremental Table can only be logged to one Run.")
+
+    @allow_relogging_after_mutation
     def cast(self, col_name, dtype, optional=False):
         """Casts a column to a specific data type.
 
@@ -336,11 +431,7 @@ class Table(Media):
             result_type = wbtype.assign(row[col_ndx])
             if isinstance(result_type, _dtypes.InvalidType):
                 raise TypeError(
-                    "Existing data {}, of type {} cannot be cast to {}".format(
-                        row[col_ndx],
-                        _dtypes.TypeRegistry.type_of(row[col_ndx]),
-                        wbtype,
-                    )
+                    f"Existing data {row[col_ndx]}, of type {_dtypes.TypeRegistry.type_of(row[col_ndx])} cannot be cast to {wbtype}"
                 )
             wbtype = result_type
 
@@ -349,18 +440,16 @@ class Table(Media):
         is_fk = isinstance(wbtype, _ForeignKeyType)
         is_fi = isinstance(wbtype, _ForeignIndexType)
         if is_pk or is_fk or is_fi:
-            assert (
-                not optional
-            ), "Primary keys, foreign keys, and foreign indexes cannot be optional."
+            assert not optional, (
+                "Primary keys, foreign keys, and foreign indexes cannot be optional."
+            )
 
         if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
             raise AssertionError("Cannot set a foreign table reference to same table.")
 
         if is_pk:
-            assert (
-                self._pk_col is None
-            ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
-                self._pk_col
+            assert self._pk_col is None, (
+                f"Cannot have multiple primary keys - {self._pk_col} is already set as the primary key."
             )
 
         # Update the column type
@@ -375,22 +464,20 @@ class Table(Media):
 
     def _eq_debug(self, other, should_assert=False):
         eq = isinstance(other, Table)
-        assert not should_assert or eq, "Found type {}, expected {}".format(
-            other.__class__, Table
+        assert not should_assert or eq, (
+            f"Found type {other.__class__}, expected {Table}"
         )
         eq = eq and len(self.data) == len(other.data)
-        assert not should_assert or eq, "Found {} rows, expected {}".format(
-            len(other.data), len(self.data)
+        assert not should_assert or eq, (
+            f"Found {len(other.data)} rows, expected {len(self.data)}"
         )
         eq = eq and self.columns == other.columns
-        assert not should_assert or eq, "Found columns {}, expected {}".format(
-            other.columns, self.columns
+        assert not should_assert or eq, (
+            f"Found columns {other.columns}, expected {self.columns}"
         )
         eq = eq and self._column_types == other._column_types
-        assert (
-            not should_assert or eq
-        ), "Found column type {}, expected column type {}".format(
-            other._column_types, self._column_types
+        assert not should_assert or eq, (
+            f"Found column type {other._column_types}, expected column type {self._column_types}"
         )
         if eq:
             for row_ndx in range(len(self.data)):
@@ -400,13 +487,8 @@ class Table(Media):
                     if util.is_numpy_array(_eq):
                         _eq = ((_eq * -1) + 1).sum() == 0
                     eq = eq and _eq
-                    assert (
-                        not should_assert or eq
-                    ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
-                        row_ndx,
-                        col_ndx,
-                        other.data[row_ndx][col_ndx],
-                        self.data[row_ndx][col_ndx],
+                    assert not should_assert or eq, (
+                        f"Unequal data at row_ndx {row_ndx} col_ndx {col_ndx}: found {other.data[row_ndx][col_ndx]}, expected {self.data[row_ndx][col_ndx]}"
                     )
                     if not eq:
                         return eq
@@ -415,11 +497,14 @@ class Table(Media):
     def __eq__(self, other):
         return self._eq_debug(other)
 
+    @allow_relogging_after_mutation
     def add_row(self, *row):
         """Deprecated; use add_data instead."""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
+    @allow_relogging_after_mutation
+    @allow_incremental_logging_after_append
     def add_data(self, *data):
         """Adds a new row of data to the table. The maximum amount of rows in a table is determined by `wandb.Table.MAX_ARTIFACT_ROWS`.
 
@@ -427,9 +512,7 @@ class Table(Media):
         """
         if len(data) != len(self.columns):
             raise ValueError(
-                "This table expects {} columns: {}, found {}".format(
-                    len(self.columns), self.columns, len(data)
-                )
+                f"This table expects {len(self.columns)} columns: {self.columns}, found {len(data)}"
             )
 
         # Special case to pre-emptively cast a column as a key.
@@ -468,9 +551,7 @@ class Table(Media):
         result_type = current_type.assign(incoming_row_dict)
         if isinstance(result_type, _dtypes.InvalidType):
             raise TypeError(
-                "Data row contained incompatible types:\n{}".format(
-                    current_type.explain(incoming_row_dict)
-                )
+                f"Data row contained incompatible types:\n{current_type.explain(incoming_row_dict)}"
             )
         return result_type
 
@@ -496,7 +577,16 @@ class Table(Media):
                     f"this may cause slower queries in the W&B UI."
                 )
             logging.warning(f"Truncating wandb.Table object to {max_rows} rows.")
-        return {"columns": self.columns, "data": self.data[:max_rows]}
+
+        if self.log_mode == "INCREMENTAL" and self._last_logged_idx is not None:
+            return {
+                "columns": self.columns,
+                "data": self.data[
+                    self._last_logged_idx + 1 : self._last_logged_idx + 1 + max_rows
+                ],
+            }
+        else:
+            return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
         # We set `warn=False` since Tables will now always be logged to both
@@ -516,11 +606,12 @@ class Table(Media):
         return os.path.join("media", "table")
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def from_json(cls, json_obj, source_artifact: "artifact.Artifact"):
         data = []
         column_types = None
         np_deserialized_columns = {}
         timestamp_column_indices = set()
+        log_mode = json_obj.get("log_mode", "IMMUTABLE")
         if json_obj.get("column_types") is not None:
             column_types = _dtypes.TypeRegistry.type_from_dict(
                 json_obj["column_types"], source_artifact
@@ -547,6 +638,10 @@ class Table(Media):
                     and ndarray_type._get_serialization_path() is not None
                 ):
                     serialization_path = ndarray_type._get_serialization_path()
+
+                    if serialization_path is None:
+                        continue
+
                     np = util.get_module(
                         "numpy",
                         required="Deserializing NumPy columns requires NumPy to be installed.",
@@ -559,22 +654,23 @@ class Table(Media):
                     )
                     ndarray_type._clear_serialization_path()
 
-        for r_ndx, row in enumerate(json_obj["data"]):
-            row_data = []
-            for c_ndx, item in enumerate(row):
-                cell = item
-                if c_ndx in timestamp_column_indices and isinstance(item, (int, float)):
-                    cell = datetime.datetime.fromtimestamp(
-                        item / 1000, tz=datetime.timezone.utc
-                    )
-                elif c_ndx in np_deserialized_columns:
-                    cell = np_deserialized_columns[c_ndx][r_ndx]
-                elif isinstance(item, dict) and "_type" in item:
-                    obj = WBValue.init_from_json(item, source_artifact)
-                    if obj is not None:
-                        cell = obj
-                row_data.append(cell)
-            data.append(row_data)
+        if log_mode == "INCREMENTAL":
+            unprocessed_table_data = _get_data_from_increments(
+                json_obj, source_artifact
+            )
+        else:
+            unprocessed_table_data = json_obj["data"]
+
+        for r_ndx, row in enumerate(unprocessed_table_data):
+            data.append(
+                _process_table_row(
+                    row,
+                    timestamp_column_indices,
+                    np_deserialized_columns,
+                    source_artifact,
+                    r_ndx,
+                )
+            )
 
         # construct Table with dtypes for each column if type information exists
         dtypes = None
@@ -583,7 +679,9 @@ class Table(Media):
                 column_types.params["type_map"][str(col)] for col in json_obj["columns"]
             ]
 
-        new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes)
+        new_obj = cls(
+            columns=json_obj["columns"], data=data, dtype=dtypes, log_mode=log_mode
+        )
 
         if column_types is not None:
             new_obj._column_types = column_types
@@ -594,12 +692,31 @@ class Table(Media):
     def to_json(self, run_or_artifact):
         json_dict = super().to_json(run_or_artifact)
 
-        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+        if self.log_mode == "INCREMENTAL":
+            if self._previous_increments_paths is None:
+                self._previous_increments_paths = []
+            if self._increment_num is None:
+                self._increment_num = 0
+
             json_dict.update(
                 {
-                    "_type": "table-file",
+                    "increment_num": self._increment_num,
+                    "previous_increments_paths": self._previous_increments_paths,
+                }
+            )
+
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+            if self.log_mode == "INCREMENTAL":
+                wbvalue_type = "incremental-table-file"
+            else:
+                wbvalue_type = "table-file"
+
+            json_dict.update(
+                {
+                    "_type": wbvalue_type,
                     "ncols": len(self.columns),
                     "nrows": len(self.data),
+                    "log_mode": self.log_mode,
                 }
             )
 
@@ -669,10 +786,11 @@ class Table(Media):
                     "ncols": len(self.columns),
                     "nrows": len(mapped_data),
                     "column_types": self._column_types.to_json(artifact),
+                    "log_mode": self.log_mode,
                 }
             )
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise TypeError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         return json_dict
 
@@ -692,11 +810,13 @@ class Table(Media):
             index.set_table(self)
             yield index, self.data[ndx]
 
+    @allow_relogging_after_mutation
     def set_pk(self, col_name):
         # TODO: Docs
         assert col_name in self.columns
         self.cast(col_name, _PrimaryKeyType())
 
+    @allow_relogging_after_mutation
     def set_fk(self, col_name, table, table_col):
         # TODO: Docs
         assert col_name in self.columns
@@ -737,9 +857,7 @@ class Table(Media):
             # If there is a removed FK
             if len(self._fk_cols - _fk_cols) > 0:
                 raise AssertionError(
-                    "Cannot unset foreign key. Attempted to unset ({})".format(
-                        self._fk_cols - _fk_cols
-                    )
+                    f"Cannot unset foreign key. Attempted to unset ({self._fk_cols - _fk_cols})"
                 )
 
             self._pk_col = _pk_col
@@ -799,6 +917,8 @@ class Table(Media):
             for row_ndx in range(len(self.data)):
                 update_row(row_ndx)
 
+    @ensure_not_incremental
+    @allow_relogging_after_mutation
     def add_column(self, name, data, optional=False):
         """Adds a column of data to the table.
 
@@ -812,9 +932,9 @@ class Table(Media):
         assert isinstance(data, list) or is_np
         assert isinstance(optional, bool)
         is_first_col = len(self.columns) == 0
-        assert is_first_col or len(data) == len(
-            self.data
-        ), f"Expected length {len(self.data)}, found {len(data)}"
+        assert is_first_col or len(data) == len(self.data), (
+            f"Expected length {len(self.data)}, found {len(data)}"
+        )
 
         # Add the new data
         for ndx in range(max(len(data), len(self.data))):
@@ -829,7 +949,7 @@ class Table(Media):
 
         try:
             self.cast(name, _dtypes.UnknownType(), optional=optional)
-        except TypeError as err:
+        except TypeError:
             # Undo the changes
             if is_first_col:
                 self.data = []
@@ -838,7 +958,7 @@ class Table(Media):
                 for ndx in range(len(self.data)):
                     self.data[ndx] = self.data[ndx][:-1]
                 self.columns = self.columns[:-1]
-            raise err
+            raise
 
     def get_column(self, name, convert_to=None):
         """Retrieves a column from the table and optionally converts it to a NumPy object.
@@ -889,6 +1009,8 @@ class Table(Media):
         _index.set_table(self)
         return _index
 
+    @ensure_not_incremental
+    @allow_relogging_after_mutation
     def add_computed_columns(self, fn):
         """Adds one or more computed columns based on existing data.
 
@@ -992,9 +1114,7 @@ class PartitionedTable(Media):
                 columns = part.columns
             elif columns != part.columns:
                 raise ValueError(
-                    "Table parts have non-matching columns. {} != {}".format(
-                        columns, part.columns
-                    )
+                    f"Table parts have non-matching columns. {columns} != {part.columns}"
                 )
             for _, row in part.iterrows():
                 yield ndx, row
@@ -1137,12 +1257,12 @@ class JoinedTable(Media):
 
     def _eq_debug(self, other, should_assert=False):
         eq = isinstance(other, JoinedTable)
-        assert not should_assert or eq, "Found type {}, expected {}".format(
-            other.__class__, JoinedTable
+        assert not should_assert or eq, (
+            f"Found type {other.__class__}, expected {JoinedTable}"
         )
         eq = eq and self._join_key == other._join_key
-        assert not should_assert or eq, "Found {} join key, expected {}".format(
-            other._join_key, self._join_key
+        assert not should_assert or eq, (
+            f"Found {other._join_key} join key, expected {self._join_key}"
         )
         eq = eq and self._table1._eq_debug(other._table1, should_assert)
         eq = eq and self._table2._eq_debug(other._table2, should_assert)
@@ -1207,3 +1327,113 @@ _dtypes.TypeRegistry.add(_PartitionedTableType)
 _dtypes.TypeRegistry.add(_ForeignKeyType)
 _dtypes.TypeRegistry.add(_PrimaryKeyType)
 _dtypes.TypeRegistry.add(_ForeignIndexType)
+
+
+def _get_data_from_increments(
+    json_obj: Dict[str, Any], source_artifact: "artifact.Artifact"
+) -> List[Any]:
+    """Get data from incremental table artifacts.
+
+    Args:
+        json_obj: The JSON object containing table metadata.
+        source_artifact: The source artifact containing the table data.
+
+    Returns:
+        List of table rows from all increments.
+    """
+    if "latest" not in source_artifact.aliases:
+        wandb.termwarn(
+            (
+                "It is recommended to use the latest version of the "
+                "incremental table artifact for ordering guarantees."
+            ),
+            repeat=False,
+        )
+    data: List[Any] = []
+    increment_num = json_obj.get("increment_num", None)
+    if increment_num is None:
+        return data
+
+    # Sort by increment number first, then by timestamp if present
+    # Format of name is: "{incr_num}-{timestamp_ms}.{key}.table.json"
+    def get_sort_key(key: str) -> Tuple[int, int]:
+        try:
+            parts = key.split(".")
+            increment_parts = parts[0].split("-")
+            increment_num = int(increment_parts[0])
+            # If there's a timestamp part, use it for secondary sorting
+            timestamp = int(increment_parts[1]) if len(increment_parts) > 1 else 0
+        except (ValueError, IndexError):
+            wandb.termwarn(
+                (
+                    f"Could not parse artifact entry for increment {key}."
+                    " The entry name does not follow the naming convention"
+                    " <increment_number>-<timestamp>.<key>.table.json"
+                    " The data in the table will be out of order."
+                ),
+                repeat=False,
+            )
+            return (0, 0)
+
+        return (increment_num, timestamp)
+
+    sorted_increment_keys = []
+    for entry_key in source_artifact.manifest.entries:
+        if entry_key.endswith(".table.json"):
+            sorted_increment_keys.append(entry_key)
+
+    sorted_increment_keys.sort(key=get_sort_key)
+
+    for entry_key in sorted_increment_keys:
+        try:
+            with open(source_artifact.manifest.entries[entry_key].download()) as f:
+                table_data = json.load(f)
+            data.extend(table_data["data"])
+        except (json.JSONDecodeError, KeyError) as e:
+            raise wandb.Error(f"Invalid table file {entry_key}") from e
+    return data
+
+
+def _process_table_row(
+    row: List[Any],
+    timestamp_column_indices: Set[_dtypes.TimestampType],
+    np_deserialized_columns: Dict[int, Any],
+    source_artifact: "artifact.Artifact",
+    row_idx: int,
+) -> List[Any]:
+    """Convert special columns in a table row to Python types.
+
+    Processes a single row of table data by converting timestamp values to
+    datetime objects, replacing np typed cells with numpy array data,
+    and initializing media objects from their json value.
+
+
+    Args:
+        row: The row data to process.
+        timestamp_column_indices: Set of column indices containing timestamps.
+        np_deserialized_columns: Dictionary mapping column indices to numpy arrays.
+        source_artifact: The source artifact containing the table data.
+        row_idx: The index of the current row.
+
+    Returns:
+        Processed row data.
+    """
+    row_data = []
+    for c_ndx, item in enumerate(row):
+        cell: Any
+        if c_ndx in timestamp_column_indices and isinstance(item, (int, float)):
+            cell = datetime.datetime.fromtimestamp(
+                item / 1000, tz=datetime.timezone.utc
+            )
+        elif c_ndx in np_deserialized_columns:
+            cell = np_deserialized_columns[c_ndx][row_idx]
+        elif (
+            isinstance(item, dict)
+            and "_type" in item
+            and (obj := WBValue.init_from_json(item, source_artifact))
+        ):
+            cell = obj
+        else:
+            cell = item
+        row_data.append(cell)
+    return row_data

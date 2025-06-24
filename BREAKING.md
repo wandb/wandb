@@ -32,11 +32,6 @@ When preparing a release that can include breaking changes, consider applying ch
 
 ## Changes
 
-- Remove the `x_disable_service` setting; replace by False
-    - Owner: @timoffex
-    - Deprecated in 0.18.0
-    - Can do in >=0.20
-
 - Make `--verify` the default for `wandb login`
     - PR: https://github.com/wandb/wandb/pull/9230
     - Owner: @jacobromero
@@ -52,6 +47,11 @@ When preparing a release that can include breaking changes, consider applying ch
     - Deprecated in 0.17.9 (https://github.com/wandb/wandb/pull/8219)
     - Can do in >=0.20
 
+- Remove `summary="copy"` from `run.define_metric()`
+    - Owner: @timoffex
+    - Deprecated in 0.17.6 (https://github.com/wandb/wandb/pull/8219)
+    - Can do in >=0.20
+
 - Remove `config_{exclude,include}_keys` from `wandb.init()`
     - Owner: @timoffex
     - Deprecated in 0.12.15 (https://github.com/wandb/wandb/pull/3510)
@@ -61,3 +61,54 @@ When preparing a release that can include breaking changes, consider applying ch
     - Owner: @timoffex
     - Deprecated after 0.19.8 (https://github.com/wandb/wandb/pull/9557)
     - Can do after September 2025
+
+- Deprecate `data_is_not_path` flag in `wandb.Html` and add `path` keyword argument to explicitly handle files paths.
+    - Owner: @jacobromero
+    - Deprecated after 0.19.9
+
+- Remove fallback of storing system settings in a temporary directory when we don't have permissions to write to `~/.config/wandb/settings`
+    - Owner: @jacobromero
+    - Can do in >=0.20
+
+- Require `format` argument when initializing `wandb.Video`
+    - Owner: @jacobromero
+    - can do in >=0.20
+
+- Remove the `start_method` setting:
+    - Owner: @kptkin
+    - Deprecated in 0.20.0 (https://github.com/wandb/wandb/pull/9837)
+    - Can do in >=0.21
+
+- Remove `RunDisabled` object:
+    - Owner: @dmitryduev
+    - Deprecated in 0.17.6 (https://github.com/wandb/wandb/pull/8064)
+    - Can do in >=0.20
+
+- Remove normalization of image data on `wandb.Image`
+    - Owner: @jacobromero
+    - can do in >=0.21
+
+- Disallow calling `wandb.save` without args:
+    - Owner: @dmitryduev
+    - Deprecated in 0.12.10 (https://github.com/wandb/wandb/pull/3028)
+    - Can do in >=0.14
+
+- Remove `wandb.Run::project_name()`:
+    - Owner: @kptkin
+    - Deprecated in 0.19.10 (https://github.com/wandb/wandb/pull/8925)
+    - Can do in >=0.21
+
+- Remove `wandb.Run::get_url()`:
+    - Owner: @kptkin
+    - Deprecated in 0.19.10 (https://github.com/wandb/wandb/pull/8925)
+    - Can do in >=0.21
+
+- Remove `wandb.Run::get_project_url()`:
+    - Owner: @kptkin
+    - Deprecated in 0.19.10 (https://github.com/wandb/wandb/pull/8925)
+    - Can do in >=0.21
+
+- Remove `wandb.Run::get_sweep_url()`:
+    - Owner: @kptkin
+    - Deprecated in 0.19.10 (https://github.com/wandb/wandb/pull/8925)
+    - Can do in >=0.21

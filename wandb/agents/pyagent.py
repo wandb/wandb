@@ -176,7 +176,7 @@ class Agent:
                     return
             time.sleep(5)
 
-    def _run_jobs_from_queue(self):  # noqa:C901
+    def _run_jobs_from_queue(self):
         global _INSTANCES
         _INSTANCES += 1
         try:
@@ -239,9 +239,7 @@ class Agent:
                         elif (
                             time.time() - self._start_time < self.FLAPPING_MAX_SECONDS
                         ) and (len(self._exceptions) >= self.FLAPPING_MAX_FAILURES):
-                            msg = "Detected {} failed runs in the first {} seconds, killing sweep.".format(
-                                self.FLAPPING_MAX_FAILURES, self.FLAPPING_MAX_SECONDS
-                            )
+                            msg = f"Detected {self.FLAPPING_MAX_FAILURES} failed runs in the first {self.FLAPPING_MAX_SECONDS} seconds, killing sweep."
                             logger.error(msg)
                             wandb.termerror(msg)
                             wandb.termlog(
@@ -253,9 +251,7 @@ class Agent:
                             self._max_initial_failures < len(self._exceptions)
                             and len(self._exceptions) >= count
                         ):
-                            msg = "Detected {} failed runs in a row at start, killing sweep.".format(
-                                self._max_initial_failures
-                            )
+                            msg = f"Detected {self._max_initial_failures} failed runs in a row at start, killing sweep."
                             logger.error(msg)
                             wandb.termerror(msg)
                             wandb.termlog(
@@ -272,13 +268,13 @@ class Agent:
                     wandb.termlog("Ctrl + C detected. Stopping sweep.")
                     self._exit()
                     return
-                except Exception as e:
+                except Exception:
                     if self._exit_flag:
                         logger.debug("Exiting main loop due to exit flag.")
                         wandb.termlog("Sweep Agent: Killed.")
                         return
                     else:
-                        raise e
+                        raise
         finally:
             _INSTANCES -= 1
 
@@ -305,8 +301,8 @@ class Agent:
 
             self._function()
             wandb.finish()
-        except KeyboardInterrupt as ki:
-            raise ki
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             wandb.finish(exit_code=1)
             if self._run_status[run_id] == RunStatus.RUNNING:
@@ -320,9 +316,7 @@ class Agent:
 
     def run(self):
         logger.info(
-            "Starting sweep agent: entity={}, project={}, count={}".format(
-                self._entity, self._project, self._count
-            )
+            f"Starting sweep agent: entity={self._entity}, project={self._project}, count={self._count}"
         )
         self._setup()
         # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
@@ -345,7 +339,7 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
         count (int, optional): the number of trials to run.
     """
     if not callable(function):
-        raise Exception("function parameter must be callable!")
+        raise TypeError("function parameter must be callable!")
     agent = Agent(
         sweep_id,
         function=function,

@@ -13,8 +13,8 @@ from typing_extensions import override
 
 # A small hack to allow importing build scripts from the source tree.
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from core import hatch as hatch_core  # noqa: I001 E402
-from gpu_stats import hatch as hatch_gpu_stats  # noqa: I001 E402
+from core import hatch as hatch_core
+from gpu_stats import hatch as hatch_gpu_stats
 
 # Necessary inputs for releases.
 _WANDB_RELEASE_COMMIT = "WANDB_RELEASE_COMMIT"
@@ -116,16 +116,16 @@ class CustomBuildHook(BuildHookInterface):
         return [output.as_posix()]
 
     def _git_commit_sha(self) -> str:
-        try:
-            import subprocess
+        import subprocess
 
-            src_dir = pathlib.Path(__file__).parent
-            commit = (
+        src_dir = pathlib.Path(__file__).parent
+
+        try:
+            return (
                 subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=src_dir)
                 .decode("utf-8")
                 .strip()
             )
-            return commit
         except Exception:
             return ""
 

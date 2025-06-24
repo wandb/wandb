@@ -282,13 +282,13 @@ func (gm *gpuMetric) wandbName() string {
 	case "DCGM_FI_PROF_SM_OCCUPANCY":
 		mappedName = fmt.Sprintf("gpu.%s.smOccupancy", gm.index)
 	case "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE":
-		mappedName = fmt.Sprintf("gpu.%s.tensorActive", gm.index)
+		mappedName = fmt.Sprintf("gpu.%s.pipeTensorActive", gm.index)
 	case "DCGM_FI_PROF_PIPE_FP64_ACTIVE":
-		mappedName = fmt.Sprintf("gpu.%s.fp64Active", gm.index)
+		mappedName = fmt.Sprintf("gpu.%s.pipeFp64Active", gm.index)
 	case "DCGM_FI_PROF_PIPE_FP32_ACTIVE":
-		mappedName = fmt.Sprintf("gpu.%s.fp32Active", gm.index)
+		mappedName = fmt.Sprintf("gpu.%s.pipeFp32Active", gm.index)
 	case "DCGM_FI_PROF_PIPE_FP16_ACTIVE":
-		mappedName = fmt.Sprintf("gpu.%s.fp16Active", gm.index)
+		mappedName = fmt.Sprintf("gpu.%s.pipeFp16Active", gm.index)
 	case "DCGM_FI_DEV_FB_FREE":
 		mappedName = fmt.Sprintf("gpu.%s.memoryFree", gm.index)
 	default:
@@ -358,21 +358,6 @@ func (de *DCGMExporter) Sample() (*spb.StatsRecord, error) {
 	}
 
 	return marshal(metrics, timestamppb.Now()), nil
-}
-
-// IsAvailable checks if the endpoint is accessible.
-func (o *DCGMExporter) IsAvailable() bool {
-	// try to fetch the metrics once to check if the endpoint is available
-	_, err := o.Sample()
-	if err != nil {
-		o.logger.Warn(
-			"monitor: openmetrics: failed to fetch metrics from endpoint",
-			"url", o.baseUrl,
-			"error", err,
-		)
-		return false
-	}
-	return true
 }
 
 // Probe fetches the Nvidia GPU metadata from the endpoint and returns it as a MetadataRequest.

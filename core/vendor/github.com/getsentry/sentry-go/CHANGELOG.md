@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.33.0
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.33.0.
+
+
+### Breaking Changes
+
+- Rename the internal `Logger` to `DebugLogger`. This feature was only used when you set `Debug: True` in your `sentry.Init()` call. If you haven't used the Logger directly, no changes are necessary. ([#1012](https://github.com/getsentry/sentry-go/issues/1012))
+
+### Features
+
+- Add support for [Structured Logging](https://docs.sentry.io/product/explore/logs/). ([#1010](https://github.com/getsentry/sentry-go/issues/1010))
+
+  ```go
+  logger := sentry.NewLogger(ctx)
+  logger.Info(ctx, "Hello, Logs!")
+  ```
+
+  You can learn more about Sentry Logs on our [docs](https://docs.sentry.io/product/explore/logs/) and the [examples](https://github.com/getsentry/sentry-go/blob/master/_examples/logs/main.go).
+
+- Add new attributes APIs, which are currently only exposed on logs. ([#1007](https://github.com/getsentry/sentry-go/issues/1007))
+
+### Bug Fixes
+
+- Do not push a new scope on `StartSpan`. ([#1013](https://github.com/getsentry/sentry-go/issues/1013))
+- Fix an issue where the propagated smapling decision wasn't used. ([#995](https://github.com/getsentry/sentry-go/issues/995))
+- [Otel] Prefer `httpRoute` over `httpTarget` for span descriptions. ([#1002](https://github.com/getsentry/sentry-go/issues/1002))
+
+### Misc
+
+- Update `github.com/stretchr/testify` to v1.8.4. ([#988](https://github.com/getsentry/sentry-go/issues/988))  
+
+## 0.32.0
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.32.0.
+
+### Breaking Changes
+
+- Bump the minimum Go version to 1.22. The supported versions are 1.22, 1.23 and 1.24. ([#967](https://github.com/getsentry/sentry-go/issues/967))
+- Setting any values on `span.Extra` has no effect anymore. Use `SetData(name string, value interface{})` instead. ([#864](https://github.com/getsentry/sentry-go/pull/864))
+
+### Features
+
+- Add a `MockTransport` and `MockScope`. ([#972](https://github.com/getsentry/sentry-go/pull/972))
+
+### Bug Fixes
+
+- Fix writing `*http.Request` in the Logrus JSONFormatter. ([#955](https://github.com/getsentry/sentry-go/issues/955))
+
+### Misc
+
+- Transaction `data` attributes are now seralized as trace context data attributes, allowing you to query these attributes in the [Trace Explorer](https://docs.sentry.io/product/explore/traces/).
+
 ## 0.31.1
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.31.1.

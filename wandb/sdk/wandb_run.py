@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import atexit
 import functools
 import glob
 import json
@@ -19,23 +18,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from types import TracebackType
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Literal,
-    NamedTuple,
-    Sequence,
-    TextIO,
-    TypeVar,
-)
-
-if sys.version_info < (3, 10):
-    from typing_extensions import Concatenate, ParamSpec
-else:
-    from typing import Concatenate, ParamSpec
+from typing import TYPE_CHECKING, Callable, Sequence, TextIO, TypeVar
 
 import requests
+from typing_extensions import Any, Concatenate, Literal, NamedTuple, ParamSpec
 
 import wandb
 import wandb.env
@@ -43,7 +29,7 @@ import wandb.util
 from wandb import trigger
 from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
-from wandb.errors import CommError, UnsupportedError, UsageError
+from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
@@ -55,6 +41,7 @@ from wandb.proto.wandb_internal_pb2 import (
     Result,
     RunRecord,
 )
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib import asyncio_compat, wb_logging
@@ -286,9 +273,7 @@ class RunStatusChecker:
                     wandb.termlog(f"{hr.http_response_text}")
                 else:
                     wandb.termlog(
-                        "{} encountered ({}), retrying request".format(
-                            hr.http_status_code, hr.http_response_text.rstrip()
-                        )
+                        f"{hr.http_status_code} encountered ({hr.http_response_text.rstrip()}), retrying request"
                     )
 
         with wb_logging.log_to_run(self._run_id):
@@ -474,54 +459,6 @@ def _raise_if_finished(
     return wrapper_fn
 
 
-def _noop_if_forked_with_no_service(
-    func: Callable[Concatenate[Run, _P], None],
-) -> Callable[Concatenate[Run, _P], None]:
-    """Do nothing if called in a forked process and service is disabled.
-
-    Disabling the service is a very old and barely supported setting.
-    """
-
-    @functools.wraps(func)
-    def wrapper(self: Run, *args, **kwargs) -> None:
-        # The _attach_id attribute is only None when running in the "disable
-        # service" mode.
-        #
-        # Since it is set early in `__init__` and included in the run's pickled
-        # state, the attribute always exists.
-        is_using_service = self._attach_id is not None
-
-        # This is the PID in which the Run object was constructed. The attribute
-        # always exists because it is set early in `__init__` and is included
-        # in the pickled state in `__getstate__` and `__setstate__`.
-        #
-        # It is not equal to the current PID if the process was forked or if
-        # the Run object was pickled and sent to another process.
-        init_pid = self._init_pid
-
-        if is_using_service or init_pid == os.getpid():
-            return func(self, *args, **kwargs)
-
-        message = (
-            f"`{func.__name__}` ignored (called from pid={os.getpid()},"
-            f" `init` called from pid={init_pid})."
-            f" See: {url_registry.url('multiprocess')}"
-        )
-
-        # This attribute may not exist because it is not included in the run's
-        # pickled state.
-        settings = getattr(self, "_settings", None)
-        if settings and settings.strict:
-            wandb.termerror(message, repeat=False)
-            raise UnsupportedError(
-                f"`{func.__name__}` does not support multiprocessing"
-            )
-        wandb.termwarn(message, repeat=False)
-        return None
-
-    return wrapper
-
-
 @dataclass
 class RunStatus:
     sync_items_total: int = field(default=0)
@@ -633,6 +570,8 @@ class Run:
 
     _launch_artifacts: dict[str, Any] | None
     _printer: printer.Printer
+
+    summary: wandb_summary.Summary
 
     def __init__(
         self,
@@ -774,8 +713,7 @@ class Run:
         self._attach_pid = os.getpid()
         self._forked = False
         # for now, use runid as attach id, this could/should be versioned in the future
-        if not self._settings.x_disable_service:
-            self._attach_id = self._settings.run_id
+        self._attach_id = self._settings.run_id
 
     def _handle_launch_artifact_overrides(self) -> None:
         if self._settings.launch and (os.environ.get("WANDB_ARTIFACTS") is not None):
@@ -849,7 +787,7 @@ class Run:
     def __getstate__(self) -> Any:
         """Return run state as a custom pickle."""
         # We only pickle in service mode
-        if not self._settings or self._settings.x_disable_service:
+        if not self._settings:
             return
 
         _attach_id = self._attach_id
@@ -1037,21 +975,6 @@ class Run:
     @property
     @_log_to_run
     @_attach
-    def mode(self) -> str:
-        """For compatibility with `0.9.x` and earlier, deprecate eventually."""
-        deprecate.deprecate(
-            field_name=Deprecated.run__mode,
-            warning_message=(
-                "The mode property of wandb.run is deprecated "
-                "and will be removed in a future release."
-            ),
-            run=self,
-        )
-        return "dryrun" if self._settings._offline else "run"
-
-    @property
-    @_log_to_run
-    @_attach
     def offline(self) -> bool:
         return self._settings._offline
 
@@ -1201,7 +1124,7 @@ class Run:
                     f"{self._settings.project}-{self._settings.program_relpath}"
                 )
             name = wandb.util.make_artifact_name_safe(f"source-{name_string}")
-        art = wandb.Artifact(name, "code")
+        art = InternalArtifact(name, "code")
         files_added = False
         if root is not None:
             root = os.path.abspath(root)
@@ -1222,7 +1145,14 @@ class Run:
             )
             return None
 
-        return self._log_artifact(art)
+        artifact = self._log_artifact(art)
+
+        self._config.update(
+            {"_wandb": {"code_path": artifact.name}},
+            allow_val_change=True,
+        )
+
+        return artifact
 
     @_log_to_run
     def get_sweep_url(self) -> str | None:
@@ -1393,13 +1323,12 @@ class Run:
 
         try:
             from IPython import display
-
-            display.display(display.HTML(self.to_html(height, hidden)))
-            return True
-
         except ImportError:
             wandb.termwarn(".display() only works in jupyter environments")
             return False
+
+        display.display(display.HTML(self.to_html(height, hidden)))
+        return True
 
     @_log_to_run
     @_attach
@@ -1443,7 +1372,7 @@ class Run:
             artifact = Artifact._from_id(val["id"], public_api.client)
 
             assert artifact
-            return self.use_artifact(artifact, use_as=key)
+            return self.use_artifact(artifact)
         elif _is_artifact_string(val):
             # this will never fail, but is required to make mypy happy
             assert isinstance(val, str)
@@ -1462,9 +1391,9 @@ class Run:
             # different instances of wandb.
 
             assert artifact
-            return self.use_artifact(artifact, use_as=key)
+            return self.use_artifact(artifact)
         elif _is_artifact_object(val):
-            return self.use_artifact(val, use_as=key)
+            return self.use_artifact(val)
         else:
             raise ValueError(
                 f"Cannot call _config_artifact_callback on type {type(val)}"
@@ -1768,10 +1697,10 @@ class Run:
         commit: bool | None = None,
     ) -> None:
         if not isinstance(data, Mapping):
-            raise ValueError("wandb.log must be passed a dictionary")
+            raise TypeError("wandb.log must be passed a dictionary")
 
         if any(not isinstance(key, str) for key in data.keys()):
-            raise ValueError("Key values passed to `wandb.log` must be strings.")
+            raise TypeError("Key values passed to `wandb.log` must be strings.")
 
         self._partial_history_callback(data, step, commit)
 
@@ -1800,7 +1729,6 @@ class Run:
             self._step += 1
 
     @_log_to_run
-    @_noop_if_forked_with_no_service
     @_raise_if_finished
     @_attach
     def log(
@@ -1808,7 +1736,6 @@ class Run:
         data: dict[str, Any],
         step: int | None = None,
         commit: bool | None = None,
-        sync: bool | None = None,
     ) -> None:
         """Upload run data.
 
@@ -1913,7 +1840,6 @@ class Run:
                 accumulate data for the step. See the notes in the description.
                 If `step` is `None`, then the default is `commit=True`;
                 otherwise, the default is `commit=False`.
-            sync: This argument is deprecated and does nothing.
 
         Examples:
             For more and more detailed examples, see
@@ -2046,14 +1972,6 @@ class Run:
             with telemetry.context(run=self) as tel:
                 tel.feature.set_step_log = True
 
-        if sync is not None:
-            deprecate.deprecate(
-                field_name=Deprecated.run__log_sync,
-                warning_message=(
-                    "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
-                ),
-                run=self,
-            )
         if self._settings._shared and step is not None:
             wandb.termwarn(
                 "In shared mode, the use of `wandb.log` with the step argument is not supported "
@@ -2068,7 +1986,7 @@ class Run:
     @_attach
     def save(
         self,
-        glob_str: str | os.PathLike | None = None,
+        glob_str: str | os.PathLike,
         base_path: str | os.PathLike | None = None,
         policy: PolicyName = "live",
     ) -> bool | list[str]:
@@ -2119,18 +2037,6 @@ class Run:
 
             For historical reasons, this may return a boolean in legacy code.
         """
-        if glob_str is None:
-            # noop for historical reasons, run.save() may be called in legacy code
-            deprecate.deprecate(
-                field_name=Deprecated.run__save_no_args,
-                warning_message=(
-                    "Calling wandb.run.save without any arguments is deprecated."
-                    "Changes to attributes are automatically persisted."
-                ),
-                run=self,
-            )
-            return True
-
         if isinstance(glob_str, bytes):
             # Preserved for backward compatibility: allow bytes inputs.
             glob_str = glob_str.decode("utf-8")
@@ -2267,7 +2173,6 @@ class Run:
         )
 
     @_log_to_run
-    @_noop_if_forked_with_no_service
     @_attach
     def finish(
         self,
@@ -2349,21 +2254,6 @@ class Run:
             wandb._sentry.end_session()
 
     @_log_to_run
-    @_noop_if_forked_with_no_service
-    @_attach
-    def join(self, exit_code: int | None = None) -> None:
-        """Deprecated alias for `finish()` - use finish instead."""
-        if hasattr(self, "_telemetry_obj"):
-            deprecate.deprecate(
-                field_name=Deprecated.run__join,
-                warning_message=(
-                    "wandb.run.join() is deprecated, please use wandb.run.finish()."
-                ),
-                run=self,
-            )
-        self._finish(exit_code=exit_code)
-
-    @_log_to_run
     @_raise_if_finished
     @_attach
     def status(
@@ -2407,10 +2297,7 @@ class Run:
             console = self._settings.console
         # only use raw for service to minimize potential changes
         if console == "wrap":
-            if not self._settings.x_disable_service:
-                console = "wrap_raw"
-            else:
-                console = "wrap_emu"
+            console = "wrap_raw"
         logger.info("redirect: %s", console)
 
         out_redir: redirect.RedirectBase
@@ -2506,7 +2393,7 @@ class Run:
             logger.info("Redirects installed.")
         except Exception as e:
             wandb.termwarn(f"Failed to redirect: {e}")
-            logger.error("Failed to redirect.", exc_info=e)
+            logger.exception("Failed to redirect.")
         return
 
     def _restore(self) -> None:
@@ -2547,9 +2434,9 @@ class Run:
                 wandb.termerror("Control-C detected -- Run data was not synced")
             raise
 
-        except Exception as e:
+        except Exception:
             self._console_stop()
-            logger.error("Problem finishing run", exc_info=e)
+            logger.exception("Problem finishing run")
             wandb.termerror("Problem finishing run")
             raise
 
@@ -2565,11 +2452,6 @@ class Run:
     def _console_start(self) -> None:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
-
-        if self.settings.x_disable_service:
-            self._hooks.hook()
-            # NB: manager will perform atexit hook like behavior for outstanding runs
-            atexit.register(lambda: self._atexit_cleanup())
 
         self._redirect(self._stdout_slave_fd, self._stderr_slave_fd)
 
@@ -2652,8 +2534,8 @@ class Run:
 
         try:
             self._detect_and_apply_job_inputs()
-        except Exception as e:
-            logger.error("Problem applying launch job inputs", exc_info=e)
+        except Exception:
+            logger.exception("Problem applying launch job inputs")
 
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
@@ -2684,7 +2566,7 @@ class Run:
         installed_packages_list: list[str],
         patch_path: os.PathLike | None = None,
     ) -> Artifact:
-        job_artifact = job_builder.JobArtifact(name)
+        job_artifact = InternalArtifact(name, job_builder.JOB_ARTIFACT_TYPE)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:
@@ -3040,44 +2922,6 @@ class Run:
         """
         wandb.sdk._unwatch(self, models=models)
 
-    # TODO(kdg): remove all artifact swapping logic
-    def _swap_artifact_name(self, artifact_name: str, use_as: str | None) -> str:
-        artifact_key_string = use_as or artifact_name
-        replacement_artifact_info = self._launch_artifact_mapping.get(
-            artifact_key_string
-        )
-        if replacement_artifact_info is not None:
-            new_name = replacement_artifact_info.get("name")
-            entity = replacement_artifact_info.get("entity")
-            project = replacement_artifact_info.get("project")
-            if new_name is None or entity is None or project is None:
-                raise ValueError(
-                    "Misconfigured artifact in launch config. Must include name, project and entity keys."
-                )
-            return f"{entity}/{project}/{new_name}"
-        elif replacement_artifact_info is None and use_as is None:
-            sequence_name = artifact_name.split(":")[0].split("/")[-1]
-            unique_artifact_replacement_info = (
-                self._unique_launch_artifact_sequence_names.get(sequence_name)
-            )
-            if unique_artifact_replacement_info is not None:
-                new_name = unique_artifact_replacement_info.get("name")
-                entity = unique_artifact_replacement_info.get("entity")
-                project = unique_artifact_replacement_info.get("project")
-                if new_name is None or entity is None or project is None:
-                    raise ValueError(
-                        "Misconfigured artifact in launch config. Must include name, project and entity keys."
-                    )
-                return f"{entity}/{project}/{new_name}"
-
-        else:
-            return artifact_name
-
-        return artifact_name
-
-    def _detach(self) -> None:
-        pass
-
     @_log_to_run
     @_raise_if_finished
     @_attach
@@ -3086,7 +2930,7 @@ class Run:
         artifact: Artifact,
         target_path: str,
         aliases: list[str] | None = None,
-    ) -> None:
+    ) -> Artifact | None:
         """Link the given artifact to a portfolio (a promoted collection of artifacts).
 
         The linked artifact will be visible in the UI for the specified portfolio.
@@ -3100,7 +2944,7 @@ class Run:
             The alias "latest" will always be applied to the latest version of an artifact that is linked.
 
         Returns:
-            None
+            The linked artifact if linking was successful, otherwise None.
 
         """
         portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
@@ -3108,7 +2952,7 @@ class Run:
             aliases = []
 
         if not self._backend or not self._backend.interface:
-            return
+            return None
 
         if artifact.is_draft() and not artifact._is_draft_save_started():
             artifact = self._log_artifact(artifact)
@@ -3122,12 +2966,13 @@ class Run:
 
         organization = ""
         if is_artifact_registry_project(project):
-            organization = entity
+            organization = entity or self.settings.organization or ""
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
             entity = artifact._source_entity
+        project = project or self.project
+        entity = entity or self.entity
         handle = self._backend.interface.deliver_link_artifact(
-            self,
             artifact,
             portfolio,
             aliases,
@@ -3143,6 +2988,25 @@ class Run:
         response = result.response.link_artifact_response
         if response.error_message:
             wandb.termerror(response.error_message)
+            return None
+        if response.version_index is None:
+            wandb.termerror(
+                "Error fetching the linked artifact's version index after linking"
+            )
+            return None
+
+        try:
+            artifact_name = f"{entity}/{project}/{portfolio}:v{response.version_index}"
+            if is_artifact_registry_project(project):
+                if organization:
+                    artifact_name = f"{organization}/{project}/{portfolio}:v{response.version_index}"
+                else:
+                    artifact_name = f"{project}/{portfolio}:v{response.version_index}"
+            linked_artifact = self._public_api()._artifact(artifact_name)
+        except Exception as e:
+            wandb.termerror(f"Error fetching link artifact after linking: {e}")
+            return None
+        return linked_artifact
 
     @_log_to_run
     @_raise_if_finished
@@ -3168,8 +3032,7 @@ class Run:
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
-            use_as: (string, optional) Optional string indicating what purpose the artifact was used with.
-                                       Will be shown in UI.
+            use_as: This argument is deprecated and does nothing.
 
         Returns:
             An `Artifact` object.
@@ -3185,40 +3048,28 @@ class Run:
         )
         api.set_current_run_id(self._settings.run_id)
 
+        if use_as is not None:
+            deprecate.deprecate(
+                field_name=Deprecated.run__use_artifact_use_as,
+                warning_message=(
+                    "`use_as` argument is deprecated and does not affect the behaviour of `run.use_artifact`"
+                ),
+            )
+
         if isinstance(artifact_or_name, str):
-            if self._launch_artifact_mapping:
-                name = self._swap_artifact_name(artifact_or_name, use_as)
-            else:
-                name = artifact_or_name
+            name = artifact_or_name
             public_api = self._public_api()
             artifact = public_api._artifact(type=type, name=name)
             if type is not None and type != artifact.type:
                 raise ValueError(
-                    "Supplied type {} does not match type {} of artifact {}".format(
-                        type, artifact.type, artifact.name
-                    )
+                    f"Supplied type {type} does not match type {artifact.type} of artifact {artifact.name}"
                 )
-            artifact._use_as = use_as or artifact_or_name
-            if use_as:
-                if (
-                    use_as in self._used_artifact_slots.keys()
-                    and self._used_artifact_slots[use_as] != artifact.id
-                ):
-                    raise ValueError(
-                        "Cannot call use_artifact with the same use_as argument more than once"
-                    )
-                elif ":" in use_as or "/" in use_as:
-                    raise ValueError(
-                        "use_as cannot contain special characters ':' or '/'"
-                    )
-                self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
                 artifact.id,
                 entity_name=self._settings.entity,
                 project_name=self._settings.project,
                 artifact_entity_name=artifact.entity,
                 artifact_project_name=artifact.project,
-                use_as=use_as or artifact_or_name,
             )
         else:
             artifact = artifact_or_name
@@ -3238,20 +3089,9 @@ class Run:
                     use_after_commit=True,
                 )
                 artifact.wait()
-                artifact._use_as = use_as or artifact.name
             elif isinstance(artifact, Artifact) and not artifact.is_draft():
-                if (
-                    self._launch_artifact_mapping
-                    and artifact.name in self._launch_artifact_mapping.keys()
-                ):
-                    wandb.termwarn(
-                        "Swapping artifacts is not supported when using a non-draft artifact. "
-                        f"Using {artifact.name}."
-                    )
-                artifact._use_as = use_as or artifact.name
                 api.use_artifact(
                     artifact.id,
-                    use_as=use_as or artifact._use_as or artifact.name,
                     artifact_entity_name=artifact.entity,
                     artifact_project_name=artifact.project,
                 )
@@ -3541,7 +3381,7 @@ class Run:
                 name
                 or f"run-{self._settings.run_id}-{os.path.basename(artifact_or_path)}"
             )
-            artifact = wandb.Artifact(name, type or "unspecified")
+            artifact = Artifact(name, type or "unspecified")
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(str(artifact_or_path))
             elif os.path.isdir(artifact_or_path):
@@ -3555,8 +3395,8 @@ class Run:
                 )
         else:
             artifact = artifact_or_path
-        if not isinstance(artifact, wandb.Artifact):
-            raise ValueError(
+        if not isinstance(artifact, Artifact):
+            raise TypeError(
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"
             )
@@ -3687,7 +3527,7 @@ class Run:
         registered_model_name: str,
         name: str | None = None,
         aliases: list[str] | None = None,
-    ) -> None:
+    ) -> Artifact | None:
         """Log a model artifact version and link it to a registered model in the model registry.
 
         The linked model version will be visible in the UI for the specified registered model.
@@ -3749,7 +3589,7 @@ class Run:
             ValueError: if name has invalid special characters
 
         Returns:
-            None
+            The linked artifact if linking was successful, otherwise None.
         """
         name_parts = registered_model_name.split("/")
         if len(name_parts) != 1:
@@ -3778,7 +3618,9 @@ class Run:
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type="model"
             )
-        self.link_artifact(artifact=artifact, target_path=target_path, aliases=aliases)
+        return self.link_artifact(
+            artifact=artifact, target_path=target_path, aliases=aliases
+        )
 
     @_log_to_run
     @_raise_if_finished
@@ -3808,7 +3650,7 @@ class Run:
         if isinstance(wait_duration, int) or isinstance(wait_duration, float):
             wait_duration = timedelta(seconds=wait_duration)
         elif not callable(getattr(wait_duration, "total_seconds", None)):
-            raise ValueError(
+            raise TypeError(
                 "wait_duration must be an int, float, or datetime.timedelta"
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
@@ -3888,8 +3730,8 @@ class Run:
             try:
                 response = result.response.get_system_metrics_response
                 return pb_to_dict(response) if response else {}
-            except Exception as e:
-                logger.error("Error getting system metrics: %s", e)
+            except Exception:
+                logger.exception("Error getting system metrics.")
                 return {}
 
     @property
@@ -3914,23 +3756,18 @@ class Run:
         try:
             result = handle.wait_or(timeout=1)
         except TimeoutError:
-            logger.error("Error getting run metadata: timeout")
+            logger.exception("Timeout getting run metadata.")
             return None
 
-        try:
-            response = result.response.get_system_metadata_response
+        response = result.response.get_system_metadata_response
 
-            # Temporarily disable the callback to prevent triggering
-            # an update call to wandb-core with the callback.
-            with self.__metadata.disable_callback():
-                # Values stored in the metadata object take precedence.
-                self.__metadata.update_from_proto(response.metadata, skip_existing=True)
+        # Temporarily disable the callback to prevent triggering
+        # an update call to wandb-core with the callback.
+        with self.__metadata.disable_callback():
+            # Values stored in the metadata object take precedence.
+            self.__metadata.update_from_proto(response.metadata, skip_existing=True)
 
-            return self.__metadata
-        except Exception as e:
-            logger.error("Error getting run metadata: %s", e)
-
-        return None
+        return self.__metadata
 
     @_log_to_run
     @_raise_if_finished
@@ -4078,10 +3915,6 @@ class Run:
             printer=printer,
         )
         Run._footer_log_dir_info(settings=settings, printer=printer)
-        Run._footer_notify_wandb_core(
-            settings=settings,
-            printer=printer,
-        )
         Run._footer_internal_messages(
             internal_messages_response=internal_messages_response,
             settings=settings,
@@ -4227,23 +4060,6 @@ class Run:
 
         for message in internal_messages_response.messages.warning:
             printer.display(message, level="warn")
-
-    @staticmethod
-    def _footer_notify_wandb_core(
-        *,
-        settings: Settings,
-        printer: printer.Printer,
-    ) -> None:
-        """Prints a message advertising the upcoming core release."""
-        if settings.quiet or not settings.x_require_legacy_service:
-            return
-
-        printer.display(
-            "The legacy backend is deprecated. In future versions, `wandb-core` will become "
-            "the sole backend service, and the `wandb.require('legacy-service')` flag will be removed. "
-            f"For more information, visit {url_registry.url('wandb-core')}",
-            level="warn",
-        )
 
 
 # We define this outside of the run context to support restoring before init

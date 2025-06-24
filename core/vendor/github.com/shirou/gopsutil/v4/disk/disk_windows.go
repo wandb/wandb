@@ -19,7 +19,6 @@ import (
 var (
 	procGetDiskFreeSpaceExW     = common.Modkernel32.NewProc("GetDiskFreeSpaceExW")
 	procGetLogicalDriveStringsW = common.Modkernel32.NewProc("GetLogicalDriveStringsW")
-	procGetDriveType            = common.Modkernel32.NewProc("GetDriveTypeW")
 	procGetVolumeInformation    = common.Modkernel32.NewProc("GetVolumeInformationW")
 )
 
@@ -55,7 +54,7 @@ func init() {
 	}
 }
 
-func UsageWithContext(ctx context.Context, path string) (*UsageStat, error) {
+func UsageWithContext(_ context.Context, path string) (*UsageStat, error) {
 	lpFreeBytesAvailable := int64(0)
 	lpTotalNumberOfBytes := int64(0)
 	lpTotalNumberOfFreeBytes := int64(0)
@@ -83,7 +82,7 @@ func UsageWithContext(ctx context.Context, path string) (*UsageStat, error) {
 
 // PartitionsWithContext returns disk partitions.
 // Since GetVolumeInformation doesn't have a timeout, this method uses context to set deadline by users.
-func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, error) {
+func PartitionsWithContext(ctx context.Context, _ bool) ([]PartitionStat, error) {
 	warnings := Warnings{
 		Verbose: true,
 	}
@@ -109,15 +108,14 @@ func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, erro
 			if v >= 65 && v <= 90 {
 				path := string(v) + ":"
 				typepath, _ := windows.UTF16PtrFromString(path)
-				typeret, _, _ := procGetDriveType.Call(uintptr(unsafe.Pointer(typepath)))
-				if typeret == 0 {
-					err := windows.GetLastError()
-					warnings.Add(err)
+				typeret := windows.GetDriveType(typepath)
+				switch typeret {
+				case windows.DRIVE_UNKNOWN:
 					continue
-				}
-				// 2: DRIVE_REMOVABLE 3: DRIVE_FIXED 4: DRIVE_REMOTE 5: DRIVE_CDROM
-
-				if typeret == 2 || typeret == 3 || typeret == 4 || typeret == 5 {
+				case windows.DRIVE_REMOVABLE,
+					windows.DRIVE_FIXED,
+					windows.DRIVE_REMOTE,
+					windows.DRIVE_CDROM:
 					lpVolumeNameBuffer := make([]byte, 256)
 					lpVolumeSerialNumber := int64(0)
 					lpMaximumComponentLength := int64(0)
@@ -134,7 +132,8 @@ func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, erro
 						uintptr(unsafe.Pointer(&lpFileSystemNameBuffer[0])),
 						uintptr(len(lpFileSystemNameBuffer)))
 					if driveret == 0 {
-						if typeret == 2 || typeret == 4 || typeret == 5 {
+						switch typeret {
+						case windows.DRIVE_REMOVABLE, windows.DRIVE_REMOTE, windows.DRIVE_CDROM:
 							continue // device is not ready will happen if there is no disk in the drive
 						}
 						warnings.Add(err)
@@ -182,7 +181,7 @@ func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, erro
 	}
 }
 
-func IOCountersWithContext(ctx context.Context, names ...string) (map[string]IOCountersStat, error) {
+func IOCountersWithContext(_ context.Context, names ...string) (map[string]IOCountersStat, error) {
 	// https://github.com/giampaolo/psutil/blob/544e9daa4f66a9f80d7bf6c7886d693ee42f0a13/psutil/arch/windows/disk.c#L83
 	drivemap := make(map[string]IOCountersStat, 0)
 	var diskPerformance diskPerformance
@@ -197,9 +196,6 @@ func IOCountersWithContext(ctx context.Context, names ...string) (map[string]IOC
 			path := string(rune(v)) + ":"
 			typepath, _ := windows.UTF16PtrFromString(path)
 			typeret := windows.GetDriveType(typepath)
-			if typeret == 0 {
-				return drivemap, windows.GetLastError()
-			}
 			if typeret != windows.DRIVE_FIXED {
 				continue
 			}
@@ -236,10 +232,10 @@ func IOCountersWithContext(ctx context.Context, names ...string) (map[string]IOC
 	return drivemap, nil
 }
 
-func SerialNumberWithContext(ctx context.Context, name string) (string, error) {
+func SerialNumberWithContext(_ context.Context, _ string) (string, error) {
 	return "", common.ErrNotImplementedError
 }
 
-func LabelWithContext(ctx context.Context, name string) (string, error) {
+func LabelWithContext(_ context.Context, _ string) (string, error) {
 	return "", common.ErrNotImplementedError
 }

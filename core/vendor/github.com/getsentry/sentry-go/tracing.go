@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,20 +39,22 @@ const (
 //
 // Spans must be started with either StartSpan or Span.StartChild.
 type Span struct { //nolint: maligned // prefer readability over optimal memory layout (see note below *)
-	TraceID      TraceID                `json:"trace_id"`
-	SpanID       SpanID                 `json:"span_id"`
-	ParentSpanID SpanID                 `json:"parent_span_id"`
-	Name         string                 `json:"name,omitempty"`
-	Op           string                 `json:"op,omitempty"`
-	Description  string                 `json:"description,omitempty"`
-	Status       SpanStatus             `json:"status,omitempty"`
-	Tags         map[string]string      `json:"tags,omitempty"`
-	StartTime    time.Time              `json:"start_timestamp"`
-	EndTime      time.Time              `json:"timestamp"`
-	Data         map[string]interface{} `json:"data,omitempty"`
-	Sampled      Sampled                `json:"-"`
-	Source       TransactionSource      `json:"-"`
-	Origin       SpanOrigin             `json:"origin,omitempty"`
+	TraceID      TraceID           `json:"trace_id"`
+	SpanID       SpanID            `json:"span_id"`
+	ParentSpanID SpanID            `json:"parent_span_id"`
+	Name         string            `json:"name,omitempty"`
+	Op           string            `json:"op,omitempty"`
+	Description  string            `json:"description,omitempty"`
+	Status       SpanStatus        `json:"status,omitempty"`
+	Tags         map[string]string `json:"tags,omitempty"`
+	StartTime    time.Time         `json:"start_timestamp"`
+	EndTime      time.Time         `json:"timestamp"`
+	// Deprecated: use Data instead. To be removed in 0.33.0
+	Extra   map[string]interface{} `json:"-"`
+	Data    map[string]interface{} `json:"data,omitempty"`
+	Sampled Sampled                `json:"-"`
+	Source  TransactionSource      `json:"-"`
+	Origin  SpanOrigin             `json:"origin,omitempty"`
 
 	// mu protects concurrent writes to map fields
 	mu sync.RWMutex
@@ -70,6 +73,8 @@ type Span struct { //nolint: maligned // prefer readability over optimal memory 
 	contexts map[string]Context
 	// a Once instance to make sure that Finish() is only called once.
 	finishOnce sync.Once
+	// explicitSampled is a flag for configuring sampling by using `WithSpanSampled` option.
+	explicitSampled Sampled
 }
 
 // TraceParentContext describes the context of a (remote) parent span.
@@ -193,10 +198,6 @@ func StartSpan(ctx context.Context, operation string, options ...SpanOption) *Sp
 	clientOptions := span.clientOptions()
 	if clientOptions.EnableTracing {
 		hub := hubFromContext(ctx)
-		if !span.IsTransaction() {
-			// Push a new scope to stack for non transaction span
-			hub.PushScope()
-		}
 		hub.Scope().SetSpan(&span)
 	}
 
@@ -300,7 +301,7 @@ func (s *Span) GetTransaction() *Span {
 // func (s *Span) TransactionName() string
 // func (s *Span) SetTransactionName(name string)
 
-// ToSentryTrace returns the seralized TraceParentContext from a transaction/span.
+// ToSentryTrace returns the serialized TraceParentContext from a transaction/span.
 // Use this function to propagate the TraceParentContext to a downstream SDK,
 // either as the value of the "sentry-trace" HTTP header, or as an html "sentry-trace" meta tag.
 func (s *Span) ToSentryTrace() string {
@@ -354,8 +355,9 @@ func (s *Span) doFinish() {
 
 	hub := hubFromContext(s.ctx)
 	if !s.IsTransaction() {
-		// Referenced to StartSpan function that pushes current non-transaction span to scope stack
-		defer hub.PopScope()
+		if s.parent != nil {
+			hub.Scope().SetSpan(s.parent)
+		}
 	}
 
 	if !s.Sampled.Bool() {
@@ -447,21 +449,21 @@ func (s *Span) sample() Sampled {
 	// https://develop.sentry.dev/sdk/performance/#sampling
 	// #1 tracing is not enabled.
 	if !clientOptions.EnableTracing {
-		Logger.Printf("Dropping transaction: EnableTracing is set to %t", clientOptions.EnableTracing)
+		DebugLogger.Printf("Dropping transaction: EnableTracing is set to %t", clientOptions.EnableTracing)
 		s.sampleRate = 0.0
 		return SampledFalse
 	}
 
 	// #2 explicit sampling decision via StartSpan/StartTransaction options.
-	if s.Sampled != SampledUndefined {
-		Logger.Printf("Using explicit sampling decision from StartSpan/StartTransaction: %v", s.Sampled)
-		switch s.Sampled {
+	if s.explicitSampled != SampledUndefined {
+		DebugLogger.Printf("Using explicit sampling decision from StartSpan/StartTransaction: %v", s.explicitSampled)
+		switch s.explicitSampled {
 		case SampledTrue:
 			s.sampleRate = 1.0
 		case SampledFalse:
 			s.sampleRate = 0.0
 		}
-		return s.Sampled
+		return s.explicitSampled
 	}
 
 	// Variant for non-transaction spans: they inherit the parent decision.
@@ -482,42 +484,52 @@ func (s *Span) sample() Sampled {
 	if sampler != nil {
 		tracesSamplerSampleRate := sampler.Sample(samplingContext)
 		s.sampleRate = tracesSamplerSampleRate
+		// tracesSampler can update the sample_rate on frozen DSC
+		if s.dynamicSamplingContext.HasEntries() {
+			s.dynamicSamplingContext.Entries["sample_rate"] = strconv.FormatFloat(tracesSamplerSampleRate, 'f', -1, 64)
+		}
 		if tracesSamplerSampleRate < 0.0 || tracesSamplerSampleRate > 1.0 {
-			Logger.Printf("Dropping transaction: Returned TracesSampler rate is out of range [0.0, 1.0]: %f", tracesSamplerSampleRate)
+			DebugLogger.Printf("Dropping transaction: Returned TracesSampler rate is out of range [0.0, 1.0]: %f", tracesSamplerSampleRate)
 			return SampledFalse
 		}
-		if tracesSamplerSampleRate == 0 {
-			Logger.Printf("Dropping transaction: Returned TracesSampler rate is: %f", tracesSamplerSampleRate)
+		if tracesSamplerSampleRate == 0.0 {
+			DebugLogger.Printf("Dropping transaction: Returned TracesSampler rate is: %f", tracesSamplerSampleRate)
 			return SampledFalse
 		}
 
 		if rng.Float64() < tracesSamplerSampleRate {
 			return SampledTrue
 		}
-		Logger.Printf("Dropping transaction: TracesSampler returned rate: %f", tracesSamplerSampleRate)
+		DebugLogger.Printf("Dropping transaction: TracesSampler returned rate: %f", tracesSamplerSampleRate)
+
 		return SampledFalse
 	}
+
 	// #4 inherit parent decision.
-	if s.parent != nil {
-		Logger.Printf("Using sampling decision from parent: %v", s.parent.Sampled)
-		switch s.parent.Sampled {
+	if s.Sampled != SampledUndefined {
+		DebugLogger.Printf("Using sampling decision from parent: %v", s.Sampled)
+		switch s.Sampled {
 		case SampledTrue:
 			s.sampleRate = 1.0
 		case SampledFalse:
 			s.sampleRate = 0.0
 		}
-		return s.parent.Sampled
+		return s.Sampled
 	}
 
 	// #5 use TracesSampleRate from ClientOptions.
 	sampleRate := clientOptions.TracesSampleRate
 	s.sampleRate = sampleRate
+	// tracesSampleRate can update the sample_rate on frozen DSC
+	if s.dynamicSamplingContext.HasEntries() {
+		s.dynamicSamplingContext.Entries["sample_rate"] = strconv.FormatFloat(sampleRate, 'f', -1, 64)
+	}
 	if sampleRate < 0.0 || sampleRate > 1.0 {
-		Logger.Printf("Dropping transaction: TracesSamplerRate out of range [0.0, 1.0]: %f", sampleRate)
+		DebugLogger.Printf("Dropping transaction: TracesSampleRate out of range [0.0, 1.0]: %f", sampleRate)
 		return SampledFalse
 	}
 	if sampleRate == 0.0 {
-		Logger.Printf("Dropping transaction: TracesSampleRate rate is: %f", sampleRate)
+		DebugLogger.Printf("Dropping transaction: TracesSampleRate rate is: %f", sampleRate)
 		return SampledFalse
 	}
 
@@ -540,7 +552,7 @@ func (s *Span) toEvent() *Event {
 	finished := make([]*Span, 0, len(children))
 	for _, child := range children {
 		if child.EndTime.IsZero() {
-			Logger.Printf("Dropped unfinished span: Op=%q TraceID=%s SpanID=%s", child.Op, child.TraceID, child.SpanID)
+			DebugLogger.Printf("Dropped unfinished span: Op=%q TraceID=%s SpanID=%s", child.Op, child.TraceID, child.SpanID)
 			continue
 		}
 		finished = append(finished, child)
@@ -569,7 +581,6 @@ func (s *Span) toEvent() *Event {
 		Transaction: s.Name,
 		Contexts:    contexts,
 		Tags:        s.Tags,
-		Extra:       s.Data,
 		Timestamp:   s.EndTime,
 		StartTime:   s.StartTime,
 		Spans:       finished,
@@ -588,6 +599,7 @@ func (s *Span) traceContext() *TraceContext {
 		SpanID:       s.SpanID,
 		ParentSpanID: s.ParentSpanID,
 		Op:           s.Op,
+		Data:         s.Data,
 		Description:  s.Description,
 		Status:       s.Status,
 	}
@@ -763,12 +775,13 @@ func (ss SpanStatus) MarshalJSON() ([]byte, error) {
 // A TraceContext carries information about an ongoing trace and is meant to be
 // stored in Event.Contexts (as *TraceContext).
 type TraceContext struct {
-	TraceID      TraceID    `json:"trace_id"`
-	SpanID       SpanID     `json:"span_id"`
-	ParentSpanID SpanID     `json:"parent_span_id"`
-	Op           string     `json:"op,omitempty"`
-	Description  string     `json:"description,omitempty"`
-	Status       SpanStatus `json:"status,omitempty"`
+	TraceID      TraceID                `json:"trace_id"`
+	SpanID       SpanID                 `json:"span_id"`
+	ParentSpanID SpanID                 `json:"parent_span_id"`
+	Op           string                 `json:"op,omitempty"`
+	Description  string                 `json:"description,omitempty"`
+	Status       SpanStatus             `json:"status,omitempty"`
+	Data         map[string]interface{} `json:"data,omitempty"`
 }
 
 func (tc *TraceContext) MarshalJSON() ([]byte, error) {
@@ -809,6 +822,10 @@ func (tc TraceContext) Map() map[string]interface{} {
 
 	if tc.Status > 0 && tc.Status < maxSpanStatus {
 		m["status"] = tc.Status
+	}
+
+	if len(tc.Data) > 0 {
+		m["data"] = tc.Data
 	}
 
 	return m
@@ -885,7 +902,7 @@ func WithTransactionSource(source TransactionSource) SpanOption {
 // WithSpanSampled updates the sampling flag for a given span.
 func WithSpanSampled(sampled Sampled) SpanOption {
 	return func(s *Span) {
-		s.Sampled = sampled
+		s.explicitSampled = sampled
 	}
 }
 
@@ -896,7 +913,7 @@ func WithSpanOrigin(origin SpanOrigin) SpanOption {
 	}
 }
 
-// Continue a trace based on traceparent and bagge values.
+// ContinueTrace continues a trace based on traceparent and baggage values.
 // If the SDK is configured with tracing enabled,
 // this function returns populated SpanOption.
 // In any other cases, it populates the propagation context on the scope.

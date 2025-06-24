@@ -1,8 +1,9 @@
 import functools
 import logging
 import os
+import pathlib
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Type, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Type, Union
 
 import wandb
 from wandb import util
@@ -34,12 +35,26 @@ if TYPE_CHECKING:  # pragma: no cover
 def write_gif_with_image_io(
     clip: Any, filename: str, fps: Optional[int] = None
 ) -> None:
+    from packaging.version import parse
+
     imageio = util.get_module(
         "imageio",
         required='wandb.Video requires imageio when passing raw data. Install with "pip install wandb[media]"',
     )
 
-    writer = imageio.save(filename, fps=clip.fps, quantizer=0, palettesize=256, loop=0)
+    if parse(imageio.__version__) < parse("2.28.1"):
+        raise ValueError(
+            "imageio version 2.28.1 or higher is required to encode gifs. "
+            "Please upgrade imageio with `pip install imageio>=2.28.1`"
+        )
+
+    writer = imageio.save(
+        filename,
+        quantizer=0,
+        palettesize=256,
+        loop=0,
+        duration=1000 / clip.fps,
+    )
 
     for frame in clip.iter_frames(fps=fps, dtype="uint8"):
         writer.append_data(frame)
@@ -48,36 +63,7 @@ def write_gif_with_image_io(
 
 
 class Video(BatchableMedia):
-    """Format a video for logging to W&B.
-
-    Args:
-        data_or_path: (numpy array, string, io)
-            Video can be initialized with a path to a file or an io object.
-            The format must be "gif", "mp4", "webm" or "ogg".
-            The format must be specified with the format argument.
-            Video can be initialized with a numpy tensor.
-            The numpy tensor must be either 4 dimensional or 5 dimensional.
-            Channels should be (time, channel, height, width) or
-            (batch, time, channel, height width)
-        caption: (string) caption associated with the video for display
-        fps: (int)
-            The frame rate to use when encoding raw video frames. Default value is 4.
-            This parameter has no effect when data_or_path is a string, or bytes.
-        format: (string) format of video, necessary if initializing with path or io object.
-
-    Examples:
-        ### Log a numpy array as a video
-        <!--yeadoc-test:log-video-numpy-->
-        ```python
-        import numpy as np
-        import wandb
-
-        run = wandb.init()
-        # axes are (time, channel, height, width)
-        frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
-        run.log({"video": wandb.Video(frames, fps=4)})
-        ```
-    """
+    """A class for logging videos to W&B."""
 
     _log_type = "video-file"
     EXTS = ("gif", "mp4", "webm", "ogg")
@@ -86,13 +72,57 @@ class Video(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union["np.ndarray", str, "TextIO", "BytesIO"],
+        data_or_path: Union[str, pathlib.Path, "np.ndarray", "TextIO", "BytesIO"],
         caption: Optional[str] = None,
         fps: Optional[int] = None,
-        format: Optional[str] = None,
+        format: Optional[Literal["gif", "mp4", "webm", "ogg"]] = None,
     ):
+        """Initialize a W&B Video object.
+
+        Args:
+            data_or_path:
+                Video can be initialized with a path to a file or an io object.
+                Video can be initialized with a numpy tensor.
+                The numpy tensor must be either 4 dimensional or 5 dimensional.
+                The dimensions should be (number of frames, channel, height, width) or
+                (batch, number of frames, channel, height, width)
+                The format parameter must be specified with the format argument
+                when initializing with a numpy array
+                or io object.
+            caption: Caption associated with the video for display.
+            fps:
+                The frame rate to use when encoding raw video frames.
+                Default value is 4.
+                This parameter has no effect when data_or_path is a string, or bytes.
+            format:
+                Format of video, necessary if initializing with a numpy array
+                or io object. This parameter will be used to determine the format
+                to use when encoding the video data. Accepted values are "gif",
+                "mp4", "webm", or "ogg".
+                If no value is provided, the default format will be "gif".
+
+        Examples:
+            ### Log a numpy array as a video
+            ```python
+            import numpy as np
+            import wandb
+
+            with wandb.init() as run:
+                # axes are (number of frames, channel, height, width)
+                frames = np.random.randint(
+                    low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
+                )
+                run.log({"video": wandb.Video(frames, format="mp4", fps=4)})
+            ```
+        """
         super().__init__(caption=caption)
 
+        if format is None:
+            wandb.termwarn(
+                "`format` argument was not provided, defaulting to `gif`. "
+                "This parameter will be required in v0.20.0, "
+                "please specify the format explicitly."
+            )
         self._format = format or "gif"
         self._width = None
         self._height = None
@@ -116,7 +146,9 @@ class Video(BatchableMedia):
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
             self._set_file(filename, is_tmp=True)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             _, ext = os.path.splitext(data_or_path)
             ext = ext[1:].lower()
             if ext not in Video.EXTS:

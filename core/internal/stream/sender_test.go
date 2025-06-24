@@ -21,20 +21,6 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-const validUpsertBucketResponse = `{
-	"upsertBucket": {
-		"bucket": {
-			"displayName": "FakeName",
-			"project": {
-				"name": "FakeProject",
-				"entity": {
-					"name": "FakeEntity"
-				}
-			}
-		}
-	}
-}`
-
 const validLinkArtifactResponse = `{
 	"linkArtifact": { "versionIndex": 0 }
 }`
@@ -94,48 +80,6 @@ func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Send
 	return sender
 }
 
-// Verify that project and entity are properly passed through to graphql
-func TestSendRun(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("UpsertBucket"),
-		validUpsertBucketResponse,
-	)
-	outChan := make(chan *spb.Result, 1)
-	sender := makeSender(mockGQL, outChan)
-
-	run := &spb.Record{
-		RecordType: &spb.Record_Run{
-			Run: &spb.RunRecord{
-				Config: &spb.ConfigRecord{
-					Update: []*spb.ConfigItem{
-						{
-							Key:       "_wandb",
-							ValueJson: "{}",
-						},
-					},
-				},
-				Project: "testProject",
-				Entity:  "testEntity",
-			}},
-		Control: &spb.Control{
-			MailboxSlot: "junk",
-		},
-	}
-
-	sender.SendRecord(run)
-	<-outChan
-
-	requests := mockGQL.AllRequests()
-	assert.Len(t, requests, 1)
-	gqlmock.AssertRequest(t,
-		gqlmock.WithVariables(
-			gqlmock.GQLVar("project", gomock.Eq("testProject")),
-			gqlmock.GQLVar("entity", gomock.Eq("testEntity")),
-		),
-		requests[0])
-}
-
 // Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
@@ -171,15 +115,13 @@ func TestSendLinkArtifact(t *testing.T) {
 
 	requests := mockGQL.AllRequests()
 	assert.Len(t, requests, 1)
-	gqlmock.AssertRequest(t,
-		gqlmock.WithVariables(
-			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
-			gqlmock.GQLVar("entityName", gomock.Eq("portfolioEntity")),
-			gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
-			gqlmock.GQLVar("clientId", gomock.Eq(nil)),
-			gqlmock.GQLVar("artifactId", gomock.Eq("serverId")),
-		),
-		requests[0])
+	gqlmock.AssertVariables(t,
+		requests[0],
+		gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
+		gqlmock.GQLVar("entityName", gomock.Eq("portfolioEntity")),
+		gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
+		gqlmock.GQLVar("clientId", gomock.Eq(nil)),
+		gqlmock.GQLVar("artifactId", gomock.Eq("serverId")))
 
 	// 2. When only clientId is sent, clientId is used
 	linkArtifact = &spb.Record{
@@ -207,15 +149,13 @@ func TestSendLinkArtifact(t *testing.T) {
 
 	requests = mockGQL.AllRequests()
 	assert.Len(t, requests, 2)
-	gqlmock.AssertRequest(t,
-		gqlmock.WithVariables(
-			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
-			gqlmock.GQLVar("entityName", gomock.Eq("portfolioEntity")),
-			gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
-			gqlmock.GQLVar("clientId", gomock.Eq("clientId")),
-			gqlmock.GQLVar("artifactId", gomock.Eq(nil)),
-		),
-		requests[1])
+	gqlmock.AssertVariables(t,
+		requests[1],
+		gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
+		gqlmock.GQLVar("entityName", gomock.Eq("portfolioEntity")),
+		gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
+		gqlmock.GQLVar("clientId", gomock.Eq("clientId")),
+		gqlmock.GQLVar("artifactId", gomock.Eq(nil)))
 
 	// 3. When only serverId is sent, serverId is used
 	linkArtifact = &spb.Record{
@@ -243,15 +183,13 @@ func TestSendLinkArtifact(t *testing.T) {
 
 	requests = mockGQL.AllRequests()
 	assert.Len(t, requests, 3)
-	gqlmock.AssertRequest(t,
-		gqlmock.WithVariables(
-			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
-			gqlmock.GQLVar("entityName", gomock.Eq("portfolioEntity")),
-			gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
-			gqlmock.GQLVar("clientId", gomock.Eq(nil)),
-			gqlmock.GQLVar("artifactId", gomock.Eq("serverId")),
-		),
-		requests[2])
+	gqlmock.AssertVariables(t,
+		requests[2],
+		gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
+		gqlmock.GQLVar("entityName", gomock.Eq("portfolioEntity")),
+		gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
+		gqlmock.GQLVar("clientId", gomock.Eq(nil)),
+		gqlmock.GQLVar("artifactId", gomock.Eq("serverId")))
 }
 
 func TestSendUseArtifact(t *testing.T) {
@@ -381,7 +319,7 @@ func TestLinkRegistryArtifact(t *testing.T) {
 			)
 
 			linker := newLinker(req)
-			err := linker.Link()
+			_, err := linker.Link()
 			if err != nil {
 				assert.NotEmpty(t, tc.errorMessage)
 				assert.ErrorContainsf(t, err, tc.errorMessage,
@@ -398,16 +336,14 @@ func TestLinkRegistryArtifact(t *testing.T) {
 				assert.Len(t, requests, numExpectedRequests)
 
 				// Confirms that the request is incorrectly put into link artifact graphql request
-				gqlmock.AssertRequest(t,
-					gqlmock.WithVariables(
-						gqlmock.GQLVar("projectName", gomock.Eq(registryProject)),
-						// Here the entity name is not orgEntityName_123 and this will fail if actually called
-						gqlmock.GQLVar("entityName", gomock.Not(gomock.Eq("orgEntityName_123"))),
-						gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
-						gqlmock.GQLVar("clientId", gomock.Eq("clientId123")),
-						gqlmock.GQLVar("artifactId", gomock.Nil()),
-					),
-					requests[numExpectedRequests-1])
+				gqlmock.AssertVariables(t,
+					requests[numExpectedRequests-1],
+					gqlmock.GQLVar("projectName", gomock.Eq(registryProject)),
+					// Here the entity name is not orgEntityName_123 and this will fail if actually called
+					gqlmock.GQLVar("entityName", gomock.Not(gomock.Eq("orgEntityName_123"))),
+					gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
+					gqlmock.GQLVar("clientId", gomock.Eq("clientId123")),
+					gqlmock.GQLVar("artifactId", gomock.Nil()))
 			} else {
 				// If no error, check that we are passing in the correct org entity name into linkArtifact
 				assert.Empty(t, tc.errorMessage)
@@ -415,15 +351,13 @@ func TestLinkRegistryArtifact(t *testing.T) {
 				requests := mockGQL.AllRequests()
 				assert.Len(t, requests, numExpectedRequests)
 
-				gqlmock.AssertRequest(t,
-					gqlmock.WithVariables(
-						gqlmock.GQLVar("projectName", gomock.Eq(registryProject)),
-						gqlmock.GQLVar("entityName", gomock.Eq("orgEntityName_123")),
-						gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
-						gqlmock.GQLVar("clientId", gomock.Eq("clientId123")),
-						gqlmock.GQLVar("artifactId", gomock.Nil()),
-					),
-					requests[numExpectedRequests-1])
+				gqlmock.AssertVariables(t,
+					requests[numExpectedRequests-1],
+					gqlmock.GQLVar("projectName", gomock.Eq(registryProject)),
+					gqlmock.GQLVar("entityName", gomock.Eq("orgEntityName_123")),
+					gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
+					gqlmock.GQLVar("clientId", gomock.Eq("clientId123")),
+					gqlmock.GQLVar("artifactId", gomock.Nil()))
 			}
 		})
 	}

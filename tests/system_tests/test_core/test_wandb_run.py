@@ -6,7 +6,6 @@ import sys
 import numpy as np
 import pytest
 import wandb
-import wandb.env
 from wandb.errors import UsageError
 
 
@@ -30,14 +29,19 @@ def test_log_nan_inf(wandb_backend_spy):
         assert history[0]["nested"]["neg_inf"] < 0
 
 
-def test_log_code(user):
-    with wandb.init(mode="offline") as run:
+def test_log_code(user, wandb_backend_spy):
+    with wandb.init() as run:
         with open("test.py", "w") as f:
             f.write('print("test")')
         with open("big_file.h5", "w") as f:
             f.write("Not that big")
         art = run.log_code()
         assert sorted(art.manifest.entries.keys()) == ["test.py"]
+
+    with wandb_backend_spy.freeze() as snapshot:
+        config = snapshot.config(run_id=run.id)
+        assert "code_path" in config["_wandb"]["value"]
+        assert config["_wandb"]["value"]["code_path"] == art.name
 
 
 def test_log_code_include(user):
@@ -68,11 +72,6 @@ def test_invalid_project_name(user, project_name):
     with pytest.raises(UsageError) as e:
         wandb.init(project=project_name)
         assert f'Invalid project name "{project_name}"' in str(e.value)
-
-
-def test_resume_must_failure(user):
-    with pytest.raises(wandb.UsageError):
-        wandb.init(resume="must")
 
 
 def test_unlogged_artifact_in_config(user, test_settings):
@@ -108,12 +107,7 @@ def test_attach_same_process(user, test_settings):
 
 def test_deprecated_feature_telemetry(wandb_backend_spy):
     with wandb.init(config_include_keys=["lol"]) as run:
-        # use deprecated features
-        _ = [
-            run.mode,
-            run.save(),
-            run.join(),
-        ]
+        pass
 
     with wandb_backend_spy.freeze() as snapshot:
         telemetry = snapshot.telemetry(run_id=run.id)
@@ -122,12 +116,7 @@ def test_deprecated_feature_telemetry(wandb_backend_spy):
         # whose fields 2-4 correspond to deprecated wandb.run features
         # fields 7 & 8 are deprecated wandb.init kwargs
         telemetry_deprecated = telemetry.get("10", [])
-        assert (
-            (2 in telemetry_deprecated)
-            and (3 in telemetry_deprecated)
-            and (4 in telemetry_deprecated)
-            and (7 in telemetry_deprecated)
-        )
+        assert 7 in telemetry_deprecated
 
 
 def test_except_hook(user, test_settings):
@@ -158,31 +147,6 @@ def test_except_hook(user, test_settings):
         assert "".join(stderr) == "Exception: After wandb.init()\n"
 
         sys.stderr.write = old_stderr_write
-
-
-def assertion(run_id, found, stderr):
-    msg = (
-        "`resume` will be ignored since W&B syncing is set to `offline`. "
-        f"Starting a new run with run id {run_id}"
-    )
-    return msg in stderr if found else msg not in stderr
-
-
-@pytest.mark.parametrize(
-    "resume, found",
-    [
-        ("auto", True),
-        ("allow", True),
-        ("never", True),
-        ("must", True),
-        (True, True),
-        (None, False),
-    ],
-)
-def test_offline_resume(user, test_settings, capsys, resume, found):
-    with wandb.init(mode="offline", resume=resume, settings=test_settings()) as run:
-        captured = capsys.readouterr()
-        assert assertion(run.id, found, captured.err)
 
 
 def test_ignore_globs_wandb_files(wandb_backend_spy):
@@ -239,7 +203,6 @@ def test_summary_from_history(wandb_backend_spy):
         assert summary["a"] == 2
 
 
-@pytest.mark.wandb_core_only
 def test_summary_remove(wandb_backend_spy):
     with wandb.init() as run:
         run.log({"a": 2})
@@ -250,7 +213,6 @@ def test_summary_remove(wandb_backend_spy):
         assert "a" not in summary
 
 
-@pytest.mark.wandb_core_only
 def test_summary_remove_nested(wandb_backend_spy):
     with wandb.init(allow_val_change=True) as run:
         run.log({"a": {"b": 2}})
@@ -308,7 +270,6 @@ def test_error_when_using_attributes_of_finished_run(user, attribute, value):
             setattr(run, attribute, value)
 
 
-@pytest.mark.wandb_core_only
 @pytest.mark.parametrize(
     "update_finish_state",
     [True, False],

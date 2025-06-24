@@ -7,7 +7,7 @@ from typing import List, Optional
 from pydantic import (  # type: ignore
     BaseModel,
     Field,
-    ValidationError,  # noqa: F401
+    ValidationError,
     root_validator,
     validator,
 )

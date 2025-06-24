@@ -88,20 +88,12 @@ pub struct Imports {
     pub autogluon: bool,
     #[prost(bool, tag = "16")]
     pub autokeras: bool,
-    /// bool avalanche = 17;
     #[prost(bool, tag = "18")]
     pub catalyst: bool,
-    /// bool dalle_pytorch = 19;
-    /// bool datasets = 20;
     #[prost(bool, tag = "21")]
     pub deepchem: bool,
     #[prost(bool, tag = "22")]
     pub deepctr: bool,
-    /// bool deeppavlov = 23;
-    /// bool detectron = 24;
-    /// bool paddle = 25;
-    /// bool parlai = 26;
-    /// bool prophet = 27;
     #[prost(bool, tag = "28")]
     pub pycaret: bool,
     #[prost(bool, tag = "29")]
@@ -156,8 +148,6 @@ pub struct Imports {
     pub joblib: bool,
     #[prost(bool, tag = "54")]
     pub dask: bool,
-    #[prost(bool, tag = "55")]
-    pub asyncio: bool,
     #[prost(bool, tag = "56")]
     pub paddleocr: bool,
     #[prost(bool, tag = "57")]
@@ -337,9 +327,6 @@ pub struct Feature {
     /// Using stable_baselines3 integration
     #[prost(bool, tag = "22")]
     pub sb3: bool,
-    /// Using wandb service internal process
-    #[prost(bool, tag = "23")]
-    pub service: bool,
     /// wandb.init() called in the same process returning previous run
     #[prost(bool, tag = "24")]
     pub init_return_run: bool,
@@ -403,9 +390,6 @@ pub struct Feature {
     /// Flow control customized by user
     #[prost(bool, tag = "44")]
     pub flow_control_custom: bool,
-    /// Service disabled by user
-    #[prost(bool, tag = "45")]
-    pub service_disabled: bool,
     /// Consuming metrics from an OpenMetrics endpoint
     #[prost(bool, tag = "46")]
     pub open_metrics: bool,
@@ -433,9 +417,6 @@ pub struct Feature {
     /// HuggingFace Autologging
     #[prost(bool, tag = "54")]
     pub hf_pipeline_autolog: bool,
-    /// Using wandb core internal process
-    #[prost(bool, tag = "55")]
-    pub core: bool,
     /// Using c wandb library
     #[prost(bool, tag = "56")]
     pub lib_c: bool,
@@ -478,6 +459,15 @@ pub struct Feature {
     /// User set the x_label value
     #[prost(bool, tag = "69")]
     pub user_provided_label: bool,
+    /// DCGM profiling was enabled
+    #[prost(bool, tag = "70")]
+    pub dcgm_profiling_enabled: bool,
+    /// User created a forked run
+    #[prost(bool, tag = "71")]
+    pub fork_mode: bool,
+    /// User created a rewound run
+    #[prost(bool, tag = "72")]
+    pub rewind_mode: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
@@ -493,21 +483,6 @@ pub struct Env {
     /// apple silicon M1 gpu found
     #[prost(bool, tag = "4")]
     pub m1_gpu: bool,
-    /// multiprocessing spawn
-    #[prost(bool, tag = "5")]
-    pub start_spawn: bool,
-    /// multiprocessing fork
-    #[prost(bool, tag = "6")]
-    pub start_fork: bool,
-    /// multiprocessing forkserver
-    #[prost(bool, tag = "7")]
-    pub start_forkserver: bool,
-    /// thread start method
-    #[prost(bool, tag = "8")]
-    pub start_thread: bool,
-    /// maybe user running multiprocessing
-    #[prost(bool, tag = "9")]
-    pub maybe_mp: bool,
     /// AWS Trainium env detected
     #[prost(bool, tag = "10")]
     pub trainium: bool,
@@ -544,21 +519,9 @@ pub struct Deprecated {
     /// wandb.integration.keras.WandbCallback(data_type=...) called
     #[prost(bool, tag = "1")]
     pub keras_callback_data_type: bool,
-    /// wandb.run.mode called
-    #[prost(bool, tag = "2")]
-    pub run_mode: bool,
-    /// wandb.run.save() called without arguments
-    #[prost(bool, tag = "3")]
-    pub run_save_no_args: bool,
-    /// wandb.run.join() called
-    #[prost(bool, tag = "4")]
-    pub run_join: bool,
     /// wandb.plots.* called
     #[prost(bool, tag = "5")]
     pub plots: bool,
-    /// wandb.run.log(sync=...) called
-    #[prost(bool, tag = "6")]
-    pub run_log_sync: bool,
     /// wandb.init(config_include_keys=...) called
     #[prost(bool, tag = "7")]
     pub init_config_include_keys: bool,
@@ -613,6 +576,15 @@ pub struct Deprecated {
     /// wandb.run.get_sweep_url() called
     #[prost(bool, tag = "24")]
     pub run_get_sweep_url: bool,
+    /// wandb.run.use_artifact(use_as=...) called
+    #[prost(bool, tag = "25")]
+    pub run_use_artifact_use_as: bool,
+    /// wandb.sdk.artifacts.artifact.Artifact.use_as() called
+    #[prost(bool, tag = "26")]
+    pub artifact_use_as: bool,
+    /// wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
+    #[prost(bool, tag = "27")]
+    pub artifact_init_use_as: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
@@ -793,6 +765,19 @@ pub struct FooterRecord {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
+/// A point in a run from which another run can be branched.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BranchPoint {
+    /// The ID of the run to branch from.
+    #[prost(string, tag = "1")]
+    pub run: ::prost::alloc::string::String,
+    /// The value of the metric to branch at.
+    #[prost(double, tag = "2")]
+    pub value: f64,
+    /// The name of the metric to use to find a branch point.
+    #[prost(string, tag = "3")]
+    pub metric: ::prost::alloc::string::String,
+}
 ///
 /// RunRecord: wandb/sdk/wandb_run/Run
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -839,6 +824,9 @@ pub struct RunRecord {
     pub git: ::core::option::Option<GitRepoRecord>,
     #[prost(bool, tag = "22")]
     pub forked: bool,
+    /// Information about the source if this is a fork or rewind of another run.
+    #[prost(message, optional, tag = "23")]
+    pub branch_point: ::core::option::Option<BranchPoint>,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
@@ -1545,6 +1533,8 @@ pub struct LinkArtifactRequest {
 pub struct LinkArtifactResponse {
     #[prost(string, tag = "1")]
     pub error_message: ::prost::alloc::string::String,
+    #[prost(int32, optional, tag = "2")]
+    pub version_index: ::core::option::Option<i32>,
 }
 /// Indicates a directory of TensorBoard tfevents files to sync with the run.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2673,6 +2663,16 @@ pub struct TpuInfo {
     #[prost(uint32, tag = "4")]
     pub count: u32,
 }
+/// CoreWeaveInfo stores information about a CoreWeave compute environment
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CoreWeaveInfo {
+    #[prost(string, tag = "1")]
+    pub cluster_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub org_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub region: ::prost::alloc::string::String,
+}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MetadataRequest {
     #[prost(string, tag = "1")]
@@ -2742,6 +2742,8 @@ pub struct MetadataRequest {
     pub trainium: ::core::option::Option<TrainiumInfo>,
     #[prost(message, optional, tag = "32")]
     pub tpu: ::core::option::Option<TpuInfo>,
+    #[prost(message, optional, tag = "33")]
+    pub coreweave: ::core::option::Option<CoreWeaveInfo>,
     /// Flag indicating whether the request originated from the user.
     #[prost(bool, optional, tag = "200")]
     pub user_modified: ::core::option::Option<bool>,
@@ -2870,6 +2872,14 @@ pub enum ServerFeature {
     UseArtifactWithEntityAndProjectInformation = 7,
     /// Indicates that the server supports expanding defined metric globs on the server side.
     ExpandDefinedMetricGlobs = 8,
+    /// Indicates that the server supports automation event RUN_METRIC.
+    AutomationEventRunMetric = 9,
+    /// Indicates that the server supports automation event RUN_METRIC_CHANGE.
+    AutomationEventRunMetricChange = 10,
+    /// Indicates that the server supports automation action NO_OP.
+    AutomationActionNoOp = 11,
+    /// Indicates that the server supports including artifact types in registry creation.
+    IncludeArtifactTypesInRegistryCreation = 12,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2893,6 +2903,12 @@ impl ServerFeature {
                 "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
             }
             Self::ExpandDefinedMetricGlobs => "EXPAND_DEFINED_METRIC_GLOBS",
+            Self::AutomationEventRunMetric => "AUTOMATION_EVENT_RUN_METRIC",
+            Self::AutomationEventRunMetricChange => "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
+            Self::AutomationActionNoOp => "AUTOMATION_ACTION_NO_OP",
+            Self::IncludeArtifactTypesInRegistryCreation => {
+                "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2913,6 +2929,14 @@ impl ServerFeature {
                 Some(Self::UseArtifactWithEntityAndProjectInformation)
             }
             "EXPAND_DEFINED_METRIC_GLOBS" => Some(Self::ExpandDefinedMetricGlobs),
+            "AUTOMATION_EVENT_RUN_METRIC" => Some(Self::AutomationEventRunMetric),
+            "AUTOMATION_EVENT_RUN_METRIC_CHANGE" => {
+                Some(Self::AutomationEventRunMetricChange)
+            }
+            "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
+            "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION" => {
+                Some(Self::IncludeArtifactTypesInRegistryCreation)
+            }
             _ => None,
         }
     }
@@ -2979,7 +3003,7 @@ pub mod system_monitor_service_client {
     }
     impl<T> SystemMonitorServiceClient<T>
     where
-        T: tonic::client::GrpcService<tonic::body::BoxBody>,
+        T: tonic::client::GrpcService<tonic::body::Body>,
         T::Error: Into<StdError>,
         T::ResponseBody: Body<Data = Bytes> + std::marker::Send + 'static,
         <T::ResponseBody as Body>::Error: Into<StdError> + std::marker::Send,
@@ -3000,13 +3024,13 @@ pub mod system_monitor_service_client {
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
+                http::Request<tonic::body::Body>,
                 Response = http::Response<
-                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
+                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
                 >,
             >,
             <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
+                http::Request<tonic::body::Body>,
             >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             SystemMonitorServiceClient::new(InterceptedService::new(inner, interceptor))
@@ -3232,7 +3256,7 @@ pub mod system_monitor_service_server {
         B: Body + std::marker::Send + 'static,
         B::Error: Into<StdError> + std::marker::Send + 'static,
     {
-        type Response = http::Response<tonic::body::BoxBody>;
+        type Response = http::Response<tonic::body::Body>;
         type Error = std::convert::Infallible;
         type Future = BoxFuture<Self::Response, Self::Error>;
         fn poll_ready(
@@ -3383,7 +3407,9 @@ pub mod system_monitor_service_server {
                 }
                 _ => {
                     Box::pin(async move {
-                        let mut response = http::Response::new(empty_body());
+                        let mut response = http::Response::new(
+                            tonic::body::Body::default(),
+                        );
                         let headers = response.headers_mut();
                         headers
                             .insert(

@@ -1,7 +1,5 @@
 from wandb.apis.public.api import Api, RetryingClient, requests
 from wandb.apis.public.artifacts import (
-    ARTIFACT_FILES_FRAGMENT,
-    ARTIFACTS_TYPES_FRAGMENT,
     ArtifactCollection,
     ArtifactCollections,
     ArtifactFiles,
@@ -24,6 +22,7 @@ from wandb.apis.public.jobs import (
 )
 from wandb.apis.public.projects import PROJECT_FRAGMENT, Project, Projects
 from wandb.apis.public.query_generator import QueryGenerator
+from wandb.apis.public.registries.registry import Registry
 from wandb.apis.public.reports import (
     BetaReport,
     PanelMetricsHelper,

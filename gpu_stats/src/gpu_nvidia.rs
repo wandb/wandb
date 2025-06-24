@@ -14,6 +14,11 @@ struct GpuStaticInfo {
     brand: String,
     cuda_cores: u32,
     architecture: String,
+
+    /// Globally unique immutable UUID associated with this Device as a 5 part hex string.
+    /// Note that when using the Multi-Instance GPU (MIG) feature, one physical GPU can be
+    /// partitioned into multiple GPU instances, all sharing the same UUID.
+    uuid: String,
 }
 
 /// Tracks the availability of GPU metrics for the current system.
@@ -138,6 +143,9 @@ impl NvidiaGpu {
             if let Ok(name) = device.name() {
                 static_info.name = name;
             }
+            if let Ok(uuid) = device.uuid() {
+                static_info.uuid = uuid;
+            }
             if let Ok(brand) = device.brand() {
                 static_info.brand = format!("{:?}", brand);
             }
@@ -253,6 +261,9 @@ impl NvidiaGpu {
     /// gpu.{i}.powerPercent: The percentage of power limit being used by the GPU at index i.
     /// gpu.{i}.graphicsClock: The current graphics clock speed of the GPU at index i (in MHz).
     /// gpu.{i}.memoryClock: The current memory clock speed of the GPU at index i (in MHz).
+    /// gpu.{i}.smClock: The current SM clock speed of the GPU at index i (in MHz).
+    /// gpu.{i}.correctedMemoryErrors: The number of corrected memory errors on the GPU at index i.
+    /// gpu.{i}.uncorrectedMemoryErrors: The number of uncorrected memory errors on the GPU at index i.
     /// gpu.{i}.pcieLinkGen: The current PCIe link generation of the GPU at index i.
     /// gpu.{i}.pcieLinkSpeed: The current PCIe link speed of the GPU at index i (in bits per second).
     /// gpu.{i}.pcieLinkWidth: The current PCIe link width of the GPU at index i.
@@ -317,6 +328,10 @@ impl NvidiaGpu {
             metrics.push((
                 format!("_gpu.{}.name", di),
                 MetricValue::String(self.gpu_static_info[di as usize].name.clone()),
+            ));
+            metrics.push((
+                format!("_gpu.{}.uuid", di),
+                MetricValue::String(self.gpu_static_info[di as usize].uuid.clone()),
             ));
             metrics.push((
                 format!("_gpu.{}.brand", di),
@@ -730,6 +745,12 @@ impl NvidiaGpu {
             if let Some(value) = samples.get(&format!("_gpu.{}.architecture", i)) {
                 if let MetricValue::String(ref architecture) = value {
                     gpu_nvidia.architecture = architecture.clone();
+                }
+            }
+            // uuid
+            if let Some(value) = samples.get(&format!("_gpu.{}.uuid", i)) {
+                if let MetricValue::String(ref uuid) = value {
+                    gpu_nvidia.uuid = uuid.clone();
                 }
             }
             metadata_request.gpu_nvidia.push(gpu_nvidia);

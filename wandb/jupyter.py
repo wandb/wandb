@@ -148,7 +148,7 @@ class WandBMagics(Magics):
         if path:
             _display_by_wandb_path(path, height=height)
             displayed = True
-        elif run := wandb_setup._setup(start_service=False).most_recent_active_run:
+        elif run := wandb_setup.singleton().most_recent_active_run:
             _display_wandb_run(run, height=height)
             displayed = True
         else:
@@ -246,12 +246,11 @@ def notebook_metadata(silent: bool) -> dict[str, str]:
 
         if jupyter_metadata:
             return jupyter_metadata
-        wandb.termerror(error_message)
-        return {}
     except Exception:
-        wandb.termerror(error_message)
         logger.exception(error_message)
-        return {}
+
+    wandb.termerror(error_message)
+    return {}
 
 
 def jupyter_servers_and_kernel_id():
@@ -273,9 +272,10 @@ def jupyter_servers_and_kernel_id():
             servers.extend(list(serverapp.list_running_servers()))
         if notebookapp is not None:
             servers.extend(list(notebookapp.list_running_servers()))
-        return servers, kernel_id
     except (AttributeError, ValueError, ImportError):
         return [], None
+
+    return servers, kernel_id
 
 
 def attempt_colab_load_ipynb():
@@ -289,17 +289,20 @@ def attempt_colab_load_ipynb():
 
 def attempt_kaggle_load_ipynb():
     kaggle = wandb.util.get_module("kaggle_session")
-    if kaggle:
-        try:
-            client = kaggle.UserSessionClient()
-            parsed = json.loads(client.get_exportable_ipynb()["source"])
-            # TODO: couldn't find a way to get the name of the notebook...
-            parsed["metadata"]["name"] = "kaggle.ipynb"
-            return parsed
-        except Exception:
-            wandb.termerror("Unable to load kaggle notebook.")
-            logger.exception("Unable to load kaggle notebook.")
-            return None
+    if not kaggle:
+        return None
+
+    try:
+        client = kaggle.UserSessionClient()
+        parsed = json.loads(client.get_exportable_ipynb()["source"])
+        # TODO: couldn't find a way to get the name of the notebook...
+        parsed["metadata"]["name"] = "kaggle.ipynb"
+    except Exception:
+        wandb.termerror("Unable to load kaggle notebook.")
+        logger.exception("Unable to load kaggle notebook.")
+        return None
+
+    return parsed
 
 
 def attempt_colab_login(

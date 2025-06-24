@@ -75,6 +75,6 @@ func (b *debouncedWriter) loopFlushBuffer() {
 	}
 }
 
-func (b *debouncedWriter) Wait() {
+func (b *debouncedWriter) Finish() {
 	b.wg.Wait()
 }

@@ -13,7 +13,7 @@ def test_missing(**kwargs):
     for k, v in kwargs.items():
         # Missing/empty params/datapoint arrays
         if v is None:
-            wandb.termerror("{} is None. Please try again.".format(k))
+            wandb.termerror(f"{k} is None. Please try again.")
             test_passed = False
         if (k == "X") or (k == "X_test"):
             if isinstance(v, scipy.sparse.csr.csr_matrix):
@@ -98,10 +98,11 @@ def test_fitted(model):
                 ],
                 all_or_any=any,
             )
-            return True
         except scikit_exceptions.NotFittedError:
             wandb.termerror("Please fit the model before passing it in.")
             return False
+        else:
+            return True
     except Exception:
         # Assume it's fitted, since ``NotFittedError`` wasn't raised
         return True
@@ -159,25 +160,25 @@ def test_types(**kwargs):
                     list,
                 ),
             ):
-                wandb.termerror("{} is not an array. Please try again.".format(k))
+                wandb.termerror(f"{k} is not an array. Please try again.")
                 test_passed = False
         # check for classifier types
         if k == "model":
             if (not base.is_classifier(v)) and (not base.is_regressor(v)):
                 wandb.termerror(
-                    "{} is not a classifier or regressor. Please try again.".format(k)
+                    f"{k} is not a classifier or regressor. Please try again."
                 )
                 test_passed = False
         elif k == "clf" or k == "binary_clf":
             if not (base.is_classifier(v)):
-                wandb.termerror("{} is not a classifier. Please try again.".format(k))
+                wandb.termerror(f"{k} is not a classifier. Please try again.")
                 test_passed = False
         elif k == "regressor":
             if not base.is_regressor(v):
-                wandb.termerror("{} is not a regressor. Please try again.".format(k))
+                wandb.termerror(f"{k} is not a regressor. Please try again.")
                 test_passed = False
         elif k == "clusterer":
             if not (getattr(v, "_estimator_type", None) == "clusterer"):
-                wandb.termerror("{} is not a clusterer. Please try again.".format(k))
+                wandb.termerror(f"{k} is not a clusterer. Please try again.")
                 test_passed = False
     return test_passed

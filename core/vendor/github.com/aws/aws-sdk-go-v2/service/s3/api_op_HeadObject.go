@@ -580,9 +580,12 @@ type HeadObjectOutput struct {
 	ReplicationStatus types.ReplicationStatus
 
 	// If present, indicates that the requester was successfully charged for the
-	// request.
+	// request. For more information, see [Using Requester Pays buckets for storage transfers and usage]in the Amazon Simple Storage Service user
+	// guide.
 	//
 	// This functionality is not supported for directory buckets.
+	//
+	// [Using Requester Pays buckets for storage transfers and usage]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/RequesterPaysBuckets.html
 	RequestCharged types.RequestCharged
 
 	// If the object is an archived object (an object whose storage class is GLACIER),
@@ -641,6 +644,16 @@ type HeadObjectOutput struct {
 	//
 	// [Storage Classes]: https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html
 	StorageClass types.StorageClass
+
+	// The number of tags, if any, on the object, when you have the relevant
+	// permission to read object tags.
+	//
+	// You can use [GetObjectTagging] to retrieve the tag set associated with an object.
+	//
+	// This functionality is not supported for directory buckets.
+	//
+	// [GetObjectTagging]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectTagging.html
+	TagCount *int32
 
 	// Version ID of the object.
 	//

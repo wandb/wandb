@@ -88,12 +88,12 @@ def test_dir_on_import():
     with mock.patch.dict(os.environ, {"WANDB_DIR": custom_env_path}):
         _remove_dir_if_exists(default_path)
         reload_fn(wandb)
-        assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-            default_path
+        assert not os.path.isdir(default_path), (
+            f"Unexpected directory at {default_path}"
         )
-        assert not os.path.isdir(
-            custom_env_path
-        ), f"Unexpected directory at {custom_env_path}"
+        assert not os.path.isdir(custom_env_path), (
+            f"Unexpected directory at {custom_env_path}"
+        )
 
 
 def test_dir_on_init(user):
@@ -125,21 +125,21 @@ def test_dir_on_init_env(user):
         _remove_dir_if_exists(default_path)
         run = wandb.init()
         run.finish()
-        assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-            default_path
+        assert not os.path.isdir(default_path), (
+            f"Unexpected directory at {default_path}"
         )
-        assert os.path.isdir(custom_env_path), "Expected directory at {}".format(
-            custom_env_path
+        assert os.path.isdir(custom_env_path), (
+            f"Expected directory at {custom_env_path}"
         )
         # And for the duplicate-run case
         _remove_dir_if_exists(default_path)
         run = wandb.init()
         run.finish()
-        assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-            default_path
+        assert not os.path.isdir(default_path), (
+            f"Unexpected directory at {default_path}"
         )
-        assert os.path.isdir(custom_env_path), "Expected directory at {}".format(
-            custom_env_path
+        assert os.path.isdir(custom_env_path), (
+            f"Expected directory at {custom_env_path}"
         )
 
 

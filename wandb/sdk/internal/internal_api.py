@@ -1,4 +1,3 @@
-import ast
 import base64
 import datetime
 import functools
@@ -69,42 +68,42 @@ if TYPE_CHECKING:
     class CreateArtifactFileSpecInput(TypedDict, total=False):
         """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql."""
 
-        artifactID: str  # noqa: N815
+        artifactID: str
         name: str
         md5: str
         mimetype: Optional[str]
-        artifactManifestID: Optional[str]  # noqa: N815
-        uploadPartsInput: Optional[List[Dict[str, object]]]  # noqa: N815
+        artifactManifestID: Optional[str]
+        uploadPartsInput: Optional[List[Dict[str, object]]]
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
         name: str
-        displayName: str  # noqa: N815
-        uploadUrl: Optional[str]  # noqa: N815
-        uploadHeaders: Sequence[str]  # noqa: N815
-        uploadMultipartUrls: "UploadPartsResponse"  # noqa: N815
-        storagePath: str  # noqa: N815
+        displayName: str
+        uploadUrl: Optional[str]
+        uploadHeaders: Sequence[str]
+        uploadMultipartUrls: "UploadPartsResponse"
+        storagePath: str
         artifact: "CreateArtifactFilesResponseFileNode"
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
         id: str
 
     class UploadPartsResponse(TypedDict):
-        uploadUrlParts: List["UploadUrlParts"]  # noqa: N815
-        uploadID: str  # noqa: N815
+        uploadUrlParts: List["UploadUrlParts"]
+        uploadID: str
 
     class UploadUrlParts(TypedDict):
-        partNumber: int  # noqa: N815
-        uploadUrl: str  # noqa: N815
+        partNumber: int
+        uploadUrl: str
 
     class CompleteMultipartUploadArtifactInput(TypedDict):
         """Corresponds to `type CompleteMultipartUploadArtifactInput` in schema.graphql."""
 
-        completeMultipartAction: str  # noqa: N815
-        completedParts: Dict[int, str]  # noqa: N815
-        artifactID: str  # noqa: N815
-        storagePath: str  # noqa: N815
-        uploadID: str  # noqa: N815
+        completeMultipartAction: str
+        completedParts: Dict[int, str]
+        artifactID: str
+        storagePath: str
+        uploadID: str
         md5: str
 
     class CompleteMultipartUploadArtifactResponse(TypedDict):
@@ -189,11 +188,6 @@ def _match_org_with_fetched_org_entities(
     """
     for org_names in orgs:
         if organization in org_names:
-            wandb.termwarn(
-                "Registries can be linked/fetched using a shorthand form without specifying the organization name. "
-                "Try using shorthand path format: <my_registry_name>/<artifact_name> or "
-                "just <my_registry_name> if fetching just the project."
-            )
             return org_names.entity_name
 
     if len(orgs) == 1:
@@ -242,7 +236,7 @@ class Api:
             ]
         ] = None,
         load_settings: bool = True,
-        retry_timedelta: datetime.timedelta = datetime.timedelta(  # noqa: B008 # okay because it's immutable
+        retry_timedelta: datetime.timedelta = datetime.timedelta(  # okay because it's immutable
             days=7
         ),
         environ: MutableMapping = os.environ,
@@ -368,7 +362,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
-        self._server_features_cache: Optional[dict[str, bool]] = None
+        self._server_features_cache: Optional[Dict[str, bool]] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -403,8 +397,7 @@ class Api:
         except requests.exceptions.HTTPError as err:
             response = err.response
             assert response is not None
-            logger.error(f"{response.status_code} response executing GraphQL.")
-            logger.error(response.text)
+            logger.exception("Error executing GraphQL.")
             for error in parse_backend_error_messages(response):
                 wandb.termerror(f"Error while calling W&B API: {error} ({response})")
             raise
@@ -873,51 +866,43 @@ class Api:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
 
-    def _check_server_feature(self, feature_value: ServerFeature) -> bool:
-        """Check if a server feature is enabled.
-
-        Args:
-            feature_value (ServerFeature): The enum value of the feature to check.
-
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
-
-        Raises:
-            Exception: If server doesn't support feature queries or other errors occur
-        """
-        if self._server_features_cache is None:
-            query = gql(SERVER_FEATURES_QUERY_GQL)
+    def _server_features(self) -> Dict[str, bool]:
+        # NOTE: Avoid caching via `@cached_property`, due to undocumented
+        # locking behavior before Python 3.12.
+        # See: https://github.com/python/cpython/issues/87634
+        query = gql(SERVER_FEATURES_QUERY_GQL)
+        try:
             response = self.gql(query)
-            server_info = ServerFeaturesQuery.model_validate(response).server_info
-            if server_info and (features := server_info.features):
-                self._server_features_cache = {
-                    f.name: f.is_enabled for f in features if f
-                }
+        except Exception as e:
+            # Unfortunately we currently have to match on the text of the error message,
+            # as the `gql` client raises `Exception` rather than a more specific error.
+            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
+                self._server_features_cache = {}
+            else:
+                raise
+        else:
+            info = ServerFeaturesQuery.model_validate(response).server_info
+            if info and (feats := info.features):
+                self._server_features_cache = {f.name: f.is_enabled for f in feats if f}
             else:
                 self._server_features_cache = {}
+        return self._server_features_cache
 
-        return self._server_features_cache.get(ServerFeature.Name(feature_value), False)
+    def _server_supports(self, feature: Union[int, str]) -> bool:
+        """Return whether the current server supports the given feature.
 
-    def _check_server_feature_with_fallback(self, feature_value: ServerFeature) -> bool:
-        """Wrapper around check_server_feature that warns and returns False for older unsupported servers.
+        This also caches the underlying lookup of server feature flags,
+        and it maps {feature_name (str) -> is_enabled (bool)}.
 
         Good to use for features that have a fallback mechanism for older servers.
-
-        Args:
-            feature_value (ServerFeature): The enum value of the feature to check.
-
-        Returns:
-            bool: True if the feature is enabled, False otherwise.
-
-        Exceptions:
-            Exception: If an error other than the server not supporting feature queries occurs.
         """
-        try:
-            return self._check_server_feature(feature_value)
-        except Exception as e:
-            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
-                return False
-            raise e
+        # If we're given the protobuf enum value, convert to a string name.
+        # NOTE: We deliberately use names (str) instead of enum values (int)
+        # as the keys here, since:
+        # - the server identifies features by their name, rather than (client-side) enum value
+        # - the defined list of client-side flags may be behind the server-side list of flags
+        key = ServerFeature.Name(feature) if isinstance(feature, int) else feature
+        return self._server_features().get(key) or False
 
     @normalize_exceptions
     def update_run_queue_item_warning(
@@ -2102,9 +2087,7 @@ class Api:
             )
             if default is None or default.get("queueID") is None:
                 raise CommError(
-                    "Unable to create default queue for {}/{}. No queues for agent to poll".format(
-                        entity, project
-                    )
+                    f"Unable to create default queue for {entity}/{project}. No queues for agent to poll"
                 )
             project_queues = [{"id": default["queueID"], "name": "default"}]
         polling_queue_ids = [
@@ -2581,15 +2564,11 @@ class Api:
         res = self.gql(query, variable_values)
         if res.get("project") is None:
             raise CommError(
-                "Error fetching run info for {}/{}/{}. Check that this project exists and you have access to this entity and project".format(
-                    entity, project, name
-                )
+                f"Error fetching run info for {entity}/{project}/{name}. Check that this project exists and you have access to this entity and project"
             )
         elif res["project"].get("run") is None:
             raise CommError(
-                "Error fetching run info for {}/{}/{}. Check that this run id exists".format(
-                    entity, project, name
-                )
+                f"Error fetching run info for {entity}/{project}/{name}. Check that this run id exists"
             )
         run_info: dict = res["project"]["run"]["runInfo"]
         return run_info
@@ -3003,11 +2982,8 @@ class Api:
                 logger.debug("upload_file: %s complete", url)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error(f"upload_file exception {url}: {e}")
-            request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers!r}")
+            logger.exception(f"upload_file exception for {url=}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = status_code == 400 and "RequestTimeout" in str(
@@ -3069,11 +3045,8 @@ class Api:
                     logger.debug("upload_file: %s complete", url)
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error(f"upload_file exception {url}: {e}")
-            request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers}")
+            logger.exception(f"upload_file exception for {url=}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = (
@@ -3200,10 +3173,8 @@ class Api:
                 },
                 timeout=60,
             )
-        except Exception as e:
-            # GQL raises exceptions with stringified python dictionaries :/
-            message = ast.literal_eval(e.args[0])["message"]
-            logger.error("Error communicating with W&B: %s", message)
+        except Exception:
+            logger.exception("Error communicating with W&B.")
             return []
         else:
             result: List[Dict[str, Any]] = json.loads(
@@ -3245,10 +3216,8 @@ class Api:
                         parameter["distribution"] = "uniform"
                     else:
                         raise ValueError(
-                            "Parameter {} is ambiguous, please specify bounds as both floats (for a float_"
-                            "uniform distribution) or ints (for an int_uniform distribution).".format(
-                                parameter_name
-                            )
+                            f"Parameter {parameter_name} is ambiguous, please specify bounds as both floats (for a float_"
+                            "uniform distribution) or ints (for an int_uniform distribution)."
                         )
         return config
 
@@ -3397,8 +3366,8 @@ class Api:
                     variable_values=variables,
                     check_retry_fn=util.no_retry_4xx,
                 )
-            except UsageError as e:
-                raise e
+            except UsageError:
+                raise
             except Exception as e:
                 # graphql schema exception is generic
                 err = e
@@ -3793,10 +3762,8 @@ class Api:
             "usedAs": use_as,
         }
 
-        server_allows_entity_project_information = (
-            self._check_server_feature_with_fallback(
-                ServerFeature.USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION  # type: ignore
-            )
+        server_allows_entity_project_information = self._server_supports(
+            ServerFeature.USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION
         )
         if server_allows_entity_project_information:
             query_vars.extend(
@@ -4575,9 +4542,9 @@ class Api:
         s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
         curr_state = s["state"].upper()
         if state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
-            raise Exception("Cannot pause {} sweep.".format(curr_state.lower()))
+            raise Exception(f"Cannot pause {curr_state.lower()} sweep.")
         elif state != "RUNNING" and curr_state not in ("RUNNING", "PAUSED", "PENDING"):
-            raise Exception("Sweep already {}.".format(curr_state.lower()))
+            raise Exception(f"Sweep already {curr_state.lower()}.")
         sweep_id = s["id"]
         mutation = gql(
             """

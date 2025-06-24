@@ -26,7 +26,7 @@ class Molecule(BatchableMedia):
     """Wandb class for 3D Molecular data.
 
     Args:
-        data_or_path: (string, io)
+        data_or_path: (pathlib.Path, string, io)
             Molecule can be initialized from a file name or an io object.
         caption: (string)
             Caption associated with the molecule for display.
@@ -49,7 +49,7 @@ class Molecule(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union[str, "TextIO"],
+        data_or_path: Union[str, pathlib.Path, "TextIO"],
         caption: Optional[str] = None,
         **kwargs: str,
     ) -> None:
@@ -82,7 +82,9 @@ class Molecule(BatchableMedia):
                 f.write(molecule)
 
             self._set_file(tmp_path, is_tmp=True)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             extension = os.path.splitext(data_or_path)[1][1:]
             if extension not in Molecule.SUPPORTED_TYPES:
                 raise ValueError(
@@ -144,9 +146,7 @@ class Molecule(BatchableMedia):
         elif isinstance(data_or_path, rdkit_chem.rdchem.Mol):
             molecule = data_or_path
         else:
-            raise ValueError(
-                "Data must be file name or an rdkit.Chem.rdchem.Mol object"
-            )
+            raise TypeError("Data must be file name or an rdkit.Chem.rdchem.Mol object")
 
         if convert_to_3d_and_optimize:
             molecule = rdkit_chem.AddHs(molecule)

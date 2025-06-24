@@ -6,9 +6,9 @@ import wandb
 import wandb.analytics
 import wandb.env
 import wandb.util
-from sentry_relay import MetricRelayServer
 from sentry_sdk.utils import sentry_sdk
-from tests.unit_tests.test_analytics.sentry_relay import SentryResponse
+
+from .sentry_relay import MetricRelayServer, SentryResponse
 
 SENTRY_DSN_FORMAT = "http://{key}@127.0.0.1:{port}/{project}"
 
@@ -440,11 +440,11 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
 
         # Raise and capture real exceptions so we have a stack trace in the event.
         try:
-            raise Exception(expected_other_sentry_response.message)
+            raise Exception(expected_other_sentry_response.message)  # noqa: TRY301
         except Exception as e:
             other_sentry_event_id = sentry_sdk.capture_exception(e)
         try:
-            raise Exception(expected_wandb_sentry_response.message)
+            raise Exception(expected_wandb_sentry_response.message)  # noqa: TRY301
         except Exception as e:
             wandb_sentry_event_id = wandb_sentry.exception(e)
 

@@ -10,7 +10,7 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.19.10.dev1"
+__version__ = "0.20.2.dev1"
 
 
 from wandb.errors import Error
@@ -30,9 +30,9 @@ wandb.wandb_lib = wandb_sdk.lib  # type: ignore
 
 init = wandb_sdk.init
 setup = wandb_sdk.setup
-_attach = wandb_sdk._attach
+attach = _attach = wandb_sdk._attach
 _sync = wandb_sdk._sync
-_teardown = wandb_sdk.teardown
+teardown = _teardown = wandb_sdk.teardown
 finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
@@ -50,9 +50,6 @@ from wandb.errors import CommError, UsageError
 
 _preinit = wandb.wandb_lib.preinit  # type: ignore
 _lazyloader = wandb.wandb_lib.lazyloader  # type: ignore
-
-# Call import module hook to set up any needed require hooks
-wandb.sdk.wandb_require._import_module_hook()
 
 from wandb.integration.torch import wandb_torch
 
@@ -169,7 +166,6 @@ gym = _lazyloader.LazyLoader("wandb.gym", globals(), "wandb.integration.gym")
 lightgbm = _lazyloader.LazyLoader(
     "wandb.lightgbm", globals(), "wandb.integration.lightgbm"
 )
-docker = _lazyloader.LazyLoader("wandb.docker", globals(), "wandb.docker")
 jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
 sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sacred")
 

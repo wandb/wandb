@@ -1,5 +1,6 @@
 import hashlib
 import os
+import pathlib
 import platform
 import re
 import shutil
@@ -118,14 +119,17 @@ class Media(WBValue):
         self._caption = caption
 
     def _set_file(
-        self, path: str, is_tmp: bool = False, extension: Optional[str] = None
+        self,
+        path: str,
+        is_tmp: bool = False,
+        extension: Optional[str] = None,
     ) -> None:
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
-        assert extension is None or path.endswith(
-            extension
-        ), f'Media file extension "{extension}" must occur at the end of path "{path}".'
+        assert extension is None or path.endswith(extension), (
+            f'Media file extension "{extension}" must occur at the end of path "{path}".'
+        )
 
         with open(self._path, "rb") as f:
             self._sha256 = hashlib.sha256(f.read()).hexdigest()
@@ -195,9 +199,9 @@ class Media(WBValue):
         else:
             try:
                 shutil.copy(self._path, new_path)
-            except shutil.SameFileError as e:
+            except shutil.SameFileError:
                 if not ignore_copy_err:
-                    raise e
+                    raise
             self._path = new_path
             run._publish_file(media_path)
 
@@ -243,13 +247,13 @@ class Media(WBValue):
                 json_obj["_latest_artifact_path"] = artifact_entry_latest_url
 
             if artifact_entry_url is None or self.is_bound():
-                assert self.is_bound(), "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
-                    type(self).__name__
+                assert self.is_bound(), (
+                    f"Value of type {type(self).__name__} must be bound to a run with bind_to_run() before being serialized to JSON."
                 )
 
-                assert (
-                    self._run is run
-                ), "We don't support referring to media files across runs."
+                assert self._run is run, (
+                    "We don't support referring to media files across runs."
+                )
 
                 # The following two assertions are guaranteed to pass
                 # by definition is_bound, but are needed for
@@ -329,7 +333,10 @@ class Media(WBValue):
         )
 
     @staticmethod
-    def path_is_reference(path: Optional[str]) -> bool:
+    def path_is_reference(path: Optional[Union[str, pathlib.Path]]) -> bool:
+        if path is None or isinstance(path, pathlib.Path):
+            return False
+
         return bool(path and re.match(r"^(gs|s3|https?)://", path))
 
 

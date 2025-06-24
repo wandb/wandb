@@ -590,13 +590,13 @@ type CreateBucketConfiguration struct {
 	// Specifies the location where the bucket will be created.
 	//
 	// Directory buckets - The location type is Availability Zone or Local Zone. To
-	// use the Local Zone location type, your account must be enabled for Dedicated
-	// Local Zones. Otherwise, you get an HTTP 403 Forbidden error with the error code
-	// AccessDenied . To learn more, see [Enable accounts for Dedicated Local Zones] in the Amazon S3 User Guide.
+	// use the Local Zone location type, your account must be enabled for Local Zones.
+	// Otherwise, you get an HTTP 403 Forbidden error with the error code AccessDenied
+	// . To learn more, see [Enable accounts for Local Zones]in the Amazon S3 User Guide.
 	//
 	// This functionality is only supported by directory buckets.
 	//
-	// [Enable accounts for Dedicated Local Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/opt-in-directory-bucket-lz.html
+	// [Enable accounts for Local Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/opt-in-directory-bucket-lz.html
 	Location *LocationInfo
 
 	// Specifies the Region where the bucket will be created. You might choose a
@@ -1912,14 +1912,14 @@ type GetObjectAttributesParts struct {
 	// A container for elements related to a particular part. A response can contain
 	// zero or more Parts elements.
 	//
-	//   - General purpose buckets - For GetObjectAttributes , if a additional checksum
-	//   (including x-amz-checksum-crc32 , x-amz-checksum-crc32c , x-amz-checksum-sha1
-	//   , or x-amz-checksum-sha256 ) isn't applied to the object specified in the
-	//   request, the response doesn't return Part .
+	//   - General purpose buckets - For GetObjectAttributes , if an additional
+	//   checksum (including x-amz-checksum-crc32 , x-amz-checksum-crc32c ,
+	//   x-amz-checksum-sha1 , or x-amz-checksum-sha256 ) isn't applied to the object
+	//   specified in the request, the response doesn't return the Part element.
 	//
-	//   - Directory buckets - For GetObjectAttributes , no matter whether a additional
-	//   checksum is applied to the object specified in the request, the response returns
-	//   Part .
+	//   - Directory buckets - For GetObjectAttributes , regardless of whether an
+	//   additional checksum is applied to the object specified in the request, the
+	//   response returns the Part element.
 	Parts []ObjectPart
 
 	// The total number of parts.
@@ -2353,8 +2353,9 @@ type LifecycleRule struct {
 	Expiration *LifecycleExpiration
 
 	// The Filter is used to identify objects that a Lifecycle Rule applies to. A
-	// Filter must have exactly one of Prefix , Tag , or And specified. Filter is
-	// required if the LifecycleRule does not contain a Prefix element.
+	// Filter must have exactly one of Prefix , Tag , ObjectSizeGreaterThan ,
+	// ObjectSizeLessThan , or And specified. Filter is required if the LifecycleRule
+	// does not contain a Prefix element.
 	//
 	// Tag filters are not supported for directory buckets.
 	Filter *LifecycleRuleFilter
@@ -3095,6 +3096,17 @@ type OutputSerialization struct {
 	noSmithyDocumentSerde
 }
 
+// End of support notice: Beginning October 1, 2025, Amazon S3 will stop returning
+// DisplayName . Update your applications to use canonical IDs (unique identifier
+// for Amazon Web Services accounts), Amazon Web Services account ID (12 digit
+// identifier) or IAM ARNs (full resource naming) as a direct replacement of
+// DisplayName .
+//
+// This change affects the following Amazon Web Services Regions: US East (N.
+// Virginia) Region, US West (N. California) Region, US West (Oregon) Region, Asia
+// Pacific (Singapore) Region, Asia Pacific (Sydney) Region, Asia Pacific (Tokyo)
+// Region, Europe (Ireland) Region, and South America (São Paulo) Region.
+//
 // Container for the owner's display name and ID.
 type Owner struct {
 

@@ -24,34 +24,34 @@ if __name__ == "__main__":
 
     # This will attempt to overwrite `sys.stdout.write` on import,
     # which will raise an error that must not be propagated.
-    from wandb.sdk.lib import console_capture  # noqa: E402
+    from wandb.sdk.lib import console_capture
 
     try:
         console_capture.capture_stdout(lambda *unused: None)
     except console_capture.CannotCaptureConsoleError as e:
         if e.__cause__ and isinstance(e.__cause__, _TestError):
-            print("[stdout] Caught _TestError!", file=sys.stderr)  # noqa: T201
+            print("[stdout] Caught _TestError!", file=sys.stderr)
         else:
-            print(  # noqa: T201
+            print(
                 "[stdout] Caught error, but its cause is not _TestError!",
                 file=sys.stderr,
             )
             sys.exit(1)
     else:
-        print("[stdout] No error!", file=sys.stderr)  # noqa: T201
+        print("[stdout] No error!", file=sys.stderr)
         sys.exit(1)
 
     try:
         console_capture.capture_stderr(lambda *unused: None)
     except console_capture.CannotCaptureConsoleError as e:
         if e.__cause__ and isinstance(e.__cause__, _TestError):
-            print("[stderr] Caught _TestError!", file=sys.stderr)  # noqa: T201
+            print("[stderr] Caught _TestError!", file=sys.stderr)
         else:
-            print(  # noqa: T201
+            print(
                 "[stderr] Caught error, but its cause is not _TestError!",
                 file=sys.stderr,
             )
             sys.exit(1)
     else:
-        print("[stderr] No error!", file=sys.stderr)  # noqa: T201
+        print("[stderr] No error!", file=sys.stderr)
         sys.exit(1)

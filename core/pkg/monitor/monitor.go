@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/simplejsonext"
@@ -54,7 +55,7 @@ type SystemMonitor struct {
 	// extraWork accepts outgoing messages for the run
 	extraWork runwork.ExtraWork
 
-	// The metrics buffer for the system monitor
+	// The in-memory metrics buffer for the system monitor
 	buffer *Buffer
 
 	// settings is the settings for the system monitor
@@ -65,29 +66,56 @@ type SystemMonitor struct {
 
 	// A logger for internal debug logging.
 	logger *observability.CoreLogger
+
+	// graphqlClient is the graphql client
+	graphqlClient graphql.Client
+}
+
+type SystemMonitorParams struct {
+	Ctx context.Context
+
+	// A logger for internal debug logging.
+	Logger *observability.CoreLogger
+
+	// Stream settings.
+	Settings *settings.Settings
+
+	// Extrawork accepts outgoing messages for the run.
+	ExtraWork runwork.ExtraWork
+
+	// GpuResourceManager manages costly resources used for GPU metrics.
+	GpuResourceManager *GPUResourceManager
+
+	// graphqlClient is the GraphQL client to communicate with the W&B backend.
+	GraphqlClient graphql.Client
 }
 
 // NewSystemMonitor initializes and returns a new SystemMonitor instance.
 //
 // It sets up assets based on provided settings and configures the metrics buffer.
-func NewSystemMonitor(
-	logger *observability.CoreLogger,
-	settings *settings.Settings,
-	extraWork runwork.ExtraWork,
-	gpuResourceManager *GPUResourceManager,
-) *SystemMonitor {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewSystemMonitor(params SystemMonitorParams) *SystemMonitor {
+	if params.Ctx == nil {
+		params.Ctx = context.Background()
+	}
+	ctx, cancel := context.WithCancel(params.Ctx)
 	sm := &SystemMonitor{
 		ctx:              ctx,
 		cancel:           cancel,
 		wg:               sync.WaitGroup{},
-		settings:         settings,
-		logger:           logger,
-		extraWork:        extraWork,
+		settings:         params.Settings,
+		logger:           params.Logger,
+		extraWork:        params.ExtraWork,
 		samplingInterval: defaultSamplingInterval,
+		graphqlClient:    params.GraphqlClient,
 	}
 
-	bufferSize := settings.GetStatsBufferSize()
+	// Early return if stats collection is disabled
+	if sm.settings.IsDisableStats() {
+		sm.logger.Debug("monitor: disabled")
+		return sm
+	}
+
+	bufferSize := sm.settings.GetStatsBufferSize()
 	// Initialize the buffer if a buffer size is provided.
 	// A positive buffer size N indicates that only the last N samples will be kept in memory.
 	// A value of -1 indicates that all sampled metrics will be kept in memory.
@@ -95,18 +123,13 @@ func NewSystemMonitor(
 		sm.buffer = NewBuffer(bufferSize)
 	}
 
-	if si := settings.GetStatsSamplingInterval(); si != 0 {
+	if si := sm.settings.GetStatsSamplingInterval(); si != 0 {
 		sm.samplingInterval = time.Duration(si * float64(time.Second))
 	}
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
-	// Early return if stats collection is disabled
-	if settings.IsDisableStats() {
-		return sm
-	}
-
 	// Initialize the assets to monitor
-	sm.initializeAssets(settings, gpuResourceManager)
+	sm.initializeAssets(sm.settings, params.GpuResourceManager)
 
 	return sm
 }
@@ -137,8 +160,26 @@ func (sm *SystemMonitor) initializeAssets(
 	if tpu := NewTPU(); tpu != nil {
 		sm.assets = append(sm.assets, tpu)
 	}
+
 	if trainium := NewTrainium(sm.logger, pid, samplingInterval, neuronMonitorConfigPath); trainium != nil {
 		sm.assets = append(sm.assets, trainium)
+	}
+
+	// CoreWeave compute environment metadata.
+	if cwm, err := NewCoreWeaveMetadata(
+		CoreWeaveMetadataParams{
+			Ctx:           sm.ctx,
+			GraphqlClient: sm.graphqlClient,
+			Logger:        sm.logger,
+			Entity:        settings.GetEntity(),
+			BaseURL:       settings.GetStatsCoreWeaveMetadataBaseURL(),
+			Endpoint:      settings.GetStatsCoreWeaveMetadataEndpoint(),
+		},
+	); cwm != nil {
+		sm.assets = append(sm.assets, cwm)
+	} else if err != nil {
+		sm.logger.CaptureError(
+			fmt.Errorf("monitor: failed to initialize CoreWeave metadata asset: %v", err))
 	}
 
 	// DCGM Exporter.

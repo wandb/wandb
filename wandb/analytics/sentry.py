@@ -15,6 +15,7 @@ from urllib.parse import quote
 import sentry_sdk  # type: ignore
 import sentry_sdk.scope  # type: ignore
 import sentry_sdk.utils  # type: ignore
+from typing_extensions import Never
 
 import wandb
 import wandb.env
@@ -143,7 +144,7 @@ class Sentry:
 
         return event_id
 
-    def reraise(self, exc: Any) -> None:
+    def reraise(self, exc: Any) -> Never:
         """Re-raise an exception after logging it to Sentry.
 
         Use this for top-level exceptions when you want the user to see the traceback.
@@ -209,8 +210,6 @@ class Sentry:
             "sweep_url",
             "sweep_id",
             "deployment",
-            "x_disable_service",
-            "x_require_legacy_service",
             "launch",
             "_platform",
         )
@@ -256,7 +255,7 @@ class Sentry:
 
         email = tags.get("email")
         if email:
-            self.scope.user = {"email": email}  # noqa
+            self.scope.user = {"email": email}
 
         # todo: add back the option to pass general tags see: c645f625d1c1a3db4a6b0e2aa8e924fee101904c (wandb/util.py)
 

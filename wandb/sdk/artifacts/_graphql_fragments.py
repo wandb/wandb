@@ -1,62 +1,57 @@
+from __future__ import annotations
+
+from textwrap import dedent
+
+from wandb_graphql.language.printer import print_ast
+
+from wandb.apis.public.utils import gql_compat
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
-ARTIFACTS_TYPES_FRAGMENT = """
-fragment ArtifactTypesFragment on ArtifactTypeConnection {
-    edges {
-         node {
-             id
-             name
-             description
-             createdAt
-         }
-         cursor
+OMITTABLE_ARTIFACT_FIELDS = frozenset(
+    {
+        "ttlDurationSeconds",
+        "ttlIsInherited",
+        "aliases",
+        "tags",
+        "historyStep",
     }
-    pageInfo {
-        endCursor
-        hasNextPage
-    }
-}
-"""
+)
 
-ARTIFACT_FILES_FRAGMENT = """fragment FilesFragment on FileConnection {
-    edges {
-        node {
-            id
-            name: displayName
-            url
-            sizeBytes
-            storagePath
-            mimetype
-            updatedAt
-            digest
-            md5
-            directUrl
-        }
-        cursor
-    }
-    pageInfo {
-        endCursor
-        hasNextPage
-    }
-}"""
+
+def omit_artifact_fields(api: InternalApi) -> set[str]:
+    """Return names of Artifact fields to remove from GraphQL requests (for server compatibility)."""
+    allowed_fields = set(api.server_artifact_introspection())
+    return set(OMITTABLE_ARTIFACT_FIELDS - allowed_fields)
 
 
 def _gql_artifact_fragment(include_aliases: bool = True) -> str:
     """Return a GraphQL query fragment with all parseable Artifact attributes."""
-    allowed_fields = set(InternalApi().server_artifact_introspection())
+    omit_fields = omit_artifact_fields(api=InternalApi())
 
-    supports_ttl = "ttlIsInherited" in allowed_fields
-    supports_tags = "tags" in allowed_fields
+    # Respect the `include_aliases` flag
+    if not include_aliases:
+        omit_fields.add("aliases")
 
-    ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
-    ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
-
-    tags = "tags {name}" if supports_tags else ""
-
-    # The goal is to move all artifact aliases fetches to the membership level in the future
-    # but this is a quick fix to unblock the registry work
-    aliases = (
-        """aliases {
+    artifact_fragment_str = dedent(
+        """\
+        fragment ArtifactFragment on Artifact {
+            id
+            artifactSequence {
+                project {
+                    entityName
+                    name
+                }
+                name
+            }
+            versionIndex
+            artifactType {
+                name
+            }
+            description
+            metadata
+            ttlDurationSeconds
+            ttlIsInherited
+            aliases {
                 artifactCollection {
                     project {
                         entityName
@@ -65,43 +60,25 @@ def _gql_artifact_fragment(include_aliases: bool = True) -> str:
                     name
                 }
                 alias
-            }"""
-        if include_aliases
-        else ""
-    )
-
-    return f"""
-        fragment ArtifactFragment on Artifact {{
-            id
-            artifactSequence {{
-                project {{
-                    entityName
-                    name
-                }}
+            }
+            tags {
                 name
-            }}
-            versionIndex
-            artifactType {{
-                name
-            }}
-            description
-            metadata
-            {ttl_duration_seconds}
-            {ttl_is_inherited}
-            {aliases}
-            {tags}
+            }
+            historyStep
             state
-            currentManifest {{
-                file {{
+            currentManifest {
+                file {
                     directUrl
-                }}
-            }}
+                }
+            }
             commitHash
             fileCount
             createdAt
             updatedAt
-        }}
-    """
+        }"""
+    )
+    compat_doc = gql_compat(artifact_fragment_str, omit_fields=omit_fields)
+    return print_ast(compat_doc)
 
 
 def _gql_registry_fragment() -> str:
@@ -120,5 +97,6 @@ def _gql_registry_fragment() -> str:
             description
             createdAt
             updatedAt
+            access
         }
     """

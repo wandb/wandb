@@ -98,11 +98,7 @@ class FilePusher:
             if not self.is_alive():
                 stop = True
             summary = self._stats.summary()
-            line = " {:.2f}MB of {:.2f}MB uploaded ({:.2f}MB deduped)\r".format(
-                summary.uploaded_bytes / 1048576.0,
-                summary.total_bytes / 1048576.0,
-                summary.deduped_bytes / 1048576.0,
-            )
+            line = f" {summary.uploaded_bytes / 1048576.0:.2f}MB of {summary.total_bytes / 1048576.0:.2f}MB uploaded ({summary.deduped_bytes / 1048576.0:.2f}MB deduped)\r"
             line = spinner_states[step % 4] + line
             step += 1
             wandb.termlog(line, newline=False, prefix=prefix)

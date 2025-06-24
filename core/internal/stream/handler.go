@@ -143,7 +143,7 @@ func NewHandler(
 		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
 		runHistorySampler:    runhistory.NewRunHistorySampler(),
 		runSummary:           runsummary.New(),
-		runTimer:             timer.New(),
+		runTimer:             timer.New(0),
 		settings:             params.Settings,
 		systemMonitor:        params.SystemMonitor,
 		tbHandler:            params.TBHandler,
@@ -247,8 +247,6 @@ func (h *Handler) handleRecord(record *spb.Record) {
 		h.handleMetric(record)
 	case *spb.Record_Request:
 		h.handleRequest(record)
-	case *spb.Record_Run:
-		h.handleRun(record)
 	case *spb.Record_Summary:
 		h.handleSummary(x.Summary)
 	case *spb.Record_Tbrecord:
@@ -473,10 +471,12 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	var ok bool
 	run := request.Run
 
-	// offsset by run.Runtime to account for potential run branching
-	startTime := run.StartTime.AsTime().Add(time.Duration(-run.Runtime) * time.Second)
-	// start the run timer
-	h.runTimer.Start(&startTime)
+	// Add on to the previous run time for branched runs.
+	offset := time.Duration(run.Runtime) * time.Second
+	h.runTimer = timer.New(offset)
+
+	// start the timer
+	h.runTimer.Start()
 
 	if h.runRecord, ok = proto.Clone(run).(*spb.RunRecord); !ok {
 		h.logger.CaptureFatalAndPanic(
@@ -731,25 +731,17 @@ func (h *Handler) handleRequestCancel(request *spb.CancelRequest) {
 }
 
 func (h *Handler) handleRequestPause() {
-	h.runTimer.Pause()
+	h.runTimer.Stop()
 	h.systemMonitor.Pause()
 }
 
 func (h *Handler) handleRequestResume() {
-	h.runTimer.Resume()
+	h.runTimer.Start()
 	h.systemMonitor.Resume()
 }
 
-func (h *Handler) handleRun(record *spb.Record) {
-	h.fwdRecordWithControl(record,
-		func(control *spb.Control) {
-			control.AlwaysSend = true
-		},
-	)
-}
-
 func (h *Handler) handleRequestRunFinishWithoutExit(record *spb.Record) {
-	h.runTimer.Pause()
+	h.runTimer.Stop()
 	h.updateRunTiming()
 	h.systemMonitor.Finish()
 	h.flushPartialHistory(true, h.partialHistoryStep+1)
@@ -758,7 +750,7 @@ func (h *Handler) handleRequestRunFinishWithoutExit(record *spb.Record) {
 
 func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 	// stop the run timer and set the runtime
-	h.runTimer.Pause()
+	h.runTimer.Stop()
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
 	if !h.settings.IsSync() && !h.settings.IsEnableServerSideDerivedSummary() {
@@ -897,10 +889,16 @@ func (h *Handler) updateRunTiming() {
 	record := &spb.Record{
 		RecordType: &spb.Record_Summary{
 			Summary: &spb.SummaryRecord{
-				Update: []*spb.SummaryItem{{
-					NestedKey: []string{"_wandb", "runtime"},
-					ValueJson: strconv.Itoa(runtime),
-				}},
+				Update: []*spb.SummaryItem{
+					{
+						NestedKey: []string{"_wandb", "runtime"},
+						ValueJson: strconv.Itoa(runtime),
+					},
+					{
+						Key:       "_runtime",
+						ValueJson: strconv.Itoa(runtime),
+					},
+				},
 			},
 		},
 	}
@@ -1138,8 +1136,4 @@ func (h *Handler) handleRequestSampledHistory(record *spb.Record) {
 			},
 		},
 	})
-}
-
-func (h *Handler) GetRun() *spb.RunRecord {
-	return h.runRecord
 }

@@ -1,7 +1,7 @@
 -r requirements_test.txt
 
 astunparse; python_version < '3.9'
-
+cloudpickle
 click~=8.1
 filelock~=3.13
 pydantic~=2.9
@@ -11,7 +11,9 @@ eval-type-backport~=0.2.0; python_version >= '3.8' and python_version < '3.10'
 Pillow
 pandas
 polars
-moviepy >= 1.0.0
+# Version 2.0.0 removes moviepy.editor, used by TensorBoard in some tests
+# to log videos.
+moviepy~=1.0
 imageio[ffmpeg]
 matplotlib
 soundfile

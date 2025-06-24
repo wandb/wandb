@@ -263,8 +263,7 @@ type ListObjectsV2Output struct {
 
 	//  If ContinuationToken was sent with the request, it is included in the
 	// response. You can use the returned ContinuationToken for pagination of the list
-	// response. You can use this ContinuationToken for pagination of the list
-	// results.
+	// response.
 	ContinuationToken *string
 
 	// Causes keys that contain the same string between the prefix and the first
@@ -316,9 +315,12 @@ type ListObjectsV2Output struct {
 	Prefix *string
 
 	// If present, indicates that the requester was successfully charged for the
-	// request.
+	// request. For more information, see [Using Requester Pays buckets for storage transfers and usage]in the Amazon Simple Storage Service user
+	// guide.
 	//
 	// This functionality is not supported for directory buckets.
+	//
+	// [Using Requester Pays buckets for storage transfers and usage]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/RequesterPaysBuckets.html
 	RequestCharged types.RequestCharged
 
 	// If StartAfter was sent with the request, it is included in the response.

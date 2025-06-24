@@ -3,7 +3,6 @@ from __future__ import annotations
 import configparser
 import json
 import logging
-import multiprocessing
 import os
 import pathlib
 import platform
@@ -25,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Self
 
 import wandb
-from wandb import env, termwarn, util
+from wandb import env, util
 from wandb._pydantic import (
     IS_PYDANTIC_V2,
     AliasChoices,
@@ -465,11 +464,7 @@ class Settings(BaseModel, validate_assignment=True):
     save_code: Optional[bool] = None
     """Whether to save the code associated with the run."""
 
-    settings_system: str = Field(
-        default_factory=lambda: _path_convert(
-            os.path.join("~", ".config", "wandb", "settings")
-        )
-    )
+    settings_system: Optional[str] = None
     """Path to the system-wide settings file."""
 
     show_colors: Optional[bool] = None
@@ -532,17 +527,6 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_disable_meta: bool = False
     """Flag to disable the collection of system metadata."""
-
-    x_disable_service: bool = False
-    """Flag to disable the W&B service.
-
-    This is deprecated and will be removed in future versions."""
-
-    x_disable_setproctitle: bool = False
-    """Flag to disable using setproctitle for the internal process in the legacy service.
-
-    This is deprecated and will be removed in future versions.
-    """
 
     x_disable_stats: bool = False
     """Flag to disable the collection of system metrics."""
@@ -684,9 +668,6 @@ class Settings(BaseModel, validate_assignment=True):
     x_runqueue_item_id: Optional[str] = None
     """ID of the Launch run queue item being processed."""
 
-    x_require_legacy_service: bool = False
-    """Force the use of legacy wandb service."""
-
     x_save_requirements: bool = True
     """Flag to save the requirements file."""
 
@@ -707,6 +688,15 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_service_wait: float = 30.0
     """Time in seconds to wait for the wandb-core internal service to start."""
+
+    x_skip_transaction_log: bool = False
+    """Whether to skip saving the run events to the transaction log.
+
+    This is only relevant for online runs. Can be used to reduce the amount of
+    data written to disk.
+
+    Should be used with caution, as it removes the gurantees about
+    recoverability."""
 
     x_start_time: Optional[float] = None
     """The start time of the run in seconds since the Unix epoch."""
@@ -773,6 +763,19 @@ class Settings(BaseModel, validate_assignment=True):
     Can be accessed via run._system_metrics.
     """
 
+    x_stats_coreweave_metadata_base_url: str = "http://169.254.169.254"
+    """The scheme and hostname for contacting the CoreWeave metadata server.
+
+    Only accessible from within a CoreWeave cluster.
+    """
+
+    x_stats_coreweave_metadata_endpoint: str = "/api/v2/cloud-init/meta-data"
+    """The relative path on the CoreWeave metadata server to which to make requests.
+
+    This must not include the schema and hostname prefix.
+    Only accessible from within a CoreWeave cluster.
+    """
+
     x_sync: bool = False
     """Flag to indicate whether we are syncing a run from the transaction log."""
 
@@ -816,6 +819,12 @@ class Settings(BaseModel, validate_assignment=True):
                     "Please specify only one of them."
                 )
             return self
+
+        @model_validator(mode="after")
+        def validate_skip_transaction_log(self):
+            if self._offline and self.x_skip_transaction_log:
+                raise ValueError("Cannot skip transaction log in offline mode")
+            return self
     else:
 
         @root_validator(pre=False)  # type: ignore [call-overload]
@@ -834,19 +843,14 @@ class Settings(BaseModel, validate_assignment=True):
                 )
             return values
 
+        @root_validator(pre=False)  # type: ignore [call-overload]
+        @classmethod
+        def validate_skip_transaction_log(cls, values):
+            if values.get("_offline") and values.get("x_skip_transaction_log"):
+                raise ValueError("Cannot skip transaction log in offline mode")
+            return values
+
     # Field validators.
-
-    @field_validator("x_disable_service", mode="after")
-    @classmethod
-    def validate_disable_service(cls, value):
-        if value:
-            termwarn(
-                "Disabling the wandb service is deprecated as of version 0.18.0 "
-                "and will be removed in future versions. ",
-                repeat=False,
-            )
-        return value
-
     @field_validator("api_key", mode="after")
     @classmethod
     def validate_api_key(cls, value):
@@ -882,23 +886,7 @@ class Settings(BaseModel, validate_assignment=True):
         if value != "auto":
             return value
 
-        if hasattr(values, "data"):
-            # pydantic v2
-            values = values.data
-        else:
-            # pydantic v1
-            values = values
-
-        if (
-            ipython.in_jupyter()
-            or (values.get("start_method") == "thread")
-            or not values.get("x_disable_service")
-            or platform.system() == "Windows"
-        ):
-            value = "wrap"
-        else:
-            value = "redirect"
-        return value
+        return "wrap"
 
     @field_validator("x_executable", mode="before")
     @classmethod
@@ -1060,14 +1048,22 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Run ID cannot start or end with whitespace")
         if not bool(value.strip()):
             raise UsageError("Run ID cannot contain only whitespace")
+
+        # check if the run id contains any reserved characters
+        reserved_chars = ":;,#?/'"
+        if any(char in reserved_chars for char in value):
+            raise UsageError(f"Run ID cannot contain the characters: {reserved_chars}")
         return value
 
     @field_validator("settings_system", mode="after")
     @classmethod
     def validate_settings_system(cls, value):
-        if isinstance(value, pathlib.Path):
+        if value is None:
+            return None
+        elif isinstance(value, pathlib.Path):
             return str(_path_convert(value))
-        return _path_convert(value)
+        else:
+            return _path_convert(value)
 
     @field_validator("x_service_wait", mode="after")
     @classmethod
@@ -1081,14 +1077,18 @@ class Settings(BaseModel, validate_assignment=True):
     def validate_start_method(cls, value):
         if value is None:
             return value
-        available_methods = ["thread"]
-        if hasattr(multiprocessing, "get_all_start_methods"):
-            available_methods += multiprocessing.get_all_start_methods()
-        if value not in available_methods:
-            raise UsageError(
-                f"Settings field `start_method`: {value!r} not in {available_methods}"
-            )
+        wandb.termwarn(
+            "`start_method` is deprecated and will be removed in a future version "
+            "of wandb. This setting is currently non-functional and safely ignored.",
+            repeat=False,
+        )
         return value
+
+    @field_validator("x_stats_coreweave_metadata_base_url", mode="after")
+    @classmethod
+    def validate_x_stats_coreweave_metadata_base_url(cls, value):
+        validate_url(value)
+        return value.rstrip("/")
 
     @field_validator("x_stats_gpu_device_ids", mode="before")
     @classmethod
@@ -1359,7 +1359,9 @@ class Settings(BaseModel, validate_assignment=True):
             return ""
 
         query = self._get_url_query_string()
-        return f"{project_url}/runs/{quote(self.run_id or '')}{query}"
+        # Exclude specific safe characters from URL encoding to prevent 404 errors
+        safe_chars = "=+&$@"
+        return f"{project_url}/runs/{quote(self.run_id or '', safe=safe_chars)}{query}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -1442,7 +1444,6 @@ class Settings(BaseModel, validate_assignment=True):
         env_prefix: str = "WANDB_"
         private_env_prefix: str = env_prefix + "_"
         special_env_var_names = {
-            "WANDB_DISABLE_SERVICE": "x_disable_service",
             "WANDB_SERVICE_TRANSPORT": "x_service_transport",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
@@ -1638,21 +1639,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     def _get_program(self) -> Optional[str]:
         """Get the program that started the current process."""
-        if not self._jupyter:
-            # If not in a notebook, try to get the program from the environment
-            # or the __main__ module for scripts run as `python -m ...`.
-            program = os.getenv(env.PROGRAM)
-            if program is not None:
-                return program
-            try:
-                import __main__
-
-                if __main__.__spec__ is None:
-                    return __main__.__file__
-                return f"-m {__main__.__spec__.name}"
-            except (ImportError, AttributeError):
-                return None
-        else:
+        if self._jupyter:
             # If in a notebook, try to get the program from the notebook metadata.
             if self.notebook_name:
                 return self.notebook_name
@@ -1662,8 +1649,29 @@ class Settings(BaseModel, validate_assignment=True):
 
             if self.x_jupyter_path.startswith("fileId="):
                 return self.x_jupyter_name
+
+            return self.x_jupyter_path
+
+        # If not in a notebook, try to get the program from the environment
+        # or the __main__ module for scripts run as `python -m ...`.
+        program = os.getenv(env.PROGRAM)
+        if program is not None:
+            return program
+
+        try:
+            import __main__
+        except ImportError:
+            return None
+
+        try:
+            if __main__.__spec__ is None:
+                python_args = __main__.__file__
             else:
-                return self.x_jupyter_path
+                python_args = f"-m {__main__.__spec__.name}"
+        except AttributeError:
+            return None
+
+        return python_args
 
     @staticmethod
     def _get_program_relpath(program: str, root: Optional[str] = None) -> Optional[str]:
