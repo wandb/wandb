@@ -718,7 +718,7 @@ class Api:
                 return public.BetaReport(
                     self.client,
                     {
-                        "display_name": urllib.parse.unquote(name.replace("-", " ")),
+                        "displayName": urllib.parse.unquote(name.replace("-", " ")),
                         "id": id,
                         "spec": "{}",
                     },
