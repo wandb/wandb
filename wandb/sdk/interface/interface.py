@@ -664,8 +664,11 @@ class InterfaceBase:
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         raise NotImplementedError
 
-    @abstractmethod
     def publish_environment(self, environment: pb.EnvironmentRecord) -> None:
+        self._publish_environment(environment)
+
+    @abstractmethod
+    def _publish_environment(self, environment: pb.EnvironmentRecord) -> None:
         raise NotImplementedError
 
     def publish_partial_history(

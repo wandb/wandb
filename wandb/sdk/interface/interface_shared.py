@@ -59,7 +59,7 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(telemetry=telem)
         self._publish(rec)
 
-    def publish_environment(self, environment: pb.EnvironmentRecord) -> None:
+    def _publish_environment(self, environment: pb.EnvironmentRecord) -> None:
         rec = self._make_record(environment=environment)
         self._publish(rec)
 
