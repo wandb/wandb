@@ -47,7 +47,7 @@ type RuntimeMetricServiceClient interface {
 	GetRuntimeMetric(ctx context.Context, in *tpuproto.MetricRequest, opts ...grpc.CallOption) (*tpuproto.MetricResponse, error)
 }
 
-// TPU represents a TPU asset with gRPC connection and client.
+// TPU represents a TPU resource with gRPC connection and client.
 //
 // This code is based on Google's Cloud Accelerator Diagnostics project:
 // https://github.com/google/cloud-accelerator-diagnostics.
