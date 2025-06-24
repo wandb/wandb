@@ -356,7 +356,8 @@ class Artifact:
             project = ac_project
         attrs = acm_attrs.get("artifact")
         if not attrs:
-            raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
+            entity_project = f"{entity}/{project}"
+            raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
 
         return cls._from_attrs(entity, project, name, attrs, client)
 
