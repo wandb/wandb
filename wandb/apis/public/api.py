@@ -1237,7 +1237,9 @@ class Api:
         entity, project, run_id = self._parse_path(path)
         if not self._runs.get(path):
             # Individual runs should load full data by default
-            self._runs[path] = public.Run(self.client, entity, project, run_id, lazy=False)
+            self._runs[path] = public.Run(
+                self.client, entity, project, run_id, lazy=False
+            )
         return self._runs[path]
 
     def queued_run(

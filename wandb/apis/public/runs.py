@@ -1280,7 +1280,7 @@ class Run(Attrs):
     @property
     def config(self):
         """Get run config. Auto-loads full data if in lazy mode."""
-        if self._lazy and not self._full_data_loaded and not self._attrs.get("config"):
+        if self._lazy and not self._full_data_loaded and "config" not in self._attrs:
             self.load_full_data()
         return self._attrs.get("config", {})
 
@@ -1290,7 +1290,7 @@ class Run(Attrs):
         if (
             self._lazy
             and not self._full_data_loaded
-            and not self._attrs.get("summaryMetrics")
+            and "summaryMetrics" not in self._attrs
         ):
             self.load_full_data()
         if self._summary is None:
@@ -1306,7 +1306,7 @@ class Run(Attrs):
         if (
             self._lazy
             and not self._full_data_loaded
-            and not self._attrs.get("systemMetrics")
+            and "systemMetrics" not in self._attrs
         ):
             self.load_full_data()
         return self._attrs.get("systemMetrics", {})
@@ -1317,7 +1317,7 @@ class Run(Attrs):
         if (
             self._lazy
             and not self._full_data_loaded
-            and not self._attrs.get("summaryMetrics")
+            and "summaryMetrics" not in self._attrs
         ):
             self.load_full_data()
         return self._attrs.get("summaryMetrics", {})
@@ -1328,7 +1328,7 @@ class Run(Attrs):
         if (
             self._lazy
             and not self._full_data_loaded
-            and not self._attrs.get("rawconfig")
+            and "rawconfig" not in self._attrs
         ):
             self.load_full_data()
         return self._attrs.get("rawconfig", {})
@@ -1336,10 +1336,12 @@ class Run(Attrs):
     @property
     def sweep_name(self):
         """Get sweep name. Auto-loads full data if in lazy mode."""
+        # sweepName is included in lightweight fragment, so only load full data
+        # if it's truly missing and we're in lazy mode
         if (
             self._lazy
             and not self._full_data_loaded
-            and not self._attrs.get("sweepName")
+            and "sweepName" not in self._attrs
         ):
             self.load_full_data()
         return self._attrs.get("sweepName")
