@@ -963,7 +963,6 @@ class Settings(BaseModel, validate_assignment=True):
     If not set, the system monitor captures metrics for all GPUs.
     Assumes 0-based indexing matching CUDA/ROCm device enumeration.
     """,
-    )
 
     x_stats_buffer_size: int = Field(
         default=0,
