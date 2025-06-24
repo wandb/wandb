@@ -560,8 +560,6 @@ func (as *ArtifactSaver) uploadMultipart(
 	partResponses := make(chan partResponse, len(partData))
 	// TODO: add mid-upload cancel.
 
-	contentType := getContentType(fileInfo.uploadHeaders)
-
 	partInfo := fileInfo.multipartUploadInfo
 	for i, part := range partInfo {
 		suboperation := wboperation.Get(as.ctx).Subtask(
@@ -582,8 +580,8 @@ func (as *ArtifactSaver) uploadMultipart(
 		task.Headers = []string{
 			"Content-Md5:" + b64md5,
 			"Content-Length:" + strconv.FormatInt(task.Size, 10),
-			"Content-Type:" + contentType,
 		}
+		task.Headers = insertMissingUploadHeaders(fileInfo.uploadHeaders, task.Headers)
 		task.OnComplete = func() {
 			suboperation.Finish()
 			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: task}
@@ -639,13 +637,22 @@ func (as *ArtifactSaver) uploadMultipart(
 	return uploadResult{name: fileInfo.name, err: err}
 }
 
-func getContentType(headers []string) string {
-	for _, h := range headers {
-		if strings.HasPrefix(h, "Content-Type:") {
-			return strings.TrimPrefix(h, "Content-Type:")
+func insertMissingUploadHeaders(uploadHeaders []string, currentHeaders []string) []string {
+	// Create a map of existing header names (case-insensitive)
+	existing := make(map[string]bool)
+	for _, h := range currentHeaders {
+		name := strings.ToLower(strings.Split(h, ":")[0])
+		existing[name] = true
+	}
+
+	// Add headers that don't already exist
+	for _, h := range uploadHeaders {
+		name := strings.ToLower(strings.Split(h, ":")[0])
+		if !existing[name] {
+			currentHeaders = append(currentHeaders, h)
 		}
 	}
-	return ""
+	return currentHeaders
 }
 
 func getChunkSize(fileSize int64) int64 {
