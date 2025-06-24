@@ -729,7 +729,7 @@ class Run(Attrs):
         # Only check for sweeps if sweep_name is available (not in lazy mode or if it exists)
         if self._include_sweeps and self._attrs.get("sweepName") and not self.sweep:
             # There may be a lot of runs. Don't bother pulling them all
-            sweep = public.Sweep(
+            self.sweep = public.Sweep(
                 self.client,
                 self.entity,
                 self.project,
