@@ -7,6 +7,7 @@ import pytest
 import wandb
 from wandb.apis.internal import InternalApi
 from wandb.apis.public import Api
+from wandb.cli import cli
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
@@ -186,7 +187,7 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config):
     assert "Scheduler added to launch queue (test)" in out.decode("utf-8")
 
 
-def test_launch_sweep_launch_resume(user):
+def test_launch_sweep_launch_resume(user, runner):
     api = InternalApi()
     public_api = Api()
     public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
@@ -200,22 +201,20 @@ def test_launch_sweep_launch_resume(user):
     )
 
     # bogus sweep
-    with pytest.raises(subprocess.CalledProcessError):
-        subprocess.check_output(
-            [
-                "wandb",
-                "launch-sweep",
-                "--resume_id",
-                "bogussweepid",
-                "-e",
-                user,
-                "-p",
-                LAUNCH_DEFAULT_PROJECT,
-                "-q",
-                "queue",
-            ],
-            stderr=subprocess.STDOUT,
-        )
+    result1 = runner.invoke(
+        cli.launch_sweep,
+        args=[
+            "--resume_id",
+            "bogussweepid",
+            "-e",
+            user,
+            "-p",
+            LAUNCH_DEFAULT_PROJECT,
+            "-q",
+            "queue",
+        ],
+    )
+    assert result1.exit_code != 0
 
     sweep_config = {
         "method": "grid",
@@ -225,10 +224,10 @@ def test_launch_sweep_launch_resume(user):
 
     # Entity, project, and sweep
     sweep_id = wandb.sweep(sweep_config, entity=user, project=LAUNCH_DEFAULT_PROJECT)
-    subprocess.check_output(
-        [
-            "wandb",
-            "launch-sweep",
+
+    result2 = runner.invoke(
+        cli.launch_sweep,
+        args=[
             "--resume_id",
             sweep_id,
             "-e",
@@ -238,15 +237,14 @@ def test_launch_sweep_launch_resume(user):
             "-q",
             "queue",
         ],
-        stderr=subprocess.STDOUT,
     )
+    assert result2.exit_code == 0
 
     # Resume the same sweep, NO queue, should pick up from previous
     sweep_id = wandb.sweep(sweep_config, entity=user, project=LAUNCH_DEFAULT_PROJECT)
-    subprocess.check_output(
-        [
-            "wandb",
-            "launch-sweep",
+    result3 = runner.invoke(
+        cli.launch_sweep,
+        args=[
             "--resume_id",
             sweep_id,
             "-e",
@@ -254,5 +252,5 @@ def test_launch_sweep_launch_resume(user):
             "-p",
             LAUNCH_DEFAULT_PROJECT,
         ],
-        stderr=subprocess.STDOUT,
     )
+    assert result3.exit_code == 0
