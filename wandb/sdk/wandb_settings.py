@@ -743,11 +743,7 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
     """HTTP headers to add to OpenMetrics requests."""
 
-    x_stats_disk_paths: Optional[Sequence[str]] = Field(
-        default_factory=lambda: ("/", "/System/Volumes/Data")
-        if platform.system() == "Darwin"
-        else ("/",)
-    )
+    x_stats_disk_paths: Optional[Sequence[str]] = ("/",)
     """System paths to monitor for disk usage."""
 
     x_stats_cpu_count: Optional[int] = None

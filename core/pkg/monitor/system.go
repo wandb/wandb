@@ -65,8 +65,9 @@ func NewSystem(params SystemParams) *System {
 		diskInitialWriteBytes: make(map[string]uint64),
 	}
 
-	// Initialize disk I/O counters
-	// Resolve the devices that back the requested paths
+	// Initialize disk I/O counters.
+
+	// Resolve the devices that back the requested paths.
 	parts, _ := DiskPartitions(false)
 	for _, part := range parts {
 		for _, mp := range s.diskPaths {
@@ -75,6 +76,17 @@ func NewSystem(params SystemParams) *System {
 			}
 		}
 	}
+
+	// Keep only the devices present in IOCounters.
+	ios, _ := disk.IOCounters()
+	filtered := make(map[string]struct{})
+	for dev := range s.diskDevices {
+		if _, ok := ios[dev]; ok {
+			filtered[dev] = struct{}{}
+		}
+	}
+	s.diskDevices = filtered
+
 	// Fallback: if nothing matched, watch every real block device.
 	if len(s.diskDevices) == 0 {
 		if ios, _ := DiskIOCounters(); len(ios) > 0 {
@@ -95,6 +107,9 @@ func NewSystem(params SystemParams) *System {
 			}
 		}
 	}
+
+	fmt.Printf("%+v\n", s.diskDevices)
+	fmt.Printf("%+v\n", s.diskIntialReadBytes)
 
 	// Initialize network I/O counters
 	netIOCounters, err := net.IOCounters(false)
