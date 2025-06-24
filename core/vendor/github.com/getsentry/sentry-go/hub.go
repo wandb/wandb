@@ -365,6 +365,28 @@ func (hub *Hub) Flush(timeout time.Duration) bool {
 	return client.Flush(timeout)
 }
 
+// FlushWithContext waits until the underlying Transport sends any buffered events
+// to the Sentry server, blocking for at most the duration specified by the context.
+// It returns false if the context is canceled before the events are sent. In such a case,
+// some events may not be delivered.
+//
+// FlushWithContext should be called before terminating the program to ensure no
+// events are unintentionally dropped.
+//
+// Avoid calling FlushWithContext indiscriminately after each call to CaptureEvent,
+// CaptureException, or CaptureMessage. To send events synchronously over the network,
+// configure the SDK to use HTTPSyncTransport during initialization with Init.
+
+func (hub *Hub) FlushWithContext(ctx context.Context) bool {
+	client := hub.Client()
+
+	if client == nil {
+		return false
+	}
+
+	return client.FlushWithContext(ctx)
+}
+
 // GetTraceparent returns the current Sentry traceparent string, to be used as a HTTP header value
 // or HTML meta tag value.
 // This function is context aware, as in it either returns the traceparent based
