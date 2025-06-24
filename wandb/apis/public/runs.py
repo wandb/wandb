@@ -117,7 +117,7 @@ def _create_runs_query(*, lazy: bool, with_internal_id: bool) -> gql:
     """Create GraphQL query for runs with appropriate fragment."""
     fragment = LIGHTWEIGHT_RUN_FRAGMENT if lazy else RUN_FRAGMENT
     fragment_name = LIGHTWEIGHT_RUN_FRAGMENT_NAME if lazy else RUN_FRAGMENT_NAME
-    
+
     return gql(
         f"""#graphql
         query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
@@ -266,8 +266,7 @@ class Runs(SizedPaginator["Run"]):
             order = "+created_at"
 
         self.QUERY = _create_runs_query(
-            lazy=lazy, 
-            with_internal_id=_server_provides_internal_id_for_project(client)
+            lazy=lazy, with_internal_id=_server_provides_internal_id_for_project(client)
         )
 
         self.entity = entity
@@ -465,22 +464,22 @@ class Runs(SizedPaginator["Run"]):
 
     def upgrade_to_full(self):
         """Upgrade this Runs collection from lazy to full mode.
-        
-        This switches to fetching full run data and 
+
+        This switches to fetching full run data and
         upgrades any already-loaded Run objects to have full data.
         """
         if not self._lazy:
             return  # Already in full mode
-            
+
         # Switch to full mode
         self._lazy = False
-        
+
         # Regenerate query with full fragment
         self.QUERY = _create_runs_query(
             lazy=False,
-            with_internal_id=_server_provides_internal_id_for_project(self.client)
+            with_internal_id=_server_provides_internal_id_for_project(self.client),
         )
-        
+
         # Upgrade any existing runs that have been loaded
         for run in self.objects:
             if run._lazy:
@@ -663,7 +662,9 @@ class Run(Attrs):
             },
         )
 
-    def _load_with_fragment(self, fragment: str, fragment_name: str, force: bool = False):
+    def _load_with_fragment(
+        self, fragment: str, fragment_name: str, force: bool = False
+    ):
         """Load run data using specified GraphQL fragment."""
         query = gql(
             f"""
@@ -678,7 +679,7 @@ class Run(Attrs):
         {fragment}
         """
         )
-        
+
         if force or not self._attrs:
             response = self._exec(query)
             if (
@@ -788,16 +789,10 @@ class Run(Attrs):
         """Load run data using appropriate fragment based on lazy mode."""
         if self._lazy:
             return self._load_with_fragment(
-                LIGHTWEIGHT_RUN_FRAGMENT, 
-                LIGHTWEIGHT_RUN_FRAGMENT_NAME, 
-                force
+                LIGHTWEIGHT_RUN_FRAGMENT, LIGHTWEIGHT_RUN_FRAGMENT_NAME, force
             )
         else:
-            return self._load_with_fragment(
-                RUN_FRAGMENT, 
-                RUN_FRAGMENT_NAME, 
-                force
-            )
+            return self._load_with_fragment(RUN_FRAGMENT, RUN_FRAGMENT_NAME, force)
 
     @normalize_exceptions
     def wait_until_finished(self):
@@ -1291,7 +1286,11 @@ class Run(Attrs):
     @property
     def summary(self):
         """Get run summary metrics. Auto-loads full data if in lazy mode."""
-        if self._lazy and not self._full_data_loaded and not self._attrs.get("summaryMetrics"):
+        if (
+            self._lazy
+            and not self._full_data_loaded
+            and not self._attrs.get("summaryMetrics")
+        ):
             self.load_full_data()
         if self._summary is None:
             from wandb.old.summary import HTTPSummary
@@ -1303,7 +1302,11 @@ class Run(Attrs):
     @property
     def system_metrics(self):
         """Get run system metrics. Auto-loads full data if in lazy mode."""
-        if self._lazy and not self._full_data_loaded and not self._attrs.get("systemMetrics"):
+        if (
+            self._lazy
+            and not self._full_data_loaded
+            and not self._attrs.get("systemMetrics")
+        ):
             self.load_full_data()
         return self._attrs.get("systemMetrics", {})
 
