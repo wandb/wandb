@@ -239,8 +239,8 @@ func (sm *SystemMonitor) GetState() int32 {
 	return sm.state.Load()
 }
 
-// probeEnvironment collects information about the compute environment.
-func (sm *SystemMonitor) probeEnvironment(git *spb.GitRepoRecord) *spb.Record {
+// probeExecutionContext collects information about the compute environment.
+func (sm *SystemMonitor) probeExecutionContext(git *spb.GitRepoRecord) *spb.Record {
 	sm.logger.Debug("monitor: probing execution environment")
 
 	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &spb.EnvironmentRecord{
@@ -320,7 +320,7 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 		sm.extraWork.AddWorkOrCancel(
 			sm.ctx.Done(),
 			runwork.WorkFromRecord(
-				sm.probeEnvironment(git),
+				sm.probeExecutionContext(git),
 			),
 		)
 		go func() {

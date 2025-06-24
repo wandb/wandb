@@ -219,17 +219,17 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, cwm)
 
-			metadata := cwm.Probe()
-			expectedMetadata := tc.expectedEnvironment
+			e := cwm.Probe()
+			expectedEnvironment := tc.expectedEnvironment
 
 			if tc.expectedEnvironment == nil {
-				assert.Nil(t, metadata, "Probe() should return nil")
+				assert.Nil(t, e, "Probe() should return nil")
 			} else {
-				require.NotNil(t, metadata, "Probe() should not return nil")
-				require.NotNil(t, metadata.Coreweave, "Coreweave info should not be nil")
-				assert.Equal(t, expectedMetadata.Coreweave.ClusterName, metadata.Coreweave.ClusterName)
-				assert.Equal(t, expectedMetadata.Coreweave.OrgId, metadata.Coreweave.OrgId)
-				assert.Equal(t, expectedMetadata.Coreweave.Region, metadata.Coreweave.Region)
+				require.NotNil(t, e, "Probe() should not return nil")
+				require.NotNil(t, e.Coreweave, "Coreweave info should not be nil")
+				assert.Equal(t, expectedEnvironment.Coreweave.ClusterName, e.Coreweave.ClusterName)
+				assert.Equal(t, expectedEnvironment.Coreweave.OrgId, e.Coreweave.OrgId)
+				assert.Equal(t, expectedEnvironment.Coreweave.Region, e.Coreweave.Region)
 			}
 		})
 	}
