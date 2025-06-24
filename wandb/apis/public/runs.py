@@ -517,6 +517,7 @@ class Run(Attrs):
                 "notes": None,
                 "state": state,
             },
+            lazy=False,  # Created runs should have full data available immediately
         )
 
     def _load_with_fragment(
