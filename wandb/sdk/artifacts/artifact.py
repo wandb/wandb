@@ -1055,15 +1055,15 @@ class Artifact:
         """The nearest step at which history metrics were logged for the source run of the artifact.
 
         Examples:
-            ```python
-            run = artifact.logged_by()
-            if run and (artifact.history_step is not None):
-                history = run.sample_history(
-                    min_step=artifact.history_step,
-                    max_step=artifact.history_step + 1,
-                    keys=["my_metric"],
-                )
-            ```
+        ```python
+        run = artifact.logged_by()
+        if run and (artifact.history_step is not None):
+            history = run.sample_history(
+                min_step=artifact.history_step,
+                max_step=artifact.history_step + 1,
+                keys=["my_metric"],
+            )
+        ```
         """
         if self._history_step is None:
             return None
