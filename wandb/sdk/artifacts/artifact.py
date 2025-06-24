@@ -329,20 +329,18 @@ class Artifact:
             query,
             variable_values=query_variable_values,
         )
-        project_attrs = response.get("project")
-        if not project_attrs:
+        if not (project_attrs := response.get("project")):
             raise ValueError(f"project '{project}' not found under entity '{entity}'")
-        acm_attrs = project_attrs.get("artifactCollectionMembership")
-        if not acm_attrs:
+        if not (acm_attrs := project_attrs.get("artifactCollectionMembership")):
             raise ValueError(
                 f"artifact membership '{name}' not found in '{entity}/{project}'"
             )
-        ac_attrs = acm_attrs.get("artifactCollection")
-        if not ac_attrs:
+        if not (ac_attrs := acm_attrs.get("artifactCollection")):
             raise ValueError("artifact collection not found")
-        ac_name = ac_attrs.get("name")
-        ac_project_attrs = ac_attrs.get("project")
-        if not ac_project_attrs:
+        if not (
+            (ac_name := ac_attrs.get("name"))
+            and (ac_project_attrs := ac_attrs.get("project"))
+        ):
             raise ValueError("artifact collection project not found")
         ac_project = ac_project_attrs.get("name")
         ac_entity = ac_project_attrs.get("entityName")
@@ -354,8 +352,7 @@ class Artifact:
             )
             entity = ac_entity
             project = ac_project
-        attrs = acm_attrs.get("artifact")
-        if not attrs:
+        if not (attrs := acm_attrs.get("artifact")):
             raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
 
         return cls._from_attrs(entity, project, name, attrs, client)
