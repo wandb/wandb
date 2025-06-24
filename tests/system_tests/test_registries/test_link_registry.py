@@ -17,28 +17,28 @@ if TYPE_CHECKING:
     from ..backend_fixtures import BackendFixtureFactory, TeamAndOrgNames
 
 
-@fixture(scope="module")
+@fixture
 def user(backend_fixture_factory: BackendFixtureFactory) -> str:
     return backend_fixture_factory.make_user()
 
 
-@fixture(scope="module")
+@fixture
 def team_and_org(user: str, backend_fixture_factory) -> TeamAndOrgNames:
     return backend_fixture_factory.make_team(username=user)
 
 
-@fixture(scope="module")
+@fixture
 def team(team_and_org: TeamAndOrgNames) -> str:
     return team_and_org.team
 
 
-@fixture(scope="module")
+@fixture
 def org(team_and_org: TeamAndOrgNames) -> str:
     """Set up backend resources for testing link_artifact within a registry."""
     return team_and_org.org
 
 
-@fixture(scope="module")
+@fixture
 def api(module_mocker: MockerFixture, user: str, team: str, org: str) -> wandb.Api:
     envvars = {
         "WANDB_USERNAME": user,
@@ -49,20 +49,20 @@ def api(module_mocker: MockerFixture, user: str, team: str, org: str) -> wandb.A
     return wandb.Api(overrides={"organization": org})
 
 
-@fixture(scope="module")
+@fixture
 def org_entity(api: wandb.Api, org: str) -> str:
     if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
         skip("Cannot fetch org entity on this server version.")
     return fetch_org_entity_from_organization(api.client, org)
 
 
-@fixture(scope="module")
+@fixture
 def registry(api: wandb.Api, org: str) -> Registry:
     # Full name will be "wandb-registry-model"
     return api.create_registry("model", visibility="organization", organization=org)
 
 
-@fixture(scope="module")
+@fixture
 def source_artifact(team: str) -> Artifact:
     """Create a source artifact logged within a team entity.
 
