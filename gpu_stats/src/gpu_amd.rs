@@ -11,7 +11,7 @@ use which::which;
 
 use crate::{
     metrics::MetricValue,
-    wandb_internal::{GpuAmdInfo, MetadataRequest},
+    wandb_internal::{GpuAmdInfo, EnvironmentRecord},
 };
 
 // AMD GPU stats are collecting using the rocm-smi tool.
@@ -272,7 +272,7 @@ impl GpuAmd {
     }
 
     /// Get GPU metadata using rocm-smi.
-    pub fn get_metadata(&self) -> Result<MetadataRequest, std::io::Error> {
+    pub fn get_metadata(&self) -> Result<EnvironmentRecord, std::io::Error> {
         let raw_stats = self.get_rocm_smi_stats()?;
 
         let gpu_amd: Vec<GpuAmdInfo> = raw_stats
@@ -323,7 +323,7 @@ impl GpuAmd {
             })
             .collect();
 
-        Ok(MetadataRequest {
+        Ok(EnvironmentRecord {
             gpu_count: raw_stats.len() as u32,
             gpu_type: gpu_amd[0].series.clone(),
             gpu_amd: gpu_amd,
@@ -412,7 +412,7 @@ mod tests {
         fn get_metadata_with_stats(
             &self,
             stats: HashMap<String, GpuStats>,
-        ) -> Result<MetadataRequest, std::io::Error> {
+        ) -> Result<EnvironmentRecord, std::io::Error> {
             let gpu_amd: Vec<GpuAmdInfo> = stats
                 .iter()
                 .map(|(k, _)| {
@@ -424,7 +424,7 @@ mod tests {
                 })
                 .collect();
 
-            Ok(MetadataRequest {
+            Ok(EnvironmentRecord {
                 gpu_count: stats.len() as u32,
                 gpu_amd,
                 ..Default::default()

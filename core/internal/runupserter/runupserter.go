@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/internal/runenvironment"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
@@ -54,15 +55,17 @@ type RunUpserter struct {
 	isParamsDirty bool // whether params has un-uploaded changes
 	isConfigDirty bool // whether config has un-uploaded changes
 
-	params    *runbranch.RunParams
-	config    *runconfig.RunConfig
-	telemetry *spb.TelemetryRecord
-	metrics   *runmetric.RunConfigMetrics
+	params      *runbranch.RunParams
+	config      *runconfig.RunConfig
+	telemetry   *spb.TelemetryRecord
+	metrics     *runmetric.RunConfigMetrics
+	environment *runenvironment.RunEnvironment
 }
 
 type RunUpserterParams struct {
 	DebounceDelay waiting.Delay
 
+	ClientID           string
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
@@ -102,6 +105,9 @@ func InitRun(
 		panic("runupserter: RunRecord is nil")
 	}
 
+	// Initialize run environment info.
+	environment := runenvironment.New(params.ClientID)
+
 	// Initialize the run config.
 	config := runconfig.New()
 	config.ApplyChangeRecord(runRecord.Config,
@@ -114,9 +120,10 @@ func InitRun(
 	telemetry := &spb.TelemetryRecord{}
 	proto.Merge(telemetry, runRecord.Telemetry)
 	telemetry.CoreVersion = version.Version
-	config.AddTelemetryAndMetrics(
+	config.AddInternalData(
 		telemetry,
 		make([]map[string]any, 0),
+		environment.ToRunConfigData(),
 	)
 
 	// Initialize the run metrics.
@@ -147,10 +154,11 @@ func InitRun(
 		done:  make(chan struct{}),
 		dirty: make(chan struct{}, 1),
 
-		params:    runParams,
-		config:    config,
-		telemetry: telemetry,
-		metrics:   metrics,
+		params:      runParams,
+		config:      config,
+		telemetry:   telemetry,
+		metrics:     metrics,
+		environment: environment,
 	}
 
 	operation := upserter.operations.New("creating run")
@@ -259,9 +267,27 @@ func (upserter *RunUpserter) UpdateTelemetry(telemetry *spb.TelemetryRecord) {
 
 	proto.Merge(upserter.telemetry, telemetry)
 
-	upserter.config.AddTelemetryAndMetrics(
+	upserter.config.AddInternalData(
 		upserter.telemetry,
 		upserter.metrics.ToRunConfigData(),
+		upserter.environment.ToRunConfigData(),
+	)
+
+	upserter.isConfigDirty = true
+	upserter.signalDirty()
+}
+
+// UpdateEnvironment schedules an update to the run's metadata in the config.
+func (upserter *RunUpserter) UpdateEnvironment(metadata *spb.EnvironmentRecord) {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+
+	upserter.environment.ProcessRecord(metadata)
+
+	upserter.config.AddInternalData(
+		upserter.telemetry,
+		upserter.metrics.ToRunConfigData(),
+		upserter.environment.ToRunConfigData(),
 	)
 
 	upserter.isConfigDirty = true
@@ -286,9 +312,10 @@ func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
 		return
 	}
 
-	upserter.config.AddTelemetryAndMetrics(
+	upserter.config.AddInternalData(
 		upserter.telemetry,
 		upserter.metrics.ToRunConfigData(),
+		upserter.environment.ToRunConfigData(),
 	)
 
 	upserter.isConfigDirty = true
@@ -338,6 +365,13 @@ func (upserter *RunUpserter) ConfigMap() map[string]any {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
 	return upserter.config.CloneTree()
+}
+
+// EnvironmentJSON returns the run's environment info snapshot as a JSON string.
+func (upserter *RunUpserter) EnvironmentJSON() ([]byte, error) {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.environment.ToJSON()
 }
 
 func (upserter *RunUpserter) StartTime() time.Time {
