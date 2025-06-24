@@ -1,5 +1,5 @@
 use crate::metrics::MetricValue;
-use crate::wandb_internal::{GpuNvidiaInfo, MetadataRequest};
+use crate::wandb_internal::{GpuNvidiaInfo, EnvironmentRecord};
 
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
@@ -697,27 +697,27 @@ impl NvidiaGpu {
     }
 
     /// Extract metadata about the GPUs in the system from the provided samples.
-    pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> MetadataRequest {
-        let mut metadata_request = MetadataRequest {
+    pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> EnvironmentRecord {
+        let mut metadata = EnvironmentRecord {
             ..Default::default()
         };
 
         let n_gpu = match samples.get("_gpu.count") {
             Some(MetricValue::Int(n_gpu)) => *n_gpu as u32,
-            _ => return metadata_request,
+            _ => return metadata,
         };
 
-        metadata_request.gpu_nvidia = [].to_vec();
-        metadata_request.gpu_count = n_gpu;
+        metadata.gpu_nvidia = [].to_vec();
+        metadata.gpu_count = n_gpu;
         // TODO: do not assume all GPUs are the same
         if let Some(value) = samples.get("_gpu.0.name") {
             if let MetricValue::String(ref gpu_name) = value {
-                metadata_request.gpu_type = gpu_name.clone();
+                metadata.gpu_type = gpu_name.clone();
             }
         }
         if let Some(value) = samples.get("_cuda_version") {
             if let MetricValue::String(ref cuda_version) = value {
-                metadata_request.cuda_version = cuda_version.clone();
+                metadata.cuda_version = cuda_version.clone();
             }
         }
 
@@ -753,8 +753,9 @@ impl NvidiaGpu {
                     gpu_nvidia.uuid = uuid.clone();
                 }
             }
-            metadata_request.gpu_nvidia.push(gpu_nvidia);
+            metadata.gpu_nvidia.push(gpu_nvidia);
         }
-        metadata_request
+
+        metadata
     }
 }

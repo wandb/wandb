@@ -122,7 +122,7 @@ func (cwm *CoreWeaveMetadata) Sample() (*spb.StatsRecord, error) {
 // It first checks if the current W&B entity's organization is using
 // CoreWeave by querying the W&B backend. If so, it fetches instance
 // metadata from the CoreWeave metadata endpoint using the Get method.
-func (cwm *CoreWeaveMetadata) Probe() *spb.MetadataRequest {
+func (cwm *CoreWeaveMetadata) Probe() *spb.EnvironmentRecord {
 	if cwm.graphqlClient == nil {
 		cwm.logger.Debug("coreweave metadata: error collecting data", "error", fmt.Errorf("GraphQL client is nil"))
 		return nil
@@ -149,7 +149,7 @@ func (cwm *CoreWeaveMetadata) Probe() *spb.MetadataRequest {
 		return nil
 	}
 
-	return &spb.MetadataRequest{
+	return &spb.EnvironmentRecord{
 		Coreweave: &spb.CoreWeaveInfo{
 			ClusterName: instanceData.ClusterName,
 			OrgId:       instanceData.OrgID,

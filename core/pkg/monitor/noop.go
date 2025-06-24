@@ -21,7 +21,7 @@ func NewTrainium(
 
 func (t *Trainium) Sample() (*spb.StatsRecord, error) { return nil, nil }
 
-func (t *Trainium) Probe() *spb.MetadataRequest {
+func (t *Trainium) Probe() *spb.EnvironmentRecord {
 	return nil
 }
 
@@ -34,6 +34,6 @@ func NewTPU() *TPU {
 
 func (t *TPU) Sample() (*spb.StatsRecord, error) { return nil, nil }
 
-func (t *TPU) Probe() *spb.MetadataRequest {
+func (t *TPU) Probe() *spb.EnvironmentRecord {
 	return nil
 }
