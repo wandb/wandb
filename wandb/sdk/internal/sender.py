@@ -63,6 +63,7 @@ if TYPE_CHECKING:
         ArtifactManifest,
         ArtifactManifestEntry,
         ArtifactRecord,
+        EnvironmentRecord,
         HttpResponse,
         LocalInfo,
         Record,
@@ -212,6 +213,7 @@ class SendManager:
     _context_keeper: context.ContextKeeper
 
     _telemetry_obj: telemetry.TelemetryRecord
+    _environment_obj: "EnvironmentRecord"
     _fs: Optional["file_stream.FileStreamApi"]
     _run: Optional["RunRecord"]
     _entity: Optional[str]
@@ -268,6 +270,7 @@ class SendManager:
 
         self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
+        self._environment_obj = wandb_internal_pb2.EnvironmentRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
         self._metadata_summary: Dict[str, Any] = defaultdict()
         self._cached_summary: Dict[str, Any] = dict()
@@ -790,12 +793,12 @@ class SendManager:
 
     def _config_backend_dict(self) -> sender_config.BackendConfigDict:
         config = self._consolidated_config or sender_config.ConfigState()
-
         return config.to_backend_dict(
             telemetry_record=self._telemetry_obj,
             framework=self._telemetry_get_framework(),
             start_time_millis=self._start_time,
             metric_pbdicts=self._config_metric_pbdict_list,
+            environment_record=self._environment_obj,
         )
 
     def _config_save(
@@ -1379,11 +1382,11 @@ class SendManager:
             next_idx = len(self._config_metric_pbdict_list)
             self._config_metric_pbdict_list.append(md)
             self._config_metric_index_dict[metric.name] = next_idx
-        self._update_config()
+        self._debounce_config()
 
     def _update_telemetry_record(self, telemetry: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telemetry)
-        self._update_config()
+        self._debounce_config()
 
     def send_telemetry(self, record: "Record") -> None:
         self._update_telemetry_record(record.telemetry)
@@ -1416,6 +1419,23 @@ class SendManager:
     def send_tbrecord(self, record: "Record") -> None:
         # tbrecord watching threads are handled by handler.py
         pass
+
+    def _update_environment_record(self, environment: "EnvironmentRecord") -> None:
+        self._environment_obj.MergeFrom(environment)
+        self._debounce_config()
+
+    def send_environment(self, record: "Record") -> None:
+        """Inject environment info into config and upload as a JSON file."""
+        self._update_environment_record(record.environment)
+
+        environment_json = json.dumps(proto_util.message_to_dict(self._environment_obj))
+
+        with open(
+            os.path.join(self._settings.files_dir, filenames.METADATA_FNAME), "w"
+        ) as f:
+            f.write(environment_json)
+
+        self._save_file(interface.GlobStr(filenames.METADATA_FNAME), policy="now")
 
     def send_request_link_artifact(self, record: "Record") -> None:
         if not (record.control.req_resp or record.control.mailbox_slot):

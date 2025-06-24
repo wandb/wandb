@@ -41,6 +41,7 @@ type RunUpdateWork struct {
 	// StreamRunUpserter is used to update the stream's run information.
 	StreamRunUpserter StreamRunUpserter
 
+	ClientID           string
 	Settings           *settings.Settings
 	BeforeRunEndCtx    context.Context
 	Operations         *wboperation.WandbOperations
@@ -83,6 +84,7 @@ func (w *RunUpdateWork) initRun(results chan<- *spb.Result) {
 
 		DebounceDelay: waiting.NewDelay(runUpsertDebounceSeconds * time.Second),
 
+		ClientID:           w.ClientID,
 		BeforeRunEndCtx:    w.BeforeRunEndCtx,
 		Operations:         w.Operations,
 		FeatureProvider:    w.FeatureProvider,

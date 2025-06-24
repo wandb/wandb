@@ -740,7 +740,6 @@ class _WandbInit:
         drun._config.update(config.sweep_no_artifacts)
         drun._config.update(config.base_no_artifacts)
         drun.summary = SummaryDisabled()  # type: ignore
-        drun._Run__metadata = wandb.sdk.wandb_metadata.Metadata()
 
         # methods
         drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore[method-assign]
