@@ -726,14 +726,14 @@ class Run(Attrs):
         else:
             self._project_internal_id = None
 
-        if self._include_sweeps and self.sweep_name and not self.sweep:
+        # Only check for sweeps if sweep_name is available (not in lazy mode or if it exists)
+        if self._include_sweeps and self._attrs.get("sweepName") and not self.sweep:
             # There may be a lot of runs. Don't bother pulling them all
-            # just for the sake of this one.
-            self.sweep = public.Sweep.get(
+            sweep = public.Sweep(
                 self.client,
                 self.entity,
                 self.project,
-                self.sweep_name,
+                self._attrs["sweepName"],
                 withRuns=False,
             )
 
@@ -1309,6 +1309,31 @@ class Run(Attrs):
         ):
             self.load_full_data()
         return self._attrs.get("systemMetrics", {})
+
+    @property
+    def summary_metrics(self):
+        """Get run summary metrics. Auto-loads full data if in lazy mode."""
+        if (
+            self._lazy
+            and not self._full_data_loaded
+            and not self._attrs.get("summaryMetrics")
+        ):
+            self.load_full_data()
+        return self._attrs.get("summaryMetrics", {})
+
+    @property
+    def rawconfig(self):
+        """Get raw run config including internal keys. Auto-loads full data if in lazy mode."""
+        if self._lazy and not self._full_data_loaded and not self._attrs.get("rawconfig"):
+            self.load_full_data()
+        return self._attrs.get("rawconfig", {})
+
+    @property
+    def sweep_name(self):
+        """Get sweep name. Auto-loads full data if in lazy mode."""
+        if self._lazy and not self._full_data_loaded and not self._attrs.get("sweepName"):
+            self.load_full_data()
+        return self._attrs.get("sweepName")
 
     @property
     def path(self):
