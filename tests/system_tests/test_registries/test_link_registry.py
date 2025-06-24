@@ -39,15 +39,14 @@ def org(team_and_org: TeamAndOrgNames) -> str:
 
 
 @fixture(scope="module")
-def api(module_mocker: MockerFixture, user: str, org: str) -> wandb.Api:
+def api(module_mocker: MockerFixture, user: str, team: str, org: str) -> wandb.Api:
     envvars = {
-        "WANDB_API_KEY": user,
-        "WANDB_ENTITY": user,
         "WANDB_USERNAME": user,
-        "WANDB_ORGANIZATION": org,
+        "WANDB_API_KEY": user,
+        "WANDB_ENTITY": org,
     }
     module_mocker.patch.dict(os.environ, envvars)
-    return wandb.Api()
+    return wandb.Api(overrides={"organization": org})
 
 
 @fixture(scope="module")
@@ -121,9 +120,7 @@ def target_path(
 
 
 def test_artifact_link_vs_run_link_artifact_on_registry_collection(
-    # user: str,
-    # team: str,
-    # org: str,
+    api: wandb.Api,
     org_entity: str,
     target_path: str,
     registry: Registry,
@@ -131,8 +128,6 @@ def test_artifact_link_vs_run_link_artifact_on_registry_collection(
     aliases: list[str] | None,
     target_collection_name: str,
 ):
-    # target_path = f"{org_entity}/{registry.full_name}/{target_collection_name}"
-
     linked = source_artifact.link(target_path, aliases=aliases)
 
     assert linked is not None
