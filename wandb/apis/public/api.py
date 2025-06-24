@@ -1098,7 +1098,7 @@ class Api:
         order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
-        lightweight: bool = True,
+        lazy: bool = True,
     ):
         """Returns a `Runs` object, which lazily iterates over `Run` objects.
 
@@ -1148,7 +1148,7 @@ class Api:
                 The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
             include_sweeps: (bool) Whether to include the sweep runs in the results.
-            lightweight: (bool) Whether to use lightweight mode for faster performance.
+            lazy: (bool) Whether to use lazy loading for faster performance.
                 When True (default), only essential run metadata is loaded initially.
                 Heavy fields like config, summaryMetrics, and systemMetrics are loaded
                 on-demand when accessed. Set to False for full data upfront.
@@ -1204,8 +1204,8 @@ class Api:
         # Check if we have cached results
         if self._runs.get(key):
             cached_runs = self._runs[key]
-            # If requesting full data but cached data is lightweight, upgrade it
-            if not lightweight and cached_runs._lightweight:
+            # If requesting full data but cached data is lazy, upgrade it
+            if not lazy and cached_runs._lazy:
                 cached_runs.upgrade_to_full()
             return cached_runs
         
@@ -1218,7 +1218,7 @@ class Api:
             order=order,
             per_page=per_page,
             include_sweeps=include_sweeps,
-            lightweight=lightweight,
+            lazy=lazy,
         )
         return self._runs[key]
 

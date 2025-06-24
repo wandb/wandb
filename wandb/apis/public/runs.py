@@ -108,6 +108,42 @@ LIGHTWEIGHT_RUN_FRAGMENT = """fragment LightweightRunFragment on Run {
     }
 }"""
 
+# Fragment name constants to avoid string parsing
+RUN_FRAGMENT_NAME = "RunFragment"
+LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
+
+
+def _create_runs_query(*, lazy: bool, with_internal_id: bool) -> gql:
+    """Create GraphQL query for runs with appropriate fragment."""
+    fragment = LIGHTWEIGHT_RUN_FRAGMENT if lazy else RUN_FRAGMENT
+    fragment_name = LIGHTWEIGHT_RUN_FRAGMENT_NAME if lazy else RUN_FRAGMENT_NAME
+    
+    return gql(
+        f"""#graphql
+        query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
+            project(name: $project, entityName: $entity) {{
+                internalId
+                runCount(filters: $filters)
+                readOnly
+                runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
+                    edges {{
+                        node {{
+                            {"" if with_internal_id else "internalId"}
+                            ...{fragment_name}
+                        }}
+                        cursor
+                    }}
+                    pageInfo {{
+                        endCursor
+                        hasNextPage
+                    }}
+                }}
+            }}
+        }}
+        {fragment}
+        """
+    )
+
 
 @normalize_exceptions
 def _server_provides_internal_id_for_project(client) -> bool:
@@ -224,38 +260,14 @@ class Runs(SizedPaginator["Run"]):
         order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
-        lightweight: bool = True,
+        lazy: bool = True,
     ):
         if not order:
             order = "+created_at"
 
-        # Choose fragment based on lightweight mode
-        run_fragment = LIGHTWEIGHT_RUN_FRAGMENT if lightweight else RUN_FRAGMENT
-
-        self.QUERY = gql(
-            f"""#graphql
-            query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
-                project(name: $project, entityName: $entity) {{
-                    internalId
-                    runCount(filters: $filters)
-                    readOnly
-                    runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
-                        edges {{
-                            node {{
-                                {"" if _server_provides_internal_id_for_project(client) else "internalId"}
-                                ...{run_fragment.split()[1]}
-                            }}
-                            cursor
-                        }}
-                        pageInfo {{
-                            endCursor
-                            hasNextPage
-                        }}
-                    }}
-                }}
-            }}
-            {run_fragment}
-            """
+        self.QUERY = _create_runs_query(
+            lazy=lazy, 
+            with_internal_id=_server_provides_internal_id_for_project(client)
         )
 
         self.entity = entity
@@ -265,7 +277,7 @@ class Runs(SizedPaginator["Run"]):
         self.order = order
         self._sweeps = {}
         self._include_sweeps = include_sweeps
-        self._lightweight = lightweight
+        self._lazy = lazy
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -324,7 +336,7 @@ class Runs(SizedPaginator["Run"]):
                 run_response["node"]["name"],
                 run_response["node"],
                 include_sweeps=self._include_sweeps,
-                lightweight=self._lightweight,
+                lazy=self._lazy,
             )
             objs.append(run)
 
@@ -452,48 +464,26 @@ class Runs(SizedPaginator["Run"]):
         return f"<Runs {self.entity}/{self.project}>"
 
     def upgrade_to_full(self):
-        """Upgrade this Runs collection from lightweight to full mode.
+        """Upgrade this Runs collection from lazy to full mode.
         
-        This regenerates the GraphQL query to use the full fragment and 
+        This switches to fetching full run data and 
         upgrades any already-loaded Run objects to have full data.
         """
-        if not self._lightweight:
+        if not self._lazy:
             return  # Already in full mode
             
         # Switch to full mode
-        self._lightweight = False
+        self._lazy = False
         
         # Regenerate query with full fragment
-        run_fragment = RUN_FRAGMENT
-        self.QUERY = gql(
-            f"""#graphql
-            query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
-                project(name: $project, entityName: $entity) {{
-                    internalId
-                    runCount(filters: $filters)
-                    readOnly
-                    runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
-                        edges {{
-                            node {{
-                                {"" if _server_provides_internal_id_for_project(self.client) else "internalId"}
-                                ...{run_fragment.split()[1]}
-                            }}
-                            cursor
-                        }}
-                        pageInfo {{
-                            endCursor
-                            hasNextPage
-                        }}
-                    }}
-                }}
-            }}
-            {run_fragment}
-            """
+        self.QUERY = _create_runs_query(
+            lazy=False,
+            with_internal_id=_server_provides_internal_id_for_project(self.client)
         )
         
         # Upgrade any existing runs that have been loaded
         for run in self.objects:
-            if hasattr(run, '_lightweight') and run._lightweight:
+            if run._lazy:
                 run.load_full_data()
 
 
@@ -539,7 +529,7 @@ class Run(Attrs):
         run_id: str,
         attrs: Mapping | None = None,
         include_sweeps: bool = True,
-        lightweight: bool = True,
+        lazy: bool = True,
     ):
         """Initialize a Run object.
 
@@ -556,7 +546,8 @@ class Run(Attrs):
         self.id = run_id
         self.sweep = None
         self._include_sweeps = include_sweeps
-        self._lightweight = lightweight
+        self._lazy = lazy
+        self._full_data_loaded = False  # Track if we've loaded full data
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
@@ -672,29 +663,22 @@ class Run(Attrs):
             },
         )
 
-    def load(self, force=False):
-        # Use appropriate fragment based on lightweight mode
-        run_fragment = LIGHTWEIGHT_RUN_FRAGMENT if self._lightweight else RUN_FRAGMENT
-
+    def _load_with_fragment(self, fragment: str, fragment_name: str, force: bool = False):
+        """Load run data using specified GraphQL fragment."""
         query = gql(
-            """
+            f"""
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
                 run(name: $name) {{
-                    {}
-                    ...{}
+                    {"projectId" if _server_provides_internal_id_for_project(self.client) else ""}
+                    ...{fragment_name}
                 }}
             }}
         }}
-        {}
-        """.format(
-                "projectId"
-                if _server_provides_internal_id_for_project(self.client)
-                else "",
-                run_fragment.split()[1],  # Extract fragment name
-                run_fragment,
-            )
+        {fragment}
+        """
         )
+        
         if force or not self._attrs:
             response = self._exec(query)
             if (
@@ -704,6 +688,10 @@ class Run(Attrs):
             ):
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
+
+            self._state = self._attrs["state"]
+            if self._attrs.get("user"):
+                self.user = public.User(self.client, self._attrs["user"])
 
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
@@ -737,43 +725,79 @@ class Run(Attrs):
         else:
             self._project_internal_id = None
 
-        try:
-            self._attrs["summaryMetrics"] = (
-                json.loads(self._attrs["summaryMetrics"])
-                if self._attrs.get("summaryMetrics")
-                else {}
+        if self._include_sweeps and self.sweep_name and not self.sweep:
+            # There may be a lot of runs. Don't bother pulling them all
+            # just for the sake of this one.
+            self.sweep = public.Sweep.get(
+                self.client,
+                self.entity,
+                self.project,
+                self.sweep_name,
+                withRuns=False,
             )
-        except (json.decoder.JSONDecodeError, KeyError):
-            # Handle lightweight mode or invalid data gracefully
-            self._attrs["summaryMetrics"] = {}
 
-        try:
-            self._attrs["systemMetrics"] = (
-                json.loads(self._attrs["systemMetrics"])
-                if self._attrs.get("systemMetrics")
-                else {}
-            )
-        except (json.decoder.JSONDecodeError, KeyError):
-            # Handle lightweight mode or invalid data gracefully
-            self._attrs["systemMetrics"] = {}
-        if self._attrs.get("user"):
-            self.user = public.User(self.client, self._attrs["user"])
+        # Load metrics only if we have them (avoid KeyError for lazy loading)
+        if self._attrs.get("summaryMetrics"):
+            try:
+                self._attrs["summaryMetrics"] = (
+                    json.loads(self._attrs["summaryMetrics"])
+                    if self._attrs.get("summaryMetrics")
+                    else {}
+                )
+            except json.JSONDecodeError:
+                # ignore invalid utf-8 or control characters
+                self._attrs["summaryMetrics"] = json.loads(
+                    self._attrs["summaryMetrics"],
+                    strict=False,
+                )
+
+        if self._attrs.get("systemMetrics"):
+            try:
+                self._attrs["systemMetrics"] = (
+                    json.loads(self._attrs["systemMetrics"])
+                    if self._attrs.get("systemMetrics")
+                    else {}
+                )
+            except json.JSONDecodeError:
+                # ignore invalid utf-8 or control characters
+                self._attrs["systemMetrics"] = json.loads(
+                    self._attrs["systemMetrics"],
+                    strict=False,
+                )
 
         config_user, config_raw = {}, {}
-        try:
-            for key, value in json.loads(self._attrs.get("config") or "{}").items():
-                config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
-                if isinstance(value, dict) and "value" in value:
-                    config[key] = value["value"]
-                else:
-                    config[key] = value
-        except (json.decoder.JSONDecodeError, KeyError):
-            # Handle lightweight mode gracefully
-            pass
+        if self._attrs.get("config"):
+            try:
+                for key, value in json.loads(self._attrs.get("config") or "{}").items():
+                    config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
+                    if isinstance(value, dict) and "value" in value:
+                        config[key] = value["value"]
+                    else:
+                        config[key] = value
+            except json.JSONDecodeError:
+                # Handle case where config is malformed
+                pass
 
         config_raw.update(config_user)
         self._attrs["config"] = config_user
         self._attrs["rawconfig"] = config_raw
+
+        return self._attrs
+
+    def load(self, force=False):
+        """Load run data using appropriate fragment based on lazy mode."""
+        if self._lazy:
+            return self._load_with_fragment(
+                LIGHTWEIGHT_RUN_FRAGMENT, 
+                LIGHTWEIGHT_RUN_FRAGMENT_NAME, 
+                force
+            )
+        else:
+            return self._load_with_fragment(
+                RUN_FRAGMENT, 
+                RUN_FRAGMENT_NAME, 
+                force
+            )
 
     @normalize_exceptions
     def wait_until_finished(self):
@@ -1236,40 +1260,38 @@ class Run(Attrs):
         )
         return artifact
 
-    def load_full_data(self, force=False):
+    def load_full_data(self, force: bool = False) -> Dict[str, Any]:
         """Load full run data including heavy fields like config, systemMetrics, summaryMetrics.
 
-        This method is useful when you initially used lightweight=True for listing runs,
+        This method is useful when you initially used lazy=True for listing runs,
         but need access to the full data for specific runs.
 
         Args:
-            force (bool): Force reload even if data is already loaded
+            force: Force reload even if data is already loaded
+
+        Returns:
+            The loaded run attributes
         """
-        if not self._lightweight and not force:
+        if not self._lazy and not force:
             # Already in full mode, no need to reload
             return self._attrs
 
-        # Temporarily switch to full mode for this load
-        original_lightweight = self._lightweight
-        self._lightweight = False
-        try:
-            result = self.load(force=True)  # Force reload with full data
-            return result
-        finally:
-            # Restore original lightweight setting
-            self._lightweight = original_lightweight
+        # Load full data and mark as loaded
+        result = self._load_with_fragment(RUN_FRAGMENT, RUN_FRAGMENT_NAME, force=True)
+        self._full_data_loaded = True
+        return result
 
     @property
     def config(self):
-        """Get run config. Auto-loads full data if in lightweight mode."""
-        if self._lightweight and not self._attrs.get("config"):
+        """Get run config. Auto-loads full data if in lazy mode."""
+        if self._lazy and not self._full_data_loaded and not self._attrs.get("config"):
             self.load_full_data()
         return self._attrs.get("config", {})
 
     @property
     def summary(self):
-        """Get run summary metrics. Auto-loads full data if in lightweight mode."""
-        if self._lightweight and not self._attrs.get("summaryMetrics"):
+        """Get run summary metrics. Auto-loads full data if in lazy mode."""
+        if self._lazy and not self._full_data_loaded and not self._attrs.get("summaryMetrics"):
             self.load_full_data()
         if self._summary is None:
             from wandb.old.summary import HTTPSummary
@@ -1280,8 +1302,8 @@ class Run(Attrs):
 
     @property
     def system_metrics(self):
-        """Get run system metrics. Auto-loads full data if in lightweight mode."""
-        if self._lightweight and not self._attrs.get("systemMetrics"):
+        """Get run system metrics. Auto-loads full data if in lazy mode."""
+        if self._lazy and not self._full_data_loaded and not self._attrs.get("systemMetrics"):
             self.load_full_data()
         return self._attrs.get("systemMetrics", {})
 
