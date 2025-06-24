@@ -47,7 +47,7 @@ use wandb_internal::{
     record::RecordType,
     stats_record::StatsType,
     system_monitor_service_server::{SystemMonitorService, SystemMonitorServiceServer},
-    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, EnvironmentRecord,
+    EnvironmentRecord, GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse,
     Record, StatsItem, StatsRecord, TearDownRequest, TearDownResponse,
 };
 
@@ -362,11 +362,12 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         #[cfg(target_os = "linux")]
         {
             if let Some(amd_gpu) = &self.amd_gpu {
-                let amd_metadata = amd_gpu.get_metadata();
-                if amd_metadata.gpu_count > 0 {
-                    metadata.gpu_count = amd_metadata.gpu_count;
-                    metadata.gpu_type = amd_metadata.gpu_type;
-                    metadata.gpu_amd = amd_metadata.gpu_amd;
+                if let Ok(amd_metadata) = amd_gpu.get_metadata() {
+                    if amd_metadata.gpu_count > 0 {
+                        metadata.gpu_count = amd_metadata.gpu_count;
+                        metadata.gpu_type = amd_metadata.gpu_type;
+                        metadata.gpu_amd = amd_metadata.gpu_amd;
+                    }
                 }
             }
         }
