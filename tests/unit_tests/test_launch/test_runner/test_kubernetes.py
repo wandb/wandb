@@ -1474,83 +1474,89 @@ async def test_kubernetes_submitted_run_get_logs(pods, logs, expected):
 @pytest.mark.asyncio
 async def test_job_network_policy_creation():
     """Test that job network policy is created with correct structure."""
-    from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
+    from unittest.mock import MagicMock
+
     from wandb.apis.internal import Api
-    from unittest.mock import AsyncMock, MagicMock
-    
+    from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
+
     created_policies = []
-    
+
     async def mock_create_from_dict(api_client, manifest, namespace=None):
         created_policies.append((manifest, namespace))
         return [MagicMock()]
-    
+
     runner = KubernetesRunner(
         api=Api(),
         backend_config={},
         environment=MagicMock(),
         registry=MagicMock(),
     )
-    
+
     import wandb.sdk.launch.runner.kubernetes_runner as kr
+
     kr.kubernetes_asyncio.utils.create_from_dict = mock_create_from_dict
-    
+
     api_client = MagicMock()
     namespace = "test-namespace"
     run_id = "test-run-123"
-    
+
     await runner._create_job_network_policy(api_client, namespace, run_id)
-    
+
     assert len(created_policies) == 1
     policy, created_namespace = created_policies[0]
-    
+
     assert created_namespace == namespace
-    
+
     assert policy["apiVersion"] == "networking.k8s.io/v1"
     assert policy["kind"] == "NetworkPolicy"
     assert policy["metadata"]["labels"]["wandb.ai/run-id"] == run_id
     assert policy["metadata"]["labels"]["wandb.ai/created-by"] == "launch-agent"
-    
+
     expected_selector = {"wandb.ai/run-id": run_id, "wandb.ai/monitor": "true"}
     assert policy["spec"]["podSelector"] == expected_selector
-    
+
     assert policy["spec"]["policyTypes"] == ["Egress"]
-    
+
     egress_rules = policy["spec"]["egress"]
     assert len(egress_rules) == 3  # Auxiliary resources, external web, DNS
-    
+
     aux_rule = egress_rules[0]
-    assert aux_rule["to"] == [{"podSelector": {"matchLabels": {"wandb.ai/run-id": run_id}}}]
+    assert aux_rule["to"] == [
+        {"podSelector": {"matchLabels": {"wandb.ai/run-id": run_id}}}
+    ]
     assert aux_rule["ports"] == [{"protocol": "TCP", "port": 8000}]
 
 
 @pytest.mark.asyncio
 async def test_job_network_policy_failure_raises_launch_error():
     """Test that network policy creation failure raises LaunchError."""
-    from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
+    from unittest.mock import MagicMock
+
     from wandb.apis.internal import Api
     from wandb.sdk.launch.errors import LaunchError
-    from unittest.mock import MagicMock
+    from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
 
     async def mock_create_from_dict_failure(api_client, manifest, namespace=None):
         raise Exception("Simulated network policy creation failure")
-    
+
     runner = KubernetesRunner(
         api=Api(),
         backend_config={},
         environment=MagicMock(),
         registry=MagicMock(),
     )
-    
+
     import wandb.sdk.launch.runner.kubernetes_runner as kr
+
     kr.kubernetes_asyncio.utils.create_from_dict = mock_create_from_dict_failure
-    
+
     api_client = MagicMock()
     namespace = "test-namespace"
     run_id = "test-run-123"
-    
+
     with pytest.raises(LaunchError) as exc_info:
         await runner._create_job_network_policy(api_client, namespace, run_id)
-    
+
     assert "Failed to create NetworkPolicy for job pods" in str(exc_info.value)
     assert namespace in str(exc_info.value)
     assert "Simulated network policy creation failure" in str(exc_info.value)
@@ -1559,9 +1565,10 @@ async def test_job_network_policy_failure_raises_launch_error():
 @pytest.mark.asyncio
 async def test_extract_container_ports():
     """Test that container ports are correctly extracted from deployment configurations."""
-    from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
-    from wandb.apis.internal import Api
     from unittest.mock import MagicMock
+
+    from wandb.apis.internal import Api
+    from wandb.sdk.launch.runner.kubernetes_runner import KubernetesRunner
 
     runner = KubernetesRunner(
         api=Api(),
@@ -1583,32 +1590,27 @@ async def test_extract_container_ports():
                                     "name": "app",
                                     "ports": [
                                         {"containerPort": 8080},
-                                        {"containerPort": 8443}
-                                    ]
+                                        {"containerPort": 8443},
+                                    ],
                                 }
                             ]
                         }
                     }
-                }
+                },
             }
         },
         {
             "config": {
-                "kind": "Deployment", 
+                "kind": "Deployment",
                 "spec": {
                     "template": {
                         "spec": {
                             "containers": [
-                                {
-                                    "name": "worker",
-                                    "ports": [
-                                        {"containerPort": 9000}
-                                    ]
-                                }
+                                {"name": "worker", "ports": [{"containerPort": 9000}]}
                             ]
                         }
                     }
-                }
+                },
             }
         },
         {
@@ -1630,13 +1632,13 @@ async def test_extract_container_ports():
                             ]
                         }
                     }
-                }
+                },
             }
-        }
+        },
     ]
 
     ports = runner._extract_container_ports(additional_services)
-    
+
     # Should extract: 8080, 8443, 9000
     assert sorted(ports) == [8080, 8443, 9000]
 
@@ -1656,8 +1658,140 @@ async def test_extract_container_ports():
                             ]
                         }
                     }
-                }
+                },
             }
         }
     ]
     assert runner._extract_container_ports(no_ports_deployments) == []
+
+
+@pytest.mark.asyncio
+async def test_network_policy_cleanup():
+    """Test that network policies are properly cleaned up when jobs are cancelled or finished."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from wandb.sdk.launch.runner.kubernetes_runner import KubernetesSubmittedRun
+
+    # Mock the different API clients
+    batch_api = AsyncMock()
+    core_api = AsyncMock()
+    apps_api = AsyncMock()
+    networking_api = AsyncMock()
+
+    # Mock network policy objects that would be returned by list_namespaced_network_policy
+    mock_network_policy_1 = MagicMock()
+    mock_network_policy_1.metadata.name = "wandb-launch-job-policy-abc123"
+
+    mock_network_policy_2 = MagicMock()
+    mock_network_policy_2.metadata.name = "wandb-launch-resource-policy-def456"
+
+    # Mock the list response
+    mock_list_response = MagicMock()
+    mock_list_response.items = [mock_network_policy_1, mock_network_policy_2]
+    networking_api.list_namespaced_network_policy.return_value = mock_list_response
+
+    # Create the submitted run object
+    submitted_run = KubernetesSubmittedRun(
+        batch_api=batch_api,
+        core_api=core_api,
+        apps_api=apps_api,
+        networking_api=networking_api,
+        name="test-job",
+        namespace="test-namespace",
+        auxiliary_resource_label_key="aux-test-123",
+    )
+
+    # Test cleanup functionality
+    await submitted_run._delete_auxiliary_resources_by_label()
+
+    # Verify that network policies were listed with the correct label selector
+    networking_api.list_namespaced_network_policy.assert_called_once_with(
+        namespace="test-namespace",
+        label_selector="wandb.ai/auxiliary-resource=aux-test-123",
+    )
+
+    # Verify that each network policy was deleted
+    assert networking_api.delete_namespaced_network_policy.call_count == 2
+    networking_api.delete_namespaced_network_policy.assert_any_call(
+        name="wandb-launch-job-policy-abc123", namespace="test-namespace"
+    )
+    networking_api.delete_namespaced_network_policy.assert_any_call(
+        name="wandb-launch-resource-policy-def456", namespace="test-namespace"
+    )
+
+
+@pytest.mark.asyncio
+async def test_network_policy_cleanup_handles_api_errors():
+    """Test that network policy cleanup gracefully handles API errors."""
+    from unittest.mock import AsyncMock, patch
+
+    from kubernetes_asyncio.client.rest import ApiException
+    from wandb.sdk.launch.runner.kubernetes_runner import KubernetesSubmittedRun
+
+    # Mock the different API clients
+    batch_api = AsyncMock()
+    core_api = AsyncMock()
+    apps_api = AsyncMock()
+    networking_api = AsyncMock()
+
+    # Make the networking API calls raise an exception
+    networking_api.list_namespaced_network_policy.side_effect = ApiException(
+        status=404, reason="Not Found"
+    )
+
+    submitted_run = KubernetesSubmittedRun(
+        batch_api=batch_api,
+        core_api=core_api,
+        apps_api=apps_api,
+        networking_api=networking_api,
+        name="test-job",
+        namespace="test-namespace",
+        auxiliary_resource_label_key="aux-test-123",
+    )
+
+    # Should not raise an exception - errors are caught and logged
+    with patch("wandb.termwarn") as mock_termwarn:
+        await submitted_run._delete_auxiliary_resources_by_label()
+
+        # Verify warning was logged
+        mock_termwarn.assert_called()
+        args = mock_termwarn.call_args[0][0]
+        assert "Could not clean up network_policy" in args
+
+
+@pytest.mark.asyncio
+async def test_network_policy_cleanup_called_on_cancel():
+    """Test that network policy cleanup is called when job is cancelled."""
+    from unittest.mock import AsyncMock, patch
+
+    from wandb.sdk.launch.runner.kubernetes_runner import KubernetesSubmittedRun
+
+    # Mock the different API clients
+    batch_api = AsyncMock()
+    core_api = AsyncMock()
+    apps_api = AsyncMock()
+    networking_api = AsyncMock()
+
+    submitted_run = KubernetesSubmittedRun(
+        batch_api=batch_api,
+        core_api=core_api,
+        apps_api=apps_api,
+        networking_api=networking_api,
+        name="test-job",
+        namespace="test-namespace",
+        auxiliary_resource_label_key="aux-test-123",
+    )
+
+    # Mock the cleanup method to verify it's called
+    with patch.object(
+        submitted_run, "_delete_auxiliary_resources_by_label"
+    ) as mock_cleanup:
+        await submitted_run.cancel()
+
+        # Verify cleanup was called
+        mock_cleanup.assert_called_once()
+
+        # Also verify job deletion was attempted
+        batch_api.delete_namespaced_job.assert_called_once_with(
+            namespace="test-namespace", name="test-job"
+        )

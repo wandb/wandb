@@ -11,8 +11,9 @@ from dataclasses import dataclass
 from multiprocessing import Event
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import wandb
 import yaml
+
+import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add

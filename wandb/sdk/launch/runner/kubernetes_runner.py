@@ -9,8 +9,9 @@ import os
 import uuid
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-import wandb
 import yaml
+
+import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -60,13 +61,13 @@ from kubernetes_asyncio.client.api.core_v1_api import (  # type: ignore # noqa: 
 from kubernetes_asyncio.client.api.custom_objects_api import (  # type: ignore # noqa: E402
     CustomObjectsApi,
 )
+from kubernetes_asyncio.client.api.networking_v1_api import (  # type: ignore # noqa: E402
+    NetworkingV1Api,
+)
 from kubernetes_asyncio.client.models.v1_secret import (  # type: ignore # noqa: E402
     V1Secret,
 )
 from kubernetes_asyncio.client.rest import ApiException  # type: ignore # noqa: E402
-from kubernetes_asyncio.client.api.networking_v1_api import (  # type: ignore # noqa: E402
-    NetworkingV1Api
-)
 
 TIMEOUT = 5
 API_KEY_SECRET_MAX_RETRIES = 5
@@ -553,12 +554,14 @@ class KubernetesRunner(AbstractRunner):
 
         return job, api_key_secret
 
-    def _extract_container_ports(self, additional_services: List[Dict[str, Any]]) -> List[int]:
+    def _extract_container_ports(
+        self, additional_services: List[Dict[str, Any]]
+    ) -> List[int]:
         """Extract container ports from deployment configurations.
-        
+
         Arguments:
             additional_services: List of additional service configurations.
-        
+
         Returns:
             List of container ports found in deployment configurations.
         """
@@ -594,12 +597,12 @@ class KubernetesRunner(AbstractRunner):
         container_ports: Optional[List[int]] = None,
     ) -> None:
         """Create network policy for job pods to allow communication with auxiliary resources.
-        
+
         This creates a baseline network policy for job pods that allows:
         - Egress to any auxiliary resource pods in the same run
         - Egress to external web (HTTP/HTTPS)
         - DNS lookups
-        
+
         Arguments:
             api_client: The Kubernetes API client.
             namespace: The namespace to create the policy in.
@@ -607,28 +610,28 @@ class KubernetesRunner(AbstractRunner):
             container_ports: List of ports to allow communication on. Defaults to [8000] if not specified.
         """
         job_policy_name = f"wandb-launch-job-policy-{uuid.uuid4().hex[:8]}"
-        
+
         # Use provided service ports, fallback to default port 8000
         ports_to_allow = container_ports if container_ports else [8000]
-        
+
         external_web_egress = {
             "to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
-            "ports": [{"protocol": "TCP", "port": 80}, {"protocol": "TCP", "port": 443}]
+            "ports": [
+                {"protocol": "TCP", "port": 80},
+                {"protocol": "TCP", "port": 443},
+            ],
         }
-        
+
         dns_lookup_egress = {
             "to": [{"namespaceSelector": {"matchLabels": {"name": "kube-system"}}}],
-            "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}]
+            "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}],
         }
-        
-        job_pod_selector = {
-            WANDB_K8S_RUN_ID: run_id,
-            WANDB_K8S_LABEL_MONITOR: "true"
-        }
-        
+
+        job_pod_selector = {WANDB_K8S_RUN_ID: run_id, WANDB_K8S_LABEL_MONITOR: "true"}
+
         # Build port list for auxiliary resource communication
         auxiliary_ports = [{"protocol": "TCP", "port": port} for port in ports_to_allow]
-        
+
         job_policy = {
             "apiVersion": "networking.k8s.io/v1",
             "kind": "NetworkPolicy",
@@ -636,8 +639,8 @@ class KubernetesRunner(AbstractRunner):
                 "name": job_policy_name,
                 "labels": {
                     WANDB_K8S_RUN_ID: run_id,
-                    "wandb.ai/created-by": "launch-agent"
-                }
+                    "wandb.ai/created-by": "launch-agent",
+                },
             },
             "spec": {
                 "podSelector": job_pod_selector,
@@ -645,15 +648,17 @@ class KubernetesRunner(AbstractRunner):
                 "egress": [
                     {
                         # Allow communication to auxiliary resource pods for this run
-                        "to": [{"podSelector": {"matchLabels": {WANDB_K8S_RUN_ID: run_id}}}],
-                        "ports": auxiliary_ports
+                        "to": [
+                            {"podSelector": {"matchLabels": {WANDB_K8S_RUN_ID: run_id}}}
+                        ],
+                        "ports": auxiliary_ports,
                     },
                     external_web_egress,
-                    dns_lookup_egress
-                ]
-            }
+                    dns_lookup_egress,
+                ],
+            },
         }
-        
+
         try:
             await kubernetes_asyncio.utils.create_from_dict(
                 api_client, job_policy, namespace=namespace
@@ -680,7 +685,7 @@ class KubernetesRunner(AbstractRunner):
         - Ingress from the job pod with the same run
         - Egress to external web (HTTP/HTTPS)
         - DNS lookups
-        
+
         Arguments:
             api_client: The Kubernetes API client.
             namespace: The namespace to create the policy in.
@@ -689,32 +694,32 @@ class KubernetesRunner(AbstractRunner):
             container_ports: List of ports to allow communication on. Defaults to [8000] if not specified.
         """
         resource_policy_name = f"wandb-launch-resource-policy-{uuid.uuid4().hex[:8]}"
-        
+
         # Use provided service ports, fallback to default port 8000
         ports_to_allow = container_ports if container_ports else [8000]
-        
+
         external_web_egress = {
             "to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
-            "ports": [{"protocol": "TCP", "port": 80}, {"protocol": "TCP", "port": 443}]
+            "ports": [
+                {"protocol": "TCP", "port": 80},
+                {"protocol": "TCP", "port": 443},
+            ],
         }
-        
+
         dns_lookup_egress = {
             "to": [{"namespaceSelector": {"matchLabels": {"name": "kube-system"}}}],
-            "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}]
+            "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}],
         }
-        
-        job_pod_selector = {
-            WANDB_K8S_RUN_ID: run_id,
-            WANDB_K8S_LABEL_MONITOR: "true"
-        }
-        
+
+        job_pod_selector = {WANDB_K8S_RUN_ID: run_id, WANDB_K8S_LABEL_MONITOR: "true"}
+
         resource_pod_selector = {
             WANDB_K8S_RUN_ID: run_id,
-            WANDB_K8S_LABEL_AUXILIARY_RESOURCE: auxiliary_resource_label_key
+            WANDB_K8S_LABEL_AUXILIARY_RESOURCE: auxiliary_resource_label_key,
         }
-        
+
         ingress_ports = [{"protocol": "TCP", "port": port} for port in ports_to_allow]
-        
+
         resource_policy = {
             "apiVersion": "networking.k8s.io/v1",
             "kind": "NetworkPolicy",
@@ -723,25 +728,22 @@ class KubernetesRunner(AbstractRunner):
                 "labels": {
                     WANDB_K8S_RUN_ID: run_id,
                     WANDB_K8S_LABEL_AUXILIARY_RESOURCE: auxiliary_resource_label_key,
-                    "wandb.ai/created-by": "launch-agent"
-                }
+                    "wandb.ai/created-by": "launch-agent",
+                },
             },
             "spec": {
                 "podSelector": resource_pod_selector,
                 "policyTypes": ["Egress", "Ingress"],
-                "egress": [
-                    dns_lookup_egress,
-                    external_web_egress
-                ],
+                "egress": [dns_lookup_egress, external_web_egress],
                 "ingress": [
                     {
                         "from": [{"podSelector": job_pod_selector}],
-                        "ports": ingress_ports
+                        "ports": ingress_ports,
                     }
-                ]
-            }
+                ],
+            },
         }
-        
+
         try:
             await kubernetes_asyncio.utils.create_from_dict(
                 api_client, resource_policy, namespace=namespace
@@ -787,7 +789,9 @@ class KubernetesRunner(AbstractRunner):
 
         # Add labels to pods within the resource so they can be selected by network policies
         add_label_to_pods(config, WANDB_K8S_RUN_ID, run_id)
-        add_label_to_pods(config, WANDB_K8S_LABEL_AUXILIARY_RESOURCE, auxiliary_resource_label_key)
+        add_label_to_pods(
+            config, WANDB_K8S_LABEL_AUXILIARY_RESOURCE, auxiliary_resource_label_key
+        )
         add_label_to_pods(config, "wandb.ai/created-by", "launch-agent")
 
         if config.get("kind") == "Service" or config.get("kind") == "Deployment":
@@ -835,7 +839,11 @@ class KubernetesRunner(AbstractRunner):
         # Create resource network policy if this is a deployment
         if config.get("kind") == "Deployment":
             await self._create_resource_network_policy(
-                api_client, namespace, run_id, auxiliary_resource_label_key, container_ports
+                api_client,
+                namespace,
+                run_id,
+                auxiliary_resource_label_key,
+                container_ports,
             )
 
     async def run(
@@ -1036,12 +1044,12 @@ class KubernetesRunner(AbstractRunner):
         job_response = response[0]
         job_name = job_response.metadata.name
         LaunchKubernetesMonitor.monitor_namespace(namespace)
-        
+
         # Create a network policy for job pods to enable future default-deny scenarios
         await self._create_job_network_policy(
             api_client, namespace, launch_project.run_id, container_ports
         )
-        
+
         submitted_job = KubernetesSubmittedRun(
             batch_api,
             core_api,
