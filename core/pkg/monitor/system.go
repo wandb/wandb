@@ -17,6 +17,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+var (
+	DiskPartitions = disk.Partitions
+	DiskIOCounters = func() (map[string]disk.IOCountersStat, error) {
+		return disk.IOCounters()
+	}
+)
+
 // System encapsulates the state needed to monitor resources available on most systems.
 //
 // It is used to track CPU usage, memory consumption, disk utilization, and network traffic
@@ -60,7 +67,7 @@ func NewSystem(params SystemParams) *System {
 
 	// Initialize disk I/O counters
 	// Resolve the devices that back the requested paths
-	parts, _ := disk.Partitions(false)
+	parts, _ := DiskPartitions(false)
 	for _, part := range parts {
 		for _, mp := range s.diskPaths {
 			if strings.HasPrefix(mp, part.Mountpoint) {
@@ -70,7 +77,7 @@ func NewSystem(params SystemParams) *System {
 	}
 	// Fallback: if nothing matched, watch every real block device.
 	if len(s.diskDevices) == 0 {
-		if ios, _ := disk.IOCounters(); len(ios) > 0 {
+		if ios, _ := DiskIOCounters(); len(ios) > 0 {
 			for d := range ios {
 				if pseudoDevice(d) {
 					continue
@@ -80,7 +87,7 @@ func NewSystem(params SystemParams) *System {
 		}
 	}
 
-	if ios, _ := disk.IOCounters(); len(ios) > 0 {
+	if ios, _ := DiskIOCounters(); len(ios) > 0 {
 		for dev := range s.diskDevices {
 			if c, ok := ios[dev]; ok {
 				s.diskIntialReadBytes[dev] = c.ReadBytes
@@ -153,7 +160,7 @@ func (s *System) Sample() (*spb.StatsRecord, error) {
 	}
 
 	// Collect disk I/O metrics
-	if err := s.collectDiskIOMetrics(metrics); err != nil {
+	if err := s.CollectDiskIOMetrics(metrics); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -285,8 +292,8 @@ func (s *System) collectDiskUsageMetrics(metrics map[string]any) error {
 }
 
 // collectDiskIOMetrics gathers disk I/O statistics.
-func (s *System) collectDiskIOMetrics(metrics map[string]any) error {
-	ios, err := disk.IOCounters()
+func (s *System) CollectDiskIOMetrics(metrics map[string]any) error {
+	ios, err := DiskIOCounters()
 	if err != nil {
 		if !strings.Contains(err.Error(), "not implemented yet") {
 			return err
