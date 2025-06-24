@@ -36,7 +36,7 @@ __all__ = (
     "Object3D",
     "Molecule",
     "Histogram",
-    "ArtifactTTL", # doc:exclude
+    "ArtifactTTL",  # doc:exclude
     "log_artifact",
     "use_artifact",
     "log_model",
