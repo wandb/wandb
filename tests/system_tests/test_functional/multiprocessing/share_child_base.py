@@ -10,7 +10,6 @@ def process_child(run):
     """Log to the shared run object."""
     run.config.c2 = 22
     run.log({"s1": 21})
-    run._metadata.email = "ai@wandb.ai"
 
     # Read the summary to force the previous messages to be processed
     # before the child process exits. This works around the fact that
@@ -26,7 +25,6 @@ def main():
 
         run.config.c1 = 11
         run.log({"s1": 11})
-        run._metadata.email = "i@wandb.ai"
 
         p = mp.Process(
             target=process_child,

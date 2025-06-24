@@ -27,7 +27,7 @@ func TestSystemMonitor_BasicStateTransitions(t *testing.T) {
 
 	assert.Equal(t, monitor.StateStopped, sm.GetState())
 
-	sm.Start()
+	sm.Start(nil)
 	assert.Equal(t, monitor.StateRunning, sm.GetState())
 
 	sm.Pause()
@@ -44,8 +44,8 @@ func TestSystemMonitor_RepeatedCalls(t *testing.T) {
 	sm := newTestSystemMonitor()
 
 	// Multiple starts
-	sm.Start()
-	sm.Start()
+	sm.Start(nil)
+	sm.Start(nil)
 	assert.Equal(t, monitor.StateRunning, sm.GetState())
 
 	// Multiple pauses
@@ -76,10 +76,10 @@ func TestSystemMonitor_UnexpectedTransitions(t *testing.T) {
 	assert.Equal(t, monitor.StateStopped, sm.GetState(), "Pause should not change state when stopped")
 
 	// Start and then unexpected transitions
-	sm.Start()
+	sm.Start(nil)
 	assert.Equal(t, monitor.StateRunning, sm.GetState(), "Start should change state to running")
 
-	sm.Start() // Start when already running
+	sm.Start(nil) // Start when already running
 	assert.Equal(t, monitor.StateRunning, sm.GetState(), "Start should not change state when already running")
 
 	sm.Resume() // Resume when running
@@ -92,14 +92,14 @@ func TestSystemMonitor_UnexpectedTransitions(t *testing.T) {
 	sm.Pause() // Pause when already paused
 	assert.Equal(t, monitor.StatePaused, sm.GetState(), "Pause should not change state when already paused")
 
-	sm.Start() // Start when paused
+	sm.Start(nil) // Start when paused
 	assert.Equal(t, monitor.StatePaused, sm.GetState(), "Start should not change state when paused")
 
 	// Finish from any state
 	sm.Finish()
 	assert.Equal(t, monitor.StateStopped, sm.GetState(), "Finish should change state to stopped from paused")
 
-	sm.Start()
+	sm.Start(nil)
 	sm.Finish()
 	assert.Equal(t, monitor.StateStopped, sm.GetState(), "Finish should change state to stopped from running")
 }
@@ -108,7 +108,7 @@ func TestSystemMonitor_FullCycle(t *testing.T) {
 	sm := newTestSystemMonitor()
 
 	// Full cycle of operations
-	sm.Start()
+	sm.Start(nil)
 	assert.Equal(t, monitor.StateRunning, sm.GetState())
 
 	sm.Pause()
@@ -127,7 +127,7 @@ func TestSystemMonitor_FullCycle(t *testing.T) {
 	assert.Equal(t, monitor.StateStopped, sm.GetState())
 
 	// Start again after finishing
-	sm.Start()
+	sm.Start(nil)
 	assert.Equal(t, monitor.StateRunning, sm.GetState())
 
 	sm.Finish()
