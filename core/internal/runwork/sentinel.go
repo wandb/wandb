@@ -23,7 +23,7 @@ func (s *workSentinel) Save(func(*spb.Record)) {}
 
 func (s *workSentinel) BypassOfflineMode() bool { return true }
 
-func (s *workSentinel) Process(func(*spb.Record)) {}
+func (s *workSentinel) Process(func(*spb.Record), chan<- *spb.Result) {}
 
 func (s *workSentinel) Sentinel() any { return s.value }
 

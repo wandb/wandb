@@ -1,7 +1,7 @@
 from unittest import mock
 
 import pytest
-from wandb.sdk.lib.service import service_port_file, service_token
+from wandb.sdk.lib.service import ipc_support, service_port_file, service_token
 
 
 @pytest.fixture(autouse=True)
@@ -28,6 +28,43 @@ def finished_process():
     proc = mock.Mock()
     proc.poll.return_value = 1
     return proc
+
+
+@pytest.mark.skipif(
+    not ipc_support.SUPPORTS_UNIX,
+    reason="AF_UNIX sockets not supported",
+)
+def test_reads_unix_token(tmp_path, running_process):
+    port_file = tmp_path / "ports"
+    port_file.write_text("unix=/some/path\nsock=123\nEOF")
+
+    token = service_port_file.poll_for_token(
+        port_file,
+        running_process,
+        timeout=1,
+    )
+
+    assert isinstance(token, service_token.UnixServiceToken)
+    assert token._path == "/some/path"
+
+
+def test_ignores_unix_token_if_not_supported(
+    monkeypatch,
+    tmp_path,
+    running_process,
+):
+    port_file = tmp_path / "ports"
+    port_file.write_text("unix=/some/path\nsock=123\nEOF")
+    monkeypatch.setattr(ipc_support, "SUPPORTS_UNIX", False)
+
+    token = service_port_file.poll_for_token(
+        port_file,
+        running_process,
+        timeout=1,
+    )
+
+    assert isinstance(token, service_token.TCPServiceToken)
+    assert token._port == 123
 
 
 def test_reads_tcp_token(tmp_path, running_process):

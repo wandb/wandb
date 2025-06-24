@@ -32,6 +32,8 @@ type ConnectionParams struct {
 	StreamMux          *stream.StreamMux
 	GPUResourceManager *monitor.GPUResourceManager
 
+	ID string
+
 	Conn         net.Conn
 	SentryClient *sentry_ext.Client
 	Commit       string
@@ -102,7 +104,7 @@ func NewConnection(
 		gpuResourceManager: params.GPUResourceManager,
 		conn:               params.Conn,
 		commit:             params.Commit,
-		id:                 params.Conn.RemoteAddr().String(), // TODO: check if this is properly unique
+		id:                 params.ID,
 		inChan:             make(chan *spb.ServerRequest, BufferSize),
 		outChan:            make(chan *spb.ServerResponse, BufferSize),
 		closed:             &atomic.Bool{},

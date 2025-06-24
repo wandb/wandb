@@ -127,9 +127,9 @@ class Media(WBValue):
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
-        assert extension is None or path.endswith(
-            extension
-        ), f'Media file extension "{extension}" must occur at the end of path "{path}".'
+        assert extension is None or path.endswith(extension), (
+            f'Media file extension "{extension}" must occur at the end of path "{path}".'
+        )
 
         with open(self._path, "rb") as f:
             self._sha256 = hashlib.sha256(f.read()).hexdigest()
@@ -247,11 +247,13 @@ class Media(WBValue):
                 json_obj["_latest_artifact_path"] = artifact_entry_latest_url
 
             if artifact_entry_url is None or self.is_bound():
-                assert self.is_bound(), f"Value of type {type(self).__name__} must be bound to a run with bind_to_run() before being serialized to JSON."
+                assert self.is_bound(), (
+                    f"Value of type {type(self).__name__} must be bound to a run with bind_to_run() before being serialized to JSON."
+                )
 
-                assert (
-                    self._run is run
-                ), "We don't support referring to media files across runs."
+                assert self._run is run, (
+                    "We don't support referring to media files across runs."
+                )
 
                 # The following two assertions are guaranteed to pass
                 # by definition is_bound, but are needed for

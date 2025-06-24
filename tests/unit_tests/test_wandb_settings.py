@@ -547,3 +547,9 @@ def test_program_relpath_windows(root_dir, expected_result):
             f.write("# Test file for program_relpath testing")
         result = Settings._get_program_relpath(test_file_path, root_dir)
         assert expected_result(result)
+
+
+@pytest.mark.parametrize("restricted_chars", [":", ";", ",", "#", "?", "/", "'"])
+def test_run_id_validation(restricted_chars):
+    with pytest.raises(UsageError):
+        Settings(run_id=f"test{restricted_chars}")

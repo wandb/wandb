@@ -1,7 +1,5 @@
 """Events that trigger W&B Automations."""
 
-# ruff: noqa: UP007  # Avoid using `X | Y` for union fields, as this can cause issues with pydantic < 2.6
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union
