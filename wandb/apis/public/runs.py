@@ -1325,11 +1325,7 @@ class Run(Attrs):
     @property
     def rawconfig(self):
         """Get raw run config including internal keys. Auto-loads full data if in lazy mode."""
-        if (
-            self._lazy
-            and not self._full_data_loaded
-            and "rawconfig" not in self._attrs
-        ):
+        if self._lazy and not self._full_data_loaded and "rawconfig" not in self._attrs:
             self.load_full_data()
         return self._attrs.get("rawconfig", {})
 
@@ -1338,11 +1334,7 @@ class Run(Attrs):
         """Get sweep name. Auto-loads full data if in lazy mode."""
         # sweepName is included in lightweight fragment, so only load full data
         # if it's truly missing and we're in lazy mode
-        if (
-            self._lazy
-            and not self._full_data_loaded
-            and "sweepName" not in self._attrs
-        ):
+        if self._lazy and not self._full_data_loaded and "sweepName" not in self._attrs:
             self.load_full_data()
         return self._attrs.get("sweepName")
 
