@@ -1324,14 +1324,22 @@ class Run(Attrs):
     @property
     def rawconfig(self):
         """Get raw run config including internal keys. Auto-loads full data if in lazy mode."""
-        if self._lazy and not self._full_data_loaded and not self._attrs.get("rawconfig"):
+        if (
+            self._lazy
+            and not self._full_data_loaded
+            and not self._attrs.get("rawconfig")
+        ):
             self.load_full_data()
         return self._attrs.get("rawconfig", {})
 
     @property
     def sweep_name(self):
         """Get sweep name. Auto-loads full data if in lazy mode."""
-        if self._lazy and not self._full_data_loaded and not self._attrs.get("sweepName"):
+        if (
+            self._lazy
+            and not self._full_data_loaded
+            and not self._attrs.get("sweepName")
+        ):
             self.load_full_data()
         return self._attrs.get("sweepName")
 

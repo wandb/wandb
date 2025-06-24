@@ -1200,7 +1200,7 @@ class Api:
         entity, project = self._parse_project_path(path)
         filters = filters or {}
         key = (path or "") + str(filters) + str(order)
-        
+
         # Check if we have cached results
         if self._runs.get(key):
             cached_runs = self._runs[key]
@@ -1208,7 +1208,7 @@ class Api:
             if not lazy and cached_runs._lazy:
                 cached_runs.upgrade_to_full()
             return cached_runs
-        
+
         # Create new Runs object
         self._runs[key] = public.Runs(
             self.client,
