@@ -22,17 +22,20 @@ import (
 // It is used to track CPU usage, memory consumption, disk utilization, and network traffic
 // for both the entire system and individual processes.
 type System struct {
-	// pid is the process ID to monitor for CPU and memory usage
+	// pid is the process ID to monitor for CPU and memory usage.
 	pid int32
 
-	// diskPaths contains the paths to monitor for disk usage
+	// diskPaths are the file system paths to monitor.
 	diskPaths []string
 
-	// diskReadBytesInit stores the initial disk read bytes to calculate deltas
-	diskReadBytesInit int
+	// diskDevices are the real devices that back diskPaths.
+	diskDevices map[string]struct{}
 
-	// diskWriteBytesInit stores the initial disk write bytes to calculate deltas
-	diskWriteBytesInit int
+	// diskIntialReadBytes stores the readings of bytes read from disk at init per device.
+	diskIntialReadBytes map[string]uint64
+
+	// diskInitialWriteBytes stores the readings of bytes written to disk at init per device.
+	diskInitialWriteBytes map[string]uint64
 
 	// networkBytesSentInit stores the initial network bytes sent to calculate deltas
 	networkBytesSentInit int
@@ -47,19 +50,42 @@ type SystemParams struct {
 }
 
 func NewSystem(params SystemParams) *System {
-	s := &System{pid: params.Pid, diskPaths: params.DiskPaths}
+	s := &System{
+		pid:                   params.Pid,
+		diskPaths:             params.DiskPaths,
+		diskDevices:           make(map[string]struct{}),
+		diskIntialReadBytes:   make(map[string]uint64),
+		diskInitialWriteBytes: make(map[string]uint64),
+	}
 
 	// Initialize disk I/O counters
-	ioCounters, err := disk.IOCounters()
-	fmt.Printf("%+v", ioCounters)
-	partitions, err := disk.Partitions(false)
-	fmt.Printf("%+v", partitions)
-	if err == nil && len(ioCounters) > 0 {
-		// Use the first disk as baseline if available
-		// TODO: monitor all disks
-		if counter, ok := ioCounters["disk0"]; ok {
-			s.diskReadBytesInit = int(counter.ReadBytes)
-			s.diskWriteBytesInit = int(counter.WriteBytes)
+	// Resolve the devices that back the requested paths
+	parts, _ := disk.Partitions(false)
+	for _, part := range parts {
+		for _, mp := range s.diskPaths {
+			if strings.HasPrefix(mp, part.Mountpoint) {
+				s.diskDevices[trimDevPrefix(part.Device)] = struct{}{}
+			}
+		}
+	}
+	// Fallback: if nothing matched, watch every real block device.
+	if len(s.diskDevices) == 0 {
+		if ios, _ := disk.IOCounters(); len(ios) > 0 {
+			for d := range ios {
+				if pseudoDevice(d) {
+					continue
+				}
+				s.diskDevices[d] = struct{}{}
+			}
+		}
+	}
+
+	if ios, _ := disk.IOCounters(); len(ios) > 0 {
+		for dev := range s.diskDevices {
+			if c, ok := ios[dev]; ok {
+				s.diskIntialReadBytes[dev] = c.ReadBytes
+				s.diskInitialWriteBytes[dev] = c.WriteBytes
+			}
 		}
 	}
 
@@ -71,6 +97,14 @@ func NewSystem(params SystemParams) *System {
 	}
 
 	return s
+}
+
+func trimDevPrefix(path string) string { return strings.TrimPrefix(path, "/dev/") }
+
+func pseudoDevice(d string) bool {
+	return strings.HasPrefix(d, "loop") ||
+		strings.HasPrefix(d, "ram") ||
+		strings.HasPrefix(d, "zram")
 }
 
 // Sample collects current system metrics and returns them in a structured format.
@@ -252,22 +286,27 @@ func (s *System) collectDiskUsageMetrics(metrics map[string]any) error {
 
 // collectDiskIOMetrics gathers disk I/O statistics.
 func (s *System) collectDiskIOMetrics(metrics map[string]any) error {
-	ioCounters, err := disk.IOCounters()
+	ios, err := disk.IOCounters()
 	if err != nil {
-		// Don't report "not implemented yet" errors
 		if !strings.Contains(err.Error(), "not implemented yet") {
 			return err
 		}
 		return nil
 	}
 
-	// Get data from the first disk if available
-	if counter, ok := ioCounters["disk0"]; ok {
-		// MB read/written
-		metrics["disk.in"] = float64(int(counter.ReadBytes)-s.diskReadBytesInit) / 1024 / 1024
-		metrics["disk.out"] = float64(int(counter.WriteBytes)-s.diskWriteBytesInit) / 1024 / 1024
-	}
+	for dev := range s.diskDevices {
+		c, ok := ios[dev]
+		if !ok {
+			continue // device disappeared?
+		}
 
+		inBytes := c.ReadBytes - s.diskIntialReadBytes[dev]
+		outBytes := c.WriteBytes - s.diskInitialWriteBytes[dev]
+
+		// MB read / written per device
+		metrics[fmt.Sprintf("disk.%s.in", dev)] = float64(inBytes) / 1024 / 1024
+		metrics[fmt.Sprintf("disk.%s.out", dev)] = float64(outBytes) / 1024 / 1024
+	}
 	return nil
 }
 
