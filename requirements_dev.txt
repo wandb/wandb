@@ -17,7 +17,7 @@ moviepy~=1.0
 imageio[ffmpeg]
 matplotlib
 soundfile
-rdkit; python_version < '3.13'
+rdkit
 plotly
 bokeh
 
@@ -43,14 +43,11 @@ protobuf==3.19.6; python_version < '3.9' and sys_platform == 'darwin'
 
 
 scikit-learn
-tensorflow; python_version > '3.11'
-tensorflow<2.14; sys_platform != 'darwin' and python_version < '3.12'
-tensorflow-macos; python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
 torch
 torchvision
 jax[cpu]
-lightning; python_version < '3.13'
-ray[air,tune]; python_version < '3.13'
+lightning
+ray[air,tune]
 
 # Latest version of plum-dispatch tested is 2.5.7
 plum-dispatch>=2.0.0,<3.0.0
@@ -61,10 +58,10 @@ lightgbm
 mlflow
 urllib3
 docker
-catboost; python_version < '3.13'
+catboost
 openai
 gymnasium < 1.0.0
-stable_baselines3; python_version < '3.13'
+stable_baselines3
 
 requests~=2.23
 responses
