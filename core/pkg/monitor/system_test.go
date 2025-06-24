@@ -37,7 +37,7 @@ func TestSLURMProbe(t *testing.T) {
 				t.Setenv(k, v)
 			}
 
-			slurm := monitor.NewSystem(0, []string{"/"})
+			slurm := monitor.NewSystem(monitor.SystemParams{Pid: 0, DiskPaths: []string{"/"}})
 			result := slurm.Probe()
 
 			if !reflect.DeepEqual(result.Slurm, tt.expected.Slurm) {

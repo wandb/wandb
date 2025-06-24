@@ -42,12 +42,12 @@ type System struct {
 }
 
 type SystemParams struct {
-	pid       int32
-	diskPaths []string
+	Pid       int32
+	DiskPaths []string
 }
 
 func NewSystem(params SystemParams) *System {
-	s := &System{pid: params.pid, diskPaths: params.diskPaths}
+	s := &System{pid: params.Pid, diskPaths: params.DiskPaths}
 
 	// Initialize disk I/O counters
 	ioCounters, err := disk.IOCounters()
