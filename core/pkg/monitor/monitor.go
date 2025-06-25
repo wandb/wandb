@@ -142,12 +142,16 @@ func NewSystemMonitor(params SystemMonitorParams) *SystemMonitor {
 // initializeResources sets up the resources to be monitored based on the provided settings.
 func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceManager) {
 	pid := sm.settings.GetStatsPid()
-	diskPaths := sm.settings.GetStatsDiskPaths()
 	samplingInterval := sm.settings.GetStatsSamplingInterval()
 	neuronMonitorConfigPath := sm.settings.GetStatsNeuronMonitorConfigPath()
 	gpuDeviceIds := sm.settings.GetStatsGpuDeviceIds()
 
-	if system := NewSystem(pid, diskPaths); system != nil {
+	if system := NewSystem(
+		SystemParams{
+			Pid:       pid,
+			DiskPaths: sm.settings.GetStatsDiskPaths(),
+		},
+	); system != nil {
 		sm.resources = append(sm.resources, system)
 	}
 
