@@ -24,6 +24,18 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..wandb_run import Run as LocalRun
 
 
+def _should_print_spinner() -> bool:
+    is_quiet = os.environ.get("WANDB_QUIET", "false").lower() == "true"
+    is_silent = os.environ.get("WANDB_SILENT", "false").lower() == "true"
+    singleton = wandb_setup.singleton_if_setup()
+    return not (
+        is_quiet
+        or is_silent
+        or (singleton and singleton.settings.quiet)
+        or (singleton and singleton.settings.silent)
+    )
+
+
 # This helper function is a workaround for the issue discussed here:
 # https://github.com/wandb/wandb/issues/3472
 #
@@ -167,15 +179,14 @@ class Video(BatchableMedia):
                 )
             fps = fps or 4
 
-            settings = wandb_setup.singleton().settings
-            if settings.quiet or settings.silent:
-                self.encode(fps=fps)
-            else:
+            if _should_print_spinner():
                 printer_asyncio.run_async_with_spinner(
                     printer.new_printer(),
                     "Encoding video...",
                     functools.partial(self.encode, fps=fps),
                 )
+            else:
+                self.encode(fps=fps)
 
     def encode(self, fps: int = 4) -> None:
         """Encode the video data to a file.
