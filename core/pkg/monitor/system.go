@@ -148,6 +148,35 @@ func pseudoDevice(d string) bool {
 		strings.HasPrefix(d, "zram")
 }
 
+// processAndDescendants finds the root process and all its children, recursively.
+//
+// This is analogous to `psutil.Process.children(recursive=True)` in Python.
+func processAndDescendants(pid int32) ([]*process.Process, error) {
+	rootProc, err := process.NewProcess(pid)
+	if err != nil {
+		return nil, err
+	}
+
+	out := []*process.Process{rootProc}
+	queue := []*process.Process{rootProc}
+
+	for len(queue) > 0 {
+		currProc := queue[0]
+		queue = queue[1:]
+
+		children, err := currProc.Children()
+		if err != nil {
+			// best effort
+			return out, err
+		}
+
+		queue = append(queue, children...)
+		out = append(out, children...)
+	}
+
+	return out, nil
+}
+
 // Sample collects current system metrics and returns them in a structured format.
 //
 // It gathers information about:
@@ -160,7 +189,10 @@ func (s *System) Sample() (*spb.StatsRecord, error) {
 	metrics := make(map[string]any)
 	var errs []error
 
-	proc := process.Process{Pid: s.pid}
+	proc, err := process.NewProcess(s.pid)
+	if err != nil {
+		return nil, err
+	}
 
 	// Collect network metrics
 	if err := s.collectNetworkMetrics(metrics); err != nil {
@@ -174,17 +206,17 @@ func (s *System) Sample() (*spb.StatsRecord, error) {
 	}
 
 	// Collect process memory metrics
-	if err := s.collectProcessMemoryMetrics(&proc, virtualMem, metrics); err != nil {
+	if err := s.collectProcessMemoryMetrics(proc, virtualMem, metrics); err != nil {
 		errs = append(errs, err)
 	}
 
 	// Collect CPU metrics
-	if err := s.collectCPUMetrics(&proc, metrics); err != nil {
+	if err := s.collectCPUMetrics(proc, metrics); err != nil {
 		errs = append(errs, err)
 	}
 
 	// Collect thread metrics
-	if err := s.collectThreadMetrics(&proc, metrics); err != nil {
+	if err := s.collectThreadMetrics(proc, metrics); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -273,6 +305,11 @@ func (s *System) collectCPUMetrics(proc *process.Process, metrics map[string]any
 		metrics["cpu"] = procCPU / float64(cpuCount)
 	} else {
 		metrics["cpu"] = procCPU
+	}
+
+	cpuInfo, err := cpu.Info()
+	if err != nil {
+		fmt.Printf("%+v\n", cpuInfo)
 	}
 
 	// total system CPU usage in percent
