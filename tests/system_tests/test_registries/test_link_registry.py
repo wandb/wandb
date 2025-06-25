@@ -22,12 +22,12 @@ def team_and_org(
     return backend_fixture_factory.make_team(username=user)
 
 
-@fixture
+@fixture(scope="module")
 def team(team_and_org: TeamAndOrgNames) -> str:
     return team_and_org.team
 
 
-@fixture
+@fixture(scope="module")
 def org(team_and_org: TeamAndOrgNames) -> str:
     """Set up backend resources for testing link_artifact within a registry."""
     return team_and_org.org
