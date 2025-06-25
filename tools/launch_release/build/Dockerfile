@@ -45,9 +45,9 @@ ENV PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
 ARG REF="main"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --component cargo && \
     export PATH="/root/.cargo/bin:${PATH}" && \
-    pip install --upgrade pip && \
+    pip install -vvv --upgrade pip && \
     pip uninstall -y setuptools && \
-    pip install --no-cache-dir git+https://github.com/wandb/wandb.git@$REF#egg=wandb[launch] && \
+    pip install -vvv --no-cache-dir git+https://github.com/wandb/wandb.git@$REF#egg=wandb[launch] && \
     rm -rf /root/.cargo /root/.rustup && \
     apt-get remove -y curl && \
     apt-get -qy autoremove && \
