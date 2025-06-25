@@ -22,12 +22,12 @@ def team_and_org(
     return backend_fixture_factory.make_team(username=user)
 
 
-@fixture(scope="module")
+@fixture
 def team(team_and_org: TeamAndOrgNames) -> str:
     return team_and_org.team
 
 
-@fixture(scope="module")
+@fixture
 def org(team_and_org: TeamAndOrgNames) -> str:
     """Set up backend resources for testing link_artifact within a registry."""
     return team_and_org.org
@@ -113,6 +113,7 @@ def test_artifact_link_to_registry_collection(
     org_entity: str,
     target_path: str,
     registry: Registry,
+    source_artifact: Artifact,
     aliases: list[str] | None,
     target_collection_name: str,
     worker_id: str,
