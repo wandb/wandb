@@ -205,18 +205,8 @@ func (s *System) Sample() (*spb.StatsRecord, error) {
 		errs = append(errs, err)
 	}
 
-	// Collect process memory metrics
-	if err := s.collectProcessMemoryMetrics(proc, virtualMem, metrics); err != nil {
-		errs = append(errs, err)
-	}
-
-	// Collect CPU metrics
-	if err := s.collectCPUMetrics(proc, metrics); err != nil {
-		errs = append(errs, err)
-	}
-
-	// Collect thread metrics
-	if err := s.collectThreadMetrics(proc, metrics); err != nil {
+	// Collect process-specific metrics
+	if err := s.collectProcessTreeMetrics(proc, virtualMem, metrics); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -235,6 +225,59 @@ func (s *System) Sample() (*spb.StatsRecord, error) {
 	}
 
 	return marshal(metrics, timestamppb.Now()), errors.Join(errs...)
+}
+
+// collectProcessTreeMetrics gathers RSS, CPU%, and thread count for a process and its descendants.
+func (s *System) collectProcessTreeMetrics(
+	root *process.Process,
+	virtualMem *mem.VirtualMemoryStat,
+	metrics map[string]any,
+) error {
+	procs, err := processAndDescendants(root.Pid)
+	fmt.Println(procs)
+
+	if err != nil {
+		return err
+	}
+
+	var (
+		totalRSS     uint64
+		totalCPU     float64
+		totalThreads int32
+	)
+
+	for _, p := range procs {
+		// Memory
+		if mi, err := p.MemoryInfo(); err == nil {
+			totalRSS += mi.RSS
+		}
+
+		// CPU
+		if pcpu, err := p.CPUPercent(); err == nil {
+			totalCPU += pcpu // raw – we'll normalise later
+		}
+
+		// Threads
+		if th, err := p.NumThreads(); err == nil {
+			totalThreads += th
+		}
+	}
+
+	metrics["proc.memory.rssMB"] = float64(totalRSS) / 1024 / 1024
+	if virtualMem != nil && virtualMem.Total > 0 {
+		metrics["proc.memory.percent"] =
+			(float64(totalRSS) / float64(virtualMem.Total)) * 100
+	}
+
+	// Normalise CPU by logical core-count
+	if cores, err := cpu.Counts(true); err == nil && cores > 0 {
+		metrics["cpu"] = totalCPU / float64(cores)
+	} else {
+		metrics["cpu"] = totalCPU
+	}
+
+	metrics["proc.cpu.threads"] = float64(totalThreads)
+	return nil
 }
 
 // collectNetworkMetrics gathers network traffic statistics.
@@ -265,79 +308,6 @@ func (s *System) collectSystemMemoryMetrics(metrics map[string]any) (*mem.Virtua
 	metrics["proc.memory.availableMB"] = float64(virtualMem.Available) / 1024 / 1024
 
 	return virtualMem, nil
-}
-
-// collectProcessMemoryMetrics gathers process-specific memory statistics.
-func (s *System) collectProcessMemoryMetrics(proc *process.Process, virtualMem *mem.VirtualMemoryStat, metrics map[string]any) error {
-	procMem, err := proc.MemoryInfo()
-	if err != nil {
-		return err
-	}
-
-	// Process memory usage in MB
-	metrics["proc.memory.rssMB"] = float64(procMem.RSS) / 1024 / 1024
-
-	// Process memory usage in percent
-	if virtualMem != nil && virtualMem.Total > 0 {
-		metrics["proc.memory.percent"] = float64(procMem.RSS) / float64(virtualMem.Total) * 100
-	}
-
-	return nil
-}
-
-// collectCPUMetrics gathers CPU utilization statistics.
-func (s *System) collectCPUMetrics(proc *process.Process, metrics map[string]any) error {
-	procCPU, err := proc.CPUPercent()
-	if err != nil {
-		return err
-	}
-
-	// Get CPU count to normalize the percentage
-	cpuCount, err := cpu.Counts(true)
-	if err != nil {
-		// If we can't get the CPU count, use the raw value
-		metrics["cpu"] = procCPU
-		return err
-	}
-
-	// Normalize CPU usage by core count
-	if cpuCount > 0 {
-		metrics["cpu"] = procCPU / float64(cpuCount)
-	} else {
-		metrics["cpu"] = procCPU
-	}
-
-	cpuInfo, err := cpu.Info()
-	if err != nil {
-		fmt.Printf("%+v\n", cpuInfo)
-	}
-
-	// total system CPU usage in percent
-	// TODO: make logging this configurable.
-	// utilization, err := cpu.Percent(0, true)
-	// if err != nil {
-	// 	// do not log "not implemented yet" errors
-	// 	if !strings.Contains(err.Error(), "not implemented yet") {
-	// 		errs = append(errs, err)
-	// 	}
-	// } else {
-	// 	for i, u := range utilization {
-	// 		metrics[fmt.Sprintf("cpu.%d.cpu_percent", i)] = u
-	// 	}
-	// }
-
-	return nil
-}
-
-// collectThreadMetrics gathers thread count statistics.
-func (s *System) collectThreadMetrics(proc *process.Process, metrics map[string]any) error {
-	procThreads, err := proc.NumThreads()
-	if err != nil {
-		return err
-	}
-
-	metrics["proc.cpu.threads"] = float64(procThreads)
-	return nil
 }
 
 // collectDiskUsageMetrics gathers disk space utilization statistics.
@@ -436,6 +406,11 @@ func (s *System) Probe() *spb.EnvironmentRecord {
 	if cpuCountLogical, err := cpu.Counts(true); err == nil {
 		info.CpuCountLogical = uint32(cpuCountLogical)
 	}
+
+	// cpuInfo, err := cpu.Info()
+	// if err != nil {
+	// 	fmt.Printf("%+v\n", cpuInfo)
+	// }
 
 	// Collect disk information
 	for _, diskPath := range s.diskPaths {
