@@ -34,6 +34,7 @@ from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
 from wandb.apis.public.utils import gql_compat
 from wandb.data_types import WBValue
 from wandb.errors import CommError
+from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
@@ -278,6 +279,87 @@ class Artifact:
         return cls._from_attrs(entity_name, project_name, name, attrs, client)
 
     @classmethod
+    def _membership_from_name(
+        cls,
+        *,
+        entity: str,
+        project: str,
+        name: str,
+        client: RetryingClient,
+    ) -> Artifact:
+        if not InternalApi()._server_supports(
+            pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
+        ):
+            raise UnsupportedError(
+                "querying for the artifact collection membership is not supported "
+                "by this version of wandb server. Consider updating to the latest version."
+            )
+
+        query = gql(
+            f"""
+            query ArtifactByName($entityName: String!, $projectName: String!, $name: String!) {{
+                project(name: $projectName, entityName: $entityName) {{
+                    artifactCollectionMembership(name: $name) {{
+                        id
+                        artifactCollection {{
+                            id
+                            name
+                            project {{
+                                id
+                                entityName
+                                name
+                            }}
+                        }}
+                        artifact {{
+                            ...ArtifactFragment
+                        }}
+                    }}
+                }}
+            }}
+            {_gql_artifact_fragment()}
+            """
+        )
+
+        query_variable_values: dict[str, Any] = {
+            "entityName": entity,
+            "projectName": project,
+            "name": name,
+        }
+        response = client.execute(
+            query,
+            variable_values=query_variable_values,
+        )
+        if not (project_attrs := response.get("project")):
+            raise ValueError(f"project {project!r} not found under entity {entity!r}")
+        if not (acm_attrs := project_attrs.get("artifactCollectionMembership")):
+            entity_project = f"{entity}/{project}"
+            raise ValueError(
+                f"artifact membership {name!r} not found in {entity_project!r}"
+            )
+        if not (ac_attrs := acm_attrs.get("artifactCollection")):
+            raise ValueError("artifact collection not found")
+        if not (
+            (ac_name := ac_attrs.get("name"))
+            and (ac_project_attrs := ac_attrs.get("project"))
+        ):
+            raise ValueError("artifact collection project not found")
+        ac_project = ac_project_attrs.get("name")
+        ac_entity = ac_project_attrs.get("entityName")
+        if is_artifact_registry_project(ac_project) and project == "model-registry":
+            wandb.termwarn(
+                "This model registry has been migrated and will be discontinued. "
+                f"Your request was redirected to the corresponding artifact `{ac_name}` in the new registry. "
+                f"Please update your paths to point to the migrated registry directly, `{ac_project}/{ac_name}`."
+            )
+            entity = ac_entity
+            project = ac_project
+        if not (attrs := acm_attrs.get("artifact")):
+            entity_project = f"{entity}/{project}"
+            raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
+
+        return cls._from_attrs(entity, project, name, attrs, client)
+
+    @classmethod
     def _from_name(
         cls,
         *,
@@ -287,14 +369,31 @@ class Artifact:
         client: RetryingClient,
         enable_tracking: bool = False,
     ) -> Artifact:
+        if InternalApi()._server_supports(
+            pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
+        ):
+            return cls._membership_from_name(
+                entity=entity,
+                project=project,
+                name=name,
+                client=client,
+            )
+
+        query_variable_values: dict[str, Any] = {
+            "entityName": entity,
+            "projectName": project,
+            "name": name,
+        }
+        query_vars = ["$entityName: String!", "$projectName: String!", "$name: String!"]
+        query_args = ["name: $name"]
+
         server_supports_enabling_artifact_usage_tracking = (
             InternalApi().server_project_type_introspection()
         )
-        query_vars = ["$entityName: String!", "$projectName: String!", "$name: String!"]
-        query_args = ["name: $name"]
         if server_supports_enabling_artifact_usage_tracking:
             query_vars.append("$enableTracking: Boolean")
             query_args.append("enableTracking: $enableTracking")
+            query_variable_values["enableTracking"] = enable_tracking
 
         vars_str = ", ".join(query_vars)
         args_str = ", ".join(query_args)
@@ -311,14 +410,6 @@ class Artifact:
             {_gql_artifact_fragment()}
             """
         )
-        query_variable_values: dict[str, Any] = {
-            "entityName": entity,
-            "projectName": project,
-            "name": name,
-        }
-        if server_supports_enabling_artifact_usage_tracking:
-            query_variable_values["enableTracking"] = enable_tracking
-
         response = client.execute(
             query,
             variable_values=query_variable_values,
@@ -329,6 +420,7 @@ class Artifact:
         attrs = project_attrs.get("artifact")
         if not attrs:
             raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
+
         return cls._from_attrs(entity, project, name, attrs, client)
 
     @classmethod
