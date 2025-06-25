@@ -113,7 +113,6 @@ def test_artifact_link_to_registry_collection(
     org_entity: str,
     target_path: str,
     registry: Registry,
-    source_artifact: Artifact,
     aliases: list[str] | None,
     target_collection_name: str,
     worker_id: str,
