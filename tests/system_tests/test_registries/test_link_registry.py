@@ -9,7 +9,6 @@ from pytest_mock import MockerFixture
 from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.registries.registry import Registry
 from wandb.proto.wandb_internal_pb2 import ServerFeature
-from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.util import random_string
 
@@ -68,24 +67,6 @@ def registry(api: wandb.Api, org: str, worker_id: str) -> Registry:
     )
 
 
-@fixture(scope="module")
-def source_artifact(team: str, worker_id: str) -> Artifact:
-    """Create a source artifact logged within a team entity.
-
-    Log this once per module to reduce overhead for each test run.
-    This should be fine as long as we're mainly testing linking functionality.
-    """
-    # In order to link to an org registry, the source artifact must be logged
-    # within a team entity, NOT the user's personal entity.
-    artifact = wandb.Artifact(
-        name=f"test-artifact-{worker_id}-{random_string(8)}", type="dataset"
-    )
-    with wandb.init(entity=team) as run:
-        logged = run.log_artifact(artifact)
-        logged.wait()
-        return logged
-
-
 @fixture
 def target_collection_name(worker_id: str) -> str:
     return f"collection-{worker_id}-{random_string(8)}"
@@ -129,15 +110,26 @@ def target_path(
     )
 
 
-def test_artifact_link_vs_run_link_artifact_on_registry_collection(
+def test_artifact_link_to_registry_collection(
+    team: str,
     api: wandb.Api,
     org_entity: str,
     target_path: str,
     registry: Registry,
-    source_artifact: Artifact,
     aliases: list[str] | None,
     target_collection_name: str,
+    worker_id: str,
 ):
+    # In order to link to an org registry, the source artifact must be logged
+    # within a team entity, NOT the user's personal entity.
+    source_artifact = wandb.Artifact(
+        name=f"test-artifact-{worker_id}-{random_string(8)}",
+        type="dataset",
+    )
+    with wandb.init(entity=team) as run:
+        source_artifact = run.log_artifact(source_artifact)
+
+    # Link to the target collection
     linked = source_artifact.link(target_path, aliases=aliases)
 
     assert linked is not None
