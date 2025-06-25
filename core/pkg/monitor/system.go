@@ -119,11 +119,6 @@ func NewSystem(params SystemParams) *System {
 		}
 	}
 
-	io, _ := disk.IOCounters()
-	fmt.Printf("%+v\n", io)
-	p, _ := disk.Partitions(false)
-	fmt.Printf("%+v\n", p)
-
 	if ios, _ := DiskIOCounters(); len(ios) > 0 {
 		for dev := range s.diskDevices {
 			if c, ok := ios[dev]; ok {
@@ -132,9 +127,6 @@ func NewSystem(params SystemParams) *System {
 			}
 		}
 	}
-
-	fmt.Printf("%+v\n", s.diskDevices)
-	fmt.Printf("%+v\n", s.diskIntialReadBytes)
 
 	// Initialize network I/O counters
 	netIOCounters, err := net.IOCounters(false)
@@ -147,7 +139,6 @@ func NewSystem(params SystemParams) *System {
 }
 
 func trimDevPrefix(path string) string {
-	// TODO: support HOST_DEV
 	return strings.TrimPrefix(path, "/dev/")
 }
 
