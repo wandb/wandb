@@ -45,21 +45,21 @@ else:
 
 __all__ = [
     # Scopes
-    "ScopeType", # doc:exclude
-    "ArtifactCollectionScope", # doc:exclude
-    "ProjectScope", # doc:exclude
+    "ScopeType",  # doc:exclude
+    "ArtifactCollectionScope",  # doc:exclude
+    "ProjectScope",  # doc:exclude
     # Events
-    "EventType", # doc:exclude
+    "EventType",  # doc:exclude
     "OnAddArtifactAlias",
     "OnCreateArtifact",
     "OnLinkArtifact",
     "OnRunMetric",
-    "ArtifactEvent", # doc:exclude
-    "RunEvent", # doc:exclude
+    "ArtifactEvent",  # doc:exclude
+    "RunEvent",  # doc:exclude
     "MetricThresholdFilter",
     "MetricChangeFilter",
     # Actions
-    "ActionType", # doc:exclude
+    "ActionType",  # doc:exclude
     "SendNotification",
     "SendWebhook",
     "DoNothing",
@@ -67,7 +67,7 @@ __all__ = [
     "Automation",
     "NewAutomation",
     # Integrations
-    "Integration", # doc:exclude
-    "SlackIntegration", # doc:exclude
-    "WebhookIntegration", # doc:exclude
+    "Integration",  # doc:exclude
+    "SlackIntegration",  # doc:exclude
+    "WebhookIntegration",  # doc:exclude
 ]
