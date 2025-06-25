@@ -69,16 +69,36 @@ func NewSystem(params SystemParams) *System {
 
 	// Resolve the devices that back the requested paths.
 	parts, _ := DiskPartitions(false)
+
+	// rootMissing tracks whether we've seen "/" among mount-points reported by DiskPartitions.
+	// If "/" is an `overlay` (happens, e.g. inside Docker), DiskPartitions(false) will
+	// filter it out, and we will need to treat this case separately.
+	rootMissing := true
 	for _, part := range parts {
-		for _, mp := range s.diskPaths {
-			if strings.HasPrefix(mp, part.Mountpoint) {
+		if part.Mountpoint == "/" {
+			rootMissing = false // normal host, we found the root
+		}
+		for _, p := range s.diskPaths { // normal prefix-match rule
+			// Mount-point must be a prefix of the requested path.
+			if strings.HasPrefix(p, part.Mountpoint) {
 				s.diskDevices[trimDevPrefix(part.Device)] = struct{}{}
 			}
 		}
 	}
 
+	// The caller asked for "/" (the default) but none of the partitions listed it.
+	// In that situation, adopt every partition we *did* see as "belonging to /".
+	if rootMissing && len(s.diskPaths) == 1 && s.diskPaths[0] == "/" {
+		for _, part := range parts {
+			dev := trimDevPrefix(part.Device)
+			if !pseudoDevice(dev) {
+				s.diskDevices[dev] = struct{}{}
+			}
+		}
+	}
+
 	// Keep only the devices present in IOCounters.
-	ios, _ := disk.IOCounters()
+	ios, _ := DiskIOCounters()
 	filtered := make(map[string]struct{})
 	for dev := range s.diskDevices {
 		if _, ok := ios[dev]; ok {
@@ -126,7 +146,10 @@ func NewSystem(params SystemParams) *System {
 	return s
 }
 
-func trimDevPrefix(path string) string { return strings.TrimPrefix(path, "/dev/") }
+func trimDevPrefix(path string) string {
+	// TODO: support HOST_DEV
+	return strings.TrimPrefix(path, "/dev/")
+}
 
 func pseudoDevice(d string) bool {
 	return strings.HasPrefix(d, "loop") ||
