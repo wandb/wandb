@@ -144,10 +144,9 @@ class Runs(SizedPaginator["Run"]):
 
     @property
     def length(self):
-        if self.last_response:
-            return self.last_response["project"]["runCount"]
-        else:
-            return None
+        if not self.last_response:
+            self._load_page()
+        return self.last_response["project"]["runCount"]
 
     @property
     def more(self):
