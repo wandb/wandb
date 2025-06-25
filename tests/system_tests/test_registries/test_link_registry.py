@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING
 
 import wandb
 from pytest import FixtureRequest, fixture, skip
-from pytest_mock import MockerFixture
+from wandb import Api, Artifact
 from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.registries.registry import Registry
 from wandb.proto.wandb_internal_pb2 import ServerFeature
@@ -16,59 +15,57 @@ if TYPE_CHECKING:
     from ..backend_fixtures import BackendFixtureFactory, TeamAndOrgNames
 
 
-@fixture(scope="module")
-def user(backend_fixture_factory: BackendFixtureFactory) -> str:
-    return backend_fixture_factory.make_user(admin=True)
-
-
-@fixture(scope="module")
+@fixture
 def team_and_org(
-    user: str, backend_fixture_factory: BackendFixtureFactory
+    backend_fixture_factory: BackendFixtureFactory, user: str
 ) -> TeamAndOrgNames:
     return backend_fixture_factory.make_team(username=user)
 
 
-@fixture(scope="module")
+@fixture
 def team(team_and_org: TeamAndOrgNames) -> str:
     return team_and_org.team
 
 
-@fixture(scope="module")
+@fixture
 def org(team_and_org: TeamAndOrgNames) -> str:
     """Set up backend resources for testing link_artifact within a registry."""
     return team_and_org.org
 
 
-@fixture(scope="module")
-def api(module_mocker: MockerFixture, user: str, team: str, org: str) -> wandb.Api:
-    envvars = {
-        "WANDB_USERNAME": user,
-        "WANDB_API_KEY": user,
-        "WANDB_ENTITY": team,
-    }
-    module_mocker.patch.dict(os.environ, envvars)
-    return wandb.Api()
-
-
-@fixture(scope="module")
-def org_entity(api: wandb.Api, org: str) -> str:
+@fixture
+def org_entity(org: str, api: Api) -> str:
     if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
         skip("Cannot fetch org entity on this server version.")
+
     return fetch_org_entity_from_organization(api.client, org)
 
 
-@fixture(scope="module")
-def registry(api: wandb.Api, org: str, worker_id: str) -> Registry:
+@fixture
+def registry(org: str, api: Api, worker_id: str) -> Registry:
     # Full name will be "wandb-registry-model"
+    if not InternalApi()._server_supports(
+        ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
+    ):
+        skip("Cannot create a test registry on this server version.")
+
     return api.create_registry(
-        f"model-{worker_id}-{random_string(8)}",
-        visibility="organization",
-        organization=org,
+        name="model", visibility="organization", organization=org
     )
 
 
 @fixture
+def source_artifact(team: str, worker_id: str) -> Artifact:
+    # In order to link to an org registry, the source artifact must be logged
+    # within a TEAM entity, NOT the user's personal entity.
+    with wandb.init(entity=team) as run:
+        artifact = Artifact(name="test-artifact", type="dataset")
+        return run.log_artifact(artifact)
+
+
+@fixture
 def target_collection_name(worker_id: str) -> str:
+    """The name of the target collection to link to."""
     return f"collection-{worker_id}-{random_string(8)}"
 
 
@@ -87,8 +84,8 @@ def aliases(request: FixtureRequest) -> list[str] | None:
 
 @fixture(
     params=[
-        "{org_entity}/{registry.full_name}/{target_collection_name}",
-        "{registry.full_name}/{target_collection_name}",
+        "{org_entity}/{registry_name}/{collection_name}",
+        "{registry_name}/{collection_name}",
     ]
 )
 def target_path(
@@ -105,30 +102,22 @@ def target_path(
     path_template = request.param
     return path_template.format(
         org_entity=org_entity,
-        registry=registry,
-        target_collection_name=target_collection_name,
+        registry_name=registry.full_name,
+        collection_name=target_collection_name,
     )
 
 
 def test_artifact_link_to_registry_collection(
     team: str,
-    api: wandb.Api,
+    api: Api,
     org_entity: str,
     target_path: str,
     registry: Registry,
+    source_artifact: Artifact,
     aliases: list[str] | None,
     target_collection_name: str,
     worker_id: str,
 ):
-    # In order to link to an org registry, the source artifact must be logged
-    # within a team entity, NOT the user's personal entity.
-    source_artifact = wandb.Artifact(
-        name=f"test-artifact-{worker_id}-{random_string(8)}",
-        type="dataset",
-    )
-    with wandb.init(entity=team) as run:
-        source_artifact = run.log_artifact(source_artifact)
-
     # Link to the target collection
     linked = source_artifact.link(target_path, aliases=aliases)
 
