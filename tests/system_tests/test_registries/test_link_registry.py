@@ -17,53 +17,59 @@ if TYPE_CHECKING:
     from ..backend_fixtures import BackendFixtureFactory, TeamAndOrgNames
 
 
-@fixture
+@fixture(scope="module")
 def user(backend_fixture_factory: BackendFixtureFactory) -> str:
-    return backend_fixture_factory.make_user()
+    return backend_fixture_factory.make_user(admin=True)
 
 
-@fixture
-def team_and_org(user: str, backend_fixture_factory) -> TeamAndOrgNames:
+@fixture(scope="module")
+def team_and_org(
+    user: str, backend_fixture_factory: BackendFixtureFactory
+) -> TeamAndOrgNames:
     return backend_fixture_factory.make_team(username=user)
 
 
-@fixture
+@fixture(scope="module")
 def team(team_and_org: TeamAndOrgNames) -> str:
     return team_and_org.team
 
 
-@fixture
+@fixture(scope="module")
 def org(team_and_org: TeamAndOrgNames) -> str:
     """Set up backend resources for testing link_artifact within a registry."""
     return team_and_org.org
 
 
-@fixture
+@fixture(scope="module")
 def api(module_mocker: MockerFixture, user: str, team: str, org: str) -> wandb.Api:
     envvars = {
         "WANDB_USERNAME": user,
         "WANDB_API_KEY": user,
-        "WANDB_ENTITY": org,
+        "WANDB_ENTITY": team,
     }
     module_mocker.patch.dict(os.environ, envvars)
-    return wandb.Api(overrides={"organization": org})
+    return wandb.Api()
 
 
-@fixture
+@fixture(scope="module")
 def org_entity(api: wandb.Api, org: str) -> str:
     if not InternalApi()._server_supports(ServerFeature.ARTIFACT_REGISTRY_SEARCH):
         skip("Cannot fetch org entity on this server version.")
     return fetch_org_entity_from_organization(api.client, org)
 
 
-@fixture
-def registry(api: wandb.Api, org: str) -> Registry:
+@fixture(scope="module")
+def registry(api: wandb.Api, org: str, worker_id: str) -> Registry:
     # Full name will be "wandb-registry-model"
-    return api.create_registry("model", visibility="organization", organization=org)
+    return api.create_registry(
+        f"model-{worker_id}-{random_string(8)}",
+        visibility="organization",
+        organization=org,
+    )
 
 
-@fixture
-def source_artifact(team: str) -> Artifact:
+@fixture(scope="module")
+def source_artifact(team: str, worker_id: str) -> Artifact:
     """Create a source artifact logged within a team entity.
 
     Log this once per module to reduce overhead for each test run.
@@ -71,9 +77,13 @@ def source_artifact(team: str) -> Artifact:
     """
     # In order to link to an org registry, the source artifact must be logged
     # within a team entity, NOT the user's personal entity.
+    artifact = wandb.Artifact(
+        name=f"test-artifact-{worker_id}-{random_string(8)}", type="dataset"
+    )
     with wandb.init(entity=team) as run:
-        artifact = wandb.Artifact(name="test-artifact", type="dataset")
-        return run.log_artifact(artifact)
+        logged = run.log_artifact(artifact)
+        logged.wait()
+        return logged
 
 
 @fixture
