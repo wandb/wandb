@@ -407,11 +407,6 @@ func (s *System) Probe() *spb.EnvironmentRecord {
 		info.CpuCountLogical = uint32(cpuCountLogical)
 	}
 
-	// cpuInfo, err := cpu.Info()
-	// if err != nil {
-	// 	fmt.Printf("%+v\n", cpuInfo)
-	// }
-
 	// Collect disk information
 	for _, diskPath := range s.diskPaths {
 		if usage, err := disk.Usage(diskPath); err == nil {
