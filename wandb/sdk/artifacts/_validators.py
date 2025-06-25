@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import astuple, dataclass, field, replace
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVar, cast
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+from typing_extensions import Self
 
 from wandb._iterutils import always_list
 from wandb._pydantic import gql_typename
@@ -259,3 +262,38 @@ def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
 
 def is_artifact_registry_project(project: str) -> bool:
     return project.startswith(REGISTRY_PREFIX)
+
+
+@pydantic_dataclass
+class ArtifactPath:
+    #: The collection name.
+    name: str
+    #: The project name, which can also be a registry name.
+    project: Optional[str] = None  # noqa: UP045
+    #: Prefix is often an org or entity name.
+    prefix: Optional[str] = None  # noqa: UP045
+
+    @classmethod
+    def from_str(cls, path: str) -> Self:
+        """Instantiate by parsing an artifact path."""
+        if len(parts := path.split("/")) <= 3:
+            return cls(*reversed(parts))
+        raise ValueError(
+            f"Expected a valid path like `name`, `project/name`, or `prefix/project/name`.  Got: {path!r}"
+        )
+
+    def to_str(self) -> str:
+        """Returns the slash-separated string representation of the path."""
+        return "/".join(filter(bool, reversed(astuple(self))))
+
+    def with_defaults(
+        self,
+        prefix: str | None = None,
+        project: str | None = None,
+    ) -> Self:
+        """Returns this path with missing values set to the given defaults."""
+        return replace(
+            self,
+            prefix=self.prefix or prefix,
+            project=self.project or project,
+        )
