@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import wandb
 from pytest import FixtureRequest, fixture, skip
+from typing_extensions import assert_never
 from wandb import Api, Artifact
 from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.registries.registry import Registry
@@ -107,6 +108,34 @@ def target_path(
     )
 
 
+@fixture(params=["by_run", "by_artifact"])
+def linked_artifact(
+    request: FixtureRequest,
+    target_path: str,
+    source_artifact: Artifact,
+    aliases: list[str] | None,
+) -> Artifact:
+    """A fixture that links the artifact to a registry collection.
+
+    This is parameterized to test that the behavior of `Artifact.link()` and `Run.link_artifact()`
+    are equivalent.
+    """
+    # Link to the target collection
+    mode: Literal["by_run", "by_artifact"] = request.param
+    if mode == "by_run":
+        with wandb.init() as run:
+            linked = run.link_artifact(source_artifact, target_path, aliases=aliases)
+
+    elif mode == "by_artifact":
+        linked = source_artifact.link(target_path, aliases=aliases)
+
+    else:
+        assert_never(mode)
+
+    assert linked is not None  # precondition check
+    return linked
+
+
 def test_artifact_link_to_registry_collection(
     team: str,
     api: Api,
@@ -114,14 +143,12 @@ def test_artifact_link_to_registry_collection(
     target_path: str,
     registry: Registry,
     source_artifact: Artifact,
+    linked_artifact: Artifact,
     aliases: list[str] | None,
     target_collection_name: str,
     worker_id: str,
 ):
-    # Link to the target collection
-    linked = source_artifact.link(target_path, aliases=aliases)
-
-    assert linked is not None
+    linked = linked_artifact  # for brevity and convenience
 
     assert set(linked.aliases) == {"latest", *(aliases or [])}
     assert linked.collection.name == target_collection_name

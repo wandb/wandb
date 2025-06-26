@@ -41,6 +41,7 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib import asyncio_compat, wb_logging
@@ -166,6 +167,7 @@ class RunStatusChecker:
         self,
         run_id: str,
         interface: InterfaceBase,
+        settings: Settings,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
         internal_messages_polling_interval: int = 10,
@@ -175,6 +177,7 @@ class RunStatusChecker:
         self._stop_polling_interval = stop_polling_interval
         self._retry_polling_interval = retry_polling_interval
         self._internal_messages_polling_interval = internal_messages_polling_interval
+        self._settings = settings
 
         self._join_event = threading.Event()
 
@@ -316,9 +319,15 @@ class RunStatusChecker:
 
     def check_internal_messages(self) -> None:
         def _process_internal_messages(result: Result) -> None:
+            if (
+                not self._settings.show_warnings
+                or self._settings.quiet
+                or self._settings.silent
+            ):
+                return
             internal_messages = result.response.internal_messages_response
             for msg in internal_messages.messages.warning:
-                wandb.termwarn(msg)
+                wandb.termwarn(msg, repeat=False)
 
         with wb_logging.log_to_run(self._run_id):
             try:
@@ -2477,6 +2486,7 @@ class Run:
             self._run_status_checker = RunStatusChecker(
                 self._settings.run_id,
                 interface=self._backend.interface,
+                settings=self._settings,
             )
             self._run_status_checker.start()
 
@@ -2950,13 +2960,17 @@ class Run:
             # TODO: implement offline mode + sync
             raise NotImplementedError
 
-        # Normalize the target path
-        target_path = (
-            ArtifactPath.from_str(target_path)
-            .with_defaults(prefix=self.entity, project=self.project)
-            .to_str()
-        )
-        return artifact.link(target_path, aliases)
+        # Normalize the target "entity/project/collection" with defaults
+        # inferred from this run's entity and project, if needed.
+        #
+        # HOWEVER, if the target path is a registry collection, avoid setting
+        # the target entity to the run's entity.  Instead, delegate to
+        # Artifact.link() to resolve the required org entity.
+        target = ArtifactPath.from_str(target_path)
+        if not (target.project and is_artifact_registry_project(target.project)):
+            target = target.with_defaults(prefix=self.entity, project=self.project)
+
+        return artifact.link(target.to_str(), aliases)
 
     @_log_to_run
     @_raise_if_finished

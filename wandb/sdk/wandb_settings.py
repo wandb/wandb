@@ -677,7 +677,7 @@ class Settings(BaseModel, validate_assignment=True):
     This does not disable user-provided summary updates.
     """
 
-    x_server_side_expand_glob_metrics: bool = False
+    x_server_side_expand_glob_metrics: bool = True
     """Flag to delegate glob matching of metrics in define_metric to the server.
 
     If the server does not support this, the client will perform the glob matching.
