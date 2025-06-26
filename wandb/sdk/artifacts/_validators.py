@@ -268,6 +268,8 @@ def remove_registry_prefix(project: str) -> str:
     if is_artifact_registry_project(project):
         return project[len(REGISTRY_PREFIX) :]
     raise ValueError(f"Project {project!r} is not a registry project")
+
+
 @pydantic_dataclass
 class ArtifactPath:
     #: The collection name.
