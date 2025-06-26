@@ -35,13 +35,13 @@ from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import (
-    MetadataRequest,
     MetricRecord,
     PollExitResponse,
     Result,
     RunRecord,
 )
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib import asyncio_compat, wb_logging
@@ -63,7 +63,7 @@ from wandb.util import (
 from . import wandb_config, wandb_metric, wandb_summary
 from .artifacts._validators import (
     MAX_ARTIFACT_METADATA_KEYS,
-    is_artifact_registry_project,
+    ArtifactPath,
     validate_aliases,
     validate_tags,
 )
@@ -92,7 +92,6 @@ from .mailbox import (
     wait_with_progress,
 )
 from .wandb_alerts import AlertLevel
-from .wandb_metadata import Metadata
 from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
@@ -168,6 +167,7 @@ class RunStatusChecker:
         self,
         run_id: str,
         interface: InterfaceBase,
+        settings: Settings,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
         internal_messages_polling_interval: int = 10,
@@ -177,6 +177,7 @@ class RunStatusChecker:
         self._stop_polling_interval = stop_polling_interval
         self._retry_polling_interval = retry_polling_interval
         self._internal_messages_polling_interval = internal_messages_polling_interval
+        self._settings = settings
 
         self._join_event = threading.Event()
 
@@ -318,9 +319,15 @@ class RunStatusChecker:
 
     def check_internal_messages(self) -> None:
         def _process_internal_messages(result: Result) -> None:
+            if (
+                not self._settings.show_warnings
+                or self._settings.quiet
+                or self._settings.silent
+            ):
+                return
             internal_messages = result.response.internal_messages_response
             for msg in internal_messages.messages.warning:
-                wandb.termwarn(msg)
+                wandb.termwarn(msg, repeat=False)
 
         with wb_logging.log_to_run(self._run_id):
             try:
@@ -619,8 +626,6 @@ class Run:
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
-
-        self.__metadata: Metadata | None = None
 
         self._step = 0
         self._starting_step = 0
@@ -1647,7 +1652,7 @@ class Run:
     def _populate_git_info(self) -> None:
         from .lib.gitlib import GitRepo
 
-        # Use user provided git info if available otherwise resolve it from the environment
+        # Use user-provided git info if available, otherwise resolve it from the environment
         try:
             repo = GitRepo(
                 root=self._settings.git_root,
@@ -2481,6 +2486,7 @@ class Run:
             self._run_status_checker = RunStatusChecker(
                 self._settings.run_id,
                 interface=self._backend.interface,
+                settings=self._settings,
             )
             self._run_status_checker.start()
 
@@ -2947,13 +2953,6 @@ class Run:
             The linked artifact if linking was successful, otherwise None.
 
         """
-        portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
-        if aliases is None:
-            aliases = []
-
-        if not self._backend or not self._backend.interface:
-            return None
-
         if artifact.is_draft() and not artifact._is_draft_save_started():
             artifact = self._log_artifact(artifact)
 
@@ -2961,52 +2960,17 @@ class Run:
             # TODO: implement offline mode + sync
             raise NotImplementedError
 
-        # Wait until the artifact is committed before trying to link it.
-        artifact.wait()
+        # Normalize the target "entity/project/collection" with defaults
+        # inferred from this run's entity and project, if needed.
+        #
+        # HOWEVER, if the target path is a registry collection, avoid setting
+        # the target entity to the run's entity.  Instead, delegate to
+        # Artifact.link() to resolve the required org entity.
+        target = ArtifactPath.from_str(target_path)
+        if not (target.project and is_artifact_registry_project(target.project)):
+            target = target.with_defaults(prefix=self.entity, project=self.project)
 
-        organization = ""
-        if is_artifact_registry_project(project):
-            organization = entity or self.settings.organization or ""
-            # In a Registry linking, the entity is used to fetch the organization of the artifact
-            # therefore the source artifact's entity is passed to the backend
-            entity = artifact._source_entity
-        project = project or self.project
-        entity = entity or self.entity
-        handle = self._backend.interface.deliver_link_artifact(
-            artifact,
-            portfolio,
-            aliases,
-            entity,
-            project,
-            organization,
-        )
-        if artifact._ttl_duration_seconds is not None:
-            wandb.termwarn(
-                "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
-            )
-        result = handle.wait_or(timeout=None)
-        response = result.response.link_artifact_response
-        if response.error_message:
-            wandb.termerror(response.error_message)
-            return None
-        if response.version_index is None:
-            wandb.termerror(
-                "Error fetching the linked artifact's version index after linking"
-            )
-            return None
-
-        try:
-            artifact_name = f"{entity}/{project}/{portfolio}:v{response.version_index}"
-            if is_artifact_registry_project(project):
-                if organization:
-                    artifact_name = f"{organization}/{project}/{portfolio}:v{response.version_index}"
-                else:
-                    artifact_name = f"{project}/{portfolio}:v{response.version_index}"
-            linked_artifact = self._public_api()._artifact(artifact_name)
-        except Exception as e:
-            wandb.termerror(f"Error fetching link artifact after linking: {e}")
-            return None
-        return linked_artifact
+        return artifact.link(target.to_str(), aliases)
 
     @_log_to_run
     @_raise_if_finished
@@ -3733,60 +3697,6 @@ class Run:
             except Exception:
                 logger.exception("Error getting system metrics.")
                 return {}
-
-    @property
-    @_log_to_run
-    @_attach
-    @_raise_if_finished
-    def _metadata(self) -> Metadata | None:
-        """The metadata associated with this run.
-
-        NOTE: Automatically collected metadata can be overridden by the user.
-        """
-        if not self._backend or not self._backend.interface:
-            return self.__metadata
-
-        # Initialize the metadata object if it doesn't exist.
-        if self.__metadata is None:
-            self.__metadata = Metadata()
-            self.__metadata._set_callback(self._metadata_callback)
-
-        handle = self._backend.interface.deliver_get_system_metadata()
-
-        try:
-            result = handle.wait_or(timeout=1)
-        except TimeoutError:
-            logger.exception("Timeout getting run metadata.")
-            return None
-
-        response = result.response.get_system_metadata_response
-
-        # Temporarily disable the callback to prevent triggering
-        # an update call to wandb-core with the callback.
-        with self.__metadata.disable_callback():
-            # Values stored in the metadata object take precedence.
-            self.__metadata.update_from_proto(response.metadata, skip_existing=True)
-
-        return self.__metadata
-
-    @_log_to_run
-    @_raise_if_finished
-    @_attach
-    def _metadata_callback(
-        self,
-        metadata: MetadataRequest,
-    ) -> None:
-        """Callback to publish Metadata to wandb-core upon user updates."""
-        # ignore updates if the attached to another run
-        if self._is_attached:
-            wandb.termwarn(
-                "Metadata updates are ignored when attached to another run.",
-                repeat=False,
-            )
-            return
-
-        if self._backend and self._backend.interface:
-            self._backend.interface.publish_metadata(metadata)
 
     # ------------------------------------------------------------------------------
     # HEADER

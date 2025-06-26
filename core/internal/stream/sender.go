@@ -289,7 +289,7 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 		)
 
 		s.mu.Lock()
-		work.Process(s.sendRecord)
+		work.Process(s.sendRecord, s.outChan)
 		s.observeSentinel(work)
 
 		// TODO: reevaluate the logic here
@@ -441,6 +441,8 @@ func (s *Sender) sendRecord(record *spb.Record) {
 		s.sendOutput(record, x.Output)
 	case *spb.Record_Telemetry:
 		s.sendTelemetry(record, x.Telemetry)
+	case *spb.Record_Environment:
+		s.sendEnvironment(x.Environment)
 	case *spb.Record_Preempting:
 		s.sendPreempting(x.Preempting)
 	case *spb.Record_Request:
@@ -805,6 +807,52 @@ func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 	}
 
 	upserter.UpdateTelemetry(telemetry)
+}
+
+func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureError(fmt.Errorf("sender: sendMetadata: %v", err))
+		return
+	}
+
+	upserter.UpdateEnvironment(environment)
+
+	// TODO: only upload the wandb-metadata.json file if the server
+	// does not understand environment info in the config.
+	s.uploadMetadataFile()
+}
+
+func (s *Sender) uploadMetadataFile() {
+	if s.runfilesUploader == nil {
+		return
+	}
+
+	if !s.settings.IsPrimary() {
+		return
+	}
+
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureError(fmt.Errorf("sender: uploadMetadataFile: %v", err))
+		return
+	}
+
+	environment, err := upserter.EnvironmentJSON()
+	if err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to serialize run environment info: %v", err))
+		return
+	}
+
+	if err := s.scheduleFileUpload(
+		environment,
+		MetaFileName,
+		filetransfer.RunFileKindWandb,
+	); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to upload run's %s file: %v", MetaFileName, err))
+	}
 }
 
 func (s *Sender) sendPreempting(record *spb.RunPreemptingRecord) {

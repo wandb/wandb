@@ -10,7 +10,6 @@ import (
 
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"golang.org/x/time/rate"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -71,9 +70,6 @@ type Handler struct {
 	logger *observability.CoreLogger
 
 	mailbox *mailbox.Mailbox
-
-	// metadata stores the run metadata including system stats
-	metadata *spb.MetadataRequest
 
 	// metricHandler is the metric handler for the stream
 	metricHandler *runmetric.MetricHandler
@@ -143,7 +139,7 @@ func NewHandler(
 		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
 		runHistorySampler:    runhistory.NewRunHistorySampler(),
 		runSummary:           runsummary.New(),
-		runTimer:             timer.New(),
+		runTimer:             timer.New(0),
 		settings:             params.Settings,
 		systemMonitor:        params.SystemMonitor,
 		tbHandler:            params.TBHandler,
@@ -237,7 +233,8 @@ func (h *Handler) handleRecord(record *spb.Record) {
 	case *spb.Record_Stats:
 	case *spb.Record_Telemetry:
 	case *spb.Record_UseArtifact:
-		// The above are no-ops in the handler.
+	case *spb.Record_Environment:
+	// The above are no-ops in the handler.
 
 	case *spb.Record_Exit:
 		h.handleExit(record, x.Exit)
@@ -283,8 +280,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 
 	case *spb.Request_RunStatus:
 		h.handleRequestRunStatus(record)
-	case *spb.Request_Metadata:
-		h.handleMetadata(x.Metadata)
 	case *spb.Request_Status:
 		h.handleRequestStatus(record)
 	case *spb.Request_SenderMark:
@@ -325,8 +320,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestCancel(x.Cancel)
 	case *spb.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record)
-	case *spb.Request_GetSystemMetadata:
-		h.handleRequestGetSystemMetadata(record)
 	case *spb.Request_InternalMessages:
 		h.handleRequestInternalMessages(record)
 	case *spb.Request_SyncFinish:
@@ -471,10 +464,12 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	var ok bool
 	run := request.Run
 
-	// offsset by run.Runtime to account for potential run branching
-	startTime := run.StartTime.AsTime().Add(time.Duration(-run.Runtime) * time.Second)
-	// start the run timer
-	h.runTimer.Start(&startTime)
+	// Add on to the previous run time for branched runs.
+	offset := time.Duration(run.Runtime) * time.Second
+	h.runTimer = timer.New(offset)
+
+	// start the timer
+	h.runTimer.Start()
 
 	if h.runRecord, ok = proto.Clone(run).(*spb.RunRecord); !ok {
 		h.logger.CaptureFatalAndPanic(
@@ -484,7 +479,7 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
 
-	// initialize the run metadata from settings
+	// TODO: Move computation of git state to wandb-core.
 	var git *spb.GitRepoRecord
 	if run.GetGit().GetRemoteUrl() != "" || run.GetGit().GetCommit() != "" {
 		git = &spb.GitRepoRecord{
@@ -493,29 +488,8 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 		}
 	}
 
-	metadata := &spb.MetadataRequest{
-		Os:            h.settings.GetOS(),
-		Python:        h.settings.GetPython(),
-		Host:          h.settings.GetHostProcessorName(),
-		Program:       h.settings.GetProgram(),
-		CodePath:      h.settings.GetProgramRelativePath(),
-		CodePathLocal: h.settings.GetProgramRelativePathFromCwd(),
-		Email:         h.settings.GetEmail(),
-		Root:          h.settings.GetRootDir(),
-		Username:      h.settings.GetUserName(),
-		Docker:        h.settings.GetDockerImageName(),
-		Executable:    h.settings.GetExecutable(),
-		Args:          h.settings.GetArgs(),
-		Colab:         h.settings.GetColabURL(),
-		StartedAt:     run.GetStartTime(),
-		Git:           git,
-	}
-	h.handleMetadata(metadata)
-
 	// start the system monitor
-	if !h.settings.IsDisableStats() && !h.settings.IsDisableMachineInfo() {
-		h.systemMonitor.Start()
-	}
+	h.systemMonitor.Start(git)
 
 	// save code and patch
 	if h.settings.IsSaveCode() && !h.settings.IsDisableMachineInfo() {
@@ -657,58 +631,6 @@ func (h *Handler) handlePatchSave() {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
-	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimary() {
-		return
-	}
-
-	if h.metadata == nil {
-		// Save the metadata on the first call.
-		h.metadata = proto.Clone(request).(*spb.MetadataRequest)
-	} else {
-		// Merge the metadata on subsequent calls.
-		// The order of the merge depends on the origin of the request.
-		// The request originating from the user should take precedence.
-		if request.GetXUserModified() {
-			proto.Merge(h.metadata, request)
-		} else {
-			proto.Merge(request, h.metadata)
-			h.metadata = request
-		}
-	}
-
-	mo := protojson.MarshalOptions{
-		Indent: "  ",
-		// EmitUnpopulated: true,
-	}
-	jsonBytes, err := mo.Marshal(h.metadata)
-	if err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("error marshalling metadata: %v", err))
-		return
-	}
-	filePath := filepath.Join(h.settings.GetFilesDir(), MetaFileName)
-	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("error writing metadata file: %v", err))
-		return
-	}
-
-	record := &spb.Record{
-		RecordType: &spb.Record_Files{
-			Files: &spb.FilesRecord{
-				Files: []*spb.FilesItem{
-					{
-						Path: MetaFileName,
-						Type: spb.FilesItem_WANDB,
-					},
-				},
-			},
-		},
-	}
-	h.fwdRecord(record)
-}
-
 func (h *Handler) handleRequestAttach(record *spb.Record) {
 	response := &spb.Response{
 		ResponseType: &spb.Response_AttachResponse{
@@ -729,17 +651,17 @@ func (h *Handler) handleRequestCancel(request *spb.CancelRequest) {
 }
 
 func (h *Handler) handleRequestPause() {
-	h.runTimer.Pause()
+	h.runTimer.Stop()
 	h.systemMonitor.Pause()
 }
 
 func (h *Handler) handleRequestResume() {
-	h.runTimer.Resume()
+	h.runTimer.Start()
 	h.systemMonitor.Resume()
 }
 
 func (h *Handler) handleRequestRunFinishWithoutExit(record *spb.Record) {
-	h.runTimer.Pause()
+	h.runTimer.Stop()
 	h.updateRunTiming()
 	h.systemMonitor.Finish()
 	h.flushPartialHistory(true, h.partialHistoryStep+1)
@@ -748,7 +670,7 @@ func (h *Handler) handleRequestRunFinishWithoutExit(record *spb.Record) {
 
 func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 	// stop the run timer and set the runtime
-	h.runTimer.Pause()
+	h.runTimer.Stop()
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
 	if !h.settings.IsSync() && !h.settings.IsEnableServerSideDerivedSummary() {
@@ -824,18 +746,6 @@ func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestGetSystemMetadata(record *spb.Record) {
-	response := &spb.Response{
-		ResponseType: &spb.Response_GetSystemMetadataResponse{
-			GetSystemMetadataResponse: &spb.GetSystemMetadataResponse{
-				Metadata: h.metadata,
-			},
-		},
-	}
-
-	h.respond(record, response)
-}
-
 func (h *Handler) handleRequestInternalMessages(record *spb.Record) {
 	messages := h.terminalPrinter.Read()
 	response := &spb.Response{
@@ -887,10 +797,16 @@ func (h *Handler) updateRunTiming() {
 	record := &spb.Record{
 		RecordType: &spb.Record_Summary{
 			Summary: &spb.SummaryRecord{
-				Update: []*spb.SummaryItem{{
-					NestedKey: []string{"_wandb", "runtime"},
-					ValueJson: strconv.Itoa(runtime),
-				}},
+				Update: []*spb.SummaryItem{
+					{
+						NestedKey: []string{"_wandb", "runtime"},
+						ValueJson: strconv.Itoa(runtime),
+					},
+					{
+						Key:       "_runtime",
+						ValueJson: strconv.Itoa(runtime),
+					},
+				},
 			},
 		},
 	}

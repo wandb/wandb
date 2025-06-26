@@ -184,17 +184,22 @@ func (f *formatter) FormatSchema(schema *ast.Schema) {
 			f.IncrementIndent()
 		}
 	}
-	if schema.Query != nil && schema.Query.Name != "Query" {
+
+	needSchema := (schema.Query != nil && schema.Query.Name != "Query") ||
+		(schema.Mutation != nil && schema.Mutation.Name != "Mutation") ||
+		(schema.Subscription != nil && schema.Subscription.Name != "Subscription")
+
+	if needSchema && schema.Query != nil {
 		startSchema()
 		f.WriteWord("query").NoPadding().WriteString(":").NeedPadding()
 		f.WriteWord(schema.Query.Name).WriteNewline()
 	}
-	if schema.Mutation != nil && schema.Mutation.Name != "Mutation" {
+	if needSchema && schema.Mutation != nil {
 		startSchema()
 		f.WriteWord("mutation").NoPadding().WriteString(":").NeedPadding()
 		f.WriteWord(schema.Mutation.Name).WriteNewline()
 	}
-	if schema.Subscription != nil && schema.Subscription.Name != "Subscription" {
+	if needSchema && schema.Subscription != nil {
 		startSchema()
 		f.WriteWord("subscription").NoPadding().WriteString(":").NeedPadding()
 		f.WriteWord(schema.Subscription.Name).WriteNewline()

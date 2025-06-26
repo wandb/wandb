@@ -370,9 +370,9 @@ class LaunchProject:
 
     def set_job_entry_point(self, command: List[str]) -> "EntryPoint":
         """Set job entrypoint for the project."""
-        assert (
-            self._entry_point is None
-        ), "Cannot set entry point twice. Use LaunchProject.override_entrypoint"
+        assert self._entry_point is None, (
+            "Cannot set entry point twice. Use LaunchProject.override_entrypoint"
+        )
         new_entrypoint = EntryPoint(name=command[-1], command=command)
         self._entry_point = new_entrypoint
         return new_entrypoint

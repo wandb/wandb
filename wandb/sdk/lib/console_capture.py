@@ -25,9 +25,14 @@ In particular, it does not work with some combinations of pytest's
 
 from __future__ import annotations
 
+import logging
 import sys
 import threading
 from typing import IO, AnyStr, Callable, Protocol
+
+from . import wb_logging
+
+_logger = logging.getLogger(__name__)
 
 
 class CannotCaptureConsoleError(Exception):
@@ -39,6 +44,18 @@ class _WriteCallback(Protocol):
 
     This may be called from any thread, but is only called from one thread
     at a time.
+
+    Note on errors: Any error raised during the callback will clear all
+    callbacks. This means that if a user presses Ctrl-C at an unlucky time
+    during a run, we will stop uploading console output---but it's not
+    likely to be a problem unless something catches the KeyboardInterrupt.
+
+    Regular Exceptions are caught and logged instead of bubbling up to the
+    user's print() statements; other exceptions like KeyboardInterrupt are
+    re-raised.
+
+    Callbacks should handle all exceptions---a callback that raises any
+    Exception is considered buggy.
     """
 
     def __call__(
@@ -49,6 +66,8 @@ class _WriteCallback(Protocol):
     ) -> None:
         """Intercept data passed to `write()`.
 
+        See the protocol docstring for information about exceptions.
+
         Args:
             data: The object passed to stderr's or stdout's `write()`.
             written: The number of bytes or characters written.
@@ -57,7 +76,7 @@ class _WriteCallback(Protocol):
 
 
 # A reentrant lock is used to catch callbacks that write to stderr/stdout.
-_module_lock = threading.RLock()
+_module_rlock = threading.RLock()
 _is_writing = False
 
 _patch_exception: CannotCaptureConsoleError | None = None
@@ -80,7 +99,7 @@ def capture_stdout(callback: _WriteCallback) -> Callable[[], None]:
     Raises:
         CannotCaptureConsoleError: If patching failed on import.
     """
-    with _module_lock:
+    with _module_rlock:
         if _patch_exception:
             raise _patch_exception
 
@@ -102,7 +121,7 @@ def capture_stderr(callback: _WriteCallback) -> Callable[[], None]:
     Raises:
         CannotCaptureConsoleError: If patching failed on import.
     """
-    with _module_lock:
+    with _module_rlock:
         if _patch_exception:
             raise _patch_exception
 
@@ -125,11 +144,11 @@ def _insert_disposably(
     def dispose() -> None:
         nonlocal disposed
 
-        with _module_lock:
+        with _module_rlock:
             if disposed:
                 return
 
-            del callback_dict[id]
+            callback_dict.pop(id, None)
 
             disposed = True
 
@@ -143,13 +162,14 @@ def _patch(
 ) -> None:
     orig_write: Callable[[AnyStr], int]
 
+    @wb_logging.log_to_all_runs()
     def write_with_callbacks(s: AnyStr, /) -> int:
         global _is_writing
         n = orig_write(s)
 
-        # NOTE: Since _module_lock is reentrant, this is safe. It will not
+        # NOTE: Since _module_rlock is reentrant, this is safe. It will not
         # deadlock if a callback invokes write() again.
-        with _module_lock:
+        with _module_rlock:
             if _is_writing:
                 return n
 
@@ -157,6 +177,27 @@ def _patch(
             try:
                 for cb in callbacks.values():
                     cb(s, n)
+
+            except BaseException as e:
+                # Clear all callbacks on any exception to avoid infinite loops:
+                #
+                # * If we re-raise, an exception handler is likely to print
+                #   the exception to the console and trigger callbacks again
+                # * If we log, we can't guarantee that this doesn't print
+                #   to console.
+                #
+                # This is especially important for KeyboardInterrupt.
+                _stderr_callbacks.clear()
+                _stdout_callbacks.clear()
+
+                if isinstance(e, Exception):
+                    # We suppress Exceptions so that bugs in W&B code don't
+                    # cause the user's print() statements to raise errors.
+                    _logger.exception("Error in console callback, clearing all!")
+                else:
+                    # Re-raise errors like KeyboardInterrupt.
+                    raise
+
             finally:
                 _is_writing = False
 

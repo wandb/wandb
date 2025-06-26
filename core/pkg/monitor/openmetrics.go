@@ -324,6 +324,6 @@ func GenerateLabelHash(labels map[string]string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (o *OpenMetrics) Probe() *spb.MetadataRequest {
+func (o *OpenMetrics) Probe() *spb.EnvironmentRecord {
 	return nil
 }
