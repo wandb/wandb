@@ -148,8 +148,9 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 
 	if system := NewSystem(
 		SystemParams{
-			Pid:       pid,
-			DiskPaths: sm.settings.GetStatsDiskPaths(),
+			Pid:              pid,
+			TrackProcessTree: sm.settings.GetStatsTrackProcessTree(),
+			DiskPaths:        sm.settings.GetStatsDiskPaths(),
 		},
 	); system != nil {
 		sm.resources = append(sm.resources, system)

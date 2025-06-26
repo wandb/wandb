@@ -1,10 +1,12 @@
 package monitor
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"maps"
 
@@ -32,6 +34,16 @@ type System struct {
 	// pid is the process ID to monitor for CPU and memory usage.
 	pid int32
 
+	// System CPU count.
+	cpuCount int
+
+	// Logical CPU count.
+	cpuCountLogical int
+
+	// Whether to collect process-specific metrics from the entire process tree,
+	// starting from the process with PID `pid`.
+	trackProcessTree bool
+
 	// diskPaths are the file system paths to monitor.
 	diskPaths []string
 
@@ -52,18 +64,25 @@ type System struct {
 }
 
 type SystemParams struct {
-	Pid       int32
-	DiskPaths []string
+	Pid              int32
+	DiskPaths        []string
+	TrackProcessTree bool
 }
 
+//gocyclo:ignore
 func NewSystem(params SystemParams) *System {
 	s := &System{
 		pid:                   params.Pid,
+		trackProcessTree:      params.TrackProcessTree,
 		diskPaths:             params.DiskPaths,
 		diskDevices:           make(map[string]struct{}),
 		diskIntialReadBytes:   make(map[string]uint64),
 		diskInitialWriteBytes: make(map[string]uint64),
 	}
+
+	// CPU core counts
+	s.cpuCount, _ = cpu.Counts(false)
+	s.cpuCountLogical, _ = cpu.Counts(true)
 
 	// Initialize disk I/O counters.
 
@@ -150,17 +169,31 @@ func pseudoDevice(d string) bool {
 
 // processAndDescendants finds the root process and all its children, recursively.
 //
-// This is analogous to `psutil.Process.children(recursive=True)` in Python.
-func processAndDescendants(pid int32) ([]*process.Process, error) {
+// On some systems, this operation can be expensive, so by default it only returns the
+// root process, if it exists.
+func (s *System) processAndDescendants(ctx context.Context, pid int32) ([]*process.Process, error) {
 	rootProc, err := process.NewProcess(pid)
 	if err != nil {
 		return nil, err
 	}
 
 	out := []*process.Process{rootProc}
+
+	if !s.trackProcessTree {
+		return out, nil
+	}
+
 	queue := []*process.Process{rootProc}
 
 	for len(queue) > 0 {
+		// cancel and return early if it's taking too long.
+		select {
+		case <-ctx.Done():
+			return out, ctx.Err()
+		default:
+			// continue processing
+		}
+
 		currProc := queue[0]
 		queue = queue[1:]
 
@@ -233,11 +266,21 @@ func (s *System) collectProcessTreeMetrics(
 	virtualMem *mem.VirtualMemoryStat,
 	metrics map[string]any,
 ) error {
-	procs, err := processAndDescendants(root.Pid)
-	fmt.Println(procs)
+	// Safeguard to prevent processAndDescendants from taking too long.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	procs, err := s.processAndDescendants(ctx, root.Pid)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return err
+	}
+
+	// procs := []*process.Process{}
+	// proc, _ := process.NewProcess(root.Pid)
+	// procs = append(procs, proc)
+
+	if len(procs) == 0 {
+		return fmt.Errorf("system: empty process tree")
 	}
 
 	var (
@@ -270,8 +313,8 @@ func (s *System) collectProcessTreeMetrics(
 	}
 
 	// Normalise CPU by logical core-count
-	if cores, err := cpu.Counts(true); err == nil && cores > 0 {
-		metrics["cpu"] = totalCPU / float64(cores)
+	if s.cpuCount > 0 {
+		metrics["cpu"] = totalCPU / float64(s.cpuCount)
 	} else {
 		metrics["cpu"] = totalCPU
 	}
@@ -394,20 +437,20 @@ func (s *System) Probe() *spb.EnvironmentRecord {
 		Memory: &spb.MemoryInfo{},
 	}
 
-	// Collect memory information
+	// Collect memory information.
 	if virtualMem, err := mem.VirtualMemory(); err == nil {
 		info.Memory.Total = virtualMem.Total
 	}
 
-	// Collect CPU information
-	if cpuCount, err := cpu.Counts(false); err == nil {
-		info.CpuCount = uint32(cpuCount)
+	// Collect CPU information.
+	if s.cpuCount > 0 {
+		info.CpuCount = uint32(s.cpuCount)
 	}
-	if cpuCountLogical, err := cpu.Counts(true); err == nil {
-		info.CpuCountLogical = uint32(cpuCountLogical)
+	if s.cpuCountLogical > 0 {
+		info.CpuCountLogical = uint32(s.cpuCountLogical)
 	}
 
-	// Collect disk information
+	// Collect disk information.
 	for _, diskPath := range s.diskPaths {
 		if usage, err := disk.Usage(diskPath); err == nil {
 			info.Disk[diskPath] = &spb.DiskInfo{
@@ -417,7 +460,7 @@ func (s *System) Probe() *spb.EnvironmentRecord {
 		}
 	}
 
-	// Collect SLURM environment variables
+	// Collect SLURM environment variables.
 	if slurmVars := getSlurmEnvVars(); len(slurmVars) > 0 {
 		info.Slurm = make(map[string]string)
 		maps.Copy(info.Slurm, slurmVars)

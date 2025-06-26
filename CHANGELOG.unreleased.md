@@ -17,6 +17,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 This version removes the legacy implementaion of the `service` process. This is a breaking change.
 
+### Added
+
+- Setting `x_stats_track_process_tree` to track process-specific metrics such as the RSS, CPU%, and thread count in use for the entire process tree, starting from `x_stats_pid`. This can be expensive and is disabled by default.
+
 ### Changed
 
 - `wandb` now attempts to use Unix sockets for IPC instead of listening on localhost, making it work in environments with more restrictive permissions (such as Databricks) (@timoffex in https://github.com/wandb/wandb/pull/9995)
