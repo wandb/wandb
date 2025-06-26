@@ -100,6 +100,10 @@ func NewSystem(params SystemParams) *System {
 func (s *System) initializeDisk() {
 	// Resolve the devices that back the requested paths.
 	parts, _ := DiskPartitions(false)
+
+	// rootMissing tracks whether we've seen "/" among mount-points reported by DiskPartitions.
+	// If "/" is an `overlay` (happens, e.g. inside Docker), DiskPartitions(false) will
+	// filter it out, and we will need to treat this case separately.
 	rootMissing := true
 	for _, part := range parts {
 		if part.Mountpoint == "/" {
