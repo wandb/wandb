@@ -6,7 +6,7 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Type, Union
 
 import wandb
-from wandb import util
+from wandb import env, util
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import filesystem, printer, printer_asyncio, runid
 
@@ -25,14 +25,13 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _should_print_spinner() -> bool:
-    is_quiet = os.environ.get("WANDB_QUIET", "false").lower() == "true"
-    is_silent = os.environ.get("WANDB_SILENT", "false").lower() == "true"
     singleton = wandb_setup.singleton_if_setup()
+    if singleton and (singleton.settings.quiet or singleton.settings.silent):
+        return False
+
     return not (
-        is_quiet
-        or is_silent
-        or (singleton and singleton.settings.quiet)
-        or (singleton and singleton.settings.silent)
+        env.strtobool(os.environ.get("WANDB_QUIET", "false"))
+        or env.strtobool(os.environ.get("WANDB_SILENT", "false"))
     )
 
 
