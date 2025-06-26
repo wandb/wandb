@@ -2740,6 +2740,11 @@ pub struct EnvironmentRecord {
     /// CPU information.
     #[prost(message, optional, tag = "22")]
     pub cpu: ::core::option::Option<CpuInfo>,
+    /// CPU model.
+    ///
+    /// There are systems with multiple CPUs on the same motherboard.
+    #[prost(string, repeated, tag = "31")]
+    pub cpu_model: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     /// Information specific to Apple Silicon hardware.
     #[prost(message, optional, tag = "23")]
     pub apple: ::core::option::Option<AppleInfo>,

@@ -1364,6 +1364,10 @@ message EnvironmentRecord {
   MemoryInfo memory = 21;
   // CPU information.
   CpuInfo cpu = 22;
+  // CPU model.
+  //
+  // There are systems with multiple CPUs on the same motherboard.
+  repeated string cpu_model = 31;
   // Information specific to Apple Silicon hardware.
   AppleInfo apple = 23;
   // Detailed information for each NVIDIA GPU.
