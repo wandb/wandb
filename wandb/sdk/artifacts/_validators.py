@@ -261,7 +261,7 @@ def is_artifact_registry_project(project: str) -> bool:
     return project.startswith(REGISTRY_PREFIX)
 
 
-def get_registry_name_from_project(project: str) -> str:
-    if not is_artifact_registry_project(project):
-        raise ValueError(f"Project '{project}' is not a model registry project")
-    return project[len(REGISTRY_PREFIX) :]
+def remove_registry_prefix(project: str) -> str:
+    if is_artifact_registry_project(project):
+        return project[len(REGISTRY_PREFIX) :]
+    raise ValueError(f"Project {project!r} is not a registry project")
