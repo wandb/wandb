@@ -53,7 +53,9 @@
 /wandb/sdk/artifacts/ @wandb/mlw-team
 /wandb/automations/ @wandb/mlw-team
 /tests/system_tests/test_artifacts/ @wandb/mlw-team
+/tests/system_tests/test_registries/ @wandb/mlw-team
 /tests/system_tests/test_automations/ @wandb/mlw-team
 /tests/unit_tests/test_artifacts/ @wandb/mlw-team
+/tests/unit_tests/test_registries/ @wandb/mlw-team
 /tests/unit_tests/test_automations/ @wandb/mlw-team
 /tests/unit_tests/test_launch/ @wandb/mlw-team
