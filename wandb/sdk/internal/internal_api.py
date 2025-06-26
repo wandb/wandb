@@ -867,8 +867,6 @@ class Api:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
 
-
-
     def _server_features(self) -> Dict[str, bool]:
         # NOTE: Avoid caching via `@cached_property`, due to undocumented
         # locking behavior before Python 3.12.
@@ -4675,8 +4673,6 @@ class Api:
         access: str,
         spec: Union[str, Mapping[str, Any]],
     ) -> Optional[Dict[str, Any]]:
-
-
         if not isinstance(spec, str):
             spec = json.dumps(spec)
 

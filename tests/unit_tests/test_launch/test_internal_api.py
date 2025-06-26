@@ -131,6 +131,3 @@ def test_upsert_sweep(monkeypatch):
         call_kwargs["variable_values"]["priorRunsFilters"]
         == '{"$or": [{"name": "abc"}, {"name": "def"}]}'
     )
-
-
-
