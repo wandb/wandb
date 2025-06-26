@@ -36,4 +36,3 @@ This version removes the legacy implementaion of the `service` process. This is 
 - Respect `silent`, `quiet`, and `show_warnings` settings passed to a `Run` instance for warnings emitted by the service process (@kptkin in https://github.com/wandb/wandb/pull/10077)
 - `api.Runs` no longer makes an API call for each run loaded from W&B. (@jacobromero in https://github.com/wandb/wandb/pull/10087)
 - Correct the artifact url for organization registry artifacts to be independent of the artifact type. (@ibindlish in https://github.com/wandb/wandb/pull/10049)
-
