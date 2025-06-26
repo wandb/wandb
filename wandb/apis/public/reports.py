@@ -20,8 +20,7 @@ class Reports(SizedPaginator["BetaReport"]):
     Args:
         client: The W&B API client to use for making requests.
         project: The name of the project that the report belongs to.
-        name (str, optional): Human-readable name of the report to filter by.
-            Returns all reports if not specified.
+        name (str, optional): Name of the report to filter by.
         entity (str, optional): The entity (user or team) that owns the project.
             Defaults to the entity of the project if not specified.
         per_page (int, optional): Number of reports to fetch per page (default is 50).
