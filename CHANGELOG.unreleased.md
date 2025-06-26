@@ -34,3 +34,4 @@ This version removes the legacy implementaion of the `service` process. This is 
 - Allow s3 style CoreWeave URIs for reference artifacts. (@estellazx in https://github.com/wandb/wandb/pull/9979)
 - Fixed rare bug that made Ctrl+C ineffective after logging large amounts of data (@timoffex in https://github.com/wandb/wandb/pull/10071)
 - Respect `silent`, `quiet`, and `show_warnings` settings passed to a `Run` instance for warnings emitted by the service process (@kptkin in https://github.com/wandb/wandb/pull/10077)
+- `api.Runs` no longer makes an API call for each run loaded from W&B. (@jacobromero in https://github.com/wandb/wandb/pull/10087)
