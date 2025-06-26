@@ -69,7 +69,6 @@ type SystemParams struct {
 	TrackProcessTree bool
 }
 
-//gocyclo:ignore
 func NewSystem(params SystemParams) *System {
 	s := &System{
 		pid:                   params.Pid,
@@ -80,24 +79,33 @@ func NewSystem(params SystemParams) *System {
 		diskInitialWriteBytes: make(map[string]uint64),
 	}
 
-	// CPU core counts
+	// CPU core counts.
 	s.cpuCount, _ = cpu.Counts(false)
 	s.cpuCountLogical, _ = cpu.Counts(true)
 
-	// Initialize disk I/O counters.
+	// Initialize disk devices and I/O counters.
+	s.initializeDisk()
 
+	// Initialize network I/O counters.
+	netIOCounters, err := net.IOCounters(false)
+	if err == nil && len(netIOCounters) > 0 {
+		s.networkBytesSentInit = int(netIOCounters[0].BytesSent)
+		s.networkBytesRecvInit = int(netIOCounters[0].BytesRecv)
+	}
+
+	return s
+}
+
+// initializeDisk resolves disk devices from paths, filters them, and sets up I/O counters.
+func (s *System) initializeDisk() {
 	// Resolve the devices that back the requested paths.
 	parts, _ := DiskPartitions(false)
-
-	// rootMissing tracks whether we've seen "/" among mount-points reported by DiskPartitions.
-	// If "/" is an `overlay` (happens, e.g. inside Docker), DiskPartitions(false) will
-	// filter it out, and we will need to treat this case separately.
 	rootMissing := true
 	for _, part := range parts {
 		if part.Mountpoint == "/" {
 			rootMissing = false // normal host, we found the root
 		}
-		for _, p := range s.diskPaths { // normal prefix-match rule
+		for _, p := range s.diskPaths {
 			// Mount-point must be a prefix of the requested path.
 			if strings.HasPrefix(p, part.Mountpoint) {
 				s.diskDevices[trimDevPrefix(part.Device)] = struct{}{}
@@ -116,8 +124,26 @@ func NewSystem(params SystemParams) *System {
 		}
 	}
 
-	// Keep only the devices present in IOCounters.
+	// Keep only the devices present in IOCounters and handle fallback.
 	ios, _ := DiskIOCounters()
+	s.filterDiskDevices(ios)
+
+	// Initialize I/O counters for the final set of devices.
+	if len(ios) > 0 {
+		for dev := range s.diskDevices {
+			if c, ok := ios[dev]; ok {
+				s.diskIntialReadBytes[dev] = c.ReadBytes
+				s.diskInitialWriteBytes[dev] = c.WriteBytes
+			}
+		}
+	}
+}
+
+// filterDiskDevices refines the list of disk devices to monitor.
+//
+// It removes devices not in the I/O counters and adds all real devices as a fallback.
+func (s *System) filterDiskDevices(ios map[string]disk.IOCountersStat) {
+	// Keep only the devices that are also present in IOCounters.
 	filtered := make(map[string]struct{})
 	for dev := range s.diskDevices {
 		if _, ok := ios[dev]; ok {
@@ -128,33 +154,12 @@ func NewSystem(params SystemParams) *System {
 
 	// Fallback: if nothing matched, watch every real block device.
 	if len(s.diskDevices) == 0 {
-		if ios, _ := DiskIOCounters(); len(ios) > 0 {
-			for d := range ios {
-				if pseudoDevice(d) {
-					continue
-				}
+		for d := range ios {
+			if !pseudoDevice(d) {
 				s.diskDevices[d] = struct{}{}
 			}
 		}
 	}
-
-	if ios, _ := DiskIOCounters(); len(ios) > 0 {
-		for dev := range s.diskDevices {
-			if c, ok := ios[dev]; ok {
-				s.diskIntialReadBytes[dev] = c.ReadBytes
-				s.diskInitialWriteBytes[dev] = c.WriteBytes
-			}
-		}
-	}
-
-	// Initialize network I/O counters
-	netIOCounters, err := net.IOCounters(false)
-	if err == nil && len(netIOCounters) > 0 {
-		s.networkBytesSentInit = int(netIOCounters[0].BytesSent)
-		s.networkBytesRecvInit = int(netIOCounters[0].BytesRecv)
-	}
-
-	return s
 }
 
 func trimDevPrefix(path string) string {
