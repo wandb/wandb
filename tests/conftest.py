@@ -376,7 +376,12 @@ def clean_up():
 
 @pytest.fixture
 def api() -> wandb.PublicApi:
-    return Api()
+    with unittest.mock.patch.object(
+        wandb.sdk.wandb_login,
+        "_login",
+        return_value=True,
+    ):
+        yield Api()
 
 
 # --------------------------------

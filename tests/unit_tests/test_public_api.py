@@ -4,6 +4,7 @@ from unittest import mock
 import pytest
 import wandb
 from wandb import Api
+from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 
@@ -35,7 +36,7 @@ def test_thread_local_api_key():
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_base_url_sanitization():
-    with mock.patch.object(wandb, "login", mock.MagicMock()):
+    with mock.patch.object(wandb_login, "_login", mock.MagicMock()):
         api = Api({"base_url": "https://wandb.corp.net///"})
         assert api.settings["base_url"] == "https://wandb.corp.net"
 
@@ -49,9 +50,9 @@ def test_base_url_sanitization():
         "user/proj/runs/run",  # path_url
     ],
 )
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "patch_verify_login")
 def test_parse_path(path):
-    with mock.patch.object(wandb, "login", mock.MagicMock()):
+    with mock.patch.object(wandb_login, "_login", mock.MagicMock()):
         user, project, run = Api()._parse_path(path)
         assert user == "user"
         assert project == "proj"
@@ -60,7 +61,7 @@ def test_parse_path(path):
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_project_path():
-    with mock.patch.object(wandb, "login", mock.MagicMock()):
+    with mock.patch.object(wandb_login, "_login", mock.MagicMock()):
         entity, project = Api()._parse_project_path("user/proj")
         assert entity == "user"
         assert project == "proj"
@@ -128,7 +129,7 @@ def test_direct_specification_of_api_key():
 )
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_from_path_project_type(path):
-    with mock.patch.object(wandb, "login", mock.MagicMock()):
+    with mock.patch.object(wandb_login, "_login", mock.MagicMock()):
         project = Api().from_path(path)
         assert isinstance(project, wandb.apis.public.Project)
 
@@ -144,7 +145,7 @@ def test_report_to_html():
 
 def test_override_base_url_passed_to_login():
     base_url = "https://wandb.space"
-    with mock.patch.object(wandb, "login", mock.MagicMock()) as mock_login:
+    with mock.patch.object(wandb_login, "_login", mock.MagicMock()) as mock_login:
         api = wandb.Api(api_key=None, overrides={"base_url": base_url})
         assert mock_login.call_args[1]["host"] == base_url
         assert api.settings["base_url"] == base_url
@@ -184,3 +185,44 @@ def test_artifact_download_logger():
             assert termlog.call_args == call
         else:
             termlog.assert_not_called()
+
+
+def test_initialize_api_prompts_for_api_key():
+    with mock.patch.object(wandb_login, "_login", mock.MagicMock()) as mock_login:
+        Api()
+
+        assert mock_login.call_count == 1
+        assert "key" not in mock_login.call_args[1]
+
+
+def test_initialize_api_does_not_prompt_for_api_key__when_api_key_is_provided():
+    with mock.patch.object(wandb_login, "_login", mock.MagicMock()) as mock_login:
+        api = Api(api_key="X" * 40)
+
+        assert mock_login.call_count == 1
+        assert "key" in mock_login.call_args[1]
+        assert mock_login.call_args[1]["key"] == "X" * 40
+        assert api.api_key == "X" * 40
+
+
+def test_initialize_api_does_not_prompt_for_api_key__when_using_thread_local_settings():
+    with mock.patch.object(wandb_login, "_login", mock.MagicMock()) as mock_login:
+        _thread_local_api_settings.api_key = "X" * 40
+
+        api = Api()
+
+        assert mock_login.call_count == 1
+        assert "key" in mock_login.call_args[1]
+        assert mock_login.call_args[1]["key"] == "X" * 40
+        assert api.api_key == "X" * 40
+
+
+def test_initialize_api_does_not_prompt_for_api_key__when_using_env_var():
+    with mock.patch.object(wandb_login, "_login", mock.MagicMock()) as mock_login:
+        with mock.patch.dict("os.environ", {"WANDB_API_KEY": "X" * 40}):
+            api = Api(overrides={"api_key": "X" * 40})
+
+            assert mock_login.call_count == 1
+            assert "key" in mock_login.call_args[1]
+            assert mock_login.call_args[1]["key"] == "X" * 40
+            assert api.api_key == "X" * 40
