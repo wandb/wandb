@@ -258,7 +258,8 @@ class _WandbLogin:
 
         if not is_api_key_valid:
             raise AuthenticationError(
-                "API key verification failed. Make sure your API key is valid."
+                f"API key verification failed for host {self._settings.base_url}. "
+                "Make sure your API key is valid."
             )
 
 
@@ -313,6 +314,8 @@ def _login(
             key_is_pre_configured = True
         else:
             key, key_status = wlogin.prompt_api_key(referrer=referrer)
+    elif key == apikey.api_key(settings=wlogin._settings):
+        key_is_pre_configured = True
 
     if verify:
         wlogin._verify_login(key)
