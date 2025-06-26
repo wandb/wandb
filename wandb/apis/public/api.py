@@ -1307,9 +1307,6 @@ class Api:
             settings_entity = self.settings["entity"] or self.default_entity
             # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
             # we need to fetch the org entity to for the user behind the scenes.
-            wandb.termlog(
-                f"Resolving org entity in Api._artifact: {settings_entity=}, {organization=}"
-            )
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=organization
             )
