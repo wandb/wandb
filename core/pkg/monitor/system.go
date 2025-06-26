@@ -280,10 +280,6 @@ func (s *System) collectProcessTreeMetrics(
 		return err
 	}
 
-	// procs := []*process.Process{}
-	// proc, _ := process.NewProcess(root.Pid)
-	// procs = append(procs, proc)
-
 	if len(procs) == 0 {
 		return fmt.Errorf("system: empty process tree")
 	}
