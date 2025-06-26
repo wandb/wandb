@@ -2475,7 +2475,7 @@ class Artifact:
             # Wait until the artifact is committed before trying to link it.
             self.wait()
 
-        api = Api()
+        api = Api(overrides={"entity": self.source_entity})
 
         target = ArtifactPath.from_str(target_path).with_defaults(
             project=api.settings.get("project") or "uncategorized",
@@ -2483,21 +2483,38 @@ class Artifact:
 
         # Parse the entity (first part of the path) appropriately,
         # depending on whether we're linking to a registry
-        if (project := target.project) and (
-            is_registry_target := is_artifact_registry_project(project)
-        ):
+
+        # if (project := target.project) and (
+        #     is_registry_target := is_artifact_registry_project(project)
+        # ):
+
+        organization = ""
+        if target.project and is_artifact_registry_project(target.project):
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
             organization = target.prefix or api.settings.get("organization") or ""
-            target_entity = InternalApi()._resolve_org_entity_name(
+
+            # target_entity = InternalApi()._resolve_org_entity_name(
+            #     self.source_entity, organization
+            # )
+
+            org_entity = InternalApi()._resolve_org_entity_name(
                 self.source_entity, organization
             )
+            wandb.termlog(
+                f"Org entity resolved: {organization=}, {org_entity=}, {target=}"
+            )
+
+            target.prefix = org_entity
         else:
             target = target.with_defaults(
                 prefix=api.settings.get("entity") or api.default_entity,
             )
-            organization = ""
-            target_entity = self.source_entity
+
+            # organization = ""
+
+            # target_entity = self.source_entity
+            target.prefix = self.source_entity
 
         # Prepare the validated GQL input, send it
         alias_inputs = [
@@ -2507,7 +2524,8 @@ class Artifact:
         gql_input = LinkArtifactInput(
             artifact_id=self.id,
             artifact_portfolio_name=target.name,
-            entity_name=target_entity,
+            # entity_name=target_entity,
+            entity_name=target.prefix,
             project_name=target.project,
             aliases=alias_inputs,
         )
@@ -2523,17 +2541,21 @@ class Artifact:
         linked_path = f"{target.project}/{target.name}:v{version_idx}"
 
         # If appropriate, prepend the org or entity to the fetched path
-        if is_registry_target and organization:
-            linked_path = f"{organization}/{linked_path}"
-        elif not is_registry_target:
-            linked_path = f"{target.prefix}/{linked_path}"
-        else:
-            linked_path = f"{target_entity}/{linked_path}"
+        linked_path = f"{target.prefix}/{linked_path}"
+
+        # if is_registry_target and organization:
+        #     linked_path = f"{organization}/{linked_path}"
+        # elif not is_registry_target:
+        #     linked_path = f"{target.prefix}/{linked_path}"
+        # else:
+        #     linked_path = f"{target_entity}/{linked_path}"
 
         try:
             return api._artifact(linked_path)
         except Exception as e:
-            wandb.termerror(f"Error fetching link artifact after linking: {e}")
+            wandb.termerror(
+                f"Error fetching link artifact after linking: {e} -- {target_path=}, {target=}, {linked_path=}"
+            )
             return None
 
     @ensure_logged
