@@ -1,14 +1,14 @@
+import json
 import sys
 from unittest import mock
-import json
 from unittest.mock import MagicMock
 
 import pytest
 import wandb
 from wandb import Api
+from wandb.apis import internal
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
-from wandb.apis import internal
 
 
 def test_api_auto_login_no_tty():

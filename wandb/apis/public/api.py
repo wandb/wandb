@@ -531,7 +531,7 @@ class Api:
         """
         # Convert user-facing lowercase access to backend uppercase
         backend_access = access.upper()
-        
+
         api = InternalApi(retry_timedelta=RETRY_TIMEDELTA)
         result = api.create_custom_chart(
             entity=entity,
