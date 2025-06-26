@@ -47,11 +47,11 @@ func newTestRetryableHTTPClient(logger *observability.CoreLogger) *retryablehttp
 
 func TestCoreWeaveMetadataProbe(t *testing.T) {
 	testCases := []struct {
-		name              string
-		setupGQLMock      func(mockGQL *gqlmock.MockClient)
-		httpServerHandler http.HandlerFunc
-		expectedMetadata  *spb.MetadataRequest // nil if Probe should return nil
-		expectCwmError    bool                 // if NewCoreWeaveMetadata is expected to fail
+		name                string
+		setupGQLMock        func(mockGQL *gqlmock.MockClient)
+		httpServerHandler   http.HandlerFunc
+		expectedEnvironment *spb.EnvironmentRecord
+		expectCwmError      bool // if NewCoreWeaveMetadata is expected to fail
 	}{
 		{
 			name: "Success",
@@ -64,7 +64,7 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			httpServerHandler: func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte(coreWeaveSampleMetadataResponse))
 			},
-			expectedMetadata: &spb.MetadataRequest{
+			expectedEnvironment: &spb.EnvironmentRecord{
 				Coreweave: &spb.CoreWeaveInfo{
 					ClusterName: "cks-wb",
 					OrgId:       "b13ad0",
@@ -80,8 +80,8 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 					`{"entity":{"organization":{"coreWeaveOrganizationId":""}}}`, // Empty Org ID
 				)
 			},
-			httpServerHandler: nil, // Should not be called
-			expectedMetadata:  nil,
+			httpServerHandler:   nil, // Should not be called
+			expectedEnvironment: nil,
 		},
 		{
 			name: "Nil Organization in GQL response",
@@ -91,8 +91,8 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 					`{"entity":{"organization": null}}`,
 				)
 			},
-			httpServerHandler: nil,
-			expectedMetadata:  nil,
+			httpServerHandler:   nil,
+			expectedEnvironment: nil,
 		},
 		{
 			name: "Nil Entity in GQL response",
@@ -102,8 +102,8 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 					`{"entity": null}`,
 				)
 			},
-			httpServerHandler: nil,
-			expectedMetadata:  nil,
+			httpServerHandler:   nil,
+			expectedEnvironment: nil,
 		},
 		{
 			name: "Metadata Server HTTP Error",
@@ -116,7 +116,7 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			httpServerHandler: func(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 			},
-			expectedMetadata: nil,
+			expectedEnvironment: nil,
 		},
 		{
 			name: "Metadata Server Malformed Response (non key-value)",
@@ -129,7 +129,7 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			httpServerHandler: func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte("this is not valid key:value data\nnor is this"))
 			},
-			expectedMetadata: &spb.MetadataRequest{ // Expect empty fields as parsing will skip malformed lines
+			expectedEnvironment: &spb.EnvironmentRecord{ // Expect empty fields as parsing will skip malformed lines
 				Coreweave: &spb.CoreWeaveInfo{
 					ClusterName: "",
 					OrgId:       "",
@@ -148,7 +148,7 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			httpServerHandler: func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte("")) // Empty body
 			},
-			expectedMetadata: &spb.MetadataRequest{ // Expect empty fields
+			expectedEnvironment: &spb.EnvironmentRecord{ // Expect empty fields
 				Coreweave: &spb.CoreWeaveInfo{
 					ClusterName: "",
 					OrgId:       "",
@@ -167,7 +167,7 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			httpServerHandler: func(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte("cluster_name: partial-cluster\norg_id: partial-org\ninvalid line\nregion: partial-region"))
 			},
-			expectedMetadata: &spb.MetadataRequest{
+			expectedEnvironment: &spb.EnvironmentRecord{
 				Coreweave: &spb.CoreWeaveInfo{
 					ClusterName: "partial-cluster",
 					OrgId:       "partial-org",
@@ -219,16 +219,17 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, cwm)
 
-			metadata := cwm.Probe()
+			e := cwm.Probe()
+			expectedEnvironment := tc.expectedEnvironment
 
-			if tc.expectedMetadata == nil {
-				assert.Nil(t, metadata, "Probe() should return nil")
+			if tc.expectedEnvironment == nil {
+				assert.Nil(t, e, "Probe() should return nil")
 			} else {
-				require.NotNil(t, metadata, "Probe() should not return nil")
-				require.NotNil(t, metadata.Coreweave, "Coreweave info should not be nil")
-				assert.Equal(t, tc.expectedMetadata.Coreweave.ClusterName, metadata.Coreweave.ClusterName)
-				assert.Equal(t, tc.expectedMetadata.Coreweave.OrgId, metadata.Coreweave.OrgId)
-				assert.Equal(t, tc.expectedMetadata.Coreweave.Region, metadata.Coreweave.Region)
+				require.NotNil(t, e, "Probe() should not return nil")
+				require.NotNil(t, e.Coreweave, "Coreweave info should not be nil")
+				assert.Equal(t, expectedEnvironment.Coreweave.ClusterName, e.Coreweave.ClusterName)
+				assert.Equal(t, expectedEnvironment.Coreweave.OrgId, e.Coreweave.OrgId)
+				assert.Equal(t, expectedEnvironment.Coreweave.Region, e.Coreweave.Region)
 			}
 		})
 	}

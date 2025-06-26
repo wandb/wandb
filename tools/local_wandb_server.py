@@ -305,8 +305,7 @@ def _check_health(health_url: str, timeout: int = 1) -> bool:
     start_time = time.monotonic()
 
     _echo_info(
-        f"Waiting up to {timeout} second(s)"
-        f" until {health_url} responds with HTTP 200."
+        f"Waiting up to {timeout} second(s) until {health_url} responds with HTTP 200."
     )
 
     while True:

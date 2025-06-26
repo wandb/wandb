@@ -11,34 +11,23 @@ namespace Wandb.Internal
     /// </summary>
     public class WandbTcpClient : IAsyncDisposable
     {
-        private readonly TcpClient _tcpClient;
         private NetworkStream? _networkStream;
         private readonly CancellationTokenSource _cancellationTokenSource;
         private Task? _receiveTask;
         private readonly ConcurrentDictionary<string, TaskCompletionSource<ServerResponse>> _pendingRequests;
         private readonly SemaphoreSlim _writeSemaphore = new(1, 1);
 
-
         /// <summary>
-        /// Initializes a new instance of the <see cref="WandbTcpClient"/> class.
+        /// Initializes a new instance using an existing socket.
         /// </summary>
-        public WandbTcpClient()
+        /// <param name="networkStream">The connected socket.</param>
+        public WandbTcpClient(Socket socket)
         {
-            _tcpClient = new TcpClient();
+            ArgumentNullException.ThrowIfNull(socket);
+
+            _networkStream = new NetworkStream(socket, ownsSocket: true);
             _cancellationTokenSource = new CancellationTokenSource();
             _pendingRequests = new ConcurrentDictionary<string, TaskCompletionSource<ServerResponse>>();
-        }
-
-        /// <summary>
-        /// Connects to the specified host and port.
-        /// </summary>
-        /// <param name="host">The hostname or IP address to connect to.</param>
-        /// <param name="port">The port number to connect to.</param>
-        /// <exception cref="SocketException">Thrown when a socket error occurs during connection.</exception>
-        public void Connect(string host, int port)
-        {
-            _tcpClient.Connect(host, port);
-            _networkStream = _tcpClient.GetStream();
             _receiveTask = Task.Run(() => ReceiveLoopAsync(_cancellationTokenSource.Token));
         }
 
@@ -272,7 +261,6 @@ namespace Wandb.Internal
                 await _receiveTask.ConfigureAwait(false);
             }
             _networkStream?.Close();
-            _tcpClient.Close();
             _writeSemaphore.Dispose();
         }
     }

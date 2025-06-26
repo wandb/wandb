@@ -1,5 +1,3 @@
-# ruff: noqa: UP007  # Avoid using `X | Y` for union fields, as this can cause issues with pydantic < 2.6
-
 from __future__ import annotations
 
 from typing import Any, Collection, Final, Optional, Protocol, TypedDict

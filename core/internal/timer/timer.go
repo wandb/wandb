@@ -2,54 +2,50 @@ package timer
 
 import "time"
 
-// Timer is used to track the run start and execution times
+// Timer is used to track the run start and execution times.
 type Timer struct {
-	startTime   time.Time
-	resumeTime  time.Time
+	// startTime is the time the timer was started.
+	startTime time.Time
+
+	// accumulated is the time the timer has been running.
 	accumulated time.Duration
-	isStarted   bool
-	isPaused    bool
+
+	// isRunning is true if the timer is running.
+	isRunning bool
 }
 
-func New() *Timer {
-	return &Timer{}
+// New creates a new timer.
+func New(offset time.Duration) *Timer {
+	return &Timer{
+		accumulated: offset,
+	}
 }
 
-func (t *Timer) GetStartTimeMicro() float64 {
-	return float64(t.startTime.UnixMicro()) / 1e6
-}
-
-func (t *Timer) Start(startTime *time.Time) {
-	if startTime != nil {
-		t.startTime = *startTime
-	} else {
+// Start starts the timer with an optional offset.
+// If the timer is already running, it does nothing.
+func (t *Timer) Start() {
+	if !t.isRunning {
 		t.startTime = time.Now()
+		t.isRunning = true
 	}
-	t.resumeTime = t.startTime
-	t.isStarted = true
 }
 
-func (t *Timer) Pause() {
-	if !t.isPaused {
-		elapsed := time.Since(t.resumeTime)
+// Stop stops the timer and adds the elapsed time to the accumulated time.
+// If the timer is not running, it does nothing.
+func (t *Timer) Stop() {
+	if t.isRunning {
+		elapsed := time.Since(t.startTime)
 		t.accumulated += elapsed
-		t.isPaused = true
+		t.isRunning = false
 	}
 }
 
-func (t *Timer) Resume() {
-	if t.isPaused {
-		t.resumeTime = time.Now()
-		t.isPaused = false
-	}
-}
-
+// Elapsed returns the elapsed time since the timer was started.
+// If the timer is running, it returns the accumulated time plus the elapsed time.
+// If the timer is not running, it returns the accumulated time.
 func (t *Timer) Elapsed() time.Duration {
-	if !t.isStarted {
-		return 0
+	if t.isRunning {
+		return t.accumulated + time.Since(t.startTime)
 	}
-	if t.isPaused {
-		return t.accumulated
-	}
-	return t.accumulated + time.Since(t.resumeTime)
+	return t.accumulated
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -25,6 +26,9 @@ const (
 
 // Sender processes OutputRawRecords.
 type Sender struct {
+	mu         sync.Mutex
+	isFinished bool
+
 	// stdoutTerm processes captured stdout text.
 	stdoutTerm *terminalemulator.Terminal
 
@@ -163,7 +167,11 @@ func New(params Params) *Sender {
 //
 // It must run before the filestream is closed.
 func (s *Sender) Finish() {
-	s.writer.Wait()
+	s.mu.Lock()
+	s.isFinished = true
+	s.mu.Unlock()
+
+	s.writer.Finish()
 
 	if s.captureEnabled && s.runfilesUploaderOrNil != nil {
 		s.runfilesUploaderOrNil.UploadNow(
@@ -175,9 +183,13 @@ func (s *Sender) Finish() {
 
 // StreamLogs saves captured console logs with the run.
 func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
-	if !s.captureEnabled {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.captureEnabled || s.isFinished {
 		return
 	}
+
 	switch record.OutputType {
 	case spb.OutputRawRecord_STDOUT:
 		s.stdoutTerm.Write(record.Line)

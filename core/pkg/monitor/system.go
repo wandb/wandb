@@ -17,22 +17,32 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+var (
+	DiskPartitions = disk.Partitions
+	DiskIOCounters = func() (map[string]disk.IOCountersStat, error) {
+		return disk.IOCounters()
+	}
+)
+
 // System encapsulates the state needed to monitor resources available on most systems.
 //
 // It is used to track CPU usage, memory consumption, disk utilization, and network traffic
 // for both the entire system and individual processes.
 type System struct {
-	// pid is the process ID to monitor for CPU and memory usage
+	// pid is the process ID to monitor for CPU and memory usage.
 	pid int32
 
-	// diskPaths contains the paths to monitor for disk usage
+	// diskPaths are the file system paths to monitor.
 	diskPaths []string
 
-	// diskReadBytesInit stores the initial disk read bytes to calculate deltas
-	diskReadBytesInit int
+	// diskDevices are the real devices that back diskPaths.
+	diskDevices map[string]struct{}
 
-	// diskWriteBytesInit stores the initial disk write bytes to calculate deltas
-	diskWriteBytesInit int
+	// diskIntialReadBytes stores the readings of bytes read from disk at init per device.
+	diskIntialReadBytes map[string]uint64
+
+	// diskInitialWriteBytes stores the readings of bytes written to disk at init per device.
+	diskInitialWriteBytes map[string]uint64
 
 	// networkBytesSentInit stores the initial network bytes sent to calculate deltas
 	networkBytesSentInit int
@@ -41,17 +51,80 @@ type System struct {
 	networkBytesRecvInit int
 }
 
-func NewSystem(pid int32, diskPaths []string) *System {
-	s := &System{pid: pid, diskPaths: diskPaths}
+type SystemParams struct {
+	Pid       int32
+	DiskPaths []string
+}
 
-	// Initialize disk I/O counters
-	ioCounters, err := disk.IOCounters()
-	if err == nil && len(ioCounters) > 0 {
-		// Use the first disk as baseline if available
-		// TODO: monitor all disks
-		if counter, ok := ioCounters["disk0"]; ok {
-			s.diskReadBytesInit = int(counter.ReadBytes)
-			s.diskWriteBytesInit = int(counter.WriteBytes)
+func NewSystem(params SystemParams) *System {
+	s := &System{
+		pid:                   params.Pid,
+		diskPaths:             params.DiskPaths,
+		diskDevices:           make(map[string]struct{}),
+		diskIntialReadBytes:   make(map[string]uint64),
+		diskInitialWriteBytes: make(map[string]uint64),
+	}
+
+	// Initialize disk I/O counters.
+
+	// Resolve the devices that back the requested paths.
+	parts, _ := DiskPartitions(false)
+
+	// rootMissing tracks whether we've seen "/" among mount-points reported by DiskPartitions.
+	// If "/" is an `overlay` (happens, e.g. inside Docker), DiskPartitions(false) will
+	// filter it out, and we will need to treat this case separately.
+	rootMissing := true
+	for _, part := range parts {
+		if part.Mountpoint == "/" {
+			rootMissing = false // normal host, we found the root
+		}
+		for _, p := range s.diskPaths { // normal prefix-match rule
+			// Mount-point must be a prefix of the requested path.
+			if strings.HasPrefix(p, part.Mountpoint) {
+				s.diskDevices[trimDevPrefix(part.Device)] = struct{}{}
+			}
+		}
+	}
+
+	// The caller asked for "/" (the default) but none of the partitions listed it.
+	// In that situation, adopt every partition we *did* see as "belonging to /".
+	if rootMissing && len(s.diskPaths) == 1 && s.diskPaths[0] == "/" {
+		for _, part := range parts {
+			dev := trimDevPrefix(part.Device)
+			if !pseudoDevice(dev) {
+				s.diskDevices[dev] = struct{}{}
+			}
+		}
+	}
+
+	// Keep only the devices present in IOCounters.
+	ios, _ := DiskIOCounters()
+	filtered := make(map[string]struct{})
+	for dev := range s.diskDevices {
+		if _, ok := ios[dev]; ok {
+			filtered[dev] = struct{}{}
+		}
+	}
+	s.diskDevices = filtered
+
+	// Fallback: if nothing matched, watch every real block device.
+	if len(s.diskDevices) == 0 {
+		if ios, _ := DiskIOCounters(); len(ios) > 0 {
+			for d := range ios {
+				if pseudoDevice(d) {
+					continue
+				}
+				s.diskDevices[d] = struct{}{}
+			}
+		}
+	}
+
+	if ios, _ := DiskIOCounters(); len(ios) > 0 {
+		for dev := range s.diskDevices {
+			if c, ok := ios[dev]; ok {
+				s.diskIntialReadBytes[dev] = c.ReadBytes
+				s.diskInitialWriteBytes[dev] = c.WriteBytes
+			}
 		}
 	}
 
@@ -63,6 +136,16 @@ func NewSystem(pid int32, diskPaths []string) *System {
 	}
 
 	return s
+}
+
+func trimDevPrefix(path string) string {
+	return strings.TrimPrefix(path, "/dev/")
+}
+
+func pseudoDevice(d string) bool {
+	return strings.HasPrefix(d, "loop") ||
+		strings.HasPrefix(d, "ram") ||
+		strings.HasPrefix(d, "zram")
 }
 
 // Sample collects current system metrics and returns them in a structured format.
@@ -111,7 +194,7 @@ func (s *System) Sample() (*spb.StatsRecord, error) {
 	}
 
 	// Collect disk I/O metrics
-	if err := s.collectDiskIOMetrics(metrics); err != nil {
+	if err := s.CollectDiskIOMetrics(metrics); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -243,23 +326,28 @@ func (s *System) collectDiskUsageMetrics(metrics map[string]any) error {
 }
 
 // collectDiskIOMetrics gathers disk I/O statistics.
-func (s *System) collectDiskIOMetrics(metrics map[string]any) error {
-	ioCounters, err := disk.IOCounters()
+func (s *System) CollectDiskIOMetrics(metrics map[string]any) error {
+	ios, err := DiskIOCounters()
 	if err != nil {
-		// Don't report "not implemented yet" errors
 		if !strings.Contains(err.Error(), "not implemented yet") {
 			return err
 		}
 		return nil
 	}
 
-	// Get data from the first disk if available
-	if counter, ok := ioCounters["disk0"]; ok {
-		// MB read/written
-		metrics["disk.in"] = float64(int(counter.ReadBytes)-s.diskReadBytesInit) / 1024 / 1024
-		metrics["disk.out"] = float64(int(counter.WriteBytes)-s.diskWriteBytesInit) / 1024 / 1024
-	}
+	for dev := range s.diskDevices {
+		c, ok := ios[dev]
+		if !ok {
+			continue // device disappeared?
+		}
 
+		inBytes := c.ReadBytes - s.diskIntialReadBytes[dev]
+		outBytes := c.WriteBytes - s.diskInitialWriteBytes[dev]
+
+		// MB read / written per device
+		metrics[fmt.Sprintf("disk.%s.in", dev)] = float64(inBytes) / 1024 / 1024
+		metrics[fmt.Sprintf("disk.%s.out", dev)] = float64(outBytes) / 1024 / 1024
+	}
 	return nil
 }
 
@@ -285,16 +373,16 @@ func getSlurmEnvVars() map[string]string {
 	return slurmVars
 }
 
-// Probe collects system information for metadata reporting.
+// Probe collects system information.
 //
 // Gathers hardware details about the system including:
 //   - CPU information (count, logical count)
 //   - Memory information (total available)
 //   - Disk information (space usage for monitored paths)
 //   - SLURM environment variables if running in a SLURM environment
-func (s *System) Probe() *spb.MetadataRequest {
-	info := &spb.MetadataRequest{
-		Cpu:    &spb.CpuInfo{},
+func (s *System) Probe() *spb.EnvironmentRecord {
+	// TODO: capture more detailed CPU information.
+	info := &spb.EnvironmentRecord{
 		Disk:   make(map[string]*spb.DiskInfo),
 		Memory: &spb.MemoryInfo{},
 	}
@@ -307,12 +395,9 @@ func (s *System) Probe() *spb.MetadataRequest {
 	// Collect CPU information
 	if cpuCount, err := cpu.Counts(false); err == nil {
 		info.CpuCount = uint32(cpuCount)
-		info.Cpu.Count = uint32(cpuCount)
 	}
-
 	if cpuCountLogical, err := cpu.Counts(true); err == nil {
 		info.CpuCountLogical = uint32(cpuCountLogical)
-		info.Cpu.CountLogical = uint32(cpuCountLogical)
 	}
 
 	// Collect disk information

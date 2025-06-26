@@ -27,16 +27,13 @@ if __name__ == "__main__":
     print("Line 3 (not received.)")
 
     received = received_by_hooks.getvalue()
-    if (
-        received
-        != (
-            "[hook1]Line 1."  # (line-break for readability)
-            "[hook2]Line 1."
-            "[hook1]\n"  # NOTE: print() makes two write() calls!
-            "[hook2]\n"
-            "[hook2]Line 2."
-            "[hook2]\n"
-        )
+    if received != (
+        "[hook1]Line 1."  # (line-break for readability)
+        "[hook2]Line 1."
+        "[hook1]\n"  # NOTE: print() makes two write() calls!
+        "[hook2]\n"
+        "[hook2]Line 2."
+        "[hook2]\n"
     ):
         print(f"Wrong data: {received!r}", file=sys.stderr)
         sys.exit(1)

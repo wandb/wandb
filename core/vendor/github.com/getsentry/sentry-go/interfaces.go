@@ -214,11 +214,36 @@ type Request struct {
 }
 
 var sensitiveHeaders = map[string]struct{}{
+	"_csrf":               {},
+	"_csrf_token":         {},
+	"_session":            {},
+	"_xsrf":               {},
+	"Api-Key":             {},
+	"Apikey":              {},
+	"Auth":                {},
 	"Authorization":       {},
-	"Proxy-Authorization": {},
 	"Cookie":              {},
+	"Credentials":         {},
+	"Csrf":                {},
+	"Csrf-Token":          {},
+	"Csrftoken":           {},
+	"Ip-Address":          {},
+	"Passwd":              {},
+	"Password":            {},
+	"Private-Key":         {},
+	"Privatekey":          {},
+	"Proxy-Authorization": {},
+	"Remote-Addr":         {},
+	"Secret":              {},
+	"Session":             {},
+	"Sessionid":           {},
+	"Token":               {},
+	"User-Session":        {},
+	"X-Api-Key":           {},
+	"X-Csrftoken":         {},
 	"X-Forwarded-For":     {},
 	"X-Real-Ip":           {},
+	"XSRF-TOKEN":          {},
 }
 
 // NewRequest returns a new Sentry Request from the given http.Request.
@@ -613,7 +638,7 @@ type EventHint struct {
 type Log struct {
 	Timestamp  time.Time            `json:"timestamp,omitempty"`
 	TraceID    TraceID              `json:"trace_id,omitempty"`
-	Level      Level                `json:"level"`
+	Level      LogLevel             `json:"level"`
 	Severity   int                  `json:"severity_number,omitempty"`
 	Body       string               `json:"body,omitempty"`
 	Attributes map[string]Attribute `json:"attributes,omitempty"`

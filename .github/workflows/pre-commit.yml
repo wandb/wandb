@@ -9,24 +9,22 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.8'
-    - uses: actions/setup-go@v5
-      with:
-        go-version-file: core/go.mod
-        cache-dependency-path: core/go.sum
-    - name: setup env
-      run: |
-        ./core/scripts/code-checks.sh update
-    - name: install ruff
-      run: pip install ruff
-    # remove this once we upgrade to Python 3.9+
-    - name: install astunparse
-      run: pip install astunparse
-    - uses: pre-commit/action@v3.0.1
-      with:
-        extra_args: --hook-stage pre-push --all-files
-      env:
-        SKIP: go-generate-graphql
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.8"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+      - name: setup env
+        run: |
+          ./core/scripts/code-checks.sh update
+      # remove this once we upgrade to Python 3.9+
+      - name: install astunparse
+        run: pip install astunparse
+      - uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: --hook-stage pre-push --all-files
+        env:
+          SKIP: go-generate-graphql

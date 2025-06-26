@@ -1912,14 +1912,14 @@ type GetObjectAttributesParts struct {
 	// A container for elements related to a particular part. A response can contain
 	// zero or more Parts elements.
 	//
-	//   - General purpose buckets - For GetObjectAttributes , if a additional checksum
-	//   (including x-amz-checksum-crc32 , x-amz-checksum-crc32c , x-amz-checksum-sha1
-	//   , or x-amz-checksum-sha256 ) isn't applied to the object specified in the
-	//   request, the response doesn't return Part .
+	//   - General purpose buckets - For GetObjectAttributes , if an additional
+	//   checksum (including x-amz-checksum-crc32 , x-amz-checksum-crc32c ,
+	//   x-amz-checksum-sha1 , or x-amz-checksum-sha256 ) isn't applied to the object
+	//   specified in the request, the response doesn't return the Part element.
 	//
-	//   - Directory buckets - For GetObjectAttributes , no matter whether a additional
-	//   checksum is applied to the object specified in the request, the response returns
-	//   Part .
+	//   - Directory buckets - For GetObjectAttributes , regardless of whether an
+	//   additional checksum is applied to the object specified in the request, the
+	//   response returns the Part element.
 	Parts []ObjectPart
 
 	// The total number of parts.
@@ -3096,6 +3096,17 @@ type OutputSerialization struct {
 	noSmithyDocumentSerde
 }
 
+// End of support notice: Beginning October 1, 2025, Amazon S3 will stop returning
+// DisplayName . Update your applications to use canonical IDs (unique identifier
+// for Amazon Web Services accounts), Amazon Web Services account ID (12 digit
+// identifier) or IAM ARNs (full resource naming) as a direct replacement of
+// DisplayName .
+//
+// This change affects the following Amazon Web Services Regions: US East (N.
+// Virginia) Region, US West (N. California) Region, US West (Oregon) Region, Asia
+// Pacific (Singapore) Region, Asia Pacific (Sydney) Region, Asia Pacific (Tokyo)
+// Region, Europe (Ireland) Region, and South America (São Paulo) Region.
+//
 // Container for the owner's display name and ID.
 type Owner struct {
 

@@ -60,7 +60,6 @@ class _Requires:
             func()
 
         if last_message:
-            wandb.termwarn("Supported requirements are: `legacy-service`, `service`.")
             raise UnsupportedError(last_message)
 
 

@@ -61,6 +61,7 @@ def test_to_backend_dict():
         framework="some-framework",
         start_time_millis=123454321,
         metric_pbdicts=[],
+        environment_record=wandb_internal_pb2.EnvironmentRecord(),
     )
 
     assert backend_dict == {

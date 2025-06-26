@@ -1,6 +1,7 @@
 package filetransfer
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -33,6 +34,9 @@ type FileTransferManagerOptions struct {
 
 // fileTransferManager handles the upload/download of files
 type fileTransferManager struct {
+	mu       sync.Mutex
+	isClosed bool
+
 	// fileTransfers is the map of fileTransfer uploader/downloaders
 	fileTransfers *FileTransfers
 
@@ -63,6 +67,15 @@ func NewFileTransferManager(opts FileTransferManagerOptions) FileTransferManager
 func (fm *fileTransferManager) AddTask(task Task) {
 	fm.logger.Debug("fileTransferManager: AddTask: adding task", "task", task.String())
 
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+
+	if fm.isClosed {
+		task.SetError(errors.New("fileTransferManager: AddTask after Close"))
+		task.Complete(fm.fileTransferStats)
+		return
+	}
+
 	fm.wg.Add(1)
 	go func() {
 		defer fm.wg.Done()
@@ -83,6 +96,10 @@ func (fm *fileTransferManager) AddTask(task Task) {
 }
 
 func (fm *fileTransferManager) Close() {
+	fm.mu.Lock()
+	fm.isClosed = true
+	fm.mu.Unlock()
+
 	fm.wg.Wait()
 	fm.logger.Info("fileTransfer: Close: file transfer manager closed")
 }

@@ -261,14 +261,14 @@ class Trace:
             A Span object.
         """
         if kind is not None:
-            assert (
-                kind.upper() in SpanKind.__members__
-            ), "Invalid span kind, can be one of 'LLM', 'AGENT', 'CHAIN', 'TOOL'"
+            assert kind.upper() in SpanKind.__members__, (
+                "Invalid span kind, can be one of 'LLM', 'AGENT', 'CHAIN', 'TOOL'"
+            )
             kind = SpanKind(kind.upper())
         if status_code is not None:
-            assert (
-                status_code.upper() in StatusCode.__members__
-            ), "Invalid status code, can be one of 'SUCCESS' or 'ERROR'"
+            assert status_code.upper() in StatusCode.__members__, (
+                "Invalid status code, can be one of 'SUCCESS' or 'ERROR'"
+            )
             status_code = StatusCode(status_code.upper())
         if inputs is not None:
             assert isinstance(inputs, dict), "Inputs must be a dictionary"
@@ -419,9 +419,9 @@ class Trace:
         Args:
             value: The kind of the trace to be set.
         """
-        assert (
-            value.upper() in SpanKind.__members__
-        ), "Invalid span kind, can be one of 'LLM', 'AGENT', 'CHAIN', 'TOOL'"
+        assert value.upper() in SpanKind.__members__, (
+            "Invalid span kind, can be one of 'LLM', 'AGENT', 'CHAIN', 'TOOL'"
+        )
         self._span.span_kind = SpanKind(value.upper())
 
     def log(self, name: str) -> None:
@@ -433,8 +433,8 @@ class Trace:
         trace_tree = WBTraceTree(self._span, self._model_dict)
         # NOTE: Does not work for reinit="create_new" runs.
         #   This method should be deprecated and users should call run.log().
-        assert (
-            wandb.run is not None
-        ), "You must call wandb.init() before logging a trace"
+        assert wandb.run is not None, (
+            "You must call wandb.init() before logging a trace"
+        )
         assert len(name.strip()) > 0, "You must provide a valid name to log the trace"
         wandb.run.log({name: trace_tree})

@@ -13,12 +13,12 @@ import (
 type LogLevel string
 
 const (
-	LogLevelTrace Level = "trace"
-	LogLevelDebug Level = "debug"
-	LogLevelInfo  Level = "info"
-	LogLevelWarn  Level = "warn"
-	LogLevelError Level = "error"
-	LogLevelFatal Level = "fatal"
+	LogLevelTrace LogLevel = "trace"
+	LogLevelDebug LogLevel = "debug"
+	LogLevelInfo  LogLevel = "info"
+	LogLevelWarn  LogLevel = "warn"
+	LogLevelError LogLevel = "error"
+	LogLevelFatal LogLevel = "fatal"
 )
 
 const (
@@ -63,11 +63,11 @@ func NewLogger(ctx context.Context) Logger {
 func (l *sentryLogger) Write(p []byte) (int, error) {
 	// Avoid sending double newlines to Sentry
 	msg := strings.TrimRight(string(p), "\n")
-	l.log(context.Background(), LevelInfo, LogSeverityInfo, msg)
+	l.log(context.Background(), LogLevelInfo, LogSeverityInfo, msg)
 	return len(p), nil
 }
 
-func (l *sentryLogger) log(ctx context.Context, level Level, severity int, message string, args ...interface{}) {
+func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, message string, args ...interface{}) {
 	if message == "" {
 		return
 	}
@@ -120,6 +120,21 @@ func (l *sentryLogger) log(ctx context.Context, level Level, severity int, messa
 	} else if serverAddr, err := os.Hostname(); err == nil {
 		attrs["sentry.server.address"] = Attribute{Value: serverAddr, Type: "string"}
 	}
+	scope := hub.Scope()
+	if scope != nil {
+		user := scope.user
+		if !user.IsEmpty() {
+			if user.ID != "" {
+				attrs["user.id"] = Attribute{Value: user.ID, Type: "string"}
+			}
+			if user.Name != "" {
+				attrs["user.name"] = Attribute{Value: user.Name, Type: "string"}
+			}
+			if user.Email != "" {
+				attrs["user.email"] = Attribute{Value: user.Email, Type: "string"}
+			}
+		}
+	}
 	if spanID.String() != "0000000000000000" {
 		attrs["sentry.trace.parent_span_id"] = Attribute{Value: spanID.String(), Type: "string"}
 	}
@@ -129,7 +144,6 @@ func (l *sentryLogger) log(ctx context.Context, level Level, severity int, messa
 	if sdkVersion := l.client.sdkVersion; sdkVersion != "" {
 		attrs["sentry.sdk.version"] = Attribute{Value: sdkVersion, Type: "string"}
 	}
-	attrs["sentry.origin"] = Attribute{Value: "auto.logger.log", Type: "string"}
 
 	log := &Log{
 		Timestamp:  time.Now(),

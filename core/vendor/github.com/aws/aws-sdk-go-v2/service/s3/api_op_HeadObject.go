@@ -645,6 +645,16 @@ type HeadObjectOutput struct {
 	// [Storage Classes]: https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html
 	StorageClass types.StorageClass
 
+	// The number of tags, if any, on the object, when you have the relevant
+	// permission to read object tags.
+	//
+	// You can use [GetObjectTagging] to retrieve the tag set associated with an object.
+	//
+	// This functionality is not supported for directory buckets.
+	//
+	// [GetObjectTagging]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectTagging.html
+	TagCount *int32
+
 	// Version ID of the object.
 	//
 	// This functionality is not supported for directory buckets.
