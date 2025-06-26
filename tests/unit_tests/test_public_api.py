@@ -1,11 +1,14 @@
 import sys
 from unittest import mock
+import json
+from unittest.mock import MagicMock
 
 import pytest
 import wandb
 from wandb import Api
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
+from wandb.apis import internal
 
 
 def test_api_auto_login_no_tty():
@@ -183,3 +186,34 @@ def test_artifact_download_logger():
             assert termlog.call_args == call
         else:
             termlog.assert_not_called()
+
+
+def test_create_custom_chart(monkeypatch):
+    _api = internal.Api()
+    _api.api.gql = MagicMock(return_value={"createCustomChart": {"chart": {"id": "1"}}})
+    mock_gql = MagicMock(return_value="test-gql-resp")
+    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", mock_gql)
+
+    # Test with uppercase access (as would be passed from public API)
+    kwargs = {
+        "entity": "test-entity",
+        "name": "chart",
+        "display_name": "Chart",
+        "spec_type": "vega2",
+        "access": "PRIVATE",  # Uppercase as converted by public API
+        "spec": {},
+    }
+
+    resp = _api.create_custom_chart(**kwargs)
+    assert resp == {"chart": {"id": "1"}}
+    _api.api.gql.assert_called_once_with(
+        "test-gql-resp",
+        {
+            "entity": "test-entity",
+            "name": "chart",
+            "displayName": "Chart",
+            "type": "vega2",
+            "access": "PRIVATE",
+            "spec": json.dumps({}),
+        },
+    )

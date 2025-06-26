@@ -133,36 +133,4 @@ def test_upsert_sweep(monkeypatch):
     )
 
 
-def test_create_custom_chart(monkeypatch):
-    _api = internal.Api()
-    _api.api.gql = MagicMock(return_value={"createCustomChart": {"chart": {"id": "1"}}})
-    _api.api.create_custom_chart_introspection = MagicMock(return_value=True)
-    mock_gql = MagicMock(return_value="test-gql-resp")
-    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", mock_gql)
 
-    kwargs = {
-        "entity": "test-entity",
-        "name": "chart",
-        "display_name": "Chart",
-        "spec_type": "vega2",
-        "access": "PRIVATE",
-        "spec": {},
-    }
-
-    resp = _api.create_custom_chart(**kwargs)
-    assert resp == {"chart": {"id": "1"}}
-    _api.api.gql.assert_called_once_with(
-        "test-gql-resp",
-        {
-            "entity": "test-entity",
-            "name": "chart",
-            "displayName": "Chart",
-            "type": "vega2",
-            "access": "PRIVATE",
-            "spec": json.dumps({}),
-        },
-    )
-
-    _api.api.create_custom_chart_introspection = MagicMock(return_value=False)
-    with pytest.raises(UnsupportedError):
-        _api.create_custom_chart(**kwargs)

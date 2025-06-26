@@ -473,7 +473,7 @@ class Api:
         name: str,
         display_name: str,
         spec_type: Literal["vega2"],
-        access: Literal["PRIVATE", "PUBLIC"],
+        access: Literal["private", "public"],
         spec: Union[str, dict],
     ) -> str:
         """Create a custom chart preset and return its id.
@@ -484,8 +484,8 @@ class Api:
             display_name: Human-readable name shown in the UI
             spec_type: Type of specification. Must be "vega2" for Vega-Lite v2 specifications.
             access: Access level for the chart:
-                - "PRIVATE": Chart is only accessible to the entity that created it
-                - "PUBLIC": Chart is publicly accessible
+                - "private": Chart is only accessible to the entity that created it
+                - "public": Chart is publicly accessible
             spec: The Vega/Vega-Lite specification as a dictionary or JSON string
 
         Returns:
@@ -518,7 +518,7 @@ class Api:
                 name="my-bar-chart",
                 display_name="My Custom Bar Chart",
                 spec_type="vega2",
-                access="PRIVATE",
+                access="private",
                 spec=vega_spec,
             )
 
@@ -529,13 +529,16 @@ class Api:
                 fields={"x": "category", "y": "value"},
             )
         """
+        # Convert user-facing lowercase access to backend uppercase
+        backend_access = access.upper()
+        
         api = InternalApi(retry_timedelta=RETRY_TIMEDELTA)
         result = api.create_custom_chart(
             entity=entity,
             name=name,
             display_name=display_name,
             spec_type=spec_type,
-            access=access,
+            access=backend_access,
             spec=spec,
         )
         if result is None or result.get("chart") is None:
