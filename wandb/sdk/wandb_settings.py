@@ -677,7 +677,7 @@ class Settings(BaseModel, validate_assignment=True):
     This does not disable user-provided summary updates.
     """
 
-    x_server_side_expand_glob_metrics: bool = False
+    x_server_side_expand_glob_metrics: bool = True
     """Flag to delegate glob matching of metrics in define_metric to the server.
 
     If the server does not support this, the client will perform the glob matching.
@@ -743,17 +743,37 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
     """HTTP headers to add to OpenMetrics requests."""
 
-    x_stats_disk_paths: Optional[Sequence[str]] = Field(
-        default_factory=lambda: ("/", "/System/Volumes/Data")
-        if platform.system() == "Darwin"
-        else ("/",)
-    )
+    x_stats_disk_paths: Optional[Sequence[str]] = ("/",)
     """System paths to monitor for disk usage."""
+
+    x_stats_cpu_count: Optional[int] = None
+    """System CPU count.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_cpu_logical_count: Optional[int] = None
+    """Logical CPU count.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_gpu_count: Optional[int] = None
+    """GPU device count.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
+
+    x_stats_gpu_type: Optional[str] = None
+    """GPU device type.
+
+    If set, overrides the auto-detected value in the run metadata.
+    """
 
     x_stats_gpu_device_ids: Optional[Sequence[int]] = None
     """GPU device indices to monitor.
 
-    If not set, captures metrics for all GPUs.
+    If not set, the system monitor captures metrics for all GPUs.
     Assumes 0-based indexing matching CUDA/ROCm device enumeration.
     """
 
