@@ -268,14 +268,6 @@ func (sm *SystemMonitor) probeExecutionContext(git *spb.GitRepoRecord) *spb.Reco
 
 // probeResources gathers system information from all resources and merges their metadata.
 func (sm *SystemMonitor) probeResources() *spb.Record {
-	defer func() {
-		if err := recover(); err != nil {
-			sm.logger.CaptureError(
-				fmt.Errorf("monitor: panic: %v", err),
-			)
-		}
-	}()
-
 	sm.logger.Debug("monitor: probing resources")
 
 	e := &spb.EnvironmentRecord{WriterId: sm.writerID}
@@ -287,6 +279,15 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 	for _, resource := range sm.resources {
 		go func() {
 			defer wg.Done()
+
+			defer func() {
+				if err := recover(); err != nil {
+					sm.logger.CaptureError(
+						fmt.Errorf("monitor: panic probing a resource: %v", err),
+					)
+				}
+			}()
+
 			if resp := resource.Probe(); resp != nil {
 				out <- resp
 			}
