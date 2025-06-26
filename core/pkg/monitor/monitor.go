@@ -278,13 +278,28 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 
 	sm.logger.Debug("monitor: probing resources")
 
-	e := spb.EnvironmentRecord{WriterId: sm.writerID}
+	e := &spb.EnvironmentRecord{WriterId: sm.writerID}
+
+	wg := sync.WaitGroup{}
+	out := make(chan *spb.EnvironmentRecord)
+	wg.Add(len(sm.resources))
 
 	for _, resource := range sm.resources {
-		probeResponse := resource.Probe()
-		if probeResponse != nil {
-			proto.Merge(&e, probeResponse)
-		}
+		go func() {
+			defer wg.Done()
+			if resp := resource.Probe(); resp != nil {
+				out <- resp
+			}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+
+	for m := range out {
+		proto.Merge(e, m)
 	}
 
 	// Overwrite auto-detected metadata with user-provided values.
@@ -302,7 +317,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 		e.GpuType = sm.settings.GetStatsGpuType()
 	}
 
-	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &e}}
+	return &spb.Record{RecordType: &spb.Record_Environment{Environment: e}}
 }
 
 // Start begins the monitoring process for all resources and probes system information.
