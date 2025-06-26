@@ -362,7 +362,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
-        self.server_supports_create_custom_chart: Optional[bool] = None
+
         self._server_features_cache: Optional[Dict[str, bool]] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
@@ -867,12 +867,7 @@ class Api:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
 
-    @normalize_exceptions
-    def create_custom_chart_introspection(self) -> bool:
-        if self.server_supports_create_custom_chart is None:
-            _, _, mutations = self.server_info_introspection()
-            self.server_supports_create_custom_chart = "createCustomChart" in mutations
-        return self.server_supports_create_custom_chart
+
 
     def _server_features(self) -> Dict[str, bool]:
         # NOTE: Avoid caching via `@cached_property`, due to undocumented
@@ -4680,10 +4675,7 @@ class Api:
         access: str,
         spec: Union[str, Mapping[str, Any]],
     ) -> Optional[Dict[str, Any]]:
-        if not self.create_custom_chart_introspection():
-            raise UnsupportedError(
-                "custom chart creation is not supported by this version of wandb server."
-            )
+
 
         if not isinstance(spec, str):
             spec = json.dumps(spec)
