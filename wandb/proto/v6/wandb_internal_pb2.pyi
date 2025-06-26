@@ -4207,6 +4207,7 @@ class EnvironmentRecord(google.protobuf.message.Message):
     DISK_FIELD_NUMBER: builtins.int
     MEMORY_FIELD_NUMBER: builtins.int
     CPU_FIELD_NUMBER: builtins.int
+    CPU_MODEL_FIELD_NUMBER: builtins.int
     APPLE_FIELD_NUMBER: builtins.int
     GPU_NVIDIA_FIELD_NUMBER: builtins.int
     CUDA_VERSION_FIELD_NUMBER: builtins.int
@@ -4282,6 +4283,13 @@ class EnvironmentRecord(google.protobuf.message.Message):
         """CPU information."""
 
     @property
+    def cpu_model(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
+        """CPU model.
+
+        There are systems with multiple CPUs on the same motherboard.
+        """
+
+    @property
     def apple(self) -> global___AppleInfo:
         """Information specific to Apple Silicon hardware."""
 
@@ -4336,6 +4344,7 @@ class EnvironmentRecord(google.protobuf.message.Message):
         disk: collections.abc.Mapping[builtins.str, global___DiskInfo] | None = ...,
         memory: global___MemoryInfo | None = ...,
         cpu: global___CpuInfo | None = ...,
+        cpu_model: collections.abc.Iterable[builtins.str] | None = ...,
         apple: global___AppleInfo | None = ...,
         gpu_nvidia: collections.abc.Iterable[global___GpuNvidiaInfo] | None = ...,
         cuda_version: builtins.str = ...,
@@ -4348,7 +4357,7 @@ class EnvironmentRecord(google.protobuf.message.Message):
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["_info", b"_info", "apple", b"apple", "coreweave", b"coreweave", "cpu", b"cpu", "git", b"git", "memory", b"memory", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_info", b"_info", "apple", b"apple", "args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "coreweave", b"coreweave", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium", "username", b"username", "writer_id", b"writer_id"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["_info", b"_info", "apple", b"apple", "args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "coreweave", b"coreweave", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cpu_model", b"cpu_model", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "started_at", b"started_at", "tpu", b"tpu", "trainium", b"trainium", "username", b"username", "writer_id", b"writer_id"]) -> None: ...
 
 global___EnvironmentRecord = EnvironmentRecord
 

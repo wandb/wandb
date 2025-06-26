@@ -400,8 +400,27 @@ func (s *System) Probe() *spb.EnvironmentRecord {
 		info.CpuCountLogical = uint32(cpuCountLogical)
 	}
 
+	// CPU model.
 	cpuInfo, err := cpu.Info()
-	fmt.Printf("%+v\n%+v\n", cpuInfo, err)
+	if err == nil {
+		cpuModels := make(map[string]string)
+
+		for _, ci := range cpuInfo {
+			// There may be virtual CPUs reported by cpu.Info() that correspond to the same
+			// physical CPU.
+			key := ci.PhysicalID
+			// On Arm Macs, PhysicalID is empty and we rely on the CPU index instead.
+			if key == "" {
+				key = string(ci.CPU)
+			}
+			if _, ok := cpuModels[key]; !ok {
+				cpuModels[key] = ci.ModelName
+			}
+		}
+		for _, model := range cpuModels {
+			info.CpuModel = append(info.CpuModel, model)
+		}
+	}
 
 	// Collect disk information
 	for _, diskPath := range s.diskPaths {
