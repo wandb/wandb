@@ -30,8 +30,8 @@ def _should_print_spinner() -> bool:
         return False
 
     return not (
-        env.strtobool(os.environ.get("WANDB_QUIET", "false"))
-        or env.strtobool(os.environ.get("WANDB_SILENT", "false"))
+        env.strtobool(os.environ.get(env.QUIET, "false"))
+        or env.strtobool(os.environ.get(env.SILENT, "false"))
     )
 
 
