@@ -45,7 +45,6 @@ from typing import (
     List,
     Literal,
     Mapping,
-    MutableMapping,
     Optional,
 )
 
