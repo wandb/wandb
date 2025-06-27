@@ -1066,7 +1066,7 @@ class Table(Media):
         Args:
             fn: A function which accepts one or two parameters, ndx (int) and
                 row (dict), which is expected to return a dict representing
-                new columns for that row, keyed by the new column names. 
+                new columns for that row, keyed by the new column names.
             - `ndx` is an integer representing the index of the row. Only included if `include_ndx`
                       is set to `True`.
             - `row` is a dictionary keyed by existing columns
