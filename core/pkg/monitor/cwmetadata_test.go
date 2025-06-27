@@ -202,7 +202,6 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			}
 
 			cwmParams := monitor.CoreWeaveMetadataParams{
-				Ctx:           context.Background(),
 				Client:        newTestRetryableHTTPClient(logger),
 				Logger:        logger,
 				GraphqlClient: mockGQLClient,
@@ -219,7 +218,7 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, cwm)
 
-			e := cwm.Probe()
+			e := cwm.Probe(context.Background())
 			expectedEnvironment := tc.expectedEnvironment
 
 			if tc.expectedEnvironment == nil {

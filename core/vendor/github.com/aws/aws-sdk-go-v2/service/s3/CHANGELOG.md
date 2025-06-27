@@ -1,3 +1,7 @@
+# v1.82.0 (2025-06-25)
+
+* **Feature**: Adds support for additional server-side encryption mode and storage class values for accessing Amazon FSx data from Amazon S3 using S3 Access Points
+
 # v1.81.0 (2025-06-18)
 
 * **Feature**: Added support for renaming objects within the same bucket using the new RenameObject API.

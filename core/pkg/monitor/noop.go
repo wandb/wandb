@@ -3,6 +3,8 @@
 package monitor
 
 import (
+	"context"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -21,7 +23,7 @@ func NewTrainium(
 
 func (t *Trainium) Sample() (*spb.StatsRecord, error) { return nil, nil }
 
-func (t *Trainium) Probe() *spb.EnvironmentRecord {
+func (t *Trainium) Probe(_ context.Context) *spb.EnvironmentRecord {
 	return nil
 }
 
@@ -34,6 +36,6 @@ func NewTPU() *TPU {
 
 func (t *TPU) Sample() (*spb.StatsRecord, error) { return nil, nil }
 
-func (t *TPU) Probe() *spb.EnvironmentRecord {
+func (t *TPU) Probe(_ context.Context) *spb.EnvironmentRecord {
 	return nil
 }

@@ -363,8 +363,8 @@ func (de *DCGMExporter) Sample() (*spb.StatsRecord, error) {
 // Probe fetches the Nvidia GPU metadata from the endpoint and returns it as an EnvironmentRecord.
 //
 // A GPU is identified by its model name and UUID.
-func (de *DCGMExporter) Probe() *spb.EnvironmentRecord {
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultOpenMetricsTimeout)
+func (de *DCGMExporter) Probe(ctx context.Context) *spb.EnvironmentRecord {
+	ctx, cancel := context.WithTimeout(ctx, DefaultOpenMetricsTimeout)
 	defer cancel()
 
 	gpus := make(map[*spb.GpuNvidiaInfo]bool)

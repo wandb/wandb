@@ -547,6 +547,11 @@ func (s *Settings) GetStatsGpuType() string {
 	return s.Proto.XStatsGpuType.GetValue()
 }
 
+// Whether to track the process-specific metrics for the entire process tree.
+func (s *Settings) GetStatsTrackProcessTree() bool {
+	return s.Proto.XStatsTrackProcessTree.GetValue()
+}
+
 // The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()

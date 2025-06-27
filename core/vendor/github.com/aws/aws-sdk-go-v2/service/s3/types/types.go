@@ -2357,7 +2357,11 @@ type LifecycleRule struct {
 	// ObjectSizeLessThan , or And specified. Filter is required if the LifecycleRule
 	// does not contain a Prefix element.
 	//
+	// For more information about Tag filters, see [Adding filters to Lifecycle rules] in the Amazon S3 User Guide.
+	//
 	// Tag filters are not supported for directory buckets.
+	//
+	// [Adding filters to Lifecycle rules]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/intro-lifecycle-filters.html
 	Filter *LifecycleRuleFilter
 
 	// Unique identifier for the rule. The value cannot be longer than 255 characters.
