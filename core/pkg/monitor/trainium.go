@@ -4,6 +4,7 @@ package monitor
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -447,7 +448,7 @@ func (t *Trainium) Close() {
 	t.SetRunningState(false)
 }
 
-func (t *Trainium) Probe() *spb.EnvironmentRecord {
+func (t *Trainium) Probe(_ context.Context) *spb.EnvironmentRecord {
 	info := &spb.EnvironmentRecord{
 		Trainium: &spb.TrainiumInfo{
 			Name:   "Trainium",

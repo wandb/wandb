@@ -796,6 +796,14 @@ class Settings(BaseModel, validate_assignment=True):
     Only accessible from within a CoreWeave cluster.
     """
 
+    x_stats_track_process_tree: bool = False
+    """Monitor the entire process tree for resource usage, starting from `x_stats_pid`.
+
+    When `True`, the system monitor aggregates the RSS, CPU%, and thread count
+    from the process with PID `x_stats_pid` and all of its descendants.
+    This can have a performance overhead and is disabled by default.
+    """
+
     x_sync: bool = False
     """Flag to indicate whether we are syncing a run from the transaction log."""
 
