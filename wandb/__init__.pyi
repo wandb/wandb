@@ -877,7 +877,7 @@ def define_metric(
     goal: str | None = None,
     overwrite: bool | None = None,
 ) -> wandb_metric.Metric:
-    """Customize metrics logged with `wandb.log()`.
+    """Customize metrics logged with `run.log()`.
 
     Args:
         name: The name of the metric to customize.
@@ -1123,22 +1123,22 @@ def plot_table(
     # Create a custom chart using a Vega-Lite spec and the data table.
     import wandb
 
-    wandb.init()
-
     data = [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]]
     table = wandb.Table(data=data, columns=["x", "y"])
-
     fields = {"x": "x", "y": "y", "title": "MY TITLE"}
 
-    # Create a custom title with `string_fields`.
-    my_custom_chart = wandb.plot_table(
-        vega_spec_name="wandb/line/v0",
-        data_table=table,
-        fields=fields,
-        string_fields={"title": "Title"},
-    )
+    with wandb.init() as run:
+        # Training code goes here
 
-    wandb.log({"custom_chart": my_custom_chart})
+        # Create a custom title with `string_fields`.
+        my_custom_chart = wandb.plot_table(
+            vega_spec_name="wandb/line/v0",
+            data_table=table,
+            fields=fields,
+            string_fields={"title": "Title"},
+        )
+
+        run.log({"custom_chart": my_custom_chart})
     ```
     """
     ...

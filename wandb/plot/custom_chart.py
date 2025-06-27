@@ -118,7 +118,7 @@ def plot_table(
 
     with wandb.init() as run:
         # Training code goes here
-        
+
         # Create a custom title with `string_fields`.
         my_custom_chart = wandb.plot_table(
             vega_spec_name="wandb/line/v0",
