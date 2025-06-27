@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/simplejsonext"
@@ -34,7 +35,7 @@ const (
 // Resource defines the interface for system resources to be monitored.
 type Resource interface {
 	Sample() (*spb.StatsRecord, error)
-	Probe() *spb.EnvironmentRecord
+	Probe(ctx context.Context) *spb.EnvironmentRecord
 }
 
 // SystemMonitor is responsible for monitoring system metrics across various resources.
@@ -173,7 +174,6 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 	// CoreWeave compute environment metadata.
 	if cwm, err := NewCoreWeaveMetadata(
 		CoreWeaveMetadataParams{
-			Ctx:           sm.ctx,
 			GraphqlClient: sm.graphqlClient,
 			Logger:        sm.logger,
 			Entity:        sm.settings.GetEntity(),
@@ -268,24 +268,35 @@ func (sm *SystemMonitor) probeExecutionContext(git *spb.GitRepoRecord) *spb.Reco
 
 // probeResources gathers system information from all resources and merges their metadata.
 func (sm *SystemMonitor) probeResources() *spb.Record {
-	defer func() {
-		if err := recover(); err != nil {
-			sm.logger.CaptureError(
-				fmt.Errorf("monitor: panic: %v", err),
-			)
-		}
-	}()
-
 	sm.logger.Debug("monitor: probing resources")
 
-	e := spb.EnvironmentRecord{WriterId: sm.writerID}
+	e := &spb.EnvironmentRecord{WriterId: sm.writerID}
+
+	g, gctx := errgroup.WithContext(sm.ctx)
+	var mu sync.Mutex
 
 	for _, resource := range sm.resources {
-		probeResponse := resource.Probe()
-		if probeResponse != nil {
-			proto.Merge(&e, probeResponse)
-		}
+		g.Go(func() error {
+			defer func() {
+				if err := recover(); err != nil {
+					sm.logger.CaptureError(fmt.Errorf("monitor: panic probing resource: %v", err))
+				}
+			}()
+
+			if gctx.Err() != nil {
+				return nil
+			}
+
+			if rec := resource.Probe(gctx); rec != nil {
+				mu.Lock()
+				proto.Merge(e, rec)
+				mu.Unlock()
+			}
+			return nil
+		})
 	}
+
+	_ = g.Wait()
 
 	// Overwrite auto-detected metadata with user-provided values.
 	// TODO: move this to the relevant resources instead.
@@ -302,7 +313,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 		e.GpuType = sm.settings.GetStatsGpuType()
 	}
 
-	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &e}}
+	return &spb.Record{RecordType: &spb.Record_Environment{Environment: e}}
 }
 
 // Start begins the monitoring process for all resources and probes system information.

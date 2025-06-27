@@ -284,7 +284,7 @@ func (t *TPU) getMetrics(metricName TPUMetricName) ([]*tpuproto.Metric, error) {
 }
 
 // Probe returns the TPU metadata.
-func (t *TPU) Probe() *spb.EnvironmentRecord {
+func (t *TPU) Probe(_ context.Context) *spb.EnvironmentRecord {
 	if t.count == 0 {
 		return nil
 	}
