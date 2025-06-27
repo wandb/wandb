@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -380,7 +381,7 @@ func getSlurmEnvVars() map[string]string {
 //   - Memory information (total available)
 //   - Disk information (space usage for monitored paths)
 //   - SLURM environment variables if running in a SLURM environment
-func (s *System) Probe() *spb.EnvironmentRecord {
+func (s *System) Probe(ctx context.Context) *spb.EnvironmentRecord {
 	// TODO: capture more detailed CPU information.
 	info := &spb.EnvironmentRecord{
 		Disk:   make(map[string]*spb.DiskInfo),
@@ -388,21 +389,21 @@ func (s *System) Probe() *spb.EnvironmentRecord {
 	}
 
 	// Collect memory information
-	if virtualMem, err := mem.VirtualMemory(); err == nil {
+	if virtualMem, err := mem.VirtualMemoryWithContext(ctx); err == nil {
 		info.Memory.Total = virtualMem.Total
 	}
 
 	// Collect CPU information
-	if cpuCount, err := cpu.Counts(false); err == nil {
+	if cpuCount, err := cpu.CountsWithContext(ctx, false); err == nil {
 		info.CpuCount = uint32(cpuCount)
 	}
-	if cpuCountLogical, err := cpu.Counts(true); err == nil {
+	if cpuCountLogical, err := cpu.CountsWithContext(ctx, true); err == nil {
 		info.CpuCountLogical = uint32(cpuCountLogical)
 	}
 
 	// Collect disk information
 	for _, diskPath := range s.diskPaths {
-		if usage, err := disk.Usage(diskPath); err == nil {
+		if usage, err := disk.UsageWithContext(ctx, diskPath); err == nil {
 			info.Disk[diskPath] = &spb.DiskInfo{
 				Total: usage.Total,
 				Used:  usage.Used,

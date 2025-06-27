@@ -35,7 +35,7 @@ const (
 // Resource defines the interface for system resources to be monitored.
 type Resource interface {
 	Sample() (*spb.StatsRecord, error)
-	Probe() *spb.EnvironmentRecord
+	Probe(ctx context.Context) *spb.EnvironmentRecord
 }
 
 // SystemMonitor is responsible for monitoring system metrics across various resources.
@@ -174,7 +174,6 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 	// CoreWeave compute environment metadata.
 	if cwm, err := NewCoreWeaveMetadata(
 		CoreWeaveMetadataParams{
-			Ctx:           sm.ctx,
 			GraphqlClient: sm.graphqlClient,
 			Logger:        sm.logger,
 			Entity:        sm.settings.GetEntity(),
@@ -288,7 +287,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 				return nil
 			}
 
-			if rec := resource.Probe(); rec != nil {
+			if rec := resource.Probe(gctx); rec != nil {
 				mu.Lock()
 				proto.Merge(e, rec)
 				mu.Unlock()
