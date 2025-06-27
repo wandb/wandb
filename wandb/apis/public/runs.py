@@ -111,7 +111,7 @@ class Runs(SizedPaginator["Run"]):
                     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
                         edges {{
                             node {{
-                                {"" if _server_provides_internal_id_for_project(client) else "internalId"}
+                                {"projectId" if _server_provides_internal_id_for_project(client) else ""}
                                 ...RunFragment
                             }}
                             cursor
@@ -454,25 +454,19 @@ class Run(Attrs):
         )
 
     def load(self, force=False):
-        query = gql(
-            """
-        query Run($project: String!, $entity: String!, $name: String!) {{
-            project(name: $project, entityName: $entity) {{
-                run(name: $name) {{
-                    {}
-                    ...RunFragment
+        if force or not self._attrs:
+            query = gql(f"""#graphql
+            query Run($project: String!, $entity: String!, $name: String!) {{
+                project(name: $project, entityName: $entity) {{
+                    run(name: $name) {{
+                        {"projectId" if _server_provides_internal_id_for_project(self.client) else ""}
+                        ...RunFragment
+                    }}
                 }}
             }}
-        }}
-        {}
-        """.format(
-                "projectId"
-                if _server_provides_internal_id_for_project(self.client)
-                else "",
-                RUN_FRAGMENT,
-            )
-        )
-        if force or not self._attrs:
+            {RUN_FRAGMENT}
+            """)
+
             response = self._exec(query)
             if (
                 response is None
