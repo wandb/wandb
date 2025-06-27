@@ -198,7 +198,7 @@ func (s *System) processAndDescendants(ctx context.Context, pid int32) ([]*proce
 		// cancel and return early if it's taking too long.
 		select {
 		case <-ctx.Done():
-			return out, ctx.Err()
+			return out, nil
 		default:
 			// continue processing
 		}
@@ -279,8 +279,7 @@ func (s *System) collectProcessTreeMetrics(
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	procs, err := s.processAndDescendants(ctx, root.Pid)
-
-	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
+	if err != nil {
 		return err
 	}
 
@@ -296,17 +295,17 @@ func (s *System) collectProcessTreeMetrics(
 
 	for _, p := range procs {
 		// Memory
-		if mi, err := p.MemoryInfo(); err == nil {
+		if mi, err := p.MemoryInfo(); err == nil { // accumulate if there is no error.
 			totalRSS += mi.RSS
 		}
 
 		// CPU
-		if pcpu, err := p.CPUPercent(); err == nil {
+		if pcpu, err := p.CPUPercent(); err == nil { // accumulate if there is no error.
 			totalCPU += pcpu // raw – we'll normalise later
 		}
 
 		// Threads
-		if th, err := p.NumThreads(); err == nil {
+		if th, err := p.NumThreads(); err == nil { // accumulate if there is no error.
 			totalThreads += th
 		}
 	}
