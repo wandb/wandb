@@ -1086,6 +1086,7 @@ type RunResumeStatusModelProjectBucketRun struct {
 	EventsTail       *string  `json:"eventsTail"`
 	Config           *string  `json:"config"`
 	Tags             []string `json:"tags"`
+	Notes            *string  `json:"notes"`
 	WandbConfig      *string  `json:"wandbConfig"`
 }
 
@@ -1121,6 +1122,9 @@ func (v *RunResumeStatusModelProjectBucketRun) GetConfig() *string { return v.Co
 
 // GetTags returns RunResumeStatusModelProjectBucketRun.Tags, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusModelProjectBucketRun) GetTags() []string { return v.Tags }
+
+// GetNotes returns RunResumeStatusModelProjectBucketRun.Notes, and is useful for accessing the field via an interface.
+func (v *RunResumeStatusModelProjectBucketRun) GetNotes() *string { return v.Notes }
 
 // GetWandbConfig returns RunResumeStatusModelProjectBucketRun.WandbConfig, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusModelProjectBucketRun) GetWandbConfig() *string { return v.WandbConfig }
@@ -2796,6 +2800,7 @@ query RunResumeStatus ($project: String, $entity: String, $name: String!) {
 			eventsTail
 			config
 			tags
+			notes
 			wandbConfig(keys: ["t"])
 		}
 	}
