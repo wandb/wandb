@@ -126,7 +126,7 @@ class Artifact:
 
     Construct an empty W&B Artifact. Populate an artifacts contents with methods that
     begin with `add`. Once the artifact has all the desired files, you can call
-    `wandb.log_artifact()` to log it.
+    `run.log_artifact()` to log it.
 
     Args:
         name (str): A human-readable name for the artifact. Use the name to identify
@@ -1333,7 +1333,7 @@ class Artifact:
             name: The artifact relative name to get.
 
         Returns:
-            W&B object that can be logged with `wandb.log()` and visualized in the W&B UI.
+            W&B object that can be logged with `run.log()` and visualized in the W&B UI.
 
         Raises:
             ArtifactNotLoggedError: If the artifact isn't logged or the run is offline.
@@ -1812,7 +1812,7 @@ class Artifact:
             name: The artifact relative name to retrieve.
 
         Returns:
-            W&B object that can be logged with `wandb.log()` and
+            W&B object that can be logged with `run.log()` and
             visualized in the W&B UI.
 
         Raises:

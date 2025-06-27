@@ -477,8 +477,8 @@ class Run:
     See [Log distributed training experiments](https://docs.wandb.ai/guides/track/log/distributed-training)
     for more information.
 
-    You can log data to a run with `wandb.log()`. Anything you log using
-    `wandb.log()` is sent to that run. See
+    You can log data to a run with `run.log()`. Anything you log using
+    `run.log()` is sent to that run. See
     [Create an experiment](https://docs.wandb.ai/guides/track/launch) or
     [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page
     or more information.
@@ -494,7 +494,7 @@ class Run:
     manager to automatically finish the run.
 
     Attributes:
-        summary: (Summary) Single values set for each `wandb.log()` key. By
+        summary: (Summary) Single values set for each `run.log()` key. By
             default, summary is set to the last value logged. You can manually
             set summary to the best value, like max accuracy, instead of the
             final value.
@@ -2751,7 +2751,7 @@ class Run:
         goal: str | None = None,
         overwrite: bool | None = None,
     ) -> wandb_metric.Metric:
-        """Customize metrics logged with `wandb.log()`.
+        """Customize metrics logged with `run.log()`.
 
         Args:
             name: The name of the metric to customize.
