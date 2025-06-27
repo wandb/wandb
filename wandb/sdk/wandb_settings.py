@@ -524,43 +524,36 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_cli_only_mode: bool = False
     """Flag to indicate that the SDK is running in CLI-only mode.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_disable_meta: bool = False
     """Flag to disable the collection of system metadata.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_disable_stats: bool = False
     """Flag to disable the collection of system metrics.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_disable_viewer: bool = False
     """Flag to disable the early viewer query.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_disable_machine_info: bool = False
     """Flag to disable automatic machine info collection.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_executable: Optional[str] = None
     """Path to the Python executable.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_extra_http_headers: Optional[Dict[str, str]] = None
     """Additional headers to add to all outgoing HTTP requests.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -570,19 +563,16 @@ class Settings(BaseModel, validate_assignment=True):
     Its purpose is to prevent HTTP requests from failing due to
     containing too much data. This number is approximate:
     requests will be slightly larger.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_stream_max_line_bytes: Optional[int] = None
     """Maximum line length for filestream JSONL files.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_stream_transmit_interval: Optional[float] = None
     """Interval in seconds between filestream transmissions.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -590,25 +580,21 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_file_stream_retry_max: Optional[int] = None
     """Max number of retries for filestream operations.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_stream_retry_wait_min_seconds: Optional[float] = None
     """Minimum wait time between retries for filestream operations.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_stream_retry_wait_max_seconds: Optional[float] = None
     """Maximum wait time between retries for filestream operations.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_stream_timeout_seconds: Optional[float] = None
     """Timeout in seconds for individual filestream HTTP requests.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -616,31 +602,26 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_file_transfer_retry_max: Optional[int] = None
     """Max number of retries for file transfer operations.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_transfer_retry_wait_min_seconds: Optional[float] = None
     """Minimum wait time between retries for file transfer operations.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_transfer_retry_wait_max_seconds: Optional[float] = None
     """Maximum wait time between retries for file transfer operations.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_transfer_timeout_seconds: Optional[float] = None
     """Timeout in seconds for individual file transfer HTTP requests.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_files_dir: Optional[str] = None
     """Override setting for the computed files_dir.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -648,7 +629,6 @@ class Settings(BaseModel, validate_assignment=True):
     """Flag indicating custom flow control for filestream.
 
     TODO: Not implemented in wandb-core.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -656,7 +636,6 @@ class Settings(BaseModel, validate_assignment=True):
     """Flag indicating flow control is disabled for filestream.
 
     TODO: Not implemented in wandb-core.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -664,49 +643,41 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_graphql_retry_max: Optional[int] = None
     """Max number of retries for GraphQL operations.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_graphql_retry_wait_min_seconds: Optional[float] = None
     """Minimum wait time between retries for GraphQL operations.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_graphql_retry_wait_max_seconds: Optional[float] = None
     """Maximum wait time between retries for GraphQL operations.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_graphql_timeout_seconds: Optional[float] = None
     """Timeout in seconds for individual GraphQL requests.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_internal_check_process: float = 8.0
     """Interval for internal process health checks in seconds.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_jupyter_name: Optional[str] = None
     """Name of the Jupyter notebook.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_jupyter_path: Optional[str] = None
     """Path to the Jupyter notebook.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_jupyter_root: Optional[str] = None
     """Root directory of the Jupyter notebook.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -715,25 +686,21 @@ class Settings(BaseModel, validate_assignment=True):
 
     This is used to group data by on the frontend and can be used to distinguish data
     from different processes in a distributed training job.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_live_policy_rate_limit: Optional[int] = None
     """Rate limit for live policy updates in seconds.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_live_policy_wait_time: Optional[int] = None
     """Wait time between live policy updates in seconds.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_log_level: int = logging.INFO
     """Logging level for internal operations.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -741,7 +708,6 @@ class Settings(BaseModel, validate_assignment=True):
     """Size of the network buffer used in flow control.
 
     TODO: Not implemented in wandb-core.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -753,7 +719,6 @@ class Settings(BaseModel, validate_assignment=True):
     In a distributed setting, this is useful for avoiding file overwrites
     from secondary processes when only system metrics and logs are needed,
     as the primary process handles the main logging.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -762,19 +727,16 @@ class Settings(BaseModel, validate_assignment=True):
 
     This is deprecated and will be removed in future versions.
     Please use `http_proxy` and `https_proxy` instead.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_runqueue_item_id: Optional[str] = None
     """ID of the Launch run queue item being processed.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_save_requirements: bool = True
     """Flag to save the requirements file.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -782,7 +744,6 @@ class Settings(BaseModel, validate_assignment=True):
     """Flag to delegate automatic computation of summary from history to the server.
 
     This does not disable user-provided summary updates.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -790,19 +751,16 @@ class Settings(BaseModel, validate_assignment=True):
     """Flag to delegate glob matching of metrics in define_metric to the server.
 
     If the server does not support this, the client will perform the glob matching.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_service_transport: Optional[str] = None
     """Transport method for communication with the wandb service.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_service_wait: float = 30.0
     """Time in seconds to wait for the wandb-core internal service to start.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -814,25 +772,21 @@ class Settings(BaseModel, validate_assignment=True):
 
     Should be used with caution, as it removes the gurantees about
     recoverability.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_start_time: Optional[float] = None
     """The start time of the run in seconds since the Unix epoch.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_pid: int = os.getpid()
     """PID of the process that started the wandb-core process to collect system stats for.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_sampling_interval: float = Field(default=15.0)
     """Sampling interval for the system monitor in seconds.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -840,7 +794,6 @@ class Settings(BaseModel, validate_assignment=True):
     """Path to the default config file for the neuron-monitor tool.
 
     This is used to monitor AWS Trainium devices.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -856,7 +809,6 @@ class Settings(BaseModel, validate_assignment=True):
     Examples:
     - `http://localhost:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337", cluster="globular"}`.
     - TODO: `http://192.168.0.1:9400/metrics`.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -871,19 +823,16 @@ class Settings(BaseModel, validate_assignment=True):
     Supports two formats:
     - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     - ("metric regex pattern 1", "metric regex pattern 2", ...)
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
     """HTTP headers to add to OpenMetrics requests.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_disk_paths: Optional[Sequence[str]] = ("/",)
     """System paths to monitor for disk usage.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -891,7 +840,6 @@ class Settings(BaseModel, validate_assignment=True):
     """System CPU count.
 
     If set, overrides the auto-detected value in the run metadata.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -899,7 +847,6 @@ class Settings(BaseModel, validate_assignment=True):
     """Logical CPU count.
 
     If set, overrides the auto-detected value in the run metadata.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -907,7 +854,6 @@ class Settings(BaseModel, validate_assignment=True):
     """GPU device count.
 
     If set, overrides the auto-detected value in the run metadata.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -915,7 +861,6 @@ class Settings(BaseModel, validate_assignment=True):
     """GPU device type.
 
     If set, overrides the auto-detected value in the run metadata.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -924,7 +869,6 @@ class Settings(BaseModel, validate_assignment=True):
 
     If not set, the system monitor captures metrics for all GPUs.
     Assumes 0-based indexing matching CUDA/ROCm device enumeration.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -932,7 +876,6 @@ class Settings(BaseModel, validate_assignment=True):
     """Number of system metric samples to buffer in memory in the wandb-core process.
 
     Can be accessed via run._system_metrics.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -940,7 +883,6 @@ class Settings(BaseModel, validate_assignment=True):
     """The scheme and hostname for contacting the CoreWeave metadata server.
 
     Only accessible from within a CoreWeave cluster.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -949,7 +891,6 @@ class Settings(BaseModel, validate_assignment=True):
 
     This must not include the schema and hostname prefix.
     Only accessible from within a CoreWeave cluster.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -959,13 +900,11 @@ class Settings(BaseModel, validate_assignment=True):
     When `True`, the system monitor aggregates the RSS, CPU%, and thread count
     from the process with PID `x_stats_pid` and all of its descendants.
     This can have a performance overhead and is disabled by default.
-
-    <!-- lazydoc-ignore-class-attributes -->
+    s<!-- lazydoc-ignore-class-attributes -->
     """
 
     x_sync: bool = False
     """Flag to indicate whether we are syncing a run from the transaction log.
-    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -973,7 +912,6 @@ class Settings(BaseModel, validate_assignment=True):
     """Flag to indicate whether this process can update the run's final state on the server.
 
     Set to False in distributed training when only the main process should determine the final state.
-
     <!-- lazydoc-ignore-class-attributes -->
     """
 
