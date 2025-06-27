@@ -75,6 +75,11 @@ logger = logging.getLogger(__name__)
 
 
 class RetryingClient:
+    """A GraphQL client that retries requests on failure.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
     INFO_QUERY = gql(
         """
         query ServerInfo{
@@ -1742,18 +1747,18 @@ class Api:
             A registry object.
 
         Examples:
-            ```python
-            import wandb
+        ```python
+        import wandb
 
-            api = wandb.Api()
-            registry = api.create_registry(
-                name="my-registry",
-                visibility="restricted",
-                organization="my-org",
-                description="This is a test registry",
-                artifact_types=["model"],
-            )
-            ```
+        api = wandb.Api()
+        registry = api.create_registry(
+            name="my-registry",
+            visibility="restricted",
+            organization="my-org",
+            description="This is a test registry",
+            artifact_types=["model"],
+        )
+        ```
         """
         if not InternalApi()._server_supports(
             ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
