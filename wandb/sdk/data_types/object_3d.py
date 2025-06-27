@@ -347,7 +347,7 @@ class Object3D(BatchableMedia):
             file_type (str): Specifies the data format passed to `data_or_path`. Required when `data_or_path` is a
                 `TextIO` stream. This parameter is ignored if a file path is provided. The type is taken from the file extension.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         # if file_type is not None and file_type not in cls.SUPPORTED_TYPES:
         #     raise ValueError(
@@ -372,7 +372,7 @@ class Object3D(BatchableMedia):
         [[x y z r g b], ...]  # nx6 where is rgb is color.
         ```
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if not util.is_numpy_array(data):
             raise ValueError("`data` must be a numpy array")
@@ -408,7 +408,7 @@ class Object3D(BatchableMedia):
                 visualization. Can be used to indicate directionality of bounding boxes. Defaults to None.
             point_cloud_type ("lidar/beta"): At this time, only the "lidar/beta" type is supported. Defaults to "lidar/beta".
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if point_cloud_type not in cls.SUPPORTED_POINT_CLOUD_TYPES:
             raise ValueError("Point cloud type not supported")
@@ -431,7 +431,7 @@ class Object3D(BatchableMedia):
     def get_media_subdir(cls: Type["Object3D"]) -> str:
         """Get media subdirectory.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         return os.path.join("media", "object3D")
 
@@ -461,7 +461,7 @@ class Object3D(BatchableMedia):
     ) -> dict:
         """Convert a sequence of Audio objects to a JSON representation.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         seq = list(seq)
 

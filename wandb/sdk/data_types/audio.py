@@ -74,7 +74,7 @@ class Audio(BatchableMedia):
     def get_media_subdir(cls):
         """Get media subdirectory.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         return os.path.join("media", "audio")
 
@@ -82,7 +82,7 @@ class Audio(BatchableMedia):
     def from_json(cls, json_obj, source_artifact):
         """Deserialize JSON object into it's class representation.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         return cls(
             source_artifact.get_entry(json_obj["path"]).download(),
@@ -120,7 +120,7 @@ class Audio(BatchableMedia):
     def seq_to_json(cls, seq, run, key, step):
         """Convert a sequence of Audio objects to a JSON representation.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         audio_list = list(seq)
 
@@ -149,25 +149,19 @@ class Audio(BatchableMedia):
 
     @classmethod
     def durations(cls, audio_list):
-        """Calculate the duration of the audio files.
-
-        <!-- lazydoc-ignore: internal -->
-        """
+        """Calculate the duration of the audio files."""
         return [a._duration for a in audio_list]
 
     @classmethod
     def sample_rates(cls, audio_list):
-        """Get sample rates of the audio files.
-
-        <!-- lazydoc-ignore: internal -->
-        """
+        """Get sample rates of the audio files."""
         return [a._sample_rate for a in audio_list]
 
     @classmethod
     def captions(cls, audio_list):
         """Get the captions of the audio files.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         captions = [a._caption for a in audio_list]
         if all(c is None for c in captions):

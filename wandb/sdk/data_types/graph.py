@@ -309,7 +309,7 @@ class Graph(Media):
     def get_media_subdir(cls):
         """Get media subdirectory.
 
-        <!-- lazydoc-ignore: internal -->
+        "<!-- lazydoc-ignore-classmethod: internal -->
         """
         return os.path.join("media", "graph")
 
@@ -368,7 +368,7 @@ class Graph(Media):
         This method is not supported for Keras 3.0.0 and above.
         Requires a refactor.
 
-        <!-- lazydoc-ignore: internal -->
+        "<!-- lazydoc-ignore-classmethod: internal -->
         """
         graph = cls()
         # Shamelessly copied (then modified) from keras/keras/utils/layer_utils.py

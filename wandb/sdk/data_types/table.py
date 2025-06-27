@@ -518,7 +518,7 @@ class Table(Media):
 
     @allow_relogging_after_mutation
     def add_row(self, *row):
-        """Deprecated; use add_data instead."""
+        """Deprecated. Use `Table.add_data` method instead."""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
@@ -631,7 +631,7 @@ class Table(Media):
     def get_media_subdir(cls):
         """Get media subdirectory.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         return os.path.join("media", "table")
 
@@ -639,7 +639,7 @@ class Table(Media):
     def from_json(cls, json_obj, source_artifact: "artifact.Artifact"):
         """Deserialize JSON object into it's class representation.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         data = []
         column_types = None
@@ -1064,14 +1064,12 @@ class Table(Media):
         """Adds one or more computed columns based on existing data.
 
         Args:
-            fn: A function which accepts one or two parameters, ndx (int) and row (dict),
-                which is expected to return a dict representing new columns for that row, keyed
-                by the new column names.
-
-                `ndx` is an integer representing the index of the row. Only included if `include_ndx`
+            fn: A function which accepts one or two parameters, ndx (int) and
+                row (dict), which is expected to return a dict representing
+                new columns for that row, keyed by the new column names. 
+            - `ndx` is an integer representing the index of the row. Only included if `include_ndx`
                       is set to `True`.
-
-                `row` is a dictionary keyed by existing columns
+            - `row` is a dictionary keyed by existing columns
         """
         new_columns = {}
         for ndx, row in self.iterrows():

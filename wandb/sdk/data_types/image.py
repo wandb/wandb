@@ -508,7 +508,7 @@ class Image(BatchableMedia):
     ) -> "Image":
         """Factory method to create an Audio object from a JSON object.
 
-        <!-- lazydoc-ignore: internal -->
+        "<!-- lazydoc-ignore-classmethod: internal -->
         """
         classes: Optional[Classes] = None
         if json_obj.get("classes") is not None:
@@ -546,7 +546,7 @@ class Image(BatchableMedia):
     def get_media_subdir(cls: Type["Image"]) -> str:
         """Get media subdirectory.
 
-        <!-- lazydoc-ignore: internal -->
+        "<!-- lazydoc-ignore-classmethod: internal -->
         """
         return os.path.join("media", "images")
 
@@ -697,7 +697,7 @@ class Image(BatchableMedia):
     ) -> dict:
         """Convert a sequence of Image objects to a JSON representation.
 
-        <!-- lazydoc-ignore: internal -->
+        "<!-- lazydoc-ignore-classmethod: internal -->
         """
         if TYPE_CHECKING:
             seq = cast(Sequence["Image"], seq)
@@ -774,7 +774,7 @@ class Image(BatchableMedia):
     ) -> Union[List[Optional[dict]], bool]:
         """Collect all masks from a list of images.
 
-        <!-- lazydoc-ignore: internal -->
+        "<!-- lazydoc-ignore-classmethod: internal -->
         """
         all_mask_groups: List[Optional[dict]] = []
         for image in images:
@@ -801,7 +801,7 @@ class Image(BatchableMedia):
     ) -> Union[List[Optional[dict]], bool]:
         """Collect all boxes from a list of images.
 
-        <!-- lazydoc-ignore: internal -->
+        "<!-- lazydoc-ignore-classmethod: internal -->
         """
         all_box_groups: List[Optional[dict]] = []
         for image in images:
@@ -824,7 +824,7 @@ class Image(BatchableMedia):
     ) -> Union[bool, Sequence[Optional[str]]]:
         """Get captions from a list of images.
 
-        <!-- lazydoc-ignore: internal -->
+        "<!-- lazydoc-ignore-classmethod: internal -->
         """
         return cls.captions(images)
 

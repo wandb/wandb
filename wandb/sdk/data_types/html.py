@@ -116,7 +116,7 @@ class Html(BatchableMedia):
     def get_media_subdir(cls: Type["Html"]) -> str:
         """Get media subdirectory.
 
-        <!-- lazydoc-ignore: internal -->
+        "<!-- lazydoc-ignore-classmethod: internal -->
         """
         return os.path.join("media", "html")
 
@@ -135,7 +135,7 @@ class Html(BatchableMedia):
     ) -> "Html":
         """Deserialize a JSON object into it's class representation.
 
-        <!-- lazydoc-ignore: internal -->
+        "<!-- lazydoc-ignore-classmethod: internal -->
         """
         return cls(source_artifact.get_entry(json_obj["path"]).download(), inject=False)
 
@@ -149,7 +149,7 @@ class Html(BatchableMedia):
     ) -> dict:
         """Convert a sequence of HTML objects to a JSON representation.
 
-        <!-- lazydoc-ignore: internal -->
+        "<!-- lazydoc-ignore-classmethod: internal -->
         """
         base_path = os.path.join(run.dir, cls.get_media_subdir())
         filesystem.mkdir_exists_ok(base_path)
