@@ -17,6 +17,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 This version removes the legacy implementaion of the `service` process. This is a breaking change.
 
+### Added
+
+- Added support for creating custom Vega chart presets through the API. Users can now define and upload custom chart specifications that can be then reused across runs with wandb.plot_table() (@thanos-wandb in https://github.com/wandb/wandb/pull/9931)
+
 ### Changed
 
 - Calling `Artifact.link()` no longer instantiates a throwaway placeholder run. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9828)
