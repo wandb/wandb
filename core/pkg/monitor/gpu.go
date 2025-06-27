@@ -67,8 +67,8 @@ func (g *GPU) Sample() (*spb.StatsRecord, error) {
 }
 
 // Probe returns static information about the GPU.
-func (g *GPU) Probe() *spb.EnvironmentRecord {
-	e, err := g.client.GetMetadata(context.Background(), &spb.GetMetadataRequest{})
+func (g *GPU) Probe(ctx context.Context) *spb.EnvironmentRecord {
+	e, err := g.client.GetMetadata(ctx, &spb.GetMetadataRequest{})
 	if err != nil {
 		return nil
 	}
