@@ -258,6 +258,10 @@ func processResponse(
 		params.Tags = data.GetTags()
 	}
 
+	if params.Notes == "" && data.GetNotes() != nil {
+		params.Notes = *data.GetNotes()
+	}
+
 	// Get GQL ID, required for auth checks around writing to a run
 	params.StorageID = data.GetId()
 

@@ -338,6 +338,10 @@ def test_preprocess_bool_settings(setting: str):
             "x_stats_open_metrics_filters",
             '{"DCGM_FI_DEV_POWER_USAGE": {"pod": "dcgm-*"}}',
         ),
+        (
+            "x_extra_http_headers",
+            '{"User-Agent": "foobar"}',
+        ),
     ],
 )
 def test_preprocess_dict_settings(setting: str, value: str):
