@@ -442,21 +442,21 @@ func (s *System) Probe(ctx context.Context) *spb.EnvironmentRecord {
 	}
 
 	// Collect memory information
-	if virtualMem, err := mem.VirtualMemoryWithContext(ctx); err == nil {
+	if virtualMem, err := mem.VirtualMemoryWithContext(ctx); err == nil { // store if no error.
 		info.Memory.Total = virtualMem.Total
 	}
 
 	// Collect CPU information
-	if cpuCount, err := cpu.CountsWithContext(ctx, false); err == nil {
+	if cpuCount, err := cpu.CountsWithContext(ctx, false); err == nil { // store if no error.
 		info.CpuCount = uint32(cpuCount)
 	}
-	if cpuCountLogical, err := cpu.CountsWithContext(ctx, true); err == nil {
+	if cpuCountLogical, err := cpu.CountsWithContext(ctx, true); err == nil { // store if no error.
 		info.CpuCountLogical = uint32(cpuCountLogical)
 	}
 
 	// Collect disk information.
 	for _, diskPath := range s.diskPaths {
-		if usage, err := disk.UsageWithContext(ctx, diskPath); err == nil {
+		if usage, err := disk.UsageWithContext(ctx, diskPath); err == nil { // store if no error.
 			info.Disk[diskPath] = &spb.DiskInfo{
 				Total: usage.Total,
 				Used:  usage.Used,
