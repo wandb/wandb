@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/simplejsonext"
@@ -272,36 +273,31 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 
 	e := &spb.EnvironmentRecord{WriterId: sm.writerID}
 
-	wg := sync.WaitGroup{}
-	out := make(chan *spb.EnvironmentRecord)
-	wg.Add(len(sm.resources))
+	g, gctx := errgroup.WithContext(sm.ctx)
+	var mu sync.Mutex
 
 	for _, resource := range sm.resources {
-		go func() {
-			defer wg.Done()
-
+		g.Go(func() error {
 			defer func() {
 				if err := recover(); err != nil {
-					sm.logger.CaptureError(
-						fmt.Errorf("monitor: panic probing a resource: %v", err),
-					)
+					sm.logger.CaptureError(fmt.Errorf("monitor: panic probing resource: %v", err))
 				}
 			}()
 
-			if resp := resource.Probe(); resp != nil {
-				out <- resp
+			if gctx.Err() != nil {
+				return nil
 			}
-		}()
+
+			if rec := resource.Probe(); rec != nil {
+				mu.Lock()
+				proto.Merge(e, rec)
+				mu.Unlock()
+			}
+			return nil
+		})
 	}
 
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-
-	for m := range out {
-		proto.Merge(e, m)
-	}
+	_ = g.Wait()
 
 	// Overwrite auto-detected metadata with user-provided values.
 	// TODO: move this to the relevant resources instead.
