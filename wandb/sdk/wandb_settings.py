@@ -924,6 +924,13 @@ class Settings(BaseModel, validate_assignment=True):
             return str(value)
         return value
 
+    @field_validator("x_extra_http_headers", mode="before")
+    @classmethod
+    def validate_x_extra_http_headers(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
     @field_validator("x_file_stream_max_line_bytes", mode="after")
     @classmethod
     def validate_file_stream_max_line_bytes(cls, value):
