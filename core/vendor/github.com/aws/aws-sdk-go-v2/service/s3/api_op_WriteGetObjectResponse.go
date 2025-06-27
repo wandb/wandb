@@ -285,7 +285,10 @@ type WriteGetObjectResponseInput struct {
 	SSEKMSKeyId *string
 
 	//  The server-side encryption algorithm used when storing requested object in
-	// Amazon S3 (for example, AES256, aws:kms ).
+	// Amazon S3 or Amazon FSx.
+	//
+	// When accessing data stored in Amazon FSx file systems using S3 access points,
+	// the only valid server side encryption option is aws:fsx .
 	ServerSideEncryption types.ServerSideEncryption
 
 	// The integer status code for an HTTP response of a corresponding GetObject

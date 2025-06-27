@@ -2908,6 +2908,8 @@ pub enum ServerFeature {
     AutomationActionNoOp = 11,
     /// Indicates that the server supports including artifact types in registry creation.
     IncludeArtifactTypesInRegistryCreation = 12,
+    /// Indicates that the server supports querying for a artifact collection membership on the project.
+    ProjectArtifactCollectionMembership = 13,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2937,6 +2939,9 @@ impl ServerFeature {
             Self::IncludeArtifactTypesInRegistryCreation => {
                 "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION"
             }
+            Self::ProjectArtifactCollectionMembership => {
+                "PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2964,6 +2969,9 @@ impl ServerFeature {
             "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
             "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION" => {
                 Some(Self::IncludeArtifactTypesInRegistryCreation)
+            }
+            "PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP" => {
+                Some(Self::ProjectArtifactCollectionMembership)
             }
             _ => None,
         }
