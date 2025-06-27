@@ -185,23 +185,17 @@ class Settings(BaseModel, validate_assignment=True):
 
     # Public settings.
 
-    allow_offline_artifacts: bool = Field(
-        default=True,
-        description=(
-            """Flag to allow table artifacts to be synced in offline mode.
+    allow_offline_artifacts: bool = True
+    """Flag to allow table artifacts to be synced in offline mode.
+
     To revert to the old behavior, set this to False.
     """
-        ),
-    )
 
-    allow_val_change: bool = Field(
-        default=False,
-        description="Flag to allow modification of `Config` values after they've been set.",
-    )
+    allow_val_change: bool = False
+    """Flag to allow modification of `Config` values after they've been set."""
 
-    anonymous: Optional[Literal["allow", "must", "never"]] = Field(
-        default=None,
-        description="""Controls anonymous data logging.
+    anonymous: Optional[Literal["allow", "must", "never"]] = None
+    """Controls anonymous data logging.
 
     Possible values are:
     - "never": requires you to link your W&B account before
@@ -212,34 +206,28 @@ class Settings(BaseModel, validate_assignment=True):
        the charts in the UI.
     - "must": sends the run to an anonymous account instead of to a
        signed-up user account.
-    """,
-    )
+    """
 
-    api_key: Optional[str] = Field(default=None, description="The W&B API key.")
+    api_key: Optional[str] = None
+    """The W&B API key."""
 
-    azure_account_url_to_access_key: Optional[Dict[str, str]] = Field(
-        default=None,
-        description="Mapping of Azure account URLs to their corresponding access keys for Azure integration.",
-    )
+    azure_account_url_to_access_key: Optional[Dict[str, str]] = None
+    """Mapping of Azure account URLs to their corresponding access keys for Azure integration."""
 
-    base_url: str = Field(
-        default="https://api.wandb.ai",
-        description="The URL of the W&B backend for data synchronization.",
-    )
+    base_url: str = "https://api.wandb.ai"
+    """The URL of the W&B backend for data synchronization."""
 
-    code_dir: Optional[str] = Field(
-        default=None, description="Directory containing the code to be tracked by W&B."
-    )
+    code_dir: Optional[str] = None
+    """Directory containing the code to be tracked by W&B."""
 
-    config_paths: Optional[Sequence[str]] = Field(
-        default=None,
-        description="Paths to files to load configuration from into the `Config` object.",
-    )
+    config_paths: Optional[Sequence[str]] = None
+    """Paths to files to load configuration from into the `Config` object."""
 
     console: Literal["auto", "off", "wrap", "redirect", "wrap_raw", "wrap_emu"] = Field(
         default="auto",
         validate_default=True,
-        description="""The type of console capture to be applied.
+    )
+    """The type of console capture to be applied.
 
     Possible values are:
      "auto" - Automatically selects the console capture method based on the
@@ -257,175 +245,130 @@ class Settings(BaseModel, validate_assignment=True):
 
       "wrap_emu" - Same as "wrap" but captures output through an emulator.
       Derived from the `wrap` setting and should not be set manually.
-    """,
-    )
+    """
 
-    console_multipart: bool = Field(
-        default=False, description="Whether to produce multipart console log files."
-    )
+    console_multipart: bool = False
+    """Whether to produce multipart console log files."""
 
     credentials_file: str = Field(
-        default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE),
-        description="Path to file for writing temporary access tokens.",
+        default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
     )
+    """Path to file for writing temporary access tokens."""
 
-    disable_code: bool = Field(
-        default=False, description="Whether to disable capturing the code."
-    )
+    disable_code: bool = False
+    """Whether to disable capturing the code."""
 
-    disable_git: bool = Field(
-        default=False, description="Whether to disable capturing the git state."
-    )
+    disable_git: bool = False
+    """Whether to disable capturing the git state."""
 
-    disable_job_creation: bool = Field(
-        default=True,
-        description="Whether to disable the creation of a job artifact for W&B Launch.",
-    )
+    disable_job_creation: bool = True
+    """Whether to disable the creation of a job artifact for W&B Launch."""
 
-    docker: Optional[str] = Field(
-        default=None, description="The Docker image used to execute the script."
-    )
+    docker: Optional[str] = None
+    """The Docker image used to execute the script."""
 
-    email: Optional[str] = Field(
-        default=None, description="The email address of the user."
-    )
+    email: Optional[str] = None
+    """The email address of the user."""
 
-    entity: Optional[str] = Field(
-        default=None, description="The W&B entity, such as a user or a team."
-    )
+    entity: Optional[str] = None
+    """The W&B entity, such as a user or a team."""
 
-    organization: Optional[str] = Field(
-        default=None, description="The W&B organization."
-    )
+    organization: Optional[str] = None
+    """The W&B organization."""
 
-    force: bool = Field(
-        default=False,
-        description="Whether to pass the `force` flag to `wandb.login()`.",
-    )
+    force: bool = False
+    """Whether to pass the `force` flag to `wandb.login()`."""
 
-    fork_from: Optional[RunMoment] = Field(
-        default=None,
-        description="""Specifies a point in a previous execution of a run to fork from.
+    fork_from: Optional[RunMoment] = None
+    """Specifies a point in a previous execution of a run to fork from.
 
     The point is defined by the run ID, a metric, and its value.
     Currently, only the metric '_step' is supported.
-    """,
-    )
+    """
 
-    git_commit: Optional[str] = Field(
-        default=None, description="The git commit hash to associate with the run."
-    )
+    git_commit: Optional[str] = None
+    """The git commit hash to associate with the run."""
 
-    git_remote: str = Field(
-        default="origin", description="The git remote to associate with the run."
-    )
+    git_remote: str = "origin"
+    """The git remote to associate with the run."""
 
-    git_remote_url: Optional[str] = Field(
-        default=None, description="The URL of the git remote repository."
-    )
+    git_remote_url: Optional[str] = None
+    """The URL of the git remote repository."""
 
-    git_root: Optional[str] = Field(
-        default=None, description="Root directory of the git repository."
-    )
+    git_root: Optional[str] = None
+    """Root directory of the git repository."""
 
-    heartbeat_seconds: int = Field(
-        default=30,
-        description="Interval in seconds between heartbeat signals sent to the W&B servers.",
-    )
+    heartbeat_seconds: int = 30
+    """Interval in seconds between heartbeat signals sent to the W&B servers."""
 
-    host: Optional[str] = Field(
-        default=None, description="Hostname of the machine running the script."
-    )
+    host: Optional[str] = None
+    """Hostname of the machine running the script."""
 
-    http_proxy: Optional[str] = Field(
-        default=None, description="Custom proxy servers for http requests to W&B."
-    )
+    http_proxy: Optional[str] = None
+    """Custom proxy servers for http requests to W&B."""
 
-    https_proxy: Optional[str] = Field(
-        default=None, description="Custom proxy servers for https requests to W&B."
-    )
+    https_proxy: Optional[str] = None
+    """Custom proxy servers for https requests to W&B."""
 
-    identity_token_file: Optional[str] = Field(
-        default=None,
-        description="Path to file containing an identity token (JWT) for authentication.",
-    )
+    # Path to file containing an identity token (JWT) for authentication.
+    identity_token_file: Optional[str] = None
+    """Path to file containing an identity token (JWT) for authentication."""
 
-    ignore_globs: Sequence[str] = Field(
-        default=(),
-        description="Unix glob patterns relative to `files_dir` specifying files to exclude from upload.",
-    )
+    ignore_globs: Sequence[str] = ()
+    """Unix glob patterns relative to `files_dir` specifying files to exclude from upload."""
 
-    init_timeout: float = Field(
-        default=90.0,
-        description="Time in seconds to wait for the `wandb.init` call to complete before timing out.",
-    )
+    init_timeout: float = 90.0
+    """Time in seconds to wait for the `wandb.init` call to complete before timing out."""
 
-    insecure_disable_ssl: bool = Field(
-        default=False, description="Whether to insecurely disable SSL verification."
-    )
+    insecure_disable_ssl: bool = False
+    """Whether to insecurely disable SSL verification."""
 
-    job_name: Optional[str] = Field(
-        default=None, description="Name of the Launch job running the script."
-    )
+    job_name: Optional[str] = None
+    """Name of the Launch job running the script."""
 
-    job_source: Optional[Literal["repo", "artifact", "image"]] = Field(
-        default=None, description="Source type for Launch."
-    )
+    job_source: Optional[Literal["repo", "artifact", "image"]] = None
+    """Source type for Launch."""
 
-    label_disable: bool = Field(
-        default=False, description="Whether to disable automatic labeling features."
-    )
+    label_disable: bool = False
+    """Whether to disable automatic labeling features."""
 
-    launch: bool = Field(
-        default=False,
-        description="Flag to indicate if the run is being launched through W&B Launch.",
-    )
+    launch: bool = False
+    """Flag to indicate if the run is being launched through W&B Launch."""
 
-    launch_config_path: Optional[str] = Field(
-        default=None, description="Path to the launch configuration file."
-    )
+    launch_config_path: Optional[str] = None
+    """Path to the launch configuration file."""
 
-    login_timeout: Optional[float] = Field(
-        default=None,
-        description="Time in seconds to wait for login operations before timing out.",
-    )
+    login_timeout: Optional[float] = None
+    """Time in seconds to wait for login operations before timing out."""
 
     mode: Literal["online", "offline", "dryrun", "disabled", "run", "shared"] = Field(
         default="online",
         validate_default=True,
-        description="The operating mode for W&B logging and synchronization.",
     )
+    """The operating mode for W&B logging and synchronization."""
 
-    notebook_name: Optional[str] = Field(
-        default=None,
-        description="Name of the notebook if running in a Jupyter-like environment.",
-    )
+    notebook_name: Optional[str] = None
+    """Name of the notebook if running in a Jupyter-like environment."""
 
-    program: Optional[str] = Field(
-        default=None,
-        description="Path to the script that created the run, if available.",
-    )
+    program: Optional[str] = None
+    """Path to the script that created the run, if available."""
 
-    program_abspath: Optional[str] = Field(
-        default=None,
-        description="""The absolute path from the root repository directory to the script that
+    program_abspath: Optional[str] = None
+    """The absolute path from the root repository directory to the script that
     created the run.
 
     Root repository directory is defined as the directory containing the
     .git directory, if it exists. Otherwise, it's the current working directory.
-    """,
-    )
+    """
 
-    program_relpath: Optional[str] = Field(
-        default=None,
-        description="The relative path to the script that created the run.",
-    )
+    program_relpath: Optional[str] = None
+    """The relative path to the script that created the run."""
 
-    project: Optional[str] = Field(default=None, description="The W&B project ID.")
+    project: Optional[str] = None
+    """The W&B project ID."""
 
-    quiet: bool = Field(
-        default=False, description="Flag to suppress non-essential output."
-    )
+    quiet: bool = False
+    """Flag to suppress non-essential output."""
 
     reinit: Union[
         Literal[
@@ -435,9 +378,8 @@ class Settings(BaseModel, validate_assignment=True):
             "create_new",
         ],
         bool,
-    ] = Field(
-        default="default",
-        description="""What to do when `wandb.init()` is called while a run is active.
+    ] = "default"
+    """What to do when `wandb.init()` is called while a run is active.
 
     Options:
     - "default": Use "finish_previous" in notebooks and "return_previous"
@@ -453,16 +395,13 @@ class Settings(BaseModel, validate_assignment=True):
 
     Can also be a boolean, but this is deprecated. False is the same as
     "return_previous", and True is the same as "finish_previous".
-    """,
-    )
+    """
 
-    relogin: bool = Field(
-        default=False, description="Flag to force a new login attempt."
-    )
+    relogin: bool = False
+    """Flag to force a new login attempt."""
 
-    resume: Optional[Literal["allow", "must", "never", "auto"]] = Field(
-        default=None,
-        description="""Specifies the resume behavior for the run.
+    resume: Optional[Literal["allow", "must", "never", "auto"]] = None
+    """Specifies the resume behavior for the run.
 
     The available options are:
 
@@ -477,420 +416,436 @@ class Settings(BaseModel, validate_assignment=True):
 
       "auto": Automatically resumes from the most recent failed run on the same
       machine.
-    """,
-    )
+    """
 
-    resume_from: Optional[RunMoment] = Field(
-        default=None,
-        description="""Specifies a point in a previous execution of a run to resume from.
+    resume_from: Optional[RunMoment] = None
+    """Specifies a point in a previous execution of a run to resume from.
 
     The point is defined by the run ID, a metric, and its value.
     Currently, only the metric '_step' is supported.
-    """,
-    )
+    """
 
-    resumed: bool = Field(
-        default=False,
-        description="""Indication from the server about the state of the run.
+    resumed: bool = False
+    """Indication from the server about the state of the run.
 
     This is different from resume, a user provided flag.
-    """,
-    )
+    """
 
-    root_dir: str = Field(
-        default_factory=lambda: os.path.abspath(os.getcwd()),
-        description="""The root directory to use as the base for all run-related paths.
+    root_dir: str = Field(default_factory=lambda: os.path.abspath(os.getcwd()))
+    """The root directory to use as the base for all run-related paths.
 
     In particular, this is used to derive the wandb directory and the run directory.
-    """,
-    )
+    """
 
-    run_group: Optional[str] = Field(
-        default=None,
-        description="""Group identifier for related runs.
+    run_group: Optional[str] = None
+    """Group identifier for related runs.
 
     Used for grouping runs in the UI.
-    """,
-    )
+    """
 
-    run_id: Optional[str] = Field(default=None, description="The ID of the run.")
+    run_id: Optional[str] = None
+    """The ID of the run."""
 
-    run_job_type: Optional[str] = Field(
-        default=None, description="Type of job being run (e.g., training, evaluation)."
-    )
+    run_job_type: Optional[str] = None
+    """Type of job being run (e.g., training, evaluation)."""
 
-    run_name: Optional[str] = Field(
-        default=None, description="Human-readable name for the run."
-    )
+    run_name: Optional[str] = None
+    """Human-readable name for the run."""
 
-    run_notes: Optional[str] = Field(
-        default=None, description="Additional notes or description for the run."
-    )
+    run_notes: Optional[str] = None
+    """Additional notes or description for the run."""
 
-    run_tags: Optional[Tuple[str, ...]] = Field(
-        default=None,
-        description="Tags to associate with the run for organization and filtering.",
-    )
+    run_tags: Optional[Tuple[str, ...]] = None
+    """Tags to associate with the run for organization and filtering."""
 
-    sagemaker_disable: bool = Field(
-        default=False, description="Flag to disable SageMaker-specific functionality."
-    )
+    sagemaker_disable: bool = False
+    """Flag to disable SageMaker-specific functionality."""
 
-    save_code: Optional[bool] = Field(
-        default=None, description="Whether to save the code associated with the run."
-    )
+    save_code: Optional[bool] = None
+    """Whether to save the code associated with the run."""
 
-    settings_system: Optional[str] = Field(
-        default=None, description="Path to the system-wide settings file."
-    )
+    settings_system: Optional[str] = None
+    """Path to the system-wide settings file."""
 
-    show_colors: Optional[bool] = Field(
-        default=None, description="Whether to use colored output in the console."
-    )
+    show_colors: Optional[bool] = None
+    """Whether to use colored output in the console."""
 
-    show_emoji: Optional[bool] = Field(
-        default=None, description="Whether to show emoji in the console output."
-    )
+    show_emoji: Optional[bool] = None
+    """Whether to show emoji in the console output."""
 
-    show_errors: bool = Field(
-        default=True, description="Whether to display error messages."
-    )
+    show_errors: bool = True
+    """Whether to display error messages."""
 
-    show_info: bool = Field(
-        default=True, description="Whether to display informational messages."
-    )
+    show_info: bool = True
+    """Whether to display informational messages."""
 
-    show_warnings: bool = Field(
-        default=True, description="Whether to display warning messages."
-    )
+    show_warnings: bool = True
+    """Whether to display warning messages."""
 
-    silent: bool = Field(default=False, description="Flag to suppress all output.")
+    silent: bool = False
+    """Flag to suppress all output."""
 
-    start_method: Optional[str] = Field(
-        default=None, description="Method to use for starting subprocesses."
-    )
+    start_method: Optional[str] = None
+    """Method to use for starting subprocesses."""
 
-    strict: Optional[bool] = Field(
-        default=None,
-        description="Whether to enable strict mode for validation and error checking.",
-    )
+    strict: Optional[bool] = None
+    """Whether to enable strict mode for validation and error checking."""
 
-    summary_timeout: int = Field(
-        default=60,
-        description="Time in seconds to wait for summary operations before timing out.",
-    )
+    summary_timeout: int = 60
+    """Time in seconds to wait for summary operations before timing out."""
 
-    summary_warnings: int = Field(
-        default=5, description="Maximum number of summary warnings to display."
-    )
+    summary_warnings: int = 5  # TODO: kill this with fire
+    """Maximum number of summary warnings to display."""
 
-    sweep_id: Optional[str] = Field(
-        default=None, description="Identifier of the sweep this run belongs to."
-    )
+    sweep_id: Optional[str] = None
+    """Identifier of the sweep this run belongs to."""
 
-    sweep_param_path: Optional[str] = Field(
-        default=None, description="Path to the sweep parameters configuration."
-    )
+    sweep_param_path: Optional[str] = None
+    """Path to the sweep parameters configuration."""
 
     symlink: bool = Field(
-        default_factory=lambda: False if platform.system() == "Windows" else True,
-        description="Whether to use symlinks (True by default except on Windows).",
+        default_factory=lambda: False if platform.system() == "Windows" else True
     )
+    """Whether to use symlinks (True by default except on Windows)."""
 
-    sync_tensorboard: Optional[bool] = Field(
-        default=None, description="Whether to synchronize TensorBoard logs with W&B."
-    )
+    sync_tensorboard: Optional[bool] = None
+    """Whether to synchronize TensorBoard logs with W&B."""
 
-    table_raise_on_max_row_limit_exceeded: bool = Field(
-        default=False,
-        description="Whether to raise an exception when table row limits are exceeded.",
-    )
+    table_raise_on_max_row_limit_exceeded: bool = False
+    """Whether to raise an exception when table row limits are exceeded."""
 
-    username: Optional[str] = Field(default=None, description="Username.")
+    username: Optional[str] = None
+    """Username."""
 
     # Internal settings.
     #
     # These are typically not meant to be set by the user and should not be considered
     # a part of the public API as they may change or be removed in future versions.
 
-    x_cli_only_mode: bool = Field(
-        default=False,
-        description="Flag to indicate that the SDK is running in CLI-only mode.",
-    )
+    x_cli_only_mode: bool = False
+    """Flag to indicate that the SDK is running in CLI-only mode.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_disable_meta: bool = Field(
-        default=False, description="Flag to disable the collection of system metadata."
-    )
+    x_disable_meta: bool = False
+    """Flag to disable the collection of system metadata.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_disable_setproctitle: bool = Field(
-        default=False,
-        description="""Flag to disable using setproctitle for the internal process in the legacy service.
+    x_disable_stats: bool = False
+    """Flag to disable the collection of system metrics.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    This is deprecated and will be removed in future versions.
-    """,
-    )
+    x_disable_viewer: bool = False
+    """Flag to disable the early viewer query.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_disable_stats: bool = Field(
-        default=False, description="Flag to disable the collection of system metrics."
-    )
+    x_disable_machine_info: bool = False
+    """Flag to disable automatic machine info collection.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_disable_viewer: bool = Field(
-        default=False, description="Flag to disable the early viewer query."
-    )
+    x_executable: Optional[str] = None
+    """Path to the Python executable.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_disable_machine_info: bool = Field(
-        default=False, description="Flag to disable automatic machine info collection."
-    )
+    x_extra_http_headers: Optional[Dict[str, str]] = None
+    """Additional headers to add to all outgoing HTTP requests.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_executable: Optional[str] = Field(
-        default=None, description="Path to the Python executable."
-    )
-
-    x_extra_http_headers: Optional[Dict[str, str]] = Field(
-        default=None,
-        description="Additional headers to add to all outgoing HTTP requests.",
-    )
-
-    x_file_stream_max_bytes: Optional[int] = Field(
-        default=None,
-        description="""An approximate maximum request size for the filestream API.
+    x_file_stream_max_bytes: Optional[int] = None
+    """An approximate maximum request size for the filestream API.
 
     Its purpose is to prevent HTTP requests from failing due to
     containing too much data. This number is approximate:
     requests will be slightly larger.
-    """,
-    )
 
-    x_file_stream_max_line_bytes: Optional[int] = Field(
-        default=None, description="Maximum line length for filestream JSONL files."
-    )
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_file_stream_transmit_interval: Optional[float] = Field(
-        default=None,
-        description="Interval in seconds between filestream transmissions.",
-    )
+    x_file_stream_max_line_bytes: Optional[int] = None
+    """Maximum line length for filestream JSONL files.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_file_stream_transmit_interval: Optional[float] = None
+    """Interval in seconds between filestream transmissions.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     # Filestream retry client configuration.
 
-    x_file_stream_retry_max: Optional[int] = Field(
-        default=None, description="Max number of retries for filestream operations."
-    )
+    x_file_stream_retry_max: Optional[int] = None
+    """Max number of retries for filestream operations.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_file_stream_retry_wait_min_seconds: Optional[float] = Field(
-        default=None,
-        description="Minimum wait time between retries for filestream operations.",
-    )
+    x_file_stream_retry_wait_min_seconds: Optional[float] = None
+    """Minimum wait time between retries for filestream operations.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_file_stream_retry_wait_max_seconds: Optional[float] = Field(
-        default=None,
-        description="Maximum wait time between retries for filestream operations.",
-    )
+    x_file_stream_retry_wait_max_seconds: Optional[float] = None
+    """Maximum wait time between retries for filestream operations.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_file_stream_timeout_seconds: Optional[float] = Field(
-        default=None,
-        description="Timeout in seconds for individual filestream HTTP requests.",
-    )
+    x_file_stream_timeout_seconds: Optional[float] = None
+    """Timeout in seconds for individual filestream HTTP requests.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     # file transfer retry client configuration
 
-    x_file_transfer_retry_max: Optional[int] = Field(
-        default=None, description="Max number of retries for file transfer operations."
-    )
+    x_file_transfer_retry_max: Optional[int] = None
+    """Max number of retries for file transfer operations.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_file_transfer_retry_wait_min_seconds: Optional[float] = Field(
-        default=None,
-        description="Minimum wait time between retries for file transfer operations.",
-    )
+    x_file_transfer_retry_wait_min_seconds: Optional[float] = None
+    """Minimum wait time between retries for file transfer operations.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_file_transfer_retry_wait_max_seconds: Optional[float] = Field(
-        default=None,
-        description="Maximum wait time between retries for file transfer operations.",
-    )
+    x_file_transfer_retry_wait_max_seconds: Optional[float] = None
+    """Maximum wait time between retries for file transfer operations.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_file_transfer_timeout_seconds: Optional[float] = Field(
-        default=None,
-        description="Timeout in seconds for individual file transfer HTTP requests.",
-    )
+    x_file_transfer_timeout_seconds: Optional[float] = None
+    """Timeout in seconds for individual file transfer HTTP requests.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_files_dir: Optional[str] = Field(
-        default=None, description="Override setting for the computed files_dir.."
-    )
+    x_files_dir: Optional[str] = None
+    """Override setting for the computed files_dir.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_flow_control_custom: Optional[bool] = Field(
-        default=None,
-        description="""Flag indicating custom flow control for filestream.
-
-    TODO: Not implemented in wandb-core.
-    """,
-    )
-
-    x_flow_control_disabled: Optional[bool] = Field(
-        default=None,
-        description="""Flag indicating flow control is disabled for filestream.
+    x_flow_control_custom: Optional[bool] = None
+    """Flag indicating custom flow control for filestream.
 
     TODO: Not implemented in wandb-core.
-    """,
-    )
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_flow_control_disabled: Optional[bool] = None
+    """Flag indicating flow control is disabled for filestream.
+
+    TODO: Not implemented in wandb-core.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     # graphql retry client configuration
 
-    x_graphql_retry_max: Optional[int] = Field(
-        default=None, description="Max number of retries for GraphQL operations."
-    )
+    x_graphql_retry_max: Optional[int] = None
+    """Max number of retries for GraphQL operations.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_graphql_retry_wait_min_seconds: Optional[float] = Field(
-        default=None,
-        description="Minimum wait time between retries for GraphQL operations.",
-    )
+    x_graphql_retry_wait_min_seconds: Optional[float] = None
+    """Minimum wait time between retries for GraphQL operations.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_graphql_retry_wait_max_seconds: Optional[float] = Field(
-        default=None,
-        description="Maximum wait time between retries for GraphQL operations.",
-    )
+    x_graphql_retry_wait_max_seconds: Optional[float] = None
+    """Maximum wait time between retries for GraphQL operations.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_graphql_timeout_seconds: Optional[float] = Field(
-        default=None, description="Timeout in seconds for individual GraphQL requests."
-    )
+    x_graphql_timeout_seconds: Optional[float] = None
+    """Timeout in seconds for individual GraphQL requests.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_internal_check_process: float = Field(
-        default=8.0,
-        description="Interval for internal process health checks in seconds.",
-    )
+    x_internal_check_process: float = 8.0
+    """Interval for internal process health checks in seconds.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_jupyter_name: Optional[str] = Field(
-        default=None, description="Name of the Jupyter notebook."
-    )
+    x_jupyter_name: Optional[str] = None
+    """Name of the Jupyter notebook.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_jupyter_path: Optional[str] = Field(
-        default=None, description="Path to the Jupyter notebook."
-    )
+    x_jupyter_path: Optional[str] = None
+    """Path to the Jupyter notebook.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_jupyter_root: Optional[str] = Field(
-        default=None, description="Root directory of the Jupyter notebook."
-    )
+    x_jupyter_root: Optional[str] = None
+    """Root directory of the Jupyter notebook.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_label: Optional[str] = Field(
-        default=None,
-        description="""Label to assign to system metrics and console logs collected for the run.
+    x_label: Optional[str] = None
+    """Label to assign to system metrics and console logs collected for the run.
 
     This is used to group data by on the frontend and can be used to distinguish data
     from different processes in a distributed training job.
-    """,
-    )
 
-    x_live_policy_rate_limit: Optional[int] = Field(
-        default=None, description="Rate limit for live policy updates in seconds."
-    )
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_live_policy_wait_time: Optional[int] = Field(
-        default=None, description="Wait time between live policy updates in seconds."
-    )
+    x_live_policy_rate_limit: Optional[int] = None
+    """Rate limit for live policy updates in seconds.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_log_level: int = Field(
-        default=logging.INFO, description="Logging level for internal operations."
-    )
+    x_live_policy_wait_time: Optional[int] = None
+    """Wait time between live policy updates in seconds.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_network_buffer: Optional[int] = Field(
-        default=None,
-        description="""Size of the network buffer used in flow control.
+    x_log_level: int = logging.INFO
+    """Logging level for internal operations.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_network_buffer: Optional[int] = None
+    """Size of the network buffer used in flow control.
 
     TODO: Not implemented in wandb-core.
-    """,
-    )
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_primary: bool = Field(
-        default=True,
-        validation_alias=AliasChoices("x_primary", "x_primary_node"),
-        description="""Determines whether to save internal wandb files and metadata.
+        default=True, validation_alias=AliasChoices("x_primary", "x_primary_node")
+    )
+    """Determines whether to save internal wandb files and metadata.
 
     In a distributed setting, this is useful for avoiding file overwrites
     from secondary processes when only system metrics and logs are needed,
     as the primary process handles the main logging.
-    """,
-    )
 
-    x_proxies: Optional[Dict[str, str]] = Field(
-        default=None,
-        description="""Custom proxy servers for requests to W&B.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_proxies: Optional[Dict[str, str]] = None
+    """Custom proxy servers for requests to W&B.
 
     This is deprecated and will be removed in future versions.
     Please use `http_proxy` and `https_proxy` instead.
-    """,
-    )
 
-    x_runqueue_item_id: Optional[str] = Field(
-        default=None, description="ID of the Launch run queue item being processed."
-    )
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_require_legacy_service: bool = Field(
-        default=False, description="Force the use of legacy wandb service."
-    )
+    x_runqueue_item_id: Optional[str] = None
+    """ID of the Launch run queue item being processed.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_save_requirements: bool = Field(
-        default=True, description="Flag to save the requirements file."
-    )
+    x_save_requirements: bool = True
+    """Flag to save the requirements file.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_server_side_derived_summary: bool = Field(
-        default=False,
-        description="""Flag to delegate automatic computation of summary from history to the server.
+    x_server_side_derived_summary: bool = False
+    """Flag to delegate automatic computation of summary from history to the server.
 
     This does not disable user-provided summary updates.
-    """,
-    )
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_server_side_expand_glob_metrics: bool = True
     """Flag to delegate glob matching of metrics in define_metric to the server.
 
     If the server does not support this, the client will perform the glob matching.
-    """,
-    )
 
-    x_service_transport: Optional[str] = Field(
-        default=None,
-        description="Transport method for communication with the wandb service.",
-    )
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_service_wait: float = Field(
-        default=30.0,
-        description="Time in seconds to wait for the wandb-core internal service to start.",
-    )
+    x_service_transport: Optional[str] = None
+    """Transport method for communication with the wandb service.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_skip_transaction_log: bool = Field(
-        default=False,
-        description="""Whether to skip saving the run events to the transaction log.
+    x_service_wait: float = 30.0
+    """Time in seconds to wait for the wandb-core internal service to start.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_skip_transaction_log: bool = False
+    """Whether to skip saving the run events to the transaction log.
 
     This is only relevant for online runs. Can be used to reduce the amount of
     data written to disk.
 
     Should be used with caution, as it removes the gurantees about
-    recoverability.""",
-    )
+    recoverability.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_start_time: Optional[float] = Field(
-        default=None,
-        description="The start time of the run in seconds since the Unix epoch.",
-    )
+    x_start_time: Optional[float] = None
+    """The start time of the run in seconds since the Unix epoch.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_stats_pid: int = Field(
-        default=os.getpid(),
-        description="PID of the process that started the wandb-core process to collect system stats for.",
-    )
+    x_stats_pid: int = os.getpid()
+    """PID of the process that started the wandb-core process to collect system stats for.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_stats_sampling_interval: float = Field(
-        default=15.0, description="Sampling interval for the system monitor in seconds."
-    )
+    x_stats_sampling_interval: float = Field(default=15.0)
+    """Sampling interval for the system monitor in seconds.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_stats_neuron_monitor_config_path: Optional[str] = Field(
-        default=None,
-        description="""Path to the default config file for the neuron-monitor tool.
+    x_stats_neuron_monitor_config_path: Optional[str] = None
+    """Path to the default config file for the neuron-monitor tool.
 
     This is used to monitor AWS Trainium devices.
-    """,
-    )
 
-    x_stats_dcgm_exporter: Optional[str] = Field(
-        default=None,
-        description="""Endpoint to extract Nvidia DCGM metrics from.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_stats_dcgm_exporter: Optional[str] = None
+    """Endpoint to extract Nvidia DCGM metrics from.
 
     Two options are supported:
     - Extract DCGM-related metrics from a query to the Prometheus `/api/v1/query` endpoint.
@@ -901,55 +856,67 @@ class Settings(BaseModel, validate_assignment=True):
     Examples:
     - `http://localhost:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337", cluster="globular"}`.
     - TODO: `http://192.168.0.1:9400/metrics`.
-    """,
-    )
 
-    x_stats_open_metrics_endpoints: Optional[Dict[str, str]] = Field(
-        default=None,
-        description="OpenMetrics `/metrics` endpoints to monitor for system metrics.",
-    )
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_stats_open_metrics_endpoints: Optional[Dict[str, str]] = None
+    """OpenMetrics `/metrics` endpoints to monitor for system metrics."""
 
     x_stats_open_metrics_filters: Union[
         Dict[str, Dict[str, str]], Sequence[str], None
-    ] = Field(
-        default=None,
-        description="""Filter to apply to metrics collected from OpenMetrics `/metrics` endpoints.
+    ] = None
+    """Filter to apply to metrics collected from OpenMetrics `/metrics` endpoints.
 
     Supports two formats:
     - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     - ("metric regex pattern 1", "metric regex pattern 2", ...)
-    """,
-    )
 
-    x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = Field(
-        default=None, description="HTTP headers to add to OpenMetrics requests."
-    )
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
+    """HTTP headers to add to OpenMetrics requests.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_stats_disk_paths: Optional[Sequence[str]] = ("/",)
-    """System paths to monitor for disk usage."""
+    """System paths to monitor for disk usage.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_stats_cpu_count: Optional[int] = None
     """System CPU count.
 
     If set, overrides the auto-detected value in the run metadata.
+
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_cpu_logical_count: Optional[int] = None
     """Logical CPU count.
 
     If set, overrides the auto-detected value in the run metadata.
+
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_gpu_count: Optional[int] = None
     """GPU device count.
 
     If set, overrides the auto-detected value in the run metadata.
+
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_gpu_type: Optional[str] = None
     """GPU device type.
 
     If set, overrides the auto-detected value in the run metadata.
+
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_gpu_device_ids: Optional[Sequence[int]] = None
@@ -957,32 +924,34 @@ class Settings(BaseModel, validate_assignment=True):
 
     If not set, the system monitor captures metrics for all GPUs.
     Assumes 0-based indexing matching CUDA/ROCm device enumeration.
-    """,
 
-    x_stats_buffer_size: int = Field(
-        default=0,
-        description="""Number of system metric samples to buffer in memory in the wandb-core process.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_stats_buffer_size: int = 0
+    """Number of system metric samples to buffer in memory in the wandb-core process.
 
     Can be accessed via run._system_metrics.
-    """,
-    )
 
-    x_stats_coreweave_metadata_base_url: str = Field(
-        default="http://169.254.169.254",
-        description="""The scheme and hostname for contacting the CoreWeave metadata server.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_stats_coreweave_metadata_base_url: str = "http://169.254.169.254"
+    """The scheme and hostname for contacting the CoreWeave metadata server.
 
     Only accessible from within a CoreWeave cluster.
-    """,
-    )
 
-    x_stats_coreweave_metadata_endpoint: str = Field(
-        default="/api/v2/cloud-init/meta-data",
-        description="""The relative path on the CoreWeave metadata server to which to make requests.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
+
+    x_stats_coreweave_metadata_endpoint: str = "/api/v2/cloud-init/meta-data"
+    """The relative path on the CoreWeave metadata server to which to make requests.
 
     This must not include the schema and hostname prefix.
     Only accessible from within a CoreWeave cluster.
-    """,
-    )
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_stats_track_process_tree: bool = False
     """Monitor the entire process tree for resource usage, starting from `x_stats_pid`.
@@ -990,18 +959,23 @@ class Settings(BaseModel, validate_assignment=True):
     When `True`, the system monitor aggregates the RSS, CPU%, and thread count
     from the process with PID `x_stats_pid` and all of its descendants.
     This can have a performance overhead and is disabled by default.
+
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_sync: bool = False
-    """Flag to indicate whether we are syncing a run from the transaction log."""
+    """Flag to indicate whether we are syncing a run from the transaction log.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
-    x_update_finish_state: bool = Field(
-        default=True,
-        description="""Flag to indicate whether this process can update the run's final state on the server.
+    x_update_finish_state: bool = True
+    """Flag to indicate whether this process can update the run's final state on the server.
 
     Set to False in distributed training when only the main process should determine the final state.
-    """,
-    )
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     # Model validator to catch legacy settings.
     @model_validator(mode="before")
