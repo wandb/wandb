@@ -838,9 +838,8 @@ class Settings(BaseModel, validate_assignment=True):
     """,
     )
 
-    x_server_side_expand_glob_metrics: bool = Field(
-        default=False,
-        description="""Flag to delegate glob matching of metrics in define_metric to the server.
+    x_server_side_expand_glob_metrics: bool = True
+    """Flag to delegate glob matching of metrics in define_metric to the server.
 
     If the server does not support this, the client will perform the glob matching.
     """,
@@ -926,12 +925,8 @@ class Settings(BaseModel, validate_assignment=True):
         default=None, description="HTTP headers to add to OpenMetrics requests."
     )
 
-    x_stats_disk_paths: Optional[Sequence[str]] = Field(
-        default_factory=lambda: ("/", "/System/Volumes/Data")
-        if platform.system() == "Darwin"
-        else ("/",),
-        description="System paths to monitor for disk usage.",
-    )
+    x_stats_disk_paths: Optional[Sequence[str]] = ("/",)
+    """System paths to monitor for disk usage."""
 
     x_stats_cpu_count: Optional[int] = None
     """System CPU count.
@@ -989,10 +984,16 @@ class Settings(BaseModel, validate_assignment=True):
     """,
     )
 
-    x_sync: bool = Field(
-        default=False,
-        description="Flag to indicate whether we are syncing a run from the transaction log.",
-    )
+    x_stats_track_process_tree: bool = False
+    """Monitor the entire process tree for resource usage, starting from `x_stats_pid`.
+
+    When `True`, the system monitor aggregates the RSS, CPU%, and thread count
+    from the process with PID `x_stats_pid` and all of its descendants.
+    This can have a performance overhead and is disabled by default.
+    """
+
+    x_sync: bool = False
+    """Flag to indicate whether we are syncing a run from the transaction log."""
 
     x_update_finish_state: bool = Field(
         default=True,

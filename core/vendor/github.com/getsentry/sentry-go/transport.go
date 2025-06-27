@@ -35,6 +35,7 @@ const maxDrainResponseBytes = 16 << 10
 // Transport is used by the Client to deliver events to remote server.
 type Transport interface {
 	Flush(timeout time.Duration) bool
+	FlushWithContext(ctx context.Context) bool
 	Configure(options ClientOptions)
 	SendEvent(event *Event)
 	Close()
@@ -439,8 +440,19 @@ func (t *HTTPTransport) SendEventWithContext(ctx context.Context, event *Event) 
 // have the SDK send events over the network synchronously, configure it to use
 // the HTTPSyncTransport in the call to Init.
 func (t *HTTPTransport) Flush(timeout time.Duration) bool {
-	toolate := time.After(timeout)
+	timeoutCh := make(chan struct{})
+	time.AfterFunc(timeout, func() {
+		close(timeoutCh)
+	})
+	return t.flushInternal(timeoutCh)
+}
 
+// FlushWithContext works like Flush, but it accepts a context.Context instead of a timeout.
+func (t *HTTPTransport) FlushWithContext(ctx context.Context) bool {
+	return t.flushInternal(ctx.Done())
+}
+
+func (t *HTTPTransport) flushInternal(timeout <-chan struct{}) bool {
 	// Wait until processing the current batch has started or the timeout.
 	//
 	// We must wait until the worker has seen the current batch, because it is
@@ -448,6 +460,7 @@ func (t *HTTPTransport) Flush(timeout time.Duration) bool {
 	// possible execution flow in which b.done is never closed, and the only way
 	// out of Flush would be waiting for the timeout, which is undesired.
 	var b batch
+
 	for {
 		select {
 		case b = <-t.buffer:
@@ -457,7 +470,7 @@ func (t *HTTPTransport) Flush(timeout time.Duration) bool {
 			default:
 				t.buffer <- b
 			}
-		case <-toolate:
+		case <-timeout:
 			goto fail
 		}
 	}
@@ -478,12 +491,12 @@ started:
 	case <-b.done:
 		DebugLogger.Println("Buffer flushed successfully.")
 		return true
-	case <-toolate:
+	case <-timeout:
 		goto fail
 	}
 
 fail:
-	DebugLogger.Println("Buffer flushing reached the timeout.")
+	DebugLogger.Println("Buffer flushing was canceled or timed out.")
 	return false
 }
 
@@ -697,6 +710,11 @@ func (t *HTTPSyncTransport) Flush(_ time.Duration) bool {
 	return true
 }
 
+// FlushWithContext is a no-op for HTTPSyncTransport. It always returns true immediately.
+func (t *HTTPSyncTransport) FlushWithContext(_ context.Context) bool {
+	return true
+}
+
 func (t *HTTPSyncTransport) disabled(c ratelimit.Category) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -726,6 +744,10 @@ func (noopTransport) SendEvent(*Event) {
 }
 
 func (noopTransport) Flush(time.Duration) bool {
+	return true
+}
+
+func (noopTransport) FlushWithContext(context.Context) bool {
 	return true
 }
 
