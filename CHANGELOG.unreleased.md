@@ -17,6 +17,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 This version removes the legacy implementaion of the `service` process. This is a breaking change.
 
+### Added
+
+- Setting `x_stats_track_process_tree` to track process-specific metrics such as the RSS, CPU%, and thread count in use for the entire process tree, starting from `x_stats_pid`. This can be expensive and is disabled by default (@dmitryduev in https://github.com/wandb/wandb/pull/10089)
+
 ### Changed
 
 - Calling `Artifact.link()` no longer instantiates a throwaway placeholder run. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9828)
