@@ -848,11 +848,19 @@ class Api:
 
         Args:
             path: (str) path to project the report resides in, should be in the form: "entity/project"
-            name: (str, optional) optional name of the report requested.
+            name: (str, optional) The name of the report.
             per_page: (int) Sets the page size for query pagination.  Usually there is no reason to change this.
 
         Returns:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
+
+        Example:
+        ```python
+        import wandb
+
+        api = wandb.Api()
+        reports = api.reports(path="my-org/my-project")
+        ```
         """
         entity, project, _ = self._parse_path(path + "/fake_run")
 
