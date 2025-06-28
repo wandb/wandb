@@ -162,7 +162,7 @@ class Settings(BaseModel, validate_assignment=True):
     This class manages configuration settings for the W&B SDK,
     ensuring type safety and validation of all settings. Settings are accessible
     as attributes and can be initialized programmatically, through environment
-    variables (WANDB_ prefix), and via configuration files.
+    variables (`WANDB_ prefix`), and with configuration files.
 
     The settings are organized into three categories:
     1. Public settings: Core configuration options that users can safely modify to customize
@@ -834,6 +834,10 @@ class Settings(BaseModel, validate_assignment=True):
 
         @model_validator(mode="after")
         def validate_mutual_exclusion_of_branching_args(self) -> Self:
+            """Check if `fork_from`, `resume`, and `resume_from` are mutually exclusive.
+
+            <!-- lazydoc-ignore: internal -->
+            """
             if (
                 sum(
                     o is not None
@@ -881,6 +885,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("api_key", mode="after")
     @classmethod
     def validate_api_key(cls, value):
+        """Validate the API key.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is not None and (len(value) > len(value.strip())):
             raise UsageError("API key cannot start or end with whitespace")
         return value
@@ -888,6 +896,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("base_url", mode="after")
     @classmethod
     def validate_base_url(cls, value):
+        """Validate the base URL.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         validate_url(value)
         # wandb.ai-specific checks
         if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
@@ -902,6 +914,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("code_dir", mode="before")
     @classmethod
     def validate_code_dir(cls, value):
+        """Validate the code directory.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -910,6 +926,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("console", mode="after")
     @classmethod
     def validate_console(cls, value, values):
+        """Validate the console capture method.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value != "auto":
             return value
 
@@ -918,6 +938,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_executable", mode="before")
     @classmethod
     def validate_x_executable(cls, value):
+        """Validate the Python executable path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -933,6 +957,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_file_stream_max_line_bytes", mode="after")
     @classmethod
     def validate_file_stream_max_line_bytes(cls, value):
+        """Validate the maximum line length for filestream JSONL files.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is not None and value < 1:
             raise ValueError("File stream max line bytes must be greater than 0")
         return value
@@ -940,6 +968,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_files_dir", mode="before")
     @classmethod
     def validate_x_files_dir(cls, value):
+        """Validate the files directory.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -948,6 +980,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("fork_from", mode="before")
     @classmethod
     def validate_fork_from(cls, value, values) -> Optional[RunMoment]:
+        """Validate the fork_from field.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         run_moment = cls._runmoment_preprocessor(value)
 
         if hasattr(values, "data"):
@@ -972,6 +1008,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("http_proxy", mode="after")
     @classmethod
     def validate_http_proxy(cls, value):
+        """Validate the HTTP proxy.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return None
         validate_url(value)
@@ -980,6 +1020,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("https_proxy", mode="after")
     @classmethod
     def validate_https_proxy(cls, value):
+        """Validate the HTTPS proxy.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return None
         validate_url(value)
@@ -988,11 +1032,19 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("ignore_globs", mode="after")
     @classmethod
     def validate_ignore_globs(cls, value):
+        """Validate the ignore globs.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         return tuple(value) if not isinstance(value, tuple) else value
 
     @field_validator("program", mode="before")
     @classmethod
     def validate_program(cls, value):
+        """Validate the program path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -1001,6 +1053,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("program_abspath", mode="before")
     @classmethod
     def validate_program_abspath(cls, value):
+        """Validate the absolute program path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -1009,6 +1065,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("program_relpath", mode="before")
     @classmethod
     def validate_program_relpath(cls, value):
+        """Validate the relative program path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -1017,6 +1077,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("project", mode="after")
     @classmethod
     def validate_project(cls, value, values):
+        """Validate the project name.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return None
         invalid_chars_list = list("/\\#?%:")
@@ -1034,6 +1098,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("resume", mode="before")
     @classmethod
     def validate_resume(cls, value):
+        """Validate the resume behavior.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is False:
             return None
         if value is True:
@@ -1043,6 +1111,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("resume_from", mode="before")
     @classmethod
     def validate_resume_from(cls, value, values) -> Optional[RunMoment]:
+        """Validate the resume_from field.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         run_moment = cls._runmoment_preprocessor(value)
 
         if hasattr(values, "data"):
@@ -1065,6 +1137,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("root_dir", mode="before")
     @classmethod
     def validate_root_dir(cls, value):
+        """Validate the root directory.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -1073,6 +1149,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("run_id", mode="after")
     @classmethod
     def validate_run_id(cls, value, values):
+        """Validate the run ID.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return None
 
@@ -1092,6 +1172,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("settings_system", mode="after")
     @classmethod
     def validate_settings_system(cls, value):
+        """Validate the system settings file path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return None
         elif isinstance(value, pathlib.Path):
@@ -1102,6 +1186,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_service_wait", mode="after")
     @classmethod
     def validate_service_wait(cls, value):
+        """Validate the service wait time.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value < 0:
             raise UsageError("Service wait time cannot be negative")
         return value
@@ -1109,6 +1197,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("start_method", mode="after")
     @classmethod
     def validate_start_method(cls, value):
+        """Validate the start method for subprocesses.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return value
         wandb.termwarn(
@@ -1127,6 +1219,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_gpu_device_ids", mode="before")
     @classmethod
     def validate_x_stats_gpu_device_ids(cls, value):
+        """Validate the GPU device IDs.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if isinstance(value, str):
             return json.loads(value)
         return value
@@ -1134,6 +1230,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_neuron_monitor_config_path", mode="before")
     @classmethod
     def validate_x_stats_neuron_monitor_config_path(cls, value):
+        """Validate the path to the neuron-monitor config file.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -1142,6 +1242,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_open_metrics_endpoints", mode="before")
     @classmethod
     def validate_stats_open_metrics_endpoints(cls, value):
+        """Validate the OpenMetrics endpoints.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if isinstance(value, str):
             return json.loads(value)
         return value
@@ -1149,6 +1253,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_open_metrics_filters", mode="before")
     @classmethod
     def validate_stats_open_metrics_filters(cls, value):
+        """Validate the OpenMetrics filters.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if isinstance(value, str):
             return json.loads(value)
         return value
@@ -1156,6 +1264,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_open_metrics_http_headers", mode="before")
     @classmethod
     def validate_stats_open_metrics_http_headers(cls, value):
+        """Validate the OpenMetrics HTTP headers.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if isinstance(value, str):
             return json.loads(value)
         return value
@@ -1163,6 +1275,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_stats_sampling_interval", mode="after")
     @classmethod
     def validate_stats_sampling_interval(cls, value):
+        """Validate the stats sampling interval.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value < 0.1:
             raise UsageError("Stats sampling interval cannot be less than 0.1 seconds")
         return value
@@ -1170,6 +1286,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("sweep_id", mode="after")
     @classmethod
     def validate_sweep_id(cls, value):
+        """Validate the sweep ID.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if value is None:
             return None
         if len(value) == 0:
@@ -1183,6 +1303,10 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("sweep_param_path", mode="before")
     @classmethod
     def validate_sweep_param_path(cls, value):
+        """Validate the sweep parameter path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
@@ -1382,6 +1506,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def run_mode(self) -> Literal["run", "offline-run"]:
+        """The mode of the run. Can be either "run" or "offline-run"."""
         return "run" if not self._offline else "offline-run"
 
     @computed_field  # type: ignore[prop-decorator]
@@ -1417,6 +1542,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_dir(self) -> str:
+        """The directory for storing the run's files."""
         return _path_convert(
             self.wandb_dir,
             f"{self.run_mode}-{self.timespec}-{self.run_id}",
@@ -1431,11 +1557,13 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def sync_symlink_latest(self) -> str:
+        """Path to the symlink to the most recent run's transaction log file."""
         return _path_convert(self.wandb_dir, "latest-run")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def timespec(self) -> str:
+        """The time specification for the run."""
         return self._start_datetime
 
     @computed_field  # type: ignore[prop-decorator]
