@@ -895,9 +895,9 @@ class Run:
     @property
     @_log_to_run
     @_attach
-    def tags(self) -> tuple | None:
+    def tags(self) -> list | None:
         """Tags associated with the run, if there are any."""
-        return self._settings.run_tags or ()
+        return list(self._settings.run_tags) or []
 
     @tags.setter
     @_log_to_run
