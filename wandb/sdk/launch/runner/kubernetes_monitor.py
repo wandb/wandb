@@ -6,6 +6,7 @@ import traceback
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import kubernetes_asyncio  # type: ignore
+import urllib3
 from kubernetes_asyncio import watch
 from kubernetes_asyncio.client import (  # type: ignore
     ApiException,
@@ -16,7 +17,6 @@ from kubernetes_asyncio.client import (  # type: ignore
     V1PodStatus,
 )
 
-import urllib3
 import wandb
 from wandb.sdk.launch.agent import LaunchAgent
 from wandb.sdk.launch.errors import LaunchError

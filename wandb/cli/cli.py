@@ -17,10 +17,6 @@ from functools import wraps
 from typing import Any, Dict, Optional
 
 import click
-import wandb
-import wandb.env
-import wandb.errors
-import wandb.sdk.verify.verify as wandb_verify
 import yaml
 from click.exceptions import ClickException
 
