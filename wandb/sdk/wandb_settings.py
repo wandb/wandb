@@ -522,25 +522,39 @@ class Settings(BaseModel, validate_assignment=True):
     # a part of the public API as they may change or be removed in future versions.
 
     x_cli_only_mode: bool = False
-    """Flag to indicate that the SDK is running in CLI-only mode."""
+    """Flag to indicate that the SDK is running in CLI-only mode.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_disable_meta: bool = False
-    """Flag to disable the collection of system metadata."""
+    """Flag to disable the collection of system metadata.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_disable_stats: bool = False
-    """Flag to disable the collection of system metrics."""
+    """Flag to disable the collection of system metrics.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_disable_viewer: bool = False
-    """Flag to disable the early viewer query."""
+    """Flag to disable the early viewer query.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_disable_machine_info: bool = False
-    """Flag to disable automatic machine info collection."""
+    """Flag to disable automatic machine info collection.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_executable: Optional[str] = None
-    """Path to the Python executable."""
+    """Path to the Python executable.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_extra_http_headers: Optional[Dict[str, str]] = None
-    """Additional headers to add to all outgoing HTTP requests."""
+    """Additional headers to add to all outgoing HTTP requests.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_file_stream_max_bytes: Optional[int] = None
     """An approximate maximum request size for the filestream API.
@@ -548,103 +562,152 @@ class Settings(BaseModel, validate_assignment=True):
     Its purpose is to prevent HTTP requests from failing due to
     containing too much data. This number is approximate:
     requests will be slightly larger.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_stream_max_line_bytes: Optional[int] = None
-    """Maximum line length for filestream JSONL files."""
+    """Maximum line length for filestream JSONL files.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_file_stream_transmit_interval: Optional[float] = None
-    """Interval in seconds between filestream transmissions."""
+    """Interval in seconds between filestream transmissions.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     # Filestream retry client configuration.
 
     x_file_stream_retry_max: Optional[int] = None
-    """Max number of retries for filestream operations."""
+    """Max number of retries for filestream operations.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_file_stream_retry_wait_min_seconds: Optional[float] = None
-    """Minimum wait time between retries for filestream operations."""
+    """Minimum wait time between retries for filestream operations.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_file_stream_retry_wait_max_seconds: Optional[float] = None
-    """Maximum wait time between retries for filestream operations."""
+    """Maximum wait time between retries for filestream operations.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_file_stream_timeout_seconds: Optional[float] = None
-    """Timeout in seconds for individual filestream HTTP requests."""
+    """Timeout in seconds for individual filestream HTTP requests.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     # file transfer retry client configuration
 
     x_file_transfer_retry_max: Optional[int] = None
-    """Max number of retries for file transfer operations."""
+    """Max number of retries for file transfer operations.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_file_transfer_retry_wait_min_seconds: Optional[float] = None
-    """Minimum wait time between retries for file transfer operations."""
+    """Minimum wait time between retries for file transfer operations.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_file_transfer_retry_wait_max_seconds: Optional[float] = None
-    """Maximum wait time between retries for file transfer operations."""
+    """Maximum wait time between retries for file transfer operations.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_file_transfer_timeout_seconds: Optional[float] = None
-    """Timeout in seconds for individual file transfer HTTP requests."""
+    """Timeout in seconds for individual file transfer HTTP requests.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_files_dir: Optional[str] = None
-    """Override setting for the computed files_dir.."""
+    """Override setting for the computed files_dir.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_flow_control_custom: Optional[bool] = None
     """Flag indicating custom flow control for filestream.
 
     TODO: Not implemented in wandb-core.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_flow_control_disabled: Optional[bool] = None
     """Flag indicating flow control is disabled for filestream.
 
     TODO: Not implemented in wandb-core.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     # graphql retry client configuration
 
     x_graphql_retry_max: Optional[int] = None
-    """Max number of retries for GraphQL operations."""
+    """Max number of retries for GraphQL operations.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_graphql_retry_wait_min_seconds: Optional[float] = None
-    """Minimum wait time between retries for GraphQL operations."""
+    """Minimum wait time between retries for GraphQL operations.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_graphql_retry_wait_max_seconds: Optional[float] = None
-    """Maximum wait time between retries for GraphQL operations."""
+    """Maximum wait time between retries for GraphQL operations.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_graphql_timeout_seconds: Optional[float] = None
-    """Timeout in seconds for individual GraphQL requests."""
+    """Timeout in seconds for individual GraphQL requests.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_internal_check_process: float = 8.0
-    """Interval for internal process health checks in seconds."""
+    """Interval for internal process health checks in seconds.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_jupyter_name: Optional[str] = None
-    """Name of the Jupyter notebook."""
+    """Name of the Jupyter notebook.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_jupyter_path: Optional[str] = None
-    """Path to the Jupyter notebook."""
+    """Path to the Jupyter notebook.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_jupyter_root: Optional[str] = None
-    """Root directory of the Jupyter notebook."""
+    """Root directory of the Jupyter notebook.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_label: Optional[str] = None
     """Label to assign to system metrics and console logs collected for the run.
 
     This is used to group data by on the frontend and can be used to distinguish data
     from different processes in a distributed training job.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_live_policy_rate_limit: Optional[int] = None
-    """Rate limit for live policy updates in seconds."""
+    """Rate limit for live policy updates in seconds.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_live_policy_wait_time: Optional[int] = None
-    """Wait time between live policy updates in seconds."""
+    """Wait time between live policy updates in seconds.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_log_level: int = logging.INFO
-    """Logging level for internal operations."""
+    """Logging level for internal operations.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_network_buffer: Optional[int] = None
     """Size of the network buffer used in flow control.
 
     TODO: Not implemented in wandb-core.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_primary: bool = Field(
@@ -655,6 +718,7 @@ class Settings(BaseModel, validate_assignment=True):
     In a distributed setting, this is useful for avoiding file overwrites
     from secondary processes when only system metrics and logs are needed,
     as the primary process handles the main logging.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_proxies: Optional[Dict[str, str]] = None
@@ -662,31 +726,42 @@ class Settings(BaseModel, validate_assignment=True):
 
     This is deprecated and will be removed in future versions.
     Please use `http_proxy` and `https_proxy` instead.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_runqueue_item_id: Optional[str] = None
-    """ID of the Launch run queue item being processed."""
+    """ID of the Launch run queue item being processed.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_save_requirements: bool = True
-    """Flag to save the requirements file."""
+    """Flag to save the requirements file.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_server_side_derived_summary: bool = False
     """Flag to delegate automatic computation of summary from history to the server.
 
     This does not disable user-provided summary updates.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_server_side_expand_glob_metrics: bool = True
     """Flag to delegate glob matching of metrics in define_metric to the server.
 
     If the server does not support this, the client will perform the glob matching.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_service_transport: Optional[str] = None
-    """Transport method for communication with the wandb service."""
+    """Transport method for communication with the wandb service.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_service_wait: float = 30.0
-    """Time in seconds to wait for the wandb-core internal service to start."""
+    """Time in seconds to wait for the wandb-core internal service to start.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_skip_transaction_log: bool = False
     """Whether to skip saving the run events to the transaction log.
@@ -695,21 +770,30 @@ class Settings(BaseModel, validate_assignment=True):
     data written to disk.
 
     Should be used with caution, as it removes the gurantees about
-    recoverability."""
+    recoverability.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_start_time: Optional[float] = None
-    """The start time of the run in seconds since the Unix epoch."""
+    """The start time of the run in seconds since the Unix epoch.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_stats_pid: int = os.getpid()
-    """PID of the process that started the wandb-core process to collect system stats for."""
+    """PID of the process that started the wandb-core process to collect system stats for.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_stats_sampling_interval: float = Field(default=15.0)
-    """Sampling interval for the system monitor in seconds."""
+    """Sampling interval for the system monitor in seconds.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_stats_neuron_monitor_config_path: Optional[str] = None
     """Path to the default config file for the neuron-monitor tool.
 
     This is used to monitor AWS Trainium devices.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_dcgm_exporter: Optional[str] = None
@@ -724,6 +808,7 @@ class Settings(BaseModel, validate_assignment=True):
     Examples:
     - `http://localhost:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337", cluster="globular"}`.
     - TODO: `http://192.168.0.1:9400/metrics`.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_open_metrics_endpoints: Optional[Dict[str, str]] = None
@@ -737,36 +822,45 @@ class Settings(BaseModel, validate_assignment=True):
     Supports two formats:
     - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     - ("metric regex pattern 1", "metric regex pattern 2", ...)
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
-    """HTTP headers to add to OpenMetrics requests."""
+    """HTTP headers to add to OpenMetrics requests.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_stats_disk_paths: Optional[Sequence[str]] = ("/",)
-    """System paths to monitor for disk usage."""
+    """System paths to monitor for disk usage.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_stats_cpu_count: Optional[int] = None
     """System CPU count.
 
     If set, overrides the auto-detected value in the run metadata.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_cpu_logical_count: Optional[int] = None
     """Logical CPU count.
 
     If set, overrides the auto-detected value in the run metadata.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_gpu_count: Optional[int] = None
     """GPU device count.
 
     If set, overrides the auto-detected value in the run metadata.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_gpu_type: Optional[str] = None
     """GPU device type.
 
     If set, overrides the auto-detected value in the run metadata.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_gpu_device_ids: Optional[Sequence[int]] = None
@@ -774,18 +868,21 @@ class Settings(BaseModel, validate_assignment=True):
 
     If not set, the system monitor captures metrics for all GPUs.
     Assumes 0-based indexing matching CUDA/ROCm device enumeration.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_buffer_size: int = 0
     """Number of system metric samples to buffer in memory in the wandb-core process.
 
     Can be accessed via run._system_metrics.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_coreweave_metadata_base_url: str = "http://169.254.169.254"
     """The scheme and hostname for contacting the CoreWeave metadata server.
 
     Only accessible from within a CoreWeave cluster.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_coreweave_metadata_endpoint: str = "/api/v2/cloud-init/meta-data"
@@ -793,6 +890,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     This must not include the schema and hostname prefix.
     Only accessible from within a CoreWeave cluster.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_track_process_tree: bool = False
@@ -801,15 +899,19 @@ class Settings(BaseModel, validate_assignment=True):
     When `True`, the system monitor aggregates the RSS, CPU%, and thread count
     from the process with PID `x_stats_pid` and all of its descendants.
     This can have a performance overhead and is disabled by default.
+    s<!-- lazydoc-ignore-class-attributes -->
     """
 
     x_sync: bool = False
-    """Flag to indicate whether we are syncing a run from the transaction log."""
+    """Flag to indicate whether we are syncing a run from the transaction log.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     x_update_finish_state: bool = True
     """Flag to indicate whether this process can update the run's final state on the server.
 
     Set to False in distributed training when only the main process should determine the final state.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     # Model validator to catch legacy settings.
