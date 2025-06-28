@@ -2,6 +2,7 @@ import io
 import os
 import platform
 from pathlib import Path
+from unittest import mock
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,7 +14,7 @@ import torch
 import wandb
 from bokeh.plotting import figure
 from PIL import Image
-from wandb import data_types
+from wandb import data_types, env
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 
@@ -684,6 +685,59 @@ def test_video_path_invalid():
         f.write("00000")
     with pytest.raises(ValueError):
         wandb.Video("video.avi")
+
+
+def test_video_encodes_with_spinner__displays_by_default(monkeypatch):
+    mock_run_async_with_spinner = mock.MagicMock()
+    monkeypatch.setattr(
+        wandb.sdk.lib.printer_asyncio,
+        "run_async_with_spinner",
+        mock_run_async_with_spinner,
+    )
+    frames = np.random.randint(255, size=(1, 1, 1, 1))
+
+    wandb.Video(frames, format="mp4")
+
+    assert mock_run_async_with_spinner.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "setting_name,setting_value,env_var,env_value,expected_calls",
+    [
+        ("quiet", True, None, None, 0),
+        ("silent", True, None, None, 0),
+        ("quiet", False, None, None, 1),
+        ("silent", False, None, None, 1),
+        (None, None, env.QUIET, "true", 0),
+        (None, None, env.SILENT, "true", 0),
+        (None, None, env.QUIET, "false", 1),
+        (None, None, env.SILENT, "false", 1),
+    ],
+)
+def test_video_encodes_with_spinner(
+    monkeypatch,
+    setting_name,
+    setting_value,
+    env_var,
+    env_value,
+    expected_calls,
+):
+    if setting_name is not None:
+        wandb.setup().settings.__setattr__(setting_name, setting_value)
+    if env_var is not None:
+        monkeypatch.setenv(env_var, env_value)
+
+    mock_run_async_with_spinner = mock.MagicMock()
+    monkeypatch.setattr(
+        wandb.sdk.lib.printer_asyncio,
+        "run_async_with_spinner",
+        mock_run_async_with_spinner,
+    )
+    frames = np.random.randint(255, size=(1, 1, 1, 1))
+
+    wandb.Video(frames, format="mp4")
+
+    assert mock_run_async_with_spinner.call_count == expected_calls
 
 
 ################################################################################
