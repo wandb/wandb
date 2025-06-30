@@ -234,3 +234,22 @@ def test_resume_config_preserves_image_mask(user, wandb_backend_spy):
 
         assert "test_image_wandb_delimeter_prediction" in class_labels
         assert "test_image_after_resume_wandb_delimeter_prediction" in class_labels
+
+
+def test_resume_run_with_notes(user):
+    notes = "do re mi fa sol la si"
+    with wandb.init(project="notes", notes=notes) as run:
+        run_id = run.id
+
+    with wandb.init(id=run_id, resume="must", project="notes") as run:
+        assert run.notes == notes
+
+
+def test_resume_overwrite_notes(user):
+    notes = "do re mi fa sol la si"
+    with wandb.init(project="notes", notes=notes) as run:
+        run_id = run.id
+
+    new_notes = "c d e f g a b"
+    with wandb.init(id=run_id, resume="must", project="notes", notes=new_notes) as run:
+        assert run.notes == new_notes

@@ -67,3 +67,21 @@ def source_artifact(team: str, worker_id: str) -> Artifact:
 def target_collection_name(worker_id: str) -> str:
     """The name of the target collection to link to."""
     return f"collection-{worker_id}-{random_string(8)}"
+
+
+@fixture
+def other_team_and_org(
+    backend_fixture_factory: BackendFixtureFactory, user: str
+) -> TeamAndOrgNames:
+    return backend_fixture_factory.make_team(username=user)
+
+
+@fixture
+def other_team(other_team_and_org: TeamAndOrgNames) -> str:
+    return other_team_and_org.team
+
+
+@fixture
+def other_org(other_team_and_org: TeamAndOrgNames) -> str:
+    """Set up backend resources for testing link_artifact within a registry."""
+    return other_team_and_org.org
