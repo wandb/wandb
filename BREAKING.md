@@ -113,6 +113,11 @@ When preparing a release that can include breaking changes, consider applying ch
     - Deprecated in 0.19.10 (https://github.com/wandb/wandb/pull/8925)
     - Can do in >=0.21
 
+- Remove `wandb.apis.paginator.SizedPaginator::length`:
+    - Owner: @jacobromero
+    - Deprecated in 0.21.0
+    - can do in >= 0.22
+
 - make `wandb.apis.public.runs.Run::load()` private
     - Owner: @jacobromero
     - Can do in >= 0.21
