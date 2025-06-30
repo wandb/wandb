@@ -518,7 +518,7 @@ class Api:
                 name="my-bar-chart",
                 display_name="My Custom Bar Chart",
                 spec_type="vega2",
-                access="PRIVATE",
+                access="private",
                 spec=vega_spec,
             )
 
@@ -530,13 +530,16 @@ class Api:
             )
             ```
         """
+        # Convert user-facing lowercase access to backend uppercase
+        backend_access = access.upper()
+
         api = InternalApi(retry_timedelta=RETRY_TIMEDELTA)
         result = api.create_custom_chart(
             entity=entity,
             name=name,
             display_name=display_name,
             spec_type=spec_type,
-            access=access,
+            access=backend_access,
             spec=spec,
         )
         if result is None or result.get("chart") is None:
