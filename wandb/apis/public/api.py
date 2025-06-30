@@ -137,7 +137,7 @@ class RetryingClient:
 class Api:
     """Used for querying the wandb server.
 
-    Examples::
+    Examples:
         Most common way to initialize
         >>> wandb.Api()
 
@@ -495,8 +495,8 @@ class Api:
             wandb.Error: If chart creation fails
             UnsupportedError: If the server doesn't support custom charts
 
-        Example::
-
+        Example:
+            ```python
             import wandb
 
             api = wandb.Api()
@@ -508,8 +508,8 @@ class Api:
                 "data": {"name": "wandb"},
                 "encoding": {
                     "x": {"field": "${field:x}", "type": "ordinal"},
-                    "y": {"field": "${field:y}", "type": "quantitative"},
-                },
+                    "y": {"field": "${field:y}", "type": "quantitative"}
+                }
             }
 
             # Create the custom chart
@@ -518,27 +518,25 @@ class Api:
                 name="my-bar-chart",
                 display_name="My Custom Bar Chart",
                 spec_type="vega2",
-                access="private",
-                spec=vega_spec,
+                access="PRIVATE",
+                spec=vega_spec
             )
 
             # Use with wandb.plot_table()
             chart = wandb.plot_table(
                 vega_spec_name=chart_id,
                 data_table=my_table,
-                fields={"x": "category", "y": "value"},
+                fields={"x": "category", "y": "value"}
             )
+            ```
         """
-        # Convert user-facing lowercase access to backend uppercase
-        backend_access = access.upper()
-
         api = InternalApi(retry_timedelta=RETRY_TIMEDELTA)
         result = api.create_custom_chart(
             entity=entity,
             name=name,
             display_name=display_name,
             spec_type=spec_type,
-            access=backend_access,
+            access=access,
             spec=spec,
         )
         if result is None or result.get("chart") is None:
@@ -749,13 +747,14 @@ class Api:
     def from_path(self, path):
         """Return a run, sweep, project or report from a path.
 
-        Examples::
-
+        Examples:
+            ```
             project = api.from_path("my_project")
             team_project = api.from_path("my_team/my_project")
             run = api.from_path("my_team/my_project/runs/id")
             sweep = api.from_path("my_team/my_project/sweeps/id")
             report = api.from_path("my_team/my_project/reports/My-Report-Vm11dsdf")
+            ```
 
         Args:
             path: (str) The path to the project, run, sweep or report
@@ -1052,7 +1051,7 @@ class Api:
         - `$regex`
 
 
-        Examples::
+        Examples:
             Find runs in my_project where config.experiment_name has been set to "foo"
             ```
             api.runs(
@@ -1580,7 +1579,7 @@ class Api:
         Use the iterator to search and filter registries, collections,
         or artifact versions across your organization's registry.
 
-        Examples::
+        Examples:
             Find all registries with the names that contain "model"
             ```python
             import wandb
@@ -1649,7 +1648,7 @@ class Api:
         Returns:
             A registry object.
 
-        Examples::
+        Examples:
             Fetch and update a registry
             ```python
             import wandb
@@ -1702,7 +1701,7 @@ class Api:
         Returns:
             A registry object.
 
-        Examples::
+        Examples:
             ```python
             import wandb
 
@@ -1785,7 +1784,7 @@ class Api:
         Yields:
             Iterator[WebhookIntegration]: An iterator of webhook integrations.
 
-        Examples::
+        Examples:
             Get all registered webhook integrations for the team "my-team":
             ```python
             import wandb
@@ -1826,7 +1825,7 @@ class Api:
         Yields:
             Iterator[SlackIntegration]: An iterator of Slack integrations.
 
-        Examples::
+        Examples:
             Get all registered Slack integrations for the team "my-team":
             ```python
             import wandb
@@ -1940,7 +1939,7 @@ class Api:
         Raises:
             ValueError: If zero or multiple Automations match the search criteria.
 
-        Examples::
+        Examples:
             Get an existing automation named "my-automation":
 
             ```python
@@ -1983,7 +1982,7 @@ class Api:
         Returns:
             A list of automations.
 
-        Examples::
+        Examples:
             Fetch all existing automations for the entity "my-team":
 
             ```python
@@ -2048,7 +2047,7 @@ class Api:
         Returns:
             The saved Automation.
 
-        Examples::
+        Examples:
             Create a new automation named "my-automation" that sends a Slack notification
             when a run within a specific project logs a metric exceeding a custom threshold:
 
@@ -2153,7 +2152,7 @@ class Api:
         Returns:
             The updated automation.
 
-        Examples::
+        Examples:
             Disable and edit the description of an existing automation ("my-automation"):
 
             ```python
