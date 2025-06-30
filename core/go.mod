@@ -24,7 +24,7 @@ require (
 	github.com/spf13/afero v1.14.0
 	github.com/stretchr/testify v1.10.0
 	github.com/wandb/simplejsonext v0.0.0-20241203202201-90635f1d8677
-	gocloud.dev v0.41.0
+	gocloud.dev v0.42.0
 	golang.org/x/sync v0.15.0
 	golang.org/x/time v0.12.0
 	google.golang.org/api v0.239.0

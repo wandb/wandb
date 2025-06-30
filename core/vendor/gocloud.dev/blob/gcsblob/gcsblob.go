@@ -626,6 +626,9 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 	bkt := b.client.Bucket(b.name)
 	obj := bkt.Object(key)
 
+	if opts.IfNotExist {
+		obj = obj.If(storage.Conditions{DoesNotExist: true})
+	}
 	// Add an extra level of indirection so that BeforeWrite can replace obj
 	// if needed. For example, ObjectHandle.If returns a new ObjectHandle.
 	// Also, make the Writer lazily in case this replacement happens.
