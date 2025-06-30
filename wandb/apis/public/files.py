@@ -72,7 +72,7 @@ class Files(SizedPaginator["File"]):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
+    def _length(self):
         if not self.last_response:
             self._load_page()
 
