@@ -78,6 +78,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gocloud.dev/blob"
@@ -739,9 +740,11 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 
 	if b.opts.Metadata == MetadataDontWrite {
 		w := &writer{
-			ctx:  ctx,
-			File: f,
-			path: path,
+			ctx:        ctx,
+			File:       f,
+			path:       path,
+			ifNotExist: opts.IfNotExist,
+			mu:         &sync.Mutex{},
 		}
 		return w, nil
 	}
@@ -765,6 +768,8 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 		attrs:      attrs,
 		contentMD5: opts.ContentMD5,
 		md5hash:    md5.New(),
+		ifNotExist: opts.IfNotExist,
+		mu:         &sync.Mutex{},
 	}
 	return w, nil
 }
@@ -778,7 +783,9 @@ type writerWithSidecar struct {
 	contentMD5 []byte
 	// We compute the MD5 hash so that we can store it with the file attributes,
 	// not for verification.
-	md5hash hash.Hash
+	md5hash    hash.Hash
+	ifNotExist bool
+	mu         *sync.Mutex
 }
 
 func (w *writerWithSidecar) Write(p []byte) (n int, err error) {
@@ -817,6 +824,15 @@ func (w *writerWithSidecar) Close() error {
 	if err := setAttrs(w.path, w.attrs); err != nil {
 		return err
 	}
+
+	if w.ifNotExist {
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		_, err = os.Stat(w.path)
+		if err == nil {
+			return gcerr.New(gcerrors.FailedPrecondition, err, 1, "File already exist")
+		}
+	}
 	// Rename the temp file to path.
 	if err := os.Rename(w.f.Name(), w.path); err != nil {
 		_ = os.Remove(w.path + attrsExt)
@@ -831,8 +847,10 @@ func (w *writerWithSidecar) Close() error {
 // which is why it is not folded into writerWithSidecar.
 type writer struct {
 	*os.File
-	ctx  context.Context
-	path string
+	ctx        context.Context
+	path       string
+	ifNotExist bool
+	mu         *sync.Mutex
 }
 
 func (w *writer) Upload(r io.Reader) error {
@@ -853,6 +871,15 @@ func (w *writer) Close() error {
 	// Check if the write was cancelled.
 	if err := w.ctx.Err(); err != nil {
 		return err
+	}
+
+	if w.ifNotExist {
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		_, err = os.Stat(w.path)
+		if err == nil {
+			return gcerr.New(gcerrors.FailedPrecondition, err, 1, "File already exist")
+		}
 	}
 
 	// Rename the temp file to path.

@@ -63,7 +63,7 @@ class Reports(SizedPaginator["BetaReport"]):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
+    def _length(self):
         # TODO: Add the count the backend
         if self.last_response:
             return len(self.objects)
