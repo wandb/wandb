@@ -117,7 +117,10 @@ class SizedPaginator(Paginator[T], Sized):
     @property
     def length(self) -> int | None:
         wandb.termwarn(
-            "`.length` is deprecated and will be removed in a future version. Use SizedPaginator._length instead.",
+            (
+                "`.length` is deprecated and will be removed in a future version. "
+                "Use `len(...)` instead."
+            ),
             repeat=False,
         )
         return len(self)

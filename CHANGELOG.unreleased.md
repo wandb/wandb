@@ -28,6 +28,7 @@ This version removes the legacy implementaion of the `service` process. This is 
 - Calling `Artifact.link()` no longer instantiates a throwaway placeholder run. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9828)
 - `wandb` now attempts to use Unix sockets for IPC instead of listening on localhost, making it work in environments with more restrictive permissions (such as Databricks) (@timoffex in https://github.com/wandb/wandb/pull/9995)
 - `Api.artifact()` will now display a warning while fetching artifacts from migrated model registry collections. (@ibindlish in https://github.com/wandb/wandb/pull/10047)
+- The `.length` for objects queried from `wandb.Api` has been deprecated. Use `len(...)` instead.
 
 ### Removed
 
