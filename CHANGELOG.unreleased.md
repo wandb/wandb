@@ -28,6 +28,7 @@ This version removes the legacy implementaion of the `service` process. This is 
 - Calling `Artifact.link()` no longer instantiates a throwaway placeholder run. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9828)
 - `wandb` now attempts to use Unix sockets for IPC instead of listening on localhost, making it work in environments with more restrictive permissions (such as Databricks) (@timoffex in https://github.com/wandb/wandb/pull/9995)
 - `Api.artifact()` will now display a warning while fetching artifacts from migrated model registry collections. (@ibindlish in https://github.com/wandb/wandb/pull/10047)
+- The `.length` for objects queried from `wandb.Api` has been deprecated. Use `len(...)` instead.
 
 ### Removed
 
@@ -42,4 +43,5 @@ This version removes the legacy implementaion of the `service` process. This is 
 - Respect `silent`, `quiet`, and `show_warnings` settings passed to a `Run` instance for warnings emitted by the service process (@kptkin in https://github.com/wandb/wandb/pull/10077)
 - `api.Runs` no longer makes an API call for each run loaded from W&B. (@jacobromero in https://github.com/wandb/wandb/pull/10087)
 - Correctly parse the `x_extra_http_headers` setting from the env variable (@dmitryduev in https://github.com/wandb/wandb/pull/10103)
+- `.length` calls the W&B backend to load the length of objects when no data has been loaded rather than returning `None` (@jacobromero in https://github.com/wandb/wandb/pull/10091)
 - Correct the artifact url for organization registry artifacts to be independent of the artifact type. (@ibindlish in https://github.com/wandb/wandb/pull/10049)

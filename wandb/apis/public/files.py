@@ -72,11 +72,11 @@ class Files(SizedPaginator["File"]):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
-        if self.last_response:
-            return self.last_response["project"]["run"]["fileCount"]
-        else:
-            return None
+    def _length(self):
+        if not self.last_response:
+            self._load_page()
+
+        return self.last_response["project"]["run"]["fileCount"]
 
     @property
     def more(self):
