@@ -137,7 +137,7 @@ class RetryingClient:
 class Api:
     """Used for querying the wandb server.
 
-    Examples:
+    Examples::
         Most common way to initialize
         >>> wandb.Api()
 
@@ -1052,7 +1052,7 @@ class Api:
         - `$regex`
 
 
-        Examples:
+        Examples::
             Find runs in my_project where config.experiment_name has been set to "foo"
             ```
             api.runs(
@@ -1580,7 +1580,7 @@ class Api:
         Use the iterator to search and filter registries, collections,
         or artifact versions across your organization's registry.
 
-        Examples:
+        Examples::
             Find all registries with the names that contain "model"
             ```python
             import wandb
@@ -1649,7 +1649,7 @@ class Api:
         Returns:
             A registry object.
 
-        Examples:
+        Examples::
             Fetch and update a registry
             ```python
             import wandb
@@ -1702,7 +1702,7 @@ class Api:
         Returns:
             A registry object.
 
-        Examples:
+        Examples::
             ```python
             import wandb
 
@@ -1785,7 +1785,7 @@ class Api:
         Yields:
             Iterator[WebhookIntegration]: An iterator of webhook integrations.
 
-        Examples:
+        Examples::
             Get all registered webhook integrations for the team "my-team":
             ```python
             import wandb
@@ -1826,7 +1826,7 @@ class Api:
         Yields:
             Iterator[SlackIntegration]: An iterator of Slack integrations.
 
-        Examples:
+        Examples::
             Get all registered Slack integrations for the team "my-team":
             ```python
             import wandb
@@ -1940,7 +1940,7 @@ class Api:
         Raises:
             ValueError: If zero or multiple Automations match the search criteria.
 
-        Examples:
+        Examples::
             Get an existing automation named "my-automation":
 
             ```python
@@ -1983,7 +1983,7 @@ class Api:
         Returns:
             A list of automations.
 
-        Examples:
+        Examples::
             Fetch all existing automations for the entity "my-team":
 
             ```python
@@ -2048,7 +2048,7 @@ class Api:
         Returns:
             The saved Automation.
 
-        Examples:
+        Examples::
             Create a new automation named "my-automation" that sends a Slack notification
             when a run within a specific project logs a metric exceeding a custom threshold:
 
@@ -2153,7 +2153,7 @@ class Api:
         Returns:
             The updated automation.
 
-        Examples:
+        Examples::
             Disable and edit the description of an existing automation ("my-automation"):
 
             ```python
