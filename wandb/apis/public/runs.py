@@ -112,19 +112,26 @@ def _server_provides_internal_id_for_project(client) -> bool:
 
 @normalize_exceptions
 def _convert_to_dict(value: Any) -> Dict[str, Any]:
+    """Converts a value to a dictionary.
+
+    If the value is already a dictionary, the value is returned unchanged.
+    If the value is a string, bytes, or bytearray, it is parsed as JSON.
+    For any other type, a TypeError is raised.
+    """
     if value is None:
         return {}
 
     if isinstance(value, dict):
         return value
-    elif isinstance(value, (str, bytes, bytearray)):
+
+    if isinstance(value, (str, bytes, bytearray)):
         try:
             return json.loads(value)
         except json.decoder.JSONDecodeError:
             # ignore invalid utf-8 or control characters
             return json.loads(value, strict=False)
-    else:
-        raise TypeError(f"Unable to convert {value} to a dict")
+
+    raise TypeError(f"Unable to convert {value} to a dict")
 
 
 class Runs(SizedPaginator["Run"]):
