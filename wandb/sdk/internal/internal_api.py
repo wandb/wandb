@@ -362,6 +362,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
+
         self._server_features_cache: Optional[Dict[str, bool]] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
@@ -4661,3 +4662,56 @@ class Api:
         success: bool = response["stopRun"].get("success")
 
         return success
+
+    @normalize_exceptions
+    def create_custom_chart(
+        self,
+        entity: str,
+        name: str,
+        display_name: str,
+        spec_type: str,
+        access: str,
+        spec: Union[str, Mapping[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(spec, str):
+            spec = json.dumps(spec)
+
+        mutation = gql(
+            """
+            mutation CreateCustomChart(
+                $entity: String!
+                $name: String!
+                $displayName: String!
+                $type: String!
+                $access: String!
+                $spec: JSONString!
+            ) {
+                createCustomChart(
+                    input: {
+                        entity: $entity
+                        name: $name
+                        displayName: $displayName
+                        type: $type
+                        access: $access
+                        spec: $spec
+                    }
+                ) {
+                    chart { id }
+                }
+            }
+            """
+        )
+
+        variable_values = {
+            "entity": entity,
+            "name": name,
+            "displayName": display_name,
+            "type": spec_type,
+            "access": access,
+            "spec": spec,
+        }
+
+        result: Optional[Dict[str, Any]] = self.gql(mutation, variable_values)[
+            "createCustomChart"
+        ]
+        return result
