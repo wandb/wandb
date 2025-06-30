@@ -528,14 +528,10 @@ class Settings(BaseModel, validate_assignment=True):
     """
 
     x_disable_meta: bool = False
-    """Flag to disable the collection of system metadata.
-    <!-- lazydoc-ignore-class-attributes -->
-    """
+    """Flag to disable the collection of system metadata."""
 
     x_disable_stats: bool = False
-    """Flag to disable the collection of system metrics.
-    <!-- lazydoc-ignore-class-attributes -->
-    """
+    """Flag to disable the collection of system metrics."""
 
     x_disable_viewer: bool = False
     """Flag to disable the early viewer query.
@@ -553,9 +549,7 @@ class Settings(BaseModel, validate_assignment=True):
     """
 
     x_extra_http_headers: Optional[Dict[str, str]] = None
-    """Additional headers to add to all outgoing HTTP requests.
-    <!-- lazydoc-ignore-class-attributes -->
-    """
+    """Additional headers to add to all outgoing HTTP requests."""
 
     x_file_stream_max_bytes: Optional[int] = None
     """An approximate maximum request size for the filestream API.
@@ -686,7 +680,6 @@ class Settings(BaseModel, validate_assignment=True):
 
     This is used to group data by on the frontend and can be used to distinguish data
     from different processes in a distributed training job.
-    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_live_policy_rate_limit: Optional[int] = None
@@ -719,7 +712,6 @@ class Settings(BaseModel, validate_assignment=True):
     In a distributed setting, this is useful for avoiding file overwrites
     from secondary processes when only system metrics and logs are needed,
     as the primary process handles the main logging.
-    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_proxies: Optional[Dict[str, str]] = None
@@ -786,9 +778,7 @@ class Settings(BaseModel, validate_assignment=True):
     """
 
     x_stats_sampling_interval: float = Field(default=15.0)
-    """Sampling interval for the system monitor in seconds.
-    <!-- lazydoc-ignore-class-attributes -->
-    """
+    """Sampling interval for the system monitor in seconds."""
 
     x_stats_neuron_monitor_config_path: Optional[str] = None
     """Path to the default config file for the neuron-monitor tool.
@@ -832,36 +822,30 @@ class Settings(BaseModel, validate_assignment=True):
     """
 
     x_stats_disk_paths: Optional[Sequence[str]] = ("/",)
-    """System paths to monitor for disk usage.
-    <!-- lazydoc-ignore-class-attributes -->
-    """
+    """System paths to monitor for disk usage."""
 
     x_stats_cpu_count: Optional[int] = None
     """System CPU count.
 
     If set, overrides the auto-detected value in the run metadata.
-    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_cpu_logical_count: Optional[int] = None
     """Logical CPU count.
 
     If set, overrides the auto-detected value in the run metadata.
-    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_gpu_count: Optional[int] = None
     """GPU device count.
 
     If set, overrides the auto-detected value in the run metadata.
-    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_gpu_type: Optional[str] = None
     """GPU device type.
 
     If set, overrides the auto-detected value in the run metadata.
-    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_gpu_device_ids: Optional[Sequence[int]] = None
@@ -869,7 +853,6 @@ class Settings(BaseModel, validate_assignment=True):
 
     If not set, the system monitor captures metrics for all GPUs.
     Assumes 0-based indexing matching CUDA/ROCm device enumeration.
-    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_buffer_size: int = 0
@@ -900,7 +883,6 @@ class Settings(BaseModel, validate_assignment=True):
     When `True`, the system monitor aggregates the RSS, CPU%, and thread count
     from the process with PID `x_stats_pid` and all of its descendants.
     This can have a performance overhead and is disabled by default.
-    s<!-- lazydoc-ignore-class-attributes -->
     """
 
     x_sync: bool = False
@@ -912,7 +894,6 @@ class Settings(BaseModel, validate_assignment=True):
     """Flag to indicate whether this process can update the run's final state on the server.
 
     Set to False in distributed training when only the main process should determine the final state.
-    <!-- lazydoc-ignore-class-attributes -->
     """
 
     # Model validator to catch legacy settings.
