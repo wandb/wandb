@@ -115,5 +115,5 @@ When preparing a release that can include breaking changes, consider applying ch
 
 - Remove `wandb.apis.paginator.SizedPaginator::length`:
     - Owner: @jacobromero
-    - Deprecated in 0.20.2
-    - can do in >= 0.21
+    - Deprecated in 0.21.0
+    - can do in >= 0.22
