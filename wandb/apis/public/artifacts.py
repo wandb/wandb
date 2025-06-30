@@ -240,7 +240,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
         self.last_response = ArtifactCollectionsFragment.model_validate(conn)
 
     @property
-    def _length(self):
+    def _length(self) -> int:
         if self.last_response is None:
             self._load_page()
         return self.last_response.total_count
@@ -608,7 +608,7 @@ class Artifacts(SizedPaginator["Artifact"]):
         self.last_response = ArtifactsFragment.model_validate(conn)
 
     @property
-    def _length(self):
+    def _length(self) -> int:
         if self.last_response is None:
             self._load_page()
         return self.last_response.total_count
@@ -698,7 +698,7 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         self.last_response = self._response_cls.model_validate(inner_data)
 
     @property
-    def _length(self):
+    def _length(self) -> int:
         if self.last_response is None:
             self._load_page()
         return self.last_response.total_count
@@ -799,7 +799,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         return [self.artifact.entity, self.artifact.project, self.artifact.name]
 
     @property
-    def _length(self):
+    def _length(self) -> int:
         if self.last_response is None:
             self._load_page()
         return self.artifact.file_count
