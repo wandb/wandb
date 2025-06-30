@@ -13,6 +13,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Notable Changes
+
 This version removes the legacy implementation of the `service` process. This is a breaking change.
 
 ### Added
