@@ -472,6 +472,85 @@ class Api:
             _default_resource_config=config,
         )
 
+    def create_custom_chart(
+        self,
+        entity: str,
+        name: str,
+        display_name: str,
+        spec_type: Literal["vega2"],
+        access: Literal["private", "public"],
+        spec: Union[str, dict],
+    ) -> str:
+        """Create a custom chart preset and return its id.
+
+        Args:
+            entity: The entity (user or team) that owns the chart
+            name: Unique identifier for the chart preset
+            display_name: Human-readable name shown in the UI
+            spec_type: Type of specification. Must be "vega2" for Vega-Lite v2 specifications.
+            access: Access level for the chart:
+                - "private": Chart is only accessible to the entity that created it
+                - "public": Chart is publicly accessible
+            spec: The Vega/Vega-Lite specification as a dictionary or JSON string
+
+        Returns:
+            The ID of the created chart preset in the format "entity/name"
+
+        Raises:
+            wandb.Error: If chart creation fails
+            UnsupportedError: If the server doesn't support custom charts
+
+        Example:
+            ```python
+            import wandb
+
+            api = wandb.Api()
+
+            # Define a simple bar chart specification
+            vega_spec = {
+                "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+                "mark": "bar",
+                "data": {"name": "wandb"},
+                "encoding": {
+                    "x": {"field": "${field:x}", "type": "ordinal"},
+                    "y": {"field": "${field:y}", "type": "quantitative"},
+                },
+            }
+
+            # Create the custom chart
+            chart_id = api.create_custom_chart(
+                entity="my-team",
+                name="my-bar-chart",
+                display_name="My Custom Bar Chart",
+                spec_type="vega2",
+                access="private",
+                spec=vega_spec,
+            )
+
+            # Use with wandb.plot_table()
+            chart = wandb.plot_table(
+                vega_spec_name=chart_id,
+                data_table=my_table,
+                fields={"x": "category", "y": "value"},
+            )
+            ```
+        """
+        # Convert user-facing lowercase access to backend uppercase
+        backend_access = access.upper()
+
+        api = InternalApi(retry_timedelta=RETRY_TIMEDELTA)
+        result = api.create_custom_chart(
+            entity=entity,
+            name=name,
+            display_name=display_name,
+            spec_type=spec_type,
+            access=backend_access,
+            spec=spec,
+        )
+        if result is None or result.get("chart") is None:
+            raise wandb.Error("failed to create custom chart")
+        return result["chart"]["id"]
+
     def upsert_run_queue(
         self,
         name: str,

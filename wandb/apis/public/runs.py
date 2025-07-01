@@ -223,15 +223,14 @@ class Runs(SizedPaginator["Run"]):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
+    def _length(self):
         """Returns the total number of runs.
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return self.last_response["project"]["runCount"]
-        else:
-            return None
+        if not self.last_response:
+            self._load_page()
+        return self.last_response["project"]["runCount"]
 
     @property
     def more(self) -> bool:

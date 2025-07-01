@@ -77,8 +77,11 @@ class Reports(SizedPaginator["BetaReport"]):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
-        """The number of reports in the project."""
+    def _length(self):
+        """The number of reports in the project.
+        
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: Add the count the backend
         if self.last_response:
             return len(self.objects)

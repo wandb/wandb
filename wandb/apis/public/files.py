@@ -136,12 +136,16 @@ class Files(SizedPaginator["File"]):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
-        """The number of files associated with the specific run."""
-        if self.last_response:
-            return self.last_response["project"]["run"]["fileCount"]
-        else:
-            return None
+    def _length(self):
+      """
+      Returns total number of files.
+      
+      <!-- lazydoc-ignore: internal -->
+      """
+        if not self.last_response:
+            self._load_page()
+
+        return self.last_response["project"]["run"]["fileCount"]
 
     @property
     def more(self):

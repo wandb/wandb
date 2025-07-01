@@ -310,7 +310,6 @@ class Settings(BaseModel, validate_assignment=True):
     https_proxy: Optional[str] = None
     """Custom proxy servers for https requests to W&B."""
 
-    # Path to file containing an identity token (JWT) for authentication.
     identity_token_file: Optional[str] = None
     """Path to file containing an identity token (JWT) for authentication."""
 
@@ -922,6 +921,13 @@ class Settings(BaseModel, validate_assignment=True):
         # TODO: add native support for pathlib.Path
         if isinstance(value, pathlib.Path):
             return str(value)
+        return value
+
+    @field_validator("x_extra_http_headers", mode="before")
+    @classmethod
+    def validate_x_extra_http_headers(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
         return value
 
     @field_validator("x_file_stream_max_line_bytes", mode="after")
