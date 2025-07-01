@@ -105,14 +105,6 @@ class HistoryScan:
 class SampledHistoryScan:
     """Iterator for sampling run history data.
 
-    Args:
-        client: (`wandb.apis.internal.Api`) The client instance to use
-        run: (`wandb.sdk.internal.Run`) The run object to sample history from
-        keys: (list) List of keys to sample from the history
-        min_step: (int) The minimum step to start sampling from
-        max_step: (int) The maximum step to sample up to
-        page_size: (int) Number of samples per page (default is 1000)
-
     <!-- lazydoc-ignore-class: internal -->
     """
 
@@ -129,6 +121,16 @@ class SampledHistoryScan:
     )
 
     def __init__(self, client, run, keys, min_step, max_step, page_size=1000):
+        """Initialize a SampledHistoryScan instance.
+
+        Args:
+            client: (`wandb.apis.internal.Api`) The client instance to use
+            run: (`wandb.sdk.internal.Run`) The run object to sample history from
+            keys: (list) List of keys to sample from the history
+            min_step: (int) The minimum step to start sampling from
+            max_step: (int) The maximum step to sample up to
+            page_size: (int) Number of samples per page (default is 1000)
+        """
         self.client = client
         self.run = run
         self.keys = keys
