@@ -64,9 +64,10 @@ fn current_timestamp() -> Timestamp {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about=None)]
 struct Args {
-    /// Portfile to write the gRPC server port to.
+    /// File to write the gRPC server token to.
     ///
     /// Used to establish communication between the parent process (wandb-core) and the service.
+    /// Supports Unix and TCP sockets.
     #[arg(long)]
     portfile: String,
 
@@ -74,7 +75,7 @@ struct Args {
     ///
     /// If provided, the program will exit if the parent process is no longer alive.
     #[arg(long, default_value_t = 0)]
-    ppid: i32,
+    parent_pid: i32,
 
     /// Verbose logging.
     ///
@@ -127,7 +128,7 @@ pub struct SystemMonitorServiceImpl {
 
 impl SystemMonitorServiceImpl {
     fn new(
-        ppid: i32,
+        parent_pid: i32,
         enable_dcgm_profiling: bool,
         shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     ) -> Self {
@@ -202,14 +203,14 @@ impl SystemMonitorServiceImpl {
             amd_gpu,
         };
 
-        // An async task that monitors the parent process ppid, if provided.
+        // An async task that monitors the parent process id, if provided.
         // It shares the shutdown sender handle with the main service.
-        if ppid > 0 {
+        if parent_pid > 0 {
             let shutdown_sender_clone = shutdown_sender.clone();
             let handle = tokio::spawn(async move {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    if !is_parent_alive(ppid) {
+                    if !is_parent_alive(parent_pid) {
                         // Trigger shutdown
                         let mut sender = shutdown_sender_clone.lock().await;
                         if let Some(sender) = sender.take() {
@@ -442,13 +443,13 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
 
 /// Check if the parent process is still alive
 #[cfg(not(target_os = "windows"))]
-fn is_parent_alive(ppid: i32) -> bool {
+fn is_parent_alive(parent_pid: i32) -> bool {
     use nix::unistd::getppid;
-    getppid() == nix::unistd::Pid::from_raw(ppid)
+    getppid() == nix::unistd::Pid::from_raw(parent_pid)
 }
 
 #[cfg(target_os = "windows")]
-fn is_parent_alive(ppid: i32) -> bool {
+fn is_parent_alive(parent_pid: i32) -> bool {
     // TODO: Implement
     true
 }
@@ -477,7 +478,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
 
     let system_monitor_service = SystemMonitorServiceImpl::new(
-        args.ppid,
+        args.parent_pid,
         args.enable_dcgm_profiling,
         shutdown_sender.clone(),
     );
@@ -513,7 +514,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("time should go forward")
             .as_millis();
 
-        let socket_filename = format!("wandb_gpu_stats-{}-{}-{}.sock", args.ppid, pid, time_stamp);
+        let socket_filename = format!("wandb_gpu_stats-{}-{}-{}.sock", args.parent_pid, pid, time_stamp);
         socket_path.push(socket_filename);
 
         // Ensure the socket is removed if it already exists
