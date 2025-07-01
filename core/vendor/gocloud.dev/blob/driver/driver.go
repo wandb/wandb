@@ -110,6 +110,11 @@ type WriterOptions struct {
 	// asFunc allows drivers to expose driver-specific types;
 	// see Bucket.As for more details.
 	BeforeWrite func(asFunc func(any) bool) error
+
+	// IfNotExist is used for conditional writes.
+	// When set to true, if a blob exists for the same key in the bucket, the write operation
+	// won't take place.
+	IfNotExist bool
 }
 
 // CopyOptions controls options for Copy.

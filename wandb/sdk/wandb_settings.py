@@ -310,7 +310,6 @@ class Settings(BaseModel, validate_assignment=True):
     https_proxy: Optional[str] = None
     """Custom proxy servers for https requests to W&B."""
 
-    # Path to file containing an identity token (JWT) for authentication.
     identity_token_file: Optional[str] = None
     """Path to file containing an identity token (JWT) for authentication."""
 
