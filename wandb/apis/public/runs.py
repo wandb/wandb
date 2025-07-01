@@ -7,11 +7,8 @@ Example:
 ```python
 from wandb.apis.public import Api
 
-# Initialize API
-api = Api()
-
 # Get runs matching filters
-runs = api.runs(
+runs = Api().runs(
     path="entity/project", filters={"state": "finished", "config.batch_size": 32}
 )
 
@@ -143,13 +140,10 @@ class Runs(SizedPaginator["Run"]):
     from wandb.apis.public.runs import Runs
     from wandb.apis.public import Api
 
-    # Initialize the API client
-    api = Api()
-
     # Get all runs from a project that satisfy the filters
     filters = {"state": "finished", "config.optimizer": "adam"}
 
-    runs = Runs(
+    runs = Api().runs(
         client=api.client,
         entity="entity",
         project="project_name",
@@ -230,7 +224,10 @@ class Runs(SizedPaginator["Run"]):
 
     @property
     def length(self):
-        """Returns the total number of runs."""
+        """Returns the total number of runs.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return self.last_response["project"]["runCount"]
         else:
@@ -261,7 +258,10 @@ class Runs(SizedPaginator["Run"]):
             return None
 
     def convert_objects(self):
-        """Converts GraphQL edges to Runs objects."""
+        """Converts GraphQL edges to Runs objects.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         objs = []
         if self.last_response is None or self.last_response.get("project") is None:
             raise ValueError("Could not find project {}".format(self.project))

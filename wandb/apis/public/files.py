@@ -6,11 +6,8 @@ Example:
 ```python
 from wandb.apis.public import Api
 
-# Initialize API
-api = Api()
-
 # Get files from a specific run
-run = api.run("entity/project/run_id")
+run = Api().run("entity/project/run_id")
 files = run.files()
 
 # Work with files
@@ -94,11 +91,8 @@ class Files(SizedPaginator["File"]):
     from wandb.apis.public.files import Files
     from wandb.apis.public.api import Api
 
-    # Initialize the API client
-    api = Api()
-
     # Example run object
-    run = api.run("entity/project/run-id")
+    run = Api().run("entity/project/run-id")
 
     # Create a Files object to iterate over files in the run
     files = Files(api.client, run)
@@ -143,7 +137,7 @@ class Files(SizedPaginator["File"]):
 
     @property
     def length(self):
-        """The number of files saved to the specified run."""
+        """The number of files associated with the specific run."""
         if self.last_response:
             return self.last_response["project"]["run"]["fileCount"]
         else:
@@ -151,7 +145,10 @@ class Files(SizedPaginator["File"]):
 
     @property
     def more(self):
-        """Returns whether there are more files to fetch."""
+        """Returns whether there are more files to fetch.
+        
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return self.last_response["project"]["run"]["files"]["pageInfo"][
                 "hasNextPage"
@@ -161,18 +158,26 @@ class Files(SizedPaginator["File"]):
 
     @property
     def cursor(self):
-        """Returns the cursor position for pagination of file results."""
+        """Returns the cursor position for pagination of file results.
+        
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return self.last_response["project"]["run"]["files"]["edges"][-1]["cursor"]
         else:
             return None
 
     def update_variables(self):
-        """Updates the GraphQL query variables for pagination."""
+        """Updates the GraphQL query variables for pagination.
+        
+        <!-- lazydoc-ignore: internal -->
+        """
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self):
-        """Converts GraphQL edges to File objects."""
+        """Converts GraphQL edges to File objects.
+        
+        <!-- lazydoc-ignore: internal -->"""
         return [
             File(self.client, r["node"], self.run)
             for r in self.last_response["project"]["run"]["files"]["edges"]
@@ -209,49 +214,7 @@ class File(Attrs):
         attrs (dict): A dictionary of attributes that define the file
         run: The run object that contains the file
 
-    Example:
-    ```python
-    from wandb.apis.public.files import File
-    from wandb.apis.public.api import Api
-
-    # Initialize the API client
-    api = Api()
-
-    # Example attributes dictionary
-    file_attrs = {
-        "id": "file-id",
-        "name": "example_file.txt",
-        "url": "https://example.com/file",
-        "direct_url": "https://example.com/direct_file",
-        "sizeBytes": 1024,
-        "mimetype": "text/plain",
-        "updated_at": "2025-03-25T21:43:51Z",
-        "md5": "d41d8cd98f00b204e9800998ecf8427e",
-    }
-
-    # Example run object
-    run = api.run("entity/project/run-id")
-
-    # Create a File object
-    file = File(api.client, file_attrs, run)
-
-    # Access some of the attributes
-    print("File ID:", file.id)
-    print("File Name:", file.name)
-    print("File URL:", file.url)
-    print("File MIME Type:", file.mimetype)
-    print("File Updated At:", file.updated_at)
-
-    # Access File properties
-    print("File Size:", file.size)
-    print("File Path URI:", file.path_uri)
-
-    # Download the file
-    file.download(root="download_directory", replace=True)
-
-    # Delete the file
-    file.delete()
-    ```
+    <!-- lazydoc-ignore-class: internal -->
     """
 
     def __init__(self, client, attrs, run=None):
@@ -299,7 +262,8 @@ class File(Attrs):
         """Downloads a file previously saved by a run from the wandb server.
 
         Args:
-            root: Local directory to save the file.  Defaults to ".".
+            root: Local directory to save the file. Defaults to the
+                current working directory (".").
             replace: If `True`, download will overwrite a local file
                 if it exists. Defaults to `False`.
             exist_ok: If `True`, will not raise ValueError if file already

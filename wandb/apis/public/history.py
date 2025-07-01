@@ -29,6 +29,8 @@ class HistoryScan:
         min_step: (int) The minimum step to start scanning from
         max_step: (int) The maximum step to scan up to
         page_size: (int) Number of samples per page (default is 1000)
+
+    <!-- lazydoc-ignore-class: internal -->        
     """
 
     QUERY = gql(
@@ -110,6 +112,8 @@ class SampledHistoryScan:
         min_step: (int) The minimum step to start sampling from
         max_step: (int) The maximum step to sample up to
         page_size: (int) Number of samples per page (default is 1000)
+
+    <!-- lazydoc-ignore-class: internal -->
     """
 
     QUERY = gql(

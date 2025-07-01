@@ -7,11 +7,8 @@ Example:
 ```python
 from wandb.apis.public import Api
 
-# Initialize API
-api = Api()
-
 # Get a specific sweep
-sweep = api.sweep("entity/project/sweep_id")
+sweep = Api().sweep("entity/project/sweep_id")
 
 # Access sweep properties
 print(f"Sweep: {sweep.name}")
@@ -131,7 +128,10 @@ class Sweep(Attrs):
         return util.load_yaml(self._attrs["config"])
 
     def load(self, force: bool = False):
-        """Fetch and update sweep data logged to the run from GraphQL database."""
+        """Fetch and update sweep data logged to the run from GraphQL database.
+        
+        <!-- lazydoc-ignore: internal -->
+        """
         if force or not self._attrs:
             sweep = self.get(self.client, self.entity, self.project, self.id)
             if sweep is None:

@@ -185,7 +185,7 @@ class Team(Attrs):
                 Defaults to `False`.
 
         Returns:
-            True on success, `False` if user was already invited or didn't exist.
+            `True` on success, `False` if user was already invited or didn't exist.
         """
         variables = {"entityName": self.name, "admin": admin}
         if "@" in username_or_email:
@@ -218,7 +218,10 @@ class Team(Attrs):
             return None
 
     def load(self, force=False):
-        """Return members that belong to a team."""
+        """Return members that belong to a team.
+        
+        <!-- lazydoc-ignore: internal -->
+        """
         if force or not self._attrs:
             response = self._client.execute(self.TEAM_QUERY, {"name": self.name})
             self._attrs = response["entity"]

@@ -7,11 +7,8 @@ Example:
 ```python
 from wandb.apis.public import Api
 
-# Initialize API
-api = Api()
-
 # Get all projects for an entity
-projects = api.projects("entity")
+projects = Api().projects("entity")
 
 # Access project data
 for project in projects:
@@ -69,11 +66,8 @@ class Projects(Paginator["Project"]):
     ```python
     from wandb.apis.public.api import Api
 
-    # Initialize the API client
-    api = Api()
-
     # Find projects that belong to this entity
-    projects = api.projects(entity="entity")
+    projects = Api().projects(entity="entity")
 
     # Iterate over files
     for project in projects:
@@ -129,6 +123,8 @@ class Projects(Paginator["Project"]):
         """Returns the total number of projects.
 
         Note: This property is not available for projects.
+
+        <!-- lazydoc-ignore: internal -->
         """
         # For backwards compatibility, even though this isn't a SizedPaginator
         return None
@@ -157,7 +153,10 @@ class Projects(Paginator["Project"]):
             return None
 
     def convert_objects(self):
-        """Converts GraphQL edges to File objects."""
+        """Converts GraphQL edges to File objects.
+        
+        <!-- lazydoc-ignore: internal -->
+        """
         return [
             Project(self.client, self.entity, p["node"]["name"], p["node"])
             for p in self.last_response["models"]["edges"]
