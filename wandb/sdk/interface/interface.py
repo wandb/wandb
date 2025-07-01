@@ -150,8 +150,7 @@ class InterfaceBase:
         if run._settings.run_notes is not None:
             proto_run.notes = run._settings.run_notes
         if run._settings.run_tags is not None:
-            for tag in run._settings.run_tags:
-                proto_run.tags.append(tag)
+            proto_run.tags.extend(run._settings.run_tags)
         if run._start_time is not None:
             proto_run.start_time.FromMicroseconds(int(run._start_time * 1e6))
         if run._starting_step is not None:

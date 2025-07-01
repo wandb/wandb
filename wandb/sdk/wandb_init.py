@@ -1364,7 +1364,7 @@ def init(  # noqa: C901
             the UI.
             If resuming a run, the tags provided here will replace any existing
             tags. To add tags to a resumed run without overwriting the current
-            tags, use `run.tags += ["new_tag"]` after calling `run = wandb.init()`.
+            tags, use `run.tags += ("new_tag",)` after calling `run = wandb.init()`.
         config: Sets `wandb.config`, a dictionary-like object for storing input
             parameters to your run, such as model hyperparameters or data
             preprocessing settings.
