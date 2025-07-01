@@ -6,7 +6,13 @@
 //! - Nvidia GPUs via NVML and DCGM (Linux and Windows only)
 //! - Apple ARM Mac GPUs and CPUs (ARM Mac only)
 //! - AMD GPUs (Linux only)
+
 mod analytics;
+mod metrics;
+mod monitors;
+mod wandb_internal;
+
+// Platform-specific modules
 #[cfg(target_os = "linux")]
 mod gpu_amd;
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -15,42 +21,36 @@ mod gpu_apple;
 mod gpu_apple_sources;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod gpu_nvidia;
-#[cfg(any(target_os = "linux"))]
+#[cfg(target_os = "linux")]
 mod gpu_nvidia_dcgm;
-mod metrics;
-mod wandb_internal;
 
 use clap::Parser;
-
 use env_logger::Builder;
-use log::{debug, warn, LevelFilter};
-
+use log::{debug, LevelFilter};
 use std::collections::HashMap;
 use std::sync::Arc;
-
-use tokio::net::{TcpListener, UnixListener};
+use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
-use tokio_stream::wrappers::{TcpListenerStream, UnixListenerStream};
-use tonic;
+use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{transport::Server, Request, Response, Status};
 
 use chrono::Utc;
-#[cfg(target_os = "linux")]
-use gpu_amd::GpuAmd;
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-use gpu_apple::ThreadSafeSampler;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
-use gpu_nvidia::NvidiaGpu;
-#[cfg(any(target_os = "linux"))]
-use gpu_nvidia_dcgm::DcgmClient;
 use prost_types::Timestamp;
 use wandb_internal::{
     record::RecordType,
     stats_record::StatsType,
     system_monitor_service_server::{SystemMonitorService, SystemMonitorServiceServer},
-    EnvironmentRecord, GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse,
-    Record, StatsItem, StatsRecord, TearDownRequest, TearDownResponse,
+    GetMetadataRequest, GetMetadataResponse, GetStatsRequest, GetStatsResponse, Record, StatsItem,
+    StatsRecord, TearDownRequest, TearDownResponse,
 };
+
+use monitors::GpuMonitors;
+
+// Unix-specific imports
+#[cfg(not(target_os = "windows"))]
+use tokio::net::UnixListener;
+#[cfg(not(target_os = "windows"))]
+use tokio_stream::wrappers::UnixListenerStream;
 
 fn current_timestamp() -> Timestamp {
     let now = Utc::now();
@@ -93,37 +93,19 @@ struct Args {
     /// Whether to listen on a localhost socket.
     ///
     /// This is less secure than Unix sockets, but not all clients support them.
+    /// On Windows, this is always true regardless of the flag.
     #[arg(long, default_value_t = false)]
     listen_on_localhost: bool,
 }
 
 /// System monitor service implementation.
-///
-/// Implements the gRPC service defined in `wandb_internal::system_monitor_service_server`.
-#[derive(Default)]
 pub struct SystemMonitorServiceImpl {
     /// Sender handle for the shutdown channel.
-    ///
-    /// Used to trigger service shutdown. The service will terminate if:
-    /// - The parent process is no longer alive.
-    /// - The teardown gRPC method is called.
     shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     /// Handle to the task that monitors the parent process.
-    ///
-    /// If the parent process is no longer alive, the service will shutdown.
     parent_monitor_handle: Option<JoinHandle<()>>,
-    /// Apple GPU sampler (ARM Mac only).
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    apple_sampler: Option<ThreadSafeSampler>,
-    /// Nvidia GPU monitor, NVML-based (Linux and Windows only).
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
-    nvidia_gpu: Option<tokio::sync::Mutex<NvidiaGpu>>,
-    /// Nvidia GPU monitor, performance metrics, DCGM-based (Linux only).
-    #[cfg(any(target_os = "linux"))]
-    dcgm_client: Option<DcgmClient>,
-    /// AMD GPU monitor (Linux only).
-    #[cfg(target_os = "linux")]
-    amd_gpu: Option<GpuAmd>,
+    /// GPU monitoring components
+    gpu_monitors: GpuMonitors,
 }
 
 impl SystemMonitorServiceImpl {
@@ -132,79 +114,15 @@ impl SystemMonitorServiceImpl {
         enable_dcgm_profiling: bool,
         shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     ) -> Self {
-        // Initialize the Apple GPU sampler (ARM Mac only).
-        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-        let apple_sampler = match ThreadSafeSampler::new() {
-            Ok(sampler) => {
-                debug!("Successfully initialized Apple GPU sampler");
-                Some(sampler)
-            }
-            Err(e) => {
-                warn!("Failed to initialize Apple GPU sampler: {}", e);
-                None
-            }
-        };
-
-        // Initialize the Nvidia GPU DCGM-based monitor, if requested (Linux only).
-        #[cfg(target_os = "linux")]
-        let dcgm_client = if enable_dcgm_profiling {
-            match DcgmClient::new() {
-                // This calls the new sync-worker version
-                Ok(client) => {
-                    debug!("Successfully initialized NVIDIA GPU DCGM monitoring client.");
-                    Some(client)
-                }
-                Err(e) => {
-                    // Using debug as DCGM might not be installed/running is reasonable
-                    debug!("Failed to initialize NVIDIA GPU DCGM monitoring: {}", e);
-                    None
-                }
-            }
-        } else {
-            None
-        };
-
-        // Initialize the Nvidia GPU NVML-based monitor (Linux and Windows only).
-        #[cfg(any(target_os = "linux", target_os = "windows"))]
-        let nvidia_gpu = match NvidiaGpu::new() {
-            Ok(gpu) => {
-                debug!("Successfully initialized NVIDIA GPU monitoring");
-                Some(tokio::sync::Mutex::new(gpu))
-            }
-            Err(e) => {
-                debug!("Failed to initialize NVIDIA GPU monitoring: {}", e);
-                None
-            }
-        };
-
-        // Initialize the AMD GPU monitor (Linux only).
-        #[cfg(target_os = "linux")]
-        let amd_gpu = match GpuAmd::new() {
-            Some(gpu) => {
-                debug!("Successfully initialized AMD GPU monitoring");
-                Some(gpu)
-            }
-            None => {
-                debug!("Failed to initialize AMD GPU monitoring");
-                None
-            }
-        };
+        let gpu_monitors = GpuMonitors::new(enable_dcgm_profiling);
 
         let mut system_monitor = SystemMonitorServiceImpl {
             shutdown_sender: shutdown_sender.clone(),
             parent_monitor_handle: None,
-            #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-            apple_sampler,
-            #[cfg(any(target_os = "linux", target_os = "windows"))]
-            nvidia_gpu,
-            #[cfg(target_os = "linux")]
-            dcgm_client,
-            #[cfg(target_os = "linux")]
-            amd_gpu,
+            gpu_monitors,
         };
 
         // An async task that monitors the parent process id, if provided.
-        // It shares the shutdown sender handle with the main service.
         if parent_pid > 0 {
             let shutdown_sender_clone = shutdown_sender.clone();
             let handle = tokio::spawn(async move {
@@ -244,59 +162,9 @@ impl SystemMonitorServiceImpl {
             metrics::MetricValue::Float(timestamp),
         ));
 
-        // Apple metrics (ARM Mac only)
-        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-        if let Some(apple_sampler) = &self.apple_sampler {
-            match apple_sampler.get_metrics().await {
-                Ok(apple_stats) => {
-                    let apple_metrics = apple_sampler.metrics_to_vec(apple_stats);
-                    all_metrics.extend(apple_metrics);
-                }
-                Err(e) => {
-                    warn!("Failed to get Apple metrics: {}", e);
-                }
-            }
-        }
-
-        // Nvidia GPU metrics from NVML (Linux and Windows only)
-        #[cfg(any(target_os = "linux", target_os = "windows"))]
-        if let Some(nvidia_gpu) = &self.nvidia_gpu {
-            match nvidia_gpu.lock().await.get_metrics(pid, gpu_device_ids) {
-                Ok(nvidia_metrics) => {
-                    all_metrics.extend(nvidia_metrics);
-                }
-                Err(e) => {
-                    warn!("Failed to get Nvidia metrics: {}", e);
-                }
-            }
-        }
-
-        // Nvidia GPU perf metrics from DCGM (Linux only)
-        #[cfg(any(target_os = "linux"))]
-        if let Some(client) = &self.dcgm_client {
-            match client.get_metrics().await {
-                // Still await the async function
-                Ok(dcgm_metrics) => {
-                    all_metrics.extend(dcgm_metrics);
-                }
-                Err(e) => {
-                    warn!("Failed to get DCGM metrics: {}", e);
-                }
-            }
-        }
-
-        // AMD GPU metrics
-        #[cfg(target_os = "linux")]
-        if let Some(amd_gpu) = &self.amd_gpu {
-            match amd_gpu.get_metrics() {
-                Ok(amd_metrics) => {
-                    all_metrics.extend(amd_metrics);
-                }
-                Err(e) => {
-                    warn!("Failed to get AMD metrics: {}", e);
-                }
-            }
-        }
+        // Collect metrics from all available GPU monitors
+        let gpu_metrics = self.gpu_monitors.collect_metrics(pid, gpu_device_ids).await;
+        all_metrics.extend(gpu_metrics);
 
         all_metrics
     }
@@ -312,11 +180,8 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
     ) -> Result<Response<TearDownResponse>, Status> {
         debug!("Received a request to ShutdownShutdown: {:?}", request);
 
-        #[cfg(any(target_os = "linux"))]
-        if let Some(client) = &self.dcgm_client {
-            log::debug!("Signaling DCGM worker thread to shut down.");
-            client.shutdown();
-        }
+        // Shutdown GPU monitors
+        self.gpu_monitors.shutdown();
 
         // Signal the gRPC server to shutdown
         let mut sender = self.shutdown_sender.lock().await;
@@ -340,45 +205,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
             .map(|(name, value)| (name.to_string(), value))
             .collect();
 
-        let mut metadata = EnvironmentRecord {
-            ..Default::default()
-        };
-
-        // Apple metadata (ARM Mac only)
-        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-        {
-            if let Some(apple_sampler) = &self.apple_sampler {
-                metadata.apple = apple_sampler.get_metadata(&samples).apple;
-            }
-        }
-
-        // Nvidia GPU metadata (Linux and Windows only)
-        #[cfg(any(target_os = "linux", target_os = "windows"))]
-        {
-            if let Some(nvidia_gpu) = &self.nvidia_gpu {
-                let nvidia_metadata = nvidia_gpu.lock().await.get_metadata(&samples);
-                if nvidia_metadata.gpu_count > 0 {
-                    metadata.gpu_count = nvidia_metadata.gpu_count;
-                    metadata.gpu_type = nvidia_metadata.gpu_type;
-                    metadata.cuda_version = nvidia_metadata.cuda_version;
-                    metadata.gpu_nvidia = nvidia_metadata.gpu_nvidia;
-                }
-            }
-        }
-
-        // AMD GPU metadata (Linux only)
-        #[cfg(target_os = "linux")]
-        {
-            if let Some(amd_gpu) = &self.amd_gpu {
-                if let Ok(amd_metadata) = amd_gpu.get_metadata() {
-                    if amd_metadata.gpu_count > 0 {
-                        metadata.gpu_count = amd_metadata.gpu_count;
-                        metadata.gpu_type = amd_metadata.gpu_type;
-                        metadata.gpu_amd = amd_metadata.gpu_amd;
-                    }
-                }
-            }
-        }
+        let metadata = self.gpu_monitors.collect_metadata(&samples).await;
 
         let record = Record {
             record_type: Some(RecordType::Environment(metadata)),
@@ -400,9 +227,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         debug!("Received a request to get stats: {:?}", request);
 
         let request = request.into_inner();
-
         let pid = request.pid;
-
         let gpu_device_ids = if request.gpu_device_ids.is_empty() {
             None
         } else {
@@ -422,7 +247,6 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
             })
             .collect();
 
-        // Assign a timestamp to the stats record
         let record = Record {
             record_type: Some(RecordType::Stats(StatsRecord {
                 timestamp: Some(current_timestamp()),
@@ -450,17 +274,94 @@ fn is_parent_alive(parent_pid: i32) -> bool {
 
 #[cfg(target_os = "windows")]
 fn is_parent_alive(parent_pid: i32) -> bool {
-    // TODO: Implement
+    // TODO: implement
     true
+}
+
+/// Listener types for different platforms
+enum ListenerType {
+    Tcp(TcpListenerStream),
+    #[cfg(not(target_os = "windows"))]
+    Unix(UnixListenerStream),
+}
+
+/// Create and configure the appropriate listener based on platform and settings.
+async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error::Error>> {
+    // On Windows, always use TCP; on other platforms, respect the flag
+    #[cfg(target_os = "windows")]
+    let use_tcp = true;
+    #[cfg(not(target_os = "windows"))]
+    let use_tcp = args.listen_on_localhost;
+
+    if use_tcp {
+        // TCP listener
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
+        let local_addr = listener.local_addr()?;
+        let stream = TcpListenerStream::new(listener);
+
+        // Write the server port to the portfile
+        let token = format!("sock={}", local_addr.port());
+        std::fs::write(&args.portfile, token)?;
+        debug!("System metrics service listening on {}", local_addr);
+
+        Ok(ListenerType::Tcp(stream))
+    } else {
+        // Unix Domain Socket listener (only available on non-Windows platforms)
+        #[cfg(not(target_os = "windows"))]
+        {
+            let mut socket_path = std::env::temp_dir();
+            let pid = std::process::id();
+            let time_stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time should go forward")
+                .as_millis();
+
+            let socket_filename = format!(
+                "wandb_gpu_stats-{}-{}-{}.sock",
+                args.parent_pid, pid, time_stamp
+            );
+            socket_path.push(socket_filename);
+
+            // Ensure the socket is removed if it already exists
+            if socket_path.exists() {
+                let _ = std::fs::remove_file(&socket_path);
+            }
+
+            let listener = UnixListener::bind(&socket_path)?;
+            let stream = UnixListenerStream::new(listener);
+
+            // Use `to_str()` for a clean string representation without quotes
+            if let Some(path_str) = socket_path.to_str() {
+                let token = format!("unix={}", path_str);
+                std::fs::write(&args.portfile, token)?;
+                debug!("System metrics service listening on {}", path_str);
+
+                // Store path for cleanup
+                let cleanup_path = socket_path.clone();
+                tokio::spawn(async move {
+                    tokio::signal::ctrl_c().await.ok();
+                    let _ = std::fs::remove_file(&cleanup_path);
+                });
+            } else {
+                return Err("Invalid UTF-8 sequence in socket path".into());
+            }
+
+            Ok(ListenerType::Unix(stream))
+        }
+        #[cfg(target_os = "windows")]
+        {
+            unreachable!("Unix sockets are not available on Windows")
+        }
+    }
 }
 
 /// Main entry point for the system metrics service.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Parse command-line arguments
+    // Parse command-line arguments.
     let args = Args::parse();
 
-    // Initialize logging
+    // Initialize logging.
     let logging_level = if args.verbose {
         LevelFilter::Debug
     } else {
@@ -469,11 +370,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Builder::new().filter_level(logging_level).init();
     debug!("Starting system metrics service");
 
-    // Initialize error reporting with Sentry
+    // Initialize error reporting with Sentry.
     analytics::setup_sentry();
     debug!("Sentry set up");
 
-    // Create the channel for service shutdown signals
+    // Create the channel for service shutdown signals.
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
     let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
 
@@ -491,55 +392,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         debug!("Server is shutting down...");
     };
 
-    if args.listen_on_localhost {
-        // --- TCP listener ---
-        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
-        let local_addr = listener.local_addr()?;
-        let stream = TcpListenerStream::new(listener);
+    let listener = create_listener(&args).await?;
 
-        // Write the server port to the portfile
-        let token = format!("sock={}", local_addr.port());
-        std::fs::write(&args.portfile, token)?;
-        debug!("System metrics service listening on {}", local_addr);
-
-        server_builder
-            .serve_with_incoming_shutdown(stream, shutdown_signal)
-            .await?;
-    } else {
-        // --- Unix Domain Socket listener ---
-        let mut socket_path = std::env::temp_dir();
-        let pid = std::process::id();
-        let time_stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("time should go forward")
-            .as_millis();
-
-        let socket_filename = format!("wandb_gpu_stats-{}-{}-{}.sock", args.parent_pid, pid, time_stamp);
-        socket_path.push(socket_filename);
-
-        // Ensure the socket is removed if it already exists
-        if socket_path.exists() {
-            let _ = std::fs::remove_file(&socket_path);
+    match listener {
+        ListenerType::Tcp(stream) => {
+            server_builder
+                .serve_with_incoming_shutdown(stream, shutdown_signal)
+                .await?;
         }
-
-        let listener = UnixListener::bind(&socket_path)?;
-        let stream = UnixListenerStream::new(listener);
-
-        // Use `to_str()` for a clean string representation without quotes
-        if let Some(path_str) = socket_path.to_str() {
-            let token = format!("unix={}", path_str);
-            std::fs::write(&args.portfile, token)?;
-            debug!("System metrics service listening on {}", path_str);
-        } else {
-            return Err("Invalid UTF-8 sequence in socket path".into());
+        #[cfg(not(target_os = "windows"))]
+        ListenerType::Unix(stream) => {
+            server_builder
+                .serve_with_incoming_shutdown(stream, shutdown_signal)
+                .await?;
         }
-
-        server_builder
-            .serve_with_incoming_shutdown(stream, shutdown_signal)
-            .await?;
-
-        // Clean up the socket file on shutdown
-        let _ = std::fs::remove_file(&socket_path);
     }
 
     Ok(())
