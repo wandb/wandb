@@ -207,8 +207,8 @@ class Object3D(BatchableMedia):
         """Creates a W&B Object3D object.
 
         Args:
-            data_or_path: (numpy array, pathlib.Path, string, io)
-                Object3D can be initialized from a file or a numpy array.
+            data_or_path: Object3D can be initialized from a file or a numpy array.
+            caption: Caption associated with the object for display.
 
         Examples:
         The shape of the numpy array must be one of either

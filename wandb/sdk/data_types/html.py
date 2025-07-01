@@ -29,6 +29,16 @@ class Html(BatchableMedia):
     ) -> None:
         """Creates a W&B HTML object.
 
+        Args:
+            data:
+                A string that is a path to a file with the extension ".html",
+                or a string or IO object containing literal HTML.
+            inject: Add a stylesheet to the HTML object. If set
+                to False the HTML will pass through unchanged.
+            data_is_not_path: If set to False, the data will be
+                treated as a path to a file.
+
+        Examples:
         It can be initialized by providing a path to a file:
 
         ```python
@@ -42,16 +52,7 @@ class Html(BatchableMedia):
         ```python
         with wandb.init() as run:
             run.log({"html": wandb.Html("<h1>Hello, world!</h1>")})
-        ```
-
-        Args:
-            data:
-                A string that is a path to a file with the extension ".html",
-                or a string or IO object containing literal HTML.
-            inject: Add a stylesheet to the HTML object. If set
-                to False the HTML will pass through unchanged.
-            data_is_not_path: If set to False, the data will be
-                treated as a path to a file.
+        ```        
         """
         super().__init__()
         data_is_path = (

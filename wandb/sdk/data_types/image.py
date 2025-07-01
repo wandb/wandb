@@ -164,16 +164,15 @@ class Image(BatchableMedia):
         """Initialize a `wandb.Image` object.
 
         Args:
-            data_or_path: Accepts numpy array/pytorch tensor of image data,
-                a PIL image object, or a path to an image file.
-
-                If a numpy array or pytorch tensor is provided,
+            data_or_path: Accepts NumPy array/pytorch tensor of image data,
+                a PIL image object, or a path to an image file. If a NumPy
+                array or pytorch tensor is provided,
                 the image data will be saved to the given file type.
                 If the values are not in the range [0, 255] or all values are in the range [0, 1],
                 the image pixel values will be normalized to the range [0, 255]
                 unless `normalize` is set to False.
                 - pytorch tensor should be in the format (channel, height, width)
-                - numpy array should be in the format (height, width, channel)
+                - NumPy array should be in the format (height, width, channel)
             mode: The PIL mode for an image. Most common are "L", "RGB",
                 "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
             caption: Label for display of image.
