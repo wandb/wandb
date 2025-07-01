@@ -734,7 +734,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_log_level: int = logging.INFO
     """Logging level for internal operations.
-    
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
