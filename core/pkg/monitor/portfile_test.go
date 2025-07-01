@@ -111,7 +111,7 @@ func TestReadFile(t *testing.T) {
 
 func TestRead_SuccessWithPolling(t *testing.T) {
 	pf := monitor.NewPortfile()
-	defer pf.Delete()
+	defer func() { _ = pf.Delete() }()
 
 	expectedTarget := "127.0.0.1:54321"
 	fileContent := "sock=54321"
