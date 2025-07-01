@@ -217,3 +217,43 @@ def test_create_custom_chart(monkeypatch):
             "spec": json.dumps({}),
         },
     )
+
+
+def test_create_run_with_dictionary_config():
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        run = wandb.apis.public.Run(
+            client=wandb.Api().client,
+            entity="test",
+            project="test",
+            run_id="test",
+            attrs={"config": '{"test": "test"}'},
+        )
+        assert run.config == {"test": "test"}
+
+
+def test_create_run_with_dictionary__config_not_parsable():
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        run = wandb.apis.public.Run(
+            client=wandb.Api().client,
+            entity="test",
+            project="test",
+            run_id="test",
+            attrs={
+                "config": {"test": "test"},
+            },
+        )
+        assert run.config == {"test": "test"}
+
+
+def test_create_run_with_dictionary__throws_error():
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        with pytest.raises(wandb.errors.CommError):
+            wandb.apis.public.Run(
+                client=wandb.Api().client,
+                entity="test",
+                project="test",
+                run_id="test",
+                attrs={
+                    "config": 1,
+                },
+            )
