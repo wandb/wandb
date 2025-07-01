@@ -180,7 +180,9 @@ def test_metric_sync_step(wandb_backend_spy):
 
 
 def test_metric_mult(wandb_backend_spy):
-    with wandb.init() as run:
+    with wandb.init(
+        settings=wandb.Settings(x_server_side_expand_glob_metrics=False),
+    ) as run:
         run.define_metric("mystep", hidden=True)
         run.define_metric("*", step_metric="mystep")
         _gen_metric_sync_step(run)
@@ -191,7 +193,9 @@ def test_metric_mult(wandb_backend_spy):
 
 
 def test_metric_goal(wandb_backend_spy):
-    with wandb.init() as run:
+    with wandb.init(
+        settings=wandb.Settings(x_server_side_expand_glob_metrics=False),
+    ) as run:
         run.define_metric("mystep", hidden=True)
         run.define_metric("*", step_metric="mystep", goal="maximize")
         _gen_metric_sync_step(run)
@@ -316,7 +320,9 @@ def test_metric_nested_glob(wandb_backend_spy):
 
 @pytest.mark.parametrize("name", ["m", "*"])
 def test_metric_overwrite_false(wandb_backend_spy, name):
-    with wandb.init() as run:
+    with wandb.init(
+        settings=wandb.Settings(x_server_side_expand_glob_metrics=False),
+    ) as run:
         run.define_metric(name, summary="min")
         run.define_metric(name, summary="max", overwrite=False)
         run.log({"m": 1})
@@ -330,7 +336,9 @@ def test_metric_overwrite_false(wandb_backend_spy, name):
 
 @pytest.mark.parametrize("name", ["m", "*"])
 def test_metric_overwrite_true(wandb_backend_spy, name):
-    with wandb.init() as run:
+    with wandb.init(
+        settings=wandb.Settings(x_server_side_expand_glob_metrics=False),
+    ) as run:
         run.define_metric(name, summary="min")
         run.define_metric(name, summary="max", overwrite=True)
         run.log({"m": 1})

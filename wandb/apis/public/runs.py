@@ -111,7 +111,7 @@ class Runs(SizedPaginator["Run"]):
                     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
                         edges {{
                             node {{
-                                {"" if _server_provides_internal_id_for_project(client) else "internalId"}
+                                {"projectId" if _server_provides_internal_id_for_project(client) else ""}
                                 ...RunFragment
                             }}
                             cursor
@@ -143,11 +143,10 @@ class Runs(SizedPaginator["Run"]):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
-        if self.last_response:
-            return self.last_response["project"]["runCount"]
-        else:
-            return None
+    def _length(self):
+        if not self.last_response:
+            self._load_page()
+        return self.last_response["project"]["runCount"]
 
     @property
     def more(self):
@@ -454,25 +453,19 @@ class Run(Attrs):
         )
 
     def load(self, force=False):
-        query = gql(
-            """
-        query Run($project: String!, $entity: String!, $name: String!) {{
-            project(name: $project, entityName: $entity) {{
-                run(name: $name) {{
-                    {}
-                    ...RunFragment
+        if force or not self._attrs:
+            query = gql(f"""#graphql
+            query Run($project: String!, $entity: String!, $name: String!) {{
+                project(name: $project, entityName: $entity) {{
+                    run(name: $name) {{
+                        {"projectId" if _server_provides_internal_id_for_project(self.client) else ""}
+                        ...RunFragment
+                    }}
                 }}
             }}
-        }}
-        {}
-        """.format(
-                "projectId"
-                if _server_provides_internal_id_for_project(self.client)
-                else "",
-                RUN_FRAGMENT,
-            )
-        )
-        if force or not self._attrs:
+            {RUN_FRAGMENT}
+            """)
+
             response = self._exec(query)
             if (
                 response is None

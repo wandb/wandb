@@ -34,6 +34,7 @@ from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
 from wandb.apis.public.utils import gql_compat
 from wandb.data_types import WBValue
 from wandb.errors import CommError
+from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
@@ -61,16 +62,20 @@ from ._generated import (
     ADD_ALIASES_GQL,
     DELETE_ALIASES_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
+    LINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
     ArtifactAliasInput,
     ArtifactCollectionAliasInput,
     FetchLinkedArtifacts,
+    LinkArtifact,
+    LinkArtifactInput,
     TagInput,
     UpdateArtifact,
 )
 from ._graphql_fragments import _gql_artifact_fragment, omit_artifact_fields
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
+    ArtifactPath,
     _LinkArtifactFields,
     ensure_logged,
     ensure_not_finalized,
@@ -278,6 +283,87 @@ class Artifact:
         return cls._from_attrs(entity_name, project_name, name, attrs, client)
 
     @classmethod
+    def _membership_from_name(
+        cls,
+        *,
+        entity: str,
+        project: str,
+        name: str,
+        client: RetryingClient,
+    ) -> Artifact:
+        if not InternalApi()._server_supports(
+            pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
+        ):
+            raise UnsupportedError(
+                "querying for the artifact collection membership is not supported "
+                "by this version of wandb server. Consider updating to the latest version."
+            )
+
+        query = gql(
+            f"""
+            query ArtifactByName($entityName: String!, $projectName: String!, $name: String!) {{
+                project(name: $projectName, entityName: $entityName) {{
+                    artifactCollectionMembership(name: $name) {{
+                        id
+                        artifactCollection {{
+                            id
+                            name
+                            project {{
+                                id
+                                entityName
+                                name
+                            }}
+                        }}
+                        artifact {{
+                            ...ArtifactFragment
+                        }}
+                    }}
+                }}
+            }}
+            {_gql_artifact_fragment()}
+            """
+        )
+
+        query_variable_values: dict[str, Any] = {
+            "entityName": entity,
+            "projectName": project,
+            "name": name,
+        }
+        response = client.execute(
+            query,
+            variable_values=query_variable_values,
+        )
+        if not (project_attrs := response.get("project")):
+            raise ValueError(f"project {project!r} not found under entity {entity!r}")
+        if not (acm_attrs := project_attrs.get("artifactCollectionMembership")):
+            entity_project = f"{entity}/{project}"
+            raise ValueError(
+                f"artifact membership {name!r} not found in {entity_project!r}"
+            )
+        if not (ac_attrs := acm_attrs.get("artifactCollection")):
+            raise ValueError("artifact collection not found")
+        if not (
+            (ac_name := ac_attrs.get("name"))
+            and (ac_project_attrs := ac_attrs.get("project"))
+        ):
+            raise ValueError("artifact collection project not found")
+        ac_project = ac_project_attrs.get("name")
+        ac_entity = ac_project_attrs.get("entityName")
+        if is_artifact_registry_project(ac_project) and project == "model-registry":
+            wandb.termwarn(
+                "This model registry has been migrated and will be discontinued. "
+                f"Your request was redirected to the corresponding artifact `{ac_name}` in the new registry. "
+                f"Please update your paths to point to the migrated registry directly, `{ac_project}/{ac_name}`."
+            )
+            entity = ac_entity
+            project = ac_project
+        if not (attrs := acm_attrs.get("artifact")):
+            entity_project = f"{entity}/{project}"
+            raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
+
+        return cls._from_attrs(entity, project, name, attrs, client)
+
+    @classmethod
     def _from_name(
         cls,
         *,
@@ -287,14 +373,31 @@ class Artifact:
         client: RetryingClient,
         enable_tracking: bool = False,
     ) -> Artifact:
+        if InternalApi()._server_supports(
+            pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
+        ):
+            return cls._membership_from_name(
+                entity=entity,
+                project=project,
+                name=name,
+                client=client,
+            )
+
+        query_variable_values: dict[str, Any] = {
+            "entityName": entity,
+            "projectName": project,
+            "name": name,
+        }
+        query_vars = ["$entityName: String!", "$projectName: String!", "$name: String!"]
+        query_args = ["name: $name"]
+
         server_supports_enabling_artifact_usage_tracking = (
             InternalApi().server_project_type_introspection()
         )
-        query_vars = ["$entityName: String!", "$projectName: String!", "$name: String!"]
-        query_args = ["name: $name"]
         if server_supports_enabling_artifact_usage_tracking:
             query_vars.append("$enableTracking: Boolean")
             query_args.append("enableTracking: $enableTracking")
+            query_variable_values["enableTracking"] = enable_tracking
 
         vars_str = ", ".join(query_vars)
         args_str = ", ".join(query_args)
@@ -311,14 +414,6 @@ class Artifact:
             {_gql_artifact_fragment()}
             """
         )
-        query_variable_values: dict[str, Any] = {
-            "entityName": entity,
-            "projectName": project,
-            "name": name,
-        }
-        if server_supports_enabling_artifact_usage_tracking:
-            query_variable_values["enableTracking"] = enable_tracking
-
         response = client.execute(
             query,
             variable_values=query_variable_values,
@@ -329,6 +424,7 @@ class Artifact:
         attrs = project_attrs.get("artifact")
         if not attrs:
             raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
+
         return cls._from_attrs(entity, project, name, attrs, client)
 
     @classmethod
@@ -2361,25 +2457,71 @@ class Artifact:
         Returns:
             The linked artifact if linking was successful, otherwise None.
         """
+        from wandb import Api
+
         if self.is_link:
             wandb.termwarn(
                 "Linking to a link artifact will result in directly linking to the source artifact of that link artifact."
             )
 
-        if run := wandb_setup.singleton().most_recent_active_run:
-            # TODO: Deprecate and encourage explicit link_artifact().
-            return run.link_artifact(self, target_path, aliases)
+        if self._client is None:
+            raise ValueError("Client not initialized for artifact mutations")
 
+        # Save the artifact first if necessary
+        if self.is_draft():
+            if not self._is_draft_save_started():
+                self.save(project=self.source_project)
+
+            # Wait until the artifact is committed before trying to link it.
+            self.wait()
+
+        api = Api(overrides={"entity": self.source_entity})
+
+        target = ArtifactPath.from_str(target_path).with_defaults(
+            project=api.settings.get("project") or "uncategorized",
+        )
+
+        # Parse the entity (first part of the path) appropriately,
+        # depending on whether we're linking to a registry
+        if target.project and is_artifact_registry_project(target.project):
+            # In a Registry linking, the entity is used to fetch the organization of the artifact
+            # therefore the source artifact's entity is passed to the backend
+            organization = target.prefix or api.settings.get("organization") or ""
+
+            target.prefix = InternalApi()._resolve_org_entity_name(
+                self.source_entity, organization
+            )
         else:
-            with wandb.init(
-                entity=self._source_entity,
-                project=self._source_project,
-                job_type="auto",
-                settings=wandb.Settings(silent="true"),
-            ) as run:
-                return run.link_artifact(self, target_path, aliases)
+            target = target.with_defaults(prefix=self.source_entity)
 
-        return None
+        # Prepare the validated GQL input, send it
+        alias_inputs = [
+            ArtifactAliasInput(artifact_collection_name=target.name, alias=a)
+            for a in (aliases or [])
+        ]
+        gql_input = LinkArtifactInput(
+            artifact_id=self.id,
+            artifact_portfolio_name=target.name,
+            entity_name=target.prefix,
+            project_name=target.project,
+            aliases=alias_inputs,
+        )
+        gql_vars = {"input": gql_input.model_dump(exclude_none=True)}
+        gql_op = gql(LINK_ARTIFACT_GQL)
+        data = self._client.execute(gql_op, variable_values=gql_vars)
+
+        result = LinkArtifact.model_validate(data).link_artifact
+        if not (result and (version_idx := result.version_index) is not None):
+            raise ValueError("Unable to parse linked artifact version from response")
+
+        # Fetch the linked artifact to return it
+        linked_path = f"{target.to_str()}:v{version_idx}"
+
+        try:
+            return api._artifact(linked_path)
+        except Exception as e:
+            wandb.termerror(f"Error fetching link artifact after linking: {e}")
+            return None
 
     @ensure_logged
     def unlink(self) -> None:
