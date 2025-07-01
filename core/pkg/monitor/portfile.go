@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// portfile is used to communicate the port number of the gRPC service
+// portfile is used to communicate the token of the gRPC service
 // started by the gpu_stats binary to the wandb-core process.
 type portfile struct {
 	Path string
