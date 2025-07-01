@@ -162,3 +162,45 @@ func TestTableUpdatesHistory(t *testing.T) {
 	require.Len(t, partialHistory.Item, 1)
 	assert.Equal(t, partialHistory.Item[0].NestedKey, []string{"my", "table"})
 }
+
+func TestEmitImages(t *testing.T) {
+	tmpdir := t.TempDir()
+	emitter := tensorboard.NewTFEmitter(
+		settings.From(&spb.Settings{
+			FilesDir: wrapperspb.String(tmpdir),
+		}),
+	)
+	require.NoError(t,
+		emitter.EmitImages(
+			pathtree.PathOf("my", "image"),
+			[]wbvalue.Image{
+				{
+					Width:       2,
+					Height:      2,
+					EncodedData: []byte{0, 1, 2, 3},
+					Format:      "png",
+				},
+				{
+					Width:       2,
+					Height:      2,
+					EncodedData: []byte{0, 1, 2, 3},
+					Format:      "png",
+				},
+			},
+		))
+	fakeRunWork := runworktest.New()
+	emitter.Emit(fakeRunWork)
+
+	records := fakeRunWork.AllRecords()
+	require.Len(t, records, 2) // file upload & history
+	filesRecord := records[0].GetFiles()
+	require.NotNil(t, filesRecord)
+	require.Len(t, filesRecord.Files, 2)
+
+	for _, file := range filesRecord.Files {
+		assert.Regexp(t,
+			`media/images/[a-z0-9]{32}\.png`,
+			filepath.ToSlash(file.Path))
+		assert.FileExists(t, filepath.Join(tmpdir, file.Path))
+	}
+}

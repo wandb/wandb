@@ -3,14 +3,8 @@
 import json
 import os
 import shutil
-import sys
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional
 
 from wandb_gql import gql
 
@@ -45,7 +39,7 @@ class Job:
 
     def __init__(self, api: "Api", name, path: Optional[str] = None) -> None:
         try:
-            self._job_artifact = api.artifact(name, type="job")
+            self._job_artifact = api._artifact(name, type="job")
         except CommError:
             raise CommError(f"Job artifact {name} not found")
         if path:
@@ -94,7 +88,7 @@ class Job:
         if is_id:
             code_artifact = wandb.Artifact._from_id(artifact_string, self._api._client)
         else:
-            code_artifact = self._api.artifact(name=artifact_string, type="code")
+            code_artifact = self._api._artifact(name=artifact_string, type="code")
         if code_artifact is None:
             raise LaunchError("No code artifact found")
         if code_artifact.state == ArtifactState.DELETED:
@@ -411,9 +405,10 @@ class QueuedRun:
                         None,
                     )
                     self._run_id = item["associatedRunId"]
-                    return self._run
                 except ValueError as e:
-                    print(e)
+                    wandb.termwarn(str(e))
+                else:
+                    return self._run
             elif item:
                 wandb.termlog("Waiting for run to start")
 

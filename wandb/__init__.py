@@ -10,13 +10,17 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 """
 from __future__ import annotations
 
-__version__ = "0.18.4.dev1"
+__version__ = "0.20.2.dev1"
 
 
 from wandb.errors import Error
 
 # This needs to be early as other modules call it.
 from wandb.errors.term import termsetup, termlog, termerror, termwarn
+
+# Configure the logger as early as possible for consistent behavior.
+from wandb.sdk.lib import wb_logging as _wb_logging
+_wb_logging.configure_wandb_logger()
 
 from wandb import sdk as wandb_sdk
 
@@ -26,9 +30,9 @@ wandb.wandb_lib = wandb_sdk.lib  # type: ignore
 
 init = wandb_sdk.init
 setup = wandb_sdk.setup
-_attach = wandb_sdk._attach
+attach = _attach = wandb_sdk._attach
 _sync = wandb_sdk._sync
-_teardown = wandb_sdk.teardown
+teardown = _teardown = wandb_sdk.teardown
 finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
@@ -46,9 +50,6 @@ from wandb.errors import CommError, UsageError
 
 _preinit = wandb.wandb_lib.preinit  # type: ignore
 _lazyloader = wandb.wandb_lib.lazyloader  # type: ignore
-
-# Call import module hook to set up any needed require hooks
-wandb.sdk.wandb_require._import_module_hook()
 
 from wandb.integration.torch import wandb_torch
 
@@ -75,7 +76,7 @@ from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 
-from wandb.plot.viz import visualize
+from wandb.plot import visualize, plot_table
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
 
@@ -142,9 +143,6 @@ mark_preempting = _preinit.PreInitCallable(
     "wandb.mark_preempting", wandb_sdk.wandb_run.Run.mark_preempting  # type: ignore
 )
 
-plot_table = _preinit.PreInitCallable(
-    "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
-)
 alert = _preinit.PreInitCallable("wandb.alert", wandb_sdk.wandb_run.Run.alert)  # type: ignore
 
 # record of patched libraries
@@ -168,7 +166,6 @@ gym = _lazyloader.LazyLoader("wandb.gym", globals(), "wandb.integration.gym")
 lightgbm = _lazyloader.LazyLoader(
     "wandb.lightgbm", globals(), "wandb.integration.lightgbm"
 )
-docker = _lazyloader.LazyLoader("wandb.docker", globals(), "wandb.docker")
 jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
 sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sacred")
 
@@ -201,9 +198,10 @@ if "dev" in __version__:
     import wandb.env
     import os
 
-    # disable error reporting in dev versions for the python client
+    # Disable error reporting in dev versions.
     os.environ[wandb.env.ERROR_REPORTING] = os.environ.get(
-        wandb.env.ERROR_REPORTING, "false"
+        wandb.env.ERROR_REPORTING,
+        "false",
     )
 
 _sentry = _Sentry()
@@ -244,4 +242,5 @@ __all__ = (
     "define_metric",
     "watch",
     "unwatch",
+    "plot_table",
 )

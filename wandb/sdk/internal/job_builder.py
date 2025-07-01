@@ -5,9 +5,21 @@ import logging
 import os
 import re
 import sys
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    TypedDict,
+    Union,
+)
 
 import wandb
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api
@@ -15,11 +27,6 @@ from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNA
 from wandb.util import make_artifact_name_safe
 
 from .settings_static import SettingsStatic
-
-if sys.version_info >= (3, 8):
-    from typing import Literal, TypedDict
-else:
-    from typing_extensions import Literal, TypedDict
 
 _logger = logging.getLogger(__name__)
 
@@ -122,12 +129,6 @@ def get_min_supported_for_source_dict(
     return min_seen
 
 
-class JobArtifact(Artifact):
-    def __init__(self, name: str, *args: Any, **kwargs: Any):
-        super().__init__(name, "placeholder", *args, **kwargs)
-        self._type = JOB_ARTIFACT_TYPE  # Get around type restriction.
-
-
 class JobBuilder:
     _settings: SettingsStatic
     _metadatafile_path: Optional[str]
@@ -152,7 +153,7 @@ class JobBuilder:
         self._logged_code_artifact = None
         self._job_seq_id = None
         self._job_version_alias = None
-        self._disable = settings.disable_job_creation
+        self._disable = settings.disable_job_creation or settings.x_disable_machine_info
         self._partial_source_id = None
         self._aliases = []
         self._source_type: Optional[Literal["repo", "artifact", "image"]] = (
@@ -228,16 +229,16 @@ class JobBuilder:
             ):
                 return None, None
 
-            if root is None or self._settings._jupyter_root is None:
+            if root is None or self._settings.x_jupyter_root is None:
                 _logger.info("target path does not exist, exiting")
                 return None, None
-            assert self._settings._jupyter_root is not None
+            assert self._settings.x_jupyter_root is not None
             # git notebooks set the root to the git root,
             # jupyter_root contains the path where the jupyter notebook was started
             # program_relpath contains the path from jupyter_root to the file
             # full program path here is actually the relpath from the program to the git root
             full_program_path = os.path.join(
-                os.path.relpath(str(self._settings._jupyter_root), root),
+                os.path.relpath(str(self._settings.x_jupyter_root), root),
                 program_relpath,
             )
             full_program_path = os.path.normpath(full_program_path)
@@ -313,7 +314,8 @@ class JobBuilder:
             "build_context": metadata.get("build_context"),
             "dockerfile": metadata.get("dockerfile"),
         }
-        name = self._make_job_name(self._logged_code_artifact["name"])
+        artifact_basename, *_ = self._logged_code_artifact["name"].split(":")
+        name = self._make_job_name(artifact_basename)
 
         return source, name
 
@@ -380,7 +382,7 @@ class JobBuilder:
     ]:
         """Construct a job source dict and name from the current run.
 
-        Arguments:
+        Args:
             source_type (str): The type of source to build the job from. One of
                 "repo", "artifact", or "image".
         """
@@ -427,7 +429,7 @@ class JobBuilder:
     ) -> Optional[Artifact]:
         """Build a job artifact from the current run.
 
-        Arguments:
+        Args:
             api (Api): The API object to use to create the job artifact.
             build_context (Optional[str]): Path within the job source code to
                 the image build context. Saved as part of the job for future
@@ -475,7 +477,8 @@ class JobBuilder:
         # can't build a job without a python version
         if runtime is None:
             self._log_if_verbose(
-                "No python version found in metadata, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+                "No python version found in metadata, not creating job artifact. "
+                "See https://docs.wandb.ai/guides/launch/create-job",
                 "warn",
             )
             return None
@@ -504,7 +507,8 @@ class JobBuilder:
         program_relpath = self._get_program_relpath(source_type, metadata)
         if not self._partial and source_type != "image" and not program_relpath:
             self._log_if_verbose(
-                "No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+                "No program path found, not creating job artifact. "
+                "See https://docs.wandb.ai/guides/launch/create-job",
                 "warn",
             )
             return None
@@ -543,7 +547,7 @@ class JobBuilder:
         assert source_info is not None
         assert name is not None
 
-        artifact = JobArtifact(name)
+        artifact = InternalArtifact(name, JOB_ARTIFACT_TYPE)
 
         _logger.info("adding wandb-job metadata file")
         with artifact.new_file("wandb-job.json") as f:

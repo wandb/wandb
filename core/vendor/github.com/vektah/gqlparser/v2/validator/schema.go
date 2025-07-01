@@ -5,8 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	//nolint:revive
-	. "github.com/vektah/gqlparser/v2/ast"
+	. "github.com/vektah/gqlparser/v2/ast" //nolint:staticcheck // bad, yeah
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"github.com/vektah/gqlparser/v2/parser"
 )
@@ -86,7 +85,7 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 			// scalars, it may (§3.13) define builtin directives. Here we check for
 			// that, and reject doubly-defined directives otherwise.
 			switch dir.Name {
-			case "include", "skip", "deprecated", "specifiedBy", "defer": // the builtins
+			case "include", "skip", "deprecated", "specifiedBy", "defer", "oneOf": // the builtins
 				// In principle here we might want to validate that the
 				// directives are the same. But they might not be, if the
 				// server has an older spec than we do. (Plus, validating this

@@ -2,7 +2,7 @@
 package waitingtest
 
 func completedDelay() <-chan struct{} {
-	ch := make(chan struct{}, 1)
+	ch := make(chan struct{})
 	close(ch)
 	return ch
 }

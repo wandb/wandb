@@ -5,98 +5,96 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/runbranch"
+	"github.com/wandb/wandb/core/internal/settings"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func TestProto(t *testing.T) {
-	timeNow := time.Now()
-	r := &runbranch.RunParams{
-		RunID:        "test",
-		Project:      "test",
-		Entity:       "test",
-		DisplayName:  "test",
-		StartTime:    timeNow,
-		StorageID:    "test",
-		SweepID:      "test",
-		StartingStep: 10,
-		Runtime:      20,
-		Config: map[string]interface{}{
-			"test": "test",
-		},
-		Summary: map[string]interface{}{
-			"test": "test",
-		},
-		Tags: []string{"test", "test2"},
-	}
-	proto := r.Proto()
-	assert.NotNil(t, proto)
-	assert.Equal(t, r.RunID, proto.RunId)
-	assert.Nil(t, proto.Tags)
-	assert.Nil(t, proto.StartTime)
+func assertProtoEqual(t *testing.T, expected proto.Message, actual proto.Message) {
+	assert.True(t,
+		proto.Equal(expected, actual),
+		"Value is\n\t%v\nbut expected\n\t%v", actual, expected)
 }
 
-func TestMerge(t *testing.T) {
-	timeNow := time.Now()
-	r := &runbranch.RunParams{
-		RunID:        "test",
-		Project:      "test",
-		Entity:       "test",
-		DisplayName:  "test",
-		StartTime:    timeNow,
-		StorageID:    "test",
-		SweepID:      "test",
-		StartingStep: 10,
-		Runtime:      20,
-		Config: map[string]interface{}{
-			"test": "test",
+func TestRecreatesProto(t *testing.T) {
+	run := &spb.RunRecord{
+		StorageId: "storage ID",
+
+		Entity:  "entity",
+		Project: "project",
+		RunId:   "run ID",
+
+		RunGroup:    "run group",
+		DisplayName: "display name",
+		Notes:       "notes",
+
+		Git: &spb.GitRepoRecord{
+			Commit:    "commit",
+			RemoteUrl: "remote URL",
 		},
-		Summary: map[string]interface{}{
-			"test": "test",
-		},
-		Tags: []string{"test", "test2"},
-	}
-	assert.Equal(t, r.Resumed, false)
-	r2 := &runbranch.RunParams{
-		RunID:        "test2",
-		Project:      "test2",
-		Entity:       "test2",
-		DisplayName:  "test2",
-		StartTime:    timeNow,
-		StorageID:    "test2",
-		SweepID:      "test2",
-		StartingStep: 20,
-		Runtime:      30,
-		Config: map[string]interface{}{
-			"test2": "test2",
-		},
-		Summary: map[string]interface{}{
-			"test2": "test2",
-		},
-		Tags: []string{"test2", "test3"},
-		FileStreamOffset: filestream.FileStreamOffsetMap{
-			filestream.HistoryChunk: 10,
-		},
+
+		// Program comes from settings, not the record.
+		Host:    "host",
+		JobType: "job type",
+		SweepId: "sweep ID",
+
+		StartingStep: 123,
+		Runtime:      987,
+
+		Tags: []string{"tag1", "tag2"},
+
+		// Summary is set to an empty value on the result (rather than unset).
+		Summary: &spb.SummaryRecord{},
+
 		Resumed: true,
+		Forked:  true,
+
+		StartTime: timestamppb.New(time.Now()),
 	}
-	r.Merge(r2)
-	assert.Equal(t, r.RunID, r2.RunID)
-	assert.Equal(t, r.Project, r2.Project)
-	assert.Equal(t, r.Entity, r2.Entity)
-	assert.Equal(t, r.DisplayName, r2.DisplayName)
-	assert.Equal(t, r.StartTime, r2.StartTime)
-	assert.Equal(t, r.StorageID, r2.StorageID)
-	assert.Equal(t, r.SweepID, r2.SweepID)
-	assert.Equal(t, r.StartingStep, r2.StartingStep)
-	assert.Equal(t, r.Runtime, r2.Runtime)
-	assert.Equal(t, r.Config, map[string]any{
-		"test":  "test",
-		"test2": "test2",
-	})
-	assert.Equal(t, r.Summary, map[string]any{
-		"test":  "test",
-		"test2": "test2",
-	})
-	assert.Equal(t, r.Tags, r2.Tags)
-	assert.Equal(t, r.Resumed, true)
+
+	params := runbranch.NewRunParams(run, settings.New())
+
+	updatedProto := &spb.RunRecord{}
+	params.SetOnProto(updatedProto)
+	assertProtoEqual(t, run, updatedProto)
+}
+
+func TestNoHostIfMachineInfoDisabled(t *testing.T) {
+	params := runbranch.NewRunParams(
+		&spb.RunRecord{Host: "host"},
+		settings.From(&spb.Settings{XDisableMachineInfo: wrapperspb.Bool(true)}),
+	)
+
+	assert.Empty(t, params.Host)
+}
+
+func TestReadsProgramFromSettings(t *testing.T) {
+	params := runbranch.NewRunParams(
+		&spb.RunRecord{},
+		settings.From(&spb.Settings{Program: wrapperspb.String("program")}),
+	)
+
+	assert.Equal(t, "program", params.Program)
+}
+
+func TestSetsSummary(t *testing.T) {
+	params := runbranch.NewRunParams(&spb.RunRecord{}, settings.New())
+	params.Summary = map[string]any{"x": 123}
+
+	updatedProto := &spb.RunRecord{}
+	params.SetOnProto(updatedProto)
+
+	assertProtoEqual(t,
+		&spb.SummaryRecord{
+			Update: []*spb.SummaryItem{
+				{
+					Key:       "x",
+					ValueJson: "123",
+				},
+			},
+		},
+		updatedProto.Summary)
 }

@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 import wandb.data_types as data_types
 from wandb.data_types import _SavedModel
+from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
@@ -46,8 +47,9 @@ def _add_any(
             with artifact.new_file(name) as f:
                 f.write(json.dumps(path_or_obj, sort_keys=True))
     else:
-        raise ValueError(
-            f"Expected `path_or_obj` to be instance of `ArtifactManifestEntry`, `WBValue`, or `str, found {type(path_or_obj)}"
+        raise TypeError(
+            "Expected `path_or_obj` to be instance of `ArtifactManifestEntry`,"
+            f" `WBValue`, or `str, found {type(path_or_obj)}"
         )
 
 
@@ -85,12 +87,13 @@ def _log_artifact_version(
         Artifact
 
     """
-    if wandb.run is None:
+    run = wandb_setup.singleton().most_recent_active_run
+    if not run:
         run = wandb.init(
-            project=project, job_type=job_type, settings=wandb.Settings(silent="true")
+            project=project,
+            job_type=job_type,
+            settings=wandb.Settings(silent=True),
         )
-    else:
-        run = wandb.run
 
     if not scope_project:
         name = f"{name}-{run.id}"
@@ -124,7 +127,7 @@ def log_model(
 
     Supported frameworks include PyTorch, Keras, Tensorflow, Scikit-learn, etc. Under
     the hood, we create a model artifact, bind it to the run that produced this model,
-    associate it with the latest metrics logged with `wandb.log(...)` and more.
+    associate it with the latest metrics logged with `run.log(...)` and more.
 
     Args:
         model_obj: any model object created with the following ML frameworks: PyTorch,
@@ -215,8 +218,7 @@ def use_model(aliased_path: str, unsafe: bool = False) -> "_SavedModel":
         )
 
     # Returns a _SavedModel instance
-    if wandb.run:
-        run = wandb.run
+    if run := wandb_setup.singleton().most_recent_active_run:
         artifact = run.use_artifact(aliased_path)
         sm = artifact.get("index")
 
@@ -261,9 +263,7 @@ def link_model(
     """
     aliases = wandb.util._resolve_aliases(aliases)
 
-    if wandb.run:
-        run = wandb.run
-
+    if run := wandb_setup.singleton().most_recent_active_run:
         # _artifact_source, if it exists, points to a Public Artifact.
         # Its existence means that _SavedModel was deserialized from a logged artifact, most likely from `use_model`.
         if model._artifact_source:

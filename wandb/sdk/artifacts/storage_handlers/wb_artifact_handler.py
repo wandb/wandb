@@ -49,7 +49,7 @@ class WBArtifactHandler(StorageHandler):
 
         Download the referenced artifact; create and return a new symlink to the caller.
 
-        Arguments:
+        Args:
             manifest_entry (ArtifactManifestEntry): The index entry to load
 
         Returns:
@@ -89,7 +89,7 @@ class WBArtifactHandler(StorageHandler):
 
         Recursively resolves the reference until the result is a concrete asset.
 
-        Arguments:
+        Args:
             artifact: The artifact doing the storing path (str): The path to store name
             (str): If specified, the logical name that should map to `path`
 
@@ -116,11 +116,7 @@ class WBArtifactHandler(StorageHandler):
         assert target_artifact is not None
         assert target_artifact.id is not None
         path = URIStr(
-            "{}://{}/{}".format(
-                self._scheme,
-                b64_to_hex_id(B64MD5(target_artifact.id)),
-                artifact_file_path,
-            )
+            f"{self._scheme}://{b64_to_hex_id(B64MD5(target_artifact.id))}/{artifact_file_path}"
         )
 
         # Return the new entry

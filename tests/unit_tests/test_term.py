@@ -35,6 +35,7 @@ def test_no_dynamic_text_if_dumb_term(emulated_terminal, monkeypatch):
 def test_dynamic_text_prints(emulated_terminal):
     with term.dynamic_text() as text:
         assert text
+        emulated_terminal.reset_capsys()
 
         text.set_text("one\ntwo\nthree")
 
@@ -48,6 +49,8 @@ def test_dynamic_text_prints(emulated_terminal):
 def test_dynamic_text_clears_at_end(emulated_terminal):
     with term.dynamic_text() as text:
         assert text
+        emulated_terminal.reset_capsys()
+
         text.set_text("one\ntwo\nthree")
 
     assert emulated_terminal.read_stderr() == []
@@ -58,6 +61,7 @@ def test_dynamic_text_multiple(emulated_terminal):
         assert text1
         with term.dynamic_text() as text2:
             assert text2
+            emulated_terminal.reset_capsys()
 
             text1.set_text("one\ntwo\nthree")
             text2.set_text("four\nfive")
@@ -74,6 +78,7 @@ def test_dynamic_text_multiple(emulated_terminal):
 def test_static_and_dynamic_text(emulated_terminal):
     with term.dynamic_text() as text:
         assert text
+        emulated_terminal.reset_capsys()
 
         text.set_text("my\nanimated\ntext")
         wandb.termlog("static text above animated text")
@@ -87,3 +92,17 @@ def test_static_and_dynamic_text(emulated_terminal):
             "wandb: animated, updated",
             "wandb: text",
         ]
+
+
+def test_truncates_dynamic_text(emulated_terminal, monkeypatch):
+    # Pretend the terminal is very narrow.
+    columns = len("wandb: this should fit")
+    monkeypatch.setattr(term, "_shutil_get_terminal_width", lambda: columns)
+    with term.dynamic_text() as text:
+        assert text
+        emulated_terminal.reset_capsys()
+
+        text.set_text("this should fit")
+        assert emulated_terminal.read_stderr() == ["wandb: this should fit"]
+        text.set_text("but not this line")
+        assert emulated_terminal.read_stderr() == ["wandb: but not this..."]

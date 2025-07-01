@@ -45,7 +45,9 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 		Path: "test-download-file.txt",
 		Url:  mockServer.URL,
 	}
-	defer os.Remove(task.Path)
+	defer func() {
+		_ = os.Remove(task.Path)
+	}()
 
 	// Performing the download
 	err := ft.Download(task)
@@ -104,7 +106,9 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	filename := "test-upload-file.txt"
 	err := os.WriteFile(filename, contentExpected, 0644)
 	assert.NoError(t, err)
-	defer os.Remove(filename)
+	defer func() {
+		_ = os.Remove(filename)
+	}()
 
 	// Mocking task
 	task := &filetransfer.DefaultUploadTask{
@@ -140,8 +144,10 @@ func TestDefaultFileTransfer_UploadOffsetChunk(t *testing.T) {
 	assert.NoError(t, err)
 	_, err = tempFile.Write(entireContent)
 	assert.NoError(t, err)
-	tempFile.Close()
-	defer os.Remove(tempFile.Name())
+	_ = tempFile.Close()
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
 
 	task := &filetransfer.DefaultUploadTask{
 		Path:   tempFile.Name(),
@@ -171,8 +177,10 @@ func TestDefaultFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
 	assert.NoError(t, err)
 	_, err = tempFile.Write(entireContent)
 	assert.NoError(t, err)
-	tempFile.Close()
-	defer os.Remove(tempFile.Name())
+	_ = tempFile.Close()
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
 
 	task := &filetransfer.DefaultUploadTask{
 		Path:   tempFile.Name(),
@@ -203,7 +211,7 @@ func TestDefaultFileTransfer_UploadConnectionClosed(t *testing.T) {
 		assert.True(t, ok, "webserver doesn't support hijacking")
 		conn, _, err := hj.Hijack()
 		assert.NoError(t, err, "hijacking error")
-		conn.Close()
+		_ = conn.Close()
 	}
 	err := uploadToServerWithHandler(t, closeHandler)
 	assert.Error(t, err)
@@ -227,7 +235,9 @@ func TestDefaultFileTransfer_UploadContextCancelled(t *testing.T) {
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
 
 	err = ft.Upload(&filetransfer.DefaultUploadTask{
 		Path:    tempFile.Name(),
@@ -251,7 +261,9 @@ func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
 
 	task := &filetransfer.DefaultUploadTask{
 		Path: tempFile.Name(),
@@ -282,7 +294,9 @@ func uploadToServerWithHandler(
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
 
 	task := &filetransfer.DefaultUploadTask{
 		Path: tempFile.Name(),

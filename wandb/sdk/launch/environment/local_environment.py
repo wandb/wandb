@@ -12,7 +12,6 @@ class LocalEnvironment(AbstractEnvironment):
 
     def __init__(self) -> None:
         """Initialize a local environment by doing nothing."""
-        pass
 
     @classmethod
     def from_config(

@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import wandb
 import wandb.util
-from wandb.plot.viz import custom_chart
 from wandb.sdk.lib import telemetry
 
 if TYPE_CHECKING:
@@ -168,11 +167,8 @@ def tf_summary_to_dict(  # noqa: C901
                         )
                     except ValueError:
                         wandb.termwarn(
-                            'Not logging key "{}". '
-                            "Histograms must have fewer than {} bins".format(
-                                namespaced_tag(value.tag, namespace),
-                                wandb.Histogram.MAX_LENGTH,
-                            ),
+                            f'Not logging key "{namespaced_tag(value.tag, namespace)}". '
+                            f"Histograms must have fewer than {wandb.Histogram.MAX_LENGTH} bins",
                             repeat=False,
                         )
             elif plugin_name == "pr_curves":
@@ -200,7 +196,7 @@ def tf_summary_to_dict(  # noqa: C901
                 data_table = wandb.Table(data=data, columns=["recall", "precision"])
                 name = namespaced_tag(value.tag, namespace)
 
-                values[name] = custom_chart(
+                values[name] = wandb.plot_table(
                     "wandb/line/v0",
                     data_table,
                     {"x": "recall", "y": "precision"},

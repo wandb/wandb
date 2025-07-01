@@ -11,8 +11,10 @@ type Delay interface {
 	// IsZero returns whether this is a zero-duration delay.
 	IsZero() bool
 
-	// Wait returns a channel that is closed after the delay elapses.
-	Wait() <-chan struct{}
+	// Wait returns a channel that is closed after the delay elapses,
+	// and a cancel function that must be used if the result is no longer
+	// needed.
+	Wait() (<-chan struct{}, func())
 }
 
 func NewDelay(duration time.Duration) Delay {
@@ -32,10 +34,12 @@ type Stopwatch interface {
 	// Reset puts the stopwatch back at its starting time.
 	Reset()
 
-	// Wait returns a channel that is closed when the stopwatch hits zero.
+	// Wait returns a channel that is closed when the stopwatch hits zero,
+	// and a cancel function that must be used if the result is no longer
+	// needed.
 	//
 	// The channel stays open for as long as the stopwatch gets Reset.
-	Wait() <-chan struct{}
+	Wait() (<-chan struct{}, func())
 }
 
 func NewStopwatch(duration time.Duration) Stopwatch {
@@ -52,21 +56,26 @@ func (d *realDelay) IsZero() bool {
 	return d.duration == 0
 }
 
-func (d *realDelay) Wait() <-chan struct{} {
+func (d *realDelay) Wait() (<-chan struct{}, func()) {
 	if d.IsZero() {
-		return completedDelay()
+		return completedDelay(), func() {}
 	}
 
-	ch := make(chan struct{}, 1)
+	ch := make(chan struct{})
+	cancel := make(chan struct{})
+
 	go func() {
-		<-time.After(d.duration)
+		select {
+		case <-time.After(d.duration):
+		case <-cancel:
+		}
 		close(ch)
 	}()
-	return ch
+	return ch, func() { close(cancel) }
 }
 
 func completedDelay() <-chan struct{} {
-	ch := make(chan struct{}, 1)
+	ch := make(chan struct{})
 	close(ch)
 	return ch
 }
@@ -85,8 +94,9 @@ func (s *realStopwatch) Reset() {
 	s.startTimeMicros.Store(time.Now().UnixMicro())
 }
 
-func (s *realStopwatch) Wait() <-chan struct{} {
+func (s *realStopwatch) Wait() (<-chan struct{}, func()) {
 	ch := make(chan struct{})
+	cancel := make(chan struct{})
 
 	go func() {
 		defer close(ch)
@@ -94,7 +104,12 @@ func (s *realStopwatch) Wait() <-chan struct{} {
 			originalStart := time.UnixMicro(s.startTimeMicros.Load())
 			durationElapsed := time.Since(originalStart)
 
-			time.Sleep(s.duration - durationElapsed)
+			select {
+			case <-cancel:
+				return
+
+			case <-time.After(s.duration - durationElapsed):
+			}
 
 			if s.IsDone() {
 				break
@@ -102,5 +117,5 @@ func (s *realStopwatch) Wait() <-chan struct{} {
 		}
 	}()
 
-	return ch
+	return ch, func() { close(cancel) }
 }

@@ -1,14 +1,19 @@
 -r requirements_test.txt
 
 astunparse; python_version < '3.9'
-
-hypothesis
-hypothesis-fspaths
+cloudpickle
+click~=8.1
+filelock~=3.13
+pydantic~=2.9
+# For Pydantic to work with modern type annotations in older Pythons:
+eval-type-backport~=0.2.0; python_version >= '3.8' and python_version < '3.10'
 
 Pillow
 pandas
 polars
-moviepy
+# Version 2.0.0 removes moviepy.editor, used by TensorBoard in some tests
+# to log videos.
+moviepy~=1.0
 imageio[ffmpeg]
 matplotlib
 soundfile
@@ -17,23 +22,35 @@ plotly
 bokeh
 
 tqdm
+tenacity
 
 ipython
 ipython<8.13; python_version < '3.9'
 ipykernel
-nbclient
+nbclient~=0.10.1
+
+
+tensorflow~=2.18.0; python_version >= '3.9'
+
+tensorflow==2.9.2; python_version < '3.9' and sys_platform != 'darwin'
+# tensorflow==2.9.2 does not provide arm64 wheels for macOS.
+# This was fixed in later versions of tensorflow.
+tensorflow-macos==2.9.2; python_version < '3.9' and sys_platform == 'darwin'
+
+# This is a transitive dependency of `tensorflow` via `tensorboard`
+# which fails to specify an upper bound causing import errors.
+protobuf==3.19.6; python_version < '3.9' and sys_platform == 'darwin'
+
 
 scikit-learn
-tensorflow; python_version > '3.11'
-tensorflow<2.14; sys_platform != 'darwin' and python_version < '3.12'
-tensorflow-macos; python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
 torch
 torchvision
 jax[cpu]
 lightning
 ray[air,tune]
 
-fastcore
+# Latest version of plum-dispatch tested is 2.5.7
+plum-dispatch>=2.0.0,<3.0.0
 pyarrow
 metaflow
 xgboost
@@ -46,9 +63,18 @@ openai
 gymnasium < 1.0.0
 stable_baselines3
 
+requests~=2.23
 responses
 prometheus_client
 google-cloud-aiplatform
+
+# See:
+# - https://github.com/boto/botocore/pull/1107
+# - https://github.com/boto/botocore/pull/1230
+boto3
+botocore>=1.5.76
+
+ariadne-codegen~=0.14.0
 
 .[perf]
 .[launch]

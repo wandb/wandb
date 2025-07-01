@@ -1,10 +1,8 @@
 package stream
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,28 +10,24 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/debounce"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
-	"github.com/wandb/wandb/core/internal/runbranch"
-	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
-	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -43,10 +37,9 @@ import (
 )
 
 const (
-	configDebouncerRateLimit  = 1 / 30.0 // todo: audit rate limit
-	configDebouncerBurstSize  = 1        // todo: audit burst size
 	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
+	ConsoleFileName           = "output.log"
 )
 
 type SenderParams struct {
@@ -54,6 +47,7 @@ type SenderParams struct {
 	Operations          *wboperation.WandbOperations
 	Settings            *settings.Settings
 	Backend             *api.Backend
+	FeatureProvider     *featurechecker.ServerFeaturesCache
 	FileStream          fs.FileStream
 	FileTransferManager filetransfer.FileTransferManager
 	FileTransferStats   filetransfer.FileTransferStats
@@ -62,15 +56,45 @@ type SenderParams struct {
 	TBHandler           *tensorboard.TBHandler
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
+	StreamRun           *StreamRun
 	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *spb.Result
-	OutputFileName      *paths.RelativePath
+	RunWork             runwork.RunWork
+}
+
+// senderSentinel is used when flushing buffered work while finalizing a run.
+type senderSentinel int64
+
+// String returns a string representation of senderSentinel for debugging.
+func (s senderSentinel) String() string {
+	return fmt.Sprintf("senderSentinel(%d)", s)
 }
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
 // or/and to the dispatcher/handler
 type Sender struct {
+	// mu is a coarse mutex for accessing non-threadsafe Sender state.
+	//
+	// It is locked while processing a Record and at specific times during
+	// the finishRun goroutine to guard anything that's not threadsafe.
+	mu sync.Mutex
+
+	// sentinelSent is the largest sentinel value pushed to runWork, incremented
+	// by 1 each time.
+	//
+	// sentinelSeen is the largest sentinel value observed on the input channel.
+	//
+	// It is always true that sentinelSent >= sentinelSeen.
+	//
+	// mu must be held when accessing either field.
+	sentinelSent, sentinelSeen senderSentinel
+
+	// sentinelCond is broadcast whenever sentinelSeen updates.
+	//
+	// The underlying mutex is mu.
+	sentinelCond *sync.Cond
+
 	// runWork is the run's channel of records
 	runWork runwork.RunWork
 
@@ -112,39 +136,23 @@ type Sender struct {
 	// tbHandler integrates W&B with TensorBoard
 	tbHandler *tensorboard.TBHandler
 
-	// startState tracks the initial state of a run handling
-	// potential branching with resume, fork, and rewind.
-	startState *runbranch.RunParams
-
-	// telemetry record internal implementation of telemetry
-	telemetry *spb.TelemetryRecord
-
-	// runConfigMetrics tracks explicitly defined run metrics.
-	runConfigMetrics *runmetric.RunConfigMetrics
-
-	// configDebouncer is the debouncer for config updates
-	configDebouncer *debounce.Debouncer
-
 	// summaryDebouncer is the debouncer for summary updates
 	summaryDebouncer *debounce.Debouncer
+
+	// streamRun is this stream's run state.
+	streamRun *StreamRun
 
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
 
-	// Keep track of config which is being updated incrementally
-	runConfig *runconfig.RunConfig
-
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *spb.Record
 
+	// Keep track of sync finish record to pass to file stream when the time comes
+	syncFinishRecord *spb.Record
+
 	// Keep track of finishWithoutExitRecord to pass to file stream if and when the time comes
 	finishWithoutExitRecord *spb.Record
-
-	// syncService is the sync service syncing offline runs
-	syncService *SyncService
-
-	// store is the store where the transaction log is stored
-	store *Store
 
 	// jobBuilder is the job builder for creating jobs from the run
 	// that allow users to re-run the run with different configurations
@@ -162,24 +170,65 @@ type Sender struct {
 
 // NewSender creates a new Sender with the given settings
 func NewSender(
-	runWork runwork.RunWork,
 	params SenderParams,
 ) *Sender {
 
 	var outputFileName paths.RelativePath
-	if params.OutputFileName != nil {
-		outputFileName = *params.OutputFileName
-	} else {
+	// Guaranteed not to fail.
+	path, _ := paths.Relative(ConsoleFileName)
+	outputFileName = *path
+
+	if params.Settings.GetLabel() != "" {
+		sanitizedLabel := fileutil.SanitizeFilename(params.Settings.GetLabel())
 		// Guaranteed not to fail.
-		path, _ := paths.Relative(LatestOutputFileName)
+		// split filename and extension
+		extension := filepath.Ext(string(outputFileName))
+		path, _ := paths.Relative(
+			fmt.Sprintf(
+				"%s_%s%s",
+				strings.TrimSuffix(string(outputFileName), extension),
+				sanitizedLabel,
+				extension,
+			),
+		)
 		outputFileName = *path
 	}
 
+	// If console capture is enabled, we need to create a multipart console log file.
+	if params.Settings.IsConsoleMultipart() {
+		// This is guaranteed not to fail.
+		timestamp := time.Now()
+		extension := filepath.Ext(string(outputFileName))
+		path, _ := paths.Relative(
+			filepath.Join(
+				"logs",
+				fmt.Sprintf(
+					"%s_%s_%09d%s",
+					strings.TrimSuffix(string(outputFileName), extension),
+					timestamp.Format("20060102_150405"),
+					timestamp.Nanosecond(),
+					extension,
+				),
+			),
+		)
+		outputFileName = *path
+	}
+
+	consoleLogsSenderParams := runconsolelogs.Params{
+		ConsoleOutputFile:     outputFileName,
+		FilesDir:              params.Settings.GetFilesDir(),
+		EnableCapture:         params.Settings.IsConsoleCaptureEnabled(),
+		Logger:                params.Logger,
+		FileStreamOrNil:       params.FileStream,
+		Label:                 params.Settings.GetLabel(),
+		RunfilesUploaderOrNil: params.RunfilesUploader,
+		Structured: params.FeatureProvider.GetFeature(
+			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
+		).Enabled,
+	}
+
 	s := &Sender{
-		runWork:             runWork,
-		runConfig:           runconfig.New(),
-		telemetry:           &spb.TelemetryRecord{CoreVersion: version.Version},
-		runConfigMetrics:    runmetric.NewRunConfigMetrics(),
+		runWork:             params.RunWork,
 		logger:              params.Logger,
 		operations:          params.Operations,
 		settings:            params.Settings,
@@ -192,34 +241,26 @@ func NewSender(
 			params.Logger,
 			params.GraphqlClient,
 			params.FileTransferManager,
+			params.FeatureProvider.GetFeature(
+				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
+			).Enabled,
 		),
 		tbHandler:     params.TBHandler,
 		networkPeeker: params.Peeker,
 		graphqlClient: params.GraphqlClient,
 		mailbox:       params.Mailbox,
+		streamRun:     params.StreamRun,
 		runSummary:    params.RunSummary,
 		outChan:       params.OutChan,
-		startState:    runbranch.NewRunParams(),
-		configDebouncer: debounce.NewDebouncer(
-			configDebouncerRateLimit,
-			configDebouncerBurstSize,
-			params.Logger,
-		),
 		summaryDebouncer: debounce.NewDebouncer(
 			summaryDebouncerRateLimit,
 			summaryDebouncerBurstSize,
 			params.Logger,
 		),
-
-		consoleLogsSender: runconsolelogs.New(runconsolelogs.Params{
-			ConsoleOutputFile:     outputFileName,
-			FilesDir:              params.Settings.GetFilesDir(),
-			EnableCapture:         params.Settings.IsConsoleCaptureEnabled(),
-			Logger:                params.Logger,
-			RunfilesUploaderOrNil: params.RunfilesUploader,
-			FileStreamOrNil:       params.FileStream,
-		}),
+		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
+
+	s.sentinelCond = sync.NewCond(&s.mu)
 
 	backendOrNil := params.Backend
 	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
@@ -247,11 +288,13 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 			"stream_id", s.settings.GetRunID(),
 		)
 
-		work.Process(s.sendRecord)
+		s.mu.Lock()
+		work.Process(s.sendRecord, s.outChan)
+		s.observeSentinel(work)
 
 		// TODO: reevaluate the logic here
-		s.configDebouncer.Debounce(s.upsertConfig)
 		s.summaryDebouncer.Debounce(s.streamSummary)
+		s.mu.Unlock()
 
 		hangDetectionOutChan <- struct{}{}
 	}
@@ -360,16 +403,6 @@ func (s *Sender) respondExit(record *spb.Record, exit *spb.RunExitResult) {
 	s.outChan <- result
 }
 
-// fwdRecord forwards a record to the next component
-// usually the handler
-func (s *Sender) fwdRecord(record *spb.Record) {
-	if record == nil {
-		return
-	}
-
-	s.runWork.AddWork(runwork.WorkFromRecord(record))
-}
-
 func (s *Sender) SendRecord(record *spb.Record) {
 	// this is for testing purposes only yet
 	s.sendRecord(record)
@@ -386,14 +419,12 @@ func (s *Sender) sendRecord(record *spb.Record) {
 		// no-op
 	case *spb.Record_Final:
 		// no-op
-	case *spb.Record_Run:
-		s.sendRun(record, x.Run)
 	case *spb.Record_Exit:
 		s.sendExit(record)
 	case *spb.Record_Alert:
 		s.sendAlert(record, x.Alert)
 	case *spb.Record_Metric:
-		s.sendMetric(x.Metric)
+		s.sendMetric(record, x.Metric)
 	case *spb.Record_Files:
 		s.sendFiles(record, x.Files)
 	case *spb.Record_History:
@@ -410,6 +441,8 @@ func (s *Sender) sendRecord(record *spb.Record) {
 		s.sendOutput(record, x.Output)
 	case *spb.Record_Telemetry:
 		s.sendTelemetry(record, x.Telemetry)
+	case *spb.Record_Environment:
+		s.sendEnvironment(x.Environment)
 	case *spb.Record_Preempting:
 		s.sendPreempting(x.Preempting)
 	case *spb.Record_Request:
@@ -438,18 +471,16 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 		s.sendRequestRunStart(x.RunStart)
 	case *spb.Request_NetworkStatus:
 		s.sendRequestNetworkStatus(record, x.NetworkStatus)
-	case *spb.Request_Defer:
-		s.sendRequestDefer(x.Defer)
 	case *spb.Request_LogArtifact:
 		s.sendRequestLogArtifact(record, x.LogArtifact)
 	case *spb.Request_LinkArtifact:
 		s.sendLinkArtifact(record, x.LinkArtifact)
 	case *spb.Request_DownloadArtifact:
 		s.sendRequestDownloadArtifact(record, x.DownloadArtifact)
-	case *spb.Request_Sync:
-		s.sendRequestSync(record, x.Sync)
+	case *spb.Request_SyncFinish:
+		s.sendRequestSyncFinish(record, x.SyncFinish)
 	case *spb.Request_SenderRead:
-		s.sendRequestSenderRead(record, x.SenderRead)
+		// TODO: implement this
 	case *spb.Request_StopStatus:
 		s.sendRequestStopStatus(record, x.StopStatus)
 	case *spb.Request_JobInput:
@@ -468,43 +499,52 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 // updateSettings updates the settings from the run record upon a run start
 // with the information from the server
 func (s *Sender) updateSettings() {
-	if s.settings == nil || !s.startState.Initialized {
+	upserter, _ := s.streamRun.GetRunUpserter()
+	if s.settings == nil || upserter == nil {
 		return
 	}
 
 	// StartTime should be generally thought of as the Run last modified time
 	// as it gets updated at a run branching point, such as resume, fork, or rewind
-	if s.settings.GetStartTime().IsZero() && !s.startState.StartTime.IsZero() {
-		s.settings.UpdateStartTime(s.startState.StartTime)
+	startTime := upserter.StartTime()
+	if s.settings.GetStartTime().IsZero() && !startTime.IsZero() {
+		s.settings.UpdateStartTime(startTime)
 	}
 
+	runPath := upserter.RunPath()
+
 	// TODO: verify that this is the correct update logic
-	if s.startState.Entity != "" {
-		s.settings.UpdateEntity(s.startState.Entity)
+	if runPath.Entity != "" {
+		s.settings.UpdateEntity(runPath.Entity)
 	}
-	if s.startState.Project != "" {
-		s.settings.UpdateProject(s.startState.Project)
+	if runPath.Project != "" {
+		s.settings.UpdateProject(runPath.Project)
 	}
-	if s.startState.DisplayName != "" {
-		s.settings.UpdateDisplayName(s.startState.DisplayName)
+	if displayName := upserter.DisplayName(); displayName != "" {
+		s.settings.UpdateDisplayName(displayName)
 	}
 }
 
 // sendRequestRunStart sends a run start request to start all the stream
 // components that need to be started and to update the settings
 func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
-	// mark the run state as initialized, indicating the run has started and was
-	// successfully upserted on the server.
-	s.startState.Initialized = true
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: sendRequestRunStart: %v", err))
+		return
+	}
 
 	s.updateSettings()
 
+	runPath := upserter.RunPath()
+
 	if s.fileStream != nil {
 		s.fileStream.Start(
-			s.startState.Entity,
-			s.startState.Project,
-			s.startState.RunID,
-			s.startState.FileStreamOffset,
+			runPath.Entity,
+			runPath.Project,
+			runPath.RunID,
+			upserter.FileStreamOffsets(),
 		)
 	}
 }
@@ -536,7 +576,12 @@ func (s *Sender) sendJobFlush() {
 	if s.jobBuilder == nil {
 		return
 	}
-	s.jobBuilder.SetRunConfig(*s.runConfig)
+
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureError(fmt.Errorf("sender: sendJobFlush: %v", err))
+		return
+	}
 
 	output := s.runSummary.ToNestedMaps()
 
@@ -546,6 +591,7 @@ func (s *Sender) sendJobFlush() {
 	artifact, err := s.jobBuilder.Build(
 		op.Context(s.runWork.BeforeEndCtx()),
 		s.graphqlClient,
+		upserter.ConfigMap(),
 		output,
 	)
 	if err != nil {
@@ -571,140 +617,242 @@ func (s *Sender) sendJobFlush() {
 	}
 }
 
-//gocyclo:ignore
-func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
-	switch request.State {
-	case spb.DeferRequest_BEGIN:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_RUN:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_STATS:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_TB:
-		go func() {
-			defer s.logger.Reraise()
-			s.tbHandler.Finish()
-			request.State++
-			s.fwdRequestDefer(request)
-		}()
-	case spb.DeferRequest_FLUSH_SUM:
+// startFinishRun flushes all asynchronous work and shuts down all subcomponents
+// at the end of a run.
+//
+// Everything happens in a separate goroutine during which the Sender
+// continues to process incoming work.
+func (s *Sender) startFinishRun() {
+	go func() {
+		defer s.logger.Reraise()
+		s.finishRunSync()
+	}()
+}
+
+// finishRunSync implements the finishRun goroutine.
+//
+// The finish process happens in stages. Each stage is allowed to emit
+// additional Work that is processed by later stages, `flushWork` is called
+// between stages.
+func (s *Sender) finishRunSync() {
+	runStage := func(stage func()) {
+		stage()
+		s.flushWork()
+	}
+
+	// Wait to finish reading all TensorBoard tfevent files, if any.
+	runStage(func() {
+		s.tbHandler.Finish()
+	})
+
+	// Finish uploading captured console logs.
+	runStage(func() {
+		s.consoleLogsSender.Finish()
+	})
+
+	// Upload the run's finalized summary and config.
+	runStage(func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
 		s.summaryDebouncer.Flush(s.streamSummary)
 		s.summaryDebouncer.Stop()
 		s.uploadSummaryFile()
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_DEBOUNCER:
-		s.configDebouncer.SetNeedsDebounce()
-		s.configDebouncer.Flush(s.upsertConfig)
-		s.configDebouncer.Stop()
-		s.uploadConfigFile()
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_OUTPUT:
-		go func() {
-			defer s.logger.Reraise()
-			s.consoleLogsSender.Finish()
-			request.State++
-			s.fwdRequestDefer(request)
-		}()
-	case spb.DeferRequest_FLUSH_JOB:
-		// Wait for artifacts operations to complete here to detect
-		// code artifacts.
-		s.artifactWG.Wait()
-		s.sendJobFlush()
 
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_DIR:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_FP:
-		// Order matters: we must stop watching files first, since that pushes
-		// updates to the runfiles uploader. The uploader creates file upload
-		// tasks, so it must be flushed before we close the file transfer
-		// manager.
-		go func() {
-			defer s.logger.Reraise()
-			s.fileWatcher.Finish()
-			if s.fileTransferManager != nil {
-				s.runfilesUploader.UploadRemaining()
-				s.runfilesUploader.Finish()
-				s.fileTransferManager.Close()
-			}
-			request.State++
-			s.fwdRequestDefer(request)
-		}()
-	case spb.DeferRequest_JOIN_FP:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_FLUSH_FS:
-		go func() {
-			defer s.logger.Reraise()
-			if s.fileStream != nil {
-				switch {
-				case s.exitRecord != nil:
-					s.fileStream.FinishWithExit(
-						s.exitRecord.GetExit().GetExitCode(),
-					)
-				case s.finishWithoutExitRecord != nil:
-					s.fileStream.FinishWithoutExit()
-				default:
-					s.logger.CaptureError(
-						fmt.Errorf("sender: no exit code on finish"))
-					s.fileStream.FinishWithoutExit()
-				}
-			}
-			request.State++
-			s.fwdRequestDefer(request)
-		}()
-	case spb.DeferRequest_FLUSH_FINAL:
-		request.State++
-		s.fwdRequestDefer(request)
-	case spb.DeferRequest_END:
-		request.State++
-		s.fileTransferStats.SetDone()
-		s.syncService.Flush()
-		if !s.settings.IsSync() {
-			// if sync is enabled, we don't need to do this
-			// since exit is already stored in the transaction log
-			if s.exitRecord != nil {
-				s.respond(s.exitRecord, &spb.RunExitResult{})
-			} else if s.finishWithoutExitRecord != nil {
-				response := &spb.Response{
-					ResponseType: &spb.Response_RunFinishWithoutExitResponse{},
-				}
-				s.respond(s.finishWithoutExitRecord, response)
-			}
+		upserter, _ := s.streamRun.GetRunUpserter()
+		if upserter != nil {
+			upserter.Finish()
 		}
+		s.uploadConfigFile()
+	})
 
-		s.runWork.SetDone()
+	// Wait for artifacts operations to complete here to detect
+	// code artifacts, then upload the code (aka "job") artifact, if any.
+	runStage(func() {
+		s.artifactWG.Wait() // TODO: separate stage?
+
+		s.mu.Lock()
+		s.sendJobFlush()
+		s.mu.Unlock()
+	})
+
+	// Finish uploading non-artifact files.
+	//
+	// Order matters: we must stop watching files first, since that pushes
+	// updates to the runfiles uploader. The uploader creates file upload
+	// tasks, so it must be flushed before we close the file transfer
+	// manager.
+	runStage(func() {
+		s.fileWatcher.Finish()
+		if s.fileTransferManager != nil {
+			s.runfilesUploader.UploadRemaining()
+			s.runfilesUploader.Finish()
+			s.fileTransferManager.Close()
+		}
+	})
+
+	// Mark the run finished.
+	if s.fileStream != nil {
+		runStage(s.finishFileStream)
+	}
+
+	// From this point on, no new work may be generated by this function.
+
+	// Indicate that `run.finish()` is done.
+	//
+	// TODO: Remove this once deemed safe. It was used in the old code for
+	// printing `run.finish()` progress, and it was necessary to "close"
+	// the progress bar shown in Jupyter. Yes, that was the only purpose.
+	s.fileTransferStats.SetDone()
+
+	// Respond to the client's exit record, if necessary.
+	//
+	// Not necessary when syncing as the exit record is in the transaction log
+	// and the client is not waiting on a response.
+	//
+	// TODO: add logic to handle the case where the exit record is not present
+	//       in the transaction log.
+	switch {
+	case !s.settings.IsSync() && s.exitRecord != nil:
+		s.respond(s.exitRecord, &spb.RunExitResult{})
+	case !s.settings.IsSync() && s.finishWithoutExitRecord != nil:
+		response := &spb.Response{
+			ResponseType: &spb.Response_RunFinishWithoutExitResponse{},
+		}
+		s.respond(s.finishWithoutExitRecord, response)
+	case s.settings.IsSync() && s.syncFinishRecord != nil:
+		s.respond(s.syncFinishRecord, &spb.Response{
+			ResponseType: &spb.Response_SyncResponse{
+				SyncResponse: &spb.SyncResponse{
+					Url: fmt.Sprintf("%s/%s/%s/runs/%s",
+						s.settings.GetBaseURL(),
+						s.settings.GetEntity(),
+						s.settings.GetProject(),
+						s.settings.GetRunID(),
+					),
+				},
+			},
+		})
 	default:
-		s.logger.CaptureFatalAndPanic(
-			fmt.Errorf("sender: sendDefer: unexpected state %v", request.State))
+		s.logger.Error(
+			"sender: no sync finish record or exit record",
+		)
+	}
+
+	// Prevent any new work from being added.
+	//
+	// Note that any work queued up at this point still gets processed.
+	s.runWork.SetDone()
+}
+
+// flushWork waits until all work currently buffered is processed.
+//
+// It assumes mu is unlocked.
+func (s *Sender) flushWork() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.sentinelSent++
+	sentinel := s.sentinelSent
+	s.runWork.AddWork(runwork.NewSentinel(sentinel))
+
+	// Wait until the sentinel we added is observed, which will happen after
+	// all work that was queued when we added the sentinel is processed.
+	for s.sentinelSeen < sentinel {
+		s.sentinelCond.Wait()
 	}
 }
 
-func (s *Sender) fwdRequestDefer(request *spb.DeferRequest) {
-	record := &spb.Record{
-		RecordType: &spb.Record_Request{Request: &spb.Request{
-			RequestType: &spb.Request_Defer{Defer: request},
-		}},
-		Control: &spb.Control{AlwaysSend: true},
+// observeSentinel updates the seen sentinel value based on work.Sentinel().
+//
+// mu must be held.
+func (s *Sender) observeSentinel(work runwork.Work) {
+	workSentinel := work.Sentinel()
+	if workSentinel == nil {
+		return
 	}
-	s.fwdRecord(record)
+
+	sentinel, ok := workSentinel.(senderSentinel)
+	if !ok {
+		return
+	}
+
+	if sentinel > s.sentinelSeen {
+		s.sentinelSeen = sentinel
+		s.sentinelCond.Broadcast()
+	}
+}
+
+// finishFileStream waits for FileStream uploads to complete.
+func (s *Sender) finishFileStream() {
+	switch {
+	case s.exitRecord != nil:
+		s.fileStream.FinishWithExit(
+			s.exitRecord.GetExit().GetExitCode(),
+		)
+	case s.finishWithoutExitRecord != nil:
+		s.fileStream.FinishWithoutExit()
+	default:
+		s.logger.CaptureError(
+			fmt.Errorf("sender: no exit code on finish"))
+		s.fileStream.FinishWithoutExit()
+	}
 }
 
 func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
-	proto.Merge(s.telemetry, telemetry)
-	s.updateConfigPrivate()
-	// TODO(perf): improve when debounce config is added, for now this sends all the time
-	s.configDebouncer.SetNeedsDebounce()
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureError(fmt.Errorf("sender: sendTelemetry: %v", err))
+		return
+	}
+
+	upserter.UpdateTelemetry(telemetry)
+}
+
+func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureError(fmt.Errorf("sender: sendMetadata: %v", err))
+		return
+	}
+
+	upserter.UpdateEnvironment(environment)
+
+	// TODO: only upload the wandb-metadata.json file if the server
+	// does not understand environment info in the config.
+	s.uploadMetadataFile()
+}
+
+func (s *Sender) uploadMetadataFile() {
+	if s.runfilesUploader == nil {
+		return
+	}
+
+	if !s.settings.IsPrimary() {
+		return
+	}
+
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureError(fmt.Errorf("sender: uploadMetadataFile: %v", err))
+		return
+	}
+
+	environment, err := upserter.EnvironmentJSON()
+	if err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to serialize run environment info: %v", err))
+		return
+	}
+
+	if err := s.scheduleFileUpload(
+		environment,
+		MetaFileName,
+		filetransfer.RunFileKindWandb,
+	); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to upload run's %s file: %v", MetaFileName, err))
+	}
 }
 
 func (s *Sender) sendPreempting(record *spb.RunPreemptingRecord) {
@@ -723,12 +871,18 @@ func (s *Sender) sendLinkArtifact(record *spb.Record, msg *spb.LinkArtifactReque
 		LinkArtifact:  msg,
 		GraphqlClient: s.graphqlClient,
 	}
-	err := linker.Link()
+	linkResponse, err := linker.Link()
 	if err != nil {
 		response.ErrorMessage = err.Error()
 		s.logger.Error("sender: linkArtifact:", "error", err.Error())
 	}
 
+	if linkResponse != nil && linkResponse.LinkArtifact.VersionIndex != nil {
+		v := int32(*linkResponse.LinkArtifact.VersionIndex)
+		response.VersionIndex = &v
+	} else {
+		response.VersionIndex = nil
+	}
 	result := &spb.Result{
 		ResultType: &spb.Result_Response{
 			Response: &spb.Response{
@@ -751,401 +905,6 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
-// Inserts W&B-internal information into the run configuration.
-func (s *Sender) updateConfigPrivate() {
-	s.runConfig.AddTelemetryAndMetrics(
-		s.telemetry,
-		s.runConfigMetrics.ToRunConfigData(),
-	)
-}
-
-// Serializes the run configuration to send to the backend.
-func (s *Sender) serializeConfig(format runconfig.Format) ([]byte, error) {
-	serializedConfig, err := s.runConfig.Serialize(format)
-
-	if err != nil {
-		err = fmt.Errorf("failed to marshal config: %s", err)
-		s.logger.Error("sender: serializeConfig", "error", err)
-		return nil, err
-	}
-
-	return serializedConfig, nil
-}
-
-func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
-
-	fork := s.settings.GetForkFrom()
-	update, err := runbranch.NewForkBranch(
-		fork.GetRun(),
-		fork.GetMetric(),
-		fork.GetValue(),
-	).ApplyChanges(s.startState, runbranch.RunPath{
-		Entity:  s.startState.Entity,
-		Project: s.startState.Project,
-		RunID:   s.startState.RunID,
-	})
-
-	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("send: sendRun: failed to update run state: %s", err),
-		)
-		// provide more info about the error to the user
-		if errType, ok := err.(*runbranch.BranchError); ok {
-			if errType.Response != nil {
-				if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-					result := &spb.RunUpdateResult{
-						Error: errType.Response,
-					}
-					s.respond(record, result)
-				}
-			}
-			return
-		}
-	}
-
-	s.startState.Merge(update)
-
-	s.upsertRun(record, run)
-}
-
-func (s *Sender) sendRewindRun(record *spb.Record, run *spb.RunRecord) {
-
-	// if there is no client we can't do anything so we just return
-	if s.graphqlClient == nil {
-		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-			s.respond(record,
-				&spb.RunUpdateResult{
-					Run: run,
-				},
-			)
-		}
-		return
-	}
-
-	rewind := s.settings.GetResumeFrom()
-	update, err := runbranch.NewRewindBranch(
-		s.runWork.BeforeEndCtx(),
-		s.graphqlClient,
-		rewind.GetRun(),
-		rewind.GetMetric(),
-		rewind.GetValue(),
-	).ApplyChanges(s.startState, runbranch.RunPath{
-		Entity:  s.startState.Entity,
-		Project: s.startState.Project,
-		RunID:   s.startState.RunID,
-	})
-
-	if err != nil {
-		s.logger.Error(
-			"send: sendRun: failed to update run state",
-			"error", err,
-		)
-		// provide more info about the error to the user
-		if errType, ok := err.(*runbranch.BranchError); ok {
-			if errType.Response != nil {
-				if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-					result := &spb.RunUpdateResult{
-						Error: errType.Response,
-					}
-					s.respond(record, result)
-				}
-			}
-			return
-		}
-	}
-
-	s.startState.Merge(update)
-	// Merge the resumed config into the run config
-	s.runConfig.MergeResumedConfig(s.startState.Config)
-
-	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-		proto.Merge(run, s.startState.Proto())
-		s.respond(record,
-			&spb.RunUpdateResult{
-				Run: run,
-			},
-		)
-	}
-}
-
-func (s *Sender) sendResumeRun(record *spb.Record, run *spb.RunRecord) {
-
-	// if there is no client we can't do anything so we just return
-	if s.graphqlClient == nil {
-		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-			s.respond(record,
-				&spb.RunUpdateResult{
-					Run: run,
-				},
-			)
-		}
-		return
-	}
-
-	update, err := runbranch.NewResumeBranch(
-		s.runWork.BeforeEndCtx(),
-		s.graphqlClient,
-		s.settings.GetResume(),
-	).GetUpdates(s.startState, runbranch.RunPath{
-		Entity:  s.startState.Entity,
-		Project: s.startState.Project,
-		RunID:   s.startState.RunID,
-	})
-
-	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("send: sendRun: failed to update run state: %s", err),
-		)
-		// provide more info about the error to the user
-		if errType, ok := err.(*runbranch.BranchError); ok {
-			if errType.Response != nil {
-				if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-					result := &spb.RunUpdateResult{
-						Error: errType.Response,
-					}
-					s.respond(record, result)
-				}
-				return
-			}
-		}
-	}
-	s.startState.Merge(update)
-
-	// On the first invocation of sendRun, we overwrite the tags if the user
-	// has set them in wandb.init(). Otherwise, we keep the tags from the
-	// original run.
-	if len(run.Tags) == 0 {
-		run.Tags = append(run.Tags, s.startState.Tags...)
-	}
-
-	// Merge the resumed config into the run config
-	s.runConfig.MergeResumedConfig(s.startState.Config)
-
-	proto.Merge(run, s.startState.Proto())
-	s.upsertRun(record, run)
-}
-
-// sendRun sends a run record to the server and updates the run record
-func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
-	// TODO: we use the same record type for the initial run upsert and the
-	//  follow-up run updates, such as setting the name, tags, and notes.
-	//  The client only expects a response for the initial upsert, the
-	//  consequent updates are fire-and-forget and thus don't have a mailbox
-	//  slot.
-	//  We should probably separate the initial upsert from the updates.
-
-	var ok bool
-	runClone, ok := proto.Clone(run).(*spb.RunRecord)
-	if !ok {
-		err := errors.New("failed to clone run record")
-		s.logger.CaptureFatalAndPanic(
-			fmt.Errorf("send: sendRun: failed to send run: %s", err),
-		)
-	}
-
-	// The first run record sent by the client is encoded incorrectly,
-	// causing it to overwrite the entire "_wandb" config key rather than
-	// just the necessary part ("_wandb/code_path"). This can overwrite
-	// the config from a resumed run, so we have to do this first.
-	//
-	// Logically, it would make more sense to instead start with the
-	// resumed config and apply updates on top of it.
-	s.runConfig.ApplyChangeRecord(run.Config,
-		func(err error) {
-			s.logger.CaptureError(
-				fmt.Errorf("error updating run config: %v", err))
-		})
-
-	proto.Merge(s.telemetry, run.Telemetry)
-	s.updateConfigPrivate()
-
-	if !s.startState.Initialized {
-
-		// update the run state with the initial run record
-		s.startState.Merge(&runbranch.RunParams{
-			RunID:       runClone.GetRunId(),
-			Project:     runClone.GetProject(),
-			Entity:      runClone.GetEntity(),
-			DisplayName: runClone.GetDisplayName(),
-			StorageID:   runClone.GetStorageId(),
-			SweepID:     runClone.GetSweepId(),
-			StartTime:   runClone.GetStartTime().AsTime(),
-		})
-
-		isResume := s.settings.GetResume()
-		isRewind := s.settings.GetResumeFrom()
-		isFork := s.settings.GetForkFrom()
-		switch {
-		case isResume != "" && isRewind != nil || isResume != "" && isFork != nil || isRewind != nil && isFork != nil:
-			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-				s.respond(record,
-					&spb.RunUpdateResult{
-						Error: &spb.ErrorInfo{
-							Code: spb.ErrorInfo_USAGE,
-							Message: "`resume`, `fork_from`, and `resume_from` are mutually exclusive. " +
-								"Please specify only one of them.",
-						},
-					},
-				)
-			}
-			s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
-		case isResume != "":
-			s.sendResumeRun(record, runClone)
-		case isRewind != nil:
-			s.sendRewindRun(record, runClone)
-		case isFork != nil:
-			s.sendForkRun(record, runClone)
-		default:
-			s.upsertRun(record, runClone)
-		}
-		return
-	}
-
-	s.upsertRun(record, runClone)
-}
-
-func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
-
-	// if there is no graphql client, we don't need to do anything
-	if s.graphqlClient == nil {
-		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-			s.respond(record,
-				&spb.RunUpdateResult{
-					Run: run,
-				})
-		}
-		return
-	}
-
-	// start a new context with an additional argument from the parent context
-	// this is used to pass the retry function to the graphql client
-	ctx := context.WithValue(
-		s.runWork.BeforeEndCtx(),
-		clients.CtxRetryPolicyKey,
-		clients.UpsertBucketRetryPolicy,
-	)
-
-	operation := s.operations.New("updating run metadata")
-	defer operation.Finish()
-	ctx = operation.Context(ctx)
-
-	// if the record has a mailbox slot, create a new cancelable context
-	// and store the cancel function in the message registry so that
-	// the context can be canceled if requested by the client
-	mailboxSlot := record.GetControl().GetMailboxSlot()
-	if mailboxSlot != "" {
-		// if this times out, we mark the run as done as there is
-		// no need to proceed with it
-		ctx = s.mailbox.Add(ctx, s.runWork.SetDone, mailboxSlot)
-	} else if !s.startState.Initialized {
-		// this should never happen:
-		// the initial run upsert record should have a mailbox slot set by the client
-		s.logger.CaptureFatalAndPanic(
-			errors.New("sender: upsertRun: mailbox slot not set"),
-		)
-	}
-
-	config, _ := s.serializeConfig(runconfig.FormatJson)
-	configStr := string(config)
-
-	var commit, repo string
-	git := run.GetGit()
-	if git != nil {
-		commit = git.GetCommit()
-		repo = git.GetRemoteUrl()
-	}
-
-	program := s.settings.GetProgram()
-
-	data, err := gql.UpsertBucket(
-		ctx,                                // ctx
-		s.graphqlClient,                    // client
-		nullify.NilIfZero(run.StorageId),   // id, required for auth checks when writing to a resumed run
-		&run.RunId,                         // name
-		nullify.NilIfZero(run.Project),     // project
-		nullify.NilIfZero(run.Entity),      // entity
-		nullify.NilIfZero(run.RunGroup),    // groupName
-		nil,                                // description
-		nullify.NilIfZero(run.DisplayName), // displayName
-		nullify.NilIfZero(run.Notes),       // notes
-		nullify.NilIfZero(commit),          // commit
-		&configStr,                         // config
-		nullify.NilIfZero(run.Host),        // host
-		nil,                                // debug
-		nullify.NilIfZero(program),         // program
-		nullify.NilIfZero(repo),            // repo
-		nullify.NilIfZero(run.JobType),     // jobType
-		nil,                                // state
-		nullify.NilIfZero(run.SweepId),     // sweep
-		run.Tags,                           // tags []string,
-		nil,                                // summaryMetrics
-	)
-
-	if err != nil {
-		err = fmt.Errorf("failed to upsert bucket: %s", err)
-		s.logger.Error("sender: upsertRun:", "error", err)
-		// TODO(sync): make this more robust in case of a failed UpsertBucket request.
-		//  Need to inform the sync service that this ops failed.
-		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-			s.respond(record,
-				&spb.RunUpdateResult{
-					Error: &spb.ErrorInfo{
-						Message: err.Error(),
-						Code:    spb.ErrorInfo_COMMUNICATION,
-					},
-				},
-			)
-		}
-		return
-	}
-
-	// manage the state of the run
-	if data == nil || data.GetUpsertBucket() == nil || data.GetUpsertBucket().GetBucket() == nil {
-		s.logger.Error("sender: upsertRun: upsert bucket response is empty")
-	} else if !s.startState.Initialized {
-		// only update the state once on the initial run upsert, the subsequent
-		// updates are fire-and-forget
-
-		bucket := data.GetUpsertBucket().GetBucket()
-
-		project := bucket.GetProject()
-		var projectName, entityName string
-		if project == nil {
-			s.logger.Error("sender: upsertRun: project is nil")
-		} else {
-			entity := project.GetEntity()
-			entityName = entity.GetName()
-			projectName = project.GetName()
-		}
-
-		fileStreamOffset := make(fs.FileStreamOffsetMap)
-		fileStreamOffset[fs.HistoryChunk] = nullify.ZeroIfNil(bucket.GetHistoryLineCount())
-
-		params := &runbranch.RunParams{
-			StorageID:        bucket.GetId(),
-			Entity:           nullify.ZeroIfNil(&entityName),
-			Project:          nullify.ZeroIfNil(&projectName),
-			RunID:            bucket.GetName(),
-			DisplayName:      nullify.ZeroIfNil(bucket.GetDisplayName()),
-			SweepID:          nullify.ZeroIfNil(bucket.GetSweepName()),
-			FileStreamOffset: fileStreamOffset,
-		}
-
-		s.startState.Merge(params)
-	}
-
-	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-		// This will be done only for the initial run upsert record
-		// the consequent updates are fire-and-forget
-		proto.Merge(run, s.startState.Proto())
-		s.respond(record,
-			&spb.RunUpdateResult{
-				Run: run,
-			},
-		)
-	}
-}
-
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
@@ -1161,16 +920,16 @@ func (s *Sender) streamSummary() {
 		return
 	}
 
-	update, err := s.runSummary.ToRecords()
+	summaryJSON, err := s.runSummary.Serialize()
 
-	// `update` may be non-empty even on error.
 	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: error flattening summary: %v", err))
+			fmt.Errorf("sender: error serializing summary: %v", err))
+		return
 	}
 
 	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
-		Record: &spb.SummaryRecord{Update: update},
+		SummaryJSON: string(summaryJSON),
 	})
 }
 
@@ -1189,70 +948,12 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	s.summaryDebouncer.SetNeedsDebounce()
 }
 
-func (s *Sender) upsertConfig() {
-	if s.graphqlClient == nil {
-		return
-	}
-	if !s.startState.Initialized {
-		s.logger.Error("sender: upsertConfig: RunRecord is nil")
-		return
-	}
-
-	s.updateConfigPrivate()
-	config, err := s.serializeConfig(runconfig.FormatJson)
-	if err != nil {
-		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
-		return
-	}
-	if len(config) == 0 {
-		return
-	}
-	configStr := string(config)
-
-	ctx := context.WithValue(
-		s.runWork.BeforeEndCtx(),
-		clients.CtxRetryPolicyKey,
-		clients.UpsertBucketRetryPolicy,
-	)
-
-	operation := s.operations.New("updating run config")
-	defer operation.Finish()
-	ctx = operation.Context(ctx)
-
-	_, err = gql.UpsertBucket(
-		ctx,                                     // ctx
-		s.graphqlClient,                         // client
-		nil,                                     // id
-		&s.startState.RunID,                     // name
-		nullify.NilIfZero(s.startState.Project), // project
-		nullify.NilIfZero(s.startState.Entity),  // entity
-		nil,                                     // groupName
-		nil,                                     // description
-		nil,                                     // displayName
-		nil,                                     // notes
-		nil,                                     // commit
-		&configStr,                              // config
-		nil,                                     // host
-		nil,                                     // debug
-		nil,                                     // program
-		nil,                                     // repo
-		nil,                                     // jobType
-		nil,                                     // state
-		nil,                                     // sweep
-		nil,                                     // tags []string,
-		nil,                                     // summaryMetrics
-	)
-	if err != nil {
-		s.logger.Error("sender: sendConfig:", "error", err)
-	}
-}
-
 func (s *Sender) uploadSummaryFile() {
 	if s.runfilesUploader == nil {
 		return
 	}
 
-	if !s.startState.Initialized {
+	if !s.settings.IsPrimary() {
 		return
 	}
 
@@ -1278,11 +979,17 @@ func (s *Sender) uploadConfigFile() {
 		return
 	}
 
-	if !s.startState.Initialized {
+	if !s.settings.IsPrimary() {
 		return
 	}
 
-	config, err := s.serializeConfig(runconfig.FormatYaml)
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureError(fmt.Errorf("sender: uploadConfigFile: %v", err))
+		return
+	}
+
+	config, err := upserter.ConfigYAML()
 	if err != nil {
 		s.logger.CaptureError(
 			fmt.Errorf("sender: failed to serialize run config: %v", err))
@@ -1333,17 +1040,15 @@ func (s *Sender) scheduleFileUpload(
 	return nil
 }
 
-// sendConfig sends a config record to the server via an upsertBucket mutation
-// and updates the in memory config
+// sendConfig updates the run's config and schedules an upload.
 func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
-	if configRecord != nil {
-		s.runConfig.ApplyChangeRecord(configRecord,
-			func(err error) {
-				s.logger.CaptureError(
-					fmt.Errorf("error updating run config: %v", err))
-			})
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureError(fmt.Errorf("sender: sendConfig: %v", err))
+		return
 	}
-	s.configDebouncer.SetNeedsDebounce()
+
+	upserter.UpdateConfig(configRecord)
 }
 
 // sendSystemMetrics sends a system metrics record via the file stream
@@ -1352,22 +1057,27 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 		return
 	}
 
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureError(fmt.Errorf("sender: sendSystemMetrics: %v", err))
+		return
+	}
+
 	// This is a sanity check to ensure that the start time is set
 	// before sending system metrics, it should always be set
 	// when the run is initialized
 	// If it's not set, we log an error and return
-	if s.startState.StartTime.IsZero() {
+	startTime := upserter.StartTime()
+	if startTime.IsZero() {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: sendSystemMetrics: start time not set"),
-			"startState",
-			s.startState,
-		)
+			errors.New("sender: sendSystemMetrics: start time not set"))
 		return
 	}
 
 	s.fileStream.StreamUpdate(&fs.StatsUpdate{
-		StartTime: s.startState.StartTime,
-		Record:    record})
+		StartTime: startTime,
+		Record:    record,
+	})
 }
 
 func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {
@@ -1383,19 +1093,22 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 		return
 	}
 
-	if !s.startState.Initialized {
-		s.logger.CaptureFatalAndPanic(
-			errors.New("sender: sendAlert: RunRecord not set"))
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureFatalAndPanic(fmt.Errorf("sender: sendAlert: %v", err))
+		return
 	}
+	runPath := upserter.RunPath()
+
 	// TODO: handle invalid alert levels
 	severity := gql.AlertSeverity(alert.Level)
 
 	data, err := gql.NotifyScriptableRunAlert(
 		s.runWork.BeforeEndCtx(),
 		s.graphqlClient,
-		s.startState.Entity,
-		s.startState.Project,
-		s.startState.RunID,
+		runPath.Entity,
+		runPath.Project,
+		runPath.RunID,
 		alert.Title,
 		alert.Text,
 		&severity,
@@ -1424,67 +1137,31 @@ func (s *Sender) sendRequestRunFinishWithoutExit(record *spb.Record, _ *spb.RunF
 
 	s.finishWithoutExitRecord = record
 
-	// Send a defer request to the handler to indicate that the user requested to finish the stream
-	// and the defer state machine can kick in triggering the shutdown process
-	request := &spb.Request{RequestType: &spb.Request_Defer{
-		Defer: &spb.DeferRequest{State: spb.DeferRequest_BEGIN}},
-	}
-	if record.Control == nil {
-		record.Control = &spb.Control{AlwaysSend: true}
-	}
-
-	s.fwdRecord(
-		&spb.Record{
-			RecordType: &spb.Record_Request{
-				Request: request,
-			},
-			Uuid:    record.Uuid,
-			Control: record.Control,
-		},
-	)
+	s.startFinishRun()
 }
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
 func (s *Sender) sendExit(record *spb.Record) {
 	if s.exitRecord != nil {
-		s.logger.CaptureError(
-			errors.New("sender: received Exit record more than once, ignoring"))
+		s.logger.Warn("sender: received Exit record more than once, ignoring")
 		return
 	}
 
 	// response is done by respond() and called when defer state machine is complete
 	s.exitRecord = record
 
-	// send a defer request to the handler to indicate that the user requested to finish the stream
-	// and the defer state machine can kick in triggering the shutdown process
-	request := &spb.Request{RequestType: &spb.Request_Defer{
-		Defer: &spb.DeferRequest{State: spb.DeferRequest_BEGIN}},
-	}
-	if record.Control == nil {
-		record.Control = &spb.Control{AlwaysSend: true}
-	}
-
-	s.fwdRecord(
-		&spb.Record{
-			RecordType: &spb.Record_Request{
-				Request: request,
-			},
-			Uuid:    record.Uuid,
-			Control: record.Control,
-		},
-	)
+	s.startFinishRun()
 }
 
 // sendMetric updates the metrics in the run config.
-func (s *Sender) sendMetric(metric *spb.MetricRecord) {
-	err := s.runConfigMetrics.ProcessRecord(metric)
-
+func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
+	upserter, err := s.streamRun.GetRunUpserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendMetric: %v", err))
 		return
 	}
 
-	s.configDebouncer.SetNeedsDebounce()
+	upserter.UpdateMetrics(metrics)
 }
 
 // sendFiles uploads files according to a FilesRecord
@@ -1600,163 +1277,68 @@ func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.Downlo
 		})
 }
 
-func (s *Sender) sendRequestSync(record *spb.Record, request *spb.SyncRequest) {
-
-	s.syncService = NewSyncService(
-		s.runWork.BeforeEndCtx(),
-		WithSyncServiceLogger(s.logger),
-		WithSyncServiceSenderFunc(s.sendRecord), // TODO: pass runWork here (as ExtraWork)
-		WithSyncServiceOverwrite(request.GetOverwrite()),
-		WithSyncServiceSkip(request.GetSkip()),
-		WithSyncServiceFlushCallback(func(err error) {
-			var errorInfo *spb.ErrorInfo
-			if err != nil {
-				errorInfo = &spb.ErrorInfo{
-					Message: err.Error(),
-					Code:    spb.ErrorInfo_UNKNOWN,
-				}
-			}
-
-			var url string
-			if !s.startState.Initialized {
-				baseUrl := s.settings.GetBaseURL()
-				baseUrl = strings.Replace(baseUrl, "api.", "", 1)
-				url = fmt.Sprintf("%s/%s/%s/runs/%s",
-					baseUrl,
-					s.startState.Entity,
-					s.startState.Project,
-					s.startState.RunID,
-				)
-			}
-			s.respond(record,
-				&spb.Response{
-					ResponseType: &spb.Response_SyncResponse{
-						SyncResponse: &spb.SyncResponse{
-							Url:   url,
-							Error: errorInfo,
-						},
-					},
-				},
-			)
-		}),
-	)
-	s.syncService.Start()
-
-	rec := &spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_SenderRead{
-					SenderRead: &spb.SenderReadRequest{
-						StartOffset: request.GetStartOffset(),
-						FinalOffset: request.GetFinalOffset(),
-					},
+func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequest) {
+	respondShouldStop := func(shouldStop bool) {
+		s.respond(record, &spb.Response{
+			ResponseType: &spb.Response_StopStatusResponse{
+				StopStatusResponse: &spb.StopStatusResponse{
+					RunShouldStop: shouldStop,
 				},
 			},
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
+		})
 	}
-	s.fwdRecord(rec)
-}
 
-func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequest) {
+	upserter, err := s.streamRun.GetRunUpserter()
+	if err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: sendRequestStopStatus: %v", err))
+		respondShouldStop(false)
+		return
+	}
 
 	// TODO: unify everywhere to use settings
-	entity := s.startState.Entity
-	project := s.startState.Project
-	runId := s.startState.RunID
-
-	var stopResponse *spb.StopStatusResponse
+	runPath := upserter.RunPath()
+	entity := runPath.Entity
+	project := runPath.Project
+	runId := runPath.RunID
 
 	// if any of the entity, project or runId is empty, we can't make the request
 	if entity == "" || project == "" || runId == "" {
 		s.logger.Error("sender: sendStopStatus: entity, project, runId are empty")
-		stopResponse = &spb.StopStatusResponse{
-			RunShouldStop: false,
-		}
-	} else {
-		response, err := gql.RunStoppedStatus(
-			s.runWork.BeforeEndCtx(),
-			s.graphqlClient,
-			&entity,
-			&project,
-			runId,
-		)
-		switch {
-		case err != nil:
-			// if there is an error, we don't know if the run should stop
-			s.logger.CaptureError(
-				fmt.Errorf(
-					"sender: sendStopStatus: failed to get run stopped status: %v",
-					err,
-				))
-			stopResponse = &spb.StopStatusResponse{
-				RunShouldStop: false,
-			}
-		case response == nil || response.GetProject() == nil || response.GetProject().GetRun() == nil:
-			// if there is no response, we don't know if the run should stop
-			stopResponse = &spb.StopStatusResponse{
-				RunShouldStop: false,
-			}
-		default:
-			stopped := nullify.ZeroIfNil(response.GetProject().GetRun().GetStopped())
-			stopResponse = &spb.StopStatusResponse{
-				RunShouldStop: stopped,
-			}
-		}
+		respondShouldStop(false)
+		return
 	}
 
-	s.respond(record,
-		&spb.Response{
-			ResponseType: &spb.Response_StopStatusResponse{
-				StopStatusResponse: stopResponse,
-			},
-		},
+	response, err := gql.RunStoppedStatus(
+		s.runWork.BeforeEndCtx(),
+		s.graphqlClient,
+		&entity,
+		&project,
+		runId,
 	)
-}
 
-func (s *Sender) sendRequestSenderRead(_ *spb.Record, _ *spb.SenderReadRequest) {
-	if s.store == nil {
-		store := NewStore(s.settings.GetTransactionLogPath())
-		err := store.Open(os.O_RDONLY)
-		if err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf(
-					"sender: sendSenderRead: failed to create store: %v",
-					err,
-				))
-			return
-		}
-		s.store = store
+	if err != nil {
+		// if there is an error, we don't know if the run should stop
+		s.logger.CaptureError(
+			fmt.Errorf(
+				"sender: sendStopStatus: failed to get run stopped status: %v",
+				err,
+			))
+		respondShouldStop(false)
+		return
 	}
-	// TODO:
-	// 1. seek to startOffset
-	//
-	// if err := s.store.reader.SeekRecord(request.GetStartOffset()); err != nil {
-	// 	s.logger.CaptureError("sender: sendSenderRead: failed to seek record", err)
-	// 	return
-	// }
-	// 2. read records until finalOffset
-	//
-	for {
-		record, err := s.store.Read()
-		if s.settings.IsSync() {
-			s.syncService.SyncRecord(record, err)
-		} else if record != nil {
-			s.sendRecord(record)
-		}
-		if err == io.EOF {
-			return
-		}
-		if err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf(
-					"sender: sendSenderRead: failed to read record: %v",
-					err,
-				))
-			return
-		}
+
+	if response != nil &&
+		response.GetProject() != nil &&
+		response.GetProject().GetRun() != nil {
+		respondShouldStop(
+			nullify.ZeroIfNil(response.GetProject().GetRun().GetStopped()),
+		)
+		return
 	}
+
+	// By default, don't stop the run.
+	respondShouldStop(false)
 }
 
 func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
@@ -1765,4 +1347,8 @@ func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
+}
+
+func (s *Sender) sendRequestSyncFinish(record *spb.Record, _ *spb.SyncFinishRequest) {
+	s.syncFinishRecord = record
 }

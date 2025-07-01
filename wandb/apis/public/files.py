@@ -12,7 +12,8 @@ import wandb
 from wandb import util
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.paginator import Paginator
+from wandb.apis.paginator import SizedPaginator
+from wandb.apis.public import utils
 from wandb.apis.public.api import Api
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.sdk.lib import retry
@@ -40,7 +41,7 @@ FILE_FRAGMENT = """fragment RunFilesFragment on Run {
 }"""
 
 
-class Files(Paginator):
+class Files(SizedPaginator["File"]):
     """An iterable collection of `File` objects."""
 
     QUERY = gql(
@@ -48,6 +49,7 @@ class Files(Paginator):
         query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
             $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {{
             project(name: $project, entityName: $entity) {{
+                internalId
                 run(name: $name) {{
                     fileCount
                     ...RunFilesFragment
@@ -70,11 +72,11 @@ class Files(Paginator):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
-        if self.last_response:
-            return self.last_response["project"]["run"]["fileCount"]
-        else:
-            return None
+    def _length(self):
+        if not self.last_response:
+            self._load_page()
+
+        return self.last_response["project"]["run"]["fileCount"]
 
     @property
     def more(self):
@@ -97,7 +99,7 @@ class Files(Paginator):
 
     def convert_objects(self):
         return [
-            File(self.client, r["node"])
+            File(self.client, r["node"], self.run)
             for r in self.last_response["project"]["run"]["files"]["edges"]
         ]
 
@@ -116,12 +118,14 @@ class File(Attrs):
         mimetype (string): mimetype of file
         updated_at (string): timestamp of last update
         size (int): size of file in bytes
-
+        path_uri (str): path to file in the bucket, currently only available for files stored in S3
     """
 
-    def __init__(self, client, attrs):
+    def __init__(self, client, attrs, run=None):
         self.client = client
         self._attrs = attrs
+        self.run = run
+        self.server_supports_delete_file_with_project_id: Optional[bool] = None
         super().__init__(dict(attrs))
 
     @property
@@ -130,6 +134,20 @@ class File(Attrs):
         if size_bytes is not None:
             return int(size_bytes)
         return 0
+
+    @property
+    def path_uri(self) -> str:
+        """
+        Returns the uri path to the file in the storage bucket.
+        """
+        path_uri = ""
+        try:
+            path_uri = utils.parse_s3_url_to_s3_uri(self._attrs["directUrl"])
+        except ValueError:
+            wandb.termwarn("path_uri is only available for files stored in S3")
+        except LookupError:
+            wandb.termwarn("Unable to find direct_url of file")
+        return path_uri
 
     @normalize_exceptions
     @retry.retriable(
@@ -146,7 +164,7 @@ class File(Attrs):
     ) -> io.TextIOWrapper:
         """Downloads a file previously saved by a run from the wandb server.
 
-        Arguments:
+        Args:
             replace (boolean): If `True`, download will overwrite a local file
                 if it exists. Defaults to `False`.
             root (str): Local directory to save the file.  Defaults to ".".
@@ -174,18 +192,35 @@ class File(Attrs):
 
     @normalize_exceptions
     def delete(self):
-        mutation = gql(
-            """
-        mutation deleteFiles($files: [ID!]!) {
-            deleteFiles(input: {
-                files: $files
-            }) {
-                success
-            }
+        project_id_mutation_fragment = ""
+        project_id_variable_fragment = ""
+        variable_values = {
+            "files": [self.id],
         }
-        """
+
+        # Add projectId to mutation and variables if the server supports it.
+        # Otherwise, do not include projectId in mutation for older server versions which do not support it.
+        if self._server_accepts_project_id_for_delete_file():
+            variable_values["projectId"] = self.run._project_internal_id
+            project_id_variable_fragment = ", $projectId: Int"
+            project_id_mutation_fragment = "projectId: $projectId"
+
+        mutation_string = """
+            mutation deleteFiles($files: [ID!]!{}) {{
+                deleteFiles(input: {{
+                    files: $files
+                    {}
+                }}) {{
+                    success
+                }}
+            }}
+            """.format(project_id_variable_fragment, project_id_mutation_fragment)
+        mutation = gql(mutation_string)
+
+        self.client.execute(
+            mutation,
+            variable_values=variable_values,
         )
-        self.client.execute(mutation, variable_values={"files": [self.id]})
 
     def __repr__(self):
         return "<File {} ({}) {}>".format(
@@ -193,3 +228,36 @@ class File(Attrs):
             self.mimetype,
             util.to_human_size(self.size, units=util.POW_2_BYTES),
         )
+
+    @normalize_exceptions
+    def _server_accepts_project_id_for_delete_file(self) -> bool:
+        """Returns True if the server supports deleting files with a projectId.
+
+        This check is done by utilizing GraphQL introspection in the available fields on the DeleteFiles API.
+        """
+        query_string = """
+           query ProbeDeleteFilesProjectIdInput {
+                DeleteFilesProjectIdInputType: __type(name:"DeleteFilesInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        # Only perform the query once to avoid extra network calls
+        if self.server_supports_delete_file_with_project_id is None:
+            query = gql(query_string)
+            res = self.client.execute(query)
+
+            # If projectId is in the inputFields, the server supports deleting files with a projectId
+            self.server_supports_delete_file_with_project_id = "projectId" in [
+                x["name"]
+                for x in (
+                    res.get("DeleteFilesProjectIdInputType", {}).get(
+                        "inputFields", [{}]
+                    )
+                )
+            ]
+
+        return self.server_supports_delete_file_with_project_id

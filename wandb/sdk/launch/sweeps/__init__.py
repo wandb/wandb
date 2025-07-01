@@ -7,8 +7,6 @@ log = logging.getLogger(__name__)
 class SchedulerError(Exception):
     """Raised when a known error occurs with wandb sweep scheduler."""
 
-    pass
-
 
 def _import_sweep_scheduler() -> Any:
     from .scheduler_sweep import SweepScheduler
@@ -29,7 +27,7 @@ def load_scheduler(scheduler_type: str) -> Any:
             f"{list(_WANDB_SCHEDULERS.keys())}, got: {scheduler_type}"
         )
 
-    log.warn(f"Loading dependencies for Scheduler of type: {scheduler_type}")
+    log.warning(f"Loading dependencies for Scheduler of type: {scheduler_type}")
     import_func = _WANDB_SCHEDULERS[scheduler_type]
     return import_func()
 

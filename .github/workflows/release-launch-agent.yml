@@ -2,7 +2,7 @@ name: Release Launch Agent
 
 defaults:
   run:
-    working-directory: ./tools/launch/release
+    working-directory: ./tools/launch_release/release
 
 on:
   workflow_dispatch:

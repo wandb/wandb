@@ -59,7 +59,7 @@ def main(
                         "--eval_step",
                         str(eval_step),
                     ],
-                    env={**os.environ, **{"WANDB_SERVICE": ""}},
+                    env={**os.environ, "WANDB_SERVICE": ""},
                 )
                 eval_step += 1
 

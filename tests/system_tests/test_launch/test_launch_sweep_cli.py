@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 from typing import List
 
 import pytest
@@ -15,17 +16,22 @@ def _run_cmd_check_msg(cmd: List[str], assert_str: str) -> None:
     assert assert_str in out.decode("utf-8")
 
 
-def test_launch_sweep_param_validation(user, wandb_init, test_settings):
+def test_launch_sweep_param_validation(user):
     # make a job artifact for testing
     _project = "test-project7"
-    settings = test_settings({"project": _project})
-    run = wandb_init(settings=settings)
+    run = wandb.init(settings=wandb.Settings(project=_project))
     job_artifact = run._log_job_artifact_with_image("ljadnfakehbbr:latest", args=[])
     job_name = f"{user}/{_project}/{job_artifact.wait().name}"
     run.finish()
 
     base = ["wandb", "launch-sweep"]
-    _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
+    # In python 3.12, Click returns with an exit code of 2 when there are
+    # missing arguments.
+    if sys.version_info >= (3, 12):
+        with pytest.raises(subprocess.CalledProcessError):
+            _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
+    else:
+        _run_cmd_check_msg(base, "Usage: wandb launch-sweep [OPTIONS]")
 
     base += ["-e", user, "-p", "p"]
     err_msg = "'config' and/or 'resume_id' required"
@@ -90,12 +96,10 @@ def test_launch_sweep_param_validation(user, wandb_init, test_settings):
         ),
     ],
 )
-def test_launch_sweep_scheduler_resources(
-    user, wandb_init, test_settings, scheduler_args, msg
-):
+def test_launch_sweep_scheduler_resources(user, scheduler_args, msg):
     # make proj and job
-    settings = test_settings({"project": "model-registry"})
-    run = wandb_init(settings=settings)
+    settings = wandb.Settings(project="model-registry")
+    run = wandb.init(settings=settings)
     job_artifact = run._log_job_artifact_with_image("test:latest", args=[])
     job_name = f"{user}/model-registry/{job_artifact.wait().name}"
     run.finish()

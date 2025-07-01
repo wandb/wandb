@@ -10,7 +10,15 @@ import (
 	"github.com/getsentry/sentry-go"
 )
 
+const (
+	defaultSentryDSN = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
+	// Use for testing:
+	// testSentryDSN = "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.us.sentry.io/6438430"
+)
+
 type Params struct {
+	// Disabled is a flag to enable/disable the sentry client
+	Disabled bool
 	// DSN is the Data Source Name for the sentry client
 	DSN string
 	// AttachStacktrace is a flag to attach stacktrace to the sentry event
@@ -43,9 +51,20 @@ func New(params Params) *Client {
 	if params.BeforeSend == nil {
 		params.BeforeSend = RemoveBottomFrames
 	}
+
+	var dsn string
+	switch {
+	case params.Disabled:
+		dsn = ""
+	case params.DSN != "":
+		dsn = params.DSN
+	default:
+		dsn = defaultSentryDSN
+	}
+
 	if err := sentry.Init(
 		sentry.ClientOptions{
-			Dsn:              params.DSN,
+			Dsn:              dsn,
 			AttachStacktrace: params.AttachStacktrace,
 			Release:          params.Release,
 			Dist:             params.Commit,

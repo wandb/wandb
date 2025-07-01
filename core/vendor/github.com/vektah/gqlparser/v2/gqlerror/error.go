@@ -1,10 +1,10 @@
 package gqlerror
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -38,7 +38,7 @@ type Location struct {
 type List []*Error
 
 func (err *Error) Error() string {
-	var res bytes.Buffer
+	var res strings.Builder
 	if err == nil {
 		return ""
 	}
@@ -51,6 +51,8 @@ func (err *Error) Error() string {
 	if len(err.Locations) > 0 {
 		res.WriteByte(':')
 		res.WriteString(strconv.Itoa(err.Locations[0].Line))
+		res.WriteByte(':')
+		res.WriteString(strconv.Itoa(err.Locations[0].Column))
 	}
 
 	res.WriteString(": ")
@@ -80,7 +82,7 @@ func (err *Error) AsError() error {
 }
 
 func (errs List) Error() string {
-	var buf bytes.Buffer
+	var buf strings.Builder
 	for _, err := range errs {
 		buf.WriteString(err.Error())
 		buf.WriteByte('\n')
@@ -162,6 +164,15 @@ func ErrorPathf(path ast.Path, message string, args ...interface{}) *Error {
 }
 
 func ErrorPosf(pos *ast.Position, message string, args ...interface{}) *Error {
+	if pos == nil {
+		return ErrorLocf(
+			"",
+			-1,
+			-1,
+			message,
+			args...,
+		)
+	}
 	return ErrorLocf(
 		pos.Src.Name,
 		pos.Line,

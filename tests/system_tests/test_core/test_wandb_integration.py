@@ -10,7 +10,6 @@ Be sure to use `test_settings` or an isolated directory
 import importlib
 import os
 import shutil
-import time
 from unittest import mock
 
 import pytest
@@ -26,42 +25,42 @@ reload_fn = importlib.reload
 #  errors until we ensure we propagate the errors up.
 
 
-def test_resume_auto_success(wandb_init):
-    run = wandb_init(reinit=True, resume=True)
+def test_resume_auto_success(user):
+    run = wandb.init(resume=True)
     run.finish()
     assert not os.path.exists(run.settings.resume_fname)
 
 
-def test_include_exclude_config_keys(wandb_init):
+def test_include_exclude_config_keys(user):
     config = {
         "foo": 1,
         "bar": 2,
         "baz": 3,
     }
-    run = wandb_init(
-        reinit=True, resume=True, config=config, config_exclude_keys=("bar",)
-    )
 
-    assert run.config["foo"] == 1
-    assert run.config["baz"] == 3
-    assert "bar" not in run.config
-    run.finish()
+    with wandb.init(
+        resume=True,
+        config=config,
+        config_exclude_keys=("bar",),
+    ) as run:
+        assert run.config["foo"] == 1
+        assert run.config["baz"] == 3
+        assert "bar" not in run.config
 
-    run = wandb_init(
-        reinit=True, resume=True, config=config, config_include_keys=("bar",)
-    )
-
-    assert run.config["bar"] == 2
-    assert "foo" not in run.config
-    assert "baz" not in run.config
-    run.finish()
+    with wandb.init(
+        resume=True,
+        config=config,
+        config_include_keys=("bar",),
+    ) as run:
+        assert run.config["bar"] == 2
+        assert "foo" not in run.config
+        assert "baz" not in run.config
 
     with pytest.raises(
         wandb.errors.UsageError,
         match="Expected at most only one of exclude or include",
     ):
-        wandb_init(
-            reinit=True,
+        wandb.init(
             resume=True,
             config=config,
             config_include_keys=("bar",),
@@ -89,15 +88,15 @@ def test_dir_on_import():
     with mock.patch.dict(os.environ, {"WANDB_DIR": custom_env_path}):
         _remove_dir_if_exists(default_path)
         reload_fn(wandb)
-        assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-            default_path
+        assert not os.path.isdir(default_path), (
+            f"Unexpected directory at {default_path}"
         )
-        assert not os.path.isdir(
-            custom_env_path
-        ), f"Unexpected directory at {custom_env_path}"
+        assert not os.path.isdir(custom_env_path), (
+            f"Unexpected directory at {custom_env_path}"
+        )
 
 
-def test_dir_on_init(wandb_init):
+def test_dir_on_init(user):
     """Ensure that `wandb.init()` creates the proper directory and nothing else."""
     default_path = os.path.join(os.getcwd(), "wandb")
 
@@ -108,12 +107,12 @@ def test_dir_on_init(wandb_init):
         # Test for the base case
         reload_fn(wandb)
         _remove_dir_if_exists(default_path)
-        run = wandb_init()
+        run = wandb.init()
         run.finish()
         assert os.path.isdir(default_path), f"Expected directory at {default_path}"
 
 
-def test_dir_on_init_env(wandb_init):
+def test_dir_on_init_env(user):
     """Ensure that `wandb.init()` w/ env variable set creates the proper directory and nothing else."""
     default_path = os.path.join(os.getcwd(), "wandb")
     custom_env_path = os.path.join(os.getcwd(), "env_custom")
@@ -124,27 +123,27 @@ def test_dir_on_init_env(wandb_init):
             os.makedirs(custom_env_path)
         reload_fn(wandb)
         _remove_dir_if_exists(default_path)
-        run = wandb_init()
+        run = wandb.init()
         run.finish()
-        assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-            default_path
+        assert not os.path.isdir(default_path), (
+            f"Unexpected directory at {default_path}"
         )
-        assert os.path.isdir(custom_env_path), "Expected directory at {}".format(
-            custom_env_path
+        assert os.path.isdir(custom_env_path), (
+            f"Expected directory at {custom_env_path}"
         )
         # And for the duplicate-run case
         _remove_dir_if_exists(default_path)
-        run = wandb_init()
+        run = wandb.init()
         run.finish()
-        assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-            default_path
+        assert not os.path.isdir(default_path), (
+            f"Unexpected directory at {default_path}"
         )
-        assert os.path.isdir(custom_env_path), "Expected directory at {}".format(
-            custom_env_path
+        assert os.path.isdir(custom_env_path), (
+            f"Expected directory at {custom_env_path}"
         )
 
 
-def test_dir_on_init_dir(wandb_init):
+def test_dir_on_init_dir(user):
     """Ensure that `wandb.init(dir=DIR)` creates the proper directory and nothing else."""
     default_path = os.path.join(os.getcwd(), "wandb")
     dir_name = "dir_custom"
@@ -155,44 +154,24 @@ def test_dir_on_init_dir(wandb_init):
     _remove_dir_if_exists(default_path)
     if not os.path.isdir(custom_dir_path):
         os.makedirs(custom_dir_path)
-    run = wandb_init(dir="./" + dir_name)
+    run = wandb.init(dir="./" + dir_name)
     run.finish()
     assert not os.path.isdir(default_path), f"Unexpected directory at {default_path}"
     assert os.path.isdir(custom_dir_path), f"Expected directory at {custom_dir_path}"
     # And for the duplicate-run case
     _remove_dir_if_exists(default_path)
-    run = wandb_init(dir="./" + dir_name)
+    run = wandb.init(dir="./" + dir_name)
     run.finish()
     assert not os.path.isdir(default_path), f"Unexpected directory at {default_path}"
     assert os.path.isdir(custom_dir_path), f"Expected directory at {custom_dir_path}"
 
 
-def test_end_to_end_preempting(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init(settings=dict(console="off"))
+def test_mark_preempting(wandb_backend_spy):
+    with wandb.init() as run:
         run.mark_preempting()
 
-        # poll for message arrival
-        for _ in range(3):
-            preempting = relay.context.entries[run.id].get("preempting")
-            if preempting:
-                break
-            time.sleep(1)
-        assert any(preempting)
-        run.finish()
-
-
-def test_end_to_end_preempting_via_module_func(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init(settings=dict(console="off"))
-        run.log({"a": 1})
-        run.mark_preempting()
-
-        # poll for message arrival
-        for _ in range(3):
-            preempting = relay.context.entries[run.id].get("preempting")
-            if preempting:
-                break
-            time.sleep(1)
-        assert any(preempting)
-        run.finish()
+    # `mark_preempting` is expected to update the run ASAP, but to avoid
+    # sleeping in the test, we just check whether the message was ever sent
+    # after waiting for the run to flush.
+    with wandb_backend_spy.freeze() as snapshot:
+        assert snapshot.was_ever_preempting(run_id=run.id)

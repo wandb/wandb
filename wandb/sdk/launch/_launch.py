@@ -55,7 +55,7 @@ def set_launch_logfile(logfile: str) -> None:
     _launch_logger.log(logging.INFO, "Internal agent logs printing to %s", logfile)
 
 
-def resolve_agent_config(  # noqa: C901
+def resolve_agent_config(
     entity: Optional[str],
     max_jobs: Optional[int],
     queues: Optional[Tuple[str]],
@@ -120,10 +120,11 @@ def resolve_agent_config(  # noqa: C901
         if isinstance(resolved_config.get("queue"), str):
             resolved_config["queues"].append(resolved_config["queue"])
         else:
-            raise LaunchError(
-                f"Invalid launch agent config for key 'queue' with type: {type(resolved_config.get('queue'))}"
-                + " (expected str). Specify multiple queues with the 'queues' key"
+            msg = (
+                "Invalid launch agent config for key 'queue' with type: {type(resolved_config.get('queue'))} "
+                "(expected str). Specify multiple queues with the 'queues' key"
             )
+            raise LaunchError(msg)
 
     keys = ["entity"]
     settings = {

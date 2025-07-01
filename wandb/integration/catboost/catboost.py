@@ -13,7 +13,7 @@ from wandb.sdk.lib import telemetry as wb_telemetry
 class WandbCallback:
     """`WandbCallback` automatically integrates CatBoost with wandb.
 
-    Arguments:
+    Args:
         - metric_period: (int) if you are passing `metric_period` to your CatBoost model please pass the same value here (default=1).
 
     Passing `WandbCallback` to CatBoost will:
@@ -22,7 +22,9 @@ class WandbCallback:
 
     Example:
         ```
-        train_pool = Pool(train[features], label=train["label"], cat_features=cat_features)
+        train_pool = Pool(
+            train[features], label=train["label"], cat_features=cat_features
+        )
         test_pool = Pool(test[features], label=test["label"], cat_features=cat_features)
 
         model = CatBoostRegressor(
@@ -115,7 +117,7 @@ def log_summary(
 ) -> None:
     """`log_summary` logs useful metrics about catboost model after training is done.
 
-    Arguments:
+    Args:
         model: it can be CatBoostClassifier or CatBoostRegressor.
         log_all_params: (boolean) if True (default) log the model hyperparameters as W&B config.
         save_model_checkpoint: (boolean) if True saves the model upload as W&B artifacts.
@@ -130,7 +132,9 @@ def log_summary(
 
     Example:
         ```python
-        train_pool = Pool(train[features], label=train["label"], cat_features=cat_features)
+        train_pool = Pool(
+            train[features], label=train["label"], cat_features=cat_features
+        )
         test_pool = Pool(test[features], label=test["label"], cat_features=cat_features)
 
         model = CatBoostRegressor(

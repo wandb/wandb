@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/runconfig"
 	. "github.com/wandb/wandb/core/pkg/launch"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -23,7 +22,7 @@ func writeRequirements(t *testing.T, fdir string) {
 	assert.Nil(t, err)
 	err = f.Sync()
 	assert.Nil(t, err)
-	f.Close()
+	_ = f.Close()
 }
 
 func writeWandbMetadata(t *testing.T, fdir string, metadata map[string]interface{}) {
@@ -35,7 +34,7 @@ func writeWandbMetadata(t *testing.T, fdir string, metadata map[string]interface
 	assert.Nil(t, err)
 	err = f.Sync()
 	assert.Nil(t, err)
-	f.Close()
+	_ = f.Close()
 }
 
 func writeDiffFile(t *testing.T, fdir string) {
@@ -45,7 +44,7 @@ func writeDiffFile(t *testing.T, fdir string) {
 	assert.Nil(t, err)
 	err = f.Sync()
 	assert.Nil(t, err)
-	f.Close()
+	_ = f.Close()
 }
 
 func toWrapperPb(val interface{}) interface{} {
@@ -69,7 +68,7 @@ func writeFile(t *testing.T, fdir string, fname string, content string) {
 	assert.Nil(t, err)
 	err = f.Sync()
 	assert.Nil(t, err)
-	f.Close()
+	_ = f.Close()
 }
 
 func TestJobBuilderRepo(t *testing.T) {
@@ -92,7 +91,9 @@ func TestJobBuilderRepo(t *testing.T) {
 		writeDiffFile(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
 
-		defer os.RemoveAll(fdir)
+		defer func() {
+			_ = os.RemoveAll(fdir)
+		}()
 		settings := &spb.Settings{
 			Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -100,7 +101,7 @@ func TestJobBuilderRepo(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com__path_to_train.py", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -113,7 +114,9 @@ func TestJobBuilderRepo(t *testing.T) {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
 				assert.Nil(t, err)
-				defer jobFile.Close()
+				defer func() {
+					_ = jobFile.Close()
+				}()
 				assert.Nil(t, err)
 				data := make(map[string]interface{})
 				err = json.NewDecoder(jobFile).Decode(&data)
@@ -153,7 +156,9 @@ func TestJobBuilderRepo(t *testing.T) {
 		writeDiffFile(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
 
-		defer os.RemoveAll(fdir)
+		defer func() {
+			_ = os.RemoveAll(fdir)
+		}()
 		settings := &spb.Settings{
 			Project:      toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:       toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -163,7 +168,7 @@ func TestJobBuilderRepo(t *testing.T) {
 			XJupyterRoot: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com_Untitled.ipynb", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -176,7 +181,9 @@ func TestJobBuilderRepo(t *testing.T) {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
 				assert.Nil(t, err)
-				defer jobFile.Close()
+				defer func() {
+					_ = jobFile.Close()
+				}()
 				assert.Nil(t, err)
 				data := make(map[string]interface{})
 				err = json.NewDecoder(jobFile).Decode(&data)
@@ -204,7 +211,9 @@ func TestJobBuilderArtifact(t *testing.T) {
 		writeRequirements(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
 
-		defer os.RemoveAll(fdir)
+		defer func() {
+			_ = os.RemoveAll(fdir)
+		}()
 		settings := &spb.Settings{
 			Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -217,7 +226,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			Type: "code",
 		}
 		jobBuilder.SetRunCodeArtifact("testArtifactId", artifactRecord.GetName())
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -230,7 +239,9 @@ func TestJobBuilderArtifact(t *testing.T) {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
 				assert.Nil(t, err)
-				defer jobFile.Close()
+				defer func() {
+					_ = jobFile.Close()
+				}()
 				assert.Nil(t, err)
 				data := make(map[string]interface{})
 				err = json.NewDecoder(jobFile).Decode(&data)
@@ -266,7 +277,9 @@ func TestJobBuilderArtifact(t *testing.T) {
 		writeDiffFile(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
 
-		defer os.RemoveAll(fdir)
+		defer func() {
+			_ = os.RemoveAll(fdir)
+		}()
 		settings := &spb.Settings{
 			Project:      toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:       toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -281,7 +294,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			Type: "code",
 		}
 		jobBuilder.SetRunCodeArtifact("testArtifactId", artifactRecord.GetName())
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -293,7 +306,9 @@ func TestJobBuilderArtifact(t *testing.T) {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
 				assert.Nil(t, err)
-				defer jobFile.Close()
+				defer func() {
+					_ = jobFile.Close()
+				}()
 				assert.Nil(t, err)
 				data := make(map[string]interface{})
 				err = json.NewDecoder(jobFile).Decode(&data)
@@ -321,7 +336,10 @@ func TestJobBuilderImage(t *testing.T) {
 		writeRequirements(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
 
-		defer os.RemoveAll(fdir)
+		defer func() {
+			_ = os.RemoveAll(fdir)
+		}()
+
 		settings := &spb.Settings{
 			Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -329,7 +347,7 @@ func TestJobBuilderImage(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testImage", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -342,7 +360,9 @@ func TestJobBuilderImage(t *testing.T) {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
 				assert.Nil(t, err)
-				defer jobFile.Close()
+				defer func() {
+					_ = jobFile.Close()
+				}()
 				assert.Nil(t, err)
 				data := make(map[string]interface{})
 				err = json.NewDecoder(jobFile).Decode(&data)
@@ -367,7 +387,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 			},
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Nil(t, artifact)
 	})
@@ -380,7 +400,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
 	})
@@ -398,7 +418,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		}
 
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, artifact)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "wandb-metadata.json: no such file or directory")
@@ -414,13 +434,15 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		writeRequirements(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
 
-		defer os.RemoveAll(fdir)
+		defer func() {
+			_ = os.RemoveAll(fdir)
+		}()
 
 		settings := &spb.Settings{
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(ctx, gql, nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
 	})
@@ -715,7 +737,9 @@ func TestWandbConfigParameters(t *testing.T) {
 	writeDiffFile(t, fdir)
 	writeWandbMetadata(t, fdir, metadata)
 
-	defer os.RemoveAll(fdir)
+	defer func() {
+		_ = os.RemoveAll(fdir)
+	}()
 	settings := &spb.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -723,19 +747,17 @@ func TestWandbConfigParameters(t *testing.T) {
 		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 	}
 	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-	jobBuilder.SetRunConfig(*runconfig.NewFrom(
-		map[string]interface{}{
-			"key1": "value1",
-			"key2": "value2",
-			"key3": map[string]interface{}{
-				"key4": map[string]interface{}{
-					"key6": "value6",
-					"key7": "value7",
-				},
-				"key5": "value5",
+	runConfig := map[string]interface{}{
+		"key1": "value1",
+		"key2": "value2",
+		"key3": map[string]interface{}{
+			"key4": map[string]interface{}{
+				"key6": "value6",
+				"key7": "value7",
 			},
+			"key5": "value5",
 		},
-	))
+	}
 	jobBuilder.HandleJobInputRequest(&spb.JobInputRequest{
 		InputSource: &spb.JobInputSource{
 			Source: &spb.JobInputSource_RunConfig{},
@@ -743,7 +765,7 @@ func TestWandbConfigParameters(t *testing.T) {
 		IncludePaths: []*spb.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
 		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
 	})
-	artifact, err := jobBuilder.Build(ctx, gql, nil)
+	artifact, err := jobBuilder.Build(ctx, gql, runConfig, nil)
 	assert.Nil(t, err)
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
@@ -802,7 +824,9 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 	writeDiffFile(t, fdir)
 	writeWandbMetadata(t, fdir, metadata)
 
-	defer os.RemoveAll(fdir)
+	defer func() {
+		_ = os.RemoveAll(fdir)
+	}()
 	settings := &spb.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -810,19 +834,17 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 	}
 	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-	jobBuilder.SetRunConfig(*runconfig.NewFrom(
-		map[string]interface{}{
-			"key1": "value1",
-			"key2": "value2",
-			"key3": map[string]interface{}{
-				"key4": map[string]interface{}{
-					"key6": "value6",
-					"key7": "value7",
-				},
-				"key5": "value5",
+	runConfig := map[string]interface{}{
+		"key1": "value1",
+		"key2": "value2",
+		"key3": map[string]interface{}{
+			"key4": map[string]interface{}{
+				"key6": "value6",
+				"key7": "value7",
 			},
+			"key5": "value5",
 		},
-	))
+	}
 	inputSchema, _ := json.Marshal(map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -847,7 +869,7 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
 		InputSchema:  string(inputSchema),
 	})
-	artifact, err := jobBuilder.Build(ctx, gql, nil)
+	artifact, err := jobBuilder.Build(ctx, gql, runConfig, nil)
 	assert.Nil(t, err)
 	var artifactMetadata map[string]any
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
@@ -899,7 +921,9 @@ func TestConfigFileParameters(t *testing.T) {
 	assert.Nil(t, err)
 	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
 	writeFile(t, configDir, "config.yaml", yamlContents)
-	defer os.RemoveAll(fdir)
+	defer func() {
+		_ = os.RemoveAll(fdir)
+	}()
 	settings := &spb.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -919,7 +943,7 @@ func TestConfigFileParameters(t *testing.T) {
 		IncludePaths: []*spb.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
 		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4"}}},
 	})
-	artifact, err := jobBuilder.Build(ctx, gql, nil)
+	artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 
 	assert.Nil(t, err)
 	var artifactMetadata map[string]interface{}
@@ -976,7 +1000,9 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 	assert.Nil(t, err)
 	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
 	writeFile(t, configDir, "config.yaml", yamlContents)
-	defer os.RemoveAll(fdir)
+	defer func() {
+		_ = os.RemoveAll(fdir)
+	}()
 	settings := &spb.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -1013,7 +1039,7 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4"}}},
 		InputSchema:  string(inputSchema),
 	})
-	artifact, err := jobBuilder.Build(ctx, gql, nil)
+	artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 
 	assert.Nil(t, err)
 	var artifactMetadata map[string]interface{}

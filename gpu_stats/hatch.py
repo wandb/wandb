@@ -31,6 +31,8 @@ def build_gpu_stats(
         "build",
         "--release",
         "--message-format=json",
+        "--bin",
+        "gpu_stats",
     )
 
     try:

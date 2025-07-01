@@ -207,9 +207,7 @@ def test_launch_supplied_docker_image(
     assert "test:tag" in result.output
 
 
-def test_launch_supplied_logfile(
-    runner, monkeypatch, caplog, wandb_init, test_settings
-):
+def test_launch_supplied_logfile(runner, monkeypatch, wandb_caplog, user):
     """Test that the logfile is set properly when supplied via the CLI."""
 
     def patched_pop_empty_queue(self, queue):
@@ -228,7 +226,7 @@ def test_launch_supplied_logfile(
     )
 
     with runner.isolated_filesystem():
-        with caplog.at_level("INFO"):
+        with wandb_caplog.at_level("INFO"):
             result = runner.invoke(
                 cli.launch_agent,
                 [
@@ -361,7 +359,6 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
 def test_launch_from_uri_creates_job(
     runner,
     mocker,
-    test_settings,
     user,
 ):
     mock_job_artifact = MagicMock()

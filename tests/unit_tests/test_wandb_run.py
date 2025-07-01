@@ -1,11 +1,9 @@
 import copy
-import os
 import platform
 
 import numpy as np
 import pytest
 import wandb
-import wandb.errors
 from wandb import wandb_sdk
 
 REFERENCE_ATTRIBUTES = set(
@@ -14,7 +12,6 @@ REFERENCE_ATTRIBUTES = set(
         "config",
         "config_static",
         "define_metric",
-        "detach",
         "dir",
         "disabled",
         "display",
@@ -27,7 +24,6 @@ REFERENCE_ATTRIBUTES = set(
         "group",
         "id",
         "job_type",
-        "join",
         "link_artifact",
         "link_model",
         "log",
@@ -35,14 +31,13 @@ REFERENCE_ATTRIBUTES = set(
         "log_code",
         "log_model",
         "mark_preempting",
-        "mode",
         "name",
         "notes",
         "offline",
         "path",
-        "plot_table",
         "project",
         "project_name",
+        "project_url",
         "restore",
         "resumed",
         "save",
@@ -53,6 +48,7 @@ REFERENCE_ATTRIBUTES = set(
         "step",
         "summary",
         "sweep_id",
+        "sweep_url",
         "tags",
         "to_html",
         "unwatch",
@@ -222,33 +218,6 @@ def test_run_pub_history(mock_run, record_q, parse_records):
     assert history[1]["that"] == "2"
 
 
-def test_deprecated_run_log_sync(mock_run, mock_wandb_log):
-    run = mock_run()
-
-    run.log(dict(this=1), sync=True)
-
-    assert mock_wandb_log.warned(
-        "`sync` argument is deprecated"
-        " and does not affect the behaviour of `wandb.log`"
-    )
-
-
-def test_run_log_mp_warn(mock_run, test_settings, monkeypatch, mock_wandb_log):
-    monkeypatch.setenv("WANDB_DISABLE_SERVICE", "true")
-    test_settings = test_settings()
-    test_settings._apply_env_vars(os.environ)
-
-    run = mock_run(settings=test_settings)
-    run._init_pid = os.getpid()
-    run._init_pid += 1
-    run.log(dict(this=1))
-
-    assert mock_wandb_log.warned(
-        f"`log` ignored (called from pid={os.getpid()}, "
-        f"`init` called from pid={run._init_pid})"
-    )
-
-
 def test_use_artifact_offline(mock_run):
     run = mock_run(settings=wandb.Settings(mode="offline"))
     with pytest.raises(Exception) as e_info:
@@ -309,21 +278,21 @@ def test_run_deepcopy():
     "settings, expected",
     [
         ({}, False),
+        ({"resume": False}, False),
         ({"resume": True}, True),
         ({"resume": "auto"}, True),
         ({"resume": "allow"}, True),
         ({"resume": "never"}, True),
         ({"resume": "must"}, True),
-        ({"resume": "run_id"}, True),
     ],
 )
-def test_resumed_run_resume_file_state(mock_run, tmp_path, settings, expected):
+def test_resumed_run_resume_file_state(mocker, mock_run, tmp_path, settings, expected):
     tmp_file = tmp_path / "test_resume.json"
     tmp_file.write_text("{'run_id': 'test'}")
 
-    run = mock_run(
-        use_magic_mock=True, settings={"resume_fname": str(tmp_file), **settings}
-    )
+    mocker.patch("wandb.sdk.wandb_settings.Settings.resume_fname", tmp_file)
+
+    run = mock_run(use_magic_mock=True, settings=settings)
     run._on_ready()
 
     assert tmp_file.exists() == expected

@@ -2,23 +2,20 @@ import codecs
 import itertools
 import json
 import os
-import sys
+import pathlib
 from typing import (
     TYPE_CHECKING,
     ClassVar,
+    Literal,
     Optional,
     Sequence,
     Set,
     TextIO,
     Tuple,
     Type,
+    TypedDict,
     Union,
 )
-
-if sys.version_info >= (3, 8):
-    from typing import Literal, TypedDict
-else:
-    from typing_extensions import Literal, TypedDict
 
 import wandb
 from wandb import util
@@ -190,8 +187,8 @@ def box3d(
 class Object3D(BatchableMedia):
     """Wandb class for 3D point clouds.
 
-    Arguments:
-        data_or_path: (numpy array, string, io)
+    Args:
+        data_or_path: (numpy array, pathlib.Path, string, io)
             Object3D can be initialized from a file or a numpy array.
 
             You can pass a path to a file or an io object and a file_type
@@ -218,13 +215,16 @@ class Object3D(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union["np.ndarray", str, "TextIO", dict],
+        data_or_path: Union["np.ndarray", str, pathlib.Path, "TextIO", dict],
+        caption: Optional[str] = None,
         **kwargs: Optional[Union[str, "FileFormat3D"]],
     ) -> None:
-        super().__init__()
+        super().__init__(caption=caption)
 
-        if hasattr(data_or_path, "name"):
-            # if the file has a path, we just detect the type and copy it from there
+        if hasattr(data_or_path, "name") and not isinstance(data_or_path, pathlib.Path):
+            # if the file has a path, we just detect the type and copy it from there.
+            # this does not work for pathlib.Path objects,
+            # where `.name` returns the last directory in the path.
             data_or_path = data_or_path.name
 
         if hasattr(data_or_path, "read"):
@@ -250,7 +250,9 @@ class Object3D(BatchableMedia):
                 f.write(object_3d)
 
             self._set_file(tmp_path, is_tmp=True, extension=extension)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             path = data_or_path
             extension = None
             for supported_type in Object3D.SUPPORTED_TYPES:
@@ -341,7 +343,7 @@ class Object3D(BatchableMedia):
     ) -> "Object3D":
         """Initializes Object3D from a file or stream.
 
-        Arguments:
+        Args:
             data_or_path (Union["TextIO", str]): A path to a file or a `TextIO` stream.
             file_type (str): Specifies the data format passed to `data_or_path`. Required when `data_or_path` is a
                 `TextIO` stream. This parameter is ignored if a file path is provided. The type is taken from the file extension.
@@ -356,7 +358,7 @@ class Object3D(BatchableMedia):
     def from_numpy(cls, data: "np.ndarray") -> "Object3D":
         """Initializes Object3D from a numpy array.
 
-        Arguments:
+        Args:
             data (numpy array): Each entry in the array will
                 represent one point in the point cloud.
 
@@ -394,7 +396,7 @@ class Object3D(BatchableMedia):
     ) -> "Object3D":
         """Initializes Object3D from a python object.
 
-        Arguments:
+        Args:
             points (Sequence["Point"]): The points in the point cloud.
             boxes (Sequence["Box3D"]): 3D bounding boxes for labeling the point cloud. Boxes
             are displayed in point cloud visualizations.

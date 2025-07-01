@@ -53,6 +53,9 @@ __all__ = (
     "teardown",
     "watch",
     "unwatch",
+    "plot",
+    "plot_table",
+    "restore",
 )
 
 import os
@@ -61,15 +64,19 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     List,
     Literal,
     Optional,
     Sequence,
+    TextIO,
     Union,
 )
 
+import wandb.plot as plot
 from wandb.analytics import Sentry
-from wandb.apis import InternalApi, PublicApi
+from wandb.apis import InternalApi
+from wandb.apis import PublicApi as Api
 from wandb.data_types import (
     Audio,
     Graph,
@@ -96,62 +103,78 @@ from wandb.wandb_controller import _WandbController
 if TYPE_CHECKING:
     import torch  # type: ignore [import-not-found]
 
-    from wandb.plot.viz import CustomChart
+    import wandb
+    from wandb.plot import CustomChart
 
-__version__: str = "0.18.4.dev1"
+__version__: str = "0.20.2.dev1"
 
 run: Run | None
 config: wandb_config.Config
 summary: wandb_summary.Summary
-Api: type[PublicApi]
 
 # private attributes
 _sentry: Sentry
 api: InternalApi
 patched: Dict[str, List[Callable]]
 
-def setup(
-    settings: Optional[Settings] = None,
-) -> Optional[_WandbSetup]:
+def require(
+    requirement: str | Iterable[str] | None = None,
+    experiment: str | Iterable[str] | None = None,
+) -> None:
+    """<sdk/wandb_require.py::require>"""
+    ...
+
+def setup(settings: Settings | None = None) -> _WandbSetup:
     """<sdk/wandb_setup.py::setup>"""
     ...
 
-def teardown(exit_code: Optional[int] = None) -> None:
+def teardown(exit_code: int | None = None) -> None:
     """<sdk/wandb_setup.py::teardown>"""
     ...
 
 def init(
-    job_type: str | None = None,
-    dir: StrPath | None = None,
-    config: dict | str | None = None,
-    project: str | None = None,
     entity: str | None = None,
-    reinit: bool | None = None,
-    tags: Sequence | None = None,
-    group: str | None = None,
+    project: str | None = None,
+    dir: StrPath | None = None,
+    id: str | None = None,
     name: str | None = None,
     notes: str | None = None,
-    magic: dict | str | bool | None = None,
+    tags: Sequence[str] | None = None,
+    config: dict[str, Any] | str | None = None,
     config_exclude_keys: list[str] | None = None,
     config_include_keys: list[str] | None = None,
-    anonymous: str | None = None,
-    mode: str | None = None,
     allow_val_change: bool | None = None,
-    resume: bool | str | None = None,
+    group: str | None = None,
+    job_type: str | None = None,
+    mode: Literal["online", "offline", "disabled"] | None = None,
     force: bool | None = None,
-    tensorboard: bool | None = None,  # alias for sync_tensorboard
+    anonymous: Literal["never", "allow", "must"] | None = None,
+    reinit: (
+        bool
+        | Literal[
+            None,
+            "default",
+            "return_previous",
+            "finish_previous",
+            "create_new",
+        ]
+    ) = None,
+    resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
+    resume_from: str | None = None,
+    fork_from: str | None = None,
+    save_code: bool | None = None,
+    tensorboard: bool | None = None,
     sync_tensorboard: bool | None = None,
     monitor_gym: bool | None = None,
-    save_code: bool | None = None,
-    id: str | None = None,
-    fork_from: str | None = None,
-    resume_from: str | None = None,
     settings: Settings | dict[str, Any] | None = None,
 ) -> Run:
     """<sdk/wandb_init.py::init>"""
     ...
 
-def finish(exit_code: int | None = None, quiet: bool | None = None) -> None:
+def finish(
+    exit_code: int | None = None,
+    quiet: bool | None = None,
+) -> None:
     """<sdk/wandb_run.py::finish>"""
     ...
 
@@ -163,6 +186,7 @@ def login(
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
     verify: bool = False,
+    referrer: Optional[str] = None,
 ) -> bool:
     """<sdk/wandb_login.py::login>"""
     ...
@@ -171,13 +195,12 @@ def log(
     data: dict[str, Any],
     step: int | None = None,
     commit: bool | None = None,
-    sync: bool | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::log>"""
     ...
 
 def save(
-    glob_str: str | os.PathLike | None = None,
+    glob_str: str | os.PathLike,
     base_path: str | os.PathLike | None = None,
     policy: PolicyName = "live",
 ) -> bool | list[str]:
@@ -259,18 +282,18 @@ def link_model(
     registered_model_name: str,
     name: str | None = None,
     aliases: list[str] | None = None,
-) -> None:
+) -> Artifact | None:
     """<sdk/wandb_run.py::Run::link_model>"""
     ...
 
 def plot_table(
     vega_spec_name: str,
-    data_table: Table,
+    data_table: wandb.Table,
     fields: dict[str, Any],
     string_fields: dict[str, Any] | None = None,
-    split_table: bool | None = False,
+    split_table: bool = False,
 ) -> CustomChart:
-    """<sdk/wandb_run.py::Run::plot_table>"""
+    """<plot/custom_chart.py::plot_table>"""
     ...
 
 def watch(
@@ -288,4 +311,13 @@ def unwatch(
     models: torch.nn.Module | Sequence[torch.nn.Module] | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::unwatch>"""
+    ...
+
+def restore(
+    name: str,
+    run_path: str | None = None,
+    replace: bool = False,
+    root: str | None = None,
+) -> None | TextIO:
+    """<sdk/wandb_run.py::restore>"""
     ...

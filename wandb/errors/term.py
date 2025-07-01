@@ -5,14 +5,11 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+import re
+import shutil
 import sys
 import threading
-from typing import TYPE_CHECKING, Iterator
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Protocol
-else:
-    from typing import Protocol
+from typing import TYPE_CHECKING, Iterator, Protocol
 
 import click
 
@@ -136,12 +133,13 @@ def dynamic_text() -> Iterator[DynamicBlock | None]:
     with _dynamic_text_lock:
         _dynamic_blocks.append(block)
 
-    yield block
-
-    with _dynamic_text_lock:
-        block._lines_to_print = []
-        _l_rerender_dynamic_blocks()
-        _dynamic_blocks.remove(block)
+    try:
+        yield block
+    finally:
+        with _dynamic_text_lock:
+            block._lines_to_print = []
+            _l_rerender_dynamic_blocks()
+            _dynamic_blocks.remove(block)
 
 
 def _sys_stderr_isatty() -> bool:
@@ -275,8 +273,65 @@ class DynamicBlock:
         The lock must be held.
         """
         if self._lines_to_print:
-            click.echo("\n".join(self._lines_to_print), file=sys.stderr)
+            # Trim lines before printing. This is crucial because the \x1b[Am
+            # (cursor up) sequence used when clearing the text moves up by one
+            # visual line, and the terminal may be wrapping long lines onto
+            # multiple visual lines.
+            #
+            # There is no ANSI escape sequence that moves the cursor up by one
+            # "physical" line instead. Note that the user may resize their
+            # terminal.
+            term_width = _shutil_get_terminal_width()
+            click.echo(
+                "\n".join(
+                    _ansi_shorten(line, term_width)  #
+                    for line in self._lines_to_print
+                ),
+                file=sys.stderr,
+            )
+
         self._num_lines_printed += len(self._lines_to_print)
+
+
+def _shutil_get_terminal_width() -> int:
+    """Returns the width of the terminal.
+
+    Defined here for patching in tests.
+    """
+    columns, _ = shutil.get_terminal_size()
+    return columns
+
+
+_ANSI_RE = re.compile("\x1b\\[(K|.*?m)")
+
+
+def _ansi_shorten(text: str, width: int) -> str:
+    """Shorten text potentially containing ANSI sequences to fit a width."""
+    first_ansi = _ANSI_RE.search(text)
+
+    if not first_ansi:
+        return _raw_shorten(text, width)
+
+    if first_ansi.start() > width - 3:
+        return _raw_shorten(text[: first_ansi.start()], width)
+
+    return text[: first_ansi.end()] + _ansi_shorten(
+        text[first_ansi.end() :],
+        # Key part: the ANSI sequence doesn't reduce the remaining width.
+        width - first_ansi.start(),
+    )
+
+
+def _raw_shorten(text: str, width: int) -> str:
+    """Shorten text to fit a width, replacing the end with "...".
+
+    Unlike textwrap.shorten(), this does not drop whitespace or do anything
+    smart.
+    """
+    if len(text) <= width:
+        return text
+
+    return text[: width - 3] + "..."
 
 
 def _log(

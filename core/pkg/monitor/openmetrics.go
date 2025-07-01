@@ -1,11 +1,13 @@
 package monitor
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/common/expfmt"
 )
@@ -22,7 +25,7 @@ import (
 //
 // It represents the internal structure for spb.OpenMetricsFilters.
 // For more details on configuring OpenMetrics filters, refer to the documentation
-// for the _stats_open_metrics_endpoints and _stats_open_metrics_filters settings.
+// for the x_stats_open_metrics_endpoints and x_stats_open_metrics_filters settings.
 type Filter struct {
 	MetricNameRegex string
 	LabelFilters    []LabelFilter
@@ -83,6 +86,7 @@ type OpenMetrics struct {
 	name        string
 	url         string
 	filters     []Filter
+	headers     map[string]string
 	client      *retryablehttp.Client
 	logger      *observability.CoreLogger
 	labelMap    map[string]map[string]int    // metricName -> labelHash -> index
@@ -95,6 +99,7 @@ func NewOpenMetrics(
 	name string,
 	url string,
 	filters *spb.OpenMetricsFilters,
+	headers map[string]string,
 	retryClient *retryablehttp.Client,
 ) *OpenMetrics {
 	var client *retryablehttp.Client
@@ -136,6 +141,7 @@ func NewOpenMetrics(
 		name:        name,
 		url:         url,
 		filters:     processedFilters,
+		headers:     headers,
 		client:      client,
 		logger:      logger,
 		labelMap:    make(map[string]map[string]int),
@@ -164,7 +170,7 @@ func (o *OpenMetrics) ShouldCaptureMetric(metricName string, metricLabels map[st
 
 	// generate a hash of metricName and metricLabels to avoid recomputing it
 	// for the same metric
-	hash := o.GenerateLabelHash(metricLabels)
+	hash := GenerateLabelHash(metricLabels)
 	if shouldCapture, ok := o.cache.Get(metricName + hash); ok {
 		return shouldCapture.(bool)
 	}
@@ -210,13 +216,25 @@ func (o *OpenMetrics) ShouldCaptureMetric(metricName string, metricLabels map[st
 }
 
 // Sample fetches and processes metrics from the OpenMetrics endpoint.
-func (o *OpenMetrics) Sample() (map[string]any, error) {
-	resp, err := o.client.Get(o.url)
+func (o *OpenMetrics) Sample() (*spb.StatsRecord, error) {
+	req, err := retryablehttp.NewRequest("GET", o.url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add custom headers if provided
+	for key, value := range o.headers {
+		req.Header.Set(key, value)
+	}
+
+	resp, err := o.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	if resp != nil {
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 	}
 
 	if resp == nil {
@@ -232,7 +250,7 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 		return nil, err
 	}
 
-	result := make(map[string]any)
+	metrics := make(map[string]any)
 
 	for name, mf := range metricFamilies {
 		for _, m := range mf.Metric {
@@ -250,7 +268,7 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 				continue
 			}
 
-			labelHash := o.GenerateLabelHash(labels)
+			labelHash := GenerateLabelHash(labels)
 
 			if _, ok := o.labelMap[name]; !ok {
 				o.labelMap[name] = make(map[string]int)
@@ -273,39 +291,40 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 			// for the metric based on its labels. the openmetrics prefix is stripped off
 			// and not displayed in the frontend.
 			key := fmt.Sprintf("openmetrics.%s.%s.%d", o.Name(), name, index)
-			result[key] = value
+			metrics[key] = value
 		}
 	}
 
-	return result, nil
+	if len(metrics) == 0 {
+		return nil, nil
+	}
+
+	return marshal(metrics, timestamppb.Now()), nil
 }
 
-// generateLabelHash creates a hash of the label map for consistent indexing.
-func (o *OpenMetrics) GenerateLabelHash(labels map[string]string) string {
-	var sb strings.Builder
-	for k, v := range labels {
-		sb.WriteString(k)
-		sb.WriteString(v)
+// GenerateLabelHash creates a hash of the label map for consistent indexing.
+func GenerateLabelHash(labels map[string]string) string {
+	// Sort keys to ensure consistent ordering
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
 	}
+	sort.Strings(keys)
+
+	// Build string with sorted keys and values
+	var sb strings.Builder
+	for _, k := range keys {
+		sb.WriteString(k)
+		sb.WriteString("=")
+		sb.WriteString(labels[k])
+		sb.WriteString(";")
+	}
+
+	// Generate MD5 hash
 	hash := md5.Sum([]byte(sb.String()))
 	return hex.EncodeToString(hash[:])
 }
 
-// IsAvailable checks if the OpenMetrics endpoint is accessible.
-func (o *OpenMetrics) IsAvailable() bool {
-	// try to fetch the metrics once to check if the endpoint is available
-	_, err := o.Sample()
-	if err != nil {
-		o.logger.Warn(
-			"monitor: openmetrics: failed to fetch metrics from endpoint",
-			"url", o.url,
-			"error", err,
-		)
-		return false
-	}
-	return true
-}
-
-func (o *OpenMetrics) Probe() *spb.MetadataRequest {
+func (o *OpenMetrics) Probe(_ context.Context) *spb.EnvironmentRecord {
 	return nil
 }

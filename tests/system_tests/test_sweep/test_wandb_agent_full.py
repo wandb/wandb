@@ -7,7 +7,7 @@ import wandb
 from wandb.apis.public import Api
 
 
-def test_agent_basic(wandb_init):
+def test_agent_basic(user):
     sweep_ids = []
     sweep_configs = []
     sweep_resumed = []
@@ -19,7 +19,7 @@ def test_agent_basic(wandb_init):
     }
 
     def train():
-        run = wandb_init()
+        run = wandb.init()
         sweep_ids.append(run.sweep_id)
         sweep_configs.append(dict(run.config))
         sweep_resumed.append(run.resumed)
@@ -35,11 +35,11 @@ def test_agent_basic(wandb_init):
     assert sweep_resumed[0] is False
 
 
-def test_agent_config_merge(wandb_init):
+def test_agent_config_merge(user):
     sweep_configs = []
 
     def train():
-        run = wandb_init(config={"extra": 2})
+        run = wandb.init(config={"extra": 2})
         sweep_configs.append(dict(run.config))
         run.finish()
 
@@ -57,11 +57,11 @@ def test_agent_config_merge(wandb_init):
     assert sweep_configs[0] == {"a": 1, "extra": 2}
 
 
-def test_agent_config_ignore(wandb_init):
+def test_agent_config_ignore(user):
     sweep_configs = []
 
     def train():
-        run = wandb_init(config={"a": "ignored", "extra": 2})
+        run = wandb.init(config={"a": "ignored", "extra": 2})
         sweep_configs.append(dict(run.config))
         run.finish()
 
@@ -78,7 +78,7 @@ def test_agent_config_ignore(wandb_init):
     assert sweep_configs[0] == {"a": 1, "extra": 2}
 
 
-def test_agent_ignore_project_entity_run_id(wandb_init, user):
+def test_agent_ignore_project_entity_run_id(user):
     sweep_entities = []
     sweep_projects = []
     sweep_run_ids = []
@@ -88,7 +88,7 @@ def test_agent_ignore_project_entity_run_id(wandb_init, user):
     public_api.create_project(project_name, user)
 
     def train():
-        run = wandb_init(entity="ign", project="ignored", id="also_ignored")
+        run = wandb.init(entity="ign", project="ignored", id="also_ignored")
         sweep_projects.append(run.project)
         sweep_entities.append(run.entity)
         sweep_run_ids.append(run.id)

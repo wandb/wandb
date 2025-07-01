@@ -2,19 +2,12 @@ import asyncio
 import functools
 import inspect
 import logging
-import sys
-from typing import Any, Dict, Optional, Sequence, TypeVar
+from typing import Any, Dict, Optional, Protocol, Sequence, TypeVar
 
 import wandb.sdk
 import wandb.util
 from wandb.sdk.lib import telemetry as wb_telemetry
 from wandb.sdk.lib.timer import Timer
-
-if sys.version_info >= (3, 8):
-    from typing import Protocol
-else:
-    from typing_extensions import Protocol
-
 
 logger = logging.getLogger(__name__)
 

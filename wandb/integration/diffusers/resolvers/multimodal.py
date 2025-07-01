@@ -597,7 +597,7 @@ class DiffusersMultiModalPipelineResolver:
     `__call__` for `wandb.integration.diffusers.pipeline_resolver.DiffusersPipelineResolver`.
     This is based on `wandb.sdk.integration_utils.auto_logging.RequestResponseResolver`.
 
-    Arguments:
+    Args:
         pipeline_name: (str) The name of the Diffusion Pipeline.
     """
 
@@ -621,7 +621,7 @@ class DiffusersMultiModalPipelineResolver:
     ) -> Any:
         """Main call method for the `DiffusersPipelineResolver` class.
 
-        Arguments:
+        Args:
             args: (Sequence[Any]) List of arguments.
             kwargs: (Dict[str, Any]) Dictionary of keyword arguments.
             response: (wandb.sdk.integration_utils.auto_logging.Response) The response from
@@ -669,8 +669,7 @@ class DiffusersMultiModalPipelineResolver:
                 )
 
             # Return the WandB loggable dict
-            loggable_dict = self.prepare_loggable_dict(pipeline, response, kwargs)
-            return loggable_dict
+            return self.prepare_loggable_dict(pipeline, response, kwargs)
         except Exception as e:
             logger.warning(e)
         return None
@@ -678,7 +677,7 @@ class DiffusersMultiModalPipelineResolver:
     def get_output_images(self, response: Response) -> List:
         """Unpack the generated images, audio, video, etc. from the Diffusion Pipeline's response.
 
-        Arguments:
+        Args:
             response: (wandb.sdk.integration_utils.auto_logging.Response) The response from
                 the request.
 
@@ -704,7 +703,7 @@ class DiffusersMultiModalPipelineResolver:
     def log_media(self, image: Any, loggable_kwarg_chunks: List, idx: int) -> None:
         """Log the generated images, audio, video, etc. from the Diffusion Pipeline's response along with an optional caption to a media panel in the run.
 
-        Arguments:
+        Args:
             image: (Any) The generated images, audio, video, etc. from the Diffusion
                 Pipeline's response.
             loggable_kwarg_chunks: (List) Loggable chunks of kwargs.
@@ -780,7 +779,7 @@ class DiffusersMultiModalPipelineResolver:
     ) -> None:
         """Populate the row of the `wandb.Table`.
 
-        Arguments:
+        Args:
             image: (Any) The generated images, audio, video, etc. from the Diffusion
                 Pipeline's response.
             loggable_kwarg_chunks: (List) Loggable chunks of kwargs.
@@ -819,7 +818,7 @@ class DiffusersMultiModalPipelineResolver:
     ) -> Dict[str, Any]:
         """Prepare the loggable dictionary, which is the packed data as a dictionary for logging to wandb, None if an exception occurred.
 
-        Arguments:
+        Args:
             pipeline: (Any) The Diffusion Pipeline.
             response: (wandb.sdk.integration_utils.auto_logging.Response) The response from
                 the request.

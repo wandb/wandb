@@ -25,8 +25,8 @@ if TYPE_CHECKING:  # pragma: no cover
 class Molecule(BatchableMedia):
     """Wandb class for 3D Molecular data.
 
-    Arguments:
-        data_or_path: (string, io)
+    Args:
+        data_or_path: (pathlib.Path, string, io)
             Molecule can be initialized from a file name or an io object.
         caption: (string)
             Caption associated with the molecule for display.
@@ -49,13 +49,11 @@ class Molecule(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union[str, "TextIO"],
+        data_or_path: Union[str, pathlib.Path, "TextIO"],
         caption: Optional[str] = None,
         **kwargs: str,
     ) -> None:
-        super().__init__()
-
-        self._caption = caption
+        super().__init__(caption=caption)
 
         if hasattr(data_or_path, "name"):
             # if the file has a path, we just detect the type and copy it from there
@@ -84,7 +82,9 @@ class Molecule(BatchableMedia):
                 f.write(molecule)
 
             self._set_file(tmp_path, is_tmp=True)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             extension = os.path.splitext(data_or_path)[1][1:]
             if extension not in Molecule.SUPPORTED_TYPES:
                 raise ValueError(
@@ -106,7 +106,7 @@ class Molecule(BatchableMedia):
     ) -> "Molecule":
         """Convert RDKit-supported file/object types to wandb.Molecule.
 
-        Arguments:
+        Args:
             data_or_path: (string, rdkit.Chem.rdchem.Mol)
                 Molecule can be initialized from a file name or an rdkit.Chem.rdchem.Mol object.
             caption: (string)
@@ -146,9 +146,7 @@ class Molecule(BatchableMedia):
         elif isinstance(data_or_path, rdkit_chem.rdchem.Mol):
             molecule = data_or_path
         else:
-            raise ValueError(
-                "Data must be file name or an rdkit.Chem.rdchem.Mol object"
-            )
+            raise TypeError("Data must be file name or an rdkit.Chem.rdchem.Mol object")
 
         if convert_to_3d_and_optimize:
             molecule = rdkit_chem.AddHs(molecule)
@@ -173,7 +171,7 @@ class Molecule(BatchableMedia):
     ) -> "Molecule":
         """Convert SMILES string to wandb.Molecule.
 
-        Arguments:
+        Args:
             data: (string)
                 SMILES string.
             caption: (string)
@@ -208,8 +206,6 @@ class Molecule(BatchableMedia):
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
-        if self._caption:
-            json_dict["caption"] = self._caption
         return json_dict
 
     @classmethod

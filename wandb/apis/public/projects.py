@@ -1,11 +1,15 @@
 """Public API: projects."""
 
+from contextlib import suppress
+
+from requests import HTTPError
 from wandb_gql import gql
 
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
+from wandb.apis.public.api import RetryingClient
 from wandb.sdk.lib import ipython
 
 PROJECT_FRAGMENT = """fragment ProjectFragment on Project {
@@ -17,7 +21,7 @@ PROJECT_FRAGMENT = """fragment ProjectFragment on Project {
 }"""
 
 
-class Projects(Paginator):
+class Projects(Paginator["Project"]):
     """An iterable collection of `Project` objects."""
 
     QUERY = gql(
@@ -40,7 +44,19 @@ class Projects(Paginator):
         """.format(PROJECT_FRAGMENT)
     )
 
-    def __init__(self, client, entity, per_page=50):
+    def __init__(
+        self,
+        client: RetryingClient,
+        entity: str,
+        per_page: int = 50,
+    ) -> "Projects":
+        """An iterable collection of `Project` objects.
+
+        Args:
+            client: The API client used to query W&B.
+            entity: The entity which owns the projects.
+            per_page: The number of projects to fetch per request to the API.
+        """
         self.client = client
         self.entity = entity
         variables = {
@@ -49,7 +65,8 @@ class Projects(Paginator):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
+    def length(self) -> None:
+        # For backwards compatibility, even though this isn't a SizedPaginator
         return None
 
     @property
@@ -79,7 +96,31 @@ class Projects(Paginator):
 class Project(Attrs):
     """A project is a namespace for runs."""
 
-    def __init__(self, client, entity, project, attrs):
+    QUERY = gql(
+        """
+        query Project($project: String!, $entity: String!) {
+            project(name: $project, entityName: $entity) {
+                id
+            }
+        }
+        """
+    )
+
+    def __init__(
+        self,
+        client: RetryingClient,
+        entity: str,
+        project: str,
+        attrs: dict,
+    ) -> "Project":
+        """A single project associated with an entity.
+
+        Args:
+            client: The API client used to query W&B.
+            entity: The entity which owns the project.
+            project: The name of the project to query.
+            attrs: The attributes of the project.
+        """
         super().__init__(dict(attrs))
         self.client = client
         self.name = project
@@ -139,7 +180,7 @@ class Project(Attrs):
         )
         variable_values = {"project": self.name, "entity": self.entity}
         ret = self.client.execute(query, variable_values)
-        if ret["project"]["totalSweeps"] < 1:
+        if not ret.get("project") or ret["project"]["totalSweeps"] < 1:
             return []
 
         return [
@@ -152,3 +193,33 @@ class Project(Attrs):
             )
             for e in ret["project"]["sweeps"]["edges"]
         ]
+
+    _PROJECT_ID = gql(
+        """
+        query ProjectID($projectName: String!, $entityName: String!) {
+            project(name: $projectName, entityName: $entityName) {
+                id
+            }
+        }
+        """
+    )
+
+    @property
+    def id(self) -> str:
+        # This is a workaround to ensure that the project ID can be retrieved
+        # on demand, as it generally is not set or fetched on instantiation.
+        # This is necessary if using this project as the scope of a new Automation.
+        with suppress(LookupError):
+            return self._attrs["id"]
+
+        variable_values = {"projectName": self.name, "entityName": self.entity}
+        try:
+            data = self.client.execute(self._PROJECT_ID, variable_values)
+
+            if not data.get("project") or not data["project"].get("id"):
+                raise ValueError(f"Project {self.name} not found")
+
+            self._attrs["id"] = data["project"]["id"]
+            return self._attrs["id"]
+        except (HTTPError, LookupError, TypeError) as e:
+            raise ValueError(f"Unable to fetch project ID: {variable_values!r}") from e

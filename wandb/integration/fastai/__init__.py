@@ -39,26 +39,22 @@ Examples:
 import random
 import sys
 from pathlib import Path
-from typing import Any, Optional
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+from typing import Any, Literal, Optional
 
 import fastai
 from fastai.callbacks import TrackerCallback
 
 import wandb
+from wandb.sdk.lib import ipython
 
 try:
     import matplotlib
 
-    if wandb.wandb_lib.ipython._get_python_type() != "jupyter":  # type: ignore[attr-defined]
+    if not ipython.in_jupyter():
         matplotlib.use("Agg")  # non-interactive backend (avoid tkinter issues)
     import matplotlib.pyplot as plt
 except ImportError:
-    print("Warning: matplotlib required if logging sample image predictions")
+    wandb.termwarn("matplotlib required if logging sample image predictions")
 
 
 class WandbCallback(TrackerCallback):
@@ -66,7 +62,7 @@ class WandbCallback(TrackerCallback):
 
     Optionally logs weights, gradients, sample predictions and best trained model.
 
-    Arguments:
+    Args:
         learn (fastai.basic_train.Learner): the fast.ai learner to hook.
         log (str): "gradients", "parameters", "all", or None. Losses & metrics are always logged.
         save_model (bool): save model at the end of each epoch. It will also load best model at the end of training.
@@ -138,10 +134,8 @@ class WandbCallback(TrackerCallback):
             # Adapted from fast.ai "SaveModelCallback"
             current = self.get_monitor_value()
             if current is not None and self.operator(current, self.best):
-                print(
-                    "Better model found at epoch {} with {} value: {}.".format(
-                        epoch, self.monitor, current
-                    )
+                wandb.termlog(
+                    f"Better model found at epoch {epoch} with {self.monitor} value: {current}."
                 )
                 self.best = current
 
@@ -177,7 +171,7 @@ class WandbCallback(TrackerCallback):
             if self.model_path.is_file():
                 with self.model_path.open("rb") as model_file:
                     self.learn.load(model_file, purge=False)
-                    print(f"Loaded best saved model from {self.model_path}")
+                    wandb.termlog(f"Loaded best saved model from {self.model_path}")
 
     def _wandb_log_predictions(self) -> None:
         """Log prediction samples."""

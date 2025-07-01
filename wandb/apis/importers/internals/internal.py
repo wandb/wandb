@@ -311,19 +311,19 @@ def _make_settings(
     _settings_override = coalesce(settings_override, {})
 
     default_settings: Dict[str, Any] = {
-        "files_dir": os.path.join(root_dir, "files"),
+        "x_files_dir": os.path.join(root_dir, "files"),
         "root_dir": root_dir,
         "sync_file": os.path.join(root_dir, "txlog.wandb"),
         "resume": "false",
         "program": None,
         "ignore_globs": [],
         "disable_job_creation": True,
-        "_start_time": 0,
+        "x_start_time": 0,
         "_offline": None,
-        "_sync": True,
-        "_live_policy_rate_limit": 15,  # matches dir_watcher
-        "_live_policy_wait_time": 600,  # matches dir_watcher
-        "_file_stream_timeout_seconds": 60,
+        "x_sync": True,
+        "x_live_policy_rate_limit": 15,  # matches dir_watcher
+        "x_live_policy_wait_time": 600,  # matches dir_watcher
+        "x_file_stream_timeout_seconds": 60,
     }
 
     combined_settings = {**default_settings, **_settings_override}
@@ -364,9 +364,6 @@ def send_run(
     sm = AlternateSendManager(
         settings, sm_record_q, result_q, interface, context_keeper
     )
-    # wm = WriteManager(
-    #     settings, wm_record_q, result_q, sm_record_q, interface, context_keeper
-    # )
 
     if extra_arts or extra_used_arts:
         records = rm.make_artifacts_only_records(extra_arts, extra_used_arts)

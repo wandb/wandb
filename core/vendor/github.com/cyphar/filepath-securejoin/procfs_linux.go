@@ -12,7 +12,6 @@ import (
 	"os"
 	"runtime"
 	"strconv"
-	"sync"
 
 	"golang.org/x/sys/unix"
 )
@@ -54,7 +53,7 @@ func verifyProcRoot(procRoot *os.File) error {
 	return nil
 }
 
-var hasNewMountApi = sync.OnceValue(func() bool {
+var hasNewMountApi = sync_OnceValue(func() bool {
 	// All of the pieces of the new mount API we use (fsopen, fsconfig,
 	// fsmount, open_tree) were added together in Linux 5.1[1,2], so we can
 	// just check for one of the syscalls and the others should also be
@@ -134,7 +133,7 @@ func clonePrivateProcMount() (_ *os.File, Err error) {
 	// we can be sure there are no over-mounts and so if the root is valid then
 	// we're golden. Otherwise, we have to deal with over-mounts.
 	procfsHandle, err := openTree(nil, "/proc", unix.OPEN_TREE_CLONE)
-	if err != nil || testingForcePrivateProcRootOpenTreeAtRecursive(procfsHandle) {
+	if err != nil || hookForcePrivateProcRootOpenTreeAtRecursive(procfsHandle) {
 		procfsHandle, err = openTree(nil, "/proc", unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 	}
 	if err != nil {
@@ -152,13 +151,13 @@ func clonePrivateProcMount() (_ *os.File, Err error) {
 }
 
 func privateProcRoot() (*os.File, error) {
-	if !hasNewMountApi() || testingForceGetProcRootUnsafe() {
+	if !hasNewMountApi() || hookForceGetProcRootUnsafe() {
 		return nil, fmt.Errorf("new mount api: %w", unix.ENOTSUP)
 	}
 	// Try to create a new procfs mount from scratch if we can. This ensures we
 	// can get a procfs mount even if /proc is fake (for whatever reason).
 	procRoot, err := newPrivateProcMount()
-	if err != nil || testingForcePrivateProcRootOpenTree(procRoot) {
+	if err != nil || hookForcePrivateProcRootOpenTree(procRoot) {
 		// Try to clone /proc then...
 		procRoot, err = clonePrivateProcMount()
 	}
@@ -192,11 +191,11 @@ func doGetProcRoot() (*os.File, error) {
 	return procRoot, err
 }
 
-var getProcRoot = sync.OnceValues(func() (*os.File, error) {
+var getProcRoot = sync_OnceValues(func() (*os.File, error) {
 	return doGetProcRoot()
 })
 
-var hasProcThreadSelf = sync.OnceValue(func() bool {
+var hasProcThreadSelf = sync_OnceValue(func() bool {
 	return unix.Access("/proc/thread-self/", unix.F_OK) == nil
 })
 
@@ -227,10 +226,10 @@ func procThreadSelf(procRoot *os.File, subpath string) (_ *os.File, _ procThread
 
 	// Figure out what prefix we want to use.
 	threadSelf := "thread-self/"
-	if !hasProcThreadSelf() || testingForceProcSelfTask() {
+	if !hasProcThreadSelf() || hookForceProcSelfTask() {
 		/// Pre-3.17 kernels don't have /proc/thread-self, so do it manually.
 		threadSelf = "self/task/" + strconv.Itoa(unix.Gettid()) + "/"
-		if _, err := fstatatFile(procRoot, threadSelf, unix.AT_SYMLINK_NOFOLLOW); err != nil || testingForceProcSelf() {
+		if _, err := fstatatFile(procRoot, threadSelf, unix.AT_SYMLINK_NOFOLLOW); err != nil || hookForceProcSelf() {
 			// In this case, we running in a pid namespace that doesn't match
 			// the /proc mount we have. This can happen inside runc.
 			//
@@ -265,12 +264,20 @@ func procThreadSelf(procRoot *os.File, subpath string) (_ *os.File, _ procThread
 			Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_XDEV | unix.RESOLVE_NO_MAGICLINKS,
 		})
 		if err != nil {
-			return nil, nil, fmt.Errorf("%w: %w", errUnsafeProcfs, err)
+			// TODO: Once we bump the minimum Go version to 1.20, we can use
+			// multiple %w verbs for this wrapping. For now we need to use a
+			// compatibility shim for older Go versions.
+			//err = fmt.Errorf("%w: %w", errUnsafeProcfs, err)
+			return nil, nil, wrapBaseError(err, errUnsafeProcfs)
 		}
 	} else {
 		handle, err = openatFile(procRoot, threadSelf+subpath, unix.O_PATH|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 		if err != nil {
-			return nil, nil, fmt.Errorf("%w: %w", errUnsafeProcfs, err)
+			// TODO: Once we bump the minimum Go version to 1.20, we can use
+			// multiple %w verbs for this wrapping. For now we need to use a
+			// compatibility shim for older Go versions.
+			//err = fmt.Errorf("%w: %w", errUnsafeProcfs, err)
+			return nil, nil, wrapBaseError(err, errUnsafeProcfs)
 		}
 		defer func() {
 			if Err != nil {
@@ -289,12 +296,17 @@ func procThreadSelf(procRoot *os.File, subpath string) (_ *os.File, _ procThread
 	return handle, runtime.UnlockOSThread, nil
 }
 
-var hasStatxMountId = sync.OnceValue(func() bool {
+// STATX_MNT_ID_UNIQUE is provided in golang.org/x/sys@v0.20.0, but in order to
+// avoid bumping the requirement for a single constant we can just define it
+// ourselves.
+const STATX_MNT_ID_UNIQUE = 0x4000
+
+var hasStatxMountId = sync_OnceValue(func() bool {
 	var (
 		stx unix.Statx_t
 		// We don't care which mount ID we get. The kernel will give us the
 		// unique one if it is supported.
-		wantStxMask uint32 = unix.STATX_MNT_ID_UNIQUE | unix.STATX_MNT_ID
+		wantStxMask uint32 = STATX_MNT_ID_UNIQUE | unix.STATX_MNT_ID
 	)
 	err := unix.Statx(-int(unix.EBADF), "/", 0, int(wantStxMask), &stx)
 	return err == nil && stx.Mask&wantStxMask != 0
@@ -310,7 +322,7 @@ func getMountId(dir *os.File, path string) (uint64, error) {
 		stx unix.Statx_t
 		// We don't care which mount ID we get. The kernel will give us the
 		// unique one if it is supported.
-		wantStxMask uint32 = unix.STATX_MNT_ID_UNIQUE | unix.STATX_MNT_ID
+		wantStxMask uint32 = STATX_MNT_ID_UNIQUE | unix.STATX_MNT_ID
 	)
 
 	err := unix.Statx(int(dir.Fd()), path, unix.AT_EMPTY_PATH|unix.AT_SYMLINK_NOFOLLOW, int(wantStxMask), &stx)
@@ -424,3 +436,17 @@ func checkProcSelfFdPath(path string, file *os.File) error {
 	}
 	return nil
 }
+
+// Test hooks used in the procfs tests to verify that the fallback logic works.
+// See testing_mocks_linux_test.go and procfs_linux_test.go for more details.
+var (
+	hookForcePrivateProcRootOpenTree            = hookDummyFile
+	hookForcePrivateProcRootOpenTreeAtRecursive = hookDummyFile
+	hookForceGetProcRootUnsafe                  = hookDummy
+
+	hookForceProcSelfTask = hookDummy
+	hookForceProcSelf     = hookDummy
+)
+
+func hookDummy() bool               { return false }
+func hookDummyFile(_ *os.File) bool { return false }

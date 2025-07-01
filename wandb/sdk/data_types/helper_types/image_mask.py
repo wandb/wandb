@@ -18,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class ImageMask(Media):
     """Format image masks or overlays for logging to W&B.
 
-    Arguments:
+    Args:
         val: (dictionary)
             One of these two keys to represent the image:
                 mask_data : (2D numpy array) The mask containing an integer class label
@@ -33,12 +33,12 @@ class ImageMask(Media):
 
     Examples:
         ### Logging a single masked image
-        <!--yeadoc-test:log-image-mask-->
+
         ```python
         import numpy as np
         import wandb
 
-        wandb.init()
+        run = wandb.init()
         image = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
         predicted_mask = np.empty((100, 100), dtype=np.uint8)
         ground_truth_mask = np.empty((100, 100), dtype=np.uint8)
@@ -58,20 +58,26 @@ class ImageMask(Media):
         masked_image = wandb.Image(
             image,
             masks={
-                "predictions": {"mask_data": predicted_mask, "class_labels": class_labels},
-                "ground_truth": {"mask_data": ground_truth_mask, "class_labels": class_labels},
+                "predictions": {
+                    "mask_data": predicted_mask,
+                    "class_labels": class_labels,
+                },
+                "ground_truth": {
+                    "mask_data": ground_truth_mask,
+                    "class_labels": class_labels,
+                },
             },
         )
-        wandb.log({"img_with_masks": masked_image})
+        run.log({"img_with_masks": masked_image})
         ```
 
         ### Log a masked image inside a Table
-        <!--yeadoc-test:log-image-mask-table-->
+
         ```python
         import numpy as np
         import wandb
 
-        wandb.init()
+        run = wandb.init()
         image = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
         predicted_mask = np.empty((100, 100), dtype=np.uint8)
         ground_truth_mask = np.empty((100, 100), dtype=np.uint8)
@@ -100,15 +106,21 @@ class ImageMask(Media):
         masked_image = wandb.Image(
             image,
             masks={
-                "predictions": {"mask_data": predicted_mask, "class_labels": class_labels},
-                "ground_truth": {"mask_data": ground_truth_mask, "class_labels": class_labels},
+                "predictions": {
+                    "mask_data": predicted_mask,
+                    "class_labels": class_labels,
+                },
+                "ground_truth": {
+                    "mask_data": ground_truth_mask,
+                    "class_labels": class_labels,
+                },
             },
             classes=class_set,
         )
 
         table = wandb.Table(columns=["image"])
         table.add_data(masked_image)
-        wandb.log({"random_field": table})
+        run.log({"random_field": table})
         ```
     """
 
@@ -117,7 +129,7 @@ class ImageMask(Media):
     def __init__(self, val: dict, key: str) -> None:
         """Initialize an ImageMask object.
 
-        Arguments:
+        Args:
             val: (dictionary) One of these two keys to represent the image:
                 mask_data : (2D numpy array) The mask containing an integer class label
                     for each pixel in the image
@@ -135,6 +147,12 @@ class ImageMask(Media):
             self._set_file(val["path"])
         else:
             np = util.get_module("numpy", required="Image mask support requires numpy")
+
+            if util.is_pytorch_tensor_typename(
+                util.get_full_typename(val["mask_data"])
+            ):
+                val["mask_data"] = val["mask_data"].cpu().numpy()
+
             # Add default class mapping
             if "class_labels" not in val:
                 classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
@@ -202,7 +220,7 @@ class ImageMask(Media):
             # Nothing special to add (used to add "digest", but no longer used.)
             return json_dict
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb.Artifact")
+            raise TypeError("to_json accepts wandb_run.Run or wandb.Artifact")
 
     @classmethod
     def type_name(cls: Type["ImageMask"]) -> str:

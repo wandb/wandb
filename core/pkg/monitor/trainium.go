@@ -4,6 +4,7 @@ package monitor
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // NeuronMonitorConfig represents the configuration for the neuron-monitor command.
@@ -73,7 +75,6 @@ type TrainiumStats struct {
 //
 // Uses the neuron-monitor command to get stats.
 type Trainium struct {
-	name                    string
 	pid                     int32
 	samplingInterval        float64
 	neuronMonitorConfigPath string
@@ -107,7 +108,6 @@ func NewTrainium(
 	neuronMonitorConfigPath string,
 ) *Trainium {
 	t := &Trainium{
-		name:                    "trainium",
 		pid:                     pid,
 		samplingInterval:        samplingInterval,
 		neuronMonitorConfigPath: neuronMonitorConfigPath,
@@ -255,7 +255,7 @@ func (t *Trainium) isMatchingEntry(entry map[string]any) bool {
 // The stats are parsed into a TrainiumStats struct, flattened and returned as a map.
 //
 //gocyclo:ignore
-func (t *Trainium) Sample() (map[string]any, error) {
+func (t *Trainium) Sample() (*spb.StatsRecord, error) {
 	if !t.isRunning {
 		return nil, nil
 	}
@@ -372,7 +372,13 @@ func (t *Trainium) Sample() (map[string]any, error) {
 		NeuroncoreMemoryUsage:        neuroncoreMemoryUsage,
 	}
 
-	return t.flattenStats(stats), nil
+	metrics := t.flattenStats(stats)
+
+	if len(metrics) == 0 {
+		return nil, nil
+	}
+
+	return marshal(metrics, timestamppb.Now()), nil
 }
 
 // flattenStats recursively flattens the stats into a map.
@@ -426,15 +432,6 @@ func (t *Trainium) flattenStats(sample TrainiumStats) map[string]any {
 	return result
 }
 
-func (t *Trainium) Name() string {
-	return t.name
-}
-
-func (t *Trainium) IsAvailable() bool {
-	_, err := getNeuronMonitorCmdPath()
-	return err == nil
-}
-
 // Close stops the neuron-monitor command and sets isRunning to false.
 func (t *Trainium) Close() {
 	if !t.isRunning {
@@ -451,14 +448,10 @@ func (t *Trainium) Close() {
 	t.SetRunningState(false)
 }
 
-func (t *Trainium) Probe() *spb.MetadataRequest {
-	if !t.IsAvailable() {
-		return nil
-	}
-
-	info := &spb.MetadataRequest{
+func (t *Trainium) Probe(_ context.Context) *spb.EnvironmentRecord {
+	info := &spb.EnvironmentRecord{
 		Trainium: &spb.TrainiumInfo{
-			Name:   t.name,
+			Name:   "Trainium",
 			Vendor: "AWS",
 		},
 	}

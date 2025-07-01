@@ -90,6 +90,26 @@ func (m *validateOpCreateBucket) HandleInitialize(ctx context.Context, in middle
 	return next.HandleInitialize(ctx, in)
 }
 
+type validateOpCreateBucketMetadataTableConfiguration struct {
+}
+
+func (*validateOpCreateBucketMetadataTableConfiguration) ID() string {
+	return "OperationInputValidation"
+}
+
+func (m *validateOpCreateBucketMetadataTableConfiguration) HandleInitialize(ctx context.Context, in middleware.InitializeInput, next middleware.InitializeHandler) (
+	out middleware.InitializeOutput, metadata middleware.Metadata, err error,
+) {
+	input, ok := in.Parameters.(*CreateBucketMetadataTableConfigurationInput)
+	if !ok {
+		return out, metadata, fmt.Errorf("unknown input parameters type %T", in.Parameters)
+	}
+	if err := validateOpCreateBucketMetadataTableConfigurationInput(input); err != nil {
+		return out, metadata, err
+	}
+	return next.HandleInitialize(ctx, in)
+}
+
 type validateOpCreateMultipartUpload struct {
 }
 
@@ -265,6 +285,26 @@ func (m *validateOpDeleteBucketLifecycle) HandleInitialize(ctx context.Context, 
 		return out, metadata, fmt.Errorf("unknown input parameters type %T", in.Parameters)
 	}
 	if err := validateOpDeleteBucketLifecycleInput(input); err != nil {
+		return out, metadata, err
+	}
+	return next.HandleInitialize(ctx, in)
+}
+
+type validateOpDeleteBucketMetadataTableConfiguration struct {
+}
+
+func (*validateOpDeleteBucketMetadataTableConfiguration) ID() string {
+	return "OperationInputValidation"
+}
+
+func (m *validateOpDeleteBucketMetadataTableConfiguration) HandleInitialize(ctx context.Context, in middleware.InitializeInput, next middleware.InitializeHandler) (
+	out middleware.InitializeOutput, metadata middleware.Metadata, err error,
+) {
+	input, ok := in.Parameters.(*DeleteBucketMetadataTableConfigurationInput)
+	if !ok {
+		return out, metadata, fmt.Errorf("unknown input parameters type %T", in.Parameters)
+	}
+	if err := validateOpDeleteBucketMetadataTableConfigurationInput(input); err != nil {
 		return out, metadata, err
 	}
 	return next.HandleInitialize(ctx, in)
@@ -665,6 +705,26 @@ func (m *validateOpGetBucketLogging) HandleInitialize(ctx context.Context, in mi
 		return out, metadata, fmt.Errorf("unknown input parameters type %T", in.Parameters)
 	}
 	if err := validateOpGetBucketLoggingInput(input); err != nil {
+		return out, metadata, err
+	}
+	return next.HandleInitialize(ctx, in)
+}
+
+type validateOpGetBucketMetadataTableConfiguration struct {
+}
+
+func (*validateOpGetBucketMetadataTableConfiguration) ID() string {
+	return "OperationInputValidation"
+}
+
+func (m *validateOpGetBucketMetadataTableConfiguration) HandleInitialize(ctx context.Context, in middleware.InitializeInput, next middleware.InitializeHandler) (
+	out middleware.InitializeOutput, metadata middleware.Metadata, err error,
+) {
+	input, ok := in.Parameters.(*GetBucketMetadataTableConfigurationInput)
+	if !ok {
+		return out, metadata, fmt.Errorf("unknown input parameters type %T", in.Parameters)
+	}
+	if err := validateOpGetBucketMetadataTableConfigurationInput(input); err != nil {
 		return out, metadata, err
 	}
 	return next.HandleInitialize(ctx, in)
@@ -1770,6 +1830,26 @@ func (m *validateOpPutPublicAccessBlock) HandleInitialize(ctx context.Context, i
 	return next.HandleInitialize(ctx, in)
 }
 
+type validateOpRenameObject struct {
+}
+
+func (*validateOpRenameObject) ID() string {
+	return "OperationInputValidation"
+}
+
+func (m *validateOpRenameObject) HandleInitialize(ctx context.Context, in middleware.InitializeInput, next middleware.InitializeHandler) (
+	out middleware.InitializeOutput, metadata middleware.Metadata, err error,
+) {
+	input, ok := in.Parameters.(*RenameObjectInput)
+	if !ok {
+		return out, metadata, fmt.Errorf("unknown input parameters type %T", in.Parameters)
+	}
+	if err := validateOpRenameObjectInput(input); err != nil {
+		return out, metadata, err
+	}
+	return next.HandleInitialize(ctx, in)
+}
+
 type validateOpRestoreObject struct {
 }
 
@@ -1886,6 +1966,10 @@ func addOpCreateBucketValidationMiddleware(stack *middleware.Stack) error {
 	return stack.Initialize.Add(&validateOpCreateBucket{}, middleware.After)
 }
 
+func addOpCreateBucketMetadataTableConfigurationValidationMiddleware(stack *middleware.Stack) error {
+	return stack.Initialize.Add(&validateOpCreateBucketMetadataTableConfiguration{}, middleware.After)
+}
+
 func addOpCreateMultipartUploadValidationMiddleware(stack *middleware.Stack) error {
 	return stack.Initialize.Add(&validateOpCreateMultipartUpload{}, middleware.After)
 }
@@ -1920,6 +2004,10 @@ func addOpDeleteBucketInventoryConfigurationValidationMiddleware(stack *middlewa
 
 func addOpDeleteBucketLifecycleValidationMiddleware(stack *middleware.Stack) error {
 	return stack.Initialize.Add(&validateOpDeleteBucketLifecycle{}, middleware.After)
+}
+
+func addOpDeleteBucketMetadataTableConfigurationValidationMiddleware(stack *middleware.Stack) error {
+	return stack.Initialize.Add(&validateOpDeleteBucketMetadataTableConfiguration{}, middleware.After)
 }
 
 func addOpDeleteBucketMetricsConfigurationValidationMiddleware(stack *middleware.Stack) error {
@@ -2000,6 +2088,10 @@ func addOpGetBucketLocationValidationMiddleware(stack *middleware.Stack) error {
 
 func addOpGetBucketLoggingValidationMiddleware(stack *middleware.Stack) error {
 	return stack.Initialize.Add(&validateOpGetBucketLogging{}, middleware.After)
+}
+
+func addOpGetBucketMetadataTableConfigurationValidationMiddleware(stack *middleware.Stack) error {
+	return stack.Initialize.Add(&validateOpGetBucketMetadataTableConfiguration{}, middleware.After)
 }
 
 func addOpGetBucketMetricsConfigurationValidationMiddleware(stack *middleware.Stack) error {
@@ -2220,6 +2312,10 @@ func addOpPutObjectTaggingValidationMiddleware(stack *middleware.Stack) error {
 
 func addOpPutPublicAccessBlockValidationMiddleware(stack *middleware.Stack) error {
 	return stack.Initialize.Add(&validateOpPutPublicAccessBlock{}, middleware.After)
+}
+
+func addOpRenameObjectValidationMiddleware(stack *middleware.Stack) error {
+	return stack.Initialize.Add(&validateOpRenameObject{}, middleware.After)
 }
 
 func addOpRestoreObjectValidationMiddleware(stack *middleware.Stack) error {
@@ -2974,6 +3070,25 @@ func validateLoggingEnabled(v *types.LoggingEnabled) error {
 	}
 }
 
+func validateMetadataTableConfiguration(v *types.MetadataTableConfiguration) error {
+	if v == nil {
+		return nil
+	}
+	invalidParams := smithy.InvalidParamsError{Context: "MetadataTableConfiguration"}
+	if v.S3TablesDestination == nil {
+		invalidParams.Add(smithy.NewErrParamRequired("S3TablesDestination"))
+	} else if v.S3TablesDestination != nil {
+		if err := validateS3TablesDestination(v.S3TablesDestination); err != nil {
+			invalidParams.AddNested("S3TablesDestination", err.(smithy.InvalidParamsError))
+		}
+	}
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	} else {
+		return nil
+	}
+}
+
 func validateMetrics(v *types.Metrics) error {
 	if v == nil {
 		return nil
@@ -3482,6 +3597,24 @@ func validateS3Location(v *types.S3Location) error {
 	}
 }
 
+func validateS3TablesDestination(v *types.S3TablesDestination) error {
+	if v == nil {
+		return nil
+	}
+	invalidParams := smithy.InvalidParamsError{Context: "S3TablesDestination"}
+	if v.TableBucketArn == nil {
+		invalidParams.Add(smithy.NewErrParamRequired("TableBucketArn"))
+	}
+	if v.TableName == nil {
+		invalidParams.Add(smithy.NewErrParamRequired("TableName"))
+	}
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	} else {
+		return nil
+	}
+}
+
 func validateSelectParameters(v *types.SelectParameters) error {
 	if v == nil {
 		return nil
@@ -3933,6 +4066,28 @@ func validateOpCreateBucketInput(v *CreateBucketInput) error {
 	}
 }
 
+func validateOpCreateBucketMetadataTableConfigurationInput(v *CreateBucketMetadataTableConfigurationInput) error {
+	if v == nil {
+		return nil
+	}
+	invalidParams := smithy.InvalidParamsError{Context: "CreateBucketMetadataTableConfigurationInput"}
+	if v.Bucket == nil {
+		invalidParams.Add(smithy.NewErrParamRequired("Bucket"))
+	}
+	if v.MetadataTableConfiguration == nil {
+		invalidParams.Add(smithy.NewErrParamRequired("MetadataTableConfiguration"))
+	} else if v.MetadataTableConfiguration != nil {
+		if err := validateMetadataTableConfiguration(v.MetadataTableConfiguration); err != nil {
+			invalidParams.AddNested("MetadataTableConfiguration", err.(smithy.InvalidParamsError))
+		}
+	}
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	} else {
+		return nil
+	}
+}
+
 func validateOpCreateMultipartUploadInput(v *CreateMultipartUploadInput) error {
 	if v == nil {
 		return nil
@@ -4070,6 +4225,21 @@ func validateOpDeleteBucketLifecycleInput(v *DeleteBucketLifecycleInput) error {
 		return nil
 	}
 	invalidParams := smithy.InvalidParamsError{Context: "DeleteBucketLifecycleInput"}
+	if v.Bucket == nil {
+		invalidParams.Add(smithy.NewErrParamRequired("Bucket"))
+	}
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	} else {
+		return nil
+	}
+}
+
+func validateOpDeleteBucketMetadataTableConfigurationInput(v *DeleteBucketMetadataTableConfigurationInput) error {
+	if v == nil {
+		return nil
+	}
+	invalidParams := smithy.InvalidParamsError{Context: "DeleteBucketMetadataTableConfigurationInput"}
 	if v.Bucket == nil {
 		invalidParams.Add(smithy.NewErrParamRequired("Bucket"))
 	}
@@ -4395,6 +4565,21 @@ func validateOpGetBucketLoggingInput(v *GetBucketLoggingInput) error {
 		return nil
 	}
 	invalidParams := smithy.InvalidParamsError{Context: "GetBucketLoggingInput"}
+	if v.Bucket == nil {
+		invalidParams.Add(smithy.NewErrParamRequired("Bucket"))
+	}
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	} else {
+		return nil
+	}
+}
+
+func validateOpGetBucketMetadataTableConfigurationInput(v *GetBucketMetadataTableConfigurationInput) error {
+	if v == nil {
+		return nil
+	}
+	invalidParams := smithy.InvalidParamsError{Context: "GetBucketMetadataTableConfigurationInput"}
 	if v.Bucket == nil {
 		invalidParams.Add(smithy.NewErrParamRequired("Bucket"))
 	}
@@ -5410,6 +5595,27 @@ func validateOpPutPublicAccessBlockInput(v *PutPublicAccessBlockInput) error {
 	}
 	if v.PublicAccessBlockConfiguration == nil {
 		invalidParams.Add(smithy.NewErrParamRequired("PublicAccessBlockConfiguration"))
+	}
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	} else {
+		return nil
+	}
+}
+
+func validateOpRenameObjectInput(v *RenameObjectInput) error {
+	if v == nil {
+		return nil
+	}
+	invalidParams := smithy.InvalidParamsError{Context: "RenameObjectInput"}
+	if v.Bucket == nil {
+		invalidParams.Add(smithy.NewErrParamRequired("Bucket"))
+	}
+	if v.Key == nil {
+		invalidParams.Add(smithy.NewErrParamRequired("Key"))
+	}
+	if v.RenameSource == nil {
+		invalidParams.Add(smithy.NewErrParamRequired("RenameSource"))
 	}
 	if invalidParams.Len() > 0 {
 		return invalidParams

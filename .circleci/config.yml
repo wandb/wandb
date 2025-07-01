@@ -4,12 +4,12 @@ orbs:
   win: circleci/windows@5.0.0
   slack: circleci/slack@4.12.5
   gcloud: circleci/gcp-cli@3.1.1
-  codecov: codecov/codecov@4.0.1
+  codecov: codecov/codecov@5.0.0
 
 parameters:
   go_version:
     type: string
-    default: "1.23.2"
+    default: "1.24.3"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
@@ -51,13 +51,15 @@ executors:
   local-testcontainer-importers:
     parameters:
       python: { type: string }
+      server_image: { type: string }
+      server_image_tag: { type: string }
       dst_server_name:
         type: string
         default: localhost-wandb-2
     docker:
       - image: "python:<<parameters.python>>"
       # the src server
-      - image: <<pipeline.parameters.server_image>>:<<pipeline.parameters.server_image_tag>>
+      - image: <<parameters.server_image>>:<<parameters.server_image_tag>>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -65,7 +67,7 @@ executors:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
       # the dst server
-      - image: <<pipeline.parameters.server_image>>:<<pipeline.parameters.server_image_tag>>
+      - image: <<parameters.server_image>>:<<parameters.server_image_tag>>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -90,16 +92,6 @@ commands:
       - store_artifacts:
           path: cover-results
 
-  # We only need a separate command to include this workaround to a bug:
-  # https://github.com/codecov/codecov-circleci-orb/issues/185#issuecomment-2072147831
-  upload_codecov:
-    description: Upload code coverage to codecov.io
-    parameters:
-      flags: { type: string }
-    steps:
-      - run: mkdir -p ~/.gnupg
-      - codecov/upload: { flags: <<parameters.flags>> }
-
   run-nox-tests:
     description:
       Helper command for the nox-tests-* jobs. Runs a nox session and uploads
@@ -118,10 +110,44 @@ commands:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
           command: >
-            nox -s "<<parameters.session>>" --python <<parameters.python>>
+            nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
-      - upload_codecov: { flags: <<parameters.codecov_flags>> }
+      - codecov/upload: { flags: <<parameters.codecov_flags>> }
       - save-test-results
+
+  local-wandb-server-deps:
+    description: |
+      Installs dependencies for the connect-to-local-testcontainer commands.
+    steps:
+      - run:
+          name: Upgrade pip and uv
+          command: python -m pip install -U pip uv
+      - run:
+          name: Install tool dependencies
+          command: uv pip install --system -r requirements_dev.txt
+
+  connect-to-local-testcontainer:
+    description: Make tests use a running local-testcontainer.
+    steps:
+      - run:
+          name: Connect to local-testcontainer
+          command: |
+            python tools/local_wandb_server.py start \
+              --hostname localhost \
+              --base-port 8080 \
+              --fixture-port 9015
+
+  connect-to-local-testcontainer-importers:
+    description: Make importer tests use a running local-testcontainer.
+    steps:
+      - run:
+          name: Connect to local-testcontainer-importers
+          command: |
+            python tools/local_wandb_server.py start \
+              --name wandb-local-testcontainer-importers \
+              --hostname localhost-wandb-2 \
+              --base-port 8080 \
+              --fixture-port 9015
 
   install_go:
     description: "Install Go with the specified version and system"
@@ -303,11 +329,27 @@ jobs:
       - checkout
       - run:
           name: Install system deps
-          command: apt-get update && apt-get install -y libsndfile1 ffmpeg
+          command: apt-get update && apt-get install -y libsndfile1 ffmpeg git
       - install_go
       - install_rust
       - install_extras:
           enabled: <<parameters.install_extras>>
+
+      - when:
+          condition:
+            equal: ["local-testcontainer", <<parameters.executor_name>>]
+          steps:
+            - local-wandb-server-deps
+            - connect-to-local-testcontainer
+      - when:
+          condition:
+            equal:
+              ["local-testcontainer-importers", <<parameters.executor_name>>]
+          steps:
+            - local-wandb-server-deps
+            - connect-to-local-testcontainer
+            - connect-to-local-testcontainer-importers
+
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
@@ -370,6 +412,7 @@ jobs:
           command: choco install -y mingw --version 12.2 --allow-downgrade
 
       - install_go
+      - install_rust
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
@@ -397,40 +440,13 @@ jobs:
       - run:
           name: Run mypy and report results
           command: nox -vs mypy-report
-      - save-test-results
-
-  importers:
-    parameters:
-      executor: { type: executor }
-      python: { type: string }
-      tests:
-        type: enum
-        enum: [wandb, mlflow]
-      xdist:
-        type: integer
-        default: 3
-    executor: << parameters.executor >>
-    steps:
-      - checkout
       - run:
-          name: Install system deps
+          name: Run import sanity check
           command: |
-            apt-get update
-            apt-get install -y libsndfile1 ffmpeg
-      - install_go
-      - install_rust
-      - run:
-          name: Install Python dependencies
-          command: python -m pip install -U nox pip uv
-          no_output_timeout: 5m
-      - run:
-          name: Run tests
-          no_output_timeout: 10m
-          command: |
-            nox -s "importer_tests-<< parameters.python >>(importer='<< parameters.tests >>')" \
-              -- $(if [ "<< parameters.tests >>" = "wandb" ]; then echo "--wandb-second-server=true"; fi) \
-              tests/system_tests/test_importers/test_<< parameters.tests >>
-      - upload_codecov: { flags: system }
+            uv venv .venv-deps
+            source .venv-deps/bin/activate
+            uv pip install .
+            python -c 'import wandb'
       - save-test-results
 
   unit-tests-go:
@@ -443,7 +459,7 @@ jobs:
           command: |
             cd core
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-      - upload_codecov: { flags: unit }
+      - codecov/upload: { flags: unit }
 
   # Download the local-testcontainer image corresponding to the latest server release
   # and store it in wandb-client-cicd/images/local-testcontainer.
@@ -500,6 +516,16 @@ workflows:
           session: unit_tests
           codecov_flags: unit
           parallelism: 4
+
+          matrix:
+            parameters:
+              python: ["3.8", "3.12"]
+
+      - nox-tests-linux:
+          name: unit-tests-pydantic-v1-linux-<<matrix.python>>
+          session: unit_tests_pydantic_v1
+          codecov_flags: unit
+          parallelism: 2
 
           matrix:
             parameters:
@@ -572,7 +598,10 @@ workflows:
           matrix:
             parameters:
               python: ["3.12"]
-              server_image: ["us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer"]
+              server_image:
+                [
+                  "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer",
+                ]
               server_image_tag: ["0.48.0"]
 
       - nox-tests-linux:
@@ -628,20 +657,21 @@ workflows:
       #
       # W&B Importer tests on Linux, using 2 real wandb servers
       #
-      - importers:
-          name: "\
-            system-tests-linux-importers-\
-            <<matrix.tests>>-\
-            <<matrix.python>>"
-
-          matrix:
-            parameters:
-              python: ["3.9"]
-              tests: ["wandb", "mlflow"]
-
-          executor:
-            name: local-testcontainer-importers
-            python: << matrix.python >>
+      - nox-tests-linux:
+          name: system-tests-linux-importers-wandb
+          session: importer_tests-3.9(importer='wandb')
+          codecov_flags: system
+          parallelism: 1
+          executor_name: local-testcontainer-importers
+          python: "3.9"
+      # FIXME: mlflow importer requires pydantic<2
+      # - nox-tests-linux:
+      #     name: system-tests-linux-importers-mlflow
+      #     session: importer_tests-3.9(importer='mlflow')
+      #     codecov_flags: system
+      #     parallelism: 1
+      #     executor_name: local-testcontainer-importers
+      #     python: "3.9"
 
       # Manual tests
       - gpu-win:

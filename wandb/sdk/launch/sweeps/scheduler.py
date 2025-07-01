@@ -183,12 +183,10 @@ class Scheduler(ABC):
     @abstractmethod
     def _get_next_sweep_run(self, worker_id: int) -> Optional[SweepRun]:
         """Called when worker available."""
-        pass
 
     @abstractmethod
     def _poll(self) -> None:
         """Called every polling loop."""
-        pass
 
     @abstractmethod
     def _exit(self) -> None:
@@ -356,7 +354,7 @@ class Scheduler(ABC):
             wandb.termlog(f"{LOG_PREFIX}Scheduler failed with exception {e}")
             self.state = SchedulerState.FAILED
             self.exit()
-            raise e
+            raise
         else:
             # scheduler succeeds if at runcap
             if self.state == SchedulerState.FLUSH_RUNS and self.at_runcap:
@@ -701,7 +699,7 @@ class Scheduler(ABC):
         if entry_point:
             wandb.termwarn(
                 f"{LOG_PREFIX}Sweep command {entry_point} will override"
-                f' {"job" if _job else "image_uri"} entrypoint'
+                f" {'job' if _job else 'image_uri'} entrypoint"
             )
 
         # override resource and args of job

@@ -100,6 +100,7 @@ const (
 	AFS_SUPER_MAGIC             = 0x5346414F
 	AUFS_SUPER_MAGIC            = 0x61756673
 	ANON_INODE_FS_SUPER_MAGIC   = 0x09041934
+	BCACHEFS_SUPER_MAGIC        = 0xCA451A4E
 	BPF_FS_MAGIC                = 0xCAFE4A11
 	CEPH_SUPER_MAGIC            = 0x00C36400
 	CGROUP2_SUPER_MAGIC         = 0x63677270
@@ -139,6 +140,7 @@ var fsTypeMap = map[int64]string{
 	ANON_INODE_FS_SUPER_MAGIC: "anon-inode FS", /* 0x09041934 local */
 	AUFS_SUPER_MAGIC:          "aufs",          /* 0x61756673 remote */
 	//	AUTOFS_SUPER_MAGIC:          "autofs",              /* 0x0187 local */
+	BCACHEFS_SUPER_MAGIC:        "bcachefs",            /* 0xCA451A4E local */
 	BEFS_SUPER_MAGIC:            "befs",                /* 0x42465331 local */
 	BDEVFS_MAGIC:                "bdevfs",              /* 0x62646576 local */
 	BFS_MAGIC:                   "bfs",                 /* 0x1BADFACE local */
@@ -283,81 +285,101 @@ func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, erro
 		return nil, err
 	}
 
+	var ret []PartitionStat
+	if useMounts { // use mounts file
+		ret = parseFieldsOnMounts(lines, all, fs)
+		return ret, nil
+	}
+
+	// use mountinfo
+	ret, err = parseFieldsOnMountinfo(ctx, lines, all, fs, filename)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing mountinfo file %s: %w", filename, err)
+	}
+
+	return ret, nil
+}
+
+func parseFieldsOnMounts(lines []string, all bool, fs []string) []PartitionStat {
 	ret := make([]PartitionStat, 0, len(lines))
-
 	for _, line := range lines {
-		var d PartitionStat
-		if useMounts {
-			fields := strings.Fields(line)
+		fields := strings.Fields(line)
 
-			d = PartitionStat{
-				Device:     fields[0],
-				Mountpoint: unescapeFstab(fields[1]),
-				Fstype:     fields[2],
-				Opts:       strings.Fields(fields[3]),
-			}
+		d := PartitionStat{
+			Device:     fields[0],
+			Mountpoint: unescapeFstab(fields[1]),
+			Fstype:     fields[2],
+			Opts:       strings.Split(fields[3], ","),
+		}
 
-			if !all {
-				if d.Device == "none" || !common.StringsHas(fs, d.Fstype) {
-					continue
-				}
-			}
-		} else {
-			// a line of 1/mountinfo has the following structure:
-			// 36  35  98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
-			// (1) (2) (3)   (4)   (5)      (6)      (7)   (8) (9)   (10)         (11)
-
-			// split the mountinfo line by the separator hyphen
-			parts := strings.Split(line, " - ")
-			if len(parts) != 2 {
-				return nil, fmt.Errorf("found invalid mountinfo line in file %s: %s ", filename, line)
-			}
-
-			fields := strings.Fields(parts[0])
-			blockDeviceID := fields[2]
-			mountPoint := fields[4]
-			mountOpts := strings.Split(fields[5], ",")
-
-			if rootDir := fields[3]; rootDir != "" && rootDir != "/" {
-				mountOpts = append(mountOpts, "bind")
-			}
-
-			fields = strings.Fields(parts[1])
-			fstype := fields[0]
-			device := fields[1]
-
-			d = PartitionStat{
-				Device:     device,
-				Mountpoint: unescapeFstab(mountPoint),
-				Fstype:     fstype,
-				Opts:       mountOpts,
-			}
-
-			if !all {
-				if d.Device == "none" || !common.StringsHas(fs, d.Fstype) {
-					continue
-				}
-			}
-
-			if strings.HasPrefix(d.Device, "/dev/mapper/") {
-				devpath, err := filepath.EvalSymlinks(common.HostDevWithContext(ctx, strings.Replace(d.Device, "/dev", "", 1)))
-				if err == nil {
-					d.Device = devpath
-				}
-			}
-
-			// /dev/root is not the real device name
-			// so we get the real device name from its major/minor number
-			if d.Device == "/dev/root" {
-				devpath, err := os.Readlink(common.HostSysWithContext(ctx, "/dev/block/"+blockDeviceID))
-				if err == nil {
-					d.Device = strings.Replace(d.Device, "root", filepath.Base(devpath), 1)
-				}
+		if !all {
+			if d.Device == "none" || !common.StringsHas(fs, d.Fstype) {
+				continue
 			}
 		}
 		ret = append(ret, d)
 	}
 
+	return ret
+}
+
+func parseFieldsOnMountinfo(ctx context.Context, lines []string, all bool, fs []string, filename string) ([]PartitionStat, error) {
+	ret := make([]PartitionStat, 0, len(lines))
+
+	for _, line := range lines {
+		// a line of 1/mountinfo has the following structure:
+		// 36  35  98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
+		// (1) (2) (3)   (4)   (5)      (6)      (7)   (8) (9)   (10)         (11)
+
+		// split the mountinfo line by the separator hyphen
+		parts := strings.Split(line, " - ")
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("found invalid mountinfo line in file %s: %s ", filename, line)
+		}
+
+		fields := strings.Fields(parts[0])
+		blockDeviceID := fields[2]
+		mountPoint := fields[4]
+		mountOpts := strings.Split(fields[5], ",")
+
+		if rootDir := fields[3]; rootDir != "" && rootDir != "/" {
+			mountOpts = append(mountOpts, "bind")
+		}
+
+		fields = strings.Fields(parts[1])
+		fstype := fields[0]
+		device := fields[1]
+
+		d := PartitionStat{
+			Device:     device,
+			Mountpoint: unescapeFstab(mountPoint),
+			Fstype:     fstype,
+			Opts:       mountOpts,
+		}
+
+		if !all {
+			if d.Device == "none" || !common.StringsHas(fs, d.Fstype) {
+				continue
+			}
+		}
+
+		if strings.HasPrefix(d.Device, "/dev/mapper/") {
+			devpath, err := filepath.EvalSymlinks(common.HostDevWithContext(ctx, strings.Replace(d.Device, "/dev", "", 1)))
+			if err == nil {
+				d.Device = devpath
+			}
+		}
+
+		// /dev/root is not the real device name
+		// so we get the real device name from its major/minor number
+		if d.Device == "/dev/root" {
+			devpath, err := os.Readlink(common.HostSysWithContext(ctx, "/dev/block/"+blockDeviceID))
+			if err == nil {
+				d.Device = strings.Replace(d.Device, "root", filepath.Base(devpath), 1)
+			}
+		}
+		ret = append(ret, d)
+	}
 	return ret, nil
 }
 
@@ -484,7 +506,7 @@ func IOCountersWithContext(ctx context.Context, names ...string) (map[string]IOC
 	return ret, nil
 }
 
-func udevData(ctx context.Context, major uint32, minor uint32, name string) (string, error) {
+func udevData(ctx context.Context, major, minor uint32, name string) (string, error) {
 	udevDataPath := common.HostRunWithContext(ctx, fmt.Sprintf("udev/data/b%d:%d", major, minor))
 	if f, err := os.Open(udevDataPath); err == nil {
 		defer f.Close()
@@ -528,10 +550,10 @@ func SerialNumberWithContext(ctx context.Context, name string) (string, error) {
 
 func LabelWithContext(ctx context.Context, name string) (string, error) {
 	// Try label based on devicemapper name
-	dmname_filename := common.HostSysWithContext(ctx, fmt.Sprintf("block/%s/dm/name", name))
+	dmnameFilename := common.HostSysWithContext(ctx, fmt.Sprintf("block/%s/dm/name", name))
 	// Could errors.Join errs with Go >= 1.20
-	if common.PathExists(dmname_filename) {
-		dmname, err := os.ReadFile(dmname_filename)
+	if common.PathExists(dmnameFilename) {
+		dmname, err := os.ReadFile(dmnameFilename)
 		if err == nil {
 			return strings.TrimSpace(string(dmname)), nil
 		}

@@ -268,21 +268,21 @@ namespace Wandb
                 RunMode = RunMode,
                 RunName = DisplayName,
                 RunTags = runTags,
-                ServiceWait = ServiceWait,
+                XServiceWait = ServiceWait,
                 SyncDir = SyncDir,
                 SyncFile = SyncFile,
                 Timespec = Timespec,
                 WandbDir = WandbDir,
                 // TODO: we do not capture extra info by default, but
                 // we could make this configurable in the future
-                DisableStats = true,
+                XDisableStats = true,
                 DisableGit = true,
-                DisableMeta = true,
+                XDisableMeta = true,
                 DisableCode = true,
                 DisableJobCreation = true,
                 SaveCode = false,
                 Console = "off",
-                SaveRequirements = false,
+                XSaveRequirements = false,
             };
         }
 

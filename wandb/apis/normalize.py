@@ -3,32 +3,16 @@
 import ast
 import sys
 from functools import wraps
-from typing import Callable, List, TypeVar
+from typing import Callable, TypeVar
 
 import requests
 from wandb_gql.client import RetryError
 
 from wandb import env
 from wandb.errors import CommError, Error
+from wandb.util import parse_backend_error_messages
 
 _F = TypeVar("_F", bound=Callable)
-
-
-def parse_backend_error_messages(response: requests.Response) -> List[str]:
-    errors = []
-    try:
-        data = response.json()
-    except ValueError:
-        return errors
-
-    if "errors" in data and isinstance(data["errors"], list):
-        for error in data["errors"]:
-            # Our tests and potentially some api endpoints return a string error?
-            if isinstance(error, str):
-                error = {"message": error}
-            if "message" in error:
-                errors.append(error["message"])
-    return errors
 
 
 def normalize_exceptions(func: _F) -> _F:
@@ -39,16 +23,24 @@ def normalize_exceptions(func: _F) -> _F:
         message = "Whoa, you found a bug."
         try:
             return func(*args, **kwargs)
+
         except requests.HTTPError as error:
             errors = parse_backend_error_messages(error.response)
+            status = error.response.status_code
+
             if errors:
-                message = " ".join(errors)
-                message += (
-                    f" (Error {error.response.status_code}: {error.response.reason})"
-                )
+                message = f"HTTP {status}: {'; '.join(errors)}"
+            elif error.response.text:
+                message = f"HTTP {status}: {error.response.text}"
+            elif error.response.reason:
+                # Visually different to distinguish backend errors from
+                # standard HTTP status descriptions.
+                message = f"HTTP {status} ({error.response.reason})"
             else:
-                message = error.response
+                message = f"HTTP {status}"
+
             raise CommError(message, error)
+
         except RetryError as err:
             if (
                 "response" in dir(err.last_exception)
@@ -69,8 +61,8 @@ def normalize_exceptions(func: _F) -> _F:
                 raise CommError(message, err.last_exception).with_traceback(
                     sys.exc_info()[2]
                 )
-        except Error as err:
-            raise err
+        except Error:
+            raise
         except Exception as err:
             # gql raises server errors with dict's as strings...
             if len(err.args) > 0:

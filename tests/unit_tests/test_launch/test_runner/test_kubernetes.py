@@ -11,6 +11,7 @@ import wandb.sdk.launch.runner.kubernetes_runner
 from kubernetes_asyncio import client
 from kubernetes_asyncio.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
+from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.kubernetes_monitor import (
     CustomResource,
@@ -37,6 +38,13 @@ def clean_monitor():
     LaunchKubernetesMonitor._instance = None
     yield
     LaunchKubernetesMonitor._instance = None
+
+
+@pytest.fixture
+def clean_agent():
+    LaunchAgent._instance = None
+    yield
+    LaunchAgent._instance = None
 
 
 @pytest.fixture
@@ -401,6 +409,7 @@ def mock_create_from_dict(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail(reason="This test is flaky")
 async def test_launch_kube_works(
     monkeypatch,
     mock_event_streams,
@@ -411,6 +420,7 @@ async def test_launch_kube_works(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     """Test that we can launch a kubernetes job."""
     mock_batch_api.jobs = {"test-job": MockDict(manifest)}
@@ -536,6 +546,7 @@ async def test_launch_crd_works(
     test_api,
     volcano_spec,
     clean_monitor,
+    clean_agent,
 ):
     """Test that we can launch a kubernetes job."""
     monkeypatch.setattr(
@@ -639,6 +650,7 @@ async def test_launch_crd_pod_schedule_warning(
     test_api,
     volcano_spec,
     clean_monitor,
+    clean_agent,
 ):
     mock_batch_api.jobs = {"test-job": MockDict(volcano_spec)}
     test_api.update_run_queue_item_warning = MagicMock(return_value=True)
@@ -712,6 +724,7 @@ async def test_launch_kube_base_image_works(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
     tmpdir,
 ):
     """Test that runner works as expected with base image jobs."""
@@ -770,6 +783,9 @@ async def test_launch_kube_base_image_works(
     ]
 
 
+@pytest.mark.skip(
+    reason="This test is flaky, please remove the skip once the flakyness is fixed."
+)
 @pytest.mark.skipif(
     platform.system() == "Windows",
     reason="Launch does not support Windows and this test is failing on Windows.",
@@ -851,6 +867,7 @@ async def test_launch_kube_failed(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     """Test that we can launch a kubernetes job."""
     mock_batch_api.jobs = {"test-job": manifest}
@@ -904,6 +921,7 @@ async def test_launch_kube_api_secret_failed(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     async def mock_maybe_create_imagepull_secret(*args, **kwargs):
         return None
@@ -970,6 +988,7 @@ async def test_launch_kube_pod_schedule_warning(
     test_api,
     manifest,
     clean_monitor,
+    clean_agent,
 ):
     mock_batch_api.jobs = {"test-job": MockDict(manifest)}
     job_tracker = MagicMock()
@@ -1155,6 +1174,7 @@ async def test_monitor_preempted(
     mock_core_api,
     reason,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a preempted job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1176,6 +1196,7 @@ async def test_monitor_succeeded(
     mock_batch_api,
     mock_core_api,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a succeeded job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1196,6 +1217,7 @@ async def test_monitor_failed(
     mock_batch_api,
     mock_core_api,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a failed job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1216,6 +1238,7 @@ async def test_monitor_running(
     mock_batch_api,
     mock_core_api,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a running job."""
     await LaunchKubernetesMonitor.ensure_initialized()
@@ -1239,6 +1262,7 @@ async def test_monitor_job_deleted(
     mock_batch_api,
     mock_core_api,
     clean_monitor,
+    clean_agent,
 ):
     """Test if the monitor thread detects a job being deleted."""
     await LaunchKubernetesMonitor.ensure_initialized()

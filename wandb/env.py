@@ -34,6 +34,7 @@ USERNAME = "WANDB_USERNAME"
 USER_EMAIL = "WANDB_USER_EMAIL"
 PROJECT = "WANDB_PROJECT"
 ENTITY = "WANDB_ENTITY"
+ORGANIZATION = "WANDB_ORGANIZATION"
 BASE_URL = "WANDB_BASE_URL"
 APP_URL = "WANDB_APP_URL"
 PROGRAM = "WANDB_PROGRAM"
@@ -77,16 +78,15 @@ ARTIFACT_FETCH_FILE_URL_BATCH_SIZE = "WANDB_ARTIFACT_FETCH_FILE_URL_BATCH_SIZE"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 SERVICE = "WANDB_SERVICE"
-_DISABLE_SERVICE = "WANDB_DISABLE_SERVICE"
 SENTRY_DSN = "WANDB_SENTRY_DSN"
 INIT_TIMEOUT = "WANDB_INIT_TIMEOUT"
 GIT_COMMIT = "WANDB_GIT_COMMIT"
 GIT_REMOTE_URL = "WANDB_GIT_REMOTE_URL"
-_EXECUTABLE = "WANDB_EXECUTABLE"
+_EXECUTABLE = "WANDB_X_EXECUTABLE"
 LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
 LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
 LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
-_REQUIRE_LEGACY_SERVICE = "WANDB__REQUIRE_LEGACY_SERVICE"
+ENABLE_DCGM_PROFILING = "WANDB_ENABLE_DCGM_PROFILING"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -149,11 +149,6 @@ def _env_as_bool(
         return False
 
 
-def is_require_legacy_service(env: MutableMapping | None = None) -> bool:
-    """Return whether wandb.require("legacy-service") was used."""
-    return _env_as_bool(_REQUIRE_LEGACY_SERVICE, default="False", env=env)
-
-
 def is_debug(default: str | None = None, env: MutableMapping | None = None) -> bool:
     return _env_as_bool(DEBUG, default=default, env=env)
 
@@ -169,11 +164,21 @@ def error_reporting_enabled() -> bool:
 
 
 def core_debug(default: str | None = None) -> bool:
-    return _env_as_bool(CORE_DEBUG, default=default)
+    return _env_as_bool(CORE_DEBUG, default=default) or is_debug()
 
 
 def ssl_disabled() -> bool:
     return _env_as_bool(DISABLE_SSL, default="False")
+
+
+def dcgm_profiling_enabled() -> bool:
+    """Checks whether collecting profiling metrics for Nvidia GPUs using DCGM is requested.
+
+    Note: Enabling this feature can lead to increased resource usage
+          compared to standard monitoring.
+          Requires the `nvidia-dcgm` service to be running on the machine.
+    """
+    return _env_as_bool(ENABLE_DCGM_PROFILING, default="False")
 
 
 def get_error_reporting(
@@ -284,15 +289,22 @@ def get_entity(
     return env.get(ENTITY, default)
 
 
+def get_organization(
+    default: str | None = None, env: MutableMapping | None = None
+) -> str | None:
+    if env is None:
+        env = os.environ
+
+    return env.get(ORGANIZATION, default)
+
+
 def get_base_url(
     default: str | None = None, env: MutableMapping | None = None
 ) -> str | None:
     if env is None:
         env = os.environ
 
-    base_url = env.get(BASE_URL, default)
-
-    return base_url.rstrip("/") if base_url is not None else base_url
+    return env.get(BASE_URL, default)
 
 
 def get_app_url(

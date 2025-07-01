@@ -5,21 +5,23 @@ Semi-stubbed run for internal process use.
 
 """
 
-from wandb._globals import _datatypes_set_callback
+from typing_extensions import override
 
-from .. import wandb_run
+from wandb.sdk import wandb_run
 
 
 class InternalRun(wandb_run.Run):
     def __init__(self, run_obj, settings, datatypes_cb):
         super().__init__(settings=settings)
         self._run_obj = run_obj
+        self._datatypes_cb = datatypes_cb
 
-        # TODO: This overwrites what's done in the constructor of wandb_run.Run.
-        # We really want a common interface for wandb_run.Run and InternalRun.
-        _datatypes_set_callback(datatypes_cb)
-
+    @override
     def _set_backend(self, backend):
         # This type of run object can't have a backend
         # or do any writes.
         pass
+
+    @override
+    def _publish_file(self, fname: str) -> None:
+        self._datatypes_cb(fname)

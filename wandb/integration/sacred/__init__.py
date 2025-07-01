@@ -10,7 +10,7 @@ import wandb
 class WandbObserver(RunObserver):
     """Log sacred experiment data to W&B.
 
-    Arguments:
+    Args:
         Accepts all the arguments accepted by wandb.init().
 
         name — A display name for this run, which shows up in the UI and is editable, doesn't have to be unique
@@ -23,7 +23,7 @@ class WandbObserver(RunObserver):
         job_type — the type of job you are logging, e.g. eval, worker, ps (default: training)
         save_code — save the main python or notebook file to wandb to enable diffing (default: editable from your settings page)
         group — a string by which to group other runs; see Grouping
-        reinit — whether to allow multiple calls to wandb.init in the same process (default: False)
+        reinit — Shorthand for the reinit setting that defines what to do when `wandb.init()` is called while a run is active. See the setting's documentation.
         id — A unique ID for this run primarily used for Resuming. It must be globally unique, and if you delete a run you can't reuse the ID. Use the name field for a descriptive, useful name for the run. The ID cannot contain special characters.
         resume — if set to True, the run auto resumes; can also be a unique string for manual resuming; see Resuming (default: False)
         anonymous — can be "allow", "never", or "must". This enables or explicitly disables anonymous logging. (default: never)

@@ -2,17 +2,18 @@ import os
 
 import wandb
 from wandb import env
+from wandb.sdk import wandb_setup
 
 
 def sagemaker_auth(overrides=None, path=".", api_key=None):
     """Write a secrets.env file with the W&B ApiKey and any additional secrets passed.
 
-    Arguments:
+    Args:
         overrides (dict, optional): Additional environment variables to write
                                     to secrets.env
         path (str, optional): The path to write the secrets file.
     """
-    settings = wandb.setup().settings
+    settings = wandb_setup.singleton().settings
     current_api_key = wandb.wandb_lib.apikey.api_key(settings=settings)
 
     overrides = overrides or dict()

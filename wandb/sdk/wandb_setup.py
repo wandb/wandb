@@ -1,53 +1,55 @@
-#
-"""Setup wandb session.
+"""Global W&B library state.
 
-This module configures a wandb session which can extend to multiple wandb runs.
+This module manages global state, which for wandb includes:
 
-Functions:
-    setup(): Configure wandb session.
+- Settings configured through `wandb.setup()`
+- The list of active runs
+- A subprocess ("the internal service") that asynchronously uploads metrics
 
-Early logging keeps track of logger output until the call to wandb.init() when the
-run_id can be resolved.
+This module is fork-aware: in a forked process such as that spawned by the
+`multiprocessing` module, `wandb.singleton()` returns a new object, not the
+one inherited from the parent process. This requirement comes from backward
+compatibility with old design choices: the hardest one to fix is that wandb
+was originally designed to have a single run for the entire process that
+`wandb.init()` was meant to return. Back then, the only way to create
+multiple simultaneous runs in a single script was to run subprocesses, and since
+the built-in `multiprocessing` module forks by default, this required a PID
+check to make `wandb.init()` ignore the inherited global run.
 
+Another reason for fork-awareness is that the process that starts up
+the internal service owns it and is responsible for shutting it down,
+and child processes shouldn't also try to do that. This is easier to
+redesign.
 """
+
+from __future__ import annotations
 
 import logging
 import os
+import pathlib
 import sys
-import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Union
 
 import wandb
-from wandb.sdk.lib import import_hooks
+import wandb.integration.sagemaker as sagemaker
+from wandb.env import CONFIG_DIR
+from wandb.sdk.lib import import_hooks, wb_logging
 
 from . import wandb_settings
-from .lib import config_util, server, tracelog
-
-Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
-
-Logger = Union[logging.Logger, "_EarlyLogger"]
+from .lib import config_util, server
 
 if TYPE_CHECKING:
-    from wandb.sdk.lib import service_connection
-
-    from . import wandb_run
-
-# logger will be configured to be either a standard logger instance or _EarlyLogger
-logger: Optional[Logger] = None
-
-
-def _set_logger(log_object: Logger) -> None:
-    """Configure module logger."""
-    global logger
-    logger = log_object
+    from wandb.sdk import wandb_run
+    from wandb.sdk.lib.service.service_connection import ServiceConnection
+    from wandb.sdk.wandb_settings import Settings
 
 
 class _EarlyLogger:
     """Early logger which captures logs in memory until logging can be configured."""
 
     def __init__(self) -> None:
-        self._log: List[tuple] = []
-        self._exception: List[tuple] = []
+        self._log: list[tuple] = []
+        self._exception: list[tuple] = []
         # support old warn() as alias of warning()
         self.warn = self.warning
 
@@ -72,157 +74,199 @@ class _EarlyLogger:
     def log(self, level: str, msg: str, *args: Any, **kwargs: Any) -> None:
         self._log.append((level, msg, args, kwargs))
 
-    def _flush(self) -> None:
-        assert self is not logger
-        assert logger is not None
+    def _flush(self, new_logger: Logger) -> None:
+        assert self is not new_logger
         for level, msg, args, kwargs in self._log:
-            logger.log(level, msg, *args, **kwargs)
+            new_logger.log(level, msg, *args, **kwargs)
         for msg, args, kwargs in self._exception:
-            logger.exception(msg, *args, **kwargs)
+            new_logger.exception(msg, *args, **kwargs)
 
 
-class _WandbSetup__WandbSetup:  # noqa: N801
-    """Inner class of _WandbSetup."""
+Logger = Union[logging.Logger, _EarlyLogger]
+
+
+class _WandbSetup:
+    """W&B library singleton."""
 
     def __init__(
         self,
         pid: int,
-        settings: Optional[Settings] = None,
-        environ: Optional[Dict[str, Any]] = None,
+        settings: Settings | None = None,
+        environ: dict | None = None,
     ) -> None:
-        self._connection: Optional[service_connection.ServiceConnection] = None
+        self._connection: ServiceConnection | None = None
+
+        self._active_runs: list[wandb_run.Run] = []
 
         self._environ = environ or dict(os.environ)
-        self._sweep_config: Optional[Dict[str, Any]] = None
-        self._config: Optional[Dict[str, Any]] = None
-        self._server: Optional[server.Server] = None
+        self._sweep_config: dict | None = None
+        self._config: dict | None = None
+        self._server: server.Server | None = None
         self._pid = pid
-
-        # keep track of multiple runs, so we can unwind with join()s
-        self._global_run_stack: List[wandb_run.Run] = []
 
         # TODO(jhr): defer strict checks until settings are fully initialized
         #            and logging is ready
-        self._early_logger = _EarlyLogger()
-        _set_logger(self._early_logger)
+        self._logger: Logger = _EarlyLogger()
 
-        self._settings = self._settings_setup(settings, self._early_logger)
-        # self._settings.freeze()
+        self._settings = self._settings_setup(settings)
 
-        wandb.termsetup(self._settings, logger)
+        wandb.termsetup(self._settings, None)
 
-        self._check()
         self._setup()
 
-        tracelog_mode = self._settings._tracelog
-        if tracelog_mode:
-            tracelog.enable(tracelog_mode)
+    def add_active_run(self, run: wandb_run.Run) -> None:
+        """Append a run to the active runs list.
+
+        This must be called when a run is initialized.
+
+        Args:
+            run: A newly initialized run.
+        """
+        if run not in self._active_runs:
+            self._active_runs.append(run)
+
+    def remove_active_run(self, run: wandb_run.Run) -> None:
+        """Remove the run from the active runs list.
+
+        This must be called when a run is finished.
+
+        Args:
+            run: A run that is finished or crashed.
+        """
+        try:
+            self._active_runs.remove(run)
+        except ValueError:
+            pass  # Removing a run multiple times is not an error.
+
+    @property
+    def most_recent_active_run(self) -> wandb_run.Run | None:
+        """The most recently initialized run that is not yet finished."""
+        if not self._active_runs:
+            return None
+
+        return self._active_runs[-1]
+
+    def finish_all_active_runs(self) -> None:
+        """Finish all unfinished runs.
+
+        NOTE: This is slightly inefficient as it finishes runs one at a time.
+        This only exists to support using the `reinit="finish_previous"`
+        setting together with `reinit="create_new"` which does not seem to be a
+        useful pattern. Since `"create_new"` should eventually become the
+        default and only behavior, it does not seem worth optimizing.
+        """
+        # Take a snapshot as each call to `finish()` modifies `_active_runs`.
+        runs_copy = list(self._active_runs)
+        for run in runs_copy:
+            run.finish()
 
     def _settings_setup(
         self,
-        settings: Optional[Settings] = None,
-        early_logger: Optional[_EarlyLogger] = None,
-    ) -> "wandb_settings.Settings":
+        settings: Settings | None,
+    ) -> wandb_settings.Settings:
         s = wandb_settings.Settings()
-        s._apply_base(pid=self._pid, _logger=early_logger)
-        s._apply_config_files(_logger=early_logger)
-        s._apply_env_vars(self._environ, _logger=early_logger)
 
-        if isinstance(settings, wandb_settings.Settings):
-            s._apply_settings(settings, _logger=early_logger)
-        elif isinstance(settings, dict):
-            # if passed settings arg is a mapping, update the settings with it
-            s._apply_setup(settings, _logger=early_logger)
+        # the pid of the process to monitor for system stats
+        pid = os.getpid()
+        self._logger.info(f"Current SDK version is {wandb.__version__}")
+        self._logger.info(f"Configure stats pid to {pid}")
+        s.x_stats_pid = pid
 
-        s._infer_settings_from_environment()
-        if not s._cli_only_mode:
-            s._infer_run_settings_from_environment(_logger=early_logger)
+        if settings and settings.settings_system:
+            s.settings_system = settings.settings_system
+        elif config_dir_str := os.getenv(CONFIG_DIR, None):
+            config_dir = pathlib.Path(config_dir_str).expanduser()
+            s.settings_system = str(config_dir / "settings")
+        else:
+            s.settings_system = str(
+                pathlib.Path("~", ".config", "wandb", "settings").expanduser()
+            )
+
+        # load settings from the system config
+        if s.settings_system:
+            self._logger.info(f"Loading settings from {s.settings_system}")
+        s.update_from_system_config_file()
+
+        # load settings from the workspace config
+        if s.settings_workspace:
+            self._logger.info(f"Loading settings from {s.settings_workspace}")
+        s.update_from_workspace_config_file()
+
+        # load settings from the environment variables
+        self._logger.info("Loading settings from environment variables")
+        s.update_from_env_vars(self._environ)
+
+        # infer settings from the system environment
+        s.update_from_system_environment()
+
+        # load SageMaker settings
+        check_sagemaker_env = not s.sagemaker_disable
+        if settings and settings.sagemaker_disable:
+            check_sagemaker_env = False
+        if check_sagemaker_env and sagemaker.is_using_sagemaker():
+            self._logger.info("Loading SageMaker settings")
+            sagemaker.set_global_settings(s)
+
+        # load settings from the passed init/setup settings
+        if settings:
+            s.update_from_settings(settings)
 
         return s
 
-    def _update(
-        self,
-        settings: Optional[Settings] = None,
-    ) -> None:
-        if settings is None:
+    def _update(self, settings: Settings | None = None) -> None:
+        if not settings:
             return
-        # self._settings.unfreeze()
-        if isinstance(settings, wandb_settings.Settings):
-            # todo: check the logic here. this _only_ comes up in tests?
-            self._settings._apply_settings(settings)
-        elif isinstance(settings, dict):
-            # if it is a mapping, update the settings with it
-            self._settings.update(settings, source=wandb_settings.Source.SETUP)
-        # self._settings.freeze()
+        self._settings.update_from_settings(settings)
 
-    def _update_user_settings(self, settings: Optional[Settings] = None) -> None:
-        settings = settings or self._settings
+    def _update_user_settings(self) -> None:
         # Get rid of cached results to force a refresh.
         self._server = None
-        user_settings = self._load_user_settings(settings=settings)
+        user_settings = self._load_user_settings()
         if user_settings is not None:
-            # self._settings.unfreeze()
-            self._settings._apply_user(user_settings)
-            # self._settings.freeze()
+            self._settings.update_from_dict(user_settings)
 
     def _early_logger_flush(self, new_logger: Logger) -> None:
-        if not self._early_logger:
+        if self._logger is new_logger:
             return
-        _set_logger(new_logger)
-        # self._settings._clear_early_logger()
-        self._early_logger._flush()
 
-    def _get_logger(self) -> Optional[Logger]:
-        return logger
+        if isinstance(self._logger, _EarlyLogger):
+            self._logger._flush(new_logger)
+        self._logger = new_logger
+
+    def _get_logger(self) -> Logger:
+        return self._logger
 
     @property
-    def settings(self) -> "wandb_settings.Settings":
+    def settings(self) -> wandb_settings.Settings:
         return self._settings
 
-    def _get_entity(self) -> Optional[str]:
+    def _get_entity(self) -> str | None:
         if self._settings and self._settings._offline:
             return None
-        if self._server is None:
-            self._load_viewer()
-        assert self._server is not None
-        entity = self._server._viewer.get("entity")
+        entity = self.viewer.get("entity")
         return entity
 
-    def _get_username(self) -> Optional[str]:
+    def _get_username(self) -> str | None:
         if self._settings and self._settings._offline:
             return None
-        if self._server is None:
-            self._load_viewer()
-        assert self._server is not None
-        username = self._server._viewer.get("username")
-        return username
+        return self.viewer.get("username")
 
-    def _get_teams(self) -> List[str]:
+    def _get_teams(self) -> list[str]:
         if self._settings and self._settings._offline:
             return []
-        if self._server is None:
-            self._load_viewer()
-        assert self._server is not None
-        teams = self._server._viewer.get("teams")
+        teams = self.viewer.get("teams")
         if teams:
             teams = [team["node"]["name"] for team in teams["edges"]]
         return teams or []
 
-    def _load_viewer(self, settings: Optional[Settings] = None) -> None:
-        if self._settings and self._settings._offline:
-            return
-        if isinstance(settings, dict):
-            settings = wandb_settings.Settings(**settings)
-        s = server.Server(settings=settings)
-        s.query_with_timeout()
-        self._server = s
-
-    def _load_user_settings(
-        self, settings: Optional[Settings] = None
-    ) -> Optional[Dict[str, Any]]:
+    @property
+    def viewer(self) -> dict[str, Any]:
         if self._server is None:
-            self._load_viewer(settings=settings)
+            self._server = server.Server(settings=self._settings)
 
+        return self._server.viewer
+
+    def _load_user_settings(self) -> dict[str, Any] | None:
         # offline?
         if self._server is None:
             return None
@@ -232,27 +276,13 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         if "code_saving_enabled" in flags:
             user_settings["save_code"] = flags["code_saving_enabled"]
 
-        email = self._server._viewer.get("email", None)
+        email = self.viewer.get("email", None)
         if email:
             user_settings["email"] = email
 
         return user_settings
 
-    def _check(self) -> None:
-        if hasattr(threading, "main_thread"):
-            if threading.current_thread() is not threading.main_thread():
-                pass
-        elif threading.current_thread().name != "MainThread":
-            print("bad thread2", threading.current_thread().name)
-        if getattr(sys, "frozen", False):
-            print("frozen, could be trouble")
-
     def _setup(self) -> None:
-        if not self._settings._noop and not self._settings._disable_service:
-            from wandb.sdk.lib import service_connection
-
-            self._connection = service_connection.connect_to_service(self._settings)
-
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
             self._sweep_config = config_util.dict_from_config_file(
@@ -271,67 +301,106 @@ class _WandbSetup__WandbSetup:  # noqa: N801
                 else:
                     self._config = config_dict
 
-    def _teardown(self, exit_code: Optional[int] = None) -> None:
+    def _teardown(self, exit_code: int | None = None) -> None:
         import_hooks.unregister_all_post_import_hooks()
 
         if not self._connection:
             return
 
-        internal_exit_code = self._connection.teardown(exit_code or 0)
-
         # Reset to None so that setup() creates a new connection.
+        connection = self._connection
         self._connection = None
 
-        if internal_exit_code != 0:
+        internal_exit_code = connection.teardown(exit_code or 0)
+        if internal_exit_code not in (None, 0):
             sys.exit(internal_exit_code)
 
-    @property
-    def service(self) -> "Optional[service_connection.ServiceConnection]":
-        """Returns a connection to the service process, if it exists."""
+    def ensure_service(self) -> ServiceConnection:
+        """Returns a connection to the service process creating it if needed."""
+        if self._connection:
+            return self._connection
+
+        from wandb.sdk.lib.service import service_connection
+
+        self._connection = service_connection.connect_to_service(self._settings)
+        return self._connection
+
+    def assert_service(self) -> ServiceConnection:
+        """Returns a connection to the service process, asserting it exists.
+
+        Unlike ensure_service(), this will not start up a service process
+        if it didn't already exist.
+        """
+        if not self._connection:
+            raise AssertionError("Expected service process to exist.")
+
         return self._connection
 
 
-class _WandbSetup:
-    """Wandb singleton class.
+_singleton: _WandbSetup | None = None
+"""The W&B library singleton, or None if not yet set up.
 
-    Note: This is a process local singleton.
-    (Forked processes will get a new copy of the object)
+The value is invalid and must not be used if `os.getpid() != _singleton._pid`.
+"""
+
+
+def singleton() -> _WandbSetup:
+    """The W&B singleton for the current process.
+
+    The first call to this in this process (which may be a fork of another
+    process) creates the singleton, and all subsequent calls return it
+    until teardown(). This does not start the service process.
     """
-
-    _instance: Optional["_WandbSetup__WandbSetup"] = None
-
-    def __init__(self, settings: Optional[Settings] = None) -> None:
-        pid = os.getpid()
-        if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
-            _WandbSetup._instance._update(settings=settings)
-            return
-        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
-
-    @property
-    def service(self) -> "Optional[service_connection.ServiceConnection]":
-        """Returns a connection to the service process, if it exists."""
-        if not self._instance:
-            return None
-        return self._instance.service
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._instance, name)
+    return _setup(start_service=False)
 
 
-def _setup(
-    settings: Optional[Settings] = None,
-    _reset: bool = False,
-) -> Optional["_WandbSetup"]:
-    """Set up library context."""
-    if _reset:
-        teardown()
+def singleton_if_setup() -> _WandbSetup | None:
+    """The W&B singleton for the current process or None if it isn't set up.
+
+    Always prefer singleton() over this function.
+
+    Unlike singleton(), this never creates the singleton and therefore never
+    initializes global settings from the environment. This is useful only
+    during tests, which may modify the environment after having imported wandb
+    and called certain functions.
+    """
+    if _singleton and _singleton._pid == os.getpid():
+        return _singleton
+    else:
         return None
 
-    wl = _WandbSetup(settings=settings)
-    return wl
+
+@wb_logging.log_to_all_runs()
+def _setup(
+    settings: Settings | None = None,
+    start_service: bool = True,
+) -> _WandbSetup:
+    """Set up library context.
+
+    Args:
+        settings: Global settings to set, or updates to the global settings
+            if the singleton has already been initialized.
+        start_service: Whether to start up the service process.
+            NOTE: A service process will only be started if allowed by the
+            global settings (after the given updates). The service will not
+            start up if the mode resolves to "disabled".
+    """
+    global _singleton
+
+    pid = os.getpid()
+
+    if _singleton and _singleton._pid == pid:
+        _singleton._update(settings=settings)
+    else:
+        _singleton = _WandbSetup(settings=settings, pid=pid)
+
+    if start_service and not _singleton.settings._noop:
+        _singleton.ensure_service()
+
+    return _singleton
 
 
-def setup(settings: Optional[Settings] = None) -> Optional["_WandbSetup"]:
+def setup(settings: Settings | None = None) -> _WandbSetup:
     """Prepares W&B for use in the current process and its children.
 
     You can usually ignore this as it is implicitly called by `wandb.init()`.
@@ -346,8 +415,8 @@ def setup(settings: Optional[Settings] = None) -> Optional["_WandbSetup"]:
     See also `wandb.teardown()`.
 
     Args:
-        settings (Optional[Union[Dict[str, Any], wandb.Settings]]): Configuration settings
-            to apply globally. These can be overridden by subsequent `wandb.init()` calls.
+        settings: Configuration settings to apply globally. These can be
+            overridden by subsequent `wandb.init()` calls.
 
     Example:
         ```python
@@ -387,11 +456,11 @@ def setup(settings: Optional[Settings] = None) -> Optional["_WandbSetup"]:
             wandb.teardown()
         ```
     """
-    ret = _setup(settings=settings)
-    return ret
+    return _setup(settings=settings)
 
 
-def teardown(exit_code: Optional[int] = None) -> None:
+@wb_logging.log_to_all_runs()
+def teardown(exit_code: int | None = None) -> None:
     """Waits for wandb to finish and frees resources.
 
     Completes any runs that were not explicitly finished
@@ -402,8 +471,10 @@ def teardown(exit_code: Optional[int] = None) -> None:
     in an `atexit` hook, but this is not reliable in certain setups
     such as when using Python's `multiprocessing` module.
     """
-    setup_instance = _WandbSetup._instance
-    _WandbSetup._instance = None
+    global _singleton
 
-    if setup_instance:
-        setup_instance._teardown(exit_code=exit_code)
+    orig_singleton = _singleton
+    _singleton = None
+
+    if orig_singleton:
+        orig_singleton._teardown(exit_code=exit_code)

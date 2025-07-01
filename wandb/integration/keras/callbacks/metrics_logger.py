@@ -1,5 +1,4 @@
-import sys
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
 
 import tensorflow as tf  # type: ignore
 from tensorflow.keras import callbacks
@@ -7,12 +6,6 @@ from tensorflow.keras import callbacks
 import wandb
 from wandb.integration.keras.keras import patch_tf_keras
 from wandb.sdk.lib import telemetry
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
-
 
 LogStrategy = Literal["epoch", "batch"]
 
@@ -38,7 +31,7 @@ class WandbMetricsLogger(callbacks.Callback):
     `step_size` is number of training steps per epoch. `step_size` can be calculated as
     the product of the cardinality of the training dataset and the batch size.
 
-    Arguments:
+    Args:
         log_freq: ("epoch", "batch", or int) if "epoch", logs metrics
             at the end of each epoch. If "batch", logs metrics at the end
             of each batch. If an integer, logs metrics at the end of that

@@ -128,7 +128,7 @@ class StepChecksum:
             elif isinstance(req, RequestFinish):
                 break
             else:
-                raise Exception("internal error")
+                raise TypeError
 
         self._output_queue.put(step_upload.RequestFinish(req.callback))
 

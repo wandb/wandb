@@ -9,6 +9,7 @@ from unittest import mock
 
 import pytest
 import wandb
+import wandb.docker
 from wandb.apis.internal import InternalApi
 from wandb.cli import cli
 from wandb.sdk.lib.apikey import get_netrc_file_path
@@ -30,7 +31,8 @@ def docker(request, mocker, monkeypatch):
         "wandb.apis.InternalApi.api_key", new_callable=mocker.PropertyMock
     )
     api_key.return_value = "test"
-    monkeypatch.setattr(cli, "find_executable", lambda name: True)
+    monkeypatch.setattr(cli, "_HAS_NVIDIA_DOCKER", True)
+    monkeypatch.setattr(cli, "_HAS_DOCKER", True)
     old_call = subprocess.call
 
     def new_call(command, **kwargs):
@@ -63,9 +65,6 @@ def test_enable_on(runner, git_repo):
         with open("wandb/settings", "w") as f:
             f.write("[default]\nproject=rad")
         result = runner.invoke(cli.on)
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
         assert "W&B enabled" in str(result.output)
         assert result.exit_code == 0
 
@@ -76,9 +75,6 @@ def test_enable_off(runner, git_repo):
         with open("wandb/settings", "w") as f:
             f.write("[default]\nproject=rad")
         result = runner.invoke(cli.off)
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
         assert "W&B disabled" in str(result.output)
         assert "disabled" in open("wandb/settings").read()
         assert result.exit_code == 0
@@ -87,9 +83,6 @@ def test_enable_off(runner, git_repo):
 def test_no_project_bad_command(runner):
     with runner.isolated_filesystem():
         result = runner.invoke(cli.cli, ["fsd"])
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
         assert "No such command" in result.output
         assert result.exit_code == 2
 
@@ -128,13 +121,13 @@ def test_login_host_trailing_slash_fix_invalid(runner, dummy_api_key, local_sett
     "host, error",
     [
         ("https://app.wandb.ai", "did you mean https://api.wandb.ai"),
-        ("ftp://google.com", "URL must start with `http(s)://`"),
+        ("ftp://google.com", "URL scheme should be 'http' or 'https'"),
     ],
 )
 def test_login_bad_host(runner, host, error, local_settings):
     with runner.isolated_filesystem():
         result = runner.invoke(cli.login, ["--host", host])
-        assert error in result.output
+        assert error in str(result.exception)
         assert result.exit_code != 0
 
 
@@ -228,9 +221,6 @@ def test_cli_login_reprompts_when_no_key_specified(runner, mocker, dummy_api_key
         # Error: No API key specified to assert that the re-prompt
         # happened
         result = runner.invoke(cli.login, input=f"\n{dummy_api_key[:-1]}q\n")
-        print(f"DEBUG(login) out = {result.output}")
-        print(f"DEBUG(login) exc = {result.exception}")
-        print(f"DEBUG(login) tb = {traceback.print_tb(result.exc_info[2])}")
         with open(get_netrc_file_path()) as f:
             print(f.read())
         assert "ERROR No API key specified." in result.output
@@ -249,10 +239,10 @@ def test_docker_run_digest(runner, docker, monkeypatch):
             "-e",
             "WANDB_API_KEY=test",
             "-e",
-            "WANDB_DOCKER={}".format(DOCKER_SHA),
+            f"WANDB_DOCKER={DOCKER_SHA}",
             "--runtime",
             "nvidia",
-            "{}".format(DOCKER_SHA),
+            f"{DOCKER_SHA}",
         ]
     )
 
@@ -274,7 +264,7 @@ def test_docker_run_bad_image(runner, docker, monkeypatch):
 
 
 def test_docker_run_no_nvidia(runner, docker, monkeypatch):
-    monkeypatch.setattr(cli, "find_executable", lambda name: False)
+    monkeypatch.setattr(cli, "_HAS_NVIDIA_DOCKER", False)
     result = runner.invoke(cli.docker_run, ["run", "-v", "cool:/cool", "rad"])
     assert result.exit_code == 0
     docker.assert_called_once_with(
@@ -318,9 +308,7 @@ def test_docker_run_nvidia(runner, docker):
 
 def test_docker(runner, docker):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.docker, ["test"])
-        print(result.output)
-        print(traceback.print_tb(result.exc_info[2]))
+        result = runner.invoke(cli.docker, ["test"], input="n")
         docker.assert_called_once_with(
             [
                 "docker",
@@ -349,9 +337,7 @@ def test_docker(runner, docker):
 
 
 def test_docker_basic(runner, docker, git_repo):
-    result = runner.invoke(cli.docker, ["test:abc123"])
-    print(result.output)
-    print(traceback.print_tb(result.exc_info[2]))
+    result = runner.invoke(cli.docker, ["test:abc123"], input="n")
     assert "Launching docker container" in result.output
     docker.assert_called_once_with(
         [
@@ -381,9 +367,7 @@ def test_docker_basic(runner, docker, git_repo):
 
 
 def test_docker_sha(runner, docker):
-    result = runner.invoke(cli.docker, ["test@sha256:abc123"])
-    print(result.output)
-    print(traceback.print_tb(result.exc_info[2]))
+    result = runner.invoke(cli.docker, ["test@sha256:abc123"], input="n")
     docker.assert_called_once_with(
         [
             "docker",
@@ -412,9 +396,7 @@ def test_docker_sha(runner, docker):
 
 
 def test_docker_no_dir(runner, docker):
-    result = runner.invoke(cli.docker, ["test:abc123", "--no-dir"])
-    print(result.output)
-    print(traceback.print_tb(result.exc_info[2]))
+    result = runner.invoke(cli.docker, ["test:abc123", "--no-dir"], input="n")
     docker.assert_called_once_with(
         [
             "docker",
@@ -440,11 +422,10 @@ def test_docker_no_dir(runner, docker):
 
 def test_docker_no_interactive_custom_command(runner, docker, git_repo):
     result = runner.invoke(
-        cli.docker, ["test:abc123", "--no-tty", "--cmd", "python foo.py"]
+        cli.docker,
+        ["test:abc123", "--no-tty", "--cmd", "python foo.py"],
+        input="n",
     )
-    print(result.output)
-    print(traceback.print_tb(result.exc_info[2]))
-
     docker.assert_called_once_with(
         [
             "docker",
@@ -475,10 +456,7 @@ def test_docker_no_interactive_custom_command(runner, docker, git_repo):
 
 def test_docker_jupyter(runner, docker):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.docker, ["test", "--jupyter"])
-        print(result.output)
-        print(traceback.print_tb(result.exc_info[2]))
-
+        result = runner.invoke(cli.docker, ["test", "--jupyter"], input="n")
         docker.assert_called_once_with(
             [
                 "docker",
@@ -516,9 +494,7 @@ def test_docker_jupyter(runner, docker):
 
 def test_docker_args(runner, docker):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.docker, ["test", "-v", "/tmp:/tmp"])
-        print(result.output)
-        print(traceback.print_tb(result.exc_info[2]))
+        result = runner.invoke(cli.docker, ["test", "-v", "/tmp:/tmp"], input="n")
         docker.assert_called_with(
             [
                 "docker",
@@ -552,8 +528,6 @@ def test_docker_args(runner, docker):
 def test_docker_digest(runner, docker):
     with runner.isolated_filesystem():
         result = runner.invoke(cli.docker, ["test", "--digest"])
-        print(result.output)
-        print(traceback.print_tb(result.exc_info[2]))
         assert result.output == "wandb/deepo@sha256:abc123"
         assert result.exit_code == 0
 
@@ -577,7 +551,7 @@ def test_local_default(runner, docker, local_settings):
                 "--name",
                 "wandb-local",
                 "-e",
-                "LOCAL_USERNAME={}".format(user),
+                f"LOCAL_USERNAME={user}",
                 "-d",
                 "wandb/local",
             ]
@@ -602,7 +576,7 @@ def test_local_custom_port(runner, docker, local_settings):
             "--name",
             "wandb-local",
             "-e",
-            "LOCAL_USERNAME={}".format(user),
+            f"LOCAL_USERNAME={user}",
             "-d",
             "wandb/local",
         ]
@@ -627,7 +601,7 @@ def test_local_custom_env(runner, docker, local_settings):
             "--name",
             "wandb-local",
             "-e",
-            "LOCAL_USERNAME={}".format(user),
+            f"LOCAL_USERNAME={user}",
             "-e",
             "FOO=bar",
             "-d",
@@ -641,8 +615,6 @@ def test_local_custom_env(runner, docker, local_settings):
 )
 def test_local_already_running(runner, docker, local_settings):
     result = runner.invoke(cli.server, ["start"])
-    print(result.output)
-    print(traceback.print_tb(result.exc_info[2]))
     assert "A container named wandb-local is already running" in result.output
 
 

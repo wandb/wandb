@@ -68,6 +68,14 @@ Use your favorite framework with W&B. W&B integrations make it fast and easy to 
 
 &nbsp;
 
+# Python Version Support
+
+We are committed to supporting our minimum required Python version for *at least* six months after its official end-of-life (EOL) date, as defined by the Python Software Foundation. You can find a list of Python EOL dates [here](https://devguide.python.org/versions/).
+
+When we discontinue support for a Python version, we will increment the library’s minor version number to reflect this change.
+
+&nbsp;
+
 # Contribution guidelines
 Weights & Biases ❤️ open source, and we welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library. For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com.
 

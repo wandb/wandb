@@ -114,10 +114,11 @@ def test_fitted(model):
                 ],
                 all_or_any=any,
             )
-            return True
         except sklearn.exceptions.NotFittedError:
             wandb.termerror("Please fit the model before passing it in.")
             return False
+        else:
+            return True
     except Exception:
         # Assume it's fitted, since ``NotFittedError`` wasn't raised
         return True
@@ -143,7 +144,7 @@ def test_missing(**kwargs):
             missing = 0
             missing = np.count_nonzero(pd.isnull(v))
             if missing > 0:
-                wandb.termwarn("%s contains %d missing values. " % (k, missing))
+                wandb.termwarn(f"{k} contains {missing} missing values. ")
                 test_passed = False
             # Ensure the dataset contains only integers
             non_nums = 0

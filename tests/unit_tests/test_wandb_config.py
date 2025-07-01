@@ -7,7 +7,6 @@ from wandb import wandb_sdk
 
 def get_callback(d):
     def callback_func(key=None, val=None, data=None):
-        print("CONFIG", key, val, data)
         if data:
             d.update(data)
         if key:
@@ -113,7 +112,6 @@ def test_load_empty_config_default(capsys):
     _ = wandb_sdk.Config()
     err_log = capsys.readouterr().err
     warn_msg = "wandb: WARNING Found an empty default config file (config-defaults.yaml). Proceeding with no defaults."
-    print(err_log)
     assert warn_msg in err_log
 
 

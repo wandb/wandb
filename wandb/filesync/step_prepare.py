@@ -149,7 +149,7 @@ class StepPrepare:
     ) -> Mapping[str, "CreateArtifactFilesResponseFile"]:
         """Execute the prepareFiles API call.
 
-        Arguments:
+        Args:
             batch: List of RequestPrepare objects
         Returns:
             dict of (save_name: ResponseFile) pairs where ResponseFile is a dict with

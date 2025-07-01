@@ -5,8 +5,8 @@ import wandb
 from wandb.cli import cli
 
 
-def test_agent_queues_config(runner, monkeypatch, user, test_settings, wandb_init):
-    run = wandb_init(project="model-registry")
+def test_agent_queues_config(runner, monkeypatch, user):
+    run = wandb.init(project="model-registry")
     run.finish()
     monkeypatch.setattr(
         wandb.sdk.launch._launch,

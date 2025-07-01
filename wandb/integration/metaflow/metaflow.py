@@ -13,6 +13,7 @@ import inspect
 import pickle
 from functools import wraps
 from pathlib import Path
+from typing import Union
 
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
@@ -25,17 +26,18 @@ except ImportError as e:
     ) from e
 
 try:
-    from fastcore.all import typedispatch
+    from plum import dispatch
 except ImportError as e:
     raise Exception(
-        "Error: `fastcore` not installed >> This integration requires fastcore!  To fix, please `pip install -Uqq fastcore`"
+        "Error: `plum-dispatch` not installed >> "
+        "This integration requires plum-dispatch! To fix, please `pip install -Uqq plum-dispatch`"
     ) from e
 
 
 try:
     import pandas as pd
 
-    @typedispatch  # noqa: F811
+    @dispatch
     def _wandb_use(
         name: str,
         data: pd.DataFrame,
@@ -52,7 +54,7 @@ try:
             run.use_artifact(f"{name}:latest")
             wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
-    @typedispatch  # noqa: F811
+    @dispatch
     def wandb_track(
         name: str,
         data: pd.DataFrame,
@@ -73,15 +75,15 @@ try:
             wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 except ImportError:
-    print(
-        "Warning: `pandas` not installed >> @wandb_log(datasets=True) may not auto log your dataset!"
+    wandb.termwarn(
+        "`pandas` not installed >> @wandb_log(datasets=True) may not auto log your dataset!"
     )
 
 try:
     import torch
     import torch.nn as nn
 
-    @typedispatch  # noqa: F811
+    @dispatch
     def _wandb_use(
         name: str,
         data: nn.Module,
@@ -98,7 +100,7 @@ try:
             run.use_artifact(f"{name}:latest")
             wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
-    @typedispatch  # noqa: F811
+    @dispatch
     def wandb_track(
         name: str,
         data: nn.Module,
@@ -119,14 +121,14 @@ try:
             wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 except ImportError:
-    print(
-        "Warning: `pytorch` not installed >> @wandb_log(models=True) may not auto log your model!"
+    wandb.termwarn(
+        "`pytorch` not installed >> @wandb_log(models=True) may not auto log your model!"
     )
 
 try:
     from sklearn.base import BaseEstimator
 
-    @typedispatch  # noqa: F811
+    @dispatch
     def _wandb_use(
         name: str,
         data: BaseEstimator,
@@ -143,7 +145,7 @@ try:
             run.use_artifact(f"{name}:latest")
             wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
-    @typedispatch  # noqa: F811
+    @dispatch
     def wandb_track(
         name: str,
         data: BaseEstimator,
@@ -164,8 +166,8 @@ try:
             wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 except ImportError:
-    print(
-        "Warning: `sklearn` not installed >> @wandb_log(models=True) may not auto log your model!"
+    wandb.termwarn(
+        "`sklearn` not installed >> @wandb_log(models=True) may not auto log your model!"
     )
 
 
@@ -192,10 +194,10 @@ class ArtifactProxy:
         return getattr(self.flow, key)
 
 
-@typedispatch  # noqa: F811
+@dispatch
 def wandb_track(
     name: str,
-    data: (dict, list, set, str, int, float, bool),
+    data: Union[dict, list, set, str, int, float, bool],
     run=None,
     testing=False,
     *args,
@@ -207,7 +209,7 @@ def wandb_track(
     run.log({name: data})
 
 
-@typedispatch  # noqa: F811
+@dispatch
 def wandb_track(
     name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs
 ):
@@ -225,7 +227,7 @@ def wandb_track(
 
 
 # this is the base case
-@typedispatch  # noqa: F811
+@dispatch
 def wandb_track(
     name: str, data, others=False, run=None, testing=False, *args, **kwargs
 ):
@@ -240,26 +242,26 @@ def wandb_track(
         wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 
-@typedispatch
+@dispatch
 def wandb_use(name: str, data, *args, **kwargs):
     try:
         return _wandb_use(name, data, *args, **kwargs)
     except wandb.CommError:
-        print(
+        wandb.termwarn(
             f"This artifact ({name}, {type(data)}) does not exist in the wandb datastore!"
             f"If you created an instance inline (e.g. sklearn.ensemble.RandomForestClassifier), then you can safely ignore this"
             f"Otherwise you may want to check your internet connection!"
         )
 
 
-@typedispatch  # noqa: F811
+@dispatch
 def wandb_use(
-    name: str, data: (dict, list, set, str, int, float, bool), *args, **kwargs
+    name: str, data: Union[dict, list, set, str, int, float, bool], *args, **kwargs
 ):  # type: ignore
     pass  # do nothing for these types
 
 
-@typedispatch  # noqa: F811
+@dispatch
 def _wandb_use(
     name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs
 ):  # type: ignore
@@ -271,7 +273,7 @@ def _wandb_use(
         wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
 
-@typedispatch  # noqa: F811
+@dispatch
 def _wandb_use(name: str, data, others=False, run=None, testing=False, *args, **kwargs):  # type: ignore
     if testing:
         return "others" if others else None
@@ -300,7 +302,7 @@ def wandb_log(
     - Decorating the flow is equivalent to decorating all steps with a default
     - Decorating a step after decorating the flow will overwrite the flow decoration
 
-    Arguments:
+    Args:
         func: (`Callable`). The method or class being decorated (if decorating a step or flow respectively).
         datasets: (`bool`). If `True`, log datasets.  Datasets can be a `pd.DataFrame` or `pathlib.Path`.  The default value is `False`, so datasets are not logged.
         models: (`bool`). If `True`, log models.  Models can be a `nn.Module` or `sklearn.base.BaseEstimator`.  The default value is `False`, so models are not logged.
@@ -328,15 +330,13 @@ def wandb_log(
             if not isinstance(settings, wandb.sdk.wandb_settings.Settings):
                 settings = wandb.Settings()
 
-            settings.update(
-                run_group=coalesce(
-                    settings.run_group, f"{current.flow_name}/{current.run_id}"
-                ),
-                source=wandb.sdk.wandb_settings.Source.INIT,
-            )
-            settings.update(
-                run_job_type=coalesce(settings.run_job_type, current.step_name),
-                source=wandb.sdk.wandb_settings.Source.INIT,
+            settings.update_from_dict(
+                {
+                    "run_group": coalesce(
+                        settings.run_group, f"{current.flow_name}/{current.run_id}"
+                    ),
+                    "run_job_type": coalesce(settings.run_job_type, current.step_name),
+                }
             )
 
             with wandb.init(settings=settings) as run:

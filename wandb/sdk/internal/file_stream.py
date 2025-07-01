@@ -24,10 +24,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    if sys.version_info >= (3, 8):
-        from typing import TypedDict
-    else:
-        from typing_extensions import TypedDict
+    from typing import TypedDict
 
     class ProcessedChunk(TypedDict):
         offset: int
@@ -78,7 +75,7 @@ class DefaultFilePolicy:
 
         # get key size and convert to MB
         key_sizes = [(k, len(json.dumps(v))) for k, v in loaded.items()]
-        key_msg = [f"{k}: {v/1048576:.5f} MB" for k, v in key_sizes]
+        key_msg = [f"{k}: {v / 1048576:.5f} MB" for k, v in key_sizes]
         wandb.termerror(f"Step: {loaded['_step']} | {key_msg}", repeat=False)
         self.has_debug_log = True
 
@@ -91,10 +88,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
         chunk_data = []
         for chunk in chunks:
             if len(chunk.data) > util.MAX_LINE_BYTES:
-                msg = "Metric data exceeds maximum size of {} ({})".format(
-                    util.to_human_size(util.MAX_LINE_BYTES),
-                    util.to_human_size(len(chunk.data)),
-                )
+                msg = f"Metric data exceeds maximum size of {util.to_human_size(util.MAX_LINE_BYTES)} ({util.to_human_size(len(chunk.data))})"
                 wandb.termerror(msg, repeat=False)
                 wandb._sentry.message(msg, repeat=False)
                 self._debug_log(chunk.data)
@@ -111,9 +105,7 @@ class SummaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks: List[Chunk]) -> Union[bool, "ProcessedChunk"]:
         data = chunks[-1].data
         if len(data) > util.MAX_LINE_BYTES:
-            msg = "Summary data exceeds maximum size of {}. Dropping it.".format(
-                util.to_human_size(util.MAX_LINE_BYTES)
-            )
+            msg = f"Summary data exceeds maximum size of {util.to_human_size(util.MAX_LINE_BYTES)}. Dropping it."
             wandb.termerror(msg, repeat=False)
             wandb._sentry.message(msg, repeat=False)
             self._debug_log(data)
@@ -214,7 +206,10 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
             Second str is the rest of the string.
 
         Example:
-            >>> chunk = Chunk(filename="output.log", data="ERROR 2020-08-25T20:38 this is my line of text\n")
+            >>> chunk = Chunk(
+            ...     filename="output.log",
+            ...     data="ERROR 2020-08-25T20:38 this is my line of text\n",
+            ... )
             >>> split_chunk(chunk)
             ("ERROR 2020-08-25T20:38 ", "this is my line of text\n")
         """
@@ -494,12 +489,12 @@ class FileStreamApi:
         # TODO: Consolidate with internal_util.ExceptionThread
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             exc_info = sys.exc_info()
             self._exc_info = exc_info
             logger.exception("generic exception in filestream thread")
             wandb._sentry.exception(exc_info)
-            raise e
+            raise
 
     def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:
         """Log dropped chunks and updates dynamic settings."""
@@ -507,7 +502,7 @@ class FileStreamApi:
             wandb.termerror(
                 "Dropped streaming file chunk (see wandb/debug-internal.log)"
             )
-            logger.exception("dropped chunk {}".format(response))
+            logger.exception(f"dropped chunk {response}")
             self._dropped_chunks += 1
         else:
             parsed: Optional[dict] = None
@@ -575,7 +570,7 @@ class FileStreamApi:
     def push(self, filename: str, data: str) -> None:
         """Push a chunk of a file to the streaming endpoint.
 
-        Arguments:
+        Args:
             filename: Name of file to append to.
             data: Text to append to the file.
         """
@@ -584,7 +579,7 @@ class FileStreamApi:
     def push_success(self, artifact_id: str, save_name: str) -> None:
         """Notification that a file upload has been successfully completed.
 
-        Arguments:
+        Args:
             artifact_id: ID of artifact
             save_name: saved name of the uploaded file
         """
@@ -595,7 +590,7 @@ class FileStreamApi:
 
         Anything pushed after finish will be dropped.
 
-        Arguments:
+        Args:
             exitcode: The exitcode of the watched process.
         """
         logger.info("file stream finish called")
@@ -620,7 +615,7 @@ def request_with_retry(
 ) -> Union["requests.Response", "requests.RequestException"]:
     """Perform a requests http call, retrying with exponential backoff.
 
-    Arguments:
+    Args:
         func:        An http-requesting function to call, like requests.post
         max_retries: Maximum retries before giving up.
                      By default, we retry 30 times in ~2 hours before dropping the chunk
@@ -664,8 +659,7 @@ def request_with_retry(
                 e.response is not None and e.response.status_code == 429
             ):
                 err_str = (
-                    "Filestream rate limit exceeded, "
-                    f"retrying in {delay:.1f} seconds. "
+                    f"Filestream rate limit exceeded, retrying in {delay:.1f} seconds. "
                 )
                 if retry_callback:
                     retry_callback(e.response.status_code, err_str)
@@ -688,8 +682,5 @@ def request_with_retry(
                 error_message = response.json()["error"]  # todo: clean this up
             except Exception:
                 pass
-            logger.error(f"requests_with_retry error: {error_message}")
-            logger.exception(
-                "requests_with_retry encountered unretryable exception: %s", e
-            )
+            logger.exception(f"requests_with_retry error: {error_message}")
             return e

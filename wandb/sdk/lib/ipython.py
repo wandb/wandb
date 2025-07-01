@@ -1,12 +1,7 @@
 import logging
 import sys
 import warnings
-from typing import Optional
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+from typing import Literal, Optional
 
 import wandb
 
@@ -15,16 +10,16 @@ PythonType = Literal["python", "ipython", "jupyter"]
 logger = logging.getLogger(__name__)
 
 
-TABLE_STYLES = """<style>
-    table.wandb td:nth-child(1) { padding: 0 10px; text-align: left ; width: auto;} td:nth-child(2) {text-align: left ; width: 100%}
-    .wandb-row { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: flex-start; width: 100% }
-    .wandb-col { display: flex; flex-direction: column; flex-basis: 100%; flex: 1; padding: 10px; }
-    </style>
-"""
-
-
 def toggle_button(what="run"):
-    return f"<button onClick=\"this.nextSibling.style.display='block';this.style.display='none';\">Display W&B {what}</button>"
+    """Returns the HTML for a button used to reveal the element following it.
+
+    The element immediately after the button must have `display: none`.
+    """
+    return (
+        "<button onClick=\"this.nextSibling.style.display='block';this.style.display='none';\">"
+        f"Display W&B {what}"
+        "</button>"
+    )
 
 
 def _get_python_type() -> PythonType:
@@ -62,43 +57,28 @@ def _get_python_type() -> PythonType:
 
 
 def in_jupyter() -> bool:
+    """Returns True if we're in a Jupyter notebook."""
     return _get_python_type() == "jupyter"
 
 
+def in_ipython() -> bool:
+    """Returns True if we're running in IPython in the terminal."""
+    return _get_python_type() == "ipython"
+
+
 def in_notebook() -> bool:
+    """Returns True if we're running in Jupyter or IPython."""
     return _get_python_type() != "python"
-
-
-def display_html(html: str):  # type: ignore
-    """Display HTML in notebooks, is a noop outside a jupyter context."""
-    if wandb.run and wandb.run._settings.silent:
-        return
-    try:
-        from IPython.core.display import HTML, display  # type: ignore
-    except ImportError:
-        wandb.termwarn("Unable to render HTML, can't import display from ipython.core")
-        return False
-    return display(HTML(html))
-
-
-def display_widget(widget):
-    """Display ipywidgets in notebooks, is a noop outside of a jupyter context."""
-    if wandb.run and wandb.run._settings.silent:
-        return
-    try:
-        from IPython.core.display import display
-    except ImportError:
-        wandb.termwarn(
-            "Unable to render Widget, can't import display from ipython.core"
-        )
-        return False
-    return display(widget)
 
 
 class ProgressWidget:
     """A simple wrapper to render a nice progress bar with a label."""
 
     def __init__(self, widgets, min, max):
+        from IPython import display
+
+        self._ipython_display = display
+
         self.widgets = widgets
         self._progress = widgets.FloatProgress(min=min, max=max)
         self._label = widgets.Label()
@@ -114,10 +94,10 @@ class ProgressWidget:
             self._label.value = label
             if not self._displayed:
                 self._displayed = True
-                display_widget(self._widget)
-        except Exception as e:
+                self._ipython_display.display(self._widget)
+        except Exception:
+            logger.exception("Error in ProgressWidget.update()")
             self._disabled = True
-            logger.exception(e)
             wandb.termwarn(
                 "Unable to render progress bar, see the user log for details"
             )

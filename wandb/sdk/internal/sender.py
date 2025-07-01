@@ -1,12 +1,12 @@
 """sender."""
 
 import contextlib
+import glob
 import gzip
 import json
 import logging
 import os
 import queue
-import sys
 import threading
 import time
 import traceback
@@ -19,6 +19,7 @@ from typing import (
     Dict,
     Generator,
     List,
+    Literal,
     Optional,
     Tuple,
     Type,
@@ -52,22 +53,17 @@ from wandb.sdk.lib import (
     filesystem,
     proto_util,
     redirect,
+    retry,
     telemetry,
-    tracelog,
 )
-from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactManifest,
         ArtifactManifestEntry,
         ArtifactRecord,
+        EnvironmentRecord,
         HttpResponse,
         LocalInfo,
         Record,
@@ -217,6 +213,7 @@ class SendManager:
     _context_keeper: context.ContextKeeper
 
     _telemetry_obj: telemetry.TelemetryRecord
+    _environment_obj: "EnvironmentRecord"
     _fs: Optional["file_stream.FileStreamApi"]
     _run: Optional["RunRecord"]
     _entity: Optional[str]
@@ -273,6 +270,7 @@ class SendManager:
 
         self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
+        self._environment_obj = wandb_internal_pb2.EnvironmentRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
         self._metadata_summary: Dict[str, Any] = defaultdict()
         self._cached_summary: Dict[str, Any] = dict()
@@ -327,18 +325,18 @@ class SendManager:
     ) -> "SendManager":
         """Set up a standalone SendManager.
 
-        Currently, we're using this primarily for `sync.py`.
+        Exclusively used in `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
         settings = wandb.Settings(
-            files_dir=files_dir,
+            x_files_dir=files_dir,
             root_dir=root_dir,
             # _start_time=0,
             resume=resume,
             # ignore_globs=(),
-            _sync=True,
+            x_sync=True,
             disable_job_creation=False,
-            _file_stream_timeout_seconds=0,
+            x_file_stream_timeout_seconds=0,
         )
         record_q: Queue[Record] = queue.Queue()
         result_q: Queue[Result] = queue.Queue()
@@ -394,7 +392,7 @@ class SendManager:
         try:
             self._api.set_local_context(api_context)
             send_handler(record)
-        except ContextCancelledError:
+        except retry.RetryCancelledError:
             logger.debug(f"Record cancelled: {record_type}")
             self._context_keeper.release(context_id)
         finally:
@@ -418,7 +416,6 @@ class SendManager:
         send_handler(record)
 
     def _respond_result(self, result: "Result") -> None:
-        tracelog.log_message_queue(result, self._result_q)
         context_id = context.context_id_from_result(result)
         self._context_keeper.release(context_id)
         self._result_q.put(result)
@@ -442,7 +439,7 @@ class SendManager:
         #     state machine
         #   - skipping the exit record in `wandb sync` mode so that
         #     it is always executed as the last record
-        if not self._settings._offline and not self._settings._sync:
+        if not self._settings._offline and not self._settings.x_sync:
             assert record_num == self._send_record_num + 1
         self._send_record_num = record_num
 
@@ -550,23 +547,6 @@ class SendManager:
             except Exception as e:
                 logger.warning(f"Error emptying retry queue: {e}")
         self._respond_result(result)
-
-    def send_request_login(self, record: "Record") -> None:
-        # TODO: do something with api_key or anonymous?
-        # TODO: return an error if we aren't logged in?
-        self._api.reauth()
-        viewer = self.get_viewer_info()
-        server_info = self.get_server_info()
-        # self._login_flags = json.loads(viewer.get("flags", "{}"))
-        # self._login_entity = viewer.get("entity")
-        if server_info:
-            logger.info(f"Login server info: {server_info}")
-        self._entity = viewer.get("entity")
-        if record.control.req_resp:
-            result = proto_util._result_from_record(record)
-            if self._entity:
-                result.response.login_response.active_entity = self._entity
-            self._respond_result(result)
 
     def send_exit(self, record: "Record") -> None:
         # track where the exit came from
@@ -772,14 +752,12 @@ class SendManager:
                 self._resume_state.wandb_runtime = new_runtime
             tags = resume_status.get("tags") or []
 
-        except (IndexError, ValueError) as e:
-            logger.error("unable to load resume tails", exc_info=e)
+        except (IndexError, ValueError):
+            logger.exception("unable to load resume tails")
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
-                error.message = "resume='must' but could not resume ({}) ".format(
-                    run.run_id
-                )
+                error.message = f"resume='must' but could not resume ({run.run_id}) "
                 return error
 
         # TODO: Do we need to restore config / summary?
@@ -795,7 +773,7 @@ class SendManager:
         self._resume_state.summary = summary
         self._resume_state.tags = tags
         self._resume_state.resumed = True
-        logger.info("configured resuming with: {}".format(self._resume_state))
+        logger.info(f"configured resuming with: {self._resume_state}")
         return None
 
     def _telemetry_get_framework(self) -> str:
@@ -815,12 +793,12 @@ class SendManager:
 
     def _config_backend_dict(self) -> sender_config.BackendConfigDict:
         config = self._consolidated_config or sender_config.ConfigState()
-
         return config.to_backend_dict(
             telemetry_record=self._telemetry_obj,
             framework=self._telemetry_get_framework(),
             start_time_millis=self._start_time,
             metric_pbdicts=self._config_metric_pbdict_list,
+            environment_record=self._environment_obj,
         )
 
     def _config_save(
@@ -839,9 +817,7 @@ class SendManager:
             self._interface.publish_config(
                 key=("_wandb", "spell_url"), val=env.get("SPELL_RUN_URL")
             )
-            url = "{}/{}/{}/runs/{}".format(
-                self._api.app_url, self._run.entity, self._run.project, self._run.run_id
-            )
+            url = f"{self._api.app_url}/{self._run.entity}/{self._run.project}/runs/{self._run.run_id}"
             requests.put(
                 env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
                 json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
@@ -852,23 +828,22 @@ class SendManager:
         # TODO: do something if sync spell is not successful?
 
     def _setup_fork(self, server_run: dict):
-        assert self._settings.fork_from
-        assert self._settings.fork_from.metric == "_step"
         assert self._run
-        first_step = int(self._settings.fork_from.value) + 1
+        assert self._run.branch_point
+        first_step = int(self._run.branch_point.value) + 1
         self._resume_state.step = first_step
         self._resume_state.history = server_run.get("historyLineCount", 0)
         self._run.forked = True
         self._run.starting_step = first_step
 
     def _load_rewind_state(self, run: "RunRecord"):
-        assert self._settings.resume_from
+        assert run.branch_point
         self._rewind_response = self._api.rewind_run(
             run_name=run.run_id,
             entity=run.entity or None,
             project=run.project or None,
-            metric_name=self._settings.resume_from.metric,
-            metric_value=self._settings.resume_from.value,
+            metric_name=run.branch_point.metric,
+            metric_value=run.branch_point.value,
             program_path=self._settings.program or None,
         )
         self._resume_state.history = self._rewind_response.get("historyLineCount", 0)
@@ -877,12 +852,11 @@ class SendManager:
         )
 
     def _install_rewind_state(self):
-        assert self._settings.resume_from
-        assert self._settings.resume_from.metric == "_step"
         assert self._run
+        assert self._run.branch_point
         assert self._rewind_response
 
-        first_step = int(self._settings.resume_from.value) + 1
+        first_step = int(self._run.branch_point.value) + 1
         self._resume_state.step = first_step
 
         # We set the fork flag here because rewind uses the forking
@@ -916,7 +890,7 @@ class SendManager:
         # update telemetry
         if run.telemetry:
             self._telemetry_obj.MergeFrom(run.telemetry)
-        if self._settings._sync:
+        if self._settings.x_sync:
             self._telemetry_obj.feature.sync = True
 
         # build config dict
@@ -926,8 +900,8 @@ class SendManager:
             config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
-        do_fork = self._settings.fork_from is not None and is_wandb_init
-        do_rewind = self._settings.resume_from is not None and is_wandb_init
+        do_rewind = run.branch_point.run == run.run_id
+        do_fork = not do_rewind and run.branch_point.run != ""
         do_resume = bool(self._settings.resume)
 
         num_resume_options_set = sum([do_fork, do_rewind, do_resume])
@@ -1126,7 +1100,7 @@ class SendManager:
             self._api,
             self._run.run_id,
             self._run.start_time.ToMicroseconds() / 1e6,
-            timeout=self._settings._file_stream_timeout_seconds,
+            timeout=self._settings.x_file_stream_timeout_seconds or 0,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets
@@ -1208,7 +1182,10 @@ class SendManager:
         start_us = self._run.start_time.ToMicroseconds()
         d = dict()
         for item in stats.item:
-            d[item.key] = json.loads(item.value_json)
+            try:
+                d[item.key] = json.loads(item.value_json)
+            except json.JSONDecodeError:
+                logger.exception("error decoding stats json: %s", item.value_json)
         row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
@@ -1342,7 +1319,7 @@ class SendManager:
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
             if line.startswith("\r"):
-                # TODO: maybe we shouldnt just drop this, what if there was some \ns in the partial
+                # TODO: maybe we shouldn't just drop this, what if there was some \ns in the partial
                 # that should probably be the check instead of not line.endswith(\n")
                 # logger.info(f"Dropping data {self._partial_output[stream]}")
                 self._partial_output[stream] = ""
@@ -1405,11 +1382,11 @@ class SendManager:
             next_idx = len(self._config_metric_pbdict_list)
             self._config_metric_pbdict_list.append(md)
             self._config_metric_index_dict[metric.name] = next_idx
-        self._update_config()
+        self._debounce_config()
 
     def _update_telemetry_record(self, telemetry: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telemetry)
-        self._update_config()
+        self._debounce_config()
 
     def send_telemetry(self, record: "Record") -> None:
         self._update_telemetry_record(record.telemetry)
@@ -1429,7 +1406,8 @@ class SendManager:
         for k in files.files:
             # TODO(jhr): fix paths with directories
             self._save_file(
-                interface.GlobStr(k.path), interface.file_enum_to_policy(k.policy)
+                interface.GlobStr(glob.escape(k.path)),
+                interface.file_enum_to_policy(k.policy),
             )
 
     def send_header(self, record: "Record") -> None:
@@ -1441,6 +1419,23 @@ class SendManager:
     def send_tbrecord(self, record: "Record") -> None:
         # tbrecord watching threads are handled by handler.py
         pass
+
+    def _update_environment_record(self, environment: "EnvironmentRecord") -> None:
+        self._environment_obj.MergeFrom(environment)
+        self._debounce_config()
+
+    def send_environment(self, record: "Record") -> None:
+        """Inject environment info into config and upload as a JSON file."""
+        self._update_environment_record(record.environment)
+
+        environment_json = json.dumps(proto_util.message_to_dict(self._environment_obj))
+
+        with open(
+            os.path.join(self._settings.files_dir, filenames.METADATA_FNAME), "w"
+        ) as f:
+            f.write(environment_json)
+
+        self._save_file(interface.GlobStr(filenames.METADATA_FNAME), policy="now")
 
     def send_request_link_artifact(self, record: "Record") -> None:
         if not (record.control.req_resp or record.control.mailbox_slot):
@@ -1463,7 +1458,7 @@ class SendManager:
         )
         if (client_id or server_id) and portfolio_name and entity and project:
             try:
-                self._api.link_artifact(
+                response = self._api.link_artifact(
                     client_id,
                     server_id,
                     portfolio_name,
@@ -1472,9 +1467,12 @@ class SendManager:
                     aliases,
                     organization,
                 )
+                result.response.link_artifact_response.version_index = response[
+                    "versionIndex"
+                ]
             except Exception as e:
                 org_or_entity = organization or entity
-                result.response.log_artifact_response.error_message = (
+                result.response.link_artifact_response.error_message = (
                     f"error linking artifact to "
                     f'"{org_or_entity}/{project}/{portfolio_name}"; error: {e}'
                 )
@@ -1495,7 +1493,6 @@ class SendManager:
             self._job_builder.set_partial_source_id(use.id)
 
     def send_request_log_artifact(self, record: "Record") -> None:
-        assert record.control.req_resp
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
         history_step = record.request.log_artifact.history_step
@@ -1517,17 +1514,15 @@ class SendManager:
         try:
             res = self._send_artifact(artifact)
             logger.info(f"sent artifact {artifact.name} - {res}")
-        except Exception as e:
-            logger.error(
-                'send_artifact: failed for artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
-                )
+        except Exception:
+            logger.exception(
+                f'send_artifact: failed for artifact "{artifact.type}/{artifact.name}"'
             )
 
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
     ) -> Optional[Dict]:
-        from wandb.util import parse_version
+        from packaging.version import parse
 
         assert self._pusher
         saver = ArtifactSaver(
@@ -1540,9 +1535,7 @@ class SendManager:
 
         if artifact.distributed_id:
             max_cli_version = self._max_cli_version()
-            if max_cli_version is None or parse_version(
-                max_cli_version
-            ) < parse_version("0.10.16"):
+            if max_cli_version is None or parse(max_cli_version) < parse("0.10.16"):
                 logger.warning(
                     "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
@@ -1551,6 +1544,8 @@ class SendManager:
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
         res = saver.save(
+            entity=artifact.entity,
+            project=artifact.project,
             type=artifact.type,
             name=artifact.name,
             client_id=artifact.client_id,
@@ -1576,13 +1571,11 @@ class SendManager:
         return res
 
     def send_alert(self, record: "Record") -> None:
-        from wandb.util import parse_version
+        from packaging.version import parse
 
         alert = record.alert
         max_cli_version = self._max_cli_version()
-        if max_cli_version is None or parse_version(max_cli_version) < parse_version(
-            "0.10.9"
-        ):
+        if max_cli_version is None or parse(max_cli_version) < parse("0.10.9"):
             logger.warning(
                 "This W&B server doesn't support alerts, "
                 "have your administrator install wandb/local >= 0.9.31"
@@ -1595,8 +1588,8 @@ class SendManager:
                     level=alert.level,
                     wait_duration=alert.wait_duration,
                 )
-            except Exception as e:
-                logger.error(f"send_alert: failed for alert {alert.title!r}: {e}")
+            except Exception:
+                logger.exception(f"send_alert: failed for alert {alert.title!r}")
 
     def finish(self) -> None:
         logger.info("shutting down sender")

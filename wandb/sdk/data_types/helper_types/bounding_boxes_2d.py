@@ -13,10 +13,22 @@ if TYPE_CHECKING:  # pragma: no cover
     from ...wandb_run import Run as LocalRun
 
 
+def _convert_pytorch_tensor_to_list(box_data):
+    for box in box_data:
+        if (
+            "position" in box
+            and "middle" in box["position"]
+            and util.is_pytorch_tensor_typename(
+                util.get_full_typename(box["position"]["middle"])
+            )
+        ):
+            box["position"]["middle"] = box["position"]["middle"].tolist()
+
+
 class BoundingBoxes2D(JSONMetadata):
     """Format images with 2D bounding box overlays for logging to W&B.
 
-    Arguments:
+    Args:
         val: (dictionary) A dictionary of the following form:
             box_data: (list of dictionaries) One dictionary for each bounding box, containing:
                 position: (dictionary) the position and size of the bounding box, in one of two formats
@@ -48,12 +60,12 @@ class BoundingBoxes2D(JSONMetadata):
 
     Examples:
         ### Log bounding boxes for a single image
-        <!--yeadoc-test:boundingbox-2d-->
+
         ```python
         import numpy as np
         import wandb
 
-        wandb.init()
+        run = wandb.init()
         image = np.random.randint(low=0, high=256, size=(200, 300, 3))
 
         class_labels = {0: "person", 1: "car", 2: "road", 3: "building"}
@@ -65,14 +77,23 @@ class BoundingBoxes2D(JSONMetadata):
                     "box_data": [
                         {
                             # one box expressed in the default relative/fractional domain
-                            "position": {"minX": 0.1, "maxX": 0.2, "minY": 0.3, "maxY": 0.4},
+                            "position": {
+                                "minX": 0.1,
+                                "maxX": 0.2,
+                                "minY": 0.3,
+                                "maxY": 0.4,
+                            },
                             "class_id": 1,
                             "box_caption": class_labels[1],
                             "scores": {"acc": 0.2, "loss": 1.2},
                         },
                         {
                             # another box expressed in the pixel domain
-                            "position": {"middle": [150, 20], "width": 68, "height": 112},
+                            "position": {
+                                "middle": [150, 20],
+                                "width": 68,
+                                "height": 112,
+                            },
                             "domain": "pixel",
                             "class_id": 3,
                             "box_caption": "a building",
@@ -85,16 +106,16 @@ class BoundingBoxes2D(JSONMetadata):
             },
         )
 
-        wandb.log({"driving_scene": img})
+        run.log({"driving_scene": img})
         ```
 
         ### Log a bounding box overlay to a Table
-        <!--yeadoc-test:bb2d-image-with-labels-->
+
         ```python
         import numpy as np
         import wandb
 
-        wandb.init()
+        run = wandb.init()
         image = np.random.randint(low=0, high=256, size=(200, 300, 3))
 
         class_labels = {0: "person", 1: "car", 2: "road", 3: "building"}
@@ -115,14 +136,23 @@ class BoundingBoxes2D(JSONMetadata):
                     "box_data": [
                         {
                             # one box expressed in the default relative/fractional domain
-                            "position": {"minX": 0.1, "maxX": 0.2, "minY": 0.3, "maxY": 0.4},
+                            "position": {
+                                "minX": 0.1,
+                                "maxX": 0.2,
+                                "minY": 0.3,
+                                "maxY": 0.4,
+                            },
                             "class_id": 1,
                             "box_caption": class_labels[1],
                             "scores": {"acc": 0.2, "loss": 1.2},
                         },
                         {
                             # another box expressed in the pixel domain
-                            "position": {"middle": [150, 20], "width": 68, "height": 112},
+                            "position": {
+                                "middle": [150, 20],
+                                "width": 68,
+                                "height": 112,
+                            },
                             "domain": "pixel",
                             "class_id": 3,
                             "box_caption": "a building",
@@ -138,7 +168,7 @@ class BoundingBoxes2D(JSONMetadata):
 
         table = wandb.Table(columns=["image"])
         table.add_data(img)
-        wandb.log({"driving_scene": table})
+        run.log({"driving_scene": table})
         ```
     """
 
@@ -177,7 +207,11 @@ class BoundingBoxes2D(JSONMetadata):
             key: (string) The readable name or id for this set of bounding boxes (e.g.
                 predictions, ground_truth)
         """
+        # Pytorch tensors are not serializable to json,
+        # so we convert them to lists to avoid errors later on.
+        _convert_pytorch_tensor_to_list(val.get("box_data", []))
         super().__init__(val)
+
         self._val = val["box_data"]
         self._key = key
         # Add default class mapping
@@ -286,7 +320,7 @@ class BoundingBoxes2D(JSONMetadata):
             # an object with a _type key. Will need to push this change to the UI first to ensure backwards compat
             return self._val
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb.Artifact")
+            raise TypeError("to_json accepts wandb_run.Run or wandb.Artifact")
 
     @classmethod
     def from_json(

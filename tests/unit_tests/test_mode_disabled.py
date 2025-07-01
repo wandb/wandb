@@ -49,5 +49,4 @@ def test_disabled_context_manager():
         run.link_model("model")
         run.define_metric("metric")
         run.mark_preempting()
-        run.plot_table("table")
         run.alert("alert")

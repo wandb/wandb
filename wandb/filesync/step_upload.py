@@ -21,14 +21,11 @@ from wandb.filesync import upload_job
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
+    from typing import TypedDict
+
     from wandb.filesync import stats
     from wandb.sdk.internal import file_stream, internal_api, progress
     from wandb.sdk.internal.settings_static import SettingsStatic
-
-    if sys.version_info >= (3, 8):
-        from typing import TypedDict
-    else:
-        from typing_extensions import TypedDict
 
     class ArtifactStatus(TypedDict):
         finalize: bool
@@ -179,7 +176,7 @@ class StepUpload:
                 self._artifacts[event.artifact_id]["pending_count"] += 1
             self._start_upload_job(event)
         else:
-            raise Exception("Programming error: unhandled event: {}".format(str(event)))
+            raise TypeError(f"Event has unexpected type: {event!s}")
 
     def _start_upload_job(self, event: RequestUpload) -> None:
         # Operations on a single backend file must be serialized. if

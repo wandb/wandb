@@ -20,7 +20,6 @@ class LocalRegistry(AbstractRegistry):
 
     def __init__(self) -> None:
         """Initialize a local registry."""
-        pass
 
     @classmethod
     def from_config(
@@ -40,7 +39,6 @@ class LocalRegistry(AbstractRegistry):
 
     async def verify(self) -> None:
         """Verify the local registry by doing nothing."""
-        pass
 
     async def get_username_password(self) -> Tuple[str, str]:
         """Get the username and password of the local registry."""

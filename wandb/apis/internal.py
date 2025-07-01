@@ -63,6 +63,10 @@ class Api:
     def git(self):
         return self.api.git
 
+    def validate_api_key(self) -> bool:
+        """Returns whether the API key stored on initialization is valid."""
+        return self.api.validate_api_key()
+
     def file_current(self, *args):
         return self.api.file_current(*args)
 
@@ -206,6 +210,9 @@ class Api:
 
     def upsert_run_queue(self, *args, **kwargs):
         return self.api.upsert_run_queue(*args, **kwargs)
+
+    def create_custom_chart(self, *args, **kwargs):
+        return self.api.create_custom_chart(*args, **kwargs)
 
     def update_launch_agent_status(self, *args, **kwargs):
         return self.api.update_launch_agent_status(*args, **kwargs)

@@ -7,7 +7,7 @@ from wandb.sdk.internal.settings_static import SettingsStatic
 
 def test_config_save_preserve_order(tmp_path, test_settings):
     config_file = tmp_path / "config.yaml"
-    settings = test_settings({"files_dir": str(tmp_path)})
+    settings = test_settings({"x_files_dir": str(tmp_path)})
     sender = SendManager(
         settings=SettingsStatic(settings.to_proto()),
         record_q=MagicMock(),

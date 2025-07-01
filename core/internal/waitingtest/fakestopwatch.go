@@ -58,9 +58,9 @@ func (fs *FakeStopwatch) Reset() {
 	fs.done = false
 }
 
-func (fs *FakeStopwatch) Wait() <-chan struct{} {
+func (fs *FakeStopwatch) Wait() (<-chan struct{}, func()) {
 	if fs.IsDone() {
-		return completedDelay()
+		return completedDelay(), func() {}
 	}
 
 	fs.Lock()
@@ -70,5 +70,5 @@ func (fs *FakeStopwatch) Wait() <-chan struct{} {
 		fs.waitChan = make(chan struct{})
 	}
 
-	return fs.waitChan
+	return fs.waitChan, func() {}
 }

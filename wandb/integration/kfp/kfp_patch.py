@@ -10,12 +10,11 @@ try:
     from kfp.components import structures
     from kfp.components._components import _create_task_factory_from_component_spec
     from kfp.components._python_op import _func_to_component_spec
-
-    from wandb.util import parse_version
+    from packaging.version import parse
 
     MIN_KFP_VERSION = "1.6.1"
 
-    if parse_version(kfp_version) < parse_version(MIN_KFP_VERSION):
+    if parse(kfp_version) < parse(MIN_KFP_VERSION):
         wandb.termwarn(
             f"Your version of kfp {kfp_version} may not work.  This integration requires kfp>={MIN_KFP_VERSION}"
         )
@@ -163,7 +162,7 @@ def _get_function_source_definition(func: Callable) -> str:
 
     # For wandb, allow decorators (so we can use the @wandb_log decorator)
     func_code_lines = itertools.dropwhile(
-        lambda x: not (x.startswith("def") or x.startswith("@wandb_log")),
+        lambda x: not (x.startswith(("def", "@wandb_log"))),
         func_code_lines,
     )
 
@@ -208,23 +207,24 @@ def create_component_from_func(
                 """Return sum of two arguments"""
                 return a + b
 
+
             # add_op is a task factory function that creates a task object when given arguments
             add_op = create_component_from_func(
                 func=add,
-                base_image='python:3.7', # Optional
-                output_component_file='add.component.yaml', # Optional
-                packages_to_install=['pandas==0.24'], # Optional
+                base_image="python:3.7",  # Optional
+                output_component_file="add.component.yaml",  # Optional
+                packages_to_install=["pandas==0.24"],  # Optional
             )
 
             # The component spec can be accessed through the .component_spec attribute:
-            add_op.component_spec.save('add.component.yaml')
+            add_op.component_spec.save("add.component.yaml")
 
             # The component function can be called with arguments to create a task:
             add_task = add_op(1, 3)
 
             # The resulting task has output references, corresponding to the component outputs.
             # When the function only has a single anonymous return value, the output name is "Output":
-            sum_output_ref = add_task.outputs['Output']
+            sum_output_ref = add_task.outputs["Output"]
 
             # These task output references can be passed to other component functions, constructing a computation graph:
             task2 = add_op(sum_output_ref, 5)
@@ -241,9 +241,13 @@ def create_component_from_func(
 
             from typing import NamedTuple
 
-            def add_multiply_two_numbers(a: float, b: float) -> NamedTuple('Outputs', [('sum', float), ('product', float)]):
+
+            def add_multiply_two_numbers(a: float, b: float) -> NamedTuple(
+                "Outputs", [("sum", float), ("product", float)]
+            ):
                 """Return sum and product of two arguments"""
                 return (a + b, a * b)
+
 
             add_multiply_op = create_component_from_func(add_multiply_two_numbers)
 
@@ -251,7 +255,7 @@ def create_component_from_func(
             add_multiply_task = add_multiply_op(1, 3)
 
             # The resulting task has output references, corresponding to the component outputs:
-            sum_output_ref = add_multiply_task.outputs['sum']
+            sum_output_ref = add_multiply_task.outputs["sum"]
 
             # These task output references can be passed to other component functions, constructing a computation graph:
             task2 = add_multiply_op(sum_output_ref, 5)
@@ -266,14 +270,21 @@ def create_component_from_func(
         Example of a component function declaring file input and output::
 
             def catboost_train_classifier(
-                training_data_path: InputPath('CSV'),            # Path to input data file of type "CSV"
-                trained_model_path: OutputPath('CatBoostModel'), # Path to output data file of type "CatBoostModel"
-                number_of_trees: int = 100,                      # Small output of type "Integer"
-            ) -> NamedTuple('Outputs', [
-                ('Accuracy', float),  # Small output of type "Float"
-                ('Precision', float), # Small output of type "Float"
-                ('JobUri', 'URI'),    # Small output of type "URI"
-            ]):
+                training_data_path: InputPath(
+                    "CSV"
+                ),  # Path to input data file of type "CSV"
+                trained_model_path: OutputPath(
+                    "CatBoostModel"
+                ),  # Path to output data file of type "CatBoostModel"
+                number_of_trees: int = 100,  # Small output of type "Integer"
+            ) -> NamedTuple(
+                "Outputs",
+                [
+                    ("Accuracy", float),  # Small output of type "Float"
+                    ("Precision", float),  # Small output of type "Float"
+                    ("JobUri", "URI"),  # Small output of type "URI"
+                ],
+            ):
                 """Train CatBoost classification model"""
                 ...
 

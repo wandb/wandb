@@ -4,6 +4,7 @@ import tempfile
 from unittest import mock
 
 import pytest
+import wandb
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.artifacts.artifact import Artifact
@@ -11,42 +12,40 @@ from wandb.sdk.launch.create_job import _create_job
 from wandb.sdk.launch.git_reference import GitReference
 
 
-def test_job_call(relay_server, user, wandb_init, test_settings):
+def test_job_call(user):
     proj = "TEST_PROJECT"
     queue = "TEST_QUEUE"
     public_api = PublicApi()
     internal_api = InternalApi()
-    settings = test_settings({"project": proj})
 
-    with relay_server():
-        run = wandb_init(settings=settings)
+    run = wandb.init(settings=wandb.Settings(project=proj))
 
-        docker_image = "TEST_IMAGE"
-        job_artifact = run._log_job_artifact_with_image(docker_image)
-        job_name = job_artifact.wait().name
-        job = public_api.job(f"{user}/{proj}/{job_name}")
+    docker_image = "TEST_IMAGE"
+    job_artifact = run._log_job_artifact_with_image(docker_image)
+    job_name = job_artifact.wait().name
+    job = public_api.job(f"{user}/{proj}/{job_name}")
 
-        internal_api.create_run_queue(
-            entity=user, project=proj, queue_name=queue, access="PROJECT"
-        )
+    internal_api.create_run_queue(
+        entity=user, project=proj, queue_name=queue, access="PROJECT"
+    )
 
-        queued_run = job.call(config={}, project=proj, queue=queue, project_queue=proj)
+    queued_run = job.call(config={}, project=proj, queue=queue, project_queue=proj)
 
-        assert queued_run.state == "pending"
-        assert queued_run.entity == user
-        assert queued_run.project == proj
+    assert queued_run.state == "pending"
+    assert queued_run.entity == user
+    assert queued_run.project == proj
 
-        rqi = internal_api.pop_from_run_queue(queue, user, proj)
+    rqi = internal_api.pop_from_run_queue(queue, user, proj)
 
-        assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{docker_image}:v0"
-        assert rqi["runSpec"]["project"] == proj
-        run.finish()
+    assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{docker_image}:v0"
+    assert rqi["runSpec"]["project"] == proj
+    run.finish()
 
 
-def test_create_job_artifact(runner, user, wandb_init, test_settings):
+def test_create_job_artifact(runner, user):
     """Test that non-core job creation produces a partial job as expected."""
     proj = "test-p"
-    settings = test_settings({"project": proj})
+    settings = wandb.Settings(project=proj)
 
     internal_api = InternalApi()
     public_api = PublicApi()
@@ -99,13 +98,11 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     with runner.isolated_filesystem(), mock.patch.dict(
         "os.environ", WANDB_ARTIFACTS=artifact_env
     ):
-        settings.update(
-            {
-                "job_source": "artifact",
-                "launch": True,
-            }
-        )
-        run2 = wandb_init(settings=settings, config={"input1": 1})
+        settings.job_source = "artifact"
+        settings.launch = True
+        settings.disable_job_creation = False
+
+        run2 = wandb.init(settings=settings, config={"input1": 1})
         run2.log({"x": 2})
         run2.finish()
 
@@ -118,14 +115,14 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert "output_types" in job._job_artifact.metadata
 
 
-def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
+def test_create_git_job(runner, user, monkeypatch):
     """This tests that a git job is created correctly, and that the job is upgraded correctly.
 
     Currently failing at the artifact creation stage with wandb-core. Appears to be an issue
     with the artifact saver that is only happening when running in CI.
     """
     proj = "test-p99999"
-    settings = test_settings({"project": proj})
+    settings = wandb.Settings(project=proj)
 
     internal_api = InternalApi()
     public_api = PublicApi()
@@ -181,13 +178,11 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
     with runner.isolated_filesystem(), mock.patch.dict(
         "os.environ", WANDB_ARTIFACTS=artifact_env
     ):
-        settings.update(
-            {
-                "job_source": "repo",
-                "launch": True,
-            }
-        )
-        run2 = wandb_init(settings=settings, config={"input1": 1})
+        settings.job_source = "repo"
+        settings.launch = True
+        settings.disable_job_creation = False
+
+        run2 = wandb.init(settings=settings, config={"input1": 1})
         run2.log({"x": 2})
         run2.finish()
 
@@ -210,7 +205,7 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
         "port:5000:1000/1000/test/docker-image-path:alias1",
     ],
 )
-def test_create_job_image(user, wandb_init, test_settings, image_name):
+def test_create_job_image(user, image_name):
     proj = "test-p1"
 
     internal_api = InternalApi()

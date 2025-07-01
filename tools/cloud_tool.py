@@ -3,12 +3,7 @@ import logging
 import subprocess
 import sys
 from dataclasses import dataclass, fields
-from typing import Any, List
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-else:
-    from typing import Literal
+from typing import Any, List, Literal
 
 Command = Literal["gke", "gce"]
 
@@ -187,8 +182,7 @@ class GCE:
             "--maintenance-policy",
             self.config.maintenance_policy,
             "--image",
-            f"projects/{self.config.project}/global/images/"
-            f"{self.config.vm_image_name}",
+            f"projects/{self.config.project}/global/images/{self.config.vm_image_name}",
             "--boot-disk-size",
             self.config.disk_size,
             "--boot-disk-type",

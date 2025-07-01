@@ -17,6 +17,12 @@ const (
 	AlertSeverityError AlertSeverity = "ERROR"
 )
 
+var AllAlertSeverity = []AlertSeverity{
+	AlertSeverityInfo,
+	AlertSeverityWarn,
+	AlertSeverityError,
+}
+
 type ArtifactAliasInput struct {
 	ArtifactCollectionName string `json:"artifactCollectionName"`
 	Alias                  string `json:"alias"`
@@ -34,13 +40,17 @@ const (
 	ArtifactDigestAlgorithmManifestMd5 ArtifactDigestAlgorithm = "MANIFEST_MD5"
 )
 
+var AllArtifactDigestAlgorithm = []ArtifactDigestAlgorithm{
+	ArtifactDigestAlgorithmManifestMd5,
+}
+
 // ArtifactFileURLsArtifact includes the requested fields of the GraphQL type Artifact.
 type ArtifactFileURLsArtifact struct {
-	Files ArtifactFileURLsArtifactFilesFileConnection `json:"files"`
+	Files *ArtifactFileURLsArtifactFilesFileConnection `json:"files"`
 }
 
 // GetFiles returns ArtifactFileURLsArtifact.Files, and is useful for accessing the field via an interface.
-func (v *ArtifactFileURLsArtifact) GetFiles() ArtifactFileURLsArtifactFilesFileConnection {
+func (v *ArtifactFileURLsArtifact) GetFiles() *ArtifactFileURLsArtifactFilesFileConnection {
 	return v.Files
 }
 
@@ -102,6 +112,84 @@ func (v *ArtifactFileURLsArtifactFilesFileConnectionPageInfo) GetEndCursor() *st
 	return v.EndCursor
 }
 
+// ArtifactFileURLsByManifestEntriesArtifact includes the requested fields of the GraphQL type Artifact.
+type ArtifactFileURLsByManifestEntriesArtifact struct {
+	FilesByManifestEntries *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection `json:"filesByManifestEntries"`
+}
+
+// GetFilesByManifestEntries returns ArtifactFileURLsByManifestEntriesArtifact.FilesByManifestEntries, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifact) GetFilesByManifestEntries() *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection {
+	return v.FilesByManifestEntries
+}
+
+// ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection includes the requested fields of the GraphQL type FileConnection.
+type ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection struct {
+	PageInfo ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo        `json:"pageInfo"`
+	Edges    []ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdge `json:"edges"`
+}
+
+// GetPageInfo returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection) GetPageInfo() ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo {
+	return v.PageInfo
+}
+
+// GetEdges returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection.Edges, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnection) GetEdges() []ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdge {
+	return v.Edges
+}
+
+// ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdge includes the requested fields of the GraphQL type FileEdge.
+type ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdge struct {
+	Node *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile `json:"node"`
+}
+
+// GetNode returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdge.Node, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdge) GetNode() *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile {
+	return v.Node
+}
+
+// ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile includes the requested fields of the GraphQL type File.
+type ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile struct {
+	Name      string `json:"name"`
+	DirectUrl string `json:"directUrl"`
+}
+
+// GetName returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile.Name, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile) GetName() string {
+	return v.Name
+}
+
+// GetDirectUrl returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile.DirectUrl, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionEdgesFileEdgeNodeFile) GetDirectUrl() string {
+	return v.DirectUrl
+}
+
+// ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo struct {
+	HasNextPage bool    `json:"hasNextPage"`
+	EndCursor   *string `json:"endCursor"`
+}
+
+// GetHasNextPage returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// GetEndCursor returns ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesArtifactFilesByManifestEntriesFileConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// ArtifactFileURLsByManifestEntriesResponse is returned by ArtifactFileURLsByManifestEntries on success.
+type ArtifactFileURLsByManifestEntriesResponse struct {
+	Artifact *ArtifactFileURLsByManifestEntriesArtifact `json:"artifact"`
+}
+
+// GetArtifact returns ArtifactFileURLsByManifestEntriesResponse.Artifact, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsByManifestEntriesResponse) GetArtifact() *ArtifactFileURLsByManifestEntriesArtifact {
+	return v.Artifact
+}
+
 // ArtifactFileURLsResponse is returned by ArtifactFileURLs on success.
 type ArtifactFileURLsResponse struct {
 	Artifact *ArtifactFileURLsArtifact `json:"artifact"`
@@ -140,6 +228,29 @@ func (v *ArtifactManifestArtifactCurrentManifestArtifactManifestFile) GetDirectU
 	return v.DirectUrl
 }
 
+type ArtifactManifestEntryInput struct {
+	Name            string  `json:"name"`
+	Digest          string  `json:"digest"`
+	BirthArtifactID *string `json:"birthArtifactID"`
+	Ref             *string `json:"ref"`
+	Size            *int64  `json:"size"`
+}
+
+// GetName returns ArtifactManifestEntryInput.Name, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestEntryInput) GetName() string { return v.Name }
+
+// GetDigest returns ArtifactManifestEntryInput.Digest, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestEntryInput) GetDigest() string { return v.Digest }
+
+// GetBirthArtifactID returns ArtifactManifestEntryInput.BirthArtifactID, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestEntryInput) GetBirthArtifactID() *string { return v.BirthArtifactID }
+
+// GetRef returns ArtifactManifestEntryInput.Ref, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestEntryInput) GetRef() *string { return v.Ref }
+
+// GetSize returns ArtifactManifestEntryInput.Size, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestEntryInput) GetSize() *int64 { return v.Size }
+
 // ArtifactManifestResponse is returned by ArtifactManifest on success.
 type ArtifactManifestResponse struct {
 	Artifact *ArtifactManifestArtifact `json:"artifact"`
@@ -156,6 +267,12 @@ const (
 	ArtifactManifestTypeIncremental ArtifactManifestType = "INCREMENTAL"
 )
 
+var AllArtifactManifestType = []ArtifactManifestType{
+	ArtifactManifestTypeFull,
+	ArtifactManifestTypePatch,
+	ArtifactManifestTypeIncremental,
+}
+
 type ArtifactState string
 
 const (
@@ -164,12 +281,23 @@ const (
 	ArtifactStateDeleted   ArtifactState = "DELETED"
 )
 
+var AllArtifactState = []ArtifactState{
+	ArtifactStatePending,
+	ArtifactStateCommitted,
+	ArtifactStateDeleted,
+}
+
 type ArtifactStorageLayout string
 
 const (
 	ArtifactStorageLayoutV1 ArtifactStorageLayout = "V1"
 	ArtifactStorageLayoutV2 ArtifactStorageLayout = "V2"
 )
+
+var AllArtifactStorageLayout = []ArtifactStorageLayout{
+	ArtifactStorageLayoutV1,
+	ArtifactStorageLayoutV2,
+}
 
 // ClientIDMappingClientIDMapping includes the requested fields of the GraphQL type ClientIDMapping.
 type ClientIDMappingClientIDMapping struct {
@@ -228,6 +356,10 @@ type CompleteMultipartAction string
 const (
 	CompleteMultipartActionComplete CompleteMultipartAction = "Complete"
 )
+
+var AllCompleteMultipartAction = []CompleteMultipartAction{
+	CompleteMultipartActionComplete,
+}
 
 // CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload includes the requested fields of the GraphQL type CompleteMultipartUploadArtifactPayload.
 type CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload struct {
@@ -738,6 +870,11 @@ type InputFieldsResponse struct {
 func (v *InputFieldsResponse) GetTypeInfo() *InputFieldsTypeInfoType { return v.TypeInfo }
 
 // InputFieldsTypeInfoType includes the requested fields of the GraphQL type __Type.
+// The GraphQL type's documentation follows.
+//
+// The fundamental unit of any GraphQL Schema is the type. There are many kinds of types in GraphQL as represented by the `__TypeKind` enum.
+//
+// Depending on the kind of a type, certain fields describe information about that type. Scalar types provide no information beyond a name, description and optional `specifiedByURL`, while Enum types provide their values. Object and Interface types provide the fields they describe. Abstract types, Union and Interface, provide the Object types possible at runtime. List and NonNull types compose other types.
 type InputFieldsTypeInfoType struct {
 	InputFields []InputFieldsTypeInfoTypeInputFieldsInputValue `json:"inputFields"`
 }
@@ -748,6 +885,9 @@ func (v *InputFieldsTypeInfoType) GetInputFields() []InputFieldsTypeInfoTypeInpu
 }
 
 // InputFieldsTypeInfoTypeInputFieldsInputValue includes the requested fields of the GraphQL type __InputValue.
+// The GraphQL type's documentation follows.
+//
+// Arguments provided to Fields or Directives and the input fields of an InputObject are represented as Input Values which describe their type and optionally a default value.
 type InputFieldsTypeInfoTypeInputFieldsInputValue struct {
 	Name string `json:"name"`
 }
@@ -791,6 +931,36 @@ type NotifyScriptableRunAlertResponse struct {
 // GetNotifyScriptableRunAlert returns NotifyScriptableRunAlertResponse.NotifyScriptableRunAlert, and is useful for accessing the field via an interface.
 func (v *NotifyScriptableRunAlertResponse) GetNotifyScriptableRunAlert() *NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload {
 	return v.NotifyScriptableRunAlert
+}
+
+// OrganizationCoreWeaveOrganizationIDEntity includes the requested fields of the GraphQL type Entity.
+type OrganizationCoreWeaveOrganizationIDEntity struct {
+	Organization *OrganizationCoreWeaveOrganizationIDEntityOrganization `json:"organization"`
+}
+
+// GetOrganization returns OrganizationCoreWeaveOrganizationIDEntity.Organization, and is useful for accessing the field via an interface.
+func (v *OrganizationCoreWeaveOrganizationIDEntity) GetOrganization() *OrganizationCoreWeaveOrganizationIDEntityOrganization {
+	return v.Organization
+}
+
+// OrganizationCoreWeaveOrganizationIDEntityOrganization includes the requested fields of the GraphQL type Organization.
+type OrganizationCoreWeaveOrganizationIDEntityOrganization struct {
+	CoreWeaveOrganizationId *string `json:"coreWeaveOrganizationId"`
+}
+
+// GetCoreWeaveOrganizationId returns OrganizationCoreWeaveOrganizationIDEntityOrganization.CoreWeaveOrganizationId, and is useful for accessing the field via an interface.
+func (v *OrganizationCoreWeaveOrganizationIDEntityOrganization) GetCoreWeaveOrganizationId() *string {
+	return v.CoreWeaveOrganizationId
+}
+
+// OrganizationCoreWeaveOrganizationIDResponse is returned by OrganizationCoreWeaveOrganizationID on success.
+type OrganizationCoreWeaveOrganizationIDResponse struct {
+	Entity *OrganizationCoreWeaveOrganizationIDEntity `json:"entity"`
+}
+
+// GetEntity returns OrganizationCoreWeaveOrganizationIDResponse.Entity, and is useful for accessing the field via an interface.
+func (v *OrganizationCoreWeaveOrganizationIDResponse) GetEntity() *OrganizationCoreWeaveOrganizationIDEntity {
+	return v.Entity
 }
 
 // RewindRunResponse is returned by RewindRun on success.
@@ -916,6 +1086,7 @@ type RunResumeStatusModelProjectBucketRun struct {
 	EventsTail       *string  `json:"eventsTail"`
 	Config           *string  `json:"config"`
 	Tags             []string `json:"tags"`
+	Notes            *string  `json:"notes"`
 	WandbConfig      *string  `json:"wandbConfig"`
 }
 
@@ -951,6 +1122,9 @@ func (v *RunResumeStatusModelProjectBucketRun) GetConfig() *string { return v.Co
 
 // GetTags returns RunResumeStatusModelProjectBucketRun.Tags, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusModelProjectBucketRun) GetTags() []string { return v.Tags }
+
+// GetNotes returns RunResumeStatusModelProjectBucketRun.Notes, and is useful for accessing the field via an interface.
+func (v *RunResumeStatusModelProjectBucketRun) GetNotes() *string { return v.Notes }
 
 // GetWandbConfig returns RunResumeStatusModelProjectBucketRun.WandbConfig, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusModelProjectBucketRun) GetWandbConfig() *string { return v.WandbConfig }
@@ -998,6 +1172,38 @@ type RunStoppedStatusResponse struct {
 
 // GetProject returns RunStoppedStatusResponse.Project, and is useful for accessing the field via an interface.
 func (v *RunStoppedStatusResponse) GetProject() *RunStoppedStatusProject { return v.Project }
+
+// ServerFeaturesQueryResponse is returned by ServerFeaturesQuery on success.
+type ServerFeaturesQueryResponse struct {
+	ServerInfo *ServerFeaturesQueryServerInfo `json:"serverInfo"`
+}
+
+// GetServerInfo returns ServerFeaturesQueryResponse.ServerInfo, and is useful for accessing the field via an interface.
+func (v *ServerFeaturesQueryResponse) GetServerInfo() *ServerFeaturesQueryServerInfo {
+	return v.ServerInfo
+}
+
+// ServerFeaturesQueryServerInfo includes the requested fields of the GraphQL type ServerInfo.
+type ServerFeaturesQueryServerInfo struct {
+	Features []*ServerFeaturesQueryServerInfoFeaturesServerFeature `json:"features"`
+}
+
+// GetFeatures returns ServerFeaturesQueryServerInfo.Features, and is useful for accessing the field via an interface.
+func (v *ServerFeaturesQueryServerInfo) GetFeatures() []*ServerFeaturesQueryServerInfoFeaturesServerFeature {
+	return v.Features
+}
+
+// ServerFeaturesQueryServerInfoFeaturesServerFeature includes the requested fields of the GraphQL type ServerFeature.
+type ServerFeaturesQueryServerInfoFeaturesServerFeature struct {
+	Name      string `json:"name"`
+	IsEnabled bool   `json:"isEnabled"`
+}
+
+// GetName returns ServerFeaturesQueryServerInfoFeaturesServerFeature.Name, and is useful for accessing the field via an interface.
+func (v *ServerFeaturesQueryServerInfoFeaturesServerFeature) GetName() string { return v.Name }
+
+// GetIsEnabled returns ServerFeaturesQueryServerInfoFeaturesServerFeature.IsEnabled, and is useful for accessing the field via an interface.
+func (v *ServerFeaturesQueryServerInfoFeaturesServerFeature) GetIsEnabled() bool { return v.IsEnabled }
 
 // ServerInfoResponse is returned by ServerInfo on success.
 type ServerInfoResponse struct {
@@ -1065,6 +1271,11 @@ type TypeFieldsResponse struct {
 func (v *TypeFieldsResponse) GetTypeInfo() *TypeFieldsTypeInfoType { return v.TypeInfo }
 
 // TypeFieldsTypeInfoType includes the requested fields of the GraphQL type __Type.
+// The GraphQL type's documentation follows.
+//
+// The fundamental unit of any GraphQL Schema is the type. There are many kinds of types in GraphQL as represented by the `__TypeKind` enum.
+//
+// Depending on the kind of a type, certain fields describe information about that type. Scalar types provide no information beyond a name, description and optional `specifiedByURL`, while Enum types provide their values. Object and Interface types provide the fields they describe. Abstract types, Union and Interface, provide the Object types possible at runtime. List and NonNull types compose other types.
 type TypeFieldsTypeInfoType struct {
 	Fields []TypeFieldsTypeInfoTypeFieldsField `json:"fields"`
 }
@@ -1073,6 +1284,9 @@ type TypeFieldsTypeInfoType struct {
 func (v *TypeFieldsTypeInfoType) GetFields() []TypeFieldsTypeInfoTypeFieldsField { return v.Fields }
 
 // TypeFieldsTypeInfoTypeFieldsField includes the requested fields of the GraphQL type __Field.
+// The GraphQL type's documentation follows.
+//
+// Object and Interface types are described by a list of Fields, each of which has a name, potentially a list of arguments, and a return type.
 type TypeFieldsTypeInfoTypeFieldsField struct {
 	Name string `json:"name"`
 }
@@ -1281,6 +1495,41 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProjectEntity) GetN
 	return v.Name
 }
 
+type UseArtifactInput struct {
+	EntityName          string  `json:"entityName"`
+	ProjectName         string  `json:"projectName"`
+	RunName             string  `json:"runName"`
+	ArtifactID          string  `json:"artifactID"`
+	ArtifactEntityName  *string `json:"artifactEntityName,omitempty"`
+	ArtifactProjectName *string `json:"artifactProjectName,omitempty"`
+	UsedAs              *string `json:"usedAs"`
+	ClientMutationId    *string `json:"clientMutationId"`
+}
+
+// GetEntityName returns UseArtifactInput.EntityName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetEntityName() string { return v.EntityName }
+
+// GetProjectName returns UseArtifactInput.ProjectName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetProjectName() string { return v.ProjectName }
+
+// GetRunName returns UseArtifactInput.RunName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetRunName() string { return v.RunName }
+
+// GetArtifactID returns UseArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetArtifactID() string { return v.ArtifactID }
+
+// GetArtifactEntityName returns UseArtifactInput.ArtifactEntityName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetArtifactEntityName() *string { return v.ArtifactEntityName }
+
+// GetArtifactProjectName returns UseArtifactInput.ArtifactProjectName, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetArtifactProjectName() *string { return v.ArtifactProjectName }
+
+// GetUsedAs returns UseArtifactInput.UsedAs, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetUsedAs() *string { return v.UsedAs }
+
+// GetClientMutationId returns UseArtifactInput.ClientMutationId, and is useful for accessing the field via an interface.
+func (v *UseArtifactInput) GetClientMutationId() *string { return v.ClientMutationId }
+
 // UseArtifactResponse is returned by UseArtifact on success.
 type UseArtifactResponse struct {
 	UseArtifact *UseArtifactUseArtifactUseArtifactPayload `json:"useArtifact"`
@@ -1366,6 +1615,34 @@ type ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity struct {
 func (v *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity) GetName() string {
 	return v.Name
 }
+
+// __ArtifactFileURLsByManifestEntriesInput is used internally by genqlient
+type __ArtifactFileURLsByManifestEntriesInput struct {
+	Id              string                       `json:"id"`
+	Entries         []ArtifactManifestEntryInput `json:"entries"`
+	StorageLayout   string                       `json:"storageLayout"`
+	ManifestVersion string                       `json:"manifestVersion"`
+	StorageRegion   *string                      `json:"storageRegion"`
+}
+
+// GetId returns __ArtifactFileURLsByManifestEntriesInput.Id, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsByManifestEntriesInput) GetId() string { return v.Id }
+
+// GetEntries returns __ArtifactFileURLsByManifestEntriesInput.Entries, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsByManifestEntriesInput) GetEntries() []ArtifactManifestEntryInput {
+	return v.Entries
+}
+
+// GetStorageLayout returns __ArtifactFileURLsByManifestEntriesInput.StorageLayout, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsByManifestEntriesInput) GetStorageLayout() string { return v.StorageLayout }
+
+// GetManifestVersion returns __ArtifactFileURLsByManifestEntriesInput.ManifestVersion, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsByManifestEntriesInput) GetManifestVersion() string {
+	return v.ManifestVersion
+}
+
+// GetStorageRegion returns __ArtifactFileURLsByManifestEntriesInput.StorageRegion, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsByManifestEntriesInput) GetStorageRegion() *string { return v.StorageRegion }
 
 // __ArtifactFileURLsInput is used internally by genqlient
 type __ArtifactFileURLsInput struct {
@@ -1593,6 +1870,14 @@ func (v *__NotifyScriptableRunAlertInput) GetSeverity() *AlertSeverity { return 
 // GetWaitDuration returns __NotifyScriptableRunAlertInput.WaitDuration, and is useful for accessing the field via an interface.
 func (v *__NotifyScriptableRunAlertInput) GetWaitDuration() *int64 { return v.WaitDuration }
 
+// __OrganizationCoreWeaveOrganizationIDInput is used internally by genqlient
+type __OrganizationCoreWeaveOrganizationIDInput struct {
+	EntityName string `json:"entityName"`
+}
+
+// GetEntityName returns __OrganizationCoreWeaveOrganizationIDInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__OrganizationCoreWeaveOrganizationIDInput) GetEntityName() string { return v.EntityName }
+
 // __RewindRunInput is used internally by genqlient
 type __RewindRunInput struct {
 	RunName     string  `json:"runName"`
@@ -1771,25 +2056,13 @@ func (v *__UpsertBucketInput) GetSummaryMetrics() *string { return v.SummaryMetr
 
 // __UseArtifactInput is used internally by genqlient
 type __UseArtifactInput struct {
-	EntityName  string `json:"entityName"`
-	ProjectName string `json:"projectName"`
-	RunName     string `json:"runName"`
-	ArtifactID  string `json:"artifactID"`
+	Input UseArtifactInput `json:"input"`
 }
 
-// GetEntityName returns __UseArtifactInput.EntityName, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetEntityName() string { return v.EntityName }
+// GetInput returns __UseArtifactInput.Input, and is useful for accessing the field via an interface.
+func (v *__UseArtifactInput) GetInput() UseArtifactInput { return v.Input }
 
-// GetProjectName returns __UseArtifactInput.ProjectName, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetProjectName() string { return v.ProjectName }
-
-// GetRunName returns __UseArtifactInput.RunName, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetRunName() string { return v.RunName }
-
-// GetArtifactID returns __UseArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
-func (v *__UseArtifactInput) GetArtifactID() string { return v.ArtifactID }
-
-// The query or mutation executed by ArtifactFileURLs.
+// The query executed by ArtifactFileURLs.
 const ArtifactFileURLs_Operation = `
 query ArtifactFileURLs ($id: ID!, $cursor: String, $perPage: Int) {
 	artifact(id: $id) {
@@ -1815,7 +2088,7 @@ func ArtifactFileURLs(
 	id string,
 	cursor *string,
 	perPage *int,
-) (*ArtifactFileURLsResponse, error) {
+) (data_ *ArtifactFileURLsResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ArtifactFileURLs",
 		Query:  ArtifactFileURLs_Operation,
@@ -1825,10 +2098,9 @@ func ArtifactFileURLs(
 			PerPage: perPage,
 		},
 	}
-	var err_ error
 
-	var data_ ArtifactFileURLsResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &ArtifactFileURLsResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -1836,10 +2108,63 @@ func ArtifactFileURLs(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by ArtifactManifest.
+// The query executed by ArtifactFileURLsByManifestEntries.
+const ArtifactFileURLsByManifestEntries_Operation = `
+query ArtifactFileURLsByManifestEntries ($id: ID!, $entries: [ArtifactManifestEntryInput!], $storageLayout: String!, $manifestVersion: String!, $storageRegion: String) {
+	artifact(id: $id) {
+		filesByManifestEntries(storageLayout: $storageLayout, manifestVersion: $manifestVersion, entries: $entries, storageRegion: $storageRegion) {
+			pageInfo {
+				hasNextPage
+				endCursor
+			}
+			edges {
+				node {
+					name
+					directUrl
+				}
+			}
+		}
+	}
+}
+`
+
+func ArtifactFileURLsByManifestEntries(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	id string,
+	entries []ArtifactManifestEntryInput,
+	storageLayout string,
+	manifestVersion string,
+	storageRegion *string,
+) (data_ *ArtifactFileURLsByManifestEntriesResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "ArtifactFileURLsByManifestEntries",
+		Query:  ArtifactFileURLsByManifestEntries_Operation,
+		Variables: &__ArtifactFileURLsByManifestEntriesInput{
+			Id:              id,
+			Entries:         entries,
+			StorageLayout:   storageLayout,
+			ManifestVersion: manifestVersion,
+			StorageRegion:   storageRegion,
+		},
+	}
+
+	data_ = &ArtifactFileURLsByManifestEntriesResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by ArtifactManifest.
 const ArtifactManifest_Operation = `
 query ArtifactManifest ($artifact_id: ID!) {
 	artifact(id: $artifact_id) {
@@ -1856,7 +2181,7 @@ func ArtifactManifest(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	artifact_id string,
-) (*ArtifactManifestResponse, error) {
+) (data_ *ArtifactManifestResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ArtifactManifest",
 		Query:  ArtifactManifest_Operation,
@@ -1864,10 +2189,9 @@ func ArtifactManifest(
 			Artifact_id: artifact_id,
 		},
 	}
-	var err_ error
 
-	var data_ ArtifactManifestResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &ArtifactManifestResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -1875,10 +2199,10 @@ func ArtifactManifest(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by ClientIDMapping.
+// The query executed by ClientIDMapping.
 const ClientIDMapping_Operation = `
 query ClientIDMapping ($clientID: ID!) {
 	clientIDMapping(clientID: $clientID) {
@@ -1891,7 +2215,7 @@ func ClientIDMapping(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	clientID string,
-) (*ClientIDMappingResponse, error) {
+) (data_ *ClientIDMappingResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ClientIDMapping",
 		Query:  ClientIDMapping_Operation,
@@ -1899,10 +2223,9 @@ func ClientIDMapping(
 			ClientID: clientID,
 		},
 	}
-	var err_ error
 
-	var data_ ClientIDMappingResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &ClientIDMappingResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -1910,10 +2233,10 @@ func ClientIDMapping(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by CommitArtifact.
+// The mutation executed by CommitArtifact.
 const CommitArtifact_Operation = `
 mutation CommitArtifact ($artifactID: ID!) {
 	commitArtifact(input: {artifactID:$artifactID}) {
@@ -1929,7 +2252,7 @@ func CommitArtifact(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	artifactID string,
-) (*CommitArtifactResponse, error) {
+) (data_ *CommitArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CommitArtifact",
 		Query:  CommitArtifact_Operation,
@@ -1937,10 +2260,9 @@ func CommitArtifact(
 			ArtifactID: artifactID,
 		},
 	}
-	var err_ error
 
-	var data_ CommitArtifactResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &CommitArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -1948,10 +2270,10 @@ func CommitArtifact(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by CompleteMultipartUploadArtifact.
+// The mutation executed by CompleteMultipartUploadArtifact.
 const CompleteMultipartUploadArtifact_Operation = `
 mutation CompleteMultipartUploadArtifact ($completeMultipartAction: CompleteMultipartAction!, $completedParts: [UploadPartsInput!]!, $artifactID: ID!, $storagePath: String!, $uploadID: String!) {
 	completeMultipartUploadArtifact(input: {completeMultipartAction:$completeMultipartAction,completedParts:$completedParts,artifactID:$artifactID,storagePath:$storagePath,uploadID:$uploadID}) {
@@ -1968,7 +2290,7 @@ func CompleteMultipartUploadArtifact(
 	artifactID string,
 	storagePath string,
 	uploadID string,
-) (*CompleteMultipartUploadArtifactResponse, error) {
+) (data_ *CompleteMultipartUploadArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CompleteMultipartUploadArtifact",
 		Query:  CompleteMultipartUploadArtifact_Operation,
@@ -1980,10 +2302,9 @@ func CompleteMultipartUploadArtifact(
 			UploadID:                uploadID,
 		},
 	}
-	var err_ error
 
-	var data_ CompleteMultipartUploadArtifactResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &CompleteMultipartUploadArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -1991,10 +2312,10 @@ func CompleteMultipartUploadArtifact(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by CreateArtifact.
+// The mutation executed by CreateArtifact.
 const CreateArtifact_Operation = `
 mutation CreateArtifact ($input: CreateArtifactInput!) {
 	createArtifact(input: $input) {
@@ -2021,7 +2342,7 @@ func CreateArtifact(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	input CreateArtifactInput,
-) (*CreateArtifactResponse, error) {
+) (data_ *CreateArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CreateArtifact",
 		Query:  CreateArtifact_Operation,
@@ -2029,10 +2350,9 @@ func CreateArtifact(
 			Input: input,
 		},
 	}
-	var err_ error
 
-	var data_ CreateArtifactResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &CreateArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2040,10 +2360,10 @@ func CreateArtifact(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by CreateArtifactFiles.
+// The mutation executed by CreateArtifactFiles.
 const CreateArtifactFiles_Operation = `
 mutation CreateArtifactFiles ($artifactFiles: [CreateArtifactFileSpecInput!]!, $storageLayout: ArtifactStorageLayout!) {
 	createArtifactFiles(input: {artifactFiles:$artifactFiles,storageLayout:$storageLayout}) {
@@ -2075,7 +2395,7 @@ func CreateArtifactFiles(
 	client_ graphql.Client,
 	artifactFiles []CreateArtifactFileSpecInput,
 	storageLayout ArtifactStorageLayout,
-) (*CreateArtifactFilesResponse, error) {
+) (data_ *CreateArtifactFilesResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CreateArtifactFiles",
 		Query:  CreateArtifactFiles_Operation,
@@ -2084,10 +2404,9 @@ func CreateArtifactFiles(
 			StorageLayout: storageLayout,
 		},
 	}
-	var err_ error
 
-	var data_ CreateArtifactFilesResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &CreateArtifactFilesResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2095,10 +2414,10 @@ func CreateArtifactFiles(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by CreateArtifactManifest.
+// The mutation executed by CreateArtifactManifest.
 const CreateArtifactManifest_Operation = `
 mutation CreateArtifactManifest ($artifactID: ID!, $baseArtifactID: ID, $name: String!, $digest: String!, $entityName: String!, $projectName: String!, $runName: String!, $manifestType: ArtifactManifestType!, $includeUpload: Boolean!) {
 	createArtifactManifest(input: {artifactID:$artifactID,baseArtifactID:$baseArtifactID,name:$name,digest:$digest,entityName:$entityName,projectName:$projectName,runName:$runName,type:$manifestType}) {
@@ -2126,7 +2445,7 @@ func CreateArtifactManifest(
 	runName string,
 	manifestType ArtifactManifestType,
 	includeUpload bool,
-) (*CreateArtifactManifestResponse, error) {
+) (data_ *CreateArtifactManifestResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CreateArtifactManifest",
 		Query:  CreateArtifactManifest_Operation,
@@ -2142,10 +2461,9 @@ func CreateArtifactManifest(
 			IncludeUpload:  includeUpload,
 		},
 	}
-	var err_ error
 
-	var data_ CreateArtifactManifestResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &CreateArtifactManifestResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2153,10 +2471,10 @@ func CreateArtifactManifest(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by CreateRunFiles.
+// The mutation executed by CreateRunFiles.
 const CreateRunFiles_Operation = `
 mutation CreateRunFiles ($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
 	createRunFiles(input: {entityName:$entity,projectName:$project,runName:$run,files:$files}) {
@@ -2177,7 +2495,7 @@ func CreateRunFiles(
 	project string,
 	run string,
 	files []string,
-) (*CreateRunFilesResponse, error) {
+) (data_ *CreateRunFilesResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "CreateRunFiles",
 		Query:  CreateRunFiles_Operation,
@@ -2188,10 +2506,9 @@ func CreateRunFiles(
 			Files:   files,
 		},
 	}
-	var err_ error
 
-	var data_ CreateRunFilesResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &CreateRunFilesResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2199,10 +2516,10 @@ func CreateRunFiles(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by FetchOrgEntityFromEntity.
+// The query executed by FetchOrgEntityFromEntity.
 const FetchOrgEntityFromEntity_Operation = `
 query FetchOrgEntityFromEntity ($entityName: String!) {
 	entity(name: $entityName) {
@@ -2220,7 +2537,7 @@ func FetchOrgEntityFromEntity(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	entityName string,
-) (*FetchOrgEntityFromEntityResponse, error) {
+) (data_ *FetchOrgEntityFromEntityResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "FetchOrgEntityFromEntity",
 		Query:  FetchOrgEntityFromEntity_Operation,
@@ -2228,10 +2545,9 @@ func FetchOrgEntityFromEntity(
 			EntityName: entityName,
 		},
 	}
-	var err_ error
 
-	var data_ FetchOrgEntityFromEntityResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &FetchOrgEntityFromEntityResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2239,10 +2555,10 @@ func FetchOrgEntityFromEntity(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by InputFields.
+// The query executed by InputFields.
 const InputFields_Operation = `
 query InputFields ($typeName: String!) {
 	TypeInfo: __type(name: $typeName) {
@@ -2257,7 +2573,7 @@ func InputFields(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	typeName string,
-) (*InputFieldsResponse, error) {
+) (data_ *InputFieldsResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "InputFields",
 		Query:  InputFields_Operation,
@@ -2265,10 +2581,9 @@ func InputFields(
 			TypeName: typeName,
 		},
 	}
-	var err_ error
 
-	var data_ InputFieldsResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &InputFieldsResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2276,10 +2591,10 @@ func InputFields(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by LinkArtifact.
+// The mutation executed by LinkArtifact.
 const LinkArtifact_Operation = `
 mutation LinkArtifact ($artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!], $clientId: ID, $artifactId: ID) {
 	linkArtifact(input: {artifactPortfolioName:$artifactPortfolioName,entityName:$entityName,projectName:$projectName,aliases:$aliases,artifactID:$artifactId,clientID:$clientId}) {
@@ -2297,7 +2612,7 @@ func LinkArtifact(
 	aliases []ArtifactAliasInput,
 	clientId *string,
 	artifactId *string,
-) (*LinkArtifactResponse, error) {
+) (data_ *LinkArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "LinkArtifact",
 		Query:  LinkArtifact_Operation,
@@ -2310,10 +2625,9 @@ func LinkArtifact(
 			ArtifactId:            artifactId,
 		},
 	}
-	var err_ error
 
-	var data_ LinkArtifactResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &LinkArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2321,10 +2635,10 @@ func LinkArtifact(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by NotifyScriptableRunAlert.
+// The mutation executed by NotifyScriptableRunAlert.
 const NotifyScriptableRunAlert_Operation = `
 mutation NotifyScriptableRunAlert ($entityName: String!, $projectName: String!, $runName: String!, $title: String!, $text: String!, $severity: AlertSeverity = INFO, $waitDuration: Duration) {
 	notifyScriptableRunAlert(input: {entityName:$entityName,projectName:$projectName,runName:$runName,title:$title,text:$text,severity:$severity,waitDuration:$waitDuration}) {
@@ -2343,7 +2657,7 @@ func NotifyScriptableRunAlert(
 	text string,
 	severity *AlertSeverity,
 	waitDuration *int64,
-) (*NotifyScriptableRunAlertResponse, error) {
+) (data_ *NotifyScriptableRunAlertResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "NotifyScriptableRunAlert",
 		Query:  NotifyScriptableRunAlert_Operation,
@@ -2357,10 +2671,9 @@ func NotifyScriptableRunAlert(
 			WaitDuration: waitDuration,
 		},
 	}
-	var err_ error
 
-	var data_ NotifyScriptableRunAlertResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &NotifyScriptableRunAlertResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2368,10 +2681,46 @@ func NotifyScriptableRunAlert(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by RewindRun.
+// The query executed by OrganizationCoreWeaveOrganizationID.
+const OrganizationCoreWeaveOrganizationID_Operation = `
+query OrganizationCoreWeaveOrganizationID ($entityName: String!) {
+	entity(name: $entityName) {
+		organization {
+			coreWeaveOrganizationId
+		}
+	}
+}
+`
+
+func OrganizationCoreWeaveOrganizationID(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName string,
+) (data_ *OrganizationCoreWeaveOrganizationIDResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "OrganizationCoreWeaveOrganizationID",
+		Query:  OrganizationCoreWeaveOrganizationID_Operation,
+		Variables: &__OrganizationCoreWeaveOrganizationIDInput{
+			EntityName: entityName,
+		},
+	}
+
+	data_ = &OrganizationCoreWeaveOrganizationIDResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by RewindRun.
 const RewindRun_Operation = `
 mutation RewindRun ($runName: String!, $entity: String, $project: String, $metricName: String!, $metricValue: Float!) {
 	rewindRun(input: {runName:$runName,entityName:$entity,projectName:$project,metricName:$metricName,metricValue:$metricValue}) {
@@ -2404,7 +2753,7 @@ func RewindRun(
 	project *string,
 	metricName string,
 	metricValue float64,
-) (*RewindRunResponse, error) {
+) (data_ *RewindRunResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "RewindRun",
 		Query:  RewindRun_Operation,
@@ -2416,10 +2765,9 @@ func RewindRun(
 			MetricValue: metricValue,
 		},
 	}
-	var err_ error
 
-	var data_ RewindRunResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &RewindRunResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2427,10 +2775,10 @@ func RewindRun(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by RunResumeStatus.
+// The query executed by RunResumeStatus.
 const RunResumeStatus_Operation = `
 query RunResumeStatus ($project: String, $entity: String, $name: String!) {
 	model(name: $project, entityName: $entity) {
@@ -2452,6 +2800,7 @@ query RunResumeStatus ($project: String, $entity: String, $name: String!) {
 			eventsTail
 			config
 			tags
+			notes
 			wandbConfig(keys: ["t"])
 		}
 	}
@@ -2464,7 +2813,7 @@ func RunResumeStatus(
 	project *string,
 	entity *string,
 	name string,
-) (*RunResumeStatusResponse, error) {
+) (data_ *RunResumeStatusResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "RunResumeStatus",
 		Query:  RunResumeStatus_Operation,
@@ -2474,10 +2823,9 @@ func RunResumeStatus(
 			Name:    name,
 		},
 	}
-	var err_ error
 
-	var data_ RunResumeStatusResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &RunResumeStatusResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2485,10 +2833,10 @@ func RunResumeStatus(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by RunStoppedStatus.
+// The query executed by RunStoppedStatus.
 const RunStoppedStatus_Operation = `
 query RunStoppedStatus ($entityName: String, $projectName: String, $runId: String!) {
 	project(name: $projectName, entityName: $entityName) {
@@ -2505,7 +2853,7 @@ func RunStoppedStatus(
 	entityName *string,
 	projectName *string,
 	runId string,
-) (*RunStoppedStatusResponse, error) {
+) (data_ *RunStoppedStatusResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "RunStoppedStatus",
 		Query:  RunStoppedStatus_Operation,
@@ -2515,10 +2863,9 @@ func RunStoppedStatus(
 			RunId:       runId,
 		},
 	}
-	var err_ error
 
-	var data_ RunStoppedStatusResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &RunStoppedStatusResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2526,10 +2873,45 @@ func RunStoppedStatus(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by ServerInfo.
+// The query executed by ServerFeaturesQuery.
+const ServerFeaturesQuery_Operation = `
+query ServerFeaturesQuery {
+	serverInfo {
+		features {
+			name
+			isEnabled
+		}
+	}
+}
+`
+
+// This query is used to fetch the features supported by the server.
+// It is used to determine if certain code paths should be used in the SDK.
+func ServerFeaturesQuery(
+	ctx_ context.Context,
+	client_ graphql.Client,
+) (data_ *ServerFeaturesQueryResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "ServerFeaturesQuery",
+		Query:  ServerFeaturesQuery_Operation,
+	}
+
+	data_ = &ServerFeaturesQueryResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by ServerInfo.
 const ServerInfo_Operation = `
 query ServerInfo {
 	serverInfo {
@@ -2546,15 +2928,14 @@ query ServerInfo {
 func ServerInfo(
 	ctx_ context.Context,
 	client_ graphql.Client,
-) (*ServerInfoResponse, error) {
+) (data_ *ServerInfoResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ServerInfo",
 		Query:  ServerInfo_Operation,
 	}
-	var err_ error
 
-	var data_ ServerInfoResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &ServerInfoResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2562,10 +2943,10 @@ func ServerInfo(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by TypeFields.
+// The query executed by TypeFields.
 const TypeFields_Operation = `
 query TypeFields ($typeName: String!) {
 	TypeInfo: __type(name: $typeName) {
@@ -2581,7 +2962,7 @@ func TypeFields(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	typeName string,
-) (*TypeFieldsResponse, error) {
+) (data_ *TypeFieldsResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "TypeFields",
 		Query:  TypeFields_Operation,
@@ -2589,10 +2970,9 @@ func TypeFields(
 			TypeName: typeName,
 		},
 	}
-	var err_ error
 
-	var data_ TypeFieldsResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &TypeFieldsResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2600,10 +2980,10 @@ func TypeFields(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by UpdateArtifact.
+// The mutation executed by UpdateArtifact.
 const UpdateArtifact_Operation = `
 mutation UpdateArtifact ($artifactID: ID!, $metadata: JSONString) {
 	updateArtifact(input: {artifactID:$artifactID,metadata:$metadata}) {
@@ -2619,7 +2999,7 @@ func UpdateArtifact(
 	client_ graphql.Client,
 	artifactID string,
 	metadata *string,
-) (*UpdateArtifactResponse, error) {
+) (data_ *UpdateArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "UpdateArtifact",
 		Query:  UpdateArtifact_Operation,
@@ -2628,10 +3008,9 @@ func UpdateArtifact(
 			Metadata:   metadata,
 		},
 	}
-	var err_ error
 
-	var data_ UpdateArtifactResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &UpdateArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2639,10 +3018,10 @@ func UpdateArtifact(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by UpdateArtifactManifest.
+// The mutation executed by UpdateArtifactManifest.
 const UpdateArtifactManifest_Operation = `
 mutation UpdateArtifactManifest ($artifactManifestID: ID!, $digest: String, $baseArtifactID: ID, $includeUpload: Boolean!) {
 	updateArtifactManifest(input: {artifactManifestID:$artifactManifestID,digest:$digest,baseArtifactID:$baseArtifactID}) {
@@ -2665,7 +3044,7 @@ func UpdateArtifactManifest(
 	digest *string,
 	baseArtifactID *string,
 	includeUpload bool,
-) (*UpdateArtifactManifestResponse, error) {
+) (data_ *UpdateArtifactManifestResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "UpdateArtifactManifest",
 		Query:  UpdateArtifactManifest_Operation,
@@ -2676,10 +3055,9 @@ func UpdateArtifactManifest(
 			IncludeUpload:      includeUpload,
 		},
 	}
-	var err_ error
 
-	var data_ UpdateArtifactManifestResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &UpdateArtifactManifestResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2687,10 +3065,10 @@ func UpdateArtifactManifest(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by UpsertBucket.
+// The mutation executed by UpsertBucket.
 const UpsertBucket_Operation = `
 mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: String, $groupName: String, $description: String, $displayName: String, $notes: String, $commit: String, $config: JSONString, $host: String, $debug: Boolean, $program: String, $repo: String, $jobType: String, $state: String, $sweep: String, $tags: [String!], $summaryMetrics: JSONString) {
 	upsertBucket(input: {id:$id,name:$name,groupName:$groupName,modelName:$project,entityName:$entity,description:$description,displayName:$displayName,notes:$notes,config:$config,commit:$commit,host:$host,debug:$debug,jobProgram:$program,jobRepo:$repo,jobType:$jobType,state:$state,sweep:$sweep,tags:$tags,summaryMetrics:$summaryMetrics}) {
@@ -2738,7 +3116,7 @@ func UpsertBucket(
 	sweep *string,
 	tags []string,
 	summaryMetrics *string,
-) (*UpsertBucketResponse, error) {
+) (data_ *UpsertBucketResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "UpsertBucket",
 		Query:  UpsertBucket_Operation,
@@ -2764,10 +3142,9 @@ func UpsertBucket(
 			SummaryMetrics: summaryMetrics,
 		},
 	}
-	var err_ error
 
-	var data_ UpsertBucketResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &UpsertBucketResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2775,13 +3152,13 @@ func UpsertBucket(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by UseArtifact.
+// The mutation executed by UseArtifact.
 const UseArtifact_Operation = `
-mutation UseArtifact ($entityName: String!, $projectName: String!, $runName: String!, $artifactID: ID!) {
-	useArtifact(input: {entityName:$entityName,projectName:$projectName,runName:$runName,artifactID:$artifactID}) {
+mutation UseArtifact ($input: UseArtifactInput!) {
+	useArtifact(input: $input) {
 		artifact {
 			id
 		}
@@ -2789,28 +3166,22 @@ mutation UseArtifact ($entityName: String!, $projectName: String!, $runName: Str
 }
 `
 
+// artifactEntityName and artifactProjectName are in a later server version
 func UseArtifact(
 	ctx_ context.Context,
 	client_ graphql.Client,
-	entityName string,
-	projectName string,
-	runName string,
-	artifactID string,
-) (*UseArtifactResponse, error) {
+	input UseArtifactInput,
+) (data_ *UseArtifactResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "UseArtifact",
 		Query:  UseArtifact_Operation,
 		Variables: &__UseArtifactInput{
-			EntityName:  entityName,
-			ProjectName: projectName,
-			RunName:     runName,
-			ArtifactID:  artifactID,
+			Input: input,
 		},
 	}
-	var err_ error
 
-	var data_ UseArtifactResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &UseArtifactResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2818,10 +3189,10 @@ func UseArtifact(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }
 
-// The query or mutation executed by Viewer.
+// The query executed by Viewer.
 const Viewer_Operation = `
 query Viewer {
 	viewer {
@@ -2842,15 +3213,14 @@ query Viewer {
 func Viewer(
 	ctx_ context.Context,
 	client_ graphql.Client,
-) (*ViewerResponse, error) {
+) (data_ *ViewerResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "Viewer",
 		Query:  Viewer_Operation,
 	}
-	var err_ error
 
-	var data_ ViewerResponse
-	resp_ := &graphql.Response{Data: &data_}
+	data_ = &ViewerResponse{}
+	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
 		ctx_,
@@ -2858,5 +3228,5 @@ func Viewer(
 		resp_,
 	)
 
-	return &data_, err_
+	return data_, err_
 }

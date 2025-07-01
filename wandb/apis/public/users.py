@@ -62,7 +62,7 @@ class User(Attrs):
     def create(cls, api, email, admin=False):
         """Create a new user.
 
-        Arguments:
+        Args:
             api: (`Api`) The api instance to use
             email: (str) The name of the team
             admin: (bool) Whether this user should be a global instance admin

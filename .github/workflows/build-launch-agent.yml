@@ -15,7 +15,7 @@ on:
 
 defaults:
   run:
-    working-directory: ./tools/launch/build
+    working-directory: ./tools/launch_release/build
 
 jobs:
   build:

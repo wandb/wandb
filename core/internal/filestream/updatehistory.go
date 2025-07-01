@@ -3,7 +3,6 @@ package filestream
 import (
 	"fmt"
 	"time"
-	"unsafe"
 
 	"github.com/wandb/wandb/core/internal/runhistory"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -20,9 +19,6 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 	for _, item := range u.Record.Item {
 		err := rh.SetFromRecord(item)
 		if err != nil {
-			// TODO(corruption): Remove after data corruption is resolved.
-			valueJSONLen := min(50, len(item.ValueJson))
-			valueJSON := item.ValueJson[:valueJSONLen]
 
 			ctx.Logger.CaptureError(
 				fmt.Errorf(
@@ -30,10 +26,8 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 					err,
 				),
 				"key", item.Key,
-				"&key", unsafe.StringData(item.Key),
 				"nested_key", item.NestedKey,
-				"value_json[:50]", valueJSON,
-				"&value_json", unsafe.StringData(item.ValueJson))
+			)
 		}
 	}
 	line, err := rh.ToExtendedJSON()
@@ -42,14 +36,20 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 			"filestream: failed to serialize history: %v", err)
 	}
 
-	if len(line) > maxFileLineBytes {
+	// Override the default max line length if the user has set a custom value.
+	maxLineBytes := ctx.Settings.GetFileStreamMaxLineBytes()
+	if maxLineBytes == 0 {
+		maxLineBytes = defaultMaxFileLineBytes
+	}
+
+	if len(line) > int(maxLineBytes) {
 		// We consider this non-blocking. We'll upload a run with some missing
 		// data, but it's better than not uploading anything at all, as long
 		// as we inform the user.
 		ctx.Logger.CaptureWarn(
 			"filestream: run history line too long, skipping",
 			"len", len(line),
-			"max", maxFileLineBytes,
+			"max", maxLineBytes,
 		)
 		ctx.Printer.
 			AtMostEvery(time.Minute).
@@ -57,7 +57,8 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 				"Skipped uploading run.log() data that exceeded"+
 					" size limit (%d > %d).",
 				len(line),
-				maxFileLineBytes)
+				maxLineBytes,
+			)
 	} else {
 		ctx.MakeRequest(&FileStreamRequest{
 			HistoryLines: []string{string(line)},

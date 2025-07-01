@@ -81,14 +81,16 @@ func readWithHeartbeat(
 	// Go might send a heartbeat instead of the data. This could be a problem
 	// on slow internet connections with a long roundtrip time.
 	default:
+		heartbeatCh, heartbeatCancel := heartbeat.Wait()
 		select {
 		case x, ok := <-data:
+			heartbeatCancel()
 			if !ok {
 				return nil, false
 			}
 			return x.GetJSON(state), true
 
-		case <-heartbeat.Wait():
+		case <-heartbeatCh:
 			return &FileStreamRequestJSON{}, true
 		}
 	}

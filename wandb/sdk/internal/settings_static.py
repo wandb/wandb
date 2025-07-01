@@ -1,12 +1,13 @@
-from dataclasses import fields
-from typing import Any, Iterable, Sequence, Tuple
+from __future__ import annotations
+
+from typing import Any, Iterable
 
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.lib import RunMoment
-from wandb.sdk.wandb_settings import SettingsData
+from wandb.sdk.wandb_settings import Settings
 
 
-class SettingsStatic(SettingsData):
+class SettingsStatic(Settings):
     """A readonly object that wraps a protobuf Settings message.
 
     Implements the mapping protocol, so you can access settings as
@@ -14,14 +15,41 @@ class SettingsStatic(SettingsData):
     """
 
     def __init__(self, proto: wandb_settings_pb2.Settings) -> None:
-        self._from_proto(proto)
-        object.__setattr__(self, "_proto", proto)
+        data = self._proto_to_dict(proto)
+        super().__init__(**data)
 
-    def _from_proto(self, proto: wandb_settings_pb2.Settings) -> None:
+    def _proto_to_dict(self, proto: wandb_settings_pb2.Settings) -> dict:
+        data = {}
+
+        exclude_fields = {
+            "model_config",
+            "model_fields",
+            "model_fields_set",
+            "__fields__",
+            "__model_fields_set",
+            "__pydantic_self__",
+            "__pydantic_initialised__",
+        }
+
+        fields = (
+            Settings.model_fields
+            if hasattr(Settings, "model_fields")
+            else Settings.__fields__
+        )  # type: ignore [attr-defined]
+
+        fields = {k: v for k, v in fields.items() if k not in exclude_fields}  # type: ignore [union-attr]
+
         forks_specified: list[str] = []
-        for field in fields(SettingsData):
-            key = field.name
+        for key in fields:
+            # Skip Python-only keys that do not exist on the proto.
+            if key in ("reinit",):
+                continue
+
             value: Any = None
+
+            field_info = fields[key]
+            annotation = str(field_info.annotation)
+
             if key == "_stats_open_metrics_filters":
                 # todo: it's an underscored field, refactor into
                 #  something more elegant?
@@ -52,18 +80,21 @@ class SettingsStatic(SettingsData):
             else:
                 if proto.HasField(key):  # type: ignore [arg-type]
                     value = getattr(proto, key).value
-                    if field.type == Sequence[str]:
+                    # Convert to list if the field is a sequence
+                    if any(t in annotation for t in ("tuple", "Sequence", "list")):
                         value = list(value)
-                    elif field.type == Tuple[str]:
-                        value = tuple(value)
                 else:
                     value = None
-            object.__setattr__(self, key, value)
+
+            if value is not None:
+                data[key] = value
 
         if len(forks_specified) > 1:
             raise ValueError(
                 "Only one of fork_from or resume_from can be specified, not both"
             )
+
+        return data
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Error: SettingsStatic is a readonly object")
@@ -71,7 +102,7 @@ class SettingsStatic(SettingsData):
     def __setitem__(self, key: str, val: object) -> None:
         raise AttributeError("Error: SettingsStatic is a readonly object")
 
-    def keys(self) -> "Iterable[str]":
+    def keys(self) -> Iterable[str]:
         return self.__dict__.keys()
 
     def __getitem__(self, key: str) -> Any:

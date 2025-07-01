@@ -1,18 +1,11 @@
+from __future__ import annotations
+
 import os
+import pathlib
 import shutil
 import sys
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ClassVar,
-    Generic,
-    List,
-    Optional,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-)
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, cast
 
 import wandb
 from wandb import util
@@ -23,22 +16,21 @@ from wandb.sdk.lib.paths import LogicalPath
 from ._private import MEDIA_TMP
 from .base_types.wb_value import WBValue
 
-if TYPE_CHECKING:  # pragma: no cover
-    import cloudpickle  # type: ignore
+if TYPE_CHECKING:
     import sklearn  # type: ignore
     import tensorflow  # type: ignore
     import torch  # type: ignore
+    from typing_extensions import Self
 
     from wandb.sdk.artifacts.artifact import Artifact
-
-    from ..wandb_run import Run as LocalRun
+    from wandb.sdk.wandb_run import Run as LocalRun
 
 
 DEBUG_MODE = False
 
 
 def _add_deterministic_dir_to_artifact(
-    artifact: "Artifact", dir_name: str, target_dir_root: str
+    artifact: Artifact, dir_name: str, target_dir_root: str
 ) -> str:
     file_paths = []
     for dirpath, _, filenames in os.walk(dir_name, topdown=True):
@@ -50,7 +42,7 @@ def _add_deterministic_dir_to_artifact(
     return target_path
 
 
-def _load_dir_from_artifact(source_artifact: "Artifact", path: str) -> str:
+def _load_dir_from_artifact(source_artifact: Artifact, path: str) -> str:
     dl_path = None
 
     # Look through the entire manifest to find all of the files in the directory.
@@ -79,13 +71,13 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
     _log_type: ClassVar[str]
     _path_extension: ClassVar[str]
 
-    _model_obj: Optional["SavedModelObjType"]
-    _path: Optional[str]
-    _input_obj_or_path: Union[SavedModelObjType, str]
+    _model_obj: SavedModelObjType | None
+    _path: str | None
+    _input_obj_or_path: SavedModelObjType | str | pathlib.Path
 
     # Public Methods
     def __init__(
-        self, obj_or_path: Union[SavedModelObjType, str], **kwargs: Any
+        self, obj_or_path: SavedModelObjType | str | pathlib.Path, **kwargs: Any
     ) -> None:
         super().__init__()
         if self.__class__ == _SavedModel:
@@ -95,9 +87,11 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         self._model_obj = None
         self._path = None
         self._input_obj_or_path = obj_or_path
-        input_is_path = isinstance(obj_or_path, str) and os.path.exists(obj_or_path)
+        input_is_path = isinstance(obj_or_path, (str, pathlib.Path)) and os.path.exists(
+            obj_or_path
+        )
         if input_is_path:
-            assert isinstance(obj_or_path, str)  # mypy
+            obj_or_path = str(obj_or_path)
             self._set_obj(self._deserialize(obj_or_path))
         else:
             self._set_obj(obj_or_path)
@@ -115,7 +109,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
             self._unset_obj()
 
     @staticmethod
-    def init(obj_or_path: Any, **kwargs: Any) -> "_SavedModel":
+    def init(obj_or_path: Any, **kwargs: Any) -> _SavedModel:
         maybe_instance = _SavedModel._maybe_init(obj_or_path, **kwargs)
         if maybe_instance is None:
             raise ValueError(
@@ -125,8 +119,8 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
 
     @classmethod
     def from_json(
-        cls: Type["_SavedModel"], json_obj: dict, source_artifact: "Artifact"
-    ) -> "_SavedModel":
+        cls: type[_SavedModel], json_obj: dict, source_artifact: Artifact
+    ) -> _SavedModel:
         path = json_obj["path"]
 
         # First, if the entry is a file, the download it.
@@ -143,7 +137,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         # and specified adapter.
         return cls(dl_path)
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         # Unlike other data types, we do not allow adding to a Run directly. There is a
         # bit of tech debt in the other data types which requires the input to `to_json`
         # to accept a Run or Artifact. However, Run additions should be deprecated in the future.
@@ -151,7 +145,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         from wandb.sdk.wandb_run import Run
 
         if isinstance(run_or_artifact, Run):
-            raise ValueError("SavedModel cannot be added to run - must use artifact")
+            raise TypeError("SavedModel cannot be added to run - must use artifact")
         artifact = run_or_artifact
         json_obj = {
             "type": self._log_type,
@@ -218,8 +212,8 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
     # Private Class Methods
     @classmethod
     def _maybe_init(
-        cls: Type["_SavedModel"], obj_or_path: Any, **kwargs: Any
-    ) -> Optional["_SavedModel"]:
+        cls: type[_SavedModel], obj_or_path: Any, **kwargs: Any
+    ) -> _SavedModel | None:
         # _maybe_init is an exception-safe method that will return an instance of this class
         # (or any subclass of this class - recursively) OR None if no subclass constructor is found.
         # We first try the current class, then recursively call this method on children classes. This pattern
@@ -231,8 +225,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
             return cls(obj_or_path, **kwargs)
         except Exception as e:
             if DEBUG_MODE:
-                print(f"{cls}._maybe_init({obj_or_path}) failed: {e}")
-            pass
+                print(f"{cls}._maybe_init({obj_or_path}) failed: {e}")  # noqa: T201
 
         for child_cls in cls.__subclasses__():
             maybe_instance = child_cls._maybe_init(obj_or_path, **kwargs)
@@ -242,7 +235,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         return None
 
     @classmethod
-    def _tmp_path(cls: Type["_SavedModel"]) -> str:
+    def _tmp_path(cls: type[_SavedModel]) -> str:
         # Generates a tmp path under our MEDIA_TMP directory which confirms to the file
         # or folder preferences of the class.
         assert isinstance(cls._path_extension, str), "_path_extension must be a string"
@@ -264,9 +257,9 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         self._model_obj = None
 
     def _set_obj(self, model_obj: Any) -> None:
-        assert model_obj is not None and self._validate_obj(
-            model_obj
-        ), f"Invalid model object {model_obj}"
+        assert model_obj is not None and self._validate_obj(model_obj), (
+            f"Invalid model object {model_obj}"
+        )
         self._model_obj = model_obj
 
     def _dump(self, target_path: str) -> None:
@@ -274,9 +267,9 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         self._serialize(self._model_obj, target_path)
 
 
-def _get_cloudpickle() -> "cloudpickle":
+def _get_cloudpickle() -> ModuleType:
     return cast(
-        "cloudpickle",
+        ModuleType,
         util.get_module("cloudpickle", "ModelAdapter requires `cloudpickle`"),
     )
 
@@ -287,13 +280,13 @@ PicklingSavedModelObjType = TypeVar("PicklingSavedModelObjType")
 
 
 class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
-    _dep_py_files: Optional[List[str]] = None
-    _dep_py_files_path: Optional[str] = None
+    _dep_py_files: list[str] | None = None
+    _dep_py_files_path: str | None = None
 
     def __init__(
         self,
-        obj_or_path: Union[SavedModelObjType, str],
-        dep_py_files: Optional[List[str]] = None,
+        obj_or_path: SavedModelObjType | str | pathlib.Path,
+        dep_py_files: list[str] | None = None,
     ):
         super().__init__(obj_or_path)
         if self.__class__ == _PicklingSavedModel:
@@ -320,9 +313,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
                     raise ValueError(f"Invalid dependency file: {extra_file}")
 
     @classmethod
-    def from_json(
-        cls: Type["_SavedModel"], json_obj: dict, source_artifact: "Artifact"
-    ) -> "_PicklingSavedModel":
+    def from_json(cls, json_obj: dict, source_artifact: Artifact) -> Self:
         backup_path = [p for p in sys.path]
         if (
             "dep_py_files_path" in json_obj
@@ -338,7 +329,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
 
         return inst  # type: ignore
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         json_obj = super().to_json(run_or_artifact)
         assert isinstance(run_or_artifact, wandb.Artifact)
         if self._dep_py_files_path is not None:
@@ -350,9 +341,9 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
         return json_obj
 
 
-def _get_torch() -> "torch":
+def _get_torch() -> ModuleType:
     return cast(
-        "torch",
+        ModuleType,
         util.get_module("torch", "ModelAdapter requires `torch`"),
     )
 
@@ -362,15 +353,15 @@ class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
     _path_extension = "pt"
 
     @staticmethod
-    def _deserialize(dir_or_file_path: str) -> "torch.nn.Module":
-        return _get_torch().load(dir_or_file_path)
+    def _deserialize(dir_or_file_path: str) -> torch.nn.Module:
+        return _get_torch().load(dir_or_file_path, weights_only=False)
 
     @staticmethod
     def _validate_obj(obj: Any) -> bool:
         return isinstance(obj, _get_torch().nn.Module)
 
     @staticmethod
-    def _serialize(model_obj: "torch.nn.Module", dir_or_file_path: str) -> None:
+    def _serialize(model_obj: torch.nn.Module, dir_or_file_path: str) -> None:
         _get_torch().save(
             model_obj,
             dir_or_file_path,
@@ -378,9 +369,9 @@ class _PytorchSavedModel(_PicklingSavedModel["torch.nn.Module"]):
         )
 
 
-def _get_sklearn() -> "sklearn":
+def _get_sklearn() -> ModuleType:
     return cast(
-        "sklearn",
+        ModuleType,
         util.get_module("sklearn", "ModelAdapter requires `sklearn`"),
     )
 
@@ -392,7 +383,7 @@ class _SklearnSavedModel(_PicklingSavedModel["sklearn.base.BaseEstimator"]):
     @staticmethod
     def _deserialize(
         dir_or_file_path: str,
-    ) -> "sklearn.base.BaseEstimator":
+    ) -> sklearn.base.BaseEstimator:
         with open(dir_or_file_path, "rb") as file:
             model = _get_cloudpickle().load(file)
         return model
@@ -411,16 +402,16 @@ class _SklearnSavedModel(_PicklingSavedModel["sklearn.base.BaseEstimator"]):
 
     @staticmethod
     def _serialize(
-        model_obj: "sklearn.base.BaseEstimator", dir_or_file_path: str
+        model_obj: sklearn.base.BaseEstimator, dir_or_file_path: str
     ) -> None:
         dynamic_cloudpickle = _get_cloudpickle()
         with open(dir_or_file_path, "wb") as file:
             dynamic_cloudpickle.dump(model_obj, file)
 
 
-def _get_tf_keras() -> "tensorflow.keras":
+def _get_tf_keras() -> ModuleType:
     return cast(
-        "tensorflow",
+        ModuleType,
         util.get_module("tensorflow", "ModelAdapter requires `tensorflow`"),
     ).keras
 
@@ -432,7 +423,7 @@ class _TensorflowKerasSavedModel(_SavedModel["tensorflow.keras.Model"]):
     @staticmethod
     def _deserialize(
         dir_or_file_path: str,
-    ) -> "tensorflow.keras.Model":
+    ) -> tensorflow.keras.Model:
         return _get_tf_keras().models.load_model(dir_or_file_path)
 
     @staticmethod
@@ -440,7 +431,7 @@ class _TensorflowKerasSavedModel(_SavedModel["tensorflow.keras.Model"]):
         return isinstance(obj, _get_tf_keras().models.Model)
 
     @staticmethod
-    def _serialize(model_obj: "tensorflow.keras.Model", dir_or_file_path: str) -> None:
+    def _serialize(model_obj: tensorflow.keras.Model, dir_or_file_path: str) -> None:
         _get_tf_keras().models.save_model(
             model_obj, dir_or_file_path, include_optimizer=True
         )

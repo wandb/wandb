@@ -6,9 +6,9 @@ import wandb
 import wandb.analytics
 import wandb.env
 import wandb.util
-from sentry_relay import MetricRelayServer
 from sentry_sdk.utils import sentry_sdk
-from tests.unit_tests.test_analytics.sentry_relay import SentryResponse
+
+from .sentry_relay import MetricRelayServer, SentryResponse
 
 SENTRY_DSN_FORMAT = "http://{key}@127.0.0.1:{port}/{project}"
 
@@ -90,7 +90,7 @@ def test_wandb_sentry_init_after_client_init(relay: MetricRelayServer):
     """
     This test ensures proper isolation between the Sentry instances initialized by another client and by wandb's client.
 
-    This test initializes the Sentry client first using `sentry_sdk.init()`, follwed by initializing wandb's Sentry client.
+    This test initializes the Sentry client first using `sentry_sdk.init()`, followed by initializing wandb's Sentry client.
     Both instances contain unique sessions and tags
     """
     expected_other_sentry_response = SentryResponse(
@@ -104,7 +104,6 @@ def test_wandb_sentry_init_after_client_init(relay: MetricRelayServer):
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
         tags={
-            "platform": wandb.util.get_platform_name(),
             "entity": "tag",
             "python_runtime": "python",
         },
@@ -174,7 +173,6 @@ def test_wandb_sentry_init_after_client_write(relay: MetricRelayServer):
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
         tags={
-            "platform": wandb.util.get_platform_name(),
             "entity": "tag",
             "python_runtime": "python",
         },
@@ -245,7 +243,6 @@ def test_wandb_sentry_initialized_first(relay: MetricRelayServer):
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
         tags={
-            "platform": wandb.util.get_platform_name(),
             "entity": "tag",
             "python_runtime": "python",
         },
@@ -316,7 +313,6 @@ def test_wandb_sentry_write_first(relay: MetricRelayServer):
             project_id="123456",
             public_key="WANDB_SENTRY_PUBLIC_KEY",
             tags={
-                "platform": wandb.util.get_platform_name(),
                 "entity": "tag",
                 "python_runtime": "python",
             },
@@ -326,7 +322,6 @@ def test_wandb_sentry_write_first(relay: MetricRelayServer):
             project_id="123456",
             public_key="WANDB_SENTRY_PUBLIC_KEY",
             tags={
-                "platform": wandb.util.get_platform_name(),
                 "entity": "tag",
                 "python_runtime": "python",
             },
@@ -393,7 +388,7 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
     This test ensures proper isolation between the Sentry instances initialized by another client and by wandb's client.
     In the event that a client sends an exception event to Sentry.
 
-    This test initializes the Sentry client first using `sentry_sdk.init()`, follwed by initializing wandb's Sentry client.
+    This test initializes the Sentry client first using `sentry_sdk.init()`, followed by initializing wandb's Sentry client.
     After, both clients send an exception event to Sentry.
     """
     expected_other_sentry_response = SentryResponse(
@@ -409,7 +404,6 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
         public_key="WANDB_SENTRY_PUBLIC_KEY",
         is_error=True,
         tags={
-            "platform": wandb.util.get_platform_name(),
             "entity": "tag",
             "python_runtime": "python",
         },
@@ -446,11 +440,11 @@ def test_wandb_sentry_exception(relay: MetricRelayServer):
 
         # Raise and capture real exceptions so we have a stack trace in the event.
         try:
-            raise Exception(expected_other_sentry_response.message)
+            raise Exception(expected_other_sentry_response.message)  # noqa: TRY301
         except Exception as e:
             other_sentry_event_id = sentry_sdk.capture_exception(e)
         try:
-            raise Exception(expected_wandb_sentry_response.message)
+            raise Exception(expected_wandb_sentry_response.message)  # noqa: TRY301
         except Exception as e:
             wandb_sentry_event_id = wandb_sentry.exception(e)
 
@@ -485,7 +479,6 @@ def test_repeated_messages_does_not_call_sentry(relay: MetricRelayServer):
         project_id="123456",
         public_key="WANDB_SENTRY_PUBLIC_KEY",
         tags={
-            "platform": wandb.util.get_platform_name(),
             "entity": "tag",
             "python_runtime": "python",
         },
@@ -545,7 +538,7 @@ def test_wandb_configure_without_tags_does_not_create_session(relay: MetricRelay
         wandb_sentry.setup()
         wandb_sentry.configure_scope()
 
-        # Asert session is not created when no tags are provided
+        # Assert session is not created when no tags are provided
         assert wandb_sentry.scope._session is None  # type: ignore
 
 

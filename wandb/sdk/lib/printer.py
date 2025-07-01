@@ -1,4 +1,5 @@
-# Note: this is a helper printer class, this file might go away once we switch to rich console printing
+"""Terminal, Jupyter and file output for W&B."""
+
 from __future__ import annotations
 
 import abc
@@ -8,15 +9,13 @@ import platform
 import sys
 from typing import Callable, Iterator
 
-if sys.version_info >= (3, 12):
-    from typing import override
-else:
-    from typing_extensions import override
-
 import click
+from typing_extensions import override
 
 import wandb
+import wandb.util
 from wandb.errors import term
+from wandb.sdk import wandb_setup
 
 from . import ipython, sparkline
 
@@ -50,8 +49,71 @@ _name_to_level = {
     "NOTSET": NOTSET,
 }
 
+_PROGRESS_SYMBOL_ANIMATION = "⢿⣻⣽⣾⣷⣯⣟⡿"
+"""Sequence of characters for a progress spinner.
+
+Unicode characters from the Braille Patterns block arranged
+to form a subtle clockwise spinning animation.
+"""
+
+_PROGRESS_SYMBOL_COLOR = 0xB2
+"""Color from the 256-color palette for the progress symbol."""
+
+_JUPYTER_TABLE_STYLES = """
+    <style>
+        table.wandb td:nth-child(1) {
+            padding: 0 10px;
+            text-align: left;
+            width: auto;
+        }
+
+        table.wandb td:nth-child(2) {
+            text-align: left;
+            width: 100%;
+        }
+    </style>
+"""
+
+_JUPYTER_PANEL_STYLES = """
+    <style>
+        .wandb-row {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            width: 100%;
+        }
+        .wandb-col {
+            display: flex;
+            flex-direction: column;
+            flex-basis: 100%;
+            flex: 1;
+            padding: 10px;
+        }
+    </style>
+"""
+
+
+def new_printer(settings: wandb.Settings | None = None) -> Printer:
+    """Returns a printer appropriate for the environment we're in.
+
+    Args:
+        settings: The settings of a run. If not provided and `wandb.setup()`
+            has been called, then global settings are used. Otherwise,
+            settings (such as silent mode) are ignored.
+    """
+    if not settings and (singleton := wandb_setup.singleton_if_setup()):
+        settings = singleton.settings
+
+    if ipython.in_jupyter():
+        return _PrinterJupyter(settings=settings)
+    else:
+        return _PrinterTerm(settings=settings)
+
 
 class Printer(abc.ABC):
+    """An object that shows styled text to the user."""
+
     @contextlib.contextmanager
     @abc.abstractmethod
     def dynamic_text(self) -> Iterator[DynamicText | None]:
@@ -135,6 +197,11 @@ class Printer(abc.ABC):
     def supports_html(self) -> bool:
         """Whether text passed to display may contain HTML styling."""
 
+    @property
+    @abc.abstractmethod
+    def supports_unicode(self) -> bool:
+        """Whether text passed to display may contain arbitrary Unicode."""
+
     def sparklines(self, series: list[int | float]) -> str | None:
         """Returns a Unicode art representation of the series of numbers.
 
@@ -143,10 +210,10 @@ class Printer(abc.ABC):
 
         Returns None if the output doesn't support Unicode.
         """
-        # Only print sparklines if the terminal is utf-8
-        if wandb.util.is_unicode_safe(sys.stderr):
+        if self.supports_unicode:
             return sparkline.sparkify(series)
-        return None
+        else:
+            return None
 
     @abc.abstractmethod
     def code(self, text: str) -> str:
@@ -168,12 +235,26 @@ class Printer(abc.ABC):
         """
 
     @abc.abstractmethod
-    def emoji(self, name: str) -> str:
-        """Returns the string for a named emoji, or an empty string."""
+    def secondary_text(self, text: str) -> str:
+        """Returns the text styled to draw less attention."""
 
     @abc.abstractmethod
-    def status(self, text: str, failure: bool | None = None) -> str:
-        """Returns the text styled as a success or error status."""
+    def loading_symbol(self, tick: int) -> str:
+        """Returns a frame of an animated loading symbol.
+
+        May return an empty string.
+
+        Args:
+            tick: An index into the animation.
+        """
+
+    @abc.abstractmethod
+    def error(self, text: str) -> str:
+        """Returns the text colored like an error."""
+
+    @abc.abstractmethod
+    def emoji(self, name: str) -> str:
+        """Returns the string for a named emoji, or an empty string."""
 
     @abc.abstractmethod
     def files(self, text: str) -> str:
@@ -205,13 +286,18 @@ class DynamicText(abc.ABC):
 
 
 class _PrinterTerm(Printer):
-    def __init__(self) -> None:
+    def __init__(self, *, settings: wandb.Settings | None) -> None:
         super().__init__()
+        self._settings = settings
         self._progress = itertools.cycle(["-", "\\", "|", "/"])
 
     @override
     @contextlib.contextmanager
     def dynamic_text(self) -> Iterator[DynamicText | None]:
+        if self._settings and self._settings.silent:
+            yield None
+            return
+
         with term.dynamic_text() as handle:
             if not handle:
                 yield None
@@ -225,6 +311,9 @@ class _PrinterTerm(Printer):
         *,
         level: str | int | None = None,
     ) -> None:
+        if self._settings and self._settings.silent:
+            return
+
         text = "\n".join(text) if isinstance(text, (list, tuple)) else text
         self._display_fn_mapping(level)(text)
 
@@ -247,17 +336,28 @@ class _PrinterTerm(Printer):
 
     @override
     def progress_update(self, text: str, percent_done: float | None = None) -> None:
+        if self._settings and self._settings.silent:
+            return
+
         wandb.termlog(f"{next(self._progress)} {text}", newline=False)
 
     @override
     def progress_close(self, text: str | None = None) -> None:
+        if self._settings and self._settings.silent:
+            return
+
         text = text or " " * 79
         wandb.termlog(text)
 
-    @override
     @property
+    @override
     def supports_html(self) -> bool:
         return False
+
+    @property
+    @override
+    def supports_unicode(self) -> bool:
+        return wandb.util.is_unicode_safe(sys.stderr)
 
     @override
     def code(self, text: str) -> str:
@@ -292,10 +392,25 @@ class _PrinterTerm(Printer):
         return emojis.get(name, "")
 
     @override
-    def status(self, text: str, failure: bool | None = None) -> str:
-        color = "red" if failure else "green"
-        ret: str = click.style(text, fg=color)
-        return ret
+    def secondary_text(self, text: str) -> str:
+        # NOTE: "white" is really a light gray, and is usually distinct
+        #   from the terminal's foreground color (i.e. default text color)
+        return click.style(text, fg="white")
+
+    @override
+    def loading_symbol(self, tick: int) -> str:
+        if not self.supports_unicode:
+            return ""
+
+        idx = tick % len(_PROGRESS_SYMBOL_ANIMATION)
+        return click.style(
+            _PROGRESS_SYMBOL_ANIMATION[idx],
+            fg=_PROGRESS_SYMBOL_COLOR,
+        )
+
+    @override
+    def error(self, text: str) -> str:
+        return click.style(text, fg="red")
 
     @override
     def files(self, text: str) -> str:
@@ -326,15 +441,32 @@ class _DynamicTermText(DynamicText):
 
 
 class _PrinterJupyter(Printer):
-    def __init__(self) -> None:
+    def __init__(self, *, settings: wandb.Settings | None) -> None:
         super().__init__()
+        self._settings = settings
         self._progress = ipython.jupyter_progress_bar()
+
+        from IPython import display
+
+        self._ipython_display = display
 
     @override
     @contextlib.contextmanager
     def dynamic_text(self) -> Iterator[DynamicText | None]:
-        # TODO: Support dynamic text in Jupyter notebooks.
-        yield None
+        if self._settings and self._settings.silent:
+            yield None
+            return
+
+        handle = self._ipython_display.display(
+            self._ipython_display.HTML(""),
+            display_id=True,
+        )
+
+        if handle:
+            yield _DynamicJupyterText(handle)
+            handle.update(self._ipython_display.HTML(""))
+        else:
+            yield None
 
     @override
     def display(
@@ -343,29 +475,21 @@ class _PrinterJupyter(Printer):
         *,
         level: str | int | None = None,
     ) -> None:
-        text = "<br/>".join(text) if isinstance(text, (list, tuple)) else text
-        self._display_fn_mapping(level)(text)
+        if self._settings and self._settings.silent:
+            return
 
-    @staticmethod
-    def _display_fn_mapping(level: str | int | None) -> Callable[[str], None]:
-        level = Printer._sanitize_level(level)
+        text = "<br>".join(text) if isinstance(text, (list, tuple)) else text
+        text = "<br>".join(text.splitlines())
+        self._ipython_display.display(self._ipython_display.HTML(text))
 
-        if level >= CRITICAL:
-            return ipython.display_html
-        elif ERROR <= level < CRITICAL:
-            return ipython.display_html
-        elif WARNING <= level < ERROR:
-            return ipython.display_html
-        elif INFO <= level < WARNING:
-            return ipython.display_html
-        elif DEBUG <= level < INFO:
-            return ipython.display_html
-        else:
-            return ipython.display_html
-
-    @override
     @property
+    @override
     def supports_html(self) -> bool:
+        return True
+
+    @property
+    @override
+    def supports_unicode(self) -> bool:
         return True
 
     @override
@@ -385,9 +509,16 @@ class _PrinterJupyter(Printer):
         return ""
 
     @override
-    def status(self, text: str, failure: bool | None = None) -> str:
-        color = "red" if failure else "green"
-        return f'<strong style="color:{color}">{text}</strong>'
+    def secondary_text(self, text: str) -> str:
+        return text
+
+    @override
+    def loading_symbol(self, tick: int) -> str:
+        return ""
+
+    @override
+    def error(self, text: str) -> str:
+        return f'<strong style="color:red">{text}</strong>'
 
     @override
     def files(self, text: str) -> str:
@@ -399,7 +530,7 @@ class _PrinterJupyter(Printer):
         text: str,
         percent_done: float | None = None,
     ) -> None:
-        if not self._progress:
+        if (self._settings and self._settings.silent) or not self._progress:
             return
 
         if percent_done is None:
@@ -408,7 +539,7 @@ class _PrinterJupyter(Printer):
         self._progress.update(percent_done, text)
 
     @override
-    def progress_close(self, _: str | None = None) -> None:
+    def progress_close(self, text: str | None = None) -> None:
         if self._progress:
             self._progress.close()
 
@@ -419,15 +550,22 @@ class _PrinterJupyter(Printer):
         grid = f'<table class="wandb">{grid}</table>'
         if title:
             return f"<h3>{title}</h3><br/>{grid}<br/>"
-        return f"{grid}<br/>"
+        return f"{_JUPYTER_TABLE_STYLES}{grid}<br/>"
 
     @override
     def panel(self, columns: list[str]) -> str:
         row = "".join([f'<div class="wandb-col">{col}</div>' for col in columns])
-        return f'{ipython.TABLE_STYLES}<div class="wandb-row">{row}</div>'
+        return f'{_JUPYTER_PANEL_STYLES}<div class="wandb-row">{row}</div>'
 
 
-def get_printer(jupyter: bool) -> Printer:
-    if jupyter:
-        return _PrinterJupyter()
-    return _PrinterTerm()
+class _DynamicJupyterText(DynamicText):
+    def __init__(self, handle) -> None:
+        from IPython import display
+
+        self._ipython_to_html = display.HTML
+        self._handle: display.DisplayHandle = handle
+
+    @override
+    def set_text(self, text: str) -> None:
+        text = "<br>".join(text.splitlines())
+        self._handle.update(self._ipython_to_html(text))

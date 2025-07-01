@@ -12,9 +12,8 @@ from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, Typ
 from requests import HTTPError
 
 import wandb
+import wandb.errors
 from wandb.util import CheckRetryFnType
-
-from .mailbox import ContextCancelledError
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +23,10 @@ logger = logging.getLogger(__name__)
 NOW_FN = datetime.datetime.now
 SLEEP_FN = time.sleep
 SLEEP_ASYNC_FN = asyncio.sleep
+
+
+class RetryCancelledError(wandb.errors.Error):
+    """A retry did not occur because it was cancelled."""
 
 
 class TransientError(Exception):
@@ -91,10 +94,10 @@ class Retry(Generic[_R]):
         """The number of iterations the previous __call__ retried."""
         return self._num_iter
 
-    def __call__(self, *args: Any, **kwargs: Any) -> _R:  # noqa: C901
+    def __call__(self, *args: Any, **kwargs: Any) -> _R:
         """Call the wrapped function, with retries.
 
-        Arguments:
+        Args:
            retry_timedelta (kwarg): amount of time to retry before giving up.
            sleep_base (kwarg): amount of time to sleep upon first failure, all other sleeps
                are derived from this one.
@@ -137,9 +140,7 @@ class Retry(Generic[_R]):
                     if self.retry_callback:
                         self.retry_callback(
                             200,
-                            "{} resolved after {}, resuming normal operation.".format(
-                                self._error_prefix, NOW_FN() - start_time
-                            ),
+                            f"{self._error_prefix} resolved after {NOW_FN() - start_time}, resuming normal operation.",
                         )
                 return result
             except self._retryable_exceptions as e:
@@ -181,9 +182,7 @@ class Retry(Generic[_R]):
                         # but some of these can be raised before the retry handler thread (RunStatusChecker) is
                         # spawned in wandb_init
                         wandb.termlog(
-                            "{} ({}), entering retry loop.".format(
-                                self._error_prefix, e.__class__.__name__
-                            )
+                            f"{self._error_prefix} ({e.__class__.__name__}), entering retry loop."
                         )
                 # if wandb.env.is_debug():
                 #     traceback.print_exc()
@@ -191,7 +190,7 @@ class Retry(Generic[_R]):
                 sleep + random.random() * 0.25 * sleep, cancel_event=retry_cancel_event
             )
             if cancelled:
-                raise ContextCancelledError("retry timeout")
+                raise RetryCancelledError("retry timeout")
             sleep *= 2
             if sleep > self.MAX_SLEEP_SECONDS:
                 sleep = self.MAX_SLEEP_SECONDS

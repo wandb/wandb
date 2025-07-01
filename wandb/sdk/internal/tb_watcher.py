@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
 from wandb import util
-from wandb.plot.viz import CustomChart
+from wandb.plot import CustomChart
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.lib import filesystem
 
@@ -73,7 +73,7 @@ def is_tfevents_file_created_by(
     if not path:
         raise ValueError("Path must be a nonempty string")
     basename = os.path.basename(path)
-    if basename.endswith(".profile-empty") or basename.endswith(".sagemaker-uploaded"):
+    if basename.endswith((".profile-empty", ".sagemaker-uploaded")):
         return False
     fname_components = basename.split(".")
     try:
@@ -231,7 +231,7 @@ class TBDirWatcher:
             return is_tfevents_file_created_by(path, None, None)
         else:
             return is_tfevents_file_created_by(
-                path, self._hostname, self._tbwatcher._settings._start_time
+                path, self._hostname, self._tbwatcher._settings.x_start_time
             )
 
     def _loader(
@@ -288,9 +288,9 @@ class TBDirWatcher:
     def _thread_except_body(self) -> None:
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             logger.exception("generic exception in TBDirWatcher thread")
-            raise e
+            raise
 
     def _thread_body(self) -> None:
         """Check for new events every second."""
@@ -394,9 +394,9 @@ class TBEventConsumer:
     def _thread_except_body(self) -> None:
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             logger.exception("generic exception in TBEventConsumer thread")
-            raise e
+            raise
 
     def _thread_body(self) -> None:
         while True:
@@ -439,21 +439,24 @@ class TBEventConsumer:
 
     def _save_row(self, row: "HistoryDict") -> None:
         chart_keys = set()
-        for k in row:
-            if isinstance(row[k], CustomChart):
+        for k, v in row.items():
+            if isinstance(v, CustomChart):
                 chart_keys.add(k)
-                key = row[k].get_config_key(k)
-                value = row[k].get_config_value(
-                    "Vega2", row[k].user_query(f"{k}_table")
+                v.set_key(k)
+                self._tbwatcher._interface.publish_config(
+                    key=v.spec.config_key,
+                    val=v.spec.config_value,
                 )
-                row[k] = row[k]._data
-                self._tbwatcher._interface.publish_config(val=value, key=key)
 
         for k in chart_keys:
-            row[f"{k}_table"] = row.pop(k)
+            chart = row.pop(k)
+            if isinstance(chart, CustomChart):
+                row[chart.spec.table_key] = chart.table
 
         self._tbwatcher._interface.publish_history(
-            row, run=self._internal_run, publish_step=False
+            self._internal_run,
+            row,
+            publish_step=False,
         )
 
 
@@ -487,11 +490,9 @@ class TBHistory:
                     dropped_keys.append(k)
                     del self._data[k]
             wandb.termwarn(
-                "Step {} exceeds max data limit, dropping {} of the largest keys:".format(
-                    self._step, len(dropped_keys)
-                )
+                f"Step {self._step} exceeds max data limit, dropping {len(dropped_keys)} of the largest keys:"
             )
-            print("\t" + ("\n\t".join(dropped_keys)))
+            print("\t" + ("\n\t".join(dropped_keys)))  # noqa: T201
         self._data["_step"] = self._step
         self._added.append(self._data)
         self._step += 1

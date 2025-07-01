@@ -64,7 +64,8 @@ func (b *uploadBatcher) Add(runPaths []paths.RelativePath) {
 		b.addWG.Add(1)
 		go func() {
 			defer b.addWG.Done()
-			<-b.delay.Wait()
+			delay, _ := b.delay.Wait()
+			<-delay
 			b.uploadBatch()
 		}()
 	}

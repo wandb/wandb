@@ -1,32 +1,66 @@
-from typing import Optional
+from __future__ import annotations
 
-import wandb
+from typing import TYPE_CHECKING
+
+from wandb.plot.custom_chart import plot_table
+
+if TYPE_CHECKING:
+    import wandb
+    from wandb.plot.custom_chart import CustomChart
 
 
-def scatter(table, x, y, title=None, split_table: Optional[bool] = False):
-    """Construct a scatter plot.
+def scatter(
+    table: wandb.Table,
+    x: str,
+    y: str,
+    title: str = "",
+    split_table: bool = False,
+) -> CustomChart:
+    """Constructs a scatter plot from a wandb.Table of data.
 
-    Arguments:
-        table (wandb.Table): Table of data.
-        x (string): Name of column to as for x-axis values.
-        y (string): Name of column to as for y-axis values.
-        title (string): Plot title.
-        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
+    Args:
+        table (wandb.Table): The W&B Table containing the data to visualize.
+        x (str): The name of the column used for the x-axis.
+        y (str): The name of the column used for the y-axis.
+        title (str): The title of the scatter chart.
+        split_table (bool): Whether the table should be split into a separate section
+            in the W&B UI. If `True`, the table will be displayed in a section named
+            "Custom Chart Tables". Default is `False`.
 
     Returns:
-        A plot object, to be passed to wandb.log()
-
+        CustomChart: A custom chart object that can be logged to W&B. To log the
+            chart, pass it to `wandb.log()`.
     Example:
         ```
-        data = [[i, random.random() + math.sin(i / 10)] for i in range(100)]
-        table = wandb.Table(data=data, columns=["step", "height"])
-        wandb.log({'scatter-plot1': wandb.plot.scatter(table, "step", "height")})
+        import math
+        import random
+        import wandb
+
+        # Simulate temperature variations at different altitudes over time
+        data = [
+            [i, random.uniform(-10, 20) - 0.005 * i + 5 * math.sin(i / 50)]
+            for i in range(300)
+        ]
+
+        # Create W&B table with altitude (m) and temperature (°C) columns
+        table = wandb.Table(data=data, columns=["altitude (m)", "temperature (°C)"])
+
+        # Initialize W&B run and log the scatter plot
+        with wandb.init(project="temperature-altitude-scatter") as run:
+            # Create and log the scatter plot
+            scatter_plot = wandb.plot.scatter(
+                table=table,
+                x="altitude (m)",
+                y="temperature (°C)",
+                title="Altitude vs Temperature",
+            )
+            run.log({"altitude-temperature-scatter": scatter_plot})
         ```
     """
-    return wandb.plot_table(
-        "wandb/scatter/v0",
-        table,
-        {"x": x, "y": y},
-        {"title": title},
+    return plot_table(
+        data_table=table,
+        vega_spec_name="wandb/scatter/v0",
+        fields={"x": x, "y": y},
+        string_fields={"title": title},
         split_table=split_table,
     )

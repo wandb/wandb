@@ -2,6 +2,7 @@ package wboperation_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -95,21 +96,45 @@ func TestFinishNewestSubtask(t *testing.T) {
 	assert.Equal(t, "third", proto.Operations[0].Subtasks[1].Desc)
 }
 
-func TestHTTPError(t *testing.T) {
+func TestHTTPError_NoMessage(t *testing.T) {
 	ops := wboperation.NewOperations()
 	op := ops.New("test operation")
 
-	op.MarkRetryingHTTPError("123")
+	op.MarkRetryingHTTPError(429, "429 Too Many Requests", "")
 
 	proto := ops.ToProto()
-	assert.Equal(t, "retrying HTTP 123", proto.Operations[0].ErrorStatus)
+	assert.Equal(t,
+		"retrying HTTP 429 Too Many Requests",
+		proto.Operations[0].ErrorStatus)
+}
+
+func TestHTTPError_WithMessage(t *testing.T) {
+	ops := wboperation.NewOperations()
+	op := ops.New("test operation")
+
+	op.MarkRetryingHTTPError(409, "409 Conflict", "run has been deleted")
+
+	proto := ops.ToProto()
+	assert.Equal(t,
+		"retrying HTTP 409: run has been deleted",
+		proto.Operations[0].ErrorStatus)
+}
+
+func TestGoError(t *testing.T) {
+	ops := wboperation.NewOperations()
+	op := ops.New("test operation")
+
+	op.MarkRetryingError(errors.New("test: example"))
+
+	proto := ops.ToProto()
+	assert.Equal(t, "retrying: test: example", proto.Operations[0].ErrorStatus)
 }
 
 func TestClearError(t *testing.T) {
 	ops := wboperation.NewOperations()
 	op := ops.New("test operation")
 
-	op.MarkRetryingHTTPError("123")
+	op.MarkRetryingHTTPError(429, "429 Too Many Requests", "")
 	op.ClearError()
 
 	proto := ops.ToProto()
@@ -161,10 +186,10 @@ func TestProgress_Bytes(t *testing.T) {
 	progress.SetBytesOfTotal(37<<20, 91<<30+123<<20)
 
 	proto := ops.ToProto()
-	assert.Equal(t, "20B / 47B", proto.Operations[0].Progress)
-	assert.Equal(t, "1.0KB / 3.9KB", proto.Operations[1].Progress)
-	assert.Equal(t, "3.3KB / 12.3MB", proto.Operations[2].Progress)
-	assert.Equal(t, "37.0MB / 91.12GB", proto.Operations[3].Progress)
+	assert.Equal(t, "20B/47B", proto.Operations[0].Progress)
+	assert.Equal(t, "1.0KB/3.9KB", proto.Operations[1].Progress)
+	assert.Equal(t, "3.3KB/12.3MB", proto.Operations[2].Progress)
+	assert.Equal(t, "37.0MB/91.12GB", proto.Operations[3].Progress)
 }
 
 func TestProgress_ArbitraryUnits(t *testing.T) {

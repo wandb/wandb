@@ -1,5 +1,5 @@
 use crate::metrics::MetricValue;
-use crate::wandb_internal::{GpuNvidiaInfo, MetadataRequest};
+use crate::wandb_internal::{GpuNvidiaInfo, EnvironmentRecord};
 
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
@@ -14,6 +14,11 @@ struct GpuStaticInfo {
     brand: String,
     cuda_cores: u32,
     architecture: String,
+
+    /// Globally unique immutable UUID associated with this Device as a 5 part hex string.
+    /// Note that when using the Multi-Instance GPU (MIG) feature, one physical GPU can be
+    /// partitioned into multiple GPU instances, all sharing the same UUID.
+    uuid: String,
 }
 
 /// Tracks the availability of GPU metrics for the current system.
@@ -53,11 +58,12 @@ impl Default for GpuMetricAvailability {
             uncorrected_memory_errors: true,
             fan_speed: true,
             encoder_utilization: false, // TODO: questionable utility, expensive to retrieve
-            link_gen: true,
-            link_speed: true,
-            link_width: true,
-            max_link_gen: true,
-            max_link_width: true,
+            // TODO: enable these metrics
+            link_gen: false,
+            link_speed: false,
+            link_width: false,
+            max_link_gen: false,
+            max_link_width: false,
         }
     }
 }
@@ -110,7 +116,7 @@ pub fn get_lib_path() -> Result<PathBuf, NvmlError> {
     }
 }
 
-/// A struct to collect metrics from NVIDIA GPUs using NVML.
+/// Struct to collect metrics from NVIDIA GPUs using NVML.
 pub struct NvidiaGpu {
     nvml: Nvml,
     cuda_version: String,
@@ -136,6 +142,9 @@ impl NvidiaGpu {
 
             if let Ok(name) = device.name() {
                 static_info.name = name;
+            }
+            if let Ok(uuid) = device.uuid() {
+                static_info.uuid = uuid;
             }
             if let Ok(brand) = device.brand() {
                 static_info.brand = format!("{:?}", brand);
@@ -252,6 +261,9 @@ impl NvidiaGpu {
     /// gpu.{i}.powerPercent: The percentage of power limit being used by the GPU at index i.
     /// gpu.{i}.graphicsClock: The current graphics clock speed of the GPU at index i (in MHz).
     /// gpu.{i}.memoryClock: The current memory clock speed of the GPU at index i (in MHz).
+    /// gpu.{i}.smClock: The current SM clock speed of the GPU at index i (in MHz).
+    /// gpu.{i}.correctedMemoryErrors: The number of corrected memory errors on the GPU at index i.
+    /// gpu.{i}.uncorrectedMemoryErrors: The number of uncorrected memory errors on the GPU at index i.
     /// gpu.{i}.pcieLinkGen: The current PCIe link generation of the GPU at index i.
     /// gpu.{i}.pcieLinkSpeed: The current PCIe link speed of the GPU at index i (in bits per second).
     /// gpu.{i}.pcieLinkWidth: The current PCIe link width of the GPU at index i.
@@ -268,6 +280,8 @@ impl NvidiaGpu {
     /// # Arguments
     ///
     /// * `pid` - The process ID to monitor for GPU usage.
+    /// * `gpu_device_ids` - An optional list of GPU device IDs to monitor. If not provided,
+    ///  all GPUs are monitored.
     ///
     /// # Returns
     ///
@@ -278,7 +292,11 @@ impl NvidiaGpu {
     ///
     /// This function should return an error only if an internal NVML call fails.
     /// ```
-    pub fn get_metrics(&mut self, pid: i32) -> Result<Vec<(String, MetricValue)>, NvmlError> {
+    pub fn get_metrics(
+        &mut self,
+        pid: i32,
+        gpu_device_ids: Option<Vec<i32>>,
+    ) -> Result<Vec<(String, MetricValue)>, NvmlError> {
         let mut metrics: Vec<(String, MetricValue)> = vec![];
 
         metrics.push((
@@ -291,6 +309,14 @@ impl NvidiaGpu {
         ));
 
         for di in 0..self.device_count {
+            // Skip GPU if not in the list of device IDs to monitor.
+            // If no device IDs are provided, monitor all GPUs.
+            if let Some(ref gpu_device_ids) = gpu_device_ids {
+                if !gpu_device_ids.contains(&(di as i32)) {
+                    continue;
+                }
+            }
+
             let device = match self.nvml.device_by_index(di) {
                 Ok(device) => device,
                 Err(_e) => {
@@ -302,6 +328,10 @@ impl NvidiaGpu {
             metrics.push((
                 format!("_gpu.{}.name", di),
                 MetricValue::String(self.gpu_static_info[di as usize].name.clone()),
+            ));
+            metrics.push((
+                format!("_gpu.{}.uuid", di),
+                MetricValue::String(self.gpu_static_info[di as usize].uuid.clone()),
             ));
             metrics.push((
                 format!("_gpu.{}.brand", di),
@@ -511,9 +541,15 @@ impl NvidiaGpu {
 
             // Corrected Memory Errors
             if availability.corrected_memory_errors {
+                // NOTE: Nvidia GPUs provide two ECC counters: volatile and aggregate.
+                // The volatile counter resets on driver or GPU reset, while the
+                // aggregate counter persists for the GPU's lifetime. After row
+                // remapping repairs ECC errors, the aggregate counter remains
+                // non-zero and can falsely indicate a problem. Using the volatile
+                // counter avoids this confusion.
                 match device.memory_error_counter(
                     nvml_wrapper::enum_wrappers::device::MemoryError::Corrected,
-                    nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
+                    nvml_wrapper::enum_wrappers::device::EccCounter::Volatile,
                     nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
                 ) {
                     Ok(errors) => {
@@ -532,7 +568,7 @@ impl NvidiaGpu {
             if availability.uncorrected_memory_errors {
                 match device.memory_error_counter(
                     nvml_wrapper::enum_wrappers::device::MemoryError::Uncorrected,
-                    nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
+                    nvml_wrapper::enum_wrappers::device::EccCounter::Volatile,
                     nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
                 ) {
                     Ok(errors) => {
@@ -601,7 +637,7 @@ impl NvidiaGpu {
                 {
                     Ok(link_speed) => {
                         metrics.push((
-                            format!("_gpu.{}.pcieLinkSpeed", di),
+                            format!("gpu.{}.pcieLinkSpeed", di),
                             MetricValue::Int(link_speed as i64),
                         ));
                     }
@@ -616,7 +652,7 @@ impl NvidiaGpu {
                 match device.current_pcie_link_width() {
                     Ok(link_width) => {
                         metrics.push((
-                            format!("_gpu.{}.pcieLinkWidth", di),
+                            format!("gpu.{}.pcieLinkWidth", di),
                             MetricValue::Int(link_width as i64),
                         ));
                     }
@@ -631,7 +667,7 @@ impl NvidiaGpu {
                 match device.max_pcie_link_gen() {
                     Ok(max_link_gen) => {
                         metrics.push((
-                            format!("_gpu.{}.maxPcieLinkGen", di),
+                            format!("gpu.{}.maxPcieLinkGen", di),
                             MetricValue::Int(max_link_gen as i64),
                         ));
                     }
@@ -646,7 +682,7 @@ impl NvidiaGpu {
                 match device.max_pcie_link_width() {
                     Ok(max_link_width) => {
                         metrics.push((
-                            format!("_gpu.{}.maxPcieLinkWidth", di),
+                            format!("gpu.{}.maxPcieLinkWidth", di),
                             MetricValue::Int(max_link_width as i64),
                         ));
                     }
@@ -661,27 +697,27 @@ impl NvidiaGpu {
     }
 
     /// Extract metadata about the GPUs in the system from the provided samples.
-    pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> MetadataRequest {
-        let mut metadata_request = MetadataRequest {
+    pub fn get_metadata(&self, samples: &HashMap<String, &MetricValue>) -> EnvironmentRecord {
+        let mut metadata = EnvironmentRecord {
             ..Default::default()
         };
 
         let n_gpu = match samples.get("_gpu.count") {
             Some(MetricValue::Int(n_gpu)) => *n_gpu as u32,
-            _ => return metadata_request,
+            _ => return metadata,
         };
 
-        metadata_request.gpu_nvidia = [].to_vec();
-        metadata_request.gpu_count = n_gpu;
+        metadata.gpu_nvidia = [].to_vec();
+        metadata.gpu_count = n_gpu;
         // TODO: do not assume all GPUs are the same
         if let Some(value) = samples.get("_gpu.0.name") {
-            if let MetricValue::String(gpu_name) = value {
-                metadata_request.gpu_type = gpu_name.to_string();
+            if let MetricValue::String(ref gpu_name) = value {
+                metadata.gpu_type = gpu_name.clone();
             }
         }
         if let Some(value) = samples.get("_cuda_version") {
-            if let MetricValue::String(cuda_version) = value {
-                metadata_request.cuda_version = cuda_version.to_string();
+            if let MetricValue::String(ref cuda_version) = value {
+                metadata.cuda_version = cuda_version.clone();
             }
         }
 
@@ -690,7 +726,9 @@ impl NvidiaGpu {
                 ..Default::default()
             };
             if let Some(value) = samples.get(&format!("_gpu.{}.name", i)) {
-                gpu_nvidia.name = value.to_string();
+                if let MetricValue::String(ref gpu_name) = value {
+                    gpu_nvidia.name = gpu_name.clone();
+                }
             }
             if let Some(value) = samples.get(&format!("_gpu.{}.memoryTotal", i)) {
                 if let MetricValue::Int(memory_total) = value {
@@ -705,10 +743,19 @@ impl NvidiaGpu {
             }
             // architecture
             if let Some(value) = samples.get(&format!("_gpu.{}.architecture", i)) {
-                gpu_nvidia.architecture = value.to_string();
+                if let MetricValue::String(ref architecture) = value {
+                    gpu_nvidia.architecture = architecture.clone();
+                }
             }
-            metadata_request.gpu_nvidia.push(gpu_nvidia);
+            // uuid
+            if let Some(value) = samples.get(&format!("_gpu.{}.uuid", i)) {
+                if let MetricValue::String(ref uuid) = value {
+                    gpu_nvidia.uuid = uuid.clone();
+                }
+            }
+            metadata.gpu_nvidia.push(gpu_nvidia);
         }
-        metadata_request
+
+        metadata
     }
 }

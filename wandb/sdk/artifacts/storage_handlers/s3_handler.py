@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Sequence
@@ -52,10 +53,20 @@ class S3Handler(StorageHandler):
             required="s3:// references requires the boto3 library, run pip install wandb[aws]",
             lazy=False,
         )
+
+        from botocore.client import Config  # type: ignore
+
+        s3_endpoint = os.getenv("AWS_S3_ENDPOINT_URL")
+        config = (
+            Config(s3={"addressing_style": "virtual"})
+            if s3_endpoint and self._is_coreweave_endpoint(s3_endpoint)
+            else None
+        )
         self._s3 = boto.session.Session().resource(
             "s3",
-            endpoint_url=os.getenv("AWS_S3_ENDPOINT_URL"),
+            endpoint_url=s3_endpoint,
             region_name=os.getenv("AWS_REGION"),
+            config=config,
         )
         self._botocore = util.get_module("botocore")
         return self._s3
@@ -196,8 +207,7 @@ class S3Handler(StorageHandler):
         if multi:
             start_time = time.time()
             termlog(
-                'Generating checksum for up to %i objects in "%s/%s"... '
-                % (max_objects, bucket, key),
+                f'Generating checksum for up to {max_objects} objects in "{bucket}/{key}"... ',
                 newline=False,
             )
             if key != "":
@@ -219,8 +229,7 @@ class S3Handler(StorageHandler):
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
         if len(entries) > max_objects:
             raise ValueError(
-                "Exceeded %i objects tracked, pass max_objects to add_reference"
-                % max_objects
+                f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"
             )
         return entries
 
@@ -243,7 +252,7 @@ class S3Handler(StorageHandler):
     ) -> ArtifactManifestEntry:
         """Create an ArtifactManifestEntry from an S3 object.
 
-        Arguments:
+        Args:
             obj: The S3 object
             path: The S3-style path (e.g.: "s3://bucket/file.txt")
             name: The user assigned name, or None if not specified
@@ -298,3 +307,33 @@ class S3Handler(StorageHandler):
         if hasattr(obj, "version_id") and obj.version_id and obj.version_id != "null":
             extra["versionID"] = obj.version_id
         return extra
+
+    _CW_LEGACY_NETLOC_REGEX: re.Pattern[str] = re.compile(
+        r"""
+        # accelerated endpoints like "accel-object.<region>.coreweave.com"
+        accel-object\.[a-z0-9-]+\.coreweave\.com
+        |
+        # URLs like "object.<region>.coreweave.com"
+        object\.[a-z0-9-]+\.coreweave\.com
+        """,
+        flags=re.VERBOSE,
+    )
+
+    def _is_coreweave_endpoint(self, endpoint_url: str) -> bool:
+        if not (url := endpoint_url.strip().rstrip("/")):
+            return False
+
+        # Only http://cwlota.com is supported using HTTP
+        if url == "http://cwlota.com":
+            return True
+
+        # Enforce HTTPS otherwise
+        https_url = url if url.startswith("https://") else f"https://{url}"
+        netloc = urlparse(https_url).netloc
+        return bool(
+            # Match for https://cwobject.com
+            (netloc == "cwobject.com")
+            or
+            # Check for legacy endpoints
+            self._CW_LEGACY_NETLOC_REGEX.fullmatch(netloc)
+        )

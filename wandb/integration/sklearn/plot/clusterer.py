@@ -20,7 +20,7 @@ def clusterer(model, X_train, cluster_labels, labels=None, model_name="Clusterer
 
     Should only be called with a fitted clusterer (otherwise an error is thrown).
 
-    Arguments:
+    Args:
         model: (clusterer) Takes in a fitted clusterer.
         X_train: (arr) Training set features.
         cluster_labels: (list) Names for cluster labels. Makes plots easier to read
@@ -68,7 +68,7 @@ def elbow_curve(
 
     Please note this function fits the model on the training set when called.
 
-    Arguments:
+    Args:
         model: (clusterer) Takes in a fitted clusterer.
         X: (arr) Training set features.
 
@@ -118,7 +118,7 @@ def silhouette(
 
     Please note this function fits the model on the training set when called.
 
-    Arguments:
+    Args:
         model: (clusterer) Takes in a fitted clusterer.
         X: (arr) Training set features.
         cluster_labels: (list) Names for cluster labels. Makes plots easier to read

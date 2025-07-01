@@ -33,7 +33,7 @@ class Histogram(WBValue):
         wandb.Histogram(np_histogram=hist)
         ```
 
-    Arguments:
+    Args:
         sequence: (array_like) input data for histogram
         np_histogram: (numpy histogram) alternative input of a precomputed histogram
         num_bins: (int) Number of bins for the histogram.  The default number of bins
@@ -74,13 +74,11 @@ class Histogram(WBValue):
                 "numpy", required="Auto creation of histograms requires numpy"
             )
 
-            self.histogram, self.bins = np.histogram(sequence, bins=num_bins)
-            self.histogram = self.histogram.tolist()
-            self.bins = self.bins.tolist()
+            histogram, bins = np.histogram(sequence, bins=num_bins)
+            self.histogram = histogram.tolist()
+            self.bins = bins.tolist()
         if len(self.histogram) > self.MAX_LENGTH:
-            raise ValueError(
-                "The maximum length of a histogram is %i" % self.MAX_LENGTH
-            )
+            raise ValueError(f"The maximum length of a histogram is {self.MAX_LENGTH}")
         if len(self.histogram) + 1 != len(self.bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 

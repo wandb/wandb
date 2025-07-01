@@ -51,13 +51,7 @@ model.learn(
 
 import logging
 import os
-import sys
-from typing import Optional
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+from typing import Literal, Optional
 
 from stable_baselines3.common.callbacks import BaseCallback  # type: ignore
 
@@ -112,9 +106,9 @@ class WandbCallback(BaseCallback):
             os.makedirs(self.model_save_path, exist_ok=True)
             self.path = os.path.join(self.model_save_path, "model.zip")
         else:
-            assert (
-                self.model_save_freq == 0
-            ), "to use the `model_save_freq` you have to set the `model_save_path` parameter"
+            assert self.model_save_freq == 0, (
+                "to use the `model_save_freq` you have to set the `model_save_path` parameter"
+            )
 
     def _init_callback(self) -> None:
         d = {}

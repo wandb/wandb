@@ -41,11 +41,11 @@ func processImagesTensor(
 	tensorValue *tbproto.TensorProto,
 	logger *observability.CoreLogger,
 ) {
-	if len(tensorValue.StringVal) != 3 {
+	if len(tensorValue.StringVal) < 3 {
 		logger.CaptureError(
 			fmt.Errorf(
 				"tensorboard: expected images tensor string_val"+
-					" to have 3 values, but it has %d",
+					" to have at least 3 values, but it has %d",
 				len(tensorValue.StringVal)))
 		return
 	}
@@ -53,7 +53,6 @@ func processImagesTensor(
 	// Format: https://github.com/tensorflow/tensorboard/blob/b56c65521cbccf3097414cbd7e30e55902e08cab/tensorboard/plugins/image/summary.py#L17-L18
 	width, err1 := strconv.Atoi(string(tensorValue.StringVal[0]))
 	height, err2 := strconv.Atoi(string(tensorValue.StringVal[1]))
-	png := tensorValue.StringVal[2]
 	if err1 != nil || err2 != nil {
 		logger.CaptureError(
 			fmt.Errorf(
@@ -62,8 +61,9 @@ func processImagesTensor(
 		return
 	}
 
-	emitImage(width, height, png, emitter, tag, logger)
-
+	// The remaining values are encoded images.
+	images := tensorValue.StringVal[2:]
+	emitImages(width, height, images, emitter, tag, logger)
 }
 
 // processImagesProto processes a summary with the 'image' field.
@@ -73,34 +73,41 @@ func processImagesProto(
 	value *tbproto.Summary_Image,
 	logger *observability.CoreLogger,
 ) {
-	emitImage(
+	emitImages(
 		int(value.Width),
 		int(value.Height),
-		value.EncodedImageString,
+		[][]byte{value.EncodedImageString},
 		emitter,
 		tag,
 		logger,
 	)
 }
 
-func emitImage(
+func emitImages(
 	width int,
 	height int,
-	encodedData []byte,
+	images [][]byte,
 	emitter Emitter,
 	tag string,
 	logger *observability.CoreLogger,
 ) {
-	image, err := wbvalue.ImageFromData(width, height, encodedData)
-	if err != nil {
-		logger.CaptureError(
-			fmt.Errorf("tensorboard: failed to read image: %v", err))
-		return
+	wbImages := []wbvalue.Image{}
+
+	for _, encodedData := range images {
+		image, err := wbvalue.ImageFromData(width, height, encodedData)
+		if err != nil {
+			logger.CaptureError(
+				fmt.Errorf("tensorboard: failed to read image: %v", err))
+		} else {
+			wbImages = append(wbImages, image)
+		}
 	}
 
-	err = emitter.EmitImage(pathtree.PathOf(tag), image)
-	if err != nil {
-		logger.CaptureError(
-			fmt.Errorf("tensorboard: couldn't emit image: %v", err))
+	if len(wbImages) != 0 {
+		err := emitter.EmitImages(pathtree.PathOf(tag), wbImages)
+		if err != nil {
+			logger.CaptureError(
+				fmt.Errorf("tensorboard: couldn't emit image: %v", err))
+		}
 	}
 }

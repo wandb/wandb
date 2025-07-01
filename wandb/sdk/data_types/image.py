@@ -1,9 +1,12 @@
 import hashlib
 import logging
 import os
+import pathlib
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
 from urllib import parse
+
+from packaging.version import parse as parse_version
 
 import wandb
 from wandb import util
@@ -30,12 +33,76 @@ if TYPE_CHECKING:  # pragma: no cover
     ImageDataType = Union[
         "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
     ]
-    ImageDataOrPathType = Union[str, "Image", ImageDataType]
+    ImageDataOrPathType = Union[str, pathlib.Path, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 
-def _server_accepts_image_filenames() -> bool:
-    if util._is_offline():
+def _warn_on_invalid_data_range(
+    data: "np.ndarray",
+    normalize: bool = True,
+) -> None:
+    if not normalize:
+        return
+
+    np = util.get_module(
+        "numpy",
+        required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
+    )
+
+    if np.min(data) < 0 or np.max(data) > 255:
+        wandb.termwarn(
+            "Data passed to `wandb.Image` should consist of values in the range [0, 255], "
+            "image data will be normalized to this range, "
+            "but behavior will be removed in a future version of wandb.",
+            repeat=False,
+        )
+
+
+def _guess_and_rescale_to_0_255(data: "np.ndarray") -> "np.ndarray":
+    """Guess the image's format and rescale its values to the range [0, 255].
+
+    This is an unfortunate design flaw carried forward for backward
+    compatibility. A better design would have been to document the expected
+    data format and not mangle the data provided by the user.
+
+    If given data in the range [0, 1], we multiply all values by 255
+    and round down to get integers.
+
+    If given data in the range [-1, 1], we rescale it by mapping -1 to 0 and
+    1 to 255, then round down to get integers.
+
+    We clip and round all other data.
+    """
+    try:
+        import numpy as np
+    except ImportError:
+        raise wandb.Error(
+            "wandb.Image requires numpy if not supplying PIL images: pip install numpy"
+        ) from None
+
+    data_min: float = data.min()
+    data_max: float = data.max()
+
+    if 0 <= data_min and data_max <= 1:
+        return (data * 255).astype(np.uint8)
+
+    elif -1 <= data_min and data_max <= 1:
+        return (255 * 0.5 * (data + 1)).astype(np.uint8)
+
+    else:
+        return data.clip(0, 255).astype(np.uint8)
+
+
+def _convert_to_uint8(data: "np.ndarray") -> "np.ndarray":
+    np = util.get_module(
+        "numpy",
+        required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
+    )
+    return data.astype(np.uint8)
+
+
+def _server_accepts_image_filenames(run: "LocalRun") -> bool:
+    if run.offline:
         return True
 
     # Newer versions of wandb accept large image filenames arrays
@@ -43,86 +110,26 @@ def _server_accepts_image_filenames() -> bool:
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
-    from wandb.util import parse_version
 
-    accepts_image_filenames: bool = parse_version("0.12.10") <= parse_version(
-        max_cli_version
+    accepts_image_filenames: bool = parse_version(max_cli_version) >= parse_version(
+        "0.12.10"
     )
     return accepts_image_filenames
 
 
-def _server_accepts_artifact_path() -> bool:
-    from wandb.util import parse_version
+def _server_accepts_artifact_path(run: "LocalRun") -> bool:
+    if run.offline:
+        return False
 
-    target_version = "0.12.14"
-    max_cli_version = util._get_max_cli_version() if not util._is_offline() else None
-    accepts_artifact_path: bool = max_cli_version is not None and parse_version(
-        target_version
-    ) <= parse_version(max_cli_version)
-    return accepts_artifact_path
+    max_cli_version = util._get_max_cli_version()
+    if max_cli_version is None:
+        return False
+
+    return parse_version(max_cli_version) >= parse_version("0.12.14")
 
 
 class Image(BatchableMedia):
-    """Format images for logging to W&B.
-
-    Arguments:
-        data_or_path: (numpy array, string, io) Accepts numpy array of
-            image data, or a PIL image. The class attempts to infer
-            the data format and converts it.
-        mode: (string) The PIL mode for an image. Most common are "L", "RGB",
-            "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
-        caption: (string) Label for display of image.
-
-    Note : When logging a `torch.Tensor` as a `wandb.Image`, images are normalized. If you do not want to normalize your images, please convert your tensors to a PIL Image.
-
-    Examples:
-        ### Create a wandb.Image from a numpy array
-        <!--yeadoc-test:log-image-numpy-->
-        ```python
-        import numpy as np
-        import wandb
-
-        with wandb.init() as run:
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                image = wandb.Image(pixels, caption=f"random field {i}")
-                examples.append(image)
-            run.log({"examples": examples})
-        ```
-
-        ### Create a wandb.Image from a PILImage
-        <!--yeadoc-test:log-image-pillow-->
-        ```python
-        import numpy as np
-        from PIL import Image as PILImage
-        import wandb
-
-        with wandb.init() as run:
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
-                pil_image = PILImage.fromarray(pixels, mode="RGB")
-                image = wandb.Image(pil_image, caption=f"random field {i}")
-                examples.append(image)
-            run.log({"examples": examples})
-        ```
-
-        ### log .jpg rather than .png (default)
-        <!--yeadoc-test:log-image-format-->
-        ```python
-        import numpy as np
-        import wandb
-
-        with wandb.init() as run:
-            examples = []
-            for i in range(3):
-                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                image = wandb.Image(pixels, caption=f"random field {i}", file_type="jpg")
-                examples.append(image)
-            run.log({"examples": examples})
-        ```
-    """
+    """A class for logging images to W&B."""
 
     MAX_ITEMS = 108
 
@@ -152,13 +159,90 @@ class Image(BatchableMedia):
         boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
         file_type: Optional[str] = None,
+        normalize: bool = True,
     ) -> None:
-        super().__init__()
+        """Initialize a wandb.Image object.
+
+        Args:
+            data_or_path: Accepts numpy array/pytorch tensor of image data,
+                a PIL image object, or a path to an image file.
+
+                If a numpy array or pytorch tensor is provided,
+                the image data will be saved to the given file type.
+                If the values are not in the range [0, 255] or all values are in the range [0, 1],
+                the image pixel values will be normalized to the range [0, 255]
+                unless `normalize` is set to False.
+                - pytorch tensor should be in the format (channel, height, width)
+                - numpy array should be in the format (height, width, channel)
+            mode: The PIL mode for an image. Most common are "L", "RGB",
+                "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
+            caption: Label for display of image.
+            grouping: The grouping number for the image.
+            classes: A list of class information for the image,
+                used for labeling bounding boxes, and image masks.
+            boxes: A dictionary containing bounding box information for the image.
+                see: https://docs.wandb.ai/ref/python/data-types/boundingboxes2d/
+            masks: A dictionary containing mask information for the image.
+                see: https://docs.wandb.ai/ref/python/data-types/imagemask/
+            file_type: The file type to save the image as.
+                This parameter has no effect if data_or_path is a path to an image file.
+            normalize: If True, normalize the image pixel values to fall within the range of [0, 255].
+                Normalize is only applied if data_or_path is a numpy array or pytorch tensor.
+
+        Examples:
+            ### Create a wandb.Image from a numpy array
+            ```python
+            import numpy as np
+            import wandb
+
+            with wandb.init() as run:
+                examples = []
+                for i in range(3):
+                    pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                    image = wandb.Image(pixels, caption=f"random field {i}")
+                    examples.append(image)
+                run.log({"examples": examples})
+            ```
+
+            ### Create a wandb.Image from a PILImage
+            ```python
+            import numpy as np
+            from PIL import Image as PILImage
+            import wandb
+
+            with wandb.init() as run:
+                examples = []
+                for i in range(3):
+                    pixels = np.random.randint(
+                        low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+                    )
+                    pil_image = PILImage.fromarray(pixels, mode="RGB")
+                    image = wandb.Image(pil_image, caption=f"random field {i}")
+                    examples.append(image)
+                run.log({"examples": examples})
+            ```
+
+            ### log .jpg rather than .png (default)
+            ```python
+            import numpy as np
+            import wandb
+
+            with wandb.init() as run:
+                examples = []
+                for i in range(3):
+                    pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                    image = wandb.Image(
+                        pixels, caption=f"random field {i}", file_type="jpg"
+                    )
+                    examples.append(image)
+                run.log({"examples": examples})
+            ```
+        """
+        super().__init__(caption=caption)
         # TODO: We should remove grouping, it's a terrible name and I don't
         # think anyone uses it.
 
         self._grouping = None
-        self._caption = None
         self._width = None
         self._height = None
         self._image = None
@@ -171,13 +255,15 @@ class Image(BatchableMedia):
         # only overriding additional metadata passed in. If this pattern is compelling, we can generalize.
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             if self.path_is_reference(data_or_path):
                 self._initialize_from_reference(data_or_path)
             else:
                 self._initialize_from_path(data_or_path)
         else:
-            self._initialize_from_data(data_or_path, mode, file_type)
+            self._initialize_from_data(data_or_path, mode, file_type, normalize)
         self._set_initialization_meta(
             grouping, caption, classes, boxes, masks, file_type
         )
@@ -193,9 +279,6 @@ class Image(BatchableMedia):
     ) -> None:
         if grouping is not None:
             self._grouping = grouping
-
-        if caption is not None:
-            self._caption = caption
 
         total_classes = {}
 
@@ -293,46 +376,64 @@ class Image(BatchableMedia):
         data: "ImageDataType",
         mode: Optional[str] = None,
         file_type: Optional[str] = None,
+        normalize: bool = True,
     ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
         )
+
+        accepted_formats = ["png", "jpg", "jpeg", "bmp"]
+        self.format = file_type or "png"
+
+        if self.format not in accepted_formats:
+            raise ValueError(f"file_type must be one of {accepted_formats}")
+
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
+
         if util.is_matplotlib_typename(util.get_full_typename(data)):
             buf = BytesIO()
-            util.ensure_matplotlib_figure(data).savefig(buf, format="png")
-            self._image = pil_image.open(buf, formats=["PNG"])
+            util.ensure_matplotlib_figure(data).savefig(buf, format=self.format)
+            self._image = pil_image.open(buf)
         elif isinstance(data, pil_image.Image):
             self._image = data
         elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
-            vis_util = util.get_module(
-                "torchvision.utils", "torchvision is required to render images"
-            )
             if hasattr(data, "requires_grad") and data.requires_grad:
                 data = data.detach()  # type: ignore
             if hasattr(data, "dtype") and str(data.dtype) == "torch.uint8":
-                data = data.to(float)
-            data = vis_util.make_grid(data, normalize=True)
+                data = data.to(float)  # type: ignore [union-attr]
+            mode = mode or self.guess_mode(data, file_type)
+            data = data.permute(1, 2, 0).cpu().numpy()  # type: ignore [union-attr]
+
+            _warn_on_invalid_data_range(data, normalize)
+
+            data = _guess_and_rescale_to_0_255(data) if normalize else data  # type: ignore [arg-type]
+            data = _convert_to_uint8(data)
+
+            if data.ndim > 2:
+                data = data.squeeze()
+
             self._image = pil_image.fromarray(
-                data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
+                data,
+                mode=mode,
             )
         else:
             if hasattr(data, "numpy"):  # TF data eager tensors
                 data = data.numpy()
-            if data.ndim > 2:
-                data = data.squeeze()  # get rid of trivial dimensions as a convenience
+            if data.ndim > 2:  # type: ignore [union-attr]
+                # get rid of trivial dimensions as a convenience
+                data = data.squeeze()  # type: ignore [union-attr]
+
+            _warn_on_invalid_data_range(data, normalize)  # type: ignore [arg-type]
+
+            mode = mode or self.guess_mode(data, file_type)
+            data = _guess_and_rescale_to_0_255(data) if normalize else data  # type: ignore [arg-type]
+            data = _convert_to_uint8(data)  # type: ignore [arg-type]
             self._image = pil_image.fromarray(
-                self.to_uint8(data), mode=mode or self.guess_mode(data)
+                data,
+                mode=mode,
             )
-        accepted_formats = ["png", "jpg", "jpeg", "bmp"]
-        if file_type is None:
-            self.format = "png"
-        else:
-            self.format = file_type
-        assert (
-            self.format in accepted_formats
-        ), f"file_type must be one of {accepted_formats}"
-        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
+
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
@@ -400,7 +501,7 @@ class Image(BatchableMedia):
             )
 
         if (
-            not _server_accepts_artifact_path()
+            not _server_accepts_artifact_path(run)
             or self._get_artifact_entry_ref_url() is None
         ):
             super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
@@ -431,8 +532,6 @@ class Image(BatchableMedia):
             json_dict["height"] = self._height
         if self._grouping:
             json_dict["grouping"] = self._grouping
-        if self._caption:
-            json_dict["caption"] = self._caption
 
         if isinstance(run_or_artifact, wandb.Artifact):
             artifact = run_or_artifact
@@ -460,7 +559,7 @@ class Image(BatchableMedia):
                 }
 
         elif not isinstance(run_or_artifact, Run):
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise TypeError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         if self._boxes:
             json_dict["boxes"] = {
@@ -472,44 +571,38 @@ class Image(BatchableMedia):
             }
         return json_dict
 
-    def guess_mode(self, data: "np.ndarray") -> str:
+    def guess_mode(
+        self,
+        data: Union["np.ndarray", "torch.Tensor"],
+        file_type: Optional[str] = None,
+    ) -> str:
         """Guess what type of image the np.array is representing."""
         # TODO: do we want to support dimensions being at the beginning of the array?
-        if data.ndim == 2:
+        ndims = data.ndim
+        if util.is_pytorch_tensor_typename(util.get_full_typename(data)):
+            # Torch tenors typically have the channels dimension first
+            num_channels = data.shape[0]
+        else:
+            num_channels = data.shape[-1]
+
+        if ndims == 2 or num_channels == 1:
             return "L"
-        elif data.shape[-1] == 3:
+        elif num_channels == 3:
             return "RGB"
-        elif data.shape[-1] == 4:
-            return "RGBA"
+        elif num_channels == 4:
+            if file_type in ["jpg", "jpeg"]:
+                wandb.termwarn(
+                    "JPEG format does not support transparency. "
+                    "Ignoring alpha channel.",
+                    repeat=False,
+                )
+                return "RGB"
+            else:
+                return "RGBA"
         else:
             raise ValueError(
-                "Un-supported shape for image conversion {}".format(list(data.shape))
+                f"Un-supported shape for image conversion {list(data.shape)}"
             )
-
-    @classmethod
-    def to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
-        """Convert image data to uint8.
-
-        Convert floating point image on the range [0,1] and integer images on the range
-        [0,255] to uint8, clipping if necessary.
-        """
-        np = util.get_module(
-            "numpy",
-            required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
-        )
-
-        # I think it's better to check the image range vs the data type, since many
-        # image libraries will return floats between 0 and 255
-
-        # some images have range -1...1 or 0-1
-        dmin = np.min(data)
-        if dmin < 0:
-            data = (data - np.min(data)) / np.ptp(data)
-        if np.max(data) <= 1.0:
-            data = (data * 255).astype(np.int32)
-
-        # assert issubclass(data.dtype.type, np.integer), 'Illegal image format.'
-        return data.clip(0, 255).astype(np.uint8)
 
     @classmethod
     def seq_to_json(
@@ -557,7 +650,7 @@ class Image(BatchableMedia):
             "format": format,
             "count": num_images_to_log,
         }
-        if _server_accepts_image_filenames():
+        if _server_accepts_image_filenames(run):
             meta["filenames"] = [
                 obj.get("path", obj.get("artifact_path")) for obj in jsons
             ]

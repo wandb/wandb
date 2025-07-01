@@ -36,10 +36,8 @@ from types import ModuleType
 from typing import (
     IO,
     TYPE_CHECKING,
-    Any,
     Callable,
     Dict,
-    Generator,
     Iterable,
     List,
     Mapping,
@@ -47,12 +45,12 @@ from typing import (
     Sequence,
     TextIO,
     Tuple,
-    TypeVar,
     Union,
 )
 
 import requests
 import yaml
+from typing_extensions import Any, Generator, TypeGuard, TypeVar
 
 import wandb
 import wandb.env
@@ -69,8 +67,6 @@ from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
-    import packaging.version  # type: ignore[import-not-found]
-
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
     from wandb.sdk.artifacts.artifact import Artifact
@@ -82,9 +78,10 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
+LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
+
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
-RE_WINFNAMES = re.compile(r'[<>:"\\?*]')
 
 # From https://docs.docker.com/engine/reference/commandline/tag/
 # "Name components may contain lowercase letters, digits and separators.
@@ -101,35 +98,6 @@ if IS_GIT:
     SENTRY_ENV = "development"
 else:
     SENTRY_ENV = "production"
-
-
-PLATFORM_WINDOWS = "windows"
-PLATFORM_LINUX = "linux"
-PLATFORM_BSD = "bsd"
-PLATFORM_DARWIN = "darwin"
-PLATFORM_UNKNOWN = "unknown"
-
-LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
-
-
-def get_platform_name() -> str:
-    if sys.platform.startswith("win"):
-        return PLATFORM_WINDOWS
-    elif sys.platform.startswith("darwin"):
-        return PLATFORM_DARWIN
-    elif sys.platform.startswith("linux"):
-        return PLATFORM_LINUX
-    elif sys.platform.startswith(
-        (
-            "dragonfly",
-            "freebsd",
-            "netbsd",
-            "openbsd",
-        )
-    ):
-        return PLATFORM_BSD
-    else:
-        return PLATFORM_UNKNOWN
 
 
 POW_10_BYTES = [
@@ -211,6 +179,13 @@ class LazyModuleState:
             assert self.module.__spec__.loader is not None
             self.module.__spec__.loader.exec_module(self.module)
             self.module.__class__ = types.ModuleType
+
+            # Set the submodule as an attribute on the parent module
+            # This enables access to the submodule via normal attribute access.
+            parent, _, child = self.module.__name__.rpartition(".")
+            if parent:
+                parent_module = sys.modules[parent]
+                setattr(parent_module, child, self.module)
 
 
 class LazyModule(types.ModuleType):
@@ -644,9 +619,7 @@ def json_friendly(  # noqa: C901
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
         wandb.termwarn(
-            "Serializing object of type {} that is {} bytes".format(
-                type(obj).__name__, getsizeof(obj)
-            )
+            f"Serializing object of type {type(obj).__name__} that is {getsizeof(obj)} bytes"
         )
     return obj, converted
 
@@ -816,6 +789,8 @@ class JSONEncoderUncompressed(json.JSONEncoder):
     def default(self, obj: Any) -> Any:
         if is_numpy_array(obj):
             return obj.tolist()
+        elif np and isinstance(obj, np.number):
+            return obj.item()
         elif np and isinstance(obj, np.generic):
             obj = obj.item()
         return json.JSONEncoder.default(self, obj)
@@ -881,6 +856,55 @@ def no_retry_4xx(e: Exception) -> bool:
     raise UsageError(body["errors"][0]["message"])
 
 
+def parse_backend_error_messages(response: requests.Response) -> List[str]:
+    """Returns error messages stored in a backend response.
+
+    If the response is not in an expected format, an empty list is returned.
+
+    Args:
+        response: A response to an HTTP request to the W&B server.
+    """
+    try:
+        data = response.json()
+    except requests.JSONDecodeError:
+        return []
+
+    if not isinstance(data, dict):
+        return []
+
+    # Backend error values are returned in one of two ways:
+    # - A string containing the error message
+    # - A JSON object with a "message" field that is a string
+    def get_message(error: Any) -> Optional[str]:
+        if isinstance(error, str):
+            return error
+        elif (
+            isinstance(error, dict)
+            and (message := error.get("message"))
+            and isinstance(message, str)
+        ):
+            return message
+        else:
+            return None
+
+    # The response can contain an "error" field with a single error
+    # or an "errors" field with a list of errors.
+    if error := data.get("error"):
+        message = get_message(error)
+        return [message] if message else []
+
+    elif (errors := data.get("errors")) and isinstance(errors, list):
+        messages: List[str] = []
+        for error in errors:
+            message = get_message(error)
+            if message:
+                messages.append(message)
+        return messages
+
+    else:
+        return []
+
+
 def no_retry_auth(e: Any) -> bool:
     if hasattr(e, "exception"):
         e = e.exception
@@ -894,7 +918,9 @@ def no_retry_auth(e: Any) -> bool:
     # Retry all non-forbidden/unauthorized/not-found errors.
     if e.response.status_code not in (401, 403, 404):
         return True
-    # Crash w/message on forbidden/unauthorized errors.
+
+    # Crash with more informational message on forbidden/unauthorized errors.
+    # UnauthorizedError
     if e.response.status_code == 401:
         raise AuthenticationError(
             "The API key you provided is either invalid or missing.  "
@@ -904,15 +930,29 @@ def no_retry_auth(e: Any) -> bool:
             "If you're not sure, you can try logging in again using the 'wandb login --relogin --host [hostname]' command."
             f"(Error {e.response.status_code}: {e.response.reason})"
         )
-    elif wandb.run:
-        raise CommError(f"Permission denied to access {wandb.run.path}")
-    else:
-        raise CommError(
-            "It appears that you do not have permission to access the requested resource. "
-            "Please reach out to the project owner to grant you access. "
-            "If you have the correct permissions, verify that there are no issues with your networking setup."
-            f"(Error {e.response.status_code}: {e.response.reason})"
-        )
+    # ForbiddenError
+    if e.response.status_code == 403:
+        if wandb.run:
+            raise CommError(f"Permission denied to access {wandb.run.path}")
+        else:
+            raise CommError(
+                "It appears that you do not have permission to access the requested resource. "
+                "Please reach out to the project owner to grant you access. "
+                "If you have the correct permissions, verify that there are no issues with your networking setup."
+                f"(Error {e.response.status_code}: {e.response.reason})"
+            )
+
+    # NotFoundError
+    if e.response.status_code == 404:
+        # If error message is empty, raise a more generic NotFoundError message.
+        if parse_backend_error_messages(e.response):
+            return False
+        else:
+            raise LookupError(
+                f"Failed to find resource. Please make sure you have the correct resource path. "
+                f"(Error {e.response.status_code}: {e.response.reason})"
+            )
+    return False
 
 
 def check_retry_conflict(e: Any) -> Optional[bool]:
@@ -956,7 +996,7 @@ def make_check_retry_fn(
 ) -> CheckRetryFnType:
     """Return a check_retry_fn which can be used by lib.Retry().
 
-    Arguments:
+    Args:
         fallback_fn: Use this function if check_fn didn't decide if a retry should happen.
         check_fn: Function which returns bool if retry should happen or None if unsure.
         check_timedelta: Optional retry timeout if we check_fn matches the exception
@@ -978,7 +1018,7 @@ def make_check_retry_fn(
 def find_runner(program: str) -> Union[None, list, List[str]]:
     """Return a command that will run program.
 
-    Arguments:
+    Args:
         program: The string name of the program to try to run.
 
     Returns:
@@ -1019,18 +1059,6 @@ def downsample(values: Sequence, target_length: int) -> list:
 
 def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
-
-
-def get_log_file_path() -> str:
-    """Log file path used in error messages.
-
-    It would probably be better if this pointed to a log file in a
-    run directory.
-    """
-    # TODO(jhr, cvp): refactor
-    if wandb.run is not None:
-        return wandb.run._settings.log_internal
-    return os.path.join("wandb", "debug-internal.log")
 
 
 def docker_image_regex(image: str) -> Any:
@@ -1187,13 +1215,15 @@ def async_call(
         )
         thread.daemon = True
         thread.start()
+
         try:
             result = q.get(True, timeout)
-            if isinstance(result, Exception):
-                raise result.with_traceback(sys.exc_info()[2])
-            return result, thread
         except queue.Empty:
             return None, thread
+
+        if isinstance(result, Exception):
+            raise result.with_traceback(sys.exc_info()[2])
+        return result, thread
 
     return wrapper
 
@@ -1261,7 +1291,7 @@ def prompt_choices(
 ) -> str:
     """Allow a user to choose from a list of options."""
     for i, choice in enumerate(choices):
-        wandb.termlog(f"({i+1}) {choice}")
+        wandb.termlog(f"({i + 1}) {choice}")
 
     idx = -1
     while idx < 0 or idx > len(choices) - 1:
@@ -1283,7 +1313,7 @@ def prompt_choices(
 def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
     """Infer the type of data based on the shape of the tensors.
 
-    Arguments:
+    Args:
         shape (Sequence[int]): The shape of the data
         risky(bool): some guesses are more likely to be wrong.
     """
@@ -1399,6 +1429,25 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
+def are_paths_on_same_drive(path1: str, path2: str) -> bool:
+    """Check if two paths are on the same drive.
+
+    This check is only relevant on Windows,
+    since the concept of drives only exists on Windows.
+    """
+    if platform.system() != "Windows":
+        return True
+
+    try:
+        path1_drive = pathlib.Path(path1).resolve().drive
+        path2_drive = pathlib.Path(path2).resolve().drive
+    except OSError:
+        # If either path is not a valid Windows path, an OSError is raised.
+        return False
+
+    return path1_drive == path2_drive
+
+
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
 def to_forward_slash_path(path: str) -> str:
     if platform.system() == "Windows":
@@ -1491,13 +1540,18 @@ def is_unicode_safe(stream: TextIO) -> bool:
 
 
 def _has_internet() -> bool:
-    """Attempt to open a DNS connection to Googles root servers."""
+    """Returns whether we have internet access.
+
+    Checks for internet access by attempting to open a DNS connection to
+    Google's root servers.
+    """
     try:
         s = socket.create_connection(("8.8.8.8", 53), 0.5)
         s.close()
-        return True
     except OSError:
         return False
+
+    return True
 
 
 def rand_alphanumeric(
@@ -1561,10 +1615,6 @@ def _is_py_requirements_or_dockerfile(path: str) -> bool:
         or file.startswith("Dockerfile")
         or file == "requirements.txt"
     )
-
-
-def check_windows_valid_filename(path: Union[int, str]) -> bool:
-    return not bool(re.search(RE_WINFNAMES, path))  # type: ignore
 
 
 def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:
@@ -1663,15 +1713,15 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
         raise ValueError("`aliases` must be Iterable or None") from exc
 
 
-def _is_artifact_object(v: Any) -> bool:
+def _is_artifact_object(v: Any) -> "TypeGuard[wandb.Artifact]":
     return isinstance(v, wandb.Artifact)
 
 
-def _is_artifact_string(v: Any) -> bool:
+def _is_artifact_string(v: Any) -> "TypeGuard[str]":
     return isinstance(v, str) and v.startswith("wandb-artifact://")
 
 
-def _is_artifact_version_weave_dict(v: Any) -> bool:
+def _is_artifact_version_weave_dict(v: Any) -> "TypeGuard[dict]":
     return isinstance(v, dict) and v.get("_type") == "artifactVersion"
 
 
@@ -1713,12 +1763,6 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str], bool]:
 def _get_max_cli_version() -> Union[str, None]:
     max_cli_version = wandb.api.max_cli_version()
     return str(max_cli_version) if max_cli_version is not None else None
-
-
-def _is_offline() -> bool:
-    return (  # type: ignore[no-any-return]
-        wandb.run is not None and wandb.run.settings._offline
-    ) or wandb.setup().settings._offline  # type: ignore
 
 
 def ensure_text(
@@ -1878,14 +1922,8 @@ class InstalledDistribution:
 
 
 def working_set() -> Iterable[InstalledDistribution]:
-    """Return the working set of installed distributions.
-
-    Uses importlib.metadata in Python versions above 3.7, and importlib_metadata otherwise.
-    """
-    try:
-        from importlib.metadata import distributions
-    except ImportError:
-        from importlib_metadata import distributions  # type: ignore
+    """Return the working set of installed distributions."""
+    from importlib.metadata import distributions
 
     for d in distributions():
         try:
@@ -1900,21 +1938,6 @@ def working_set() -> Iterable[InstalledDistribution]:
             yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
         except (KeyError, UnicodeDecodeError):
             pass
-
-
-def parse_version(version: str) -> "packaging.version.Version":
-    """Parse a version string into a version object.
-
-    This function is a wrapper around the `packaging.version.parse` function, which
-    is used to parse version strings into version objects. If the `packaging` library
-    is not installed, it falls back to the `pkg_resources` library.
-    """
-    try:
-        from packaging.version import parse as parse_version  # type: ignore
-    except ImportError:
-        from pkg_resources import parse_version  # type: ignore[assignment]
-
-    return parse_version(version)
 
 
 def get_core_path() -> str:
@@ -1943,9 +1966,9 @@ def get_core_path() -> str:
     bin_path = pathlib.Path(__file__).parent / "bin" / "wandb-core"
     if not bin_path.exists():
         raise WandbCoreNotAvailableError(
-            f"Looks like wandb-core is not compiled for your system ({platform.platform()}):"
-            " Please contact support at support@wandb.com to request `wandb-core`"
-            " support for your system."
+            f"File not found: {bin_path}."
+            " Please contact support at support@wandb.com."
+            f" Your platform is: {platform.platform()}."
         )
 
     return str(bin_path)

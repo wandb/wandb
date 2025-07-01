@@ -16,7 +16,7 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):  # no
 
     Should only be called with a fitted model (otherwise an error is thrown).
 
-    Arguments:
+    Args:
         model: (clf or reg) Takes in a fitted regressor or classifier.
         X: (arr) Training set features.
         y: (arr) Training set labels.
@@ -60,7 +60,7 @@ def learning_curve(
 
     Please note this function fits the model to datasets of varying sizes when called.
 
-    Arguments:
+    Args:
         model: (clf or reg) Takes in a fitted regressor or classifier.
         X: (arr) Dataset features.
         y: (arr) Dataset labels.

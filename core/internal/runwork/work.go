@@ -1,8 +1,6 @@
 package runwork
 
 import (
-	"fmt"
-
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -38,78 +36,17 @@ type Work interface {
 	// Process performs the work.
 	//
 	// If this is a Record proto, the given function is called.
-	Process(func(*spb.Record))
+	// Responses are pushed into the Result channel.
+	Process(func(*spb.Record), chan<- *spb.Result)
+
+	// Sentinel returns the value passed to NewSentinel, or nil.
+	//
+	// This is used as a synchronization mechanism: by pushing a Sentinel
+	// into the work stream and waiting to receive it, one can wait until all
+	// work buffered by a certain time has been processed.
+	Sentinel() any
 
 	// DebugInfo returns a short string describing the work
 	// that can be logged for debugging.
 	DebugInfo() string
-}
-
-// WorkRecord is a Record proto for the Handler->Sender pipeline.
-type WorkRecord struct {
-	Record *spb.Record
-}
-
-func WorkFromRecord(record *spb.Record) Work {
-	return WorkRecord{Record: record}
-}
-
-func (wr WorkRecord) Accept(fn func(*spb.Record)) bool {
-	fn(wr.Record)
-
-	switch wr.Record.RecordType.(type) {
-	case *spb.Record_Exit:
-		// The Runtime field is updated on the record before forwarding,
-		// and it is forwarded with AlwaysSend and if syncing Local.
-		return false
-	case *spb.Record_Final:
-		// Deprecated.
-		return false
-	case *spb.Record_Footer:
-		// Deprecated.
-		return false
-	case *spb.Record_Header:
-		// The record's VersionInfo gets modified before forwarding.
-		return false
-	case *spb.Record_NoopLinkArtifact:
-		// Deprecated.
-		return false
-	case *spb.Record_Tbrecord:
-		// Never forwarded.
-		return false
-	case *spb.Record_Request:
-		// Requests are not forwarded, but may generate additional work.
-		return false
-	case *spb.Record_Run:
-		// Forwarded with AlwaysSend.
-		return false
-	}
-
-	return true
-}
-
-func (wr WorkRecord) Save(fn func(*spb.Record)) {
-	fn(wr.Record)
-}
-
-func (wr WorkRecord) BypassOfflineMode() bool {
-	return wr.Record.GetControl().GetAlwaysSend()
-}
-
-func (wr WorkRecord) Process(fn func(*spb.Record)) {
-	fn(wr.Record)
-}
-
-func (wr WorkRecord) DebugInfo() string {
-	var recordType string
-	switch x := wr.Record.RecordType.(type) {
-	case *spb.Record_Request:
-		recordType = fmt.Sprintf("%T", x.Request.RequestType)
-	default:
-		recordType = fmt.Sprintf("%T", x)
-	}
-
-	return fmt.Sprintf(
-		"WorkRecord(%s); Control(%v)",
-		recordType, wr.Record.GetControl())
 }

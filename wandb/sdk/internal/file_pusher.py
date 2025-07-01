@@ -98,11 +98,7 @@ class FilePusher:
             if not self.is_alive():
                 stop = True
             summary = self._stats.summary()
-            line = " {:.2f}MB of {:.2f}MB uploaded ({:.2f}MB deduped)\r".format(
-                summary.uploaded_bytes / 1048576.0,
-                summary.total_bytes / 1048576.0,
-                summary.deduped_bytes / 1048576.0,
-            )
+            line = f" {summary.uploaded_bytes / 1048576.0:.2f}MB of {summary.total_bytes / 1048576.0:.2f}MB uploaded ({summary.deduped_bytes / 1048576.0:.2f}MB deduped)\r"
             line = spinner_states[step % 4] + line
             step += 1
             wandb.termlog(line, newline=False, prefix=prefix)
@@ -129,7 +125,7 @@ class FilePusher:
     def file_changed(self, save_name: LogicalPath, path: str, copy: bool = True):
         """Tell the file pusher that a file's changed and should be uploaded.
 
-        Arguments:
+        Args:
             save_name: string logical location of the file relative to the run
                 directory.
             path: actual string path of the file to upload on the filesystem.

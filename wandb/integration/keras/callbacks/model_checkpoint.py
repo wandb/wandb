@@ -1,7 +1,6 @@
 import os
 import string
-import sys
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import tensorflow as tf  # type: ignore
 from tensorflow.keras import callbacks  # type: ignore
@@ -11,12 +10,6 @@ from wandb.sdk.lib import telemetry
 from wandb.sdk.lib.paths import StrPath
 
 from ..keras import patch_tf_keras
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
-
 
 Mode = Literal["auto", "min", "max"]
 SaveStrategy = Literal["epoch"]
@@ -45,7 +38,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         - Save only model weights, or save the whole model.
         - Save the model either in SavedModel format or in `.h5` format.
 
-    Arguments:
+    Args:
         filepath: (Union[str, os.PathLike]) path to save the model file. `filepath`
             can contain named formatting options, which will be filled by the value
             of `epoch` and keys in `logs` (passed in `on_epoch_end`). For example:
@@ -182,10 +175,10 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
     @property
     def is_old_tf_keras_version(self) -> Optional[bool]:
         if self._is_old_tf_keras_version is None:
-            from wandb.util import parse_version
+            from packaging.version import parse
 
             try:
-                if parse_version(tf.keras.__version__) < parse_version("2.6.0"):
+                if parse(tf.keras.__version__) < parse("2.6.0"):
                     self._is_old_tf_keras_version = True
                 else:
                     self._is_old_tf_keras_version = False

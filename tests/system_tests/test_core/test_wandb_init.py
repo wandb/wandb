@@ -3,147 +3,166 @@ import os
 from unittest import mock
 
 import pytest
-from wandb.errors import CommError, UsageError
+import wandb
+from wandb.errors import CommError
+from wandb.sdk.lib import runid
 
 
-def test_upsert_bucket_409(
-    wandb_init,
-    relay_server,
-    inject_graphql_response,
-):
+def test_upsert_bucket_409(wandb_backend_spy):
     """Test that we retry upsert bucket mutations on 409s."""
-    inject_response = inject_graphql_response(
-        body="GOT ME A 409",
-        status=409,
-        query_match_fn=lambda query, variables: "mutation UpsertBucket" in query,
-        application_pattern="12",  # apply once and stop
+    gql = wandb_backend_spy.gql
+    responder = gql.once(content="", status=409)
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpsertBucket"),
+        responder,
     )
-    # we'll retry once and succeed
-    with relay_server(inject=[inject_response]):
-        run = wandb_init()
 
-    run.finish()
+    with wandb.init():
+        pass
+
+    assert responder.total_calls >= 2
 
 
-def test_upsert_bucket_410(
-    wandb_init,
-    relay_server,
-    inject_graphql_response,
-):
+def test_upsert_bucket_410(wandb_backend_spy):
     """Test that we do not retry upsert bucket mutations on 410s."""
-    inject_response = inject_graphql_response(
-        body="GOT ME A 410",
-        status=410,
-        query_match_fn=lambda query, variables: "mutation UpsertBucket" in query,
-        application_pattern="12",  # apply once and stop
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpsertBucket"),
+        gql.once(content="", status=410),
     )
-    # we do not retry 410s on upsert bucket mutations, so this should fail
-    with relay_server(inject=[inject_response]):
-        with pytest.raises(CommError):
-            wandb_init()
+
+    with pytest.raises(CommError):
+        wandb.init()
 
 
-def test_gql_409(
-    wandb_init,
-    relay_server,
-    inject_graphql_response,
-):
-    """Test that we retry upsert bucket mutations on 409s."""
-    inject_response = inject_graphql_response(
-        body="GOT ME A 409",
-        status=409,
-        query_match_fn=lambda query, variables: "mutation CreateRunFiles" in query,
-        application_pattern="12",  # apply once and stop
+def test_gql_409(wandb_backend_spy):
+    """Test that we do retry non-UpsertBucket GraphQL operations on 409s."""
+    gql = wandb_backend_spy.gql
+    responder = gql.once(content="", status=409)
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="CreateRunFiles"),
+        responder,
     )
-    # we do not retry 409s on queries, so this should fail
-    with relay_server(inject=[inject_response]):
-        run = wandb_init()
-        run.finish()
+
+    with wandb.init():
+        pass
+
+    assert responder.total_calls >= 2
 
 
-def test_gql_410(
-    wandb_init,
-    test_settings,
-    relay_server,
-    inject_graphql_response,
-):
-    """Test that we do not retry upsert bucket mutations on 410s."""
-    inject_response = inject_graphql_response(
-        body="GOT ME A 410",
-        status=410,
-        query_match_fn=lambda query, variables: "mutation CreateRunFiles" in query,
-        application_pattern="1112",  # apply thrice and stop
+def test_gql_410(wandb_backend_spy):
+    """Test that we do retry non-UpsertBucket GraphQL operations on 410s."""
+    gql = wandb_backend_spy.gql
+    responder = gql.once(content="", status=410)
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="CreateRunFiles"),
+        responder,
     )
-    # we'll retry once and succeed
-    with relay_server(inject=[inject_response]):
-        run = wandb_init(settings=test_settings({"_graphql_retry_max": 4}))
-        run.finish()
+
+    with wandb.init():
+        pass
+
+    assert responder.total_calls >= 2
 
 
-def test_send_wandb_config_start_time_on_init(wandb_init, relay_server):
-    with relay_server() as relay:
-        run = wandb_init(project="test")
-        run.finish()
-        config = relay.context.config[run.id]
-        assert config.get("_wandb", {}).get("value", {}).get("t") is not None
+def test_send_wandb_config_start_time_on_init(wandb_backend_spy):
+    with wandb.init() as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        config = snapshot.config(run_id=run.id)
+
+        assert "_wandb" in config
+        assert "value" in config["_wandb"]
+        assert "t" in config["_wandb"]["value"]
 
 
-def test_resume_no_metadata(relay_server, wandb_init):
-    run = wandb_init(project="test")
-    run_id = run.id
-    run.finish()
-
-    with relay_server() as relay:
-        run = wandb_init(resume="allow", id=run_id, project="test")
-        run.finish()
-        uploaded_files = relay.context.get_run_uploaded_files(run_id)
-
-        assert "wandb-metadata.json" not in uploaded_files
-
-
-def test_resume_allow_success(
-    wandb_init,
-    relay_server,
-):
-    with relay_server() as relay:
-        run = wandb_init(project="project")
-        run_id = run.id
-        run.log({"acc": 10}, step=15, commit=True)
-        run.finish()
-
-        run = wandb_init(resume="allow", id=run_id, project="project")
-        run.log({"acc": 10})
-        run.finish()
-        history = relay.context.get_run_history(run_id, include_private=True)
-        assert len(history["_step"]) == 2 and history["_step"][1] == 16
-
-
-def test_resume_never_failure(wandb_init):
-    run = wandb_init(project="project")
-    run_id = run.id
-    run.finish()
-
-    with pytest.raises(UsageError):
-        wandb_init(resume="never", id=run_id, project="project")
-
-
-def test_resume_must_failure(wandb_init):
-    with pytest.raises(UsageError):
-        wandb_init(resume="must", project="project")
-
-
-def test_resume_auto_failure(wandb_init, tmp_path):
+def test_resume_auto_failure(user, tmp_path):
     # env vars have a higher priority than the BASE settings
     # so that if that is set (e.g. by some other test/fixture),
     # test_settings.wandb_dir != run_settings.wandb_dir
     # and this test will fail
     with mock.patch.dict(os.environ, {"WANDB_DIR": str(tmp_path.absolute())}):
-        run = wandb_init(project="project", id="resume-me")
+        run = wandb.init(project="project", id="resume-me")
         run.finish()
         resume_fname = run._settings.resume_fname
         with open(resume_fname, "w") as f:
             f.write(json.dumps({"run_id": "resume-me"}))
-        run = wandb_init(resume="auto", project="project")
+        run = wandb.init(resume="auto", project="project")
         assert run.id == "resume-me"
         run.finish(exit_code=3)
         assert os.path.exists(resume_fname)
+
+
+def test_init_param_telemetry(wandb_backend_spy):
+    with wandb.init(
+        name="my-test-run",
+        id=runid.generate_id(),
+        config={"a": 123},
+        tags=["one", "two"],
+    ) as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        features = snapshot.telemetry(run_id=run.id)["3"]
+        assert 13 in features  # set_init_name
+        assert 14 in features  # set_init_id
+        assert 15 in features  # set_init_tags
+        assert 16 in features  # set_init_config
+
+
+def test_init_param_not_set_telemetry(wandb_backend_spy):
+    with wandb.init() as run:
+        pass
+
+    with wandb_backend_spy.freeze() as snapshot:
+        features = snapshot.telemetry(run_id=run.id)["3"]
+        assert 13 not in features  # set_init_name
+        assert 14 not in features  # set_init_id
+        assert 15 not in features  # set_init_tags
+        assert 16 not in features  # set_init_config
+
+
+def test_shared_mode_x_label(user):
+    _ = user  # Create a fake user on the backend server.
+
+    with wandb.init() as run:
+        assert run.settings.x_label is None
+
+    with wandb.init(
+        settings=wandb.Settings(
+            mode="shared",
+        )
+    ) as run:
+        assert run.settings.x_label is not None
+
+    with wandb.init(
+        settings=wandb.Settings(
+            mode="shared",
+            x_label="node-rank",
+        )
+    ) as run:
+        assert run.settings.x_label == "node-rank"
+
+
+@pytest.mark.parametrize("skip_transaction_log", [True, False])
+def test_skip_transaction_log(user, skip_transaction_log):
+    """Test that the skip transaction log setting works correctly.
+
+    If skip_transaction_log is True, the transaction log file should not be created.
+    If skip_transaction_log is False, the transaction log file should be created.
+    """
+    with wandb.init(
+        settings={
+            "x_skip_transaction_log": skip_transaction_log,
+            "mode": "online",
+        }
+    ) as run:
+        pass
+    assert os.path.exists(run._settings.sync_file) == (not skip_transaction_log)
+
+
+def test_skip_transaction_log_offline(user):
+    """Test that skip transaction log is not allowed in offline mode."""
+    with pytest.raises(ValueError):
+        wandb.init(settings={"mode": "offline", "x_skip_transaction_log": True})

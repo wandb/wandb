@@ -10,7 +10,7 @@
 
 # Official Sentry SDK for Go
 
-[![Build Status](https://github.com/getsentry/sentry-go/workflows/go-workflow/badge.svg)](https://github.com/getsentry/sentry-go/actions?query=workflow%3Ago-workflow)
+[![Build Status](https://github.com/getsentry/sentry-go/actions/workflows/test.yml/badge.svg)](https://github.com/getsentry/sentry-go/actions/workflows/test.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/getsentry/sentry-go)](https://goreportcard.com/report/github.com/getsentry/sentry-go)
 [![Discord](https://img.shields.io/discord/621778831602221064)](https://discord.gg/Ww9hbqr)
 [![go.dev](https://img.shields.io/badge/go.dev-pkg-007d9c.svg?style=flat)](https://pkg.go.dev/github.com/getsentry/sentry-go)
@@ -68,16 +68,20 @@ To get started, have a look at one of our [examples](_examples/):
 We also provide a [complete API reference](https://pkg.go.dev/github.com/getsentry/sentry-go).
 
 For more detailed information about how to get the most out of `sentry-go`,
-checkout the official documentation:
+check out the official documentation:
 
 - [Sentry Go SDK documentation](https://docs.sentry.io/platforms/go/)
 - Guides:
   - [net/http](https://docs.sentry.io/platforms/go/guides/http/)
   - [echo](https://docs.sentry.io/platforms/go/guides/echo/)
   - [fasthttp](https://docs.sentry.io/platforms/go/guides/fasthttp/)
+  - [fiber](https://docs.sentry.io/platforms/go/guides/fiber/)
   - [gin](https://docs.sentry.io/platforms/go/guides/gin/)
   - [iris](https://docs.sentry.io/platforms/go/guides/iris/)
+  - [logrus](https://docs.sentry.io/platforms/go/guides/logrus/)
   - [negroni](https://docs.sentry.io/platforms/go/guides/negroni/)
+  - [slog](https://docs.sentry.io/platforms/go/guides/slog/)
+  - [zerolog](https://docs.sentry.io/platforms/go/guides/zerolog/)
 
 ## Resources
 

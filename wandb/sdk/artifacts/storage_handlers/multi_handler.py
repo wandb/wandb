@@ -31,7 +31,7 @@ class MultiHandler(StorageHandler):
                 return handler
         if self._default_handler is not None:
             return self._default_handler
-        raise ValueError('No storage handler registered for url "{}"'.format(str(url)))
+        raise ValueError(f'No storage handler registered for url "{url!s}"')
 
     def load_path(
         self,

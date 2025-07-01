@@ -108,7 +108,12 @@ def test_md5_file_hashes_on_three_files(bin_data, txt_data, bin_data2):
         pytest.param(50 * 1024, id="50kB"),
     ],
 )
-def test_md5_file_hashes_on_mounted_filesystem(filesize, tmp_path, fs: FakeFilesystem):
+def test_md5_file_hashes_on_mounted_filesystem(
+    filesize,
+    tmp_path,
+    fs: FakeFilesystem,
+    disable_memray,  # FakeFilesystem breaks memray
+):
     # Some setup we have to do to get this test to play well with `pyfakefs`.
     # Note: Cast to str looks redundant but is intentional (for python<=3.10).
     # https://pytest-pyfakefs.readthedocs.io/en/latest/troubleshooting.html#pathlib-path-objects-created-outside-of-tests

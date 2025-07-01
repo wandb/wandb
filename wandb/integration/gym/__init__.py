@@ -1,22 +1,15 @@
 import re
 import sys
-from typing import Optional
+from typing import Literal, Optional
 
 import wandb
 import wandb.util
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
-
 
 _gym_version_lt_0_26: Optional[bool] = None
 _gymnasium_version_lt_1_0_0: Optional[bool] = None
 
 _required_error_msg = (
-    "Couldn't import the gymnasium python package, "
-    "install with `pip install gymnasium`"
+    "Couldn't import the gymnasium python package, install with `pip install gymnasium`"
 )
 GymLib = Literal["gym", "gymnasium"]
 
@@ -46,11 +39,11 @@ def monitor():
         else:
             import gymnasium as gym  # type: ignore
 
-        from wandb.util import parse_version
+        from packaging.version import parse
 
-        gym_lib_version = parse_version(gym.__version__)
-        _gym_version_lt_0_26 = gym_lib_version < parse_version("0.26.0")
-        _gymnasium_version_lt_1_0_0 = gym_lib_version < parse_version("1.0.0a1")
+        gym_lib_version = parse(gym.__version__)
+        _gym_version_lt_0_26 = gym_lib_version < parse("0.26.0")
+        _gymnasium_version_lt_1_0_0 = gym_lib_version < parse("1.0.0a1")
 
     path = "path"  # Default path
     if gym_lib == "gymnasium" and not _gymnasium_version_lt_1_0_0:

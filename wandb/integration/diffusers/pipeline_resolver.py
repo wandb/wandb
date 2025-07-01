@@ -28,7 +28,7 @@ class DiffusersPipelineResolver:
     ) -> Any:
         """Main call method for the `DiffusersPipelineResolver` class.
 
-        Arguments:
+        Args:
             args: (Sequence[Any]) List of arguments.
             kwargs: (Dict[str, Any]) Dictionary of keyword arguments.
             response: (wandb.sdk.integration_utils.auto_logging.Response) The response from

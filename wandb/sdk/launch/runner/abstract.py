@@ -6,12 +6,11 @@ of runs launched in different environments (e.g. runs launched locally or in a c
 
 import logging
 import os
+import shutil
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
-
-from dockerpycreds.utils import find_executable  # type: ignore
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -21,11 +20,6 @@ from .._project_spec import LaunchProject
 
 _logger = logging.getLogger(__name__)
 
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
 
 State = Literal[
     "unknown",
@@ -82,7 +76,6 @@ class AbstractRun(ABC):
     @abstractmethod
     async def get_logs(self) -> Optional[str]:
         """Return the logs associated with the run."""
-        pass
 
     def _run_cmd(
         self, cmd: List[str], output_only: Optional[bool] = False
@@ -111,12 +104,10 @@ class AbstractRun(ABC):
 
         Note that in some cases, we may wait until the remote job completes rather than until the W&B run completes.
         """
-        pass
 
     @abstractmethod
     async def get_status(self) -> Status:
         """Get status of the run."""
-        pass
 
     @abstractmethod
     async def cancel(self) -> None:
@@ -125,7 +116,6 @@ class AbstractRun(ABC):
         Cancels the run and waits for it to terminate. The W&B run status may not be
         set correctly upon run cancellation.
         """
-        pass
 
     @property
     @abstractmethod
@@ -154,10 +144,11 @@ class AbstractRunner(ABC):
         self._namespace = runid.generate_id()
 
     def find_executable(
-        self, cmd: str
-    ) -> Any:  # should return a string, but mypy doesn't trust find_executable
+        self,
+        cmd: str,
+    ) -> Union[str, None]:
         """Cross platform utility for checking if a program is available."""
-        return find_executable(cmd)
+        return shutil.which(cmd)
 
     @property
     def api_key(self) -> Any:
@@ -192,4 +183,3 @@ class AbstractRunner(ABC):
             the project asynchronously, i.e. it should trigger project execution and then
             immediately return a `SubmittedRun` to track execution status.
         """
-        pass

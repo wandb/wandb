@@ -59,9 +59,8 @@ def _watch(
             The graph object, which will be populated after the first backward pass.
 
     Raises:
-        ValueError:
-            If `wandb.init` has not been called or if any of the models are not instances
-            of `torch.nn.Module`.
+        ValueError: If `wandb.init` has not been called.
+        TypeError: If any of the models are not instances of `torch.nn.Module`.
     """
     global _global_watch_idx
 
@@ -85,9 +84,8 @@ def _watch(
 
     for model in models:
         if not isinstance(model, torch.nn.Module):
-            raise ValueError(
-                "Expected a pytorch model (torch.nn.Module). Received "
-                + str(type(model))
+            raise TypeError(
+                f"Expected a pytorch model (torch.nn.Module). Received {type(model)}"
             )
 
     graphs = []
@@ -100,7 +98,7 @@ def _watch(
         _global_watch_idx += 1
         if global_idx > 0:
             # TODO: this makes ugly chart names like gradients/graph_1conv1d.bias
-            prefix = "graph_%i" % global_idx
+            prefix = f"graph_{global_idx}"
 
         if log_parameters:
             run._torch.add_log_parameters_hook(
@@ -139,7 +137,7 @@ def _unwatch(
             models = (models,)
         for model in models:
             if not hasattr(model, "_wandb_hook_names"):
-                wandb.termwarn("{} model has not been watched".format(model))
+                wandb.termwarn(f"{model} model has not been watched")
             else:
                 for name in model._wandb_hook_names:
                     run._torch.unhook(name)

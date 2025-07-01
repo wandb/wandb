@@ -34,7 +34,7 @@ class Sweep(Attrs):
         Instantiate with:
         ```
         api = wandb.Api()
-        sweep = api.sweep(path/to/sweep)
+        sweep = api.sweep(path / to / sweep)
         ```
 
     Attributes:

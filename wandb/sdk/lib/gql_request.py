@@ -1,7 +1,7 @@
 """A simple GraphQL client for sending queries and mutations.
 
 Note: This was originally wandb/vendor/gql-0.2.0/wandb_gql/transport/requests.py
-The only substantial change is to re-use a requests.Session object.
+The only substantial change is to reuse a requests.Session object.
 """
 
 from typing import Any, Callable, Dict, Optional, Tuple, Union

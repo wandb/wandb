@@ -11,7 +11,8 @@ import sys
 import click
 
 import wandb
-from wandb.errors import UsageError, WandbCoreNotAvailableError
+from wandb.errors import WandbCoreNotAvailableError
+from wandb.sdk.wandb_sync import _sync
 from wandb.util import get_core_path
 
 
@@ -22,12 +23,6 @@ def beta():
     import wandb.env
 
     wandb._sentry.configure_scope(process_context="wandb_beta")
-
-    if wandb.env.is_require_legacy_service():
-        raise UsageError(
-            "wandb beta commands can only be used with wandb-core. "
-            f"Please make sure that `{wandb.env._REQUIRE_LEGACY_SERVICE}` is not set."
-        )
 
     try:
         get_core_path()
@@ -108,7 +103,9 @@ def sync_beta(  # noqa: C901
                     continue
                 wandb_files = [p for p in d.glob("*.wandb") if p.is_file()]
                 if len(wandb_files) > 1:
-                    print(f"Multiple wandb files found in directory {d}, skipping")
+                    wandb.termwarn(
+                        f"Multiple wandb files found in directory {d}, skipping"
+                    )
                 elif len(wandb_files) == 1:
                     paths.add(d)
     else:
@@ -128,7 +125,7 @@ def sync_beta(  # noqa: C901
         for path in paths:
             wandb_synced_files = [p for p in path.glob("*.wandb.synced") if p.is_file()]
             if len(wandb_synced_files) > 1:
-                print(
+                wandb.termwarn(
                     f"Multiple wandb.synced files found in directory {path}, skipping"
                 )
             elif len(wandb_synced_files) == 1:
@@ -151,7 +148,7 @@ def sync_beta(  # noqa: C901
     if dry_run:
         return
 
-    wandb.sdk.wandb_setup.setup()
+    wandb.setup()
 
     # TODO: make it thread-safe in the Rust code
     with concurrent.futures.ProcessPoolExecutor(
@@ -162,7 +159,7 @@ def sync_beta(  # noqa: C901
             # we already know there is only one wandb file in the directory
             wandb_file = [p for p in path.glob("*.wandb") if p.is_file()][0]
             future = executor.submit(
-                wandb._sync,
+                _sync,
                 wandb_file,
                 run_id=run_id,
                 project=project,

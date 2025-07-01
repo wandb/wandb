@@ -6,13 +6,18 @@ from wandb.apis.importers.mlflow import MlflowImporter
 
 @pytest.mark.timeout(60)
 @pytest.mark.skip(reason="Breaks on latests MLFlow")
-def test_mlflow(request, prelogged_mlflow_server, mlflow_logging_config, user):
+def test_mlflow(
+    local_wandb_backend_importers,
+    prelogged_mlflow_server,
+    mlflow_logging_config,
+    user,
+):
     # TODO: This test is tightly coupled with the `prelogged_mlflow_server` fixture; refactor
 
     project = "imported-from-mlflow"
 
     importer = MlflowImporter(
-        dst_base_url=request.config.wandb_server_settings.base_url,
+        dst_base_url=local_wandb_backend_importers.base_url,
         dst_api_key=user,
         mlflow_tracking_uri=prelogged_mlflow_server.base_url,
     )

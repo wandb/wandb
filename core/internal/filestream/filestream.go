@@ -26,7 +26,17 @@ const (
 	// Maximum line length for filestream jsonl files, imposed by the back-end.
 	//
 	// See https://github.com/wandb/core/pull/7339 for history.
-	maxFileLineBytes = (10 << 20) - (100 << 10)
+	defaultMaxFileLineBytes = (10 << 20) - (100 << 10)
+
+	// Retry filestream requests for 7 days before dropping chunk
+	// retry_count = seconds_in_7_days / max_retry_time + num_retries_until_max_60_sec
+	//             = 7 * 86400 / 60 + ceil(log2(60/2))
+	//             = 10080 + 5
+	DefaultRetryMax     = 10085
+	DefaultRetryWaitMin = 2 * time.Second
+	DefaultRetryWaitMax = 60 * time.Second
+	// A 3-minute timeout for all filestream post requests
+	DefaultNonRetryTimeout = 180 * time.Second
 )
 
 type ChunkTypeEnum int8
@@ -72,6 +82,9 @@ type fileStream struct {
 	//
 	// This must not include the schema and hostname prefix.
 	path string
+
+	mu         sync.Mutex
+	isFinished bool
 
 	processChan  chan Update
 	feedbackWait *sync.WaitGroup
@@ -169,6 +182,15 @@ func (fs *fileStream) Start(
 
 func (fs *fileStream) StreamUpdate(update Update) {
 	fs.logger.Debug("filestream: stream update", "update", update)
+
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	if fs.isFinished {
+		fs.logger.CaptureError(fmt.Errorf("filestream: StreamUpdate after Finish"))
+		return
+	}
+
 	select {
 	case fs.processChan <- update:
 	case <-fs.deadChan:
@@ -182,6 +204,13 @@ func (fs *fileStream) FinishWithExit(exitCode int32) {
 }
 
 func (fs *fileStream) FinishWithoutExit() {
+	fs.mu.Lock()
+	if fs.isFinished {
+		return
+	}
+	fs.isFinished = true
+	fs.mu.Unlock()
+
 	close(fs.processChan)
 	fs.feedbackWait.Wait()
 	fs.logger.Debug("filestream: closed")

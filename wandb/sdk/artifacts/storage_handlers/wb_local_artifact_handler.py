@@ -46,7 +46,7 @@ class WBLocalArtifactHandler(StorageHandler):
     ) -> Sequence[ArtifactManifestEntry]:
         """Store the file or directory at the given path within the specified artifact.
 
-        Arguments:
+        Args:
             artifact: The artifact doing the storing
             path (str): The path to store
             name (str): If specified, the logical name that should map to `path`
@@ -58,8 +58,8 @@ class WBLocalArtifactHandler(StorageHandler):
         target_path = util.uri_from_path(path)
         target_artifact = artifact_instance_cache.get(client_id)
         if not isinstance(target_artifact, wandb.Artifact):
-            raise RuntimeError("Local Artifact not found - invalid reference")
-        target_entry = target_artifact._manifest.entries[target_path]  # type: ignore
+            raise TypeError("Artifact passed to store_path() must be a wandb.Artifact.")
+        target_entry = target_artifact.manifest.entries[target_path]  # type: ignore
         if target_entry is None:
             raise RuntimeError("Local entry not found - invalid reference")
 

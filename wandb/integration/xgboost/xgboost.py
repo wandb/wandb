@@ -55,7 +55,7 @@ def wandb_callback() -> "Callable":
 class WandbCallback(xgb.callback.TrainingCallback):
     """`WandbCallback` automatically integrates XGBoost with wandb.
 
-    Arguments:
+    Args:
         log_model: (boolean) if True save and upload the model to Weights & Biases Artifacts
         log_feature_importance: (boolean) if True log a feature importance bar plot
         importance_type: (str) one of {weight, gain, cover, total_gain, total_cover} for tree model. weight for linear model.

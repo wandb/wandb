@@ -4,14 +4,10 @@ InterfaceBase: The abstract class
 InterfaceShared: Common routines for socket and queue based implementations
 InterfaceQueue: Use multiprocessing queues to send and receive messages
 InterfaceSock: Use socket to send and receive messages
-InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
-
 """
 
 import gzip
 import logging
-import os
-import sys
 import time
 from abc import abstractmethod
 from pathlib import Path
@@ -22,9 +18,11 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Literal,
     NewType,
     Optional,
     Tuple,
+    TypedDict,
     Union,
 )
 
@@ -35,6 +33,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib import json_util as json
+from wandb.sdk.mailbox import HandleAbandonedError, MailboxHandle
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -46,18 +45,12 @@ from wandb.util import (
 )
 
 from ..data_types.utils import history_dict_to_json, val_to_json
-from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
-from .message_future import MessageFuture
 
 MANIFEST_FILE_SIZE_THRESHOLD = 100_000
 
 GlobStr = NewType("GlobStr", str)
 
-if sys.version_info >= (3, 8):
-    from typing import Literal, TypedDict
-else:
-    from typing_extensions import Literal, TypedDict
 
 PolicyName = Literal["now", "live", "end"]
 
@@ -94,17 +87,10 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
 
 
 class InterfaceBase:
-    _run: Optional["Run"]
     _drop: bool
 
     def __init__(self) -> None:
-        self._run = None
         self._drop = False
-
-    def _hack_set_run(self, run: "Run") -> None:
-        self._run = run
-        current_pid = os.getpid()
-        self._run._set_iface_pid(current_pid)
 
     def publish_header(self) -> None:
         header = pb.HeaderRecord()
@@ -114,14 +100,14 @@ class InterfaceBase:
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         raise NotImplementedError
 
-    def deliver_status(self) -> MailboxHandle:
+    def deliver_status(self) -> MailboxHandle[pb.Result]:
         return self._deliver_status(pb.StatusRequest())
 
     @abstractmethod
     def _deliver_status(
         self,
         status: pb.StatusRequest,
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
     def _make_config(
@@ -147,16 +133,57 @@ class InterfaceBase:
             update.value_json = json_dumps_safer(json_friendly(val)[0])
         return config
 
-    def _make_run(self, run: "Run") -> pb.RunRecord:
+    def _make_run(self, run: "Run") -> pb.RunRecord:  # noqa: C901
         proto_run = pb.RunRecord()
-        run._make_proto_run(proto_run)
+        if run._settings.entity is not None:
+            proto_run.entity = run._settings.entity
+        if run._settings.project is not None:
+            proto_run.project = run._settings.project
+        if run._settings.run_group is not None:
+            proto_run.run_group = run._settings.run_group
+        if run._settings.run_job_type is not None:
+            proto_run.job_type = run._settings.run_job_type
+        if run._settings.run_id is not None:
+            proto_run.run_id = run._settings.run_id
+        if run._settings.run_name is not None:
+            proto_run.display_name = run._settings.run_name
+        if run._settings.run_notes is not None:
+            proto_run.notes = run._settings.run_notes
+        if run._settings.run_tags is not None:
+            proto_run.tags.extend(run._settings.run_tags)
+        if run._start_time is not None:
+            proto_run.start_time.FromMicroseconds(int(run._start_time * 1e6))
+        if run._starting_step is not None:
+            proto_run.starting_step = run._starting_step
+        if run._settings.git_remote_url is not None:
+            proto_run.git.remote_url = run._settings.git_remote_url
+        if run._settings.git_commit is not None:
+            proto_run.git.commit = run._settings.git_commit
+        if run._settings.sweep_id is not None:
+            proto_run.sweep_id = run._settings.sweep_id
         if run._settings.host:
             proto_run.host = run._settings.host
+        if run._settings.resumed:
+            proto_run.resumed = run._settings.resumed
+        if run._settings.fork_from:
+            run_moment = run._settings.fork_from
+            proto_run.branch_point.run = run_moment.run
+            proto_run.branch_point.metric = run_moment.metric
+            proto_run.branch_point.value = run_moment.value
+        if run._settings.resume_from:
+            run_moment = run._settings.resume_from
+            proto_run.branch_point.run = run_moment.run
+            proto_run.branch_point.metric = run_moment.metric
+            proto_run.branch_point.value = run_moment.value
+        if run._forked:
+            proto_run.forked = run._forked
         if run._config is not None:
             config_dict = run._config._as_dict()  # type: ignore
             self._make_config(data=config_dict, obj=proto_run.config)
         if run._telemetry_obj:
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
+        if run._start_runtime:
+            proto_run.runtime = run._start_runtime
         return proto_run
 
     def publish_run(self, run: "Run") -> None:
@@ -201,7 +228,12 @@ class InterfaceBase:
             update.value_json = json.dumps(v)
         return summary
 
-    def _summary_encode(self, value: Any, path_from_root: str) -> dict:
+    def _summary_encode(
+        self,
+        value: Any,
+        path_from_root: str,
+        run: "Run",
+    ) -> dict:
         """Normalize, compress, and encode sub-objects for backend storage.
 
         value: Object to encode.
@@ -219,12 +251,14 @@ class InterfaceBase:
             json_value = {}
             for key, value in value.items():  # noqa: B020
                 json_value[key] = self._summary_encode(
-                    value, path_from_root + "." + key
+                    value,
+                    path_from_root + "." + key,
+                    run=run,
                 )
             return json_value
         else:
             friendly_value, converted = json_friendly(
-                val_to_json(self._run, path_from_root, value, namespace="summary")
+                val_to_json(run, path_from_root, value, namespace="summary")
             )
             json_value, compressed = maybe_compress_summary(
                 friendly_value, get_h5_typename(value)
@@ -236,7 +270,11 @@ class InterfaceBase:
 
             return json_value
 
-    def _make_summary(self, summary_record: sr.SummaryRecord) -> pb.SummaryRecord:
+    def _make_summary(
+        self,
+        summary_record: sr.SummaryRecord,
+        run: "Run",
+    ) -> pb.SummaryRecord:
         pb_summary_record = pb.SummaryRecord()
 
         for item in summary_record.update:
@@ -251,7 +289,11 @@ class InterfaceBase:
                 pb_summary_item.key = item.key[0]
 
             path_from_root = ".".join(item.key)
-            json_value = self._summary_encode(item.value, path_from_root)
+            json_value = self._summary_encode(
+                item.value,
+                path_from_root,
+                run=run,
+            )
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
@@ -272,8 +314,12 @@ class InterfaceBase:
 
         return pb_summary_record
 
-    def publish_summary(self, summary_record: sr.SummaryRecord) -> None:
-        pb_summary_record = self._make_summary(summary_record)
+    def publish_summary(
+        self,
+        run: "Run",
+        summary_record: sr.SummaryRecord,
+    ) -> None:
+        pb_summary_record = self._make_summary(summary_record, run=run)
         self._publish_summary(pb_summary_record)
 
     @abstractmethod
@@ -384,23 +430,22 @@ class InterfaceBase:
 
     def deliver_link_artifact(
         self,
-        run: "Run",
         artifact: "Artifact",
         portfolio_name: str,
         aliases: Iterable[str],
         entity: Optional[str] = None,
         project: Optional[str] = None,
         organization: Optional[str] = None,
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         link_artifact = pb.LinkArtifactRequest()
         if artifact.is_draft():
             link_artifact.client_id = artifact._client_id
         else:
             link_artifact.server_id = artifact.id if artifact.id else ""
         link_artifact.portfolio_name = portfolio_name
-        link_artifact.portfolio_entity = entity or run.entity
+        link_artifact.portfolio_entity = entity or ""
         link_artifact.portfolio_organization = organization or ""
-        link_artifact.portfolio_project = project or run.project
+        link_artifact.portfolio_project = project or ""
         link_artifact.portfolio_aliases.extend(aliases)
 
         return self._deliver_link_artifact(link_artifact)
@@ -408,7 +453,7 @@ class InterfaceBase:
     @abstractmethod
     def _deliver_link_artifact(
         self, link_artifact: pb.LinkArtifactRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
     @staticmethod
@@ -516,7 +561,7 @@ class InterfaceBase:
     def _publish_use_artifact(self, proto_artifact: pb.UseArtifactRecord) -> None:
         raise NotImplementedError
 
-    def communicate_artifact(
+    def deliver_artifact(
         self,
         run: "Run",
         artifact: "Artifact",
@@ -526,7 +571,7 @@ class InterfaceBase:
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
-    ) -> MessageFuture:
+    ) -> MailboxHandle[pb.Result]:
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
         proto_artifact.run_id = proto_run.run_id
@@ -544,13 +589,14 @@ class InterfaceBase:
         if history_step is not None:
             log_artifact.history_step = history_step
         log_artifact.staging_dir = get_staging_dir()
-        resp = self._communicate_artifact(log_artifact)
+        resp = self._deliver_artifact(log_artifact)
         return resp
 
     @abstractmethod
-    def _communicate_artifact(
-        self, log_artifact: pb.LogArtifactRequest
-    ) -> MessageFuture:
+    def _deliver_artifact(
+        self,
+        log_artifact: pb.LogArtifactRequest,
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
     def deliver_download_artifact(
@@ -560,7 +606,7 @@ class InterfaceBase:
         allow_missing_references: bool,
         skip_cache: bool,
         path_prefix: Optional[str],
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         download_artifact = pb.DownloadArtifactRequest()
         download_artifact.artifact_id = artifact_id
         download_artifact.download_root = download_root
@@ -573,7 +619,7 @@ class InterfaceBase:
     @abstractmethod
     def _deliver_download_artifact(
         self, download_artifact: pb.DownloadArtifactRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
     def publish_artifact(
@@ -617,17 +663,22 @@ class InterfaceBase:
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         raise NotImplementedError
 
+    def publish_environment(self, environment: pb.EnvironmentRecord) -> None:
+        self._publish_environment(environment)
+
+    @abstractmethod
+    def _publish_environment(self, environment: pb.EnvironmentRecord) -> None:
+        raise NotImplementedError
+
     def publish_partial_history(
         self,
+        run: "Run",
         data: dict,
         user_step: int,
         step: Optional[int] = None,
         flush: Optional[bool] = None,
         publish_step: bool = True,
-        run: Optional["Run"] = None,
     ) -> None:
-        run = run or self._run
-
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
 
@@ -654,12 +705,11 @@ class InterfaceBase:
 
     def publish_history(
         self,
+        run: "Run",
         data: dict,
         step: Optional[int] = None,
-        run: Optional["Run"] = None,
         publish_step: bool = True,
     ) -> None:
-        run = run or self._run
         data = history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
         if publish_step:
@@ -695,7 +745,7 @@ class InterfaceBase:
             otype = pb.OutputRecord.OutputType.STDERR
         else:
             # TODO(jhr): throw error?
-            print("unknown type")
+            termwarn("unknown type")
         o = pb.OutputRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._publish_output(o)
@@ -715,7 +765,7 @@ class InterfaceBase:
             otype = pb.OutputRawRecord.OutputType.STDERR
         else:
             # TODO(jhr): throw error?
-            print("unknown type")
+            termwarn("unknown type")
         o = pb.OutputRawRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._publish_output_raw(o)
@@ -828,147 +878,179 @@ class InterfaceBase:
         return self._publish_job_input(request)
 
     @abstractmethod
-    def _publish_job_input(self, request: pb.JobInputRequest) -> MailboxHandle:
+    def _publish_job_input(
+        self, request: pb.JobInputRequest
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
     def join(self) -> None:
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
             return
-        _ = self._communicate_shutdown()
+
+        handle = self._deliver_shutdown()
+
+        try:
+            handle.wait_or(timeout=30)
+        except TimeoutError:
+            # This can happen if the server fails to respond due to a bug
+            # or due to being very busy.
+            logger.warning("timed out communicating shutdown")
+        except HandleAbandonedError:
+            # This can happen if the connection to the server is closed
+            # before a response is read.
+            logger.warning("handle abandoned while communicating shutdown")
 
     @abstractmethod
-    def _communicate_shutdown(self) -> None:
+    def _deliver_shutdown(self) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_run(self, run: "Run") -> MailboxHandle:
+    def deliver_run(self, run: "Run") -> MailboxHandle[pb.Result]:
         run_record = self._make_run(run)
         return self._deliver_run(run_record)
 
-    def deliver_sync(
+    def deliver_finish_sync(
         self,
-        start_offset: int,
-        final_offset: int,
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        run_id: Optional[str] = None,
-        skip_output_raw: Optional[bool] = None,
-    ) -> MailboxHandle:
-        sync = pb.SyncRequest(
-            start_offset=start_offset,
-            final_offset=final_offset,
-        )
-        if entity:
-            sync.overwrite.entity = entity
-        if project:
-            sync.overwrite.project = project
-        if run_id:
-            sync.overwrite.run_id = run_id
-        if skip_output_raw:
-            sync.skip.output_raw = skip_output_raw
-        return self._deliver_sync(sync)
+    ) -> MailboxHandle[pb.Result]:
+        sync = pb.SyncFinishRequest()
+        return self._deliver_finish_sync(sync)
 
     @abstractmethod
-    def _deliver_sync(self, sync: pb.SyncRequest) -> MailboxHandle:
+    def _deliver_finish_sync(
+        self, sync: pb.SyncFinishRequest
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
     @abstractmethod
-    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_run_start(self, run_pb: pb.RunRecord) -> MailboxHandle:
-        run_start = pb.RunStartRequest()
-        run_start.run.CopyFrom(run_pb)
+    def deliver_run_start(self, run: "Run") -> MailboxHandle[pb.Result]:
+        run_start = pb.RunStartRequest(run=self._make_run(run))
         return self._deliver_run_start(run_start)
 
     @abstractmethod
-    def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+    def _deliver_run_start(
+        self, run_start: pb.RunStartRequest
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_attach(self, attach_id: str) -> MailboxHandle:
+    def deliver_attach(self, attach_id: str) -> MailboxHandle[pb.Result]:
         attach = pb.AttachRequest(attach_id=attach_id)
         return self._deliver_attach(attach)
 
     @abstractmethod
-    def _deliver_attach(self, status: pb.AttachRequest) -> MailboxHandle:
+    def _deliver_attach(
+        self,
+        status: pb.AttachRequest,
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_stop_status(self) -> MailboxHandle:
+    def deliver_stop_status(self) -> MailboxHandle[pb.Result]:
         status = pb.StopStatusRequest()
         return self._deliver_stop_status(status)
 
     @abstractmethod
-    def _deliver_stop_status(self, status: pb.StopStatusRequest) -> MailboxHandle:
+    def _deliver_stop_status(
+        self,
+        status: pb.StopStatusRequest,
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_network_status(self) -> MailboxHandle:
+    def deliver_network_status(self) -> MailboxHandle[pb.Result]:
         status = pb.NetworkStatusRequest()
         return self._deliver_network_status(status)
 
     @abstractmethod
-    def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
+    def _deliver_network_status(
+        self,
+        status: pb.NetworkStatusRequest,
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_internal_messages(self) -> MailboxHandle:
+    def deliver_internal_messages(self) -> MailboxHandle[pb.Result]:
         internal_message = pb.InternalMessagesRequest()
         return self._deliver_internal_messages(internal_message)
 
     @abstractmethod
     def _deliver_internal_messages(
         self, internal_message: pb.InternalMessagesRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_get_summary(self) -> MailboxHandle:
+    def deliver_get_summary(self) -> MailboxHandle[pb.Result]:
         get_summary = pb.GetSummaryRequest()
         return self._deliver_get_summary(get_summary)
 
     @abstractmethod
-    def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
+    def _deliver_get_summary(
+        self,
+        get_summary: pb.GetSummaryRequest,
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_get_system_metrics(self) -> MailboxHandle:
-        get_summary = pb.GetSystemMetricsRequest()
-        return self._deliver_get_system_metrics(get_summary)
+    def deliver_get_system_metrics(self) -> MailboxHandle[pb.Result]:
+        get_system_metrics = pb.GetSystemMetricsRequest()
+        return self._deliver_get_system_metrics(get_system_metrics)
 
     @abstractmethod
     def _deliver_get_system_metrics(
         self, get_summary: pb.GetSystemMetricsRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle:
+    def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle[pb.Result]:
         exit_data = self._make_exit(exit_code)
         return self._deliver_exit(exit_data)
 
     @abstractmethod
-    def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
+    def _deliver_exit(
+        self,
+        exit_data: pb.RunExitRecord,
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_poll_exit(self) -> MailboxHandle:
+    @abstractmethod
+    def deliver_operation_stats(self) -> MailboxHandle[pb.Result]:
+        raise NotImplementedError
+
+    def deliver_poll_exit(self) -> MailboxHandle[pb.Result]:
         poll_exit = pb.PollExitRequest()
         return self._deliver_poll_exit(poll_exit)
 
     @abstractmethod
-    def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+    def _deliver_poll_exit(
+        self,
+        poll_exit: pb.PollExitRequest,
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_request_sampled_history(self) -> MailboxHandle:
+    def deliver_finish_without_exit(self) -> MailboxHandle[pb.Result]:
+        run_finish_without_exit = pb.RunFinishWithoutExitRequest()
+        return self._deliver_finish_without_exit(run_finish_without_exit)
+
+    @abstractmethod
+    def _deliver_finish_without_exit(
+        self, run_finish_without_exit: pb.RunFinishWithoutExitRequest
+    ) -> MailboxHandle[pb.Result]:
+        raise NotImplementedError
+
+    def deliver_request_sampled_history(self) -> MailboxHandle[pb.Result]:
         sampled_history = pb.SampledHistoryRequest()
         return self._deliver_request_sampled_history(sampled_history)
 
     @abstractmethod
     def _deliver_request_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_request_run_status(self) -> MailboxHandle:
+    def deliver_request_run_status(self) -> MailboxHandle[pb.Result]:
         run_status = pb.RunStatusRequest()
         return self._deliver_request_run_status(run_status)
 
     @abstractmethod
     def _deliver_request_run_status(
         self, run_status: pb.RunStatusRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError

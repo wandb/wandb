@@ -1,16 +1,12 @@
 """progress."""
 
 import os
-import sys
 from typing import IO, TYPE_CHECKING, Optional
 
 from wandb.errors import CommError
 
 if TYPE_CHECKING:
-    if sys.version_info >= (3, 8):
-        from typing import Protocol
-    else:
-        from typing_extensions import Protocol
+    from typing import Protocol
 
     class ProgressFn(Protocol):
         def __call__(self, new_bytes: int, total_bytes: int) -> None:
@@ -47,9 +43,7 @@ class Progress:
             # files getting truncated while uploading seems like something
             # that shouldn't really be happening anyway.
             raise CommError(
-                "File {} size shrank from {} to {} while it was being uploaded.".format(
-                    self.file.name, self.len, self.bytes_read
-                )
+                f"File {self.file.name} size shrank from {self.len} to {self.bytes_read} while it was being uploaded."
             )
         # Growing files are also likely to be bad, but our code didn't break
         # on those in the past, so it's riskier to make that an error now.

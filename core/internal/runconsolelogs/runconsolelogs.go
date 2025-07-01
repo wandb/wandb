@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -25,6 +26,9 @@ const (
 
 // Sender processes OutputRawRecords.
 type Sender struct {
+	mu         sync.Mutex
+	isFinished bool
+
 	// stdoutTerm processes captured stdout text.
 	stdoutTerm *terminalemulator.Terminal
 
@@ -67,6 +71,12 @@ type Params struct {
 	//
 	// It is used for testing.
 	GetNow func() time.Time
+
+	// Structured indicates whether to send the console output in structured format.
+	Structured bool
+
+	// Label is a prefix for the console output lines.
+	Label string
 }
 
 func New(params Params) *Sender {
@@ -80,7 +90,10 @@ func New(params Params) *Sender {
 
 	var fsWriter *filestreamWriter
 	if params.FileStreamOrNil != nil {
-		fsWriter = &filestreamWriter{FileStream: params.FileStreamOrNil}
+		fsWriter = &filestreamWriter{
+			FileStream: params.FileStreamOrNil,
+			Structured: params.Structured,
+		}
 	}
 
 	var fileWriter *outputFileWriter
@@ -133,11 +146,11 @@ func New(params Params) *Sender {
 
 	return &Sender{
 		stdoutTerm: terminalemulator.NewTerminal(
-			model.LineSupplier(""),
+			model.LineSupplier("", params.Label),
 			maxTerminalLines,
 		),
 		stderrTerm: terminalemulator.NewTerminal(
-			model.LineSupplier("ERROR "),
+			model.LineSupplier("ERROR ", params.Label),
 			maxTerminalLineLength,
 		),
 
@@ -154,7 +167,11 @@ func New(params Params) *Sender {
 //
 // It must run before the filestream is closed.
 func (s *Sender) Finish() {
-	s.writer.Wait()
+	s.mu.Lock()
+	s.isFinished = true
+	s.mu.Unlock()
+
+	s.writer.Finish()
 
 	if s.captureEnabled && s.runfilesUploaderOrNil != nil {
 		s.runfilesUploaderOrNil.UploadNow(
@@ -166,9 +183,13 @@ func (s *Sender) Finish() {
 
 // StreamLogs saves captured console logs with the run.
 func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
-	if !s.captureEnabled {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.captureEnabled || s.isFinished {
 		return
 	}
+
 	switch record.OutputType {
 	case spb.OutputRawRecord_STDOUT:
 		s.stdoutTerm.Write(record.Line)

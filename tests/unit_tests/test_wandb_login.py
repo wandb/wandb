@@ -83,7 +83,7 @@ def test_login_timeout(mock_tty):
 
 @pytest.mark.skipif(
     platform.system() == "Windows",
-    reason="mock_tty doesnt support windows input yet",
+    reason="mock_tty does not support windows input yet",
 )
 def test_login_timeout_choose(mock_tty):
     mock_tty("3\n")
@@ -105,7 +105,7 @@ def test_login_timeout_env_blank(mock_tty):
 def test_login_timeout_env_invalid(mock_tty):
     mock_tty("")
     with mock.patch.dict(os.environ, {"WANDB_LOGIN_TIMEOUT": "junk"}):
-        with pytest.raises(wandb.sdk.wandb_settings.SettingsPreprocessingError):
+        with pytest.raises(ValueError):
             wandb.login()
 
 
@@ -120,9 +120,7 @@ def test_login_key(capsys):
     wandb.login(key="A" * 40)
     # TODO: this was a bug when tests were leaking out to the global config
     # wandb.api.set_setting("base_url", "http://localhost:8080")
-    out, err = capsys.readouterr()
-    print(out)
-    print(err)
+    _, err = capsys.readouterr()
     assert "Appending key" in err
     #  WTF is happening?
     assert wandb.api.api_key == "A" * 40
@@ -139,6 +137,7 @@ def test_login_anonymous():
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
         wandb.login(anonymous="must")
         assert wandb.api.api_key == "ANONYMOOSE" * 4
+        assert wandb.setup().settings.anonymous == "must"
 
 
 def test_login_sets_api_base_url(local_settings):
@@ -154,10 +153,15 @@ def test_login_sets_api_base_url(local_settings):
 
 
 def test_login_invalid_key():
-    with mock.patch.dict("os.environ", WANDB_API_KEY="X" * 40):
+    with mock.patch(
+        "wandb.apis.internal.Api.validate_api_key",
+        return_value=False,
+    ):
         wandb.ensure_configured()
         with pytest.raises(wandb.errors.AuthenticationError):
-            wandb.login(verify=True)
+            wandb.login(key="X" * 40, verify=True)
+
+        assert wandb.api.api_key is None
 
 
 def test_login_with_token_file(tmp_path: Path):

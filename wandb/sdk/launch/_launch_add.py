@@ -61,7 +61,7 @@ def launch_add(
         config: A dictionary containing the configuration for the run. May also contain
             resource specific arguments under the key "resource_args"
         template_variables: A dictionary containing values of template variables for a run queue.
-            Expected format of {"VAR_NAME": VAR_VALUE}
+            Expected format of `{"VAR_NAME": VAR_VALUE}`
         project: Target project to send launched run to
         entity: Target entity to send launched run to
         queue: the name of the queue to enqueue the run to
@@ -240,7 +240,7 @@ def _launch_add(
     public_api = public.Api()
     if job is not None:
         try:
-            public_api.artifact(job, type="job")
+            public_api._artifact(job, type="job")
         except (ValueError, CommError) as e:
             raise LaunchError(f"Unable to fetch job with name {job}: {e}")
 

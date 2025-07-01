@@ -1,4 +1,12 @@
 wandb/vendor/** linguist-vendored
-wandb/proto/v*/*_pb2.py linguist-generated
-wandb/proto/v*/*_pb2.pyi linguist-generated
+core/vendor/** linguist-vendored
+
+# Protobuf generated files.
+**/*_pb2.py linguist-generated
+**/*_pb2.pyi linguist-generated
+**/*.pb.go linguist-generated
+gpu_stats/src/wandb_internal.rs linguist-generated
+
+# Our own generated files.
 *_generated.py linguist-generated
+**/_generated/*.py linguist-generated

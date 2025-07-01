@@ -83,6 +83,11 @@ func awsRestxml_serializeOpHttpBindingsAbortMultipartUploadInput(v *AbortMultipa
 		encoder.SetHeader(locationName).String(*v.ExpectedBucketOwner)
 	}
 
+	if v.IfMatchInitiatedTime != nil {
+		locationName := "X-Amz-If-Match-Initiated-Time"
+		encoder.SetHeader(locationName).String(smithytime.FormatHTTPDate(*v.IfMatchInitiatedTime))
+	}
+
 	if v.Key == nil || len(*v.Key) == 0 {
 		return &smithy.SerializationError{Err: fmt.Errorf("input member Key must not be empty")}
 	}
@@ -197,6 +202,11 @@ func awsRestxml_serializeOpHttpBindingsCompleteMultipartUploadInput(v *CompleteM
 		encoder.SetHeader(locationName).String(*v.ChecksumCRC32C)
 	}
 
+	if v.ChecksumCRC64NVME != nil {
+		locationName := "X-Amz-Checksum-Crc64nvme"
+		encoder.SetHeader(locationName).String(*v.ChecksumCRC64NVME)
+	}
+
 	if v.ChecksumSHA1 != nil {
 		locationName := "X-Amz-Checksum-Sha1"
 		encoder.SetHeader(locationName).String(*v.ChecksumSHA1)
@@ -207,9 +217,19 @@ func awsRestxml_serializeOpHttpBindingsCompleteMultipartUploadInput(v *CompleteM
 		encoder.SetHeader(locationName).String(*v.ChecksumSHA256)
 	}
 
+	if len(v.ChecksumType) > 0 {
+		locationName := "X-Amz-Checksum-Type"
+		encoder.SetHeader(locationName).String(string(v.ChecksumType))
+	}
+
 	if v.ExpectedBucketOwner != nil {
 		locationName := "X-Amz-Expected-Bucket-Owner"
 		encoder.SetHeader(locationName).String(*v.ExpectedBucketOwner)
+	}
+
+	if v.IfMatch != nil {
+		locationName := "If-Match"
+		encoder.SetHeader(locationName).String(*v.IfMatch)
 	}
 
 	if v.IfNoneMatch != nil {
@@ -224,6 +244,11 @@ func awsRestxml_serializeOpHttpBindingsCompleteMultipartUploadInput(v *CompleteM
 		if err := encoder.SetURI("Key").String(*v.Key); err != nil {
 			return err
 		}
+	}
+
+	if v.MpuObjectSize != nil {
+		locationName := "X-Amz-Mp-Object-Size"
+		encoder.SetHeader(locationName).Long(*v.MpuObjectSize)
 	}
 
 	if len(v.RequestPayer) > 0 {
@@ -647,6 +672,107 @@ func awsRestxml_serializeOpHttpBindingsCreateBucketInput(v *CreateBucketInput, e
 	return nil
 }
 
+type awsRestxml_serializeOpCreateBucketMetadataTableConfiguration struct {
+}
+
+func (*awsRestxml_serializeOpCreateBucketMetadataTableConfiguration) ID() string {
+	return "OperationSerializer"
+}
+
+func (m *awsRestxml_serializeOpCreateBucketMetadataTableConfiguration) HandleSerialize(ctx context.Context, in middleware.SerializeInput, next middleware.SerializeHandler) (
+	out middleware.SerializeOutput, metadata middleware.Metadata, err error,
+) {
+	_, span := tracing.StartSpan(ctx, "OperationSerializer")
+	endTimer := startMetricTimer(ctx, "client.call.serialization_duration")
+	defer endTimer()
+	defer span.End()
+	request, ok := in.Request.(*smithyhttp.Request)
+	if !ok {
+		return out, metadata, &smithy.SerializationError{Err: fmt.Errorf("unknown transport type %T", in.Request)}
+	}
+
+	input, ok := in.Parameters.(*CreateBucketMetadataTableConfigurationInput)
+	_ = input
+	if !ok {
+		return out, metadata, &smithy.SerializationError{Err: fmt.Errorf("unknown input parameters type %T", in.Parameters)}
+	}
+
+	opPath, opQuery := httpbinding.SplitURI("/?metadataTable")
+	request.URL.Path = smithyhttp.JoinPath(request.URL.Path, opPath)
+	request.URL.RawQuery = smithyhttp.JoinRawQuery(request.URL.RawQuery, opQuery)
+	request.Method = "POST"
+	var restEncoder *httpbinding.Encoder
+	if request.URL.RawPath == "" {
+		restEncoder, err = httpbinding.NewEncoder(request.URL.Path, request.URL.RawQuery, request.Header)
+	} else {
+		request.URL.RawPath = smithyhttp.JoinPath(request.URL.RawPath, opPath)
+		restEncoder, err = httpbinding.NewEncoderWithRawPath(request.URL.Path, request.URL.RawPath, request.URL.RawQuery, request.Header)
+	}
+
+	if err != nil {
+		return out, metadata, &smithy.SerializationError{Err: err}
+	}
+
+	if err := awsRestxml_serializeOpHttpBindingsCreateBucketMetadataTableConfigurationInput(input, restEncoder); err != nil {
+		return out, metadata, &smithy.SerializationError{Err: err}
+	}
+
+	if input.MetadataTableConfiguration != nil {
+		if !restEncoder.HasHeader("Content-Type") {
+			ctx = smithyhttp.SetIsContentTypeDefaultValue(ctx, true)
+			restEncoder.SetHeader("Content-Type").String("application/xml")
+		}
+
+		xmlEncoder := smithyxml.NewEncoder(bytes.NewBuffer(nil))
+		payloadRootAttr := []smithyxml.Attr{}
+		payloadRoot := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "MetadataTableConfiguration",
+			},
+			Attr: payloadRootAttr,
+		}
+		payloadRoot.Attr = append(payloadRoot.Attr, smithyxml.NewNamespaceAttribute("", "http://s3.amazonaws.com/doc/2006-03-01/"))
+		if err := awsRestxml_serializeDocumentMetadataTableConfiguration(input.MetadataTableConfiguration, xmlEncoder.RootElement(payloadRoot)); err != nil {
+			return out, metadata, &smithy.SerializationError{Err: err}
+		}
+		payload := bytes.NewReader(xmlEncoder.Bytes())
+		if request, err = request.SetStream(payload); err != nil {
+			return out, metadata, &smithy.SerializationError{Err: err}
+		}
+	}
+
+	if request.Request, err = restEncoder.Encode(request.Request); err != nil {
+		return out, metadata, &smithy.SerializationError{Err: err}
+	}
+	in.Request = request
+
+	endTimer()
+	span.End()
+	return next.HandleSerialize(ctx, in)
+}
+func awsRestxml_serializeOpHttpBindingsCreateBucketMetadataTableConfigurationInput(v *CreateBucketMetadataTableConfigurationInput, encoder *httpbinding.Encoder) error {
+	if v == nil {
+		return fmt.Errorf("unsupported serialization of nil %T", v)
+	}
+
+	if len(v.ChecksumAlgorithm) > 0 {
+		locationName := "X-Amz-Sdk-Checksum-Algorithm"
+		encoder.SetHeader(locationName).String(string(v.ChecksumAlgorithm))
+	}
+
+	if v.ContentMD5 != nil {
+		locationName := "Content-Md5"
+		encoder.SetHeader(locationName).String(*v.ContentMD5)
+	}
+
+	if v.ExpectedBucketOwner != nil {
+		locationName := "X-Amz-Expected-Bucket-Owner"
+		encoder.SetHeader(locationName).String(*v.ExpectedBucketOwner)
+	}
+
+	return nil
+}
+
 type awsRestxml_serializeOpCreateMultipartUpload struct {
 }
 
@@ -724,6 +850,11 @@ func awsRestxml_serializeOpHttpBindingsCreateMultipartUploadInput(v *CreateMulti
 	if len(v.ChecksumAlgorithm) > 0 {
 		locationName := "X-Amz-Checksum-Algorithm"
 		encoder.SetHeader(locationName).String(string(v.ChecksumAlgorithm))
+	}
+
+	if len(v.ChecksumType) > 0 {
+		locationName := "X-Amz-Checksum-Type"
+		encoder.SetHeader(locationName).String(string(v.ChecksumType))
 	}
 
 	if v.ContentDisposition != nil {
@@ -1278,6 +1409,11 @@ func awsRestxml_serializeOpHttpBindingsDeleteBucketIntelligentTieringConfigurati
 		return fmt.Errorf("unsupported serialization of nil %T", v)
 	}
 
+	if v.ExpectedBucketOwner != nil {
+		locationName := "X-Amz-Expected-Bucket-Owner"
+		encoder.SetHeader(locationName).String(*v.ExpectedBucketOwner)
+	}
+
 	if v.Id != nil {
 		encoder.SetQuery("id").String(*v.Id)
 	}
@@ -1411,6 +1547,73 @@ func (m *awsRestxml_serializeOpDeleteBucketLifecycle) HandleSerialize(ctx contex
 	return next.HandleSerialize(ctx, in)
 }
 func awsRestxml_serializeOpHttpBindingsDeleteBucketLifecycleInput(v *DeleteBucketLifecycleInput, encoder *httpbinding.Encoder) error {
+	if v == nil {
+		return fmt.Errorf("unsupported serialization of nil %T", v)
+	}
+
+	if v.ExpectedBucketOwner != nil {
+		locationName := "X-Amz-Expected-Bucket-Owner"
+		encoder.SetHeader(locationName).String(*v.ExpectedBucketOwner)
+	}
+
+	return nil
+}
+
+type awsRestxml_serializeOpDeleteBucketMetadataTableConfiguration struct {
+}
+
+func (*awsRestxml_serializeOpDeleteBucketMetadataTableConfiguration) ID() string {
+	return "OperationSerializer"
+}
+
+func (m *awsRestxml_serializeOpDeleteBucketMetadataTableConfiguration) HandleSerialize(ctx context.Context, in middleware.SerializeInput, next middleware.SerializeHandler) (
+	out middleware.SerializeOutput, metadata middleware.Metadata, err error,
+) {
+	_, span := tracing.StartSpan(ctx, "OperationSerializer")
+	endTimer := startMetricTimer(ctx, "client.call.serialization_duration")
+	defer endTimer()
+	defer span.End()
+	request, ok := in.Request.(*smithyhttp.Request)
+	if !ok {
+		return out, metadata, &smithy.SerializationError{Err: fmt.Errorf("unknown transport type %T", in.Request)}
+	}
+
+	input, ok := in.Parameters.(*DeleteBucketMetadataTableConfigurationInput)
+	_ = input
+	if !ok {
+		return out, metadata, &smithy.SerializationError{Err: fmt.Errorf("unknown input parameters type %T", in.Parameters)}
+	}
+
+	opPath, opQuery := httpbinding.SplitURI("/?metadataTable")
+	request.URL.Path = smithyhttp.JoinPath(request.URL.Path, opPath)
+	request.URL.RawQuery = smithyhttp.JoinRawQuery(request.URL.RawQuery, opQuery)
+	request.Method = "DELETE"
+	var restEncoder *httpbinding.Encoder
+	if request.URL.RawPath == "" {
+		restEncoder, err = httpbinding.NewEncoder(request.URL.Path, request.URL.RawQuery, request.Header)
+	} else {
+		request.URL.RawPath = smithyhttp.JoinPath(request.URL.RawPath, opPath)
+		restEncoder, err = httpbinding.NewEncoderWithRawPath(request.URL.Path, request.URL.RawPath, request.URL.RawQuery, request.Header)
+	}
+
+	if err != nil {
+		return out, metadata, &smithy.SerializationError{Err: err}
+	}
+
+	if err := awsRestxml_serializeOpHttpBindingsDeleteBucketMetadataTableConfigurationInput(input, restEncoder); err != nil {
+		return out, metadata, &smithy.SerializationError{Err: err}
+	}
+
+	if request.Request, err = restEncoder.Encode(request.Request); err != nil {
+		return out, metadata, &smithy.SerializationError{Err: err}
+	}
+	in.Request = request
+
+	endTimer()
+	span.End()
+	return next.HandleSerialize(ctx, in)
+}
+func awsRestxml_serializeOpHttpBindingsDeleteBucketMetadataTableConfigurationInput(v *DeleteBucketMetadataTableConfigurationInput, encoder *httpbinding.Encoder) error {
 	if v == nil {
 		return fmt.Errorf("unsupported serialization of nil %T", v)
 	}
@@ -1896,6 +2099,21 @@ func awsRestxml_serializeOpHttpBindingsDeleteObjectInput(v *DeleteObjectInput, e
 	if v.ExpectedBucketOwner != nil {
 		locationName := "X-Amz-Expected-Bucket-Owner"
 		encoder.SetHeader(locationName).String(*v.ExpectedBucketOwner)
+	}
+
+	if v.IfMatch != nil {
+		locationName := "If-Match"
+		encoder.SetHeader(locationName).String(*v.IfMatch)
+	}
+
+	if v.IfMatchLastModifiedTime != nil {
+		locationName := "X-Amz-If-Match-Last-Modified-Time"
+		encoder.SetHeader(locationName).String(smithytime.FormatHTTPDate(*v.IfMatchLastModifiedTime))
+	}
+
+	if v.IfMatchSize != nil {
+		locationName := "X-Amz-If-Match-Size"
+		encoder.SetHeader(locationName).Long(*v.IfMatchSize)
 	}
 
 	if v.Key == nil || len(*v.Key) == 0 {
@@ -2585,6 +2803,11 @@ func awsRestxml_serializeOpHttpBindingsGetBucketIntelligentTieringConfigurationI
 		return fmt.Errorf("unsupported serialization of nil %T", v)
 	}
 
+	if v.ExpectedBucketOwner != nil {
+		locationName := "X-Amz-Expected-Bucket-Owner"
+		encoder.SetHeader(locationName).String(*v.ExpectedBucketOwner)
+	}
+
 	if v.Id != nil {
 		encoder.SetQuery("id").String(*v.Id)
 	}
@@ -2852,6 +3075,73 @@ func (m *awsRestxml_serializeOpGetBucketLogging) HandleSerialize(ctx context.Con
 	return next.HandleSerialize(ctx, in)
 }
 func awsRestxml_serializeOpHttpBindingsGetBucketLoggingInput(v *GetBucketLoggingInput, encoder *httpbinding.Encoder) error {
+	if v == nil {
+		return fmt.Errorf("unsupported serialization of nil %T", v)
+	}
+
+	if v.ExpectedBucketOwner != nil {
+		locationName := "X-Amz-Expected-Bucket-Owner"
+		encoder.SetHeader(locationName).String(*v.ExpectedBucketOwner)
+	}
+
+	return nil
+}
+
+type awsRestxml_serializeOpGetBucketMetadataTableConfiguration struct {
+}
+
+func (*awsRestxml_serializeOpGetBucketMetadataTableConfiguration) ID() string {
+	return "OperationSerializer"
+}
+
+func (m *awsRestxml_serializeOpGetBucketMetadataTableConfiguration) HandleSerialize(ctx context.Context, in middleware.SerializeInput, next middleware.SerializeHandler) (
+	out middleware.SerializeOutput, metadata middleware.Metadata, err error,
+) {
+	_, span := tracing.StartSpan(ctx, "OperationSerializer")
+	endTimer := startMetricTimer(ctx, "client.call.serialization_duration")
+	defer endTimer()
+	defer span.End()
+	request, ok := in.Request.(*smithyhttp.Request)
+	if !ok {
+		return out, metadata, &smithy.SerializationError{Err: fmt.Errorf("unknown transport type %T", in.Request)}
+	}
+
+	input, ok := in.Parameters.(*GetBucketMetadataTableConfigurationInput)
+	_ = input
+	if !ok {
+		return out, metadata, &smithy.SerializationError{Err: fmt.Errorf("unknown input parameters type %T", in.Parameters)}
+	}
+
+	opPath, opQuery := httpbinding.SplitURI("/?metadataTable")
+	request.URL.Path = smithyhttp.JoinPath(request.URL.Path, opPath)
+	request.URL.RawQuery = smithyhttp.JoinRawQuery(request.URL.RawQuery, opQuery)
+	request.Method = "GET"
+	var restEncoder *httpbinding.Encoder
+	if request.URL.RawPath == "" {
+		restEncoder, err = httpbinding.NewEncoder(request.URL.Path, request.URL.RawQuery, request.Header)
+	} else {
+		request.URL.RawPath = smithyhttp.JoinPath(request.URL.RawPath, opPath)
+		restEncoder, err = httpbinding.NewEncoderWithRawPath(request.URL.Path, request.URL.RawPath, request.URL.RawQuery, request.Header)
+	}
+
+	if err != nil {
+		return out, metadata, &smithy.SerializationError{Err: err}
+	}
+
+	if err := awsRestxml_serializeOpHttpBindingsGetBucketMetadataTableConfigurationInput(input, restEncoder); err != nil {
+		return out, metadata, &smithy.SerializationError{Err: err}
+	}
+
+	if request.Request, err = restEncoder.Encode(request.Request); err != nil {
+		return out, metadata, &smithy.SerializationError{Err: err}
+	}
+	in.Request = request
+
+	endTimer()
+	span.End()
+	return next.HandleSerialize(ctx, in)
+}
+func awsRestxml_serializeOpHttpBindingsGetBucketMetadataTableConfigurationInput(v *GetBucketMetadataTableConfigurationInput, encoder *httpbinding.Encoder) error {
 	if v == nil {
 		return fmt.Errorf("unsupported serialization of nil %T", v)
 	}
@@ -4737,6 +5027,11 @@ func awsRestxml_serializeOpHttpBindingsListBucketIntelligentTieringConfiguration
 		encoder.SetQuery("continuation-token").String(*v.ContinuationToken)
 	}
 
+	if v.ExpectedBucketOwner != nil {
+		locationName := "X-Amz-Expected-Bucket-Owner"
+		encoder.SetHeader(locationName).String(*v.ExpectedBucketOwner)
+	}
+
 	return nil
 }
 
@@ -4941,12 +5236,20 @@ func awsRestxml_serializeOpHttpBindingsListBucketsInput(v *ListBucketsInput, enc
 		return fmt.Errorf("unsupported serialization of nil %T", v)
 	}
 
+	if v.BucketRegion != nil {
+		encoder.SetQuery("bucket-region").String(*v.BucketRegion)
+	}
+
 	if v.ContinuationToken != nil {
 		encoder.SetQuery("continuation-token").String(*v.ContinuationToken)
 	}
 
 	if v.MaxBuckets != nil {
 		encoder.SetQuery("max-buckets").Integer(*v.MaxBuckets)
+	}
+
+	if v.Prefix != nil {
+		encoder.SetQuery("prefix").String(*v.Prefix)
 	}
 
 	return nil
@@ -6172,6 +6475,11 @@ func awsRestxml_serializeOpHttpBindingsPutBucketIntelligentTieringConfigurationI
 		return fmt.Errorf("unsupported serialization of nil %T", v)
 	}
 
+	if v.ExpectedBucketOwner != nil {
+		locationName := "X-Amz-Expected-Bucket-Owner"
+		encoder.SetHeader(locationName).String(*v.ExpectedBucketOwner)
+	}
+
 	if v.Id != nil {
 		encoder.SetQuery("id").String(*v.Id)
 	}
@@ -6748,6 +7056,11 @@ func (m *awsRestxml_serializeOpPutBucketOwnershipControls) HandleSerialize(ctx c
 func awsRestxml_serializeOpHttpBindingsPutBucketOwnershipControlsInput(v *PutBucketOwnershipControlsInput, encoder *httpbinding.Encoder) error {
 	if v == nil {
 		return fmt.Errorf("unsupported serialization of nil %T", v)
+	}
+
+	if len(v.ChecksumAlgorithm) > 0 {
+		locationName := "X-Amz-Sdk-Checksum-Algorithm"
+		encoder.SetHeader(locationName).String(string(v.ChecksumAlgorithm))
 	}
 
 	if v.ContentMD5 != nil {
@@ -7473,6 +7786,11 @@ func awsRestxml_serializeOpHttpBindingsPutObjectInput(v *PutObjectInput, encoder
 		encoder.SetHeader(locationName).String(*v.ChecksumCRC32C)
 	}
 
+	if v.ChecksumCRC64NVME != nil {
+		locationName := "X-Amz-Checksum-Crc64nvme"
+		encoder.SetHeader(locationName).String(*v.ChecksumCRC64NVME)
+	}
+
 	if v.ChecksumSHA1 != nil {
 		locationName := "X-Amz-Checksum-Sha1"
 		encoder.SetHeader(locationName).String(*v.ChecksumSHA1)
@@ -7541,6 +7859,11 @@ func awsRestxml_serializeOpHttpBindingsPutObjectInput(v *PutObjectInput, encoder
 	if v.GrantWriteACP != nil {
 		locationName := "X-Amz-Grant-Write-Acp"
 		encoder.SetHeader(locationName).String(*v.GrantWriteACP)
+	}
+
+	if v.IfMatch != nil {
+		locationName := "If-Match"
+		encoder.SetHeader(locationName).String(*v.IfMatch)
 	}
 
 	if v.IfNoneMatch != nil {
@@ -7627,6 +7950,11 @@ func awsRestxml_serializeOpHttpBindingsPutObjectInput(v *PutObjectInput, encoder
 	if v.WebsiteRedirectLocation != nil {
 		locationName := "X-Amz-Website-Redirect-Location"
 		encoder.SetHeader(locationName).String(*v.WebsiteRedirectLocation)
+	}
+
+	if v.WriteOffsetBytes != nil {
+		locationName := "X-Amz-Write-Offset-Bytes"
+		encoder.SetHeader(locationName).Long(*v.WriteOffsetBytes)
 	}
 
 	return nil
@@ -8355,6 +8683,127 @@ func awsRestxml_serializeOpHttpBindingsPutPublicAccessBlockInput(v *PutPublicAcc
 	return nil
 }
 
+type awsRestxml_serializeOpRenameObject struct {
+}
+
+func (*awsRestxml_serializeOpRenameObject) ID() string {
+	return "OperationSerializer"
+}
+
+func (m *awsRestxml_serializeOpRenameObject) HandleSerialize(ctx context.Context, in middleware.SerializeInput, next middleware.SerializeHandler) (
+	out middleware.SerializeOutput, metadata middleware.Metadata, err error,
+) {
+	_, span := tracing.StartSpan(ctx, "OperationSerializer")
+	endTimer := startMetricTimer(ctx, "client.call.serialization_duration")
+	defer endTimer()
+	defer span.End()
+	request, ok := in.Request.(*smithyhttp.Request)
+	if !ok {
+		return out, metadata, &smithy.SerializationError{Err: fmt.Errorf("unknown transport type %T", in.Request)}
+	}
+
+	input, ok := in.Parameters.(*RenameObjectInput)
+	_ = input
+	if !ok {
+		return out, metadata, &smithy.SerializationError{Err: fmt.Errorf("unknown input parameters type %T", in.Parameters)}
+	}
+
+	opPath, opQuery := httpbinding.SplitURI("/{Key+}?renameObject")
+	request.URL.Path = smithyhttp.JoinPath(request.URL.Path, opPath)
+	request.URL.RawQuery = smithyhttp.JoinRawQuery(request.URL.RawQuery, opQuery)
+	request.Method = "PUT"
+	var restEncoder *httpbinding.Encoder
+	if request.URL.RawPath == "" {
+		restEncoder, err = httpbinding.NewEncoder(request.URL.Path, request.URL.RawQuery, request.Header)
+	} else {
+		request.URL.RawPath = smithyhttp.JoinPath(request.URL.RawPath, opPath)
+		restEncoder, err = httpbinding.NewEncoderWithRawPath(request.URL.Path, request.URL.RawPath, request.URL.RawQuery, request.Header)
+	}
+
+	if err != nil {
+		return out, metadata, &smithy.SerializationError{Err: err}
+	}
+
+	if err := awsRestxml_serializeOpHttpBindingsRenameObjectInput(input, restEncoder); err != nil {
+		return out, metadata, &smithy.SerializationError{Err: err}
+	}
+
+	if request.Request, err = restEncoder.Encode(request.Request); err != nil {
+		return out, metadata, &smithy.SerializationError{Err: err}
+	}
+	in.Request = request
+
+	endTimer()
+	span.End()
+	return next.HandleSerialize(ctx, in)
+}
+func awsRestxml_serializeOpHttpBindingsRenameObjectInput(v *RenameObjectInput, encoder *httpbinding.Encoder) error {
+	if v == nil {
+		return fmt.Errorf("unsupported serialization of nil %T", v)
+	}
+
+	if v.ClientToken != nil {
+		locationName := "X-Amz-Client-Token"
+		encoder.SetHeader(locationName).String(*v.ClientToken)
+	}
+
+	if v.DestinationIfMatch != nil {
+		locationName := "If-Match"
+		encoder.SetHeader(locationName).String(*v.DestinationIfMatch)
+	}
+
+	if v.DestinationIfModifiedSince != nil {
+		locationName := "If-Modified-Since"
+		encoder.SetHeader(locationName).String(smithytime.FormatHTTPDate(*v.DestinationIfModifiedSince))
+	}
+
+	if v.DestinationIfNoneMatch != nil {
+		locationName := "If-None-Match"
+		encoder.SetHeader(locationName).String(*v.DestinationIfNoneMatch)
+	}
+
+	if v.DestinationIfUnmodifiedSince != nil {
+		locationName := "If-Unmodified-Since"
+		encoder.SetHeader(locationName).String(smithytime.FormatHTTPDate(*v.DestinationIfUnmodifiedSince))
+	}
+
+	if v.Key == nil || len(*v.Key) == 0 {
+		return &smithy.SerializationError{Err: fmt.Errorf("input member Key must not be empty")}
+	}
+	if v.Key != nil {
+		if err := encoder.SetURI("Key").String(*v.Key); err != nil {
+			return err
+		}
+	}
+
+	if v.RenameSource != nil {
+		locationName := "X-Amz-Rename-Source"
+		encoder.SetHeader(locationName).String(*v.RenameSource)
+	}
+
+	if v.SourceIfMatch != nil {
+		locationName := "X-Amz-Rename-Source-If-Match"
+		encoder.SetHeader(locationName).String(*v.SourceIfMatch)
+	}
+
+	if v.SourceIfModifiedSince != nil {
+		locationName := "X-Amz-Rename-Source-If-Modified-Since"
+		encoder.SetHeader(locationName).String(smithytime.FormatHTTPDate(*v.SourceIfModifiedSince))
+	}
+
+	if v.SourceIfNoneMatch != nil {
+		locationName := "X-Amz-Rename-Source-If-None-Match"
+		encoder.SetHeader(locationName).String(*v.SourceIfNoneMatch)
+	}
+
+	if v.SourceIfUnmodifiedSince != nil {
+		locationName := "X-Amz-Rename-Source-If-Unmodified-Since"
+		encoder.SetHeader(locationName).String(smithytime.FormatHTTPDate(*v.SourceIfUnmodifiedSince))
+	}
+
+	return nil
+}
+
 type awsRestxml_serializeOpRestoreObject struct {
 }
 
@@ -8743,6 +9192,11 @@ func awsRestxml_serializeOpHttpBindingsUploadPartInput(v *UploadPartInput, encod
 		encoder.SetHeader(locationName).String(*v.ChecksumCRC32C)
 	}
 
+	if v.ChecksumCRC64NVME != nil {
+		locationName := "X-Amz-Checksum-Crc64nvme"
+		encoder.SetHeader(locationName).String(*v.ChecksumCRC64NVME)
+	}
+
 	if v.ChecksumSHA1 != nil {
 		locationName := "X-Amz-Checksum-Sha1"
 		encoder.SetHeader(locationName).String(*v.ChecksumSHA1)
@@ -9056,6 +9510,11 @@ func awsRestxml_serializeOpHttpBindingsWriteGetObjectResponseInput(v *WriteGetOb
 	if v.ChecksumCRC32C != nil {
 		locationName := "X-Amz-Fwd-Header-X-Amz-Checksum-Crc32c"
 		encoder.SetHeader(locationName).String(*v.ChecksumCRC32C)
+	}
+
+	if v.ChecksumCRC64NVME != nil {
+		locationName := "X-Amz-Fwd-Header-X-Amz-Checksum-Crc64nvme"
+		encoder.SetHeader(locationName).String(*v.ChecksumCRC64NVME)
 	}
 
 	if v.ChecksumSHA1 != nil {
@@ -9640,6 +10099,17 @@ func awsRestxml_serializeDocumentCompletedPart(v *types.CompletedPart, value smi
 		}
 		el := value.MemberElement(root)
 		el.String(*v.ChecksumCRC32C)
+	}
+	if v.ChecksumCRC64NVME != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "ChecksumCRC64NVME",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.String(*v.ChecksumCRC64NVME)
 	}
 	if v.ChecksumSHA1 != nil {
 		rootAttr := []smithyxml.Attr{}
@@ -11419,6 +11889,24 @@ func awsRestxml_serializeDocumentMetadataEntry(v *types.MetadataEntry, value smi
 	return nil
 }
 
+func awsRestxml_serializeDocumentMetadataTableConfiguration(v *types.MetadataTableConfiguration, value smithyxml.Value) error {
+	defer value.Close()
+	if v.S3TablesDestination != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "S3TablesDestination",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		if err := awsRestxml_serializeDocumentS3TablesDestination(v.S3TablesDestination, el); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func awsRestxml_serializeDocumentMetrics(v *types.Metrics, value smithyxml.Value) error {
 	defer value.Close()
 	if v.EventThreshold != nil {
@@ -11732,6 +12220,17 @@ func awsRestxml_serializeDocumentNotificationConfigurationFilter(v *types.Notifi
 
 func awsRestxml_serializeDocumentObjectIdentifier(v *types.ObjectIdentifier, value smithyxml.Value) error {
 	defer value.Close()
+	if v.ETag != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "ETag",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.String(*v.ETag)
+	}
 	if v.Key != nil {
 		rootAttr := []smithyxml.Attr{}
 		root := smithyxml.StartElement{
@@ -11742,6 +12241,28 @@ func awsRestxml_serializeDocumentObjectIdentifier(v *types.ObjectIdentifier, val
 		}
 		el := value.MemberElement(root)
 		el.String(*v.Key)
+	}
+	if v.LastModifiedTime != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "LastModifiedTime",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.String(smithytime.FormatHTTPDate(*v.LastModifiedTime))
+	}
+	if v.Size != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "Size",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.Long(*v.Size)
 	}
 	if v.VersionId != nil {
 		rootAttr := []smithyxml.Attr{}
@@ -12790,6 +13311,33 @@ func awsRestxml_serializeDocumentS3Location(v *types.S3Location, value smithyxml
 		if err := awsRestxml_serializeDocumentUserMetadata(v.UserMetadata, el); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func awsRestxml_serializeDocumentS3TablesDestination(v *types.S3TablesDestination, value smithyxml.Value) error {
+	defer value.Close()
+	if v.TableBucketArn != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "TableBucketArn",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.String(*v.TableBucketArn)
+	}
+	if v.TableName != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "TableName",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		el.String(*v.TableName)
 	}
 	return nil
 }

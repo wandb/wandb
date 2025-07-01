@@ -175,7 +175,7 @@ func (mh *MetricHandler) createGlobMetrics(
 		metric, ok := mh.matchGlobMetric(key)
 		if ok {
 			mh.definedMetrics[key] = metric
-			newMetrics = append(newMetrics, metric.ToRecord(key))
+			newMetrics = append(newMetrics, metric.ToRecord(key, false))
 		}
 
 		return true
@@ -207,7 +207,7 @@ func (mh *MetricHandler) splitEscapedDottedMetricName(metricName string) []strin
 	sb := strings.Builder{}
 
 	isEscaped := false
-	for i := 0; i < len(metricName); i++ {
+	for i := range len(metricName) {
 		if !isEscaped {
 			switch metricName[i] {
 			// When the current character is a dot, and it has not been escaped then we want to split the metric name.

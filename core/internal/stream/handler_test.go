@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/version"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -17,16 +18,19 @@ func makeHandler(
 	inChan, fwdChan chan runwork.Work,
 	outChan chan *spb.Result,
 	commit string,
+	skipDerivedSummary bool,
 ) *stream.Handler {
+	s := settings.New()
+	s.UpdateServerSideDerivedSummary(skipDerivedSummary)
+
 	h := stream.NewHandler(
-		commit,
 		stream.HandlerParams{
 			Logger:          observability.NewNoOpLogger(),
-			Settings:        &spb.Settings{},
+			Settings:        s,
 			FwdChan:         fwdChan,
 			OutChan:         outChan,
 			TerminalPrinter: observability.NewPrinter(),
-			SkipSummary:     true,
+			Commit:          commit,
 		},
 	)
 
@@ -134,6 +138,40 @@ func makeOutput(record *spb.Record) data {
 	default:
 		return data{}
 	}
+}
+
+func makeSummaryRecord(d data) *spb.Record {
+	items := []*spb.SummaryItem{}
+	for k, v := range d.items {
+		items = append(items, &spb.SummaryItem{
+			NestedKey: strings.Split(k, "."),
+			ValueJson: v,
+		})
+	}
+	summary := &spb.SummaryRecord{
+		Update: items,
+	}
+	record := &spb.Record{
+		RecordType: &spb.Record_Summary{
+			Summary: summary,
+		},
+		Control: &spb.Control{
+			MailboxSlot: "junk",
+		},
+	}
+	return record
+}
+
+func makeExitRecord() *spb.Record {
+	record := &spb.Record{
+		RecordType: &spb.Record_Exit{
+			Exit: &spb.RunExitRecord{
+				ExitCode: 0,
+				Runtime:  1,
+			},
+		},
+	}
+	return record
 }
 
 type testCase struct {
@@ -680,7 +718,7 @@ func TestHandlePartialHistory(t *testing.T) {
 			fwdChan := make(chan runwork.Work, stream.BufferSize)
 			outChan := make(chan *spb.Result, stream.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/, true /*skipDerivedSummary*/)
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
@@ -780,7 +818,7 @@ func TestHandleHistory(t *testing.T) {
 			fwdChan := make(chan runwork.Work, stream.BufferSize)
 			outChan := make(chan *spb.Result, stream.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/, true /*skipDerivedSummary*/)
 
 			for _, d := range tc.input {
 				record := makeHistoryRecord(d)
@@ -816,7 +854,7 @@ func TestHandleHeader(t *testing.T) {
 
 	sha := "2a7314df06ab73a741dcb7bc5ecb50cda150b077"
 
-	makeHandler(inChan, fwdChan, outChan, sha)
+	makeHandler(inChan, fwdChan, outChan, sha, true /*skipDerivedSummary*/)
 
 	record := &spb.Record{
 		RecordType: &spb.Record_Header{
@@ -829,4 +867,112 @@ func TestHandleHeader(t *testing.T) {
 
 	versionInfo := fmt.Sprintf("%s+%s", version.Version, sha)
 	assert.Equal(t, versionInfo, record.GetHeader().GetVersionInfo().GetProducer(), "wrong version info")
+}
+
+func TestHandleDerivedSummary(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		skipDerivedSummary     bool
+		records                []*spb.Record
+		expectedHistoryRecords int
+		expectedSummaryRecords int
+		expectedExitRecords    int
+	}{
+		{
+			name:               "SkipDerivedSummaryForHistory",
+			skipDerivedSummary: true,
+			records: []*spb.Record{
+				makePartialHistoryRecord(data{
+					items: map[string]string{
+						"metric1": "42.0",
+					},
+					step:  1,
+					flush: true,
+				}),
+				makeExitRecord(),
+			},
+			expectedHistoryRecords: 1,
+			expectedSummaryRecords: 0,
+			expectedExitRecords:    1,
+		},
+		{
+			name:               "ComputeDerivedSummaryForHistory",
+			skipDerivedSummary: false,
+			records: []*spb.Record{
+				makePartialHistoryRecord(data{
+					items: map[string]string{
+						"metric1": "42.0",
+					},
+					step:  1,
+					flush: true,
+				}),
+				makeExitRecord(),
+			},
+			expectedHistoryRecords: 1,
+			// We expect 2 summary records from the partial history record
+			// (run timing information + derived summary) and another summary
+			// record from the exit record.
+			expectedSummaryRecords: 3,
+			expectedExitRecords:    1,
+		},
+		{
+			name:               "SkipDerivedSummaryForSummary",
+			skipDerivedSummary: true,
+			records: []*spb.Record{
+				makeSummaryRecord(data{
+					items: map[string]string{
+						"metric1": "42.0",
+					},
+				}),
+				makeExitRecord(),
+			},
+			expectedHistoryRecords: 0,
+			// We expect a summary record with the run timing information
+			// from the exit record and the summary record from the input.
+			expectedSummaryRecords: 1,
+			expectedExitRecords:    1,
+		},
+		{
+			name:               "ComputeDerivedSummaryForSummary",
+			skipDerivedSummary: false,
+			records: []*spb.Record{
+				makeSummaryRecord(data{
+					items: map[string]string{
+						"metric1": "42.0",
+					},
+				}),
+				makeExitRecord(),
+			},
+			expectedHistoryRecords: 0,
+			// We expect one summary record from the input (run timing information)
+			// and another summary record from the exit record.
+			expectedSummaryRecords: 2,
+			expectedExitRecords:    1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			inChan := make(chan runwork.Work, 1)
+			fwdChan := make(chan runwork.Work)
+			outChan := make(chan *spb.Result, stream.BufferSize)
+
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/, tc.skipDerivedSummary)
+
+			for _, record := range tc.records {
+				inChan <- runwork.WorkRecord{Record: record}
+			}
+
+			seenSummaryRecords := 0
+			for range tc.expectedSummaryRecords + tc.expectedHistoryRecords + tc.expectedExitRecords {
+				work := <-fwdChan
+				record := work.(runwork.WorkRecord).Record
+				if _, ok := record.GetRecordType().(*spb.Record_Summary); ok {
+					seenSummaryRecords++
+				}
+			}
+
+			assert.Equal(t, tc.expectedSummaryRecords, seenSummaryRecords, "wrong number of summary records")
+		})
+	}
 }

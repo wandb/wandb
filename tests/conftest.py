@@ -1,37 +1,55 @@
 from __future__ import annotations
 
+import logging
 import os
+import pathlib
+import platform
 import shutil
+import sys
+import time
 import unittest.mock
+from itertools import takewhile
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable, Generator, Iterable
+from typing import Any, Callable, Generator, Iterable, Iterator
 
 import pyte
 import pyte.modes
+from pytest_mock import MockerFixture
 from wandb.errors import term
 
 # Don't write to Sentry in wandb.
-#
-# For wandb-core, this setting is configured below.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
-import git  # noqa: E402
-import pytest  # noqa: E402
-import wandb  # noqa: E402
-import wandb.old.settings  # noqa: E402
-import wandb.sdk.lib.apikey  # noqa: E402
-import wandb.util  # noqa: E402
-from click.testing import CliRunner  # noqa: E402
-from wandb import Api  # noqa: E402
-from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
-from wandb.sdk.lib import filesystem, runid  # noqa: E402
-from wandb.sdk.lib.gitlib import GitRepo  # noqa: E402
-from wandb.sdk.lib.paths import StrPath  # noqa: E402
+import git
+import pytest
+import wandb
+import wandb.old.settings
+import wandb.sdk.lib.apikey
+import wandb.util
+from click.testing import CliRunner
+from wandb import Api
+from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.lib import filesystem, module, runid
+from wandb.sdk.lib.gitlib import GitRepo
+from wandb.sdk.lib.paths import StrPath
 
 # --------------------------------
 # Global pytest configuration
 # --------------------------------
+
+
+@pytest.fixture
+def disable_memray(pytestconfig):
+    """Disables the memray plugin for the duration of the test."""
+    if platform.system() == "Windows":
+        # noop on Windows
+        yield
+    else:
+        memray_plugin = pytestconfig.pluginmanager.get_plugin("memray_manager")
+        pytestconfig.pluginmanager.unregister(memray_plugin)
+        yield
+        pytestconfig.pluginmanager.register(memray_plugin, "memray_manager")
 
 
 @pytest.fixture(autouse=True)
@@ -39,56 +57,7 @@ def setup_wandb_env_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     """Configures wandb env variables to suitable defaults for tests."""
     # Set the _network_buffer setting to 1000 to increase the likelihood
     # of triggering flow control logic.
-    monkeypatch.setenv("WANDB__NETWORK_BUFFER", "1000")
-
-
-@pytest.fixture(autouse=True)
-def toggle_legacy_service(
-    monkeypatch: pytest.MonkeyPatch,
-    request: pytest.FixtureRequest,
-) -> None:
-    """Sets WANDB__REQUIRE_LEGACY_SERVICE in each test.
-
-    This fixture is used to run each test both with and without wandb-core.
-    """
-    monkeypatch.setenv("WANDB__REQUIRE_LEGACY_SERVICE", str(request.param))
-
-
-def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
-    # See https://docs.pytest.org/en/7.1.x/how-to/parametrize.html#basic-pytest-generate-tests-example
-
-    # Run each test both with and without wandb-core.
-    if toggle_legacy_service.__name__ in metafunc.fixturenames:
-        # Allow tests to opt-out of wandb-core until we have feature parity.
-        skip_wandb_core = False
-        wandb_core_only = False
-        for mark in metafunc.definition.iter_markers():
-            if mark.name == "skip_wandb_core":
-                skip_wandb_core = True
-            elif mark.name == "wandb_core_only":
-                wandb_core_only = True
-
-        if wandb_core_only:
-            # Don't merge tests like this. Implement the feature first.
-            assert (
-                not skip_wandb_core
-            ), "Cannot mark test both skip_wandb_core and wandb_core_only"
-
-            values = [False]
-            ids = ["wandb_core"]
-        elif skip_wandb_core:
-            values = [True]
-            ids = ["no_wandb_core"]
-        else:
-            values = [True, False]
-            ids = ["no_wandb_core", "wandb_core"]
-
-        metafunc.parametrize(
-            toggle_legacy_service.__name__,
-            values,
-            ids=ids,
-            indirect=True,  # Causes the fixture to be invoked.
-        )
+    monkeypatch.setenv("WANDB_X_NETWORK_BUFFER", "1000")
 
 
 # --------------------------------
@@ -97,15 +66,19 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 
 @pytest.fixture(scope="session")
-def assets_path() -> Generator[Callable, None, None]:
-    def assets_path_fn(path: Path) -> Path:
-        return Path(__file__).resolve().parent / "assets" / path
+def assets_path() -> Generator[Callable[[StrPath], Path], None, None]:
+    assets_dir = Path(__file__).resolve().parent / "assets"
+
+    def assets_path_fn(path: StrPath) -> Path:
+        return assets_dir / path
 
     yield assets_path_fn
 
 
 @pytest.fixture
-def copy_asset(assets_path) -> Generator[Callable, None, None]:
+def copy_asset(
+    assets_path,
+) -> Generator[Callable[[StrPath, StrPath | None], Path], None, None]:
     def copy_asset_fn(path: StrPath, dst: StrPath | None = None) -> Path:
         src = assets_path(path)
         if src.is_file():
@@ -118,6 +91,25 @@ def copy_asset(assets_path) -> Generator[Callable, None, None]:
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
+
+
+@pytest.fixture()
+def wandb_caplog(
+    caplog: pytest.LogCaptureFixture,
+) -> Iterator[pytest.LogCaptureFixture]:
+    """Modified caplog fixture that detect wandb log messages.
+
+    The wandb logger is configured to not propagate messages to the root logger,
+    so caplog does not work out of the box.
+    """
+
+    logger = logging.getLogger("wandb")
+
+    logger.addHandler(caplog.handler)
+    try:
+        yield caplog
+    finally:
+        logger.removeHandler(caplog.handler)
 
 
 @pytest.fixture(autouse=True)
@@ -204,6 +196,10 @@ class EmulatedTerminal:
         self._screen.set_mode(pyte.modes.LNM)  # \n implies \r
         self._stream = pyte.Stream(self._screen)
 
+    def reset_capsys(self) -> None:
+        """Resets pytest's captured stderr and stdout buffers."""
+        self._capsys.readouterr()
+
     def read_stderr(self) -> list[str]:
         """Returns the text in the emulated terminal.
 
@@ -219,20 +215,9 @@ class EmulatedTerminal:
 
         lines = [line.rstrip() for line in self._screen.display]
 
-        n_empty_at_start = 0
-        for i in range(len(lines)):
-            if not lines[i]:
-                n_empty_at_start += 1
-            else:
-                break
-
-        n_empty_at_end = 0
-        for i in range(len(lines)):
-            if not lines[-1 - i]:
-                n_empty_at_end += 1
-            else:
-                break
-
+        # Trim empty lines from the start and end of the screen.
+        n_empty_at_start = sum(1 for _ in takewhile(lambda line: not line, lines))
+        n_empty_at_end = sum(1 for _ in takewhile(lambda line: not line, lines[::-1]))
         return lines[n_empty_at_start:-n_empty_at_end]
 
 
@@ -242,6 +227,9 @@ def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
 
     This makes functions in the `wandb.errors.term` module act as if
     stderr is a terminal.
+
+    NOTE: This resets pytest's stderr and stdout buffers. You should not
+    use this with anything else that uses capsys.
     """
 
     monkeypatch.setenv("TERM", "xterm")
@@ -252,13 +240,33 @@ def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
     # This is fragile and could break when click is updated.
     monkeypatch.setattr("click._compat.isatty", lambda *args, **kwargs: True)
 
-    return EmulatedTerminal(capsys)
+    # Reset the captured stderr and stdout buffers, since in the test
+    # environment, memray may prepend lines to stderr that look like:
+    #   '⚠ Memray support for Greenlet is experimental ⚠',
+    #   'Please report any issues at https://github.com/bloomberg/memray/issues',
+    #   ...
+    terminal = EmulatedTerminal(capsys)
+    terminal.reset_capsys()
+    return terminal
 
 
 @pytest.fixture(scope="function", autouse=True)
-def filesystem_isolate(tmp_path):
-    kwargs = dict(temp_dir=tmp_path)
-    with CliRunner().isolated_filesystem(**kwargs):
+def filesystem_isolate(tmp_path, monkeypatch):
+    # isolated_filesystem() changes the current working directory, which is
+    # where coverage.py stores coverage by default. This causes Python
+    # subprocesses to place their coverage into a temporary directory that is
+    # discarded after each test.
+    #
+    # Setting COVERAGE_FILE to an absolute path fixes this.
+    if covfile := os.getenv("COVERAGE_FILE"):
+        new_covfile = str(pathlib.Path(covfile).absolute())
+    else:
+        new_covfile = str(pathlib.Path(os.getcwd()) / ".coverage")
+
+    print(f"Setting COVERAGE_FILE to {new_covfile}", file=sys.stderr)
+    monkeypatch.setenv("COVERAGE_FILE", new_covfile)
+
+    with CliRunner().isolated_filesystem(temp_dir=tmp_path):
         yield
 
 
@@ -291,20 +299,16 @@ def local_netrc(filesystem_isolate):
 
 
 @pytest.fixture
-def dummy_api_key():
+def dummy_api_key() -> str:
     return "1824812581259009ca9981580f8f8a9012409eee"
 
 
 @pytest.fixture
-def patch_apikey(dummy_api_key):
-    with unittest.mock.patch.object(
-        wandb.sdk.lib.apikey, "isatty", return_value=True
-    ), unittest.mock.patch.object(
-        wandb.sdk.lib.apikey, "input", return_value=1
-    ), unittest.mock.patch.object(
-        wandb.sdk.lib.apikey, "getpass", return_value=dummy_api_key
-    ):
-        yield
+def patch_apikey(mocker: MockerFixture, dummy_api_key: str):
+    mocker.patch.object(wandb.sdk.lib.apikey, "isatty", return_value=True)
+    mocker.patch.object(wandb.sdk.lib.apikey, "input", return_value=1)
+    mocker.patch.object(wandb.sdk.lib.apikey, "getpass", return_value=dummy_api_key)
+    yield
 
 
 @pytest.fixture
@@ -363,7 +367,7 @@ def clean_up():
 
 
 @pytest.fixture
-def api():
+def api() -> wandb.PublicApi:
     return Api()
 
 
@@ -404,10 +408,10 @@ def test_settings():
             save_code=False,
         )
         if isinstance(extra_settings, dict):
-            settings.update(extra_settings, source=wandb.sdk.wandb_settings.Source.BASE)
+            settings.update_from_dict(extra_settings)
         elif isinstance(extra_settings, wandb.Settings):
-            settings.update(extra_settings)
-        settings._set_run_start_time()
+            settings.update_from_settings(extra_settings)
+        settings.x_start_time = time.time()
         return settings
 
     yield update_test_settings
@@ -415,15 +419,21 @@ def test_settings():
 
 @pytest.fixture(scope="function")
 def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
-    from wandb.sdk.lib.module import unset_globals
+    """Create a Run object with a stubbed out 'backend'.
+
+    This is similar to using `wandb.init(mode="offline")`, but much faster
+    as it does not start up a service process.
+
+    This is intended for tests that need to exercise surface-level Python logic
+    in the Run class. Note that it's better to factor out such logic into its
+    own unit-tested module instead.
+    """
 
     def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.sdk.wandb_run.Run:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
-            **{
-                "run_id": runid.generate_id(),
-            },
-            **kwargs_settings,
+            "run_id": runid.generate_id(),
+            **dict(kwargs_settings),
         }
         run = wandb.wandb_sdk.wandb_run.Run(
             settings=test_settings(kwargs_settings), **kwargs
@@ -431,11 +441,26 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
         run._set_backend(
             unittest.mock.MagicMock() if use_magic_mock else mocked_backend
         )
-        run._set_globals()
+        run._set_library(unittest.mock.MagicMock())
+
+        module.set_global(
+            run=run,
+            config=run.config,
+            log=run.log,
+            summary=run.summary,
+            save=run.save,
+            use_artifact=run.use_artifact,
+            log_artifact=run.log_artifact,
+            define_metric=run.define_metric,
+            alert=run.alert,
+            watch=run.watch,
+            unwatch=run.unwatch,
+        )
+
         return run
 
     yield mock_run_fn
-    unset_globals()
+    module.unset_globals()
 
 
 @pytest.fixture

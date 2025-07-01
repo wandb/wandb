@@ -1,11 +1,12 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/processlib"
@@ -14,28 +15,33 @@ import (
 	"github.com/wandb/wandb/core/pkg/server"
 )
 
-const (
-	SentryDSN = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
-	// Use for testing:
-	// SentryDSN = "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.us.sentry.io/6438430"
-)
-
 // this is set by the build script and used by the observability package
 var commit string
 
 func main() {
+	exitCode := mainWithExitCode()
+	os.Exit(exitCode)
+}
+
+func mainWithExitCode() int {
 	// Flags to control the server
 	portFilename := flag.String("port-filename", "port_file.txt",
 		"Specifies the filename where the server will write the port number it uses to "+
 			"communicate with clients.")
 	pid := flag.Int("pid", 0,
 		"Specifies the process ID (PID) of the external process that spins up this service.")
-	enableDebugLogging := flag.Bool("debug", false,
-		"Enables debug logging to provide detailed logs for troubleshooting.")
+	logLevel := flag.Int("log-level", 0,
+		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.")
 	disableAnalytics := flag.Bool("no-observability", false,
 		"Disables observability features such as metrics and logging analytics.")
 	enableOsPidShutdown := flag.Bool("os-pid-shutdown", false,
 		"Enables automatic server shutdown when the external process identified by the PID terminates.")
+	enableDCGMProfiling := flag.Bool("enable-dcgm-profiling", false,
+		"Enables collection of profiling metrics for Nvidia GPUs using DCGM. Requires a running `nvidia-dcgm` service.")
+	listenOnLocalhost := flag.Bool("listen-on-localhost", false,
+		"Whether to listen on a localhost socket. This is less secure than"+
+			" Unix sockets, but some clients do not support them"+
+			" (in particular, Python on Windows).")
 
 	// Custom usage function to add a header, version, and commit info
 	flag.Usage = func() {
@@ -57,14 +63,8 @@ func main() {
 	}
 
 	// set up sentry reporting
-	var sentryDSN string
-	if *disableAnalytics {
-		sentryDSN = ""
-	} else {
-		sentryDSN = SentryDSN
-	}
 	sentryClient := sentry_ext.New(sentry_ext.Params{
-		DSN:              sentryDSN,
+		Disabled:         *disableAnalytics,
 		AttachStacktrace: true,
 		Release:          version.Version,
 		Commit:           commit,
@@ -72,69 +72,62 @@ func main() {
 	})
 	defer sentryClient.Flush(2)
 
-	// store commit hash in context
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, observability.Commit, commit)
-
 	var loggerPath string
-	if file, _ := observability.GetLoggerPath(); file != nil {
-		level := slog.LevelInfo
-		if *enableDebugLogging {
-			level = slog.LevelDebug
-		}
-		opts := &slog.HandlerOptions{
-			Level:     level,
-			AddSource: false,
-		}
-		logger := slog.New(slog.NewJSONHandler(file, opts))
-		slog.SetDefault(logger)
-		logger.LogAttrs(
-			ctx,
-			slog.LevelInfo,
-			"started logging, with flags",
-			slog.String("port-filename", *portFilename),
-			slog.Int("pid", *pid),
-			slog.Bool("debug", *enableDebugLogging),
-			slog.Bool("disable-analytics", *disableAnalytics),
+	if file, err := observability.GetLoggerPath(); err != nil {
+		slog.Error("main: failed to get logger path", "error", err)
+	} else {
+		logger := slog.New(
+			slog.NewJSONHandler(
+				file,
+				&slog.HandlerOptions{
+					Level:     slog.Level(*logLevel),
+					AddSource: false,
+				},
+			),
 		)
-		slog.Info("FeatureState", "shutdownOnParentExitEnabled", shutdownOnParentExitEnabled)
+		slog.SetDefault(logger)
+		slog.Info(
+			"main: starting server",
+			"port-filename", *portFilename,
+			"pid", *pid,
+			"log-level", *logLevel,
+			"disable-analytics", *disableAnalytics,
+			"shutdown-on-parent-exit", shutdownOnParentExitEnabled,
+			"enable-dcgm-profiling", *enableDCGMProfiling,
+		)
 		loggerPath = file.Name()
-		defer file.Close()
+		defer func() {
+			_ = file.Close()
+		}()
 	}
 
-	// if *traceFile != "" {
-	// 	f, err := os.Create(*traceFile)
-	// 	if err != nil {
-	// 		slog.Error("failed to create trace output file", "err", err)
-	// 		panic(err)
-	// 	}
-	// 	defer func() {
-	// 		if err = f.Close(); err != nil {
-	// 			slog.Error("failed to close trace file", "err", err)
-	// 		}
-	// 	}()
+	// Log when we receive a shutdown signal
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-c
+		slog.Info("main: received shutdown signal", "signal", sig)
+		os.Exit(0)
+	}()
 
-	// 	if err = trace.Start(f); err != nil {
-	// 		slog.Error("failed to start trace", "err", err)
-	// 		panic(err)
-	// 	}
-	// 	defer trace.Stop()
-	// }
-
-	srv, err := server.NewServer(
-		ctx,
-		&server.ServerParams{
-			ListenIPAddress: "127.0.0.1:0",
-			PortFilename:    *portFilename,
-			ParentPid:       *pid,
-			SentryClient:    sentryClient,
-			Commit:          commit,
-			LoggerPath:      loggerPath,
+	srv := server.NewServer(
+		server.ServerParams{
+			Commit:              commit,
+			EnableDCGMProfiling: *enableDCGMProfiling,
+			ListenOnLocalhost:   *listenOnLocalhost,
+			LoggerPath:          loggerPath,
+			LogLevel:            slog.Level(*logLevel),
+			ParentPID:           *pid,
+			SentryClient:        sentryClient,
 		},
 	)
+
+	err := srv.Serve(*portFilename)
+
 	if err != nil {
-		slog.Error("failed to start server, exiting", "error", err)
-		return
+		slog.Error("main: Serve() returned error", "error", err)
+		return 1
 	}
-	srv.Serve()
+
+	return 0
 }
