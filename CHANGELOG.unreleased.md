@@ -44,3 +44,4 @@ This version removes the legacy implementation of the `service` process. This is
 - `api.Runs` no longer makes an API call for each run loaded from W&B. (@jacobromero in https://github.com/wandb/wandb/pull/10087)
 - Correctly parse the `x_extra_http_headers` setting from the env variable (@dmitryduev in https://github.com/wandb/wandb/pull/10103)
 - `.length` calls the W&B backend to load the length of objects when no data has been loaded rather than returning `None` (@jacobromero in https://github.com/wandb/wandb/pull/10091)
+- `wandb.Video` will not print a progress spinner while encoding video when `WANDB_SILENT`/`WANDB_QUIET` environment variables are set (@jacobromero in https://github.com/wandb/wandb/pull/10064)
