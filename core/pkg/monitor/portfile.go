@@ -25,7 +25,7 @@ func NewPortfile() *portfile {
 	return &portfile{Path: file.Name()}
 }
 
-// Read reads the port number from the portfile.
+// Read reads the target URI from the portfile.
 func (p *portfile) Read(ctx context.Context) (string, error) {
 	for {
 		select {
