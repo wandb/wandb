@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -17,7 +18,7 @@ type portfile struct {
 }
 
 func NewPortfile() *portfile {
-	file, err := os.CreateTemp("", ".system-monitor-portfile")
+	file, err := os.CreateTemp("", ".wandb-system-monitor-portfile-*")
 	if err != nil {
 		return nil
 	}
@@ -26,46 +27,63 @@ func NewPortfile() *portfile {
 }
 
 // Read reads the port number from the portfile.
-func (p *portfile) Read(ctx context.Context) (int, error) {
+func (p *portfile) Read(ctx context.Context) (string, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			return 0, fmt.Errorf("timeout reading portfile %s", p.path)
+			return "", fmt.Errorf("timeout reading portfile %s", p.path)
 		default:
-			port, err := p.readFile()
+			target, err := p.readFile()
 			if err != nil {
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
-			return port, nil
+			return target, nil
 		}
 	}
 }
 
-func (p *portfile) readFile() (int, error) {
+// readFile reads a portfile to find a TCP port or a Unix socket path,
+// then returns a gRPC-compatible target URI string.
+func (p *portfile) readFile() (string, error) {
 	file, err := os.Open(p.path)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	defer func() {
 		_ = file.Close()
 	}()
 
+	unixPathRe := regexp.MustCompile(`unix=(.+)`)
+	tcpPortRe := regexp.MustCompile(`sock=(\d+)`)
+
 	scanner := bufio.NewScanner(file)
 	if scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		port, err := strconv.Atoi(line)
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse integer: %v", err)
+		fmt.Println("+++ ", line)
+
+		matchUnixPath := unixPathRe.FindStringSubmatch(line)
+		if matchUnixPath != nil {
+			fmt.Println(matchUnixPath)
+			return fmt.Sprintf("unix://%s", matchUnixPath[1]), nil
 		}
-		return port, nil
+
+		matchTcpPort := tcpPortRe.FindStringSubmatch(line)
+		if matchTcpPort != nil {
+			fmt.Println(matchTcpPort)
+			port, err := strconv.Atoi(matchTcpPort[1])
+			if err != nil {
+				return "", fmt.Errorf("failed to parse TCP port number: %v", err)
+			}
+			return fmt.Sprintf("127.0.0.1:%d", port), nil
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return 0, fmt.Errorf("error reading file: %v", err)
+		return "", fmt.Errorf("error reading file: %v", err)
 	}
 
-	return 0, fmt.Errorf("no data found in file %s", p.path)
+	return "", fmt.Errorf("no data found in file %s", p.path)
 }
 
 func (p *portfile) Delete() error {

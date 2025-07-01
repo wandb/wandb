@@ -28,8 +28,9 @@ use log::{debug, warn, LevelFilter};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use tokio::net::{TcpListener, UnixListener};
 use tokio::task::JoinHandle;
-use tokio_stream;
+use tokio_stream::wrappers::{TcpListenerStream, UnixListenerStream};
 use tonic;
 use tonic::{transport::Server, Request, Response, Status};
 
@@ -87,6 +88,12 @@ struct Args {
     /// collection Nvidia GPU performance metrics.
     #[arg(long, default_value_t = false)]
     enable_dcgm_profiling: bool,
+
+    /// Whether to listen on a localhost socket.
+    ///
+    /// This is less secure than Unix sockets, but not all clients support them.
+    #[arg(long, default_value_t = false)]
+    listen_on_localhost: bool,
 }
 
 /// System monitor service implementation.
@@ -465,11 +472,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     analytics::setup_sentry();
     debug!("Sentry set up");
 
-    // Bind to the loopback interface.
-    let addr = (std::net::Ipv4Addr::LOCALHOST, 0);
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-
-    // Create the channel for service shutdown signals.
+    // Create the channel for service shutdown signals
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
     let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
 
@@ -479,23 +482,64 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         shutdown_sender.clone(),
     );
 
-    // Write the server port to the portfile
-    let local_addr = listener.local_addr()?;
-    std::fs::write(&args.portfile, local_addr.port().to_string())?;
+    let server_builder =
+        Server::builder().add_service(SystemMonitorServiceServer::new(system_monitor_service));
 
-    debug!("System metrics service listening on {}", local_addr);
+    let shutdown_signal = async {
+        shutdown_receiver.await.ok();
+        debug!("Server is shutting down...");
+    };
 
-    Server::builder()
-        .add_service(SystemMonitorServiceServer::new(system_monitor_service))
-        .serve_with_incoming_shutdown(
-            tokio_stream::wrappers::TcpListenerStream::new(listener),
-            async {
-                // Wait for the shutdown signal
-                shutdown_receiver.await.ok();
-                debug!("Server is shutting down...");
-            },
-        )
-        .await?;
+    if args.listen_on_localhost {
+        // --- TCP listener ---
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
+        let local_addr = listener.local_addr()?;
+        let stream = TcpListenerStream::new(listener);
+
+        // Write the server port to the portfile
+        let token = format!("sock={}", local_addr.port());
+        std::fs::write(&args.portfile, token)?;
+        debug!("System metrics service listening on {}", local_addr);
+
+        server_builder
+            .serve_with_incoming_shutdown(stream, shutdown_signal)
+            .await?;
+    } else {
+        // --- Unix Domain Socket listener ---
+        let mut socket_path = std::env::temp_dir();
+        let pid = std::process::id();
+        let time_stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time should go forward")
+            .as_millis();
+
+        let socket_filename = format!("wandb_gpu_stats-{}-{}-{}.sock", args.ppid, pid, time_stamp);
+        socket_path.push(socket_filename);
+
+        // Ensure the socket is removed if it already exists
+        if socket_path.exists() {
+            let _ = std::fs::remove_file(&socket_path);
+        }
+
+        let listener = UnixListener::bind(&socket_path)?;
+        let stream = UnixListenerStream::new(listener);
+
+        // Use `to_str()` for a clean string representation without quotes
+        if let Some(path_str) = socket_path.to_str() {
+            let token = format!("unix={}", path_str);
+            std::fs::write(&args.portfile, token)?;
+            debug!("System metrics service listening on {}", path_str);
+        } else {
+            return Err("Invalid UTF-8 sequence in socket path".into());
+        }
+
+        server_builder
+            .serve_with_incoming_shutdown(stream, shutdown_signal)
+            .await?;
+
+        // Clean up the socket file on shutdown
+        let _ = std::fs::remove_file(&socket_path);
+    }
 
     Ok(())
 }
