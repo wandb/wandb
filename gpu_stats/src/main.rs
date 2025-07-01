@@ -28,8 +28,9 @@ use log::{debug, warn, LevelFilter};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use tokio::net::{TcpListener, UnixListener};
 use tokio::task::JoinHandle;
-use tokio_stream;
+use tokio_stream::wrappers::{TcpListenerStream, UnixListenerStream};
 use tonic;
 use tonic::{transport::Server, Request, Response, Status};
 
@@ -63,9 +64,10 @@ fn current_timestamp() -> Timestamp {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about=None)]
 struct Args {
-    /// Portfile to write the gRPC server port to.
+    /// File to write the gRPC server token to.
     ///
     /// Used to establish communication between the parent process (wandb-core) and the service.
+    /// Supports Unix and TCP sockets.
     #[arg(long)]
     portfile: String,
 
@@ -73,7 +75,7 @@ struct Args {
     ///
     /// If provided, the program will exit if the parent process is no longer alive.
     #[arg(long, default_value_t = 0)]
-    ppid: i32,
+    parent_pid: i32,
 
     /// Verbose logging.
     ///
@@ -87,6 +89,12 @@ struct Args {
     /// collection Nvidia GPU performance metrics.
     #[arg(long, default_value_t = false)]
     enable_dcgm_profiling: bool,
+
+    /// Whether to listen on a localhost socket.
+    ///
+    /// This is less secure than Unix sockets, but not all clients support them.
+    #[arg(long, default_value_t = false)]
+    listen_on_localhost: bool,
 }
 
 /// System monitor service implementation.
@@ -120,7 +128,7 @@ pub struct SystemMonitorServiceImpl {
 
 impl SystemMonitorServiceImpl {
     fn new(
-        ppid: i32,
+        parent_pid: i32,
         enable_dcgm_profiling: bool,
         shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     ) -> Self {
@@ -195,14 +203,14 @@ impl SystemMonitorServiceImpl {
             amd_gpu,
         };
 
-        // An async task that monitors the parent process ppid, if provided.
+        // An async task that monitors the parent process id, if provided.
         // It shares the shutdown sender handle with the main service.
-        if ppid > 0 {
+        if parent_pid > 0 {
             let shutdown_sender_clone = shutdown_sender.clone();
             let handle = tokio::spawn(async move {
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    if !is_parent_alive(ppid) {
+                    if !is_parent_alive(parent_pid) {
                         // Trigger shutdown
                         let mut sender = shutdown_sender_clone.lock().await;
                         if let Some(sender) = sender.take() {
@@ -435,13 +443,13 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
 
 /// Check if the parent process is still alive
 #[cfg(not(target_os = "windows"))]
-fn is_parent_alive(ppid: i32) -> bool {
+fn is_parent_alive(parent_pid: i32) -> bool {
     use nix::unistd::getppid;
-    getppid() == nix::unistd::Pid::from_raw(ppid)
+    getppid() == nix::unistd::Pid::from_raw(parent_pid)
 }
 
 #[cfg(target_os = "windows")]
-fn is_parent_alive(ppid: i32) -> bool {
+fn is_parent_alive(parent_pid: i32) -> bool {
     // TODO: Implement
     true
 }
@@ -465,37 +473,74 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     analytics::setup_sentry();
     debug!("Sentry set up");
 
-    // Bind to the loopback interface.
-    let addr = (std::net::Ipv4Addr::LOCALHOST, 0);
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-
-    // Create the channel for service shutdown signals.
+    // Create the channel for service shutdown signals
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
     let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
 
     let system_monitor_service = SystemMonitorServiceImpl::new(
-        args.ppid,
+        args.parent_pid,
         args.enable_dcgm_profiling,
         shutdown_sender.clone(),
     );
 
-    // Write the server port to the portfile
-    let local_addr = listener.local_addr()?;
-    std::fs::write(&args.portfile, local_addr.port().to_string())?;
+    let server_builder =
+        Server::builder().add_service(SystemMonitorServiceServer::new(system_monitor_service));
 
-    debug!("System metrics service listening on {}", local_addr);
+    let shutdown_signal = async {
+        shutdown_receiver.await.ok();
+        debug!("Server is shutting down...");
+    };
 
-    Server::builder()
-        .add_service(SystemMonitorServiceServer::new(system_monitor_service))
-        .serve_with_incoming_shutdown(
-            tokio_stream::wrappers::TcpListenerStream::new(listener),
-            async {
-                // Wait for the shutdown signal
-                shutdown_receiver.await.ok();
-                debug!("Server is shutting down...");
-            },
-        )
-        .await?;
+    if args.listen_on_localhost {
+        // --- TCP listener ---
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
+        let local_addr = listener.local_addr()?;
+        let stream = TcpListenerStream::new(listener);
+
+        // Write the server port to the portfile
+        let token = format!("sock={}", local_addr.port());
+        std::fs::write(&args.portfile, token)?;
+        debug!("System metrics service listening on {}", local_addr);
+
+        server_builder
+            .serve_with_incoming_shutdown(stream, shutdown_signal)
+            .await?;
+    } else {
+        // --- Unix Domain Socket listener ---
+        let mut socket_path = std::env::temp_dir();
+        let pid = std::process::id();
+        let time_stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time should go forward")
+            .as_millis();
+
+        let socket_filename = format!("wandb_gpu_stats-{}-{}-{}.sock", args.parent_pid, pid, time_stamp);
+        socket_path.push(socket_filename);
+
+        // Ensure the socket is removed if it already exists
+        if socket_path.exists() {
+            let _ = std::fs::remove_file(&socket_path);
+        }
+
+        let listener = UnixListener::bind(&socket_path)?;
+        let stream = UnixListenerStream::new(listener);
+
+        // Use `to_str()` for a clean string representation without quotes
+        if let Some(path_str) = socket_path.to_str() {
+            let token = format!("unix={}", path_str);
+            std::fs::write(&args.portfile, token)?;
+            debug!("System metrics service listening on {}", path_str);
+        } else {
+            return Err("Invalid UTF-8 sequence in socket path".into());
+        }
+
+        server_builder
+            .serve_with_incoming_shutdown(stream, shutdown_signal)
+            .await?;
+
+        // Clean up the socket file on shutdown
+        let _ = std::fs::remove_file(&socket_path);
+    }
 
     Ok(())
 }

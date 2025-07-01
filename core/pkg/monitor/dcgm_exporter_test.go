@@ -1,6 +1,7 @@
 package monitor_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -225,7 +226,7 @@ func TestProbe(t *testing.T) {
 	require.NotNil(t, exporter)
 
 	// Get metadata from Probe method
-	metadata := exporter.Probe()
+	metadata := exporter.Probe(context.Background())
 	require.NotNil(t, metadata, "Probe should return non-nil metadata")
 
 	// Verify basic metadata
@@ -270,7 +271,7 @@ func TestProbe(t *testing.T) {
 			Client: client,
 		})
 
-		metadata := exporter.Probe()
+		metadata := exporter.Probe(context.Background())
 		require.NotNil(t, metadata)
 		assert.Equal(t, uint32(1), metadata.GpuCount, "Should only detect GPU with complete information")
 	})
@@ -293,7 +294,7 @@ func TestProbe(t *testing.T) {
 			Client: client,
 		})
 
-		metadata := exporter.Probe()
+		metadata := exporter.Probe(context.Background())
 		require.NotNil(t, metadata)
 		assert.Equal(t, uint32(1), metadata.GpuCount, "Should only detect GPU with complete information")
 	})
