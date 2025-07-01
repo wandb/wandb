@@ -189,7 +189,7 @@ impl GpuMonitor for NvidiaGpuMonitor {
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
-        self.gpu.lock().await.get_metrics(pid, gpu_device_ids)
+        Ok(self.gpu.lock().await.get_metrics(pid, gpu_device_ids)?)
     }
 
     async fn collect_metadata(
@@ -243,7 +243,7 @@ impl GpuMonitor for DcgmGpuMonitor {
         _pid: i32,
         _gpu_device_ids: Option<Vec<i32>>,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
-        self.client.get_metrics().await
+        Ok(self.client.get_metrics().await?)
     }
 
     async fn collect_metadata(
@@ -286,7 +286,7 @@ impl GpuMonitor for AmdGpuMonitor {
         _pid: i32,
         _gpu_device_ids: Option<Vec<i32>>,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
-        self.gpu.get_metrics()
+        Ok(self.gpu.get_metrics()?)
     }
 
     async fn collect_metadata(
