@@ -299,7 +299,10 @@ class Settings(BaseModel, validate_assignment=True):
     """Root directory of the git repository."""
 
     heartbeat_seconds: int = 30
-    """Interval in seconds between heartbeat signals sent to the W&B servers."""
+    """Interval in seconds between heartbeat signals sent to the W&B servers.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     host: Optional[str] = None
     """Hostname of the machine running the script."""
@@ -332,7 +335,10 @@ class Settings(BaseModel, validate_assignment=True):
     """Whether to disable automatic labeling features."""
 
     launch: bool = False
-    """Flag to indicate if the run is being launched through W&B Launch."""
+    """Flag to indicate if the run is being launched through W&B Launch.
+
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     launch_config_path: Optional[str] = None
     """Path to the launch configuration file."""
@@ -340,7 +346,7 @@ class Settings(BaseModel, validate_assignment=True):
     login_timeout: Optional[float] = None
     """Time in seconds to wait for login operations before timing out."""
 
-    mode: Literal["online", "offline", "dryrun", "disabled", "run", "shared"] = Field(
+    mode: Literal["online", "offline", "shared", "disabled", "dryrun", "run"] = Field(
         default="online",
         validate_default=True,
     )
@@ -402,19 +408,15 @@ class Settings(BaseModel, validate_assignment=True):
     resume: Optional[Literal["allow", "must", "never", "auto"]] = None
     """Specifies the resume behavior for the run.
 
-    The available options are:
-
-      "must": Resumes from an existing run with the same ID. If no such run exists,
-      it will result in failure.
-
-      "allow": Attempts to resume from an existing run with the same ID. If none is
-      found, a new run will be created.
-
-      "never": Always starts a new run. If a run with the same ID already exists,
-      it will result in failure.
-
-      "auto": Automatically resumes from the most recent failed run on the same
-      machine.
+    Options:
+    - "must": Resumes from an existing run with the same ID. If no such run exists,
+       it will result in failure.
+    - "allow": Attempts to resume from an existing run with the same ID. If none is
+       found, a new run will be created.
+    - "never": Always starts a new run. If a run with the same ID already exists,
+       it will result in failure.
+    - "auto": Automatically resumes from the most recent failed run on the same
+       machine.
     """
 
     resume_from: Optional[RunMoment] = None
@@ -428,6 +430,7 @@ class Settings(BaseModel, validate_assignment=True):
     """Indication from the server about the state of the run.
 
     This is different from resume, a user provided flag.
+    <!-- lazydoc-ignore-class-attributes -->
     """
 
     root_dir: str = Field(default_factory=lambda: os.path.abspath(os.getcwd()))
@@ -467,10 +470,16 @@ class Settings(BaseModel, validate_assignment=True):
     """Path to the system-wide settings file."""
 
     show_colors: Optional[bool] = None
-    """Whether to use colored output in the console."""
+    """Whether to use colored output in the console.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     show_emoji: Optional[bool] = None
-    """Whether to show emoji in the console output."""
+    """Whether to show emoji in the console output.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     show_errors: bool = True
     """Whether to display error messages."""
@@ -485,7 +494,11 @@ class Settings(BaseModel, validate_assignment=True):
     """Flag to suppress all output."""
 
     start_method: Optional[str] = None
-    """Method to use for starting subprocesses."""
+    """Method to use for starting subprocesses.
+    
+    This is deprecated and will be removed in a future release.
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     strict: Optional[bool] = None
     """Whether to enable strict mode for validation and error checking."""
@@ -493,8 +506,11 @@ class Settings(BaseModel, validate_assignment=True):
     summary_timeout: int = 60
     """Time in seconds to wait for summary operations before timing out."""
 
-    summary_warnings: int = 5  # TODO: kill this with fire
-    """Maximum number of summary warnings to display."""
+    summary_warnings: int = 5
+    """Maximum number of summary warnings to display.
+    
+    <!-- lazydoc-ignore-class-attributes -->
+    """
 
     sweep_id: Optional[str] = None
     """Identifier of the sweep this run belongs to."""
@@ -523,6 +539,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_cli_only_mode: bool = False
     """Flag to indicate that the SDK is running in CLI-only mode.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -534,16 +551,19 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_disable_viewer: bool = False
     """Flag to disable the early viewer query.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_disable_machine_info: bool = False
     """Flag to disable automatic machine info collection.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_executable: Optional[str] = None
     """Path to the Python executable.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -561,11 +581,13 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_file_stream_max_line_bytes: Optional[int] = None
     """Maximum line length for filestream JSONL files.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_stream_transmit_interval: Optional[float] = None
     """Interval in seconds between filestream transmissions.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -573,21 +595,25 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_file_stream_retry_max: Optional[int] = None
     """Max number of retries for filestream operations.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_stream_retry_wait_min_seconds: Optional[float] = None
     """Minimum wait time between retries for filestream operations.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_stream_retry_wait_max_seconds: Optional[float] = None
     """Maximum wait time between retries for filestream operations.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_stream_timeout_seconds: Optional[float] = None
     """Timeout in seconds for individual filestream HTTP requests.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -595,26 +621,31 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_file_transfer_retry_max: Optional[int] = None
     """Max number of retries for file transfer operations.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_transfer_retry_wait_min_seconds: Optional[float] = None
     """Minimum wait time between retries for file transfer operations.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_transfer_retry_wait_max_seconds: Optional[float] = None
     """Maximum wait time between retries for file transfer operations.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_file_transfer_timeout_seconds: Optional[float] = None
     """Timeout in seconds for individual file transfer HTTP requests.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_files_dir: Optional[str] = None
     """Override setting for the computed files_dir.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -636,41 +667,49 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_graphql_retry_max: Optional[int] = None
     """Max number of retries for GraphQL operations.
+    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_graphql_retry_wait_min_seconds: Optional[float] = None
     """Minimum wait time between retries for GraphQL operations.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_graphql_retry_wait_max_seconds: Optional[float] = None
     """Maximum wait time between retries for GraphQL operations.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_graphql_timeout_seconds: Optional[float] = None
     """Timeout in seconds for individual GraphQL requests.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_internal_check_process: float = 8.0
     """Interval for internal process health checks in seconds.
+    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_jupyter_name: Optional[str] = None
     """Name of the Jupyter notebook.
+    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_jupyter_path: Optional[str] = None
     """Path to the Jupyter notebook.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_jupyter_root: Optional[str] = None
     """Root directory of the Jupyter notebook.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -683,16 +722,19 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_live_policy_rate_limit: Optional[int] = None
     """Rate limit for live policy updates in seconds.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_live_policy_wait_time: Optional[int] = None
     """Wait time between live policy updates in seconds.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_log_level: int = logging.INFO
     """Logging level for internal operations.
+    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -716,26 +758,24 @@ class Settings(BaseModel, validate_assignment=True):
     x_proxies: Optional[Dict[str, str]] = None
     """Custom proxy servers for requests to W&B.
 
-    This is deprecated and will be removed in future versions.
+    This is deprecated and will be removed in a future release.
     Please use `http_proxy` and `https_proxy` instead.
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_runqueue_item_id: Optional[str] = None
     """ID of the Launch run queue item being processed.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_save_requirements: bool = True
-    """Flag to save the requirements file.
-    <!-- lazydoc-ignore-class-attributes -->
-    """
+    """Flag to save the requirements file."""
 
     x_server_side_derived_summary: bool = False
     """Flag to delegate automatic computation of summary from history to the server.
 
     This does not disable user-provided summary updates.
-    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_server_side_expand_glob_metrics: bool = True
@@ -747,13 +787,12 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_service_transport: Optional[str] = None
     """Transport method for communication with the wandb service.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_service_wait: float = 30.0
-    """Time in seconds to wait for the wandb-core internal service to start.
-    <!-- lazydoc-ignore-class-attributes -->
-    """
+    """Time in seconds to wait for the wandb-core internal service to start."""
 
     x_skip_transaction_log: bool = False
     """Whether to skip saving the run events to the transaction log.
@@ -763,16 +802,17 @@ class Settings(BaseModel, validate_assignment=True):
 
     Should be used with caution, as it removes the gurantees about
     recoverability.
-    <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_start_time: Optional[float] = None
     """The start time of the run in seconds since the Unix epoch.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_stats_pid: int = os.getpid()
     """PID of the process that started the wandb-core process to collect system stats for.
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -789,15 +829,15 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_dcgm_exporter: Optional[str] = None
     """Endpoint to extract Nvidia DCGM metrics from.
 
-    Two options are supported:
-    - Extract DCGM-related metrics from a query to the Prometheus `/api/v1/query` endpoint.
-      It is a common practice to aggregate metrics reported by the instances of the DCGM Exporter
-      running on different nodes in a cluster using Prometheus.
-    - TODO: Parse metrics directly from the `/metrics` endpoint of the DCGM Exporter.
+    Options:
+     - Extract DCGM-related metrics from a query to the Prometheus `/api/v1/query` endpoint.
+        It is a common practice to aggregate metrics reported by the instances of the DCGM Exporter
+        running on different nodes in a cluster using Prometheus.
+     - TODO: Parse metrics directly from the `/metrics` endpoint of the DCGM Exporter.
 
     Examples:
-    - `http://localhost:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337", cluster="globular"}`.
-    - TODO: `http://192.168.0.1:9400/metrics`.
+     - `http://localhost:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337", cluster="globular"}`.
+     - TODO: `http://192.168.0.1:9400/metrics`.
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -810,15 +850,12 @@ class Settings(BaseModel, validate_assignment=True):
     """Filter to apply to metrics collected from OpenMetrics `/metrics` endpoints.
 
     Supports two formats:
-    - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-    - ("metric regex pattern 1", "metric regex pattern 2", ...)
-    <!-- lazydoc-ignore-class-attributes -->
+     - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+     - ("metric regex pattern 1", "metric regex pattern 2", ...)
     """
 
     x_stats_open_metrics_http_headers: Optional[Dict[str, str]] = None
-    """HTTP headers to add to OpenMetrics requests.
-    <!-- lazydoc-ignore-class-attributes -->
-    """
+    """HTTP headers to add to OpenMetrics requests."""
 
     x_stats_disk_paths: Optional[Sequence[str]] = ("/",)
     """System paths to monitor for disk usage."""
@@ -886,6 +923,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_sync: bool = False
     """Flag to indicate whether we are syncing a run from the transaction log.
+    
     <!-- lazydoc-ignore-class-attributes -->
     """
 
