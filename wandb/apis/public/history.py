@@ -30,7 +30,7 @@ class HistoryScan:
         max_step: (int) The maximum step to scan up to
         page_size: (int) Number of samples per page (default is 1000)
 
-    <!-- lazydoc-ignore-class: internal -->        
+    <!-- lazydoc-ignore-class: internal -->
     """
 
     QUERY = gql(

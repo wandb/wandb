@@ -129,7 +129,7 @@ class Sweep(Attrs):
 
     def load(self, force: bool = False):
         """Fetch and update sweep data logged to the run from GraphQL database.
-        
+
         <!-- lazydoc-ignore: internal -->
         """
         if force or not self._attrs:

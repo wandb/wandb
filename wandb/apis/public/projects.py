@@ -154,7 +154,7 @@ class Projects(Paginator["Project"]):
 
     def convert_objects(self):
         """Converts GraphQL edges to File objects.
-        
+
         <!-- lazydoc-ignore: internal -->
         """
         return [

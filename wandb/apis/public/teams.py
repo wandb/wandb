@@ -219,7 +219,7 @@ class Team(Attrs):
 
     def load(self, force=False):
         """Return members that belong to a team.
-        
+
         <!-- lazydoc-ignore: internal -->
         """
         if force or not self._attrs:
