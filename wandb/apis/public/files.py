@@ -139,7 +139,7 @@ class Files(SizedPaginator["File"]):
     def _length(self):
         """
         Returns total number of files.
-        
+
         <!-- lazydoc-ignore: internal -->
         """
         if not self.last_response:
