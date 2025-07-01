@@ -129,7 +129,7 @@ func (m *GPUResourceManager) startGPUCollector() error {
 
 	cmd := exec.Command(
 		cmdPath,
-		"--portfile", pf.path,
+		"--portfile", pf.Path,
 		"--ppid", strconv.Itoa(os.Getpid()),
 	)
 	if m.enableDCGMProfiling {

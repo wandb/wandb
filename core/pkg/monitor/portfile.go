@@ -13,7 +13,7 @@ import (
 // portfile is used to communicate the port number of the gRPC service
 // started by the gpu_stats binary to the wandb-core process.
 type portfile struct {
-	path string
+	Path string
 }
 
 func NewPortfile() *portfile {
@@ -22,7 +22,7 @@ func NewPortfile() *portfile {
 		return nil
 	}
 	_ = file.Close()
-	return &portfile{path: file.Name()}
+	return &portfile{Path: file.Name()}
 }
 
 // Read reads the port number from the portfile.
@@ -30,9 +30,9 @@ func (p *portfile) Read(ctx context.Context) (string, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("timeout reading portfile %s", p.path)
+			return "", fmt.Errorf("timeout reading portfile %s", p.Path)
 		default:
-			target, err := p.readFile()
+			target, err := p.ReadFile()
 			if err != nil {
 				time.Sleep(100 * time.Millisecond)
 				continue
@@ -44,8 +44,8 @@ func (p *portfile) Read(ctx context.Context) (string, error) {
 
 // readFile reads a portfile to find a TCP port or a Unix socket path,
 // then returns a gRPC-compatible target URI string.
-func (p *portfile) readFile() (string, error) {
-	file, err := os.Open(p.path)
+func (p *portfile) ReadFile() (string, error) {
+	file, err := os.Open(p.Path)
 	if err != nil {
 		return "", err
 	}
@@ -56,7 +56,7 @@ func (p *portfile) readFile() (string, error) {
 		if err := scanner.Err(); err != nil {
 			return "", fmt.Errorf("error reading portfile: %v", err)
 		}
-		return "", fmt.Errorf("portfile is empty: %s", p.path)
+		return "", fmt.Errorf("portfile is empty: %s", p.Path)
 	}
 
 	line := scanner.Text()
@@ -73,9 +73,9 @@ func (p *portfile) readFile() (string, error) {
 		return fmt.Sprintf("127.0.0.1:%d", port), nil
 	}
 
-	return "", fmt.Errorf("unknown format in portfile: %s", p.path)
+	return "", fmt.Errorf("unknown format in portfile: %s", p.Path)
 }
 
 func (p *portfile) Delete() error {
-	return os.Remove(p.path)
+	return os.Remove(p.Path)
 }
