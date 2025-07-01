@@ -21,6 +21,7 @@ query RunResumeStatus($project: String, $entity: String, $name: String!) {
       eventsTail
       config
       tags
+      notes
       # Pulling wandbConfig.t is required so that runresume.go can determine if a run has actually started
       wandbConfig(keys: ["t"])
     }
