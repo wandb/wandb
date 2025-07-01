@@ -185,21 +185,7 @@ def box3d(
 
 
 class Object3D(BatchableMedia):
-    """W&B class for 3D point clouds.
-
-    Args:
-        data_or_path: (numpy array, pathlib.Path, string, io)
-            Object3D can be initialized from a file or a numpy array.
-
-    Examples:
-    The shape of the numpy array must be one of either
-
-    ```text
-    [[x y z],       ...] nx3
-    [[x y z c],     ...] nx4 where c is a category with supported range [1, 14]
-    [[x y z r g b], ...] nx6 where is rgb is color
-    ```
-    """
+    """W&B class for 3D point clouds."""
 
     SUPPORTED_TYPES: ClassVar[Set[str]] = {
         "obj",
@@ -218,6 +204,21 @@ class Object3D(BatchableMedia):
         caption: Optional[str] = None,
         **kwargs: Optional[Union[str, "FileFormat3D"]],
     ) -> None:
+        """Creates a W&B Object3D object.
+        
+        Args:
+            data_or_path: (numpy array, pathlib.Path, string, io)
+                Object3D can be initialized from a file or a numpy array.
+
+        Examples:
+        The shape of the numpy array must be one of either
+
+        ```text
+        [[x y z],       ...] nx3
+        [[x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+        [[x y z r g b], ...] nx6 where is rgb is color
+        ```                
+        """
         super().__init__(caption=caption)
 
         if hasattr(data_or_path, "name") and not isinstance(data_or_path, pathlib.Path):

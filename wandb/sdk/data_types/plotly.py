@@ -31,11 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Plotly(Media):
-    """W&B class for Plotly plots.
-
-    Args:
-        val: Matplotlib or Plotly figure.
-    """
+    """W&B class for Plotly plots."""
 
     _log_type = "plotly-file"
 
@@ -54,6 +50,11 @@ class Plotly(Media):
         return cls(val)
 
     def __init__(self, val: Union["plotly.Figure", "matplotlib.artist.Artist"]):
+        """Initialize a Plotly object.
+
+        Args:
+            val: Matplotlib or Plotly figure.
+        """
         super().__init__()
         # First, check to see if the incoming `val` object is a plotfly figure
         if not util.is_plotly_figure_typename(util.get_full_typename(val)):

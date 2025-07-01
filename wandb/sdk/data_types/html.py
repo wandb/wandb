@@ -17,13 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Html(BatchableMedia):
-    """W&B class for logging HTML content to W&B.
-
-    Args:
-        data: HTML to display in wandb
-        inject: Add a stylesheet to the HTML object.  If set
-            to False the HTML will pass through unchanged.
-    """
+    """W&B class for logging HTML content to W&B."""
 
     _log_type = "html-file"
 

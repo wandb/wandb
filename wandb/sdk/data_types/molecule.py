@@ -23,14 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Molecule(BatchableMedia):
-    """W&B class for 3D Molecular data.
-
-    Args:
-        data_or_path: (pathlib.Path, string, io)
-            Molecule can be initialized from a file name or an io object.
-        caption: (string)
-            Caption associated with the molecule for display.
-    """
+    """W&B class for 3D Molecular data."""
 
     SUPPORTED_TYPES = {
         "pdb",
@@ -53,6 +46,15 @@ class Molecule(BatchableMedia):
         caption: Optional[str] = None,
         **kwargs: str,
     ) -> None:
+        """Initialize a Molecule object.
+        
+        
+        Args:
+            data_or_path: (pathlib.Path, string, io)
+                Molecule can be initialized from a file name or an io object.
+            caption: (string)
+                Caption associated with the molecule for display.
+        """
         super().__init__(caption=caption)
 
         if hasattr(data_or_path, "name"):
