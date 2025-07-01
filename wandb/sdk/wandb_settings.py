@@ -300,7 +300,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     heartbeat_seconds: int = 30
     """Interval in seconds between heartbeat signals sent to the W&B servers.
-    
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -471,13 +471,13 @@ class Settings(BaseModel, validate_assignment=True):
 
     show_colors: Optional[bool] = None
     """Whether to use colored output in the console.
-    
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     show_emoji: Optional[bool] = None
     """Whether to show emoji in the console output.
-    
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -495,7 +495,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     start_method: Optional[str] = None
     """Method to use for starting subprocesses.
-    
+
     This is deprecated and will be removed in a future release.
     <!-- lazydoc-ignore-class-attributes -->
     """
@@ -923,7 +923,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_sync: bool = False
     """Flag to indicate whether we are syncing a run from the transaction log.
-    
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
