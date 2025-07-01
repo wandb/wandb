@@ -508,7 +508,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     summary_warnings: int = 5
     """Maximum number of summary warnings to display.
-    
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -667,7 +667,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_graphql_retry_max: Optional[int] = None
     """Max number of retries for GraphQL operations.
-    
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
@@ -691,13 +691,13 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_internal_check_process: float = 8.0
     """Interval for internal process health checks in seconds.
-    
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
     x_jupyter_name: Optional[str] = None
     """Name of the Jupyter notebook.
-    
+
     <!-- lazydoc-ignore-class-attributes -->
     """
 
