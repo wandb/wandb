@@ -202,7 +202,9 @@ func supportsUDS() bool {
 	if err != nil {
 		return false
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	socketPath := filepath.Join(tempDir, "test.sock")
 
