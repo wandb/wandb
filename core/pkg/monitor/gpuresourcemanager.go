@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -128,12 +129,14 @@ func (m *GPUResourceManager) startGPUCollector() error {
 
 	cmd := exec.Command(
 		cmdPath,
-		"--portfile", pf.path,
-		"--ppid", strconv.Itoa(os.Getpid()),
+		"--portfile", pf.Path,
+		"--parent-pid", strconv.Itoa(os.Getpid()),
 	)
-
 	if m.enableDCGMProfiling {
 		cmd.Args = append(cmd.Args, "--enable-dcgm-profiling")
+	}
+	if !supportsUDS() {
+		cmd.Args = append(cmd.Args, "--listen-on-localhost")
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -142,14 +145,14 @@ func (m *GPUResourceManager) startGPUCollector() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	port, err := pf.Read(ctx)
+	targetURI, err := pf.Read(ctx)
 	if err != nil {
 		_ = cmd.Process.Kill()
 		return fmt.Errorf("monitor: could not get GPU binary port: %v", err)
 	}
 
 	conn, err := grpc.NewClient(
-		fmt.Sprintf("127.0.0.1:%d", port),
+		targetURI,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 
@@ -184,4 +187,34 @@ func getGPUCollectorCmdPath() (string, error) {
 		return "", err
 	}
 	return exPath, nil
+}
+
+// supportUDS performs a runtime check for Unix Domain Socket support.
+//
+// On non-Windows systems supported by W&B, it assumes that UDS is supported.
+// On Windows, it attempts to create a temporary UDS listener to verify support.
+func supportsUDS() bool {
+	if runtime.GOOS != "windows" {
+		return true
+	}
+
+	tempDir, err := os.MkdirTemp("", "uds-support-check-*")
+	if err != nil {
+		return false
+	}
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	socketPath := filepath.Join(tempDir, "test.sock")
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		return false
+	}
+	if err = listener.Close(); err != nil {
+		return false
+	}
+
+	return true
 }
