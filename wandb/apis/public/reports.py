@@ -79,7 +79,7 @@ class Reports(SizedPaginator["BetaReport"]):
     @property
     def _length(self):
         """The number of reports in the project.
-        
+
         <!-- lazydoc-ignore: internal -->
         """
         # TODO: Add the count the backend
