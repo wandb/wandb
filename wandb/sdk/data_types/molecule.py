@@ -47,8 +47,7 @@ class Molecule(BatchableMedia):
         **kwargs: str,
     ) -> None:
         """Initialize a Molecule object.
-        
-        
+
         Args:
             data_or_path: (pathlib.Path, string, io)
                 Molecule can be initialized from a file name or an io object.
