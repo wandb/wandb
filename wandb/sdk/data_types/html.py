@@ -52,7 +52,7 @@ class Html(BatchableMedia):
         ```python
         with wandb.init() as run:
             run.log({"html": wandb.Html("<h1>Hello, world!</h1>")})
-        ```        
+        ```
         """
         super().__init__()
         data_is_path = (
