@@ -119,14 +119,14 @@ class Files(SizedPaginator["File"]):
 
     def __init__(self, client, run, names=None, per_page=50, upload=False):
         """An iterable collection of `File` objects for a specific run.
-        
+
         Args:
         client: The run object that contains the files
         run: The run object that contains the files
         names (list, optional): A list of file names to filter the files
         per_page (int, optional): The number of files to fetch per page
         upload (bool, optional): If `True`, fetch the upload URL for each file
-        
+
         """
         self.run = run
         variables = {
