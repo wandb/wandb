@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -50,40 +49,31 @@ func (p *portfile) readFile() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() {
-		_ = file.Close()
-	}()
-
-	unixPathRe := regexp.MustCompile(`unix=(.+)`)
-	tcpPortRe := regexp.MustCompile(`sock=(\d+)`)
+	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	if scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		fmt.Println("+++ ", line)
-
-		matchUnixPath := unixPathRe.FindStringSubmatch(line)
-		if matchUnixPath != nil {
-			fmt.Println(matchUnixPath)
-			return fmt.Sprintf("unix://%s", matchUnixPath[1]), nil
+	if !scanner.Scan() {
+		if err := scanner.Err(); err != nil {
+			return "", fmt.Errorf("error reading portfile: %v", err)
 		}
-
-		matchTcpPort := tcpPortRe.FindStringSubmatch(line)
-		if matchTcpPort != nil {
-			fmt.Println(matchTcpPort)
-			port, err := strconv.Atoi(matchTcpPort[1])
-			if err != nil {
-				return "", fmt.Errorf("failed to parse TCP port number: %v", err)
-			}
-			return fmt.Sprintf("127.0.0.1:%d", port), nil
-		}
+		return "", fmt.Errorf("portfile is empty: %s", p.path)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("error reading file: %v", err)
+	line := scanner.Text()
+
+	if path, found := strings.CutPrefix(line, "unix="); found {
+		return fmt.Sprintf("unix:%s", path), nil
 	}
 
-	return "", fmt.Errorf("no data found in file %s", p.path)
+	if portStr, found := strings.CutPrefix(line, "sock="); found {
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			return "", fmt.Errorf("invalid port in portfile: %q, %v", portStr, err)
+		}
+		return fmt.Sprintf("127.0.0.1:%d", port), nil
+	}
+
+	return "", fmt.Errorf("unknown format in portfile: %s", p.path)
 }
 
 func (p *portfile) Delete() error {
