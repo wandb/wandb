@@ -36,13 +36,13 @@ class Histogram(WBValue):
         num_bins: int = 64,
     ) -> None:
         """Initialize a Histogram object.
-        
+
         Args:
         sequence: Input data for histogram.
         np_histogram: Alternative input of a precomputed histogram.
         num_bins: Number of bins for the histogram.  The default number of bins
             is 64. The maximum number of bins is 512.
-            
+
         Examples:
         Generate histogram from a sequence.
 
@@ -60,7 +60,7 @@ class Histogram(WBValue):
 
         hist = np.histogram(data)
         wandb.Histogram(np_histogram=hist)
-        ```            
+        ```
         """
         if np_histogram:
             if len(np_histogram) == 2:

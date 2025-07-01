@@ -31,14 +31,14 @@ class Audio(BatchableMedia):
         caption: Optional[str] = None,
     ):
         """Accept a path to an audio file or a numpy array of audio data.
-        
+
         Attributes:
         data_or_path (string or numpy array): A path to an audio file
             or a numpy array of audio data.
         sample_rate (int): Sample rate, required when passing in raw
             numpy array of audio data.
         caption (string): Caption to display with audio.
-        
+
         """
         super().__init__(caption=caption)
         self._duration = None
