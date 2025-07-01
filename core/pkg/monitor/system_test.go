@@ -1,6 +1,7 @@
 package monitor_test
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -40,7 +41,7 @@ func TestSLURMProbe(t *testing.T) {
 			}
 
 			slurm := monitor.NewSystem(monitor.SystemParams{Pid: 0, DiskPaths: []string{"/"}})
-			result := slurm.Probe()
+			result := slurm.Probe(context.Background())
 
 			if !reflect.DeepEqual(result.Slurm, tt.expected.Slurm) {
 				t.Errorf("Probe() = %v, want %v", result, tt.expected)

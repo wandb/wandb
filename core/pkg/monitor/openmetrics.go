@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
@@ -324,6 +325,6 @@ func GenerateLabelHash(labels map[string]string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (o *OpenMetrics) Probe() *spb.EnvironmentRecord {
+func (o *OpenMetrics) Probe(_ context.Context) *spb.EnvironmentRecord {
 	return nil
 }
