@@ -65,14 +65,14 @@ def test_registry_artifact_url(
     source_artifact: Artifact,
     target_collection_name: str,
 ):
-    run = wandb.init()
-    base_url = util.app_url(run.settings.base_url)
-    linked_artifact = run.link_artifact(
-        source_artifact, f"{registry.full_name}/{target_collection_name}"
-    )
-    collection_path = f"{org_entity}/{registry.full_name}/{target_collection_name}"
-    encoded_selection_path = quote(collection_path, safe="")
+    with wandb.init() as run:
+        base_url = util.app_url(run.settings.base_url)
+        linked_artifact = run.link_artifact(
+            source_artifact, f"{registry.full_name}/{target_collection_name}"
+        )
+        collection_path = f"{org_entity}/{registry.full_name}/{target_collection_name}"
+        encoded_selection_path = quote(collection_path, safe="")
 
-    expected_url = f"{base_url}/orgs/{org}/registry/{registry.name}?selectionPath={encoded_selection_path}&view=membership&version={linked_artifact.version}"
+        expected_url = f"{base_url}/orgs/{org}/registry/{registry.name}?selectionPath={encoded_selection_path}&view=membership&version={linked_artifact.version}"
 
-    assert linked_artifact.url == expected_url
+        assert linked_artifact.url == expected_url
