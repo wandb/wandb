@@ -3,6 +3,7 @@ package launch_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -1065,4 +1066,93 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 			},
 		},
 	}, files)
+}
+
+func TestPythonVersionExtraction(t *testing.T) {
+	t.Run("Extract Python version from different formats", func(t *testing.T) {
+		testCases := []struct {
+			name               string
+			pythonStr          string
+			expectedRuntime    string
+			expectedEntrypoint string
+		}{
+			{
+				name:               "Python implementation with version",
+				pythonStr:          "CPython 3.8.10",
+				expectedRuntime:    "CPython 3.8.10",
+				expectedEntrypoint: "python3.8",
+			},
+			{
+				name:               "Plain version string",
+				pythonStr:          "3.10.5",
+				expectedRuntime:    "3.10.5",
+				expectedEntrypoint: "python3.10",
+			},
+			{
+				name:               "PyPy implementation",
+				pythonStr:          "PyPy 3.9.16",
+				expectedRuntime:    "PyPy 3.9.16",
+				expectedEntrypoint: "python3.9",
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				ctx := context.Background()
+				gql := gqlmock.NewMockClient()
+
+				metadata := map[string]interface{}{
+					"python": tc.pythonStr,
+					"git": map[string]interface{}{
+						"commit": "1234567890",
+						"remote": "example.com",
+					},
+					"codePath": "/path/to/train.py",
+				}
+
+				fdir := filepath.Join(os.TempDir(), fmt.Sprintf("test_python_%s", tc.name))
+				err := os.MkdirAll(fdir, 0777)
+				assert.Nil(t, err)
+				writeRequirements(t, fdir)
+				writeWandbMetadata(t, fdir, metadata)
+
+				defer func() {
+					_ = os.RemoveAll(fdir)
+				}()
+
+				settings := &spb.Settings{
+					Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
+					Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
+					RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
+					FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
+				}
+
+				jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+				artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
+				assert.Nil(t, err)
+
+				for _, content := range artifact.Manifest.Contents {
+					if content.Path == "wandb-job.json" {
+						jobFile, err := os.Open(content.LocalPath)
+						assert.Nil(t, err)
+						defer func() {
+							_ = jobFile.Close()
+						}()
+						data := make(map[string]interface{})
+						err = json.NewDecoder(jobFile).Decode(&data)
+						assert.Nil(t, err)
+
+						// Verify the runtime is the full string
+						assert.Equal(t, tc.expectedRuntime, data["runtime"],
+							"Runtime field should match the original Python string")
+
+						// Verify the entry point uses just the major.minor version
+						entrypoint := data["source"].(map[string]interface{})["entrypoint"].([]interface{})
+						assert.Equal(t, tc.expectedEntrypoint, entrypoint[0],
+							"Entrypoint should use major.minor version only")
+					}
+				}
+			})
+		}
+	})
 }
