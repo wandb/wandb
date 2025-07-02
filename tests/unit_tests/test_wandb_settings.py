@@ -557,3 +557,42 @@ def test_program_relpath_windows(root_dir, expected_result):
 def test_run_id_validation(restricted_chars):
     with pytest.raises(UsageError):
         Settings(run_id=f"test{restricted_chars}")
+
+
+def test_run_tags_validation_valid():
+    """Test that valid tags pass validation."""
+    # Valid tags
+    valid_tags = ("tag1", "a", "x" * 64)  # 1 char, normal tag, 64 chars (max)
+    settings = Settings(run_tags=valid_tags)
+    assert settings.run_tags == valid_tags
+    
+    # None should be allowed
+    settings = Settings(run_tags=None)
+    assert settings.run_tags is None
+
+
+def test_run_tags_validation_invalid():
+    """Test that invalid tags raise UsageError."""
+    # Empty tag
+    with pytest.raises(UsageError, match="Tags must be between 1 and 64 characters"):
+        Settings(run_tags=("valid_tag", ""))
+    
+    # Tag too long (65 characters)
+    with pytest.raises(UsageError, match="Tags must be between 1 and 64 characters"):
+        Settings(run_tags=("valid_tag", "x" * 65))
+    
+    # Multiple invalid tags
+    with pytest.raises(UsageError, match="Tags must be between 1 and 64 characters"):
+        Settings(run_tags=("", "x" * 65, "valid_tag"))
+
+
+def test_run_tags_validation_environment_variable():
+    """Test that tag validation works when set via environment variable."""
+    import os
+    from unittest.mock import patch
+    
+    # Test invalid tag via environment variable
+    with patch.dict(os.environ, {"WANDB_TAGS": "valid_tag," + "x" * 65}):
+        settings = Settings()
+        with pytest.raises(UsageError, match="Tags must be between 1 and 64 characters"):
+            settings.update_from_env_vars(dict(os.environ))
