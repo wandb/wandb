@@ -51,6 +51,7 @@ from wandb.apis.public.utils import (
 )
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.sdk import wandb_login
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -290,7 +291,20 @@ class Api:
 
         self._api_key = api_key
         if self.api_key is None and _thread_local_api_settings.cookies is None:
-            wandb.login(host=_overrides.get("base_url"))
+            wandb_login._login(
+                host=self.settings["base_url"],
+                verify=True,
+                _silent=self.settings.get("silent", False)
+                or self.settings.get("quiet", False),
+            )
+        elif self.api_key and not _thread_local_api_settings.cookies:
+            wandb_login._login(
+                host=self.settings["base_url"],
+                verify=True,
+                key=self.api_key,
+                _silent=self.settings.get("silent", False)
+                or self.settings.get("quiet", False),
+            )
 
         self._viewer = None
         self._projects = {}
