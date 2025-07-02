@@ -54,6 +54,8 @@ class SyncThread(threading.Thread):
         log_path=None,
         append=None,
         skip_console=None,
+        fix_tags=None,
+        replace_tags=None,
     ):
         threading.Thread.__init__(self)
         # mark this process as internal
@@ -71,9 +73,46 @@ class SyncThread(threading.Thread):
         self._log_path = log_path
         self._append = append
         self._skip_console = skip_console
+        self._fix_tags = fix_tags
+        self._replace_tags = replace_tags
 
         self._tmp_dir = tempfile.TemporaryDirectory()
         atexit.register(self._tmp_dir.cleanup)
+
+    def _process_tags(self, original_tags):
+        """Process tags based on the configured options."""
+        if self._replace_tags is not None:
+            # Replace all tags with the provided list
+            new_tags = [tag.strip() for tag in self._replace_tags.split(",") if tag.strip()]
+            if new_tags != original_tags:
+                wandb.termlog(f"Replacing tags {original_tags} → {new_tags}")
+            return new_tags
+        
+        if self._fix_tags:
+            # Fix invalid tags (truncate to 64 chars, remove empty)
+            new_tags = []
+            modified = False
+            
+            for tag in original_tags:
+                if len(tag) == 0:
+                    # Skip empty tags
+                    modified = True
+                    continue
+                elif len(tag) > 64:
+                    # Truncate long tags
+                    truncated = tag[:64]
+                    new_tags.append(truncated)
+                    modified = True
+                else:
+                    new_tags.append(tag)
+            
+            if modified:
+                wandb.termlog(f"Fixed invalid tags: {original_tags} → {new_tags}")
+            
+            return new_tags
+        
+        # No modifications requested, return original tags
+        return original_tags
 
     def _parse_pb(self, data, exit_pb=None):
         pb = wandb_internal_pb2.Record()
@@ -94,6 +133,15 @@ class SyncThread(threading.Thread):
                 pb.run.entity = self._entity
             if self._job_type:
                 pb.run.job_type = self._job_type
+            
+            # Process tags if modification options are provided
+            if self._fix_tags or self._replace_tags is not None:
+                original_tags = list(pb.run.tags)
+                processed_tags = self._process_tags(original_tags)
+                # Clear existing tags and add processed ones
+                del pb.run.tags[:]
+                pb.run.tags.extend(processed_tags)
+            
             pb.control.req_resp = True
         elif record_type in ("output", "output_raw") and self._skip_console:
             return pb, exit_pb, True
@@ -338,6 +386,8 @@ class SyncManager:
         log_path=None,
         append=None,
         skip_console=None,
+        fix_tags=None,
+        replace_tags=None,
     ):
         self._sync_list = []
         self._thread = None
@@ -353,6 +403,8 @@ class SyncManager:
         self._log_path = log_path
         self._append = append
         self._skip_console = skip_console
+        self._fix_tags = fix_tags
+        self._replace_tags = replace_tags
 
     def status(self):
         pass
@@ -376,6 +428,8 @@ class SyncManager:
             log_path=self._log_path,
             append=self._append,
             skip_console=self._skip_console,
+            fix_tags=self._fix_tags,
+            replace_tags=self._replace_tags,
         )
         self._thread.start()
 

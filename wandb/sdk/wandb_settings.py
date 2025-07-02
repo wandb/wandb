@@ -1309,20 +1309,6 @@ class Settings(BaseModel, validate_assignment=True):
             return str(value)
         return value
 
-    @field_validator("run_tags", mode="after")
-    @classmethod
-    def validate_run_tags(cls, value):
-        if value is None:
-            return None
-        
-        invalid_tags = [tag for tag in value if len(tag) < 1 or len(tag) > 64]
-        if invalid_tags:
-            from wandb.errors import UsageError
-            raise UsageError(
-                f"Invalid tag(s): {invalid_tags}. Tags must be between 1 and 64 characters."
-            )
-        return value
-
     # Computed fields.
 
     @computed_field  # type: ignore[prop-decorator]
