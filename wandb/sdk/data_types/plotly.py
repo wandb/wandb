@@ -31,11 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Plotly(Media):
-    """Wandb class for plotly plots.
-
-    Args:
-        val: matplotlib or plotly figure
-    """
+    """W&B class for Plotly plots."""
 
     _log_type = "plotly-file"
 
@@ -43,6 +39,10 @@ class Plotly(Media):
     def make_plot_media(
         cls: Type["Plotly"], val: Union["plotly.Figure", "matplotlib.artist.Artist"]
     ) -> Union[Image, "Plotly"]:
+        """Create a Plotly object from a Plotly figure or a matplotlib artist.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         if util.is_matplotlib_typename(util.get_full_typename(val)):
             if util.matplotlib_contains_images(val):
                 return Image(val)
@@ -50,6 +50,11 @@ class Plotly(Media):
         return cls(val)
 
     def __init__(self, val: Union["plotly.Figure", "matplotlib.artist.Artist"]):
+        """Initialize a Plotly object.
+
+        Args:
+            val: Matplotlib or Plotly figure.
+        """
         super().__init__()
         # First, check to see if the incoming `val` object is a plotfly figure
         if not util.is_plotly_figure_typename(util.get_full_typename(val)):
@@ -74,9 +79,17 @@ class Plotly(Media):
 
     @classmethod
     def get_media_subdir(cls: Type["Plotly"]) -> str:
+        """Returns the media subdirectory for Plotly plots.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         return os.path.join("media", "plotly")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        """Convert the Plotly object to a JSON representation.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict
