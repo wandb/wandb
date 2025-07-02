@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/simplejsonext"
-	"github.com/wandb/wandb/core/pkg/monitor"
+	"github.com/wandb/wandb/core/internal/monitor"
 )
 
 func TestTrainiumSample(t *testing.T) {
