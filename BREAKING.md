@@ -117,3 +117,8 @@ When preparing a release that can include breaking changes, consider applying ch
     - Owner: @jacobromero
     - Deprecated in 0.21.0
     - can do in >= 0.22
+
+- Remove `wandb.api.public.api.py::create_run`:
+    - Owner: @jacobromero
+    - Deprecated in 0.21.1
+    - Can do in >= 0.22
