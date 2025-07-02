@@ -52,6 +52,7 @@ from wandb_gql import gql
 
 import wandb
 from wandb import env, util
+from wandb.analytics.sentry import capture_usage_in_sentry
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
@@ -517,6 +518,7 @@ class Run(Attrs):
         return new_name
 
     @classmethod
+    @capture_usage_in_sentry
     def create(
         cls,
         api,
