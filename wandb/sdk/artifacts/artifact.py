@@ -80,6 +80,7 @@ from ._validators import (
     ensure_logged,
     ensure_not_finalized,
     is_artifact_registry_project,
+    remove_registry_prefix,
     validate_aliases,
     validate_artifact_name,
     validate_artifact_type,
@@ -839,7 +840,7 @@ class Artifact:
         )
         return urljoin(
             base_url,
-            f"orgs/{org.display_name}/registry/{self._type}?selectionPath={selection_path}&view=membership&version={self._version}",
+            f"orgs/{org.display_name}/registry/{remove_registry_prefix(self.project)}?selectionPath={selection_path}&view=membership&version={self.version}",
         )
 
     def _construct_model_registry_url(self, base_url: str) -> str:
