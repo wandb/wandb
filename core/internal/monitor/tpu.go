@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandb/wandb/core/pkg/monitor/tpuproto"
+	"github.com/wandb/wandb/core/internal/monitor/tpuproto"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/local"
