@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/wandb/simplejsonext"
-	"github.com/wandb/wandb/core/pkg/monitor"
-	"github.com/wandb/wandb/core/pkg/monitor/tpuproto"
+	"github.com/wandb/wandb/core/internal/monitor"
+	"github.com/wandb/wandb/core/internal/monitor/tpuproto"
 	"google.golang.org/grpc"
 )
 
