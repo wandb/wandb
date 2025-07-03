@@ -558,6 +558,6 @@ jobs:
           slack-message: |
             W&B SDK ${{ github.event.inputs.version }} released :tada::
             - PyPI: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/
-            - Release notes: https://wandb.ai/wandb/sdk/releases/tag/v${{ github.event.inputs.version }}
+            - Release notes: https://github.com/wandb/wandb/releases/tag/v${{ github.event.inputs.version }}
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
