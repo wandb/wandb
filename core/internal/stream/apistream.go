@@ -122,7 +122,9 @@ func (s *APIStream) GetSettings() *settings.Settings {
 }
 
 func (s *APIStream) Start() {
-
+	// TODO: start sender and dispatcher
+	s.wg.Add(1)
+	s.wg.Done()
 }
 
 func (s *APIStream) HandleRecord(record *spb.Record) {}

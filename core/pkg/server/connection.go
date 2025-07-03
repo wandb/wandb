@@ -458,6 +458,7 @@ func (nc *Connection) handleInformInitAPI(msg *spb.ServerInformInitAPIRequest) {
 		},
 	)
 	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+	strm.Start()
 	slog.Info("handleInformInitAPI: API stream started", "streamId", streamId, "id", nc.id)
 
 	if err := nc.streamMux.AddStream(streamId, strm); err != nil {
