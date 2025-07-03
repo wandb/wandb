@@ -2795,11 +2795,14 @@ class Run:
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
                 Supported aggregations include "min", "max", "mean", "last",
-                "best", "copy" and "none". "best" is used together with the
-                goal parameter. "none" prevents a summary from being generated.
-                "copy" is deprecated and should not be used.
+                "first", "best", "copy" and "none". "none" prevents a summary
+                from being generated. "best" is used together with the goal
+                parameter, "best" is deprecated and should not be used, use
+                "min" or "max" instead. "copy" is deprecated and should not be
+                used.
             goal: Specify how to interpret the "best" summary type.
-                Supported options are "minimize" and "maximize".
+                Supported options are "minimize" and "maximize". "goal" is
+                deprecated and should not be used, use "min" or "max" instead.
             overwrite: If false, then this call is merged with previous
                 `define_metric` calls for the same metric by using their
                 values for any unspecified parameters. If true, then
@@ -2872,7 +2875,7 @@ class Run:
         if summary:
             summary_items = [s.lower() for s in summary.split(",")]
             summary_ops = []
-            valid = {"min", "max", "mean", "best", "last", "copy", "none"}
+            valid = {"min", "max", "mean", "best", "last", "copy", "none", "first"}
             # TODO: deprecate copy and best
             for i in summary_items:
                 if i not in valid:
