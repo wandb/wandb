@@ -312,6 +312,14 @@ def patch_apikey(mocker: MockerFixture, dummy_api_key: str):
 
 
 @pytest.fixture
+def patch_verify_login(monkeypatch):
+    monkeypatch.setattr(
+        wandb.sdk.wandb_login._WandbLogin, "_verify_login", unittest.mock.MagicMock()
+    )
+    yield
+
+
+@pytest.fixture
 def patch_prompt(monkeypatch):
     monkeypatch.setattr(
         wandb.util, "prompt_choices", lambda x, input_timeout=None, jupyter=False: x[0]
@@ -368,7 +376,12 @@ def clean_up():
 
 @pytest.fixture
 def api() -> wandb.PublicApi:
-    return Api()
+    with unittest.mock.patch.object(
+        wandb.sdk.wandb_login,
+        "_login",
+        return_value=None,
+    ):
+        yield Api()
 
 
 # --------------------------------

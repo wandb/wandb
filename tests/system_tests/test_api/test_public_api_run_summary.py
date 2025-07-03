@@ -1,5 +1,17 @@
+import unittest
+
 import pytest
 import wandb
+
+
+@pytest.fixture(autouse=True)
+def patch_login():
+    with unittest.mock.patch.object(
+        wandb.sdk.wandb_login,
+        "_login",
+        return_value=True,
+    ):
+        yield
 
 
 def test_delete_summary_metric_w_no_lazyload(user):
