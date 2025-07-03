@@ -33,14 +33,15 @@ Note:
 
 from contextlib import suppress
 
-from requests import HTTPError
 from wandb_gql import gql
 
+from requests import HTTPError
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.api import RetryingClient
+from wandb.apis.public.sweeps import Sweeps
 from wandb.sdk.lib import ipython
 
 PROJECT_FRAGMENT = """fragment ProjectFragment on Project {
@@ -241,45 +242,16 @@ class Project(Attrs):
         return public.ArtifactTypes(self.client, self.entity, self.name)
 
     @normalize_exceptions
-    def sweeps(self):
-        """Fetches all sweeps associated with the project."""
-        query = gql(
-            """
-            query GetSweeps($project: String!, $entity: String!) {{
-                project(name: $project, entityName: $entity) {{
-                    totalSweeps
-                    sweeps {{
-                        edges {{
-                            node {{
-                                ...SweepFragment
-                            }}
-                            cursor
-                        }}
-                        pageInfo {{
-                            endCursor
-                            hasNextPage
-                        }}
-                    }}
-                }}
-            }}
-            {}
-            """.format(public.SWEEP_FRAGMENT)
-        )
-        variable_values = {"project": self.name, "entity": self.entity}
-        ret = self.client.execute(query, variable_values)
-        if not ret.get("project") or ret["project"]["totalSweeps"] < 1:
-            return []
+    def sweeps(self, per_page=50):
+        """Return a paginated collection of sweeps in this project.
 
-        return [
-            # match format of existing public sweep apis
-            public.Sweep(
-                self.client,
-                self.entity,
-                self.name,
-                e["node"]["name"],
-            )
-            for e in ret["project"]["sweeps"]["edges"]
-        ]
+        Args:
+            per_page: The number of sweeps to fetch per request to the API.
+
+        Returns:
+            A `Sweeps` object, which is an iterable collection of `Sweep` objects.
+        """
+        return Sweeps(self.client, self.entity, self.name, per_page=per_page)
 
     _PROJECT_ID = gql(
         """
