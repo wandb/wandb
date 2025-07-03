@@ -1053,6 +1053,7 @@ class MetricSummary(google.protobuf.message.Message):
     LAST_FIELD_NUMBER: builtins.int
     NONE_FIELD_NUMBER: builtins.int
     COPY_FIELD_NUMBER: builtins.int
+    FIRST_FIELD_NUMBER: builtins.int
     min: builtins.bool
     max: builtins.bool
     mean: builtins.bool
@@ -1060,6 +1061,7 @@ class MetricSummary(google.protobuf.message.Message):
     last: builtins.bool
     none: builtins.bool
     copy: builtins.bool
+    first: builtins.bool
     def __init__(
         self,
         *,
@@ -1070,8 +1072,9 @@ class MetricSummary(google.protobuf.message.Message):
         last: builtins.bool = ...,
         none: builtins.bool = ...,
         copy: builtins.bool = ...,
+        first: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["best", b"best", "copy", b"copy", "last", b"last", "max", b"max", "mean", b"mean", "min", b"min", "none", b"none"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["best", b"best", "copy", b"copy", "first", b"first", "last", b"last", "max", b"max", "mean", b"mean", "min", b"min", "none", b"none"]) -> None: ...
 
 global___MetricSummary = MetricSummary
 

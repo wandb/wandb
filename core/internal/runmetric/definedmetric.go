@@ -68,6 +68,9 @@ func (m definedMetric) With(
 		if record.Summary.Last {
 			m.SummaryTypes |= runsummary.Latest
 		}
+		if record.Summary.First {
+			m.SummaryTypes |= runsummary.First
+		}
 	}
 
 	switch record.Goal {
@@ -120,6 +123,9 @@ func (m definedMetric) ToRecord(name string, isGlob bool) *spb.MetricRecord {
 	}
 	if m.SummaryTypes.HasAny(runsummary.Latest) {
 		rec.Summary.Last = true
+	}
+	if m.SummaryTypes.HasAny(runsummary.First) {
+		rec.Summary.First = true
 	}
 
 	switch m.MetricGoal {
