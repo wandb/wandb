@@ -318,7 +318,7 @@ def _login(
     if verify:
         wlogin._verify_login(key)
 
-    if not key_is_pre_configured or key != apikey.api_key(settings=wlogin._settings):
+    if not key_is_pre_configured:
         wlogin.try_save_api_key(key)
         wlogin.update_session(key, status=key_status)
         wlogin._update_global_anonymous_setting()
