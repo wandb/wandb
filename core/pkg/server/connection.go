@@ -55,7 +55,7 @@ type Connection struct {
 	// connections.
 	stopServer context.CancelFunc
 
-	// The underlying network connection. This represents the raw TCP connection
+	// The underlying network connection. This represents the raw connection
 	// layer that facilitates communication between the client and the server.
 	conn net.Conn
 
@@ -307,6 +307,8 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleInformStart(x.InformStart)
 		case *spb.ServerRequest_InformAttach:
 			nc.handleInformAttach(msg.RequestId, x.InformAttach)
+		case *spb.ServerRequest_InformInitApi:
+			nc.handleInformInitAPI(x.InformInitApi)
 		case *spb.ServerRequest_RecordPublish:
 			nc.handleInformRecord(x.RecordPublish)
 		case *spb.ServerRequest_RecordCommunicate:
@@ -392,8 +394,15 @@ func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
 			"handleInformStart: error getting stream",
 			"err", err, "id", nc.id)
 	} else {
-		strm.UpdateSettings(settings.From(msg.GetSettings()))
-		strm.UpdateRunURLTag()
+		rstrm, ok := strm.(*stream.Stream)
+		if !ok {
+			slog.Error(
+				"handleInformStart: error asserting type of stream",
+				"err", fmt.Errorf("process: want runStream, got %T", strm), "id", nc.id)
+			return
+		}
+		rstrm.UpdateSettings(settings.From(msg.GetSettings()))
+		rstrm.UpdateRunURLTag()
 	}
 }
 
@@ -429,6 +438,34 @@ func (nc *Connection) handleInformAttach(
 		}
 		nc.Respond(resp)
 	}
+}
+
+// handleInformInitAPI handles the init API message from the client.
+func (nc *Connection) handleInformInitAPI(msg *spb.ServerInformInitAPIRequest) {
+	settings := settings.From(msg.GetSettings())
+
+	streamId := msg.GetXInfo().GetStreamId()
+	slog.Info("handleInformStartAPI: received", "streamId", streamId, "id", nc.id)
+
+	sentryClient := sentry_ext.New(sentry_ext.Params{Disabled: true})
+
+	strm := stream.NewAPIStream(
+		stream.APIStreamParams{
+			Settings:   settings,
+			LogLevel:   nc.logLevel,
+			Sentry:     sentryClient,
+			LoggerPath: nc.loggerPath,
+		},
+	)
+	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+	slog.Info("handleInformInitAPI: API stream started", "streamId", streamId, "id", nc.id)
+
+	if err := nc.streamMux.AddStream(streamId, strm); err != nil {
+		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
+		return
+	}
+
+	fmt.Println("+++ LOOK MA, I INIT A NEW API STREAM!!")
 }
 
 // handleAuthenticate processes client authentication messages.
@@ -548,7 +585,7 @@ func (nc *Connection) handleInformTeardown(teardown *spb.ServerInformTeardownReq
 	slog.Info("handleInformTeardown: server shutdown complete", "id", nc.id)
 }
 
-// Close closes the underlying TCP connection.
+// Close closes the underlying connection.
 //
 // Any blocked reads or writes will return an error.
 func (nc *Connection) Close() {
