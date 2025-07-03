@@ -76,6 +76,11 @@ logger = logging.getLogger(__name__)
 
 
 class RetryingClient:
+    """A GraphQL client that retries requests on failure.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
     INFO_QUERY = gql(
         """
         query ServerInfo{
