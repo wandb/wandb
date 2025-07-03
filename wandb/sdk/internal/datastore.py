@@ -24,8 +24,6 @@ import struct
 import zlib
 from typing import TYPE_CHECKING, Optional, Tuple
 
-import wandb
-
 if TYPE_CHECKING:
     from typing import IO, Any
 
@@ -77,10 +75,6 @@ class DataStore:
         self._crc = [0] * (LEVELDBLOG_LAST + 1)
         for x in range(1, LEVELDBLOG_LAST + 1):
             self._crc[x] = zlib.crc32(strtobytes(chr(x))) & 0xFFFFFFFF
-
-        assert (
-            wandb._assert_is_internal_process  # type: ignore
-        ), "DataStore can only be used in the internal process"
 
     def open_for_write(self, fname: str) -> None:
         self._fname = fname
