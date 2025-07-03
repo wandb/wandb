@@ -140,7 +140,7 @@ def test_login_anonymous():
         assert wandb.setup().settings.anonymous == "must"
 
 
-def test_login_sets_api_base_url(local_settings):
+def test_login_sets_api_base_url(local_settings, patch_verify_login):
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
         base_url = "https://api.test.host.ai"
         wandb.login(anonymous="must", host=base_url)
