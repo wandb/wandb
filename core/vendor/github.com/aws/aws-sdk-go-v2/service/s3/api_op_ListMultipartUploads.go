@@ -183,6 +183,9 @@ type ListMultipartUploadsInput struct {
 	// the substring starts at the beginning of the key. The keys that are grouped
 	// under CommonPrefixes result element are not returned elsewhere in the response.
 	//
+	// CommonPrefixes is filtered out from results if it is not lexicographically
+	// greater than the key-marker.
+	//
 	// Directory buckets - For directory buckets, / is the only supported delimiter.
 	Delimiter *string
 

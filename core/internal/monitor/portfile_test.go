@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wandb/wandb/core/pkg/monitor"
+	"github.com/wandb/wandb/core/internal/monitor"
 )
 
 func writeToTempFile(t *testing.T, path, content string) {

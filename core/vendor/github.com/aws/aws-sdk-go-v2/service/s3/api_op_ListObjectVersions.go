@@ -79,6 +79,9 @@ type ListObjectVersionsInput struct {
 	// delimiter are grouped under a single result element in CommonPrefixes . These
 	// groups are counted as one result against the max-keys limitation. These keys
 	// are not returned elsewhere in the response.
+	//
+	// CommonPrefixes is filtered out from results if it is not lexicographically
+	// greater than the key-marker.
 	Delimiter *string
 
 	// Encoding type used by Amazon S3 to encode the [object keys] in the response. Responses are

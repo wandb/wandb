@@ -1,3 +1,8 @@
+"""W&B Public API for integrations.
+
+This module provides classes for interacting with W&B integrations.
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Iterable
@@ -32,14 +37,20 @@ class Integrations(Paginator["Integration"]):
 
     @property
     def more(self) -> bool:
-        """Whether there are more Integrations to fetch."""
+        """Whether there are more Integrations to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return True
         return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self) -> str | None:
-        """The start cursor to use for the next page."""
+        """The start cursor to use for the next page.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None:
             return None
         return self.last_response.page_info.end_cursor
@@ -67,6 +78,11 @@ class Integrations(Paginator["Integration"]):
 
 
 class WebhookIntegrations(Paginator["WebhookIntegration"]):
+    """An iterable collection of `WebhookIntegration` objects.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
     last_response: GenericWebhookIntegrationConnectionFields | None
     _query: Document
 
@@ -126,6 +142,11 @@ class WebhookIntegrations(Paginator["WebhookIntegration"]):
 
 
 class SlackIntegrations(Paginator["SlackIntegration"]):
+    """An iterable collection of `SlackIntegration` objects.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
     last_response: SlackIntegrationConnectionFields | None
     _query: Document
 

@@ -2565,6 +2565,23 @@ func validateCORSRules(v []types.CORSRule) error {
 	}
 }
 
+func validateCreateBucketConfiguration(v *types.CreateBucketConfiguration) error {
+	if v == nil {
+		return nil
+	}
+	invalidParams := smithy.InvalidParamsError{Context: "CreateBucketConfiguration"}
+	if v.Tags != nil {
+		if err := validateTagSet(v.Tags); err != nil {
+			invalidParams.AddNested("Tags", err.(smithy.InvalidParamsError))
+		}
+	}
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	} else {
+		return nil
+	}
+}
+
 func validateDelete(v *types.Delete) error {
 	if v == nil {
 		return nil
@@ -4058,6 +4075,11 @@ func validateOpCreateBucketInput(v *CreateBucketInput) error {
 	invalidParams := smithy.InvalidParamsError{Context: "CreateBucketInput"}
 	if v.Bucket == nil {
 		invalidParams.Add(smithy.NewErrParamRequired("Bucket"))
+	}
+	if v.CreateBucketConfiguration != nil {
+		if err := validateCreateBucketConfiguration(v.CreateBucketConfiguration); err != nil {
+			invalidParams.AddNested("CreateBucketConfiguration", err.(smithy.InvalidParamsError))
+		}
 	}
 	if invalidParams.Len() > 0 {
 		return invalidParams

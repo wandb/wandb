@@ -23,14 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Molecule(BatchableMedia):
-    """Wandb class for 3D Molecular data.
-
-    Args:
-        data_or_path: (pathlib.Path, string, io)
-            Molecule can be initialized from a file name or an io object.
-        caption: (string)
-            Caption associated with the molecule for display.
-    """
+    """W&B class for 3D Molecular data."""
 
     SUPPORTED_TYPES = {
         "pdb",
@@ -53,6 +46,12 @@ class Molecule(BatchableMedia):
         caption: Optional[str] = None,
         **kwargs: str,
     ) -> None:
+        """Initialize a Molecule object.
+
+        Args:
+            data_or_path: Molecule can be initialized from a file name or an io object.
+            caption: Caption associated with the molecule for display.
+        """
         super().__init__(caption=caption)
 
         if hasattr(data_or_path, "name"):
@@ -116,6 +115,8 @@ class Molecule(BatchableMedia):
                 This is an expensive operation that may take a long time for complicated molecules.
             mmff_optimize_molecule_max_iterations: (int)
                 Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
+
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         rdkit_chem = util.get_module(
             "rdkit.Chem",
@@ -172,17 +173,17 @@ class Molecule(BatchableMedia):
         """Convert SMILES string to wandb.Molecule.
 
         Args:
-            data: (string)
-                SMILES string.
-            caption: (string)
-                Caption associated with the molecule for display
-            sanitize: (bool)
-                Check if the molecule is chemically reasonable by the RDKit's definition.
-            convert_to_3d_and_optimize: (bool)
-                Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
-                This is an expensive operation that may take a long time for complicated molecules.
-            mmff_optimize_molecule_max_iterations: (int)
-                Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
+            data: SMILES string.
+            caption: Caption associated with the molecule for display.
+            sanitize: Check if the molecule is chemically reasonable by
+                the RDKit's definition.
+            convert_to_3d_and_optimize: Convert to rdkit.Chem.rdchem.Mol
+                with 3D coordinates. This is a computationally intensive
+                operation that may take a long time for complicated molecules.
+            mmff_optimize_molecule_max_iterations: Number of iterations to
+                use in rdkit.Chem.AllChem.MMFFOptimizeMolecule.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         rdkit_chem = util.get_module(
             "rdkit.Chem",
@@ -201,9 +202,17 @@ class Molecule(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Molecule"]) -> str:
+        """Get media subdirectory.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         return os.path.join("media", "molecule")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict
@@ -216,6 +225,10 @@ class Molecule(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
+        """Convert a sequence of Molecule objects to a JSON representation.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         seq = list(seq)
 
         jsons = [obj.to_json(run) for obj in seq]

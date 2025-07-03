@@ -1,3 +1,7 @@
+# v1.83.0 (2025-07-02)
+
+* **Feature**: Added support for directory bucket creation with tags and bucket ARN retrieval in CreateBucket, ListDirectoryBuckets, and HeadBucket operations
+
 # v1.82.0 (2025-06-25)
 
 * **Feature**: Adds support for additional server-side encryption mode and storage class values for accessing Amazon FSx data from Amazon S3 using S3 Access Points

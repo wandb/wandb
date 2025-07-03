@@ -149,6 +149,9 @@ type ListObjectsV2Input struct {
 
 	// A delimiter is a character that you use to group keys.
 	//
+	// CommonPrefixes is filtered out from results if it is not lexicographically
+	// greater than the StartAfter value.
+	//
 	//   - Directory buckets - For directory buckets, / is the only supported delimiter.
 	//
 	//   - Directory buckets - When you query ListObjectsV2 with a delimiter during
