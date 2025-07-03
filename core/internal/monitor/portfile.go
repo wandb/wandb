@@ -17,7 +17,7 @@ type portfile struct {
 }
 
 func NewPortfile() *portfile {
-	file, err := os.CreateTemp("", ".wandb-system-monitor-portfile-*")
+	file, err := os.CreateTemp("", "wandb-system-monitor-portfile-*")
 	if err != nil {
 		return nil
 	}
