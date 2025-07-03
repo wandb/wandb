@@ -1,5 +1,8 @@
 class QueryGenerator:
-    """QueryGenerator is a helper object to write filters for runs."""
+    """QueryGenerator is a helper object to write filters for runs.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
 
     INDIVIDUAL_OP_TO_MONGO = {
         "!=": "$ne",
@@ -21,6 +24,7 @@ class QueryGenerator:
 
     @classmethod
     def format_order_key(cls, key: str):
+        """Format a key for sorting."""
         if key.startswith(("+", "-")):
             direction = key[0]
             key = key[1:]
@@ -50,6 +54,7 @@ class QueryGenerator:
             return {self.INDIVIDUAL_OP_TO_MONGO[op]: value}
 
     def key_to_server_path(self, key):
+        """Convert a key dictionary to the corresponding server path string."""
         if key["section"] == "config":
             return "config." + key["name"]
         elif key["section"] == "summary":
@@ -63,6 +68,7 @@ class QueryGenerator:
         raise ValueError("Invalid key: {}".format(key))
 
     def server_path_to_key(self, path):
+        """Convert a server path string to the corresponding key dictionary."""
         if path.startswith("config."):
             return {"section": "config", "name": path.split("config.", 1)[1]}
         elif path.startswith("summary_metrics."):
@@ -75,6 +81,7 @@ class QueryGenerator:
             return {"section": "run", "name": path}
 
     def keys_to_order(self, keys):
+        """Convert a list of key dictionaries to an order string."""
         orders = []
         for key in keys["keys"]:
             order = self.key_to_server_path(key["key"])
@@ -87,6 +94,7 @@ class QueryGenerator:
         return orders
 
     def order_to_keys(self, order):
+        """Convert an order string to a list of key dictionaries."""
         keys = []
         for k in order:  # orderstr.split(","):
             name = k[1:]
@@ -127,6 +135,7 @@ class QueryGenerator:
         return {path: self._to_mongo_op_value(filter["op"], filter["value"])}
 
     def filter_to_mongo(self, filter):
+        """Returns dictionary with filter format converted to MongoDB filter."""
         if self._is_individual(filter):
             return self._to_mongo_individual(filter)
         elif self._is_group(filter):
@@ -137,6 +146,7 @@ class QueryGenerator:
             }
 
     def mongo_to_filter(self, filter):
+        """Returns dictionary with MongoDB filter converted to filter format."""
         # Returns {"op": "OR", "filters": [{"op": "AND", "filters": []}]}
         if filter is None:
             return None  # this covers the case where self.filter_to_mongo returns None.
