@@ -268,6 +268,15 @@ func (in *CreateBucketInput) bindEndpointParams(p *EndpointParameters) {
 
 type CreateBucketOutput struct {
 
+	// The Amazon Resource Name (ARN) of the S3 bucket. ARNs uniquely identify Amazon
+	// Web Services resources across all of Amazon Web Services.
+	//
+	// This parameter is only supported for S3 directory buckets. For more
+	// information, see [Using tags with directory buckets].
+	//
+	// [Using tags with directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-tagging.html
+	BucketArn *string
+
 	// A forward slash followed by the name of the bucket.
 	Location *string
 
