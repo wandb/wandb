@@ -2,7 +2,10 @@ from typing import Optional
 
 
 class Error(Exception):
-    """Base W&B Error."""
+    """Base W&B Error.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
 
     def __init__(self, message, context: Optional[dict] = None) -> None:
         super().__init__(message)
