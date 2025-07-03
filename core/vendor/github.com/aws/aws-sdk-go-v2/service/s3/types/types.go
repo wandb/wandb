@@ -179,6 +179,15 @@ type AnalyticsS3BucketDestination struct {
 // In terms of implementation, a Bucket is a resource.
 type Bucket struct {
 
+	// The Amazon Resource Name (ARN) of the S3 bucket. ARNs uniquely identify Amazon
+	// Web Services resources across all of Amazon Web Services.
+	//
+	// This parameter is only supported for S3 directory buckets. For more
+	// information, see [Using tags with directory buckets].
+	//
+	// [Using tags with directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-tagging.html
+	BucketArn *string
+
 	// BucketRegion indicates the Amazon Web Services region where the bucket is
 	// located. If the request contains at least one valid parameter, it is included in
 	// the response.
@@ -615,6 +624,16 @@ type CreateBucketConfiguration struct {
 	// [Regions and Endpoints]: https://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region
 	LocationConstraint BucketLocationConstraint
 
+	// An array of tags that you can apply to the bucket that you're creating. Tags
+	// are key-value pairs of metadata used to categorize and organize your buckets,
+	// track costs, and control access.
+	//
+	// This parameter is only supported for S3 directory buckets. For more
+	// information, see [Using tags with directory buckets].
+	//
+	// [Using tags with directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-tagging.html
+	Tags []Tag
+
 	noSmithyDocumentSerde
 }
 
@@ -870,6 +889,8 @@ type Destination struct {
 	//
 	// For valid values, see the StorageClass element of the [PUT Bucket replication] action in the Amazon S3
 	// API Reference.
+	//
+	// FSX_OPENZFS is not an accepted value when replicating objects.
 	//
 	// [PUT Bucket replication]: https://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketPUTreplication.html
 	StorageClass StorageClass

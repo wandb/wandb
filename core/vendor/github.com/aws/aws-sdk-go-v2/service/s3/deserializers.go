@@ -749,6 +749,11 @@ func awsRestxml_deserializeOpHttpBindingsCreateBucketOutput(v *CreateBucketOutpu
 		return fmt.Errorf("unsupported deserialization for nil %T", v)
 	}
 
+	if headerValues := response.Header.Values("x-amz-bucket-arn"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.BucketArn = ptr.String(headerValues[0])
+	}
+
 	if headerValues := response.Header.Values("Location"); len(headerValues) != 0 {
 		headerValues[0] = strings.TrimSpace(headerValues[0])
 		v.Location = ptr.String(headerValues[0])
@@ -7611,6 +7616,11 @@ func awsRestxml_deserializeOpHttpBindingsHeadBucketOutput(v *HeadBucketOutput, r
 			return err
 		}
 		v.AccessPointAlias = ptr.Bool(vv)
+	}
+
+	if headerValues := response.Header.Values("x-amz-bucket-arn"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.BucketArn = ptr.String(headerValues[0])
 	}
 
 	if headerValues := response.Header.Values("x-amz-bucket-location-name"); len(headerValues) != 0 {
@@ -14783,6 +14793,19 @@ func awsRestxml_deserializeDocumentBucket(v **types.Bucket, decoder smithyxml.No
 		originalDecoder := decoder
 		decoder = smithyxml.WrapNodeDecoder(originalDecoder.Decoder, t)
 		switch {
+		case strings.EqualFold("BucketArn", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.BucketArn = ptr.String(xtv)
+			}
+
 		case strings.EqualFold("BucketRegion", t.Name.Local):
 			val, err := decoder.Value()
 			if err != nil {
