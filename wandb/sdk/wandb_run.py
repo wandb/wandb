@@ -1016,8 +1016,8 @@ class Run:
         return self._settings.run_job_type or ""
 
     def project_name(self) -> str:
-        """This method is deprecated and will be removed in a future release. Use `run.project` instead. 
-        
+        """This method is deprecated and will be removed in a future release. Use `run.project` instead.
+
         Name of the W&B project associated with the run.
 
         <!-- lazydoc-ignore: internal -->
