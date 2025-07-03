@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -53,6 +55,8 @@ type APISender struct {
 
 	// fileTransferManager is the file uploader/downloader
 	fileTransferManager filetransfer.FileTransferManager
+
+	outChan chan *spb.Result
 }
 
 func NewAPIStream(params APIStreamParams) *APIStream {
@@ -64,11 +68,41 @@ func NewAPIStream(params APIStreamParams) *APIStream {
 		params.LogLevel,
 	)
 
+	id := randomid.GenerateUniqueID(32)
+
+	peeker := &observability.Peeker{}
+	backend := NewBackend(logger, params.Settings)
+	graphqlClient := NewGraphQLClient(
+		backend,
+		params.Settings,
+		peeker,
+		id,
+	)
+	fileTransferStats := filetransfer.NewFileTransferStats()
+	fileTransferManager := NewFileTransferManager(
+		fileTransferStats,
+		logger,
+		params.Settings,
+	)
+	featureProvider := featurechecker.NewServerFeaturesCache(
+		context.TODO(),
+		graphqlClient,
+		logger,
+	)
+
+	sender := &APISender{
+		featureProvider:     featureProvider,
+		graphqlClient:       graphqlClient,
+		fileTransferManager: fileTransferManager,
+		outChan:             make(chan *spb.Result, BufferSize),
+	}
+
 	return &APIStream{
 		logger:       logger,
 		sentryClient: params.Sentry,
 		settings:     params.Settings,
 		dispatcher:   NewDispatcher(logger),
+		sender:       sender,
 	}
 }
 
@@ -85,6 +119,10 @@ func (s *APIStream) UpdateSettings(newSettings *settings.Settings) {
 // GetSettings returns the stream's settings.
 func (s *APIStream) GetSettings() *settings.Settings {
 	return s.settings
+}
+
+func (s *APIStream) Start() {
+
 }
 
 func (s *APIStream) HandleRecord(record *spb.Record) {}
