@@ -173,6 +173,16 @@ class BackendFixtureFactory:
         """Create a new user and return their username."""
         name = name or f"user-{self.worker_id}-{random_string()}"
 
+        # many tests use the username as the API key.
+        # However, the API key must be 40 characters long.
+        # So we need to pad the username with random characters
+        # if it's less than 40 characters.
+        missing_chars = 40 - len(name)
+        if missing_chars > 0:
+            name = name + random_string(length=missing_chars)
+        else:
+            name = name[:40]
+
         self.send_cmds(
             UserCmd("up", username=name, admin=admin),
             UserCmd("password", username=name, password=name, admin=admin),
