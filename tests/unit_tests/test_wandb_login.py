@@ -85,7 +85,12 @@ def test_login_timeout(mock_tty):
     platform.system() == "Windows",
     reason="mock_tty does not support windows input yet",
 )
-def test_login_timeout_choose(mock_tty):
+def test_login_timeout_choose(mock_tty, tmp_path: Path):
+    netrc_path = tmp_path / ".netrc"
+    netrc_path.touch()
+
+    os.environ["NETRC"] = str(netrc_path)
+
     mock_tty("3\n")
     ret = wandb.login(timeout=8)
     assert ret is False
@@ -93,7 +98,12 @@ def test_login_timeout_choose(mock_tty):
     assert wandb.setup().settings.mode == "offline"
 
 
-def test_login_timeout_env_blank(mock_tty):
+def test_login_timeout_env_blank(mock_tty, tmp_path: Path):
+    netrc_path = tmp_path / ".netrc"
+    netrc_path.touch()
+
+    os.environ["NETRC"] = str(netrc_path)
+
     mock_tty("\n\n\n")
     with mock.patch.dict(os.environ, {"WANDB_LOGIN_TIMEOUT": "4"}):
         ret = wandb.login()
@@ -116,7 +126,12 @@ def test_relogin_timeout(dummy_api_key):
     assert logged_in is True
 
 
-def test_login_key(capsys):
+def test_login_key(capsys, tmp_path: Path):
+    netrc_path = tmp_path / ".netrc"
+    netrc_path.touch()
+
+    os.environ["NETRC"] = str(netrc_path)
+
     wandb.login(key="A" * 40)
     # TODO: this was a bug when tests were leaking out to the global config
     # wandb.api.set_setting("base_url", "http://localhost:8080")
@@ -133,7 +148,12 @@ def test_login(test_settings):
     wandb.finish()
 
 
-def test_login_anonymous():
+def test_login_anonymous(tmp_path: Path):
+    netrc_path = tmp_path / ".netrc"
+    netrc_path.touch()
+
+    os.environ["NETRC"] = str(netrc_path)
+
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
         wandb.login(anonymous="must")
         assert wandb.api.api_key == "ANONYMOOSE" * 4
@@ -152,7 +172,12 @@ def test_login_sets_api_base_url(local_settings, patch_verify_login):
         assert api.settings["base_url"] == base_url
 
 
-def test_login_invalid_key():
+def test_login_invalid_key(tmp_path: Path):
+    netrc_path = tmp_path / ".netrc"
+    netrc_path.touch()
+
+    os.environ["NETRC"] = str(netrc_path)
+
     with mock.patch(
         "wandb.apis.internal.Api.validate_api_key",
         return_value=False,
