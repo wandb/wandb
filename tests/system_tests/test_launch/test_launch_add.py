@@ -1,4 +1,5 @@
 import os
+import unittest
 from unittest import mock
 
 import pytest
@@ -13,6 +14,16 @@ from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, LaunchError
 class MockBranch:
     def __init__(self, name):
         self.name = name
+
+
+@pytest.fixture(autouse=True)
+def patch_login():
+    with unittest.mock.patch.object(
+        wandb.sdk.wandb_login,
+        "_login",
+        return_value=True,
+    ):
+        yield
 
 
 @pytest.fixture

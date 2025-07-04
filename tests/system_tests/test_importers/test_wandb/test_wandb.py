@@ -1,8 +1,19 @@
 import unittest
 
 import pytest
+import wandb
 from wandb.apis.importers import Namespace
 from wandb.apis.importers.wandb import WandbImporter
+
+
+@pytest.fixture(autouse=True)
+def patch_login():
+    with unittest.mock.patch.object(
+        wandb.sdk.wandb_login,
+        "_login",
+        return_value=True,
+    ):
+        yield
 
 
 @pytest.mark.xfail(reason="TODO: Breaks on server > 0.57.4")

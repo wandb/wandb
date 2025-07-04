@@ -1,4 +1,5 @@
 import json
+import unittest
 
 import pytest
 import wandb
@@ -17,6 +18,16 @@ SWEEP_CONFIGURATION = {
         "lr": {"max": 0.1, "min": 0.0001},
     },
 }
+
+
+@pytest.fixture(autouse=True)
+def patch_login():
+    with unittest.mock.patch.object(
+        wandb.sdk.wandb_login,
+        "_login",
+        return_value=True,
+    ):
+        yield
 
 
 def test_create_run_queue_template_variables_not_supported(runner, user, monkeypatch):
