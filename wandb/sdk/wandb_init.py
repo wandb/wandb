@@ -1100,7 +1100,6 @@ def _attach(
         raise UsageError(
             "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
         )
-    wandb._assert_is_user_process()  # type: ignore
 
     _wl = wandb_setup.singleton()
     logger = _wl._get_logger()
@@ -1484,8 +1483,6 @@ def init(  # noqa: C901
         KeyboardInterrupt: If the user interrupts the run initialization process.
             If the user interrupts the run initialization process.
     """
-    wandb._assert_is_user_process()  # type: ignore
-
     init_telemetry = telemetry.TelemetryRecord()
 
     init_settings = Settings()

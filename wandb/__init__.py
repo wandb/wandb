@@ -83,32 +83,6 @@ from wandb.sdk.internal import profiler
 # Artifact import types
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 
-# Used to make sure we don't use some code in the incorrect process context
-_IS_INTERNAL_PROCESS = False
-
-
-def _set_internal_process(disable=False):
-    global _IS_INTERNAL_PROCESS
-    if _IS_INTERNAL_PROCESS is None:
-        return
-    if disable:
-        _IS_INTERNAL_PROCESS = None
-        return
-    _IS_INTERNAL_PROCESS = True
-
-
-def _assert_is_internal_process():
-    if _IS_INTERNAL_PROCESS is None:
-        return
-    assert _IS_INTERNAL_PROCESS
-
-
-def _assert_is_user_process():
-    if _IS_INTERNAL_PROCESS is None:
-        return
-    assert not _IS_INTERNAL_PROCESS
-
-
 # globals
 Api = PublicApi
 api = InternalApi()
