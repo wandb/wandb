@@ -110,6 +110,17 @@ class ServiceConnection:
         request._info.stream_id = run_id
         self._client.send_server_request(spb.ServerRequest(inform_init=request))
 
+    def inform_init_api(
+        self,
+        settings: wandb_settings_pb2.Settings,
+        stream_id: str,
+    ) -> None:
+        """Send an init request to the service."""
+        request = spb.ServerInformInitAPIRequest()
+        request.settings.CopyFrom(settings)
+        request._info.stream_id = stream_id
+        self._client.send_server_request(spb.ServerRequest(inform_init_api=request))
+
     def inform_finish(self, run_id: str) -> None:
         """Send an finish request to the service."""
         request = spb.ServerInformFinishRequest()
