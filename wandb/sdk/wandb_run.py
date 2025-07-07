@@ -1997,8 +1997,8 @@ class Run:
         ```
 
         Raises:
-            wandb.Error: if called before `wandb.init`
-            ValueError: if invalid data is passed
+            wandb.Error: If called before `wandb.init()`.
+            ValueError: If invalid data is passed.
 
         """
         if step is not None:
@@ -2938,7 +2938,7 @@ class Run:
 
         Raises:
             ValueError:
-                If `wandb.init` has not been called or if any of the models are not instances
+                If `wandb.init()` has not been called or if any of the models are not instances
                 of `torch.nn.Module`.
         """
         wandb.sdk._watch(self, models, criterion, log, log_freq, idx, log_graph)
@@ -3468,12 +3468,12 @@ class Run:
             - model_artifact_name:version
             - model_artifact_name:alias
 
-        Raises:
-            AssertionError: If model artifact 'name' is of a type that does
-            not contain the substring 'model'.
-
         Returns:
             path (str): Path to downloaded model artifact file(s).
+
+        Raises:
+            AssertionError: If model artifact 'name' is of a type that does
+                not contain the substring 'model'.            
         """
         if self._settings._offline:
             # Downloading artifacts is not supported when offline.
@@ -3543,7 +3543,7 @@ class Run:
             ValueError: If name has invalid special characters.
 
         Returns:
-            The linked artifact if linking was successful, otherwise None.
+            The linked artifact if linking was successful, otherwise `None`.
         """
         name_parts = registered_model_name.split("/")
         if len(name_parts) != 1:
@@ -3986,7 +3986,7 @@ def restore(
         None if it can't find the file, otherwise a file object open for reading.
 
     Raises:
-        wandb.CommError: If W&B can't connect to the W&B backend.
+        CommError: If W&B can't connect to the W&B backend.
         ValueError: If the file is not found or can't find run_path.
     """
     is_disabled = wandb.run is not None and wandb.run.disabled

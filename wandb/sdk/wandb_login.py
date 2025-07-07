@@ -70,7 +70,7 @@ def login(
 
 
     Returns:
-        bool: If `key` is configured
+        bool: If `key` is configured.
 
     Raises:
         AuthenticationError: If `api_key` fails verification with the server.

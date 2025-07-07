@@ -340,7 +340,7 @@ class _WandbInit:
     def _load_autoresume_run_id(self, resume_file: pathlib.Path) -> str | None:
         """Returns the run_id stored in the auto-resume file, if any.
 
-        Returns None if the file does not exist or is not in a valid format.
+        Returns `None` if the file does not exist or is not in a valid format.
 
         Args:
             resume_file: The file path to use for resume='auto' mode.
@@ -1428,12 +1428,12 @@ def init(  # noqa: C901
             settings for the run.
 
     Raises:
-        Error: if some unknown or internal error happened during the run
+        Error: If some unknown or internal error happened during the run
             initialization.
-        AuthenticationError: if the user failed to provide valid credentials.
-        CommError: if there was a problem communicating with the WandB server.
-        UsageError: if the user provided invalid arguments.
-        KeyboardInterrupt: if user interrupts the run.
+        AuthenticationError: If the user failed to provide valid credentials.
+        CommError: If there was a problem communicating with the WandB server.
+        UsageError: If the user provided invalid arguments.
+        KeyboardInterrupt: If user interrupts the run.
 
     Returns:
         A `Run` object.
