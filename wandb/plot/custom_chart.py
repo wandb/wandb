@@ -85,7 +85,7 @@ def plot_table(
     This function creates a custom chart based on a Vega-Lite specification and
     a data table represented by a `wandb.Table` object. The specification needs
     to be predefined and stored in the W&B backend. The function returns a custom
-    chart object that can be logged to W&B using `wandb.log()`.
+    chart object that can be logged to W&B using `wandb.Run.log()`.
 
     Args:
         vega_spec_name: The name or identifier of the Vega-Lite spec
@@ -102,7 +102,7 @@ def plot_table(
 
     Returns:
         CustomChart: A custom chart object that can be logged to W&B. To log the
-            chart, pass it to `wandb.log()`.
+            chart, pass the chart object as argument to `wandb.Run.log()`.
 
     Raises:
         wandb.Error: If `data_table` is not a `wandb.Table` object.
