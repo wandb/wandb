@@ -177,7 +177,7 @@ class Runs(SizedPaginator["Run"]):
         entity: str,
         project: str,
         filters: Optional[Dict[str, Any]] = None,
-        order: Optional[str] = None,
+        order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
     ):

@@ -221,7 +221,7 @@ class Sweep(Attrs):
         entity=None,
         project=None,
         sid=None,
-        order=None,
+        order: str = "+created_at",
         query=None,
         **kwargs,
     ):
