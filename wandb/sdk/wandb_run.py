@@ -3473,7 +3473,7 @@ class Run:
 
         Raises:
             AssertionError: If model artifact 'name' is of a type that does
-                not contain the substring 'model'.            
+                not contain the substring 'model'.
         """
         if self._settings._offline:
             # Downloading artifacts is not supported when offline.

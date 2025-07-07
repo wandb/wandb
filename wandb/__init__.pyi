@@ -389,12 +389,12 @@ def init(
             settings for the run.
 
     Raises:
-        Error: if some unknown or internal error happened during the run
+        Error: If some unknown or internal error happened during the run
             initialization.
-        AuthenticationError: if the user failed to provide valid credentials.
-        CommError: if there was a problem communicating with the WandB server.
-        UsageError: if the user provided invalid arguments.
-        KeyboardInterrupt: if user interrupts the run.
+        AuthenticationError: If the user failed to provide valid credentials.
+        CommError: If there was a problem communicating with the WandB server.
+        UsageError: If the user provided invalid arguments.
+        KeyboardInterrupt: If user interrupts the run.
 
     Returns:
         A `Run` object.
@@ -469,7 +469,7 @@ def login(
 
 
     Returns:
-        bool: If `key` is configured
+        bool: If `key` is configured.
 
     Raises:
         AuthenticationError: If `api_key` fails verification with the server.
@@ -721,8 +721,8 @@ def log(
     ```
 
     Raises:
-        wandb.Error: if called before `wandb.init`
-        ValueError: if invalid data is passed
+        wandb.Error: If called before `wandb.init()`.
+        ValueError: If invalid data is passed.
     """
     ...
 
@@ -820,7 +820,7 @@ def sweep(
       prior_runs: The run IDs of existing runs to add to this sweep.
 
     Returns:
-      sweep_id: str. A unique identifier for the sweep.
+      sweep_id: (str) A unique identifier for the sweep.
     """
     ...
 
@@ -1036,12 +1036,12 @@ def use_model(name: str) -> FilePathStr:
         - model_artifact_name:version
         - model_artifact_name:alias
 
-    Raises:
-        AssertionError: If model artifact 'name' is of a type that does
-        not contain the substring 'model'.
-
     Returns:
         path (str): Path to downloaded model artifact file(s).
+
+    Raises:
+        AssertionError: If model artifact 'name' is of a type that does
+            not contain the substring 'model'.
     """
     ...
 
@@ -1089,7 +1089,7 @@ def link_model(
         ValueError: If name has invalid special characters.
 
     Returns:
-        The linked artifact if linking was successful, otherwise None.
+        The linked artifact if linking was successful, otherwise `None`.
     """
     ...
 
@@ -1175,7 +1175,7 @@ def watch(
 
     Raises:
         ValueError:
-            If `wandb.init` has not been called or if any of the models are not instances
+            If `wandb.init()` has not been called or if any of the models are not instances
             of `torch.nn.Module`.
     """
     ...
@@ -1213,7 +1213,7 @@ def restore(
         None if it can't find the file, otherwise a file object open for reading.
 
     Raises:
-        wandb.CommError: If W&B can't connect to the W&B backend.
+        CommError: If W&B can't connect to the W&B backend.
         ValueError: If the file is not found or can't find run_path.
     """
     ...
