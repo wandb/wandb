@@ -1141,8 +1141,8 @@ class Api:
                 For example: `{"config.experiment_name": "foo"}` would find runs with a config entry
                     of experiment name set to "foo"
             order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
-                If you prepend order with a + order is ascending.
-                If you prepend order with a - order is descending (default).
+                If you prepend order with a + order is ascending (default).
+                If you prepend order with a - order is descending.
                 The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
             include_sweeps: (bool) Whether to include the sweep runs in the results.
