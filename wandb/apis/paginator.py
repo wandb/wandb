@@ -13,6 +13,8 @@ from typing import (
     overload,
 )
 
+import wandb
+
 if TYPE_CHECKING:
     from wandb_graphql.language.ast import Document
 
@@ -112,14 +114,25 @@ class Paginator(Iterator[T]):
 class SizedPaginator(Paginator[T], Sized):
     """A Paginator for objects with a known total count."""
 
+    @property
+    def length(self) -> int | None:
+        wandb.termwarn(
+            (
+                "`.length` is deprecated and will be removed in a future version. "
+                "Use `len(...)` instead."
+            ),
+            repeat=False,
+        )
+        return len(self)
+
     def __len__(self) -> int:
-        if self.length is None:
+        if self._length is None:
             self._load_page()
-        if self.length is None:
+        if self._length is None:
             raise ValueError("Object doesn't provide length")
-        return self.length
+        return self._length
 
     @property
     @abstractmethod
-    def length(self) -> int | None:
+    def _length(self) -> int | None:
         raise NotImplementedError

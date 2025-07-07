@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/wandb/wandb/core/pkg/monitor"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gitops"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"

@@ -555,6 +555,9 @@ jobs:
           # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
           channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
           # For posting a simple plain text message
-          slack-message: "W&B SDK ${{ github.event.inputs.version }} released :tada:: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/"
+          slack-message: |
+            W&B SDK ${{ github.event.inputs.version }} released :tada::
+            - PyPI: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/
+            - Release notes: https://github.com/wandb/wandb/releases/tag/v${{ github.event.inputs.version }}
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

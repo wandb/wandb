@@ -942,16 +942,17 @@ func ContinueFromHeaders(trace, baggage string) SpanOption {
 	return func(s *Span) {
 		if trace != "" {
 			s.updateFromSentryTrace([]byte(trace))
-		}
-		if baggage != "" {
-			s.updateFromBaggage([]byte(baggage))
-		}
 
-		// In case a sentry-trace header is present but there are no sentry-related
-		// values in the baggage, create an empty, frozen DynamicSamplingContext.
-		if trace != "" && !s.dynamicSamplingContext.HasEntries() {
-			s.dynamicSamplingContext = DynamicSamplingContext{
-				Frozen: true,
+			if baggage != "" {
+				s.updateFromBaggage([]byte(baggage))
+			}
+
+			// In case a sentry-trace header is present but there are no sentry-related
+			// values in the baggage, create an empty, frozen DynamicSamplingContext.
+			if !s.dynamicSamplingContext.HasEntries() {
+				s.dynamicSamplingContext = DynamicSamplingContext{
+					Frozen: true,
+				}
 			}
 		}
 	}
