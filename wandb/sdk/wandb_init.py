@@ -1440,17 +1440,16 @@ def init(  # noqa: C901
 
 
     Examples:
-    `wandb.init()` returns a run object, and you can also access the run object
-    with `wandb.run`:
+    `wandb.init()` returns a `run` object. Use the run object to log data,
+    save artifacts, and manage the run lifecycle.
 
     ```python
     import wandb
 
     config = {"lr": 0.01, "batch_size": 32}
     with wandb.init(config=config) as run:
-        run.config.update({"architecture": "resnet", "depth": 34})
-
-        # ... your training code here ...
+        # The run object is available as `run`
+        run.log({"accuracy": acc, "loss": loss})
     ```
     """
     wandb._assert_is_user_process()  # type: ignore

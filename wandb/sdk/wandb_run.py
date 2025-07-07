@@ -41,6 +41,7 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib import asyncio_compat, wb_logging
@@ -62,7 +63,7 @@ from wandb.util import (
 from . import wandb_config, wandb_metric, wandb_summary
 from .artifacts._validators import (
     MAX_ARTIFACT_METADATA_KEYS,
-    is_artifact_registry_project,
+    ArtifactPath,
     validate_aliases,
     validate_tags,
 )
@@ -166,6 +167,7 @@ class RunStatusChecker:
         self,
         run_id: str,
         interface: InterfaceBase,
+        settings: Settings,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
         internal_messages_polling_interval: int = 10,
@@ -175,6 +177,7 @@ class RunStatusChecker:
         self._stop_polling_interval = stop_polling_interval
         self._retry_polling_interval = retry_polling_interval
         self._internal_messages_polling_interval = internal_messages_polling_interval
+        self._settings = settings
 
         self._join_event = threading.Event()
 
@@ -316,9 +319,15 @@ class RunStatusChecker:
 
     def check_internal_messages(self) -> None:
         def _process_internal_messages(result: Result) -> None:
+            if (
+                not self._settings.show_warnings
+                or self._settings.quiet
+                or self._settings.silent
+            ):
+                return
             internal_messages = result.response.internal_messages_response
             for msg in internal_messages.messages.warning:
-                wandb.termwarn(msg)
+                wandb.termwarn(msg, repeat=False)
 
         with wb_logging.log_to_run(self._run_id):
             try:
@@ -469,16 +478,16 @@ class Run:
 
     Call [`wandb.init()`](https://docs.wandb.ai/ref/python/init/) to create a
     new run. `wandb.init()` starts a new run and returns a `wandb.Run` object.
-    Each run is associated with a unique ID (run ID). There is only ever at
-    most one active `wandb.Run` in any process.
+    Each run is associated with a unique ID (run ID). W&B recommends using
+    a context (`with` statement) manager to automatically finish the run.
 
     For distributed training experiments, you can either track each process
     separately using one run per process or track all processes to a single run.
     See [Log distributed training experiments](https://docs.wandb.ai/guides/track/log/distributed-training)
     for more information.
 
-    You can log data to a run with `run.log()`. Anything you log using
-    `run.log()` is sent to that run. See
+    You can log data to a run with `wandb.Run.log()`. Anything you log using
+    `wandb.Run.log()` is sent to that run. See
     [Create an experiment](https://docs.wandb.ai/guides/track/launch) or
     [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page
     or more information.
@@ -488,16 +497,10 @@ class Run:
     namespace. Use this object is to interact with runs that have already been
     created.
 
-    Finish active runs before starting new runs. Use a context manager (`with`
-    statement) to automatically finish the run or use
-    `wandb.finish()` to finish a run manually. W&B recommends using a context
-    manager to automatically finish the run.
-
     Attributes:
-        summary: (Summary) Single values set for each `run.log()` key. By
-            default, summary is set to the last value logged. You can manually
-            set summary to the best value, like max accuracy, instead of the
-            final value.
+        summary: (Summary) A summary of the run, which is a dictionary-like
+            object. For more information, see
+            [Log summary metrics](https://docs.wandb.ai/guides/track/log/log-summary/).
 
     Examples:
     Create a run with `wandb.init()`:
@@ -959,7 +962,7 @@ class Run:
     def step(self) -> int:
         """Current value of the step.
 
-        This counter is incremented by `wandb.log`.
+        This counter is incremented by `wandb.Run.log()`.
 
         <!-- lazydoc-ignore: internal -->
         """
@@ -983,12 +986,16 @@ class Run:
     @_log_to_run
     @_attach
     def group(self) -> str:
-        """Name of the group associated with the run.
+        """Returns the name of the group associated with this run.
 
-        Setting a group helps the W&B UI organize runs. If you are doing a
-        distributed training you should give all of the runs in the training
-        the same group. If you are doing cross-validation you should give all
-        the cross-validation folds the same group.
+        Grouping runs together allows related experiments to be organized and
+        visualized collectively in the W&B UI. This is especially useful for
+        scenarios such as distributed training or cross-validation, where
+        multiple runs should be viewed and managed as a unified experiment.
+
+        In shared mode, where all processes share the same run object,
+        setting a group is usually unnecessary, since there is only one
+        run and no grouping is required.
         """
         return self._settings.run_group or ""
 
@@ -996,13 +1003,24 @@ class Run:
     @_log_to_run
     @_attach
     def job_type(self) -> str:
-        """Name of the job type associated with the run."""
+        """Name of the job type associated with the run.
+
+        View a run's job type in the run's Overview page in the W&B App.
+
+        You can use this to categorize runs by their job type, such as
+        "training", "evaluation", or "inference". This is useful for organizing
+        and filtering runs in the W&B UI, especially when you have multiple
+        runs with different job types in the same project. For more
+        information, see [Organize runs](https://docs.wandb.ai/guides/runs/#organize-runs).
+        """
         return self._settings.run_job_type or ""
 
     def project_name(self) -> str:
         """This method is deprecated and will be removed in a future release. Use `run.project` instead.
 
         Name of the W&B project associated with the run.
+
+        <!-- lazydoc-ignore: internal -->
         """
         deprecate.deprecate(
             field_name=Deprecated.run__project_name,
@@ -1027,6 +1045,8 @@ class Run:
 
         URL of the W&B project associated with the run, if there is one.
         Offline runs do not have a project URL.
+
+        <!-- lazydoc-ignore: internal -->
         """
         deprecate.deprecate(
             field_name=Deprecated.run__get_project_url,
@@ -1159,6 +1179,8 @@ class Run:
 
         The URL of the sweep associated with the run, if there is one.
         Offline runs do not have a sweep URL.
+
+        <!-- lazydoc-ignore: internal -->
         """
         deprecate.deprecate(
             field_name=Deprecated.run__get_sweep_url,
@@ -1186,6 +1208,8 @@ class Run:
         """This method is deprecated and will be removed in a future release. Use `run.url` instead.
 
         URL of the W&B run, if there is one. Offline runs do not have a URL.
+
+        <!-- lazydoc-ignore: internal -->
         """
         deprecate.deprecate(
             field_name=Deprecated.run__get_url,
@@ -1481,7 +1505,7 @@ class Run:
     ) -> dict[str, Any]:
         """Process and replace chart objects with their underlying table values.
 
-        This processes the chart objects passed to `run.log()`, replacing their entries
+        This processes the chart objects passed to `wandb.Run.log()`, replacing their entries
         in the given dictionary (which is saved to the run's history) and adding them
         to the run's config.
 
@@ -1769,20 +1793,22 @@ class Run:
         the following results in two sections named "train" and "validate":
 
         ```python
-        run.log(
-            {
-                "train/accuracy": 0.9,
-                "train/loss": 30,
-                "validate/accuracy": 0.8,
-                "validate/loss": 20,
-            }
-        )
+        with wandb.init() as run:
+            # Log metrics in the "train" section.
+            run.log(
+                {
+                    "train/accuracy": 0.9,
+                    "train/loss": 30,
+                    "validate/accuracy": 0.8,
+                    "validate/loss": 20,
+                }
+            )
         ```
 
         Only one level of nesting is supported; `run.log({"a/b/c": 1})`
         produces a section named "a/b".
 
-        `run.log` is not intended to be called more than a few times per second.
+        `run.log()` is not intended to be called more than a few times per second.
         For optimal performance, limit your logging to once every N iterations,
         or collect data over multiple iterations and log it in a single step.
 
@@ -1796,31 +1822,33 @@ class Run:
         you'd treat a timestamp rather than a training step.
 
         ```python
-        # Example: log an "epoch" metric for use as an X axis.
-        run.log({"epoch": 40, "train-loss": 0.5})
+        with wandb.init() as run:
+            # Example: log an "epoch" metric for use as an X axis.
+            run.log({"epoch": 40, "train-loss": 0.5})
         ```
 
-        It is possible to use multiple `log` invocations to log to
+        It is possible to use multiple `wandb.Run.log()` invocations to log to
         the same step with the `step` and `commit` parameters.
         The following are all equivalent:
 
         ```python
-        # Normal usage:
-        run.log({"train-loss": 0.5, "accuracy": 0.8})
-        run.log({"train-loss": 0.4, "accuracy": 0.9})
+        with wandb.init() as run:
+            # Normal usage:
+            run.log({"train-loss": 0.5, "accuracy": 0.8})
+            run.log({"train-loss": 0.4, "accuracy": 0.9})
 
-        # Implicit step without auto-incrementing:
-        run.log({"train-loss": 0.5}, commit=False)
-        run.log({"accuracy": 0.8})
-        run.log({"train-loss": 0.4}, commit=False)
-        run.log({"accuracy": 0.9})
+            # Implicit step without auto-incrementing:
+            run.log({"train-loss": 0.5}, commit=False)
+            run.log({"accuracy": 0.8})
+            run.log({"train-loss": 0.4}, commit=False)
+            run.log({"accuracy": 0.9})
 
-        # Explicit step:
-        run.log({"train-loss": 0.5}, step=current_step)
-        run.log({"accuracy": 0.8}, step=current_step)
-        current_step += 1
-        run.log({"train-loss": 0.4}, step=current_step)
-        run.log({"accuracy": 0.9}, step=current_step)
+            # Explicit step:
+            run.log({"train-loss": 0.5}, step=current_step)
+            run.log({"accuracy": 0.8}, step=current_step)
+            current_step += 1
+            run.log({"train-loss": 0.4}, step=current_step)
+            run.log({"accuracy": 0.9}, step=current_step)
         ```
 
         Args:
@@ -1846,8 +1874,8 @@ class Run:
         ```python
         import wandb
 
-        run = wandb.init()
-        run.log({"accuracy": 0.9, "epoch": 5})
+        with wandb.init() as run:
+            run.log({"train-loss": 0.5, "accuracy": 0.9
         ```
 
         Incremental logging
@@ -1855,10 +1883,10 @@ class Run:
         ```python
         import wandb
 
-        run = wandb.init()
-        run.log({"loss": 0.2}, commit=False)
-        # Somewhere else when I'm ready to report this step:
-        run.log({"accuracy": 0.8})
+        with wandb.init() as run:
+            run.log({"loss": 0.2}, commit=False)
+            # Somewhere else when I'm ready to report this step:
+            run.log({"accuracy": 0.8})
         ```
 
         Histogram
@@ -1869,8 +1897,8 @@ class Run:
 
         # sample gradients at random from normal distribution
         gradients = np.random.randn(100, 100)
-        run = wandb.init()
-        run.log({"gradients": wandb.Histogram(gradients)})
+        with wandb.init() as run:
+            run.log({"gradients": wandb.Histogram(gradients)})
         ```
 
         Image from NumPy
@@ -1879,13 +1907,13 @@ class Run:
         import numpy as np
         import wandb
 
-        run = wandb.init()
-        examples = []
-        for i in range(3):
-            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-            image = wandb.Image(pixels, caption=f"random field {i}")
-            examples.append(image)
-        run.log({"examples": examples})
+        with wandb.init() as run:
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                image = wandb.Image(pixels, caption=f"random field {i}")
+                examples.append(image)
+            run.log({"examples": examples})
         ```
 
         Image from PIL
@@ -1895,19 +1923,19 @@ class Run:
         from PIL import Image as PILImage
         import wandb
 
-        run = wandb.init()
-        examples = []
-        for i in range(3):
-            pixels = np.random.randint(
-                low=0,
-                high=256,
-                size=(100, 100, 3),
-                dtype=np.uint8,
-            )
-            pil_image = PILImage.fromarray(pixels, mode="RGB")
-            image = wandb.Image(pil_image, caption=f"random field {i}")
-            examples.append(image)
-        run.log({"examples": examples})
+        with wandb.init() as run:
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(
+                    low=0,
+                    high=256,
+                    size=(100, 100, 3),
+                    dtype=np.uint8,
+                )
+                pil_image = PILImage.fromarray(pixels, mode="RGB")
+                image = wandb.Image(pil_image, caption=f"random field {i}")
+                examples.append(image)
+            run.log({"examples": examples})
         ```
 
         Video from NumPy
@@ -1916,15 +1944,15 @@ class Run:
         import numpy as np
         import wandb
 
-        run = wandb.init()
-        # axes are (time, channel, height, width)
-        frames = np.random.randint(
-            low=0,
-            high=256,
-            size=(10, 3, 100, 100),
-            dtype=np.uint8,
-        )
-        run.log({"video": wandb.Video(frames, fps=4)})
+        with wandb.init() as run:
+            # axes are (time, channel, height, width)
+            frames = np.random.randint(
+                low=0,
+                high=256,
+                size=(10, 3, 100, 100),
+                dtype=np.uint8,
+            )
+            run.log({"video": wandb.Video(frames, fps=4)})
         ```
 
         Matplotlib plot
@@ -1934,12 +1962,12 @@ class Run:
         import numpy as np
         import wandb
 
-        run = wandb.init()
-        fig, ax = plt.subplots()
-        x = np.linspace(0, 10)
-        y = x * x
-        ax.plot(x, y)  # plot y = x^2
-        run.log({"chart": fig})
+        with wandb.init() as run:
+            fig, ax = plt.subplots()
+            x = np.linspace(0, 10)
+            y = x * x
+            ax.plot(x, y)  # plot y = x^2
+            run.log({"chart": fig})
         ```
 
         PR Curve
@@ -1947,8 +1975,8 @@ class Run:
         ```python
         import wandb
 
-        run = wandb.init()
-        run.log({"pr": wandb.plot.pr_curve(y_test, y_probas, labels)})
+        with wandb.init() as run:
+            run.log({"pr": wandb.plot.pr_curve(y_test, y_probas, labels)})
         ```
 
         3D Object
@@ -1956,16 +1984,16 @@ class Run:
         ```python
         import wandb
 
-        run = wandb.init()
-        run.log(
-            {
-                "generated_samples": [
-                    wandb.Object3D(open("sample.obj")),
-                    wandb.Object3D(open("sample.gltf")),
-                    wandb.Object3D(open("sample.glb")),
-                ]
-            }
-        )
+        with wandb.init() as run:
+            run.log(
+                {
+                    "generated_samples": [
+                        wandb.Object3D(open("sample.obj")),
+                        wandb.Object3D(open("sample.gltf")),
+                        wandb.Object3D(open("sample.glb")),
+                    ]
+                }
+            )
         ```
 
         Raises:
@@ -2026,23 +2054,26 @@ class Run:
         ```python
         import wandb
 
-        wandb.init()
+        run = wandb.init()
 
-        wandb.save("these/are/myfiles/*")
+        run.save("these/are/myfiles/*")
         # => Saves files in a "these/are/myfiles/" folder in the run.
 
-        wandb.save("these/are/myfiles/*", base_path="these")
+        run.save("these/are/myfiles/*", base_path="these")
         # => Saves files in an "are/myfiles/" folder in the run.
 
-        wandb.save("/User/username/Documents/run123/*.txt")
+        run.save("/User/username/Documents/run123/*.txt")
         # => Saves files in a "run123/" folder in the run. See note below.
 
-        wandb.save("/User/username/Documents/run123/*.txt", base_path="/User")
+        run.save("/User/username/Documents/run123/*.txt", base_path="/User")
         # => Saves files in a "username/Documents/run123/" folder in the run.
 
-        wandb.save("files/*/saveme.txt")
+        run.save("files/*/saveme.txt")
         # => Saves each "saveme.txt" file in an appropriate subdirectory
         #    of "files/".
+
+        # Explicitly finish the run since a context manager is not used.
+        run.finish()
         ```
         """
         if isinstance(glob_str, bytes):
@@ -2490,6 +2521,7 @@ class Run:
             self._run_status_checker = RunStatusChecker(
                 self._settings.run_id,
                 interface=self._backend.interface,
+                settings=self._settings,
             )
             self._run_status_checker.start()
 
@@ -2751,14 +2783,14 @@ class Run:
         goal: str | None = None,
         overwrite: bool | None = None,
     ) -> wandb_metric.Metric:
-        """Customize metrics logged with `run.log()`.
+        """Customize metrics logged with `wandb.Run.log()`.
 
         Args:
             name: The name of the metric to customize.
             step_metric: The name of another metric to serve as the X-axis
                 for this metric in automatically generated charts.
             step_sync: Automatically insert the last value of step_metric into
-                `run.log()` if it is not provided explicitly. Defaults to True
+                `wandb.Run.log()` if it is not provided explicitly. Defaults to True
                  if step_metric is specified.
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
@@ -2948,13 +2980,6 @@ class Run:
             The linked artifact if linking was successful, otherwise None.
 
         """
-        portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
-        if aliases is None:
-            aliases = []
-
-        if not self._backend or not self._backend.interface:
-            return None
-
         if artifact.is_draft() and not artifact._is_draft_save_started():
             artifact = self._log_artifact(artifact)
 
@@ -2962,52 +2987,17 @@ class Run:
             # TODO: implement offline mode + sync
             raise NotImplementedError
 
-        # Wait until the artifact is committed before trying to link it.
-        artifact.wait()
+        # Normalize the target "entity/project/collection" with defaults
+        # inferred from this run's entity and project, if needed.
+        #
+        # HOWEVER, if the target path is a registry collection, avoid setting
+        # the target entity to the run's entity.  Instead, delegate to
+        # Artifact.link() to resolve the required org entity.
+        target = ArtifactPath.from_str(target_path)
+        if not (target.project and is_artifact_registry_project(target.project)):
+            target = target.with_defaults(prefix=self.entity, project=self.project)
 
-        organization = ""
-        if is_artifact_registry_project(project):
-            organization = entity or self.settings.organization or ""
-            # In a Registry linking, the entity is used to fetch the organization of the artifact
-            # therefore the source artifact's entity is passed to the backend
-            entity = artifact._source_entity
-        project = project or self.project
-        entity = entity or self.entity
-        handle = self._backend.interface.deliver_link_artifact(
-            artifact,
-            portfolio,
-            aliases,
-            entity,
-            project,
-            organization,
-        )
-        if artifact._ttl_duration_seconds is not None:
-            wandb.termwarn(
-                "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
-            )
-        result = handle.wait_or(timeout=None)
-        response = result.response.link_artifact_response
-        if response.error_message:
-            wandb.termerror(response.error_message)
-            return None
-        if response.version_index is None:
-            wandb.termerror(
-                "Error fetching the linked artifact's version index after linking"
-            )
-            return None
-
-        try:
-            artifact_name = f"{entity}/{project}/{portfolio}:v{response.version_index}"
-            if is_artifact_registry_project(project):
-                if organization:
-                    artifact_name = f"{organization}/{project}/{portfolio}:v{response.version_index}"
-                else:
-                    artifact_name = f"{project}/{portfolio}:v{response.version_index}"
-            linked_artifact = self._public_api()._artifact(artifact_name)
-        except Exception as e:
-            wandb.termerror(f"Error fetching link artifact after linking: {e}")
-            return None
-        return linked_artifact
+        return artifact.link(target.to_str(), aliases)
 
     @_log_to_run
     @_raise_if_finished
@@ -3059,6 +3049,9 @@ class Run:
         artifact_d = run.use_artifact(
             artifact_or_name="<entity>/<project>/<name>:v<version>"
         )
+
+        # Explicitly finish the run since a context manager is not used.
+        run.finish()
         ```
 
         """
