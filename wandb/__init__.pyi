@@ -401,17 +401,16 @@ def init(
 
 
     Examples:
-    `wandb.init()` returns a run object, and you can also access the run object
-    with `wandb.run`:
+    `wandb.init()` returns a `run` object. Use the run object to log data,
+    save artifacts, and manage the run lifecycle.
 
     ```python
     import wandb
 
     config = {"lr": 0.01, "batch_size": 32}
     with wandb.init(config=config) as run:
-        run.config.update({"architecture": "resnet", "depth": 34})
-
-        # ... your training code here ...
+        # The run object is available as `run`
+        run.log({"accuracy": acc, "loss": loss})
     ```
     """
     ...
@@ -518,20 +517,22 @@ def log(
     the following results in two sections named "train" and "validate":
 
     ```python
-    run.log(
-        {
-            "train/accuracy": 0.9,
-            "train/loss": 30,
-            "validate/accuracy": 0.8,
-            "validate/loss": 20,
-        }
-    )
+    with wandb.init() as run:
+        # Log metrics in the "train" section.
+        run.log(
+            {
+                "train/accuracy": 0.9,
+                "train/loss": 30,
+                "validate/accuracy": 0.8,
+                "validate/loss": 20,
+            }
+        )
     ```
 
     Only one level of nesting is supported; `run.log({"a/b/c": 1})`
     produces a section named "a/b".
 
-    `run.log` is not intended to be called more than a few times per second.
+    `run.log()` is not intended to be called more than a few times per second.
     For optimal performance, limit your logging to once every N iterations,
     or collect data over multiple iterations and log it in a single step.
 
@@ -545,31 +546,33 @@ def log(
     you'd treat a timestamp rather than a training step.
 
     ```python
-    # Example: log an "epoch" metric for use as an X axis.
-    run.log({"epoch": 40, "train-loss": 0.5})
+    with wandb.init() as run:
+        # Example: log an "epoch" metric for use as an X axis.
+        run.log({"epoch": 40, "train-loss": 0.5})
     ```
 
-    It is possible to use multiple `log` invocations to log to
+    It is possible to use multiple `wandb.Run.log()` invocations to log to
     the same step with the `step` and `commit` parameters.
     The following are all equivalent:
 
     ```python
-    # Normal usage:
-    run.log({"train-loss": 0.5, "accuracy": 0.8})
-    run.log({"train-loss": 0.4, "accuracy": 0.9})
+    with wandb.init() as run:
+        # Normal usage:
+        run.log({"train-loss": 0.5, "accuracy": 0.8})
+        run.log({"train-loss": 0.4, "accuracy": 0.9})
 
-    # Implicit step without auto-incrementing:
-    run.log({"train-loss": 0.5}, commit=False)
-    run.log({"accuracy": 0.8})
-    run.log({"train-loss": 0.4}, commit=False)
-    run.log({"accuracy": 0.9})
+        # Implicit step without auto-incrementing:
+        run.log({"train-loss": 0.5}, commit=False)
+        run.log({"accuracy": 0.8})
+        run.log({"train-loss": 0.4}, commit=False)
+        run.log({"accuracy": 0.9})
 
-    # Explicit step:
-    run.log({"train-loss": 0.5}, step=current_step)
-    run.log({"accuracy": 0.8}, step=current_step)
-    current_step += 1
-    run.log({"train-loss": 0.4}, step=current_step)
-    run.log({"accuracy": 0.9}, step=current_step)
+        # Explicit step:
+        run.log({"train-loss": 0.5}, step=current_step)
+        run.log({"accuracy": 0.8}, step=current_step)
+        current_step += 1
+        run.log({"train-loss": 0.4}, step=current_step)
+        run.log({"accuracy": 0.9}, step=current_step)
     ```
 
     Args:
@@ -595,8 +598,8 @@ def log(
     ```python
     import wandb
 
-    run = wandb.init()
-    run.log({"accuracy": 0.9, "epoch": 5})
+    with wandb.init() as run:
+        run.log({"train-loss": 0.5, "accuracy": 0.9
     ```
 
     Incremental logging
@@ -604,10 +607,10 @@ def log(
     ```python
     import wandb
 
-    run = wandb.init()
-    run.log({"loss": 0.2}, commit=False)
-    # Somewhere else when I'm ready to report this step:
-    run.log({"accuracy": 0.8})
+    with wandb.init() as run:
+        run.log({"loss": 0.2}, commit=False)
+        # Somewhere else when I'm ready to report this step:
+        run.log({"accuracy": 0.8})
     ```
 
     Histogram
@@ -618,8 +621,8 @@ def log(
 
     # sample gradients at random from normal distribution
     gradients = np.random.randn(100, 100)
-    run = wandb.init()
-    run.log({"gradients": wandb.Histogram(gradients)})
+    with wandb.init() as run:
+        run.log({"gradients": wandb.Histogram(gradients)})
     ```
 
     Image from NumPy
@@ -628,13 +631,13 @@ def log(
     import numpy as np
     import wandb
 
-    run = wandb.init()
-    examples = []
-    for i in range(3):
-        pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-        image = wandb.Image(pixels, caption=f"random field {i}")
-        examples.append(image)
-    run.log({"examples": examples})
+    with wandb.init() as run:
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+            image = wandb.Image(pixels, caption=f"random field {i}")
+            examples.append(image)
+        run.log({"examples": examples})
     ```
 
     Image from PIL
@@ -644,19 +647,19 @@ def log(
     from PIL import Image as PILImage
     import wandb
 
-    run = wandb.init()
-    examples = []
-    for i in range(3):
-        pixels = np.random.randint(
-            low=0,
-            high=256,
-            size=(100, 100, 3),
-            dtype=np.uint8,
-        )
-        pil_image = PILImage.fromarray(pixels, mode="RGB")
-        image = wandb.Image(pil_image, caption=f"random field {i}")
-        examples.append(image)
-    run.log({"examples": examples})
+    with wandb.init() as run:
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(
+                low=0,
+                high=256,
+                size=(100, 100, 3),
+                dtype=np.uint8,
+            )
+            pil_image = PILImage.fromarray(pixels, mode="RGB")
+            image = wandb.Image(pil_image, caption=f"random field {i}")
+            examples.append(image)
+        run.log({"examples": examples})
     ```
 
     Video from NumPy
@@ -665,15 +668,15 @@ def log(
     import numpy as np
     import wandb
 
-    run = wandb.init()
-    # axes are (time, channel, height, width)
-    frames = np.random.randint(
-        low=0,
-        high=256,
-        size=(10, 3, 100, 100),
-        dtype=np.uint8,
-    )
-    run.log({"video": wandb.Video(frames, fps=4)})
+    with wandb.init() as run:
+        # axes are (time, channel, height, width)
+        frames = np.random.randint(
+            low=0,
+            high=256,
+            size=(10, 3, 100, 100),
+            dtype=np.uint8,
+        )
+        run.log({"video": wandb.Video(frames, fps=4)})
     ```
 
     Matplotlib plot
@@ -683,12 +686,12 @@ def log(
     import numpy as np
     import wandb
 
-    run = wandb.init()
-    fig, ax = plt.subplots()
-    x = np.linspace(0, 10)
-    y = x * x
-    ax.plot(x, y)  # plot y = x^2
-    run.log({"chart": fig})
+    with wandb.init() as run:
+        fig, ax = plt.subplots()
+        x = np.linspace(0, 10)
+        y = x * x
+        ax.plot(x, y)  # plot y = x^2
+        run.log({"chart": fig})
     ```
 
     PR Curve
@@ -696,8 +699,8 @@ def log(
     ```python
     import wandb
 
-    run = wandb.init()
-    run.log({"pr": wandb.plot.pr_curve(y_test, y_probas, labels)})
+    with wandb.init() as run:
+        run.log({"pr": wandb.plot.pr_curve(y_test, y_probas, labels)})
     ```
 
     3D Object
@@ -705,16 +708,16 @@ def log(
     ```python
     import wandb
 
-    run = wandb.init()
-    run.log(
-        {
-            "generated_samples": [
-                wandb.Object3D(open("sample.obj")),
-                wandb.Object3D(open("sample.gltf")),
-                wandb.Object3D(open("sample.glb")),
-            ]
-        }
-    )
+    with wandb.init() as run:
+        run.log(
+            {
+                "generated_samples": [
+                    wandb.Object3D(open("sample.obj")),
+                    wandb.Object3D(open("sample.gltf")),
+                    wandb.Object3D(open("sample.glb")),
+                ]
+            }
+        )
     ```
 
     Raises:
@@ -759,23 +762,26 @@ def save(
     ```python
     import wandb
 
-    wandb.init()
+    run = wandb.init()
 
-    wandb.save("these/are/myfiles/*")
+    run.save("these/are/myfiles/*")
     # => Saves files in a "these/are/myfiles/" folder in the run.
 
-    wandb.save("these/are/myfiles/*", base_path="these")
+    run.save("these/are/myfiles/*", base_path="these")
     # => Saves files in an "are/myfiles/" folder in the run.
 
-    wandb.save("/User/username/Documents/run123/*.txt")
+    run.save("/User/username/Documents/run123/*.txt")
     # => Saves files in a "run123/" folder in the run. See note below.
 
-    wandb.save("/User/username/Documents/run123/*.txt", base_path="/User")
+    run.save("/User/username/Documents/run123/*.txt", base_path="/User")
     # => Saves files in a "username/Documents/run123/" folder in the run.
 
-    wandb.save("files/*/saveme.txt")
+    run.save("files/*/saveme.txt")
     # => Saves each "saveme.txt" file in an appropriate subdirectory
     #    of "files/".
+
+    # Explicitly finish the run since a context manager is not used.
+    run.finish()
     ```
     """
     ...
@@ -877,14 +883,14 @@ def define_metric(
     goal: str | None = None,
     overwrite: bool | None = None,
 ) -> wandb_metric.Metric:
-    """Customize metrics logged with `run.log()`.
+    """Customize metrics logged with `wandb.Run.log()`.
 
     Args:
         name: The name of the metric to customize.
         step_metric: The name of another metric to serve as the X-axis
             for this metric in automatically generated charts.
         step_sync: Automatically insert the last value of step_metric into
-            `run.log()` if it is not provided explicitly. Defaults to True
+            `wandb.Run.log()` if it is not provided explicitly. Defaults to True
              if step_metric is specified.
         hidden: Hide this metric from automatic plots.
         summary: Specify aggregate metrics added to summary.
@@ -982,6 +988,9 @@ def use_artifact(
     artifact_d = run.use_artifact(
         artifact_or_name="<entity>/<project>/<name>:v<version>"
     )
+
+    # Explicitly finish the run since a context manager is not used.
+    run.finish()
     ```
     """
     ...
@@ -1096,7 +1105,7 @@ def plot_table(
     This function creates a custom chart based on a Vega-Lite specification and
     a data table represented by a `wandb.Table` object. The specification needs
     to be predefined and stored in the W&B backend. The function returns a custom
-    chart object that can be logged to W&B using `wandb.log()`.
+    chart object that can be logged to W&B using `wandb.Run.log()`.
 
     Args:
         vega_spec_name: The name or identifier of the Vega-Lite spec
@@ -1113,7 +1122,7 @@ def plot_table(
 
     Returns:
         CustomChart: A custom chart object that can be logged to W&B. To log the
-            chart, pass it to `wandb.log()`.
+            chart, pass the chart object as argument to `wandb.Run.log()`.
 
     Raises:
         wandb.Error: If `data_table` is not a `wandb.Table` object.
