@@ -141,8 +141,8 @@ func (g *Git) getAllTrackingBranches() ([]string, error) {
 	}
 
 	var trackingBranches []string
-	branches := strings.SplitSeq(strings.TrimSpace(string(branchesOutput)), "\n")
-	for branch := range branches {
+	branches := strings.Split(strings.TrimSpace(string(branchesOutput)), "\n")
+	for _, branch := range branches {
 		branch = strings.TrimSpace(branch)
 		if branch == "" {
 			continue
