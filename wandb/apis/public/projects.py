@@ -33,9 +33,9 @@ Note:
 
 from contextlib import suppress
 
+from requests import HTTPError
 from wandb_gql import gql
 
-from requests import HTTPError
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
