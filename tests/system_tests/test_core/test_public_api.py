@@ -660,6 +660,38 @@ def test_project_get_sweeps_paginated(user, wandb_backend_spy):
     assert sweeps[1].id == "test-sweep-2"
 
 
+def test_project_sweeps_paginated_no_sweeps(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetSweeps"),
+        gql.Constant(
+            content={
+                "data": {
+                    "project": {
+                        "totalSweeps": 0,
+                        "sweeps": {
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": None,
+                            },
+                        },
+                    },
+                },
+            }
+        ),
+    )
+
+    project = Api().project(user, "test")
+    sweeps = project.sweeps()
+    assert len(sweeps) == 0
+    assert sweeps.more is False
+
+    with pytest.raises(IndexError):
+        sweeps[0]
+
+
 def test_delete_files_for_multiple_runs(
     user,
     wandb_backend_spy,
