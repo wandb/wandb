@@ -29,10 +29,7 @@ def _should_print_spinner() -> bool:
     if singleton and (singleton.settings.quiet or singleton.settings.silent):
         return False
 
-    return not (
-        env.strtobool(os.environ.get(env.QUIET, "false"))
-        or env.strtobool(os.environ.get(env.SILENT, "false"))
-    )
+    return not env.is_quiet() and not env.is_silent()
 
 
 # This helper function is a workaround for the issue discussed here:

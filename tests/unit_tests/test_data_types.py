@@ -702,28 +702,28 @@ def test_video_encodes_with_spinner__displays_by_default(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "setting_name,setting_value,env_var,env_value,expected_calls",
+    "silent_setting,quiet_setting,env_var,env_value,expected_calls",
     [
-        ("quiet", True, None, None, 0),
-        ("silent", True, None, None, 0),
-        ("quiet", False, None, None, 1),
-        ("silent", False, None, None, 1),
-        (None, None, env.QUIET, "true", 0),
-        (None, None, env.SILENT, "true", 0),
-        (None, None, env.QUIET, "false", 1),
-        (None, None, env.SILENT, "false", 1),
+        (True, False, None, None, 0),
+        (False, True, None, None, 0),
+        (False, False, None, None, 1),
+        (False, False, env.QUIET, "true", 0),
+        (False, False, env.SILENT, "true", 0),
+        (False, False, env.QUIET, "false", 1),
+        (False, False, env.SILENT, "false", 1),
     ],
 )
 def test_video_encodes_with_spinner(
     monkeypatch,
-    setting_name,
-    setting_value,
+    silent_setting,
+    quiet_setting,
     env_var,
     env_value,
     expected_calls,
 ):
-    if setting_name is not None:
-        wandb.setup().settings.__setattr__(setting_name, setting_value)
+    settings = wandb.setup().settings
+    settings.quiet = quiet_setting
+    settings.silent = silent_setting
     if env_var is not None:
         monkeypatch.setenv(env_var, env_value)
 
