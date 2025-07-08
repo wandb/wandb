@@ -1449,8 +1449,8 @@ def init(  # noqa: C901
     config = {"lr": 0.01, "batch_size": 32}
     with wandb.init(config=config) as run:
         # Log accuracy and loss to the run
-        acc = 0.95 # Example accuracy
-        loss = 0.05 # Example loss
+        acc = 0.95  # Example accuracy
+        loss = 0.05  # Example loss
         run.log({"accuracy": acc, "loss": loss})
     ```
     """

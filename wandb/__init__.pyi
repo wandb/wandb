@@ -402,7 +402,7 @@ def init(
 
 
     Examples:
-    `wandb.init()` returns a `run` object. Use the run object to log data,
+    `wandb.init()` returns a `Run` object. Use the run object to log data,
     save artifacts, and manage the run lifecycle.
 
     ```python
@@ -410,7 +410,9 @@ def init(
 
     config = {"lr": 0.01, "batch_size": 32}
     with wandb.init(config=config) as run:
-        # The run object is available as `run`
+        # Log accuracy and loss to the run
+        acc = 0.95  # Example accuracy
+        loss = 0.05  # Example loss
         run.log({"accuracy": acc, "loss": loss})
     ```
     """
