@@ -25,3 +25,7 @@ This version raises errors that would previously have been suppressed during cal
 
 - Errors encountered while linking an artifact are no longer suppressed/silenced, and `Artifact.link()` and `Run.link_artifact()` no longer return `None` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9968)
 - The "Run history" and "Run summary" printed at the end of a run are now limited to 10 metrics each (@timoffex in https://github.com/wandb/wandb/pull/10351)
+
+### Fixed
+- git diff patch files are now generated for the closest ancestor commit when no upstream branch is set. (@jacobromero in https://github.com/wandb/wandb/pull/10132)
+    - bug introduced in v0.18.0
