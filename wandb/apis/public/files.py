@@ -118,7 +118,7 @@ class File(Attrs):
         mimetype (string): mimetype of file
         updated_at (string): timestamp of last update
         size (int): size of file in bytes
-        path_uri (str): path to file in the bucket, currently only available for files stored in S3
+        path_uri (str): path to file in the bucket, currently only available for S3 objects and reference files
     """
 
     def __init__(self, client, attrs, run=None):
@@ -141,6 +141,21 @@ class File(Attrs):
         Returns the uri path to the file in the storage bucket.
         """
         path_uri = ""
+
+        direct_url = self._attrs["directUrl"]
+        if direct_url is None:
+            wandb.termwarn("Unable to find direct_url of file")
+            return path_uri
+
+        # If the directUrl is the same as the url, this indicates that the file is a reference file.
+        # We just return the uri then.
+        try:
+            if direct_url == self._attrs["url"]:
+                return direct_url
+        except KeyError:
+            wandb.termwarn("Unable to find url of file")
+            return path_uri
+
         try:
             path_uri = utils.parse_s3_url_to_s3_uri(self._attrs["directUrl"])
         except ValueError:

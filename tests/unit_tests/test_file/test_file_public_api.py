@@ -73,3 +73,14 @@ def test_path_uri_missing_direct_url(mock_client, termwarn_spy):
 
     assert file.path_uri == ""
     termwarn_spy.assert_called_once_with("Unable to find direct_url of file")
+
+
+def test_path_uri_with_reference_file(mock_client, termwarn_spy):
+    attrs = {
+        "directUrl": "s3://my-bucket/wandb-artifacts/my-artifact.txt",
+        "url": "s3://my-bucket/wandb-artifacts/my-artifact.txt",
+    }
+    file = File(mock_client, attrs)
+
+    assert file.path_uri == "s3://my-bucket/wandb-artifacts/my-artifact.txt"
+    termwarn_spy.assert_not_called()
