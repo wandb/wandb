@@ -539,6 +539,9 @@ class Run(Attrs):
                     }
                     id
                     name
+                    displayName
+                    group
+                    jobType
                 }
                 inserted
             }
@@ -567,6 +570,9 @@ class Run(Attrs):
                 "description": None,
                 "notes": None,
                 "state": state,
+                "displayName": res["displayName"],
+                "group": res["group"],
+                "jobType": res["jobType"],
             },
         )
 
