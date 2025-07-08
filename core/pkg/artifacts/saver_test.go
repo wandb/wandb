@@ -2,7 +2,9 @@ package artifacts
 
 import (
 	"context"
+	"crypto/rand"
 	"math"
+	"os"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -105,4 +107,62 @@ func TestSaveGraphQLRequest(t *testing.T) {
 	gqlmock.AssertVariables(t,
 		createArtifactRequest,
 		gqlmock.GQLVar("input.entityName", gomock.Eq("test-entity")))
+}
+
+func TestComputeMultipartHashes(t *testing.T) {
+	// Create a temporary file with 21MB of random data
+	tempFile, err := os.CreateTemp("", "test_multipart_*")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+	defer tempFile.Close()
+
+	// Write 21MB of random data
+	fileSize := int64(21 * 1024 * 1024) // 21MB
+	data := make([]byte, fileSize)
+	_, err = rand.Read(data)
+	assert.NoError(t, err)
+
+	_, err = tempFile.Write(data)
+	assert.NoError(t, err)
+	err = tempFile.Close()
+	assert.NoError(t, err)
+
+	// Test with 2MB chunk size
+	chunkSize := int64(2 * 1024 * 1024) // 2MB
+	numWorkers := 4
+
+	parts, err := computeMultipartHashes(tempFile.Name(), chunkSize, numWorkers)
+	assert.NoError(t, err)
+
+	// Should have 11 parts, last part is 1MB
+	assert.Len(t, parts, 11)
+
+	// Verify each part has correct part number and non-empty hash
+	for i, part := range parts {
+		assert.Equal(t, int64(i+1), part.PartNumber)
+		assert.NotEmpty(t, part.HexMD5)
+		assert.Len(t, part.HexMD5, 32) // MD5 hex string is 32 characters
+	}
+
+	// Verify part numbers are sequential
+	for i := 0; i < len(parts)-1; i++ {
+		assert.Equal(t, parts[i].PartNumber+1, parts[i+1].PartNumber)
+	}
+}
+
+func TestComputeMultipartHashesInvalidPath(t *testing.T) {
+	// Test with a non-existent file path
+	invalidPath := t.TempDir() + "/must_be_404.txt"
+	chunkSize := int64(1024 * 1024) // 1MB
+	numWorkers := 4
+
+	parts, err := computeMultipartHashes(invalidPath, chunkSize, numWorkers)
+
+	// Should return an error and nil parts
+	assert.Error(t, err)
+	assert.Nil(t, parts)
+
+	// Verify the error message contains the expected information
+	assert.ErrorContains(t, err, "failed to get file size for path")
+	assert.ErrorContains(t, err, invalidPath)
 }
