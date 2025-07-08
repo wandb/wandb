@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -310,7 +311,7 @@ func (as *ArtifactSaver) uploadFiles(
 		if entry.LocalPath == nil {
 			continue
 		}
-		parts, err := multiPartRequest(*entry.LocalPath)
+		parts, err := multiPartRequest(as.logger, *entry.LocalPath)
 		if err != nil {
 			return err
 		}
@@ -497,7 +498,7 @@ const (
 	S3MaxParts           = 10000
 )
 
-func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
+func multiPartRequest(logger *observability.CoreLogger, path string) ([]gql.UploadPartsInput, error) {
 	fileInfo, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file size for path %s: %w", path, err)
@@ -512,32 +513,127 @@ func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
 		return nil, fmt.Errorf("file size exceeds maximum S3 object size: %v", fileSize)
 	}
 
-	file, err := os.Open(path)
+	parts, err := computeMultipartHashes(logger, path, getChunkSize(fileSize), runtime.NumCPU())
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = file.Close()
-	}()
+	return parts, nil
+}
 
-	partsInfo := []gql.UploadPartsInput{}
-	partNumber := int64(1)
-	buffer := make([]byte, getChunkSize(fileSize))
-	for {
-		bytesRead, err := file.Read(buffer)
-		if err != nil && err != io.EOF {
-			return nil, err
-		}
-		if bytesRead == 0 {
-			break
-		}
-		partsInfo = append(partsInfo, gql.UploadPartsInput{
-			PartNumber: partNumber,
-			HexMD5:     hashencode.ComputeHexMD5(buffer[:bytesRead]),
-		})
-		partNumber++
+func computeMultipartHashes(logger *observability.CoreLogger, path string, chunkSize int64, numWorkers int) ([]gql.UploadPartsInput, error) {
+	if numWorkers < 1 {
+		return nil, fmt.Errorf("number of workers is less than 1: %d", numWorkers)
 	}
+	if chunkSize < 1 {
+		return nil, fmt.Errorf("chunk size is less than 1: %d", chunkSize)
+	}
+
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file size for path %s: %w", path, err)
+	}
+	fileSize := fileInfo.Size()
+	if fileSize == 0 {
+		return nil, fmt.Errorf("file size is 0") // should never happen when the multipart threshold check is used properly
+	}
+	if fileSize < chunkSize {
+		return nil, fmt.Errorf("file size is less than chunk size: %d < %d", fileSize, chunkSize)
+	}
+
+	numParts := int(fileSize / chunkSize)
+	if fileSize%chunkSize != 0 {
+		numParts++
+	}
+	numWorkers = min(numWorkers, numParts)
+
+	partsPerWorker := numParts / numWorkers
+	remainingParts := numParts % numWorkers
+
+	workerTasks := make([]struct {
+		startPart int // inclusive
+		endPart   int // exclusive
+	}, numWorkers)
+	// NOTE: We start from 0, and only switch to 1-indexed when assiging the partNumber for server request
+	startPart := 0
+	for i := 0; i < numWorkers; i++ {
+		endPart := startPart + partsPerWorker
+		// Split the remaining parts evenly among the workers instead of doubling the work for the last worker.
+		if remainingParts > 0 {
+			endPart++
+			remainingParts--
+		}
+		workerTasks[i].startPart = startPart
+		workerTasks[i].endPart = endPart
+		startPart = endPart
+	}
+
+	partsInfo := make([]gql.UploadPartsInput, numParts)
+
+	startTime := time.Now()
+	var wg sync.WaitGroup
+	errChan := make(chan error, numWorkers)
+	wg.Add(numWorkers)
+	for worker, workerTask := range workerTasks {
+		go func(worker, startPart, endPart int) {
+			defer wg.Done()
+			hashFileParts(worker, startPart, endPart, path, chunkSize, fileSize, partsInfo, errChan)
+		}(worker, workerTask.startPart, workerTask.endPart)
+	}
+
+	wg.Wait()
+	close(errChan)
+	for err := range errChan {
+		return nil, err
+	}
+
+	hashTime := time.Since(startTime)
+	hashSpeedMBps := float64(fileSize) / (1024 * 1024) / hashTime.Seconds()
+	logger.Debug("Computed multipart hashes",
+		"hashTimeMs", hashTime.Milliseconds(),
+		"hashSpeedMBps", hashSpeedMBps,
+		"numWorkers", numWorkers,
+		"numParts", len(partsInfo),
+		"fileSize", fileSize,
+		"chunkSize", chunkSize,
+	)
 	return partsInfo, nil
+}
+
+// hashFileParts hash the md5 of consecutive parts of the file in serial.
+func hashFileParts(worker, startPart, endPart int, path string, chunkSize, fileSize int64, partsInfo []gql.UploadPartsInput, errChan chan<- error) {
+	// One open file per worker so they seek in sequential order within its own file handler
+	// instead of jumping around by different workers. Might make file system's life easier (not benchmarked).
+	file, err := os.Open(path)
+	if err != nil {
+		errChan <- fmt.Errorf("worker %d failed to open file: %w", worker, err)
+		return
+	}
+	//nolint:errcheck
+	defer file.Close()
+
+	for part := startPart; part < endPart; part++ {
+		offset := int64(part) * chunkSize
+
+		partSize := chunkSize
+		if offset+partSize > fileSize {
+			partSize = fileSize - offset
+		}
+
+		hexMD5, err := hashencode.ComputeReaderHexMD5(io.NewSectionReader(file, offset, partSize))
+		if err != nil {
+			errChan <- fmt.Errorf("worker %d failed to compute hash for part %d: %w", worker, part, err)
+			return
+		}
+
+		// Each worker is updating different index of the partsInfo slice so there is no race condition.
+		partsInfo[part] = gql.UploadPartsInput{
+			// Server request uses 1-indexed part numbers.
+			// https://cloud.google.com/storage/docs/xml-api/put-object-multipart#query_string_parameters
+			// https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html#:~:text=You%20can%20choose%20any%20part%20number%20between%201%20and%2010%2C000
+			PartNumber: int64(part + 1),
+			HexMD5:     hexMD5,
+		}
+	}
 }
 
 func (as *ArtifactSaver) uploadMultipart(
@@ -561,6 +657,9 @@ func (as *ArtifactSaver) uploadMultipart(
 	// TODO: add mid-upload cancel.
 
 	contentType := getContentType(fileInfo.uploadHeaders)
+
+	// Record start time for network upload phase
+	uploadStartTime := time.Now()
 
 	partInfo := fileInfo.multipartUploadInfo
 	for i, part := range partInfo {
@@ -636,6 +735,19 @@ func (as *ArtifactSaver) uploadMultipart(
 		as.ctx, as.graphqlClient, gql.CompleteMultipartActionComplete, partEtags,
 		fileInfo.birthArtifactID, *fileInfo.storagePath, fileInfo.uploadID,
 	)
+
+	// Log network upload time
+	uploadTime := time.Since(uploadStartTime)
+	uploadSpeedMBps := float64(statInfo.Size()) / (1024 * 1024) / uploadTime.Seconds()
+	as.logger.Debug("Completed multipart upload",
+		"fileName", fileInfo.name,
+		"uploadTimeMs", uploadTime.Milliseconds(),
+		"uploadSpeedMBps", uploadSpeedMBps,
+		"numParts", len(partData),
+		"fileSize", statInfo.Size(),
+		"chunkSize", chunkSize,
+	)
+
 	return uploadResult{name: fileInfo.name, err: err}
 }
 

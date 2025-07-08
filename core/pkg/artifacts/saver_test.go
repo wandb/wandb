@@ -2,11 +2,14 @@ package artifacts
 
 import (
 	"context"
+	"crypto/rand"
 	"math"
+	"os"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/filetransfertest"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -105,4 +108,94 @@ func TestSaveGraphQLRequest(t *testing.T) {
 	gqlmock.AssertVariables(t,
 		createArtifactRequest,
 		gqlmock.GQLVar("input.entityName", gomock.Eq("test-entity")))
+}
+
+func TestComputeMultipartHashes(t *testing.T) {
+	// Create a temporary file with 21MB of random data
+	tempFile, err := os.CreateTemp("", "test_multipart_*")
+	require.NoError(t, err)
+	//nolint:errcheck
+	defer os.Remove(tempFile.Name())
+	//nolint:errcheck
+	defer tempFile.Close()
+
+	// Write 21MB of random data
+	fileSize := int64(21 * 1024 * 1024) // 21MB
+	data := make([]byte, fileSize)
+	_, err = rand.Read(data)
+	require.NoError(t, err)
+
+	_, err = tempFile.Write(data)
+	require.NoError(t, err)
+	err = tempFile.Close()
+	require.NoError(t, err)
+
+	p := tempFile.Name()
+	logger := observability.NewNoOpLogger()
+
+	// Invalid chunk size, larger than file, e.g. 22MB
+	_, err = computeMultipartHashes(logger, p, fileSize+1, 1)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "file size is less than chunk size")
+
+	_, err = computeMultipartHashes(logger, p, 0, 1)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "chunk size is less than 1")
+
+	// Invalid number of workers, less than 1
+	_, err = computeMultipartHashes(logger, p, fileSize, 0)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "number of workers is less than 1")
+
+	// Test with 2MB chunk size
+	chunkSize := int64(2 * 1024 * 1024) // 2MB
+	numWorkers := 4
+
+	parts, err := computeMultipartHashes(logger, p, chunkSize, numWorkers)
+	require.NoError(t, err)
+
+	// Should have 11 parts, last part is 1MB
+	assert.Len(t, parts, 11)
+
+	// Verify each part has correct part number and non-empty hash
+	for i, part := range parts {
+		assert.Equal(t, int64(i+1), part.PartNumber)
+		assert.NotEmpty(t, part.HexMD5)
+		assert.Len(t, part.HexMD5, 32) // MD5 hex string is 32 characters
+	}
+
+	// Verify part numbers are sequential
+	for i := 0; i < len(parts)-1; i++ {
+		assert.Equal(t, parts[i].PartNumber+1, parts[i+1].PartNumber)
+	}
+}
+
+func TestComputeMultipartHashesInvalidFile(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+
+	// Test with a file size of 0
+	tempFile, err := os.CreateTemp("", "test_multipart_*")
+	require.NoError(t, err)
+	//nolint:errcheck
+	defer os.Remove(tempFile.Name())
+	//nolint:errcheck
+	defer tempFile.Close()
+	_, err = computeMultipartHashes(logger, tempFile.Name(), 1024*1024, 4)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "file size is 0")
+
+	// Test with a non-existent file path
+	invalidPath := t.TempDir() + "/must_be_404.txt"
+	chunkSize := int64(1024 * 1024) // 1MB
+	numWorkers := 4
+
+	parts, err := computeMultipartHashes(logger, invalidPath, chunkSize, numWorkers)
+
+	// Should return an error and nil parts
+	assert.Error(t, err)
+	assert.Nil(t, parts)
+
+	// Verify the error message contains the expected information
+	assert.ErrorContains(t, err, "failed to get file size for path")
+	assert.ErrorContains(t, err, invalidPath)
 }
