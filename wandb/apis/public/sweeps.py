@@ -57,7 +57,29 @@ SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
 
 
 class Sweeps(SizedPaginator["Sweep"]):
-    """An iterable collection of `Sweep` objects."""
+    """An iterable collection of `Sweep` objects.
+
+    Args:
+        client: (`wandb.apis.public.RetryingClient`) The API client to use
+            for requests.
+        entity: (str) The entity (username or team) that owns the project.
+        project: (str) The name of the project to fetch sweeps from.
+        per_page: (int) The number of sweeps to fetch per request (default is 50).
+
+    Examples:
+    ```python
+    from wandb.apis.public import Api
+
+    sweeps = Api().project(name="project_name", entity="entity").sweeps()
+
+    # Iterate over sweeps and print details
+    for sweep in sweeps:
+        print(f"Sweep name: {sweep.name}")
+        print(f"Sweep ID: {sweep.id}")
+        print(f"Sweep URL: {sweep.url}")
+        print("----------")
+    ```
+    """
 
     QUERY = gql(
         f"""#graphql
@@ -108,6 +130,7 @@ class Sweeps(SizedPaginator["Sweep"]):
 
     @property
     def _length(self):
+        """The total number of sweeps in the project."""
         if self.last_response:
             return (
                 self.last_response["project"]["totalSweeps"]
@@ -119,6 +142,7 @@ class Sweeps(SizedPaginator["Sweep"]):
 
     @property
     def more(self):
+        """Returns whether there are more sweeps to fetch."""
         if self.last_response:
             return self.last_response["project"]["sweeps"]["pageInfo"]["hasNextPage"]
         else:
@@ -126,15 +150,18 @@ class Sweeps(SizedPaginator["Sweep"]):
 
     @property
     def cursor(self):
+        """Returns the cursor for the next page of sweeps."""
         if self.last_response:
             return self.last_response["project"]["sweeps"]["pageInfo"]["endCursor"]
         else:
             return None
 
     def update_variables(self):
+        """Updates the variables for the next page of sweeps."""
         self.variables.update({"perPage": self.per_page, "cursor": self.cursor})
 
     def convert_objects(self):
+        """Converts the last GraphQL response into a list of `Sweep` objects."""
         if self.last_response is None or self.last_response.get("project") is None:
             raise ValueError("Could not find project {}".format(self.project))
 
