@@ -90,9 +90,7 @@ def _go_env(
     env["GOOS"] = target_system
     env["GOARCH"] = target_arch
 
-    env["CGO_ENABLED"] = "0"
-    if with_cgo:
-        env["CGO_ENABLED"] = "1"
+    env["CGO_ENABLED"] = "1" if with_cgo else "0"
 
     if with_race_detection:
         # Crash if a race is detected. The default behavior is to print
