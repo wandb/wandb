@@ -41,7 +41,7 @@ func testGenerator(t *testing.T, reset func(), gen func() (string, bool)) {
 	buf := new(bytes.Buffer)
 
 	reset()
-	w := NewWriter(buf)
+	w := NewWriterExt(buf, CRCAlgoCustom, 0)
 	for {
 		s, ok := gen()
 		if !ok {
@@ -155,7 +155,7 @@ func TestBoundary(t *testing.T) {
 
 func TestFlush(t *testing.T) {
 	buf := new(bytes.Buffer)
-	w := NewWriter(buf)
+	w := NewWriterExt(buf, CRCAlgoCustom, 0)
 	// Write a couple of records. Everything should still be held
 	// in the record.Writer buffer, so that buf.Len should be 0.
 	w0, _ := w.Next()
@@ -165,27 +165,28 @@ func TestFlush(t *testing.T) {
 	if got, want := buf.Len(), 0; got != want {
 		t.Fatalf("buffer length #0: got %d want %d", got, want)
 	}
-	// Flush the record.Writer buffer, which should yield 17 bytes.
-	// 17 = 2*7 + 1 + 2, which is two headers and 1 + 2 payload bytes.
+	// Flush the record.Writer buffer, which should yield 24 bytes.
+	// 24 = 7 + 2*7 + 1 + 2, which is a W&B header, two LevelDB headers,
+	// and 1 + 2 payload bytes.
 	if err := w.Flush(); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := buf.Len(), 17; got != want {
+	if got, want := buf.Len(), 24; got != want {
 		t.Fatalf("buffer length #1: got %d want %d", got, want)
 	}
 	// Do another write, one that isn't large enough to complete the block.
 	// The write should not have flowed through to buf.
 	w2, _ := w.Next()
 	_, _ = w2.Write(bytes.Repeat([]byte("2"), 10000))
-	if got, want := buf.Len(), 17; got != want {
+	if got, want := buf.Len(), 24; got != want {
 		t.Fatalf("buffer length #2: got %d want %d", got, want)
 	}
-	// Flushing should get us up to 10024 bytes written.
-	// 10024 = 17 + 7 + 10000.
+	// Flushing should get us up to 10031 bytes written.
+	// 10031 = 24 + 7 + 10000.
 	if err := w.Flush(); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := buf.Len(), 10024; got != want {
+	if got, want := buf.Len(), 10031; got != want {
 		t.Fatalf("buffer length #3: got %d want %d", got, want)
 	}
 	// Do a bigger write, one that completes the current block.
@@ -196,13 +197,13 @@ func TestFlush(t *testing.T) {
 	if got, want := buf.Len(), 32768; got != want {
 		t.Fatalf("buffer length #4: got %d want %d", got, want)
 	}
-	// Flushing should get us up to 50038 bytes written.
-	// 50038 = 10024 + 2*7 + 40000. There are two headers because
+	// Flushing should get us up to 50045 bytes written.
+	// 50045 = 10031 + 2*7 + 40000. There are two headers because
 	// the one record was split into two chunks.
 	if err := w.Flush(); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := buf.Len(), 50038; got != want {
+	if got, want := buf.Len(), 50045; got != want {
 		t.Fatalf("buffer length #5: got %d want %d", got, want)
 	}
 	// Check that reading those records give the right lengths.
@@ -226,7 +227,7 @@ func TestNonExhaustiveRead(t *testing.T) {
 	p := make([]byte, 10)
 	rnd := rand.New(rand.NewSource(1))
 
-	w := NewWriter(buf)
+	w := NewWriterExt(buf, CRCAlgoCustom, 0)
 	for i := range n {
 		length := len(p) + rnd.Intn(3*blockSize)
 		s := string(uint8(i)) + "123456789abcdefgh"
@@ -254,7 +255,7 @@ func TestNonExhaustiveRead(t *testing.T) {
 func TestStaleReader(t *testing.T) {
 	buf := new(bytes.Buffer)
 
-	w := NewWriter(buf)
+	w := NewWriterExt(buf, CRCAlgoCustom, 0)
 	w0, err := w.Next()
 	if err != nil {
 		t.Fatalf("writer.Next: %v", err)
@@ -293,7 +294,7 @@ func TestStaleReader(t *testing.T) {
 func TestStaleWriter(t *testing.T) {
 	buf := new(bytes.Buffer)
 
-	w := NewWriter(buf)
+	w := NewWriterExt(buf, CRCAlgoCustom, 0)
 	w0, err := w.Next()
 	if err != nil {
 		t.Fatalf("writer.Next: %v", err)
@@ -334,7 +335,7 @@ func makeTestRecords(recordLengths ...int) (*testRecords, error) {
 	}
 
 	buf := new(bytes.Buffer)
-	w := NewWriter(buf)
+	w := NewWriterExt(buf, CRCAlgoCustom, 0)
 	for i, rec := range ret.records {
 		wRec, err := w.Next()
 		if err != nil {
@@ -413,7 +414,7 @@ func TestRecoverNoOp(t *testing.T) {
 
 func TestBasicRecover(t *testing.T) {
 	recs, err := makeTestRecords(
-		blockSize-headerSize,
+		blockSize-headerSize-wandbHeaderLength,
 		blockSize-headerSize,
 		blockSize-headerSize,
 	)
@@ -527,7 +528,7 @@ func TestRecoverSingleBlock(t *testing.T) {
 func TestRecoverMultipleBlocks(t *testing.T) {
 	recs, err := makeTestRecords(
 		// The first record will consume 3 entire blocks but a fraction of the 4th.
-		blockSize*3,
+		(blockSize-wandbHeaderLength)+blockSize*2,
 		// The second record will completely fill the remainder of the 4th block.
 		3*(blockSize-headerSize)-2*blockSize-2*headerSize,
 		// Consume the entirety of the 5th block.
@@ -656,7 +657,7 @@ func TestRecoverLastCompleteBlock(t *testing.T) {
 func TestSeekRecord(t *testing.T) {
 	recs, err := makeTestRecords(
 		// The first record will consume 3 entire blocks but a fraction of the 4th.
-		blockSize*3,
+		(blockSize-wandbHeaderLength)+blockSize*2,
 		// The second record will completely fill the remainder of the 4th block.
 		3*(blockSize-headerSize)-2*blockSize-2*headerSize,
 		// Consume the entirety of the 5th block.
@@ -746,7 +747,7 @@ func TestSeekRecord(t *testing.T) {
 func TestLastRecordOffset(t *testing.T) {
 	recs, err := makeTestRecords(
 		// The first record will consume 3 entire blocks but a fraction of the 4th.
-		blockSize*3,
+		(blockSize-wandbHeaderLength)+blockSize*2,
 		// The second record will completely fill the remainder of the 4th block.
 		3*(blockSize-headerSize)-2*blockSize-2*headerSize,
 		// Consume the entirety of the 5th block.
@@ -760,7 +761,7 @@ func TestLastRecordOffset(t *testing.T) {
 		t.Fatalf("makeTestRecords: %v", err)
 	}
 
-	wants := []int64{0, 98332, 131072, 163840, 196608}
+	wants := []int64{7, 98332, 131072, 163840, 196608}
 	for i, got := range recs.offsets {
 		if want := wants[i]; got != want {
 			t.Errorf("record #%d: got %d, want %d", i, got, want)
@@ -770,7 +771,7 @@ func TestLastRecordOffset(t *testing.T) {
 
 func TestNoLastRecordOffset(t *testing.T) {
 	buf := new(bytes.Buffer)
-	w := NewWriter(buf)
+	w := NewWriterExt(buf, CRCAlgoCustom, 0)
 
 	if _, err := w.LastRecordOffset(); err != ErrNoLastRecord {
 		t.Fatalf("Expected ErrNoLastRecord, got: %v", err)
@@ -795,64 +796,62 @@ func TestNoLastRecordOffset(t *testing.T) {
 
 	if off, err := w.LastRecordOffset(); err != nil {
 		t.Fatalf("LastRecordOffset: %v", err)
-	} else if off != 0 {
-		t.Fatalf("LastRecordOffset: got %d, want 0", off)
+	} else if off != wandbHeaderLength {
+		t.Fatalf("LastRecordOffset: got %d, want %d", off, wandbHeaderLength)
 	}
 }
 
-// header read on a short data file just gets an incomplete header
-func TestHeaderShort(t *testing.T) {
-	data := []byte("hello")
+func TestVerifyWandbHeader_Good(t *testing.T) {
+	data := []byte(":W&B\xE1\xBE\x0Dleveldb stuff")
 	r := NewReader(bytes.NewReader(data))
-	header := make([]byte, 7)
-	err := r.ReadHeader(header)
+
+	err := r.VerifyWandbHeader(0x0D)
+
 	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.HasPrefix(header, data) {
-		t.Fatalf("header invalid: %+v", header)
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-// add a header and a single chunk o f data, read back header and record
-func TestHeaderNormal(t *testing.T) {
-	buf := new(bytes.Buffer)
-	headerWrite := []byte("header")
-	w := NewWriterExt(buf, CRCAlgoIEEE, headerWrite)
+func TestVerifyWandbHeader_TooShort(t *testing.T) {
+	data := []byte("short")
+	r := NewReader(bytes.NewReader(data))
 
-	// write a good record
-	w1, _ := w.Next()
-	_, _ = w1.Write([]byte("junk1"))
+	err := r.VerifyWandbHeader(0)
 
-	if err := w.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
+	if err != io.ErrUnexpectedEOF {
+		t.Fatalf("wrong error: %v", err)
 	}
-	header := make([]byte, 6)
-	r := NewReaderExt(buf, CRCAlgoIEEE)
-	if err := r.ReadHeader(header); err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.HasPrefix(header, headerWrite) {
-		t.Fatalf("header invalid: %+v", header)
-	}
+}
 
-	r1, err := r.Next()
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestVerifyWandbHeader_InvalidIdent(t *testing.T) {
+	data := []byte("oops123")
+	r := NewReader(bytes.NewReader(data))
 
-	p := make([]byte, 10)
-	if _, err := r1.Read(p); err != nil {
-		t.Fatal(err)
-	}
+	err := r.VerifyWandbHeader(0)
 
-	if !bytes.HasPrefix(p, []byte("junk1")) {
-		t.Fatalf("data invalid: %+v", p)
+	if !strings.Contains(err.Error(), "invalid W&B identifier") {
+		t.Fatalf("wrong error: %v", err)
 	}
+}
 
-	// No more
-	_, err = r.Next()
-	if err != io.EOF {
-		t.Fatal(err)
+func TestVerifyWandbHeader_InvalidMagic(t *testing.T) {
+	data := []byte(":W&Bbad")
+	r := NewReader(bytes.NewReader(data))
+
+	err := r.VerifyWandbHeader(0)
+
+	if !strings.Contains(err.Error(), "invalid W&B magic") {
+		t.Fatalf("wrong error: %v", err)
+	}
+}
+
+func TestVerifyWandbHeader_InvalidVersion(t *testing.T) {
+	data := []byte(":W&B\xE1\xBE\x01")
+	r := NewReader(bytes.NewReader(data))
+
+	err := r.VerifyWandbHeader(0)
+
+	if !strings.Contains(err.Error(), "expected W&B version 0 but got 1") {
+		t.Fatalf("wrong error: %v", err)
 	}
 }
