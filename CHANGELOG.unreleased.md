@@ -15,7 +15,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 
-- `Sweep.name` property will now return modified display name if available (falling back to
+- `Sweep.name` property will now return user-edited display name if available (falling back to
   original name from sweep config, then sweep ID as before).
 
 ### Fixed
