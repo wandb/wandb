@@ -53,6 +53,7 @@ class Sweep(Attrs):
             sweep(sweepName: $name) {
                 id
                 name
+                displayName
                 state
                 runCountExpected
                 bestLoss
@@ -168,7 +169,7 @@ class Sweep(Attrs):
 
     @property
     def name(self):
-        return self.config.get("name") or self.id
+        return self._attrs.get("displayName") or self.config.get("name") or self.id
 
     @classmethod
     def get(
