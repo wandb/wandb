@@ -2,12 +2,15 @@ package stream
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
@@ -23,26 +26,30 @@ type APIStreamParams struct {
 }
 
 type APIStream struct {
+	// inChan is a channel of records to process.
+	//
+	// TODO?: use runWork instead?
+	inChan chan *spb.Record
 
-	// logger writes debug logs for the run.
+	// logger writes debug logs.
 	logger *observability.CoreLogger
 
-	// wg is the WaitGroup for the stream
+	// wg is the WaitGroup for the stream.
 	wg sync.WaitGroup
 
-	// settings is the settings for the stream
+	// settings is the settings for the stream.
 	settings *settings.Settings
 
-	// sender is the sender for the stream
+	// sender manages GraphQL and file transfer operations.
 	sender *APISender
 
-	// dispatcher is the dispatcher for the stream
+	// dispatcher manages responses to the client.
 	dispatcher *Dispatcher
 
-	// sentryClient is the client used to report errors to sentry.io
+	// sentryClient is the client used to report errors to Sentry.
 	sentryClient *sentry_ext.Client
 
-	// ID is a unique ID for the stream
+	// ID is a unique ID for the stream.
 	ID string
 }
 
@@ -57,6 +64,66 @@ type APISender struct {
 	fileTransferManager filetransfer.FileTransferManager
 
 	outChan chan *spb.Result
+}
+
+// Do processes incoming requests.
+func (as APISender) Do(inChan <-chan *spb.Record) {
+	for record := range inChan {
+		fmt.Println("+++ GOT A RECORD TO PROCESS\n", record)
+
+		// TODO: do the sanity check more elegantly
+		switch record.RecordType.(type) {
+		case *spb.Record_Request:
+			switch x := record.GetRequest().RequestType.(type) {
+			case *spb.Request_Api:
+				as.sendAPIRequest(record, x.Api)
+			}
+		}
+	}
+}
+
+// respond
+func (as *APISender) respond(record *spb.Record, response *spb.Response) {
+	result := &spb.Result{
+		ResultType: &spb.Result_Response{Response: response},
+		Control:    record.Control,
+		Uuid:       record.Uuid,
+	}
+	as.outChan <- result
+}
+
+func (as APISender) sendAPIRequest(record *spb.Record, apiRequest *spb.APIRequest) {
+	var valueJSON string
+	switch apiRequest.RequestType.(type) {
+	case *spb.APIRequest_Run:
+		// TODO: handle ProjectId
+		response, err := gql.RunWithProjectId(
+			context.TODO(),
+			as.graphqlClient,
+			apiRequest.GetRun().Project,
+			apiRequest.GetRun().Entity,
+			apiRequest.GetRun().Name,
+		)
+		if err == nil {
+			fmt.Printf("+++ LOOK MA, RESPONSE!\n %+v\n", response)
+			jsonBytes, err := json.Marshal(response)
+			if err == nil {
+				valueJSON = string(jsonBytes)
+			}
+		}
+	default:
+		valueJSON = `{"lol":true}`
+	}
+
+	// TODO: make an actual response
+	r := &spb.Response{
+		ResponseType: &spb.Response_ApiResponse{
+			ApiResponse: &spb.APIResponse{
+				ValueJson: valueJSON,
+			},
+		},
+	}
+	as.respond(record, r)
 }
 
 func NewAPIStream(params APIStreamParams) *APIStream {
@@ -98,6 +165,7 @@ func NewAPIStream(params APIStreamParams) *APIStream {
 	}
 
 	return &APIStream{
+		inChan:       make(chan *spb.Record, BufferSize),
 		logger:       logger,
 		sentryClient: params.Sentry,
 		settings:     params.Settings,
@@ -121,13 +189,28 @@ func (s *APIStream) GetSettings() *settings.Settings {
 	return s.settings
 }
 
+// Start starts sender and dispatcher.
 func (s *APIStream) Start() {
-	// TODO: start sender and dispatcher
 	s.wg.Add(1)
-	s.wg.Done()
+	go func() {
+		s.sender.Do(s.inChan)
+		s.wg.Done()
+	}()
+
+	s.wg.Add(1)
+	go func() {
+		for result := range s.sender.outChan {
+			s.dispatcher.handleRespond(result)
+		}
+		s.wg.Done()
+	}()
 }
 
-func (s *APIStream) HandleRecord(record *spb.Record) {}
+func (s *APIStream) HandleRecord(record *spb.Record) {
+	s.logger.Debug("handling record", "record", record.GetRecordType())
+
+	s.inChan <- record
+}
 
 func (s *APIStream) Close() {}
 

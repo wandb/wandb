@@ -458,6 +458,8 @@ func (nc *Connection) handleInformInitAPI(msg *spb.ServerInformInitAPIRequest) {
 		},
 	)
 	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+
+	// Note: we don't use a separate message to start the API stream.
 	strm.Start()
 	slog.Info("handleInformInitAPI: API stream started", "streamId", streamId, "id", nc.id)
 
