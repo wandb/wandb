@@ -123,7 +123,7 @@ def test_upsert_sweep(monkeypatch):
     upsert_kwargs = {
         "config": sweep_config,
         "prior_runs": run_ids,
-        "display_name": mock_display_name
+        "display_name": mock_display_name,
     }
     resp = _api.api.upsert_sweep(**upsert_kwargs)
 
@@ -138,6 +138,4 @@ def test_upsert_sweep(monkeypatch):
     )
     assert "$displayName: String" in call_args[0]
     assert "displayName: $displayName" in call_args[0]
-    assert (
-        call_kwargs["variable_values"]["displayName"] == mock_display_name
-    )
+    assert call_kwargs["variable_values"]["displayName"] == mock_display_name

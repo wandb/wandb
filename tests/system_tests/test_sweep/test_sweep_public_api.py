@@ -9,8 +9,8 @@ from .test_wandb_sweep import (
     SWEEP_CONFIG_BAYES,
     SWEEP_CONFIG_GRID,
     SWEEP_CONFIG_GRID_NESTED,
-    SWEEP_CONFIG_RANDOM,
     SWEEP_CONFIG_NO_NAME,
+    SWEEP_CONFIG_RANDOM,
     VALID_SWEEP_CONFIGS_MINIMAL,
 )
 
@@ -38,6 +38,7 @@ query Sweep($project: String, $entity: String, $name: String!) {
 }
 """
 )
+
 
 @pytest.mark.parametrize(
     "sweep_config,expected_run_count",
@@ -91,6 +92,7 @@ def test_sweep_api(use_local_wandb_backend, user, sweep_config):
     assert sweep.name == sweep_config["name"]
     assert sweep.path == [user, _project, sweep_id]
 
+
 @pytest.mark.parametrize("sweep_config", [SWEEP_CONFIG_NO_NAME])
 def test_sweep_no_name(use_local_wandb_backend, user, sweep_config):
     """Test that name for a sweep created with no config name is the sweep id."""
@@ -114,7 +116,9 @@ def test_sweep_with_display_name(use_local_wandb_backend, user, sweep_config):
     updated_display_name = "Updated Sweep Name"
     InternalApi().upsert_sweep(
         config=sweep_config,
-        obj_id=original_sweep._attrs["id"],  # Use the internal ID to update existing sweep
+        obj_id=original_sweep._attrs[
+            "id"
+        ],  # Use the internal ID to update existing sweep
         entity=user,
         project=_project,
         display_name=updated_display_name,
