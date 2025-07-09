@@ -1078,9 +1078,6 @@ class InterfaceBase:
 
     @abstractmethod
     def _deliver_api_run_request(
-        self,
-        entiry: str,
-        project: str,
-        run_id: str
+        self, entiry: str, project: str, run_id: str
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError

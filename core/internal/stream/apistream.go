@@ -77,7 +77,11 @@ func (as APISender) Do(inChan <-chan *spb.Record) {
 			switch x := record.GetRequest().RequestType.(type) {
 			case *spb.Request_Api:
 				as.sendAPIRequest(record, x.Api)
+			default:
+				// TODO?
 			}
+		default:
+			// TODO?
 		}
 	}
 }
