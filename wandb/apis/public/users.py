@@ -1,4 +1,11 @@
-"""Public API: users."""
+"""W&B Public API for managing users and API keys.
+
+This module provides classes for managing W&B users and their API keys.
+
+Note:
+    This module is part of the W&B Public API and provides methods to manage
+    users and their authentication. Some operations require admin privileges.
+"""
 
 import requests
 from wandb_gql import gql
@@ -8,6 +15,20 @@ from wandb.apis.attrs import Attrs
 
 
 class User(Attrs):
+    """A class representing a W&B user with authentication and management capabilities.
+
+    This class provides methods to manage W&B users, including creating users,
+    managing API keys, and accessing team memberships. It inherits from Attrs
+    to handle user attributes.
+
+    Args:
+        client: (`wandb.apis.internal.Api`) The client instance to use
+        attrs: (dict) The user attributes
+
+    Note:
+        Some operations require admin privileges
+    """
+
     CREATE_USER_MUTATION = gql(
         """
     mutation CreateUserFromAdmin($email: String!, $admin: Boolean) {
@@ -63,9 +84,9 @@ class User(Attrs):
         """Create a new user.
 
         Args:
-            api: (`Api`) The api instance to use
-            email: (str) The name of the team
-            admin: (bool) Whether this user should be a global instance admin
+            api (`Api`): The api instance to use
+            email (str): The name of the team
+            admin (bool): Whether this user should be a global instance admin
 
         Returns:
             A `User` object
@@ -78,18 +99,34 @@ class User(Attrs):
 
     @property
     def api_keys(self):
+        """List of API key names associated with the user.
+
+        Returns:
+            list[str]: Names of API keys associated with the user. Empty list if user
+                has no API keys or if API key data hasn't been loaded.
+        """
         if self._attrs.get("apiKeys") is None:
             return []
         return [k["node"]["name"] for k in self._attrs["apiKeys"]["edges"]]
 
     @property
     def teams(self):
+        """List of team names that the user is a member of.
+
+        Returns:
+            list (list): Names of teams the user belongs to. Empty list if user has no
+                team memberships or if teams data hasn't been loaded.
+        """
         if self._attrs.get("teams") is None:
             return []
         return [k["node"]["name"] for k in self._attrs["teams"]["edges"]]
 
     def delete_api_key(self, api_key):
         """Delete a user's api key.
+
+        Args:
+            api_key (str): The name of the API key to delete. This should be
+                one of the names returned by the `api_keys` property.
 
         Returns:
             Boolean indicating success
@@ -109,6 +146,10 @@ class User(Attrs):
 
     def generate_api_key(self, description=None):
         """Generate a new api key.
+
+        Args:
+            description (str, optional): A description for the new API key. This can be
+                used to identify the purpose of the API key.
 
         Returns:
             The new api key, or None on failure

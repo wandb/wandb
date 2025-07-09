@@ -49,7 +49,7 @@ func TestSummaryTypes(t *testing.T) {
 
 	rs.ConfigureMetric(
 		pathtree.PathOf("x"), false,
-		runsummary.Min|runsummary.Max|runsummary.Mean|runsummary.Latest,
+		runsummary.Min|runsummary.Max|runsummary.Mean|runsummary.Latest|runsummary.First,
 	)
 	_, _ = rs.UpdateSummaries(rh1)
 	_, _ = rs.UpdateSummaries(rh2)
@@ -63,7 +63,8 @@ func TestSummaryTypes(t *testing.T) {
 				"min": 1,
 				"max": 3.0,
 				"mean": 2.1,
-				"last": 2.3
+				"last": 2.3,
+				"first": 1
 			}
 		}`,
 		string(encoded))

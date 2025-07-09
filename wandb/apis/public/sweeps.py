@@ -1,4 +1,31 @@
-"""Public API: sweeps."""
+"""W&B Public API for Sweeps.
+
+This module provides classes for interacting with W&B hyperparameter
+optimization sweeps.
+
+Example:
+```python
+from wandb.apis.public import Api
+
+# Get a specific sweep
+sweep = Api().sweep("entity/project/sweep_id")
+
+# Access sweep properties
+print(f"Sweep: {sweep.name}")
+print(f"State: {sweep.state}")
+print(f"Best Loss: {sweep.best_loss}")
+
+# Get best performing run
+best_run = sweep.best_run()
+print(f"Best Run: {best_run.name}")
+print(f"Metrics: {best_run.summary}")
+```
+
+Note:
+    This module is part of the W&B Public API and provides read-only access
+    to sweep data. For creating and controlling sweeps, use the wandb.sweep()
+    and wandb.agent() functions from the main wandb package.
+"""
 
 import urllib
 from typing import Optional
@@ -28,22 +55,16 @@ SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
 
 
 class Sweep(Attrs):
-    """A set of runs associated with a sweep.
-
-    Examples:
-        Instantiate with:
-        ```
-        api = wandb.Api()
-        sweep = api.sweep(path / to / sweep)
-        ```
+    """The set of runs associated with the sweep.
 
     Attributes:
-        runs: (`Runs`) list of runs
-        id: (str) sweep id
-        project: (str) name of project
-        config: (str) dictionary of sweep configuration
-        state: (str) the state of the sweep
-        expected_run_count: (int) number of expected runs for the sweep
+        runs (Runs): List of runs
+        id (str): Sweep ID
+        project (str): The name of the project the sweep belongs to
+        config (dict): Dictionary containing the sweep configuration
+        state (str): The state of the sweep. Can be "Finished", "Failed",
+            "Crashed", or "Running".
+        expected_run_count (int): The number of expected runs for the sweep
     """
 
     QUERY = gql(
@@ -93,18 +114,25 @@ class Sweep(Attrs):
 
     @property
     def entity(self):
+        """The entity associated with the sweep."""
         return self._entity
 
     @property
     def username(self):
+        """Deprecated. Use `Sweep.entity` instead."""
         wandb.termwarn("Sweep.username is deprecated. please use Sweep.entity instead.")
         return self._entity
 
     @property
     def config(self):
+        """The sweep configuration used for the sweep."""
         return util.load_yaml(self._attrs["config"])
 
     def load(self, force: bool = False):
+        """Fetch and update sweep data logged to the run from GraphQL database.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if force or not self._attrs:
             sweep = self.get(self.client, self.entity, self.project, self.id)
             if sweep is None:
@@ -116,6 +144,7 @@ class Sweep(Attrs):
 
     @property
     def order(self):
+        """Return the order key for the sweep."""
         if self._attrs.get("config") and self.config.get("metric"):
             sort_order = self.config["metric"].get("goal", "minimize")
             prefix = "+" if sort_order == "minimize" else "-"
@@ -155,6 +184,9 @@ class Sweep(Attrs):
 
     @property
     def path(self):
+        """Returns the path of the project.
+
+        The path is a list containing the entity, project name, and sweep ID."""
         return [
             urllib.parse.quote_plus(str(self.entity)),
             urllib.parse.quote_plus(str(self.project)),
@@ -163,12 +195,26 @@ class Sweep(Attrs):
 
     @property
     def url(self):
+        """The URL of the sweep.
+
+        The sweep URL is generated from the entity, project, the term
+        "sweeps", and the sweep ID.run_id. For
+        SaaS users, it takes the form
+        of `https://wandb.ai/entity/project/sweeps/sweeps_ID`.
+        """
         path = self.path
         path.insert(2, "sweeps")
         return self.client.app_url + "/".join(path)
 
     @property
     def name(self):
+        """The name of the sweep.
+
+        Returns the first name that exists in the following sequence:
+        1. User-edited display name
+        2. Name configured at creation time
+        3. Sweep ID
+        """
         return self._attrs.get("displayName") or self.config.get("name") or self.id
 
     @classmethod

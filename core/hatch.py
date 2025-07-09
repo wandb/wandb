@@ -11,6 +11,7 @@ def build_wandb_core(
     output_path: pathlib.PurePath,
     with_code_coverage: bool,
     with_race_detection: bool,
+    with_cgo: bool,
     wandb_commit_sha: Optional[str],
     target_system,
     target_arch,
@@ -25,6 +26,7 @@ def build_wandb_core(
             support, using `go build -cover`.
         with_race_detection: Whether to build the binary with race detection
             enabled, using `go build -race`.
+        with_cgo: Whether to build the binary with CGO enabled.
         wandb_commit_sha: The Git commit hash we're building from, if this
             is the https://github.com/wandb/wandb repository. Otherwise, an
             empty string.
@@ -56,6 +58,7 @@ def build_wandb_core(
         ],
         cwd="./core",
         env=_go_env(
+            with_cgo=with_cgo,
             with_race_detection=with_race_detection,
             target_system=target_system,
             target_arch=target_arch,
@@ -77,6 +80,7 @@ def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
 
 
 def _go_env(
+    with_cgo: bool,
     with_race_detection: bool,
     target_system: str,
     target_arch: str,
@@ -86,7 +90,12 @@ def _go_env(
     env["GOOS"] = target_system
     env["GOARCH"] = target_arch
 
-    env["CGO_ENABLED"] = "0"
+    # CGO can be enabled if, for example, FIPS compliance is required, as it
+    # relies on being able to load SSL libraries dynamically - and therefore
+    # building with CGO_ENABLED=1.
+    # See https://github.com/wandb/wandb/issues/10131.
+    env["CGO_ENABLED"] = "1" if with_cgo else "0"
+
     if with_race_detection:
         # Crash if a race is detected. The default behavior is to print
         # to stderr and continue.
