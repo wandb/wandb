@@ -11,24 +11,14 @@ Note:
 
 import json
 
-import requests
 from wandb_gql import gql
-from wandb_gql.client import RetryError
 
-from wandb import util
 from wandb.apis.normalize import normalize_exceptions
-from wandb.sdk.lib import retry
+from wandb.apis.public import api, runs
 
 
 class HistoryScan:
     """Iterator for scanning complete run history.
-
-    Args:
-        client: (`wandb.apis.internal.Api`) The client instance to use
-        run: (`wandb.sdk.internal.Run`) The run object to scan history for
-        min_step: (int) The minimum step to start scanning from
-        max_step: (int) The maximum step to scan up to
-        page_size: (int) Number of samples per page (default is 1000)
 
     <!-- lazydoc-ignore-class: internal -->
     """
@@ -45,7 +35,26 @@ class HistoryScan:
         """
     )
 
-    def __init__(self, client, run, min_step, max_step, page_size=1000):
+    def __init__(
+        self,
+        client: api.RetryingClient,
+        run: api.public.runs.Run,
+        min_step: int,
+        max_step: int,
+        page_size: int = 1000,
+    ):
+        """Initialize a HistoryScan instance.
+
+        Args:
+            client: The client instance to use for making API calls to the W&B backend.
+            run: The run object whose history is to be scanned.
+            min_step: The minimum step to start scanning from.
+            max_step: The maximum step to scan up to.
+            page_size: Number of history rows to fetch per page.
+                Default page_size is 1000.
+
+        <!-- lazydoc-ignore-class: internal -->
+        """
         self.client = client
         self.run = run
         self.page_size = page_size
@@ -78,10 +87,6 @@ class HistoryScan:
     next = __next__
 
     @normalize_exceptions
-    @retry.retriable(
-        check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
-    )
     def _load_next(self):
         max_step = self.page_offset + self.page_size
         if max_step > self.max_step:
@@ -120,16 +125,27 @@ class SampledHistoryScan:
         """
     )
 
-    def __init__(self, client, run, keys, min_step, max_step, page_size=1000):
+    def __init__(
+        self,
+        client: api.RetryingClient,
+        run: runs.Run,
+        keys: list,
+        min_step: int,
+        max_step: int,
+        page_size: int = 1000,
+    ):
         """Initialize a SampledHistoryScan instance.
 
         Args:
-            client: (`wandb.apis.internal.Api`) The client instance to use
-            run: (`wandb.sdk.internal.Run`) The run object to sample history from
-            keys: (list) List of keys to sample from the history
-            min_step: (int) The minimum step to start sampling from
-            max_step: (int) The maximum step to sample up to
-            page_size: (int) Number of samples per page (default is 1000)
+            client: The client instance to use for making API calls to the W&B backend.
+            run: The run object whose history is to be sampled.
+            keys: List of keys to sample from the history.
+            min_step: The minimum step to start sampling from.
+            max_step: The maximum step to sample up to.
+            page_size: Number of sampled history rows to fetch per page.
+                Default page_size is 1000.
+
+        <!-- lazydoc-ignore-class: internal -->
         """
         self.client = client
         self.run = run
@@ -164,10 +180,6 @@ class SampledHistoryScan:
     next = __next__
 
     @normalize_exceptions
-    @retry.retriable(
-        check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
-    )
     def _load_next(self):
         max_step = self.page_offset + self.page_size
         if max_step > self.max_step:
