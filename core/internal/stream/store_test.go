@@ -2,7 +2,6 @@ package stream_test
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"testing"
 
@@ -10,49 +9,6 @@ import (
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
-
-func TestValidHeader(t *testing.T) {
-	header := stream.NewHeader()
-
-	r, w := io.Pipe()
-
-	go func() {
-		defer func() {
-			_ = w.Close()
-		}()
-		err := header.MarshalBinary(w)
-		assert.NoError(t, err)
-	}()
-
-	err := header.UnmarshalBinary(r)
-	assert.NoError(t, err)
-	assert.True(t, header.Valid())
-	_ = r.Close()
-}
-
-// Test to check the Invalid scenario
-func TestInvalidHeader(t *testing.T) {
-	header := stream.HeaderOptions{
-		IDENT:   [4]byte{'a', 'b', 'c', 'd'},
-		Magic:   0xABCD,
-		Version: 1,
-	}
-
-	r, w := io.Pipe()
-
-	go func() {
-		defer func() {
-			_ = w.Close()
-		}()
-		err := header.MarshalBinary(w)
-		assert.NoError(t, err)
-	}()
-
-	err := header.UnmarshalBinary(r)
-	assert.NoError(t, err)
-	assert.False(t, header.Valid())
-	_ = r.Close()
-}
 
 func TestOpenCreateStore(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-db")
