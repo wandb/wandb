@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import base64
+import concurrent.futures
 import hashlib
 import logging
 import mmap
+import os
 import sys
 import time
 from typing import TYPE_CHECKING, NewType
@@ -63,8 +65,69 @@ def md5_file_hex(*paths: StrPath) -> HexMD5:
 
 
 _KB: int = 1_024
+_MB: int = 1_024 * _KB
+_GB: int = 1_024 * _MB
 _CHUNKSIZE: int = 128 * _KB
+_PART_SIZE: int = 100 * _MB  # 100MiB part size
+_LARGE_FILE_THRESHOLD: int = 2 * _GB  # 2GiB threshold for parallel hashing
 """Chunk size (in bytes) for iteratively reading from file, if needed."""
+
+
+def _hash_file_part(path: str, start_offset: int, part_size: int) -> bytes:
+    """Hash a specific part of a file."""
+    md5_hash = _md5()
+
+    with open(path, "rb") as f:
+        f.seek(start_offset)
+        remaining = part_size
+
+        while remaining > 0:
+            chunk_size = min(_CHUNKSIZE, remaining)
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            md5_hash.update(chunk)
+            remaining -= len(chunk)
+
+    return md5_hash.digest()
+
+
+def _compute_multipart_hash(path: str, file_size: int) -> _hashlib.HASH:
+    """Compute hash using multipart approach similar to AWS S3.
+
+    https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html#ChecksumTypes
+    """
+    # Calculate number of parts
+    num_parts = (file_size + _PART_SIZE - 1) // _PART_SIZE
+
+    # Hash each part in parallel
+    part_hashes = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = []
+        for part_num in range(num_parts):
+            start_offset = part_num * _PART_SIZE
+            actual_part_size = min(_PART_SIZE, file_size - start_offset)
+
+            future = executor.submit(
+                _hash_file_part, path, start_offset, actual_part_size
+            )
+            futures.append(future)
+
+        # Collect results
+        for future in concurrent.futures.as_completed(futures):
+            part_hashes.append(future.result())
+
+    # Sort part hashes to ensure consistent ordering
+    part_hashes.sort()
+
+    # Concatenate all part hashes and hash the result
+    concatenated_hashes = b"".join(part_hashes)
+    final_hash = _md5(concatenated_hashes)
+
+    # Add dash and number of parts (AWS S3 style)
+    final_hash.update(f"-{num_parts}".encode())
+
+    return final_hash
 
 
 def _md5_file_hasher(*paths: StrPath) -> _hashlib.HASH:
@@ -72,6 +135,17 @@ def _md5_file_hasher(*paths: StrPath) -> _hashlib.HASH:
 
     # Note: We use str paths (instead of pathlib.Path objs) for minor perf improvements.
     for path in sorted(map(str, paths)):
+        # Check if file is large enough for multipart hashing
+        try:
+            file_size = os.path.getsize(path)
+            if file_size >= _LARGE_FILE_THRESHOLD:
+                # Use multipart hashing for large files
+                return _compute_multipart_hash(path, file_size)
+        except OSError:
+            # If we can't get file size, fall back to original method
+            pass
+
+        # Original hashing method for smaller files or when file size can't be determined
         with open(path, "rb") as f:
             try:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mview:

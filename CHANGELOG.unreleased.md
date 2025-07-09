@@ -20,6 +20,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - Hash multipart upload parts in parallel. (@pingleiwandb in https://github.com/wandb/wandb/pull/10136)
+- Added parallel multipart hashing for large files (>2GiB) with 100MiB part sizes, similar to AWS S3 approach. (@pingleiwandb in https://github.com/wandb/wandb/pull/10136)
 
 ### Fixed
 

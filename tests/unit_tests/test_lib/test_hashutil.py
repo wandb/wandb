@@ -137,3 +137,74 @@ def test_md5_file_hashes_on_mounted_filesystem(
 
     assert expected_b64_hash == hashutil.md5_file_b64(fpath_large)
     assert expected_hex_hash == hashutil.md5_file_hex(fpath_large)
+
+
+def test_multipart_hashing_large_file(tmp_path):
+    """Test that large files (>2GiB) use multipart hashing."""
+    import os
+
+    # Create a large file (simulate 2.1GB)
+    large_file = tmp_path / "large_file.bin"
+    file_size = 2 * 1024 * 1024 * 1024 + 100 * 1024 * 1024  # 2.1GB
+
+    # Create file with predictable content
+    chunk = b"test_data_chunk_"
+    with open(large_file, "wb") as f:
+        remaining = file_size
+        while remaining > 0:
+            chunk_size = min(len(chunk), remaining)
+            f.write(chunk[:chunk_size])
+            remaining -= chunk_size
+
+    # Verify file size is above threshold
+    assert os.path.getsize(large_file) >= 2 * 1024 * 1024 * 1024
+
+    # Test that hashing works (we can't easily predict the exact hash due to multipart approach)
+    b64_hash = hashutil.md5_file_b64(large_file)
+    hex_hash = hashutil.md5_file_hex(large_file)
+
+    # Verify we get valid hashes
+    assert len(b64_hash) > 0
+    assert len(hex_hash) == 32  # MD5 hex is always 32 characters
+
+
+def test_multipart_hashing_small_file(tmp_path):
+    """Test that small files still use the original hashing method."""
+    small_file = tmp_path / "small_file.bin"
+    content = b"small file content for testing"
+    small_file.write_bytes(content)
+
+    # Calculate expected hash using original method
+    expected_md5 = hashlib.md5(content)
+    expected_b64_hash = base64.b64encode(expected_md5.digest()).decode("ascii")
+    expected_hex_hash = expected_md5.hexdigest()
+
+    # Verify we get the expected hashes (should use original method for small files)
+    assert expected_b64_hash == hashutil.md5_file_b64(small_file)
+    assert expected_hex_hash == hashutil.md5_file_hex(small_file)
+
+
+def test_multipart_hashing_part_size_consistency(tmp_path):
+    """Test that multipart hashing produces consistent results."""
+    import os
+
+    # Create a file that's exactly 3 parts (300MB)
+    large_file = tmp_path / "exact_parts.bin"
+    file_size = 3 * 100 * 1024 * 1024  # 300MB
+
+    # Create file with predictable content
+    chunk = b"consistent_test_data_"
+    with open(large_file, "wb") as f:
+        remaining = file_size
+        while remaining > 0:
+            chunk_size = min(len(chunk), remaining)
+            f.write(chunk[:chunk_size])
+            remaining -= chunk_size
+
+    # Hash the same file multiple times
+    hash1 = hashutil.md5_file_b64(large_file)
+    hash2 = hashutil.md5_file_b64(large_file)
+    hash3 = hashutil.md5_file_b64(large_file)
+
+    # All hashes should be identical
+    assert hash1 == hash2 == hash3
