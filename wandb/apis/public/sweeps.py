@@ -59,13 +59,6 @@ SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
 class Sweeps(SizedPaginator["Sweep"]):
     """An iterable collection of `Sweep` objects.
 
-    Args:
-        client: (`wandb.apis.public.RetryingClient`) The API client to use
-            for requests.
-        entity: (str) The entity (username or team) that owns the project.
-        project: (str) The name of the project to fetch sweeps from.
-        per_page: (int) The number of sweeps to fetch per request (default is 50).
-
     Examples:
     ```python
     from wandb.apis.public import Api
@@ -130,7 +123,10 @@ class Sweeps(SizedPaginator["Sweep"]):
 
     @property
     def _length(self):
-        """The total number of sweeps in the project."""
+        """The total number of sweeps in the project.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return (
                 self.last_response["project"]["totalSweeps"]
@@ -138,7 +134,7 @@ class Sweeps(SizedPaginator["Sweep"]):
                 else 0
             )
         else:
-            return None
+            return 0
 
     @property
     def more(self):
