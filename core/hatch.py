@@ -90,6 +90,10 @@ def _go_env(
     env["GOOS"] = target_system
     env["GOARCH"] = target_arch
 
+    # CGO can be enabled if, for example, FIPS compliance is required, as it
+    # relies on being able to load SSL libraries dynamically - and therefore
+    # building with CGO_ENABLED=1.
+    # See https://github.com/wandb/wandb/issues/10131.
     env["CGO_ENABLED"] = "1" if with_cgo else "0"
 
     if with_race_detection:
