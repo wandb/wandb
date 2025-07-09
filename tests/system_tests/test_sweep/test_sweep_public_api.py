@@ -2,6 +2,7 @@ import pytest
 import wandb
 from wandb import Api
 from wandb.apis.public.sweeps import Sweep
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb_gql import gql
 
 from .test_wandb_sweep import (
@@ -9,6 +10,7 @@ from .test_wandb_sweep import (
     SWEEP_CONFIG_GRID,
     SWEEP_CONFIG_GRID_NESTED,
     SWEEP_CONFIG_RANDOM,
+    SWEEP_CONFIG_NO_NAME,
     VALID_SWEEP_CONFIGS_MINIMAL,
 )
 
@@ -36,7 +38,6 @@ query Sweep($project: String, $entity: String, $name: String!) {
 }
 """
 )
-
 
 @pytest.mark.parametrize(
     "sweep_config,expected_run_count",
@@ -87,6 +88,42 @@ def test_sweep_api(use_local_wandb_backend, user, sweep_config):
     assert f"{user}/{_project}/sweeps/{sweep_id}" in sweep.url
     assert sweep.state == "PENDING"
     assert str(sweep) == f"<Sweep {user}/test/{sweep_id} (PENDING)>"
+    assert sweep.name == sweep_config["name"]
+    assert sweep.path == [user, _project, sweep_id]
+
+@pytest.mark.parametrize("sweep_config", [SWEEP_CONFIG_NO_NAME])
+def test_sweep_no_name(use_local_wandb_backend, user, sweep_config):
+    """Test that name for a sweep created with no config name is the sweep id."""
+    _ = use_local_wandb_backend
+    _project = "test"
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+
+    sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+
+    assert sweep.name == sweep_id
+
+
+@pytest.mark.parametrize("sweep_config", [SWEEP_CONFIG_BAYES])
+def test_sweep_with_display_name(use_local_wandb_backend, user, sweep_config):
+    """Test that name for a sweep with an updated displayName is the displayName."""
+    _ = use_local_wandb_backend
+    _project = "test"
+    sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+    api = Api()
+    original_sweep = api.sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+    updated_display_name = "Updated Sweep Name"
+    InternalApi().upsert_sweep(
+        config=sweep_config,
+        obj_id=original_sweep._attrs["id"],  # Use the internal ID to update existing sweep
+        entity=user,
+        project=_project,
+        display_name=updated_display_name,
+    )
+
+    updated_sweep = api.sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+
+    assert original_sweep.name == sweep_config["name"]
+    assert updated_sweep.name == updated_display_name
 
 
 def test_from_path(user):
