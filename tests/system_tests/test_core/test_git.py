@@ -10,13 +10,17 @@ def setup_repo_with_remote(tmp_path):
     base_repo_path = tmp_path / "base_repo"
     remote_repo_path = tmp_path / "remote_repo"
     base_repo = git.Repo.init(base_repo_path)
-    remote_repo = git.Repo.init(remote_repo_path, bare=True)
-    base_repo.create_remote("origin", str(remote_repo.git_dir))
+    base_repo.config_writer().set_value("user", "name", "test").release()
+    base_repo.config_writer().set_value("user", "email", "test@test.com").release()
+    remote_repo = git.Repo.init(remote_repo_path, bare=True, initial_branch="main")
+    remote_repo.config_writer().set_value("user", "name", "test").release()
+    remote_repo.config_writer().set_value("user", "email", "test@test.com").release()
+    base_repo.git.remote("add", "origin", str(remote_repo.git_dir))
 
     (base_repo_path / "init.txt").write_text("init")
     base_repo.git.add("init.txt")
     base_repo.git.commit(m="Initial commit")
-    base_repo.git.push("origin", "main")
+    base_repo.git.push("origin", "HEAD:main")
 
     yield base_repo, remote_repo
 
