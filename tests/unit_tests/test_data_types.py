@@ -17,6 +17,7 @@ from PIL import Image
 from wandb import data_types, env
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
+from wandb.sdk.wandb_settings import Settings
 
 
 def subdict(d, expected_dict):
@@ -702,28 +703,54 @@ def test_video_encodes_with_spinner__displays_by_default(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "silent_setting,quiet_setting,env_var,env_value,expected_calls",
+    "silent_setting, quiet_setting, expected_calls",
     [
-        (True, False, None, None, 0),
-        (False, True, None, None, 0),
-        (False, False, None, None, 1),
-        (False, False, env.QUIET, "true", 0),
-        (False, False, env.SILENT, "true", 0),
-        (False, False, env.QUIET, "false", 1),
-        (False, False, env.SILENT, "false", 1),
+        (True, False, 0),
+        (False, True, 0),
+        (False, False, 1),
     ],
 )
-def test_video_encodes_with_spinner(
+def test_video_encodes_with_spinner__controlled_by_settings(
     monkeypatch,
     silent_setting,
     quiet_setting,
+    expected_calls,
+):
+    wandb.setup(
+        settings=Settings(
+            quiet=quiet_setting,
+            silent=silent_setting,
+        )
+    )
+
+    mock_run_async_with_spinner = mock.MagicMock()
+    monkeypatch.setattr(
+        wandb.sdk.lib.printer_asyncio,
+        "run_async_with_spinner",
+        mock_run_async_with_spinner,
+    )
+    frames = np.random.randint(255, size=(1, 1, 1, 1))
+
+    wandb.Video(frames, format="mp4")
+
+    assert mock_run_async_with_spinner.call_count == expected_calls
+
+
+@pytest.mark.parametrize(
+    "env_var, env_value, expected_calls",
+    [
+        (env.QUIET, "true", 0),
+        (env.SILENT, "true", 0),
+        (env.QUIET, "false", 1),
+        (env.SILENT, "false", 1),
+    ],
+)
+def test_video_encodes_with_spinner__controlled_by_env_vars(
+    monkeypatch,
     env_var,
     env_value,
     expected_calls,
 ):
-    settings = wandb.setup().settings
-    settings.quiet = quiet_setting
-    settings.silent = silent_setting
     if env_var is not None:
         monkeypatch.setenv(env_var, env_value)
 
