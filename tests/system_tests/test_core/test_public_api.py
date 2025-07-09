@@ -660,7 +660,7 @@ def test_project_get_sweeps_paginated(user, wandb_backend_spy):
     assert sweeps[1].id == "test-sweep-2"
 
 
-def test_project_sweeps_paginated_no_sweeps(user, wandb_backend_spy):
+def test_project_get_sweeps_empty(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
 
     wandb_backend_spy.stub_gql(

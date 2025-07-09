@@ -127,20 +127,22 @@ class Sweeps(SizedPaginator["Sweep"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return (
-                self.last_response["project"]["totalSweeps"]
-                if self.last_response["project"]["totalSweeps"] is not None
-                else 0
-            )
-        else:
-            return 0
+        if not self.last_response:
+            self._load_page()
+
+        return (
+            self.last_response["project"]["totalSweeps"]
+            if self.last_response["project"]["totalSweeps"] is not None
+            else 0
+        )
 
     @property
     def more(self):
         """Returns whether there are more sweeps to fetch."""
         if self.last_response:
-            return self.last_response["project"]["sweeps"]["pageInfo"]["hasNextPage"]
+            return bool(
+                self.last_response["project"]["sweeps"]["pageInfo"]["hasNextPage"]
+            )
         else:
             return True
 
