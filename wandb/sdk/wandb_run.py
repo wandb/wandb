@@ -486,8 +486,8 @@ class Run:
     See [Log distributed training experiments](https://docs.wandb.ai/guides/track/log/distributed-training)
     for more information.
 
-    You can log data to a run with `run.log()`. Anything you log using
-    `run.log()` is sent to that run. See
+    You can log data to a run with `wandb.Run.log()`. Anything you log using
+    `wandb.Run.log()` is sent to that run. See
     [Create an experiment](https://docs.wandb.ai/guides/track/launch) or
     [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page
     or more information.
@@ -962,7 +962,7 @@ class Run:
     def step(self) -> int:
         """Current value of the step.
 
-        This counter is incremented by `run.log()`.
+        This counter is incremented by `wandb.Run.log()`.
 
         <!-- lazydoc-ignore: internal -->
         """
@@ -1505,7 +1505,7 @@ class Run:
     ) -> dict[str, Any]:
         """Process and replace chart objects with their underlying table values.
 
-        This processes the chart objects passed to `run.log()`, replacing their entries
+        This processes the chart objects passed to `wandb.Run.log()`, replacing their entries
         in the given dictionary (which is saved to the run's history) and adding them
         to the run's config.
 
@@ -1793,20 +1793,22 @@ class Run:
         the following results in two sections named "train" and "validate":
 
         ```python
-        run.log(
-            {
-                "train/accuracy": 0.9,
-                "train/loss": 30,
-                "validate/accuracy": 0.8,
-                "validate/loss": 20,
-            }
-        )
+        with wandb.init() as run:
+            # Log metrics in the "train" section.
+            run.log(
+                {
+                    "train/accuracy": 0.9,
+                    "train/loss": 30,
+                    "validate/accuracy": 0.8,
+                    "validate/loss": 20,
+                }
+            )
         ```
 
         Only one level of nesting is supported; `run.log({"a/b/c": 1})`
         produces a section named "a/b".
 
-        `run.log` is not intended to be called more than a few times per second.
+        `run.log()` is not intended to be called more than a few times per second.
         For optimal performance, limit your logging to once every N iterations,
         or collect data over multiple iterations and log it in a single step.
 
@@ -1820,31 +1822,33 @@ class Run:
         you'd treat a timestamp rather than a training step.
 
         ```python
-        # Example: log an "epoch" metric for use as an X axis.
-        run.log({"epoch": 40, "train-loss": 0.5})
+        with wandb.init() as run:
+            # Example: log an "epoch" metric for use as an X axis.
+            run.log({"epoch": 40, "train-loss": 0.5})
         ```
 
-        It is possible to use multiple `log` invocations to log to
+        It is possible to use multiple `wandb.Run.log()` invocations to log to
         the same step with the `step` and `commit` parameters.
         The following are all equivalent:
 
         ```python
-        # Normal usage:
-        run.log({"train-loss": 0.5, "accuracy": 0.8})
-        run.log({"train-loss": 0.4, "accuracy": 0.9})
+        with wandb.init() as run:
+            # Normal usage:
+            run.log({"train-loss": 0.5, "accuracy": 0.8})
+            run.log({"train-loss": 0.4, "accuracy": 0.9})
 
-        # Implicit step without auto-incrementing:
-        run.log({"train-loss": 0.5}, commit=False)
-        run.log({"accuracy": 0.8})
-        run.log({"train-loss": 0.4}, commit=False)
-        run.log({"accuracy": 0.9})
+            # Implicit step without auto-incrementing:
+            run.log({"train-loss": 0.5}, commit=False)
+            run.log({"accuracy": 0.8})
+            run.log({"train-loss": 0.4}, commit=False)
+            run.log({"accuracy": 0.9})
 
-        # Explicit step:
-        run.log({"train-loss": 0.5}, step=current_step)
-        run.log({"accuracy": 0.8}, step=current_step)
-        current_step += 1
-        run.log({"train-loss": 0.4}, step=current_step)
-        run.log({"accuracy": 0.9}, step=current_step)
+            # Explicit step:
+            run.log({"train-loss": 0.5}, step=current_step)
+            run.log({"accuracy": 0.8}, step=current_step)
+            current_step += 1
+            run.log({"train-loss": 0.4}, step=current_step)
+            run.log({"accuracy": 0.9}, step=current_step)
         ```
 
         Args:
@@ -1993,8 +1997,8 @@ class Run:
         ```
 
         Raises:
-            wandb.Error: if called before `wandb.init`
-            ValueError: if invalid data is passed
+            wandb.Error: If called before `wandb.init()`.
+            ValueError: If invalid data is passed.
 
         """
         if step is not None:
@@ -2779,14 +2783,14 @@ class Run:
         goal: str | None = None,
         overwrite: bool | None = None,
     ) -> wandb_metric.Metric:
-        """Customize metrics logged with `wandb.log()`.
+        """Customize metrics logged with `wandb.Run.log()`.
 
         Args:
             name: The name of the metric to customize.
             step_metric: The name of another metric to serve as the X-axis
                 for this metric in automatically generated charts.
             step_sync: Automatically insert the last value of step_metric into
-                `run.log()` if it is not provided explicitly. Defaults to True
+                `wandb.Run.log()` if it is not provided explicitly. Defaults to True
                  if step_metric is specified.
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
@@ -2934,7 +2938,7 @@ class Run:
 
         Raises:
             ValueError:
-                If `wandb.init` has not been called or if any of the models are not instances
+                If `wandb.init()` has not been called or if any of the models are not instances
                 of `torch.nn.Module`.
         """
         wandb.sdk._watch(self, models, criterion, log, log_freq, idx, log_graph)
@@ -3464,12 +3468,12 @@ class Run:
             - model_artifact_name:version
             - model_artifact_name:alias
 
-        Raises:
-            AssertionError: If model artifact 'name' is of a type that does
-            not contain the substring 'model'.
-
         Returns:
             path (str): Path to downloaded model artifact file(s).
+
+        Raises:
+            AssertionError: If model artifact 'name' is of a type that does
+                not contain the substring 'model'.
         """
         if self._settings._offline:
             # Downloading artifacts is not supported when offline.
@@ -3539,7 +3543,7 @@ class Run:
             ValueError: If name has invalid special characters.
 
         Returns:
-            The linked artifact if linking was successful, otherwise None.
+            The linked artifact if linking was successful, otherwise `None`.
         """
         name_parts = registered_model_name.split("/")
         if len(name_parts) != 1:
@@ -3982,7 +3986,7 @@ def restore(
         None if it can't find the file, otherwise a file object open for reading.
 
     Raises:
-        wandb.CommError: If W&B can't connect to the W&B backend.
+        CommError: If W&B can't connect to the W&B backend.
         ValueError: If the file is not found or can't find run_path.
     """
     is_disabled = wandb.run is not None and wandb.run.disabled
