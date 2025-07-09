@@ -822,7 +822,7 @@ def sweep(
       prior_runs: The run IDs of existing runs to add to this sweep.
 
     Returns:
-      sweep_id: (str) A unique identifier for the sweep.
+      str: A unique identifier for the sweep.
     """
     ...
 
