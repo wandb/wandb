@@ -389,6 +389,9 @@ def init(
         settings: Specifies a dictionary or `wandb.Settings` object with advanced
             settings for the run.
 
+    Returns:
+        A `Run` object.
+
     Raises:
         Error: If some unknown or internal error happened during the run
             initialization.
@@ -396,10 +399,6 @@ def init(
         CommError: If there was a problem communicating with the WandB server.
         UsageError: If the user provided invalid arguments.
         KeyboardInterrupt: If user interrupts the run.
-
-    Returns:
-        A `Run` object.
-
 
     Examples:
     `wandb.init()` returns a `Run` object. Use the run object to log data,

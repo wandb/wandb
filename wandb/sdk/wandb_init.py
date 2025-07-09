@@ -1436,7 +1436,7 @@ def init(  # noqa: C901
         AuthenticationError: If the user failed to provide valid credentials.
         CommError: If there was a problem communicating with the WandB server.
         UsageError: If the user provided invalid arguments.
-        KeyboardInterrupt: If user interrupts the run.        
+        KeyboardInterrupt: If user interrupts the run.
 
     Examples:
     `wandb.init()` returns a `Run` object. Use the run object to log data,
