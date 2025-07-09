@@ -10351,6 +10351,19 @@ func awsRestxml_serializeDocumentCreateBucketConfiguration(v *types.CreateBucket
 		el := value.MemberElement(root)
 		el.String(string(v.LocationConstraint))
 	}
+	if v.Tags != nil {
+		rootAttr := []smithyxml.Attr{}
+		root := smithyxml.StartElement{
+			Name: smithyxml.Name{
+				Local: "Tags",
+			},
+			Attr: rootAttr,
+		}
+		el := value.MemberElement(root)
+		if err := awsRestxml_serializeDocumentTagSet(v.Tags, el); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
