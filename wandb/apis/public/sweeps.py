@@ -138,7 +138,10 @@ class Sweeps(SizedPaginator["Sweep"]):
 
     @property
     def more(self):
-        """Returns whether there are more sweeps to fetch."""
+        """Returns whether there are more sweeps to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return bool(
                 self.last_response["project"]["sweeps"]["pageInfo"]["hasNextPage"]
@@ -148,18 +151,27 @@ class Sweeps(SizedPaginator["Sweep"]):
 
     @property
     def cursor(self):
-        """Returns the cursor for the next page of sweeps."""
+        """Returns the cursor for the next page of sweeps.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return self.last_response["project"]["sweeps"]["pageInfo"]["endCursor"]
         else:
             return None
 
     def update_variables(self):
-        """Updates the variables for the next page of sweeps."""
+        """Updates the variables for the next page of sweeps.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         self.variables.update({"perPage": self.per_page, "cursor": self.cursor})
 
     def convert_objects(self):
-        """Converts the last GraphQL response into a list of `Sweep` objects."""
+        """Converts the last GraphQL response into a list of `Sweep` objects.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response is None or self.last_response.get("project") is None:
             raise ValueError("Could not find project {}".format(self.project))
 
