@@ -13,5 +13,11 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Changed
+
+- `Sweep.name` property will now return modified display name if available (falling back to
+  original name from sweep config, then sweep ID as before).
+
 ### Fixed
+
 - Correct the artifact url for organization registry artifacts to be independent of the artifact type. (@ibindlish in https://github.com/wandb/wandb/pull/10049)
