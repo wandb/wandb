@@ -331,6 +331,7 @@ message MetricSummary {
   bool last = 5;
   bool none = 6;
   bool copy = 7;
+  bool first = 8;
 }
 
 /*
