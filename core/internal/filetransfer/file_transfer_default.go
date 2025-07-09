@@ -18,6 +18,8 @@ type DefaultFileTransfer struct {
 	// client is the HTTP client for the file transfer
 	client *retryablehttp.Client
 
+	noKeepAliveClient *retryablehttp.Client
+
 	// logger is the logger for the file transfer
 	logger *observability.CoreLogger
 
@@ -31,9 +33,15 @@ func NewDefaultFileTransfer(
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
 ) *DefaultFileTransfer {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.DisableKeepAlives = true
+	noKeepAliveClient := retryablehttp.NewClient()
+	noKeepAliveClient.HTTPClient.Transport = tr
+
 	fileTransfer := &DefaultFileTransfer{
 		logger:            logger,
 		client:            client,
+		noKeepAliveClient: noKeepAliveClient,
 		fileTransferStats: fileTransferStats,
 	}
 	return fileTransfer
@@ -80,7 +88,8 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	if task.Context != nil {
 		req = req.WithContext(task.Context)
 	}
-	resp, err := ft.client.Do(req)
+	// TODO: See if using client without keep alive is faster for GCS.
+	resp, err := ft.noKeepAliveClient.Do(req)
 	if err != nil {
 		return err
 	}
