@@ -230,7 +230,7 @@ class Settings(BaseModel, validate_assignment=True):
     """The type of console capture to be applied.
 
     Possible values are:
-     "auto" - Automatically selects the console capture method based on the
+      "auto" - Automatically selects the console capture method based on the
       system environment and settings.
 
       "off" - Disables console capture.
