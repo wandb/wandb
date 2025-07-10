@@ -210,7 +210,8 @@ class Sweep(Attrs):
     def name(self):
         """The name of the sweep.
 
-        Returns the first name that exists in the following sequence:
+        Returns the first name that exists in the following priority order:
+
         1. User-edited display name
         2. Name configured at creation time
         3. Sweep ID
