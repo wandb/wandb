@@ -2756,4 +2756,95 @@ def verify(host):
         sys.exit(1)
 
 
+@cli.command(context_settings=CONTEXT, help="Generate a meaningful run name from config")
+@click.argument("url", required=True)
+@click.option(
+    "--previous-runs",
+    "-p",
+    default=5,
+    type=int,
+    help="Number of previous runs to analyze for context (default: 5)",
+)
+@click.option(
+    "--max-name-length",
+    "-l",
+    default=50,
+    type=int,
+    help="Maximum length of generated name (default: 50)",
+)
+@click.option(
+    "--update-run",
+    "-u",
+    is_flag=True,
+    default=False,
+    help="Update the run with the generated name",
+)
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    default=False,
+    help="Show detailed analysis information",
+)
+@display_error
+def generate_run_name(url, previous_runs, max_name_length, update_run, verbose):
+    """Generate a meaningful run name from W&B run config.
+    
+    Takes a W&B run URL and analyzes the config to generate a descriptive name.
+    Can optionally analyze previous runs for context and update the run name.
+    
+    Example:
+        wandb generate-run-name https://wandb.ai/entity/project/runs/abc123
+    """
+    from wandb.sdk.launch.wandb_reference import WandbReference
+    
+    # Parse the URL to extract run information
+    try:
+        ref = WandbReference.parse(url)
+        if not ref or not ref.is_run() or not ref.entity or not ref.project or not ref.run_id:
+            raise ClickException(f"Invalid W&B run URL: {url}")
+    except Exception as e:
+        raise ClickException(f"Failed to parse URL: {e}")
+    
+    # Get API client
+    api = _get_cling_api()
+    if not api.is_authenticated:
+        wandb.termlog("Please log in to W&B first")
+        ctx = click.get_current_context()
+        ctx.invoke(login)
+        api = _get_cling_api(reset=True)
+    
+    # Generate the run name
+    try:
+        from wandb.cli.run_name_generator import RunNameGenerator
+        
+        generator = RunNameGenerator(
+            api=api,
+            entity=ref.entity,
+            project=ref.project,
+            max_name_length=max_name_length,
+            verbose=verbose
+        )
+        
+        generated_name = generator.generate_name(
+            run_id=ref.run_id,
+            previous_runs_count=previous_runs
+        )
+        
+        click.echo(f"Generated name: {click.style(generated_name, fg='green', bold=True)}")
+        
+        if update_run:
+            success = generator.update_run_name(ref.run_id, generated_name)
+            if success:
+                click.echo(f"✓ Updated run name successfully")
+            else:
+                click.echo(f"✗ Failed to update run name")
+        
+    except Exception as e:
+        if verbose:
+            import traceback
+            traceback.print_exc()
+        raise ClickException(f"Failed to generate run name: {e}")
+
+
 cli.add_command(beta)
