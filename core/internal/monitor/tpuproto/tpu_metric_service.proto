@@ -18,7 +18,7 @@ package tpu.monitoring.runtime;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/wandb/wandb/core/pkg/monitor/tpuproto";
+option go_package = "github.com/wandb/wandb/core/internal/monitor/tpuproto";
 
 message Exemplar {
   double value = 1;

@@ -17,7 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Html(BatchableMedia):
-    """A class for logging HTML content to W&B."""
+    """W&B class for logging HTML content to W&B."""
 
     _log_type = "html-file"
 
@@ -29,19 +29,6 @@ class Html(BatchableMedia):
     ) -> None:
         """Creates a W&B HTML object.
 
-        It can be initialized by providing a path to a file:
-        ```
-        with wandb.init() as run:
-            run.log({"html": wandb.Html("./index.html")})
-        ```
-
-        Alternatively, it can be initialized by providing literal HTML,
-        in either a string or IO object:
-        ```
-        with wandb.init() as run:
-            run.log({"html": wandb.Html("<h1>Hello, world!</h1>")})
-        ```
-
         Args:
             data:
                 A string that is a path to a file with the extension ".html",
@@ -50,6 +37,22 @@ class Html(BatchableMedia):
                 to False the HTML will pass through unchanged.
             data_is_not_path: If set to False, the data will be
                 treated as a path to a file.
+
+        Examples:
+        It can be initialized by providing a path to a file:
+
+        ```python
+        with wandb.init() as run:
+            run.log({"html": wandb.Html("./index.html")})
+        ```
+
+        Alternatively, it can be initialized by providing literal HTML,
+        in either a string or IO object:
+
+        ```python
+        with wandb.init() as run:
+            run.log({"html": wandb.Html("<h1>Hello, world!</h1>")})
+        ```
         """
         super().__init__()
         data_is_path = (
@@ -84,6 +87,10 @@ class Html(BatchableMedia):
             self._set_file(data_path, is_tmp=False)
 
     def inject_head(self) -> None:
+        """Inject a <head> tag into the HTML.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         join = ""
         if "<head>" in self.html:
             parts = self.html.split("<head>", 1)
@@ -102,9 +109,17 @@ class Html(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Html"]) -> str:
+        """Get media subdirectory.
+
+        "<!-- lazydoc-ignore-classmethod: internal -->
+        """
         return os.path.join("media", "html")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict
@@ -113,6 +128,10 @@ class Html(BatchableMedia):
     def from_json(
         cls: Type["Html"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Html":
+        """Deserialize a JSON object into it's class representation.
+
+        "<!-- lazydoc-ignore-classmethod: internal -->
+        """
         return cls(source_artifact.get_entry(json_obj["path"]).download(), inject=False)
 
     @classmethod
@@ -123,6 +142,10 @@ class Html(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
+        """Convert a sequence of HTML objects to a JSON representation.
+
+        "<!-- lazydoc-ignore-classmethod: internal -->
+        """
         base_path = os.path.join(run.dir, cls.get_media_subdir())
         filesystem.mkdir_exists_ok(base_path)
 
