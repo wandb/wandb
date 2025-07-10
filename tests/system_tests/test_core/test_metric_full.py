@@ -91,6 +91,7 @@ def test_metric_sum_none(wandb_backend_spy):
         ("max", 8),
         ("last", 3),
         ("mean", 4),
+        ("first", 1),
     ],
 )
 def test_metric_summary(summary, expected):
@@ -109,6 +110,7 @@ def test_metric_summary(summary, expected):
         ("min", 1),
         ("max", 3),
         ("mean", 2),
+        ("first", 1),
     ],
 )
 def test_metric_summary_string_type(summary, expected):

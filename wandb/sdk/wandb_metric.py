@@ -100,6 +100,8 @@ class Metric:
                 m.summary.none = True
             if "best" in summary_set:
                 m.summary.best = True
+            if "first" in summary_set:
+                m.summary.first = True
         if self._goal == "min":
             m.goal = m.GOAL_MINIMIZE
         if self._goal == "max":
