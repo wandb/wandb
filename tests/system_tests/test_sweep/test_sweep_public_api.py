@@ -106,14 +106,13 @@ def test_sweep_no_name(use_local_wandb_backend, user, sweep_config):
 
 
 @pytest.mark.parametrize("sweep_config", [SWEEP_CONFIG_BAYES])
-def test_sweep_with_display_name(use_local_wandb_backend, user, sweep_config):
+def test_sweep_with_edited_display_name(use_local_wandb_backend, user, sweep_config):
     """Test that name for a sweep with an updated displayName is the displayName."""
     _ = use_local_wandb_backend
     _project = "test"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
-    api = Api()
-    original_sweep = api.sweep(f"{user}/{_project}/sweeps/{sweep_id}")
-    updated_display_name = "Updated Sweep Name"
+    original_sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+    edited_display_name = "Updated Sweep Name"
     InternalApi().upsert_sweep(
         config=sweep_config,
         obj_id=original_sweep._attrs[
@@ -121,13 +120,13 @@ def test_sweep_with_display_name(use_local_wandb_backend, user, sweep_config):
         ],  # Use the internal ID to update existing sweep
         entity=user,
         project=_project,
-        display_name=updated_display_name,
+        display_name=edited_display_name,
     )
 
-    updated_sweep = api.sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+    updated_sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
 
     assert original_sweep.name == sweep_config["name"]
-    assert updated_sweep.name == updated_display_name
+    assert updated_sweep.name == edited_display_name
 
 
 def test_from_path(user):
