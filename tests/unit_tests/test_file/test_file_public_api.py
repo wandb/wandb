@@ -62,9 +62,7 @@ def test_path_uri_empty_url(mock_client, termwarn_spy):
     file = File(mock_client, attrs)
 
     assert file.path_uri == ""
-    termwarn_spy.assert_called_once_with(
-        "path_uri is only available for files stored in S3"
-    )
+    termwarn_spy.assert_called_once_with("Unable to find direct_url of file")
 
 
 def test_path_uri_missing_direct_url(mock_client, termwarn_spy):

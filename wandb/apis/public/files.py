@@ -142,26 +142,19 @@ class File(Attrs):
         """
         path_uri = ""
 
-        direct_url = self._attrs["directUrl"]
-        if direct_url is None:
+        direct_url = self._attrs.get("directUrl", "")
+        if not direct_url:
             wandb.termwarn("Unable to find direct_url of file")
             return path_uri
 
-        # If the directUrl is the same as the url, this indicates that the file is a reference file.
-        # We just return the uri then.
-        try:
-            if direct_url == self._attrs["url"]:
-                return direct_url
-        except KeyError:
-            wandb.termwarn("Unable to find url of file")
-            return path_uri
+        # For reference files, both the directUrl and the url are just the path to the file in the bucket.
+        if direct_url == self._attrs.get("url", ""):
+            return direct_url
 
         try:
-            path_uri = utils.parse_s3_url_to_s3_uri(self._attrs["directUrl"])
+            path_uri = utils.parse_s3_url_to_s3_uri(direct_url)
         except ValueError:
             wandb.termwarn("path_uri is only available for files stored in S3")
-        except LookupError:
-            wandb.termwarn("Unable to find direct_url of file")
         return path_uri
 
     @normalize_exceptions
