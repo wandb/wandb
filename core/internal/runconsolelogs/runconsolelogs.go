@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
@@ -22,6 +24,7 @@ import (
 const (
 	maxTerminalLines      = 32
 	maxTerminalLineLength = 4096
+	ConsoleFileName       = "output.log"
 )
 
 // Sender processes OutputRawRecords.
@@ -46,13 +49,21 @@ type Sender struct {
 
 	// captureEnabled indicates whether to capture console output.
 	captureEnabled bool
+
+	// fileWriter handles writing to disk (either single file or chunked).
+	fileWriter fileWriter
+
+	// isMultipart indicates whether we're using chunked file output.
+	isMultipart bool
 }
 
-type Params struct {
-	// ConsoleOutputFile is the run file path to which to write captured
-	// console messages.
-	ConsoleOutputFile paths.RelativePath
+// fileWriter is an interface for writing console logs to files.
+type fileWriter interface {
+	WriteToFile(sparselist.SparseList[*RunLogsLine]) error
+}
 
+// Params contains parameters for creating a console logs Sender.
+type Params struct {
 	// FilesDir is the directory in which to write the console output file.
 	// Note this is actually the root directory for all run files.
 	FilesDir string
@@ -75,10 +86,27 @@ type Params struct {
 	// Structured indicates whether to send the console output in structured format.
 	Structured bool
 
-	// Label is a prefix for the console output lines.
+	// Label is an optional prefix for the console output lines.
 	Label string
+
+	// Multipart indicates whether to capture multipart and potentially chunked logs.
+	//
+	// If True, the SDK writes console output to timestamped files
+	// under the `logs/` directory instead of a single `output.log`.
+	Multipart bool
+
+	// Size-based rollover threshold for multipart console logs, in bytes.
+	ChunkMaxBytes int32
+
+	// Time-based rollover threshold for multipart console logs, in seconds.
+	ChunkMaxSeconds int32
 }
 
+// New creates a new console logs Sender.
+//
+// The sender processes console output records, applies terminal emulation,
+// and writes the results to files and/or the filestream. In multipart mode,
+// the output is split into chunks that are uploaded periodically.
 func New(params Params) *Sender {
 	if params.Logger == nil {
 		panic("runconsolelogs: Logger is nil")
@@ -86,6 +114,20 @@ func New(params Params) *Sender {
 
 	if params.GetNow == nil {
 		params.GetNow = time.Now
+	}
+
+	// Guaranteed not to fail.
+	p, _ := paths.Relative(ConsoleFileName)
+	outputFileName := *p
+
+	if params.Label != "" {
+		sanitizedLabel := fileutil.SanitizeFilename(params.Label)
+		extension := filepath.Ext(string(outputFileName))
+		baseFileName := strings.TrimSuffix(string(outputFileName), extension)
+		p, _ := paths.Relative(
+			fmt.Sprintf("%s_%s%s", baseFileName, sanitizedLabel, extension),
+		)
+		outputFileName = *p
 	}
 
 	var fsWriter *filestreamWriter
@@ -96,23 +138,41 @@ func New(params Params) *Sender {
 		}
 	}
 
-	var fileWriter *outputFileWriter
+	var fileWriter fileWriter
 	if params.EnableCapture {
-		var err error
-		fileWriter, err = NewOutputFileWriter(
-			filepath.Join(
-				params.FilesDir,
-				string(params.ConsoleOutputFile),
-			),
-			params.Logger,
-		)
+		if params.Multipart {
+			// Extract chunk configuration.
+			maxBytes := int64(params.ChunkMaxBytes)
+			maxSeconds := int64(params.ChunkMaxSeconds)
 
-		if err != nil {
-			params.Logger.CaptureError(
-				fmt.Errorf(
-					"runconsolelogs: cannot write to file: %v",
-					err,
-				))
+			// Create chunked writer
+			extension := filepath.Ext(string(outputFileName))
+			baseFileName := strings.TrimSuffix(string(outputFileName), extension)
+
+			fileWriter = newChunkedFileWriter(chunkedFileWriterParams{
+				baseFileName:    baseFileName,
+				outputExtension: extension,
+				filesDir:        params.FilesDir,
+				maxChunkBytes:   maxBytes,
+				maxChunkSeconds: time.Duration(maxSeconds) * time.Second,
+				uploader:        params.RunfilesUploaderOrNil,
+				logger:          params.Logger,
+			})
+		} else {
+			var err error
+			fileWriter, err = NewOutputFileWriter(
+				filepath.Join(params.FilesDir, string(outputFileName)),
+				params.Logger,
+			)
+
+			if err != nil {
+				params.Logger.CaptureError(
+					fmt.Errorf(
+						"runconsolelogs: cannot write to file: %v",
+						err,
+					))
+				fileWriter = nil
+			}
 		}
 	}
 
@@ -128,7 +188,10 @@ func New(params Params) *Sender {
 							"runconsolelogs: failed to write to file: %v",
 							err,
 						))
-					fileWriter = nil
+					// Don't nil out chunked writer on error - it handles its own degradation
+					if !params.Multipart {
+						fileWriter = nil
+					}
 				}
 			}
 
@@ -154,12 +217,14 @@ func New(params Params) *Sender {
 			maxTerminalLineLength,
 		),
 
-		consoleOutputFile: params.ConsoleOutputFile,
+		consoleOutputFile: outputFileName,
 
 		writer:                writer,
 		logger:                params.Logger,
 		runfilesUploaderOrNil: params.RunfilesUploaderOrNil,
 		captureEnabled:        params.EnableCapture,
+		fileWriter:            fileWriter,
+		isMultipart:           params.Multipart,
 	}
 }
 
@@ -173,11 +238,18 @@ func (s *Sender) Finish() {
 
 	s.writer.Finish()
 
-	if s.captureEnabled && s.runfilesUploaderOrNil != nil {
-		s.runfilesUploaderOrNil.UploadNow(
-			s.consoleOutputFile,
-			filetransfer.RunFileKindWandb,
-		)
+	// Handle final upload based on writer type
+	if s.captureEnabled && s.fileWriter != nil {
+		if chunkedWriter, ok := s.fileWriter.(*chunkedFileWriter); ok && s.isMultipart {
+			// For chunked writer, call its Finish to upload the final chunk
+			chunkedWriter.Finish()
+		} else if s.runfilesUploaderOrNil != nil && !s.isMultipart {
+			// For single file writer, upload the complete file
+			s.runfilesUploaderOrNil.UploadNow(
+				s.consoleOutputFile,
+				filetransfer.RunFileKindWandb,
+			)
+		}
 	}
 }
 
