@@ -356,13 +356,11 @@ After that you can run your test using the standard `pytest` commands. For examp
 pytest -s -vv tests/path-to-tests/test_file.py
 ```
 
-### Running `system_tests`
+### Running `system_tests` (External contributors)
 
-**External contributors**
+System tests will be automatically run when you create or update your GitHub pull request.
 
-System tests will by run by CircleCI when you create or update your pull request.
-
-**Internal-only**
+### Running `system_tests` locally (Internal-only)
 
 To run a test in [tests/system_tests](tests/system_tests), launch a local test server:
 
