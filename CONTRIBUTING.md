@@ -35,7 +35,7 @@ Please make sure to update the ToC when you update this page!
   - [Modifying GraphQL Schema](#modifying-graphql-schema)
 - [Testing](#testing)
   - [Using pytest](#using-pytest)
-  - [Running `system_tests`](#running-system-tests)
+  - [Running `system_tests`](#running-system_tests)
 
 ## Development workflow
 
