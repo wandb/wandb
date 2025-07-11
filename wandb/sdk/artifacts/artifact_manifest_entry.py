@@ -161,6 +161,19 @@ class ArtifactManifestEntry:
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
+        
+        # Fast check: if file exists and has the expected size, assume it's correct
+        # This avoids expensive MD5 computation for files that are likely already downloaded
+        if os.path.exists(dest_path) and self.size is not None:
+            try:
+                file_size = os.path.getsize(dest_path)
+                if file_size == self.size:
+                    return FilePathStr(dest_path)
+            except OSError:
+                # File might have been deleted between exists check and getsize
+                pass
+        
+        # Fallback to MD5 check only if size check fails or size is unknown
         try:
             md5_hash = md5_file_b64(dest_path)
         except (FileNotFoundError, IsADirectoryError):
