@@ -337,6 +337,25 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
+        self._sentry = wandb.analytics.sentry.Sentry()
+        self._configure_sentry()
+
+    def _configure_sentry(self) -> None:
+        try:
+            viewer = self.viewer
+        except AttributeError:
+            # we need the viewer to configure the entity, and user email
+            return
+
+        email = viewer.email if viewer else None
+        entity = self.default_entity
+
+        self._sentry.configure_scope(
+            tags={
+                "entity": entity,
+                "email": email,
+            },
+        )
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
