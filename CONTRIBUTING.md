@@ -358,6 +358,9 @@ pytest -s -vv tests/path-to-tests/test_file.py
 
 ### Running `system_tests` locally (internal-only)
 
+> [!NOTE}
+> Due to security limitations, external contributors cannot run system tests.
+
 If you're an internal engineer, launch a local test server:
 
 ```shell
