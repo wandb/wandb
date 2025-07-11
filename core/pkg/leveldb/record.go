@@ -2,6 +2,7 @@
 // https://github.com/golang/leveldb/blob/master/record/record.go
 // Changes:
 // - Add ability to use different CRC algorithm
+// - Extra handling for W&B's regrettable customization of the format
 
 // Copyright 2011 The LevelDB-Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -63,10 +64,14 @@
 //		return records.Close()
 //	}
 //
-// The wire format is that the stream is divided into 32KiB blocks, and each
+// The wire format is that the stream is divided(*) into 32KiB blocks, and each
 // block contains a number of tightly packed chunks. Chunks cannot cross block
 // boundaries. The last block may be shorter than 32 KiB. Any unused bytes in a
 // block must be zero.
+//
+// (*) - W&B customizes this format such that the first 7 bytes of the stream
+// contain a custom header. These 7 bytes are subtracted from the initial block,
+// making it at most (32KiB - 7B) long.
 //
 // A record maps to one or more chunks. Each chunk has a 7 byte header (a 4
 // byte checksum, a 2 byte little-endian uint16 length, and a 1 byte chunk type)
@@ -89,6 +94,7 @@ package leveldb
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -104,6 +110,16 @@ const (
 	blockSize     = 32 * 1024
 	blockSizeMask = blockSize - 1
 	headerSize    = 7
+)
+
+// W&B transaction log files begin with a 7-byte header (unrelated to the
+// 7-byte LevelDB block header).
+//
+// The first block, if full, is 7 bytes short of 32 KiB.
+const (
+	wandbHeaderIdent  = ":W&B"
+	wandbHeaderMagic  = 0xBEE1
+	wandbHeaderLength = 7 // ident(4) + magic(2) + version(1)
 )
 
 var (
@@ -130,6 +146,9 @@ type Reader struct {
 	// n is the number of bytes of buf that are valid. Once reading has started,
 	// only the final block can have n < blockSize.
 	n int
+	// processedFirstBlock is whether the first block has been read.
+	// The first block needs special handling because of the W&B header.
+	processedFirstBlock bool
 	// started is whether Next has been called at all.
 	started bool
 	// recovering is true when recovering from corruption.
@@ -158,6 +177,28 @@ func NewReaderExt(r io.Reader, algo CRCAlgo) *Reader {
 
 func NewReader(r io.Reader) *Reader {
 	return NewReaderExt(r, CRCAlgoCustom)
+}
+
+// readFirstBlock reads the W&B header and first block into r.buf.
+//
+// The reader must be positioned at the start.
+//
+// Returns io.ErrUnexpectedEOF if the reader doesn't contain enough bytes
+// for the W&B header; otherwise, at least the first wandbHeaderLength bytes in
+// r.buf will be valid.
+func (r *Reader) readFirstBlock() error {
+	n, err := io.ReadFull(r.r, r.buf[:])
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return err
+	}
+
+	if n < wandbHeaderLength {
+		return io.ErrUnexpectedEOF
+	}
+
+	r.i, r.j, r.n = wandbHeaderLength, wandbHeaderLength, n
+	r.processedFirstBlock = true
+	return nil
 }
 
 // nextChunk sets r.buf[r.i:r.j] to hold the next chunk's payload, reading the
@@ -222,15 +263,34 @@ func (r *Reader) nextChunk(wantFirst bool) error {
 	}
 }
 
-// ReadHeader reads the first block and copies the header into a buffer
-func (r *Reader) ReadHeader(headerBuffer []byte) error {
-	l := len(headerBuffer)
-	n, err := io.ReadFull(r.r, r.buf[:])
-	if err != nil && err != io.ErrUnexpectedEOF {
-		return err
+// VerifyWandbHeader checks for a W&B header with the correct version.
+//
+// The reader must be positioned at the start.
+func (r *Reader) VerifyWandbHeader(expectedVersion byte) error {
+	r.err = r.readFirstBlock()
+	if r.err != nil && !errors.Is(r.err, io.EOF) {
+		return r.err
 	}
-	copy(headerBuffer, r.buf[0:l])
-	r.i, r.j, r.n = l, l, n
+
+	identBytes, magicBytes, version := r.buf[0:4], r.buf[4:6], r.buf[6]
+
+	if string(identBytes) != wandbHeaderIdent {
+		return fmt.Errorf(
+			"leveldb/record: invalid W&B identifier string: %s",
+			string(identBytes))
+	}
+
+	magic := uint16(magicBytes[0]) + uint16(magicBytes[1])<<8
+	if magic != wandbHeaderMagic {
+		return fmt.Errorf("leveldb/record: invalid W&B magic: %X", magic)
+	}
+
+	if version != expectedVersion {
+		return fmt.Errorf(
+			"leveldb/record: expected W&B version %d but got %d",
+			expectedVersion, version)
+	}
+
 	return nil
 }
 
@@ -243,6 +303,14 @@ func (r *Reader) Next() (io.Reader, error) {
 		return nil, r.err
 	}
 	r.i = r.j
+
+	if !r.processedFirstBlock {
+		r.err = r.readFirstBlock()
+		if r.err != nil {
+			return nil, r.err
+		}
+	}
+
 	r.err = r.nextChunk(true)
 	if r.err != nil {
 		return nil, r.err
@@ -299,14 +367,25 @@ func (r *Reader) SeekRecord(offset int64) error {
 
 	// Only seek to an exact block offset.
 	c := int(offset & blockSizeMask)
-	if _, r.err = s.Seek(offset&^blockSizeMask, io.SeekStart); r.err != nil {
+	fileOffset := offset &^ blockSizeMask
+	if _, r.err = s.Seek(fileOffset, io.SeekStart); r.err != nil {
 		return r.err
 	}
 
 	// Clear the state of the internal reader.
 	r.i, r.j, r.n = 0, 0, 0
 	r.started, r.recovering, r.last = false, false, false
-	if r.err = r.nextChunk(false); r.err != nil {
+
+	// The first block is short: its first few bytes are the W&B header.
+	if fileOffset == 0 {
+		r.err = r.readFirstBlock()
+		if r.err != nil {
+			return r.err
+		}
+	}
+
+	r.err = r.nextChunk(false)
+	if r.err != nil {
 		return r.err
 	}
 
@@ -379,8 +458,10 @@ type Writer struct {
 	crc func([]byte) uint32
 }
 
-// NewWriter returns a new Writer.
-func NewWriterExt(w io.Writer, algo CRCAlgo, initialData []byte) *Writer {
+// NewWriterExt returns a Writer for a new W&B LevelDB file.
+//
+// W&B LevelDB files start with a W&B header containing a version byte.
+func NewWriterExt(w io.Writer, algo CRCAlgo, version byte) *Writer {
 	f, _ := w.(flusher)
 
 	var o int64
@@ -402,22 +483,21 @@ func NewWriterExt(w io.Writer, algo CRCAlgo, initialData []byte) *Writer {
 		lastRecordOffset: -1,
 		crc:              crc,
 	}
-	// prepend data into the block buffer if the file has no initial offset
-	// NOTE: prepended data will be part of the block which will influence the
-	// chunk handling at block boundaries.
-	if initialData != nil && o == 0 {
-		// Copy bytes into the block buffer.
-		n := copy(writer.buf[writer.j:], initialData)
-		writer.j += n
-	}
+
+	// W&B header: identifier.
+	copy(writer.buf[0:4], []byte(wandbHeaderIdent))
+
+	// W&B header: little-endian encoding of the magic number.
+	writer.buf[4] = wandbHeaderMagic & 0x00FF
+	writer.buf[5] = (wandbHeaderMagic & 0xFF00) >> 8
+
+	// W&B header: version.
+	writer.buf[6] = version
+
+	// Advance j to indicate that 7 bytes in the buffer contain data.
+	writer.j = 7
+
 	return writer
-}
-
-func NewWriter(w io.Writer) *Writer {
-	return NewWriterExt(w, CRCAlgoCustom, nil)
-}
-
-func (w *Writer) Insert(buf []byte) {
 }
 
 // fillHeader fills in the header for the pending chunk.
