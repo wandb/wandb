@@ -2756,7 +2756,7 @@ def verify(host):
         sys.exit(1)
 
 
-@cli.command(context_settings=CONTEXT, help="Generate a meaningful run name using AI analysis")
+@cli.command(context_settings=CONTEXT, help="Generate a meaningful run name using LLM")
 @click.argument("url", required=True)
 @click.option(
     "--previous-runs",
@@ -2791,12 +2791,8 @@ def verify(host):
     default="gpt-4o-mini",
     help="OpenAI model to use (default: gpt-4o-mini)",
 )
-@click.option(
-    "--openai-api-key",
-    help="OpenAI API key (if not set, uses OPENAI_API_KEY env var)",
-)
 @display_error
-def generate_run_name(url, previous_runs, max_name_length, update_run, verbose, openai_model, openai_api_key):
+def generate_run_name(url, previous_runs, max_name_length, update_run, verbose, openai_model):
     """Generate a meaningful run name from W&B run config.
     
     Takes a W&B run URL and analyzes the config to generate a descriptive name.
@@ -2833,17 +2829,17 @@ def generate_run_name(url, previous_runs, max_name_length, update_run, verbose, 
             project=ref.project,
             max_name_length=max_name_length,
             verbose=verbose,
-            openai_api_key=openai_api_key,
             openai_model=openai_model
         )
         
+        # TODO: return a brief description of the run as well.
         generated_name = generator.generate_name(
             run_id=ref.run_id,
             previous_runs_count=previous_runs
         )
-        
+
         click.echo(f"Generated name: {click.style(generated_name, fg='green', bold=True)}")
-        
+
         if update_run:
             success = generator.update_run_name(ref.run_id, generated_name)
             if success:

@@ -27,7 +27,6 @@ class RunNameGenerator:
         project: str,
         max_name_length: int = 50,
         verbose: bool = False,
-        openai_api_key: Optional[str] = None,
         openai_model: str = "gpt-4o-mini"
     ):
         """Initialize the AI-powered run name generator.
@@ -38,7 +37,6 @@ class RunNameGenerator:
             project: Project name
             max_name_length: Maximum length of generated names
             verbose: Whether to show detailed analysis
-            openai_api_key: OpenAI API key (if None, will try env var)
             openai_model: OpenAI model to use for analysis
         """
         self.api = api
@@ -52,12 +50,13 @@ class RunNameGenerator:
         
         # LLM configuration - required for this AI-powered approach
         if not HAS_OPENAI:
+            # TODO: make openai dependency optional
             raise ImportError("OpenAI package is required. Install with: pip install openai")
         
         self.openai_model = openai_model
-        api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
+        api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
-            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable or pass openai_api_key parameter")
+            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable")
         
         self.openai_client = openai.OpenAI(api_key=api_key)
         if self.verbose:
