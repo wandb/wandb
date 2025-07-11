@@ -355,11 +355,15 @@ After that you can run your test using the standard `pytest` commands. For examp
 pytest -s -vv tests/path-to-tests/test_file.py
 ```
 
-### Running system tests
+### Running `system_tests`
 
-To run a test in [tests/system_tests](tests/system_tests),
-install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and launch a local test
-server:
+#### External contributors
+
+System tests will by run by CircleCI when you create or update your pull request.
+
+#### Internal only
+
+To run a test in [tests/system_tests](tests/system_tests), launch a local test server:
 
 ```shell
 python tools/local_wandb_server.py start
