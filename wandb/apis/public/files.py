@@ -134,10 +134,17 @@ class Files(SizedPaginator["File"]):
         names (list, optional): A list of file names to filter the files
         per_page (int, optional): The number of files to fetch per page
         upload (bool, optional): If `True`, fetch the upload URL for each file
-        pattern (str, optional): A pattern to match when determining which files should be returned from the server.
-            This pattern uses mySQL's LIKE syntax, so matching all files that end with .json would be "%.json".
-            If both names and pattern are provided, the pattern will be ignored.
+        pattern (str, optional): Pattern to match when returning files from W&B
+            This pattern uses mySQL's LIKE syntax,
+            so matching all files that end with .json would be "%.json".
+            If both names and pattern are provided, a ValueError will be raised.
         """
+        if names and pattern:
+            raise ValueError(
+                "Querying for files by both names and pattern is not supported."
+                "Please provide either a list of names or a pattern to match.",
+            )
+
         self.run = run
         variables = {
             "project": run.project,
