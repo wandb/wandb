@@ -52,7 +52,6 @@ from wandb_gql import gql
 
 import wandb
 from wandb import env, util
-from wandb.analytics.sentry import capture_usage_in_sentry
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
@@ -518,16 +517,16 @@ class Run(Attrs):
         return new_name
 
     @classmethod
-    @capture_usage_in_sentry
     def create(
         cls,
-        api,
-        run_id=None,
-        project=None,
-        entity=None,
+        api: "public.Api",
+        run_id: Optional[str] = None,
+        project: Optional[str] = None,
+        entity: Optional[str] = None,
         state: Literal["running", "pending"] = "running",
     ):
         """Create a run for the given project."""
+        api._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
         mutation = gql(

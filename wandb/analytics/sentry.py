@@ -31,20 +31,6 @@ SENTRY_DEFAULT_DSN = (
 SessionStatus = Literal["ok", "exited", "crashed", "abnormal"]
 
 
-def capture_usage_in_sentry(func: Callable) -> Callable:
-    """Decorator to capture usage of a function in Sentry."""
-
-    @functools.wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        wandb._sentry.message(
-            f"Invoking {func.__module__}.{func.__name__}",
-            level="info",
-        )
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
 def _safe_noop(func: Callable) -> Callable:
     """Decorator to ensure that Sentry methods do nothing if disabled and don't raise."""
 
