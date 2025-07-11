@@ -2761,9 +2761,9 @@ def verify(host):
 @click.option(
     "--previous-runs",
     "-p",
-    default=5,
+    default=3,
     type=int,
-    help="Number of previous runs to analyze for context (default: 5)",
+    help="Number of previous runs to analyze for context (default: 3)",
 )
 @click.option(
     "--max-name-length",
@@ -2771,6 +2771,24 @@ def verify(host):
     default=50,
     type=int,
     help="Maximum length of generated name (default: 50)",
+)
+@click.option(
+    "--config-limit",
+    "-c",
+    default=50,
+    type=int,
+    help="Maximum number of config parameters to include (default: 50)",
+)
+@click.option(
+    "--prompt-file",
+    "-f",
+    help="Path to custom prompt template file",
+)
+@click.option(
+    "--no-previous-configs",
+    is_flag=True,
+    default=False,
+    help="Don't include previous run configs (only names)",
 )
 @click.option(
     "--update-run",
@@ -2792,14 +2810,28 @@ def verify(host):
     help="OpenAI model to use (default: gpt-4o-mini)",
 )
 @display_error
-def generate_run_name(url, previous_runs, max_name_length, update_run, verbose, openai_model):
-    """Generate a meaningful run name from W&B run config.
+def generate_run_name(url, previous_runs, max_name_length, config_limit, prompt_file, no_previous_configs, update_run, verbose, openai_model):
+    """Generate a meaningful run name from W&B run config using AI.
     
-    Takes a W&B run URL and analyzes the config to generate a descriptive name.
-    Can optionally analyze previous runs for context and update the run name.
+    This command uses AI to analyze the full configuration and generate
+    descriptive names. You can customize the analysis by:
     
-    Example:
+    - Using custom prompt templates (--prompt-file)
+    - Controlling how much config to include (--config-limit)  
+    - Including/excluding previous run configs (--no-previous-configs)
+    
+    Examples:
+        # Basic usage
         wandb generate-run-name https://wandb.ai/entity/project/runs/abc123
+        
+        # With custom prompt template
+        wandb generate-run-name URL --prompt-file my_prompt.txt
+        
+        # Limit config size for faster processing
+        wandb generate-run-name URL --config-limit 20
+        
+        # Update the run name directly
+        wandb generate-run-name URL --update-run
     """
     from wandb.sdk.launch.wandb_reference import WandbReference
     
@@ -2829,7 +2861,10 @@ def generate_run_name(url, previous_runs, max_name_length, update_run, verbose, 
             project=ref.project,
             max_name_length=max_name_length,
             verbose=verbose,
-            openai_model=openai_model
+            openai_model=openai_model,
+            prompt_file=prompt_file,
+            config_limit=config_limit,
+            include_previous_configs=not no_previous_configs
         )
         
         # TODO: return a brief description of the run as well.
@@ -2837,9 +2872,9 @@ def generate_run_name(url, previous_runs, max_name_length, update_run, verbose, 
             run_id=ref.run_id,
             previous_runs_count=previous_runs
         )
-
+        
         click.echo(f"Generated name: {click.style(generated_name, fg='green', bold=True)}")
-
+        
         if update_run:
             success = generator.update_run_name(ref.run_id, generated_name)
             if success:
