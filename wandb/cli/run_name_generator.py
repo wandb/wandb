@@ -61,7 +61,7 @@ class RunNameGenerator:
         self.openai_client = openai.OpenAI(api_key=api_key)
         if self.verbose:
             click.echo(f"✅ AI-powered name generation enabled with {openai_model}")
-        
+
         # Important parameter categories for config analysis
         self.important_params = {
             # Model architecture
@@ -327,19 +327,25 @@ EXAMPLES:
     def _get_previous_runs(self, target_run: Run, count: int) -> List[Run]:
         """Get previous runs for context analysis."""
         try:
+            # Filter for runs created before the target run
+            target_created_at = target_run.created_at
             runs = self.public_api.runs(
                 f"{self.entity}/{self.project}",
-                filters={"state": "finished"},
+                filters={"createdAt": {"$lt": target_created_at}},
                 order="-created_at"
             )
+            if self.verbose:
+                click.echo(f"Found runs created before {target_created_at}")
             
             previous_runs = []
             for run in runs:
-                if run.id != target_run.id and len(previous_runs) < count:
+                if len(previous_runs) < count:
                     previous_runs.append(run)
                 if len(previous_runs) >= count:
                     break
             
+            if self.verbose:
+                click.echo(f"Previous runs: {[f'{run.name} ({run.created_at})' for run in previous_runs]}")
             return previous_runs
         except Exception as e:
             if self.verbose:
