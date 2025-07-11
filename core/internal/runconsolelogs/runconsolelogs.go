@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
@@ -22,6 +24,7 @@ import (
 const (
 	maxTerminalLines      = 32
 	maxTerminalLineLength = 4096
+	ConsoleFileName       = "output.log"
 )
 
 // Sender processes OutputRawRecords.
@@ -35,9 +38,12 @@ type Sender struct {
 	// stderrTerm processes captured stderr text.
 	stderrTerm *terminalemulator.Terminal
 
-	// consoleOutputFile is the run file path to which to write captured
+	// consoleOutputFile is the path to the current file where we write captured
 	// console messages.
-	consoleOutputFile paths.RelativePath
+	//
+	// If multipart capture is enabled, it will get substituted every time a
+	// new file is created.
+	consoleOutputFile *paths.RelativePath
 
 	writer *debouncedWriter
 
@@ -49,10 +55,6 @@ type Sender struct {
 }
 
 type Params struct {
-	// ConsoleOutputFile is the run file path to which to write captured
-	// console messages.
-	ConsoleOutputFile paths.RelativePath
-
 	// FilesDir is the directory in which to write the console output file.
 	// Note this is actually the root directory for all run files.
 	FilesDir string
@@ -75,8 +77,20 @@ type Params struct {
 	// Structured indicates whether to send the console output in structured format.
 	Structured bool
 
-	// Label is a prefix for the console output lines.
+	// Label is an optional prefix for the console output lines.
 	Label string
+
+	// Multipart indicates whether to capture multipart and potentially chunked logs.
+	//
+	// If True, the SDK writes console output to timestamped files
+	// under the `logs/` directory instead of a single `output.log`.
+	Multipart bool
+
+	// Size-based rollover threshold for multipart console logs, in bytes.
+	ChunkBytes int32
+
+	// Time-based rollover threshold for multipart console logs, in seconds.
+	ChunkSeconds int32
 }
 
 func New(params Params) *Sender {
@@ -86,6 +100,25 @@ func New(params Params) *Sender {
 
 	if params.GetNow == nil {
 		params.GetNow = time.Now
+	}
+
+	var outputFileName *paths.RelativePath
+	// Guaranteed not to fail.
+	outputFileName, _ = paths.Relative(ConsoleFileName)
+
+	// Insert label, if provided.
+	if params.Label != "" {
+		sanitizedLabel := fileutil.SanitizeFilename(params.Label)
+		extension := filepath.Ext(string(*outputFileName))
+		path, _ := paths.Relative(
+			fmt.Sprintf(
+				"%s_%s%s",
+				strings.TrimSuffix(string(*outputFileName), extension),
+				sanitizedLabel,
+				extension,
+			),
+		)
+		outputFileName = path
 	}
 
 	var fsWriter *filestreamWriter
@@ -100,11 +133,28 @@ func New(params Params) *Sender {
 	if params.EnableCapture {
 		var err error
 		fileWriter, err = NewOutputFileWriter(
-			filepath.Join(
-				params.FilesDir,
-				string(params.ConsoleOutputFile),
-			),
-			params.Logger,
+			outputFileWriterParams{
+				filesDir:       params.FilesDir,
+				outputFileName: outputFileName,
+				logger:         params.Logger,
+				multipart:      params.Multipart,
+				chunkBytes:     params.ChunkBytes,
+				chunkSeconds:   params.ChunkSeconds,
+				onRotate: func(currentOutputFileName *paths.RelativePath) {
+					fmt.Println(
+						"+++ Uploading current file!",
+						params.RunfilesUploaderOrNil,
+						*currentOutputFileName,
+					)
+					// upload previous part immediately
+					if params.EnableCapture && params.RunfilesUploaderOrNil != nil {
+						params.RunfilesUploaderOrNil.UploadNow(
+							*currentOutputFileName,
+							filetransfer.RunFileKindWandb,
+						)
+					}
+				},
+			},
 		)
 
 		if err != nil {
@@ -154,7 +204,7 @@ func New(params Params) *Sender {
 			maxTerminalLineLength,
 		),
 
-		consoleOutputFile: params.ConsoleOutputFile,
+		consoleOutputFile: fileWriter.currentOutputFileName,
 
 		writer:                writer,
 		logger:                params.Logger,
@@ -174,8 +224,9 @@ func (s *Sender) Finish() {
 	s.writer.Finish()
 
 	if s.captureEnabled && s.runfilesUploaderOrNil != nil {
+		fmt.Println("+++ Done, uploading\n", *s.consoleOutputFile)
 		s.runfilesUploaderOrNil.UploadNow(
-			s.consoleOutputFile,
+			*s.consoleOutputFile,
 			filetransfer.RunFileKindWandb,
 		)
 	}

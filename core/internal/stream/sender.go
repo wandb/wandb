@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/nullify"
@@ -39,7 +37,6 @@ import (
 const (
 	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
-	ConsoleFileName           = "output.log"
 )
 
 type SenderParams struct {
@@ -172,61 +169,6 @@ type Sender struct {
 func NewSender(
 	params SenderParams,
 ) *Sender {
-
-	var outputFileName paths.RelativePath
-	// Guaranteed not to fail.
-	path, _ := paths.Relative(ConsoleFileName)
-	outputFileName = *path
-
-	if params.Settings.GetLabel() != "" {
-		sanitizedLabel := fileutil.SanitizeFilename(params.Settings.GetLabel())
-		// Guaranteed not to fail.
-		// split filename and extension
-		extension := filepath.Ext(string(outputFileName))
-		path, _ := paths.Relative(
-			fmt.Sprintf(
-				"%s_%s%s",
-				strings.TrimSuffix(string(outputFileName), extension),
-				sanitizedLabel,
-				extension,
-			),
-		)
-		outputFileName = *path
-	}
-
-	// If console capture is enabled, we need to create a multipart console log file.
-	if params.Settings.IsConsoleMultipart() {
-		// This is guaranteed not to fail.
-		timestamp := time.Now()
-		extension := filepath.Ext(string(outputFileName))
-		path, _ := paths.Relative(
-			filepath.Join(
-				"logs",
-				fmt.Sprintf(
-					"%s_%s_%09d%s",
-					strings.TrimSuffix(string(outputFileName), extension),
-					timestamp.Format("20060102_150405"),
-					timestamp.Nanosecond(),
-					extension,
-				),
-			),
-		)
-		outputFileName = *path
-	}
-
-	consoleLogsSenderParams := runconsolelogs.Params{
-		ConsoleOutputFile:     outputFileName,
-		FilesDir:              params.Settings.GetFilesDir(),
-		EnableCapture:         params.Settings.IsConsoleCaptureEnabled(),
-		Logger:                params.Logger,
-		FileStreamOrNil:       params.FileStream,
-		Label:                 params.Settings.GetLabel(),
-		RunfilesUploaderOrNil: params.RunfilesUploader,
-		Structured: params.FeatureProvider.GetFeature(
-			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
-		).Enabled,
-	}
-
 	s := &Sender{
 		runWork:             params.RunWork,
 		logger:              params.Logger,
@@ -257,7 +199,22 @@ func NewSender(
 			summaryDebouncerBurstSize,
 			params.Logger,
 		),
-		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
+		consoleLogsSender: runconsolelogs.New(
+			runconsolelogs.Params{
+				FilesDir:              params.Settings.GetFilesDir(),
+				EnableCapture:         params.Settings.IsConsoleCaptureEnabled(),
+				Logger:                params.Logger,
+				FileStreamOrNil:       params.FileStream,
+				Label:                 params.Settings.GetLabel(),
+				Multipart:             params.Settings.IsConsoleMultipart(),
+				ChunkBytes:            params.Settings.GetConsoleChunkBytes(),
+				ChunkSeconds:          params.Settings.GetConsoleChunkSeconds(),
+				RunfilesUploaderOrNil: params.RunfilesUploader,
+				Structured: params.FeatureProvider.GetFeature(
+					spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
+				).Enabled,
+			},
+		),
 	}
 
 	s.sentinelCond = sync.NewCond(&s.mu)

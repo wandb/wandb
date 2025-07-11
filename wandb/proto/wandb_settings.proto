@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 199
+// Next ID: 202
 message Settings {
   reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 100, 136, 137, 173, 176;
 
@@ -388,13 +388,24 @@ message Settings {
   // "wrap_emu" - Same as "wrap" but captures output through an emulator.
   google.protobuf.StringValue console = 60;
 
-  // Whether to capture console logs in multipart format.
+  // Enable multipart console logging.
   //
-  // This is used to make sure we don't overwrite the console log file if it
-  // already exists.
+  // When True, the SDK writes console output to timestamped files
+  // under the `logs/` directory instead of a single `output.log`.
+  //
+  // Each part is uploaded as soon as it is closed, giving users live
+  // access to logs while the run is active. Rollover cadence is
+  // controlled by `console_chunk_bytes` and/or `console_chunk_seconds`.
+  // If both limits are `0`, all logs are uploaded once at run finish.
   //
   // The format is: logs/output_<optional:Settings.Label>_<timestamp>_<nanoseconds>.log
   google.protobuf.BoolValue console_multipart = 166;
+
+  // Size-based rollover threshold for multipart console logs, in bytes.
+  google.protobuf.Int32Value console_chunk_bytes = 199;
+
+  // Time-based rollover threshold for multipart console logs, in seconds.
+  google.protobuf.Int32Value console_chunk_seconds = 201;
 
   // Whether to sync TensorBoard logs to W&B.
   google.protobuf.BoolValue sync_tensorboard = 179;

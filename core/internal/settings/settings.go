@@ -425,6 +425,16 @@ func (s *Settings) IsConsoleMultipart() bool {
 	return s.Proto.ConsoleMultipart.GetValue()
 }
 
+// Size-based rollover threshold for multipart console logs, in bytes.
+func (s *Settings) GetConsoleChunkBytes() int32 {
+	return s.Proto.ConsoleChunkBytes.GetValue()
+}
+
+// Time-based rollover threshold for multipart console logs, in seconds.
+func (s *Settings) GetConsoleChunkSeconds() int32 {
+	return s.Proto.ConsoleChunkSeconds.GetValue()
+}
+
 // Whether to disable metadata collection.
 func (s *Settings) IsDisableMeta() bool {
 	return s.Proto.XDisableMeta.GetValue()
