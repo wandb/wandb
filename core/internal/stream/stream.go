@@ -277,6 +277,7 @@ func NewStream(
 		Operations:         s.operations,
 		Run:                s.run,
 		Settings:           s.settings,
+		ClientID:           s.clientID,
 	}
 
 	mailbox := mailbox.New()
