@@ -74,6 +74,7 @@ class Sweep(Attrs):
             sweep(sweepName: $name) {
                 id
                 name
+                displayName
                 state
                 runCountExpected
                 bestLoss
@@ -209,10 +210,13 @@ class Sweep(Attrs):
     def name(self):
         """The name of the sweep.
 
-        If the sweep has a name, it will be returned. Otherwise,
-        the sweep ID will be returned.
+        Returns the first name that exists in the following priority order:
+
+        1. User-edited display name
+        2. Name configured at creation time
+        3. Sweep ID
         """
-        return self.config.get("name") or self.id
+        return self._attrs.get("displayName") or self.config.get("name") or self.id
 
     @classmethod
     def get(
