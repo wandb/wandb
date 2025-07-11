@@ -354,3 +354,21 @@ After that you can run your test using the standard `pytest` commands. For examp
 ```shell
 pytest -s -vv tests/path-to-tests/test_file.py
 ```
+
+### Running system tests
+
+To run a test in [tests/system_tests](tests/system_tests),
+install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and launch a local test
+server:
+
+```shell
+python tools/local_wandb_server.py start
+```
+
+Now you can run `pytest` for `system_tests`.
+
+When you're done, shut it down:
+
+```shell
+python tools/local_wandb_server.py stop
+```
