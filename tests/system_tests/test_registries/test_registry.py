@@ -307,8 +307,7 @@ def test_create_registry_invalid_registry_name(default_organization):
 
 @pytest.mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
 @patch("wandb.apis.public.registries.registry.wandb.termlog")
-def test_edit_registry_name(mock_termlog, default_organization):
-    api = Api()
+def test_edit_registry_name(mock_termlog, default_organization, api):
     registry_name = "test"
     registry = api.create_registry(
         organization=default_organization,
