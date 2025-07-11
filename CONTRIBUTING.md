@@ -24,18 +24,18 @@ Please make sure to update the ToC when you update this page!
   - [Setting up Python](#setting-up-python)
   - [Setting up Go](#setting-up-go)
   - [Setting up Rust](#setting-up-rust)
-  - [Building/installing the package](#building-installing-the-package)
+  - [Building/installing the package](#buildinginstalling-the-package)
   - [Linting the code](#linting-the-code)
   - [Auto-Generating Code](#auto-generating-code)
     - [Building protocol buffers](#building-protocol-buffers)
     - [Adding a new setting](#adding-a-new-setting)
-    - [Adding URLs (internal use only)](#adding-urls--internal-use-only-)
+    - [Adding URLs (internal use only)](#adding-urls-internal-use-only)
     - [Deprecating features](#deprecating-features)
       - [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
   - [Modifying GraphQL Schema](#modifying-graphql-schema)
 - [Testing](#testing)
   - [Using pytest](#using-pytest)
-  - [Running `system_tests`](#running--system-tests-)
+  - [Running `system_tests`](#running-system-tests)
 
 ## Development workflow
 
