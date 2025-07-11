@@ -13,13 +13,14 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-### Changed
-- `Sweep.name` property will now return user-edited display name if available (falling back to
-  original name from sweep config, then sweep ID as before).
-
 ### Added
 
 - Support `first` summary option in `define_metric` (@kptkin in https://github.com/wandb/wandb/pull/10121)
+
+### Changed
+
+- `Sweep.name` property will now return user-edited display name if available (falling back to
+  original name from sweep config, then sweep ID as before) (@kelu-wandb in https://github.com/wandb/wandb/pull/10144)
 
 ### Fixed
 
