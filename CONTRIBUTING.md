@@ -35,8 +35,8 @@ Please make sure to update the ToC when you update this page!
   - [Modifying GraphQL Schema](#modifying-graphql-schema)
 - [Testing](#testing)
   - [Using pytest](#using-pytest)
-    - [Running `system_tests` (External contributors)](#running-system_tests-external-contributors)
-    - [Running `system_tests` locally (Internal-only)](#running-system_tests-locally-internal-only)
+  - [Running `system_tests` (External contributors)](#running-system_tests-external-contributors)
+  - [Running `system_tests` locally (Internal-only)](#running-system_tests-locally-internal-only)
 
 ## Development workflow
 
