@@ -36,8 +36,6 @@ Please make sure to update the ToC when you update this page!
 - [Testing](#testing)
   - [Using pytest](#using-pytest)
   - [Running `system_tests`](#running--system-tests-)
-    - [External contributors](#external-contributors)
-    - [Internal only](#internal-only)
 
 ## Development workflow
 
@@ -360,13 +358,11 @@ pytest -s -vv tests/path-to-tests/test_file.py
 
 ### Running `system_tests`
 
-#### External contributors
+**External contributors:** System tests will by run by CircleCI when you create or update your pull
+request.
 
-System tests will by run by CircleCI when you create or update your pull request.
-
-#### Internal only
-
-To run a test in [tests/system_tests](tests/system_tests), launch a local test server:
+**Internal-only**: To run a test in [tests/system_tests](tests/system_tests), launch a local test
+server:
 
 ```shell
 python tools/local_wandb_server.py start
