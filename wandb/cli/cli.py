@@ -2782,7 +2782,24 @@ def verify(host):
 @click.option(
     "--prompt-file",
     "-f",
-    help="Path to custom prompt template file",
+    help="Path to custom prompt template file for names",
+)
+@click.option(
+    "--description-prompt-file",
+    "-d",
+    help="Path to custom prompt template file for descriptions",
+)
+@click.option(
+    "--generate-description",
+    is_flag=True,
+    default=False,
+    help="Also generate a description for the run",
+)
+@click.option(
+    "--description-only",
+    is_flag=True,
+    default=False,
+    help="Only generate description, not name",
 )
 @click.option(
     "--no-previous-configs",
@@ -2795,7 +2812,7 @@ def verify(host):
     "-u",
     is_flag=True,
     default=False,
-    help="Update the run with the generated name",
+    help="Update the run with the generated name and/or description",
 )
 @click.option(
     "--verbose",
@@ -2810,28 +2827,33 @@ def verify(host):
     help="OpenAI model to use (default: gpt-4o-mini)",
 )
 @display_error
-def generate_run_name(url, previous_runs, max_name_length, config_limit, prompt_file, no_previous_configs, update_run, verbose, openai_model):
-    """Generate a meaningful run name from W&B run config using AI.
+def generate_run_name(url, previous_runs, max_name_length, config_limit, prompt_file, description_prompt_file, generate_description, description_only, no_previous_configs, update_run, verbose, openai_model):
+    """Generate a meaningful run name and/or description from W&B run config using AI.
     
     This command uses AI to analyze the full configuration and generate
-    descriptive names. You can customize the analysis by:
+    descriptive names and descriptions. You can customize the analysis by:
     
-    - Using custom prompt templates (--prompt-file)
+    - Using custom prompt templates (--prompt-file, --description-prompt-file)
     - Controlling how much config to include (--config-limit)  
     - Including/excluding previous run configs (--no-previous-configs)
+    - Generating descriptions in addition to names (--generate-description)
+    - Generating only descriptions (--description-only)
     
     Examples:
-        # Basic usage
+        # Basic usage - generate name only
         wandb generate-run-name https://wandb.ai/entity/project/runs/abc123
         
-        # With custom prompt template
-        wandb generate-run-name URL --prompt-file my_prompt.txt
+        # Generate both name and description
+        wandb generate-run-name URL --generate-description
         
-        # Limit config size for faster processing
-        wandb generate-run-name URL --config-limit 20
+        # Generate only description
+        wandb generate-run-name URL --description-only
         
-        # Update the run name directly
-        wandb generate-run-name URL --update-run
+        # With custom prompt templates
+        wandb generate-run-name URL --prompt-file my_prompt.txt --description-prompt-file my_desc_prompt.txt
+        
+        # Update the run directly
+        wandb generate-run-name URL --generate-description --update-run
     """
     from wandb.sdk.launch.wandb_reference import WandbReference
     
@@ -2851,7 +2873,11 @@ def generate_run_name(url, previous_runs, max_name_length, config_limit, prompt_
         ctx.invoke(login)
         api = _get_cling_api(reset=True)
     
-    # Generate the run name
+    # Determine what to generate
+    generate_name = not description_only
+    generate_desc = generate_description or description_only
+    
+    # Generate the content
     try:
         from wandb.cli.run_name_generator import RunNameGenerator
         
@@ -2863,30 +2889,53 @@ def generate_run_name(url, previous_runs, max_name_length, config_limit, prompt_
             verbose=verbose,
             openai_model=openai_model,
             prompt_file=prompt_file,
+            description_prompt_file=description_prompt_file,
             config_limit=config_limit,
             include_previous_configs=not no_previous_configs
         )
         
-        # TODO: return a brief description of the run as well.
-        generated_name = generator.generate_name(
+        name, description = generator.generate_name_and_description(
             run_id=ref.run_id,
-            previous_runs_count=previous_runs
+            previous_runs_count=previous_runs,
+            generate_name=generate_name,
+            generate_description=generate_desc
         )
         
-        click.echo(f"Generated name: {click.style(generated_name, fg='green', bold=True)}")
+        # Display results
+        if generate_name and name:
+            click.echo(f"Generated name: {click.style(name, fg='green', bold=True)}")
         
+        if generate_desc and description:
+            click.echo(f"Generated description:")
+            for line in description.split('\n'):
+                click.echo(f"  {click.style(line, fg='blue')}")
+        
+        # Update run if requested
         if update_run:
-            success = generator.update_run_name(ref.run_id, generated_name)
-            if success:
-                click.echo(f"✓ Updated run name successfully")
-            else:
-                click.echo(f"✗ Failed to update run name")
+            if generate_name and generate_desc:
+                success = generator.update_run_name_and_description(ref.run_id, name, description)
+                if success:
+                    click.echo("✓ Updated run name and description successfully")
+                else:
+                    click.echo("✗ Failed to update run")
+            elif generate_name:
+                success = generator.update_run_name(ref.run_id, name)
+                if success:
+                    click.echo("✓ Updated run name successfully")
+                else:
+                    click.echo("✗ Failed to update run name")
+            elif generate_desc:
+                success = generator.update_run_description(ref.run_id, description)
+                if success:
+                    click.echo("✓ Updated run description successfully")
+                else:
+                    click.echo("✗ Failed to update run description")
         
     except Exception as e:
         if verbose:
             import traceback
             traceback.print_exc()
-        raise ClickException(f"Failed to generate run name: {e}")
+        raise ClickException(f"Failed to generate content: {e}")
 
 
 cli.add_command(beta)
