@@ -35,8 +35,7 @@ Please make sure to update the ToC when you update this page!
   - [Modifying GraphQL Schema](#modifying-graphql-schema)
 - [Testing](#testing)
   - [Using pytest](#using-pytest)
-  - [Running `system_tests` (External contributors)](#running-system_tests-external-contributors)
-  - [Running `system_tests` locally (Internal-only)](#running-system_tests-locally-internal-only)
+  - [Running `system_tests` locally (internal-only)](#running-system_tests-locally-internal-only)
 
 ## Development workflow
 
@@ -357,13 +356,9 @@ After that you can run your test using the standard `pytest` commands. For examp
 pytest -s -vv tests/path-to-tests/test_file.py
 ```
 
-### Running `system_tests` (External contributors)
+### Running `system_tests` locally (internal-only)
 
-System tests will be automatically run when you create or update your GitHub pull request.
-
-### Running `system_tests` locally (Internal-only)
-
-To run a test in [tests/system_tests](tests/system_tests), launch a local test server:
+If you're an internal engineer, launch a local test server:
 
 ```shell
 python tools/local_wandb_server.py start
