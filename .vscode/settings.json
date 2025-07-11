@@ -14,9 +14,7 @@
   ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
-  "python.testing.pytestArgs": [
-    "."
-  ],
+  "python.testing.pytestArgs": ["."],
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.formatOnSave": true,
@@ -29,5 +27,11 @@
     "./experimental/rust-sdk/examples/basic/Cargo.toml"
   ],
   "python.analysis.autoImportCompletions": false,
-  "python.analysis.typeCheckingMode": "off"
+  "python.analysis.typeCheckingMode": "off",
+  "cursorpyright.analysis.autoImportCompletions": false,
+  "cursorpyright.analysis.extraPaths": [
+    "./wandb/vendor/gql-0.2.0",
+    "./wandb/vendor/graphql-core-1.1"
+  ],
+  "cursorpyright.analysis.typeCheckingMode": "off"
 }
