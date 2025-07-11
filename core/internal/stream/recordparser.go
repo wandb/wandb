@@ -24,6 +24,7 @@ type RecordParser struct {
 	Logger             *observability.CoreLogger
 	Operations         *wboperation.WandbOperations
 	Run                *StreamRun
+	ClientID           string
 
 	Settings *settings.Settings
 }
@@ -44,6 +45,7 @@ func (p *RecordParser) Parse(record *spb.Record) runwork.Work {
 			FeatureProvider:    p.FeatureProvider,
 			GraphqlClientOrNil: p.GraphqlClientOrNil,
 			Logger:             p.Logger,
+			ClientID:           p.ClientID,
 		}
 	} else {
 		// Legacy style for handling records where the code to process them
