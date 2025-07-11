@@ -454,6 +454,10 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--show", default=5, help="Number of runs to show")
 @click.option("--append", is_flag=True, default=False, help="Append run")
 @click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
+@click.option(
+    "--replace-tags",
+    help="Replace tags in the format 'old_tag1=new_tag1,old_tag2=new_tag2'",
+)
 @display_error
 def sync(
     ctx,
@@ -479,6 +483,7 @@ def sync(
     clean_force=None,
     append=None,
     skip_console=None,
+    replace_tags=None,
 ):
     api = _get_cling_api()
     if not api.is_authenticated:
@@ -492,6 +497,25 @@ def sync(
         include_globs = include_globs.split(",")
     if exclude_globs:
         exclude_globs = exclude_globs.split(",")
+
+    # Parse replace_tags parameter
+    replace_tags_dict = {}
+    if replace_tags:
+        try:
+            for pair in replace_tags.split(","):
+                if "=" in pair:
+                    old_tag, new_tag = pair.split("=", 1)
+                    replace_tags_dict[old_tag.strip()] = new_tag.strip()
+                else:
+                    wandb.termerror(
+                        f"Invalid replace-tags format: {pair}. Use 'old_tag=new_tag' format."
+                    )
+                    return
+        except ValueError:
+            wandb.termerror(
+                "Invalid replace-tags format. Use 'old_tag1=new_tag1,old_tag2=new_tag2'"
+            )
+            return
 
     def _summary():
         all_items = get_runs(
@@ -548,6 +572,7 @@ def sync(
             log_path=_wandb_log_path,
             append=append,
             skip_console=skip_console,
+            replace_tags=replace_tags_dict,
         )
         for p in _path:
             sm.add(p)
