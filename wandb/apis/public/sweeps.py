@@ -36,6 +36,8 @@ import wandb
 from wandb import util
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
+from wandb.apis.paginator import SizedPaginator
+from wandb.apis.public.api import RetryingClient
 from wandb.sdk.lib import ipython
 
 SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
@@ -52,6 +54,143 @@ SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
     runCount
 }
 """
+
+
+class Sweeps(SizedPaginator["Sweep"]):
+    """An iterable collection of `Sweep` objects.
+
+    Examples:
+    ```python
+    from wandb.apis.public import Api
+
+    sweeps = Api().project(name="project_name", entity="entity").sweeps()
+
+    # Iterate over sweeps and print details
+    for sweep in sweeps:
+        print(f"Sweep name: {sweep.name}")
+        print(f"Sweep ID: {sweep.id}")
+        print(f"Sweep URL: {sweep.url}")
+        print("----------")
+    ```
+    """
+
+    QUERY = gql(
+        f"""#graphql
+        query GetSweeps($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50) {{
+            project(name: $project, entityName: $entity) {{
+                totalSweeps
+                sweeps(after: $cursor, first: $perPage) {{
+                    edges {{
+                        node {{
+                            ...SweepFragment
+                        }}
+                        cursor
+                    }}
+                    pageInfo {{
+                        endCursor
+                        hasNextPage
+                    }}
+                }}
+            }}
+        }}
+        {SWEEP_FRAGMENT}
+        """
+    )
+
+    def __init__(
+        self,
+        client: RetryingClient,
+        entity: str,
+        project: str,
+        per_page: int = 50,
+    ) -> "Sweeps":
+        """An iterable collection of `Sweep` objects.
+
+        Args:
+            client: The API client used to query W&B.
+            entity: The entity which owns the sweeps.
+            project: The project which contains the sweeps.
+            per_page: The number of sweeps to fetch per request to the API.
+        """
+        self.client = client
+        self.entity = entity
+        self.project = project
+        variables = {
+            "project": self.project,
+            "entity": self.entity,
+        }
+        super().__init__(client, variables, per_page)
+
+    @property
+    def _length(self):
+        """The total number of sweeps in the project.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if not self.last_response:
+            self._load_page()
+
+        return (
+            self.last_response["project"]["totalSweeps"]
+            if self.last_response["project"]["totalSweeps"] is not None
+            else 0
+        )
+
+    @property
+    def more(self):
+        """Returns whether there are more sweeps to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if self.last_response:
+            return bool(
+                self.last_response["project"]["sweeps"]["pageInfo"]["hasNextPage"]
+            )
+        else:
+            return True
+
+    @property
+    def cursor(self):
+        """Returns the cursor for the next page of sweeps.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if self.last_response:
+            return self.last_response["project"]["sweeps"]["pageInfo"]["endCursor"]
+        else:
+            return None
+
+    def update_variables(self):
+        """Updates the variables for the next page of sweeps.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        self.variables.update({"perPage": self.per_page, "cursor": self.cursor})
+
+    def convert_objects(self):
+        """Converts the last GraphQL response into a list of `Sweep` objects.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if self.last_response is None or self.last_response.get("project") is None:
+            raise ValueError("Could not find project {}".format(self.project))
+
+        if self.last_response["project"]["totalSweeps"] < 1:
+            return []
+
+        return [
+            # match format of existing public sweep apis
+            public.Sweep(
+                self.client,
+                self.entity,
+                self.project,
+                e["node"]["name"],
+            )
+            for e in self.last_response["project"]["sweeps"]["edges"]
+        ]
+
+    def __repr__(self):
+        return f"<Sweeps {self.entity}/{self.project}>"
 
 
 class Sweep(Attrs):
