@@ -8,18 +8,20 @@ import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
 
 try:
-    from metaflow import current
+    from metaflow import current  # pyright: ignore[reportPrivateImportUsage]
 except ImportError as e:
     raise Exception(
-        "Error: `metaflow` not installed >> This integration requires metaflow!  To fix, please `pip install -Uqq metaflow`"
+        "Error: `metaflow` not installed >> This integration requires metaflow!"
+        " To fix, please `pip install -Uqq metaflow`"
     ) from e
 
 try:
     from plum import dispatch
 except ImportError as e:
     raise Exception(
-        "Error: `plum-dispatch` not installed >> "
-        "This integration requires plum-dispatch! To fix, please `pip install -Uqq plum-dispatch`"
+        "Error: `plum-dispatch` not installed >>"
+        " This integration requires plum-dispatch! To fix,"
+        " please `pip install -Uqq plum-dispatch`"
     ) from e
 
 
@@ -27,45 +29,52 @@ try:
     import pandas as pd
 
     @dispatch
-    def _wandb_use(
+    def _wandb_use(  # pyright: ignore[reportRedeclaration]
         name: str,
         data: pd.DataFrame,
-        datasets=False,
-        run=None,
-        testing=False,
+        datasets: bool = False,
+        run: Optional[wandb.Run] = None,
+        testing: bool = False,
         *args,
         **kwargs,
-    ):  # type: ignore
+    ) -> str | None:
         if testing:
             return "datasets" if datasets else None
 
-        if datasets:
-            run.use_artifact(f"{name}:latest")
-            wandb.termlog(f"Using artifact: {name} ({type(data)})")
+        if not datasets:
+            return
+
+        assert run
+        run.use_artifact(f"{name}:latest")
+        wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
     @dispatch
-    def wandb_track(
+    def wandb_track(  # pyright: ignore[reportRedeclaration]
         name: str,
         data: pd.DataFrame,
-        datasets=False,
-        run=None,
-        testing=False,
+        datasets: bool = False,
+        run: Optional[wandb.Run] = None,
+        testing: bool = False,
         *args,
         **kwargs,
-    ):
+    ) -> str | None:
         if testing:
             return "pd.DataFrame" if datasets else None
 
-        if datasets:
-            artifact = wandb.Artifact(name, type="dataset")
-            with artifact.new_file(f"{name}.parquet", "wb") as f:
-                data.to_parquet(f, engine="pyarrow")
-            run.log_artifact(artifact)
-            wandb.termlog(f"Logging artifact: {name} ({type(data)})")
+        if not datasets:
+            return
+
+        assert run
+        artifact = wandb.Artifact(name, type="dataset")
+        with artifact.new_file(f"{name}.parquet", "wb") as f:
+            data.to_parquet(f, engine="pyarrow")
+        run.log_artifact(artifact)
+        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 except ImportError:
     wandb.termwarn(
-        "`pandas` not installed >> @wandb_log(datasets=True) may not auto log your dataset!"
+        "`pandas` not installed >>"
+        " @wandb_log(datasets=True) may not auto log your dataset!"
     )
 
 try:
@@ -73,86 +82,99 @@ try:
     import torch.nn as nn
 
     @dispatch
-    def _wandb_use(
+    def _wandb_use(  # pyright: ignore[reportRedeclaration]
         name: str,
         data: nn.Module,
-        models=False,
-        run=None,
-        testing=False,
+        models: bool = False,
+        run: Optional[wandb.Run] = None,
+        testing: bool = False,
         *args,
         **kwargs,
-    ):  # type: ignore
+    ) -> str | None:
         if testing:
             return "models" if models else None
 
-        if models:
-            run.use_artifact(f"{name}:latest")
-            wandb.termlog(f"Using artifact: {name} ({type(data)})")
+        if not models:
+            return
+
+        assert run
+        run.use_artifact(f"{name}:latest")
+        wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
     @dispatch
-    def wandb_track(
+    def wandb_track(  # pyright: ignore[reportRedeclaration]
         name: str,
         data: nn.Module,
-        models=False,
-        run=None,
-        testing=False,
+        models: bool = False,
+        run: Optional[wandb.Run] = None,
+        testing: bool = False,
         *args,
         **kwargs,
-    ):
+    ) -> str | None:
         if testing:
             return "nn.Module" if models else None
 
-        if models:
-            artifact = wandb.Artifact(name, type="model")
-            with artifact.new_file(f"{name}.pkl", "wb") as f:
-                torch.save(data, f)
-            run.log_artifact(artifact)
-            wandb.termlog(f"Logging artifact: {name} ({type(data)})")
+        if not models:
+            return
+
+        assert run
+        artifact = wandb.Artifact(name, type="model")
+        with artifact.new_file(f"{name}.pkl", "wb") as f:
+            torch.save(data, f)
+        run.log_artifact(artifact)
+        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 except ImportError:
     wandb.termwarn(
-        "`pytorch` not installed >> @wandb_log(models=True) may not auto log your model!"
+        "`pytorch` not installed >>"
+        " @wandb_log(models=True) may not auto log your model!"
     )
 
 try:
     from sklearn.base import BaseEstimator
 
     @dispatch
-    def _wandb_use(
+    def _wandb_use(  # pyright: ignore[reportRedeclaration]
         name: str,
         data: BaseEstimator,
-        models=False,
-        run=None,
-        testing=False,
+        models: bool = False,
+        run: Optional[wandb.Run] = None,
+        testing: bool = False,
         *args,
         **kwargs,
-    ):  # type: ignore
+    ) -> str | None:
         if testing:
             return "models" if models else None
 
-        if models:
-            run.use_artifact(f"{name}:latest")
-            wandb.termlog(f"Using artifact: {name} ({type(data)})")
+        if not models:
+            return
+
+        assert run
+        run.use_artifact(f"{name}:latest")
+        wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
     @dispatch
-    def wandb_track(
+    def wandb_track(  # pyright: ignore[reportRedeclaration]
         name: str,
         data: BaseEstimator,
-        models=False,
-        run=None,
-        testing=False,
+        models: bool = False,
+        run: Optional[wandb.Run] = None,
+        testing: bool = False,
         *args,
         **kwargs,
-    ):
+    ) -> str | None:
         if testing:
             return "BaseEstimator" if models else None
 
-        if models:
-            artifact = wandb.Artifact(name, type="model")
-            with artifact.new_file(f"{name}.pkl", "wb") as f:
-                pickle.dump(data, f)
-            run.log_artifact(artifact)
-            wandb.termlog(f"Logging artifact: {name} ({type(data)})")
+        if not models:
+            return
+
+        assert run
+        artifact = wandb.Artifact(name, type="model")
+        with artifact.new_file(f"{name}.pkl", "wb") as f:
+            pickle.dump(data, f)
+        run.log_artifact(artifact)
+        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 except ImportError:
     wandb.termwarn(
@@ -184,92 +206,136 @@ class ArtifactProxy:
 
 
 @dispatch
-def wandb_track(
+def wandb_track(  # pyright: ignore[reportRedeclaration]
     name: str,
     data: Union[dict, list, set, str, int, float, bool],
-    run=None,
-    testing=False,
+    run: Optional[wandb.Run] = None,
+    testing: bool = False,
     *args,
     **kwargs,
-):  # type: ignore
+) -> str | None:
     if testing:
         return "scalar"
 
+    assert run
     run.log({name: data})
 
 
 @dispatch
-def wandb_track(
-    name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs
-):
+def wandb_track(  # pyright: ignore[reportRedeclaration]
+    name: str,
+    data: Path,
+    datasets: bool = False,
+    run: Optional[wandb.Run] = None,
+    testing: bool = False,
+    *args,
+    **kwargs,
+) -> str | None:
     if testing:
         return "Path" if datasets else None
 
-    if datasets:
-        artifact = wandb.Artifact(name, type="dataset")
-        if data.is_dir():
-            artifact.add_dir(data)
-        elif data.is_file():
-            artifact.add_file(data)
-        run.log_artifact(artifact)
-        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
+    if not datasets:
+        return
+
+    assert run
+    artifact = wandb.Artifact(name, type="dataset")
+    if data.is_dir():
+        artifact.add_dir(str(data))
+    elif data.is_file():
+        artifact.add_file(str(data))
+    run.log_artifact(artifact)
+    wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 
 # this is the base case
 @dispatch
 def wandb_track(
-    name: str, data, others=False, run=None, testing=False, *args, **kwargs
-):
+    name: str,
+    data,
+    others: bool = False,
+    run: Optional[wandb.Run] = None,
+    testing: bool = False,
+    *args,
+    **kwargs,
+) -> str | None:
     if testing:
         return "generic" if others else None
 
-    if others:
-        artifact = wandb.Artifact(name, type="other")
-        with artifact.new_file(f"{name}.pkl", "wb") as f:
-            pickle.dump(data, f)
-        run.log_artifact(artifact)
-        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
+    if not others:
+        return
+
+    assert run
+    artifact = wandb.Artifact(name, type="other")
+    with artifact.new_file(f"{name}.pkl", "wb") as f:
+        pickle.dump(data, f)
+    run.log_artifact(artifact)
+    wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 
 @dispatch
-def wandb_use(name: str, data, *args, **kwargs):
+def wandb_use(name: str, data, *args, **kwargs) -> str | None:  # pyright: ignore[reportRedeclaration]
     try:
         return _wandb_use(name, data, *args, **kwargs)
     except wandb.CommError:
         wandb.termwarn(
-            f"This artifact ({name}, {type(data)}) does not exist in the wandb datastore!"
-            f"If you created an instance inline (e.g. sklearn.ensemble.RandomForestClassifier), then you can safely ignore this"
-            f"Otherwise you may want to check your internet connection!"
+            f"The artifact ({name}, {type(data)}) does not exist in the wandb"
+            " datastore! If you created an instance inline"
+            " (e.g. sklearn.ensemble.RandomForestClassifier),"
+            " then you can safely ignore this. Otherwise you may want to check"
+            " your internet connection!"
         )
 
 
 @dispatch
 def wandb_use(
-    name: str, data: Union[dict, list, set, str, int, float, bool], *args, **kwargs
-):  # type: ignore
+    name: str,
+    data: Union[dict, list, set, str, int, float, bool],
+    *args,
+    **kwargs,
+) -> str | None:
     pass  # do nothing for these types
 
 
 @dispatch
-def _wandb_use(
-    name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs
-):  # type: ignore
+def _wandb_use(  # pyright: ignore[reportRedeclaration]
+    name: str,
+    data: Path,
+    datasets: bool = False,
+    run: Optional[wandb.Run] = None,
+    testing: bool = False,
+    *args,
+    **kwargs,
+) -> str | None:
     if testing:
         return "datasets" if datasets else None
 
-    if datasets:
-        run.use_artifact(f"{name}:latest")
-        wandb.termlog(f"Using artifact: {name} ({type(data)})")
+    if not datasets:
+        return
+
+    assert run
+    run.use_artifact(f"{name}:latest")
+    wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
 
 @dispatch
-def _wandb_use(name: str, data, others=False, run=None, testing=False, *args, **kwargs):  # type: ignore
+def _wandb_use(
+    name: str,
+    data,
+    others: bool = False,
+    run: Optional[wandb.Run] = None,
+    testing: bool = False,
+    *args,
+    **kwargs,
+) -> str | None:
     if testing:
         return "others" if others else None
 
-    if others:
-        run.use_artifact(f"{name}:latest")
-        wandb.termlog(f"Using artifact: {name} ({type(data)})")
+    if not others:
+        return
+
+    assert run
+    run.use_artifact(f"{name}:latest")
+    wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
 
 def coalesce(*arg):

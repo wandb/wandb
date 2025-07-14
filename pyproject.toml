@@ -256,6 +256,9 @@ ignore-decorators = [
 # Allow internal tools to use print().
 "tools/**" = ["T20"]
 
+# F811 has false positives when using plum-dispatch.
+"wandb/integration/metaflow/metaflow.py" = ["F811"]
+
 # Ignore unused imports in all __init__.py files.
 # TODO: Unignore this lint and add symbols to __all__ instead.
 "**/__init__.py" = ["F401"]
@@ -273,7 +276,6 @@ ignore-decorators = [
 
 # TODO: Fix these lints and remove the ignores.
 "wandb/cli/cli.py" = ["C901"]
-"wandb/integration/metaflow/metaflow.py" = ["F811"]
 "wandb/old/**" = ["B006", "B020", "D", "F822"]
 "wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/sdk/internal/file_stream.py" = ["TRY300"]
@@ -338,7 +340,29 @@ ignore_errors = false
 
 [[tool.mypy.overrides]]
 module = [
-    "wandb.integration.*",
+    "wandb.integration.catboost",
+    "wandb.integration.cohere",
+    "wandb.integration.diffusers",
+    "wandb.integration.fastai",
+    "wandb.integration.gym",
+    "wandb.integration.huggingface",
+    "wandb.integration.keras",
+    "wandb.integration.kfp",
+    "wandb.integration.langchain",
+    "wandb.integration.lightgbm",
+    "wandb.integration.lightning",
+    "wandb.integration.openai",
+    "wandb.integration.prodigy",
+    "wandb.integration.sacred",
+    "wandb.integration.sagemaker",
+    "wandb.integration.sb3",
+    "wandb.integration.sklearn",
+    "wandb.integration.tensorboard",
+    "wandb.integration.tensorflow",
+    "wandb.integration.torch",
+    "wandb.integration.ultralytics",
+    "wandb.integration.xgboost",
+    "wandb.integration.yolov8",
     "wandb.apis.*",
     "wandb.proto.*",
     "wandb.beta.*",
