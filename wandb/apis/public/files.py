@@ -142,7 +142,7 @@ class Files(SizedPaginator["File"]):
         if names and pattern:
             raise ValueError(
                 "Querying for files by both names and pattern is not supported."
-                "Please provide either a list of names or a pattern to match.",
+                " Please provide either a list of names or a pattern to match.",
             )
 
         self.run = run
