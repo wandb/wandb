@@ -28,8 +28,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-    from ..wandb_run import Run as LocalRun
-
     ImageDataType = Union[
         "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
     ]
@@ -101,7 +99,7 @@ def _convert_to_uint8(data: "np.ndarray") -> "np.ndarray":
     return data.astype(np.uint8)
 
 
-def _server_accepts_image_filenames(run: "LocalRun") -> bool:
+def _server_accepts_image_filenames(run: "wandb.Run") -> bool:
     if run.offline:
         return True
 
@@ -117,7 +115,7 @@ def _server_accepts_image_filenames(run: "LocalRun") -> bool:
     return accepts_image_filenames
 
 
-def _server_accepts_artifact_path(run: "LocalRun") -> bool:
+def _server_accepts_artifact_path(run: "wandb.Run") -> bool:
     if run.offline:
         return False
 
@@ -490,7 +488,7 @@ class Image(BatchableMedia):
 
     def bind_to_run(
         self,
-        run: "LocalRun",
+        run: "wandb.Run",
         key: Union[int, str],
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
@@ -533,13 +531,11 @@ class Image(BatchableMedia):
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["wandb.Run", "Artifact"]) -> dict:
         """Returns the JSON representation expected by the backend.
 
         <!-- lazydoc-ignore: internal -->
         """
-        from wandb.sdk.wandb_run import Run
-
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type
         json_dict["format"] = self.format
@@ -576,8 +572,8 @@ class Image(BatchableMedia):
                     "digest": classes_entry.digest,
                 }
 
-        elif not isinstance(run_or_artifact, Run):
-            raise TypeError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+        elif not isinstance(run_or_artifact, wandb.Run):
+            raise TypeError("to_json accepts wandb.Run or wandb_artifact.Artifact")
 
         if self._boxes:
             json_dict["boxes"] = {
@@ -629,7 +625,7 @@ class Image(BatchableMedia):
     def seq_to_json(
         cls: Type["Image"],
         seq: Sequence["BatchableMedia"],
-        run: "LocalRun",
+        run: "wandb.Run",
         key: str,
         step: Union[int, str],
     ) -> dict:
@@ -706,7 +702,7 @@ class Image(BatchableMedia):
     def all_masks(
         cls: Type["Image"],
         images: Sequence["Image"],
-        run: "LocalRun",
+        run: "wandb.Run",
         run_key: str,
         step: Union[int, str],
     ) -> Union[List[Optional[dict]], bool]:
@@ -733,7 +729,7 @@ class Image(BatchableMedia):
     def all_boxes(
         cls: Type["Image"],
         images: Sequence["Image"],
-        run: "LocalRun",
+        run: "wandb.Run",
         run_key: str,
         step: Union[int, str],
     ) -> Union[List[Optional[dict]], bool]:
