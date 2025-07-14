@@ -1433,6 +1433,39 @@ class Settings(BaseModel, validate_assignment=True):
             return str(value)
         return value
 
+    @field_validator("run_tags", mode="after")
+    @classmethod
+    def validate_run_tags(cls, value, values):
+        """Validate run tags, particularly for offline runs.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if value is None:
+            return None
+
+        # Extract mode from values to check if we're in offline mode
+        mode = None
+        if hasattr(values, "data"):
+            # pydantic v2
+            mode = values.data.get("mode")
+        else:
+            # pydantic v1
+            mode = values.get("mode")
+
+        # Check if we're in offline mode
+        if mode in ("offline", "dryrun"):
+            # Validate tag lengths for offline runs
+            for tag in value:
+                if not isinstance(tag, str):
+                    raise UsageError(f"Tag must be a string, got {type(tag).__name__}")
+                if len(tag) < 1 or len(tag) > 64:
+                    raise UsageError(
+                        f"Tag '{tag}' must be between 1 and 64 characters long, "
+                        f"got {len(tag)} characters"
+                    )
+
+        return value
+
     # Computed fields.
 
     @computed_field  # type: ignore[prop-decorator]
