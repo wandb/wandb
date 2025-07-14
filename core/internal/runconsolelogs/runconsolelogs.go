@@ -149,14 +149,14 @@ func New(params Params) *Sender {
 			extension := filepath.Ext(string(outputFileName))
 			baseFileName := strings.TrimSuffix(string(outputFileName), extension)
 
-			fileWriter = newChunkedFileWriter(chunkedFileWriterParams{
-				baseFileName:    baseFileName,
-				outputExtension: extension,
-				filesDir:        params.FilesDir,
-				maxChunkBytes:   maxBytes,
-				maxChunkSeconds: time.Duration(maxSeconds) * time.Second,
-				uploader:        params.RunfilesUploaderOrNil,
-				logger:          params.Logger,
+			fileWriter = NewChunkedFileWriter(ChunkedFileWriterParams{
+				BaseFileName:    baseFileName,
+				OutputExtension: extension,
+				FilesDir:        params.FilesDir,
+				MaxChunkBytes:   maxBytes,
+				MaxChunkSeconds: time.Duration(maxSeconds) * time.Second,
+				Uploader:        params.RunfilesUploaderOrNil,
+				Logger:          params.Logger,
 			})
 		} else {
 			var err error

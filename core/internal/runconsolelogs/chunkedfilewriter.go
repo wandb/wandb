@@ -54,29 +54,29 @@ type chunkedFileWriter struct {
 }
 
 // chunkedFileWriterParams contains parameters for creating a chunkedFileWriter.
-type chunkedFileWriterParams struct {
-	baseFileName    string
-	outputExtension string
-	filesDir        string
-	maxChunkBytes   int64
-	maxChunkSeconds time.Duration
-	uploader        runfiles.Uploader
-	logger          *observability.CoreLogger
+type ChunkedFileWriterParams struct {
+	BaseFileName    string
+	OutputExtension string
+	FilesDir        string
+	MaxChunkBytes   int64
+	MaxChunkSeconds time.Duration
+	Uploader        runfiles.Uploader
+	Logger          *observability.CoreLogger
 }
 
 // newChunkedFileWriter creates a new chunked file writer.
 //
 // The writer delays creating the first chunk file until the first write,
 // ensuring accurate timestamps for chunk naming.
-func newChunkedFileWriter(params chunkedFileWriterParams) *chunkedFileWriter {
+func NewChunkedFileWriter(params ChunkedFileWriterParams) *chunkedFileWriter {
 	return &chunkedFileWriter{
-		baseFileName:    params.baseFileName,
-		outputExtension: params.outputExtension,
-		filesDir:        params.filesDir,
-		maxChunkBytes:   params.maxChunkBytes,
-		maxChunkSeconds: params.maxChunkSeconds,
-		uploader:        params.uploader,
-		logger:          params.logger,
+		baseFileName:    params.BaseFileName,
+		outputExtension: params.OutputExtension,
+		filesDir:        params.FilesDir,
+		maxChunkBytes:   params.MaxChunkBytes,
+		maxChunkSeconds: params.MaxChunkSeconds,
+		uploader:        params.Uploader,
+		logger:          params.Logger,
 	}
 }
 
@@ -119,17 +119,15 @@ func (w *chunkedFileWriter) WriteToFile(
 		}
 	})
 
-	// Write to current chunk
+	// Write to current chunk.
 	if err := w.currentChunk.UpdateLines(lines); err != nil {
 		return fmt.Errorf("failed to write to chunk: %v", err)
 	}
 
 	w.currentSize += addedBytes
 
-	// Check if rotation is needed
 	if w.shouldRotate() {
-		// Rotate asynchronously to avoid blocking writes
-		go w.rotateChunk()
+		w.rotateChunk()
 	}
 
 	return nil
@@ -176,18 +174,9 @@ func (w *chunkedFileWriter) createNewChunk() error {
 
 // rotateChunk uploads the current chunk and creates a new one.
 //
-// This method is designed to be called asynchronously. It handles its own
-// locking to avoid deadlocks.
+// This method should be called synchronously while holding the w.mu lock.
 func (w *chunkedFileWriter) rotateChunk() {
-	w.mu.Lock()
-
 	fmt.Println("+++ ROTATING CHUNK")
-
-	// Double-check rotation is still needed (may have been handled by another goroutine)
-	if !w.shouldRotate() {
-		w.mu.Unlock()
-		return
-	}
 
 	// Capture current chunk info for upload
 	chunkPath := w.currentChunkPath
@@ -198,7 +187,6 @@ func (w *chunkedFileWriter) rotateChunk() {
 
 	// Try to create new chunk
 	err := w.createNewChunk()
-	w.mu.Unlock()
 
 	if err != nil {
 		// Log error but don't fail - continue using current chunk
@@ -207,13 +195,12 @@ func (w *chunkedFileWriter) rotateChunk() {
 		)
 
 		// Restore offset since we're keeping the current chunk
-		w.mu.Lock()
 		w.globalLineOffset = oldGlobalOffset
-		w.mu.Unlock()
 		return
 	}
 
 	// Upload the old chunk
+	fmt.Println("+++ Uploading", chunkPath)
 	w.uploader.UploadNow(chunkPath, filetransfer.RunFileKindWandb)
 }
 
@@ -230,6 +217,7 @@ func (w *chunkedFileWriter) Finish() {
 	}
 
 	// Upload final chunk regardless of size/time
+	fmt.Println("+++ Uploading", w.currentChunkPath)
 	w.uploader.UploadNow(w.currentChunkPath, filetransfer.RunFileKindWandb)
 }
 
