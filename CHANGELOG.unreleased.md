@@ -17,6 +17,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - Support `first` summary option in `define_metric` (@kptkin in https://github.com/wandb/wandb/pull/10121)
 - Add support for paginated sweeps (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/10122)
+- `pattern` parameter to `Api().run().files` to only get files matching a given pattern from the W&B backend (@jacobromero in https://github.com/wandb/wandb/pull/10163)
 
 ### Changed
 

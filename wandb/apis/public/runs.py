@@ -782,17 +782,30 @@ class Run(Attrs):
         return [json.loads(line) for line in response["project"]["run"][node]]
 
     @normalize_exceptions
-    def files(self, names=None, per_page=50):
-        """Return a file path for each file named.
+    def files(self, names=None, pattern=None, per_page=50):
+        """Returns a `Files` object for all files in the run which match the given criteria.
+
+        You can specify a list of exact file names to match, or a pattern to match against.
+        If both are provided, the pattern will be ignored.
 
         Args:
             names (list): names of the requested files, if empty returns all files
+            pattern (str, optional): Pattern to match when returning files from W&B.
+                This pattern uses mySQL's LIKE syntax,
+                so matching all files that end with .json would be "%.json".
+                If both names and pattern are provided, a ValueError will be raised.
             per_page (int): number of results per page.
 
         Returns:
             A `Files` object, which is an iterator over `File` objects.
         """
-        return public.Files(self.client, self, names or [], per_page)
+        return public.Files(
+            self.client,
+            self,
+            names or [],
+            pattern=pattern,
+            per_page=per_page,
+        )
 
     @normalize_exceptions
     def file(self, name):
