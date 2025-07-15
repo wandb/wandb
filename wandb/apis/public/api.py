@@ -343,7 +343,7 @@ class Api:
     def _configure_sentry(self) -> None:
         try:
             viewer = self.viewer
-        except AttributeError:
+        except (AttributeError, requests.RequestException):
             # we need the viewer to configure the entity, and user email
             return
 
