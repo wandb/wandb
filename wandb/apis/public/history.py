@@ -52,8 +52,6 @@ class HistoryScan:
             max_step: The maximum step to scan up to.
             page_size: Number of history rows to fetch per page.
                 Default page_size is 1000.
-
-        <!-- lazydoc-ignore-class: internal -->
         """
         self.client = client
         self.run = run
@@ -144,8 +142,6 @@ class SampledHistoryScan:
             max_step: The maximum step to sample up to.
             page_size: Number of sampled history rows to fetch per page.
                 Default page_size is 1000.
-
-        <!-- lazydoc-ignore-class: internal -->
         """
         self.client = client
         self.run = run
