@@ -15,15 +15,17 @@ import stat
 import tempfile
 import time
 from collections import deque
+from collections.abc import Iterator, Sequence
 from copy import copy
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
 from itertools import filterfalse
-from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Iterator, Literal, Sequence, Type, final
+from pathlib import Path, PurePosixPath
+from typing import IO, TYPE_CHECKING, Any, Literal, Type, final
 from urllib.parse import quote, urljoin, urlparse
 
+import polars as pl
 import requests
 
 import wandb
@@ -1807,6 +1809,17 @@ class Artifact:
 
         return entry
 
+    def _read_polars_dataframe(self, path: StrPath) -> pl.DataFrame:
+        match Path(path).suffix.lower():
+            case ".csv":
+                return pl.read_csv(path)
+            case ".parquet":
+                return pl.read_parquet(path)
+            case ".jsonl" | ".ndjson":
+                return pl.read_ndjson(path)
+            case _:
+                raise UnsupportedError(f"Cannot read file {path!s} as a dataframe")
+
     def _add_local_file(
         self,
         name: StrPath,
@@ -1821,6 +1834,19 @@ class Artifact:
             raise ValueError(
                 f"Invalid policy {policy!r}. Policy may only be `mutable` or `immutable`."
             )
+
+        # HACK: For hackweek only -- if file looks like tabular data, also add a Table
+        try:
+            df = self._read_polars_dataframe(path).to_pandas()
+        except UnsupportedError:
+            pass
+        else:
+            table = wandb.Table(dataframe=df)
+            self.add(
+                table,
+                str(Path("dataset_files") / name.with_suffix(".table.json")),
+            )
+
         upload_path = path
         if policy == "mutable":
             with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:

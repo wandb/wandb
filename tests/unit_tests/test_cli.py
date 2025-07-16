@@ -625,4 +625,4 @@ def test_cli_debug_log_scoping(runner, test_settings):
             with mock.patch("getpass.getuser", return_value=test_user):
                 importlib.reload(cli)
                 assert cli._username == test_user
-                assert cli._wandb_log_path.endswith(f"debug-cli.{test_user}.log")
+                assert cli._wandb_log_path().endswith(f"debug-cli.{test_user}.log")

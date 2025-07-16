@@ -13,8 +13,8 @@ import tempfile
 import textwrap
 import time
 import traceback
-from functools import wraps
-from typing import Any, Dict, Optional
+from functools import cache, wraps
+from typing import Any
 
 import click
 import yaml
@@ -42,22 +42,31 @@ from wandb.sync import SyncManager, get_run_from_path, get_runs
 
 from .beta import beta
 
-# Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
-_wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
-if not os.path.exists(_wandb_dir):
-    _wandb_dir = tempfile.gettempdir()
 
-try:
-    _username = getpass.getuser()
-except KeyError:
-    # getuser() could raise KeyError in restricted environments like
-    # chroot jails or docker containers. Return user id in these cases.
-    _username = str(os.getuid())
+@cache
+def _username():
+    try:
+        return getpass.getuser()
+    except KeyError:
+        # getuser() could raise KeyError in restricted environments like
+        # chroot jails or docker containers. Return user id in these cases.
+        return str(os.getuid())
 
-_wandb_log_path = os.path.join(_wandb_dir, f"debug-cli.{_username}.log")
+
+@cache
+def _wandb_log_path():
+    # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
+    _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
+    if not os.path.exists(_wandb_dir):
+        _wandb_dir = tempfile.gettempdir()
+    return os.path.join(_wandb_dir, f"debug-cli.{_username()}.log")
+
+
+# _wandb_log_path = os.path.join(_wandb_dir, f"debug-cli.{_username}.log")
+
 
 logging.basicConfig(
-    filename=_wandb_log_path,
+    filename=_wandb_log_path(),
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -77,9 +86,9 @@ RUN_CONTEXT = {
 }
 
 
-def cli_unsupported(argument):
-    wandb.termerror(f"Unsupported argument `{argument}`")
-    sys.exit(1)
+# def cli_unsupported(argument):
+#     wandb.termerror(f"Unsupported argument `{argument}`")
+#     sys.exit(1)
 
 
 class ClickWandbException(ClickException):
@@ -89,7 +98,7 @@ class ClickWandbException(ClickException):
             return click.style(str(self.message), fg="red")
         else:
             return (
-                f"An Exception was raised, see {_wandb_log_path} for full"
+                f"An Exception was raised, see {_wandb_log_path()} for full"
                 " traceback.\n"
                 f"{orig_type}: {self.message}"
             )
@@ -106,7 +115,7 @@ def display_error(func):
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
             logger.exception("".join(lines))
-            wandb.termerror(f"Find detailed error logs at: {_wandb_log_path}")
+            wandb.termerror(f"Find detailed error logs at: {_wandb_log_path()}")
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
             raise click_exc.with_traceback(sys.exc_info()[2])
@@ -166,8 +175,7 @@ class RunGroup(click.Group):
     @display_error
     def get_command(self, ctx, cmd_name):
         # TODO: check if cmd_name is a file in the current dir and not require `run`?
-        rv = click.Group.get_command(self, ctx, cmd_name)
-        if rv is not None:
+        if rv := click.Group.get_command(self, ctx, cmd_name):
             return rv
         return None
 
@@ -211,9 +219,16 @@ def projects(entity, display=True):
     return projects
 
 
-@cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
+@cli.command(
+    context_settings=CONTEXT,
+    help="Login to Weights & Biases",
+)
 @click.argument("key", nargs=-1)
-@click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
+@click.option(
+    "--cloud",
+    is_flag=True,
+    help="Login to the cloud instead of local",
+)
 @click.option(
     "--host", "--base-url", default=None, help="Login to a specific instance of W&B"
 )
@@ -545,7 +560,7 @@ def sync(
             view=view,
             verbose=verbose,
             sync_tensorboard=_sync_tensorboard,
-            log_path=_wandb_log_path,
+            log_path=_wandb_log_path(),
             append=append,
             skip_console=skip_console,
         )
@@ -964,16 +979,16 @@ def launch_sweep(
 
     parsed_user_config = sweep_utils.load_launch_sweep_config(config)
     # Rip special keys out of config, store in scheduler run_config
-    launch_args: Dict[str, Any] = parsed_user_config.pop("launch", {})
-    scheduler_args: Dict[str, Any] = parsed_user_config.pop("scheduler", {})
-    settings: Dict[str, Any] = scheduler_args.pop("settings", {})
+    launch_args: dict[str, Any] = parsed_user_config.pop("launch", {})
+    scheduler_args: dict[str, Any] = parsed_user_config.pop("scheduler", {})
+    settings: dict[str, Any] = scheduler_args.pop("settings", {})
 
-    scheduler_job: Optional[str] = scheduler_args.get("job")
+    scheduler_job: str | None = scheduler_args.get("job")
     if scheduler_job:
         wandb.termwarn(
             "Using a scheduler job for launch sweeps is *experimental* and may change without warning"
         )
-    queue: Optional[str] = queue or launch_args.get("queue")
+    queue: str | None = queue or launch_args.get("queue")
 
     sweep_config, sweep_obj_id = None, None
     if not resume_id:
@@ -2241,13 +2256,27 @@ def artifact():
     pass
 
 
-@artifact.command(context_settings=CONTEXT, help="Upload an artifact to wandb")
+@artifact.command(
+    context_settings=CONTEXT,
+    help="Upload an artifact to wandb",
+)
 @click.argument("path")
 @click.option(
-    "--name", "-n", help="The name of the artifact to push: project/artifact_name"
+    "--name",
+    "-n",
+    help="The name of the artifact to push: project/artifact_name",
 )
-@click.option("--description", "-d", help="A description of this artifact")
-@click.option("--type", "-t", default="dataset", help="The type of the artifact")
+@click.option(
+    "--description",
+    "-d",
+    help="A description of this artifact",
+)
+@click.option(
+    "--type",
+    "-t",
+    default="dataset",
+    help="The type of the artifact",
+)
 @click.option(
     "--alias",
     "-a",
@@ -2255,7 +2284,11 @@ def artifact():
     multiple=True,
     help="An alias to apply to this artifact",
 )
-@click.option("--id", "run_id", help="The run you want to upload to.")
+@click.option(
+    "--id",
+    "run_id",
+    help="The run you want to upload to.",
+)
 @click.option(
     "--resume",
     is_flag=True,

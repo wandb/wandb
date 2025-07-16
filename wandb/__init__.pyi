@@ -60,19 +60,8 @@ __all__ = (
 )
 
 import os
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    List,
-    Literal,
-    Optional,
-    Sequence,
-    TextIO,
-    Union,
-)
+from collections.abc import Callable, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, TextIO, Union
 
 import wandb.plot as plot
 from wandb.analytics import Sentry
