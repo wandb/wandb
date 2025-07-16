@@ -51,7 +51,7 @@ from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.sdk.lib import retry
 
 FILE_FRAGMENT = """fragment RunFilesFragment on Run {
-    files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
+    files(names: $fileNames, after: $fileCursor, first: $fileLimit, pattern: $pattern) {
         edges {
             node {
                 id
@@ -104,7 +104,7 @@ class Files(SizedPaginator["File"]):
     QUERY = gql(
         """
         query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
-            $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {{
+            $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
             project(name: $project, entityName: $entity) {{
                 internalId
                 run(name: $name) {{
@@ -117,7 +117,15 @@ class Files(SizedPaginator["File"]):
         """.format(FILE_FRAGMENT)
     )
 
-    def __init__(self, client, run, names=None, per_page=50, upload=False):
+    def __init__(
+        self,
+        client,
+        run,
+        names=None,
+        per_page=50,
+        upload=False,
+        pattern=None,
+    ):
         """An iterable collection of `File` objects for a specific run.
 
         Args:
@@ -126,8 +134,17 @@ class Files(SizedPaginator["File"]):
         names (list, optional): A list of file names to filter the files
         per_page (int, optional): The number of files to fetch per page
         upload (bool, optional): If `True`, fetch the upload URL for each file
-
+        pattern (str, optional): Pattern to match when returning files from W&B
+            This pattern uses mySQL's LIKE syntax,
+            so matching all files that end with .json would be "%.json".
+            If both names and pattern are provided, a ValueError will be raised.
         """
+        if names and pattern:
+            raise ValueError(
+                "Querying for files by both names and pattern is not supported."
+                " Please provide either a list of names or a pattern to match.",
+            )
+
         self.run = run
         variables = {
             "project": run.project,
@@ -135,6 +152,7 @@ class Files(SizedPaginator["File"]):
             "name": run.id,
             "fileNames": names or [],
             "upload": upload,
+            "pattern": pattern,
         }
         super().__init__(client, variables, per_page)
 

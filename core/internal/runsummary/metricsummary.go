@@ -1,12 +1,15 @@
 package runsummary
 
-import "github.com/wandb/simplejsonext"
+import (
+	"github.com/wandb/simplejsonext"
+)
 
 // metricSummary is the summary value of a single metric.
 //
 // The zero value is an empty summary.
 type metricSummary struct {
 	latest any
+	first  any
 	min    float64
 	max    float64
 	total  float64
@@ -43,6 +46,9 @@ func (ms *metricSummary) SetExplicit(value any) {
 // when it is a float.
 func (ms *metricSummary) UpdateFloat(value float64) {
 	ms.latest = value
+	if !ms.hasData {
+		ms.first = value
+	}
 	ms.hasData = true
 
 	if ms.count > 0 {
@@ -60,6 +66,9 @@ func (ms *metricSummary) UpdateFloat(value float64) {
 // when it is an integer.
 func (ms *metricSummary) UpdateInt(value int64) {
 	ms.latest = value
+	if !ms.hasData {
+		ms.first = value
+	}
 	ms.hasData = true
 
 	if ms.count > 0 {
@@ -77,6 +86,9 @@ func (ms *metricSummary) UpdateInt(value int64) {
 // when it's not a number.
 func (ms *metricSummary) UpdateOther(value any) {
 	ms.latest = value
+	if !ms.hasData {
+		ms.first = value
+	}
 	ms.hasData = true
 }
 
@@ -96,6 +108,9 @@ func (ms *metricSummary) ToMarshallableValue() any {
 	summary := make(map[string]any)
 	if ms.track.HasAny(Latest) {
 		summary["last"] = ms.latest
+	}
+	if ms.track.HasAny(First) {
+		summary["first"] = ms.first
 	}
 	if ms.track.HasAny(Max) {
 		summary["max"] = ms.max

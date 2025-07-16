@@ -6,7 +6,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// GPU is used to monitor Nvidia and Apple ARM GPUs.
+// GPU is used to monitor Nvidia, AMD, and Apple ARM GPUs.
 //
 // It collects GPU metrics from the gpu_stats binary via gRPC.
 type GPU struct {

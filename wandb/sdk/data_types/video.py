@@ -6,7 +6,8 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Type, Union
 
 import wandb
-from wandb import util
+from wandb import env, util
+from wandb.sdk import wandb_setup
 from wandb.sdk.lib import filesystem, printer, printer_asyncio, runid
 
 from . import _dtypes
@@ -21,6 +22,14 @@ if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
 
     from ..wandb_run import Run as LocalRun
+
+
+def _should_print_spinner() -> bool:
+    singleton = wandb_setup.singleton_if_setup()
+    if singleton and (singleton.settings.quiet or singleton.settings.silent):
+        return False
+
+    return not env.is_quiet() and not env.is_silent()
 
 
 # This helper function is a workaround for the issue discussed here:
@@ -165,11 +174,15 @@ class Video(BatchableMedia):
                     "wandb.Video accepts a file path or numpy like data as input"
                 )
             fps = fps or 4
-            printer_asyncio.run_async_with_spinner(
-                printer.new_printer(),
-                "Encoding video...",
-                functools.partial(self.encode, fps=fps),
-            )
+
+            if _should_print_spinner():
+                printer_asyncio.run_async_with_spinner(
+                    printer.new_printer(),
+                    "Encoding video...",
+                    functools.partial(self.encode, fps=fps),
+                )
+            else:
+                self.encode(fps=fps)
 
     def encode(self, fps: int = 4) -> None:
         """Encode the video data to a file.
