@@ -14,63 +14,55 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-//	We recommend that you retrieve your S3 Metadata configurations by using the V2 [GetBucketMetadataTableConfiguration]
-//
-// API operation. We no longer recommend using the V1
-// GetBucketMetadataTableConfiguration API operation.
-//
-// If you created your S3 Metadata configuration before July 15, 2025, we
-// recommend that you delete and re-create your configuration by using [CreateBucketMetadataConfiguration]so that you
-// can expire journal table records and create a live inventory table.
-//
-// Retrieves the V1 S3 Metadata configuration for a general purpose bucket. For
-// more information, see [Accelerating data discovery with S3 Metadata]in the Amazon S3 User Guide.
+// Retrieves the S3 Metadata configuration for a general purpose bucket. For more
+// information, see [Accelerating data discovery with S3 Metadata]in the Amazon S3 User Guide.
 //
 // You can use the V2 GetBucketMetadataConfiguration API operation with V1 or V2
-// metadata table configurations. However, if you try to use the V1
+// metadata configurations. However, if you try to use the V1
 // GetBucketMetadataTableConfiguration API operation with V2 configurations, you
 // will receive an HTTP 405 Method Not Allowed error.
-//
-// Make sure that you update your processes to use the new V2 API operations (
-// CreateBucketMetadataConfiguration , GetBucketMetadataConfiguration , and
-// DeleteBucketMetadataConfiguration ) instead of the V1 API operations.
 //
 // Permissions To use this operation, you must have the
 // s3:GetBucketMetadataTableConfiguration permission. For more information, see [Setting up permissions for configuring metadata tables]
 // in the Amazon S3 User Guide.
 //
-// The following operations are related to GetBucketMetadataTableConfiguration :
+// The IAM policy action name is the same for the V1 and V2 API operations.
 //
-// [CreateBucketMetadataTableConfiguration]
+// The following operations are related to GetBucketMetadataConfiguration :
 //
-// [DeleteBucketMetadataTableConfiguration]
+// [CreateBucketMetadataConfiguration]
+//
+// [DeleteBucketMetadataConfiguration]
+//
+// [UpdateBucketMetadataInventoryTableConfiguration]
+//
+// [UpdateBucketMetadataJournalTableConfiguration]
 //
 // [Setting up permissions for configuring metadata tables]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/metadata-tables-permissions.html
-// [CreateBucketMetadataTableConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataTableConfiguration.html
-// [DeleteBucketMetadataTableConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketMetadataTableConfiguration.html
-// [CreateBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataConfiguration.html
+// [UpdateBucketMetadataJournalTableConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_UpdateBucketMetadataJournalTableConfiguration.html
 // [Accelerating data discovery with S3 Metadata]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/metadata-tables-overview.html
-//
-// [GetBucketMetadataTableConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketMetadataTableConfiguration.html
-func (c *Client) GetBucketMetadataTableConfiguration(ctx context.Context, params *GetBucketMetadataTableConfigurationInput, optFns ...func(*Options)) (*GetBucketMetadataTableConfigurationOutput, error) {
+// [CreateBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataConfiguration.html
+// [UpdateBucketMetadataInventoryTableConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_UpdateBucketMetadataInventoryTableConfiguration.html
+// [DeleteBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketMetadataConfiguration.html
+func (c *Client) GetBucketMetadataConfiguration(ctx context.Context, params *GetBucketMetadataConfigurationInput, optFns ...func(*Options)) (*GetBucketMetadataConfigurationOutput, error) {
 	if params == nil {
-		params = &GetBucketMetadataTableConfigurationInput{}
+		params = &GetBucketMetadataConfigurationInput{}
 	}
 
-	result, metadata, err := c.invokeOperation(ctx, "GetBucketMetadataTableConfiguration", params, optFns, c.addOperationGetBucketMetadataTableConfigurationMiddlewares)
+	result, metadata, err := c.invokeOperation(ctx, "GetBucketMetadataConfiguration", params, optFns, c.addOperationGetBucketMetadataConfigurationMiddlewares)
 	if err != nil {
 		return nil, err
 	}
 
-	out := result.(*GetBucketMetadataTableConfigurationOutput)
+	out := result.(*GetBucketMetadataConfigurationOutput)
 	out.ResultMetadata = metadata
 	return out, nil
 }
 
-type GetBucketMetadataTableConfigurationInput struct {
+type GetBucketMetadataConfigurationInput struct {
 
-	//  The general purpose bucket that corresponds to the metadata table
-	// configuration that you want to retrieve.
+	//  The general purpose bucket that corresponds to the metadata configuration that
+	// you want to retrieve.
 	//
 	// This member is required.
 	Bucket *string
@@ -82,16 +74,16 @@ type GetBucketMetadataTableConfigurationInput struct {
 	noSmithyDocumentSerde
 }
 
-func (in *GetBucketMetadataTableConfigurationInput) bindEndpointParams(p *EndpointParameters) {
+func (in *GetBucketMetadataConfigurationInput) bindEndpointParams(p *EndpointParameters) {
 
 	p.Bucket = in.Bucket
 	p.UseS3ExpressControlEndpoint = ptr.Bool(true)
 }
 
-type GetBucketMetadataTableConfigurationOutput struct {
+type GetBucketMetadataConfigurationOutput struct {
 
-	//  The metadata table configuration for the general purpose bucket.
-	GetBucketMetadataTableConfigurationResult *types.GetBucketMetadataTableConfigurationResult
+	//  The metadata configuration for the general purpose bucket.
+	GetBucketMetadataConfigurationResult *types.GetBucketMetadataConfigurationResult
 
 	// Metadata pertaining to the operation's result.
 	ResultMetadata middleware.Metadata
@@ -99,19 +91,19 @@ type GetBucketMetadataTableConfigurationOutput struct {
 	noSmithyDocumentSerde
 }
 
-func (c *Client) addOperationGetBucketMetadataTableConfigurationMiddlewares(stack *middleware.Stack, options Options) (err error) {
+func (c *Client) addOperationGetBucketMetadataConfigurationMiddlewares(stack *middleware.Stack, options Options) (err error) {
 	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsRestxml_serializeOpGetBucketMetadataTableConfiguration{}, middleware.After)
+	err = stack.Serialize.Add(&awsRestxml_serializeOpGetBucketMetadataConfiguration{}, middleware.After)
 	if err != nil {
 		return err
 	}
-	err = stack.Deserialize.Add(&awsRestxml_deserializeOpGetBucketMetadataTableConfiguration{}, middleware.After)
+	err = stack.Deserialize.Add(&awsRestxml_deserializeOpGetBucketMetadataConfiguration{}, middleware.After)
 	if err != nil {
 		return err
 	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "GetBucketMetadataTableConfiguration"); err != nil {
+	if err := addProtocolFinalizerMiddlewares(stack, options, "GetBucketMetadataConfiguration"); err != nil {
 		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
@@ -172,10 +164,10 @@ func (c *Client) addOperationGetBucketMetadataTableConfigurationMiddlewares(stac
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
-	if err = addOpGetBucketMetadataTableConfigurationValidationMiddleware(stack); err != nil {
+	if err = addOpGetBucketMetadataConfigurationValidationMiddleware(stack); err != nil {
 		return err
 	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opGetBucketMetadataTableConfiguration(options.Region), middleware.Before); err != nil {
+	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opGetBucketMetadataConfiguration(options.Region), middleware.Before); err != nil {
 		return err
 	}
 	if err = addMetadataRetrieverMiddleware(stack); err != nil {
@@ -184,7 +176,7 @@ func (c *Client) addOperationGetBucketMetadataTableConfigurationMiddlewares(stac
 	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
-	if err = addGetBucketMetadataTableConfigurationUpdateEndpoint(stack, options); err != nil {
+	if err = addGetBucketMetadataConfigurationUpdateEndpoint(stack, options); err != nil {
 		return err
 	}
 	if err = addResponseErrorMiddleware(stack); err != nil {
@@ -220,35 +212,35 @@ func (c *Client) addOperationGetBucketMetadataTableConfigurationMiddlewares(stac
 	return nil
 }
 
-func (v *GetBucketMetadataTableConfigurationInput) bucket() (string, bool) {
+func (v *GetBucketMetadataConfigurationInput) bucket() (string, bool) {
 	if v.Bucket == nil {
 		return "", false
 	}
 	return *v.Bucket, true
 }
 
-func newServiceMetadataMiddleware_opGetBucketMetadataTableConfiguration(region string) *awsmiddleware.RegisterServiceMetadata {
+func newServiceMetadataMiddleware_opGetBucketMetadataConfiguration(region string) *awsmiddleware.RegisterServiceMetadata {
 	return &awsmiddleware.RegisterServiceMetadata{
 		Region:        region,
 		ServiceID:     ServiceID,
-		OperationName: "GetBucketMetadataTableConfiguration",
+		OperationName: "GetBucketMetadataConfiguration",
 	}
 }
 
-// getGetBucketMetadataTableConfigurationBucketMember returns a pointer to string
+// getGetBucketMetadataConfigurationBucketMember returns a pointer to string
 // denoting a provided bucket member valueand a boolean indicating if the input has
 // a modeled bucket name,
-func getGetBucketMetadataTableConfigurationBucketMember(input interface{}) (*string, bool) {
-	in := input.(*GetBucketMetadataTableConfigurationInput)
+func getGetBucketMetadataConfigurationBucketMember(input interface{}) (*string, bool) {
+	in := input.(*GetBucketMetadataConfigurationInput)
 	if in.Bucket == nil {
 		return nil, false
 	}
 	return in.Bucket, true
 }
-func addGetBucketMetadataTableConfigurationUpdateEndpoint(stack *middleware.Stack, options Options) error {
+func addGetBucketMetadataConfigurationUpdateEndpoint(stack *middleware.Stack, options Options) error {
 	return s3cust.UpdateEndpoint(stack, s3cust.UpdateEndpointOptions{
 		Accessor: s3cust.UpdateEndpointParameterAccessor{
-			GetBucketFromInput: getGetBucketMetadataTableConfigurationBucketMember,
+			GetBucketFromInput: getGetBucketMetadataConfigurationBucketMember,
 		},
 		UsePathStyle:                   options.UsePathStyle,
 		UseAccelerate:                  options.UseAccelerate,

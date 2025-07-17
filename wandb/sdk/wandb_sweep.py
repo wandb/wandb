@@ -45,11 +45,12 @@ def sweep(
     Make note the unique identifier, `sweep_id`, that is returned.
     At a later step provide the `sweep_id` to a sweep agent.
 
+    See [Sweep configuration structure](https://docs.wandb.ai/guides/sweeps/define-sweep-configuration)
+    for information on how to define your sweep.
+
     Args:
       sweep: The configuration of a hyperparameter search.
-        (or configuration generator). See
-        [Sweep configuration structure](https://docs.wandb.ai/guides/sweeps/define-sweep-configuration)
-        for information on how to define your sweep.
+        (or configuration generator).
         If you provide a callable, ensure that the callable does
         not take arguments and that it returns a dictionary that
         conforms to the W&B sweep config spec.
@@ -64,7 +65,7 @@ def sweep(
       prior_runs: The run IDs of existing runs to add to this sweep.
 
     Returns:
-      sweep_id: str. A unique identifier for the sweep.
+      str: A unique identifier for the sweep.
     """
     if callable(sweep):
         sweep = sweep()
@@ -99,16 +100,16 @@ def controller(
 ) -> "_WandbController":
     """Public sweep controller constructor.
 
-    Usage:
-        ```python
-        import wandb
+    Examples:
+    ```python
+    import wandb
 
-        tuner = wandb.controller(...)
-        print(tuner.sweep_config)
-        print(tuner.sweep_id)
-        tuner.configure_search(...)
-        tuner.configure_stopping(...)
-        ```
+    tuner = wandb.controller(...)
+    print(tuner.sweep_config)
+    print(tuner.sweep_id)
+    tuner.configure_search(...)
+    tuner.configure_stopping(...)
+    ```
 
     """
     from ..wandb_controller import _WandbController

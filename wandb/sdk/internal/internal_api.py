@@ -3234,6 +3234,7 @@ class Api:
         entity: Optional[str] = None,
         state: Optional[str] = None,
         prior_runs: Optional[List[str]] = None,
+        display_name: Optional[str] = None,
         template_variable_values: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, List[str]]:
         """Upsert a sweep object.
@@ -3248,6 +3249,7 @@ class Api:
             entity (str): entity to use
             state (str): state
             prior_runs (list): IDs of existing runs to add to the sweep
+            display_name (str): display name for the sweep
             template_variable_values (dict): template variable values
         """
         project_query = """
@@ -3271,6 +3273,7 @@ class Api:
             $scheduler: JSONString,
             $state: String,
             $priorRunsFilters: JSONString,
+            $displayName: String,
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -3282,6 +3285,7 @@ class Api:
                 scheduler: $scheduler,
                 state: $state,
                 priorRunsFilters: $priorRunsFilters,
+                displayName: $displayName,
             }) {
                 sweep {
                     name
@@ -3358,6 +3362,7 @@ class Api:
                     "templateVariableValues": json.dumps(template_variable_values),
                     "scheduler": scheduler,
                     "priorRunsFilters": filters,
+                    "displayName": display_name,
                 }
                 if state:
                     variables["state"] = state

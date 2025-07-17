@@ -421,7 +421,7 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
 def _make_code_artifact(
     api: Api,
     job_builder: JobBuilder,
-    run: "wandb.sdk.wandb_run.Run",
+    run: "wandb.Run",
     path: str,
     entrypoint: str,
     entity: Optional[str],

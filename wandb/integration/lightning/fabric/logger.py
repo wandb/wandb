@@ -9,7 +9,6 @@ from typing_extensions import override
 import wandb
 from wandb import Artifact
 from wandb.sdk.lib import telemetry
-from wandb.sdk.wandb_run import Run
 
 try:
     import lightning
@@ -295,7 +294,7 @@ class WandbLogger(Logger):
         anonymous: Optional[bool] = None,
         project: Optional[str] = None,
         log_model: Union[Literal["all"], bool] = False,
-        experiment: Optional["Run"] = None,
+        experiment: Optional["wandb.Run"] = None,
         prefix: str = "",
         checkpoint_name: Optional[str] = None,
         log_checkpoint_on: Union[Literal["success"], Literal["all"]] = "success",
@@ -362,7 +361,7 @@ class WandbLogger(Logger):
 
     @property
     @rank_zero_experiment
-    def experiment(self) -> "Run":
+    def experiment(self) -> "wandb.Run":
         r"""Actual wandb object.
 
         To use wandb features in your :class:`~lightning.pytorch.core.LightningModule`, do the
@@ -395,7 +394,7 @@ class WandbLogger(Logger):
                 self._experiment = wandb.init(**self._wandb_init)
 
                 # define default x-axis
-                if isinstance(self._experiment, Run) and getattr(
+                if isinstance(self._experiment, wandb.Run) and getattr(
                     self._experiment, "define_metric", None
                 ):
                     self._experiment.define_metric("trainer/global_step")

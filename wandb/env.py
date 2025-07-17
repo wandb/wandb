@@ -159,6 +159,14 @@ def is_offline(env: MutableMapping | None = None) -> bool:
     return env.get(MODE) == "offline"
 
 
+def is_quiet() -> bool:
+    return _env_as_bool(QUIET, default="false")
+
+
+def is_silent() -> bool:
+    return _env_as_bool(SILENT, default="false")
+
+
 def error_reporting_enabled() -> bool:
     return _env_as_bool(ERROR_REPORTING, default="True")
 
