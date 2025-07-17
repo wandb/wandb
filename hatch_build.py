@@ -26,6 +26,7 @@ _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 # Other build options.
 _WANDB_BUILD_UNIVERSAL = "WANDB_BUILD_UNIVERSAL"
 _WANDB_BUILD_SKIP_GPU_STATS = "WANDB_BUILD_SKIP_GPU_STATS"
+_WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
 
 
 class CustomBuildHook(BuildHookInterface):
@@ -134,6 +135,7 @@ class CustomBuildHook(BuildHookInterface):
 
         with_coverage = _get_env_bool(_WANDB_BUILD_COVERAGE, default=False)
         with_race_detection = _get_env_bool(_WANDB_BUILD_GORACEDETECT, default=False)
+        with_cgo = _get_env_bool(_WANDB_ENABLE_CGO, default=False)
 
         plat = self._target_platform()
 
@@ -143,6 +145,7 @@ class CustomBuildHook(BuildHookInterface):
             output_path=output,
             with_code_coverage=with_coverage,
             with_race_detection=with_race_detection,
+            with_cgo=with_cgo,
             wandb_commit_sha=os.getenv(_WANDB_RELEASE_COMMIT) or self._git_commit_sha(),
             target_system=plat.goos,
             target_arch=plat.goarch,

@@ -442,15 +442,13 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
     own unit-tested module instead.
     """
 
-    def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.sdk.wandb_run.Run:
+    def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.Run:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
             "run_id": runid.generate_id(),
             **dict(kwargs_settings),
         }
-        run = wandb.wandb_sdk.wandb_run.Run(
-            settings=test_settings(kwargs_settings), **kwargs
-        )
+        run = wandb.Run(settings=test_settings(kwargs_settings), **kwargs)
         run._set_backend(
             unittest.mock.MagicMock() if use_magic_mock else mocked_backend
         )
