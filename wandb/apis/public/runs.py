@@ -519,13 +519,14 @@ class Run(Attrs):
     @classmethod
     def create(
         cls,
-        api,
-        run_id=None,
-        project=None,
-        entity=None,
+        api: "public.Api",
+        run_id: Optional[str] = None,
+        project: Optional[str] = None,
+        entity: Optional[str] = None,
         state: Literal["running", "pending"] = "running",
     ):
         """Create a run for the given project."""
+        api._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
         mutation = gql(
