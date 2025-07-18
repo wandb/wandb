@@ -48,10 +48,6 @@ type chunkedFileWriter struct {
 	baseFileName    string
 	outputExtension string
 	chunkIndex      int
-
-	// State tracking
-	hasWritten    bool // Whether any data has been written
-	needsNewChunk bool // Whether we need to create a new chunk on next write
 }
 
 // chunkedFileWriterParams contains parameters for creating a chunkedFileWriter.
@@ -96,14 +92,10 @@ func (w *chunkedFileWriter) WriteToFile(
 	defer w.mu.Unlock()
 
 	// Create first chunk on first write, or create new chunk after rotation
-	if !w.hasWritten || w.needsNewChunk {
+	if w.currentChunk == nil {
 		if err := w.createNewChunk(); err != nil {
 			return fmt.Errorf("failed to create chunk: %v", err)
 		}
-		if !w.hasWritten {
-			w.hasWritten = true
-		}
-		w.needsNewChunk = false
 	}
 
 	// Convert RunLogsLine to string and track line numbers
@@ -139,11 +131,9 @@ func (w *chunkedFileWriter) WriteToFile(
 
 // shouldRotate determines if the current chunk should be rotated.
 func (w *chunkedFileWriter) shouldRotate() bool {
-	fmt.Println(w.currentSize, w.maxChunkBytes)
 	if w.maxChunkBytes > 0 && w.currentSize >= w.maxChunkBytes {
 		return true
 	}
-	fmt.Println(time.Since(w.chunkStartTime), w.maxChunkDuration)
 	if w.maxChunkDuration > 0 && time.Since(w.chunkStartTime) >= w.maxChunkDuration {
 		return true
 	}
@@ -180,17 +170,13 @@ func (w *chunkedFileWriter) createNewChunk() error {
 //
 // This method should be called synchronously while holding the w.mu lock.
 func (w *chunkedFileWriter) rotateChunk() {
-	fmt.Println("+++ ROTATING CHUNK")
-
 	// Upload the current chunk
-	fmt.Println("+++ Uploading", w.currentChunkPath)
 	w.uploader.UploadNow(w.currentChunkPath, filetransfer.RunFileKindWandb)
 
 	// Update offset for next chunk
 	w.globalLineOffset = w.nextGlobalLine
 
-	// Mark that we need a new chunk on next write
-	w.needsNewChunk = true
+	// Clear current chunk state - next write will create new chunk
 	w.currentChunk = nil
 	w.currentChunkPath = ""
 	w.currentSize = 0
@@ -206,7 +192,6 @@ func (w *chunkedFileWriter) Finish() {
 
 	// Only upload if we have a current chunk with data
 	if w.currentChunk != nil && w.currentChunkPath != "" {
-		fmt.Println("+++ Uploading", w.currentChunkPath)
 		w.uploader.UploadNow(w.currentChunkPath, filetransfer.RunFileKindWandb)
 	}
 }
