@@ -6,13 +6,13 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
-	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	. "github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
@@ -69,14 +69,14 @@ func TestChunkedFileWriterRotationBySize(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
-	writer := runconsolelogs.NewChunkedFileWriter(runconsolelogs.ChunkedFileWriterParams{
-		BaseFileName:    "output",
-		OutputExtension: ".log",
-		FilesDir:        tmpDir,
-		MaxChunkBytes:   100, // Small size to trigger rotation
-		MaxChunkSeconds: 0,   // No time-based rotation
-		Uploader:        uploader,
-		Logger:          observability.NewNoOpLogger(),
+	writer := NewChunkedFileWriter(ChunkedFileWriterParams{
+		BaseFileName:     "output",
+		OutputExtension:  ".log",
+		FilesDir:         tmpDir,
+		MaxChunkBytes:    100, // Small size to trigger rotation
+		MaxChunkDuration: 0,   // No time-based rotation
+		Uploader:         uploader,
+		Logger:           observability.NewNoOpLogger(),
 	})
 
 	// Write first batch - should fit in one chunk
@@ -100,4 +100,186 @@ func TestChunkedFileWriterRotationBySize(t *testing.T) {
 	assert.Equal(t, 2, len(chunkFiles))
 	// Both should have been uploaded.
 	assert.Len(t, uploader.uploadedPaths, 2)
+}
+
+// TestChunkedFileWriterRotationByTime verifies that chunks rotate based on time.
+func TestChunkedFileWriterRotationByTime(t *testing.T) {
+	tmpDir := t.TempDir()
+	uploader := NewFakeUploader()
+
+	writer := NewChunkedFileWriter(ChunkedFileWriterParams{
+		BaseFileName:     "output",
+		OutputExtension:  ".log",
+		FilesDir:         tmpDir,
+		MaxChunkBytes:    0,                      // No size-based rotation
+		MaxChunkDuration: 100 * time.Millisecond, // Short duration for testing
+		Uploader:         uploader,
+		Logger:           observability.NewNoOpLogger(),
+	})
+
+	// Write initial lines
+	changes1 := sparselist.SparseList[*RunLogsLine]{}
+	changes1.Put(0, makeRunLogsLine("first batch"))
+	err := writer.WriteToFile(changes1)
+	assert.NoError(t, err)
+
+	// Wait for time threshold
+	time.Sleep(150 * time.Millisecond)
+
+	// Write more lines - should trigger time-based rotation
+	changes2 := sparselist.SparseList[*RunLogsLine]{}
+	changes2.Put(1, makeRunLogsLine("second batch"))
+	err = writer.WriteToFile(changes2)
+	assert.NoError(t, err)
+
+	writer.Finish()
+
+	// Should have created 2 chunk files
+	chunkFiles := getChunkFiles(t, tmpDir)
+	assert.Equal(t, 2, len(chunkFiles))
+	// Both should have been uploaded
+	assert.Len(t, uploader.uploadedPaths, 2)
+}
+
+// TestChunkedFileWriterNoRotation verifies behavior when no rotation occurs.
+func TestChunkedFileWriterNoRotation(t *testing.T) {
+	tmpDir := t.TempDir()
+	uploader := NewFakeUploader()
+
+	writer := NewChunkedFileWriter(ChunkedFileWriterParams{
+		BaseFileName:     "output",
+		OutputExtension:  ".log",
+		FilesDir:         tmpDir,
+		MaxChunkBytes:    10000, // Large size to prevent rotation
+		MaxChunkDuration: 0,     // No time-based rotation
+		Uploader:         uploader,
+		Logger:           observability.NewNoOpLogger(),
+	})
+
+	// Write some data
+	changes := sparselist.SparseList[*RunLogsLine]{}
+	changes.Put(0, makeRunLogsLine("line 1"))
+	changes.Put(1, makeRunLogsLine("line 2"))
+	changes.Put(2, makeRunLogsLine("line 3"))
+	err := writer.WriteToFile(changes)
+	assert.NoError(t, err)
+
+	// No uploads yet (no rotation occurred)
+	assert.Len(t, uploader.uploadedPaths, 0)
+
+	writer.Finish()
+
+	// Should have created 1 chunk file
+	chunkFiles := getChunkFiles(t, tmpDir)
+	assert.Equal(t, 1, len(chunkFiles))
+	// Finish should upload the final chunk
+	assert.Len(t, uploader.uploadedPaths, 1)
+}
+
+// TestChunkedFileWriterNoData verifies behavior when no data is written.
+func TestChunkedFileWriterNoData(t *testing.T) {
+	tmpDir := t.TempDir()
+	uploader := NewFakeUploader()
+
+	writer := NewChunkedFileWriter(ChunkedFileWriterParams{
+		BaseFileName:     "output",
+		OutputExtension:  ".log",
+		FilesDir:         tmpDir,
+		MaxChunkBytes:    100,
+		MaxChunkDuration: 0,
+		Uploader:         uploader,
+		Logger:           observability.NewNoOpLogger(),
+	})
+
+	// Finish without writing any data
+	writer.Finish()
+
+	// No files should be created
+	chunkFiles := getChunkFiles(t, tmpDir)
+	assert.Equal(t, 0, len(chunkFiles))
+	// No uploads should occur
+	assert.Len(t, uploader.uploadedPaths, 0)
+}
+
+// TestChunkedFileWriterEmptyChanges verifies handling of empty change sets.
+func TestChunkedFileWriterEmptyChanges(t *testing.T) {
+	tmpDir := t.TempDir()
+	uploader := NewFakeUploader()
+
+	writer := NewChunkedFileWriter(ChunkedFileWriterParams{
+		BaseFileName:     "output",
+		OutputExtension:  ".log",
+		FilesDir:         tmpDir,
+		MaxChunkBytes:    100,
+		MaxChunkDuration: 0,
+		Uploader:         uploader,
+		Logger:           observability.NewNoOpLogger(),
+	})
+
+	// Write empty changes
+	emptyChanges := sparselist.SparseList[*RunLogsLine]{}
+	err := writer.WriteToFile(emptyChanges)
+	assert.NoError(t, err)
+
+	// Write actual data
+	changes := sparselist.SparseList[*RunLogsLine]{}
+	changes.Put(0, makeRunLogsLine("content"))
+	err = writer.WriteToFile(changes)
+	assert.NoError(t, err)
+
+	writer.Finish()
+
+	// Should have 1 file and 1 upload
+	chunkFiles := getChunkFiles(t, tmpDir)
+	assert.Equal(t, 1, len(chunkFiles))
+	assert.Len(t, uploader.uploadedPaths, 1)
+}
+
+// TestChunkedFileWriterBothSizeAndTime verifies rotation with both size and time limits.
+func TestChunkedFileWriterBothSizeAndTime(t *testing.T) {
+	tmpDir := t.TempDir()
+	uploader := NewFakeUploader()
+
+	writer := NewChunkedFileWriter(ChunkedFileWriterParams{
+		BaseFileName:     "output",
+		OutputExtension:  ".log",
+		FilesDir:         tmpDir,
+		MaxChunkBytes:    200,                    // Size limit
+		MaxChunkDuration: 100 * time.Millisecond, // Time limit
+		Uploader:         uploader,
+		Logger:           observability.NewNoOpLogger(),
+	})
+
+	// Test 1: Size-based rotation should happen first
+	changes1 := sparselist.SparseList[*RunLogsLine]{}
+	for i := range 5 {
+		changes1.Put(i, makeRunLogsLine(strings.Repeat("x", 50)))
+	}
+	err := writer.WriteToFile(changes1)
+	assert.NoError(t, err)
+
+	// Should have rotated due to size
+	assert.Len(t, uploader.uploadedPaths, 1)
+
+	// Test 2: Time-based rotation
+	changes2 := sparselist.SparseList[*RunLogsLine]{}
+	changes2.Put(5, makeRunLogsLine("small"))
+	err = writer.WriteToFile(changes2)
+	assert.NoError(t, err)
+
+	// Wait for time limit
+	time.Sleep(150 * time.Millisecond)
+
+	// Trigger rotation check
+	changes3 := sparselist.SparseList[*RunLogsLine]{}
+	changes3.Put(6, makeRunLogsLine("trigger"))
+	err = writer.WriteToFile(changes3)
+	assert.NoError(t, err)
+
+	writer.Finish()
+
+	// Should have at least 3 chunks total
+	chunkFiles := getChunkFiles(t, tmpDir)
+	assert.GreaterOrEqual(t, len(chunkFiles), 3)
+	assert.Equal(t, len(chunkFiles), len(uploader.uploadedPaths))
 }

@@ -36,8 +36,8 @@ type chunkedFileWriter struct {
 	nextGlobalLine   int // Next line number to be written globally
 
 	// Configuration
-	maxChunkBytes   int64
-	maxChunkSeconds time.Duration
+	maxChunkBytes    int64
+	maxChunkDuration time.Duration
 
 	// Dependencies
 	filesDir string
@@ -55,13 +55,13 @@ type chunkedFileWriter struct {
 
 // chunkedFileWriterParams contains parameters for creating a chunkedFileWriter.
 type ChunkedFileWriterParams struct {
-	BaseFileName    string
-	OutputExtension string
-	FilesDir        string
-	MaxChunkBytes   int64
-	MaxChunkSeconds time.Duration
-	Uploader        runfiles.Uploader
-	Logger          *observability.CoreLogger
+	BaseFileName     string
+	OutputExtension  string
+	FilesDir         string
+	MaxChunkBytes    int64
+	MaxChunkDuration time.Duration
+	Uploader         runfiles.Uploader
+	Logger           *observability.CoreLogger
 }
 
 // newChunkedFileWriter creates a new chunked file writer.
@@ -70,13 +70,13 @@ type ChunkedFileWriterParams struct {
 // ensuring accurate timestamps for chunk naming.
 func NewChunkedFileWriter(params ChunkedFileWriterParams) *chunkedFileWriter {
 	return &chunkedFileWriter{
-		baseFileName:    params.BaseFileName,
-		outputExtension: params.OutputExtension,
-		filesDir:        params.FilesDir,
-		maxChunkBytes:   params.MaxChunkBytes,
-		maxChunkSeconds: params.MaxChunkSeconds,
-		uploader:        params.Uploader,
-		logger:          params.Logger,
+		baseFileName:     params.BaseFileName,
+		outputExtension:  params.OutputExtension,
+		filesDir:         params.FilesDir,
+		maxChunkBytes:    params.MaxChunkBytes,
+		maxChunkDuration: params.MaxChunkDuration,
+		uploader:         params.Uploader,
+		logger:           params.Logger,
 	}
 }
 
@@ -139,8 +139,8 @@ func (w *chunkedFileWriter) shouldRotate() bool {
 	if w.maxChunkBytes > 0 && w.currentSize >= w.maxChunkBytes {
 		return true
 	}
-	fmt.Println(time.Since(w.chunkStartTime), w.maxChunkSeconds)
-	if w.maxChunkSeconds > 0 && time.Since(w.chunkStartTime) >= w.maxChunkSeconds {
+	fmt.Println(time.Since(w.chunkStartTime), w.maxChunkDuration)
+	if w.maxChunkDuration > 0 && time.Since(w.chunkStartTime) >= w.maxChunkDuration {
 		return true
 	}
 
