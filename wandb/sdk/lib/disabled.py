@@ -26,5 +26,5 @@ class RunDisabled:
         deprecate.deprecate(
             field_name=Deprecated.run_disabled,
             warning_message="RunDisabled is deprecated and is a no-op. "
-            '`wandb.init(mode="disabled")` now returns and instance of `wandb.sdk.wandb_run.Run`.',
+            '`wandb.init(mode="disabled")` now returns an instance of `wandb.Run`.',
         )

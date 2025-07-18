@@ -35,6 +35,7 @@ Please make sure to update the ToC when you update this page!
   - [Modifying GraphQL Schema](#modifying-graphql-schema)
 - [Testing](#testing)
   - [Using pytest](#using-pytest)
+  - [Running `system_tests` locally (internal-only)](#running-system_tests-locally-internal-only)
 
 ## Development workflow
 
@@ -355,11 +356,12 @@ After that you can run your test using the standard `pytest` commands. For examp
 pytest -s -vv tests/path-to-tests/test_file.py
 ```
 
-### Running system tests
+### Running `system_tests` locally (internal-only)
 
-To run a test in [tests/system_tests](tests/system_tests),
-install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and launch a local test
-server:
+> [!NOTE]
+> Due to security limitations, external contributors cannot run system tests.
+
+If you're an internal engineer, launch a local test server:
 
 ```shell
 python tools/local_wandb_server.py start

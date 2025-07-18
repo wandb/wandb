@@ -15,7 +15,7 @@ import (
 
 // This operation is not supported for directory buckets.
 //
-// Deletes an inventory configuration (identified by the inventory ID) from the
+// Deletes an S3 Inventory configuration (identified by the inventory ID) from the
 // bucket.
 //
 // To use this operation, you must have permissions to perform the

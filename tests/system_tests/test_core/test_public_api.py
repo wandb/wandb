@@ -574,6 +574,124 @@ def test_project_get_sweeps(user, wandb_backend_spy):
     assert sweeps[0].id == "test"
 
 
+def test_project_get_sweeps_paginated(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+
+    first_page_body = {
+        "data": {
+            "project": {
+                "totalSweeps": 2,
+                "sweeps": {
+                    "edges": [
+                        {
+                            "node": {
+                                "name": "test-sweep-1",
+                                "id": "test-1",
+                                "sweep_name": None,
+                            },
+                            "cursor": "cursor-1",
+                        },
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": True,
+                        "endCursor": "cursor-1",
+                    },
+                },
+            },
+        },
+    }
+
+    second_page_body = {
+        "data": {
+            "project": {
+                "totalSweeps": 2,
+                "sweeps": {
+                    "edges": [
+                        {
+                            "node": {
+                                "name": "test-sweep-2",
+                                "id": "test-2",
+                                "sweep_name": None,
+                            },
+                            "cursor": None,
+                        },
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": False,
+                        "endCursor": None,
+                    },
+                },
+            },
+        },
+    }
+
+    sweep_gql_body = {
+        "data": {
+            "project": {
+                "sweep": {
+                    "name": "test",
+                    "id": "test",
+                    "state": "finished",
+                },
+            },
+        },
+    }
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetSweeps"),
+        gql.Sequence(
+            [
+                gql.Constant(content=first_page_body),
+                gql.Constant(content=second_page_body),
+            ]
+        ),
+    )
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Sweep"),
+        gql.Constant(content=sweep_gql_body),
+    )
+
+    project = Api().project(user, "test")
+    sweeps = project.sweeps(per_page=1)
+
+    assert len(sweeps) == 2
+    assert sweeps[0].id == "test-sweep-1"
+    assert sweeps[1].id == "test-sweep-2"
+
+
+def test_project_get_sweeps_empty(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetSweeps"),
+        gql.Constant(
+            content={
+                "data": {
+                    "project": {
+                        "totalSweeps": 0,
+                        "sweeps": {
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": None,
+                            },
+                        },
+                    },
+                },
+            }
+        ),
+    )
+
+    project = Api().project(user, "test")
+    sweeps = project.sweeps()
+    assert len(sweeps) == 0
+    assert sweeps.more is False
+
+    with pytest.raises(IndexError):
+        sweeps[0]
+
+
 def test_delete_files_for_multiple_runs(
     user,
     wandb_backend_spy,
