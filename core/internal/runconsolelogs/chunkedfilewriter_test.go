@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	. "github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
@@ -69,7 +70,7 @@ func TestChunkedFileWriterRotationBySize(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
-	writer := NewChunkedFileWriter(ChunkedFileWriterParams{
+	writer := runconsolelogs.NewChunkedFileWriter(runconsolelogs.ChunkedFileWriterParams{
 		BaseFileName:     "output",
 		OutputExtension:  ".log",
 		FilesDir:         tmpDir,
@@ -93,12 +94,21 @@ func TestChunkedFileWriterRotationBySize(t *testing.T) {
 	err = writer.WriteToFile(changes2)
 	assert.NoError(t, err)
 
+	// First chunk should have been uploaded during rotation
+	assert.Len(t, uploader.uploadedPaths, 1)
+
+	// Write more data to create the second chunk file
+	changes3 := sparselist.SparseList[*RunLogsLine]{}
+	changes3.Put(4, makeRunLogsLine("e"))
+	err = writer.WriteToFile(changes3)
+	assert.NoError(t, err)
+
 	writer.Finish()
 
-	// Should have created 2 chunk files.
+	// Should have created 2 chunk files
 	chunkFiles := getChunkFiles(t, tmpDir)
 	assert.Equal(t, 2, len(chunkFiles))
-	// Both should have been uploaded.
+	// Both should have been uploaded
 	assert.Len(t, uploader.uploadedPaths, 2)
 }
 
@@ -107,7 +117,7 @@ func TestChunkedFileWriterRotationByTime(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
-	writer := NewChunkedFileWriter(ChunkedFileWriterParams{
+	writer := runconsolelogs.NewChunkedFileWriter(runconsolelogs.ChunkedFileWriterParams{
 		BaseFileName:     "output",
 		OutputExtension:  ".log",
 		FilesDir:         tmpDir,
@@ -130,6 +140,15 @@ func TestChunkedFileWriterRotationByTime(t *testing.T) {
 	changes2 := sparselist.SparseList[*RunLogsLine]{}
 	changes2.Put(1, makeRunLogsLine("second batch"))
 	err = writer.WriteToFile(changes2)
+	assert.NoError(t, err)
+
+	// First chunk should have been uploaded
+	assert.Len(t, uploader.uploadedPaths, 1)
+
+	// Write data to ensure second chunk file is created
+	changes3 := sparselist.SparseList[*RunLogsLine]{}
+	changes3.Put(2, makeRunLogsLine("more data"))
+	err = writer.WriteToFile(changes3)
 	assert.NoError(t, err)
 
 	writer.Finish()
@@ -240,7 +259,7 @@ func TestChunkedFileWriterBothSizeAndTime(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
-	writer := NewChunkedFileWriter(ChunkedFileWriterParams{
+	writer := runconsolelogs.NewChunkedFileWriter(runconsolelogs.ChunkedFileWriterParams{
 		BaseFileName:     "output",
 		OutputExtension:  ".log",
 		FilesDir:         tmpDir,
@@ -252,7 +271,7 @@ func TestChunkedFileWriterBothSizeAndTime(t *testing.T) {
 
 	// Test 1: Size-based rotation should happen first
 	changes1 := sparselist.SparseList[*RunLogsLine]{}
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		changes1.Put(i, makeRunLogsLine(strings.Repeat("x", 50)))
 	}
 	err := writer.WriteToFile(changes1)
@@ -261,7 +280,7 @@ func TestChunkedFileWriterBothSizeAndTime(t *testing.T) {
 	// Should have rotated due to size
 	assert.Len(t, uploader.uploadedPaths, 1)
 
-	// Test 2: Time-based rotation
+	// Write small data to create new chunk
 	changes2 := sparselist.SparseList[*RunLogsLine]{}
 	changes2.Put(5, makeRunLogsLine("small"))
 	err = writer.WriteToFile(changes2)
@@ -270,10 +289,19 @@ func TestChunkedFileWriterBothSizeAndTime(t *testing.T) {
 	// Wait for time limit
 	time.Sleep(150 * time.Millisecond)
 
-	// Trigger rotation check
+	// Trigger rotation check with another write
 	changes3 := sparselist.SparseList[*RunLogsLine]{}
 	changes3.Put(6, makeRunLogsLine("trigger"))
 	err = writer.WriteToFile(changes3)
+	assert.NoError(t, err)
+
+	// Should have rotated due to time
+	assert.Len(t, uploader.uploadedPaths, 2)
+
+	// Write data to create third chunk
+	changes4 := sparselist.SparseList[*RunLogsLine]{}
+	changes4.Put(7, makeRunLogsLine("final"))
+	err = writer.WriteToFile(changes4)
 	assert.NoError(t, err)
 
 	writer.Finish()
