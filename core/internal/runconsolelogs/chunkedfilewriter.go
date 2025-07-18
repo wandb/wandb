@@ -50,7 +50,8 @@ type chunkedFileWriter struct {
 	chunkIndex      int
 
 	// State tracking
-	hasWritten bool // Whether any data has been written
+	hasWritten    bool // Whether any data has been written
+	needsNewChunk bool // Whether we need to create a new chunk on next write
 }
 
 // chunkedFileWriterParams contains parameters for creating a chunkedFileWriter.
@@ -94,12 +95,15 @@ func (w *chunkedFileWriter) WriteToFile(
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	// Create first chunk on first write
-	if !w.hasWritten {
+	// Create first chunk on first write, or create new chunk after rotation
+	if !w.hasWritten || w.needsNewChunk {
 		if err := w.createNewChunk(); err != nil {
-			return fmt.Errorf("failed to create first chunk: %v", err)
+			return fmt.Errorf("failed to create chunk: %v", err)
 		}
-		w.hasWritten = true
+		if !w.hasWritten {
+			w.hasWritten = true
+		}
+		w.needsNewChunk = false
 	}
 
 	// Convert RunLogsLine to string and track line numbers
@@ -178,30 +182,18 @@ func (w *chunkedFileWriter) createNewChunk() error {
 func (w *chunkedFileWriter) rotateChunk() {
 	fmt.Println("+++ ROTATING CHUNK")
 
-	// Capture current chunk info for upload
-	chunkPath := w.currentChunkPath
-	oldGlobalOffset := w.globalLineOffset
+	// Upload the current chunk
+	fmt.Println("+++ Uploading", w.currentChunkPath)
+	w.uploader.UploadNow(w.currentChunkPath, filetransfer.RunFileKindWandb)
 
 	// Update offset for next chunk
 	w.globalLineOffset = w.nextGlobalLine
 
-	// Try to create new chunk
-	err := w.createNewChunk()
-
-	if err != nil {
-		// Log error but don't fail - continue using current chunk
-		w.logger.CaptureError(
-			fmt.Errorf("runconsolelogs: failed to rotate chunk: %v", err),
-		)
-
-		// Restore offset since we're keeping the current chunk
-		w.globalLineOffset = oldGlobalOffset
-		return
-	}
-
-	// Upload the old chunk
-	fmt.Println("+++ Uploading", chunkPath)
-	w.uploader.UploadNow(chunkPath, filetransfer.RunFileKindWandb)
+	// Mark that we need a new chunk on next write
+	w.needsNewChunk = true
+	w.currentChunk = nil
+	w.currentChunkPath = ""
+	w.currentSize = 0
 }
 
 // Finish uploads any remaining data in the current chunk.
@@ -212,13 +204,11 @@ func (w *chunkedFileWriter) Finish() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if !w.hasWritten || w.currentChunkPath == "" {
-		return
+	// Only upload if we have a current chunk with data
+	if w.currentChunk != nil && w.currentChunkPath != "" {
+		fmt.Println("+++ Uploading", w.currentChunkPath)
+		w.uploader.UploadNow(w.currentChunkPath, filetransfer.RunFileKindWandb)
 	}
-
-	// Upload final chunk regardless of size/time
-	fmt.Println("+++ Uploading", w.currentChunkPath)
-	w.uploader.UploadNow(w.currentChunkPath, filetransfer.RunFileKindWandb)
 }
 
 // generateChunkPath generates a timestamped chunk file path.
