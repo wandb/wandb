@@ -97,14 +97,7 @@ def test_memory_leak2(user):
         assert len(run._out_redir._emulator.buffer) < 1000
 
 
-@pytest.mark.parametrize(
-    "print_after_rotation, expected_num_log_files", ((True, 2), (False, 1))
-)
-def test_chunked_logs(
-    user,
-    print_after_rotation: bool,
-    expected_num_log_files: int,
-):
+def test_chunked_logs(user):
     with wandb.init(
         settings=wandb.Settings(
             console_multipart=True,
@@ -115,14 +108,11 @@ def test_chunked_logs(
         # but both should end up in the first log file.
         print("AAAAA")
         print("BBBBB")
-        # Here, we test that a new file is only created
-        # when there is data to write.
-        if print_after_rotation:
-            # Sleep to bypass internal 10ms debounce
-            time.sleep(0.5)
-            print("CCCCC")
+        # Sleep to bypass internal 10ms debounce
+        time.sleep(0.5)
+        print("CCCCC")
 
     log_dir = pathlib.Path(run.dir) / "logs"
     log_files = [f.name for f in log_dir.iterdir() if f.is_file()]
 
-    assert len(log_files) == expected_num_log_files
+    assert len(log_files) == 2

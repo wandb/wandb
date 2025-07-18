@@ -13,7 +13,6 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
-	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	. "github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
@@ -70,7 +69,7 @@ func TestChunkedFileWriterRotationBySize(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
-	writer := runconsolelogs.NewChunkedFileWriter(runconsolelogs.ChunkedFileWriterParams{
+	writer := NewChunkedFileWriter(ChunkedFileWriterParams{
 		BaseFileName:     "output",
 		OutputExtension:  ".log",
 		FilesDir:         tmpDir,
@@ -117,7 +116,7 @@ func TestChunkedFileWriterRotationByTime(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
-	writer := runconsolelogs.NewChunkedFileWriter(runconsolelogs.ChunkedFileWriterParams{
+	writer := NewChunkedFileWriter(ChunkedFileWriterParams{
 		BaseFileName:     "output",
 		OutputExtension:  ".log",
 		FilesDir:         tmpDir,
@@ -259,7 +258,7 @@ func TestChunkedFileWriterBothSizeAndTime(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
-	writer := runconsolelogs.NewChunkedFileWriter(runconsolelogs.ChunkedFileWriterParams{
+	writer := NewChunkedFileWriter(ChunkedFileWriterParams{
 		BaseFileName:     "output",
 		OutputExtension:  ".log",
 		FilesDir:         tmpDir,
@@ -271,7 +270,7 @@ func TestChunkedFileWriterBothSizeAndTime(t *testing.T) {
 
 	// Test 1: Size-based rotation should happen first
 	changes1 := sparselist.SparseList[*RunLogsLine]{}
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		changes1.Put(i, makeRunLogsLine(strings.Repeat("x", 50)))
 	}
 	err := writer.WriteToFile(changes1)
