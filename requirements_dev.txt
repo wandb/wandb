@@ -1,20 +1,19 @@
 -r requirements_test.txt
 
 astunparse; python_version < '3.9'
-
+cloudpickle
 click~=8.1
 filelock~=3.13
 pydantic~=2.9
 # For Pydantic to work with modern type annotations in older Pythons:
 eval-type-backport~=0.2.0; python_version >= '3.8' and python_version < '3.10'
 
-hypothesis
-hypothesis-fspaths
-
 Pillow
 pandas
 polars
-moviepy
+# Version 2.0.0 removes moviepy.editor, used by TensorBoard in some tests
+# to log videos.
+moviepy~=1.0
 imageio[ffmpeg]
 matplotlib
 soundfile
@@ -28,7 +27,7 @@ tenacity
 ipython
 ipython<8.13; python_version < '3.9'
 ipykernel
-nbclient
+nbclient~=0.10.1
 
 
 tensorflow~=2.18.0; python_version >= '3.9'
@@ -50,9 +49,10 @@ jax[cpu]
 lightning
 ray[air,tune]
 
-fastcore
+# Latest version of plum-dispatch tested is 2.5.7
+plum-dispatch>=2.0.0,<3.0.0
 pyarrow
-metaflow
+metaflow~=2.15,!=2.16.0  # https://github.com/Netflix/metaflow/issues/2489
 xgboost
 lightgbm
 mlflow

@@ -9,17 +9,13 @@ import platform
 import sys
 from typing import Callable, Iterator
 
-import wandb.util
-
-if sys.version_info >= (3, 12):
-    from typing import override
-else:
-    from typing_extensions import override
-
 import click
+from typing_extensions import override
 
 import wandb
+import wandb.util
 from wandb.errors import term
+from wandb.sdk import wandb_setup
 
 from . import ipython, sparkline
 
@@ -98,12 +94,21 @@ _JUPYTER_PANEL_STYLES = """
 """
 
 
-def new_printer() -> Printer:
-    """Returns a new printer based on the environment we're in."""
+def new_printer(settings: wandb.Settings | None = None) -> Printer:
+    """Returns a printer appropriate for the environment we're in.
+
+    Args:
+        settings: The settings of a run. If not provided and `wandb.setup()`
+            has been called, then global settings are used. Otherwise,
+            settings (such as silent mode) are ignored.
+    """
+    if not settings and (singleton := wandb_setup.singleton_if_setup()):
+        settings = singleton.settings
+
     if ipython.in_jupyter():
-        return _PrinterJupyter()
+        return _PrinterJupyter(settings=settings)
     else:
-        return _PrinterTerm()
+        return _PrinterTerm(settings=settings)
 
 
 class Printer(abc.ABC):
@@ -281,13 +286,18 @@ class DynamicText(abc.ABC):
 
 
 class _PrinterTerm(Printer):
-    def __init__(self) -> None:
+    def __init__(self, *, settings: wandb.Settings | None) -> None:
         super().__init__()
+        self._settings = settings
         self._progress = itertools.cycle(["-", "\\", "|", "/"])
 
     @override
     @contextlib.contextmanager
     def dynamic_text(self) -> Iterator[DynamicText | None]:
+        if self._settings and self._settings.silent:
+            yield None
+            return
+
         with term.dynamic_text() as handle:
             if not handle:
                 yield None
@@ -301,6 +311,9 @@ class _PrinterTerm(Printer):
         *,
         level: str | int | None = None,
     ) -> None:
+        if self._settings and self._settings.silent:
+            return
+
         text = "\n".join(text) if isinstance(text, (list, tuple)) else text
         self._display_fn_mapping(level)(text)
 
@@ -323,20 +336,26 @@ class _PrinterTerm(Printer):
 
     @override
     def progress_update(self, text: str, percent_done: float | None = None) -> None:
+        if self._settings and self._settings.silent:
+            return
+
         wandb.termlog(f"{next(self._progress)} {text}", newline=False)
 
     @override
     def progress_close(self, text: str | None = None) -> None:
+        if self._settings and self._settings.silent:
+            return
+
         text = text or " " * 79
         wandb.termlog(text)
 
-    @override
     @property
+    @override
     def supports_html(self) -> bool:
         return False
 
-    @override
     @property
+    @override
     def supports_unicode(self) -> bool:
         return wandb.util.is_unicode_safe(sys.stderr)
 
@@ -422,8 +441,9 @@ class _DynamicTermText(DynamicText):
 
 
 class _PrinterJupyter(Printer):
-    def __init__(self) -> None:
+    def __init__(self, *, settings: wandb.Settings | None) -> None:
         super().__init__()
+        self._settings = settings
         self._progress = ipython.jupyter_progress_bar()
 
         from IPython import display
@@ -433,6 +453,10 @@ class _PrinterJupyter(Printer):
     @override
     @contextlib.contextmanager
     def dynamic_text(self) -> Iterator[DynamicText | None]:
+        if self._settings and self._settings.silent:
+            yield None
+            return
+
         handle = self._ipython_display.display(
             self._ipython_display.HTML(""),
             display_id=True,
@@ -440,10 +464,9 @@ class _PrinterJupyter(Printer):
 
         if handle:
             yield _DynamicJupyterText(handle)
+            handle.update(self._ipython_display.HTML(""))
         else:
             yield None
-
-        handle.update(self._ipython_display.HTML(""))
 
     @override
     def display(
@@ -452,20 +475,20 @@ class _PrinterJupyter(Printer):
         *,
         level: str | int | None = None,
     ) -> None:
-        if wandb.run and wandb.run._settings.silent:
+        if self._settings and self._settings.silent:
             return
 
         text = "<br>".join(text) if isinstance(text, (list, tuple)) else text
         text = "<br>".join(text.splitlines())
         self._ipython_display.display(self._ipython_display.HTML(text))
 
-    @override
     @property
+    @override
     def supports_html(self) -> bool:
         return True
 
-    @override
     @property
+    @override
     def supports_unicode(self) -> bool:
         return True
 
@@ -507,7 +530,7 @@ class _PrinterJupyter(Printer):
         text: str,
         percent_done: float | None = None,
     ) -> None:
-        if not self._progress:
+        if (self._settings and self._settings.silent) or not self._progress:
             return
 
         if percent_done is None:
@@ -516,7 +539,7 @@ class _PrinterJupyter(Printer):
         self._progress.update(percent_done, text)
 
     @override
-    def progress_close(self, _: str | None = None) -> None:
+    def progress_close(self, text: str | None = None) -> None:
         if self._progress:
             self._progress.close()
 

@@ -36,7 +36,6 @@ if TYPE_CHECKING:
     import wandb.apis.public as public
     from wandb.apis.internal import Api
     from wandb.apis.public import QueuedRun, Run
-    from wandb.sdk.wandb_run import Run as SdkRun
 
 
 _logger = logging.getLogger(__name__)
@@ -255,10 +254,10 @@ class Scheduler(ABC):
             _id: w for _id, w in self._workers.items() if _id not in self.busy_workers
         }
 
-    def _init_wandb_run(self) -> "SdkRun":
+    def _init_wandb_run(self) -> "wandb.Run":
         """Controls resume or init logic for a scheduler wandb run."""
         settings = wandb.Settings(disable_job_creation=True)
-        run: SdkRun = wandb.init(  # type: ignore
+        run: wandb.Run = wandb.init(  # type: ignore
             name=f"Scheduler.{self._sweep_id}",
             resume="allow",
             config=self._kwargs,  # when run as a job, this sets config
@@ -354,7 +353,7 @@ class Scheduler(ABC):
             wandb.termlog(f"{LOG_PREFIX}Scheduler failed with exception {e}")
             self.state = SchedulerState.FAILED
             self.exit()
-            raise e
+            raise
         else:
             # scheduler succeeds if at runcap
             if self.state == SchedulerState.FLUSH_RUNS and self.at_runcap:
@@ -699,7 +698,7 @@ class Scheduler(ABC):
         if entry_point:
             wandb.termwarn(
                 f"{LOG_PREFIX}Sweep command {entry_point} will override"
-                f' {"job" if _job else "image_uri"} entrypoint'
+                f" {'job' if _job else 'image_uri'} entrypoint"
             )
 
         # override resource and args of job

@@ -17,7 +17,6 @@ import wandb
 import wandb.data_types
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.inputs.schema import META_SCHEMA
-from wandb.sdk.wandb_run import Run
 from wandb.util import get_module
 
 from .files import config_path_is_valid, override_file
@@ -93,7 +92,7 @@ class StagedLaunchInputs:
     ):
         self._staged_inputs.append(input_arguments)
 
-    def apply(self, run: Run):
+    def apply(self, run: wandb.Run):
         """Apply the staged inputs to the given run."""
         for input in self._staged_inputs:
             _publish_job_input(input, run)
@@ -101,13 +100,13 @@ class StagedLaunchInputs:
 
 def _publish_job_input(
     input: JobInputArguments,
-    run: Run,
+    run: wandb.Run,
 ) -> None:
     """Publish a job input to the backend interface of the given run.
 
     Arguments:
         input (JobInputArguments): The arguments for the job input.
-        run (Run): The run to publish the job input to.
+        run (wandb.Run): The run to publish the job input to.
     """
     assert run._backend is not None
     assert run._backend.interface is not None

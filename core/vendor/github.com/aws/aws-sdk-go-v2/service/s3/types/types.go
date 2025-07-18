@@ -179,6 +179,15 @@ type AnalyticsS3BucketDestination struct {
 // In terms of implementation, a Bucket is a resource.
 type Bucket struct {
 
+	// The Amazon Resource Name (ARN) of the S3 bucket. ARNs uniquely identify Amazon
+	// Web Services resources across all of Amazon Web Services.
+	//
+	// This parameter is only supported for S3 directory buckets. For more
+	// information, see [Using tags with directory buckets].
+	//
+	// [Using tags with directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-tagging.html
+	BucketArn *string
+
 	// BucketRegion indicates the Amazon Web Services region where the bucket is
 	// located. If the request contains at least one valid parameter, it is included in
 	// the response.
@@ -242,7 +251,7 @@ type BucketLoggingStatus struct {
 // Contains all the possible checksum or digest values for an object.
 type Checksum struct {
 
-	// The Base64 encoded, 32-bit CRC-32 checksum of the object. This checksum is only
+	// The Base64 encoded, 32-bit CRC32 checksum of the object. This checksum is only
 	// be present if the checksum was uploaded with the object. When you use an API
 	// operation on an object that was uploaded using multipart uploads, this value may
 	// not be a direct checksum value of the full object. Instead, it's a calculation
@@ -253,8 +262,8 @@ type Checksum struct {
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html#large-object-checksums
 	ChecksumCRC32 *string
 
-	// The Base64 encoded, 32-bit CRC-32C checksum of the object. This checksum is
-	// only present if the checksum was uploaded with the object. When you use an API
+	// The Base64 encoded, 32-bit CRC32C checksum of the object. This checksum is only
+	// present if the checksum was uploaded with the object. When you use an API
 	// operation on an object that was uploaded using multipart uploads, this value may
 	// not be a direct checksum value of the full object. Instead, it's a calculation
 	// based on the checksum values of each individual part. For more information about
@@ -264,16 +273,16 @@ type Checksum struct {
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html#large-object-checksums
 	ChecksumCRC32C *string
 
-	// The Base64 encoded, 64-bit CRC-64NVME checksum of the object. This checksum is
-	// present if the object was uploaded with the CRC-64NVME checksum algorithm, or
-	// if the object was uploaded without a checksum (and Amazon S3 added the default
-	// checksum, CRC-64NVME , to the uploaded object). For more information, see [Checking object integrity] in
+	// The Base64 encoded, 64-bit CRC64NVME checksum of the object. This checksum is
+	// present if the object was uploaded with the CRC64NVME checksum algorithm, or if
+	// the object was uploaded without a checksum (and Amazon S3 added the default
+	// checksum, CRC64NVME , to the uploaded object). For more information, see [Checking object integrity] in
 	// the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC64NVME *string
 
-	// The Base64 encoded, 160-bit SHA-1 digest of the object. This will only be
+	// The Base64 encoded, 160-bit SHA1 digest of the object. This will only be
 	// present if the object was uploaded with the object. When you use the API
 	// operation on an object that was uploaded using multipart uploads, this value may
 	// not be a direct checksum value of the full object. Instead, it's a calculation
@@ -284,7 +293,7 @@ type Checksum struct {
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html#large-object-checksums
 	ChecksumSHA1 *string
 
-	// The Base64 encoded, 256-bit SHA-256 digest of the object. This will only be
+	// The Base64 encoded, 256-bit SHA256 digest of the object. This will only be
 	// present if the object was uploaded with the object. When you use an API
 	// operation on an object that was uploaded using multipart uploads, this value may
 	// not be a direct checksum value of the full object. Instead, it's a calculation
@@ -332,37 +341,37 @@ type CompletedMultipartUpload struct {
 // Details of the parts that were uploaded.
 type CompletedPart struct {
 
-	// The Base64 encoded, 32-bit CRC-32 checksum of the part. This checksum is
-	// present if the multipart upload request was created with the CRC-32 checksum
-	// algorithm. For more information, see [Checking object integrity]in the Amazon S3 User Guide.
+	// The Base64 encoded, 32-bit CRC32 checksum of the part. This checksum is present
+	// if the multipart upload request was created with the CRC32 checksum algorithm.
+	// For more information, see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC32 *string
 
-	// The Base64 encoded, 32-bit CRC-32C checksum of the part. This checksum is
-	// present if the multipart upload request was created with the CRC-32C checksum
+	// The Base64 encoded, 32-bit CRC32C checksum of the part. This checksum is
+	// present if the multipart upload request was created with the CRC32C checksum
 	// algorithm. For more information, see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC32C *string
 
-	// The Base64 encoded, 64-bit CRC-64NVME checksum of the part. This checksum is
-	// present if the multipart upload request was created with the CRC-64NVME
-	// checksum algorithm to the uploaded object). For more information, see [Checking object integrity]in the
-	// Amazon S3 User Guide.
+	// The Base64 encoded, 64-bit CRC64NVME checksum of the part. This checksum is
+	// present if the multipart upload request was created with the CRC64NVME checksum
+	// algorithm to the uploaded object). For more information, see [Checking object integrity]in the Amazon S3
+	// User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC64NVME *string
 
-	// The Base64 encoded, 160-bit SHA-1 checksum of the part. This checksum is
-	// present if the multipart upload request was created with the SHA-1 checksum
-	// algorithm. For more information, see [Checking object integrity]in the Amazon S3 User Guide.
+	// The Base64 encoded, 160-bit SHA1 checksum of the part. This checksum is present
+	// if the multipart upload request was created with the SHA1 checksum algorithm.
+	// For more information, see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumSHA1 *string
 
-	// The Base64 encoded, 256-bit SHA-256 checksum of the part. This checksum is
-	// present if the multipart upload request was created with the SHA-256 checksum
+	// The Base64 encoded, 256-bit SHA256 checksum of the part. This checksum is
+	// present if the multipart upload request was created with the SHA256 checksum
 	// algorithm. For more information, see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
@@ -425,37 +434,37 @@ type ContinuationEvent struct {
 // Container for all response elements.
 type CopyObjectResult struct {
 
-	// The Base64 encoded, 32-bit CRC-32 checksum of the object. This checksum is only
+	// The Base64 encoded, 32-bit CRC32 checksum of the object. This checksum is only
 	// present if the object was uploaded with the object. For more information, see [Checking object integrity]
 	// in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC32 *string
 
-	// The Base64 encoded, 32-bit CRC-32C checksum of the object. This will only be
+	// The Base64 encoded, 32-bit CRC32C checksum of the object. This will only be
 	// present if the object was uploaded with the object. For more information, see [Checking object integrity]
 	// in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC32C *string
 
-	// The Base64 encoded, 64-bit CRC-64NVME checksum of the object. This checksum is
-	// present if the object being copied was uploaded with the CRC-64NVME checksum
+	// The Base64 encoded, 64-bit CRC64NVME checksum of the object. This checksum is
+	// present if the object being copied was uploaded with the CRC64NVME checksum
 	// algorithm, or if the object was uploaded without a checksum (and Amazon S3 added
-	// the default checksum, CRC-64NVME , to the uploaded object). For more
-	// information, see [Checking object integrity]in the Amazon S3 User Guide.
+	// the default checksum, CRC64NVME , to the uploaded object). For more information,
+	// see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC64NVME *string
 
-	// The Base64 encoded, 160-bit SHA-1 digest of the object. This will only be
+	// The Base64 encoded, 160-bit SHA1 digest of the object. This will only be
 	// present if the object was uploaded with the object. For more information, see [Checking object integrity]
 	// in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumSHA1 *string
 
-	// The Base64 encoded, 256-bit SHA-256 digest of the object. This will only be
+	// The Base64 encoded, 256-bit SHA256 digest of the object. This will only be
 	// present if the object was uploaded with the object. For more information, see [Checking object integrity]
 	// in the Amazon S3 User Guide.
 	//
@@ -483,7 +492,7 @@ type CopyPartResult struct {
 
 	// This header can be used as a data integrity check to verify that the data
 	// received is the same data that was originally sent. This header specifies the
-	// Base64 encoded, 32-bit CRC-32 checksum of the part. For more information, see [Checking object integrity]
+	// Base64 encoded, 32-bit CRC32 checksum of the part. For more information, see [Checking object integrity]
 	// in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
@@ -491,23 +500,23 @@ type CopyPartResult struct {
 
 	// This header can be used as a data integrity check to verify that the data
 	// received is the same data that was originally sent. This header specifies the
-	// Base64 encoded, 32-bit CRC-32C checksum of the part. For more information, see [Checking object integrity]
+	// Base64 encoded, 32-bit CRC32C checksum of the part. For more information, see [Checking object integrity]
 	// in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC32C *string
 
-	// The Base64 encoded, 64-bit CRC-64NVME checksum of the part. This checksum is
-	// present if the multipart upload request was created with the CRC-64NVME
-	// checksum algorithm to the uploaded object). For more information, see [Checking object integrity]in the
-	// Amazon S3 User Guide.
+	// The Base64 encoded, 64-bit CRC64NVME checksum of the part. This checksum is
+	// present if the multipart upload request was created with the CRC64NVME checksum
+	// algorithm to the uploaded object). For more information, see [Checking object integrity]in the Amazon S3
+	// User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC64NVME *string
 
 	// This header can be used as a data integrity check to verify that the data
 	// received is the same data that was originally sent. This header specifies the
-	// Base64 encoded, 160-bit SHA-1 checksum of the part. For more information, see [Checking object integrity]
+	// Base64 encoded, 160-bit SHA1 checksum of the part. For more information, see [Checking object integrity]
 	// in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
@@ -515,7 +524,7 @@ type CopyPartResult struct {
 
 	// This header can be used as a data integrity check to verify that the data
 	// received is the same data that was originally sent. This header specifies the
-	// Base64 encoded, 256-bit SHA-256 checksum of the part. For more information, see [Checking object integrity]
+	// Base64 encoded, 256-bit SHA256 checksum of the part. For more information, see [Checking object integrity]
 	// in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
@@ -589,30 +598,41 @@ type CreateBucketConfiguration struct {
 
 	// Specifies the location where the bucket will be created.
 	//
-	// Directory buckets - The location type is Availability Zone or Local Zone. When
-	// the location type is Local Zone, your Local Zone must be in opt-in status.
-	// Otherwise, you get an HTTP 400 Bad Request error with the error code Access
-	// denied . To learn more about opt-in Local Zones, see [Opt-in Dedicated Local Zones]in the Amazon S3 User
-	// Guide.
+	// Directory buckets - The location type is Availability Zone or Local Zone. To
+	// use the Local Zone location type, your account must be enabled for Local Zones.
+	// Otherwise, you get an HTTP 403 Forbidden error with the error code AccessDenied
+	// . To learn more, see [Enable accounts for Local Zones]in the Amazon S3 User Guide.
 	//
 	// This functionality is only supported by directory buckets.
 	//
-	// [Opt-in Dedicated Local Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/opt-in-directory-bucket-lz.html
+	// [Enable accounts for Local Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/opt-in-directory-bucket-lz.html
 	Location *LocationInfo
 
 	// Specifies the Region where the bucket will be created. You might choose a
 	// Region to optimize latency, minimize costs, or address regulatory requirements.
 	// For example, if you reside in Europe, you will probably find it advantageous to
-	// create buckets in the Europe (Ireland) Region. For more information, see [Accessing a bucket]in the
-	// Amazon S3 User Guide.
+	// create buckets in the Europe (Ireland) Region.
 	//
 	// If you don't specify a Region, the bucket is created in the US East (N.
-	// Virginia) Region (us-east-1) by default.
+	// Virginia) Region (us-east-1) by default. Configurations using the value EU will
+	// create a bucket in eu-west-1 .
+	//
+	// For a list of the valid values for all of the Amazon Web Services Regions, see [Regions and Endpoints].
 	//
 	// This functionality is not supported for directory buckets.
 	//
-	// [Accessing a bucket]: https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingBucket.html#access-bucket-intro
+	// [Regions and Endpoints]: https://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region
 	LocationConstraint BucketLocationConstraint
+
+	// An array of tags that you can apply to the bucket that you're creating. Tags
+	// are key-value pairs of metadata used to categorize and organize your buckets,
+	// track costs, and control access.
+	//
+	// This parameter is only supported for S3 directory buckets. For more
+	// information, see [Using tags with directory buckets].
+	//
+	// [Using tags with directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-tagging.html
+	Tags []Tag
 
 	noSmithyDocumentSerde
 }
@@ -753,9 +773,11 @@ type DeletedObject struct {
 	// Indicates whether the specified object version that was permanently deleted was
 	// (true) or was not (false) a delete marker before deletion. In a simple DELETE,
 	// this header indicates whether (true) or not (false) the current version of the
-	// object is a delete marker.
+	// object is a delete marker. To learn more about delete markers, see [Working with delete markers].
 	//
 	// This functionality is not supported for directory buckets.
+	//
+	// [Working with delete markers]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/DeleteMarker.html
 	DeleteMarker *bool
 
 	// The version ID of the delete marker created as a result of the DELETE
@@ -789,7 +811,7 @@ type DeleteMarkerEntry struct {
 	// Date and time when the object was last modified.
 	LastModified *time.Time
 
-	// The account that created the delete marker.>
+	// The account that created the delete marker.
 	Owner *Owner
 
 	// Version ID of an object.
@@ -868,8 +890,31 @@ type Destination struct {
 	// For valid values, see the StorageClass element of the [PUT Bucket replication] action in the Amazon S3
 	// API Reference.
 	//
+	// FSX_OPENZFS is not an accepted value when replicating objects.
+	//
 	// [PUT Bucket replication]: https://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketPUTreplication.html
 	StorageClass StorageClass
+
+	noSmithyDocumentSerde
+}
+
+// The destination information for the S3 Metadata configuration.
+type DestinationResult struct {
+
+	//  The Amazon Resource Name (ARN) of the table bucket where the metadata
+	// configuration is stored.
+	TableBucketArn *string
+
+	//  The type of the table bucket where the metadata configuration is stored. The
+	// aws value indicates an Amazon Web Services managed table bucket, and the
+	// customer value indicates a customer-managed table bucket. V2 metadata
+	// configurations are stored in Amazon Web Services managed table buckets, and V1
+	// metadata configurations are stored in customer-managed table buckets.
+	TableBucketType S3TablesBucketType
+
+	//  The namespace in the table bucket where the metadata tables for a metadata
+	// configuration are stored.
+	TableNamespace *string
 
 	noSmithyDocumentSerde
 }
@@ -1714,13 +1759,19 @@ type Error struct {
 	noSmithyDocumentSerde
 }
 
-//	If the CreateBucketMetadataTableConfiguration request succeeds, but S3
+//	If an S3 Metadata V1 CreateBucketMetadataTableConfiguration or V2
 //
-// Metadata was unable to create the table, this structure contains the error code
-// and error message.
+// CreateBucketMetadataConfiguration request succeeds, but S3 Metadata was unable
+// to create the table, this structure contains the error code and error message.
+//
+// If you created your S3 Metadata configuration before July 15, 2025, we
+// recommend that you delete and re-create your configuration by using [CreateBucketMetadataConfiguration]so that you
+// can expire journal table records and create a live inventory table.
+//
+// [CreateBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataConfiguration.html
 type ErrorDetails struct {
 
-	//  If the CreateBucketMetadataTableConfiguration request succeeds, but S3
+	//  If the V1 CreateBucketMetadataTableConfiguration request succeeds, but S3
 	// Metadata was unable to create the table, this structure contains the error code.
 	// The possible error codes and error messages are as follows:
 	//
@@ -1754,9 +1805,57 @@ type ErrorDetails struct {
 	//   this Amazon Web Services Region and account. Create or choose a different table
 	//   bucket. To create a new metadata table, you must delete the metadata
 	//   configuration for this bucket, and then create a new metadata configuration.
+	//
+	// If the V2 CreateBucketMetadataConfiguration request succeeds, but S3 Metadata
+	// was unable to create the table, this structure contains the error code. The
+	// possible error codes and error messages are as follows:
+	//
+	//   - AccessDeniedCreatingResources - You don't have sufficient permissions to
+	//   create the required resources. Make sure that you have
+	//   s3tables:CreateTableBucket , s3tables:CreateNamespace , s3tables:CreateTable ,
+	//   s3tables:GetTable , s3tables:PutTablePolicy , kms:DescribeKey , and
+	//   s3tables:PutTableEncryption permissions. Additionally, ensure that the KMS key
+	//   used to encrypt the table still exists, is active and has a resource policy
+	//   granting access to the S3 service principals '
+	//   maintenance.s3tables.amazonaws.com ' and ' metadata.s3.amazonaws.com '. To
+	//   create a new metadata table, you must delete the metadata configuration for this
+	//   bucket, and then create a new metadata configuration.
+	//
+	//   - AccessDeniedWritingToTable - Unable to write to the metadata table because
+	//   of missing resource permissions. To fix the resource policy, Amazon S3 needs to
+	//   create a new metadata table. To create a new metadata table, you must delete the
+	//   metadata configuration for this bucket, and then create a new metadata
+	//   configuration.
+	//
+	//   - DestinationTableNotFound - The destination table doesn't exist. To create a
+	//   new metadata table, you must delete the metadata configuration for this bucket,
+	//   and then create a new metadata configuration.
+	//
+	//   - ServerInternalError - An internal error has occurred. To create a new
+	//   metadata table, you must delete the metadata configuration for this bucket, and
+	//   then create a new metadata configuration.
+	//
+	//   - JournalTableAlreadyExists - A journal table already exists in the Amazon Web
+	//   Services managed table bucket's namespace. Delete the journal table, and then
+	//   try again. To create a new metadata table, you must delete the metadata
+	//   configuration for this bucket, and then create a new metadata configuration.
+	//
+	//   - InventoryTableAlreadyExists - An inventory table already exists in the
+	//   Amazon Web Services managed table bucket's namespace. Delete the inventory
+	//   table, and then try again. To create a new metadata table, you must delete the
+	//   metadata configuration for this bucket, and then create a new metadata
+	//   configuration.
+	//
+	//   - JournalTableNotAvailable - The journal table that the inventory table relies
+	//   on has a FAILED status. An inventory table requires a journal table with an
+	//   ACTIVE status. To create a new journal or inventory table, you must delete the
+	//   metadata configuration for this bucket, along with any journal or inventory
+	//   tables, and then create a new metadata configuration.
+	//
+	//   - NoSuchBucket - The specified general purpose bucket does not exist.
 	ErrorCode *string
 
-	//  If the CreateBucketMetadataTableConfiguration request succeeds, but S3
+	//  If the V1 CreateBucketMetadataTableConfiguration request succeeds, but S3
 	// Metadata was unable to create the table, this structure contains the error
 	// message. The possible error codes and error messages are as follows:
 	//
@@ -1790,6 +1889,54 @@ type ErrorDetails struct {
 	//   this Amazon Web Services Region and account. Create or choose a different table
 	//   bucket. To create a new metadata table, you must delete the metadata
 	//   configuration for this bucket, and then create a new metadata configuration.
+	//
+	// If the V2 CreateBucketMetadataConfiguration request succeeds, but S3 Metadata
+	// was unable to create the table, this structure contains the error code. The
+	// possible error codes and error messages are as follows:
+	//
+	//   - AccessDeniedCreatingResources - You don't have sufficient permissions to
+	//   create the required resources. Make sure that you have
+	//   s3tables:CreateTableBucket , s3tables:CreateNamespace , s3tables:CreateTable ,
+	//   s3tables:GetTable , s3tables:PutTablePolicy , kms:DescribeKey , and
+	//   s3tables:PutTableEncryption permissions. Additionally, ensure that the KMS key
+	//   used to encrypt the table still exists, is active and has a resource policy
+	//   granting access to the S3 service principals '
+	//   maintenance.s3tables.amazonaws.com ' and ' metadata.s3.amazonaws.com '. To
+	//   create a new metadata table, you must delete the metadata configuration for this
+	//   bucket, and then create a new metadata configuration.
+	//
+	//   - AccessDeniedWritingToTable - Unable to write to the metadata table because
+	//   of missing resource permissions. To fix the resource policy, Amazon S3 needs to
+	//   create a new metadata table. To create a new metadata table, you must delete the
+	//   metadata configuration for this bucket, and then create a new metadata
+	//   configuration.
+	//
+	//   - DestinationTableNotFound - The destination table doesn't exist. To create a
+	//   new metadata table, you must delete the metadata configuration for this bucket,
+	//   and then create a new metadata configuration.
+	//
+	//   - ServerInternalError - An internal error has occurred. To create a new
+	//   metadata table, you must delete the metadata configuration for this bucket, and
+	//   then create a new metadata configuration.
+	//
+	//   - JournalTableAlreadyExists - A journal table already exists in the Amazon Web
+	//   Services managed table bucket's namespace. Delete the journal table, and then
+	//   try again. To create a new metadata table, you must delete the metadata
+	//   configuration for this bucket, and then create a new metadata configuration.
+	//
+	//   - InventoryTableAlreadyExists - An inventory table already exists in the
+	//   Amazon Web Services managed table bucket's namespace. Delete the inventory
+	//   table, and then try again. To create a new metadata table, you must delete the
+	//   metadata configuration for this bucket, and then create a new metadata
+	//   configuration.
+	//
+	//   - JournalTableNotAvailable - The journal table that the inventory table relies
+	//   on has a FAILED status. An inventory table requires a journal table with an
+	//   ACTIVE status. To create a new journal or inventory table, you must delete the
+	//   metadata configuration for this bucket, along with any journal or inventory
+	//   tables, and then create a new metadata configuration.
+	//
+	//   - NoSuchBucket - The specified general purpose bucket does not exist.
 	ErrorMessage *string
 
 	noSmithyDocumentSerde
@@ -1857,10 +2004,27 @@ type FilterRule struct {
 	noSmithyDocumentSerde
 }
 
-// The metadata table configuration for a general purpose bucket.
+// The S3 Metadata configuration for a general purpose bucket.
+type GetBucketMetadataConfigurationResult struct {
+
+	//  The metadata configuration for a general purpose bucket.
+	//
+	// This member is required.
+	MetadataConfigurationResult *MetadataConfigurationResult
+
+	noSmithyDocumentSerde
+}
+
+//	The V1 S3 Metadata configuration for a general purpose bucket.
+//
+// If you created your S3 Metadata configuration before July 15, 2025, we
+// recommend that you delete and re-create your configuration by using [CreateBucketMetadataConfiguration]so that you
+// can expire journal table records and create a live inventory table.
+//
+// [CreateBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataConfiguration.html
 type GetBucketMetadataTableConfigurationResult struct {
 
-	//  The metadata table configuration for a general purpose bucket.
+	//  The V1 S3 Metadata configuration for a general purpose bucket.
 	//
 	// This member is required.
 	MetadataTableConfigurationResult *MetadataTableConfigurationResult
@@ -1870,7 +2034,7 @@ type GetBucketMetadataTableConfigurationResult struct {
 	//   - CREATING - The metadata table is in the process of being created in the
 	//   specified table bucket.
 	//
-	//   - ACTIVE - The metadata table has been created successfully and records are
+	//   - ACTIVE - The metadata table has been created successfully, and records are
 	//   being delivered to the table.
 	//
 	//   - FAILED - Amazon S3 is unable to create the metadata table, or Amazon S3 is
@@ -1909,14 +2073,14 @@ type GetObjectAttributesParts struct {
 	// A container for elements related to a particular part. A response can contain
 	// zero or more Parts elements.
 	//
-	//   - General purpose buckets - For GetObjectAttributes , if a additional checksum
-	//   (including x-amz-checksum-crc32 , x-amz-checksum-crc32c , x-amz-checksum-sha1
-	//   , or x-amz-checksum-sha256 ) isn't applied to the object specified in the
-	//   request, the response doesn't return Part .
+	//   - General purpose buckets - For GetObjectAttributes , if an additional
+	//   checksum (including x-amz-checksum-crc32 , x-amz-checksum-crc32c ,
+	//   x-amz-checksum-sha1 , or x-amz-checksum-sha256 ) isn't applied to the object
+	//   specified in the request, the response doesn't return the Part element.
 	//
-	//   - Directory buckets - For GetObjectAttributes , no matter whether a additional
-	//   checksum is applied to the object specified in the request, the response returns
-	//   Part .
+	//   - Directory buckets - For GetObjectAttributes , regardless of whether an
+	//   additional checksum is applied to the object specified in the request, the
+	//   response returns the Part element.
 	Parts []ObjectPart
 
 	// The total number of parts.
@@ -2121,7 +2285,7 @@ type IntelligentTieringFilter struct {
 	noSmithyDocumentSerde
 }
 
-// Specifies the inventory configuration for an Amazon S3 bucket. For more
+// Specifies the S3 Inventory configuration for an Amazon S3 bucket. For more
 // information, see [GET Bucket inventory]in the Amazon S3 API Reference.
 //
 // [GET Bucket inventory]: https://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketGETInventoryConfig.html
@@ -2166,7 +2330,7 @@ type InventoryConfiguration struct {
 	noSmithyDocumentSerde
 }
 
-// Specifies the inventory configuration for an Amazon S3 bucket.
+// Specifies the S3 Inventory configuration for an Amazon S3 bucket.
 type InventoryDestination struct {
 
 	// Contains the bucket name, file format, bucket owner (optional), and prefix
@@ -2178,7 +2342,7 @@ type InventoryDestination struct {
 	noSmithyDocumentSerde
 }
 
-// Contains the type of server-side encryption used to encrypt the inventory
+// Contains the type of server-side encryption used to encrypt the S3 Inventory
 // results.
 type InventoryEncryption struct {
 
@@ -2191,7 +2355,7 @@ type InventoryEncryption struct {
 	noSmithyDocumentSerde
 }
 
-// Specifies an inventory filter. The inventory only includes objects that meet
+// Specifies an S3 Inventory filter. The inventory only includes objects that meet
 // the filter's criteria.
 type InventoryFilter struct {
 
@@ -2204,7 +2368,7 @@ type InventoryFilter struct {
 }
 
 // Contains the bucket name, file format, bucket owner (optional), and prefix
-// (optional) where inventory results are published.
+// (optional) where S3 Inventory results are published.
 type InventoryS3BucketDestination struct {
 
 	// The Amazon Resource Name (ARN) of the bucket where inventory results will be
@@ -2235,13 +2399,163 @@ type InventoryS3BucketDestination struct {
 	noSmithyDocumentSerde
 }
 
-// Specifies the schedule for generating inventory results.
+// Specifies the schedule for generating S3 Inventory results.
 type InventorySchedule struct {
 
 	// Specifies how frequently inventory results are produced.
 	//
 	// This member is required.
 	Frequency InventoryFrequency
+
+	noSmithyDocumentSerde
+}
+
+// The inventory table configuration for an S3 Metadata configuration.
+type InventoryTableConfiguration struct {
+
+	//  The configuration state of the inventory table, indicating whether the
+	// inventory table is enabled or disabled.
+	//
+	// This member is required.
+	ConfigurationState InventoryConfigurationState
+
+	//  The encryption configuration for the inventory table.
+	EncryptionConfiguration *MetadataTableEncryptionConfiguration
+
+	noSmithyDocumentSerde
+}
+
+// The inventory table configuration for an S3 Metadata configuration.
+type InventoryTableConfigurationResult struct {
+
+	//  The configuration state of the inventory table, indicating whether the
+	// inventory table is enabled or disabled.
+	//
+	// This member is required.
+	ConfigurationState InventoryConfigurationState
+
+	//  If an S3 Metadata V1 CreateBucketMetadataTableConfiguration or V2
+	// CreateBucketMetadataConfiguration request succeeds, but S3 Metadata was unable
+	// to create the table, this structure contains the error code and error message.
+	//
+	// If you created your S3 Metadata configuration before July 15, 2025, we
+	// recommend that you delete and re-create your configuration by using [CreateBucketMetadataConfiguration]so that you
+	// can expire journal table records and create a live inventory table.
+	//
+	// [CreateBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataConfiguration.html
+	Error *ErrorDetails
+
+	//  The Amazon Resource Name (ARN) for the inventory table.
+	TableArn *string
+
+	//  The name of the inventory table.
+	TableName *string
+
+	//  The status of the inventory table. The status values are:
+	//
+	//   - CREATING - The inventory table is in the process of being created in the
+	//   specified Amazon Web Services managed table bucket.
+	//
+	//   - BACKFILLING - The inventory table is in the process of being backfilled.
+	//   When you enable the inventory table for your metadata configuration, the table
+	//   goes through a process known as backfilling, during which Amazon S3 scans your
+	//   general purpose bucket to retrieve the initial metadata for all objects in the
+	//   bucket. Depending on the number of objects in your bucket, this process can take
+	//   several hours. When the backfilling process is finished, the status of your
+	//   inventory table changes from BACKFILLING to ACTIVE . After backfilling is
+	//   completed, updates to your objects are reflected in the inventory table within
+	//   one hour.
+	//
+	//   - ACTIVE - The inventory table has been created successfully, and records are
+	//   being delivered to the table.
+	//
+	//   - FAILED - Amazon S3 is unable to create the inventory table, or Amazon S3 is
+	//   unable to deliver records.
+	TableStatus *string
+
+	noSmithyDocumentSerde
+}
+
+// The specified updates to the S3 Metadata inventory table configuration.
+type InventoryTableConfigurationUpdates struct {
+
+	//  The configuration state of the inventory table, indicating whether the
+	// inventory table is enabled or disabled.
+	//
+	// This member is required.
+	ConfigurationState InventoryConfigurationState
+
+	//  The encryption configuration for the inventory table.
+	EncryptionConfiguration *MetadataTableEncryptionConfiguration
+
+	noSmithyDocumentSerde
+}
+
+// The journal table configuration for an S3 Metadata configuration.
+type JournalTableConfiguration struct {
+
+	//  The journal table record expiration settings for the journal table.
+	//
+	// This member is required.
+	RecordExpiration *RecordExpiration
+
+	//  The encryption configuration for the journal table.
+	EncryptionConfiguration *MetadataTableEncryptionConfiguration
+
+	noSmithyDocumentSerde
+}
+
+// The journal table configuration for the S3 Metadata configuration.
+type JournalTableConfigurationResult struct {
+
+	//  The journal table record expiration settings for the journal table.
+	//
+	// This member is required.
+	RecordExpiration *RecordExpiration
+
+	//  The name of the journal table.
+	//
+	// This member is required.
+	TableName *string
+
+	//  The status of the journal table. The status values are:
+	//
+	//   - CREATING - The journal table is in the process of being created in the
+	//   specified table bucket.
+	//
+	//   - ACTIVE - The journal table has been created successfully, and records are
+	//   being delivered to the table.
+	//
+	//   - FAILED - Amazon S3 is unable to create the journal table, or Amazon S3 is
+	//   unable to deliver records.
+	//
+	// This member is required.
+	TableStatus *string
+
+	//  If an S3 Metadata V1 CreateBucketMetadataTableConfiguration or V2
+	// CreateBucketMetadataConfiguration request succeeds, but S3 Metadata was unable
+	// to create the table, this structure contains the error code and error message.
+	//
+	// If you created your S3 Metadata configuration before July 15, 2025, we
+	// recommend that you delete and re-create your configuration by using [CreateBucketMetadataConfiguration]so that you
+	// can expire journal table records and create a live inventory table.
+	//
+	// [CreateBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataConfiguration.html
+	Error *ErrorDetails
+
+	//  The Amazon Resource Name (ARN) for the journal table.
+	TableArn *string
+
+	noSmithyDocumentSerde
+}
+
+// The specified updates to the S3 Metadata journal table configuration.
+type JournalTableConfigurationUpdates struct {
+
+	//  The journal table record expiration settings for the journal table.
+	//
+	// This member is required.
+	RecordExpiration *RecordExpiration
 
 	noSmithyDocumentSerde
 }
@@ -2350,10 +2664,15 @@ type LifecycleRule struct {
 	Expiration *LifecycleExpiration
 
 	// The Filter is used to identify objects that a Lifecycle Rule applies to. A
-	// Filter must have exactly one of Prefix , Tag , or And specified. Filter is
-	// required if the LifecycleRule does not contain a Prefix element.
+	// Filter must have exactly one of Prefix , Tag , ObjectSizeGreaterThan ,
+	// ObjectSizeLessThan , or And specified. Filter is required if the LifecycleRule
+	// does not contain a Prefix element.
+	//
+	// For more information about Tag filters, see [Adding filters to Lifecycle rules] in the Amazon S3 User Guide.
 	//
 	// Tag filters are not supported for directory buckets.
+	//
+	// [Adding filters to Lifecycle rules]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/intro-lifecycle-filters.html
 	Filter *LifecycleRuleFilter
 
 	// Unique identifier for the rule. The value cannot be longer than 255 characters.
@@ -2457,11 +2776,11 @@ type LifecycleRuleFilter struct {
 // Specifies the location where the bucket will be created.
 //
 // For directory buckets, the location type is Availability Zone or Local Zone.
-// For more information about directory buckets, see [Directory buckets]in the Amazon S3 User Guide.
+// For more information about directory buckets, see [Working with directory buckets]in the Amazon S3 User Guide.
 //
 // This functionality is only supported by directory buckets.
 //
-// [Directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-overview.html
+// [Working with directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-overview.html
 type LocationInfo struct {
 
 	// The name of the location where the bucket will be created.
@@ -2515,6 +2834,37 @@ type LoggingEnabled struct {
 	noSmithyDocumentSerde
 }
 
+// The S3 Metadata configuration for a general purpose bucket.
+type MetadataConfiguration struct {
+
+	//  The journal table configuration for a metadata configuration.
+	//
+	// This member is required.
+	JournalTableConfiguration *JournalTableConfiguration
+
+	//  The inventory table configuration for a metadata configuration.
+	InventoryTableConfiguration *InventoryTableConfiguration
+
+	noSmithyDocumentSerde
+}
+
+// The S3 Metadata configuration for a general purpose bucket.
+type MetadataConfigurationResult struct {
+
+	//  The destination settings for a metadata configuration.
+	//
+	// This member is required.
+	DestinationResult *DestinationResult
+
+	//  The inventory table configuration for a metadata configuration.
+	InventoryTableConfigurationResult *InventoryTableConfigurationResult
+
+	//  The journal table configuration for a metadata configuration.
+	JournalTableConfigurationResult *JournalTableConfigurationResult
+
+	noSmithyDocumentSerde
+}
+
 // A metadata key-value pair to store with an object.
 type MetadataEntry struct {
 
@@ -2527,7 +2877,13 @@ type MetadataEntry struct {
 	noSmithyDocumentSerde
 }
 
-// The metadata table configuration for a general purpose bucket.
+//	The V1 S3 Metadata configuration for a general purpose bucket.
+//
+// If you created your S3 Metadata configuration before July 15, 2025, we
+// recommend that you delete and re-create your configuration by using [CreateBucketMetadataConfiguration]so that you
+// can expire journal table records and create a live inventory table.
+//
+// [CreateBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataConfiguration.html
 type MetadataTableConfiguration struct {
 
 	//  The destination information for the metadata table configuration. The
@@ -2541,11 +2897,17 @@ type MetadataTableConfiguration struct {
 	noSmithyDocumentSerde
 }
 
-//	The metadata table configuration for a general purpose bucket. The destination
+//	The V1 S3 Metadata configuration for a general purpose bucket. The destination
 //
 // table bucket must be in the same Region and Amazon Web Services account as the
 // general purpose bucket. The specified metadata table name must be unique within
 // the aws_s3_metadata namespace in the destination table bucket.
+//
+// If you created your S3 Metadata configuration before July 15, 2025, we
+// recommend that you delete and re-create your configuration by using [CreateBucketMetadataConfiguration]so that you
+// can expire journal table records and create a live inventory table.
+//
+// [CreateBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataConfiguration.html
 type MetadataTableConfigurationResult struct {
 
 	//  The destination information for the metadata table configuration. The
@@ -2555,6 +2917,28 @@ type MetadataTableConfigurationResult struct {
 	//
 	// This member is required.
 	S3TablesDestinationResult *S3TablesDestinationResult
+
+	noSmithyDocumentSerde
+}
+
+//	The encryption settings for an S3 Metadata journal table or inventory table
+//
+// configuration.
+type MetadataTableEncryptionConfiguration struct {
+
+	//  The encryption type specified for a metadata table. To specify server-side
+	// encryption with Key Management Service (KMS) keys (SSE-KMS), use the aws:kms
+	// value. To specify server-side encryption with Amazon S3 managed keys (SSE-S3),
+	// use the AES256 value.
+	//
+	// This member is required.
+	SseAlgorithm TableSseAlgorithm
+
+	//  If server-side encryption with Key Management Service (KMS) keys (SSE-KMS) is
+	// specified, you must also specify the KMS key Amazon Resource Name (ARN). You
+	// must specify a customer-managed KMS key that's located in the same Region as the
+	// general purpose bucket that corresponds to the metadata table configuration.
+	KmsKeyArn *string
 
 	noSmithyDocumentSerde
 }
@@ -2700,8 +3084,9 @@ type MultipartUpload struct {
 
 	// The class of storage used to store the object.
 	//
-	// Directory buckets - Only the S3 Express One Zone storage class is supported by
-	// directory buckets to store objects.
+	// Directory buckets - Directory buckets only support EXPRESS_ONEZONE (the S3
+	// Express One Zone storage class) in Availability Zones and ONEZONE_IA (the S3
+	// One Zone-Infrequent Access storage class) in Dedicated Local Zones.
 	StorageClass StorageClass
 
 	// Upload ID that identifies the multipart upload.
@@ -2861,8 +3246,10 @@ type Object struct {
 	// about these storage classes and how to work with archived objects, see [Working with archived objects]in the
 	// Amazon S3 User Guide.
 	//
-	// This functionality is not supported for directory buckets. Only the S3 Express
-	// One Zone storage class is supported by directory buckets to store objects.
+	// This functionality is not supported for directory buckets. Directory buckets
+	// only support EXPRESS_ONEZONE (the S3 Express One Zone storage class) in
+	// Availability Zones and ONEZONE_IA (the S3 One Zone-Infrequent Access storage
+	// class) in Dedicated Local Zones.
 	//
 	// [Working with archived objects]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/archived-objects.html
 	RestoreStatus *RestoreStatus
@@ -2872,8 +3259,9 @@ type Object struct {
 
 	// The class of storage used to store the object.
 	//
-	// Directory buckets - Only the S3 Express One Zone storage class is supported by
-	// directory buckets to store objects.
+	// Directory buckets - Directory buckets only support EXPRESS_ONEZONE (the S3
+	// Express One Zone storage class) in Availability Zones and ONEZONE_IA (the S3
+	// One Zone-Infrequent Access storage class) in Dedicated Local Zones.
 	StorageClass ObjectStorageClass
 
 	noSmithyDocumentSerde
@@ -2972,38 +3360,38 @@ type ObjectLockRule struct {
 // A container for elements related to an individual part.
 type ObjectPart struct {
 
-	// The Base64 encoded, 32-bit CRC-32 checksum of the part. This checksum is
-	// present if the multipart upload request was created with the CRC-32 checksum
-	// algorithm. For more information, see [Checking object integrity]in the Amazon S3 User Guide.
+	// The Base64 encoded, 32-bit CRC32 checksum of the part. This checksum is present
+	// if the multipart upload request was created with the CRC32 checksum algorithm.
+	// For more information, see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC32 *string
 
-	// The Base64 encoded, 32-bit CRC-32C checksum of the part. This checksum is
-	// present if the multipart upload request was created with the CRC-32C checksum
+	// The Base64 encoded, 32-bit CRC32C checksum of the part. This checksum is
+	// present if the multipart upload request was created with the CRC32C checksum
 	// algorithm. For more information, see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC32C *string
 
-	// The Base64 encoded, 64-bit CRC-64NVME checksum of the part. This checksum is
-	// present if the multipart upload request was created with the CRC-64NVME
-	// checksum algorithm, or if the object was uploaded without a checksum (and Amazon
-	// S3 added the default checksum, CRC-64NVME , to the uploaded object). For more
-	// information, see [Checking object integrity]in the Amazon S3 User Guide.
+	// The Base64 encoded, 64-bit CRC64NVME checksum of the part. This checksum is
+	// present if the multipart upload request was created with the CRC64NVME checksum
+	// algorithm, or if the object was uploaded without a checksum (and Amazon S3 added
+	// the default checksum, CRC64NVME , to the uploaded object). For more information,
+	// see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC64NVME *string
 
-	// The Base64 encoded, 160-bit SHA-1 checksum of the part. This checksum is
-	// present if the multipart upload request was created with the SHA-1 checksum
-	// algorithm. For more information, see [Checking object integrity]in the Amazon S3 User Guide.
+	// The Base64 encoded, 160-bit SHA1 checksum of the part. This checksum is present
+	// if the multipart upload request was created with the SHA1 checksum algorithm.
+	// For more information, see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumSHA1 *string
 
-	// The Base64 encoded, 256-bit SHA-256 checksum of the part. This checksum is
-	// present if the multipart upload request was created with the SHA-256 checksum
+	// The Base64 encoded, 256-bit SHA256 checksum of the part. This checksum is
+	// present if the multipart upload request was created with the SHA256 checksum
 	// algorithm. For more information, see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
@@ -3088,6 +3476,17 @@ type OutputSerialization struct {
 	noSmithyDocumentSerde
 }
 
+// End of support notice: Beginning October 1, 2025, Amazon S3 will stop returning
+// DisplayName . Update your applications to use canonical IDs (unique identifier
+// for Amazon Web Services accounts), Amazon Web Services account ID (12 digit
+// identifier) or IAM ARNs (full resource naming) as a direct replacement of
+// DisplayName .
+//
+// This change affects the following Amazon Web Services Regions: US East (N.
+// Virginia) Region, US West (N. California) Region, US West (Oregon) Region, Asia
+// Pacific (Singapore) Region, Asia Pacific (Sydney) Region, Asia Pacific (Tokyo)
+// Region, Europe (Ireland) Region, and South America (São Paulo) Region.
+//
 // Container for the owner's display name and ID.
 type Owner struct {
 
@@ -3173,39 +3572,39 @@ type ParquetInput struct {
 // Container for elements related to a part.
 type Part struct {
 
-	// The Base64 encoded, 32-bit CRC-32 checksum of the part. This checksum is
-	// present if the object was uploaded with the CRC-32 checksum algorithm. For more
+	// The Base64 encoded, 32-bit CRC32 checksum of the part. This checksum is present
+	// if the object was uploaded with the CRC32 checksum algorithm. For more
 	// information, see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC32 *string
 
-	// The Base64 encoded, 32-bit CRC-32C checksum of the part. This checksum is
-	// present if the object was uploaded with the CRC-32C checksum algorithm. For
-	// more information, see [Checking object integrity]in the Amazon S3 User Guide.
+	// The Base64 encoded, 32-bit CRC32C checksum of the part. This checksum is
+	// present if the object was uploaded with the CRC32C checksum algorithm. For more
+	// information, see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC32C *string
 
-	// The Base64 encoded, 64-bit CRC-64NVME checksum of the part. This checksum is
-	// present if the multipart upload request was created with the CRC-64NVME
-	// checksum algorithm, or if the object was uploaded without a checksum (and Amazon
-	// S3 added the default checksum, CRC-64NVME , to the uploaded object). For more
-	// information, see [Checking object integrity]in the Amazon S3 User Guide.
+	// The Base64 encoded, 64-bit CRC64NVME checksum of the part. This checksum is
+	// present if the multipart upload request was created with the CRC64NVME checksum
+	// algorithm, or if the object was uploaded without a checksum (and Amazon S3 added
+	// the default checksum, CRC64NVME , to the uploaded object). For more information,
+	// see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumCRC64NVME *string
 
-	// The Base64 encoded, 160-bit SHA-1 checksum of the part. This checksum is
-	// present if the object was uploaded with the SHA-1 checksum algorithm. For more
+	// The Base64 encoded, 160-bit SHA1 checksum of the part. This checksum is present
+	// if the object was uploaded with the SHA1 checksum algorithm. For more
 	// information, see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumSHA1 *string
 
-	// The Base64 encoded, 256-bit SHA-256 checksum of the part. This checksum is
-	// present if the object was uploaded with the SHA-256 checksum algorithm. For
-	// more information, see [Checking object integrity]in the Amazon S3 User Guide.
+	// The Base64 encoded, 256-bit SHA256 checksum of the part. This checksum is
+	// present if the object was uploaded with the SHA256 checksum algorithm. For more
+	// information, see [Checking object integrity]in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
 	ChecksumSHA256 *string
@@ -3359,6 +3758,26 @@ type QueueConfiguration struct {
 	noSmithyDocumentSerde
 }
 
+//	The journal table record expiration settings for a journal table in an S3
+//
+// Metadata configuration.
+type RecordExpiration struct {
+
+	//  Specifies whether journal table record expiration is enabled or disabled.
+	//
+	// This member is required.
+	Expiration ExpirationState
+
+	//  If you enable journal table record expiration, you can set the number of days
+	// to retain your journal table records. Journal table records must be retained for
+	// a minimum of 7 days. To set this value, specify any whole number from 7 to
+	// 2147483647 . For example, to retain your journal table records for one year, set
+	// this value to 365 .
+	Days *int32
+
+	noSmithyDocumentSerde
+}
+
 // The container for the records event.
 type RecordsEvent struct {
 
@@ -3366,7 +3785,7 @@ type RecordsEvent struct {
 	// guarantee that a record will be self-contained in one record frame. To ensure
 	// continuous streaming of data, S3 Select might split the same record across
 	// multiple record frames instead of aggregating the results in memory. Some S3
-	// clients (for example, the SDK for Java) handle this behavior by creating a
+	// clients (for example, the SDKforJava) handle this behavior by creating a
 	// ByteStream out of the response by default. Other clients might not handle this
 	// behavior by default. In those cases, you must aggregate the results on the
 	// client side and parse the response.
@@ -3710,8 +4129,10 @@ type RestoreRequest struct {
 // about these storage classes and how to work with archived objects, see [Working with archived objects]in the
 // Amazon S3 User Guide.
 //
-// This functionality is not supported for directory buckets. Only the S3 Express
-// One Zone storage class is supported by directory buckets to store objects.
+// This functionality is not supported for directory buckets. Directory buckets
+// only support EXPRESS_ONEZONE (the S3 Express One Zone storage class) in
+// Availability Zones and ONEZONE_IA (the S3 One Zone-Infrequent Access storage
+// class) in Dedicated Local Zones.
 //
 // [Working with archived objects]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/archived-objects.html
 type RestoreStatus struct {
@@ -3807,11 +4228,17 @@ type S3Location struct {
 	noSmithyDocumentSerde
 }
 
-//	The destination information for the metadata table configuration. The
+//	The destination information for a V1 S3 Metadata configuration. The
 //
 // destination table bucket must be in the same Region and Amazon Web Services
 // account as the general purpose bucket. The specified metadata table name must be
 // unique within the aws_s3_metadata namespace in the destination table bucket.
+//
+// If you created your S3 Metadata configuration before July 15, 2025, we
+// recommend that you delete and re-create your configuration by using [CreateBucketMetadataConfiguration]so that you
+// can expire journal table records and create a live inventory table.
+//
+// [CreateBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataConfiguration.html
 type S3TablesDestination struct {
 
 	//  The Amazon Resource Name (ARN) for the table bucket that's specified as the
@@ -3832,11 +4259,17 @@ type S3TablesDestination struct {
 	noSmithyDocumentSerde
 }
 
-//	The destination information for the metadata table configuration. The
+//	The destination information for a V1 S3 Metadata configuration. The
 //
 // destination table bucket must be in the same Region and Amazon Web Services
 // account as the general purpose bucket. The specified metadata table name must be
 // unique within the aws_s3_metadata namespace in the destination table bucket.
+//
+// If you created your S3 Metadata configuration before July 15, 2025, we
+// recommend that you delete and re-create your configuration by using [CreateBucketMetadataConfiguration]so that you
+// can expire journal table records and create a live inventory table.
+//
+// [CreateBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataConfiguration.html
 type S3TablesDestinationResult struct {
 
 	//  The Amazon Resource Name (ARN) for the metadata table in the metadata table
@@ -4001,8 +4434,7 @@ type SelectParameters struct {
 //     key for SSE-KMS.
 //
 //   - Directory buckets - Your SSE-KMS configuration can only support 1 [customer managed key]per
-//     directory bucket for the lifetime of the bucket. The [Amazon Web Services managed key]( aws/s3 ) isn't
-//     supported.
+//     directory bucket's lifetime. The [Amazon Web Services managed key]( aws/s3 ) isn't supported.
 //
 //   - Directory buckets - For directory buckets, there are only two supported
 //     options for server-side encryption: SSE-S3 and SSE-KMS.
@@ -4405,7 +4837,15 @@ type Transition struct {
 	Date *time.Time
 
 	// Indicates the number of days after creation when objects are transitioned to
-	// the specified storage class. The value must be a positive integer.
+	// the specified storage class. If the specified storage class is
+	// INTELLIGENT_TIERING , GLACIER_IR , GLACIER , or DEEP_ARCHIVE , valid values are
+	// 0 or positive integers. If the specified storage class is STANDARD_IA or
+	// ONEZONE_IA , valid values are positive integers greater than 30 . Be aware that
+	// some storage classes have a minimum storage duration and that you're charged for
+	// transitioning objects before their minimum storage duration. For more
+	// information, see [Constraints and considerations for transitions]in the Amazon S3 User Guide.
+	//
+	// [Constraints and considerations for transitions]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/lifecycle-transition-general-considerations.html#lifecycle-configuration-constraints
 	Days *int32
 
 	// The storage class to which you want the object to transition.

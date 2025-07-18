@@ -14,6 +14,29 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
+// End of support notice: Beginning October 1, 2025, Amazon S3 will discontinue
+// support for creating new Email Grantee Access Control Lists (ACL). Email Grantee
+// ACLs created prior to this date will continue to work and remain accessible
+// through the Amazon Web Services Management Console, Command Line Interface
+// (CLI), SDKs, and REST API. However, you will no longer be able to create new
+// Email Grantee ACLs.
+//
+// This change affects the following Amazon Web Services Regions: US East (N.
+// Virginia) Region, US West (N. California) Region, US West (Oregon) Region, Asia
+// Pacific (Singapore) Region, Asia Pacific (Sydney) Region, Asia Pacific (Tokyo)
+// Region, Europe (Ireland) Region, and South America (São Paulo) Region.
+//
+// End of support notice: Beginning October 1, 2025, Amazon S3 will stop returning
+// DisplayName . Update your applications to use canonical IDs (unique identifier
+// for Amazon Web Services accounts), Amazon Web Services account ID (12 digit
+// identifier) or IAM ARNs (full resource naming) as a direct replacement of
+// DisplayName .
+//
+// This change affects the following Amazon Web Services Regions: US East (N.
+// Virginia) Region, US West (N. California) Region, US West (Oregon) Region, Asia
+// Pacific (Singapore) Region, Asia Pacific (Sydney) Region, Asia Pacific (Tokyo)
+// Region, Europe (Ireland) Region, and South America (São Paulo) Region.
+//
 // This action creates an Amazon S3 bucket. To create an Amazon S3 on Outposts
 // bucket, see [CreateBucket]CreateBucket .
 //
@@ -39,7 +62,7 @@ import (
 //     https://s3express-control.region-code.amazonaws.com/bucket-name .
 //     Virtual-hosted-style requests aren't supported. For more information about
 //     endpoints in Availability Zones, see [Regional and Zonal endpoints for directory buckets in Availability Zones]in the Amazon S3 User Guide. For more
-//     information about endpoints in Local Zones, see [Available Local Zone for directory buckets]in the Amazon S3 User Guide.
+//     information about endpoints in Local Zones, see [Concepts for directory buckets in Local Zones]in the Amazon S3 User Guide.
 //
 // Permissions
 //
@@ -114,12 +137,12 @@ import (
 // [DeleteBucket]
 //
 // [Creating, configuring, and working with Amazon S3 buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/creating-buckets-s3.html
+// [Concepts for directory buckets in Local Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-lzs-for-directory-buckets.html
 // [PutObject]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
-// [Available Local Zone for directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-lzs-for-directory-buckets.html
 // [DeleteBucket]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucket.html
 // [CreateBucket]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_control_CreateBucket.html
 // [Virtual hosting of buckets]: https://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html
-// [Regional and Zonal endpoints for directory buckets in Availability Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-Regions-and-Zones.html
+// [Regional and Zonal endpoints for directory buckets in Availability Zones]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/endpoint-directory-buckets-AZ.html
 //
 // [DeletePublicAccessBlock]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeletePublicAccessBlock.html
 // [Directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-overview.html
@@ -245,6 +268,15 @@ func (in *CreateBucketInput) bindEndpointParams(p *EndpointParameters) {
 
 type CreateBucketOutput struct {
 
+	// The Amazon Resource Name (ARN) of the S3 bucket. ARNs uniquely identify Amazon
+	// Web Services resources across all of Amazon Web Services.
+	//
+	// This parameter is only supported for S3 directory buckets. For more
+	// information, see [Using tags with directory buckets].
+	//
+	// [Using tags with directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-tagging.html
+	BucketArn *string
+
 	// A forward slash followed by the name of the bucket.
 	Location *string
 
@@ -322,6 +354,9 @@ func (c *Client) addOperationCreateBucketMiddlewares(stack *middleware.Stack, op
 		return err
 	}
 	if err = addIsExpressUserAgent(stack); err != nil {
+		return err
+	}
+	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpCreateBucketValidationMiddleware(stack); err != nil {

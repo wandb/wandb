@@ -1,34 +1,46 @@
-#
-"""Setup wandb session.
+"""Global W&B library state.
 
-This module configures a wandb session which can extend to multiple wandb runs.
+This module manages global state, which for wandb includes:
 
-Functions:
-    setup(): Configure wandb session.
+- Settings configured through `wandb.setup()`
+- The list of active runs
+- A subprocess ("the internal service") that asynchronously uploads metrics
 
-Early logging keeps track of logger output until the call to wandb.init() when the
-run_id can be resolved.
+This module is fork-aware: in a forked process such as that spawned by the
+`multiprocessing` module, `wandb.singleton()` returns a new object, not the
+one inherited from the parent process. This requirement comes from backward
+compatibility with old design choices: the hardest one to fix is that wandb
+was originally designed to have a single run for the entire process that
+`wandb.init()` was meant to return. Back then, the only way to create
+multiple simultaneous runs in a single script was to run subprocesses, and since
+the built-in `multiprocessing` module forks by default, this required a PID
+check to make `wandb.init()` ignore the inherited global run.
 
+Another reason for fork-awareness is that the process that starts up
+the internal service owns it and is responsible for shutting it down,
+and child processes shouldn't also try to do that. This is easier to
+redesign.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import pathlib
 import sys
-import threading
 from typing import TYPE_CHECKING, Any, Union
 
 import wandb
 import wandb.integration.sagemaker as sagemaker
-from wandb.sdk.lib import import_hooks
+from wandb.env import CONFIG_DIR
+from wandb.sdk.lib import import_hooks, wb_logging
 
 from . import wandb_settings
 from .lib import config_util, server
 
 if TYPE_CHECKING:
-    from wandb.sdk.lib.service_connection import ServiceConnection
-    from wandb.sdk.wandb_run import Run
+    from wandb.sdk import wandb_run
+    from wandb.sdk.lib.service.service_connection import ServiceConnection
     from wandb.sdk.wandb_settings import Settings
 
 
@@ -84,14 +96,13 @@ class _WandbSetup:
     ) -> None:
         self._connection: ServiceConnection | None = None
 
+        self._active_runs: list[wandb_run.Run] = []
+
         self._environ = environ or dict(os.environ)
         self._sweep_config: dict | None = None
         self._config: dict | None = None
         self._server: server.Server | None = None
         self._pid = pid
-
-        # keep track of multiple runs, so we can unwind with join()s
-        self._global_run_stack: list[Run] = []
 
         # TODO(jhr): defer strict checks until settings are fully initialized
         #            and logging is ready
@@ -101,8 +112,53 @@ class _WandbSetup:
 
         wandb.termsetup(self._settings, None)
 
-        self._check()
         self._setup()
+
+    def add_active_run(self, run: wandb_run.Run) -> None:
+        """Append a run to the active runs list.
+
+        This must be called when a run is initialized.
+
+        Args:
+            run: A newly initialized run.
+        """
+        if run not in self._active_runs:
+            self._active_runs.append(run)
+
+    def remove_active_run(self, run: wandb_run.Run) -> None:
+        """Remove the run from the active runs list.
+
+        This must be called when a run is finished.
+
+        Args:
+            run: A run that is finished or crashed.
+        """
+        try:
+            self._active_runs.remove(run)
+        except ValueError:
+            pass  # Removing a run multiple times is not an error.
+
+    @property
+    def most_recent_active_run(self) -> wandb_run.Run | None:
+        """The most recently initialized run that is not yet finished."""
+        if not self._active_runs:
+            return None
+
+        return self._active_runs[-1]
+
+    def finish_all_active_runs(self) -> None:
+        """Finish all unfinished runs.
+
+        NOTE: This is slightly inefficient as it finishes runs one at a time.
+        This only exists to support using the `reinit="finish_previous"`
+        setting together with `reinit="create_new"` which does not seem to be a
+        useful pattern. Since `"create_new"` should eventually become the
+        default and only behavior, it does not seem worth optimizing.
+        """
+        # Take a snapshot as each call to `finish()` modifies `_active_runs`.
+        runs_copy = list(self._active_runs)
+        for run in runs_copy:
+            run.finish()
 
     def _settings_setup(
         self,
@@ -115,6 +171,16 @@ class _WandbSetup:
         self._logger.info(f"Current SDK version is {wandb.__version__}")
         self._logger.info(f"Configure stats pid to {pid}")
         s.x_stats_pid = pid
+
+        if settings and settings.settings_system:
+            s.settings_system = settings.settings_system
+        elif config_dir_str := os.getenv(CONFIG_DIR, None):
+            config_dir = pathlib.Path(config_dir_str).expanduser()
+            s.settings_system = str(config_dir / "settings")
+        else:
+            s.settings_system = str(
+                pathlib.Path("~", ".config", "wandb", "settings").expanduser()
+            )
 
         # load settings from the system config
         if s.settings_system:
@@ -216,15 +282,6 @@ class _WandbSetup:
 
         return user_settings
 
-    def _check(self) -> None:
-        if hasattr(threading, "main_thread"):
-            if threading.current_thread() is not threading.main_thread():
-                pass
-        elif threading.current_thread().name != "MainThread":
-            wandb.termwarn(f"bad thread2: {threading.current_thread().name}")
-        if getattr(sys, "frozen", False):
-            wandb.termwarn("frozen, could be trouble")
-
     def _setup(self) -> None:
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
@@ -250,12 +307,12 @@ class _WandbSetup:
         if not self._connection:
             return
 
-        internal_exit_code = self._connection.teardown(exit_code or 0)
-
         # Reset to None so that setup() creates a new connection.
+        connection = self._connection
         self._connection = None
 
-        if internal_exit_code != 0:
+        internal_exit_code = connection.teardown(exit_code or 0)
+        if internal_exit_code not in (None, 0):
             sys.exit(internal_exit_code)
 
     def ensure_service(self) -> ServiceConnection:
@@ -263,7 +320,7 @@ class _WandbSetup:
         if self._connection:
             return self._connection
 
-        from wandb.sdk.lib import service_connection
+        from wandb.sdk.lib.service import service_connection
 
         self._connection = service_connection.connect_to_service(self._settings)
         return self._connection
@@ -287,10 +344,25 @@ The value is invalid and must not be used if `os.getpid() != _singleton._pid`.
 """
 
 
-def singleton() -> _WandbSetup | None:
-    """Returns the W&B singleton if it exists for the current process.
+def singleton() -> _WandbSetup:
+    """The W&B singleton for the current process.
 
-    Unlike setup(), this does not create the singleton if it doesn't exist.
+    The first call to this in this process (which may be a fork of another
+    process) creates the singleton, and all subsequent calls return it
+    until teardown(). This does not start the service process.
+    """
+    return _setup(start_service=False)
+
+
+def singleton_if_setup() -> _WandbSetup | None:
+    """The W&B singleton for the current process or None if it isn't set up.
+
+    Always prefer singleton() over this function.
+
+    Unlike singleton(), this never creates the singleton and therefore never
+    initializes global settings from the environment. This is useful only
+    during tests, which may modify the environment after having imported wandb
+    and called certain functions.
     """
     if _singleton and _singleton._pid == os.getpid():
         return _singleton
@@ -298,18 +370,34 @@ def singleton() -> _WandbSetup | None:
         return None
 
 
-def _setup(settings: Settings | None = None) -> _WandbSetup:
-    """Set up library context."""
+@wb_logging.log_to_all_runs()
+def _setup(
+    settings: Settings | None = None,
+    start_service: bool = True,
+) -> _WandbSetup:
+    """Set up library context.
+
+    Args:
+        settings: Global settings to set, or updates to the global settings
+            if the singleton has already been initialized.
+        start_service: Whether to start up the service process.
+            NOTE: A service process will only be started if allowed by the
+            global settings (after the given updates). The service will not
+            start up if the mode resolves to "disabled".
+    """
     global _singleton
 
     pid = os.getpid()
 
     if _singleton and _singleton._pid == pid:
         _singleton._update(settings=settings)
-        return _singleton
     else:
         _singleton = _WandbSetup(settings=settings, pid=pid)
-        return _singleton
+
+    if start_service and not _singleton.settings._noop:
+        _singleton.ensure_service()
+
+    return _singleton
 
 
 def setup(settings: Settings | None = None) -> _WandbSetup:
@@ -331,48 +419,49 @@ def setup(settings: Settings | None = None) -> _WandbSetup:
             overridden by subsequent `wandb.init()` calls.
 
     Example:
-        ```python
-        import multiprocessing
+    ```python
+    import multiprocessing
 
-        import wandb
-
-
-        def run_experiment(params):
-            with wandb.init(config=params):
-                # Run experiment
-                pass
+    import wandb
 
 
-        if __name__ == "__main__":
-            # Start backend and set global config
-            wandb.setup(settings={"project": "my_project"})
+    def run_experiment(params):
+        with wandb.init(config=params):
+            # Run experiment
+            pass
 
-            # Define experiment parameters
-            experiment_params = [
-                {"learning_rate": 0.01, "epochs": 10},
-                {"learning_rate": 0.001, "epochs": 20},
-            ]
 
-            # Start multiple processes, each running a separate experiment
-            processes = []
-            for params in experiment_params:
-                p = multiprocessing.Process(target=run_experiment, args=(params,))
-                p.start()
-                processes.append(p)
+    if __name__ == "__main__":
+        # Start backend and set global config
+        wandb.setup(settings={"project": "my_project"})
 
-            # Wait for all processes to complete
-            for p in processes:
-                p.join()
+        # Define experiment parameters
+        experiment_params = [
+            {"learning_rate": 0.01, "epochs": 10},
+            {"learning_rate": 0.001, "epochs": 20},
+        ]
 
-            # Optional: Explicitly shut down the backend
-            wandb.teardown()
-        ```
+        # Start multiple processes, each running a separate experiment
+        processes = []
+        for params in experiment_params:
+            p = multiprocessing.Process(target=run_experiment, args=(params,))
+            p.start()
+            processes.append(p)
+
+        # Wait for all processes to complete
+        for p in processes:
+            p.join()
+
+        # Optional: Explicitly shut down the backend
+        wandb.teardown()
+    ```
     """
     return _setup(settings=settings)
 
 
+@wb_logging.log_to_all_runs()
 def teardown(exit_code: int | None = None) -> None:
-    """Waits for wandb to finish and frees resources.
+    """Waits for W&B to finish and frees resources.
 
     Completes any runs that were not explicitly finished
     using `run.finish()` and waits for all data to be uploaded.

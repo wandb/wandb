@@ -199,7 +199,7 @@ def create_sweep_command(command: Optional[List] = None) -> List:
             for m in matches[::-1]:
                 # Default to just leaving as is if environment variable does not exist
                 _var: str = os.environ.get(m.group(1), m.group(1))
-                command[i] = f"{command[i][:m.start()]}{_var}{command[i][m.end():]}"
+                command[i] = f"{command[i][: m.start()]}{_var}{command[i][m.end() :]}"
     return command
 
 
@@ -211,7 +211,7 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
 
     """
     if "args" not in command:
-        raise ValueError('No "args" found in command: {}'.format(command))
+        raise ValueError(f'No "args" found in command: {command}')
     # four different formats of command args
     # (1) standard command line flags (e.g. --foo=bar)
     flags: List[str] = []
@@ -223,17 +223,23 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
     flags_dict: Dict[str, Any] = {}
     # (5) flags without equals (e.g. --foo bar)
     args_no_equals: List[str] = []
+    # (6) flags for hydra append config value (e.g. +foo=bar)
+    flags_append_hydra: List[str] = []
+    # (7) flags for hydra override config value (e.g. ++foo=bar)
+    flags_override_hydra: List[str] = []
     for param, config in command["args"].items():
         # allow 'None' as a valid value, but error if no value is found
         try:
             _value: Any = config["value"]
         except KeyError:
-            raise ValueError('No "value" found for command["args"]["{}"]'.format(param))
+            raise ValueError(f'No "value" found for command["args"]["{param}"]')
 
         _flag: str = f"{param}={_value}"
         flags.append("--" + _flag)
         flags_no_hyphens.append(_flag)
         args_no_equals += [f"--{param}", str(_value)]
+        flags_append_hydra.append("+" + _flag)
+        flags_override_hydra.append("++" + _flag)
         if isinstance(_value, bool):
             # omit flags if they are boolean and false
             if _value:
@@ -248,6 +254,8 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
         "args_no_boolean_flags": flags_no_booleans,
         "args_json": [json.dumps(flags_dict)],
         "args_dict": flags_dict,
+        "args_append_hydra": flags_append_hydra,
+        "args_override_hydra": flags_override_hydra,
     }
 
 

@@ -1,13 +1,11 @@
 import json
 import logging
 import os
+import shutil
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import requests
-from dockerpycreds.utils import find_executable  # type: ignore
-
-from wandb.docker import auth, www_authenticate
+from wandb.docker import names
 from wandb.errors import Error
 
 
@@ -46,7 +44,6 @@ class DockerError(Error):
 entrypoint = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "wandb-entrypoint.sh"
 )
-auth_config = auth.load_config()
 log = logging.getLogger(__name__)
 
 
@@ -74,7 +71,7 @@ def is_buildx_installed() -> bool:
     global _buildx_installed
     if _buildx_installed is not None:
         return _buildx_installed  # type: ignore
-    if not find_executable("docker"):
+    if not shutil.which("docker"):
         _buildx_installed = False
     else:
         help_output = shell(["buildx", "--help"])
@@ -203,7 +200,7 @@ def default_image(gpu: bool = False) -> str:
     tag = "all"
     if not gpu:
         tag += "-cpu"
-    return "wandb/deepo:{}".format(tag)
+    return f"wandb/deepo:{tag}"
 
 
 def parse_repository_tag(repo_name: str) -> Tuple[str, Optional[str]]:
@@ -218,75 +215,25 @@ def parse_repository_tag(repo_name: str) -> Tuple[str, Optional[str]]:
 
 def parse(image_name: str) -> Tuple[str, str, str]:
     repository, tag = parse_repository_tag(image_name)
-    registry, repo_name = auth.resolve_repository_name(repository)
+    registry, repo_name = names.resolve_repository_name(repository)
     if registry == "docker.io":
         registry = "index.docker.io"
     return registry, repo_name, (tag or "latest")
 
 
-def auth_token(registry: str, repo: str) -> Dict[str, str]:
-    """Make a request to the root of a v2 docker registry to get the auth url.
-
-    Always returns a dictionary, if there's no token key we couldn't authenticate
-    """
-    # TODO: Cache tokens?
-    auth_info = auth_config.resolve_authconfig(registry)
-    if auth_info:
-        normalized = {k.lower(): v for k, v in auth_info.items()}
-        normalized_auth_info = (
-            normalized.get("username"),
-            normalized.get("password"),
-        )
-    else:
-        normalized_auth_info = None
-    response = requests.get(f"https://{registry}/v2/", timeout=3)
-    if response.headers.get("www-authenticate"):
-        try:
-            info: Dict = www_authenticate.parse(response.headers["www-authenticate"])
-        except ValueError:
-            info = {}
-    else:
-        log.error(
-            f"Received {response} when attempting to authenticate with {registry}"
-        )
-        info = {}
-    if info.get("bearer"):
-        res = requests.get(
-            info["bearer"]["realm"]
-            + "?service={}&scope=repository:{}:pull".format(
-                info["bearer"]["service"], repo
-            ),
-            auth=normalized_auth_info,  # type: ignore
-            timeout=3,
-        )
-        res.raise_for_status()
-        result_json: Dict[str, str] = res.json()
-        return result_json
-    return {}
-
-
 def image_id_from_registry(image_name: str) -> Optional[str]:
-    """Get the docker id from a public or private registry."""
-    registry, repository, tag = parse(image_name)
-    res = None
-    try:
-        token = auth_token(registry, repository).get("token")
-        # dockerhub is crazy
-        if registry == "index.docker.io":
-            registry = "registry-1.docker.io"
-        res = requests.head(
-            f"https://{registry}/v2/{repository}/manifests/{tag}",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/vnd.docker.distribution.manifest.v2+json",
-            },
-            timeout=5,
-        )
-        res.raise_for_status()
-    except requests.RequestException:
-        log.error(f"Received {res} when attempting to get digest for {image_name}")
-        return None
-    return "@".join([registry + "/" + repository, res.headers["Docker-Content-Digest"]])
+    """Query the image manifest to get its full ID including the digest.
+
+    Args:
+        image_name: The image name, such as "wandb/local".
+
+    Returns:
+        The image name followed by its digest, like "wandb/local@sha256:...".
+    """
+    # https://docs.docker.com/reference/cli/docker/buildx/imagetools/inspect
+    inspect_cmd = ["buildx", "imagetools", "inspect", image_name]
+    format_args = ["--format", r"{{.Name}}@{{.Manifest.Digest}}"]
+    return shell([*inspect_cmd, *format_args])
 
 
 def image_id(image_name: str) -> Optional[str]:
@@ -295,11 +242,12 @@ def image_id(image_name: str) -> Optional[str]:
         return image_name
     else:
         digests = shell(["inspect", image_name, "--format", "{{json .RepoDigests}}"])
+
+        if digests is None:
+            return image_id_from_registry(image_name)
+
         try:
-            if digests is None:
-                raise ValueError
-            im_id: str = json.loads(digests)[0]
-            return im_id
+            return json.loads(digests)[0]
         except (ValueError, IndexError):
             return image_id_from_registry(image_name)
 
@@ -332,7 +280,6 @@ __all__ = [
     "image_id",
     "image_id_from_registry",
     "is_docker_installed",
-    "auth_token",
     "parse",
     "parse_repository_tag",
     "default_image",

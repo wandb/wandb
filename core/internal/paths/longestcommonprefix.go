@@ -3,6 +3,7 @@ package paths
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"path/filepath"
 	"strings"
 )
@@ -14,13 +15,42 @@ func LongestCommonPrefix(paths []AbsolutePath) (*AbsolutePath, error) {
 		return nil, errors.New("too few paths")
 	}
 
-	longestPrefix := strings.Split(
-		string(paths[0]),
+	pathStrs := func(yield func(string) bool) {
+		for _, path := range paths {
+			if !yield(string(path)) {
+				break
+			}
+		}
+	}
+
+	rootDirStr := LongestCommonPrefixStr(
+		pathStrs,
 		string(filepath.Separator),
 	)
 
-	for _, path := range paths[1:] {
-		pathParts := strings.Split(string(path), string(filepath.Separator))
+	rootDir, err := Absolute(rootDirStr)
+	if err != nil {
+		return nil, fmt.Errorf("error making path absolute: %v", err)
+	}
+
+	return rootDir, nil
+}
+
+// LongestCommonPrefixStr returns the longest sequence of path components that
+// every given path starts with.
+//
+// It accepts a sequence of strings and the separator to use to break strings
+// into path components.
+func LongestCommonPrefixStr(paths iter.Seq[string], separator string) string {
+	var longestPrefix []string
+
+	for path := range paths {
+		pathParts := strings.Split(path, separator)
+
+		if longestPrefix == nil {
+			longestPrefix = pathParts
+			continue
+		}
 
 		for i, part := range longestPrefix {
 			if part != pathParts[i] {
@@ -30,12 +60,5 @@ func LongestCommonPrefix(paths []AbsolutePath) (*AbsolutePath, error) {
 		}
 	}
 
-	rootDir, err := Absolute(
-		strings.Join(longestPrefix, string(filepath.Separator)),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("error making path absolute: %v", err)
-	}
-
-	return rootDir, nil
+	return strings.Join(longestPrefix, string(separator))
 }

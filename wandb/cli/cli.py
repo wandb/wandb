@@ -20,9 +20,6 @@ import click
 import yaml
 from click.exceptions import ClickException
 
-# pycreds has a find_executable that works in windows
-from dockerpycreds.utils import find_executable
-
 import wandb
 import wandb.env
 import wandb.errors
@@ -31,6 +28,7 @@ from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
 from wandb.errors.links import url_registry
+from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.internal.internal_api import Api as SDKInternalApi
@@ -67,6 +65,9 @@ logging.basicConfig(
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("wandb")
 
+_HAS_DOCKER = bool(shutil.which("docker"))
+_HAS_NVIDIA_DOCKER = bool(shutil.which("nvidia-docker"))
+
 # Click Contexts
 CONTEXT = {"default_map": {}}
 RUN_CONTEXT = {
@@ -83,14 +84,13 @@ def cli_unsupported(argument):
 
 class ClickWandbException(ClickException):
     def format_message(self):
-        # log_file = util.get_log_file_path()
-        log_file = ""
         orig_type = f"{self.orig_type.__module__}.{self.orig_type.__name__}"
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
         else:
             return (
-                f"An Exception was raised, see {log_file} for full traceback.\n"
+                f"An Exception was raised, see {_wandb_log_path} for full"
+                " traceback.\n"
                 f"{orig_type}: {self.message}"
             )
 
@@ -105,7 +105,7 @@ def display_error(func):
         except wandb.Error as e:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-            logger.error("".join(lines))
+            logger.exception("".join(lines))
             wandb.termerror(f"Find detailed error logs at: {_wandb_log_path}")
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
@@ -119,9 +119,6 @@ _api = None  # caching api instance allows patching from unit tests
 
 def _get_cling_api(reset=None):
     """Get a reference to the internal api with cling settings."""
-    # TODO: move CLI to wandb-core backend
-    wandb.require("legacy-service")
-
     global _api
     if reset:
         _api = None
@@ -129,7 +126,7 @@ def _get_cling_api(reset=None):
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
         # only override the necessary setting
-        wandb.setup(settings=wandb.Settings(x_cli_only_mode=True))
+        wandb_setup.singleton().settings.x_cli_only_mode = True
         _api = InternalApi()
     return _api
 
@@ -196,9 +193,9 @@ def projects(entity, display=True):
     api = _get_cling_api()
     projects = api.list_projects(entity=entity)
     if len(projects) == 0:
-        message = "No projects found for {}".format(entity)
+        message = f"No projects found for {entity}"
     else:
-        message = 'Latest projects for "{}"'.format(entity)
+        message = f'Latest projects for "{entity}"'
     if display:
         click.echo(click.style(message, bold=True))
         for project in projects:
@@ -232,73 +229,27 @@ def projects(entity, display=True):
 )
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
-    # TODO: move CLI to wandb-core backend
-    wandb.require("legacy-service")
-
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
     wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
     # A change in click or the test harness means key can be none...
     key = key[0] if key is not None and len(key) > 0 else None
-    if key:
-        relogin = True
+    relogin = True if key or relogin else False
 
-    login_settings = dict(
-        x_cli_only_mode=True,
-        x_disable_viewer=relogin and not verify,
-        anonymous=anon_mode,
-        base_url=host,
-    )
-
-    try:
-        wandb.setup(
-            settings=wandb.Settings(
-                **{k: v for k, v in login_settings.items() if v is not None}
-            )
-        )
-    except TypeError as e:
-        wandb.termerror(str(e))
-        sys.exit(1)
+    global_settings = wandb_setup.singleton().settings
+    global_settings.x_cli_only_mode = True
+    global_settings.x_disable_viewer = relogin and not verify
 
     wandb.login(
-        relogin=relogin,
-        key=key,
         anonymous=anon_mode,
-        host=host,
         force=True,
+        host=host,
+        key=key,
+        relogin=relogin,
         verify=verify,
+        referrer="models",
     )
-
-
-@cli.command(
-    context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
-)
-@click.option(
-    "--sock-port", default=None, type=int, help="The host port to bind socket service."
-)
-@click.option("--port-filename", default=None, help="Save allocated port to file.")
-@click.option("--address", default=None, help="The address to bind service.")
-@click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
-@click.option("--debug", is_flag=True, help="log debug info")
-@display_error
-def service(
-    sock_port=None,
-    port_filename=None,
-    address=None,
-    pid=None,
-    debug=False,
-):
-    from wandb.sdk.service.server import WandbServer
-
-    server = WandbServer(
-        sock_port=sock_port,
-        port_fname=port_filename,
-        address=address,
-        pid=pid,
-        debug=debug,
-    )
-    server.serve()
 
 
 @cli.command(
@@ -432,7 +383,7 @@ def init(ctx, project, entity, reset, mode):
         """
         ).format(
             code1=click.style("import wandb", bold=True),
-            code2=click.style('wandb.init(project="{}")'.format(project), bold=True),
+            code2=click.style(f'wandb.init(project="{project}")', bold=True),
             run=click.style("python <train.py>", bold=True),
         )
     )
@@ -788,7 +739,7 @@ def sweep(
             "resume": "Resuming",
         }
         wandb.termlog(f"{ings[state]} sweep {entity}/{project}/{sweep_id}")
-        getattr(api, "{}_sweep".format(state))(sweep_id, entity=entity, project=project)
+        getattr(api, f"{state}_sweep")(sweep_id, entity=entity, project=project)
         wandb.termlog("Done.")
         return
     else:
@@ -1529,11 +1480,11 @@ def launch(
                 wandb.termerror("Launched run exited with non-zero status")
                 sys.exit(1)
         except LaunchError as e:
-            logger.error("=== %s ===", e)
+            logger.exception("An error occurred.")
             wandb._sentry.exception(e)
             sys.exit(e)
         except ExecutionError as e:
-            logger.error("=== %s ===", e)
+            logger.exception("An error occurred.")
             wandb._sentry.exception(e)
             sys.exit(e)
         except asyncio.CancelledError:
@@ -1563,7 +1514,7 @@ def launch(
 
         except Exception as e:
             wandb._sentry.exception(e)
-            raise e
+            raise
 
 
 @cli.command(
@@ -1654,7 +1605,7 @@ def launch_agent(
         _launch.create_and_run_agent(api, agent_config)
     except Exception as e:
         wandb._sentry.exception(e)
-        raise e
+        raise
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1732,7 +1683,7 @@ def scheduler(
         _scheduler.start()
     except Exception as e:
         wandb._sentry.exception(e)
-        raise e
+        raise
 
 
 @cli.group(help="Commands for managing and viewing W&B jobs")
@@ -1985,13 +1936,13 @@ def docker_run(ctx, docker_run_args):
 
     See `docker run --help` for more details.
     """
+    import wandb.docker
+
     api = InternalApi()
     args = list(docker_run_args)
     if len(args) > 0 and args[0] == "run":
         args.pop(0)
-    if len([a for a in args if a.startswith("--runtime")]) == 0 and find_executable(
-        "nvidia-docker"
-    ):
+    if len([a for a in args if a.startswith("--runtime")]) == 0 and _HAS_NVIDIA_DOCKER:
         args = ["--runtime", "nvidia"] + args
     #  TODO: image_from_docker_args uses heuristics to find the docker image arg, there are likely cases
     #  where this won't work
@@ -2000,13 +1951,13 @@ def docker_run(ctx, docker_run_args):
     if image:
         resolved_image = wandb.docker.image_id(image)
     if resolved_image:
-        args = ["-e", "WANDB_DOCKER={}".format(resolved_image)] + args
+        args = ["-e", f"WANDB_DOCKER={resolved_image}"] + args
     else:
         wandb.termlog(
             "Couldn't detect image argument, running command without the WANDB_DOCKER env variable"
         )
     if api.api_key:
-        args = ["-e", "WANDB_API_KEY={}".format(api.api_key)] + args
+        args = ["-e", f"WANDB_API_KEY={api.api_key}"] + args
     else:
         wandb.termlog(
             "Not logged in, run `wandb login` from the host machine to enable result logging"
@@ -2020,7 +1971,7 @@ def docker_run(ctx, docker_run_args):
 @click.argument("docker_image", required=False)
 @click.option(
     "--nvidia/--no-nvidia",
-    default=find_executable("nvidia-docker") is not None,
+    default=_HAS_NVIDIA_DOCKER,
     help="Use the nvidia runtime, defaults to nvidia if nvidia-docker is present",
 )
 @click.option(
@@ -2077,8 +2028,11 @@ def docker(
     variable to an existing docker run command, see the wandb docker-run command.
     """
     api = InternalApi()
-    if not find_executable("docker"):
+    if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
+
+    import wandb.docker
+
     args = list(docker_run_args)
     image = docker_image or ""
     # remove run for users used to nvidia-docker
@@ -2097,17 +2051,13 @@ def docker(
     resolved_image = wandb.docker.image_id(image)
     if resolved_image is None:
         raise ClickException(
-            "Couldn't find image locally or in a registry, try running `docker pull {}`".format(
-                image
-            )
+            f"Couldn't find image locally or in a registry, try running `docker pull {image}`"
         )
     if digest:
         sys.stdout.write(resolved_image)
         exit(0)
 
-    existing = wandb.docker.shell(
-        ["ps", "-f", "ancestor={}".format(resolved_image), "-q"]
-    )
+    existing = wandb.docker.shell(["ps", "-f", f"ancestor={resolved_image}", "-q"])
     if existing:
         if click.confirm(
             "Found running container with the same image, do you want to attach?"
@@ -2121,7 +2071,7 @@ def docker(
         "-e",
         "LANG=C.UTF-8",
         "-e",
-        "WANDB_DOCKER={}".format(resolved_image),
+        f"WANDB_DOCKER={resolved_image}",
         "--ipc=host",
         "-v",
         wandb.docker.entrypoint + ":/wandb-entrypoint.sh",
@@ -2134,7 +2084,7 @@ def docker(
         #  TODO: We should default to the working directory if defined
         command.extend(["-v", cwd + ":" + dir, "-w", dir])
     if api.api_key:
-        command.extend(["-e", "WANDB_API_KEY={}".format(api.api_key)])
+        command.extend(["-e", f"WANDB_API_KEY={api.api_key}"])
     else:
         wandb.termlog(
             "Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics"
@@ -2142,15 +2092,13 @@ def docker(
     if jupyter:
         command.extend(["-e", "WANDB_ENSURE_JUPYTER=1", "-p", port + ":8888"])
         no_tty = True
-        cmd = "jupyter lab --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir {}".format(
-            dir
-        )
+        cmd = f"jupyter lab --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir {dir}"
     command.extend(args)
     if no_tty:
         command.extend([image, shell, "-c", cmd])
     else:
         if cmd:
-            command.extend(["-e", "WANDB_COMMAND={}".format(cmd)])
+            command.extend(["-e", f"WANDB_COMMAND={cmd}"])
         command.extend(["-it", image, shell])
         wandb.termlog("Launching docker container \U0001f6a2")
     subprocess.call(command)
@@ -2210,8 +2158,11 @@ def server():
 @display_error
 def start(ctx, port, env, daemon, upgrade, edge):
     api = InternalApi()
-    if not find_executable("docker"):
+    if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
+
+    import wandb.docker
+
     local_image_sha = wandb.docker.image_id("wandb/local").split("wandb/local")[-1]
     registry_image_sha = wandb.docker.image_id_from_registry("wandb/local").split(
         "wandb/local"
@@ -2224,7 +2175,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
                 "A new version of the W&B server is available, upgrade by calling `wandb server start --upgrade`"
             )
     running = subprocess.check_output(
-        ["docker", "ps", "--filter", "name=wandb-local", "--format", "{{.ID}}"]
+        ["docker", "ps", "--filter", "name=^wandb-local$", "--format", "{{.ID}}"]
     )
     if running != b"":
         if upgrade:
@@ -2236,7 +2187,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
             exit(1)
     image = "docker.pkg.github.com/wandb/core/local" if edge else "wandb/local"
     username = getpass.getuser()
-    env_vars = ["-e", "LOCAL_USERNAME={}".format(username)]
+    env_vars = ["-e", f"LOCAL_USERNAME={username}"]
     for e in env:
         env_vars.append("-e")
         env_vars.append(e)
@@ -2270,9 +2221,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
             )
             exit(1)
         else:
-            wandb.termlog(
-                "W&B server started at http://localhost:{} \U0001f680".format(port)
-            )
+            wandb.termlog(f"W&B server started at http://localhost:{port} \U0001f680")
             wandb.termlog("You can stop the server by running `wandb server stop`")
             if not api.api_key:
                 # Let the server start before potentially launching a browser
@@ -2282,7 +2231,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
 
 @server.command(context_settings=RUN_CONTEXT, help="Stop a local W&B server")
 def stop():
-    if not find_executable("docker"):
+    if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
     subprocess.call(["docker", "stop", "wandb-local"])
 
@@ -2418,7 +2367,7 @@ def get(path, root, type):
         )
         artifact = public_api.artifact(full_path, type=type)
         path = artifact.download(root=root)
-        wandb.termlog("Artifact downloaded to {}".format(path))
+        wandb.termlog(f"Artifact downloaded to {path}")
     except ValueError:
         raise ClickException("Unable to download artifact")
 
@@ -2445,12 +2394,7 @@ def ls(path, type):
             )
             latest = next(versions)
             wandb.termlog(
-                "{:<15s}{:<15s}{:>15s} {:<20s}".format(
-                    kind.type,
-                    latest.updated_at,
-                    util.to_human_size(latest.size),
-                    latest.name,
-                )
+                f"{kind.type:<15s}{latest.updated_at:<15s}{util.to_human_size(latest.size):>15s} {latest.name:<20s}"
             )
 
 
@@ -2496,17 +2440,17 @@ def pull(run, project, entity):
 
     for name in urls:
         if api.file_current(name, urls[name]["md5"]):
-            click.echo("File {} is up to date".format(name))
+            click.echo(f"File {name} is up to date")
         else:
             length, response = api.download_file(urls[name]["url"])
             # TODO: I had to add this because some versions in CI broke click.progressbar
-            sys.stdout.write("File {}\r".format(name))
+            sys.stdout.write(f"File {name}\r")
             dirname = os.path.dirname(name)
             if dirname != "":
                 filesystem.mkdir_exists_ok(dirname)
             with click.progressbar(
                 length=length,
-                label="File {}".format(name),
+                label=f"File {name}",
                 fill_char=click.style("&", fg="green"),
             ) as bar:
                 with open(name, "wb") as f:
@@ -2552,8 +2496,8 @@ def restore(ctx, run, no_git, branch, project, entity):
     )
     repo = metadata.get("git", {}).get("repo")
     image = metadata.get("docker")
-    restore_message = """`wandb restore` needs to be run from the same git repository as the original run.
-Run `git clone {}` and restore from there or pass the --no-git flag.""".format(repo)
+    restore_message = f"""`wandb restore` needs to be run from the same git repository as the original run.
+Run `git clone {repo}` and restore from there or pass the --no-git flag."""
     if no_git:
         commit = None
     elif not api.git.enabled:
@@ -2598,21 +2542,17 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
             else:
                 patch_path = None
 
-        branch_name = "wandb/{}".format(run)
+        branch_name = f"wandb/{run}"
         if branch and branch_name not in api.git.repo.branches:
             api.git.repo.git.checkout(commit, b=branch_name)
-            wandb.termlog(
-                "Created branch {}".format(click.style(branch_name, bold=True))
-            )
+            wandb.termlog(f"Created branch {click.style(branch_name, bold=True)}")
         elif branch:
             wandb.termlog(
-                "Using existing branch, run `git branch -D {}` from master for a clean checkout".format(
-                    branch_name
-                )
+                f"Using existing branch, run `git branch -D {branch_name}` from master for a clean checkout"
             )
             api.git.repo.git.checkout(branch_name)
         else:
-            wandb.termlog("Checking out {} in detached mode".format(commit))
+            wandb.termlog(f"Checking out {commit} in detached mode")
             api.git.repo.git.checkout(commit)
 
         if patch_path:
@@ -2650,7 +2590,7 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
     with open(config_path, "w") as f:
         f.write(s)
 
-    wandb.termlog("Restored config variables to {}".format(config_path))
+    wandb.termlog(f"Restored config variables to {config_path}")
     if image:
         if not metadata["program"].startswith("<") and metadata.get("args") is not None:
             # TODO: we may not want to default to python here.
@@ -2805,11 +2745,13 @@ def verify(host):
     wandb_verify.check_wandb_version(api)
     check_run_success = wandb_verify.check_run(api)
     check_artifacts_success = wandb_verify.check_artifacts()
+    check_sweeps_success = wandb_verify.check_sweeps(api)
     if not (
         check_artifacts_success
         and check_run_success
         and large_post_success
         and url_success
+        and check_sweeps_success
     ):
         sys.exit(1)
 

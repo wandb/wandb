@@ -16,8 +16,8 @@ import (
 
 // This operation is not supported for directory buckets.
 //
-// Returns an inventory configuration (identified by the inventory configuration
-// ID) from the bucket.
+// Returns an S3 Inventory configuration (identified by the inventory
+// configuration ID) from the bucket.
 //
 // To use this operation, you must have permissions to perform the
 // s3:GetInventoryConfiguration action. The bucket owner has this permission by
@@ -160,6 +160,9 @@ func (c *Client) addOperationGetBucketInventoryConfigurationMiddlewares(stack *m
 		return err
 	}
 	if err = addIsExpressUserAgent(stack); err != nil {
+		return err
+	}
+	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpGetBucketInventoryConfigurationValidationMiddleware(stack); err != nil {

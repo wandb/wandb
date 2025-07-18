@@ -1,14 +1,31 @@
 from __future__ import annotations
 
-from typing import Iterable, TypeVar
+from typing import TYPE_CHECKING, Any, Iterable, TypeVar, Union, overload
 
-T = TypeVar("T")
+if TYPE_CHECKING:
+    T = TypeVar("T")
+    ClassInfo = Union[type[T], tuple[type[T], ...]]
+
+
+@overload
+def always_list(obj: Iterable[T], base_type: ClassInfo = ...) -> list[T]: ...
+@overload
+def always_list(obj: T, base_type: ClassInfo = ...) -> list[T]: ...
+def always_list(obj: Any, base_type: Any = (str, bytes)) -> list[T]:
+    """Return a guaranteed list of objects from a single instance OR iterable of such objects.
+
+    By default, assume the returned list should have string-like elements (i.e. `str`/`bytes`).
+
+    Adapted from `more_itertools.always_iterable`, but simplified for internal use.  See:
+    https://more-itertools.readthedocs.io/en/stable/api.html#more_itertools.always_iterable
+    """
+    return [obj] if isinstance(obj, base_type) else list(obj)
 
 
 def one(
     iterable: Iterable[T],
-    too_short: Exception | None = None,
-    too_long: Exception | None = None,
+    too_short: type[Exception] | Exception | None = None,
+    too_long: type[Exception] | Exception | None = None,
 ) -> T:
     """Return the only item in the iterable.
 
@@ -35,12 +52,14 @@ def one(
     it = iter(iterable)
     try:
         obj = next(it)
-    except StopIteration as e:
-        raise too_short or ValueError("Expected 1 item in iterable, got 0") from e
+    except StopIteration:
+        raise (too_short or ValueError("Expected 1 item in iterable, got 0")) from None
 
     # ...the second item doesn't
     try:
         _ = next(it)
     except StopIteration:
         return obj
-    raise too_long or ValueError("Expected 1 item in iterable, got multiple")
+    raise (
+        too_long or ValueError("Expected 1 item in iterable, got multiple")
+    ) from None

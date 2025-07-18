@@ -103,7 +103,7 @@ func (cl *CoreLogger) With(args ...any) *CoreLogger {
 
 // CaptureError logs an error and sends it to Sentry.
 func (cl *CoreLogger) CaptureError(err error, args ...any) {
-	cl.Logger.Error(err.Error(), args...)
+	cl.Error(err.Error(), args...)
 
 	if cl.sentry != nil {
 		cl.sentry.CaptureException(err, cl.withArgs(args...))
@@ -112,7 +112,7 @@ func (cl *CoreLogger) CaptureError(err error, args ...any) {
 
 // CaptureFatal logs a fatal error and sends it to Sentry.
 func (cl *CoreLogger) CaptureFatal(err error, args ...any) {
-	cl.Logger.Log(context.Background(), LevelFatal, err.Error(), args...)
+	cl.Log(context.Background(), LevelFatal, err.Error(), args...)
 
 	if cl.sentry != nil {
 		cl.sentry.CaptureException(err, cl.withArgs(args...))
@@ -129,7 +129,7 @@ func (cl *CoreLogger) CaptureFatalAndPanic(err error, args ...any) {
 
 // CaptureWarn logs a warning and sends it to Sentry.
 func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
-	cl.Logger.Warn(msg, args...)
+	cl.Warn(msg, args...)
 
 	if cl.sentry != nil {
 		cl.sentry.CaptureMessage(msg, cl.withArgs(args...))
@@ -138,7 +138,7 @@ func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
 
 // CaptureInfo logs an info message and sends it to Sentry.
 func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
-	cl.Logger.Info(msg, args...)
+	cl.Info(msg, args...)
 
 	if cl.sentry != nil {
 		cl.sentry.CaptureMessage(msg, cl.withArgs(args...))

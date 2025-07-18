@@ -23,14 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Molecule(BatchableMedia):
-    """Wandb class for 3D Molecular data.
-
-    Args:
-        data_or_path: (string, io)
-            Molecule can be initialized from a file name or an io object.
-        caption: (string)
-            Caption associated with the molecule for display.
-    """
+    """W&B class for 3D Molecular data."""
 
     SUPPORTED_TYPES = {
         "pdb",
@@ -49,13 +42,17 @@ class Molecule(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union[str, "TextIO"],
+        data_or_path: Union[str, pathlib.Path, "TextIO"],
         caption: Optional[str] = None,
         **kwargs: str,
     ) -> None:
-        super().__init__()
+        """Initialize a Molecule object.
 
-        self._caption = caption
+        Args:
+            data_or_path: Molecule can be initialized from a file name or an io object.
+            caption: Caption associated with the molecule for display.
+        """
+        super().__init__(caption=caption)
 
         if hasattr(data_or_path, "name"):
             # if the file has a path, we just detect the type and copy it from there
@@ -84,7 +81,9 @@ class Molecule(BatchableMedia):
                 f.write(molecule)
 
             self._set_file(tmp_path, is_tmp=True)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             extension = os.path.splitext(data_or_path)[1][1:]
             if extension not in Molecule.SUPPORTED_TYPES:
                 raise ValueError(
@@ -116,6 +115,8 @@ class Molecule(BatchableMedia):
                 This is an expensive operation that may take a long time for complicated molecules.
             mmff_optimize_molecule_max_iterations: (int)
                 Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
+
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         rdkit_chem = util.get_module(
             "rdkit.Chem",
@@ -146,9 +147,7 @@ class Molecule(BatchableMedia):
         elif isinstance(data_or_path, rdkit_chem.rdchem.Mol):
             molecule = data_or_path
         else:
-            raise ValueError(
-                "Data must be file name or an rdkit.Chem.rdchem.Mol object"
-            )
+            raise TypeError("Data must be file name or an rdkit.Chem.rdchem.Mol object")
 
         if convert_to_3d_and_optimize:
             molecule = rdkit_chem.AddHs(molecule)
@@ -174,17 +173,17 @@ class Molecule(BatchableMedia):
         """Convert SMILES string to wandb.Molecule.
 
         Args:
-            data: (string)
-                SMILES string.
-            caption: (string)
-                Caption associated with the molecule for display
-            sanitize: (bool)
-                Check if the molecule is chemically reasonable by the RDKit's definition.
-            convert_to_3d_and_optimize: (bool)
-                Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
-                This is an expensive operation that may take a long time for complicated molecules.
-            mmff_optimize_molecule_max_iterations: (int)
-                Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
+            data: SMILES string.
+            caption: Caption associated with the molecule for display.
+            sanitize: Check if the molecule is chemically reasonable by
+                the RDKit's definition.
+            convert_to_3d_and_optimize: Convert to rdkit.Chem.rdchem.Mol
+                with 3D coordinates. This is a computationally intensive
+                operation that may take a long time for complicated molecules.
+            mmff_optimize_molecule_max_iterations: Number of iterations to
+                use in rdkit.Chem.AllChem.MMFFOptimizeMolecule.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         rdkit_chem = util.get_module(
             "rdkit.Chem",
@@ -203,13 +202,19 @@ class Molecule(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Molecule"]) -> str:
+        """Get media subdirectory.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         return os.path.join("media", "molecule")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
-        if self._caption:
-            json_dict["caption"] = self._caption
         return json_dict
 
     @classmethod
@@ -220,6 +225,10 @@ class Molecule(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
+        """Convert a sequence of Molecule objects to a JSON representation.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         seq = list(seq)
 
         jsons = [obj.to_json(run) for obj in seq]

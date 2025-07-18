@@ -50,6 +50,7 @@ message Record {
     // Removed but kept to avoid panics in `wandb sync`.
     google.protobuf.Empty noop_link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
+    EnvironmentRecord environment = 26;
 
     // request field does not belong here longterm
     Request request = 100;
@@ -122,6 +123,18 @@ message FooterRecord {
   _RecordInfo _info = 200;
 }
 
+// A point in a run from which another run can be branched.
+message BranchPoint {
+  // The ID of the run to branch from.
+  string run = 1;
+
+  // The value of the metric to branch at.
+  double value = 2;
+
+  // The name of the metric to use to find a branch point.
+  string metric = 3;
+}
+
 /*
  * RunRecord: wandb/sdk/wandb_run/Run
  */
@@ -148,6 +161,10 @@ message RunRecord {
   int32 runtime = 20;
   GitRepoRecord git = 21;
   bool forked = 22;
+
+  // Information about the source if this is a fork or rewind of another run.
+  BranchPoint branch_point = 23;
+
   _RecordInfo _info = 200;
 }
 
@@ -284,6 +301,8 @@ message MetricRecord {
   MetricGoal goal = 8;
   MetricControl _control = 9;
 
+  bool expanded_from_glob = 10;
+
   enum MetricGoal {
     GOAL_UNSET = 0;
     GOAL_MINIMIZE = 1;
@@ -312,6 +331,7 @@ message MetricSummary {
   bool last = 5;
   bool none = 6;
   bool copy = 7;
+  bool first = 8;
 }
 
 /*
@@ -390,7 +410,7 @@ message FilesItem {
     ARTIFACT = 3;
   }
 
-  // A path or Unix glob relative to the W&B files directory.
+  // A path or Unix glob relative to the run's files directory.
   string path = 1;
 
   // When to upload the file.
@@ -501,6 +521,7 @@ message LinkArtifactRequest {
 
 message LinkArtifactResponse {
   string error_message = 1;
+  optional int32 version_index = 2;
 }
 
 // Indicates a directory of TensorBoard tfevents files to sync with the run.
@@ -560,7 +581,7 @@ message AlertResult {}
  * Request: all non persistent messages
  */
 message Request {
-  reserved 75, 76;
+  reserved 22, 75, 76, 80;
 
   oneof request_type {
     StopStatusRequest stop_status = 1;
@@ -581,7 +602,6 @@ message Request {
     ServerFeatureRequest server_feature = 18;
     RunStatusRequest run_status = 20;
     CancelRequest cancel = 21;
-    MetadataRequest metadata = 22;
     InternalMessagesRequest internal_messages = 23;
     PythonPackagesRequest python_packages = 24;
     ShutdownRequest shutdown = 64;
@@ -598,8 +618,11 @@ message Request {
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
     RunFinishWithoutExitRequest run_finish_without_exit = 79;
-    GetSystemMetadataRequest get_system_metadata = 80;
     SyncFinishRequest sync_finish = 81;
+
+    // Requests information about tasks the service is performing.
+    OperationStatsRequest operations = 82;
+
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -608,6 +631,8 @@ message Request {
  * Response: all non persistent responses to Requests
  */
 message Response {
+  reserved 73;
+
   oneof response_type {
     KeepaliveResponse keepalive_response = 18;
     StopStatusResponse stop_status_response = 19;
@@ -633,7 +658,7 @@ message Response {
     LinkArtifactResponse link_artifact_response = 71;
     SyncResponse sync_response = 70;
     RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
-    GetSystemMetadataResponse get_system_metadata_response = 73;
+    OperationStatsResponse operations_response = 74;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -681,9 +706,7 @@ message ResumeRequest {
 
 message ResumeResponse {}
 
-/*
- * LoginRequest: wandb/sdk/wandb_login
- */
+// Old request, no longer used for logging in (if it ever was).
 message LoginRequest {
   string api_key = 1;
   _RequestInfo _info = 200;
@@ -722,17 +745,6 @@ message SystemMetricsBuffer {
 
 message GetSystemMetricsResponse {
   map<string, SystemMetricsBuffer> system_metrics = 1;
-}
-
-/*
- * GetSystemMetadataRequest: request system metadata
- */
-message GetSystemMetadataRequest {
-  _RequestInfo _info = 200;
-}
-
-message GetSystemMetadataResponse {
-  MetadataRequest metadata = 1;
 }
 
 /*
@@ -795,6 +807,14 @@ message PollExitResponse {
   FilePusherStats pusher_stats = 3;
   FileCounts file_counts = 4;
   OperationStats operation_stats = 5;
+}
+
+message OperationStatsRequest {
+  _RequestInfo _info = 200;
+}
+
+message OperationStatsResponse {
+  OperationStats operation_stats = 1;
 }
 
 // Information about ongoing operations in the internal process.
@@ -1214,7 +1234,7 @@ message CancelRequest {
 message CancelResponse {}
 
 /*
- * MetadataRequest
+ * Run environment including system, hardware, software, and execution parameters.
  */
 message DiskInfo {
   uint64 total = 1;
@@ -1278,42 +1298,97 @@ message TPUInfo {
   uint32 count = 4;
 }
 
-message MetadataRequest {
-  string os = 1;
-  string python = 2;
-  google.protobuf.Timestamp heartbeat_at = 3 [json_name = "heartbeatAt"];
-  google.protobuf.Timestamp started_at = 4 [json_name = "startedAt"];
-  string docker = 5;
-  string cuda = 6;
-  repeated string args = 7;
-  string state = 8;
-  string program = 9;
-  string code_path = 10 [json_name = "codePath"];
-  GitRepoRecord git = 11;
-  string email = 12;
-  string root = 13;
-  string host = 14;
-  string username = 15;
-  string executable = 16;
-  string code_path_local = 17 [json_name = "codePathLocal"];
-  string colab = 18;
-  uint32 cpu_count = 19 [json_name = "cpu_count"];
-  uint32 cpu_count_logical = 20 [json_name = "cpu_count_logical"];
-  string gpu_type = 21 [json_name = "gpu"];
-  uint32 gpu_count = 22 [json_name = "gpu_count"];
-  map<string, DiskInfo> disk = 23;
-  MemoryInfo memory = 24;
-  CpuInfo cpu = 25;
-  AppleInfo apple = 26;
-  repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
-  repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
-  map<string, string> slurm = 29;
-  string cuda_version = 30;
-  TrainiumInfo trainium = 31;
-  TPUInfo tpu = 32;
+// CoreWeaveInfo stores information about a CoreWeave compute environment.
+message CoreWeaveInfo {
+  string cluster_name = 1;
+  string org_id = 2;
+  string region = 3;
+}
 
-  // Flag indicating whether the request originated from the user.
-  optional bool _user_modified = 200 [json_name = "_user_modified"];
+// EnvironmentRecord stores a snapshot of the system, hardware, software,
+// and execution parameters captured at a run writer initialization.
+//
+// A single W&B Run can have multiple "writers" that contribute data to the run.
+// Examples include:
+//   - Multiple processes logging to the same run in a distributed training setup
+//     (`wandb.init(id="<run-id>", mode="shared")`)
+//   - Resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
+//     which creates a new writer session, potentially on a different machine.
+//
+// Because each writer can have a distinct environment (e.g., different OS,
+// hardware, or git state), this record is associated with that writer's
+// unique `writer_id` to preserve its specific context.
+message EnvironmentRecord {
+  // The environment and system metadata captured by this specific writer.
+
+  // Operating system, e.g., "macOS-14.4.1-arm64-arm-64bit".
+  string os = 1;
+  // Version of the Python interpreter, e.g., "3.11.8".
+  string python = 2;
+  // Timestamp when the writer started.
+  google.protobuf.Timestamp started_at = 3 [json_name = "startedAt"];
+  // Docker image ID, if running in a Docker container.
+  string docker = 4;
+  // Command-line arguments passed to the script.
+  repeated string args = 5;
+  // The name of the program or script being executed.
+  string program = 6;
+  // Path to the program or script.
+  string code_path = 7 [json_name = "codePath"];
+  // The local filesystem path to the code being executed.
+  string code_path_local = 8 [json_name = "codePathLocal"];
+  // Information about the Git repository, if applicable.
+  GitRepoRecord git = 9;
+  // Email of the logged-in user.
+  string email = 10;
+  // Root directory where the script was executed.
+  string root = 11;
+  // Hostname of the machine.
+  string host = 12;
+  // Username of the user running the script.
+  string username = 13;
+  // Path to the executable that is running the script (e.g., path to python).
+  string executable = 14;
+  // URL of the Colab notebook, if running in Google Colab.
+  string colab = 15;
+  // Number of physical CPU cores.
+  uint32 cpu_count = 16 [json_name = "cpu_count"];
+  // Number of logical CPU cores.
+  uint32 cpu_count_logical = 17 [json_name = "cpu_count_logical"];
+  // Primary GPU type or name.
+  string gpu_type = 18 [json_name = "gpu"];
+  // Total number of GPUs.
+  uint32 gpu_count = 19 [json_name = "gpu_count"];
+  // Detailed information about mounted disk volumes.
+  map<string, DiskInfo> disk = 20;
+  // Information about system memory.
+  MemoryInfo memory = 21;
+  // CPU information.
+  CpuInfo cpu = 22;
+  // Information specific to Apple Silicon hardware.
+  AppleInfo apple = 23;
+  // Detailed information for each NVIDIA GPU.
+  repeated GpuNvidiaInfo gpu_nvidia = 24 [json_name = "gpu_nvidia"];
+  // Version of the CUDA toolkit, if available.
+  string cuda_version = 25;
+  // Detailed information for each AMD GPU.
+  repeated GpuAmdInfo gpu_amd = 26 [json_name = "gpu_amd"];
+  // Information from the Slurm workload manager, if present.
+  map<string, string> slurm = 27;
+  // Information about AWS Trainium hardware.
+  TrainiumInfo trainium = 28;
+  // Information about Google TPU hardware.
+  TPUInfo tpu = 29;
+  // Information about CoreWeave cloud environment.
+  CoreWeaveInfo coreweave = 30;
+
+  // A unique identifier for this writer session.
+  //
+  // This ID distinguishes this writer's metadata from that of other writers
+  // that may be contributing to the same run.
+  string writer_id = 199;
+
+  _RecordInfo _info = 200;
 }
 
 message PythonPackagesRequest {
@@ -1367,10 +1442,53 @@ message JobInputRequest {
   string input_schema = 4;
 }
 
+/**
+ * Server features are features that the server supports.
+ * This name should match the name of the feature defined in the backend server.
+ */
 enum ServerFeature {
+  // Indicates that the server supports recieving an array of filenames as metadata.
   LARGE_FILENAMES = 0;
+
+  // Indicates that the server supports adding tags to artifacts.
   ARTIFACT_TAGS = 1;
+
+  // Indicates that the server supports client IDs for artifact reference urls.
   CLIENT_IDS = 2;
+
+  // Indicates that the server supports searching for artifacts in a registry.
+  ARTIFACT_REGISTRY_SEARCH = 3;
+
+  // Indicates that the server supports structured console logs.
+  STRUCTURED_CONSOLE_LOGS = 4;
+
+  // Indicates that the server supports querying for files on artifact collection memberships.
+  ARTIFACT_COLLECTION_MEMBERSHIP_FILES = 5;
+
+  // Indicates that the server supports downloading files with additional artifact collection memberships context in the
+  // url.
+  ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER = 6;
+
+  // Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
+  USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION = 7;
+
+  // Indicates that the server supports expanding defined metric globs on the server side.
+  EXPAND_DEFINED_METRIC_GLOBS = 8;
+
+  // Indicates that the server supports automation event RUN_METRIC.
+  AUTOMATION_EVENT_RUN_METRIC = 9;
+
+  // Indicates that the server supports automation event RUN_METRIC_CHANGE.
+  AUTOMATION_EVENT_RUN_METRIC_CHANGE = 10;
+
+  // Indicates that the server supports automation action NO_OP.
+  AUTOMATION_ACTION_NO_OP = 11;
+
+  // Indicates that the server supports including artifact types in registry creation.
+  INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION = 12;
+
+  // Indicates that the server supports querying for a artifact collection membership on the project.
+  PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP = 13;
 }
 
 /**

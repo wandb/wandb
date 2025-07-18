@@ -19,7 +19,7 @@ import (
 
 // PartitionsWithContext returns disk partition.
 // 'all' argument is ignored, see: https://github.com/giampaolo/psutil/issues/906
-func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, error) {
+func PartitionsWithContext(_ context.Context, _ bool) ([]PartitionStat, error) {
 	var ret []PartitionStat
 
 	// get length
@@ -33,7 +33,8 @@ func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, erro
 		return ret, err
 	}
 
-	for _, stat := range fs {
+	for i := range fs {
+		stat := &fs[i]
 		opts := []string{"rw"}
 		if stat.Flags&unix.MNT_RDONLY != 0 {
 			opts = []string{"ro"}
@@ -144,8 +145,8 @@ func IOCountersWithContext(ctx context.Context, names ...string) (map[string]IOC
 }
 
 func (b bintime) Compute() float64 {
-	BINTIME_SCALE := 5.42101086242752217003726400434970855712890625e-20
-	return float64(b.Sec) + float64(b.Frac)*BINTIME_SCALE
+	bintimeScale := 5.42101086242752217003726400434970855712890625e-20
+	return float64(b.Sec) + float64(b.Frac)*bintimeScale
 }
 
 // BT2LD(time)     ((long double)(time).sec + (time).frac * BINTIME_SCALE)
@@ -182,12 +183,13 @@ func SerialNumberWithContext(ctx context.Context, name string) (string, error) {
 			break
 		}
 	}
-	if err = s.Err(); err != nil {
+	err = s.Err()
+	if err != nil {
 		return "", err
 	}
 	return serial, nil
 }
 
-func LabelWithContext(ctx context.Context, name string) (string, error) {
+func LabelWithContext(_ context.Context, _ string) (string, error) {
 	return "", common.ErrNotImplementedError
 }

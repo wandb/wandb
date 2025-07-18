@@ -12,20 +12,20 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 from __future__ import annotations
 
 __all__ = (
-    "__version__",
+    "__version__",  # doc:exclude
     "init",
     "finish",
     "setup",
     "login",
-    "save",
+    "save",  # doc:exclude
     "sweep",
     "controller",
     "agent",
-    "config",
-    "log",
-    "summary",
+    "config",  # doc:exclude
+    "log",  # doc:exclude
+    "summary",  # doc:exclude
     "Api",
-    "Graph",
+    "Graph",  # doc:exclude
     "Image",
     "Plotly",
     "Video",
@@ -36,25 +36,27 @@ __all__ = (
     "Object3D",
     "Molecule",
     "Histogram",
-    "ArtifactTTL",
-    "log_artifact",
-    "use_artifact",
-    "log_model",
-    "use_model",
-    "link_model",
-    "define_metric",
-    "Error",
-    "termsetup",
-    "termlog",
-    "termerror",
-    "termwarn",
+    "ArtifactTTL",  # doc:exclude
+    "log_artifact",  # doc:exclude
+    "use_artifact",  # doc:exclude
+    "log_model",  # doc:exclude
+    "use_model",  # doc:exclude
+    "link_model",  # doc:exclude
+    "define_metric",  # doc:exclude
+    "Error",  # doc:exclude
+    "termsetup",  # doc:exclude
+    "termlog",  # doc:exclude
+    "termerror",  # doc:exclude
+    "termwarn",  # doc:exclude
     "Artifact",
     "Settings",
     "teardown",
-    "watch",
-    "unwatch",
-    "plot",
+    "watch",  # doc:exclude
+    "unwatch",  # doc:exclude
+    "plot",  # doc:exclude
     "plot_table",
+    "restore",
+    "Run",
 )
 
 import os
@@ -63,10 +65,12 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     List,
     Literal,
     Optional,
     Sequence,
+    TextIO,
     Union,
 )
 
@@ -103,7 +107,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.19.6.dev1"
+__version__: str = "0.21.1.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -113,6 +117,13 @@ summary: wandb_summary.Summary
 _sentry: Sentry
 api: InternalApi
 patched: Dict[str, List[Callable]]
+
+def require(
+    requirement: str | Iterable[str] | None = None,
+    experiment: str | Iterable[str] | None = None,
+) -> None:
+    """<sdk/wandb_require.py::require>"""
+    ...
 
 def setup(settings: Settings | None = None) -> _WandbSetup:
     """<sdk/wandb_setup.py::setup>"""
@@ -139,7 +150,16 @@ def init(
     mode: Literal["online", "offline", "disabled"] | None = None,
     force: bool | None = None,
     anonymous: Literal["never", "allow", "must"] | None = None,
-    reinit: bool | None = None,
+    reinit: (
+        bool
+        | Literal[
+            None,
+            "default",
+            "return_previous",
+            "finish_previous",
+            "create_new",
+        ]
+    ) = None,
     resume: bool | Literal["allow", "never", "must", "auto"] | None = None,
     resume_from: str | None = None,
     fork_from: str | None = None,
@@ -167,6 +187,7 @@ def login(
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
     verify: bool = False,
+    referrer: Optional[str] = None,
 ) -> bool:
     """<sdk/wandb_login.py::login>"""
     ...
@@ -175,13 +196,12 @@ def log(
     data: dict[str, Any],
     step: int | None = None,
     commit: bool | None = None,
-    sync: bool | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::log>"""
     ...
 
 def save(
-    glob_str: str | os.PathLike | None = None,
+    glob_str: str | os.PathLike,
     base_path: str | os.PathLike | None = None,
     policy: PolicyName = "live",
 ) -> bool | list[str]:
@@ -263,7 +283,7 @@ def link_model(
     registered_model_name: str,
     name: str | None = None,
     aliases: list[str] | None = None,
-) -> None:
+) -> Artifact | None:
     """<sdk/wandb_run.py::Run::link_model>"""
     ...
 
@@ -292,4 +312,13 @@ def unwatch(
     models: torch.nn.Module | Sequence[torch.nn.Module] | None = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::unwatch>"""
+    ...
+
+def restore(
+    name: str,
+    run_path: str | None = None,
+    replace: bool = False,
+    root: str | None = None,
+) -> None | TextIO:
+    """<sdk/wandb_run.py::restore>"""
     ...

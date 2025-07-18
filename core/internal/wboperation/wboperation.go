@@ -206,18 +206,34 @@ func (op *WandbOperation) ClearError() {
 
 // MarkRetryingHTTPError sets the operation's error status.
 //
+// The `responseStatusCode` is the HTTP status code of the response, like 429.
 // The `responseStatus` must be a string in the form "429 Too Many Requests",
 // which is available as the Status field on an http.Response.
+// The `responseError` may be empty, or it may contain additional information
+// about the error.
 //
 // There should be a corresponding call to `ClearError`.
-func (op *WandbOperation) MarkRetryingHTTPError(responseStatus string) {
+func (op *WandbOperation) MarkRetryingHTTPError(
+	responseStatusCode int,
+	responseStatus string,
+	responseError string,
+) {
 	if op == nil {
 		return
 	}
 
 	op.mu.Lock()
 	defer op.mu.Unlock()
-	op.errorStatus = fmt.Sprintf("retrying HTTP %s", responseStatus)
+
+	if len(responseError) > 0 {
+		op.errorStatus = fmt.Sprintf(
+			"retrying HTTP %d: %s",
+			responseStatusCode,
+			responseError,
+		)
+	} else {
+		op.errorStatus = fmt.Sprintf("retrying HTTP %s", responseStatus)
+	}
 }
 
 // MarkRetryingError sets the operation's error status.

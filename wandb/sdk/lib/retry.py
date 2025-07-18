@@ -94,7 +94,7 @@ class Retry(Generic[_R]):
         """The number of iterations the previous __call__ retried."""
         return self._num_iter
 
-    def __call__(self, *args: Any, **kwargs: Any) -> _R:  # noqa: C901
+    def __call__(self, *args: Any, **kwargs: Any) -> _R:
         """Call the wrapped function, with retries.
 
         Args:
@@ -140,9 +140,7 @@ class Retry(Generic[_R]):
                     if self.retry_callback:
                         self.retry_callback(
                             200,
-                            "{} resolved after {}, resuming normal operation.".format(
-                                self._error_prefix, NOW_FN() - start_time
-                            ),
+                            f"{self._error_prefix} resolved after {NOW_FN() - start_time}, resuming normal operation.",
                         )
                 return result
             except self._retryable_exceptions as e:
@@ -184,9 +182,7 @@ class Retry(Generic[_R]):
                         # but some of these can be raised before the retry handler thread (RunStatusChecker) is
                         # spawned in wandb_init
                         wandb.termlog(
-                            "{} ({}), entering retry loop.".format(
-                                self._error_prefix, e.__class__.__name__
-                            )
+                            f"{self._error_prefix} ({e.__class__.__name__}), entering retry loop."
                         )
                 # if wandb.env.is_debug():
                 #     traceback.print_exc()

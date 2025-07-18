@@ -52,7 +52,8 @@ var (
 		http2Enabled:      true,
 		// 5 minutes is typically above the maximum sane scrape interval. So we can
 		// use keepalive for all configurations.
-		idleConnTimeout: 5 * time.Minute,
+		idleConnTimeout:  5 * time.Minute,
+		newTLSConfigFunc: NewTLSConfigWithContext,
 	}
 )
 
@@ -224,7 +225,7 @@ func (u *URL) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaler interface for URL.
 func (u URL) MarshalJSON() ([]byte, error) {
 	if u.URL != nil {
-		return json.Marshal(u.URL.String())
+		return json.Marshal(u.String())
 	}
 	return []byte("null"), nil
 }
@@ -250,7 +251,7 @@ func (o *OAuth2) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(o)); err != nil {
 		return err
 	}
-	return o.ProxyConfig.Validate()
+	return o.Validate()
 }
 
 // UnmarshalJSON implements the json.Marshaler interface for URL.
@@ -259,7 +260,7 @@ func (o *OAuth2) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, (*plain)(o)); err != nil {
 		return err
 	}
-	return o.ProxyConfig.Validate()
+	return o.Validate()
 }
 
 // SetDirectory joins any relative file paths with dir.
@@ -452,8 +453,12 @@ func (a *BasicAuth) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // by net.Dialer.
 type DialContextFunc func(context.Context, string, string) (net.Conn, error)
 
+// NewTLSConfigFunc returns tls.Config.
+type NewTLSConfigFunc func(context.Context, *TLSConfig, ...TLSConfigOption) (*tls.Config, error)
+
 type httpClientOptions struct {
 	dialContextFunc   DialContextFunc
+	newTLSConfigFunc  NewTLSConfigFunc
 	keepAlivesEnabled bool
 	http2Enabled      bool
 	idleConnTimeout   time.Duration
@@ -473,10 +478,20 @@ func (f httpClientOptionFunc) applyToHTTPClientOptions(options *httpClientOption
 	f(options)
 }
 
-// WithDialContextFunc allows you to override func gets used for the actual dialing. The default is `net.Dialer.DialContext`.
+// WithDialContextFunc allows you to override the func gets used for the dialing.
+// The default is `net.Dialer.DialContext`.
 func WithDialContextFunc(fn DialContextFunc) HTTPClientOption {
 	return httpClientOptionFunc(func(opts *httpClientOptions) {
 		opts.dialContextFunc = fn
+	})
+}
+
+// WithNewTLSConfigFunc allows you to override the func that creates the TLS config
+// from the prometheus http config.
+// The default is `NewTLSConfigWithContext`.
+func WithNewTLSConfigFunc(newTLSConfigFunc NewTLSConfigFunc) HTTPClientOption {
+	return httpClientOptionFunc(func(opts *httpClientOptions) {
+		opts.newTLSConfigFunc = newTLSConfigFunc
 	})
 }
 
@@ -589,8 +604,8 @@ func NewRoundTripperFromConfigWithContext(ctx context.Context, cfg HTTPClientCon
 		// The only timeout we care about is the configured scrape timeout.
 		// It is applied on request. So we leave out any timings here.
 		var rt http.RoundTripper = &http.Transport{
-			Proxy:                 cfg.ProxyConfig.Proxy(),
-			ProxyConnectHeader:    cfg.ProxyConfig.GetProxyConnectHeader(),
+			Proxy:                 cfg.Proxy(),
+			ProxyConnectHeader:    cfg.GetProxyConnectHeader(),
 			MaxIdleConns:          20000,
 			MaxIdleConnsPerHost:   1000, // see https://github.com/golang/go/issues/13801
 			DisableKeepAlives:     !opts.keepAlivesEnabled,
@@ -670,7 +685,7 @@ func NewRoundTripperFromConfigWithContext(ctx context.Context, cfg HTTPClientCon
 		return rt, nil
 	}
 
-	tlsConfig, err := NewTLSConfig(&cfg.TLSConfig, WithSecretManager(opts.secretManager))
+	tlsConfig, err := opts.newTLSConfigFunc(ctx, &cfg.TLSConfig, WithSecretManager(opts.secretManager))
 	if err != nil {
 		return nil, err
 	}
@@ -679,6 +694,7 @@ func NewRoundTripperFromConfigWithContext(ctx context.Context, cfg HTTPClientCon
 	if err != nil {
 		return nil, err
 	}
+
 	if tlsSettings.immutable() {
 		// No need for a RoundTripper that reloads the files automatically.
 		return newRT(tlsConfig)
@@ -898,8 +914,8 @@ func (rt *oauth2RoundTripper) newOauth2TokenSource(req *http.Request, secret str
 	tlsTransport := func(tlsConfig *tls.Config) (http.RoundTripper, error) {
 		return &http.Transport{
 			TLSClientConfig:       tlsConfig,
-			Proxy:                 rt.config.ProxyConfig.Proxy(),
-			ProxyConnectHeader:    rt.config.ProxyConfig.GetProxyConnectHeader(),
+			Proxy:                 rt.config.Proxy(),
+			ProxyConnectHeader:    rt.config.GetProxyConnectHeader(),
 			DisableKeepAlives:     !rt.opts.keepAlivesEnabled,
 			MaxIdleConns:          20,
 			MaxIdleConnsPerHost:   1, // see https://github.com/golang/go/issues/13801
@@ -1492,7 +1508,7 @@ func (c *ProxyConfig) Proxy() (fn func(*http.Request) (*url.URL, error)) {
 		}
 		return
 	}
-	if c.ProxyURL.URL != nil && c.ProxyURL.URL.String() != "" {
+	if c.ProxyURL.URL != nil && c.ProxyURL.String() != "" {
 		if c.NoProxy == "" {
 			c.proxyFunc = http.ProxyURL(c.ProxyURL.URL)
 			return

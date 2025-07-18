@@ -83,6 +83,7 @@ func TestSaveGraphQLRequest(t *testing.T) {
 		observability.NewNoOpLogger(),
 		mockGQL,
 		ftm,
+		true,
 	)
 
 	result := <-saver.Save(
@@ -101,9 +102,7 @@ func TestSaveGraphQLRequest(t *testing.T) {
 	requests := mockGQL.AllRequests()
 	assert.Len(t, requests, 4)
 	createArtifactRequest := requests[1]
-	gqlmock.AssertRequest(t,
-		gqlmock.WithVariables(
-			gqlmock.GQLVar("input.entityName", gomock.Eq("test-entity")),
-		),
-		createArtifactRequest)
+	gqlmock.AssertVariables(t,
+		createArtifactRequest,
+		gqlmock.GQLVar("input.entityName", gomock.Eq("test-entity")))
 }

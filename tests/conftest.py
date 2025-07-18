@@ -1,36 +1,38 @@
 from __future__ import annotations
 
+import logging
 import os
+import pathlib
 import platform
 import shutil
+import sys
 import time
 import unittest.mock
 from itertools import takewhile
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable, Generator, Iterable
+from typing import Any, Callable, Generator, Iterable, Iterator
 
 import pyte
 import pyte.modes
+from pytest_mock import MockerFixture
 from wandb.errors import term
 
 # Don't write to Sentry in wandb.
-#
-# For wandb-core, this setting is configured below.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
-import git  # noqa: E402
-import pytest  # noqa: E402
-import wandb  # noqa: E402
-import wandb.old.settings  # noqa: E402
-import wandb.sdk.lib.apikey  # noqa: E402
-import wandb.util  # noqa: E402
-from click.testing import CliRunner  # noqa: E402
-from wandb import Api  # noqa: E402
-from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
-from wandb.sdk.lib import filesystem, runid  # noqa: E402
-from wandb.sdk.lib.gitlib import GitRepo  # noqa: E402
-from wandb.sdk.lib.paths import StrPath  # noqa: E402
+import git
+import pytest
+import wandb
+import wandb.old.settings
+import wandb.sdk.lib.apikey
+import wandb.util
+from click.testing import CliRunner
+from wandb import Api
+from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.lib import filesystem, module, runid
+from wandb.sdk.lib.gitlib import GitRepo
+from wandb.sdk.lib.paths import StrPath
 
 # --------------------------------
 # Global pytest configuration
@@ -56,55 +58,6 @@ def setup_wandb_env_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     # Set the _network_buffer setting to 1000 to increase the likelihood
     # of triggering flow control logic.
     monkeypatch.setenv("WANDB_X_NETWORK_BUFFER", "1000")
-
-
-@pytest.fixture(autouse=True)
-def toggle_legacy_service(
-    monkeypatch: pytest.MonkeyPatch,
-    request: pytest.FixtureRequest,
-) -> None:
-    """Sets WANDB_X_REQUIRE_LEGACY_SERVICE in each test.
-
-    This fixture is used to run each test both with and without wandb-core.
-    """
-    monkeypatch.setenv("WANDB_X_REQUIRE_LEGACY_SERVICE", str(request.param))
-
-
-def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
-    # See https://docs.pytest.org/en/7.1.x/how-to/parametrize.html#basic-pytest-generate-tests-example
-
-    # Run each test both with and without wandb-core.
-    if toggle_legacy_service.__name__ in metafunc.fixturenames:
-        # Allow tests to opt-out of wandb-core until we have feature parity.
-        skip_wandb_core = False
-        wandb_core_only = False
-        for mark in metafunc.definition.iter_markers():
-            if mark.name == "skip_wandb_core":
-                skip_wandb_core = True
-            elif mark.name == "wandb_core_only":
-                wandb_core_only = True
-
-        if wandb_core_only:
-            # Don't merge tests like this. Implement the feature first.
-            assert (
-                not skip_wandb_core
-            ), "Cannot mark test both skip_wandb_core and wandb_core_only"
-
-            values = [False]
-            ids = ["wandb_core"]
-        elif skip_wandb_core:
-            values = [True]
-            ids = ["no_wandb_core"]
-        else:
-            values = [True, False]
-            ids = ["no_wandb_core", "wandb_core"]
-
-        metafunc.parametrize(
-            toggle_legacy_service.__name__,
-            values,
-            ids=ids,
-            indirect=True,  # Causes the fixture to be invoked.
-        )
 
 
 # --------------------------------
@@ -138,6 +91,25 @@ def copy_asset(
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
+
+
+@pytest.fixture()
+def wandb_caplog(
+    caplog: pytest.LogCaptureFixture,
+) -> Iterator[pytest.LogCaptureFixture]:
+    """Modified caplog fixture that detect wandb log messages.
+
+    The wandb logger is configured to not propagate messages to the root logger,
+    so caplog does not work out of the box.
+    """
+
+    logger = logging.getLogger("wandb")
+
+    logger.addHandler(caplog.handler)
+    try:
+        yield caplog
+    finally:
+        logger.removeHandler(caplog.handler)
 
 
 @pytest.fixture(autouse=True)
@@ -279,9 +251,22 @@ def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
 
 
 @pytest.fixture(scope="function", autouse=True)
-def filesystem_isolate(tmp_path):
-    kwargs = dict(temp_dir=tmp_path)
-    with CliRunner().isolated_filesystem(**kwargs):
+def filesystem_isolate(tmp_path, monkeypatch):
+    # isolated_filesystem() changes the current working directory, which is
+    # where coverage.py stores coverage by default. This causes Python
+    # subprocesses to place their coverage into a temporary directory that is
+    # discarded after each test.
+    #
+    # Setting COVERAGE_FILE to an absolute path fixes this.
+    if covfile := os.getenv("COVERAGE_FILE"):
+        new_covfile = str(pathlib.Path(covfile).absolute())
+    else:
+        new_covfile = str(pathlib.Path(os.getcwd()) / ".coverage")
+
+    print(f"Setting COVERAGE_FILE to {new_covfile}", file=sys.stderr)
+    monkeypatch.setenv("COVERAGE_FILE", new_covfile)
+
+    with CliRunner().isolated_filesystem(temp_dir=tmp_path):
         yield
 
 
@@ -314,20 +299,16 @@ def local_netrc(filesystem_isolate):
 
 
 @pytest.fixture
-def dummy_api_key():
+def dummy_api_key() -> str:
     return "1824812581259009ca9981580f8f8a9012409eee"
 
 
 @pytest.fixture
-def patch_apikey(dummy_api_key):
-    with unittest.mock.patch.object(
-        wandb.sdk.lib.apikey, "isatty", return_value=True
-    ), unittest.mock.patch.object(
-        wandb.sdk.lib.apikey, "input", return_value=1
-    ), unittest.mock.patch.object(
-        wandb.sdk.lib.apikey, "getpass", return_value=dummy_api_key
-    ):
-        yield
+def patch_apikey(mocker: MockerFixture, dummy_api_key: str):
+    mocker.patch.object(wandb.sdk.lib.apikey, "isatty", return_value=True)
+    mocker.patch.object(wandb.sdk.lib.apikey, "input", return_value=1)
+    mocker.patch.object(wandb.sdk.lib.apikey, "getpass", return_value=dummy_api_key)
+    yield
 
 
 @pytest.fixture
@@ -448,25 +429,36 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
     own unit-tested module instead.
     """
 
-    from wandb.sdk.lib.module import unset_globals
-
-    def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.sdk.wandb_run.Run:
+    def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.Run:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
             "run_id": runid.generate_id(),
             **dict(kwargs_settings),
         }
-        run = wandb.wandb_sdk.wandb_run.Run(
-            settings=test_settings(kwargs_settings), **kwargs
-        )
+        run = wandb.Run(settings=test_settings(kwargs_settings), **kwargs)
         run._set_backend(
             unittest.mock.MagicMock() if use_magic_mock else mocked_backend
         )
-        run._set_globals()
+        run._set_library(unittest.mock.MagicMock())
+
+        module.set_global(
+            run=run,
+            config=run.config,
+            log=run.log,
+            summary=run.summary,
+            save=run.save,
+            use_artifact=run.use_artifact,
+            log_artifact=run.log_artifact,
+            define_metric=run.define_metric,
+            alert=run.alert,
+            watch=run.watch,
+            unwatch=run.unwatch,
+        )
+
         return run
 
     yield mock_run_fn
-    unset_globals()
+    module.unset_globals()
 
 
 @pytest.fixture

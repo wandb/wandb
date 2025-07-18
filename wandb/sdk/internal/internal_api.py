@@ -1,4 +1,3 @@
-import ast
 import base64
 import datetime
 import functools
@@ -36,6 +35,7 @@ import requests
 import yaml
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
+from wandb_graphql.language.ast import Document
 
 import wandb
 from wandb import env, util
@@ -43,7 +43,9 @@ from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messa
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
@@ -66,42 +68,42 @@ if TYPE_CHECKING:
     class CreateArtifactFileSpecInput(TypedDict, total=False):
         """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql."""
 
-        artifactID: str  # noqa: N815
+        artifactID: str
         name: str
         md5: str
         mimetype: Optional[str]
-        artifactManifestID: Optional[str]  # noqa: N815
-        uploadPartsInput: Optional[List[Dict[str, object]]]  # noqa: N815
+        artifactManifestID: Optional[str]
+        uploadPartsInput: Optional[List[Dict[str, object]]]
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
         name: str
-        displayName: str  # noqa: N815
-        uploadUrl: Optional[str]  # noqa: N815
-        uploadHeaders: Sequence[str]  # noqa: N815
-        uploadMultipartUrls: "UploadPartsResponse"  # noqa: N815
-        storagePath: str  # noqa: N815
+        displayName: str
+        uploadUrl: Optional[str]
+        uploadHeaders: Sequence[str]
+        uploadMultipartUrls: "UploadPartsResponse"
+        storagePath: str
         artifact: "CreateArtifactFilesResponseFileNode"
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
         id: str
 
     class UploadPartsResponse(TypedDict):
-        uploadUrlParts: List["UploadUrlParts"]  # noqa: N815
-        uploadID: str  # noqa: N815
+        uploadUrlParts: List["UploadUrlParts"]
+        uploadID: str
 
     class UploadUrlParts(TypedDict):
-        partNumber: int  # noqa: N815
-        uploadUrl: str  # noqa: N815
+        partNumber: int
+        uploadUrl: str
 
     class CompleteMultipartUploadArtifactInput(TypedDict):
         """Corresponds to `type CompleteMultipartUploadArtifactInput` in schema.graphql."""
 
-        completeMultipartAction: str  # noqa: N815
-        completedParts: Dict[int, str]  # noqa: N815
-        artifactID: str  # noqa: N815
-        storagePath: str  # noqa: N815
-        uploadID: str  # noqa: N815
+        completeMultipartAction: str
+        completedParts: Dict[int, str]
+        artifactID: str
+        storagePath: str
+        uploadID: str
         md5: str
 
     class CompleteMultipartUploadArtifactResponse(TypedDict):
@@ -115,6 +117,7 @@ if TYPE_CHECKING:
         root_dir: Optional[str]
         api_key: Optional[str]
         entity: Optional[str]
+        organization: Optional[str]
         project: Optional[str]
         _extra_http_headers: Optional[Mapping[str, str]]
         _proxies: Optional[Mapping[str, str]]
@@ -185,11 +188,6 @@ def _match_org_with_fetched_org_entities(
     """
     for org_names in orgs:
         if organization in org_names:
-            wandb.termwarn(
-                "Registries can be linked/fetched using a shorthand form without specifying the organization name. "
-                "Try using shorthand path format: <my_registry_name>/<artifact_name> or "
-                "just <my_registry_name> if fetching just the project."
-            )
             return org_names.entity_name
 
     if len(orgs) == 1:
@@ -238,7 +236,7 @@ class Api:
             ]
         ] = None,
         load_settings: bool = True,
-        retry_timedelta: datetime.timedelta = datetime.timedelta(  # noqa: B008 # okay because it's immutable
+        retry_timedelta: datetime.timedelta = datetime.timedelta(  # okay because it's immutable
             days=7
         ),
         environ: MutableMapping = os.environ,
@@ -256,6 +254,7 @@ class Api:
             "root_dir": None,
             "api_key": None,
             "entity": None,
+            "organization": None,
             "project": None,
             "_extra_http_headers": None,
             "_proxies": None,
@@ -364,6 +363,8 @@ class Api:
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
 
+        self._server_features_cache: Optional[Dict[str, bool]] = None
+
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
             *args,
@@ -397,8 +398,7 @@ class Api:
         except requests.exceptions.HTTPError as err:
             response = err.response
             assert response is not None
-            logger.error(f"{response.status_code} response executing GraphQL.")
-            logger.error(response.text)
+            logger.exception("Error executing GraphQL.")
             for error in parse_backend_error_messages(response):
                 wandb.termerror(f"Error while calling W&B API: {error} ({response})")
             raise
@@ -489,7 +489,8 @@ class Api:
                 {
                     "entity": "models",
                     "base_url": "https://api.wandb.ai",
-                    "project": None
+                    "project": None,
+                    "organization": "my-org",
                 }
         """
         result = self.default_settings.copy()
@@ -501,6 +502,14 @@ class Api:
                         Settings.DEFAULT_SECTION,
                         "entity",
                         fallback=result.get("entity"),
+                    ),
+                    env=self._environ,
+                ),
+                "organization": env.get_organization(
+                    self._settings.get(
+                        Settings.DEFAULT_SECTION,
+                        "organization",
+                        fallback=result.get("organization"),
                     ),
                     env=self._environ,
                 ),
@@ -857,6 +866,44 @@ class Api:
     def update_run_queue_item_warning_introspection(self) -> bool:
         _, _, mutations = self.server_info_introspection()
         return "updateRunQueueItemWarning" in mutations
+
+    def _server_features(self) -> Dict[str, bool]:
+        # NOTE: Avoid caching via `@cached_property`, due to undocumented
+        # locking behavior before Python 3.12.
+        # See: https://github.com/python/cpython/issues/87634
+        query = gql(SERVER_FEATURES_QUERY_GQL)
+        try:
+            response = self.gql(query)
+        except Exception as e:
+            # Unfortunately we currently have to match on the text of the error message,
+            # as the `gql` client raises `Exception` rather than a more specific error.
+            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
+                self._server_features_cache = {}
+            else:
+                raise
+        else:
+            info = ServerFeaturesQuery.model_validate(response).server_info
+            if info and (feats := info.features):
+                self._server_features_cache = {f.name: f.is_enabled for f in feats if f}
+            else:
+                self._server_features_cache = {}
+        return self._server_features_cache
+
+    def _server_supports(self, feature: Union[int, str]) -> bool:
+        """Return whether the current server supports the given feature.
+
+        This also caches the underlying lookup of server feature flags,
+        and it maps {feature_name (str) -> is_enabled (bool)}.
+
+        Good to use for features that have a fallback mechanism for older servers.
+        """
+        # If we're given the protobuf enum value, convert to a string name.
+        # NOTE: We deliberately use names (str) instead of enum values (int)
+        # as the keys here, since:
+        # - the server identifies features by their name, rather than (client-side) enum value
+        # - the defined list of client-side flags may be behind the server-side list of flags
+        key = ServerFeature.Name(feature) if isinstance(feature, int) else feature
+        return self._server_features().get(key) or False
 
     @normalize_exceptions
     def update_run_queue_item_warning(
@@ -2041,9 +2088,7 @@ class Api:
             )
             if default is None or default.get("queueID") is None:
                 raise CommError(
-                    "Unable to create default queue for {}/{}. No queues for agent to poll".format(
-                        entity, project
-                    )
+                    f"Unable to create default queue for {entity}/{project}. No queues for agent to poll"
                 )
             project_queues = [{"id": default["queueID"], "name": "default"}]
         polling_queue_ids = [
@@ -2520,15 +2565,11 @@ class Api:
         res = self.gql(query, variable_values)
         if res.get("project") is None:
             raise CommError(
-                "Error fetching run info for {}/{}/{}. Check that this project exists and you have access to this entity and project".format(
-                    entity, project, name
-                )
+                f"Error fetching run info for {entity}/{project}/{name}. Check that this project exists and you have access to this entity and project"
             )
         elif res["project"].get("run") is None:
             raise CommError(
-                "Error fetching run info for {}/{}/{}. Check that this run id exists".format(
-                    entity, project, name
-                )
+                f"Error fetching run info for {entity}/{project}/{name}. Check that this run id exists"
             )
         run_info: dict = res["project"]["run"]["runInfo"]
         return run_info
@@ -2942,11 +2983,8 @@ class Api:
                 logger.debug("upload_file: %s complete", url)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error(f"upload_file exception {url}: {e}")
-            request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers!r}")
+            logger.exception(f"upload_file exception for {url=}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = status_code == 400 and "RequestTimeout" in str(
@@ -3008,11 +3046,8 @@ class Api:
                     logger.debug("upload_file: %s complete", url)
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error(f"upload_file exception {url}: {e}")
-            request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers}")
+            logger.exception(f"upload_file exception for {url=}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = (
@@ -3139,10 +3174,8 @@ class Api:
                 },
                 timeout=60,
             )
-        except Exception as e:
-            # GQL raises exceptions with stringified python dictionaries :/
-            message = ast.literal_eval(e.args[0])["message"]
-            logger.error("Error communicating with W&B: %s", message)
+        except Exception:
+            logger.exception("Error communicating with W&B.")
             return []
         else:
             result: List[Dict[str, Any]] = json.loads(
@@ -3184,10 +3217,8 @@ class Api:
                         parameter["distribution"] = "uniform"
                     else:
                         raise ValueError(
-                            "Parameter {} is ambiguous, please specify bounds as both floats (for a float_"
-                            "uniform distribution) or ints (for an int_uniform distribution).".format(
-                                parameter_name
-                            )
+                            f"Parameter {parameter_name} is ambiguous, please specify bounds as both floats (for a float_"
+                            "uniform distribution) or ints (for an int_uniform distribution)."
                         )
         return config
 
@@ -3203,6 +3234,7 @@ class Api:
         entity: Optional[str] = None,
         state: Optional[str] = None,
         prior_runs: Optional[List[str]] = None,
+        display_name: Optional[str] = None,
         template_variable_values: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, List[str]]:
         """Upsert a sweep object.
@@ -3217,6 +3249,7 @@ class Api:
             entity (str): entity to use
             state (str): state
             prior_runs (list): IDs of existing runs to add to the sweep
+            display_name (str): display name for the sweep
             template_variable_values (dict): template variable values
         """
         project_query = """
@@ -3240,6 +3273,7 @@ class Api:
             $scheduler: JSONString,
             $state: String,
             $priorRunsFilters: JSONString,
+            $displayName: String,
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -3251,6 +3285,7 @@ class Api:
                 scheduler: $scheduler,
                 state: $state,
                 priorRunsFilters: $priorRunsFilters,
+                displayName: $displayName,
             }) {
                 sweep {
                     name
@@ -3327,6 +3362,7 @@ class Api:
                     "templateVariableValues": json.dumps(template_variable_values),
                     "scheduler": scheduler,
                     "priorRunsFilters": filters,
+                    "displayName": display_name,
                 }
                 if state:
                     variables["state"] = state
@@ -3336,8 +3372,8 @@ class Api:
                     variable_values=variables,
                     check_retry_fn=util.no_retry_4xx,
                 )
-            except UsageError as e:
-                raise e
+            except UsageError:
+                raise
             except Exception as e:
                 # graphql schema exception is generic
                 err = e
@@ -3692,67 +3728,106 @@ class Api:
         else:
             raise ValueError(f"Unable to find an organization under entity {entity!r}.")
 
-    def use_artifact(
+    def _construct_use_artifact_query(
         self,
         artifact_id: str,
         entity_name: Optional[str] = None,
         project_name: Optional[str] = None,
         run_name: Optional[str] = None,
         use_as: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        query_template = """
-        mutation UseArtifact(
-            $entityName: String!,
-            $projectName: String!,
-            $runName: String!,
-            $artifactID: ID!,
-            _USED_AS_TYPE_
-        ) {
-            useArtifact(input: {
-                entityName: $entityName,
-                projectName: $projectName,
-                runName: $runName,
-                artifactID: $artifactID,
-                _USED_AS_VALUE_
-            }) {
-                artifact {
-                    id
-                    digest
-                    description
-                    state
-                    createdAt
-                    metadata
-                }
-            }
-        }
-        """
+        artifact_entity_name: Optional[str] = None,
+        artifact_project_name: Optional[str] = None,
+    ) -> Tuple[Document, Dict[str, Any]]:
+        query_vars = [
+            "$entityName: String!",
+            "$projectName: String!",
+            "$runName: String!",
+            "$artifactID: ID!",
+        ]
+        query_args = [
+            "entityName: $entityName",
+            "projectName: $projectName",
+            "runName: $runName",
+            "artifactID: $artifactID",
+        ]
 
         artifact_types = self.server_use_artifact_input_introspection()
-        if "usedAs" in artifact_types:
-            query_template = query_template.replace(
-                "_USED_AS_TYPE_", "$usedAs: String"
-            ).replace("_USED_AS_VALUE_", "usedAs: $usedAs")
-        else:
-            query_template = query_template.replace("_USED_AS_TYPE_", "").replace(
-                "_USED_AS_VALUE_", ""
-            )
-
-        query = gql(query_template)
+        if "usedAs" in artifact_types and use_as:
+            query_vars.append("$usedAs: String")
+            query_args.append("usedAs: $usedAs")
 
         entity_name = entity_name or self.settings("entity")
         project_name = project_name or self.settings("project")
         run_name = run_name or self.current_run_id
 
-        response = self.gql(
-            query,
-            variable_values={
-                "entityName": entity_name,
-                "projectName": project_name,
-                "runName": run_name,
-                "artifactID": artifact_id,
-                "usedAs": use_as,
-            },
+        variable_values: Dict[str, Any] = {
+            "entityName": entity_name,
+            "projectName": project_name,
+            "runName": run_name,
+            "artifactID": artifact_id,
+            "usedAs": use_as,
+        }
+
+        server_allows_entity_project_information = self._server_supports(
+            ServerFeature.USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION
         )
+        if server_allows_entity_project_information:
+            query_vars.extend(
+                [
+                    "$artifactEntityName: String",
+                    "$artifactProjectName: String",
+                ]
+            )
+            query_args.extend(
+                [
+                    "artifactEntityName: $artifactEntityName",
+                    "artifactProjectName: $artifactProjectName",
+                ]
+            )
+            variable_values["artifactEntityName"] = artifact_entity_name
+            variable_values["artifactProjectName"] = artifact_project_name
+
+        vars_str = ", ".join(query_vars)
+        args_str = ", ".join(query_args)
+
+        query = gql(
+            f"""
+            mutation UseArtifact({vars_str}) {{
+                useArtifact(input: {{{args_str}}}) {{
+                    artifact {{
+                        id
+                        digest
+                        description
+                        state
+                        createdAt
+                        metadata
+                    }}
+                }}
+            }}
+            """
+        )
+        return query, variable_values
+
+    def use_artifact(
+        self,
+        artifact_id: str,
+        entity_name: Optional[str] = None,
+        project_name: Optional[str] = None,
+        run_name: Optional[str] = None,
+        artifact_entity_name: Optional[str] = None,
+        artifact_project_name: Optional[str] = None,
+        use_as: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        query, variable_values = self._construct_use_artifact_query(
+            artifact_id,
+            entity_name,
+            project_name,
+            run_name,
+            use_as,
+            artifact_entity_name,
+            artifact_project_name,
+        )
+        response = self.gql(query, variable_values)
 
         if response["useArtifact"]["artifact"]:
             artifact: Dict[str, Any] = response["useArtifact"]["artifact"]
@@ -4473,9 +4548,9 @@ class Api:
         s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
         curr_state = s["state"].upper()
         if state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
-            raise Exception("Cannot pause {} sweep.".format(curr_state.lower()))
+            raise Exception(f"Cannot pause {curr_state.lower()} sweep.")
         elif state != "RUNNING" and curr_state not in ("RUNNING", "PAUSED", "PENDING"):
-            raise Exception("Sweep already {}.".format(curr_state.lower()))
+            raise Exception(f"Sweep already {curr_state.lower()}.")
         sweep_id = s["id"]
         mutation = gql(
             """
@@ -4592,3 +4667,56 @@ class Api:
         success: bool = response["stopRun"].get("success")
 
         return success
+
+    @normalize_exceptions
+    def create_custom_chart(
+        self,
+        entity: str,
+        name: str,
+        display_name: str,
+        spec_type: str,
+        access: str,
+        spec: Union[str, Mapping[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(spec, str):
+            spec = json.dumps(spec)
+
+        mutation = gql(
+            """
+            mutation CreateCustomChart(
+                $entity: String!
+                $name: String!
+                $displayName: String!
+                $type: String!
+                $access: String!
+                $spec: JSONString!
+            ) {
+                createCustomChart(
+                    input: {
+                        entity: $entity
+                        name: $name
+                        displayName: $displayName
+                        type: $type
+                        access: $access
+                        spec: $spec
+                    }
+                ) {
+                    chart { id }
+                }
+            }
+            """
+        )
+
+        variable_values = {
+            "entity": entity,
+            "name": name,
+            "displayName": display_name,
+            "type": spec_type,
+            "access": access,
+            "spec": spec,
+        }
+
+        result: Optional[Dict[str, Any]] = self.gql(mutation, variable_values)[
+            "createCustomChart"
+        ]
+        return result

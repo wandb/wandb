@@ -213,7 +213,9 @@ func TestAzureFileTransfer_Download(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer os.Remove(tt.task.PathOrPrefix)
+			defer func() {
+				_ = os.Remove(tt.task.PathOrPrefix)
+			}()
 			err := tt.ft.Download(tt.task)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("AzureFileTransfer.Download() error = %v, wantErr %v", err, tt.wantErr)
@@ -244,8 +246,10 @@ func TestAzureFileTransfer_Download(t *testing.T) {
 	}
 	path1 := filepath.Join(task.PathOrPrefix, "file1.txt")
 	path2 := filepath.Join(task.PathOrPrefix, "file2.txt")
-	defer os.Remove(path1)
-	defer os.Remove(path2)
+	defer func() {
+		_ = os.Remove(path2)
+		_ = os.Remove(path1)
+	}()
 
 	// Performing the download
 	err = ftFile1.Download(task)
@@ -317,7 +321,9 @@ func TestAzureFileTransfer_Upload(t *testing.T) {
 	filename := "test-upload-file.txt"
 	err := os.WriteFile(filename, contentExpected, 0644)
 	assert.NoError(t, err)
-	defer os.Remove(filename)
+	defer func() {
+		_ = os.Remove(filename)
+	}()
 
 	// Mocking task
 	task := &filetransfer.DefaultUploadTask{
@@ -351,8 +357,10 @@ func TestAzureFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
 	assert.NoError(t, err)
 	_, err = tempFile.Write(entireContent)
 	assert.NoError(t, err)
-	tempFile.Close()
-	defer os.Remove(tempFile.Name())
+	_ = tempFile.Close()
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
 
 	task := &filetransfer.DefaultUploadTask{
 		Path:   tempFile.Name(),
@@ -392,7 +400,9 @@ func TestAzureFileTransfer_UploadClientError(t *testing.T) {
 	filename := "test-upload-file.txt"
 	err := os.WriteFile(filename, contentExpected, 0644)
 	assert.NoError(t, err)
-	defer os.Remove(filename)
+	defer func() {
+		_ = os.Remove(filename)
+	}()
 
 	// Mocking task
 	task := &filetransfer.DefaultUploadTask{

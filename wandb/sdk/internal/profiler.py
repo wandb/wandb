@@ -18,12 +18,13 @@ def torch_trace_handler():
      torch.profiler.profile(..., on_trace_ready=wandb.profiler.torch_trace_handler())
      ```
 
-    Calling this function ensures that profiler charts & tables can be viewed in your run dashboard
-    on wandb.ai.
+    Calling this function ensures that profiler charts & tables can be viewed in
+    your run dashboard on wandb.ai.
 
-    Please note that `wandb.init()` must be called before this function is invoked.
-    The PyTorch (torch) version must also be at least 1.9, in order to ensure stability
-    of their Profiler API.
+    Please note that `wandb.init()` must be called before this function is
+    invoked, and the reinit setting must not be set to "create_new". The PyTorch
+    (torch) version must also be at least 1.9, in order to ensure stability of
+    their Profiler API.
 
     Args:
         None
@@ -53,12 +54,12 @@ def torch_trace_handler():
             prof.step()
     ```
     """
-    from wandb.util import parse_version
+    from packaging.version import parse
 
     torch = wandb.util.get_module(PYTORCH_MODULE, required=True)
     torch_profiler = wandb.util.get_module(PYTORCH_PROFILER_MODULE, required=True)
 
-    if parse_version(torch.__version__) < parse_version("1.9.0"):
+    if parse(torch.__version__) < parse("1.9.0"):
         raise Error(
             f"torch version must be at least 1.9 in order to use the PyTorch Profiler API.\
             \nVersion of torch currently installed: {torch.__version__}"

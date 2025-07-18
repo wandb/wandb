@@ -23,10 +23,10 @@ func (s *workSentinel) Save(func(*spb.Record)) {}
 
 func (s *workSentinel) BypassOfflineMode() bool { return true }
 
-func (s *workSentinel) Process(func(*spb.Record)) {}
+func (s *workSentinel) Process(func(*spb.Record), chan<- *spb.Result) {}
 
 func (s *workSentinel) Sentinel() any { return s.value }
 
 func (s *workSentinel) DebugInfo() string {
-	return fmt.Sprintf("WorkSentinel(%s)", s.value)
+	return fmt.Sprintf("WorkSentinel(%v)", s.value)
 }

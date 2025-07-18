@@ -5,64 +5,23 @@ See interface.py for how interface classes relate to each other.
 """
 
 import logging
-import time
 from abc import abstractmethod
-from multiprocessing.process import BaseProcess
 from typing import Any, Optional, cast
 
-import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.mailbox import Mailbox, MailboxHandle
 from wandb.util import json_dumps_safer, json_friendly
 
-from ..lib.mailbox import Mailbox, MailboxHandle
 from .interface import InterfaceBase
-from .message_future import MessageFuture
-from .router import MessageRouter
 
 logger = logging.getLogger("wandb")
 
 
 class InterfaceShared(InterfaceBase):
-    process: Optional[BaseProcess]
-    _process_check: bool
-    _router: Optional[MessageRouter]
-    _mailbox: Optional[Mailbox]
-    _transport_success_timestamp: float
-    _transport_failed: bool
-
-    def __init__(
-        self,
-        process: Optional[BaseProcess] = None,
-        process_check: bool = True,
-        mailbox: Optional[Any] = None,
-    ) -> None:
+    def __init__(self, mailbox: Optional[Mailbox] = None) -> None:
         super().__init__()
-        self._transport_success_timestamp = time.monotonic()
-        self._transport_failed = False
-        self._process = process
-        self._router = None
-        self._process_check = process_check
         self._mailbox = mailbox
-        self._init_router()
-
-    @abstractmethod
-    def _init_router(self) -> None:
-        raise NotImplementedError
-
-    @property
-    def transport_failed(self) -> bool:
-        return self._transport_failed
-
-    @property
-    def transport_success_timestamp(self) -> float:
-        return self._transport_success_timestamp
-
-    def _transport_mark_failed(self) -> None:
-        self._transport_failed = True
-
-    def _transport_mark_success(self) -> None:
-        self._transport_success_timestamp = time.monotonic()
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
         rec = pb.Record()
@@ -100,7 +59,13 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(telemetry=telem)
         self._publish(rec)
 
-    def _publish_job_input(self, job_input: pb.JobInputRequest) -> MailboxHandle:
+    def _publish_environment(self, environment: pb.EnvironmentRecord) -> None:
+        rec = self._make_record(environment=environment)
+        self._publish(rec)
+
+    def _publish_job_input(
+        self, job_input: pb.JobInputRequest
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(job_input=job_input)
         return self._deliver_record(record)
 
@@ -114,15 +79,8 @@ class InterfaceShared(InterfaceBase):
             item.value_json = json_dumps_safer(json_friendly(v)[0])
         return stats
 
-    def _make_login(self, api_key: Optional[str] = None) -> pb.LoginRequest:
-        login = pb.LoginRequest()
-        if api_key:
-            login.api_key = api_key
-        return login
-
     def _make_request(  # noqa: C901
         self,
-        login: Optional[pb.LoginRequest] = None,
         get_summary: Optional[pb.GetSummaryRequest] = None,
         pause: Optional[pb.PauseRequest] = None,
         resume: Optional[pb.ResumeRequest] = None,
@@ -130,6 +88,7 @@ class InterfaceShared(InterfaceBase):
         stop_status: Optional[pb.StopStatusRequest] = None,
         internal_messages: Optional[pb.InternalMessagesRequest] = None,
         network_status: Optional[pb.NetworkStatusRequest] = None,
+        operation_stats: Optional[pb.OperationStatsRequest] = None,
         poll_exit: Optional[pb.PollExitRequest] = None,
         partial_history: Optional[pb.PartialHistoryRequest] = None,
         sampled_history: Optional[pb.SampledHistoryRequest] = None,
@@ -151,16 +110,12 @@ class InterfaceShared(InterfaceBase):
         summary_record: Optional[pb.SummaryRecordRequest] = None,
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
         get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
-        get_system_metadata: Optional[pb.GetSystemMetadataRequest] = None,
         python_packages: Optional[pb.PythonPackagesRequest] = None,
         job_input: Optional[pb.JobInputRequest] = None,
         run_finish_without_exit: Optional[pb.RunFinishWithoutExitRequest] = None,
-        metadata: Optional[pb.MetadataRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
-        if login:
-            request.login.CopyFrom(login)
-        elif get_summary:
+        if get_summary:
             request.get_summary.CopyFrom(get_summary)
         elif pause:
             request.pause.CopyFrom(pause)
@@ -174,6 +129,8 @@ class InterfaceShared(InterfaceBase):
             request.internal_messages.CopyFrom(internal_messages)
         elif network_status:
             request.network_status.CopyFrom(network_status)
+        elif operation_stats:
+            request.operations.CopyFrom(operation_stats)
         elif poll_exit:
             request.poll_exit.CopyFrom(poll_exit)
         elif partial_history:
@@ -214,8 +171,6 @@ class InterfaceShared(InterfaceBase):
             request.telemetry_record.CopyFrom(telemetry_record)
         elif get_system_metrics:
             request.get_system_metrics.CopyFrom(get_system_metrics)
-        elif get_system_metadata:
-            request.get_system_metadata.CopyFrom(get_system_metadata)
         elif sync_finish:
             request.sync_finish.CopyFrom(sync_finish)
         elif python_packages:
@@ -224,8 +179,6 @@ class InterfaceShared(InterfaceBase):
             request.job_input.CopyFrom(job_input)
         elif run_finish_without_exit:
             request.run_finish_without_exit.CopyFrom(run_finish_without_exit)
-        elif metadata:
-            request.metadata.CopyFrom(metadata)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -257,6 +210,7 @@ class InterfaceShared(InterfaceBase):
         use_artifact: Optional[pb.UseArtifactRecord] = None,
         output: Optional[pb.OutputRecord] = None,
         output_raw: Optional[pb.OutputRawRecord] = None,
+        environment: Optional[pb.EnvironmentRecord] = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -299,6 +253,8 @@ class InterfaceShared(InterfaceBase):
             record.output.CopyFrom(output)
         elif output_raw:
             record.output_raw.CopyFrom(output_raw)
+        elif environment:
+            record.environment.CopyFrom(environment)
         else:
             raise Exception("Invalid record")
         return record
@@ -306,35 +262,6 @@ class InterfaceShared(InterfaceBase):
     @abstractmethod
     def _publish(self, record: pb.Record, local: Optional[bool] = None) -> None:
         raise NotImplementedError
-
-    def _communicate(
-        self, rec: pb.Record, timeout: Optional[int] = 30, local: Optional[bool] = None
-    ) -> Optional[pb.Result]:
-        return self._communicate_async(rec, local=local).get(timeout=timeout)
-
-    def _communicate_async(
-        self, rec: pb.Record, local: Optional[bool] = None
-    ) -> MessageFuture:
-        assert self._router
-        if self._process_check and self._process and not self._process.is_alive():
-            raise Exception("The wandb backend process has shutdown")
-        future = self._router.send_and_receive(rec, local=local)
-        return future
-
-    def communicate_login(
-        self, api_key: Optional[str] = None, timeout: Optional[int] = 15
-    ) -> pb.LoginResponse:
-        login = self._make_login(api_key)
-        rec = self._make_request(login=login)
-        result = self._communicate(rec, timeout=timeout)
-        if result is None:
-            # TODO: friendlier error message here
-            raise wandb.Error(
-                "Couldn't communicate with backend after {} seconds".format(timeout)
-            )
-        login_response = result.response.login_response
-        assert login_response
-        return login_response
 
     def _publish_defer(self, state: "pb.DeferRequest.DeferState.V") -> None:
         defer = pb.DeferRequest(state=state)
@@ -358,11 +285,6 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(final=final)
         self._publish(rec)
 
-    def publish_login(self, api_key: Optional[str] = None) -> None:
-        login = self._make_login(api_key)
-        rec = self._make_request(login=login)
-        self._publish(rec)
-
     def _publish_pause(self, pause: pb.PauseRequest) -> None:
         rec = self._make_request(pause=pause)
         self._publish(rec)
@@ -381,10 +303,6 @@ class InterfaceShared(InterfaceBase):
 
     def _publish_summary(self, summary: pb.SummaryRecord) -> None:
         rec = self._make_record(summary=summary)
-        self._publish(rec)
-
-    def _publish_metadata(self, metadata: pb.MetadataRequest) -> None:
-        rec = self._make_request(metadata=metadata)
         self._publish(rec)
 
     def _publish_metric(self, metric: pb.MetricRecord) -> None:
@@ -410,19 +328,22 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(use_artifact=use_artifact)
         self._publish(rec)
 
-    def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> Any:
+    def _deliver_artifact(
+        self,
+        log_artifact: pb.LogArtifactRequest,
+    ) -> MailboxHandle[pb.Result]:
         rec = self._make_request(log_artifact=log_artifact)
-        return self._communicate_async(rec)
+        return self._deliver_record(rec)
 
     def _deliver_download_artifact(
         self, download_artifact: pb.DownloadArtifactRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         rec = self._make_request(download_artifact=download_artifact)
         return self._deliver_record(rec)
 
     def _deliver_link_artifact(
         self, link_artifact: pb.LinkArtifactRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         rec = self._make_request(link_artifact=link_artifact)
         return self._deliver_record(rec)
 
@@ -437,7 +358,7 @@ class InterfaceShared(InterfaceBase):
     def _deliver_status(
         self,
         status: pb.StatusRequest,
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         req = self._make_request(status=status)
         return self._deliver_record(req)
 
@@ -449,114 +370,113 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(keepalive=keepalive)
         self._publish(record)
 
-    def _communicate_shutdown(self) -> None:
-        # shutdown
+    def _deliver_shutdown(self) -> MailboxHandle[pb.Result]:
         request = pb.Request(shutdown=pb.ShutdownRequest())
         record = self._make_record(request=request)
-        _ = self._communicate(record)
+        return self._deliver_record(record)
 
     def _get_mailbox(self) -> Mailbox:
         mailbox = self._mailbox
         assert mailbox
         return mailbox
 
-    def _deliver_record(self, record: pb.Record) -> MailboxHandle:
+    def _deliver_record(self, record: pb.Record) -> MailboxHandle[pb.Result]:
         mailbox = self._get_mailbox()
-        handle = mailbox._deliver_record(record, interface=self)
-        return handle
 
-    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+        handle = mailbox.require_response(record)
+        self._publish(record)
+
+        return handle.map(lambda resp: resp.result_communicate)
+
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle[pb.Result]:
         record = self._make_record(run=run)
         return self._deliver_record(record)
 
-    def _deliver_finish_sync(self, sync_finish: pb.SyncFinishRequest) -> MailboxHandle:
+    def _deliver_finish_sync(
+        self,
+        sync_finish: pb.SyncFinishRequest,
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(sync_finish=sync_finish)
         return self._deliver_record(record)
 
-    def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+    def _deliver_run_start(
+        self,
+        run_start: pb.RunStartRequest,
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(run_start=run_start)
         return self._deliver_record(record)
 
-    def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
+    def _deliver_get_summary(
+        self,
+        get_summary: pb.GetSummaryRequest,
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(get_summary=get_summary)
         return self._deliver_record(record)
 
     def _deliver_get_system_metrics(
         self, get_system_metrics: pb.GetSystemMetricsRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(get_system_metrics=get_system_metrics)
         return self._deliver_record(record)
 
-    def _deliver_get_system_metadata(
-        self, get_system_metadata: pb.GetSystemMetadataRequest
-    ) -> MailboxHandle:
-        record = self._make_request(get_system_metadata=get_system_metadata)
-        return self._deliver_record(record)
-
-    def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
+    def _deliver_exit(
+        self,
+        exit_data: pb.RunExitRecord,
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_record(exit=exit_data)
         return self._deliver_record(record)
 
-    def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+    def deliver_operation_stats(self):
+        record = self._make_request(operation_stats=pb.OperationStatsRequest())
+        return self._deliver_record(record)
+
+    def _deliver_poll_exit(
+        self,
+        poll_exit: pb.PollExitRequest,
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(poll_exit=poll_exit)
         return self._deliver_record(record)
 
     def _deliver_finish_without_exit(
         self, run_finish_without_exit: pb.RunFinishWithoutExitRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(run_finish_without_exit=run_finish_without_exit)
         return self._deliver_record(record)
 
-    def _deliver_stop_status(self, stop_status: pb.StopStatusRequest) -> MailboxHandle:
+    def _deliver_stop_status(
+        self,
+        stop_status: pb.StopStatusRequest,
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(stop_status=stop_status)
         return self._deliver_record(record)
 
-    def _deliver_attach(self, attach: pb.AttachRequest) -> MailboxHandle:
+    def _deliver_attach(
+        self,
+        attach: pb.AttachRequest,
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(attach=attach)
         return self._deliver_record(record)
 
     def _deliver_network_status(
         self, network_status: pb.NetworkStatusRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(network_status=network_status)
         return self._deliver_record(record)
 
     def _deliver_internal_messages(
         self, internal_message: pb.InternalMessagesRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(internal_messages=internal_message)
         return self._deliver_record(record)
 
     def _deliver_request_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(sampled_history=sampled_history)
         return self._deliver_record(record)
 
     def _deliver_request_run_status(
         self, run_status: pb.RunStatusRequest
-    ) -> MailboxHandle:
+    ) -> MailboxHandle[pb.Result]:
         record = self._make_request(run_status=run_status)
         return self._deliver_record(record)
-
-    def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:
-        if self._transport_failed:
-            return True
-
-        now = time.monotonic()
-        if now < self._transport_success_timestamp + keepalive_interval:
-            return False
-
-        try:
-            self.publish_keepalive()
-        except Exception:
-            self._transport_mark_failed()
-        else:
-            self._transport_mark_success()
-        return self._transport_failed
-
-    def join(self) -> None:
-        super().join()
-
-        if self._router:
-            self._router.join()

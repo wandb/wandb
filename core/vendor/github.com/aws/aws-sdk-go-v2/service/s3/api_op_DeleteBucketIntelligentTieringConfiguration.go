@@ -73,6 +73,11 @@ type DeleteBucketIntelligentTieringConfigurationInput struct {
 	// This member is required.
 	Id *string
 
+	// The account ID of the expected bucket owner. If the account ID that you provide
+	// does not match the actual owner of the bucket, the request fails with the HTTP
+	// status code 403 Forbidden (access denied).
+	ExpectedBucketOwner *string
+
 	noSmithyDocumentSerde
 }
 
@@ -157,6 +162,9 @@ func (c *Client) addOperationDeleteBucketIntelligentTieringConfigurationMiddlewa
 		return err
 	}
 	if err = addIsExpressUserAgent(stack); err != nil {
+		return err
+	}
+	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
 	if err = addOpDeleteBucketIntelligentTieringConfigurationValidationMiddleware(stack); err != nil {

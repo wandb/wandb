@@ -4,7 +4,7 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.errors import CommError, UsageError
+from wandb.errors import CommError
 from wandb.sdk.lib import runid
 
 
@@ -77,32 +77,6 @@ def test_send_wandb_config_start_time_on_init(wandb_backend_spy):
         assert "t" in config["_wandb"]["value"]
 
 
-def test_resume_allow_success(wandb_backend_spy):
-    with wandb.init() as run:
-        run.log({"acc": 10}, step=15, commit=True)
-    with wandb.init(resume="allow", id=run.id) as run:
-        run.log({"acc": 10})
-
-    with wandb_backend_spy.freeze() as snapshot:
-        history = snapshot.history(run_id=run.id)
-        assert history[0]["_step"] == 15
-        assert history[1]["_step"] == 16
-
-
-def test_resume_never_failure(user):
-    run = wandb.init(project="project")
-    run_id = run.id
-    run.finish()
-
-    with pytest.raises(UsageError):
-        wandb.init(resume="never", id=run_id, project="project")
-
-
-def test_resume_must_failure(user):
-    with pytest.raises(UsageError):
-        wandb.init(resume="must", project="project")
-
-
 def test_resume_auto_failure(user, tmp_path):
     # env vars have a higher priority than the BASE settings
     # so that if that is set (e.g. by some other test/fixture),
@@ -118,20 +92,6 @@ def test_resume_auto_failure(user, tmp_path):
         assert run.id == "resume-me"
         run.finish(exit_code=3)
         assert os.path.exists(resume_fname)
-
-
-def test_reinit_existing_run_with_reinit_true():
-    """Test that reinit with an existing run returns a new run."""
-    original_run = wandb.init(mode="offline")
-    new_run = wandb.init(mode="offline", reinit=True)
-    assert new_run != original_run
-
-
-def test_reinit_existing_run_with_reinit_false():
-    """Test that reinit with a run active returns the same run."""
-    original_run = wandb.init(mode="offline")
-    new_run = wandb.init(mode="offline", reinit=False)
-    assert new_run == original_run
 
 
 def test_init_param_telemetry(wandb_backend_spy):
@@ -161,3 +121,48 @@ def test_init_param_not_set_telemetry(wandb_backend_spy):
         assert 14 not in features  # set_init_id
         assert 15 not in features  # set_init_tags
         assert 16 not in features  # set_init_config
+
+
+def test_shared_mode_x_label(user):
+    _ = user  # Create a fake user on the backend server.
+
+    with wandb.init() as run:
+        assert run.settings.x_label is None
+
+    with wandb.init(
+        settings=wandb.Settings(
+            mode="shared",
+        )
+    ) as run:
+        assert run.settings.x_label is not None
+
+    with wandb.init(
+        settings=wandb.Settings(
+            mode="shared",
+            x_label="node-rank",
+        )
+    ) as run:
+        assert run.settings.x_label == "node-rank"
+
+
+@pytest.mark.parametrize("skip_transaction_log", [True, False])
+def test_skip_transaction_log(user, skip_transaction_log):
+    """Test that the skip transaction log setting works correctly.
+
+    If skip_transaction_log is True, the transaction log file should not be created.
+    If skip_transaction_log is False, the transaction log file should be created.
+    """
+    with wandb.init(
+        settings={
+            "x_skip_transaction_log": skip_transaction_log,
+            "mode": "online",
+        }
+    ) as run:
+        pass
+    assert os.path.exists(run._settings.sync_file) == (not skip_transaction_log)
+
+
+def test_skip_transaction_log_offline(user):
+    """Test that skip transaction log is not allowed in offline mode."""
+    with pytest.raises(ValueError):
+        wandb.init(settings={"mode": "offline", "x_skip_transaction_log": True})

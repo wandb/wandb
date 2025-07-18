@@ -68,7 +68,7 @@ def site_packages_dir(session: nox.Session) -> pathlib.Path:
         )
 
 
-def get_circleci_splits(session: nox.Session) -> tuple[int, int]:
+def get_circleci_splits() -> tuple[int, int]:
     """Returns the test splitting arguments from our CircleCI config.
 
     When using test splitting, CircleCI sets the CIRCLE_NODE_TOTAL and
@@ -78,8 +78,8 @@ def get_circleci_splits(session: nox.Session) -> tuple[int, int]:
     This returns (index, total), with 0 <= index < total, if the variables
     are set. Otherwise, returns (0, 0).
     """
-    circle_node_total = session.env.get("CIRCLE_NODE_TOTAL")
-    circle_node_index = session.env.get("CIRCLE_NODE_INDEX")
+    circle_node_total = os.environ.get("CIRCLE_NODE_TOTAL")
+    circle_node_index = os.environ.get("CIRCLE_NODE_INDEX")
 
     if circle_node_total and circle_node_index:
         return (int(circle_node_index), int(circle_node_total))
@@ -97,17 +97,17 @@ def run_pytest(
     opts = opts or {}
     pytest_opts = []
     pytest_env = {
-        "USERNAME": session.env.get("USERNAME"),
-        "PATH": session.env.get("PATH"),
-        "USERPROFILE": session.env.get("USERPROFILE"),
+        "PATH": session.env.get("PATH") or os.environ.get("PATH"),
+        "USERNAME": os.environ.get("USERNAME"),
+        "USERPROFILE": os.environ.get("USERPROFILE"),
         # Tool settings are often set here. We invoke Docker in system tests,
         # which uses auth information from the home directory.
-        "HOME": session.env.get("HOME"),
-        "CI": session.env.get("CI"),
+        "HOME": os.environ.get("HOME"),
+        "CI": os.environ.get("CI"),
         # Required for the importers tests
-        "WANDB_TEST_SERVER_URL2": session.env.get("WANDB_TEST_SERVER_URL2"),
+        "WANDB_TEST_SERVER_URL2": os.environ.get("WANDB_TEST_SERVER_URL2"),
         # Required for functional tests with openai
-        "OPENAI_API_KEY": session.env.get("OPENAI_API_KEY"),
+        "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
     }
 
     # Print 20 slowest tests.
@@ -137,7 +137,7 @@ def run_pytest(
     pytest_opts.append("--maxprocesses=10")
 
     # (pytest-split) Run a subset of tests only (for external parallelism).
-    (circle_node_index, circle_node_total) = get_circleci_splits(session)
+    (circle_node_index, circle_node_total) = get_circleci_splits()
     if circle_node_total > 0:
         pytest_opts.append(f"--splits={circle_node_total}")
         pytest_opts.append(f"--group={int(circle_node_index) + 1}")
@@ -173,15 +173,45 @@ def unit_tests(session: nox.Session) -> None:
         "-r",
         "requirements_dev.txt",
         # For test_reports:
-        ".[reports]",
         "polyfactory",
     )
 
+    paths = session.posargs or ["tests/unit_tests"]
+
+    # Launch is not supported on 3.8
+    if session.python == "3.8":
+        paths.append("--ignore=tests/unit_tests/test_launch")
+
     run_pytest(
         session,
-        paths=session.posargs or ["tests/unit_tests"],
+        paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={"n": "8"},
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def unit_tests_pydantic_v1(session: nox.Session) -> None:
+    """Runs a subset of Python unit tests with pydantic v1."""
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+    )
+    # force-downgrade pydantic to v1
+    install_timed(session, "pydantic<2")
+
+    run_pytest(
+        session,
+        paths=session.posargs
+        or [
+            "tests/unit_tests/test_wandb_settings.py",
+            "tests/unit_tests/test_wandb_run.py",
+            "tests/unit_tests/test_pydantic_v1_compat.py",
+            "tests/unit_tests/test_artifacts",
+        ],
+        opts={"n": "4"},
     )
 
 
@@ -195,18 +225,21 @@ def system_tests(session: nox.Session) -> None:
         "annotated-types",  # for test_reports
     )
 
+    paths = session.posargs or [
+        "tests/system_tests",
+        "--ignore=tests/system_tests/test_importers",
+        "--ignore=tests/system_tests/test_notebooks",
+        "--ignore=tests/system_tests/test_functional",
+        "--ignore=tests/system_tests/test_experimental",
+    ]
+
+    # Launch is not supported on 3.8
+    if session.python == "3.8":
+        paths.append("--ignore=tests/system_tests/test_launch")
+
     run_pytest(
         session,
-        paths=(
-            session.posargs
-            or [
-                "tests/system_tests",
-                "--ignore=tests/system_tests/test_importers",
-                "--ignore=tests/system_tests/test_notebooks",
-                "--ignore=tests/system_tests/test_functional",
-                "--ignore=tests/system_tests/test_experimental",
-            ]
-        ),
+        paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={"n": "8"},
     )
@@ -280,6 +313,8 @@ def experimental_tests(session: nox.Session):
     run_pytest(
         session,
         paths=(session.posargs or ["tests/system_tests/test_experimental"]),
+        # TODO: increase as more tests are added
+        opts={"n": "1"},
     )
 
 
@@ -432,7 +467,7 @@ def _generate_proto_go(session: nox.Session) -> None:
 
 
 @nox.session(name="proto-python", tags=["proto"], python="3.10")
-@nox.parametrize("pb", [3, 4, 5])
+@nox.parametrize("pb", [3, 4, 5, 6])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
 
@@ -452,15 +487,20 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
     elif pb == 4:
         session.install("protobuf~=4.23.4")
         session.install("mypy-protobuf~=3.5.0")
-        session.install("grpcio~=1.50.0")
-        session.install("grpcio-tools~=1.50.0")
+        session.install("grpcio~=1.51.0")
+        session.install("grpcio-tools~=1.51.0")
     elif pb == 5:
         session.install("protobuf~=5.27.0")
         session.install("mypy-protobuf~=3.6.0")
         session.install("grpcio~=1.64.1")
         session.install("grpcio-tools~=1.64.1")
+    elif pb == 6:
+        session.install("protobuf~=6.30.2")
+        session.install("mypy-protobuf~=3.6.0")
+        session.install("grpcio~=1.72.1")
+        session.install("grpcio-tools~=1.72.1")
     else:
-        session.error("Invalid protobuf version given. `pb` must be 3, 4, or 5.")
+        session.error("Invalid protobuf version given. `pb` must be 3, 4, 5, or 6.")
 
     session.install("packaging")
 
@@ -529,11 +569,13 @@ def mypy_report(session: nox.Session) -> None:
     If the report parameter is set to True, it will also generate an html report.
     """
     session.install(
+        "bokeh",
         "ipython",
         "lxml",
         # https://github.com/python/mypy/issues/17166
         "mypy != 1.10.0",
         "numpy",
+        "packaging",
         "pandas-stubs",
         "pip",
         "platformdirs",
@@ -548,7 +590,6 @@ def mypy_report(session: nox.Session) -> None:
         "types-pytz",
         "types-PyYAML",
         "types-requests",
-        "types-setuptools",
         "types-six",
         "types-tqdm",
     )

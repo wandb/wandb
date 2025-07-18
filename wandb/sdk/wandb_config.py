@@ -22,65 +22,63 @@ logger = logging.getLogger("wandb")
 class Config:
     """Config object.
 
-    Config objects are intended to hold all of the hyperparameters associated with
-    a wandb run and are saved with the run object when `wandb.init` is called.
+    Config objects are intended to hold all of the hyperparameters associated
+    with a wandb run and are saved with the run object when `wandb.init` is
+    called.
 
-    We recommend setting `wandb.config` once at the top of your training experiment or
-    setting the config as a parameter to init, ie. `wandb.init(config=my_config_dict)`
+    We recommend setting the config once when initializing your run by passing
+    the `config` parameter to `init`:
 
-    You can create a file called `config-defaults.yaml`, and it will automatically be
-    loaded into `wandb.config`. See https://docs.wandb.com/guides/track/config#file-based-configs.
+    ```
+    wandb.init(config=my_config_dict)
+    ```
 
-    You can also load a config YAML file with your custom name and pass the filename
-    into `wandb.init(config="special_config.yaml")`.
+    You can create a file called `config-defaults.yaml`, and it will
+    automatically be loaded as each run's config. You can also pass the name
+    of the file as the `config` parameter to `init`:
+
+    ```
+    wandb.init(config="my_config.yaml")
+    ```
+
     See https://docs.wandb.com/guides/track/config#file-based-configs.
 
     Examples:
         Basic usage
         ```
-        wandb.config.epochs = 4
-        wandb.init()
-        for x in range(wandb.config.epochs):
-            # train
+        with wandb.init(config={"epochs": 4}) as run:
+            for x in range(run.config.epochs):
+                # train
         ```
 
-        Using wandb.init to set config
+        Nested values
         ```
-        wandb.init(config={"epochs": 4, "batch_size": 32})
-        for x in range(wandb.config.epochs):
-            # train
-        ```
-
-        Nested configs
-        ```
-        wandb.config['train']['epochs'] = 4
-        wandb.init()
-        for x in range(wandb.config['train']['epochs']):
-            # train
+        with wandb.init(config={"train": {"epochs": 4}}) as run:
+            for x in range(run.config["train"]["epochs"]):
+                # train
         ```
 
         Using absl flags
         ```
         flags.DEFINE_string("model", None, "model to run")  # name, default, help
-        wandb.config.update(flags.FLAGS)  # adds all absl flags to config
+        with wandb.init() as run:
+            run.config.update(flags.FLAGS)  # adds all absl flags to config
         ```
 
         Argparse flags
         ```python
-        wandb.init()
-        wandb.config.epochs = 4
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-b",
-            "--batch-size",
-            type=int,
-            default=8,
-            metavar="N",
-            help="input batch size for training (default: 8)",
-        )
-        args = parser.parse_args()
-        wandb.config.update(args)
+        with wandb.init(config={"epochs": 4}) as run:
+            parser = argparse.ArgumentParser()
+            parser.add_argument(
+                "-b",
+                "--batch-size",
+                type=int,
+                default=8,
+                metavar="N",
+                help="input batch size for training (default: 8)",
+            )
+            args = parser.parse_args()
+            run.config.update(args)
         ```
 
         Using TensorFlow flags (deprecated in tensorflow v2)
@@ -88,7 +86,9 @@ class Config:
         flags = tf.app.flags
         flags.DEFINE_string("data_dir", "/tmp/data")
         flags.DEFINE_integer("batch_size", 128, "Batch size.")
-        wandb.config.update(flags.FLAGS)  # adds all of the tensorflow flags to config
+
+        with wandb.init() as run:
+            run.config.update(flags.FLAGS)
         ```
     """
 
@@ -272,7 +272,7 @@ class Config:
         # TODO: enable WBValues in the config in the future
         # refuse all WBValues which is all Media and Histograms
         if isinstance(val, wandb.sdk.data_types.base_types.wb_value.WBValue):
-            raise ValueError("WBValue objects cannot be added to the run config")
+            raise TypeError("WBValue objects cannot be added to the run config")
         # Let jupyter change config freely by default
         if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
@@ -298,7 +298,8 @@ class Config:
         # best if we don't allow nested artifacts until we can lock nested keys in the config
         if isinstance(v, dict) and check_dict_contains_nested_artifact(v, nested):
             raise ValueError(
-                "Instances of wandb.Artifact can only be top level keys in wandb.config"
+                "Instances of wandb.Artifact can only be top level keys in"
+                " a run's config"
             )
 
 
@@ -307,10 +308,10 @@ class ConfigStatic:
         object.__setattr__(self, "__dict__", dict(config))
 
     def __setattr__(self, name, value):
-        raise AttributeError("Error: wandb.run.config_static is a readonly object")
+        raise AttributeError("Error: run.config_static is a readonly object")
 
     def __setitem__(self, key, val):
-        raise AttributeError("Error: wandb.run.config_static is a readonly object")
+        raise AttributeError("Error: run.config_static is a readonly object")
 
     def keys(self):
         return self.__dict__.keys()

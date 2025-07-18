@@ -13,8 +13,8 @@ from typing_extensions import override
 
 # A small hack to allow importing build scripts from the source tree.
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from core import hatch as hatch_core  # noqa: I001 E402
-from gpu_stats import hatch as hatch_gpu_stats  # noqa: I001 E402
+from core import hatch as hatch_core
+from gpu_stats import hatch as hatch_gpu_stats
 
 # Necessary inputs for releases.
 _WANDB_RELEASE_COMMIT = "WANDB_RELEASE_COMMIT"
@@ -26,6 +26,7 @@ _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 # Other build options.
 _WANDB_BUILD_UNIVERSAL = "WANDB_BUILD_UNIVERSAL"
 _WANDB_BUILD_SKIP_GPU_STATS = "WANDB_BUILD_SKIP_GPU_STATS"
+_WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
 
 
 class CustomBuildHook(BuildHookInterface):
@@ -116,16 +117,16 @@ class CustomBuildHook(BuildHookInterface):
         return [output.as_posix()]
 
     def _git_commit_sha(self) -> str:
-        try:
-            import subprocess
+        import subprocess
 
-            src_dir = pathlib.Path(__file__).parent
-            commit = (
+        src_dir = pathlib.Path(__file__).parent
+
+        try:
+            return (
                 subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=src_dir)
                 .decode("utf-8")
                 .strip()
             )
-            return commit
         except Exception:
             return ""
 
@@ -134,6 +135,7 @@ class CustomBuildHook(BuildHookInterface):
 
         with_coverage = _get_env_bool(_WANDB_BUILD_COVERAGE, default=False)
         with_race_detection = _get_env_bool(_WANDB_BUILD_GORACEDETECT, default=False)
+        with_cgo = _get_env_bool(_WANDB_ENABLE_CGO, default=False)
 
         plat = self._target_platform()
 
@@ -143,6 +145,7 @@ class CustomBuildHook(BuildHookInterface):
             output_path=output,
             with_code_coverage=with_coverage,
             with_race_detection=with_race_detection,
+            with_cgo=with_cgo,
             wandb_commit_sha=os.getenv(_WANDB_RELEASE_COMMIT) or self._git_commit_sha(),
             target_system=plat.goos,
             target_arch=plat.goarch,

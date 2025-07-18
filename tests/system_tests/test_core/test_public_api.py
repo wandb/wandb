@@ -10,6 +10,8 @@ import wandb
 import wandb.apis.public
 import wandb.util
 from wandb import Api
+from wandb.apis.public import File
+from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
 
 
@@ -74,6 +76,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
         id: str = user,
         config: Optional[Dict] = None,
         summary_metrics: Optional[Dict] = None,
+        project_id: str = "123",
     ):
         body = {
             "data": {
@@ -81,6 +84,7 @@ def stub_run_gql_once(user, wandb_backend_spy):
                     "internalId": "testinternalid",
                     "run": {
                         "id": id,
+                        "projectId": project_id,
                         "tags": [],
                         "name": "test",
                         "displayName": "test",
@@ -483,6 +487,300 @@ def test_projects(user, wandb_backend_spy):
     assert sum([1 for _ in projects]) == 2
 
 
+def test_project_get_id(user, wandb_backend_spy):
+    body = {
+        "data": {
+            "project": {
+                "id": "123",
+            },
+        },
+    }
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ProjectID"),
+        gql.Constant(content=body),
+    )
+
+    project = Api().project(user, "test")
+
+    assert project.id == "123"
+
+
+def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend_spy):
+    body = {
+        "data": {
+            "project": None,
+        },
+    }
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ProjectID"),
+        gql.Constant(content=body),
+    )
+
+    with pytest.raises(ValueError):
+        project = Api().project(user, "test")
+        project.id  # noqa: B018
+
+
+def test_project_get_sweeps(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    body = {
+        "data": {
+            "project": {
+                "totalSweeps": 1,
+                "sweeps": {
+                    "edges": [
+                        {
+                            "node": {
+                                "name": "test",
+                                "id": "test",
+                                "sweep_name": None,
+                            },
+                        },
+                    ],
+                    "pageInfo": {
+                        "endCursor": None,
+                        "hasNextPage": False,
+                    },
+                },
+            },
+        },
+    }
+    sweep_gql_body = {
+        "data": {
+            "project": {
+                "sweep": {
+                    "name": "test",
+                    "id": "test",
+                    "state": "finished",
+                },
+            },
+        },
+    }
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetSweeps"),
+        gql.Constant(content=body),
+    )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Sweep"),
+        gql.Constant(content=sweep_gql_body),
+    )
+
+    project = Api().project(user, "test")
+
+    sweeps = project.sweeps()
+    assert len(sweeps) == 1
+    assert sweeps[0].id == "test"
+
+
+def test_project_get_sweeps_paginated(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+
+    first_page_body = {
+        "data": {
+            "project": {
+                "totalSweeps": 2,
+                "sweeps": {
+                    "edges": [
+                        {
+                            "node": {
+                                "name": "test-sweep-1",
+                                "id": "test-1",
+                                "sweep_name": None,
+                            },
+                            "cursor": "cursor-1",
+                        },
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": True,
+                        "endCursor": "cursor-1",
+                    },
+                },
+            },
+        },
+    }
+
+    second_page_body = {
+        "data": {
+            "project": {
+                "totalSweeps": 2,
+                "sweeps": {
+                    "edges": [
+                        {
+                            "node": {
+                                "name": "test-sweep-2",
+                                "id": "test-2",
+                                "sweep_name": None,
+                            },
+                            "cursor": None,
+                        },
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": False,
+                        "endCursor": None,
+                    },
+                },
+            },
+        },
+    }
+
+    sweep_gql_body = {
+        "data": {
+            "project": {
+                "sweep": {
+                    "name": "test",
+                    "id": "test",
+                    "state": "finished",
+                },
+            },
+        },
+    }
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetSweeps"),
+        gql.Sequence(
+            [
+                gql.Constant(content=first_page_body),
+                gql.Constant(content=second_page_body),
+            ]
+        ),
+    )
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Sweep"),
+        gql.Constant(content=sweep_gql_body),
+    )
+
+    project = Api().project(user, "test")
+    sweeps = project.sweeps(per_page=1)
+
+    assert len(sweeps) == 2
+    assert sweeps[0].id == "test-sweep-1"
+    assert sweeps[1].id == "test-sweep-2"
+
+
+def test_project_get_sweeps_empty(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetSweeps"),
+        gql.Constant(
+            content={
+                "data": {
+                    "project": {
+                        "totalSweeps": 0,
+                        "sweeps": {
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": None,
+                            },
+                        },
+                    },
+                },
+            }
+        ),
+    )
+
+    project = Api().project(user, "test")
+    sweeps = project.sweeps()
+    assert len(sweeps) == 0
+    assert sweeps.more is False
+
+    with pytest.raises(IndexError):
+        sweeps[0]
+
+
+def test_delete_files_for_multiple_runs(
+    user,
+    wandb_backend_spy,
+):
+    runs_gql_body = {
+        "data": {
+            "project": {
+                "runCount": 2,
+                "runs": {
+                    "edges": [
+                        {
+                            "node": {
+                                "name": "test",
+                                "id": "test",
+                                "sweep_name": None,
+                            },
+                        },
+                        {
+                            "node": {
+                                "name": "test",
+                                "id": "test2",
+                                "sweep_name": None,
+                            },
+                        },
+                    ],
+                    "pageInfo": {
+                        "endCursor": None,
+                        "hasNextPage": False,
+                    },
+                },
+            },
+        },
+    }
+    runs_files_gql_body = {
+        "data": {
+            "project": {
+                "run": {
+                    "files": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "RmlsZToxODMw",
+                                    "name": "test.txt",
+                                    "state": "finished",
+                                    "user": {
+                                        "name": "test",
+                                        "username": "test",
+                                    },
+                                }
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+    }
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Runs"),
+        gql.once(content=runs_gql_body),
+    )
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="RunFiles"),
+        gql.Constant(content=runs_files_gql_body),
+    )
+    delete_spy = gql.Constant(content={"data": {"deleteFiles": {"success": True}}})
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="deleteFiles"),
+        delete_spy,
+    )
+
+    runs = Api().runs(f"{user}/test")
+    for run in runs:
+        file = run.files()[0]
+        file.delete()
+
+        expected_variables = {
+            "files": [file.id],
+        }
+        # For system tests on newer server version, the projectId is provided
+        if file._server_accepts_project_id_for_delete_file():
+            assert "projectId" in delete_spy.requests[0].variables
+            assert "projectId" in delete_spy.requests[0].query
+            expected_variables["projectId"] = runs[0]._project_internal_id
+
+        assert delete_spy.requests[0].variables == expected_variables
+
+
 def test_delete_file(
     user,
     stub_run_gql_once,
@@ -538,6 +836,34 @@ def test_delete_file(
         assert delete_spy.requests[0].variables == {
             "files": [file.id],
         }
+
+
+def test_run_parses_run_project_id(user, stub_run_gql_once):
+    stub_run_gql_once(project_id="123")
+    api = Api()
+    if not File(api.client, {})._server_accepts_project_id_for_delete_file():
+        pytest.skip("Server does not support project_id for deletion")
+
+    with wandb.init(project="test") as run:
+        run.log({"scalar": 1})
+
+    run = api.run(f"{user}/test/{run.id}")
+    assert run._project_internal_id is not None
+    assert isinstance(run._project_internal_id, int)
+    assert run._project_internal_id == 123
+
+
+def test_run_fails_parse_run_project_id(user, stub_run_gql_once):
+    stub_run_gql_once(project_id="Unparseable")
+    api = Api()
+    if not File(api.client, {})._server_accepts_project_id_for_delete_file():
+        pytest.skip("Server does not support project_id for deletion")
+
+    with wandb.init(project="test") as run:
+        run.log({"scalar": 1})
+
+    with pytest.raises(CommError):
+        api.run(f"{user}/test/{run.id}")
 
 
 def test_nested_summary(user, stub_run_gql_once):

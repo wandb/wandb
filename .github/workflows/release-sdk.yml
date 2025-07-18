@@ -21,7 +21,7 @@ on:
 jobs:
   prepare-release:
     name: Prepare release (${{ inputs.version }})
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -86,12 +86,10 @@ jobs:
       ##################################################
       - name: Downgrade Go version
         run: |
-          sed -i '' 's/1.23.4/1.22.10/' core/go.mod
+          mv core/go.mod.1.22 core/go.mod
 
       ##################################################
-      # Non-Linux: install Go
-      #
-      # See comment above CIBW_BEFORE_ALL_LINUX.
+      # Install Go.
       ##################################################
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -99,11 +97,13 @@ jobs:
           go-version-file: core/go.mod
 
       ##################################################
-      # Vendor dependencies
+      # Vendor downgraded dependencies
       ##################################################
-      - name: Vendor dependencies
+      - name: Vendor downgraded dependencies
         run: |
           cd core
+          rm -rf vendor
+          rm go.sum
           go mod tidy
           go mod vendor
 
@@ -168,7 +168,7 @@ jobs:
           # make it invalid, breaking the job.
           #
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-*
+          CIBW_SKIP: cp36-* cp37-*
           CIBW_ARCHS_LINUX: aarch64
           CIBW_BEFORE_ALL_LINUX: >
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
@@ -191,8 +191,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-20.04
-          - windows-2019
+          - ubuntu-22.04
+          - windows-2022
           - macos-14
 
     steps:
@@ -224,7 +224,7 @@ jobs:
           # make it invalid, breaking the job.
           #
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-*
+          CIBW_SKIP: cp36-* cp37-*
           CIBW_ARCHS_LINUX: x86_64 #aarch64 is handled by build-linux-arm64-wheels
           CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
 
@@ -374,8 +374,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-20.04
-          - windows-2019
+          - ubuntu-22.04
+          - windows-2022
           - macos-14
         use_legacy_service: [false, true]
 
@@ -555,6 +555,9 @@ jobs:
           # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
           channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
           # For posting a simple plain text message
-          slack-message: "W&B SDK ${{ github.event.inputs.version }} released :tada:: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/"
+          slack-message: |
+            W&B SDK ${{ github.event.inputs.version }} released :tada::
+            - PyPI: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/
+            - Release notes: https://github.com/wandb/wandb/releases/tag/v${{ github.event.inputs.version }}
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

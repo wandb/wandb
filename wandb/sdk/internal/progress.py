@@ -43,9 +43,7 @@ class Progress:
             # files getting truncated while uploading seems like something
             # that shouldn't really be happening anyway.
             raise CommError(
-                "File {} size shrank from {} to {} while it was being uploaded.".format(
-                    self.file.name, self.len, self.bytes_read
-                )
+                f"File {self.file.name} size shrank from {self.len} to {self.bytes_read} while it was being uploaded."
             )
         # Growing files are also likely to be bad, but our code didn't break
         # on those in the past, so it's riskier to make that an error now.

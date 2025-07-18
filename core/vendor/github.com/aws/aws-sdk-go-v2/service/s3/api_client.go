@@ -4,6 +4,7 @@ package s3
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -29,6 +30,7 @@ import (
 	"github.com/aws/smithy-go/logging"
 	"github.com/aws/smithy-go/metrics"
 	"github.com/aws/smithy-go/middleware"
+	smithyrand "github.com/aws/smithy-go/rand"
 	"github.com/aws/smithy-go/tracing"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"net"
@@ -191,6 +193,8 @@ func New(options Options, optFns ...func(*Options)) *Client {
 	resolveHTTPClient(&options)
 
 	resolveHTTPSignerV4(&options)
+
+	resolveIdempotencyTokenProvider(&options)
 
 	resolveEndpointResolverV2(&options)
 
@@ -715,6 +719,13 @@ func addIsPaginatorUserAgent(o *Options) {
 	})
 }
 
+func resolveIdempotencyTokenProvider(o *Options) {
+	if o.IdempotencyTokenProvider != nil {
+		return
+	}
+	o.IdempotencyTokenProvider = smithyrand.NewUUIDIdempotencyToken(cryptorand.Reader)
+}
+
 func addRetry(stack *middleware.Stack, o Options) error {
 	attempt := retry.NewAttemptMiddleware(o.Retryer, smithyhttp.RequestCloner, func(m *retry.Attempt) {
 		m.LogAttempts = o.ClientLogMode.IsRetries()
@@ -871,6 +882,37 @@ func addResponseChecksumMetricsTracking(stack *middleware.Stack, options Options
 	}, "UserAgent", middleware.Before)
 }
 
+type setCredentialSourceMiddleware struct {
+	ua      *awsmiddleware.RequestUserAgent
+	options Options
+}
+
+func (m setCredentialSourceMiddleware) ID() string { return "SetCredentialSourceMiddleware" }
+
+func (m setCredentialSourceMiddleware) HandleBuild(ctx context.Context, in middleware.BuildInput, next middleware.BuildHandler) (
+	out middleware.BuildOutput, metadata middleware.Metadata, err error,
+) {
+	asProviderSource, ok := m.options.Credentials.(aws.CredentialProviderSource)
+	if !ok {
+		return next.HandleBuild(ctx, in)
+	}
+	providerSources := asProviderSource.ProviderSources()
+	for _, source := range providerSources {
+		m.ua.AddCredentialsSource(source)
+	}
+	return next.HandleBuild(ctx, in)
+}
+
+func addCredentialSource(stack *middleware.Stack, options Options) error {
+	ua, err := getOrAddRequestUserAgent(stack)
+	if err != nil {
+		return err
+	}
+
+	mw := setCredentialSourceMiddleware{ua: ua, options: options}
+	return stack.Build.Insert(&mw, "UserAgent", middleware.Before)
+}
+
 func resolveTracerProvider(options *Options) {
 	if options.TracerProvider == nil {
 		options.TracerProvider = &tracing.NopTracerProvider{}
@@ -881,6 +923,11 @@ func resolveMeterProvider(options *Options) {
 	if options.MeterProvider == nil {
 		options.MeterProvider = metrics.NopMeterProvider{}
 	}
+}
+
+// IdempotencyTokenProvider interface for providing idempotency token
+type IdempotencyTokenProvider interface {
+	GetIdempotencyToken() (string, error)
 }
 
 func addMetadataRetrieverMiddleware(stack *middleware.Stack) error {
