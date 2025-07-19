@@ -70,11 +70,16 @@ class FixtureCmd:
 class UserCmd(FixtureCmd):
     path: ClassVar[str] = "db/user"
 
-    command: Literal["up", "down", "down_all", "logout", "login", "password"]
+    command: Literal[
+        "up", "up_runs_v2", "down", "down_all", "logout", "login", "password"
+    ]
 
     username: str | None = None
     password: str | None = None
     admin: bool = False
+    enableRunsV2: bool = (  # noqa: N815
+        False  # backend fixture expects camel case for param names
+    )
 
 
 @dataclass(frozen=True)
@@ -169,12 +174,17 @@ class BackendFixtureFactory:
         self.cleanup()
         self._client.__exit__()
 
-    def make_user(self, name: str | None = None, admin: bool = False) -> str:
+    def make_user(
+        self,
+        name: str | None = None,
+        admin: bool = False,
+        enable_runs_v2: bool = False,
+    ) -> str:
         """Create a new user and return their username."""
         name = name or f"user-{self.worker_id}-{random_string()}"
 
         self.send_cmds(
-            UserCmd("up", username=name, admin=admin),
+            UserCmd("up", username=name, admin=admin, enableRunsV2=enable_runs_v2),
             UserCmd("password", username=name, password=name, admin=admin),
         )
 
