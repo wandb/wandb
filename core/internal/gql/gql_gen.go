@@ -5,6 +5,7 @@ package gql
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 )
@@ -1051,6 +1052,102 @@ func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetId() stri
 // GetName returns RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity.Name, and is useful for accessing the field via an interface.
 func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetName() string { return v.Name }
 
+// ---------------- Fragment ----------------
+type RunFragment struct {
+	Id               string           `json:"id"`
+	Tags             []string         `json:"tags"`
+	Name             string           `json:"name"`
+	DisplayName      *string          `json:"displayName"`
+	SweepName        *string          `json:"sweepName"`
+	State            *string          `json:"state"`
+	Config           *string          `json:"config"`
+	Group            *string          `json:"group"`
+	JobType          *string          `json:"jobType"`
+	Commit           *string          `json:"commit"`
+	ReadOnly         *bool            `json:"readOnly"`
+	CreatedAt        time.Time        `json:"createdAt"`
+	HeartbeatAt      *time.Time       `json:"heartbeatAt"`
+	Description      *string          `json:"description"`
+	Notes            *string          `json:"notes"`
+	SystemMetrics    *string          `json:"systemMetrics"`
+	SummaryMetrics   *string          `json:"summaryMetrics"`
+	HistoryLineCount *int             `json:"historyLineCount"`
+	User             *RunFragmentUser `json:"user"`
+	HistoryKeys      *interface{}     `json:"historyKeys"`
+}
+
+// GetId returns RunFragment.Id, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetId() string { return v.Id }
+
+// GetTags returns RunFragment.Tags, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetTags() []string { return v.Tags }
+
+// GetName returns RunFragment.Name, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetName() string { return v.Name }
+
+// GetDisplayName returns RunFragment.DisplayName, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetDisplayName() *string { return v.DisplayName }
+
+// GetSweepName returns RunFragment.SweepName, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetSweepName() *string { return v.SweepName }
+
+// GetState returns RunFragment.State, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetState() *string { return v.State }
+
+// GetConfig returns RunFragment.Config, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetConfig() *string { return v.Config }
+
+// GetGroup returns RunFragment.Group, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetGroup() *string { return v.Group }
+
+// GetJobType returns RunFragment.JobType, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetJobType() *string { return v.JobType }
+
+// GetCommit returns RunFragment.Commit, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetCommit() *string { return v.Commit }
+
+// GetReadOnly returns RunFragment.ReadOnly, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetReadOnly() *bool { return v.ReadOnly }
+
+// GetCreatedAt returns RunFragment.CreatedAt, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetCreatedAt() time.Time { return v.CreatedAt }
+
+// GetHeartbeatAt returns RunFragment.HeartbeatAt, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetHeartbeatAt() *time.Time { return v.HeartbeatAt }
+
+// GetDescription returns RunFragment.Description, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetDescription() *string { return v.Description }
+
+// GetNotes returns RunFragment.Notes, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetNotes() *string { return v.Notes }
+
+// GetSystemMetrics returns RunFragment.SystemMetrics, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetSystemMetrics() *string { return v.SystemMetrics }
+
+// GetSummaryMetrics returns RunFragment.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetSummaryMetrics() *string { return v.SummaryMetrics }
+
+// GetHistoryLineCount returns RunFragment.HistoryLineCount, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetHistoryLineCount() *int { return v.HistoryLineCount }
+
+// GetUser returns RunFragment.User, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetUser() *RunFragmentUser { return v.User }
+
+// GetHistoryKeys returns RunFragment.HistoryKeys, and is useful for accessing the field via an interface.
+func (v *RunFragment) GetHistoryKeys() *interface{} { return v.HistoryKeys }
+
+// RunFragmentUser includes the requested fields of the GraphQL type User.
+type RunFragmentUser struct {
+	Name     string  `json:"name"`
+	Username *string `json:"username"`
+}
+
+// GetName returns RunFragmentUser.Name, and is useful for accessing the field via an interface.
+func (v *RunFragmentUser) GetName() string { return v.Name }
+
+// GetUsername returns RunFragmentUser.Username, and is useful for accessing the field via an interface.
+func (v *RunFragmentUser) GetUsername() *string { return v.Username }
+
 // RunResumeStatusModelProject includes the requested fields of the GraphQL type Project.
 type RunResumeStatusModelProject struct {
 	Id     string                                `json:"id"`
@@ -1172,6 +1269,387 @@ type RunStoppedStatusResponse struct {
 
 // GetProject returns RunStoppedStatusResponse.Project, and is useful for accessing the field via an interface.
 func (v *RunStoppedStatusResponse) GetProject() *RunStoppedStatusProject { return v.Project }
+
+// RunWithProjectIdProject includes the requested fields of the GraphQL type Project.
+type RunWithProjectIdProject struct {
+	Run *RunWithProjectIdProjectRun `json:"run"`
+}
+
+// GetRun returns RunWithProjectIdProject.Run, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProject) GetRun() *RunWithProjectIdProjectRun { return v.Run }
+
+// RunWithProjectIdProjectRun includes the requested fields of the GraphQL type Run.
+type RunWithProjectIdProjectRun struct {
+	ProjectId   string `json:"projectId"`
+	RunFragment `json:"-"`
+}
+
+// GetProjectId returns RunWithProjectIdProjectRun.ProjectId, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetProjectId() string { return v.ProjectId }
+
+// GetId returns RunWithProjectIdProjectRun.Id, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetId() string { return v.RunFragment.Id }
+
+// GetTags returns RunWithProjectIdProjectRun.Tags, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetTags() []string { return v.RunFragment.Tags }
+
+// GetName returns RunWithProjectIdProjectRun.Name, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetName() string { return v.RunFragment.Name }
+
+// GetDisplayName returns RunWithProjectIdProjectRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetDisplayName() *string { return v.RunFragment.DisplayName }
+
+// GetSweepName returns RunWithProjectIdProjectRun.SweepName, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetSweepName() *string { return v.RunFragment.SweepName }
+
+// GetState returns RunWithProjectIdProjectRun.State, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetState() *string { return v.RunFragment.State }
+
+// GetConfig returns RunWithProjectIdProjectRun.Config, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetConfig() *string { return v.RunFragment.Config }
+
+// GetGroup returns RunWithProjectIdProjectRun.Group, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetGroup() *string { return v.RunFragment.Group }
+
+// GetJobType returns RunWithProjectIdProjectRun.JobType, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetJobType() *string { return v.RunFragment.JobType }
+
+// GetCommit returns RunWithProjectIdProjectRun.Commit, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetCommit() *string { return v.RunFragment.Commit }
+
+// GetReadOnly returns RunWithProjectIdProjectRun.ReadOnly, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetReadOnly() *bool { return v.RunFragment.ReadOnly }
+
+// GetCreatedAt returns RunWithProjectIdProjectRun.CreatedAt, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetCreatedAt() time.Time { return v.RunFragment.CreatedAt }
+
+// GetHeartbeatAt returns RunWithProjectIdProjectRun.HeartbeatAt, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetHeartbeatAt() *time.Time { return v.RunFragment.HeartbeatAt }
+
+// GetDescription returns RunWithProjectIdProjectRun.Description, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetDescription() *string { return v.RunFragment.Description }
+
+// GetNotes returns RunWithProjectIdProjectRun.Notes, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetNotes() *string { return v.RunFragment.Notes }
+
+// GetSystemMetrics returns RunWithProjectIdProjectRun.SystemMetrics, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetSystemMetrics() *string { return v.RunFragment.SystemMetrics }
+
+// GetSummaryMetrics returns RunWithProjectIdProjectRun.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetSummaryMetrics() *string { return v.RunFragment.SummaryMetrics }
+
+// GetHistoryLineCount returns RunWithProjectIdProjectRun.HistoryLineCount, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetHistoryLineCount() *int {
+	return v.RunFragment.HistoryLineCount
+}
+
+// GetUser returns RunWithProjectIdProjectRun.User, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetUser() *RunFragmentUser { return v.RunFragment.User }
+
+// GetHistoryKeys returns RunWithProjectIdProjectRun.HistoryKeys, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdProjectRun) GetHistoryKeys() *interface{} { return v.RunFragment.HistoryKeys }
+
+func (v *RunWithProjectIdProjectRun) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*RunWithProjectIdProjectRun
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.RunWithProjectIdProjectRun = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.RunFragment)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalRunWithProjectIdProjectRun struct {
+	ProjectId string `json:"projectId"`
+
+	Id string `json:"id"`
+
+	Tags []string `json:"tags"`
+
+	Name string `json:"name"`
+
+	DisplayName *string `json:"displayName"`
+
+	SweepName *string `json:"sweepName"`
+
+	State *string `json:"state"`
+
+	Config *string `json:"config"`
+
+	Group *string `json:"group"`
+
+	JobType *string `json:"jobType"`
+
+	Commit *string `json:"commit"`
+
+	ReadOnly *bool `json:"readOnly"`
+
+	CreatedAt time.Time `json:"createdAt"`
+
+	HeartbeatAt *time.Time `json:"heartbeatAt"`
+
+	Description *string `json:"description"`
+
+	Notes *string `json:"notes"`
+
+	SystemMetrics *string `json:"systemMetrics"`
+
+	SummaryMetrics *string `json:"summaryMetrics"`
+
+	HistoryLineCount *int `json:"historyLineCount"`
+
+	User *RunFragmentUser `json:"user"`
+
+	HistoryKeys *interface{} `json:"historyKeys"`
+}
+
+func (v *RunWithProjectIdProjectRun) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *RunWithProjectIdProjectRun) __premarshalJSON() (*__premarshalRunWithProjectIdProjectRun, error) {
+	var retval __premarshalRunWithProjectIdProjectRun
+
+	retval.ProjectId = v.ProjectId
+	retval.Id = v.RunFragment.Id
+	retval.Tags = v.RunFragment.Tags
+	retval.Name = v.RunFragment.Name
+	retval.DisplayName = v.RunFragment.DisplayName
+	retval.SweepName = v.RunFragment.SweepName
+	retval.State = v.RunFragment.State
+	retval.Config = v.RunFragment.Config
+	retval.Group = v.RunFragment.Group
+	retval.JobType = v.RunFragment.JobType
+	retval.Commit = v.RunFragment.Commit
+	retval.ReadOnly = v.RunFragment.ReadOnly
+	retval.CreatedAt = v.RunFragment.CreatedAt
+	retval.HeartbeatAt = v.RunFragment.HeartbeatAt
+	retval.Description = v.RunFragment.Description
+	retval.Notes = v.RunFragment.Notes
+	retval.SystemMetrics = v.RunFragment.SystemMetrics
+	retval.SummaryMetrics = v.RunFragment.SummaryMetrics
+	retval.HistoryLineCount = v.RunFragment.HistoryLineCount
+	retval.User = v.RunFragment.User
+	retval.HistoryKeys = v.RunFragment.HistoryKeys
+	return &retval, nil
+}
+
+// RunWithProjectIdResponse is returned by RunWithProjectId on success.
+type RunWithProjectIdResponse struct {
+	Project *RunWithProjectIdProject `json:"project"`
+}
+
+// GetProject returns RunWithProjectIdResponse.Project, and is useful for accessing the field via an interface.
+func (v *RunWithProjectIdResponse) GetProject() *RunWithProjectIdProject { return v.Project }
+
+// RunWithoutProjectIdProject includes the requested fields of the GraphQL type Project.
+type RunWithoutProjectIdProject struct {
+	Run *RunWithoutProjectIdProjectRun `json:"run"`
+}
+
+// GetRun returns RunWithoutProjectIdProject.Run, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProject) GetRun() *RunWithoutProjectIdProjectRun { return v.Run }
+
+// RunWithoutProjectIdProjectRun includes the requested fields of the GraphQL type Run.
+type RunWithoutProjectIdProjectRun struct {
+	RunFragment `json:"-"`
+}
+
+// GetId returns RunWithoutProjectIdProjectRun.Id, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetId() string { return v.RunFragment.Id }
+
+// GetTags returns RunWithoutProjectIdProjectRun.Tags, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetTags() []string { return v.RunFragment.Tags }
+
+// GetName returns RunWithoutProjectIdProjectRun.Name, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetName() string { return v.RunFragment.Name }
+
+// GetDisplayName returns RunWithoutProjectIdProjectRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetDisplayName() *string { return v.RunFragment.DisplayName }
+
+// GetSweepName returns RunWithoutProjectIdProjectRun.SweepName, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetSweepName() *string { return v.RunFragment.SweepName }
+
+// GetState returns RunWithoutProjectIdProjectRun.State, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetState() *string { return v.RunFragment.State }
+
+// GetConfig returns RunWithoutProjectIdProjectRun.Config, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetConfig() *string { return v.RunFragment.Config }
+
+// GetGroup returns RunWithoutProjectIdProjectRun.Group, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetGroup() *string { return v.RunFragment.Group }
+
+// GetJobType returns RunWithoutProjectIdProjectRun.JobType, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetJobType() *string { return v.RunFragment.JobType }
+
+// GetCommit returns RunWithoutProjectIdProjectRun.Commit, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetCommit() *string { return v.RunFragment.Commit }
+
+// GetReadOnly returns RunWithoutProjectIdProjectRun.ReadOnly, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetReadOnly() *bool { return v.RunFragment.ReadOnly }
+
+// GetCreatedAt returns RunWithoutProjectIdProjectRun.CreatedAt, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetCreatedAt() time.Time { return v.RunFragment.CreatedAt }
+
+// GetHeartbeatAt returns RunWithoutProjectIdProjectRun.HeartbeatAt, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetHeartbeatAt() *time.Time { return v.RunFragment.HeartbeatAt }
+
+// GetDescription returns RunWithoutProjectIdProjectRun.Description, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetDescription() *string { return v.RunFragment.Description }
+
+// GetNotes returns RunWithoutProjectIdProjectRun.Notes, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetNotes() *string { return v.RunFragment.Notes }
+
+// GetSystemMetrics returns RunWithoutProjectIdProjectRun.SystemMetrics, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetSystemMetrics() *string {
+	return v.RunFragment.SystemMetrics
+}
+
+// GetSummaryMetrics returns RunWithoutProjectIdProjectRun.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetSummaryMetrics() *string {
+	return v.RunFragment.SummaryMetrics
+}
+
+// GetHistoryLineCount returns RunWithoutProjectIdProjectRun.HistoryLineCount, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetHistoryLineCount() *int {
+	return v.RunFragment.HistoryLineCount
+}
+
+// GetUser returns RunWithoutProjectIdProjectRun.User, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetUser() *RunFragmentUser { return v.RunFragment.User }
+
+// GetHistoryKeys returns RunWithoutProjectIdProjectRun.HistoryKeys, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdProjectRun) GetHistoryKeys() *interface{} {
+	return v.RunFragment.HistoryKeys
+}
+
+func (v *RunWithoutProjectIdProjectRun) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*RunWithoutProjectIdProjectRun
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.RunWithoutProjectIdProjectRun = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.RunFragment)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalRunWithoutProjectIdProjectRun struct {
+	Id string `json:"id"`
+
+	Tags []string `json:"tags"`
+
+	Name string `json:"name"`
+
+	DisplayName *string `json:"displayName"`
+
+	SweepName *string `json:"sweepName"`
+
+	State *string `json:"state"`
+
+	Config *string `json:"config"`
+
+	Group *string `json:"group"`
+
+	JobType *string `json:"jobType"`
+
+	Commit *string `json:"commit"`
+
+	ReadOnly *bool `json:"readOnly"`
+
+	CreatedAt time.Time `json:"createdAt"`
+
+	HeartbeatAt *time.Time `json:"heartbeatAt"`
+
+	Description *string `json:"description"`
+
+	Notes *string `json:"notes"`
+
+	SystemMetrics *string `json:"systemMetrics"`
+
+	SummaryMetrics *string `json:"summaryMetrics"`
+
+	HistoryLineCount *int `json:"historyLineCount"`
+
+	User *RunFragmentUser `json:"user"`
+
+	HistoryKeys *interface{} `json:"historyKeys"`
+}
+
+func (v *RunWithoutProjectIdProjectRun) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *RunWithoutProjectIdProjectRun) __premarshalJSON() (*__premarshalRunWithoutProjectIdProjectRun, error) {
+	var retval __premarshalRunWithoutProjectIdProjectRun
+
+	retval.Id = v.RunFragment.Id
+	retval.Tags = v.RunFragment.Tags
+	retval.Name = v.RunFragment.Name
+	retval.DisplayName = v.RunFragment.DisplayName
+	retval.SweepName = v.RunFragment.SweepName
+	retval.State = v.RunFragment.State
+	retval.Config = v.RunFragment.Config
+	retval.Group = v.RunFragment.Group
+	retval.JobType = v.RunFragment.JobType
+	retval.Commit = v.RunFragment.Commit
+	retval.ReadOnly = v.RunFragment.ReadOnly
+	retval.CreatedAt = v.RunFragment.CreatedAt
+	retval.HeartbeatAt = v.RunFragment.HeartbeatAt
+	retval.Description = v.RunFragment.Description
+	retval.Notes = v.RunFragment.Notes
+	retval.SystemMetrics = v.RunFragment.SystemMetrics
+	retval.SummaryMetrics = v.RunFragment.SummaryMetrics
+	retval.HistoryLineCount = v.RunFragment.HistoryLineCount
+	retval.User = v.RunFragment.User
+	retval.HistoryKeys = v.RunFragment.HistoryKeys
+	return &retval, nil
+}
+
+// RunWithoutProjectIdResponse is returned by RunWithoutProjectId on success.
+type RunWithoutProjectIdResponse struct {
+	Project *RunWithoutProjectIdProject `json:"project"`
+}
+
+// GetProject returns RunWithoutProjectIdResponse.Project, and is useful for accessing the field via an interface.
+func (v *RunWithoutProjectIdResponse) GetProject() *RunWithoutProjectIdProject { return v.Project }
 
 // ServerFeaturesQueryResponse is returned by ServerFeaturesQuery on success.
 type ServerFeaturesQueryResponse struct {
@@ -1933,6 +2411,38 @@ func (v *__RunStoppedStatusInput) GetProjectName() *string { return v.ProjectNam
 
 // GetRunId returns __RunStoppedStatusInput.RunId, and is useful for accessing the field via an interface.
 func (v *__RunStoppedStatusInput) GetRunId() string { return v.RunId }
+
+// __RunWithProjectIdInput is used internally by genqlient
+type __RunWithProjectIdInput struct {
+	Project string `json:"project"`
+	Entity  string `json:"entity"`
+	Name    string `json:"name"`
+}
+
+// GetProject returns __RunWithProjectIdInput.Project, and is useful for accessing the field via an interface.
+func (v *__RunWithProjectIdInput) GetProject() string { return v.Project }
+
+// GetEntity returns __RunWithProjectIdInput.Entity, and is useful for accessing the field via an interface.
+func (v *__RunWithProjectIdInput) GetEntity() string { return v.Entity }
+
+// GetName returns __RunWithProjectIdInput.Name, and is useful for accessing the field via an interface.
+func (v *__RunWithProjectIdInput) GetName() string { return v.Name }
+
+// __RunWithoutProjectIdInput is used internally by genqlient
+type __RunWithoutProjectIdInput struct {
+	Project string `json:"project"`
+	Entity  string `json:"entity"`
+	Name    string `json:"name"`
+}
+
+// GetProject returns __RunWithoutProjectIdInput.Project, and is useful for accessing the field via an interface.
+func (v *__RunWithoutProjectIdInput) GetProject() string { return v.Project }
+
+// GetEntity returns __RunWithoutProjectIdInput.Entity, and is useful for accessing the field via an interface.
+func (v *__RunWithoutProjectIdInput) GetEntity() string { return v.Entity }
+
+// GetName returns __RunWithoutProjectIdInput.Name, and is useful for accessing the field via an interface.
+func (v *__RunWithoutProjectIdInput) GetName() string { return v.Name }
 
 // __TypeFieldsInput is used internally by genqlient
 type __TypeFieldsInput struct {
@@ -2865,6 +3375,139 @@ func RunStoppedStatus(
 	}
 
 	data_ = &RunStoppedStatusResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by RunWithProjectId.
+const RunWithProjectId_Operation = `
+query RunWithProjectId ($project: String!, $entity: String!, $name: String!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $name) {
+			projectId
+			... RunFragment
+		}
+	}
+}
+fragment RunFragment on Run {
+	id
+	tags
+	name
+	displayName
+	sweepName
+	state
+	config
+	group
+	jobType
+	commit
+	readOnly
+	createdAt
+	heartbeatAt
+	description
+	notes
+	systemMetrics
+	summaryMetrics
+	historyLineCount
+	user {
+		name
+		username
+	}
+	historyKeys
+}
+`
+
+// -------- Query that *includes* projectId --
+func RunWithProjectId(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	project string,
+	entity string,
+	name string,
+) (data_ *RunWithProjectIdResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "RunWithProjectId",
+		Query:  RunWithProjectId_Operation,
+		Variables: &__RunWithProjectIdInput{
+			Project: project,
+			Entity:  entity,
+			Name:    name,
+		},
+	}
+
+	data_ = &RunWithProjectIdResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by RunWithoutProjectId.
+const RunWithoutProjectId_Operation = `
+query RunWithoutProjectId ($project: String!, $entity: String!, $name: String!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $name) {
+			... RunFragment
+		}
+	}
+}
+fragment RunFragment on Run {
+	id
+	tags
+	name
+	displayName
+	sweepName
+	state
+	config
+	group
+	jobType
+	commit
+	readOnly
+	createdAt
+	heartbeatAt
+	description
+	notes
+	systemMetrics
+	summaryMetrics
+	historyLineCount
+	user {
+		name
+		username
+	}
+	historyKeys
+}
+`
+
+// -------- Query that omits projectId -------
+func RunWithoutProjectId(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	project string,
+	entity string,
+	name string,
+) (data_ *RunWithoutProjectIdResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "RunWithoutProjectId",
+		Query:  RunWithoutProjectId_Operation,
+		Variables: &__RunWithoutProjectIdInput{
+			Project: project,
+			Entity:  entity,
+			Name:    name,
+		},
+	}
+
+	data_ = &RunWithoutProjectIdResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
