@@ -44,6 +44,18 @@ func ComputeFileB64MD5(path string) (string, error) {
 	return base64.StdEncoding.EncodeToString(hasher.Sum(nil)), nil
 }
 
+// ComputeReaderHexMD5 computes the MD5 hash of the data from the given io.Reader
+// and returns the result as a hexadecimal string.
+//
+// Returns an error if the reader cannot be read.
+func ComputeReaderHexMD5(reader io.Reader) (string, error) {
+	hasher := md5.New()
+	if _, err := io.Copy(hasher, reader); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
 // VerifyFileB64MD5 checks if the file at the given path matches the provided
 // base64-encoded MD5 hash.
 //
