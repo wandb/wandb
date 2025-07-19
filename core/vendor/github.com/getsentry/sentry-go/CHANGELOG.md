@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.34.1
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.34.1.
+
+### Bug Fixes
+
+- Allow flush to be used multiple times without issues, particularly for the batch logger ([#1051](https://github.com/getsentry/sentry-go/pull/1051))
+- Fix race condition in `Scope.GetSpan()` method by adding proper mutex locking ([#1044](https://github.com/getsentry/sentry-go/pull/1044))
+- Guard transport on `Close()` to prevent panic when called multiple times ([#1044](https://github.com/getsentry/sentry-go/pull/1044))
+
 ## 0.34.0
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.34.0.

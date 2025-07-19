@@ -157,8 +157,8 @@ class BackendFixtureFactory:
     def __post_init__(self, service_url: str):
         self._client = httpx.Client(
             base_url=service_url,
-            # event_hooks={"response": [httpx.Response.raise_for_status]},
-            # timeout=None,
+            # The default 5s timeout is sometimes too short in CI.
+            timeout=30,
         )
 
     def __enter__(self):

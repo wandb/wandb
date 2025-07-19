@@ -38,7 +38,6 @@ from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.tracking_handler import TrackingHandler
 from wandb.sdk.lib.hashutil import md5_string
-from wandb.sdk.wandb_run import Run
 
 
 def mock_boto(artifact, path=False, content_type=None, version_id="1"):
@@ -493,7 +492,7 @@ def test_add_reference_local_file_no_checksum(tmp_path, artifact):
 
 class TestAddReferenceLocalFileNoChecksumTwice:
     @pytest.fixture
-    def run(self, user) -> Iterator[Run]:
+    def run(self, user) -> Iterator[wandb.Run]:
         with wandb.init() as run:
             yield run
 
