@@ -260,3 +260,29 @@ def test_initialize_api_does_not_prompt_for_api_key__when_using_env_var(monkeypa
     assert "key" in mock_login.call_args[1]
     assert mock_login.call_args[1]["key"] == "X" * 40
     assert api.api_key == "X" * 40
+    
+
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+def test_project_id_lazy_load(monkeypatch):
+    mock_execute = MagicMock(
+        return_value={
+            "project": {
+                "id": "123",
+                "createdAt": "2021-01-01T00:00:00Z",
+                "isBenchmark": False,
+            }
+        }
+    )
+    monkeypatch.setattr(wandb.apis.public.api.RetryingClient, "execute", mock_execute)
+    project = wandb.apis.public.Project(
+        client=wandb.Api().client,
+        entity="test-entity",
+        project="test-project",
+        attrs={},
+    )
+
+    assert project.id == "123"
+    assert project.created_at == "2021-01-01T00:00:00Z"
+    assert project.is_benchmark is False
+
+    mock_execute.assert_called_once()

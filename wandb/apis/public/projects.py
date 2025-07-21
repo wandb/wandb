@@ -31,8 +31,6 @@ Note:
     with a new project name.
 """
 
-from contextlib import suppress
-
 from requests import HTTPError
 from wandb_gql import gql
 
@@ -79,8 +77,7 @@ class Projects(Paginator["Project"]):
     ```
     """
 
-    QUERY = gql(
-        """
+    QUERY = gql(f"""#graphql
         query Projects($entity: String, $cursor: String, $perPage: Int = 50) {{
             models(entityName: $entity, after: $cursor, first: $perPage) {{
                 edges {{
@@ -95,9 +92,8 @@ class Projects(Paginator["Project"]):
                 }}
             }}
         }}
-        {}
-        """.format(PROJECT_FRAGMENT)
-    )
+        {PROJECT_FRAGMENT}
+    """)
 
     def __init__(
         self,
@@ -176,15 +172,14 @@ class Project(Attrs):
         entity (str): The entity name that owns the project.
     """
 
-    QUERY = gql(
-        """
-        query Project($project: String!, $entity: String!) {
-            project(name: $project, entityName: $entity) {
-                id
-            }
-        }
-        """
-    )
+    QUERY = gql(f"""#graphql
+        query Project($project: String!, $entity: String!) {{
+            project(name: $project, entityName: $entity) {{
+                ...ProjectFragment
+            }}
+        }}
+        {PROJECT_FRAGMENT}
+    """)
 
     def __init__(
         self,
@@ -202,9 +197,21 @@ class Project(Attrs):
             attrs: The attributes of the project.
         """
         super().__init__(dict(attrs))
+        self._is_loaded = False if not attrs else True
         self.client = client
         self.name = project
         self.entity = entity
+
+    def _load(self):
+        variable_values = {"project": self.name, "entity": self.entity}
+        try:
+            response = self.client.execute(self.QUERY, variable_values)
+            project = response["project"]
+        except HTTPError as e:
+            raise ValueError(f"Unable to fetch project ID: {variable_values!r}") from e
+
+        self._attrs = project
+        self._is_loaded = True
 
     @property
     def path(self):
@@ -253,32 +260,18 @@ class Project(Attrs):
         """
         return Sweeps(self.client, self.entity, self.name, per_page=per_page)
 
-    _PROJECT_ID = gql(
-        """
-        query ProjectID($projectName: String!, $entityName: String!) {
-            project(name: $projectName, entityName: $entityName) {
-                id
-            }
-        }
-        """
-    )
-
     @property
     def id(self) -> str:
-        # This is a workaround to ensure that the project ID can be retrieved
-        # on demand, as it generally is not set or fetched on instantiation.
-        # This is necessary if using this project as the scope of a new Automation.
-        with suppress(LookupError):
-            return self._attrs["id"]
+        if not self._is_loaded:
+            self._load()
 
-        variable_values = {"projectName": self.name, "entityName": self.entity}
-        try:
-            data = self.client.execute(self._PROJECT_ID, variable_values)
+        if "id" not in self._attrs:
+            raise ValueError(f"Project {self.name} not found")
 
-            if not data.get("project") or not data["project"].get("id"):
-                raise ValueError(f"Project {self.name} not found")
+        return self._attrs["id"]
 
-            self._attrs["id"] = data["project"]["id"]
-            return self._attrs["id"]
-        except (HTTPError, LookupError, TypeError) as e:
-            raise ValueError(f"Unable to fetch project ID: {variable_values!r}") from e
+    def __getattr__(self, name: str):
+        if not self._is_loaded:
+            self._load()
+
+        return super().__getattr__(name)
