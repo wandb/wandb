@@ -131,6 +131,31 @@ def _get_cling_api(reset=None):
     return _api
 
 
+def _parse_sync_replace_tags(replace_tags_str):
+    """Parse replace_tags string into a dictionary.
+    
+    Args:
+        replace_tags_str: String in format 'old_tag1=new_tag1,old_tag2=new_tag2'
+        
+    Returns:
+        dict: Mapping of old tags to new tags, or None if format is invalid
+    """
+    if not replace_tags_str:
+        return {}
+        
+    replace_tags_dict = {}
+    for pair in replace_tags_str.split(","):
+        if "=" not in pair:
+            wandb.termerror(
+                f"Invalid replace-tags format: {pair}. Use 'old_tag=new_tag' format."
+            )
+            return None
+        old_tag, new_tag = pair.split("=", 1)
+        replace_tags_dict[old_tag.strip()] = new_tag.strip()
+    
+    return replace_tags_dict
+
+
 def prompt_for_project(ctx, entity):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
@@ -499,23 +524,9 @@ def sync(
         exclude_globs = exclude_globs.split(",")
 
     # Parse replace_tags parameter
-    replace_tags_dict = {}
-    if replace_tags:
-        try:
-            for pair in replace_tags.split(","):
-                if "=" in pair:
-                    old_tag, new_tag = pair.split("=", 1)
-                    replace_tags_dict[old_tag.strip()] = new_tag.strip()
-                else:
-                    wandb.termerror(
-                        f"Invalid replace-tags format: {pair}. Use 'old_tag=new_tag' format."
-                    )
-                    return
-        except ValueError:
-            wandb.termerror(
-                "Invalid replace-tags format. Use 'old_tag1=new_tag1,old_tag2=new_tag2'"
-            )
-            return
+    replace_tags_dict = _parse_sync_replace_tags(replace_tags)
+    if replace_tags and replace_tags_dict is None:
+        return  # Error already printed by helper function
 
     def _summary():
         all_items = get_runs(
