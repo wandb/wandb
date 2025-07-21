@@ -1823,12 +1823,17 @@ class Artifact:
             )
         upload_path = path
         if policy == "mutable":
+            start_time = time.monotonic()
             with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
                 staging_path = f.name
                 shutil.copyfile(path, staging_path)
                 # Set as read-only to prevent changes to the file during upload process
                 os.chmod(staging_path, stat.S_IRUSR)
                 upload_path = staging_path
+            end_time = time.monotonic()
+            logger.debug(
+                f"Artifact.add_file: mutable policy copyTimeMs={int((end_time - start_time) * 1000)}"
+            )
 
         entry = ArtifactManifestEntry(
             path=name,
