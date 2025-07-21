@@ -115,7 +115,7 @@ def _create_job(
     build_context: Optional[str] = None,
     dockerfile: Optional[str] = None,
     base_image: Optional[str] = None,
-    services: Optional[List[str]] = None,
+    services: Optional[Dict[str, str]] = None,
 ) -> Tuple[Optional[Artifact], str, List[str]]:
     wandb.termlog(f"Creating launch job of type: {job_type}...")
 

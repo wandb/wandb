@@ -109,6 +109,7 @@ class JobSourceDict(TypedDict, total=False):
     input_types: Dict[str, Any]
     output_types: Dict[str, Any]
     runtime: Optional[str]
+    services: Dict[str, str]
 
 
 class ArtifactInfoForJob(TypedDict):

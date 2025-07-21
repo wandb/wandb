@@ -709,12 +709,13 @@ class TestParseServiceConfig:
 
 
 class TestJobCreateServicesIntegration:
-    def test_create_image_job_with_services(self, user):
+    def test_create_image_job_with_services(self):
         """Test creating an image job with services that actually generates the wandb-job.json."""
         from wandb.apis.internal import Api as InternalApi
         from wandb.apis.public import Api as PublicApi
         from wandb.sdk.launch.create_job import _create_job
 
+        entity = "test-entity"
         proj = "test-services-project"
 
         internal_api = InternalApi()
@@ -725,7 +726,7 @@ class TestJobCreateServicesIntegration:
             api=internal_api,
             path="nicholaspun/train-simple",
             project=proj,
-            entity=user,
+            entity=entity,
             job_type="image",
             description="Test job with services",
             name="test-job-with-services",
@@ -737,7 +738,7 @@ class TestJobCreateServicesIntegration:
         assert "latest" in aliases
 
         # Fetch the job and verify services are in the wandb-job.json
-        job = public_api.job(f"{user}/{proj}/{artifact.name}")
+        job = public_api.job(f"{entity}/{proj}/{artifact.name}")
         job_info = job._job_info
 
         assert "services" in job_info
@@ -745,12 +746,13 @@ class TestJobCreateServicesIntegration:
         assert job_info["source_type"] == "image"
         assert job_info["source"]["image"] == "nicholaspun/train-simple"
 
-    def test_create_image_job_without_services(self, user):
+    def test_create_image_job_without_services(self):
         """Test creating an image job without services - services key should be omitted."""
         from wandb.apis.internal import Api as InternalApi
         from wandb.apis.public import Api as PublicApi
         from wandb.sdk.launch.create_job import _create_job
 
+        entity = "test-entity"
         proj = "test-no-services-project"
 
         internal_api = InternalApi()
@@ -761,7 +763,7 @@ class TestJobCreateServicesIntegration:
             api=internal_api,
             path="nicholaspun/train-simple",
             project=proj,
-            entity=user,
+            entity=entity,
             job_type="image",
             description="Test job without services",
             name="test-job-no-services",
@@ -773,7 +775,7 @@ class TestJobCreateServicesIntegration:
         assert "latest" in aliases
 
         # Fetch the job and verify services key is not present or empty
-        job = public_api.job(f"{user}/{proj}/{artifact.name}")
+        job = public_api.job(f"{entity}/{proj}/{artifact.name}")
         job_info = job._job_info
 
         # When services is empty, it should either be omitted or be an empty dict
