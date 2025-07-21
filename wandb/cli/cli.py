@@ -95,6 +95,33 @@ class ClickWandbException(ClickException):
             )
 
 
+def parse_service_config(ctx, param, value):
+    """Parse service configurations in format serviceName=policy."""
+    if not value:
+        return {}
+
+    result = {}
+    for config in value:
+        if "=" not in config:
+            raise click.BadParameter(
+                f"Service must be in format 'serviceName=policy', got '{config}'"
+            )
+
+        service_name, policy = config.split("=", 1)
+        if not service_name.strip():
+            raise click.BadParameter("Service name cannot be empty")
+
+        # Simple validation for two policies
+        if policy not in ["always", "never"]:
+            raise click.BadParameter(
+                f"Policy must be 'always' or 'never', got '{policy}'"
+            )
+
+        result[service_name.strip()] = policy
+
+    return result
+
+
 def display_error(func):
     """Function decorator for catching common errors and re-raising as wandb.Error."""
 
@@ -1864,6 +1891,14 @@ def describe(job):
     "job_type",
     type=click.Choice(("git", "code", "image")),
 )
+@click.option(
+    "--service",
+    "-s",
+    "services",
+    multiple=True,
+    callback=parse_service_config,
+    help="Service configurations in format serviceName=policy. Valid policies: always, never",
+)
 @click.argument("path")
 def create(
     path,
@@ -1879,6 +1914,7 @@ def create(
     build_context,
     base_image,
     dockerfile,
+    services,
 ):
     """Create a job from a source, without a wandb run.
 
@@ -1928,6 +1964,7 @@ def create(
         build_context=build_context,
         base_image=base_image,
         dockerfile=dockerfile,
+        services=services,
     )
     if not artifact:
         wandb.termerror("Job creation failed")
