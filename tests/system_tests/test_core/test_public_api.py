@@ -488,17 +488,22 @@ def test_projects(user, wandb_backend_spy):
 
 
 def test_project_get_id(user, wandb_backend_spy):
-    body = {
-        "data": {
-            "project": {
-                "id": "123",
-            },
-        },
-    }
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ProjectID"),
-        gql.Constant(content=body),
+        gql.Matcher(operation="Project"),
+        gql.once(
+            content={
+                "data": {
+                    "project": {
+                        "id": "123",
+                        "name": "test",
+                        "entityName": "test-entity",
+                        "createdAt": "2021-01-01T00:00:00Z",
+                        "isBenchmark": False,
+                    },
+                },
+            }
+        ),
     )
 
     project = Api().project(user, "test")
@@ -507,15 +512,22 @@ def test_project_get_id(user, wandb_backend_spy):
 
 
 def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend_spy):
-    body = {
-        "data": {
-            "project": None,
-        },
-    }
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ProjectID"),
-        gql.Constant(content=body),
+        gql.Matcher(operation="Project"),
+        gql.once(
+            content={
+                "data": {
+                    "project": {
+                        # "id": "123",
+                        "name": "test",
+                        "entityName": "test-entity",
+                        "createdAt": "2021-01-01T00:00:00Z",
+                        "isBenchmark": False,
+                    },
+                },
+            }
+        ),
     )
 
     with pytest.raises(ValueError):
