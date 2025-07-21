@@ -16,7 +16,7 @@ import (
 
 // This operation is not supported for directory buckets.
 //
-// This implementation of the PUT action adds an inventory configuration
+// This implementation of the PUT action adds an S3 Inventory configuration
 // (identified by the inventory ID) to the bucket. You can have up to 1,000
 // inventory configurations per bucket.
 //

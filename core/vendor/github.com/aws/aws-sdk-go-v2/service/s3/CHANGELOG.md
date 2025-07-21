@@ -1,3 +1,7 @@
+# v1.84.0 (2025-07-15)
+
+* **Feature**: Amazon S3 Metadata live inventory tables provide a queryable inventory of all the objects in your general purpose bucket so that you can determine the latest state of your data. To help minimize your storage costs, use journal table record expiration to set a retention period for your records.
+
 # v1.83.0 (2025-07-02)
 
 * **Feature**: Added support for directory bucket creation with tags and bucket ARN retrieval in CreateBucket, ListDirectoryBuckets, and HeadBucket operations

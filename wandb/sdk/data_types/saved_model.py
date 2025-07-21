@@ -23,7 +23,6 @@ if TYPE_CHECKING:
     from typing_extensions import Self
 
     from wandb.sdk.artifacts.artifact import Artifact
-    from wandb.sdk.wandb_run import Run as LocalRun
 
 
 DEBUG_MODE = False
@@ -137,15 +136,14 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         # and specified adapter.
         return cls(dl_path)
 
-    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
+    def to_json(self, run_or_artifact: wandb.Run | Artifact) -> dict:
         # Unlike other data types, we do not allow adding to a Run directly. There is a
         # bit of tech debt in the other data types which requires the input to `to_json`
         # to accept a Run or Artifact. However, Run additions should be deprecated in the future.
         # This check helps ensure we do not add to the debt.
-        from wandb.sdk.wandb_run import Run
-
-        if isinstance(run_or_artifact, Run):
+        if isinstance(run_or_artifact, wandb.Run):
             raise TypeError("SavedModel cannot be added to run - must use artifact")
+
         artifact = run_or_artifact
         json_obj = {
             "type": self._log_type,
@@ -329,7 +327,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
 
         return inst  # type: ignore
 
-    def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
+    def to_json(self, run_or_artifact: wandb.Run | Artifact) -> dict:
         json_obj = super().to_json(run_or_artifact)
         assert isinstance(run_or_artifact, wandb.Artifact)
         if self._dep_py_files_path is not None:

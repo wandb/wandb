@@ -4,17 +4,17 @@ go 1.24.4
 
 require (
 	cloud.google.com/go/storage v1.55.0
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.1
 	github.com/Khan/genqlient v0.8.1
 	github.com/aws/aws-sdk-go-v2 v1.36.5
 	github.com/aws/aws-sdk-go-v2/config v1.29.17
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.84.0
 	github.com/getsentry/sentry-go v0.34.1
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/golang/mock v1.6.0
-	github.com/googleapis/gax-go/v2 v2.14.2
+	github.com/googleapis/gax-go/v2 v2.15.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/prometheus/client_golang v1.22.0
@@ -27,7 +27,7 @@ require (
 	gocloud.dev v0.42.0
 	golang.org/x/sync v0.16.0
 	golang.org/x/time v0.12.0
-	google.golang.org/api v0.241.0
+	google.golang.org/api v0.242.0
 	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v3 v3.0.1
