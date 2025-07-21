@@ -1258,7 +1258,7 @@ def init(  # noqa: C901
     allow_val_change: bool | None = None,
     group: str | None = None,
     job_type: str | None = None,
-    mode: Literal["online", "offline", "disabled", "from", "shared"] | None = None,
+    mode: Literal["online", "offline", "disabled", "shared"] | None = None,
     force: bool | None = None,
     anonymous: Literal["never", "allow", "must"] | None = None,
     reinit: (
