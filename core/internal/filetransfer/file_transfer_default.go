@@ -17,7 +17,8 @@ import (
 // DefaultFileTransfer uploads or downloads files to/from the server
 type DefaultFileTransfer struct {
 	// client is the HTTP client for the file transfer
-	client *retryablehttp.Client
+	client            *retryablehttp.Client
+	noKeepAliveClient *retryablehttp.Client
 
 	// logger is the logger for the file transfer
 	logger *observability.CoreLogger
@@ -32,9 +33,16 @@ func NewDefaultFileTransfer(
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
 ) *DefaultFileTransfer {
+	// TODO: proper way to create the client, there is no common creating client package after https://github.com/wandb/wandb/pull/7090
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.DisableKeepAlives = true
+	noKeepAliveClient := retryablehttp.NewClient()
+	noKeepAliveClient.HTTPClient.Transport = tr
+
 	fileTransfer := &DefaultFileTransfer{
 		logger:            logger,
 		client:            client,
+		noKeepAliveClient: noKeepAliveClient,
 		fileTransferStats: fileTransferStats,
 	}
 	return fileTransfer
@@ -81,7 +89,13 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	if task.Context != nil {
 		req = req.WithContext(task.Context)
 	}
-	resp, err := ft.client.Do(req)
+	var resp *http.Response
+	if os.Getenv("WANDB_DISABLE_KEEPALIVE") == "true" {
+		ft.logger.Debug("file transfer: upload: disabling http keepalive")
+		resp, err = ft.noKeepAliveClient.Do(req)
+	} else {
+		resp, err = ft.client.Do(req)
+	}
 	if err != nil {
 		return err
 	}
