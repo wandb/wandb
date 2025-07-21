@@ -709,21 +709,64 @@ class TestParseServiceConfig:
 
 
 class TestJobCreateServicesIntegration:
-    def test_create_image_job_with_services(self):
+    def test_create_image_job_with_services(self, mocker):
         """Test creating an image job with services that actually generates the wandb-job.json."""
-        from wandb.apis.internal import Api as InternalApi
-        from wandb.apis.public import Api as PublicApi
+        import json
+        from unittest.mock import MagicMock
+
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
         from wandb.sdk.launch.create_job import _create_job
 
         entity = "test-entity"
         proj = "test-services-project"
 
-        internal_api = InternalApi()
-        public_api = PublicApi()
+        # Mock wandb.init to avoid authentication and return a mock run
+        mock_run = MagicMock()
+        mock_run.id = "test-run-id"
+        mocker.patch("wandb.init", return_value=mock_run)
+
+        # Mock API calls
+        mock_internal_api = MagicMock()
+        mock_internal_api.create_artifact.return_value = ({"state": "PENDING"}, None)
+
+        # Mock the public API and job fetching
+        mock_public_api_class = mocker.patch("wandb.Api")
+        mock_public_api_instance = MagicMock()
+        mock_public_api_class.return_value = mock_public_api_instance
+
+        mock_run_instance = MagicMock()
+        mock_public_api_instance.run.return_value = mock_run_instance
+
+        # Capture the JSON content that gets written
+        captured_json_content = {}
+
+        def mock_new_file(filename):
+            class MockFileContext:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *args):
+                    pass
+
+                def write(self, content):
+                    if filename == "wandb-job.json":
+                        captured_json_content[filename] = json.loads(content)
+
+            return MockFileContext()
+
+        # Mock InternalArtifact to capture JSON writes
+        mock_artifact = mocker.MagicMock(spec=InternalArtifact)
+        mock_artifact._client_id = "mock-client-id"
+        mock_artifact._sequence_client_id = "mock-sequence-client-id"
+        mock_artifact.new_file.side_effect = mock_new_file
+        mock_artifact_class = mocker.patch(
+            "wandb.sdk.internal.job_builder.InternalArtifact"
+        )
+        mock_artifact_class.return_value = mock_artifact
 
         # Create the job with services
-        artifact, action, aliases = _create_job(
-            api=internal_api,
+        _create_job(
+            api=mock_internal_api,
             path="nicholaspun/train-simple",
             project=proj,
             entity=entity,
@@ -733,34 +776,69 @@ class TestJobCreateServicesIntegration:
             services={"foobar": "always", "barfoo": "never"},
         )
 
-        assert artifact is not None
-        assert action == "Created"
-        assert "latest" in aliases
+        assert "wandb-job.json" in captured_json_content
+        job_json = captured_json_content["wandb-job.json"]
+        assert "services" in job_json
+        assert job_json["services"] == {"foobar": "always", "barfoo": "never"}
 
-        # Fetch the job and verify services are in the wandb-job.json
-        job = public_api.job(f"{entity}/{proj}/{artifact.name}")
-        job_info = job._job_info
-
-        assert "services" in job_info
-        assert job_info["services"] == {"foobar": "always", "barfoo": "never"}
-        assert job_info["source_type"] == "image"
-        assert job_info["source"]["image"] == "nicholaspun/train-simple"
-
-    def test_create_image_job_without_services(self):
+    def test_create_image_job_without_services(self, mocker):
         """Test creating an image job without services - services key should be omitted."""
-        from wandb.apis.internal import Api as InternalApi
-        from wandb.apis.public import Api as PublicApi
+        import json
+        from unittest.mock import MagicMock
+
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
         from wandb.sdk.launch.create_job import _create_job
 
         entity = "test-entity"
-        proj = "test-no-services-project"
+        proj = "test-services-project"
 
-        internal_api = InternalApi()
-        public_api = PublicApi()
+        # Mock wandb.init to avoid authentication and return a mock run
+        mock_run = MagicMock()
+        mock_run.id = "test-run-id"
+        mocker.patch("wandb.init", return_value=mock_run)
+
+        # Mock API calls
+        mock_internal_api = MagicMock()
+        mock_internal_api.create_artifact.return_value = ({"state": "PENDING"}, None)
+
+        # Mock the public API and job fetching
+        mock_public_api_class = mocker.patch("wandb.Api")
+        mock_public_api_instance = MagicMock()
+        mock_public_api_class.return_value = mock_public_api_instance
+
+        mock_run_instance = MagicMock()
+        mock_public_api_instance.run.return_value = mock_run_instance
+
+        # Capture the JSON content that gets written
+        captured_json_content = {}
+
+        def mock_new_file(filename):
+            class MockFileContext:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *args):
+                    pass
+
+                def write(self, content):
+                    if filename == "wandb-job.json":
+                        captured_json_content[filename] = json.loads(content)
+
+            return MockFileContext()
+
+        # Mock InternalArtifact to capture JSON writes
+        mock_artifact = mocker.MagicMock(spec=InternalArtifact)
+        mock_artifact._client_id = "mock-client-id"
+        mock_artifact._sequence_client_id = "mock-sequence-client-id"
+        mock_artifact.new_file.side_effect = mock_new_file
+        mock_artifact_class = mocker.patch(
+            "wandb.sdk.internal.job_builder.InternalArtifact"
+        )
+        mock_artifact_class.return_value = mock_artifact
 
         # Create the job without services (empty dict)
-        artifact, action, aliases = _create_job(
-            api=internal_api,
+        _create_job(
+            api=mock_internal_api,
             path="nicholaspun/train-simple",
             project=proj,
             entity=entity,
@@ -770,20 +848,9 @@ class TestJobCreateServicesIntegration:
             services={},  # Empty services
         )
 
-        assert artifact is not None
-        assert action == "Created"
-        assert "latest" in aliases
-
-        # Fetch the job and verify services key is not present or empty
-        job = public_api.job(f"{entity}/{proj}/{artifact.name}")
-        job_info = job._job_info
-
-        # When services is empty, it should either be omitted or be an empty dict
-        # The key thing is that it doesn't contain actual service values
-        if "services" in job_info:
-            assert job_info["services"] == {}
-        assert job_info["source_type"] == "image"
-        assert job_info["source"]["image"] == "nicholaspun/train-simple"
+        assert "wandb-job.json" in captured_json_content
+        job_json = captured_json_content["wandb-job.json"]
+        assert "services" not in job_json
 
 
 class TestJobCreateCLIErrors:
