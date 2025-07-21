@@ -98,12 +98,7 @@ class SyncThread(threading.Thread):
                 pb.run.job_type = self._job_type
             # Replace tags if specified
             if self._replace_tags:
-                new_tags = []
-                for tag in pb.run.tags:
-                    if tag in self._replace_tags:
-                        new_tags.append(self._replace_tags[tag])
-                    else:
-                        new_tags.append(tag)
+                new_tags = [self._replace_tags.get(tag, tag) for tag in pb.run.tags]
                 pb.run.ClearField("tags")
                 pb.run.tags.extend(new_tags)
             pb.control.req_resp = True
