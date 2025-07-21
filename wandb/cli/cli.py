@@ -646,16 +646,16 @@ def sync(
 
 def _parse_sync_replace_tags(replace_tags: str) -> Optional[Dict[str, str]]:
     """Parse replace_tags string into a dictionary.
-    
+
     Args:
         replace_tags: String in format 'old_tag1=new_tag1,old_tag2=new_tag2'
-        
+
     Returns:
         Mapping of old tags to new tags, or None if format is invalid
     """
     if not replace_tags:
         return {}
-        
+
     replace_tags_dict = {}
     for pair in replace_tags.split(","):
         if "=" not in pair:
@@ -665,7 +665,7 @@ def _parse_sync_replace_tags(replace_tags: str) -> Optional[Dict[str, str]]:
             return None
         old_tag, new_tag = pair.split("=", 1)
         replace_tags_dict[old_tag.strip()] = new_tag.strip()
-    
+
     return replace_tags_dict
 
 
