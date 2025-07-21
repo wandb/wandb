@@ -626,3 +626,211 @@ def test_cli_debug_log_scoping(runner, test_settings):
                 importlib.reload(cli)
                 assert cli._username == test_user
                 assert cli._wandb_log_path.endswith(f"debug-cli.{test_user}.log")
+
+
+class TestParseServiceConfig:
+    def test_parse_service_config_valid_single(self):
+        """Test parsing a single valid service configuration."""
+        result = cli.parse_service_config(None, None, ["test_service=always"])
+        assert result == {"test_service": "always"}
+
+    def test_parse_service_config_valid_multiple(self):
+        """Test parsing multiple valid service configurations."""
+        result = cli.parse_service_config(
+            None, None, ["service1=always", "service2=never"]
+        )
+        assert result == {"service1": "always", "service2": "never"}
+
+    def test_parse_service_config_empty(self):
+        """Test parsing empty service configurations."""
+        result = cli.parse_service_config(None, None, [])
+        assert result == {}
+
+    def test_parse_service_config_none(self):
+        """Test parsing None service configurations."""
+        result = cli.parse_service_config(None, None, None)
+        assert result == {}
+
+    def test_parse_service_config_invalid_format_no_equals(self):
+        """Test that services without '=' raise an error."""
+        with pytest.raises(Exception) as exc_info:
+            cli.parse_service_config(None, None, ["invalid_service"])
+        assert "Service must be in format 'serviceName=policy'" in str(exc_info.value)
+
+    def test_parse_service_config_invalid_format_multiple_equals(self):
+        """Test that services with multiple '=' fail due to invalid policy."""
+        with pytest.raises(Exception) as exc_info:
+            cli.parse_service_config(None, None, ["service=policy=extra"])
+        assert "Policy must be 'always' or 'never', got 'policy=extra'" in str(
+            exc_info.value
+        )
+
+    def test_parse_service_config_empty_service_name(self):
+        """Test that empty service names raise an error."""
+        with pytest.raises(Exception) as exc_info:
+            cli.parse_service_config(None, None, ["=always"])
+        assert "Service name cannot be empty" in str(exc_info.value)
+
+    def test_parse_service_config_whitespace_service_name(self):
+        """Test that whitespace-only service names raise an error."""
+        with pytest.raises(Exception) as exc_info:
+            cli.parse_service_config(None, None, ["   =always"])
+        assert "Service name cannot be empty" in str(exc_info.value)
+
+    def test_parse_service_config_invalid_policy(self):
+        """Test that invalid policies raise an error."""
+        with pytest.raises(Exception) as exc_info:
+            cli.parse_service_config(None, None, ["service=invalid"])
+        assert "Policy must be 'always' or 'never', got 'invalid'" in str(
+            exc_info.value
+        )
+
+    def test_parse_service_config_whitespace_handling(self):
+        """Test that whitespace around service names is stripped."""
+        result = cli.parse_service_config(None, None, ["  service_name  =always"])
+        assert result == {"service_name": "always"}
+
+    def test_service_config_case_sensitivity(self):
+        """Test that policy validation is case-sensitive."""
+        with pytest.raises(Exception) as exc_info:
+            cli.parse_service_config(None, None, ["service=Always"])
+        assert "Policy must be 'always' or 'never'" in str(exc_info.value)
+
+        with pytest.raises(Exception) as exc_info:
+            cli.parse_service_config(None, None, ["service=NEVER"])
+        assert "Policy must be 'always' or 'never'" in str(exc_info.value)
+
+    def test_service_config_duplicate_services(self):
+        """Test that duplicate service names override previous values."""
+        result = cli.parse_service_config(
+            None, None, ["service=always", "service=never"]
+        )
+        assert result == {"service": "never"}  # Last one wins
+
+
+class TestJobCreateServicesIntegration:
+    def test_create_image_job_with_services(self, user):
+        """Test creating an image job with services that actually generates the wandb-job.json."""
+        from wandb.apis.internal import Api as InternalApi
+        from wandb.apis.public import Api as PublicApi
+        from wandb.sdk.launch.create_job import _create_job
+
+        proj = "test-services-project"
+
+        internal_api = InternalApi()
+        public_api = PublicApi()
+
+        # Create the job with services
+        artifact, action, aliases = _create_job(
+            api=internal_api,
+            path="nicholaspun/train-simple",
+            project=proj,
+            entity=user,
+            job_type="image",
+            description="Test job with services",
+            name="test-job-with-services",
+            services={"foobar": "always", "barfoo": "never"},
+        )
+
+        assert artifact is not None
+        assert action == "Created"
+        assert "latest" in aliases
+
+        # Fetch the job and verify services are in the wandb-job.json
+        job = public_api.job(f"{user}/{proj}/{artifact.name}")
+        job_info = job._job_info
+
+        assert "services" in job_info
+        assert job_info["services"] == {"foobar": "always", "barfoo": "never"}
+        assert job_info["source_type"] == "image"
+        assert job_info["source"]["image"] == "nicholaspun/train-simple"
+
+    def test_create_image_job_without_services(self, user):
+        """Test creating an image job without services - services key should be omitted."""
+        from wandb.apis.internal import Api as InternalApi
+        from wandb.apis.public import Api as PublicApi
+        from wandb.sdk.launch.create_job import _create_job
+
+        proj = "test-no-services-project"
+
+        internal_api = InternalApi()
+        public_api = PublicApi()
+
+        # Create the job without services (empty dict)
+        artifact, action, aliases = _create_job(
+            api=internal_api,
+            path="nicholaspun/train-simple",
+            project=proj,
+            entity=user,
+            job_type="image",
+            description="Test job without services",
+            name="test-job-no-services",
+            services={},  # Empty services
+        )
+
+        assert artifact is not None
+        assert action == "Created"
+        assert "latest" in aliases
+
+        # Fetch the job and verify services key is not present or empty
+        job = public_api.job(f"{user}/{proj}/{artifact.name}")
+        job_info = job._job_info
+
+        # When services is empty, it should either be omitted or be an empty dict
+        # The key thing is that it doesn't contain actual service values
+        if "services" in job_info:
+            assert job_info["services"] == {}
+        assert job_info["source_type"] == "image"
+        assert job_info["source"]["image"] == "nicholaspun/train-simple"
+
+
+class TestJobCreateCLIErrors:
+    def test_job_create_invalid_service_format(self, runner, mocker):
+        """Test job creation with invalid service format."""
+        # Mock minimal dependencies for error testing
+        test_entity = "test-entity"
+        mocker.patch.dict(
+            os.environ, {"WANDB_ENTITY": test_entity, "WANDB_PROJECT": "test-project"}
+        )
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                cli.job,
+                [
+                    "create",
+                    "image",
+                    "test:latest",
+                    "--name",
+                    "test-job",
+                    "--service",
+                    "invalid_format",
+                ],
+            )
+
+            assert result.exit_code != 0
+            assert "Service must be in format 'serviceName=policy'" in result.output
+
+    def test_job_create_invalid_service_policy(self, runner, mocker):
+        """Test job creation with invalid service policy."""
+        # Mock minimal dependencies for error testing
+        test_entity = "test-entity"
+        mocker.patch.dict(
+            os.environ, {"WANDB_ENTITY": test_entity, "WANDB_PROJECT": "test-project"}
+        )
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                cli.job,
+                [
+                    "create",
+                    "image",
+                    "test:latest",
+                    "--name",
+                    "test-job",
+                    "--service",
+                    "service=invalid",
+                ],
+            )
+
+            assert result.exit_code != 0
+            assert "Policy must be 'always' or 'never'" in result.output
