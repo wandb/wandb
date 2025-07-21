@@ -86,7 +86,6 @@ def test_access_properties(user):
     assert run.notes == "notes"
     run.name = "name"
     assert run.name == "name"
-    assert run.mode == "run"
     assert run.group == ""
     assert run.job_type == ""
     assert run.config_static
@@ -110,7 +109,7 @@ def test_disabled_no_activity(wandb_backend_spy):
         run.alert("alert")
         run.define_metric("metric")
         run.log_code()
-        run.save()
+        run.save("/lol")
         run.restore()
         run.mark_preempting()
         run.to_html()

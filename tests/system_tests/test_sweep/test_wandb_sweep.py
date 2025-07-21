@@ -96,6 +96,11 @@ SWEEP_CONFIG_BAYES_NONES: Dict[str, Any] = {
     "metric": {"name": "metric1", "goal": "maximize"},
     "parameters": {"param1": {"values": [None, 1, 2, 3]}, "param2": {"value": None}},
 }
+SWEEP_CONFIG_NO_NAME: Dict[str, Any] = {
+    "method": "random",
+    "parameters": {"param1": {"values": [1, 2, 3]}},
+}
+
 
 # Minimal list of valid sweep configs
 VALID_SWEEP_CONFIGS_MINIMAL: List[Dict[str, Any]] = [
@@ -130,7 +135,6 @@ def upsert_sweep_spy(wandb_backend_spy):
     return responder
 
 
-@pytest.mark.wandb_core_only
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_ALL)
 def test_sweep_create(user, upsert_sweep_spy, sweep_config):
     wandb.sweep(sweep_config, entity=user)
@@ -138,7 +142,6 @@ def test_sweep_create(user, upsert_sweep_spy, sweep_config):
     assert upsert_sweep_spy.total_calls == 1
 
 
-@pytest.mark.wandb_core_only
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_entity_project_callable(user, upsert_sweep_spy, sweep_config):
     def sweep_callable():
@@ -151,7 +154,6 @@ def test_sweep_entity_project_callable(user, upsert_sweep_spy, sweep_config):
     assert upsert_sweep_spy.requests[0].variables["entityName"] == user
 
 
-@pytest.mark.wandb_core_only
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_ALL)
 def test_object_dict_config(user, upsert_sweep_spy, sweep_config):
     class DictLikeObject(dict):
@@ -195,7 +197,6 @@ def test_minmax_validation():
         api.api._validate_config_and_fill_distribution(sweep_config)
 
 
-@pytest.mark.wandb_core_only
 def test_add_run_to_existing_sweep(wandb_backend_spy, user):
     sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user)
     with wandb.init(entity=user, settings={"sweep_id": sweep_id}) as run:
@@ -212,7 +213,6 @@ def test_nones_validation():
     assert filled["parameters"]["param2"]["value"] is None
 
 
-@pytest.mark.wandb_core_only
 @pytest.mark.parametrize("stop_method", ["cancel", "stop"])
 def test_sweep_pause(runner, user, mocker, stop_method, monkeypatch):
     with runner.isolated_filesystem():
@@ -255,7 +255,6 @@ def test_sweep_pause(runner, user, mocker, stop_method, monkeypatch):
             )
 
 
-@pytest.mark.wandb_core_only
 def test_sweep_scheduler(runner, user):
     cli._get_cling_api(reset=True)
     with runner.isolated_filesystem():

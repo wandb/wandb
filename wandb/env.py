@@ -86,7 +86,6 @@ _EXECUTABLE = "WANDB_X_EXECUTABLE"
 LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
 LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
 LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
-_REQUIRE_LEGACY_SERVICE = "WANDB_X_REQUIRE_LEGACY_SERVICE"
 ENABLE_DCGM_PROFILING = "WANDB_ENABLE_DCGM_PROFILING"
 
 # For testing, to be removed in future version
@@ -150,11 +149,6 @@ def _env_as_bool(
         return False
 
 
-def is_require_legacy_service(env: MutableMapping | None = None) -> bool:
-    """Return whether wandb.require("legacy-service") was used."""
-    return _env_as_bool(_REQUIRE_LEGACY_SERVICE, default="False", env=env)
-
-
 def is_debug(default: str | None = None, env: MutableMapping | None = None) -> bool:
     return _env_as_bool(DEBUG, default=default, env=env)
 
@@ -163,6 +157,14 @@ def is_offline(env: MutableMapping | None = None) -> bool:
     if env is None:
         env = os.environ
     return env.get(MODE) == "offline"
+
+
+def is_quiet() -> bool:
+    return _env_as_bool(QUIET, default="false")
+
+
+def is_silent() -> bool:
+    return _env_as_bool(SILENT, default="false")
 
 
 def error_reporting_enabled() -> bool:

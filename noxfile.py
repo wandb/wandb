@@ -150,9 +150,6 @@ def run_pytest(
     pytest_env.update(go_coverage_env(session))
     session.notify("coverage")
 
-    if session.python == "3.8":
-        pytest_opts.extend(["-k", "not test_launch"])
-
     session.run(
         "pytest",
         *pytest_opts,
@@ -179,9 +176,15 @@ def unit_tests(session: nox.Session) -> None:
         "polyfactory",
     )
 
+    paths = session.posargs or ["tests/unit_tests"]
+
+    # Launch is not supported on 3.8
+    if session.python == "3.8":
+        paths.append("--ignore=tests/unit_tests/test_launch")
+
     run_pytest(
         session,
-        paths=session.posargs or ["tests/unit_tests"],
+        paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={"n": "8"},
     )
@@ -204,7 +207,6 @@ def unit_tests_pydantic_v1(session: nox.Session) -> None:
         paths=session.posargs
         or [
             "tests/unit_tests/test_wandb_settings.py",
-            "tests/unit_tests/test_wandb_metadata.py",
             "tests/unit_tests/test_wandb_run.py",
             "tests/unit_tests/test_pydantic_v1_compat.py",
             "tests/unit_tests/test_artifacts",
@@ -223,18 +225,21 @@ def system_tests(session: nox.Session) -> None:
         "annotated-types",  # for test_reports
     )
 
+    paths = session.posargs or [
+        "tests/system_tests",
+        "--ignore=tests/system_tests/test_importers",
+        "--ignore=tests/system_tests/test_notebooks",
+        "--ignore=tests/system_tests/test_functional",
+        "--ignore=tests/system_tests/test_experimental",
+    ]
+
+    # Launch is not supported on 3.8
+    if session.python == "3.8":
+        paths.append("--ignore=tests/system_tests/test_launch")
+
     run_pytest(
         session,
-        paths=(
-            session.posargs
-            or [
-                "tests/system_tests",
-                "--ignore=tests/system_tests/test_importers",
-                "--ignore=tests/system_tests/test_notebooks",
-                "--ignore=tests/system_tests/test_functional",
-                "--ignore=tests/system_tests/test_experimental",
-            ]
-        ),
+        paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={"n": "8"},
     )
@@ -482,19 +487,18 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
     elif pb == 4:
         session.install("protobuf~=4.23.4")
         session.install("mypy-protobuf~=3.5.0")
-        session.install("grpcio~=1.50.0")
-        session.install("grpcio-tools~=1.50.0")
+        session.install("grpcio~=1.51.0")
+        session.install("grpcio-tools~=1.51.0")
     elif pb == 5:
         session.install("protobuf~=5.27.0")
         session.install("mypy-protobuf~=3.6.0")
         session.install("grpcio~=1.64.1")
         session.install("grpcio-tools~=1.64.1")
     elif pb == 6:
-        session.install("mypy-protobuf==3.6.0")
-        # TODO: update to 1.72.0 when released
-        session.install("grpcio==1.72.0rc1")
-        session.install("grpcio-tools==1.72.0rc1")
-        session.install("protobuf==6.30.2")
+        session.install("protobuf~=6.30.2")
+        session.install("mypy-protobuf~=3.6.0")
+        session.install("grpcio~=1.72.1")
+        session.install("grpcio-tools~=1.72.1")
     else:
         session.error("Invalid protobuf version given. `pb` must be 3, 4, 5, or 6.")
 
@@ -571,6 +575,7 @@ def mypy_report(session: nox.Session) -> None:
         # https://github.com/python/mypy/issues/17166
         "mypy != 1.10.0",
         "numpy",
+        "packaging",
         "pandas-stubs",
         "pip",
         "platformdirs",
@@ -585,10 +590,6 @@ def mypy_report(session: nox.Session) -> None:
         "types-pytz",
         "types-PyYAML",
         "types-requests",
-        # Fix for removal of pkg_resources
-        # TODO(@jacobromero): remove version constraint
-        # after migrating away from pkg_resources
-        "types-setuptools < 80.7",
         "types-six",
         "types-tqdm",
     )

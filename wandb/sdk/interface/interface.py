@@ -150,8 +150,7 @@ class InterfaceBase:
         if run._settings.run_notes is not None:
             proto_run.notes = run._settings.run_notes
         if run._settings.run_tags is not None:
-            for tag in run._settings.run_tags:
-                proto_run.tags.append(tag)
+            proto_run.tags.extend(run._settings.run_tags)
         if run._start_time is not None:
             proto_run.start_time.FromMicroseconds(int(run._start_time * 1e6))
         if run._starting_step is not None:
@@ -215,13 +214,6 @@ class InterfaceBase:
 
     @abstractmethod
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
-        raise NotImplementedError
-
-    def publish_metadata(self, metadata: pb.MetadataRequest) -> None:
-        self._publish_metadata(metadata)
-
-    @abstractmethod
-    def _publish_metadata(self, metadata: pb.MetadataRequest) -> None:
         raise NotImplementedError
 
     @abstractmethod
@@ -671,6 +663,13 @@ class InterfaceBase:
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         raise NotImplementedError
 
+    def publish_environment(self, environment: pb.EnvironmentRecord) -> None:
+        self._publish_environment(environment)
+
+    @abstractmethod
+    def _publish_environment(self, environment: pb.EnvironmentRecord) -> None:
+        raise NotImplementedError
+
     def publish_partial_history(
         self,
         run: "Run",
@@ -997,16 +996,6 @@ class InterfaceBase:
     @abstractmethod
     def _deliver_get_system_metrics(
         self, get_summary: pb.GetSystemMetricsRequest
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
-    def deliver_get_system_metadata(self) -> MailboxHandle[pb.Result]:
-        get_system_metadata = pb.GetSystemMetadataRequest()
-        return self._deliver_get_system_metadata(get_system_metadata)
-
-    @abstractmethod
-    def _deliver_get_system_metadata(
-        self, get_system_metadata: pb.GetSystemMetadataRequest
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 

@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
 	"github.com/wandb/wandb/core/internal/randomid"
@@ -25,7 +26,6 @@ import (
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
-	"github.com/wandb/wandb/core/pkg/monitor"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -42,8 +42,25 @@ type Stream struct {
 	// runWork is a channel of records to process.
 	runWork runwork.RunWork
 
-	// logger is the logger for the stream
+	// run is the state of the run controlled by this stream.
+	run *StreamRun
+
+	// operations tracks the status of asynchronous work.
+	operations *wboperation.WandbOperations
+
+	// featureProvider checks server capabilities.
+	featureProvider *featurechecker.ServerFeaturesCache
+
+	// graphqlClientOrNil is used for GraphQL operations to the W&B backend.
+	//
+	// It is nil for offline runs.
+	graphqlClientOrNil graphql.Client
+
+	// logger writes debug logs for the run.
 	logger *observability.CoreLogger
+
+	// loggerFile is the file (if any) to which the logger writes.
+	loggerFile *os.File
 
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
@@ -53,6 +70,9 @@ type Stream struct {
 
 	// reader is the reader for the stream
 	reader *Reader
+
+	// recordParser turns Records into Work.
+	recordParser *RecordParser
 
 	// handler is the handler for the stream
 	handler *Handler
@@ -68,41 +88,66 @@ type Stream struct {
 
 	// sentryClient is the client used to report errors to sentry.io
 	sentryClient *sentry_ext.Client
+
+	// clientID is a unique ID for the stream
+	clientID string
+}
+
+// symlinkDebugCore symlinks the debug-core.log file to the run's directory.
+func symlinkDebugCore(
+	settings *settings.Settings,
+	loggerPath string,
+) {
+	if loggerPath == "" {
+		return
+	}
+
+	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
+
+	err := os.Symlink(loggerPath, targetPath)
+	if err != nil {
+		slog.Error(
+			"error symlinking debug-core.log",
+			"loggerPath", loggerPath,
+			"targetPath", targetPath,
+			"error", err)
+	}
+}
+
+// streamLoggerFile returns the file to use for logging.
+func streamLoggerFile(settings *settings.Settings) *os.File {
+	path := settings.GetInternalLogFile()
+	loggerFile, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+
+	if err != nil {
+		slog.Error(
+			"error opening log file",
+			"path", path,
+			"error", err)
+		return nil
+	} else {
+		return loggerFile
+	}
 }
 
 func streamLogger(
+	loggerFile *os.File,
 	settings *settings.Settings,
 	sentryClient *sentry_ext.Client,
-	loggerPath string,
 	logLevel slog.Level,
 ) *observability.CoreLogger {
-	// TODO: when we add session concept re-do this to use user provided path
-	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
-	if path := loggerPath; path != "" {
-		// check path exists
-		if _, err := os.Stat(path); !os.IsNotExist(err) {
-			err := os.Symlink(path, targetPath)
-			if err != nil {
-				slog.Error("error creating symlink", "error", err)
-			}
-		}
-	}
-
-	var writers []io.Writer
-	name := settings.GetInternalLogFile()
-	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		slog.Error(fmt.Sprintf("error opening log file: %s", err))
-	} else {
-		writers = append(writers, file)
-	}
-	writer := io.MultiWriter(writers...)
-
 	sentryClient.SetUser(
 		settings.GetEntity(),
 		settings.GetEmail(),
 		settings.GetUserName(),
 	)
+
+	var writer io.Writer
+	if loggerFile != nil {
+		writer = loggerFile
+	} else {
+		writer = io.Discard
+	}
 
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(
@@ -118,10 +163,9 @@ func streamLogger(
 		},
 	)
 
-	logger.Info("stream: starting",
-		"core version", version.Version,
-		"symlink path", targetPath,
-	)
+	logger.Info(
+		"stream: starting",
+		"core version", version.Version)
 
 	tags := observability.Tags{
 		"run_id":   settings.GetRunID(),
@@ -151,21 +195,25 @@ type StreamParams struct {
 func NewStream(
 	params StreamParams,
 ) *Stream {
-	operations := wboperation.NewOperations()
-
+	symlinkDebugCore(params.Settings, params.LoggerPath)
+	loggerFile := streamLoggerFile(params.Settings)
 	logger := streamLogger(
+		loggerFile,
 		params.Settings,
 		params.Sentry,
-		params.LoggerPath,
 		params.LogLevel,
 	)
+
 	s := &Stream{
 		runWork:      runwork.New(BufferSize, logger),
+		run:          NewStreamRun(),
+		operations:   wboperation.NewOperations(),
 		logger:       logger,
+		loggerFile:   loggerFile,
 		settings:     params.Settings,
 		sentryClient: params.Sentry,
+		clientID:     randomid.GenerateUniqueID(32),
 	}
-	clientId := randomid.GenerateUniqueID(32)
 
 	// TODO: replace this with a logger that can be read by the user
 	peeker := &observability.Peeker{}
@@ -179,25 +227,24 @@ func NewStream(
 		Logger:    s.logger,
 		Settings:  s.settings,
 	})
-	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
-		graphqlClientOrNil = NewGraphQLClient(
+		s.graphqlClientOrNil = NewGraphQLClient(
 			backendOrNil,
 			params.Settings,
 			peeker,
-			clientId,
+			s.clientID,
 		)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
 			s.logger,
-			operations,
+			s.operations,
 			terminalPrinter,
 			params.Settings,
 			peeker,
-			clientId,
+			s.clientID,
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
@@ -207,20 +254,31 @@ func NewStream(
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.runWork,
 			s.logger,
-			operations,
+			s.operations,
 			params.Settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
 			fileWatcher,
-			graphqlClientOrNil,
+			s.graphqlClientOrNil,
 		)
 	}
 
-	featureProvider := featurechecker.NewServerFeaturesCache(
+	s.featureProvider = featurechecker.NewServerFeaturesCache(
 		s.runWork.BeforeEndCtx(),
-		graphqlClientOrNil,
+		s.graphqlClientOrNil,
 		s.logger,
 	)
+
+	s.recordParser = &RecordParser{
+		BeforeRunEndCtx:    s.runWork.BeforeEndCtx(),
+		FeatureProvider:    s.featureProvider,
+		GraphqlClientOrNil: s.graphqlClientOrNil,
+		Logger:             s.logger,
+		Operations:         s.operations,
+		Run:                s.run,
+		Settings:           s.settings,
+		ClientID:           s.clientID,
+	}
 
 	mailbox := mailbox.New()
 	switch {
@@ -249,15 +307,18 @@ func NewStream(
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			Logger:            s.logger,
 			Mailbox:           mailbox,
-			Operations:        operations,
+			Operations:        s.operations,
 			OutChan:           make(chan *spb.Result, BufferSize),
 			Settings:          s.settings,
-			SystemMonitor: monitor.NewSystemMonitor(
-				s.logger,
-				s.settings,
-				s.runWork,
-				params.GPUResourceManager,
-			),
+			SystemMonitor: monitor.NewSystemMonitor(monitor.SystemMonitorParams{
+				Ctx:                s.runWork.BeforeEndCtx(),
+				Logger:             s.logger,
+				Settings:           s.settings,
+				ExtraWork:          s.runWork,
+				GpuResourceManager: params.GPUResourceManager,
+				GraphqlClient:      s.graphqlClientOrNil,
+				WriterID:           s.clientID,
+			}),
 			TBHandler:       tbHandler,
 			TerminalPrinter: terminalPrinter,
 		},
@@ -266,7 +327,7 @@ func NewStream(
 	s.sender = NewSender(
 		SenderParams{
 			Logger:              s.logger,
-			Operations:          operations,
+			Operations:          s.operations,
 			Settings:            s.settings,
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,
@@ -276,12 +337,13 @@ func NewStream(
 			RunfilesUploader:    runfilesUploaderOrNil,
 			TBHandler:           tbHandler,
 			Peeker:              peeker,
+			StreamRun:           s.run,
 			RunSummary:          runsummary.New(),
-			GraphqlClient:       graphqlClientOrNil,
+			GraphqlClient:       s.graphqlClientOrNil,
 			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
 			RunWork:             s.runWork,
-			FeatureProvider:     featureProvider,
+			FeatureProvider:     s.featureProvider,
 		},
 	)
 
@@ -383,10 +445,11 @@ func (s *Stream) Start() {
 	s.logger.Info("stream: started", "id", s.settings.GetRunID())
 }
 
-// HandleRecord handles the given record by sending it to the stream's handler.
+// HandleRecord ingests a record from the client.
 func (s *Stream) HandleRecord(record *spb.Record) {
 	s.logger.Debug("handling record", "record", record.GetRecordType())
-	s.runWork.AddWork(runwork.WorkFromRecord(record))
+	work := s.recordParser.Parse(record)
+	s.runWork.AddWork(work)
 }
 
 // Close waits for all run messages to be fully processed.
@@ -395,6 +458,11 @@ func (s *Stream) Close() {
 	s.runWork.Close()
 	s.wg.Wait()
 	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
+
+	if s.loggerFile != nil {
+		// Sync the file instead of closing it, in case we keep writing to it.
+		_ = s.loggerFile.Sync()
+	}
 }
 
 // FinishAndClose emits an exit record, waits for all run messages

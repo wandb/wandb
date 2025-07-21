@@ -913,6 +913,14 @@ func (b *bucket) NewTypedWriter(ctx context.Context, key, contentType string, op
 			BlobContentType:        &contentType,
 		},
 	}
+	if opts.IfNotExist {
+		etagAny := azcore.ETagAny
+		uploadOpts.AccessConditions = &azblob.AccessConditions{
+			ModifiedAccessConditions: &azblobblob.ModifiedAccessConditions{
+				IfNoneMatch: &etagAny,
+			},
+		}
+	}
 	if opts.BeforeWrite != nil {
 		asFunc := func(i any) bool {
 			p, ok := i.(**azblob.UploadStreamOptions)

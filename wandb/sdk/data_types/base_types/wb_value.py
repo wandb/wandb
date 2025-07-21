@@ -22,7 +22,7 @@ def _is_maybe_offline() -> bool:
     Returns:
         Whether the user likely configured wandb to be offline.
     """
-    singleton = wandb_setup._setup(start_service=False)
+    singleton = wandb_setup.singleton()
 
     # First check: if there's a run, check if it is offline.
     #
@@ -37,7 +37,7 @@ def _is_maybe_offline() -> bool:
 
 
 def _server_accepts_client_ids() -> bool:
-    from wandb.util import parse_version
+    from packaging.version import parse
 
     # There are versions of W&B Server that cannot accept client IDs. Those versions of
     # the backend have a max_cli_version of less than "0.11.0." If the backend cannot
@@ -51,7 +51,7 @@ def _server_accepts_client_ids() -> bool:
     # client IDs.
 
     if _is_maybe_offline():
-        singleton = wandb_setup._setup(start_service=False)
+        singleton = wandb_setup.singleton()
 
         if run := singleton.most_recent_active_run:
             return run._settings.allow_offline_artifacts
@@ -63,7 +63,7 @@ def _server_accepts_client_ids() -> bool:
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
-    accepts_client_ids: bool = parse_version("0.11.0") <= parse_version(max_cli_version)
+    accepts_client_ids: bool = parse(max_cli_version) >= parse("0.11.0")
     return accepts_client_ids
 
 
@@ -218,17 +218,17 @@ class WBValue:
     def _set_artifact_source(
         self, artifact: "Artifact", name: Optional[str] = None
     ) -> None:
-        assert (
-            self._artifact_source is None
-        ), f"Cannot update artifact_source. Existing source: {self._artifact_source.artifact}/{self._artifact_source.name}"
+        assert self._artifact_source is None, (
+            f"Cannot update artifact_source. Existing source: {self._artifact_source.artifact}/{self._artifact_source.name}"
+        )
         self._artifact_source = _WBValueArtifactSource(artifact, name)
 
     def _set_artifact_target(
         self, artifact: "Artifact", name: Optional[str] = None
     ) -> None:
-        assert (
-            self._artifact_target is None
-        ), f"Cannot update artifact_target. Existing target: {self._artifact_target.artifact}/{self._artifact_target.name}"
+        assert self._artifact_target is None, (
+            f"Cannot update artifact_target. Existing target: {self._artifact_target.artifact}/{self._artifact_target.name}"
+        )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
     def _get_artifact_entry_ref_url(self) -> Optional[str]:

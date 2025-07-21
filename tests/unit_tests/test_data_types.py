@@ -2,6 +2,7 @@ import io
 import os
 import platform
 from pathlib import Path
+from unittest import mock
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,9 +14,10 @@ import torch
 import wandb
 from bokeh.plotting import figure
 from PIL import Image
-from wandb import data_types
+from wandb import data_types, env
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
+from wandb.sdk.wandb_settings import Settings
 
 
 def subdict(d, expected_dict):
@@ -419,6 +421,45 @@ def test_image_masks_with_pytorch_tensors():
     wandb.Image(image, masks={"predictions": {"mask_data": mask}})
 
 
+def test_image_normalize_neg1_to_1():
+    # Sometimes images are represented with values in range [-1, 1].
+    data = np.array([[-0.2, 0.6]])
+
+    transformed_data = wandb.Image(data).to_data_array()
+
+    assert transformed_data == [[102, 204]]
+
+
+def test_image_normalize_0_to_1():
+    data = np.array([[0.2, 0.3]])
+
+    transformed_data = wandb.Image(data).to_data_array()
+
+    assert transformed_data == [[51, 76]]
+
+
+def test_image_normalize_clips_bad_range():
+    data = np.array([[-9, 0.1, 100, 254.5, 270]])
+
+    transformed_data = wandb.Image(data).to_data_array()
+
+    assert transformed_data == [[0, 0, 100, 254, 255]]
+
+
+@pytest.mark.parametrize(
+    "scale",
+    [1e-8, 1e-5, 1e0, 1e1, -1e-8, -1e-5, -1e0, -1e1],
+)
+def test_image_normalization_numpy_pytorch_equal(scale):
+    img = np.random.uniform(low=0, high=1, size=[4, 4, 3]) * scale
+    torch_img = torch.from_numpy(img.transpose(2, 0, 1))
+
+    wb_image = wandb.Image(img)
+    wb_image_torch = wandb.Image(torch_img)
+
+    assert np.all(np.array(wb_image.image) == np.array(wb_image_torch.image))
+
+
 ################################################################################
 # Test wandb.Audio
 ################################################################################
@@ -645,6 +686,85 @@ def test_video_path_invalid():
         f.write("00000")
     with pytest.raises(ValueError):
         wandb.Video("video.avi")
+
+
+def test_video_encodes_with_spinner__displays_by_default(monkeypatch):
+    mock_run_async_with_spinner = mock.MagicMock()
+    monkeypatch.setattr(
+        wandb.sdk.lib.printer_asyncio,
+        "run_async_with_spinner",
+        mock_run_async_with_spinner,
+    )
+    frames = np.random.randint(255, size=(1, 1, 1, 1))
+
+    wandb.Video(frames, format="mp4")
+
+    assert mock_run_async_with_spinner.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "silent_setting, quiet_setting, expected_calls",
+    [
+        (True, False, 0),
+        (False, True, 0),
+        (False, False, 1),
+    ],
+)
+def test_video_encodes_with_spinner__controlled_by_settings(
+    monkeypatch,
+    silent_setting,
+    quiet_setting,
+    expected_calls,
+):
+    wandb.setup(
+        settings=Settings(
+            quiet=quiet_setting,
+            silent=silent_setting,
+        )
+    )
+
+    mock_run_async_with_spinner = mock.MagicMock()
+    monkeypatch.setattr(
+        wandb.sdk.lib.printer_asyncio,
+        "run_async_with_spinner",
+        mock_run_async_with_spinner,
+    )
+    frames = np.random.randint(255, size=(1, 1, 1, 1))
+
+    wandb.Video(frames, format="mp4")
+
+    assert mock_run_async_with_spinner.call_count == expected_calls
+
+
+@pytest.mark.parametrize(
+    "env_var, env_value, expected_calls",
+    [
+        (env.QUIET, "true", 0),
+        (env.SILENT, "true", 0),
+        (env.QUIET, "false", 1),
+        (env.SILENT, "false", 1),
+    ],
+)
+def test_video_encodes_with_spinner__controlled_by_env_vars(
+    monkeypatch,
+    env_var,
+    env_value,
+    expected_calls,
+):
+    if env_var is not None:
+        monkeypatch.setenv(env_var, env_value)
+
+    mock_run_async_with_spinner = mock.MagicMock()
+    monkeypatch.setattr(
+        wandb.sdk.lib.printer_asyncio,
+        "run_async_with_spinner",
+        mock_run_async_with_spinner,
+    )
+    frames = np.random.randint(255, size=(1, 1, 1, 1))
+
+    wandb.Video(frames, format="mp4")
+
+    assert mock_run_async_with_spinner.call_count == expected_calls
 
 
 ################################################################################
@@ -1030,12 +1150,12 @@ def test_table_column_style():
     assert [ndx._table == table1 for ndx in ndxs]
 
     # Test More Images and ndarrays
-    rand_1 = np.random.randint(255, size=(32, 32))
-    rand_2 = np.random.randint(255, size=(32, 32))
-    rand_3 = np.random.randint(255, size=(32, 32))
-    img_1 = wandb.Image(rand_1)
-    img_2 = wandb.Image(rand_2)
-    img_3 = wandb.Image(rand_3)
+    rand_1 = np.random.randint(256, size=(2, 2, 3))
+    rand_2 = np.random.randint(256, size=(2, 2, 3))
+    rand_3 = np.random.randint(256, size=(2, 2, 3))
+    img_1 = wandb.Image(rand_1, normalize=False)
+    img_2 = wandb.Image(rand_2, normalize=False)
+    img_3 = wandb.Image(rand_3, normalize=False)
 
     table2 = wandb.Table(columns=[], data=[])
     table2.add_column("np_data", [rand_1, rand_2])

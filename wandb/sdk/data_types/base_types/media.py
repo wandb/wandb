@@ -18,8 +18,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-    from ...wandb_run import Run as LocalRun
-
 
 SYS_PLATFORM = platform.system()
 
@@ -104,7 +102,7 @@ class Media(WBValue):
     """
 
     _path: Optional[str]
-    _run: Optional["LocalRun"]
+    _run: Optional["wandb.Run"]
     _caption: Optional[str]
     _is_tmp: Optional[bool]
     _extension: Optional[str]
@@ -127,9 +125,9 @@ class Media(WBValue):
         self._path = path
         self._is_tmp = is_tmp
         self._extension = extension
-        assert extension is None or path.endswith(
-            extension
-        ), f'Media file extension "{extension}" must occur at the end of path "{path}".'
+        assert extension is None or path.endswith(extension), (
+            f'Media file extension "{extension}" must occur at the end of path "{path}".'
+        )
 
         with open(self._path, "rb") as f:
             self._sha256 = hashlib.sha256(f.read()).hexdigest()
@@ -156,7 +154,7 @@ class Media(WBValue):
 
     def bind_to_run(
         self,
-        run: "LocalRun",
+        run: "wandb.Run",
         key: Union[int, str],
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
@@ -199,13 +197,13 @@ class Media(WBValue):
         else:
             try:
                 shutil.copy(self._path, new_path)
-            except shutil.SameFileError as e:
+            except shutil.SameFileError:
                 if not ignore_copy_err:
-                    raise e
+                    raise
             self._path = new_path
             run._publish_file(media_path)
 
-    def to_json(self, run: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run: Union["wandb.Run", "Artifact"]) -> dict:
         """Serialize the object into a JSON blob.
 
         Uses run or artifact to store additional data. If `run_or_artifact` is a
@@ -223,14 +221,13 @@ class Media(WBValue):
         # into Media itself we should get rid of them
         from wandb import Image
         from wandb.data_types import Audio
-        from wandb.sdk.wandb_run import Run
 
         json_obj: Dict[str, Any] = {}
 
         if self._caption is not None:
             json_obj["caption"] = self._caption
 
-        if isinstance(run, Run):
+        if isinstance(run, wandb.Run):
             json_obj.update(
                 {
                     "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
@@ -247,11 +244,13 @@ class Media(WBValue):
                 json_obj["_latest_artifact_path"] = artifact_entry_latest_url
 
             if artifact_entry_url is None or self.is_bound():
-                assert self.is_bound(), f"Value of type {type(self).__name__} must be bound to a run with bind_to_run() before being serialized to JSON."
+                assert self.is_bound(), (
+                    f"Value of type {type(self).__name__} must be bound to a run with bind_to_run() before being serialized to JSON."
+                )
 
-                assert (
-                    self._run is run
-                ), "We don't support referring to media files across runs."
+                assert self._run is run, (
+                    "We don't support referring to media files across runs."
+                )
 
                 # The following two assertions are guaranteed to pass
                 # by definition is_bound, but are needed for
@@ -355,7 +354,7 @@ class BatchableMedia(Media):
     def seq_to_json(
         cls: Type["BatchableMedia"],
         seq: Sequence["BatchableMedia"],
-        run: "LocalRun",
+        run: "wandb.Run",
         key: str,
         step: Union[int, str],
     ) -> dict:

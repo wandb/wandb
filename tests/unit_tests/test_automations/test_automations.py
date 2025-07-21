@@ -14,10 +14,6 @@ from wandb.automations._utils import (
 from wandb.automations.actions import InputAction
 from wandb.automations.events import InputEvent
 
-pytestmark = [
-    mark.wandb_core_only,
-]
-
 
 class TestPrepareToCreate:
     """Checks on the internal helper that prepares the GraphQL input for CreateFilterTrigger mutations."""

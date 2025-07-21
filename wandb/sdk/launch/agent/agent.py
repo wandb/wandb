@@ -76,9 +76,9 @@ class JobSpecAndQueue:
 def _convert_access(access: str) -> str:
     """Convert access string to a value accepted by wandb."""
     access = access.upper()
-    assert (
-        access == "PROJECT" or access == "USER"
-    ), "Queue access must be either project or user"
+    assert access == "PROJECT" or access == "USER", (
+        "Queue access must be either project or user"
+    )
     return access
 
 
@@ -589,7 +589,7 @@ class LaunchAgent:
                 )
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
-                    raise KeyboardInterrupt
+                    raise KeyboardInterrupt  # noqa: TRY301
                 if self.num_running_jobs < self._max_jobs:
                     # only check for new jobs if we're not at max
                     job_and_queue = await self.get_job_and_queue()

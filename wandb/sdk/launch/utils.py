@@ -380,9 +380,9 @@ def diff_pip_requirements(req_1: List[str], req_2: List[str]) -> Dict[str, str]:
             else:
                 raise ValueError(f"Unable to parse pip requirements file line: {line}")
             if _name is not None:
-                assert re.match(
-                    _VALID_PIP_PACKAGE_REGEX, _name
-                ), f"Invalid pip package name {_name}"
+                assert re.match(_VALID_PIP_PACKAGE_REGEX, _name), (
+                    f"Invalid pip package name {_name}"
+                )
                 d[_name] = _version
         return d
 
@@ -627,9 +627,9 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
     try:
         docker.run(["docker", "image", "inspect", docker_image])
         return True
-    except (docker.DockerError, ValueError) as e:
+    except (docker.DockerError, ValueError):
         if should_raise:
-            raise e
+            raise
         _logger.info("Base image not found. Generating new base image")
         return False
 

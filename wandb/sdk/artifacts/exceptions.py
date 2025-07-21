@@ -55,3 +55,17 @@ class ArtifactFinalizedError(ArtifactStatusError):
 
 class WaitTimeoutError(errors.Error):
     """Raised when wait() timeout occurs before process is finished."""
+
+
+class TooFewItemsError(ValueError):
+    """Raised when there are fewer items than expected in a collection.
+
+    Intended for internal use only.
+    """
+
+
+class TooManyItemsError(ValueError):
+    """Raised when there are more items than expected in a collection.
+
+    Intended for internal use only.
+    """

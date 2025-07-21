@@ -118,7 +118,7 @@ def test_metric_threshold_filter_repr(metric: MetricVal | MetricAgg, threshold: 
         # Aggregated metric operand
         expected_lhs = f"{metric.agg.value}({metric.name})"
     else:
-        raise ValueError(f"Unhandled metric operand type: {type(metric)}")
+        raise TypeError(f"Unhandled metric operand type: {type(metric)}")
 
     # Check that the string representations are equivalent
     assert repr(metric.gt(threshold)) == repr(f"{expected_lhs} > {threshold}")
@@ -177,7 +177,7 @@ def test_metric_change_filter_repr(metric: MetricVal | MetricAgg, delta: float):
         # Aggregated metric operand
         expected_lhs = f"{metric.agg.value}({metric.name})"
     else:
-        raise ValueError(f"Unhandled metric operand type: {type(metric)}")
+        raise TypeError(f"Unhandled metric operand type: {type(metric)}")
 
     # Check that the string representations are equivalent
     metric_filter_repr = repr(metric.changes_by(frac=delta))

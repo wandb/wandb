@@ -57,7 +57,6 @@ def test_resume__offline__warns(resume, mock_wandb_log):
     )
 
 
-@pytest.mark.wandb_core_only
 def test_resume_runtime_calculation(user, wandb_backend_spy):
     """
     This test is used to verify that the runtime is calculated correctly for a
@@ -158,7 +157,6 @@ def test_resume_tags_add_at_resume(user, test_settings):
     run.finish()
 
 
-@pytest.mark.wandb_core_only
 def test_resume_output_log(wandb_backend_spy):
     with wandb.init(
         project="output",
@@ -168,7 +166,7 @@ def test_resume_output_log(wandb_backend_spy):
         ),
     ) as run:
         run_id = run.id
-        print(f"started {run_id}")  # noqa: T201
+        print(f"started {run_id}")
 
     with wandb.init(
         id=run_id,
@@ -179,7 +177,7 @@ def test_resume_output_log(wandb_backend_spy):
             console_multipart=True,
         ),
     ) as run:
-        print(f"resumed {run_id}")  # noqa: T201
+        print(f"resumed {run_id}")
         run.log({"metric": 1})
 
     with wandb_backend_spy.freeze() as snapshot:
@@ -236,3 +234,22 @@ def test_resume_config_preserves_image_mask(user, wandb_backend_spy):
 
         assert "test_image_wandb_delimeter_prediction" in class_labels
         assert "test_image_after_resume_wandb_delimeter_prediction" in class_labels
+
+
+def test_resume_run_with_notes(user):
+    notes = "do re mi fa sol la si"
+    with wandb.init(project="notes", notes=notes) as run:
+        run_id = run.id
+
+    with wandb.init(id=run_id, resume="must", project="notes") as run:
+        assert run.notes == notes
+
+
+def test_resume_overwrite_notes(user):
+    notes = "do re mi fa sol la si"
+    with wandb.init(project="notes", notes=notes) as run:
+        run_id = run.id
+
+    new_notes = "c d e f g a b"
+    with wandb.init(id=run_id, resume="must", project="notes", notes=new_notes) as run:
+        assert run.notes == new_notes

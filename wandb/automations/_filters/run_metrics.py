@@ -1,5 +1,3 @@
-# ruff: noqa: UP007
-
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -112,7 +110,7 @@ class BaseMetricFilter(GQLBase, ABC, extra="forbid"):
         raise NotImplementedError
 
     @override
-    def __rich_repr__(self) -> RichReprResult:  # type: ignore[override]
+    def __rich_repr__(self) -> RichReprResult:
         """The representation of the metric filter when using `rich` for pretty-printing."""
         # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
         yield None, repr(self)

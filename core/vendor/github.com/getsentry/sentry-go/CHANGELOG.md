@@ -1,5 +1,116 @@
 # Changelog
 
+## 0.34.1
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.34.1.
+
+### Bug Fixes
+
+- Allow flush to be used multiple times without issues, particularly for the batch logger ([#1051](https://github.com/getsentry/sentry-go/pull/1051))
+- Fix race condition in `Scope.GetSpan()` method by adding proper mutex locking ([#1044](https://github.com/getsentry/sentry-go/pull/1044))
+- Guard transport on `Close()` to prevent panic when called multiple times ([#1044](https://github.com/getsentry/sentry-go/pull/1044))
+
+## 0.34.0
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.34.0.
+
+### Breaking Changes
+
+- Logrus structured logging support replaces the `sentrylogrus.Hook` signature from a `*Hook` to an interface.
+
+```go
+var hook *sentrylogrus.Hook
+hook = sentrylogrus.New(
+    // ... your setup
+)
+
+// should change the definition to 
+var hook sentrylogrus.Hook
+hook = sentrylogrus.New(
+    // ... your setup
+)
+```
+
+### Features
+
+- Structured logging support for [slog](https://pkg.go.dev/log/slog). ([#1033](https://github.com/getsentry/sentry-go/pull/1033))
+
+```go
+ctx := context.Background()
+handler := sentryslog.Option{
+    EventLevel: []slog.Level{slog.LevelError, sentryslog.LevelFatal}, // Only Error and Fatal as events
+    LogLevel:   []slog.Level{slog.LevelWarn, slog.LevelInfo},         // Only Warn and Info as logs
+}.NewSentryHandler(ctx)
+logger := slog.New(handler)
+logger.Info("hello"))
+```
+
+- Structured logging support for [logrus](https://github.com/sirupsen/logrus). ([#1036](https://github.com/getsentry/sentry-go/pull/1036))
+```go
+logHook, _ := sentrylogrus.NewLogHook(
+    []logrus.Level{logrus.InfoLevel, logrus.WarnLevel}, 
+    sentry.ClientOptions{
+        Dsn: "your-dsn",
+        EnableLogs: true, // Required for log entries    
+    })
+defer logHook.Flush(5 * time.Secod)
+logrus.RegisterExitHandler(func() {
+    logHook.Flush(5 * time.Second)
+})
+
+logger := logrus.New()
+logger.AddHook(logHook)
+logger.Infof("hello")
+```
+
+- Add support for flushing events with context using `FlushWithContext()`. ([#935](https://github.com/getsentry/sentry-go/pull/935))
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+defer cancel()
+
+if !sentry.FlushWithContext(ctx) {
+    // Handle timeout or cancellation
+}
+```
+
+- Add support for custom fingerprints in slog integration. ([#1039](https://github.com/getsentry/sentry-go/pull/1039))
+
+### Deprecations 
+
+- Slog structured logging support replaces `Level` option with `EventLevel` and `LogLevel` options, for specifying fine-grained levels for capturing events and logs.
+
+```go 
+handler := sentryslog.Option{
+    EventLevel: []slog.Level{slog.LevelWarn, slog.LevelError, sentryslog.LevelFatal},
+    LogLevel:   []slog.Level{slog.LevelDebug, slog.LevelInfo, slog.LevelWarn, slog.LevelError, sentryslog.LevelFatal},
+}.NewSentryHandler(ctx)
+```
+
+- Logrus structured logging support replaces `New` and `NewFromClient` functions to `NewEventHook`, `NewEventHookFromClient`, to match the newly added `NewLogHook` functions, and specify the hook type being created each time.
+
+```go
+logHook, err := sentrylogrus.NewLogHook(
+    []logrus.Level{logrus.InfoLevel},
+    sentry.ClientOptions{})
+eventHook, err := sentrylogrus.NewEventHook([]logrus.Level{
+    logrus.ErrorLevel,
+    logrus.FatalLevel,
+    logrus.PanicLevel,
+}, sentry.ClientOptions{})
+```
+
+### Bug Fixes
+
+- Fix issue where `ContinueTrace()` would panic when `sentry-trace` header does not exist. ([#1026](https://github.com/getsentry/sentry-go/pull/1026))
+- Fix incorrect log level signature in structured logging. ([#1034](https://github.com/getsentry/sentry-go/pull/1034))
+- Remove `sentry.origin` attribute from Sentry logger to prevent confusion in spans. ([#1038](https://github.com/getsentry/sentry-go/pull/1038))
+- Don't gate user information behind `SendDefaultPII` flag for logs. ([#1032](https://github.com/getsentry/sentry-go/pull/1032))
+
+### Misc
+
+- Add more sensitive HTTP headers to the default list of headers that are scrubbed by default. ([#1008](https://github.com/getsentry/sentry-go/pull/1008))
+
 ## 0.33.0
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.33.0.

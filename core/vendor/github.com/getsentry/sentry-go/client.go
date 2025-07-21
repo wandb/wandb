@@ -511,9 +511,38 @@ func (client *Client) RecoverWithContext(
 // call to Init.
 func (client *Client) Flush(timeout time.Duration) bool {
 	if client.batchLogger != nil {
-		client.batchLogger.Flush()
+		start := time.Now()
+		timeoutCh := make(chan struct{})
+		time.AfterFunc(timeout, func() {
+			close(timeoutCh)
+		})
+		client.batchLogger.Flush(timeoutCh)
+		// update the timeout with the time passed
+		timeout -= time.Since(start)
+		if timeout <= 0 {
+			return false
+		}
 	}
 	return client.Transport.Flush(timeout)
+}
+
+// FlushWithContext waits until the underlying Transport sends any buffered events
+// to the Sentry server, blocking for at most the duration specified by the context.
+// It returns false if the context is canceled before the events are sent. In such a case,
+// some events may not be delivered.
+//
+// FlushWithContext should be called before terminating the program to ensure no
+// events are unintentionally dropped.
+//
+// Avoid calling FlushWithContext indiscriminately after each call to CaptureEvent,
+// CaptureException, or CaptureMessage. To send events synchronously over the network,
+// configure the SDK to use HTTPSyncTransport during initialization with Init.
+
+func (client *Client) FlushWithContext(ctx context.Context) bool {
+	if client.batchLogger != nil {
+		client.batchLogger.Flush(ctx.Done())
+	}
+	return client.Transport.FlushWithContext(ctx)
 }
 
 // Close clean up underlying Transport resources.
