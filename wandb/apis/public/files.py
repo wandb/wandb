@@ -32,9 +32,10 @@ Note:
     and other artifacts.
 """
 
+from __future__ import annotations
+
 import io
 import os
-from typing import Optional
 
 import requests
 from wandb_gql import gql
@@ -46,8 +47,9 @@ from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
-from wandb.apis.public.api import Api
+from wandb.apis.public.api import Api, RetryingClient
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.apis.public.runs import Run
 from wandb.sdk.lib import retry
 
 FILE_FRAGMENT = """fragment RunFilesFragment on Run {
@@ -119,12 +121,12 @@ class Files(SizedPaginator["File"]):
 
     def __init__(
         self,
-        client,
-        run,
-        names=None,
-        per_page=50,
-        upload=False,
-        pattern=None,
+        client: RetryingClient,
+        run: Run,
+        names: list[str] | None = None,
+        per_page: int = 50,
+        upload: bool = False,
+        pattern: str | None = None,
     ):
         """An iterable collection of `File` objects for a specific run.
 
@@ -247,7 +249,7 @@ class File(Attrs):
         self.client = client
         self._attrs = attrs
         self.run = run
-        self.server_supports_delete_file_with_project_id: Optional[bool] = None
+        self.server_supports_delete_file_with_project_id: bool | None = None
         super().__init__(dict(attrs))
 
     @property
@@ -291,7 +293,7 @@ class File(Attrs):
         root: str = ".",
         replace: bool = False,
         exist_ok: bool = False,
-        api: Optional[Api] = None,
+        api: Api | None = None,
     ) -> io.TextIOWrapper:
         """Downloads a file previously saved by a run from the wandb server.
 
