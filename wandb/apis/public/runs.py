@@ -111,7 +111,7 @@ def _server_provides_internal_id_for_project(client) -> bool:
 
 
 @normalize_exceptions
-def _convert_to_dict(value: Any) -> Dict[str, Any]:
+def _convert_to_dict(value: Any) -> dict[str, Any]:
     """Converts a value to a dictionary.
 
     If the value is already a dictionary, the value is returned unchanged.
