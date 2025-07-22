@@ -32,21 +32,14 @@ Note:
     the main wandb package.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import tempfile
 import time
 import urllib
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Collection,
-    Dict,
-    List,
-    Literal,
-    Mapping,
-    Optional,
-)
+from typing import TYPE_CHECKING, Any, Collection, Literal, Mapping
 
 from wandb_gql import gql
 
@@ -173,11 +166,11 @@ class Runs(SizedPaginator["Run"]):
 
     def __init__(
         self,
-        client: "RetryingClient",
+        client: RetryingClient,
         entity: str,
         project: str,
-        filters: Optional[Dict[str, Any]] = None,
-        order: Optional[str] = None,
+        filters: dict[str, Any] | None = None,
+        order: str | None = None,
         per_page: int = 50,
         include_sweeps: bool = True,
     ):
@@ -298,7 +291,7 @@ class Runs(SizedPaginator["Run"]):
     def histories(
         self,
         samples: int = 500,
-        keys: Optional[List[str]] = None,
+        keys: list[str] | None = None,
         x_axis: str = "_step",
         format: Literal["default", "pandas", "polars"] = "default",
         stream: Literal["default", "system"] = "default",
@@ -435,11 +428,11 @@ class Run(Attrs):
 
     def __init__(
         self,
-        client: "RetryingClient",
+        client: RetryingClient,
         entity: str,
         project: str,
         run_id: str,
-        attrs: Optional[Mapping] = None,
+        attrs: Mapping | None = None,
         include_sweeps: bool = True,
     ):
         """Initialize a Run object.
@@ -463,9 +456,9 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
-        self._metadata: Optional[Dict[str, Any]] = None
+        self._metadata: dict[str, Any] | None = None
         self._state = _attrs.get("state", "not found")
-        self.server_provides_internal_id_field: Optional[bool] = None
+        self.server_provides_internal_id_field: bool | None = None
 
         self.load(force=not _attrs)
 
@@ -783,7 +776,12 @@ class Run(Attrs):
         return [json.loads(line) for line in response["project"]["run"][node]]
 
     @normalize_exceptions
-    def files(self, names=None, pattern=None, per_page=50):
+    def files(
+        self,
+        names: list[str] | None = None,
+        pattern: str | None = None,
+        per_page: int = 50,
+    ):
         """Returns a `Files` object for all files in the run which match the given criteria.
 
         You can specify a list of exact file names to match, or a pattern to match against.
@@ -1053,9 +1051,9 @@ class Run(Attrs):
     @normalize_exceptions
     def log_artifact(
         self,
-        artifact: "wandb.Artifact",
-        aliases: Optional[Collection[str]] = None,
-        tags: Optional[Collection[str]] = None,
+        artifact: wandb.Artifact,
+        aliases: Collection[str] | None = None,
+        tags: Collection[str] | None = None,
     ):
         """Declare an artifact as output of a run.
 
