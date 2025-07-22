@@ -762,15 +762,16 @@ class Api:
         """Returns the viewer object.
 
         Raises:
-            ValueError if viewer data is not able to be fetched from W&B.
+            ValueError: If viewer data is not able to be fetched from W&B.
+            requests.RequestException: If an error occurs while making the graphql request.
         """
         if self._viewer is None:
             viewer = self._client.execute(self.VIEWER_QUERY).get("viewer")
 
             if viewer is None:
                 raise ValueError(
-                    "Unable to fetch user data from W&B, "
-                    + "please verify your API key is valid."
+                    "Unable to fetch user data from W&B,"
+                    " please verify your API key is valid."
                 )
 
             self._viewer = public.User(self._client, viewer)
