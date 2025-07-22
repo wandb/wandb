@@ -512,10 +512,10 @@ class Run(Attrs):
     @classmethod
     def create(
         cls,
-        api: "public.Api",
-        run_id: Optional[str] = None,
-        project: Optional[str] = None,
-        entity: Optional[str] = None,
+        api: public.Api,
+        run_id: str | None = None,
+        project: str | None = None,
+        entity: str | None = None,
         state: Literal["running", "pending"] = "running",
     ):
         """Create a run for the given project."""
