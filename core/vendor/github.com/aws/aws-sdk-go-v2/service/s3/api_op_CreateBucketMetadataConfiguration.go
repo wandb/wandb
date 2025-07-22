@@ -15,30 +15,28 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-//	We recommend that you create your S3 Metadata configurations by using the V2 [CreateBucketMetadataConfiguration]
-//
-// API operation. We no longer recommend using the V1
-// CreateBucketMetadataTableConfiguration API operation.
-//
-// If you created your S3 Metadata configuration before July 15, 2025, we
-// recommend that you delete and re-create your configuration by using [CreateBucketMetadataConfiguration]so that you
-// can expire journal table records and create a live inventory table.
-//
-// Creates a V1 S3 Metadata configuration for a general purpose bucket. For more
-// information, see [Accelerating data discovery with S3 Metadata]in the Amazon S3 User Guide.
+// Creates an S3 Metadata V2 metadata configuration for a general purpose bucket.
+// For more information, see [Accelerating data discovery with S3 Metadata]in the Amazon S3 User Guide.
 //
 // Permissions To use this operation, you must have the following permissions. For
 // more information, see [Setting up permissions for configuring metadata tables]in the Amazon S3 User Guide.
 //
 // If you want to encrypt your metadata tables with server-side encryption with
-// Key Management Service (KMS) keys (SSE-KMS), you need additional permissions.
-// For more information, see [Setting up permissions for configuring metadata tables]in the Amazon S3 User Guide.
+// Key Management Service (KMS) keys (SSE-KMS), you need additional permissions in
+// your KMS key policy. For more information, see [Setting up permissions for configuring metadata tables]in the Amazon S3 User Guide.
 //
 // If you also want to integrate your table bucket with Amazon Web Services
 // analytics services so that you can query your metadata table, you need
 // additional permissions. For more information, see [Integrating Amazon S3 Tables with Amazon Web Services analytics services]in the Amazon S3 User Guide.
 //
+// To query your metadata tables, you need additional permissions. For more
+// information, see [Permissions for querying metadata tables]in the Amazon S3 User Guide.
+//
 //   - s3:CreateBucketMetadataTableConfiguration
+//
+// The IAM policy action name is the same for the V1 and V2 API operations.
+//
+//   - s3tables:CreateTableBucket
 //
 //   - s3tables:CreateNamespace
 //
@@ -48,85 +46,95 @@ import (
 //
 //   - s3tables:PutTablePolicy
 //
-// The following operations are related to CreateBucketMetadataTableConfiguration :
+//   - s3tables:PutTableEncryption
 //
-// [DeleteBucketMetadataTableConfiguration]
+//   - kms:DescribeKey
 //
-// [GetBucketMetadataTableConfiguration]
+// The following operations are related to CreateBucketMetadataConfiguration :
 //
+// [DeleteBucketMetadataConfiguration]
+//
+// [GetBucketMetadataConfiguration]
+//
+// [UpdateBucketMetadataInventoryTableConfiguration]
+//
+// [UpdateBucketMetadataJournalTableConfiguration]
+//
+// [GetBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketMetadataConfiguration.html
 // [Setting up permissions for configuring metadata tables]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/metadata-tables-permissions.html
-// [GetBucketMetadataTableConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketMetadataTableConfiguration.html
-// [DeleteBucketMetadataTableConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketMetadataTableConfiguration.html
-// [CreateBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucketMetadataConfiguration.html
+// [UpdateBucketMetadataJournalTableConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_UpdateBucketMetadataJournalTableConfiguration.html
 // [Accelerating data discovery with S3 Metadata]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/metadata-tables-overview.html
+// [Permissions for querying metadata tables]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/metadata-tables-bucket-query-permissions.html
+// [UpdateBucketMetadataInventoryTableConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_UpdateBucketMetadataInventoryTableConfiguration.html
+// [DeleteBucketMetadataConfiguration]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketMetadataConfiguration.html
 // [Integrating Amazon S3 Tables with Amazon Web Services analytics services]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-aws.html
-func (c *Client) CreateBucketMetadataTableConfiguration(ctx context.Context, params *CreateBucketMetadataTableConfigurationInput, optFns ...func(*Options)) (*CreateBucketMetadataTableConfigurationOutput, error) {
+func (c *Client) CreateBucketMetadataConfiguration(ctx context.Context, params *CreateBucketMetadataConfigurationInput, optFns ...func(*Options)) (*CreateBucketMetadataConfigurationOutput, error) {
 	if params == nil {
-		params = &CreateBucketMetadataTableConfigurationInput{}
+		params = &CreateBucketMetadataConfigurationInput{}
 	}
 
-	result, metadata, err := c.invokeOperation(ctx, "CreateBucketMetadataTableConfiguration", params, optFns, c.addOperationCreateBucketMetadataTableConfigurationMiddlewares)
+	result, metadata, err := c.invokeOperation(ctx, "CreateBucketMetadataConfiguration", params, optFns, c.addOperationCreateBucketMetadataConfigurationMiddlewares)
 	if err != nil {
 		return nil, err
 	}
 
-	out := result.(*CreateBucketMetadataTableConfigurationOutput)
+	out := result.(*CreateBucketMetadataConfigurationOutput)
 	out.ResultMetadata = metadata
 	return out, nil
 }
 
-type CreateBucketMetadataTableConfigurationInput struct {
+type CreateBucketMetadataConfigurationInput struct {
 
-	//  The general purpose bucket that you want to create the metadata table
-	// configuration for.
+	//  The general purpose bucket that you want to create the metadata configuration
+	// for.
 	//
 	// This member is required.
 	Bucket *string
 
-	//  The contents of your metadata table configuration.
+	//  The contents of your metadata configuration.
 	//
 	// This member is required.
-	MetadataTableConfiguration *types.MetadataTableConfiguration
+	MetadataConfiguration *types.MetadataConfiguration
 
-	//  The checksum algorithm to use with your metadata table configuration.
+	//  The checksum algorithm to use with your metadata configuration.
 	ChecksumAlgorithm types.ChecksumAlgorithm
 
-	//  The Content-MD5 header for the metadata table configuration.
+	//  The Content-MD5 header for the metadata configuration.
 	ContentMD5 *string
 
 	//  The expected owner of the general purpose bucket that corresponds to your
-	// metadata table configuration.
+	// metadata configuration.
 	ExpectedBucketOwner *string
 
 	noSmithyDocumentSerde
 }
 
-func (in *CreateBucketMetadataTableConfigurationInput) bindEndpointParams(p *EndpointParameters) {
+func (in *CreateBucketMetadataConfigurationInput) bindEndpointParams(p *EndpointParameters) {
 
 	p.Bucket = in.Bucket
 	p.UseS3ExpressControlEndpoint = ptr.Bool(true)
 }
 
-type CreateBucketMetadataTableConfigurationOutput struct {
+type CreateBucketMetadataConfigurationOutput struct {
 	// Metadata pertaining to the operation's result.
 	ResultMetadata middleware.Metadata
 
 	noSmithyDocumentSerde
 }
 
-func (c *Client) addOperationCreateBucketMetadataTableConfigurationMiddlewares(stack *middleware.Stack, options Options) (err error) {
+func (c *Client) addOperationCreateBucketMetadataConfigurationMiddlewares(stack *middleware.Stack, options Options) (err error) {
 	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
 		return err
 	}
-	err = stack.Serialize.Add(&awsRestxml_serializeOpCreateBucketMetadataTableConfiguration{}, middleware.After)
+	err = stack.Serialize.Add(&awsRestxml_serializeOpCreateBucketMetadataConfiguration{}, middleware.After)
 	if err != nil {
 		return err
 	}
-	err = stack.Deserialize.Add(&awsRestxml_deserializeOpCreateBucketMetadataTableConfiguration{}, middleware.After)
+	err = stack.Deserialize.Add(&awsRestxml_deserializeOpCreateBucketMetadataConfiguration{}, middleware.After)
 	if err != nil {
 		return err
 	}
-	if err := addProtocolFinalizerMiddlewares(stack, options, "CreateBucketMetadataTableConfiguration"); err != nil {
+	if err := addProtocolFinalizerMiddlewares(stack, options, "CreateBucketMetadataConfiguration"); err != nil {
 		return fmt.Errorf("add protocol finalizers: %v", err)
 	}
 
@@ -190,10 +198,10 @@ func (c *Client) addOperationCreateBucketMetadataTableConfigurationMiddlewares(s
 	if err = addCredentialSource(stack, options); err != nil {
 		return err
 	}
-	if err = addOpCreateBucketMetadataTableConfigurationValidationMiddleware(stack); err != nil {
+	if err = addOpCreateBucketMetadataConfigurationValidationMiddleware(stack); err != nil {
 		return err
 	}
-	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opCreateBucketMetadataTableConfiguration(options.Region), middleware.Before); err != nil {
+	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opCreateBucketMetadataConfiguration(options.Region), middleware.Before); err != nil {
 		return err
 	}
 	if err = addMetadataRetrieverMiddleware(stack); err != nil {
@@ -202,10 +210,10 @@ func (c *Client) addOperationCreateBucketMetadataTableConfigurationMiddlewares(s
 	if err = addRecursionDetection(stack); err != nil {
 		return err
 	}
-	if err = addCreateBucketMetadataTableConfigurationInputChecksumMiddlewares(stack, options); err != nil {
+	if err = addCreateBucketMetadataConfigurationInputChecksumMiddlewares(stack, options); err != nil {
 		return err
 	}
-	if err = addCreateBucketMetadataTableConfigurationUpdateEndpoint(stack, options); err != nil {
+	if err = addCreateBucketMetadataConfigurationUpdateEndpoint(stack, options); err != nil {
 		return err
 	}
 	if err = addResponseErrorMiddleware(stack); err != nil {
@@ -244,34 +252,34 @@ func (c *Client) addOperationCreateBucketMetadataTableConfigurationMiddlewares(s
 	return nil
 }
 
-func (v *CreateBucketMetadataTableConfigurationInput) bucket() (string, bool) {
+func (v *CreateBucketMetadataConfigurationInput) bucket() (string, bool) {
 	if v.Bucket == nil {
 		return "", false
 	}
 	return *v.Bucket, true
 }
 
-func newServiceMetadataMiddleware_opCreateBucketMetadataTableConfiguration(region string) *awsmiddleware.RegisterServiceMetadata {
+func newServiceMetadataMiddleware_opCreateBucketMetadataConfiguration(region string) *awsmiddleware.RegisterServiceMetadata {
 	return &awsmiddleware.RegisterServiceMetadata{
 		Region:        region,
 		ServiceID:     ServiceID,
-		OperationName: "CreateBucketMetadataTableConfiguration",
+		OperationName: "CreateBucketMetadataConfiguration",
 	}
 }
 
-// getCreateBucketMetadataTableConfigurationRequestAlgorithmMember gets the
-// request checksum algorithm value provided as input.
-func getCreateBucketMetadataTableConfigurationRequestAlgorithmMember(input interface{}) (string, bool) {
-	in := input.(*CreateBucketMetadataTableConfigurationInput)
+// getCreateBucketMetadataConfigurationRequestAlgorithmMember gets the request
+// checksum algorithm value provided as input.
+func getCreateBucketMetadataConfigurationRequestAlgorithmMember(input interface{}) (string, bool) {
+	in := input.(*CreateBucketMetadataConfigurationInput)
 	if len(in.ChecksumAlgorithm) == 0 {
 		return "", false
 	}
 	return string(in.ChecksumAlgorithm), true
 }
 
-func addCreateBucketMetadataTableConfigurationInputChecksumMiddlewares(stack *middleware.Stack, options Options) error {
+func addCreateBucketMetadataConfigurationInputChecksumMiddlewares(stack *middleware.Stack, options Options) error {
 	return addInputChecksumMiddleware(stack, internalChecksum.InputMiddlewareOptions{
-		GetAlgorithm:                     getCreateBucketMetadataTableConfigurationRequestAlgorithmMember,
+		GetAlgorithm:                     getCreateBucketMetadataConfigurationRequestAlgorithmMember,
 		RequireChecksum:                  true,
 		RequestChecksumCalculation:       options.RequestChecksumCalculation,
 		EnableTrailingChecksum:           false,
@@ -280,20 +288,20 @@ func addCreateBucketMetadataTableConfigurationInputChecksumMiddlewares(stack *mi
 	})
 }
 
-// getCreateBucketMetadataTableConfigurationBucketMember returns a pointer to
-// string denoting a provided bucket member valueand a boolean indicating if the
-// input has a modeled bucket name,
-func getCreateBucketMetadataTableConfigurationBucketMember(input interface{}) (*string, bool) {
-	in := input.(*CreateBucketMetadataTableConfigurationInput)
+// getCreateBucketMetadataConfigurationBucketMember returns a pointer to string
+// denoting a provided bucket member valueand a boolean indicating if the input has
+// a modeled bucket name,
+func getCreateBucketMetadataConfigurationBucketMember(input interface{}) (*string, bool) {
+	in := input.(*CreateBucketMetadataConfigurationInput)
 	if in.Bucket == nil {
 		return nil, false
 	}
 	return in.Bucket, true
 }
-func addCreateBucketMetadataTableConfigurationUpdateEndpoint(stack *middleware.Stack, options Options) error {
+func addCreateBucketMetadataConfigurationUpdateEndpoint(stack *middleware.Stack, options Options) error {
 	return s3cust.UpdateEndpoint(stack, s3cust.UpdateEndpointOptions{
 		Accessor: s3cust.UpdateEndpointParameterAccessor{
-			GetBucketFromInput: getCreateBucketMetadataTableConfigurationBucketMember,
+			GetBucketFromInput: getCreateBucketMetadataConfigurationBucketMember,
 		},
 		UsePathStyle:                   options.UsePathStyle,
 		UseAccelerate:                  options.UseAccelerate,
