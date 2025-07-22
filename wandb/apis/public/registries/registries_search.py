@@ -14,6 +14,7 @@ from wandb.sdk.artifacts._graphql_fragments import (
     _gql_artifact_fragment,
     _gql_registry_fragment,
 )
+from wandb.sdk.artifacts._validators import remove_registry_prefix
 
 from ._utils import ensure_registry_prefix_on_names
 
@@ -135,7 +136,7 @@ class Registries(Paginator):
                 self.client,
                 self.organization,
                 self.last_response["organization"]["orgEntity"]["name"],
-                r["node"]["name"],
+                remove_registry_prefix(r["node"]["name"]),
                 r["node"],
             )
             for r in self.last_response["organization"]["orgEntity"]["projects"][
