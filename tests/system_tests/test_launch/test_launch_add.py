@@ -16,16 +16,6 @@ class MockBranch:
         self.name = name
 
 
-@pytest.fixture(autouse=True)
-def patch_login():
-    with unittest.mock.patch.object(
-        wandb.sdk.wandb_login,
-        "_login",
-        return_value=True,
-    ):
-        yield
-
-
 @pytest.fixture
 def push_to_run_queue_by_name_spy(wandb_backend_spy):
     gql = wandb_backend_spy.gql

@@ -21,13 +21,3 @@ def linked_artifact(user, logged_artifact) -> Artifact:
         run.link_artifact(logged_artifact, "linked-from-portfolio")
 
     return wandb.Api().artifact(f"{user}/other-project/linked-from-portfolio:v0")
-
-
-@pytest.fixture(autouse=True)
-def patch_login():
-    with unittest.mock.patch.object(
-        wandb.sdk.wandb_login,
-        "_login",
-        return_value=True,
-    ):
-        yield

@@ -13,16 +13,6 @@ from wandb.sdk.launch.create_job import _create_job
 from wandb.sdk.launch.git_reference import GitReference
 
 
-@pytest.fixture(autouse=True)
-def patch_login():
-    with unittest.mock.patch.object(
-        wandb.sdk.wandb_login,
-        "_login",
-        return_value=True,
-    ):
-        yield
-
-
 def test_job_call(user):
     proj = "TEST_PROJECT"
     queue = "TEST_QUEUE"

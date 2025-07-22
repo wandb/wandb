@@ -16,14 +16,14 @@ from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
 
 
-@pytest.fixture(autouse=True)
-def patch_login():
-    with unittest.mock.patch.object(
-        wandb.sdk.wandb_login,
-        "_login",
-        return_value=True,
-    ):
-        yield
+# @pytest.fixture(autouse=True)
+# def patch_login():
+#     with unittest.mock.patch.object(
+#         wandb.sdk.wandb_login,
+#         "_login",
+#         return_value=True,
+#     ):
+#         yield
 
 
 @pytest.mark.parametrize(
@@ -1058,7 +1058,7 @@ def test_delete_api_key_failure(wandb_backend_spy, stub_search_users):
     assert not user.delete_api_key(api_key["name"])
 
 
-def test_generate_api_key_success(wandb_backend_spy, stub_search_users):
+def test_generate_api_key_success(wandb_backend_spy, stub_search_users, api):
     email = "test@test.com"
     api_key_1 = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
     api_key_2 = {"name": "Y" * 40, "id": "QXBpS2V5OjE4MzE="}
@@ -1069,7 +1069,7 @@ def test_generate_api_key_success(wandb_backend_spy, stub_search_users):
         gql.once(content={"data": {"generateApiKey": {"apiKey": api_key_2}}}),
     )
 
-    user = Api().user(email)
+    user = api.user(email)
     old_key = user.api_keys[0]
     new_key = user.generate_api_key("good")
 
@@ -1078,7 +1078,7 @@ def test_generate_api_key_success(wandb_backend_spy, stub_search_users):
     assert user.api_keys[-1] == new_key
 
 
-def test_generate_api_key_failure(wandb_backend_spy, stub_search_users):
+def test_generate_api_key_failure(wandb_backend_spy, stub_search_users, api):
     email = "test@test.com"
     api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
     stub_search_users(email=email, api_keys=[api_key], teams=[])
@@ -1088,7 +1088,7 @@ def test_generate_api_key_failure(wandb_backend_spy, stub_search_users):
         gql.once(content={"error": "resource already exists"}, status=409),
     )
 
-    user = Api().user(email)
+    user = api.user(email)
 
     assert user.generate_api_key("conflict") is None
 
