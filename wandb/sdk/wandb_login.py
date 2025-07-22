@@ -259,8 +259,8 @@ class _WandbLogin:
 
         if not is_api_key_valid:
             raise AuthenticationError(
-                f"API key verification failed for host {self._settings.base_url}. "
-                "Make sure your API key is valid."
+                f"API key verification failed for host {self._settings.base_url}."
+                " Make sure your API key is valid."
             )
 
 

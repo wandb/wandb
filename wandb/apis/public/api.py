@@ -304,20 +304,15 @@ class Api:
             self.settings["entity"] = _overrides["username"]
 
         self._api_key = api_key
-        if self.api_key is None and _thread_local_api_settings.cookies is None:
+        if _thread_local_api_settings.cookies is None:
             wandb_login._login(
                 host=self.settings["base_url"],
-                verify=True,
-                _silent=self.settings.get("silent", False)
-                or self.settings.get("quiet", False),
-            )
-        elif self.api_key and not _thread_local_api_settings.cookies:
-            wandb_login._login(
-                host=self.settings["base_url"],
-                verify=True,
                 key=self.api_key,
-                _silent=self.settings.get("silent", False)
-                or self.settings.get("quiet", False),
+                verify=True,
+                _silent=(
+                    self.settings.get("silent", False)
+                    or self.settings.get("quiet", False)
+                ),
             )
 
         self._viewer = None

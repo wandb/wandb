@@ -225,7 +225,8 @@ def test_initialize_api_prompts_for_api_key():
         Api()
 
         assert mock_login.call_count == 1
-        assert "key" not in mock_login.call_args[1]
+        assert "key" in mock_login.call_args[1]
+        assert mock_login.call_args[1]["key"] is None
 
 
 def test_initialize_api_does_not_prompt_for_api_key__when_api_key_is_provided():

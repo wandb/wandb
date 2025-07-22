@@ -171,17 +171,14 @@ class BackendFixtureFactory:
 
     def make_user(self, name: str | None = None, admin: bool = False) -> str:
         """Create a new user and return their username."""
-        name = name or f"user{self.worker_id}{random_string()}"
-
-        # many tests use the username as the API key.
-        # However, the API key must be 40 characters long.
-        # So we need to pad the username with random characters
-        # if it's less than 40 characters.
-        missing_chars = 40 - len(name)
-        if missing_chars > 0:
-            name = name + random_string(length=missing_chars)
-        else:
-            name = name[:40]
+        # Many tests use the username as the API key.
+        # However, the API key must be 40 characters long after the first hyphen.
+        # So we need to pad the username
+        # with the appropriate number of random characters.
+        name = name or (
+            f"user-{self.worker_id}-"
+            f"{random_string(length=(40 - len(self.worker_id) - 1))}"
+        )
 
         self.send_cmds(
             UserCmd("up", username=name, admin=admin),
