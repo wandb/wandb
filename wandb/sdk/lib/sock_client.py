@@ -110,10 +110,6 @@ class SockClient:
     def shutdown(self, val: int) -> None:
         self._sock.shutdown(val)
 
-    def set_socket(self, sock: socket.socket) -> None:
-        self._sock = sock
-        self._detect_bufsize()
-
     def _sendall_with_error_handle(self, data: bytes) -> None:
         # This is a helper function for sending data in a retry fashion.
         # Similar to the sendall() function in the socket module, but with

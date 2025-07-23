@@ -16,8 +16,8 @@ import (
 
 // This operation is not supported for directory buckets.
 //
-// Returns a list of inventory configurations for the bucket. You can have up to
-// 1,000 analytics configurations per bucket.
+// Returns a list of S3 Inventory configurations for the bucket. You can have up
+// to 1,000 analytics configurations per bucket.
 //
 // This action supports list pagination and does not return more than 100
 // configurations at a time. Always check the IsTruncated element in the response.

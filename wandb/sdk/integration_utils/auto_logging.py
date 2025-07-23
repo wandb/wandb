@@ -71,7 +71,7 @@ class PatchAPI:
             )
         return self._api
 
-    def patch(self, run: "wandb.sdk.wandb_run.Run") -> None:
+    def patch(self, run: "wandb.Run") -> None:
         """Patches the API to log media or metrics to W&B."""
         for symbol in self.symbols:
             # split on dots, e.g. "Client.generate" -> ["Client", "generate"]
@@ -163,7 +163,7 @@ class AutologAPI:
             resolver=resolver,
         )
         self._name = self._patch_api.name
-        self._run: Optional[wandb.sdk.wandb_run.Run] = None
+        self._run: Optional[wandb.Run] = None
         self.__run_created_by_autolog: bool = False
 
     @property

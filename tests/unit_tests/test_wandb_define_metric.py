@@ -162,9 +162,15 @@ def test_metric_summary(mock_run, parse_records, record_q):
     )
     assert not metric_5.summary
 
+    metric_6 = run.define_metric(
+        "metric",
+        summary="first",
+    )
+    assert metric_6.summary == ("first",)
+
     parsed = parse_records(record_q)
-    assert len(parsed.records) == 5
-    assert len(parsed.metric) == 5
+    assert len(parsed.records) == 6
+    assert len(parsed.metric) == 6
 
 
 @pytest.mark.parametrize(

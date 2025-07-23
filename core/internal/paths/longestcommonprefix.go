@@ -53,7 +53,7 @@ func LongestCommonPrefixStr(paths iter.Seq[string], separator string) string {
 		}
 
 		for i, part := range longestPrefix {
-			if part != pathParts[i] {
+			if i >= len(pathParts) || part != pathParts[i] {
 				longestPrefix = longestPrefix[:i]
 				break
 			}

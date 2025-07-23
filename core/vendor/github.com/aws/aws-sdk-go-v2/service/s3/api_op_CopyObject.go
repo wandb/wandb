@@ -225,14 +225,12 @@ type CopyObjectInput struct {
 	//
 	// S3 on Outposts - When you use this action with S3 on Outposts, you must use the
 	// Outpost bucket access point ARN or the access point alias for the destination
-	// bucket.
-	//
-	// You can only copy objects within the same Outpost bucket. It's not supported to
-	// copy objects across different Amazon Web Services Outposts, between buckets on
-	// the same Outposts, or between Outposts buckets and any other bucket types. For
-	// more information about S3 on Outposts, see [What is S3 on Outposts?]in the S3 on Outposts guide. When
-	// you use this action with S3 on Outposts through the REST API, you must direct
-	// requests to the S3 on Outposts hostname, in the format
+	// bucket. You can only copy objects within the same Outpost bucket. It's not
+	// supported to copy objects across different Amazon Web Services Outposts, between
+	// buckets on the same Outposts, or between Outposts buckets and any other bucket
+	// types. For more information about S3 on Outposts, see [What is S3 on Outposts?]in the S3 on Outposts
+	// guide. When you use this action with S3 on Outposts through the REST API, you
+	// must direct requests to the S3 on Outposts hostname, in the format
 	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com . The
 	// hostname isn't required when you use the Amazon Web Services CLI or SDKs.
 	//

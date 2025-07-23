@@ -18,8 +18,8 @@ func absPath(t *testing.T, path string) paths.AbsolutePath {
 func TestLongestCommonPrefix(t *testing.T) {
 	prefix, err := paths.LongestCommonPrefix(
 		[]paths.AbsolutePath{
-			absPath(t, "/one/two"),
 			absPath(t, "/one/two/three"),
+			absPath(t, "/one/two"),
 			absPath(t, "/one/ten"),
 		},
 	)

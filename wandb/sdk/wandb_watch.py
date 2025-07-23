@@ -17,15 +17,13 @@ from .lib import telemetry
 if TYPE_CHECKING:
     import torch  # type: ignore [import-not-found]
 
-    from wandb.sdk.wandb_run import Run
-
 logger = logging.getLogger("wandb")
 
 _global_watch_idx = 0
 
 
 def _watch(
-    run: Run,
+    run: wandb.Run,
     models: torch.nn.Module | Sequence[torch.nn.Module],
     criterion: torch.F | None = None,
     log: Literal["gradients", "parameters", "all"] | None = "gradients",
@@ -39,7 +37,7 @@ def _watch(
     extended to support arbitrary machine learning models in the future.
 
     Args:
-        run (wandb.sdk.wandb_run.Run): The run object to log to.
+        run (wandb.Run): The run object to log to.
         models (Union[torch.nn.Module, Sequence[torch.nn.Module]]):
             A single model or a sequence of models to be monitored.
         criterion (Optional[torch.F]):
@@ -122,12 +120,12 @@ def _watch(
 
 
 def _unwatch(
-    run: Run, models: torch.nn.Module | Sequence[torch.nn.Module] | None = None
+    run: wandb.Run, models: torch.nn.Module | Sequence[torch.nn.Module] | None = None
 ) -> None:
     """Remove pytorch model topology, gradient and parameter hooks.
 
     Args:
-        run (wandb.sdk.wandb_run.Run):
+        run (wandb.Run):
             The run object to log to.
         models (torch.nn.Module | Sequence[torch.nn.Module]):
             Optional list of pytorch models that have had watch called on them

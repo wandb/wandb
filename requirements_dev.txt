@@ -52,7 +52,7 @@ ray[air,tune]
 # Latest version of plum-dispatch tested is 2.5.7
 plum-dispatch>=2.0.0,<3.0.0
 pyarrow
-metaflow
+metaflow~=2.15.21
 xgboost
 lightgbm
 mlflow

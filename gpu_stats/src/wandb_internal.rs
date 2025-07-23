@@ -1184,6 +1184,8 @@ pub struct MetricSummary {
     pub none: bool,
     #[prost(bool, tag = "7")]
     pub copy: bool,
+    #[prost(bool, tag = "8")]
+    pub first: bool,
 }
 ///
 /// ConfigRecord: wandb/sdk/wandb_config/Config
