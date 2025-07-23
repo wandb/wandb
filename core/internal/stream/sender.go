@@ -27,7 +27,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -53,7 +52,6 @@ type SenderParams struct {
 	FileTransferStats   filetransfer.FileTransferStats
 	FileWatcher         watcher.Watcher
 	RunfilesUploader    runfiles.Uploader
-	TBHandler           *tensorboard.TBHandler
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
 	StreamRun           *StreamRun
@@ -132,9 +130,6 @@ type Sender struct {
 
 	// artifactWG is a wait group for artifact-related goroutines
 	artifactWG sync.WaitGroup
-
-	// tbHandler integrates W&B with TensorBoard
-	tbHandler *tensorboard.TBHandler
 
 	// summaryDebouncer is the debouncer for summary updates
 	summaryDebouncer *debounce.Debouncer
@@ -245,7 +240,6 @@ func NewSender(
 				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
 			).Enabled,
 		),
-		tbHandler:     params.TBHandler,
 		networkPeeker: params.Peeker,
 		graphqlClient: params.GraphqlClient,
 		mailbox:       params.Mailbox,
@@ -639,11 +633,6 @@ func (s *Sender) finishRunSync() {
 		stage()
 		s.flushWork()
 	}
-
-	// Wait to finish reading all TensorBoard tfevent files, if any.
-	runStage(func() {
-		s.tbHandler.Finish()
-	})
 
 	// Finish uploading captured console logs.
 	runStage(func() {
