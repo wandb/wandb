@@ -249,12 +249,14 @@ def test_initialize_api_does_not_prompt_for_api_key__when_using_thread_local_set
         assert api.api_key == "X" * 40
 
 
-def test_initialize_api_does_not_prompt_for_api_key__when_using_env_var():
-    with mock.patch.object(wandb_login, "_login", mock.MagicMock()) as mock_login:
-        with mock.patch.dict("os.environ", {"WANDB_API_KEY": "X" * 40}):
-            api = Api(overrides={"api_key": "X" * 40})
+def test_initialize_api_does_not_prompt_for_api_key__when_using_env_var(monkeypatch):
+    mock_login = mock.MagicMock()
+    monkeypatch.setattr(wandb_login, "_login", mock_login)
+    monkeypatch.setattr("os.environ", {"WANDB_API_KEY": "X" * 40})
 
-            assert mock_login.call_count == 1
-            assert "key" in mock_login.call_args[1]
-            assert mock_login.call_args[1]["key"] == "X" * 40
-            assert api.api_key == "X" * 40
+    api = Api(overrides={"api_key": "X" * 40})
+
+    assert mock_login.call_count == 1
+    assert "key" in mock_login.call_args[1]
+    assert mock_login.call_args[1]["key"] == "X" * 40
+    assert api.api_key == "X" * 40
