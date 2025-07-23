@@ -307,6 +307,57 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
             },
             [],
         ),
+        # --- Secret format tests ---
+        # Test basic secret field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "api_key": {
+                        "type": "string",
+                        "format": "secret",
+                        "title": "API Key",
+                        "description": "Secret API key"
+                    }
+                }
+            },
+            [],
+        ),
+        # Test nested object with secret field
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "config": {
+                        "type": "object",
+                        "properties": {
+                            "secret_token": {
+                                "type": "string",
+                                "format": "secret",
+                                "description": "Nested secret"
+                            },
+                            "public_key": {
+                                "type": "string",
+                                "description": "Public configuration"
+                            }
+                        }
+                    }
+                }
+            },
+            [],
+        ),
+        # Test multiple secret fields
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "api_key": {"type": "string", "format": "secret"},
+                    "db_password": {"type": "string", "format": "secret"},
+                    "regular_field": {"type": "string"}
+                }
+            },
+            [],
+        ),
         # --- Warning cases ---
         # Test using a float as a minimum for an integer
         (
