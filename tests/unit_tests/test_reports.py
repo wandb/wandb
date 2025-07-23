@@ -7,7 +7,7 @@ from wandb import Api
 from wandb.apis.public.reports import BetaReport
 
 
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "patch_verify_login")
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
 def test_report_properties_from_path():
     """Test that BetaReport properties work correctly when created via from_path."""
     path = "test/test/reports/My-Report--XYZ"

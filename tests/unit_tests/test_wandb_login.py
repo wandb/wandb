@@ -85,12 +85,7 @@ def test_login_timeout(mock_tty):
     platform.system() == "Windows",
     reason="mock_tty does not support windows input yet",
 )
-def test_login_timeout_choose(mock_tty, tmp_path: Path):
-    netrc_path = tmp_path / ".netrc"
-    netrc_path.touch()
-
-    os.environ["NETRC"] = str(netrc_path)
-
+def test_login_timeout_choose(mock_tty):
     mock_tty("3\n")
     ret = wandb.login(timeout=8)
     assert ret is False
@@ -98,12 +93,7 @@ def test_login_timeout_choose(mock_tty, tmp_path: Path):
     assert wandb.setup().settings.mode == "offline"
 
 
-def test_login_timeout_env_blank(mock_tty, tmp_path: Path):
-    netrc_path = tmp_path / ".netrc"
-    netrc_path.touch()
-
-    os.environ["NETRC"] = str(netrc_path)
-
+def test_login_timeout_env_blank(mock_tty):
     mock_tty("\n\n\n")
     with mock.patch.dict(os.environ, {"WANDB_LOGIN_TIMEOUT": "4"}):
         ret = wandb.login()
@@ -126,12 +116,7 @@ def test_relogin_timeout(dummy_api_key):
     assert logged_in is True
 
 
-def test_login_key(capsys, tmp_path: Path):
-    netrc_path = tmp_path / ".netrc"
-    netrc_path.touch()
-
-    os.environ["NETRC"] = str(netrc_path)
-
+def test_login_key(capsys):
     wandb.login(key="A" * 40)
     # TODO: this was a bug when tests were leaking out to the global config
     # wandb.api.set_setting("base_url", "http://localhost:8080")
@@ -148,19 +133,14 @@ def test_login(test_settings):
     wandb.finish()
 
 
-def test_login_anonymous(tmp_path: Path):
-    netrc_path = tmp_path / ".netrc"
-    netrc_path.touch()
-
-    os.environ["NETRC"] = str(netrc_path)
-
+def test_login_anonymous():
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
         wandb.login(anonymous="must")
         assert wandb.api.api_key == "ANONYMOOSE" * 4
         assert wandb.setup().settings.anonymous == "must"
 
 
-def test_login_sets_api_base_url(local_settings, patch_verify_login):
+def test_login_sets_api_base_url(local_settings, skip_verify_login):
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
         base_url = "https://api.test.host.ai"
         wandb.login(anonymous="must", host=base_url)
@@ -172,12 +152,7 @@ def test_login_sets_api_base_url(local_settings, patch_verify_login):
         assert api.settings["base_url"] == base_url
 
 
-def test_login_invalid_key(tmp_path: Path):
-    netrc_path = tmp_path / ".netrc"
-    netrc_path.touch()
-
-    os.environ["NETRC"] = str(netrc_path)
-
+def test_login_invalid_key():
     with mock.patch(
         "wandb.apis.internal.Api.validate_api_key",
         return_value=False,

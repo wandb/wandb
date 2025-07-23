@@ -312,9 +312,15 @@ def patch_apikey(mocker: MockerFixture, dummy_api_key: str):
 
 
 @pytest.fixture
-def patch_verify_login(monkeypatch):
+def skip_verify_login(monkeypatch):
+    """Patches the `_verify_login` method to do nothing.
+
+    This method is called whenever wandb.login is called.
+    """
     monkeypatch.setattr(
-        wandb.sdk.wandb_login._WandbLogin, "_verify_login", unittest.mock.MagicMock()
+        wandb.sdk.wandb_login._WandbLogin,
+        "_verify_login",
+        unittest.mock.MagicMock(),
     )
     yield
 
@@ -379,7 +385,7 @@ def api() -> wandb.PublicApi:
     with unittest.mock.patch.object(
         wandb.sdk.wandb_login,
         "_login",
-        return_value=None,
+        return_value=True,
     ):
         yield Api()
 
