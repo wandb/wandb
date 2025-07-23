@@ -265,6 +265,7 @@ def test_initialize_api_does_not_prompt_for_api_key__when_using_env_var(monkeypa
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_project_id_lazy_load(monkeypatch):
+    api = wandb.Api()
     mock_execute = MagicMock(
         return_value={
             "project": {
@@ -276,7 +277,7 @@ def test_project_id_lazy_load(monkeypatch):
     )
     monkeypatch.setattr(wandb.apis.public.api.RetryingClient, "execute", mock_execute)
     project = wandb.apis.public.Project(
-        client=wandb.Api().client,
+        client=api.client,
         entity="test-entity",
         project="test-project",
         attrs={},
@@ -291,12 +292,11 @@ def test_project_id_lazy_load(monkeypatch):
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_project_load__raises_error(monkeypatch):
-    mock_execute = MagicMock(
-        side_effect=HTTPError(response=MagicMock(status_code=404))
-    )
+    api = wandb.Api()
+    mock_execute = MagicMock(side_effect=HTTPError(response=MagicMock(status_code=404)))
     monkeypatch.setattr(wandb.apis.public.api.RetryingClient, "execute", mock_execute)
     project = wandb.apis.public.Project(
-        client=wandb.Api().client,
+        client=api.client,
         entity="test-entity",
         project="test-project",
         attrs={},

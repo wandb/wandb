@@ -519,7 +519,6 @@ def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend
             content={
                 "data": {
                     "project": {
-                        # "id": "123",
                         "name": "test",
                         "entityName": "test-entity",
                         "createdAt": "2021-01-01T00:00:00Z",
