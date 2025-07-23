@@ -337,6 +337,25 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
+        self._sentry = wandb.analytics.sentry.Sentry()
+        self._configure_sentry()
+
+    def _configure_sentry(self) -> None:
+        try:
+            viewer = self.viewer
+        except (ValueError, requests.RequestException):
+            # we need the viewer to configure the entity, and user email
+            return
+
+        email = viewer.email if viewer else None
+        entity = self.default_entity
+
+        self._sentry.configure_scope(
+            tags={
+                "entity": entity,
+                "email": email,
+            },
+        )
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -740,11 +759,22 @@ class Api:
 
     @property
     def viewer(self) -> "public.User":
-        """Returns the viewer object."""
+        """Returns the viewer object.
+
+        Raises:
+            ValueError: If viewer data is not able to be fetched from W&B.
+            requests.RequestException: If an error occurs while making the graphql request.
+        """
         if self._viewer is None:
-            self._viewer = public.User(
-                self._client, self._client.execute(self.VIEWER_QUERY).get("viewer")
-            )
+            viewer = self._client.execute(self.VIEWER_QUERY).get("viewer")
+
+            if viewer is None:
+                raise ValueError(
+                    "Unable to fetch user data from W&B,"
+                    " please verify your API key is valid."
+                )
+
+            self._viewer = public.User(self._client, viewer)
             self._default_entity = self._viewer.entity
         return self._viewer
 

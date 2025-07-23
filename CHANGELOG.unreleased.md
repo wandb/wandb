@@ -28,3 +28,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Correct the artifact url for organization registry artifacts to be independent of the artifact type (@ibindlish in https://github.com/wandb/wandb/pull/10049)
 - Suffixes on sanitized `InternalArtifact` names have been shortened to 6 alphanumeric characters (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10102)
 - `wandb.Video` will not print a progress spinner while encoding video when `WANDB_SILENT`/`WANDB_QUIET` environment variables are set (@jacobromero in https://github.com/wandb/wandb/pull/10064)
+- Fixed registries fetched using `api.registries()` from having an extra `wandb-registry-` prefix in the name and full_name fields (@estellazx in https://github.com/wandb/wandb/pull/10187)
+- Fixed a crash that could happen when using `sync_tensorboard` (@timoffex in https://github.com/wandb/wandb/pull/10199)
