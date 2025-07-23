@@ -235,7 +235,7 @@ class File(Attrs):
     - md5 (str): md5 of file
     - mimetype (str): mimetype of file
     - updated_at (str): timestamp of last update
-    - path_uri (str): path to file in the bucket, currently only available for files stored in S3
+    - path_uri (str): path to file in the bucket, currently only available for S3 objects and reference files
 
     Args:
         client: The run object that contains the file
@@ -262,17 +262,25 @@ class File(Attrs):
 
     @property
     def path_uri(self) -> str:
+        """Returns the URI path to the file in the storage bucket.
+
+        Returns:
+            str: The S3 URI (e.g., 's3://bucket/path/to/file') if the file is stored in S3,
+                 the direct URL if it's a reference file, or an empty string if unavailable.
         """
-        Returns the URI path to the file in the storage bucket.
-        """
-        path_uri = ""
+        if not (direct_url := self._attrs.get("directUrl")):
+            wandb.termwarn("Unable to find direct_url of file")
+            return ""
+
+        # For reference files, both the directUrl and the url are just the path to the file in the bucket
+        if direct_url == self._attrs.get("url"):
+            return direct_url
+
         try:
-            path_uri = utils.parse_s3_url_to_s3_uri(self._attrs["directUrl"])
+            return utils.parse_s3_url_to_s3_uri(direct_url)
         except ValueError:
             wandb.termwarn("path_uri is only available for files stored in S3")
-        except LookupError:
-            wandb.termwarn("Unable to find direct_url of file")
-        return path_uri
+            return ""
 
     @normalize_exceptions
     @retry.retriable(

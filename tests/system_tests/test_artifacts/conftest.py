@@ -1,5 +1,3 @@
-import unittest
-
 import pytest
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact

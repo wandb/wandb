@@ -1,7 +1,6 @@
 """Tests for the `wandb.apis.PublicApi` module."""
 
 import json
-import unittest
 from typing import Any, Dict, List, Optional
 from unittest import mock
 
@@ -14,7 +13,6 @@ from wandb import Api
 from wandb.apis.public import File
 from wandb.errors.errors import CommError
 from wandb.old.summary import Summary
-
 
 # @pytest.fixture(autouse=True)
 # def patch_login():

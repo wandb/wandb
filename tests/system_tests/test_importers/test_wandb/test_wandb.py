@@ -1,7 +1,6 @@
 import unittest
 
 import pytest
-import wandb
 from wandb.apis.importers import Namespace
 from wandb.apis.importers.wandb import WandbImporter
 
