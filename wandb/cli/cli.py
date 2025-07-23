@@ -498,7 +498,6 @@ def sync(
     if exclude_globs:
         exclude_globs = exclude_globs.split(",")
 
-    # Parse replace_tags parameter
     replace_tags_dict = _parse_sync_replace_tags(replace_tags)
     if replace_tags and replace_tags_dict is None:
         return  # Error already printed by helper function
