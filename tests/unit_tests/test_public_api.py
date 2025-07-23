@@ -4,6 +4,7 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
+from requests import HTTPError
 import wandb
 from wandb import Api
 from wandb.apis import internal
@@ -286,3 +287,20 @@ def test_project_id_lazy_load(monkeypatch):
     assert project.is_benchmark is False
 
     mock_execute.assert_called_once()
+
+
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+def test_project_load__raises_error(monkeypatch):
+    mock_execute = MagicMock(
+        side_effect=HTTPError(response=MagicMock(status_code=404))
+    )
+    monkeypatch.setattr(wandb.apis.public.api.RetryingClient, "execute", mock_execute)
+    project = wandb.apis.public.Project(
+        client=wandb.Api().client,
+        entity="test-entity",
+        project="test-project",
+        attrs={},
+    )
+
+    with pytest.raises(ValueError):
+        project._load()
