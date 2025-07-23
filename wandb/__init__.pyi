@@ -327,9 +327,12 @@ def init(
             is preserved to enable future syncing.
         - `"disabled"`: Disables all W&B functionality, making the run’s methods
             no-ops. Typically used in testing to bypass W&B operations.
-        - `"shared"`: Tracks all processes to a single run. This is an
-            experimental feature. In this approach you use a primary node
-            and one or more worker nodes to log data to the same run.
+        - `"shared"`: (This is an experimental feature). Allows multiple processes,
+            possibly on different machines, to simultaneously log to the same run.
+            In this approach you use a primary node and one or more worker nodes
+            to log data to the same run. Within the primary node you
+            initialize a run. For each worker node, initialize a run
+            using the run ID used by the primary node.
         force: Determines if a W&B login is required to run the script. If `True`,
             the user must be logged in to W&B; otherwise, the script will not
             proceed. If `False` (default), the script can proceed without a login,
