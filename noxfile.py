@@ -41,7 +41,6 @@ def install_wandb(session: nox.Session):
     """Builds and installs wandb."""
     session.env["WANDB_BUILD_COVERAGE"] = "true"
     session.env["WANDB_BUILD_GORACEDETECT"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
     if session.venv_backend == "uv":
         install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")

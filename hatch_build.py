@@ -24,7 +24,6 @@ _WANDB_BUILD_COVERAGE = "WANDB_BUILD_COVERAGE"
 _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 
 # Other build options.
-_WANDB_BUILD_UNIVERSAL = "WANDB_BUILD_UNIVERSAL"
 _WANDB_BUILD_SKIP_GPU_STATS = "WANDB_BUILD_SKIP_GPU_STATS"
 _WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
 
@@ -36,16 +35,12 @@ class CustomBuildHook(BuildHookInterface):
             self._prepare_wheel(build_data)
 
     def _prepare_wheel(self, build_data: Dict[str, Any]) -> None:
+        build_data["tag"] = f"py3-none-{self._get_platform_tag()}"
+
         artifacts: list[str] = build_data["artifacts"]
-
-        if self._include_wandb_core():
-            artifacts.extend(self._build_wandb_core())
-
+        artifacts.extend(self._build_wandb_core())
         if self._include_gpu_stats():
             artifacts.extend(self._build_gpu_stats())
-
-        if self._is_platform_wheel():
-            build_data["tag"] = f"py3-none-{self._get_platform_tag()}"
 
     def _get_platform_tag(self) -> str:
         """Returns the platform tag for the current platform."""
@@ -75,21 +70,9 @@ class CustomBuildHook(BuildHookInterface):
 
         return platform_tag
 
-    def _must_build_universal(self) -> bool:
-        """Returns whether we must build a universal wheel."""
-        return _get_env_bool(_WANDB_BUILD_UNIVERSAL, default=False)
-
-    def _include_wandb_core(self) -> bool:
-        """Returns whether we should produce a wheel with wandb-core."""
-        return not self._must_build_universal()
-
     def _include_gpu_stats(self) -> bool:
         """Returns whether we should produce a wheel with gpu_stats."""
         return not _get_env_bool(_WANDB_BUILD_SKIP_GPU_STATS, default=False)
-
-    def _is_platform_wheel(self) -> bool:
-        """Returns whether we're producing a platform-specific wheel."""
-        return self._include_wandb_core()
 
     def _get_and_require_cargo_binary(self) -> pathlib.Path:
         cargo = shutil.which("cargo")
