@@ -2,13 +2,24 @@ from __future__ import annotations
 
 import json
 import os
+import warnings
 from typing import Any
+
+from typing_extensions import deprecated
 
 import wandb
 from wandb.data_types import WBValue, _SavedModel
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.lib.deprecate import deprecate as wandb_deprecate
+
+warnings.warn(
+    message=f"The {__name__!r} module is deprecated and will be removed in a future version.",
+    category=DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def _add_any(
@@ -24,7 +35,7 @@ def _add_any(
 
     Args:
         artifact: `Artifact` - artifact created with `wandb.Artifact(...)`
-        path_or_obj: `Union[str, ArtifactManifestEntry, data_types.WBValue]` - either a
+        path_or_obj: `Union[str, ArtifactManifestEntry, WBValue]` - either a
             str or valid object which indicates what to add to an artifact.
 
         name: `str` - the name of the object which is added to an artifact.
@@ -112,6 +123,9 @@ def _log_artifact_version(
     return art
 
 
+@deprecated(
+    "The 'log_model' function is deprecated and will be removed in a future version. Please use 'Run.log_artifact' instead."
+)
 def log_model(
     model_obj: Any,
     name: str = "model",
@@ -167,6 +181,11 @@ def log_model(
         ```
 
     """
+    wandb_deprecate(
+        field_name=Deprecated.beta__workflows__log_model,
+        warning_message="`log_model` is deprecated and will be removed in a future version. Please use `Run.log_artifact` instead.",
+    )
+
     model = _SavedModel.init(model_obj, **kwargs)
     _ = _log_artifact_version(
         name=name,
@@ -185,6 +204,9 @@ def log_model(
     return model
 
 
+@deprecated(
+    "`use_model` is deprecated and will be removed in a future version. Please update your code to use `Run.use_artifact` instead."
+)
 def use_model(aliased_path: str, unsafe: bool = False) -> _SavedModel:
     """Fetch a saved model from an alias.
 
@@ -208,6 +230,11 @@ def use_model(aliased_path: str, unsafe: bool = False) -> _SavedModel:
         model = sm.model_obj()
         ```
     """
+    wandb_deprecate(
+        field_name=Deprecated.beta__workflows__use_model,
+        warning_message="`use_model` is deprecated and will be removed in a future version. Please update your code to use `Run.use_artifact` instead.",
+    )
+
     if not unsafe:
         raise ValueError("The 'unsafe' parameter must be set to True to load a model.")
 
@@ -233,6 +260,9 @@ def use_model(aliased_path: str, unsafe: bool = False) -> _SavedModel:
         )
 
 
+@deprecated(
+    "The 'link_model' function is deprecated and will be removed in a future version. Please use 'Run.link_artifact' instead."
+)
 def link_model(
     model: _SavedModel,
     target_path: str,
@@ -260,6 +290,11 @@ def link_model(
         link_model(sm, "my-portfolio")
 
     """
+    wandb_deprecate(
+        field_name=Deprecated.beta__workflows__link_model,
+        warning_message="`link_model` is deprecated and will be removed in a future version. Please use `Run.link_artifact` instead.",
+    )
+
     aliases = wandb.util._resolve_aliases(aliases)
 
     if run := wandb_setup.singleton().most_recent_active_run:
