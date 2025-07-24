@@ -7,14 +7,17 @@ import (
 )
 
 // workSentinel is a Work item used for synchronization.
-type workSentinel struct{ value any }
+type workSentinel struct {
+	SimpleScheduleMixin
+	value any
+}
 
 // NewSentinel returns a Work item holding the given sentinel value.
 //
 // The work item's methods are all no-ops, except that Sentinel() returns
 // the given value.
 func NewSentinel(value any) Work {
-	return &workSentinel{value}
+	return &workSentinel{value: value}
 }
 
 func (s *workSentinel) Accept(func(*spb.Record)) bool { return true }

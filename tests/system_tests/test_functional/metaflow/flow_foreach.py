@@ -4,6 +4,7 @@ import os
 import pathlib
 
 import pandas as pd
+import wandb
 from metaflow import FlowSpec, Parameter, step
 from sklearn.ensemble import (  # noqa: F401
     GradientBoostingClassifier,
@@ -51,7 +52,12 @@ class WandbForeachFlow(FlowSpec):
     def train(self):
         self.model_name = self.input
         # self.clf = RandomForestClassifier(random_state=self.seed)
-        self.clf = setup_model(self.model_name, random_state=self.seed)
+        self.clf = setup_model(
+            self.model_name,
+            n_estimators=2,
+            max_depth=2,
+            random_state=self.seed,
+        )
         self.clf.fit(self.X_train, self.y_train)
         self.preds = self.clf.predict(self.X_test)
         self.accuracy = accuracy_score(self.y_test, self.preds)
@@ -75,4 +81,5 @@ class WandbForeachFlow(FlowSpec):
 
 
 if __name__ == "__main__":
+    wandb.setup()
     WandbForeachFlow()

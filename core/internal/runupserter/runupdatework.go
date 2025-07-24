@@ -9,6 +9,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -35,6 +36,8 @@ type StreamRunUpserter interface {
 
 // RunUpdateWork implements Work to initialize or update a run.
 type RunUpdateWork struct {
+	runwork.SimpleScheduleMixin
+
 	// Record contains the RunRecord that triggered this work.
 	Record *spb.Record
 
