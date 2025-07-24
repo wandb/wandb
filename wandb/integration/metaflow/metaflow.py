@@ -7,6 +7,8 @@ from typing import Optional, Union
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
 
+from . import errors
+
 try:
     from metaflow import current
 except ImportError as e:
@@ -17,48 +19,14 @@ except ImportError as e:
 
 
 # Classes for isinstance() checks.
-_PD_DATAFRAME = None
 _NN_MODULE = None
 _BASE_ESTIMATOR = None
 
 try:
-    import pandas as pd
-
-    _PD_DATAFRAME = pd.DataFrame
-
-    def _use_pandas_dataframe(
-        name: str,
-        data: pd.DataFrame,
-        run,
-        testing: bool = False,
-    ) -> Optional[str]:
-        if testing:
-            return "datasets"
-
-        run.use_artifact(f"{name}:latest")
-        wandb.termlog(f"Using artifact: {name} ({type(data)})")
-        return None
-
-    def _track_pandas_dataframe(
-        name: str,
-        data: pd.DataFrame,
-        run,
-        testing: bool = False,
-    ) -> Optional[str]:
-        if testing:
-            return "pd.DataFrame"
-
-        artifact = wandb.Artifact(name, type="dataset")
-        with artifact.new_file(f"{name}.parquet", "wb") as f:
-            data.to_parquet(f, engine="pyarrow")
-        run.log_artifact(artifact)
-        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
-        return None
-
-except ImportError:
-    wandb.termwarn(
-        "`pandas` not installed >> @wandb_log(datasets=True) may not auto log your dataset!"
-    )
+    from . import data_pandas
+except errors.MissingDependencyError as e:
+    e.warn()
+    data_pandas = None
 
 try:
     import torch
@@ -218,13 +186,13 @@ def wandb_track(
     datasets: bool = False,
     models: bool = False,
     others: bool = False,
-    run=None,
+    run: Optional[wandb.Run] = None,
     testing: bool = False,
 ) -> Optional[str]:
     """Track data as wandb artifacts based on type and flags."""
     # Check for pandas DataFrame
-    if _PD_DATAFRAME and isinstance(data, _PD_DATAFRAME) and datasets:
-        return _track_pandas_dataframe(name, data, run, testing)
+    if data_pandas and data_pandas.is_dataframe(data) and datasets:
+        return data_pandas.track_dataframe(name, data, run, testing)
 
     # Check for PyTorch Module
     if _NN_MODULE and isinstance(data, _NN_MODULE) and models:
@@ -266,8 +234,8 @@ def wandb_use(
 
     try:
         # Check for pandas DataFrame
-        if _PD_DATAFRAME and isinstance(data, _PD_DATAFRAME) and datasets:
-            return _use_pandas_dataframe(name, data, run, testing)
+        if data_pandas and data_pandas.is_dataframe(data) and datasets:
+            return data_pandas.use_dataframe(name, run, testing)
 
         # Check for PyTorch Module
         elif _NN_MODULE and isinstance(data, _NN_MODULE) and models:
