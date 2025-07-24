@@ -7,6 +7,7 @@ META_SCHEMA = {
         },
         "title": {"type": "string"},
         "description": {"type": "string"},
+        "format": {"type": "string"},
         "enum": {"type": "array", "items": {"type": ["integer", "number", "string"]}},
         "properties": {"type": "object", "patternProperties": {".*": {"$ref": "#"}}},
         "allOf": {"type": "array", "items": {"$ref": "#"}},
