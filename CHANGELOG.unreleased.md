@@ -23,6 +23,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - `Sweep.name` property will now return user-edited display name if available (falling back to original name from sweep config, then sweep ID as before) (@kelu-wandb in https://github.com/wandb/wandb/pull/10144)
 
+### Deprecated
+
+- The `wandb.beta.workflows` module and its contents (including `log_model()`, `use_model()`, and `link_model()`) are deprecated and will be removed in a future release (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10205).
+
 ### Fixed
 
 - Correct the artifact url for organization registry artifacts to be independent of the artifact type (@ibindlish in https://github.com/wandb/wandb/pull/10049)
