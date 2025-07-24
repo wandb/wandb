@@ -25,7 +25,6 @@ class WandbPyTorchFlow(FlowSpec):
     lr = Parameter("lr", default=1.0)
     gamma = Parameter("gamma", default=0.7)
     no_cuda = Parameter("no_cuda", default=False)
-    dry_run = Parameter("dry_run", default=False)
     seed = Parameter("seed", default=1)
     log_interval = Parameter("log_interval", default=10)
     save_model = Parameter("save_model", default=False)
@@ -54,10 +53,16 @@ class WandbPyTorchFlow(FlowSpec):
             [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
         )
         self.dataset1 = datasets.FakeData(
-            size=2000, image_size=(1, 28, 28), num_classes=10, transform=transform
+            size=100,
+            image_size=(1, 28, 28),
+            num_classes=10,
+            transform=transform,
         )
         self.dataset2 = datasets.FakeData(
-            size=2000, image_size=(1, 28, 28), num_classes=10, transform=transform
+            size=100,
+            image_size=(1, 28, 28),
+            num_classes=10,
+            transform=transform,
         )
         self.next(self.setup_dataloaders)
 
@@ -89,7 +94,6 @@ class WandbPyTorchFlow(FlowSpec):
                 optimizer,
                 epoch,
                 self.log_interval,
-                self.dry_run,
             )
             test(self.model, device, self.test_loader)
             scheduler.step()
@@ -110,30 +114,16 @@ class WandbPyTorchFlow(FlowSpec):
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3, 1)
-        self.conv2 = nn.Conv2d(32, 64, 3, 1)
-        self.dropout1 = nn.Dropout(0.25)
-        self.dropout2 = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(9216, 128)
-        self.fc2 = nn.Linear(128, 10)
+        self.fc = nn.Linear(784, 10)
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, 2)
-        x = self.dropout1(x)
         x = torch.flatten(x, 1)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.dropout2(x)
-        x = self.fc2(x)
+        x = self.fc(x)
         output = F.log_softmax(x, dim=1)
         return output
 
 
-def train(model, device, train_loader, optimizer, epoch, log_interval, dry_run):
+def train(model, device, train_loader, optimizer, epoch, log_interval):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
@@ -146,8 +136,6 @@ def train(model, device, train_loader, optimizer, epoch, log_interval, dry_run):
             wandb.log(
                 {"epoch": epoch, "step": batch_idx * len(data), "loss": loss.item()}
             )
-            if dry_run:
-                break
 
 
 def test(model, device, test_loader):
@@ -171,4 +159,5 @@ def test(model, device, test_loader):
 
 
 if __name__ == "__main__":
+    wandb.setup()
     WandbPyTorchFlow()
