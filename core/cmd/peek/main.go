@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	gridRows = 3
-	gridCols = 5
+	gridRows      = 3
+	gridCols      = 5
+	chartsPerPage = gridRows * gridCols
 )
 
 var graphColors = []string{"4", "10", "5", "6", "3", "2", "13", "14", "11", "9", "12", "1", "7", "8", "15"}
@@ -35,23 +36,37 @@ var titleStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("250")). // light gray
 	Bold(true)
 
-// Plot titles - mix of metrics and layer names
+// Extended plot titles - now we have more than 15
 var plotTitles = []string{
+	// Page 1 (original 15)
 	"loss", "accuracy", "f1_score", "precision", "recall",
 	"layer_1_weights", "layer_2_bias", "attention_weights", "gradient_norm", "learning_rate",
 	"layer_23_att_block_w1", "layer_23_att_block_w2", "layer_24_ffn", "output_logits", "validation_loss",
+	// Page 2
+	"layer_1_gradients", "layer_2_gradients", "layer_3_weights", "layer_3_bias", "layer_3_gradients",
+	"embedding_weights", "embedding_gradients", "optimizer_momentum", "optimizer_variance", "weight_decay",
+	"attention_entropy", "token_perplexity", "batch_loss_variance", "gradient_clipping", "effective_lr",
+	// Page 3
+	"layer_4_weights", "layer_4_bias", "layer_5_weights", "layer_5_bias", "layer_6_weights",
+	"positional_encoding", "dropout_rate", "activation_mean", "activation_std", "dead_neurons",
+	"gradient_flow", "parameter_norm", "update_ratio", "convergence_rate", "training_speed",
 }
 
 // Different Y ranges for different metrics
 var plotRanges = map[string][2]float64{
-	"loss":            {0, 5},
-	"accuracy":        {0, 1},
-	"f1_score":        {0, 1},
-	"precision":       {0, 1},
-	"recall":          {0, 1},
-	"learning_rate":   {0, 0.01},
-	"gradient_norm":   {0, 10},
-	"validation_loss": {0, 5},
+	"loss":             {0, 5},
+	"accuracy":         {0, 1},
+	"f1_score":         {0, 1},
+	"precision":        {0, 1},
+	"recall":           {0, 1},
+	"learning_rate":    {0, 0.01},
+	"gradient_norm":    {0, 10},
+	"validation_loss":  {0, 5},
+	"effective_lr":     {0, 0.01},
+	"dropout_rate":     {0, 1},
+	"weight_decay":     {0, 0.1},
+	"convergence_rate": {0, 1},
+	"training_speed":   {0, 100},
 }
 
 // EpochLineChart is a custom line chart for epoch-based data
@@ -62,10 +77,11 @@ type EpochLineChart struct {
 	maxEpochs  int
 	focused    bool
 	zoomLevel  float64
+	title      string
 }
 
 // NewEpochLineChart creates a new epoch-based line chart
-func NewEpochLineChart(width, height int, minY, maxY float64, colorIndex int) *EpochLineChart {
+func NewEpochLineChart(width, height int, minY, maxY float64, colorIndex int, title string) *EpochLineChart {
 	graphStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(graphColors[colorIndex%len(graphColors)]))
 
@@ -80,6 +96,7 @@ func NewEpochLineChart(width, height int, minY, maxY float64, colorIndex int) *E
 		maxEpochs:  20,
 		focused:    false,
 		zoomLevel:  1.0,
+		title:      title,
 	}
 
 	// Set axis and label styles manually
@@ -242,22 +259,51 @@ func (c *EpochLineChart) Draw() {
 }
 
 type model struct {
-	charts     [][]*EpochLineChart
-	width      int
-	height     int
-	epoch      int
-	focusedRow int
-	focusedCol int
+	allCharts   []*EpochLineChart   // All charts
+	charts      [][]*EpochLineChart // Current page of charts arranged in grid
+	width       int
+	height      int
+	epoch       int
+	focusedRow  int
+	focusedCol  int
+	currentPage int
+	totalPages  int
 }
 
 func (m model) Init() tea.Cmd {
 	// Initialize all charts
+	for _, chart := range m.allCharts {
+		chart.DrawXYAxisAndLabel()
+	}
+	m.loadCurrentPage()
+	return nil
+}
+
+// loadCurrentPage loads the charts for the current page into the grid
+func (m *model) loadCurrentPage() {
+	// Clear current charts grid
+	m.charts = make([][]*EpochLineChart, gridRows)
 	for row := 0; row < gridRows; row++ {
-		for col := 0; col < gridCols; col++ {
-			m.charts[row][col].DrawXYAxisAndLabel()
+		m.charts[row] = make([]*EpochLineChart, gridCols)
+	}
+
+	// Calculate start and end indices for current page
+	startIdx := m.currentPage * chartsPerPage
+	endIdx := startIdx + chartsPerPage
+	if endIdx > len(m.allCharts) {
+		endIdx = len(m.allCharts)
+	}
+
+	// Fill the grid with charts from the current page
+	idx := startIdx
+	for row := 0; row < gridRows && idx < endIdx; row++ {
+		for col := 0; col < gridCols && idx < endIdx; col++ {
+			m.charts[row][col] = m.allCharts[idx]
+			// Redraw the chart to show any existing data
+			m.charts[row][col].Draw()
+			idx++
 		}
 	}
-	return nil
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -275,7 +321,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			row := msg.Y / chartHeightWithBorder
 			col := msg.X / chartWidthWithBorder
 
-			if row >= 0 && row < gridRows && col >= 0 && col < gridCols {
+			if row >= 0 && row < gridRows && col >= 0 && col < gridCols && m.charts[row][col] != nil {
 				chart := m.charts[row][col]
 
 				// Calculate mouse position relative to the chart's graph area
@@ -293,7 +339,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Ensure mouse is within graph bounds
 				if relativeMouseX >= 0 && relativeMouseX < chart.GraphWidth() {
 					// Focus on the chart under mouse
-					if m.focusedRow >= 0 && m.focusedCol >= 0 {
+					if m.focusedRow >= 0 && m.focusedCol >= 0 && m.charts[m.focusedRow][m.focusedCol] != nil {
 						m.charts[m.focusedRow][m.focusedCol].focused = false
 					}
 					m.focusedRow = row
@@ -318,27 +364,46 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			// Reset all charts and epoch counter
 			m.epoch = 0
-			for row := range gridRows {
-				for col := range gridCols {
-					m.charts[row][col].Reset()
-					m.charts[row][col].Draw()
-				}
+			for _, chart := range m.allCharts {
+				chart.Reset()
 			}
+			m.loadCurrentPage()
 		case " ":
 			// Simulate training step - add new data point for current epoch
 			m.epoch++
-			for row := range gridRows {
-				for col := range gridCols {
-					chartIndex := row*gridCols + col
-					chart := m.charts[row][col]
-
-					// Generate realistic training data
-					value := generateTrainingValue(plotTitles[chartIndex], m.epoch, chart.MinY(), chart.MaxY())
-
-					chart.AddDataPoint(value)
-					chart.Draw()
+			for _, chart := range m.allCharts {
+				// Generate realistic training data
+				value := generateTrainingValue(chart.title, m.epoch, chart.MinY(), chart.MaxY())
+				chart.AddDataPoint(value)
+			}
+			// Redraw only visible charts
+			for row := 0; row < gridRows; row++ {
+				for col := 0; col < gridCols; col++ {
+					if m.charts[row][col] != nil {
+						m.charts[row][col].Draw()
+					}
 				}
 			}
+		case "pgup":
+			// Previous page with wrap-around
+			if m.currentPage > 0 {
+				m.currentPage--
+			} else {
+				m.currentPage = m.totalPages - 1 // Wrap to last page
+			}
+			m.focusedRow = -1
+			m.focusedCol = -1
+			m.loadCurrentPage()
+		case "pgdown":
+			// Next page with wrap-around
+			if m.currentPage < m.totalPages-1 {
+				m.currentPage++
+			} else {
+				m.currentPage = 0 // Wrap to first page
+			}
+			m.focusedRow = -1
+			m.focusedCol = -1
+			m.loadCurrentPage()
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -351,28 +416,38 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // generateTrainingValue simulates realistic training metrics
 func generateTrainingValue(metric string, epoch int, minY, maxY float64) float64 {
 	switch metric {
-	case "loss", "validation_loss":
+	case "loss", "validation_loss", "batch_loss_variance":
 		// Loss typically decreases over time with some noise
 		base := 3.0 * math.Exp(-float64(epoch)*0.02)
 		noise := (rand.Float64() - 0.5) * 0.2
 		return math.Max(minY, math.Min(maxY, base+noise))
 
-	case "accuracy", "f1_score", "precision", "recall":
+	case "accuracy", "f1_score", "precision", "recall", "convergence_rate":
 		// Accuracy metrics typically increase and plateau
 		base := 1.0 - 0.8*math.Exp(-float64(epoch)*0.05)
 		noise := (rand.Float64() - 0.5) * 0.05
 		return math.Max(0, math.Min(1, base+noise))
 
-	case "learning_rate":
+	case "learning_rate", "effective_lr":
 		// Learning rate might decay over time
 		base := 0.001 * math.Pow(0.99, float64(epoch))
 		return math.Max(minY, base)
 
-	case "gradient_norm":
+	case "gradient_norm", "gradient_flow", "parameter_norm":
 		// Gradient norm varies but generally decreases
 		base := 5.0 * math.Exp(-float64(epoch)*0.01)
 		noise := rand.Float64() * 2.0
 		return math.Max(minY, math.Min(maxY, base+noise))
+
+	case "dropout_rate":
+		// Dropout might be constant or scheduled
+		return 0.5
+
+	case "training_speed":
+		// Training speed in samples/sec, might vary
+		base := 50.0
+		noise := (rand.Float64() - 0.5) * 20.0
+		return math.Max(10, base+noise)
 
 	default:
 		// For layer weights and other metrics, just random walk
@@ -401,12 +476,17 @@ func (m *model) updateChartSizes() {
 		chartWidth = 15
 	}
 
-	// Update all chart sizes and redraw
+	// Update all charts sizes
+	for _, chart := range m.allCharts {
+		chart.Resize(chartWidth, chartHeight)
+	}
+
+	// Redraw visible charts
 	for row := 0; row < gridRows; row++ {
 		for col := 0; col < gridCols; col++ {
-			chart := m.charts[row][col]
-			chart.Resize(chartWidth, chartHeight)
-			chart.Draw()
+			if m.charts[row][col] != nil {
+				m.charts[row][col].Draw()
+			}
 		}
 	}
 }
@@ -421,25 +501,30 @@ func (m model) View() string {
 	for row := 0; row < gridRows; row++ {
 		var cols []string
 		for col := 0; col < gridCols; col++ {
-			chartIndex := row*gridCols + col
-			chartView := m.charts[row][col].View()
+			if m.charts[row][col] != nil {
+				chart := m.charts[row][col]
+				chartView := chart.View()
 
-			// Highlight focused chart
-			boxStyle := borderStyle
-			if row == m.focusedRow && col == m.focusedCol {
-				boxStyle = borderStyle.Copy().BorderForeground(lipgloss.Color("4")) // Blue border for focused
+				// Highlight focused chart
+				boxStyle := borderStyle
+				if row == m.focusedRow && col == m.focusedCol {
+					boxStyle = borderStyle.Copy().BorderForeground(lipgloss.Color("4")) // Blue border for focused
+				}
+
+				// Create a box with title and chart
+				boxContent := lipgloss.JoinVertical(
+					lipgloss.Left,
+					titleStyle.Render(chart.title),
+					chartView,
+				)
+
+				// Apply border style
+				box := boxStyle.Render(boxContent)
+				cols = append(cols, box)
+			} else {
+				// Empty cell
+				cols = append(cols, "")
 			}
-
-			// Create a box with title and chart
-			boxContent := lipgloss.JoinVertical(
-				lipgloss.Left,
-				titleStyle.Render(plotTitles[chartIndex]),
-				chartView,
-			)
-
-			// Apply border style
-			box := boxStyle.Render(boxContent)
-			cols = append(cols, box)
 		}
 		rowView := lipgloss.JoinHorizontal(lipgloss.Top, cols...)
 		rows = append(rows, rowView)
@@ -447,18 +532,41 @@ func (m model) View() string {
 
 	gridView := lipgloss.JoinVertical(lipgloss.Left, rows...)
 
-	// Create the status bar with epoch counter
-	statusText := fmt.Sprintf("Epoch: %d • Press space to train • r to reset • q to quit • Mouse wheel to zoom", m.epoch)
+	// Create the status bar with epoch counter and page info
+	leftStatus := fmt.Sprintf("Epoch: %d • Space: train • r: reset • q: quit • PgUp/PgDn: navigate", m.epoch)
+	pageInfo := fmt.Sprintf("Page %d/%d", m.currentPage+1, m.totalPages)
+
+	// Calculate padding between left and right sections
+	statusPadding := m.width - lipgloss.Width(leftStatus) - lipgloss.Width(pageInfo) - 4 // -4 for padding
+	if statusPadding < 0 {
+		statusPadding = 0
+	}
+
+	// Style for page info section (different blue)
+	pageInfoStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}).
+		Background(lipgloss.AdaptiveColor{Light: "#4ECDC4", Dark: "#0C8599"}). // Teal blue
+		Padding(0, 1)
+
 	statusBar := lipgloss.NewStyle().
 		Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#FFFFFF"}).
 		Background(lipgloss.AdaptiveColor{Light: "#45B7D1", Dark: "#1864AB"}).
 		Width(m.width).
-		Padding(0, 1).
-		Render(statusText)
+		Render(
+			lipgloss.NewStyle().Padding(0, 1).Render(leftStatus) +
+				lipgloss.NewStyle().Width(statusPadding).Render("") +
+				pageInfoStyle.Render(pageInfo),
+		)
 
 	// Calculate padding to fill the screen
-	usedHeight := len(rows) * (m.charts[0][0].Model.Height() + 3) // +3 for borders and title
-	paddingHeight := m.height - usedHeight - 1                    // -1 for status bar
+	var chartsHeight int
+	if len(m.charts) > 0 && len(m.charts[0]) > 0 && m.charts[0][0] != nil {
+		chartsHeight = m.charts[0][0].Model.Height() + 3 // +3 for borders and title
+	} else {
+		chartsHeight = 11 // default
+	}
+	usedHeight := len(rows) * chartsHeight
+	paddingHeight := m.height - usedHeight - 1 // -1 for status bar
 	if paddingHeight < 0 {
 		paddingHeight = 0
 	}
@@ -473,31 +581,40 @@ func (m model) View() string {
 }
 
 func main() {
-	// Initialize the model with empty charts
+	// Calculate total pages
+	totalCharts := len(plotTitles)
+	totalPages := (totalCharts + chartsPerPage - 1) / chartsPerPage
+
+	// Initialize the model with all charts
 	m := model{
-		charts:     make([][]*EpochLineChart, gridRows),
-		epoch:      0,
-		focusedRow: -1,
-		focusedCol: -1,
+		allCharts:   make([]*EpochLineChart, totalCharts),
+		charts:      make([][]*EpochLineChart, gridRows),
+		epoch:       0,
+		focusedRow:  -1,
+		focusedCol:  -1,
+		currentPage: 0,
+		totalPages:  totalPages,
 	}
 
 	// Create all charts
-	for row := range gridRows {
-		m.charts[row] = make([]*EpochLineChart, gridCols)
-		for col := range gridCols {
-			chartIndex := row*gridCols + col
-			title := plotTitles[chartIndex]
-
-			// Use specific ranges for known metrics, default range for others
-			minY, maxY := -50.0, 100.0
-			if ranges, ok := plotRanges[title]; ok {
-				minY, maxY = ranges[0], ranges[1]
-			}
-
-			// Start with a default size, will be resized on first WindowSizeMsg
-			m.charts[row][col] = NewEpochLineChart(20, 8, minY, maxY, chartIndex)
+	for i, title := range plotTitles {
+		// Use specific ranges for known metrics, default range for others
+		minY, maxY := -50.0, 100.0
+		if ranges, ok := plotRanges[title]; ok {
+			minY, maxY = ranges[0], ranges[1]
 		}
+
+		// Create chart with appropriate color
+		m.allCharts[i] = NewEpochLineChart(20, 8, minY, maxY, i, title)
 	}
+
+	// Initialize the grid structure
+	for row := 0; row < gridRows; row++ {
+		m.charts[row] = make([]*EpochLineChart, gridCols)
+	}
+
+	// Load the first page
+	m.loadCurrentPage()
 
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
