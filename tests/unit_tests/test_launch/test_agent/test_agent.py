@@ -1,5 +1,6 @@
 import asyncio
 import platform
+import tempfile
 import threading
 from unittest.mock import MagicMock
 
@@ -12,6 +13,7 @@ from wandb.sdk.launch.agent.agent import (
 )
 from wandb.sdk.launch.errors import LaunchDockerError, LaunchError
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX
+from wandb.wandb_agent import Agent
 
 
 class AsyncMock(MagicMock):
@@ -764,3 +766,17 @@ def test_agent_inf_jobs(mocker):
     )
     agent = LaunchAgent(MagicMock(), config)
     assert agent._max_jobs == float("inf")
+
+
+def test_agent_saves_args_json_file_to_customized_wandb_dir_path(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmp_dir_name:
+        monkeypatch.setenv("WANDB_DIR", tmp_dir_name)
+        monkeypatch.setenv("WANDB_SWEEP_ID", "1234")
+
+        # with mock.patch.dict(os.environ, {'WANDB_SWEEP_ID': '1234', 'WANDB_DIR': tmp_dir_name}):
+
+        dummy_agent = Agent(api=MagicMock(), queue=MagicMock(), function=lambda: None)
+        dummy_agent._sweep_command = ["${args_json_file}"]
+        dummy_agent._command_run(
+            command={"run_id": "fake-run-id", "args": {"param1": {"value": 1}}}
+        )
