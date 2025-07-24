@@ -1,6 +1,6 @@
+import hashlib
 import json
 import tempfile
-import hashlib
 from unittest.mock import MagicMock
 
 import pytest
@@ -22,7 +22,7 @@ def _read_wandb_job_json_from_artifact(artifact):
 
     assert job_json_path is not None, "wandb-job.json not found in artifact"
 
-    with open(job_json_path, "r") as f:
+    with open(job_json_path) as f:
         return json.load(f)
 
 
