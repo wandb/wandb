@@ -14,7 +14,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import click
 import yaml
@@ -95,7 +95,11 @@ class ClickWandbException(ClickException):
             )
 
 
-def parse_service_config(ctx, param, value):
+def parse_service_config(
+    ctx: Optional[click.Context],
+    param: Optional[click.Parameter],
+    value: Optional[Tuple[str, ...]],
+) -> Dict[str, str]:
     """Parse service configurations in format serviceName=policy."""
     if not value:
         return {}
@@ -108,7 +112,9 @@ def parse_service_config(ctx, param, value):
             )
 
         service_name, policy = config.split("=", 1)
-        if not service_name.strip():
+        service_name = service_name.strip()
+        policy = policy.strip()
+        if not service_name:
             raise click.BadParameter("Service name cannot be empty")
 
         # Simple validation for two policies
@@ -117,7 +123,7 @@ def parse_service_config(ctx, param, value):
                 f"Policy must be 'always' or 'never', got '{policy}'"
             )
 
-        result[service_name.strip()] = policy
+        result[service_name] = policy
 
     return result
 
@@ -1898,6 +1904,7 @@ def describe(job):
     multiple=True,
     callback=parse_service_config,
     help="Service configurations in format serviceName=policy. Valid policies: always, never",
+    hidden=True,
 )
 @click.argument("path")
 def create(
