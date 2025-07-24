@@ -112,8 +112,8 @@ func (c *EpochLineChart) Reset() {
 	c.zoomLevel = 1.0
 }
 
-// HandleZoom processes zoom events
-func (c *EpochLineChart) HandleZoom(direction string) {
+// HandleZoom processes zoom events with mouse position
+func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	// Zoom factor
 	zoomFactor := 0.1
 
@@ -121,7 +121,11 @@ func (c *EpochLineChart) HandleZoom(direction string) {
 	viewMin := c.ViewMinX()
 	viewMax := c.ViewMaxX()
 	viewRange := viewMax - viewMin
-	viewCenter := (viewMin + viewMax) / 2
+
+	// Calculate the epoch position under the mouse
+	// mouseX is relative to the chart's graph area
+	mouseProportion := float64(mouseX) / float64(c.GraphWidth())
+	epochUnderMouse := viewMin + mouseProportion*viewRange
 
 	// Calculate new range based on zoom direction
 	var newRange float64
@@ -141,9 +145,9 @@ func (c *EpochLineChart) HandleZoom(direction string) {
 		newRange = float64(c.maxEpochs)
 	}
 
-	// Calculate new min and max, keeping the center point
-	newMin := viewCenter - newRange/2
-	newMax := viewCenter + newRange/2
+	// Calculate new min and max, keeping the epoch under the mouse at the same position
+	newMin := epochUnderMouse - newRange*mouseProportion
+	newMax := epochUnderMouse + newRange*(1-mouseProportion)
 
 	// Ensure we don't go below 0
 	if newMin < 0 {
@@ -182,19 +186,23 @@ func (c *EpochLineChart) Draw() {
 		0, float64(c.GraphHeight()),
 	)
 
-	// Calculate scale factors
+	// Calculate scale factors based on view range
 	xScale := float64(c.GraphWidth()) / (c.ViewMaxX() - c.ViewMinX())
 	yScale := float64(c.GraphHeight()) / (c.ViewMaxY() - c.ViewMinY())
 
 	// Convert data points to braille grid coordinates
 	points := make([]canvas.Float64Point, 0, len(c.data))
 	for i, value := range c.data {
-		x := float64(i) * xScale
-		y := (value - c.ViewMinY()) * yScale
+		// Only include points within the view range
+		epochX := float64(i)
+		if epochX >= c.ViewMinX() && epochX <= c.ViewMaxX() {
+			x := (epochX - c.ViewMinX()) * xScale
+			y := (value - c.ViewMinY()) * yScale
 
-		// Clamp to graph bounds
-		if x >= 0 && x <= float64(c.GraphWidth()) && y >= 0 && y <= float64(c.GraphHeight()) {
-			points = append(points, canvas.Float64Point{X: x, Y: y})
+			// Clamp to graph bounds
+			if x >= 0 && x <= float64(c.GraphWidth()) && y >= 0 && y <= float64(c.GraphHeight()) {
+				points = append(points, canvas.Float64Point{X: x, Y: y})
+			}
 		}
 	}
 
@@ -257,30 +265,50 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseMsg:
 		// Handle mouse wheel for zooming
 		if tea.MouseEvent(msg).IsWheel() {
-			// Find which chart the mouse is over
-			chartHeight := (m.height - 1) / gridRows
-			chartWidth := m.width / gridCols
+			// Calculate chart dimensions
+			availableHeight := m.height - 1 // -1 for status bar
+			chartHeightWithBorder := availableHeight / gridRows
 
-			row := msg.Y / chartHeight
-			col := msg.X / chartWidth
+			chartWidthWithBorder := m.width / gridCols
+
+			// Find which chart the mouse is over
+			row := msg.Y / chartHeightWithBorder
+			col := msg.X / chartWidthWithBorder
 
 			if row >= 0 && row < gridRows && col >= 0 && col < gridCols {
-				// Focus on the chart under mouse
-				if m.focusedRow >= 0 && m.focusedCol >= 0 {
-					m.charts[m.focusedRow][m.focusedCol].focused = false
-				}
-				m.focusedRow = row
-				m.focusedCol = col
-				m.charts[row][col].focused = true
+				chart := m.charts[row][col]
 
-				// Apply zoom
-				switch msg.Button {
-				case tea.MouseButtonWheelUp:
-					m.charts[row][col].HandleZoom("in")
-				case tea.MouseButtonWheelDown:
-					m.charts[row][col].HandleZoom("out")
+				// Calculate mouse position relative to the chart's graph area
+				chartStartX := col * chartWidthWithBorder
+
+				// Get the actual graph start position (accounting for border and Y-axis)
+				graphStartX := chartStartX + 1 // border
+				if chart.YStep() > 0 {
+					graphStartX += chart.Origin().X + 1
 				}
-				m.charts[row][col].Draw()
+
+				// Calculate relative mouse X position within the graph area
+				relativeMouseX := msg.X - graphStartX
+
+				// Ensure mouse is within graph bounds
+				if relativeMouseX >= 0 && relativeMouseX < chart.GraphWidth() {
+					// Focus on the chart under mouse
+					if m.focusedRow >= 0 && m.focusedCol >= 0 {
+						m.charts[m.focusedRow][m.focusedCol].focused = false
+					}
+					m.focusedRow = row
+					m.focusedCol = col
+					chart.focused = true
+
+					// Apply zoom centered on mouse position
+					switch msg.Button {
+					case tea.MouseButtonWheelUp:
+						chart.HandleZoom("in", relativeMouseX)
+					case tea.MouseButtonWheelDown:
+						chart.HandleZoom("out", relativeMouseX)
+					}
+					chart.Draw()
+				}
 			}
 		}
 	case tea.KeyMsg:
@@ -290,8 +318,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			// Reset all charts and epoch counter
 			m.epoch = 0
-			for row := 0; row < gridRows; row++ {
-				for col := 0; col < gridCols; col++ {
+			for row := range gridRows {
+				for col := range gridCols {
 					m.charts[row][col].Reset()
 					m.charts[row][col].Draw()
 				}
@@ -299,8 +327,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case " ":
 			// Simulate training step - add new data point for current epoch
 			m.epoch++
-			for row := 0; row < gridRows; row++ {
-				for col := 0; col < gridCols; col++ {
+			for row := range gridRows {
+				for col := range gridCols {
 					chartIndex := row*gridCols + col
 					chart := m.charts[row][col]
 
@@ -420,7 +448,7 @@ func (m model) View() string {
 	gridView := lipgloss.JoinVertical(lipgloss.Left, rows...)
 
 	// Create the status bar with epoch counter
-	statusText := fmt.Sprintf("Epoch: %d • Press any key to train • r to reset • q to quit • Mouse wheel to zoom", m.epoch)
+	statusText := fmt.Sprintf("Epoch: %d • Press space to train • r to reset • q to quit • Mouse wheel to zoom", m.epoch)
 	statusBar := lipgloss.NewStyle().
 		Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#FFFFFF"}).
 		Background(lipgloss.AdaptiveColor{Light: "#45B7D1", Dark: "#1864AB"}).
@@ -454,9 +482,9 @@ func main() {
 	}
 
 	// Create all charts
-	for row := 0; row < gridRows; row++ {
+	for row := range gridRows {
 		m.charts[row] = make([]*EpochLineChart, gridCols)
-		for col := 0; col < gridCols; col++ {
+		for col := range gridCols {
 			chartIndex := row*gridCols + col
 			title := plotTitles[chartIndex]
 
