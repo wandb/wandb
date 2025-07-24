@@ -5,7 +5,7 @@ May raise MissingDependencyError on import.
 
 from __future__ import annotations
 
-from typing_extensions import Any, TypeGuard
+from typing_extensions import Any, TypeIs
 
 import wandb
 
@@ -21,7 +21,7 @@ except ImportError as e:
     raise errors.MissingDependencyError(warning=warning) from e
 
 
-def is_dataframe(data: Any) -> TypeGuard[pd.DataFrame]:
+def is_dataframe(data: Any) -> TypeIs[pd.DataFrame]:
     """Returns whether the data is a Pandas DataFrame."""
     return isinstance(data, pd.DataFrame)
 
