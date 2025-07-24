@@ -18,9 +18,6 @@ except ImportError as e:
     ) from e
 
 
-# Classes for isinstance() checks.
-_BASE_ESTIMATOR = None
-
 try:
     from . import data_pandas
 except errors.MissingDependencyError as e:
@@ -34,43 +31,10 @@ except errors.MissingDependencyError as e:
     data_pytorch = None
 
 try:
-    from sklearn.base import BaseEstimator
-
-    _BASE_ESTIMATOR = BaseEstimator
-
-    def _use_sklearn_estimator(
-        name: str,
-        data: BaseEstimator,
-        run,
-        testing: bool = False,
-    ) -> Optional[str]:
-        if testing:
-            return "models"
-
-        run.use_artifact(f"{name}:latest")
-        wandb.termlog(f"Using artifact: {name} ({type(data)})")
-        return None
-
-    def _track_sklearn_estimator(
-        name: str,
-        data: BaseEstimator,
-        run,
-        testing: bool = False,
-    ) -> Optional[str]:
-        if testing:
-            return "BaseEstimator"
-
-        artifact = wandb.Artifact(name, type="model")
-        with artifact.new_file(f"{name}.pkl", "wb") as f:
-            pickle.dump(data, f)
-        run.log_artifact(artifact)
-        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
-        return None
-
-except ImportError:
-    wandb.termwarn(
-        "`sklearn` not installed >> @wandb_log(models=True) may not auto log your model!"
-    )
+    from . import data_sklearn
+except errors.MissingDependencyError as e:
+    e.warn()
+    data_sklearn = None
 
 
 class ArtifactProxy:
@@ -164,8 +128,8 @@ def wandb_track(
         return data_pytorch.track_nn_module(name, data, run, testing)
 
     # Check for scikit-learn BaseEstimator
-    if _BASE_ESTIMATOR and isinstance(data, _BASE_ESTIMATOR) and models:
-        return _track_sklearn_estimator(name, data, run, testing)
+    if data_sklearn and data_sklearn.is_estimator(data) and models:
+        return data_sklearn.track_estimator(name, data, run, testing)
 
     # Check for Path objects
     if isinstance(data, Path) and datasets:
@@ -207,8 +171,8 @@ def wandb_use(
             return data_pytorch.use_nn_module(name, run, testing)
 
         # Check for scikit-learn BaseEstimator
-        elif _BASE_ESTIMATOR and isinstance(data, _BASE_ESTIMATOR) and models:
-            return _use_sklearn_estimator(name, data, run, testing)
+        elif data_sklearn and data_sklearn.is_estimator(data) and models:
+            return data_sklearn.use_estimator(name, run, testing)
 
         # Check for Path objects
         elif isinstance(data, Path) and datasets:
