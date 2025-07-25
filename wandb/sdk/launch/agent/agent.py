@@ -1,7 +1,7 @@
 """Implementation of launch agent."""
 
-import copy
 import asyncio
+import copy
 import logging
 import os
 import pprint
@@ -518,8 +518,8 @@ class LaunchAgent:
             job: Job to run.
         """
         job_copy = copy.deepcopy(job)
-        if 'runSpec' in job_copy and '_wandb_api_key' in job_copy['runSpec']:
-            job_copy['runSpec']['_wandb_api_key'] = '<redacted>'
+        if "runSpec" in job_copy and "_wandb_api_key" in job_copy["runSpec"]:
+            job_copy["runSpec"]["_wandb_api_key"] = "<redacted>"
 
         _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job_copy)}\n"
         wandb.termlog(_msg)
