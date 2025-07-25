@@ -1,12 +1,29 @@
 import hashlib
+import json
 from unittest.mock import MagicMock
 
 import pytest
+from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder import build
 from wandb.sdk.launch.builder.abstract import registry_from_uri
 from wandb.sdk.launch.builder.context_manager import get_requirements_section
 from wandb.sdk.launch.builder.templates.dockerfile import PIP_TEMPLATE
+from wandb.sdk.launch.create_job import _configure_job_builder_for_partial
+
+
+def _read_wandb_job_json_from_artifact(artifact: Artifact) -> dict:
+    """Helper function to read wandb-job.json content from an artifact."""
+    job_json_path = None
+    for entry_path, entry in artifact.manifest.entries.items():
+        if entry_path.endswith("wandb-job.json"):
+            job_json_path = entry.local_path
+            break
+
+    assert job_json_path is not None, "wandb-job.json not found in artifact"
+
+    with open(job_json_path) as f:
+        return json.load(f)
 
 
 @pytest.mark.parametrize(
@@ -222,3 +239,44 @@ def test_get_requirements_section_pyproject(
             for msg in warn_msgs
         ]
     )
+
+
+def test_job_builder_includes_services_in_wandb_job_json(tmp_path):
+    metadata = {
+        "python": "3.9",
+        "codePath": "main.py",
+        "entrypoint": ["python", "main.py"],
+        "docker": "my-image:latest",
+    }
+    (tmp_path / "wandb-metadata.json").write_text(json.dumps(metadata))
+    (tmp_path / "requirements.txt").write_text("wandb")
+
+    job_builder = _configure_job_builder_for_partial(str(tmp_path), job_source="image")
+    job_builder._services = {"foobar": "always", "barfoo": "never"}
+
+    artifact = job_builder.build(MagicMock())
+
+    job_json = _read_wandb_job_json_from_artifact(artifact)
+    assert "services" in job_json
+    assert job_json["services"] == {"foobar": "always", "barfoo": "never"}
+
+
+def test_job_builder_excludes_services_in_wandb_job_json(tmp_path):
+    """Test that JobBuilder.build excludes services key when no services are set."""
+    metadata = {
+        "python": "3.9",
+        "codePath": "main.py",
+        "entrypoint": ["python", "main.py"],
+        "docker": "my-image:latest",
+    }
+    (tmp_path / "wandb-metadata.json").write_text(json.dumps(metadata))
+    (tmp_path / "requirements.txt").write_text("wandb")
+
+    job_builder = _configure_job_builder_for_partial(str(tmp_path), job_source="image")
+    job_builder._services = {}
+
+    artifact = job_builder.build(MagicMock())
+
+    assert artifact is not None
+    job_json = _read_wandb_job_json_from_artifact(artifact)
+    assert "services" not in job_json

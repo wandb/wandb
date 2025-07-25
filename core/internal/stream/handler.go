@@ -23,7 +23,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -50,7 +49,6 @@ type HandlerParams struct {
 	OutChan           chan *spb.Result
 	Settings          *settings.Settings
 	SystemMonitor     *monitor.SystemMonitor
-	TBHandler         *tensorboard.TBHandler
 	TerminalPrinter   *observability.Printer
 }
 
@@ -116,9 +114,6 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
-	// tbHandler is the tensorboard handler
-	tbHandler *tensorboard.TBHandler
-
 	// terminalPrinter gathers terminal messages to send back to the user process
 	terminalPrinter *observability.Printer
 }
@@ -142,7 +137,6 @@ func NewHandler(
 		runTimer:             timer.New(0),
 		settings:             params.Settings,
 		systemMonitor:        params.SystemMonitor,
-		tbHandler:            params.TBHandler,
 		terminalPrinter:      params.TerminalPrinter,
 	}
 }
@@ -246,8 +240,6 @@ func (h *Handler) handleRecord(record *spb.Record) {
 		h.handleRequest(record)
 	case *spb.Record_Summary:
 		h.handleSummary(x.Summary)
-	case *spb.Record_Tbrecord:
-		h.handleTBrecord(x.Tbrecord)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRecord: record type is nil"))
@@ -813,13 +805,6 @@ func (h *Handler) updateRunTiming() {
 
 	h.handleSummary(record.GetSummary())
 	h.fwdRecord(record)
-}
-
-func (h *Handler) handleTBrecord(record *spb.TBRecord) {
-	if err := h.tbHandler.Handle(record); err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("handler: failed to handle TB record: %v", err))
-	}
 }
 
 func (h *Handler) handleRequestNetworkStatus(record *spb.Record) {

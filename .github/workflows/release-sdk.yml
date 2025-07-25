@@ -254,35 +254,6 @@ jobs:
           name: wandb-sdk-distribution-${{ matrix.os }}
           path: ./dist
 
-  build-universal-wheel:
-    name: Build universal wheel (no wandb-core)
-    needs: prepare-release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: release-${{ github.event.inputs.version }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Build wheel
-        run: pip wheel -w wheelhouse --no-deps .
-        env:
-          WANDB_BUILD_UNIVERSAL: True
-
-      - name: Copy wheel to ./dist
-        run: |
-          mkdir dist/
-          cp wheelhouse/wandb-*-py3-none-any.whl dist/
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wandb-sdk-distribution-universal
-          path: ./dist
-
   build-sdist:
     name: Create source distribution
     needs: prepare-release
@@ -315,7 +286,6 @@ jobs:
         build-platform-wheels,
         build-linux-arm64-wheels,
         build-macos-10-wheels,
-        build-universal-wheel,
         build-sdist,
       ]
     continue-on-error: true
