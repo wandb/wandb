@@ -131,6 +131,7 @@ if TYPE_CHECKING:
         input_types: dict[str, Any]
         output_types: dict[str, Any]
         runtime: str | None
+        services: dict[str, str]
 
 
 logger = logging.getLogger("wandb")
