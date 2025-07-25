@@ -1,10 +1,14 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"io"
 	"math"
-	"math/rand"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/NimbleMarkets/ntcharts/canvas"
 	"github.com/NimbleMarkets/ntcharts/canvas/graph"
@@ -12,6 +16,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/wandb/wandb/core/internal/stream"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -36,67 +42,38 @@ var titleStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("250")). // light gray
 	Bold(true)
 
-// Extended plot titles - now we have more than 15
-var plotTitles = []string{
-	// Page 1 (original 15)
-	"loss", "accuracy", "f1_score", "precision", "recall",
-	"layer_1_weights", "layer_2_bias", "attention_weights", "gradient_norm", "learning_rate",
-	"layer_23_att_block_w1", "layer_23_att_block_w2", "layer_24_ffn", "output_logits", "validation_loss",
-	// Page 2
-	"layer_1_gradients", "layer_2_gradients", "layer_3_weights", "layer_3_bias", "layer_3_gradients",
-	"embedding_weights", "embedding_gradients", "optimizer_momentum", "optimizer_variance", "weight_decay",
-	"attention_entropy", "token_perplexity", "batch_loss_variance", "gradient_clipping", "effective_lr",
-	// Page 3
-	"layer_4_weights", "layer_4_bias", "layer_5_weights", "layer_5_bias", "layer_6_weights",
-	"positional_encoding", "dropout_rate", "activation_mean", "activation_std", "dead_neurons",
-	"gradient_flow", "parameter_norm", "update_ratio", "convergence_rate", "training_speed",
-}
-
-// Different Y ranges for different metrics
-var plotRanges = map[string][2]float64{
-	"loss":             {0, 5},
-	"accuracy":         {0, 1},
-	"f1_score":         {0, 1},
-	"precision":        {0, 1},
-	"recall":           {0, 1},
-	"learning_rate":    {0, 0.01},
-	"gradient_norm":    {0, 10},
-	"validation_loss":  {0, 5},
-	"effective_lr":     {0, 0.01},
-	"dropout_rate":     {0, 1},
-	"weight_decay":     {0, 0.1},
-	"convergence_rate": {0, 1},
-	"training_speed":   {0, 100},
-}
-
 // EpochLineChart is a custom line chart for epoch-based data
 type EpochLineChart struct {
 	linechart.Model
 	data       []float64
 	graphStyle lipgloss.Style
-	maxEpochs  int
+	maxSteps   int
 	focused    bool
 	zoomLevel  float64
 	title      string
+	minValue   float64
+	maxValue   float64
 }
 
 // NewEpochLineChart creates a new epoch-based line chart
-func NewEpochLineChart(width, height int, minY, maxY float64, colorIndex int, title string) *EpochLineChart {
+func NewEpochLineChart(width, height int, colorIndex int, title string) *EpochLineChart {
 	graphStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(graphColors[colorIndex%len(graphColors)]))
 
-	// Start with X range of 0-20 epochs
+	// Start with X range of 0-20 steps and Y range will be auto-adjusted
 	chart := &EpochLineChart{
-		Model: linechart.New(width, height, 0, 20, minY, maxY,
+		Model: linechart.New(width, height, 0, 20, 0, 1,
 			linechart.WithXYSteps(4, 2),
-			linechart.WithAutoXRange(), // Auto-expand X range as needed
+			linechart.WithAutoXRange(),
 		),
 		data:       make([]float64, 0),
 		graphStyle: graphStyle,
-		maxEpochs:  20,
+		maxSteps:   20,
 		focused:    false,
 		zoomLevel:  1.0,
 		title:      title,
+		minValue:   math.Inf(1),
+		maxValue:   math.Inf(-1),
 	}
 
 	// Set axis and label styles manually
@@ -106,17 +83,33 @@ func NewEpochLineChart(width, height int, minY, maxY float64, colorIndex int, ti
 	return chart
 }
 
-// AddDataPoint adds a new data point for the next epoch
+// AddDataPoint adds a new data point for the next step
 func (c *EpochLineChart) AddDataPoint(value float64) {
 	c.data = append(c.data, value)
-	epoch := len(c.data)
+	step := len(c.data)
+
+	// Update min/max values
+	if value < c.minValue {
+		c.minValue = value
+	}
+	if value > c.maxValue {
+		c.maxValue = value
+	}
+
+	// Auto-adjust Y range with some padding
+	padding := (c.maxValue - c.minValue) * 0.1
+	if padding == 0 {
+		padding = 0.1
+	}
+	c.SetYRange(c.minValue-padding, c.maxValue+padding)
+	c.SetViewYRange(c.minValue-padding, c.maxValue+padding)
 
 	// Auto-expand X range if needed
-	if epoch > int(c.MaxX()) {
-		newMax := float64(epoch + 10) // Expand by 10 epochs at a time
+	if step > int(c.MaxX()) {
+		newMax := float64(step + 10) // Expand by 10 steps at a time
 		c.SetXRange(0, newMax)
 		c.SetViewXRange(0, newMax)
-		c.maxEpochs = int(newMax)
+		c.maxSteps = int(newMax)
 	}
 }
 
@@ -125,8 +118,12 @@ func (c *EpochLineChart) Reset() {
 	c.data = make([]float64, 0)
 	c.SetXRange(0, 20)
 	c.SetViewXRange(0, 20)
-	c.maxEpochs = 20
+	c.maxSteps = 20
 	c.zoomLevel = 1.0
+	c.minValue = math.Inf(1)
+	c.maxValue = math.Inf(-1)
+	c.SetYRange(0, 1)
+	c.SetViewYRange(0, 1)
 }
 
 // HandleZoom processes zoom events with mouse position
@@ -139,10 +136,10 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	viewMax := c.ViewMaxX()
 	viewRange := viewMax - viewMin
 
-	// Calculate the epoch position under the mouse
+	// Calculate the step position under the mouse
 	// mouseX is relative to the chart's graph area
 	mouseProportion := float64(mouseX) / float64(c.GraphWidth())
-	epochUnderMouse := viewMin + mouseProportion*viewRange
+	stepUnderMouse := viewMin + mouseProportion*viewRange
 
 	// Calculate new range based on zoom direction
 	var newRange float64
@@ -158,13 +155,13 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	if newRange < 5 {
 		newRange = 5
 	}
-	if newRange > float64(c.maxEpochs) {
-		newRange = float64(c.maxEpochs)
+	if newRange > float64(c.maxSteps) {
+		newRange = float64(c.maxSteps)
 	}
 
-	// Calculate new min and max, keeping the epoch under the mouse at the same position
-	newMin := epochUnderMouse - newRange*mouseProportion
-	newMax := epochUnderMouse + newRange*(1-mouseProportion)
+	// Calculate new min and max, keeping the step under the mouse at the same position
+	newMin := stepUnderMouse - newRange*mouseProportion
+	newMax := stepUnderMouse + newRange*(1-mouseProportion)
 
 	// Ensure we don't go below 0
 	if newMin < 0 {
@@ -172,9 +169,9 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 		newMax = newRange
 	}
 
-	// Ensure we don't go beyond max epochs
-	if newMax > float64(c.maxEpochs) {
-		newMax = float64(c.maxEpochs)
+	// Ensure we don't go beyond max steps
+	if newMax > float64(c.maxSteps) {
+		newMax = float64(c.maxSteps)
 		newMin = newMax - newRange
 		if newMin < 0 {
 			newMin = 0
@@ -195,7 +192,6 @@ func (c *EpochLineChart) Draw() {
 	}
 
 	// Create braille grid for high-resolution drawing
-	// Each character cell can hold 2x4 dots, giving us much higher resolution
 	bGrid := graph.NewBrailleGrid(
 		c.GraphWidth(),
 		c.GraphHeight(),
@@ -211,9 +207,9 @@ func (c *EpochLineChart) Draw() {
 	points := make([]canvas.Float64Point, 0, len(c.data))
 	for i, value := range c.data {
 		// Only include points within the view range
-		epochX := float64(i)
-		if epochX >= c.ViewMinX() && epochX <= c.ViewMaxX() {
-			x := (epochX - c.ViewMinX()) * xScale
+		stepX := float64(i)
+		if stepX >= c.ViewMinX() && stepX <= c.ViewMaxX() {
+			x := (stepX - c.ViewMinX()) * xScale
 			y := (value - c.ViewMinY()) * yScale
 
 			// Clamp to graph bounds
@@ -258,25 +254,413 @@ func (c *EpochLineChart) Draw() {
 		c.graphStyle)
 }
 
-type model struct {
-	allCharts   []*EpochLineChart   // All charts
-	charts      [][]*EpochLineChart // Current page of charts arranged in grid
-	width       int
-	height      int
-	epoch       int
-	focusedRow  int
-	focusedCol  int
-	currentPage int
-	totalPages  int
+// Messages
+type historyMsg struct {
+	metrics map[string]float64
+	step    int
 }
 
-func (m model) Init() tea.Cmd {
-	// Initialize all charts
-	for _, chart := range m.allCharts {
-		chart.DrawXYAxisAndLabel()
+type tickMsg time.Time
+
+type fileCompleteMsg struct{}
+
+type errorMsg struct{ err error }
+
+type initMsg struct {
+	reader *wandbReader
+}
+
+func (e errorMsg) Error() string { return e.err.Error() }
+
+// Model
+type model struct {
+	allCharts    []*EpochLineChart
+	chartsByName map[string]*EpochLineChart
+	charts       [][]*EpochLineChart // Current page of charts arranged in grid
+	width        int
+	height       int
+	step         int
+	focusedRow   int
+	focusedCol   int
+	currentPage  int
+	totalPages   int
+	fileComplete bool
+	runPath      string
+	reader       *wandbReader
+}
+
+// wandbReader handles reading from the wandb file
+type wandbReader struct {
+	store    *stream.Store
+	exitSeen bool
+}
+
+// newWandbReader creates a new wandb file reader
+func newWandbReader(runPath string) (*wandbReader, error) {
+	store := stream.NewStore(runPath)
+	err := store.Open(os.O_RDONLY)
+	if err != nil {
+		return nil, err
 	}
-	m.loadCurrentPage()
-	return nil
+	return &wandbReader{
+		store:    store,
+		exitSeen: false,
+	}, nil
+}
+
+// readNext reads the next history record from the file
+func (r *wandbReader) readNext() (map[string]float64, int, error) {
+	for {
+		record, err := r.store.Read()
+		if err == io.EOF && r.exitSeen {
+			return nil, 0, io.EOF
+		}
+		if err != nil {
+			return nil, 0, err
+		}
+
+		switch rec := record.RecordType.(type) {
+		case *spb.Record_History:
+			// Extract metrics from history record
+			metrics := make(map[string]float64)
+			step := 0
+
+			for _, item := range rec.History.Item {
+				key := strings.Join(item.NestedKey, ".")
+
+				// Skip internal wandb fields except _step
+				if strings.HasPrefix(key, "_") {
+					if key == "_step" {
+						// Parse step value
+						if val, err := strconv.Atoi(strings.Trim(item.ValueJson, "\"")); err == nil {
+							step = val
+						}
+					}
+					continue
+				}
+
+				// Parse numeric values
+				valueStr := strings.Trim(item.ValueJson, "\"")
+				if value, err := strconv.ParseFloat(valueStr, 64); err == nil {
+					metrics[key] = value
+				}
+			}
+
+			if len(metrics) > 0 {
+				return metrics, step, nil
+			}
+
+		case *spb.Record_Exit:
+			r.exitSeen = true
+		}
+	}
+}
+
+// Commands
+func initializeReader(runPath string) tea.Cmd {
+	return func() tea.Msg {
+		reader, err := newWandbReader(runPath)
+		if err != nil {
+			return errorMsg{err}
+		}
+		return initMsg{reader: reader}
+	}
+}
+
+func readNextHistoryRecord(reader *wandbReader) tea.Cmd {
+	return func() tea.Msg {
+		metrics, step, err := reader.readNext()
+		if err == io.EOF {
+			return fileCompleteMsg{}
+		}
+		if err != nil {
+			return errorMsg{err}
+		}
+		return historyMsg{metrics: metrics, step: step}
+	}
+}
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+// Init initializes the model
+func (m model) Init() tea.Cmd {
+	// Initialize the reader
+	return initializeReader(m.runPath)
+}
+
+// Update handles messages
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case initMsg:
+		// Store the reader and start reading
+		m.reader = msg.reader
+		return m, readNextHistoryRecord(m.reader)
+
+	case historyMsg:
+		// Process new history data
+		m.step = msg.step
+
+		// Create charts for new metrics if needed
+		for metricName, value := range msg.metrics {
+			if _, exists := m.chartsByName[metricName]; !exists {
+				// Create new chart with proper dimensions
+				chartWidth := 20
+				chartHeight := 8
+				if m.width > 0 && m.height > 0 {
+					// Match the layout calculations from View()
+					statusBarHeight := 1
+					availableHeight := m.height - statusBarHeight
+					chartHeightWithPadding := availableHeight / gridRows
+					chartWidthWithPadding := m.width / gridCols
+
+					// Account for borders, title, and padding
+					borderChars := 2
+					titleLines := 1
+					padding := 1
+
+					chartWidth = chartWidthWithPadding - borderChars - padding
+					chartHeight = chartHeightWithPadding - borderChars - titleLines - padding
+
+					// Ensure minimum size
+					if chartHeight < 5 {
+						chartHeight = 5
+					}
+					if chartWidth < 20 {
+						chartWidth = 20
+					}
+				}
+
+				colorIndex := len(m.allCharts)
+				chart := NewEpochLineChart(chartWidth, chartHeight, colorIndex, metricName)
+
+				m.allCharts = append(m.allCharts, chart)
+				m.chartsByName[metricName] = chart
+
+				// Update total pages
+				m.totalPages = (len(m.allCharts) + chartsPerPage - 1) / chartsPerPage
+			}
+
+			// Add data point to the chart
+			m.chartsByName[metricName].AddDataPoint(value)
+			m.chartsByName[metricName].Draw()
+		}
+
+		// Reload current page to show new charts if needed
+		m.loadCurrentPage()
+
+		// Wait for tick before reading next record (to simulate real-time)
+		return m, tickCmd()
+
+	case tickMsg:
+		// After tick, read the next record
+		if !m.fileComplete && m.reader != nil {
+			return m, readNextHistoryRecord(m.reader)
+		}
+		return m, nil
+
+	case fileCompleteMsg:
+		m.fileComplete = true
+		return m, nil
+
+	case errorMsg:
+		// Handle error - for now just mark as complete
+		fmt.Fprintf(os.Stderr, "Error reading file: %v\n", msg.err)
+		m.fileComplete = true
+		return m, nil
+
+	case tea.MouseMsg:
+		// Handle mouse wheel for zooming
+		if tea.MouseEvent(msg).IsWheel() {
+			availableHeight := m.height - 1 // -1 for status bar
+			chartHeightWithBorder := availableHeight / gridRows
+			chartWidthWithBorder := m.width / gridCols
+
+			// Find which chart the mouse is over
+			row := msg.Y / chartHeightWithBorder
+			col := msg.X / chartWidthWithBorder
+
+			if row >= 0 && row < gridRows && col >= 0 && col < gridCols && m.charts[row][col] != nil {
+				chart := m.charts[row][col]
+
+				// Calculate mouse position relative to the chart's graph area
+				chartStartX := col * chartWidthWithBorder
+				graphStartX := chartStartX + 1 // border
+				if chart.YStep() > 0 {
+					graphStartX += chart.Origin().X + 1
+				}
+
+				relativeMouseX := msg.X - graphStartX
+
+				if relativeMouseX >= 0 && relativeMouseX < chart.GraphWidth() {
+					// Focus on the chart under mouse
+					if m.focusedRow >= 0 && m.focusedCol >= 0 && m.charts[m.focusedRow][m.focusedCol] != nil {
+						m.charts[m.focusedRow][m.focusedCol].focused = false
+					}
+					m.focusedRow = row
+					m.focusedCol = col
+					chart.focused = true
+
+					// Apply zoom
+					switch msg.Button {
+					case tea.MouseButtonWheelUp:
+						chart.HandleZoom("in", relativeMouseX)
+					case tea.MouseButtonWheelDown:
+						chart.HandleZoom("out", relativeMouseX)
+					}
+					chart.Draw()
+				}
+			}
+		}
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c":
+			return m, tea.Quit
+		case "r":
+			// Reset all charts and step counter
+			m.step = 0
+			for _, chart := range m.allCharts {
+				chart.Reset()
+			}
+			m.loadCurrentPage()
+		case "pgup":
+			if m.currentPage > 0 {
+				m.currentPage--
+			} else {
+				m.currentPage = m.totalPages - 1
+			}
+			m.focusedRow = -1
+			m.focusedCol = -1
+			m.loadCurrentPage()
+		case "pgdown":
+			if m.currentPage < m.totalPages-1 {
+				m.currentPage++
+			} else {
+				m.currentPage = 0
+			}
+			m.focusedRow = -1
+			m.focusedCol = -1
+			m.loadCurrentPage()
+		}
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.updateChartSizes()
+	}
+
+	return m, nil
+}
+
+// View renders the UI
+func (m model) View() string {
+	if m.width == 0 || m.height == 0 {
+		return "Loading..."
+	}
+
+	// Calculate dimensions
+	statusBarHeight := 1
+	availableHeight := m.height - statusBarHeight
+
+	// Calculate per-chart dimensions
+	chartHeightWithPadding := availableHeight / gridRows
+	chartWidthWithPadding := m.width / gridCols
+
+	// Build the grid
+	var rows []string
+	for row := 0; row < gridRows; row++ {
+		var cols []string
+		for col := 0; col < gridCols; col++ {
+			if row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
+				chart := m.charts[row][col]
+				chartView := chart.View()
+
+				// Highlight focused chart
+				boxStyle := borderStyle
+				if row == m.focusedRow && col == m.focusedCol {
+					boxStyle = borderStyle.BorderForeground(lipgloss.Color("4"))
+				}
+
+				// Create a box with title and chart
+				boxContent := lipgloss.JoinVertical(
+					lipgloss.Left,
+					titleStyle.Render(chart.title),
+					chartView,
+				)
+
+				// Apply border style
+				box := boxStyle.Render(boxContent)
+
+				// Center the box in its cell
+				cellContent := lipgloss.Place(
+					chartWidthWithPadding,
+					chartHeightWithPadding,
+					lipgloss.Left,
+					lipgloss.Top,
+					box,
+				)
+
+				cols = append(cols, cellContent)
+			} else {
+				// Empty cell
+				emptyBox := lipgloss.NewStyle().
+					Width(chartWidthWithPadding).
+					Height(chartHeightWithPadding).
+					Render("")
+				cols = append(cols, emptyBox)
+			}
+		}
+		// Join columns
+		rowView := lipgloss.JoinHorizontal(lipgloss.Left, cols...)
+		rows = append(rows, rowView)
+	}
+
+	// Join rows
+	gridView := lipgloss.JoinVertical(lipgloss.Left, rows...)
+
+	// Create status bar
+	statusText := fmt.Sprintf("Step: %d • r: reset • q: quit • PgUp/PgDn: navigate", m.step)
+	if !m.fileComplete {
+		statusText += " • [Reading file...]"
+	}
+
+	pageInfo := ""
+	if m.totalPages > 0 {
+		pageInfo = fmt.Sprintf("Page %d/%d", m.currentPage+1, m.totalPages)
+	}
+
+	// Calculate padding between left and right sections
+	statusPadding := m.width - lipgloss.Width(statusText) - lipgloss.Width(pageInfo) - 4
+	if statusPadding < 0 {
+		statusPadding = 0
+	}
+
+	// Style for page info section
+	pageInfoStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}).
+		Background(lipgloss.AdaptiveColor{Light: "#4ECDC4", Dark: "#0C8599"}).
+		Padding(0, 1)
+
+	statusBar := lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#FFFFFF"}).
+		Background(lipgloss.AdaptiveColor{Light: "#45B7D1", Dark: "#1864AB"}).
+		Width(m.width).
+		Render(
+			lipgloss.NewStyle().Padding(0, 1).Render(statusText) +
+				lipgloss.NewStyle().Width(statusPadding).Render("") +
+				pageInfoStyle.Render(pageInfo),
+		)
+
+	// Combine everything
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		gridView,
+		statusBar,
+	)
 }
 
 // loadCurrentPage loads the charts for the current page into the grid
@@ -306,316 +690,73 @@ func (m *model) loadCurrentPage() {
 	}
 }
 
-//gocyclo:ignore
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.MouseMsg:
-		// Handle mouse wheel for zooming
-		if tea.MouseEvent(msg).IsWheel() {
-			// Calculate chart dimensions
-			availableHeight := m.height - 1 // -1 for status bar
-			chartHeightWithBorder := availableHeight / gridRows
-
-			chartWidthWithBorder := m.width / gridCols
-
-			// Find which chart the mouse is over
-			row := msg.Y / chartHeightWithBorder
-			col := msg.X / chartWidthWithBorder
-
-			if row >= 0 && row < gridRows && col >= 0 && col < gridCols && m.charts[row][col] != nil {
-				chart := m.charts[row][col]
-
-				// Calculate mouse position relative to the chart's graph area
-				chartStartX := col * chartWidthWithBorder
-
-				// Get the actual graph start position (accounting for border and Y-axis)
-				graphStartX := chartStartX + 1 // border
-				if chart.YStep() > 0 {
-					graphStartX += chart.Origin().X + 1
-				}
-
-				// Calculate relative mouse X position within the graph area
-				relativeMouseX := msg.X - graphStartX
-
-				// Ensure mouse is within graph bounds
-				if relativeMouseX >= 0 && relativeMouseX < chart.GraphWidth() {
-					// Focus on the chart under mouse
-					if m.focusedRow >= 0 && m.focusedCol >= 0 && m.charts[m.focusedRow][m.focusedCol] != nil {
-						m.charts[m.focusedRow][m.focusedCol].focused = false
-					}
-					m.focusedRow = row
-					m.focusedCol = col
-					chart.focused = true
-
-					// Apply zoom centered on mouse position
-					switch msg.Button {
-					case tea.MouseButtonWheelUp:
-						chart.HandleZoom("in", relativeMouseX)
-					case tea.MouseButtonWheelDown:
-						chart.HandleZoom("out", relativeMouseX)
-					}
-					chart.Draw()
-				}
-			}
-		}
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		case "r":
-			// Reset all charts and epoch counter
-			m.epoch = 0
-			for _, chart := range m.allCharts {
-				chart.Reset()
-			}
-			m.loadCurrentPage()
-		case " ":
-			// Simulate training step - add new data point for current epoch
-			m.epoch++
-			for _, chart := range m.allCharts {
-				// Generate realistic training data
-				value := generateTrainingValue(chart.title, m.epoch, chart.MinY(), chart.MaxY())
-				chart.AddDataPoint(value)
-			}
-			// Redraw only visible charts
-			for row := 0; row < gridRows; row++ {
-				for col := 0; col < gridCols; col++ {
-					if m.charts[row][col] != nil {
-						m.charts[row][col].Draw()
-					}
-				}
-			}
-		case "pgup":
-			// Previous page with wrap-around
-			if m.currentPage > 0 {
-				m.currentPage--
-			} else {
-				m.currentPage = m.totalPages - 1 // Wrap to last page
-			}
-			m.focusedRow = -1
-			m.focusedCol = -1
-			m.loadCurrentPage()
-		case "pgdown":
-			// Next page with wrap-around
-			if m.currentPage < m.totalPages-1 {
-				m.currentPage++
-			} else {
-				m.currentPage = 0 // Wrap to first page
-			}
-			m.focusedRow = -1
-			m.focusedCol = -1
-			m.loadCurrentPage()
-		}
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.updateChartSizes()
-	}
-	return m, nil
-}
-
-// generateTrainingValue simulates realistic training metrics
-func generateTrainingValue(metric string, epoch int, minY, maxY float64) float64 {
-	switch metric {
-	case "loss", "validation_loss", "batch_loss_variance":
-		// Loss typically decreases over time with some noise
-		base := 3.0 * math.Exp(-float64(epoch)*0.02)
-		noise := (rand.Float64() - 0.5) * 0.2
-		return math.Max(minY, math.Min(maxY, base+noise))
-
-	case "accuracy", "f1_score", "precision", "recall", "convergence_rate":
-		// Accuracy metrics typically increase and plateau
-		base := 1.0 - 0.8*math.Exp(-float64(epoch)*0.05)
-		noise := (rand.Float64() - 0.5) * 0.05
-		return math.Max(0, math.Min(1, base+noise))
-
-	case "learning_rate", "effective_lr":
-		// Learning rate might decay over time
-		base := 0.001 * math.Pow(0.99, float64(epoch))
-		return math.Max(minY, base)
-
-	case "gradient_norm", "gradient_flow", "parameter_norm":
-		// Gradient norm varies but generally decreases
-		base := 5.0 * math.Exp(-float64(epoch)*0.01)
-		noise := rand.Float64() * 2.0
-		return math.Max(minY, math.Min(maxY, base+noise))
-
-	case "dropout_rate":
-		// Dropout might be constant or scheduled
-		return 0.5
-
-	case "training_speed":
-		// Training speed in samples/sec, might vary
-		base := 50.0
-		noise := (rand.Float64() - 0.5) * 20.0
-		return math.Max(10, base+noise)
-
-	default:
-		// For layer weights and other metrics, just random walk
-		rangeSize := maxY - minY
-		return minY + rand.Float64()*rangeSize
-	}
-}
-
 func (m *model) updateChartSizes() {
-	// Calculate chart dimensions
-	borderWidth := 2  // left and right border
-	borderHeight := 3 // top and bottom border + title line
+	// Calculate dimensions to match View() layout
+	statusBarHeight := 1
+	availableHeight := m.height - statusBarHeight
 
-	availableHeight := m.height - 1 // -1 for status bar
-	chartHeightWithBorder := availableHeight / gridRows
-	chartHeight := chartHeightWithBorder - borderHeight
+	// Calculate per-chart dimensions including space for borders
+	chartHeightWithPadding := availableHeight / gridRows
+	chartWidthWithPadding := m.width / gridCols
 
-	chartWidthWithBorder := m.width / gridCols
-	chartWidth := chartWidthWithBorder - borderWidth
+	// We need to leave room for:
+	// - Border characters (2 horizontal, 2 vertical)
+	// - Title (1 line)
+	// - Some padding to prevent overlap
+	borderChars := 2
+	titleLines := 1
+	padding := 1
+
+	// Calculate actual chart dimensions
+	chartWidth := chartWidthWithPadding - borderChars - padding
+	chartHeight := chartHeightWithPadding - borderChars - titleLines - padding
 
 	// Ensure minimum size
 	if chartHeight < 5 {
 		chartHeight = 5
 	}
-	if chartWidth < 15 {
-		chartWidth = 15
+	if chartWidth < 20 {
+		chartWidth = 20
 	}
 
 	// Update all charts sizes
 	for _, chart := range m.allCharts {
 		chart.Resize(chartWidth, chartHeight)
+		chart.Draw()
 	}
 
-	// Redraw visible charts
-	for row := range gridRows {
-		for col := range gridCols {
-			if m.charts[row][col] != nil {
-				m.charts[row][col].Draw()
-			}
-		}
-	}
-}
-
-func (m model) View() string {
-	if m.width == 0 || m.height == 0 {
-		return "Loading..."
-	}
-
-	// Build the grid
-	var rows []string
-	for row := range gridRows {
-		var cols []string
-		for col := range gridCols {
-			if m.charts[row][col] != nil {
-				chart := m.charts[row][col]
-				chartView := chart.View()
-
-				// Highlight focused chart
-				boxStyle := borderStyle
-				if row == m.focusedRow && col == m.focusedCol {
-					boxStyle = borderStyle.BorderForeground(lipgloss.Color("4")) // Blue border for focused
-				}
-
-				// Create a box with title and chart
-				boxContent := lipgloss.JoinVertical(
-					lipgloss.Left,
-					titleStyle.Render(chart.title),
-					chartView,
-				)
-
-				// Apply border style
-				box := boxStyle.Render(boxContent)
-				cols = append(cols, box)
-			} else {
-				// Empty cell
-				cols = append(cols, "")
-			}
-		}
-		rowView := lipgloss.JoinHorizontal(lipgloss.Top, cols...)
-		rows = append(rows, rowView)
-	}
-
-	gridView := lipgloss.JoinVertical(lipgloss.Left, rows...)
-
-	// Create the status bar with epoch counter and page info
-	leftStatus := fmt.Sprintf("Epoch: %d • Space: train • r: reset • q: quit • PgUp/PgDn: navigate", m.epoch)
-	pageInfo := fmt.Sprintf("Page %d/%d", m.currentPage+1, m.totalPages)
-
-	// Calculate padding between left and right sections
-	statusPadding := m.width - lipgloss.Width(leftStatus) - lipgloss.Width(pageInfo) - 4 // -4 for padding
-	if statusPadding < 0 {
-		statusPadding = 0
-	}
-
-	// Style for page info section (different blue)
-	pageInfoStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}).
-		Background(lipgloss.AdaptiveColor{Light: "#4ECDC4", Dark: "#0C8599"}). // Teal blue
-		Padding(0, 1)
-
-	statusBar := lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#FFFFFF"}).
-		Background(lipgloss.AdaptiveColor{Light: "#45B7D1", Dark: "#1864AB"}).
-		Width(m.width).
-		Render(
-			lipgloss.NewStyle().Padding(0, 1).Render(leftStatus) +
-				lipgloss.NewStyle().Width(statusPadding).Render("") +
-				pageInfoStyle.Render(pageInfo),
-		)
-
-	// Calculate padding to fill the screen
-	var chartsHeight int
-	if len(m.charts) > 0 && len(m.charts[0]) > 0 && m.charts[0][0] != nil {
-		chartsHeight = m.charts[0][0].Model.Height() + 3 // +3 for borders and title
-	} else {
-		chartsHeight = 11 // default
-	}
-	usedHeight := len(rows) * chartsHeight
-	paddingHeight := m.height - usedHeight - 1 // -1 for status bar
-	if paddingHeight < 0 {
-		paddingHeight = 0
-	}
-
-	// Combine everything
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		gridView,
-		lipgloss.NewStyle().Height(paddingHeight).Render(""),
-		statusBar,
-	)
+	// Reload current page
+	m.loadCurrentPage()
 }
 
 func main() {
-	// Calculate total pages
-	totalCharts := len(plotTitles)
-	totalPages := (totalCharts + chartsPerPage - 1) / chartsPerPage
+	flag.Parse()
 
-	// Initialize the model with all charts
-	m := model{
-		allCharts:   make([]*EpochLineChart, totalCharts),
-		charts:      make([][]*EpochLineChart, gridRows),
-		epoch:       0,
-		focusedRow:  -1,
-		focusedCol:  -1,
-		currentPage: 0,
-		totalPages:  totalPages,
+	if flag.NArg() != 1 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <path-to-wandb-file>\n", os.Args[0])
+		os.Exit(1)
 	}
 
-	// Create all charts
-	for i, title := range plotTitles {
-		// Use specific ranges for known metrics, default range for others
-		minY, maxY := -50.0, 100.0
-		if ranges, ok := plotRanges[title]; ok {
-			minY, maxY = ranges[0], ranges[1]
-		}
+	runPath := flag.Arg(0)
 
-		// Create chart with appropriate color
-		m.allCharts[i] = NewEpochLineChart(20, 8, minY, maxY, i, title)
+	// Initialize the model
+	m := model{
+		allCharts:    make([]*EpochLineChart, 0),
+		chartsByName: make(map[string]*EpochLineChart),
+		charts:       make([][]*EpochLineChart, gridRows),
+		step:         0,
+		focusedRow:   -1,
+		focusedCol:   -1,
+		currentPage:  0,
+		totalPages:   0,
+		fileComplete: false,
+		runPath:      runPath,
 	}
 
 	// Initialize the grid structure
 	for row := 0; row < gridRows; row++ {
 		m.charts[row] = make([]*EpochLineChart, gridCols)
 	}
-
-	// Load the first page
-	m.loadCurrentPage()
 
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
