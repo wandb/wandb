@@ -482,8 +482,8 @@ func (m *model) updateChartSizes() {
 	}
 
 	// Redraw visible charts
-	for row := 0; row < gridRows; row++ {
-		for col := 0; col < gridCols; col++ {
+	for row := range gridRows {
+		for col := range gridCols {
 			if m.charts[row][col] != nil {
 				m.charts[row][col].Draw()
 			}
@@ -498,9 +498,9 @@ func (m model) View() string {
 
 	// Build the grid
 	var rows []string
-	for row := 0; row < gridRows; row++ {
+	for row := range gridRows {
 		var cols []string
-		for col := 0; col < gridCols; col++ {
+		for col := range gridCols {
 			if m.charts[row][col] != nil {
 				chart := m.charts[row][col]
 				chartView := chart.View()
