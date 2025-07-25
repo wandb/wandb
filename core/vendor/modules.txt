@@ -1,13 +1,13 @@
 # cel.dev/expr v0.24.0
 ## explicit; go 1.22.0
 cel.dev/expr
-# cloud.google.com/go v0.121.2
+# cloud.google.com/go v0.121.4
 ## explicit; go 1.23.0
 cloud.google.com/go/internal
 cloud.google.com/go/internal/optional
 cloud.google.com/go/internal/trace
 cloud.google.com/go/internal/version
-# cloud.google.com/go/auth v0.16.2
+# cloud.google.com/go/auth v0.16.3
 ## explicit; go 1.23.0
 cloud.google.com/go/auth
 cloud.google.com/go/auth/credentials
@@ -229,7 +229,7 @@ github.com/aws/aws-sdk-go/service/sso/ssoiface
 github.com/aws/aws-sdk-go/service/ssooidc
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
-# github.com/aws/aws-sdk-go-v2 v1.36.5
+# github.com/aws/aws-sdk-go-v2 v1.36.6
 ## explicit; go 1.22
 github.com/aws/aws-sdk-go-v2/aws
 github.com/aws/aws-sdk-go-v2/aws/arn
@@ -277,7 +277,7 @@ github.com/aws/aws-sdk-go-v2/credentials/stscreds
 ## explicit; go 1.22
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds/internal/config
-# github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.80
+# github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.84
 ## explicit; go 1.22
 github.com/aws/aws-sdk-go-v2/feature/s3/manager
 # github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.36
@@ -528,8 +528,8 @@ github.com/go-git/go-git/v5/utils/merkletrie/internal/frame
 github.com/go-git/go-git/v5/utils/merkletrie/noder
 github.com/go-git/go-git/v5/utils/sync
 github.com/go-git/go-git/v5/utils/trace
-# github.com/go-jose/go-jose/v4 v4.1.0
-## explicit; go 1.24
+# github.com/go-jose/go-jose/v4 v4.1.1
+## explicit; go 1.23.0
 github.com/go-jose/go-jose/v4
 github.com/go-jose/go-jose/v4/cipher
 github.com/go-jose/go-jose/v4/json
@@ -544,7 +544,7 @@ github.com/go-logr/stdr
 ## explicit; go 1.12
 github.com/go-ole/go-ole
 github.com/go-ole/go-ole/oleutil
-# github.com/golang-jwt/jwt/v5 v5.2.2
+# github.com/golang-jwt/jwt/v5 v5.2.3
 ## explicit; go 1.18
 github.com/golang-jwt/jwt/v5
 # github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
@@ -748,41 +748,24 @@ github.com/yusufpapurcu/wmi
 # github.com/zeebo/errs v1.4.0
 ## explicit; go 1.12
 github.com/zeebo/errs
-# go.opencensus.io v0.24.0
-## explicit; go 1.13
-go.opencensus.io
-go.opencensus.io/internal
-go.opencensus.io/internal/tagencoding
-go.opencensus.io/metric/metricdata
-go.opencensus.io/metric/metricproducer
-go.opencensus.io/plugin/ocgrpc
-go.opencensus.io/resource
-go.opencensus.io/stats
-go.opencensus.io/stats/internal
-go.opencensus.io/stats/view
-go.opencensus.io/tag
-go.opencensus.io/trace
-go.opencensus.io/trace/internal
-go.opencensus.io/trace/propagation
-go.opencensus.io/trace/tracestate
 # go.opentelemetry.io/auto/sdk v1.1.0
 ## explicit; go 1.22.0
 go.opentelemetry.io/auto/sdk
 go.opentelemetry.io/auto/sdk/internal/telemetry
-# go.opentelemetry.io/contrib/detectors/gcp v1.36.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/contrib/detectors/gcp v1.37.0
+## explicit; go 1.23.8
 go.opentelemetry.io/contrib/detectors/gcp
-# go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0
+# go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal
-# go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0
+# go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.62.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/request
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil
-# go.opentelemetry.io/otel v1.36.0
+# go.opentelemetry.io/otel v1.37.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel
 go.opentelemetry.io/otel/attribute
@@ -795,19 +778,21 @@ go.opentelemetry.io/otel/propagation
 go.opentelemetry.io/otel/semconv/v1.20.0
 go.opentelemetry.io/otel/semconv/v1.24.0
 go.opentelemetry.io/otel/semconv/v1.26.0
-go.opentelemetry.io/otel/semconv/v1.30.0
-# go.opentelemetry.io/otel/metric v1.36.0
+go.opentelemetry.io/otel/semconv/v1.34.0
+go.opentelemetry.io/otel/semconv/v1.34.0/httpconv
+go.opentelemetry.io/otel/semconv/v1.34.0/rpcconv
+# go.opentelemetry.io/otel/metric v1.37.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/metric
 go.opentelemetry.io/otel/metric/embedded
 go.opentelemetry.io/otel/metric/noop
-# go.opentelemetry.io/otel/sdk v1.36.0
+# go.opentelemetry.io/otel/sdk v1.37.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/sdk
 go.opentelemetry.io/otel/sdk/instrumentation
 go.opentelemetry.io/otel/sdk/internal/x
 go.opentelemetry.io/otel/sdk/resource
-# go.opentelemetry.io/otel/sdk/metric v1.36.0
+# go.opentelemetry.io/otel/sdk/metric v1.37.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/sdk/metric
 go.opentelemetry.io/otel/sdk/metric/exemplar
@@ -815,13 +800,13 @@ go.opentelemetry.io/otel/sdk/metric/internal
 go.opentelemetry.io/otel/sdk/metric/internal/aggregate
 go.opentelemetry.io/otel/sdk/metric/internal/x
 go.opentelemetry.io/otel/sdk/metric/metricdata
-# go.opentelemetry.io/otel/trace v1.36.0
+# go.opentelemetry.io/otel/trace v1.37.0
 ## explicit; go 1.23.0
 go.opentelemetry.io/otel/trace
 go.opentelemetry.io/otel/trace/embedded
 go.opentelemetry.io/otel/trace/internal/telemetry
 go.opentelemetry.io/otel/trace/noop
-# gocloud.dev v0.42.0
+# gocloud.dev v0.43.0
 ## explicit; go 1.24
 gocloud.dev/aws
 gocloud.dev/blob
@@ -834,11 +819,11 @@ gocloud.dev/gcerrors
 gocloud.dev/gcp
 gocloud.dev/internal/escape
 gocloud.dev/internal/gcerr
-gocloud.dev/internal/oc
 gocloud.dev/internal/openurl
+gocloud.dev/internal/otel
 gocloud.dev/internal/retry
 gocloud.dev/internal/useragent
-# golang.org/x/crypto v0.39.0
+# golang.org/x/crypto v0.40.0
 ## explicit; go 1.23.0
 golang.org/x/crypto/argon2
 golang.org/x/crypto/blake2b
@@ -852,6 +837,7 @@ golang.org/x/crypto/curve25519
 golang.org/x/crypto/hkdf
 golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
+golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/pkcs12
 golang.org/x/crypto/pkcs12/internal/rc2
 golang.org/x/crypto/sha3
@@ -864,7 +850,7 @@ golang.org/x/crypto/ssh/knownhosts
 golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.41.0
+# golang.org/x/net v0.42.0
 ## explicit; go 1.23.0
 golang.org/x/net/context
 golang.org/x/net/http/httpguts
@@ -894,14 +880,14 @@ golang.org/x/oauth2/jwt
 ## explicit; go 1.23.0
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.33.0
+# golang.org/x/sys v0.34.0
 ## explicit; go 1.23.0
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/text v0.26.0
+# golang.org/x/text v0.27.0
 ## explicit; go 1.23.0
 golang.org/x/text/cases
 golang.org/x/text/internal
@@ -962,13 +948,13 @@ google.golang.org/api/storage/v1
 google.golang.org/api/transport
 google.golang.org/api/transport/grpc
 google.golang.org/api/transport/http
-# google.golang.org/genproto v0.0.0-20250603155806-513f23925822
+# google.golang.org/genproto v0.0.0-20250715232539-7130f93afb79
 ## explicit; go 1.23.0
 google.golang.org/genproto/googleapis/type/calendarperiod
 google.golang.org/genproto/googleapis/type/date
 google.golang.org/genproto/googleapis/type/expr
 google.golang.org/genproto/googleapis/type/timeofday
-# google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822
+# google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79
 ## explicit; go 1.23.0
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
@@ -977,7 +963,7 @@ google.golang.org/genproto/googleapis/api/expr/v1alpha1
 google.golang.org/genproto/googleapis/api/label
 google.golang.org/genproto/googleapis/api/metric
 google.golang.org/genproto/googleapis/api/monitoredres
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79
 ## explicit; go 1.23.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
