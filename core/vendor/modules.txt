@@ -155,11 +155,9 @@ github.com/Microsoft/go-winio/pkg/guid
 # github.com/NimbleMarkets/ntcharts v0.3.1
 ## explicit; go 1.22.0
 github.com/NimbleMarkets/ntcharts/canvas
-github.com/NimbleMarkets/ntcharts/canvas/buffer
 github.com/NimbleMarkets/ntcharts/canvas/graph
 github.com/NimbleMarkets/ntcharts/canvas/runes
 github.com/NimbleMarkets/ntcharts/linechart
-github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart
 # github.com/ProtonMail/go-crypto v1.3.0
 ## explicit; go 1.22.0
 github.com/ProtonMail/go-crypto/bitcurves
@@ -382,7 +380,6 @@ github.com/cespare/xxhash/v2
 # github.com/charmbracelet/bubbles v0.21.0
 ## explicit; go 1.23.0
 github.com/charmbracelet/bubbles/key
-github.com/charmbracelet/bubbles/viewport
 # github.com/charmbracelet/bubbletea v1.3.6
 ## explicit; go 1.23.0
 github.com/charmbracelet/bubbletea
@@ -695,10 +692,6 @@ github.com/muesli/ansi/compressor
 # github.com/muesli/cancelreader v0.2.2
 ## explicit; go 1.17
 github.com/muesli/cancelreader
-# github.com/muesli/reflow v0.3.0
-## explicit; go 1.13
-github.com/muesli/reflow/ansi
-github.com/muesli/reflow/truncate
 # github.com/muesli/termenv v0.16.0
 ## explicit; go 1.17
 github.com/muesli/termenv
