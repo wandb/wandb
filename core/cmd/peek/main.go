@@ -508,7 +508,7 @@ func (m model) View() string {
 				// Highlight focused chart
 				boxStyle := borderStyle
 				if row == m.focusedRow && col == m.focusedCol {
-					boxStyle = borderStyle.Copy().BorderForeground(lipgloss.Color("4")) // Blue border for focused
+					boxStyle = borderStyle.BorderForeground(lipgloss.Color("4")) // Blue border for focused
 				}
 
 				// Create a box with title and chart
