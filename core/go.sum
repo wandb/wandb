@@ -434,8 +434,8 @@ golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898/go.mod h1:I/5z698sn9Ka8T
 golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da h1:noIWHXmPHxILtqtCOPIhSt0ABwskkZKjD3bXGnZGpNY=
 golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da/go.mod h1:NDW/Ps6MPRej6fsCIbMTohpP40sJ/P/vI1MoTEGwX90=
-google.golang.org/api v0.242.0 h1:7Lnb1nfnpvbkCiZek6IXKdJ0MFuAZNAJKQfA1ws62xg=
-google.golang.org/api v0.242.0/go.mod h1:cOVEm2TpdAGHL2z+UwyS+kmlGr3bVWQQ6sYEqkKje50=
+google.golang.org/api v0.243.0 h1:sw+ESIJ4BVnlJcWu9S+p2Z6Qq1PjG77T8IJ1xtp4jZQ=
+google.golang.org/api v0.243.0/go.mod h1:GE4QtYfaybx1KmeHMdBnNnyLzBZCVihGBXAmJu/uUr8=
 google.golang.org/genproto v0.0.0-20250715232539-7130f93afb79 h1:Nt6z9UHqSlIdIGJdz6KhTIs2VRx/iOsA5iE8bmQNcxs=
 google.golang.org/genproto v0.0.0-20250715232539-7130f93afb79/go.mod h1:kTmlBHMPqR5uCZPBvwa2B18mvubkjyY3CRLI0c6fj0s=
 google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79 h1:iOye66xuaAK0WnkPuhQPUFy8eJcmwUXqGGP3om6IxX8=
