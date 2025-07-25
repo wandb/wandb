@@ -1,3 +1,7 @@
+# v1.84.1 (2025-07-19)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.84.0 (2025-07-15)
 
 * **Feature**: Amazon S3 Metadata live inventory tables provide a queryable inventory of all the objects in your general purpose bucket so that you can determine the latest state of your data. To help minimize your storage costs, use journal table record expiration to set a retention period for your records.
