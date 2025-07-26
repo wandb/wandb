@@ -240,6 +240,7 @@ class MockCoreV1Api:
         self.pods = dict()
         self.secrets = []
         self.calls = {"delete": 0}
+        self.namespaces = []
 
     async def list_namespaced_pod(
         self, label_selector=None, namespace="default", field_selector=None
@@ -272,6 +273,12 @@ class MockCoreV1Api:
         for s in self.secrets:
             if s[0] == namespace and s[1].metadata.name == name:
                 return s[1]
+
+    async def create_namespace(self, body):
+        self.namespaces.append(body)
+
+    async def delete_namespace(self, name):
+        self.namespaces.remove(name)
 
 
 class MockCustomObjectsApi:
@@ -1455,6 +1462,7 @@ async def test_kubernetes_submitted_run_get_logs(pods, logs, expected):
     submitted_run = KubernetesSubmittedRun(
         batch_api=MagicMock(),
         core_api=core_api,
+        apps_api=MagicMock(),
         namespace="wandb",
         name="test_run",
     )

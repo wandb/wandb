@@ -1,6 +1,7 @@
 """Implementation of launch agent."""
 
 import asyncio
+import copy
 import logging
 import os
 import pprint
@@ -11,9 +12,8 @@ from dataclasses import dataclass
 from multiprocessing import Event
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import yaml
-
 import wandb
+import yaml
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
@@ -421,6 +421,7 @@ class LaunchAgent:
         """Removes the job from our list for now."""
         with self._jobs_lock:
             job_and_run_status = self._jobs[thread_id]
+
         if (
             job_and_run_status.entity is not None
             and job_and_run_status.entity != self._entity
@@ -516,7 +517,11 @@ class LaunchAgent:
         Arguments:
             job: Job to run.
         """
-        _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job)}\n"
+        job_copy = copy.deepcopy(job)
+        if "runSpec" in job_copy and "_wandb_api_key" in job_copy["runSpec"]:
+            job_copy["runSpec"]["_wandb_api_key"] = "<redacted>"
+
+        _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job_copy)}\n"
         wandb.termlog(_msg)
         _logger.info(_msg)
         # update agent status
@@ -727,6 +732,7 @@ class LaunchAgent:
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )
+
         if not (
             project.docker_image
             or project.job_base_image
