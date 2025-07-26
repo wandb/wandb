@@ -248,7 +248,36 @@ class Settings(BaseModel, validate_assignment=True):
     """
 
     console_multipart: bool = False
-    """Whether to produce multipart console log files."""
+    """Enable multipart console logging.
+
+    When True, the SDK writes console output to timestamped files
+    under the `logs/` directory instead of a single `output.log`.
+
+    Each part is uploaded as soon as it is closed, giving users live
+    access to logs while the run is active. Rollover cadence is
+    controlled by `console_chunk_max_bytes` and/or `console_chunk_max_seconds`.
+    If both limits are `0`, all logs are uploaded once at run finish.
+    """
+
+    console_chunk_max_bytes: int = 0
+    """Size-based rollover threshold for multipart console logs, in bytes.
+
+    Starts a new console log file when the current part reaches this
+    size. Has an effect only when `console_multipart` is `True`.
+    Can be combined with `console_chunk_max_seconds`; whichever limit is
+    hit first triggers the rollover. A value of `0` disables the
+    size-based limit.
+    """
+
+    console_chunk_max_seconds: int = 0
+    """Time-based rollover threshold for multipart console logs, in seconds.
+
+    Starts a new console log file after this many seconds have elapsed
+    since the current part began. Requires `console_multipart` to be
+    `True`.  May be used with `console_chunk_max_bytes`; the first limit
+    reached closes the part. A value of `0` disables the time-based
+    limit.
+    """
 
     credentials_file: str = Field(
         default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
@@ -1055,6 +1084,30 @@ class Settings(BaseModel, validate_assignment=True):
             return value
 
         return "wrap"
+
+    @field_validator("console_chunk_max_bytes", mode="after")
+    @classmethod
+    def validate_console_chunk_max_bytes(cls, value):
+        """Validate the console_chunk_max_bytes value.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if value < 0:
+            raise ValueError("console_chunk_max_bytes must be non-negative")
+
+        return value
+
+    @field_validator("console_chunk_max_seconds", mode="after")
+    @classmethod
+    def validate_console_chunk_max_seconds(cls, value):
+        """Validate the console_chunk_max_seconds value.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if value < 0:
+            raise ValueError("console_chunk_max_seconds must be non-negative")
+
+        return value
 
     @field_validator("x_executable", mode="before")
     @classmethod
