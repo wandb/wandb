@@ -102,12 +102,13 @@ func (c *EpochLineChart) AddDataPoint(value float64) {
 	if valueRange == 0 {
 		// All values are the same
 		absValue := math.Abs(c.maxValue)
-		if absValue < 0.001 {
+		switch {
+		case absValue < 0.001:
 			padding = 0.0001 // Very small values
-		} else if absValue < 0.1 {
+		case absValue < 0.1:
 			padding = absValue * 0.1 // Small values
-		} else {
-			padding = 0.1 // Default
+		default:
+			padding = 0.1
 		}
 	} else {
 		padding = valueRange * 0.1
