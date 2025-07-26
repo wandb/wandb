@@ -30,3 +30,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `wandb.Video` will not print a progress spinner while encoding video when `WANDB_SILENT`/`WANDB_QUIET` environment variables are set (@jacobromero in https://github.com/wandb/wandb/pull/10064)
 - Fixed registries fetched using `api.registries()` from having an extra `wandb-registry-` prefix in the name and full_name fields (@estellazx in https://github.com/wandb/wandb/pull/10187)
 - Fixed a crash that could happen when using `sync_tensorboard` (@timoffex in https://github.com/wandb/wandb/pull/10199)
+- git diff patch files are now generated for the closest ancestor commit when no upstream branch is set. (@jacobromero in https://github.com/wandb/wandb/pull/10132)
+    - bug introduced in v0.18.0
