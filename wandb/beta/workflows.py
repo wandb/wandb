@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import json
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import wandb
-import wandb.data_types as data_types
-from wandb.data_types import _SavedModel
+from wandb.data_types import WBValue, _SavedModel
 from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -12,10 +13,8 @@ from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
 def _add_any(
     artifact: Artifact,
-    path_or_obj: Union[
-        str, ArtifactManifestEntry, data_types.WBValue
-    ],  # todo: add dataframe
-    name: Optional[str],
+    path_or_obj: str | ArtifactManifestEntry | WBValue,  # todo: add dataframe
+    name: str | None,
 ) -> Any:
     """Add an object to an artifact.
 
@@ -36,7 +35,7 @@ def _add_any(
     """
     if isinstance(path_or_obj, ArtifactManifestEntry):
         return artifact.add_reference(path_or_obj, name)
-    elif isinstance(path_or_obj, data_types.WBValue):
+    elif isinstance(path_or_obj, WBValue):
         return artifact.add(path_or_obj, name)
     elif isinstance(path_or_obj, str):
         if os.path.isdir(path_or_obj):
@@ -56,12 +55,12 @@ def _add_any(
 def _log_artifact_version(
     name: str,
     type: str,
-    entries: Dict[str, Union[str, ArtifactManifestEntry, data_types.WBValue]],
-    aliases: Optional[Union[str, List[str]]] = None,
-    description: Optional[str] = None,
-    metadata: Optional[dict] = None,
-    project: Optional[str] = None,
-    scope_project: Optional[bool] = None,
+    entries: dict[str, str | ArtifactManifestEntry | WBValue],
+    aliases: str | list[str] | None = None,
+    description: str | None = None,
+    metadata: dict | None = None,
+    project: str | None = None,
+    scope_project: bool | None = None,
     job_type: str = "auto",
 ) -> Artifact:
     """Create an artifact, populate it, and log it with a run.
@@ -116,13 +115,13 @@ def _log_artifact_version(
 def log_model(
     model_obj: Any,
     name: str = "model",
-    aliases: Optional[Union[str, List[str]]] = None,
-    description: Optional[str] = None,
-    metadata: Optional[dict] = None,
-    project: Optional[str] = None,
-    scope_project: Optional[bool] = None,
-    **kwargs: Dict[str, Any],
-) -> "_SavedModel":
+    aliases: str | list[str] | None = None,
+    description: str | None = None,
+    metadata: dict | None = None,
+    project: str | None = None,
+    scope_project: bool | None = None,
+    **kwargs: dict[str, Any],
+) -> _SavedModel:
     """Log a model object to enable model-centric workflows in the UI.
 
     Supported frameworks include PyTorch, Keras, Tensorflow, Scikit-learn, etc. Under
@@ -168,7 +167,7 @@ def log_model(
         ```
 
     """
-    model = data_types._SavedModel.init(model_obj, **kwargs)
+    model = _SavedModel.init(model_obj, **kwargs)
     _ = _log_artifact_version(
         name=name,
         type="model",
@@ -186,7 +185,7 @@ def log_model(
     return model
 
 
-def use_model(aliased_path: str, unsafe: bool = False) -> "_SavedModel":
+def use_model(aliased_path: str, unsafe: bool = False) -> _SavedModel:
     """Fetch a saved model from an alias.
 
     Under the hood, we use the alias to fetch the model artifact containing the
@@ -235,9 +234,9 @@ def use_model(aliased_path: str, unsafe: bool = False) -> "_SavedModel":
 
 
 def link_model(
-    model: "_SavedModel",
+    model: _SavedModel,
     target_path: str,
-    aliases: Optional[Union[str, List[str]]] = None,
+    aliases: str | list[str] | None = None,
 ) -> None:
     """Link the given model to a portfolio.
 
