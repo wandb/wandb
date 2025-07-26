@@ -122,8 +122,10 @@ class Runs(SizedPaginator["Run"]):
         project: (str) The name of the project to fetch runs from.
         filters: (Optional[Dict[str, Any]]) A dictionary of filters to apply
             to the runs query.
-        order: (Optional[str]) The order of the runs, can be "asc" or "desc"
-            Defaults to "desc".
+        order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
+            If you prepend order with a + order is ascending (default).
+            If you prepend order with a - order is descending.
+            The default order is run.created_at from oldest to newest.
         per_page: (int) The number of runs to fetch per request (default is 50).
         include_sweeps: (bool) Whether to include sweep information in the
             runs. Defaults to True.
@@ -174,6 +176,9 @@ class Runs(SizedPaginator["Run"]):
         per_page: int = 50,
         include_sweeps: bool = True,
     ):
+        if not order:
+            order = "+created_at"
+
         self.QUERY = gql(
             f"""#graphql
             query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
