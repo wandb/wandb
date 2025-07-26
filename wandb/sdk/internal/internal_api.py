@@ -126,10 +126,6 @@ if TYPE_CHECKING:
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
-# class _MappingSupportsCopy(Protocol):
-#     def copy(self) -> "_MappingSupportsCopy": ...
-#     def keys(self) -> Iterable: ...
-#     def __getitem__(self, name: str) -> Any: ...
 
 httpclient_logger = logging.getLogger("http.client")
 if os.environ.get("WANDB_DEBUG"):
