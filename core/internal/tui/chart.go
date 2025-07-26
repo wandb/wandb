@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/NimbleMarkets/ntcharts/canvas"
@@ -40,8 +41,28 @@ func NewEpochLineChart(width, height int, colorIndex int, title string) *EpochLi
 	// Start with X range of 0-20 steps and Y range will be auto-adjusted
 	chart := &EpochLineChart{
 		Model: linechart.New(width, height, 0, 20, 0, 1,
-			linechart.WithXYSteps(4, 2),
+			linechart.WithXYSteps(4, 5), // More Y steps for better granularity
 			linechart.WithAutoXRange(),
+			linechart.WithYLabelFormatter(func(index int, f float64) string {
+				// Custom formatter to handle decimal places properly
+				if f == 0 {
+					return "0"
+				}
+				// For very small numbers, use scientific notation
+				if math.Abs(f) < 0.001 {
+					return fmt.Sprintf("%.1e", f)
+				}
+				// For small numbers, show more decimal places
+				if math.Abs(f) < 0.1 {
+					return fmt.Sprintf("%.4f", f)
+				}
+				// For numbers less than 10, show 2 decimal places
+				if math.Abs(f) < 10 {
+					return fmt.Sprintf("%.2f", f)
+				}
+				// For larger numbers, show 1 decimal place
+				return fmt.Sprintf("%.1f", f)
+			}),
 		),
 		data:       make([]float64, 0),
 		graphStyle: graphStyle,
@@ -74,12 +95,42 @@ func (c *EpochLineChart) AddDataPoint(value float64) {
 	}
 
 	// Auto-adjust Y range with some padding
-	padding := (c.maxValue - c.minValue) * 0.1
-	if padding == 0 {
-		padding = 0.1
+	valueRange := c.maxValue - c.minValue
+
+	// Handle different scales of data appropriately
+	var padding float64
+	if valueRange == 0 {
+		// All values are the same
+		absValue := math.Abs(c.maxValue)
+		if absValue < 0.001 {
+			padding = 0.0001 // Very small values
+		} else if absValue < 0.1 {
+			padding = absValue * 0.1 // Small values
+		} else {
+			padding = 0.1 // Default
+		}
+	} else {
+		padding = valueRange * 0.1
+		// Ensure minimum padding for very small ranges
+		if padding < 1e-6 {
+			padding = 1e-6
+		}
 	}
-	c.SetYRange(c.minValue-padding, c.maxValue+padding)
-	c.SetViewYRange(c.minValue-padding, c.maxValue+padding)
+
+	newMinY := c.minValue - padding
+	newMaxY := c.maxValue + padding
+
+	// For very small values, ensure we don't go negative if all values are positive
+	if c.minValue >= 0 && newMinY < 0 {
+		newMinY = 0
+	}
+
+	// Set both the data range and view range
+	c.SetYRange(newMinY, newMaxY)
+	c.SetViewYRange(newMinY, newMaxY)
+
+	// Force the chart to recalculate by calling SetXYRange
+	c.Model.SetXYRange(c.MinX(), c.MaxX(), newMinY, newMaxY)
 
 	// Auto-expand X range if needed
 	if step > int(c.MaxX()) {
@@ -87,6 +138,9 @@ func (c *EpochLineChart) AddDataPoint(value float64) {
 		c.SetXRange(0, newMax)
 		c.SetViewXRange(0, newMax)
 		c.maxSteps = int(newMax)
+
+		// Update the full range including Y to ensure consistency
+		c.Model.SetXYRange(0, newMax, newMinY, newMaxY)
 	}
 }
 
@@ -99,6 +153,7 @@ func (c *EpochLineChart) Reset() {
 	c.zoomLevel = 1.0
 	c.minValue = math.Inf(1)
 	c.maxValue = math.Inf(-1)
+	// Don't set a fixed Y range - let it be determined by data
 	c.SetYRange(0, 1)
 	c.SetViewYRange(0, 1)
 }
