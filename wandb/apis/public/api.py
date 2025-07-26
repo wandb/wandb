@@ -384,6 +384,9 @@ class Api:
     ) -> "public.Run":
         """Create a new run.
 
+        This function is deprecated and will be removed in a future version.
+        To create a run, use wandb.init() instead.
+
         Args:
             run_id: The ID to assign to the run. If not specified, W&B
                 creates a random ID.
@@ -395,6 +398,10 @@ class Api:
         Returns:
             The newly created `Run`.
         """
+        wandb.termwarn(
+            "create_run is deprecated and will be removed in a future version. "
+            "To create a run, use wandb.init() instead."
+        )
         if entity is None:
             entity = self.default_entity
         return public.Run.create(self, run_id=run_id, project=project, entity=entity)
