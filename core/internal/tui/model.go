@@ -41,7 +41,7 @@ func NewModel(runPath string) *Model {
 	}
 
 	// Initialize the grid structure
-	for row := 0; row < GridRows; row++ {
+	for row := range GridRows {
 		m.charts[row] = make([]*EpochLineChart, GridCols)
 	}
 
@@ -50,7 +50,10 @@ func NewModel(runPath string) *Model {
 
 // Init implements tea.Model
 func (m *Model) Init() tea.Cmd {
-	return InitializeReader(m.runPath)
+	return tea.Batch(
+		tea.SetWindowTitle("wandb moni"),
+		InitializeReader(m.runPath),
+	)
 }
 
 // Update implements tea.Model

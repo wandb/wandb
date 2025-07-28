@@ -6,14 +6,19 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/internal/runenvironment"
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// WandbReader handles reading from the wandb file
+// WandbReader handles reading from the .wandb file.
 type WandbReader struct {
-	store    *stream.Store
-	exitSeen bool
+	store       *stream.Store
+	config      *runconfig.RunConfig
+	environment *runenvironment.RunEnvironment
+	// TODO: summary
+	exitSeen    bool
 }
 
 // NewWandbReader creates a new wandb file reader
@@ -29,8 +34,8 @@ func NewWandbReader(runPath string) (*WandbReader, error) {
 	}, nil
 }
 
-// ReadNext reads the next history record from the file
-func (r *WandbReader) ReadNext() (map[string]float64, int, error) {
+// Next reads the next history record from the .wandb file.
+func (r *WandbReader) Next() (map[string]float64, int, error) {
 	for {
 		record, err := r.store.Read()
 		if err == io.EOF && r.exitSeen {
@@ -41,6 +46,20 @@ func (r *WandbReader) ReadNext() (map[string]float64, int, error) {
 		}
 
 		switch rec := record.RecordType.(type) {
+		case *spb.Record_Environment:
+			if r.environment == nil {
+				r.environment = runenvironment.New(rec.Environment.WriterId)
+			}
+			r.environment.ProcessRecord(rec.Environment)
+
+		case *spb.Record_Run:
+			if r.config == nil {
+				r.config = runconfig.New()
+			}
+			if rec.Run.Config != nil {
+				r.config.ApplyChangeRecord(rec.Run.Config, nil)
+			}
+
 		case *spb.Record_History:
 			// Extract metrics from history record
 			metrics := make(map[string]float64)
@@ -49,14 +68,15 @@ func (r *WandbReader) ReadNext() (map[string]float64, int, error) {
 			for _, item := range rec.History.Item {
 				key := strings.Join(item.NestedKey, ".")
 
-				// Skip internal wandb fields except _step
-				if strings.HasPrefix(key, "_") {
-					if key == "_step" {
-						// Parse step value
-						if val, err := strconv.Atoi(strings.Trim(item.ValueJson, "\"")); err == nil {
-							step = val
-						}
+				// Parse step value
+				if key == "_step" {
+					if val, err := strconv.Atoi(strings.Trim(item.ValueJson, "\"")); err == nil {
+						step = val
 					}
+				}
+
+				// Skip underscored metrics.
+				if strings.HasPrefix(key, "_") {
 					continue
 				}
 

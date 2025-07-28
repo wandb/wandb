@@ -21,7 +21,7 @@ func InitializeReader(runPath string) tea.Cmd {
 // ReadNextHistoryRecord creates a command to read the next history record
 func ReadNextHistoryRecord(reader *WandbReader) tea.Cmd {
 	return func() tea.Msg {
-		metrics, step, err := reader.ReadNext()
+		metrics, step, err := reader.Next()
 		if err == io.EOF {
 			return FileCompleteMsg{}
 		}
