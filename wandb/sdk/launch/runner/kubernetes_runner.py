@@ -6,6 +6,7 @@ import datetime
 import json
 import logging
 import os
+import time
 import uuid
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -547,6 +548,160 @@ class KubernetesRunner(AbstractRunner):
 
         return job, api_key_secret
 
+    async def _wait_for_resource_ready(
+        self,
+        api_client: kubernetes_asyncio.client.ApiClient,
+        config: Dict[str, Any],
+        namespace: str,
+        timeout_seconds: int = 300,
+    ) -> None:
+        """Wait for a Kubernetes resource to be ready.
+
+        Arguments:
+            api_client: The Kubernetes API client.
+            config: The resource configuration.
+            namespace: The namespace where the resource was created.
+            timeout_seconds: Maximum time to wait for readiness.
+        """
+        resource_kind = config.get("kind")
+        resource_name = config.get("metadata", {}).get("name")
+
+        if not resource_kind or not resource_name:
+            wandb.termwarn(f"{LOG_PREFIX}Cannot wait for resource without kind or name")
+            return
+
+        wandb.termlog(
+            f"{LOG_PREFIX}Waiting for {resource_kind} '{resource_name}' to be ready..."
+        )
+
+        start_time = time.time()
+
+        try:
+            if resource_kind == "Deployment":
+                await self._wait_for_deployment_ready(
+                    api_client, resource_name, namespace, timeout_seconds
+                )
+            elif resource_kind == "Service":
+                await self._wait_for_service_ready(
+                    api_client, resource_name, namespace, timeout_seconds
+                )
+            elif resource_kind == "Pod":
+                await self._wait_for_pod_ready(
+                    api_client, resource_name, namespace, timeout_seconds
+                )
+            else:
+                wandb.termlog(
+                    f"{LOG_PREFIX}No specific readiness check for {resource_kind}, waiting 5 seconds..."
+                )
+                await asyncio.sleep(5)
+
+            elapsed = time.time() - start_time
+            wandb.termlog(
+                f"{LOG_PREFIX}{resource_kind} '{resource_name}' is ready after {elapsed:.1f}s"
+            )
+        except asyncio.TimeoutError:
+            elapsed = time.time() - start_time
+            wandb.termwarn(
+                f"{LOG_PREFIX}{resource_kind} '{resource_name}' not ready after {elapsed:.1f}s timeout"
+            )
+        except Exception as e:
+            wandb.termwarn(
+                f"{LOG_PREFIX}Error waiting for {resource_kind} '{resource_name}': {e}"
+            )
+
+    async def _wait_for_deployment_ready(
+        self,
+        api_client: kubernetes_asyncio.client.ApiClient,
+        name: str,
+        namespace: str,
+        timeout_seconds: int,
+    ) -> None:
+        """Wait for a Deployment to be ready."""
+        apps_api = kubernetes_asyncio.client.AppsV1Api(api_client)
+
+        async def check_deployment_ready():
+            try:
+                deployment = await apps_api.read_namespaced_deployment(
+                    name=name, namespace=namespace
+                )
+                status = deployment.status
+
+                if status.ready_replicas and status.replicas:
+                    return status.ready_replicas >= status.replicas
+                return False
+            except Exception:
+                return False
+
+        await self._wait_with_timeout(check_deployment_ready, timeout_seconds)
+
+    async def _wait_for_service_ready(
+        self,
+        api_client: kubernetes_asyncio.client.ApiClient,
+        name: str,
+        namespace: str,
+        timeout_seconds: int,
+    ) -> None:
+        """Wait for a Service to have endpoints."""
+        core_api = kubernetes_asyncio.client.CoreV1Api(api_client)
+
+        async def check_service_ready():
+            try:
+                await core_api.read_namespaced_service(name=name, namespace=namespace)
+
+                try:
+                    endpoints = await core_api.read_namespaced_endpoints(
+                        name=name, namespace=namespace
+                    )
+                    if endpoints.subsets:
+                        for subset in endpoints.subsets:
+                            if subset.addresses:
+                                return True
+                    return False
+                except Exception:
+                    return False
+            except Exception:
+                return False
+
+        await self._wait_with_timeout(check_service_ready, timeout_seconds)
+
+    async def _wait_for_pod_ready(
+        self,
+        api_client: kubernetes_asyncio.client.ApiClient,
+        name: str,
+        namespace: str,
+        timeout_seconds: int,
+    ) -> None:
+        """Wait for a Pod to be ready."""
+        core_api = kubernetes_asyncio.client.CoreV1Api(api_client)
+
+        async def check_pod_ready():
+            try:
+                pod = await core_api.read_namespaced_pod(name=name, namespace=namespace)
+                if pod.status.phase == "Running":
+                    if pod.status.container_statuses:
+                        return all(
+                            status.ready for status in pod.status.container_statuses
+                        )
+                    return True
+                return False
+            except Exception:
+                return False
+
+        await self._wait_with_timeout(check_pod_ready, timeout_seconds)
+
+    async def _wait_with_timeout(self, check_func, timeout_seconds: int) -> None:
+        """Generic timeout wrapper for readiness checks."""
+        start_time = time.time()
+
+        while time.time() - start_time < timeout_seconds:
+            if await check_func():
+                return
+            await asyncio.sleep(2)
+
+        raise asyncio.TimeoutError(
+            f"Resource not ready within {timeout_seconds} seconds"
+        )
+
     async def _prepare_resource(
         self,
         api_client: kubernetes_asyncio.client.ApiClient,
@@ -556,6 +711,8 @@ class KubernetesRunner(AbstractRunner):
         auxiliary_resource_label_key: str,
         launch_project: LaunchProject,
         api_key_secret: Optional["V1Secret"] = None,
+        wait_for_ready: bool = True,
+        wait_timeout: int = 300,
     ) -> None:
         """Prepare a service for launch.
 
@@ -567,6 +724,8 @@ class KubernetesRunner(AbstractRunner):
             auxiliary_resource_label_key: The key of the auxiliary resource label.
             launch_project: The launch project to get environment variables from.
             api_key_secret: The API key secret to inject.
+            wait_for_ready: Whether to wait for the resource to be ready after creation.
+            wait_timeout: Maximum time in seconds to wait for resource readiness.
         """
         config.setdefault("metadata", {})
         config["metadata"].setdefault("labels", {})
@@ -617,6 +776,11 @@ class KubernetesRunner(AbstractRunner):
         await kubernetes_asyncio.utils.create_from_dict(
             api_client, config, namespace=namespace
         )
+
+        if wait_for_ready:
+            await self._wait_for_resource_ready(
+                api_client, config, namespace, wait_timeout
+            )
 
     async def run(
         self, launch_project: LaunchProject, image_uri: str
@@ -773,6 +937,10 @@ class KubernetesRunner(AbstractRunner):
                 f"{LOG_PREFIX}Creating additional services: {additional_services}"
             )
             auxiliary_resource_label_key = f"aux-{uuid.uuid4()}"
+
+            wait_for_ready = resource_args.get("wait_for_ready", True)
+            wait_timeout = resource_args.get("wait_timeout", 300)
+
             await asyncio.gather(
                 *[
                     self._prepare_resource(
@@ -783,6 +951,8 @@ class KubernetesRunner(AbstractRunner):
                         auxiliary_resource_label_key,
                         launch_project,
                         secret,
+                        wait_for_ready,
+                        wait_timeout,
                     )
                     for resource in additional_services
                     if resource.get("config", {})
