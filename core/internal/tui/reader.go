@@ -18,7 +18,7 @@ type WandbReader struct {
 	config      *runconfig.RunConfig
 	environment *runenvironment.RunEnvironment
 	// TODO: summary
-	exitSeen    bool
+	exitSeen bool
 }
 
 // NewWandbReader creates a new wandb file reader

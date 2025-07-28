@@ -78,8 +78,8 @@ var (
 				MarginTop(1).
 				MarginBottom(2)
 
-	sidebarKeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
+	// sidebarKeyStyle = lipgloss.NewStyle().
+	// 		Foreground(lipgloss.Color("241"))
 
 	sidebarValueStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("252"))
