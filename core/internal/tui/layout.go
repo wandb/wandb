@@ -48,13 +48,11 @@ func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
 	chartHeightWithPadding := availableHeight / GridRows
 	chartWidthWithPadding := windowWidth / GridCols
 
-	// Account for borders, title, and padding
 	borderChars := 2
 	titleLines := 1
-	padding := 1
 
-	chartWidth := chartWidthWithPadding - borderChars - padding
-	chartHeight := chartHeightWithPadding - borderChars - titleLines - padding
+	chartWidth := chartWidthWithPadding - borderChars
+	chartHeight := chartHeightWithPadding - borderChars - titleLines
 
 	// Ensure minimum size
 	if chartHeight < MinChartHeight {

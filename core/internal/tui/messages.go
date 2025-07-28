@@ -9,6 +9,21 @@ type HistoryMsg struct {
 	Step    int
 }
 
+// ConfigMsg contains configuration data from the wandb run
+type ConfigMsg struct {
+	Config map[string]any
+}
+
+// SummaryMsg contains summary data from the wandb run
+type SummaryMsg struct {
+	Summary map[string]any
+}
+
+// SystemInfoMsg contains system/environment information
+type SystemInfoMsg struct {
+	Environment map[string]string
+}
+
 // TickMsg represents a timer tick.
 type TickMsg time.Time
 

@@ -23,6 +23,8 @@ type Model struct {
 	fileComplete bool
 	runPath      string
 	reader       *WandbReader
+	sidebar      *Sidebar
+	runOverview  RunOverview
 }
 
 // NewModel creates a new model instance
@@ -38,12 +40,21 @@ func NewModel(runPath string) *Model {
 		totalPages:   0,
 		fileComplete: false,
 		runPath:      runPath,
+		sidebar:      NewSidebar(),
 	}
 
 	// Initialize the grid structure
 	for row := range GridRows {
 		m.charts[row] = make([]*EpochLineChart, GridCols)
 	}
+
+	// Set initial sidebar content
+	m.sidebar.SetRunOverview(RunOverview{
+		RunPath:     runPath,
+		Config:      make(map[string]interface{}),
+		Summary:     make(map[string]interface{}),
+		Environment: make(map[string]string),
+	})
 
 	return m
 }
@@ -58,42 +69,81 @@ func (m *Model) Init() tea.Cmd {
 
 // Update implements tea.Model
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	updatedSidebar, sidebarCmd := m.sidebar.Update(msg)
+	m.sidebar = updatedSidebar
+	if sidebarCmd != nil {
+		cmds = append(cmds, sidebarCmd)
+	}
+
 	switch msg := msg.(type) {
 	case InitMsg:
 		m.reader = msg.Reader
-		return m, ReadNextHistoryRecord(m.reader)
+		cmds = append(cmds, ReadNextHistoryRecord(m.reader))
 
 	case HistoryMsg:
-		return m.handleHistoryMsg(msg)
+		newModel, cmd := m.handleHistoryMsg(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return newModel, tea.Batch(cmds...)
 
 	case TickMsg:
 		if !m.fileComplete && m.reader != nil {
-			return m, ReadNextHistoryRecord(m.reader)
+			cmds = append(cmds, ReadNextHistoryRecord(m.reader))
 		}
-		return m, nil
+
+	case ConfigMsg:
+		m.runOverview.Config = msg.Config
+		m.sidebar.SetRunOverview(m.runOverview)
+
+	case SummaryMsg:
+		m.runOverview.Summary = msg.Summary
+		m.sidebar.SetRunOverview(m.runOverview)
+
+	case SystemInfoMsg:
+		m.runOverview.Environment = msg.Environment
+		m.sidebar.SetRunOverview(m.runOverview)
 
 	case FileCompleteMsg:
 		m.fileComplete = true
-		return m, nil
 
 	case ErrorMsg:
 		fmt.Fprintf(os.Stderr, "Error reading file: %v\n", msg.Err)
 		m.fileComplete = true
-		return m, nil
 
 	case tea.MouseMsg:
-		return m.handleMouseMsg(msg)
+		// Don't handle mouse events during pgup/pgdown
+		newModel, cmd := m.handleMouseMsg(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return newModel, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
-		return m.handleKeyMsg(msg)
+		newModel, cmd := m.handleKeyMsg(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return newModel, tea.Batch(cmds...)
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.sidebar.UpdateDimensions(msg.Width)
 		m.updateChartSizes()
+
+	case SidebarAnimationMsg:
+		// Continue animation if needed
+		if m.sidebar.IsAnimating() {
+			// Update chart sizes during animation for smooth resizing
+			m.updateChartSizes()
+			cmds = append(cmds, m.sidebar.animationCmd())
+		}
 	}
 
-	return m, nil
+	return m, tea.Batch(cmds...)
 }
 
 // View implements tea.Model
@@ -102,11 +152,33 @@ func (m *Model) View() string {
 		return "Loading..."
 	}
 
-	dims := CalculateChartDimensions(m.width, m.height)
+	// Calculate available space for charts
+	availableWidth := m.width - m.sidebar.Width()
+	dims := CalculateChartDimensions(availableWidth, m.height)
+
+	// Render main content
 	gridView := m.renderGrid(dims)
+
+	// Render sidebar
+	sidebarView := m.sidebar.View(m.height - StatusBarHeight)
+
+	// Combine sidebar and main content (without status bar)
+	var mainView string
+	if m.sidebar.Width() > 0 {
+		mainView = lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			sidebarView,
+			gridView,
+		)
+	} else {
+		mainView = gridView
+	}
+
+	// Render status bar that spans the full width
 	statusBar := m.renderStatusBar()
 
-	return lipgloss.JoinVertical(lipgloss.Left, gridView, statusBar)
+	// Combine main view and status bar
+	return lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
 }
 
 // handleHistoryMsg processes new history data
@@ -117,7 +189,8 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	for metricName, value := range msg.Metrics {
 		chart, exists := m.chartsByName[metricName]
 		if !exists {
-			dims := CalculateChartDimensions(m.width, m.height)
+			availableWidth := m.width - m.sidebar.Width()
+			dims := CalculateChartDimensions(availableWidth, m.height)
 			colorIndex := len(m.allCharts)
 			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, colorIndex, metricName)
 
@@ -145,11 +218,20 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 		return m, nil
 	}
 
-	dims := CalculateChartDimensions(m.width, m.height)
+	// Check if mouse is in sidebar area
+	if msg.X < m.sidebar.Width() {
+		// Let sidebar handle its own scrolling
+		return m, nil
+	}
+
+	// Adjust mouse X position for sidebar offset
+	adjustedX := msg.X - m.sidebar.Width()
+	availableWidth := m.width - m.sidebar.Width()
+	dims := CalculateChartDimensions(availableWidth, m.height)
 
 	// Find which chart the mouse is over
 	row := msg.Y / dims.ChartHeightWithPadding
-	col := msg.X / dims.ChartWidthWithPadding
+	col := adjustedX / dims.ChartWidthWithPadding
 
 	if row >= 0 && row < GridRows && col >= 0 && col < GridCols && m.charts[row][col] != nil {
 		chart := m.charts[row][col]
@@ -161,7 +243,7 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 			graphStartX += chart.Origin().X + 1
 		}
 
-		relativeMouseX := msg.X - graphStartX
+		relativeMouseX := adjustedX - graphStartX
 
 		if relativeMouseX >= 0 && relativeMouseX < chart.GraphWidth() {
 			// Focus on the chart under mouse
@@ -186,6 +268,13 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 
 // handleKeyMsg processes keyboard events
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	// Check for ctrl+b for sidebar toggle
+	if msg.Type == tea.KeyCtrlB {
+		m.sidebar.Toggle()
+		m.updateChartSizes()
+		return m, m.sidebar.animationCmd()
+	}
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		if m.reader != nil {
@@ -301,7 +390,7 @@ func (m *Model) renderGridCell(row, col int, dims ChartDimensions) string {
 
 // renderStatusBar creates the status bar
 func (m *Model) renderStatusBar() string {
-	statusText := fmt.Sprintf("Step: %d • r: reset • q: quit • PgUp/PgDn: navigate", m.step)
+	statusText := fmt.Sprintf("Step: %d • ctrl+b: sidebar • r: reset • q: quit • PgUp/PgDn: navigate", m.step)
 	if !m.fileComplete {
 		statusText += " • [Reading file...]"
 	}
@@ -351,9 +440,10 @@ func (m *Model) loadCurrentPage() {
 	}
 }
 
-// updateChartSizes updates all chart sizes when window is resized
+// updateChartSizes updates all chart sizes when window is resized or sidebar toggled
 func (m *Model) updateChartSizes() {
-	dims := CalculateChartDimensions(m.width, m.height)
+	availableWidth := m.width - m.sidebar.Width()
+	dims := CalculateChartDimensions(availableWidth, m.height)
 
 	// Update all charts sizes
 	for _, chart := range m.allCharts {
