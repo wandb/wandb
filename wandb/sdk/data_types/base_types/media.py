@@ -45,10 +45,6 @@ def _wb_filename(
 ) -> str:
     r"""Generates a safe filename/path for storing media files, using the provided key, step, and id.
 
-    The filename is made safe by:
-    1. Removing any leading slashes to prevent writing to absolute paths
-    2. Replacing '.' and '..' with underscores to prevent directory traversal attacks
-
     If the key contains slashes (e.g. 'images/cats/fluffy.jpg'), subdirectories will be created:
         media/
           images/
@@ -73,23 +69,7 @@ def _wb_filename(
             f'Media {key} is invalid. Please remove invalid filename characters (\\, :, *, ?, ", <, >, |)'
         )
 
-    # On Windows, convert forward slashes to backslashes.
-    # This ensures that the key is a valid filename on Windows.
-    if SYS_PLATFORM == "Windows":
-        key = str(key).replace("/", os.sep)
-
-    # Avoid writing to absolute paths by striping any leading slashes.
-    # The key has already been validated for windows operating systems in util.check_windows_valid_filename
-    # This ensures the key does not contain invalid characters for windows, such as '\' or ':'.
-    # So we can check only for '/' in the key.
-    key = str(key).lstrip(os.sep)
-
-    # Avoid directory traversal by replacing dots with underscores.
-    keys = key.split(os.sep)
-    keys = [k.replace(".", "_") if k in (os.curdir, os.pardir) else k for k in keys]
-
-    # Recombine the key into a relative path.
-    key = os.sep.join(keys)
+    key = util.make_file_path_upload_safe(str(key))
 
     return f"{str(key)}_{str(step)}_{str(id)}{extension}"
 

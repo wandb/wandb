@@ -340,6 +340,32 @@ def get_local_path_or_none(path_or_uri: str) -> Optional[str]:
     else:
         return None
 
+def make_file_path_upload_safe(path: str) -> str:
+    """Makes the provide path safe for file upload.
+
+    The filename is made safe by:
+    1. Removing any leading slashes to prevent writing to absolute paths
+    2. Replacing '.' and '..' with underscores to prevent directory traversal attacks
+    """
+    # On Windows, convert forward slashes to backslashes.
+    # This ensures that the key is a valid filename on Windows.
+    if platform.system() == "Windows":
+        path = str(path).replace("/", os.sep)
+
+    # Avoid writing to absolute paths by striping any leading slashes.
+    # The key has already been validated for windows operating systems in util.check_windows_valid_filename
+    # This ensures the key does not contain invalid characters for windows, such as '\' or ':'.
+    # So we can check only for '/' in the key.
+    path = path.lstrip(os.sep)
+
+    # Avoid directory traversal by replacing dots with underscores.
+    paths = path.split(os.sep)
+    safe_paths = [p.replace(".", "_") if p in (os.curdir, os.pardir) else p for p in paths]
+
+    # Recombine the key into a relative path.
+    safe_paths = [p.replace(".", "_") if p in (os.curdir, os.pardir) else p for p in paths]
+    return os.sep.join(safe_paths)
+
 
 def make_tarfile(
     output_filename: str,

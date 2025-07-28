@@ -839,8 +839,9 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
         root = os.path.abspath(root)
         name = os.path.relpath(path, root)
+        upload_path = util.make_file_path_upload_safe(name)
         with open(os.path.join(root, name), "rb") as f:
-            api.push({LogicalPath(name): f})
+            api.push({LogicalPath(upload_path): f})
         return public.Files(self.client, self, [name])[0]
 
     @normalize_exceptions
