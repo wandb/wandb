@@ -106,11 +106,12 @@ func (s *Sidebar) UpdateDimensions(terminalWidth int) {
 	calculatedWidth := int(float64(terminalWidth) * SidebarWidthRatio)
 
 	// Clamp to min/max
-	if calculatedWidth < SidebarMinWidth {
+	switch {
+	case calculatedWidth < SidebarMinWidth:
 		s.expandedWidth = SidebarMinWidth
-	} else if calculatedWidth > SidebarMaxWidth {
+	case calculatedWidth > SidebarMaxWidth:
 		s.expandedWidth = SidebarMaxWidth
-	} else {
+	default:
 		s.expandedWidth = calculatedWidth
 	}
 
