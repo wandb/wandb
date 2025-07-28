@@ -274,7 +274,7 @@ func (s *Sidebar) animationCmd() tea.Cmd {
 
 // easeOutCubic provides smooth deceleration for animations
 func easeOutCubic(t float64) float64 {
-	t = t - 1
+	t--
 	return t*t*t + 1
 }
 
