@@ -1,7 +1,6 @@
 import hashlib
 import os
 import pathlib
-import platform
 import re
 import shutil
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union, cast
@@ -17,27 +16,6 @@ if TYPE_CHECKING:  # pragma: no cover
     import numpy as np
 
     from wandb.sdk.artifacts.artifact import Artifact
-
-
-SYS_PLATFORM = platform.system()
-
-
-def check_windows_valid_filename(path: Union[int, str]) -> bool:
-    r"""Verify that the given path does not contain any invalid characters for a Windows filename.
-
-    Windows filenames cannot contain the following characters:
-    < > : " \ / | ? *
-
-    For more details, refer to the official documentation:
-    https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
-
-    Args:
-        path: The file path to check, which can be either an integer or a string.
-
-    Returns:
-        bool: True if the path does not contain any invalid characters, False otherwise.
-    """
-    return not bool(re.search(r'[<>:"\\?*]', path))  # type: ignore
 
 
 def _wb_filename(
@@ -64,11 +42,6 @@ def _wb_filename(
         ValueError: If running on Windows and the key contains invalid filename characters
                    (\\, :, *, ?, ", <, >, |)
     """
-    if SYS_PLATFORM == "Windows" and not check_windows_valid_filename(key):
-        raise ValueError(
-            f'Media {key} is invalid. Please remove invalid filename characters (\\, :, *, ?, ", <, >, |)'
-        )
-
     key = util.make_file_path_upload_safe(str(key))
 
     return f"{str(key)}_{str(step)}_{str(id)}{extension}"
