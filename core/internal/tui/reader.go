@@ -38,6 +38,8 @@ func NewWandbReader(runPath string) (*WandbReader, error) {
 
 // ReadNext reads the next record and converts it to a tea.Msg if relevant.
 // It returns a nil message for records that are not handled by the UI.
+//
+// gocyclo:ignore
 func (r *WandbReader) ReadNext() (tea.Msg, error) {
 	// Save current position before attempting read
 	currentOffset := r.store.GetCurrentOffset()
