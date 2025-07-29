@@ -53,7 +53,9 @@ def md5_file_b64(*paths: StrPath) -> B64MD5:
     hash_time_seconds = time.monotonic() - start_time
     if hash_time_seconds > 1.0:
         logger.debug(
-            f"Computed MD5 hash for file. paths={paths}, hashTimeMs={int(hash_time_seconds * 1000)}"
+            "Computed MD5 hash for file. paths=%s, hashTimeMs=%d",
+            paths,
+            int(hash_time_seconds * 1000),
         )
     return digest
 
