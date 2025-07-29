@@ -340,6 +340,7 @@ def get_local_path_or_none(path_or_uri: str) -> Optional[str]:
     else:
         return None
 
+
 def make_file_path_upload_safe(path: str) -> str:
     """Makes the provide path safe for file upload.
 
@@ -360,10 +361,11 @@ def make_file_path_upload_safe(path: str) -> str:
 
     # Avoid directory traversal by replacing dots with underscores.
     paths = path.split(os.sep)
-    safe_paths = [p.replace(".", "_") if p in (os.curdir, os.pardir) else p for p in paths]
+    safe_paths = [
+        p.replace(".", "_") if p in (os.curdir, os.pardir) else p for p in paths
+    ]
 
     # Recombine the key into a relative path.
-    safe_paths = [p.replace(".", "_") if p in (os.curdir, os.pardir) else p for p in paths]
     return os.sep.join(safe_paths)
 
 
