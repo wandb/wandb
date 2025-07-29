@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
@@ -9,7 +8,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runenvironment"
-	"github.com/wandb/wandb/core/internal/watcher" // Assuming local import path
+	"github.com/wandb/wandb/core/internal/watcher"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -31,34 +30,34 @@ type Model struct {
 	runPath        string
 	reader         *WandbReader
 	watcher        watcher.Watcher
-	watcherCtx     context.Context
-	watcherCancel  context.CancelFunc
+	watcherStarted bool // Track if watcher has been started
 	sidebar        *Sidebar
 	runOverview    RunOverview
 	runConfig      *runconfig.RunConfig
 	runEnvironment *runenvironment.RunEnvironment
+	msgChan        chan tea.Msg // Channel to receive watcher callbacks
 }
 
 // NewModel creates a new model instance.
 func NewModel(runPath string) *Model {
-	ctx, cancel := context.WithCancel(context.Background())
+	log.Printf("Creating new model for runPath: %s", runPath)
 
 	m := &Model{
-		allCharts:     make([]*EpochLineChart, 0),
-		chartsByName:  make(map[string]*EpochLineChart),
-		charts:        make([][]*EpochLineChart, GridRows),
-		step:          0,
-		focusedRow:    -1,
-		focusedCol:    -1,
-		currentPage:   0,
-		totalPages:    0,
-		fileComplete:  false,
-		runPath:       runPath,
-		sidebar:       NewSidebar(),
-		watcher:       watcher.New(watcher.Params{}),
-		watcherCtx:    ctx,
-		watcherCancel: cancel,
-		runConfig:     runconfig.New(),
+		allCharts:      make([]*EpochLineChart, 0),
+		chartsByName:   make(map[string]*EpochLineChart),
+		charts:         make([][]*EpochLineChart, GridRows),
+		step:           0,
+		focusedRow:     -1,
+		focusedCol:     -1,
+		currentPage:    0,
+		totalPages:     0,
+		fileComplete:   false,
+		runPath:        runPath,
+		sidebar:        NewSidebar(),
+		watcher:        watcher.New(watcher.Params{}),
+		watcherStarted: false,
+		runConfig:      runconfig.New(),
+		msgChan:        make(chan tea.Msg, 100), // Buffered channel for watcher callbacks
 	}
 
 	for row := range GridRows {
@@ -74,15 +73,29 @@ func NewModel(runPath string) *Model {
 
 // Init implements tea.Model.
 func (m *Model) Init() tea.Cmd {
+	log.Printf("Init called")
 	return tea.Batch(
 		tea.SetWindowTitle("wandb moni"),
 		InitializeReader(m.runPath),
+		m.waitForWatcherMsg(), // Start listening for watcher messages
 	)
+}
+
+// waitForWatcherMsg returns a command that waits for messages from the watcher
+func (m *Model) waitForWatcherMsg() tea.Cmd {
+	return func() tea.Msg {
+		log.Printf("Waiting for watcher message...")
+		msg := <-m.msgChan
+		log.Printf("Received watcher message: %T", msg)
+		return msg
+	}
 }
 
 // Update implements tea.Model.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
+
+	log.Printf("Update received message: %T", msg)
 
 	updatedSidebar, sidebarCmd := m.sidebar.Update(msg)
 	m.sidebar = updatedSidebar
@@ -92,42 +105,56 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case InitMsg:
+		log.Printf("InitMsg received, reader initialized")
 		m.reader = msg.Reader
-		// Perform the initial read. The watcher will be started in the
-		// InitialDataMsg handler if the run is not already complete.
+		// Perform the initial read
 		return m, ReadAvailableRecords(m.reader)
 
-	case InitialDataMsg:
+	case BatchedRecordsMsg:
+		log.Printf("BatchedRecordsMsg received with %d messages", len(msg.Msgs))
+		// Process all records from the batch
 		for _, subMsg := range msg.Msgs {
+			log.Printf("Processing sub-message: %T", subMsg)
 			var cmd tea.Cmd
 			m, cmd = m.processRecordMsg(subMsg)
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
 		}
-		// After processing all initial messages, start the watcher
-		// only if we haven't seen the exit record.
-		if !m.fileComplete {
-			cmds = append(cmds, WatchFile(m.watcher, m.runPath, m.watcherCtx))
+
+		// After processing initial messages, start the watcher if needed
+		if !m.fileComplete && !m.watcherStarted {
+			log.Printf("Starting watcher - fileComplete: %v, watcherStarted: %v", m.fileComplete, m.watcherStarted)
+			if err := m.startWatcher(); err != nil {
+				log.Printf("Error starting watcher: %v", err)
+				fmt.Fprintf(os.Stderr, "Error starting watcher: %v\n", err)
+			} else {
+				log.Printf("Watcher started successfully")
+			}
+		} else {
+			log.Printf("Not starting watcher - fileComplete: %v, watcherStarted: %v", m.fileComplete, m.watcherStarted)
 		}
+
 		return m, tea.Batch(cmds...)
 
 	case FileChangedMsg:
-		// File changed, so read new records and restart the watch command.
+		log.Printf("FileChangedMsg received - file has changed!")
+		// File changed, read new records
 		cmds = append(cmds, ReadAvailableRecords(m.reader))
-		cmds = append(cmds, WatchFile(m.watcher, m.runPath, m.watcherCtx))
+		// Continue waiting for watcher messages
+		cmds = append(cmds, m.waitForWatcherMsg())
+		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
 		newModel, cmd := m.handleKeyMsg(msg)
 		return newModel, cmd
 
 	case tea.MouseMsg, tea.WindowSizeMsg, SidebarAnimationMsg:
-		// Passthrough for other message types to their handlers.
 		newModel, cmd := m.handleOther(msg)
 		return newModel, cmd
 
 	default:
-		// Process individual record messages that might arrive outside of a batch.
+		// Process individual record messages
 		var cmd tea.Cmd
 		m, cmd = m.processRecordMsg(msg)
 		if cmd != nil {
@@ -173,44 +200,78 @@ func (m *Model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
 }
 
+// startWatcher starts watching the file for changes
+func (m *Model) startWatcher() error {
+	log.Printf("startWatcher called for path: %s", m.runPath)
+	m.watcherStarted = true
+
+	// Register the file with the watcher
+	err := m.watcher.Watch(m.runPath, func() {
+		log.Printf("Watcher callback triggered! File changed: %s", m.runPath)
+		// This callback is called from the watcher's goroutine
+		// Send a message through the channel
+		select {
+		case m.msgChan <- FileChangedMsg{}:
+			log.Printf("FileChangedMsg sent to channel")
+		default:
+			log.Printf("Warning: msgChan is full, dropping FileChangedMsg")
+		}
+	})
+
+	if err != nil {
+		log.Printf("Error in watcher.Watch: %v", err)
+		return err
+	}
+
+	log.Printf("Watcher registered successfully")
+	return nil
+}
+
 // processRecordMsg handles messages that carry data from the .wandb file.
 func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case HistoryMsg:
+		log.Printf("Processing HistoryMsg with step %d", msg.Step)
 		return m.handleHistoryMsg(msg)
 	case ConfigMsg:
+		log.Printf("Processing ConfigMsg")
 		onError := func(err error) {
-			// A real implementation should probably display this error in the UI.
 			log.Printf("Error applying config record: %v", err)
 		}
 		m.runConfig.ApplyChangeRecord(msg.Record, onError)
 		m.runOverview.Config = m.runConfig.CloneTree()
 		m.sidebar.SetRunOverview(m.runOverview)
 	case SystemInfoMsg:
+		log.Printf("Processing SystemInfoMsg")
 		if m.runEnvironment == nil {
-			// The writer ID is needed to initialize the run environment.
-			// We get it from the first environment record we see.
 			m.runEnvironment = runenvironment.New(msg.Record.GetWriterId())
 		}
 		m.runEnvironment.ProcessRecord(msg.Record)
 		m.runOverview.Environment = m.runEnvironment.ToRunConfigData()
 		m.sidebar.SetRunOverview(m.runOverview)
 	case SummaryMsg:
+		log.Printf("Processing SummaryMsg")
 		m.runOverview.Summary = msg.Summary
 		m.sidebar.SetRunOverview(m.runOverview)
 	case FileCompleteMsg:
+		log.Printf("Processing FileCompleteMsg - file is complete!")
 		if !m.fileComplete {
 			m.fileComplete = true
-			m.watcherCancel()  // Stop the watcher command.
-			m.watcher.Finish() // Clean up watcher resources.
-			// Re-create context for potential restarts.
-			m.watcherCtx, m.watcherCancel = context.WithCancel(context.Background())
+			// Stop the watcher
+			if m.watcherStarted {
+				log.Printf("Finishing watcher")
+				m.watcher.Finish()
+			}
 		}
 	case ErrorMsg:
+		log.Printf("Processing ErrorMsg: %v", msg.Err)
 		fmt.Fprintf(os.Stderr, "Error reading file: %v\n", msg.Err)
-		m.fileComplete = true // Assume run is done on error
-		m.watcherCancel()
-		m.watcher.Finish()
+		m.fileComplete = true
+		// Stop the watcher
+		if m.watcherStarted {
+			log.Printf("Finishing watcher due to error")
+			m.watcher.Finish()
+		}
 	}
 	return m, nil
 }
@@ -218,6 +279,7 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 // handleHistoryMsg processes new history data
 func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	m.step = msg.Step
+	log.Printf("Handling history message for step %d with %d metrics", msg.Step, len(msg.Metrics))
 
 	for metricName, value := range msg.Metrics {
 		chart, exists := m.chartsByName[metricName]
@@ -231,6 +293,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 			m.chartsByName[metricName] = chart
 
 			m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
+			log.Printf("Created new chart for metric: %s", metricName)
 		}
 		chart.AddDataPoint(value)
 		chart.Draw()
@@ -296,13 +359,15 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	}
 	switch msg.String() {
 	case "q", "ctrl+c":
+		log.Printf("Quit requested")
 		if m.reader != nil {
 			m.reader.Close()
 		}
-		if m.watcher != nil {
-			m.watcherCancel()
+		if m.watcherStarted {
+			log.Printf("Finishing watcher on quit")
 			m.watcher.Finish()
 		}
+		close(m.msgChan) // Clean up the channel
 		return m, tea.Quit
 	case "r":
 		m.resetCharts()

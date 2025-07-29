@@ -47,7 +47,7 @@ type InitMsg struct {
 	Reader *WandbReader
 }
 
-// InitialDataMsg contains all messages read during an initial or subsequent scan.
-type InitialDataMsg struct {
+// BatchedRecordsMsg contains all messages read during a batch read.
+type BatchedRecordsMsg struct {
 	Msgs []tea.Msg
 }

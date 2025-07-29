@@ -194,3 +194,55 @@ func (sr *Store) Read() (*spb.Record, error) {
 	}
 	return msg, nil
 }
+
+// Recover clears any errors, so that calling Next will restart
+// reading from the next good block.
+func (sr *Store) Recover() {
+	sr.reader.Recover()
+}
+
+// GetCurrentOffset returns the current read offset if the underlying reader supports seeking.
+// Returns -1 if seeking is not supported or if there's an error.
+func (sr *Store) GetCurrentOffset() int64 {
+	if sr.db == nil {
+		return -1
+	}
+
+	offset, err := sr.db.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return -1
+	}
+
+	return offset
+}
+
+// SeekToOffset seeks to the specified offset before the next read operation.
+// This is useful for retrying reads from a known good position.
+func (sr *Store) SeekToOffset(offset int64) error {
+	if sr.db == nil {
+		return fmt.Errorf("store: db is closed")
+	}
+
+	if sr.reader == nil {
+		return fmt.Errorf("store: reader not initialized")
+	}
+
+	// Seek the underlying file
+	_, err := sr.db.Seek(offset, io.SeekStart)
+	if err != nil {
+		return fmt.Errorf("store: failed to seek: %w", err)
+	}
+
+	// Reset the reader state - we need to create a new reader from the seeked position
+	sr.reader = leveldb.NewReaderExt(sr.db, leveldb.CRCAlgoIEEE)
+
+	// Skip the header if we're seeking to the beginning
+	if offset <= headerLength {
+		headerBuffer := make([]byte, headerLength)
+		if err := sr.reader.ReadHeader(headerBuffer); err != nil {
+			return fmt.Errorf("store: failed to read header after seek: %w", err)
+		}
+	}
+
+	return nil
+}

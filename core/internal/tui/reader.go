@@ -13,8 +13,9 @@ import (
 
 // WandbReader handles reading records from a .wandb file.
 type WandbReader struct {
-	store    *stream.Store
-	exitSeen bool
+	store          *stream.Store
+	exitSeen       bool
+	lastGoodOffset int64
 }
 
 // NewWandbReader creates a new wandb file reader.
@@ -24,21 +25,58 @@ func NewWandbReader(runPath string) (*WandbReader, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Initialize with the current offset (should be after header)
+	initialOffset := store.GetCurrentOffset()
+
 	return &WandbReader{
-		store:    store,
-		exitSeen: false,
+		store:          store,
+		exitSeen:       false,
+		lastGoodOffset: initialOffset,
 	}, nil
 }
 
 // ReadNext reads the next record and converts it to a tea.Msg if relevant.
 // It returns a nil message for records that are not handled by the UI.
 func (r *WandbReader) ReadNext() (tea.Msg, error) {
+	// Save current position before attempting read
+	currentOffset := r.store.GetCurrentOffset()
+
 	record, err := r.store.Read()
 	if err != nil {
-		if err == io.EOF && r.exitSeen {
-			return FileCompleteMsg{}, io.EOF
+		if err == io.EOF {
+			if r.exitSeen {
+				return FileCompleteMsg{}, io.EOF
+			}
+
+			// For live runs with EOF, seek back to last known good position
+			// This prevents skipping incomplete records when new data arrives
+			if r.lastGoodOffset >= 0 && currentOffset >= 0 {
+				if seekErr := r.store.SeekToOffset(r.lastGoodOffset); seekErr == nil {
+					// Successfully seeked back, don't call Recover()
+					return nil, err
+				}
+			}
+
+			// Fallback to recover if seek fails or offsets unavailable
+			r.store.Recover()
+		} else {
+			// For non-EOF errors, try seeking back first
+			if r.lastGoodOffset >= 0 && currentOffset >= 0 {
+				if seekErr := r.store.SeekToOffset(r.lastGoodOffset); seekErr != nil {
+					// If seek fails, use recover as fallback
+					r.store.Recover()
+				}
+			} else {
+				r.store.Recover()
+			}
 		}
-		return nil, err // Could be temporary EOF or another error
+		return nil, err
+	}
+
+	// Successfully read a record - update our last good position
+	if currentOffset >= 0 {
+		r.lastGoodOffset = currentOffset
 	}
 
 	switch rec := record.RecordType.(type) {
