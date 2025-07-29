@@ -3,9 +3,9 @@ package tui
 import (
 	"fmt"
 	"log"
-	"os"
 	"strings"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runenvironment"
 	"github.com/wandb/wandb/core/internal/watcher"
@@ -16,9 +16,11 @@ import (
 
 // Model represents the main application state.
 type Model struct {
-	allCharts      []*EpochLineChart
-	chartsByName   map[string]*EpochLineChart
-	charts         [][]*EpochLineChart // Current page of charts arranged in grid
+	allCharts    []*EpochLineChart
+	chartsByName map[string]*EpochLineChart
+
+	// charts holds the current page of charts arranged in grid
+	charts         [][]*EpochLineChart
 	width          int
 	height         int
 	step           int
@@ -35,12 +37,16 @@ type Model struct {
 	runOverview    RunOverview
 	runConfig      *runconfig.RunConfig
 	runEnvironment *runenvironment.RunEnvironment
-	msgChan        chan tea.Msg // Channel to receive watcher callbacks
+
+	// msgChan is the channel to receive watcher callbacks.
+	msgChan chan tea.Msg
+
+	// logger is the debug logger for the application.
+	logger *observability.CoreLogger
 }
 
-// NewModel creates a new model instance.
-func NewModel(runPath string) *Model {
-	log.Printf("Creating new model for runPath: %s", runPath)
+func NewModel(runPath string, logger *observability.CoreLogger) *Model {
+	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
 
 	m := &Model{
 		allCharts:      make([]*EpochLineChart, 0),
@@ -58,6 +64,7 @@ func NewModel(runPath string) *Model {
 		watcherStarted: false,
 		runConfig:      runconfig.New(),
 		msgChan:        make(chan tea.Msg, 100), // Buffered channel for watcher callbacks
+		logger:         logger,
 	}
 
 	for row := range GridRows {
@@ -73,7 +80,7 @@ func NewModel(runPath string) *Model {
 
 // Init implements tea.Model.
 func (m *Model) Init() tea.Cmd {
-	log.Printf("Init called")
+	m.logger.Debug("model: Init called")
 	return tea.Batch(
 		tea.SetWindowTitle("wandb moni"),
 		InitializeReader(m.runPath),
@@ -84,9 +91,11 @@ func (m *Model) Init() tea.Cmd {
 // waitForWatcherMsg returns a command that waits for messages from the watcher
 func (m *Model) waitForWatcherMsg() tea.Cmd {
 	return func() tea.Msg {
-		log.Printf("Waiting for watcher message...")
+		m.logger.Debug("model: waiting for watcher message...")
 		msg := <-m.msgChan
-		log.Printf("Received watcher message: %T", msg)
+		if msg != nil {
+			m.logger.Debug(fmt.Sprintf("model: received watcher message: %T", msg))
+		}
 		return msg
 	}
 }
@@ -95,7 +104,7 @@ func (m *Model) waitForWatcherMsg() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	log.Printf("Update received message: %T", msg)
+	m.logger.Debug(fmt.Sprintf("model: Update received message: %T", msg))
 
 	updatedSidebar, sidebarCmd := m.sidebar.Update(msg)
 	m.sidebar = updatedSidebar
@@ -105,16 +114,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case InitMsg:
-		log.Printf("InitMsg received, reader initialized")
+		m.logger.Debug("model: InitMsg received, reader initialized")
 		m.reader = msg.Reader
-		// Perform the initial read
+		// Perform the initial read.
 		return m, ReadAvailableRecords(m.reader)
 
 	case BatchedRecordsMsg:
-		log.Printf("BatchedRecordsMsg received with %d messages", len(msg.Msgs))
-		// Process all records from the batch
+		m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
+		// Process all records from the batch.
 		for _, subMsg := range msg.Msgs {
-			log.Printf("Processing sub-message: %T", subMsg)
+			m.logger.Debug(fmt.Sprintf("model: processing sub-message: %T", subMsg))
 			var cmd tea.Cmd
 			m, cmd = m.processRecordMsg(subMsg)
 			if cmd != nil {
@@ -124,21 +133,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// After processing initial messages, start the watcher if needed
 		if !m.fileComplete && !m.watcherStarted {
-			log.Printf("Starting watcher - fileComplete: %v, watcherStarted: %v", m.fileComplete, m.watcherStarted)
+			m.logger.Debug(fmt.Sprintf("model: starting watcher - fileComplete: %v, watcherStarted: %v", m.fileComplete, m.watcherStarted))
 			if err := m.startWatcher(); err != nil {
-				log.Printf("Error starting watcher: %v", err)
-				fmt.Fprintf(os.Stderr, "Error starting watcher: %v\n", err)
+				m.logger.Error(fmt.Sprintf("model: error starting watcher: %v", err))
 			} else {
-				log.Printf("Watcher started successfully")
+				m.logger.Info("model: watcher started successfully")
 			}
 		} else {
-			log.Printf("Not starting watcher - fileComplete: %v, watcherStarted: %v", m.fileComplete, m.watcherStarted)
+			m.logger.Info(fmt.Sprintf("model: not starting watcher - fileComplete: %v, watcherStarted: %v", m.fileComplete, m.watcherStarted))
 		}
 
 		return m, tea.Batch(cmds...)
 
 	case FileChangedMsg:
-		log.Printf("FileChangedMsg received - file has changed!")
+		m.logger.Debug("model: fileChangedMsg received - file has changed!")
 		// File changed, read new records
 		cmds = append(cmds, ReadAvailableRecords(m.reader))
 		// Continue waiting for watcher messages
@@ -202,28 +210,28 @@ func (m *Model) View() string {
 
 // startWatcher starts watching the file for changes
 func (m *Model) startWatcher() error {
-	log.Printf("startWatcher called for path: %s", m.runPath)
+	m.logger.Debug(fmt.Sprintf("model: startWatcher called for path: %s", m.runPath))
 	m.watcherStarted = true
 
 	// Register the file with the watcher
 	err := m.watcher.Watch(m.runPath, func() {
-		log.Printf("Watcher callback triggered! File changed: %s", m.runPath)
+		m.logger.Debug(fmt.Sprintf("model: watcher callback triggered! File changed: %s", m.runPath))
 		// This callback is called from the watcher's goroutine
 		// Send a message through the channel
 		select {
 		case m.msgChan <- FileChangedMsg{}:
-			log.Printf("FileChangedMsg sent to channel")
+			m.logger.Debug("model: FileChangedMsg sent to channel")
 		default:
-			log.Printf("Warning: msgChan is full, dropping FileChangedMsg")
+			m.logger.Warn("model: msgChan is full, dropping FileChangedMsg")
 		}
 	})
 
 	if err != nil {
-		log.Printf("Error in watcher.Watch: %v", err)
+		m.logger.Error(fmt.Sprintf("model: error in watcher.Watch: %v", err))
 		return err
 	}
 
-	log.Printf("Watcher registered successfully")
+	m.logger.Debug("model: watcher registered successfully")
 	return nil
 }
 
@@ -231,18 +239,18 @@ func (m *Model) startWatcher() error {
 func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case HistoryMsg:
-		log.Printf("Processing HistoryMsg with step %d", msg.Step)
+		m.logger.Debug(fmt.Sprintf("model: processing HistoryMsg with step %d", msg.Step))
 		return m.handleHistoryMsg(msg)
 	case ConfigMsg:
-		log.Printf("Processing ConfigMsg")
+		m.logger.Debug("model: processing ConfigMsg")
 		onError := func(err error) {
-			log.Printf("Error applying config record: %v", err)
+			m.logger.Error(fmt.Sprintf("Error applying config record: %v", err))
 		}
 		m.runConfig.ApplyChangeRecord(msg.Record, onError)
 		m.runOverview.Config = m.runConfig.CloneTree()
 		m.sidebar.SetRunOverview(m.runOverview)
 	case SystemInfoMsg:
-		log.Printf("Processing SystemInfoMsg")
+		m.logger.Debug("model: processing SystemInfoMsg")
 		if m.runEnvironment == nil {
 			m.runEnvironment = runenvironment.New(msg.Record.GetWriterId())
 		}
@@ -250,11 +258,11 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 		m.runOverview.Environment = m.runEnvironment.ToRunConfigData()
 		m.sidebar.SetRunOverview(m.runOverview)
 	case SummaryMsg:
-		log.Printf("Processing SummaryMsg")
+		m.logger.Debug("model: processing SummaryMsg")
 		m.runOverview.Summary = msg.Summary
 		m.sidebar.SetRunOverview(m.runOverview)
 	case FileCompleteMsg:
-		log.Printf("Processing FileCompleteMsg - file is complete!")
+		m.logger.Debug("model: processing FileCompleteMsg - file is complete!")
 		if !m.fileComplete {
 			m.fileComplete = true
 			// Stop the watcher
@@ -264,12 +272,11 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 			}
 		}
 	case ErrorMsg:
-		log.Printf("Processing ErrorMsg: %v", msg.Err)
-		fmt.Fprintf(os.Stderr, "Error reading file: %v\n", msg.Err)
+		m.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
 		m.fileComplete = true
 		// Stop the watcher
 		if m.watcherStarted {
-			log.Printf("Finishing watcher due to error")
+			m.logger.Debug("model: finishing watcher due to error")
 			m.watcher.Finish()
 		}
 	}
@@ -279,7 +286,7 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 // handleHistoryMsg processes new history data
 func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	m.step = msg.Step
-	log.Printf("Handling history message for step %d with %d metrics", msg.Step, len(msg.Metrics))
+	m.logger.Debug(fmt.Sprintf("model: handling history message for step %d with %d metrics", msg.Step, len(msg.Metrics)))
 
 	for metricName, value := range msg.Metrics {
 		chart, exists := m.chartsByName[metricName]
@@ -293,7 +300,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 			m.chartsByName[metricName] = chart
 
 			m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
-			log.Printf("Created new chart for metric: %s", metricName)
+			m.logger.Debug(fmt.Sprintf("model: created new chart for metric: %s", metricName))
 		}
 		chart.AddDataPoint(value)
 		chart.Draw()
@@ -359,17 +366,18 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	}
 	switch msg.String() {
 	case "q", "ctrl+c":
-		log.Printf("Quit requested")
+		m.logger.Debug("model: quit requested")
 		if m.reader != nil {
 			m.reader.Close()
 		}
 		if m.watcherStarted {
-			log.Printf("Finishing watcher on quit")
+			m.logger.Debug("model: finishing watcher on quit")
 			m.watcher.Finish()
 		}
 		close(m.msgChan) // Clean up the channel
 		return m, tea.Quit
 	case "r":
+		// TODO: convert this into a file reload.
 		m.resetCharts()
 	case "pgup":
 		m.navigatePage(-1)
@@ -402,14 +410,14 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 	return m, nil
 }
 
-// clearFocus removes focus from all charts
+// clearFocus removes focus from all charts.
 func (m *Model) clearFocus() {
 	if m.focusedRow >= 0 && m.focusedCol >= 0 && m.charts[m.focusedRow][m.focusedCol] != nil {
 		m.charts[m.focusedRow][m.focusedCol].SetFocused(false)
 	}
 }
 
-// resetCharts resets all charts and step counter
+// resetCharts resets all charts and step counter.
 func (m *Model) resetCharts() {
 	m.step = 0
 	for _, chart := range m.allCharts {
@@ -418,7 +426,7 @@ func (m *Model) resetCharts() {
 	m.loadCurrentPage()
 }
 
-// navigatePage changes the current page
+// navigatePage changes the current page.
 func (m *Model) navigatePage(direction int) {
 	if m.totalPages <= 1 {
 		return
@@ -438,12 +446,12 @@ func (m *Model) navigatePage(direction int) {
 	m.loadCurrentPage()
 }
 
-// renderGrid creates the chart grid view
+// renderGrid creates the chart grid view.
 func (m *Model) renderGrid(dims ChartDimensions) string {
 	var rows []string
-	for row := 0; row < GridRows; row++ {
+	for row := range GridRows {
 		var cols []string
-		for col := 0; col < GridCols; col++ {
+		for col := range GridCols {
 			cellContent := m.renderGridCell(row, col, dims)
 			cols = append(cols, cellContent)
 		}
@@ -529,7 +537,7 @@ func (m *Model) renderStatusBar() string {
 	return statusBarStyle.Width(m.width).Render(finalBarContent)
 }
 
-// loadCurrentPage loads the charts for the current page into the grid
+// loadCurrentPage loads the charts for the current page into the grid.
 func (m *Model) loadCurrentPage() {
 	m.charts = make([][]*EpochLineChart, GridRows)
 	for row := 0; row < GridRows; row++ {
@@ -554,7 +562,7 @@ func (m *Model) loadCurrentPage() {
 	}
 }
 
-// updateChartSizes updates all chart sizes when window is resized or sidebar toggled
+// updateChartSizes updates all chart sizes when window is resized or sidebar toggled.
 func (m *Model) updateChartSizes() {
 	availableWidth := m.width - m.sidebar.Width()
 	dims := CalculateChartDimensions(availableWidth, m.height)

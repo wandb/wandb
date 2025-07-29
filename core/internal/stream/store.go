@@ -202,6 +202,7 @@ func (sr *Store) Recover() {
 }
 
 // GetCurrentOffset returns the current read offset if the underlying reader supports seeking.
+//
 // Returns -1 if seeking is not supported or if there's an error.
 func (sr *Store) GetCurrentOffset() int64 {
 	if sr.db == nil {
@@ -217,6 +218,7 @@ func (sr *Store) GetCurrentOffset() int64 {
 }
 
 // SeekToOffset seeks to the specified offset before the next read operation.
+//
 // This is useful for retrying reads from a known good position.
 func (sr *Store) SeekToOffset(offset int64) error {
 	if sr.db == nil {
