@@ -13,16 +13,16 @@ import wandb
     ],
     ids=["config", "summaryMetrics", "systemMetrics"],
 )
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
 def test_create_run_with_string_attrs(field, value, expected):
-    with mock.patch.object(wandb, "login", mock.MagicMock()):
-        run = wandb.apis.public.Run(
-            client=wandb.Api().client,
-            entity="test",
-            project="test",
-            run_id="test",
-            attrs={field: value},
-        )
-        assert getattr(run, field) == expected
+    run = wandb.apis.public.Run(
+        client=wandb.Api().client,
+        entity="test",
+        project="test",
+        run_id="test",
+        attrs={field: value},
+    )
+    assert getattr(run, field) == expected
 
 
 @pytest.mark.parametrize(
@@ -34,6 +34,7 @@ def test_create_run_with_string_attrs(field, value, expected):
     ],
     ids=["config", "summaryMetrics", "systemMetrics"],
 )
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
 def test_create_run_with_dictionary_attrs_already_parsed(field, value):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
         run = wandb.apis.public.Run(
@@ -55,6 +56,7 @@ def test_create_run_with_dictionary_attrs_already_parsed(field, value):
     ],
     ids=["config", "summaryMetrics", "systemMetrics"],
 )
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
 def test_create_run_with_dictionary__throws_type_error(field, value):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
         with pytest.raises(wandb.errors.CommError):
@@ -78,6 +80,7 @@ def test_create_run_with_dictionary__throws_type_error(field, value):
     ],
     ids=["config", "summaryMetrics", "systemMetrics"],
 )
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
 def test_create_run_with_control_characters(field, value, expected):
     with mock.patch.object(wandb, "login", mock.MagicMock()):
         run = wandb.apis.public.Run(
