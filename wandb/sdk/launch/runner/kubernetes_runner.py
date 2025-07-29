@@ -568,7 +568,9 @@ class KubernetesRunner(AbstractRunner):
         resource_name = config.get("metadata", {}).get("name")
 
         if not resource_kind or not resource_name:
-            wandb.termwarn(f"{LOG_PREFIX}Cannot wait for resource without kind or name")
+            wandb.termerror(
+                f"{LOG_PREFIX}Cannot wait for resource without kind or name"
+            )
             return
 
         wandb.termlog(
@@ -577,38 +579,28 @@ class KubernetesRunner(AbstractRunner):
 
         start_time = time.time()
 
-        try:
-            if resource_kind == "Deployment":
-                await self._wait_for_deployment_ready(
-                    api_client, resource_name, namespace, timeout_seconds
-                )
-            elif resource_kind == "Service":
-                await self._wait_for_service_ready(
-                    api_client, resource_name, namespace, timeout_seconds
-                )
-            elif resource_kind == "Pod":
-                await self._wait_for_pod_ready(
-                    api_client, resource_name, namespace, timeout_seconds
-                )
-            else:
-                wandb.termlog(
-                    f"{LOG_PREFIX}No specific readiness check for {resource_kind}, waiting 5 seconds..."
-                )
-                await asyncio.sleep(5)
-
-            elapsed = time.time() - start_time
+        if resource_kind == "Deployment":
+            await self._wait_for_deployment_ready(
+                api_client, resource_name, namespace, timeout_seconds
+            )
+        elif resource_kind == "Service":
+            await self._wait_for_service_ready(
+                api_client, resource_name, namespace, timeout_seconds
+            )
+        elif resource_kind == "Pod":
+            await self._wait_for_pod_ready(
+                api_client, resource_name, namespace, timeout_seconds
+            )
+        else:
             wandb.termlog(
-                f"{LOG_PREFIX}{resource_kind} '{resource_name}' is ready after {elapsed:.1f}s"
+                f"{LOG_PREFIX}No specific readiness check for {resource_kind}, waiting 5 seconds..."
             )
-        except asyncio.TimeoutError:
-            elapsed = time.time() - start_time
-            wandb.termwarn(
-                f"{LOG_PREFIX}{resource_kind} '{resource_name}' not ready after {elapsed:.1f}s timeout"
-            )
-        except Exception as e:
-            wandb.termwarn(
-                f"{LOG_PREFIX}Error waiting for {resource_kind} '{resource_name}': {e}"
-            )
+            await asyncio.sleep(5)
+
+        elapsed = time.time() - start_time
+        wandb.termlog(
+            f"{LOG_PREFIX}{resource_kind} '{resource_name}' is ready after {elapsed:.1f}s"
+        )
 
     async def _wait_for_deployment_ready(
         self,
@@ -621,19 +613,17 @@ class KubernetesRunner(AbstractRunner):
         apps_api = kubernetes_asyncio.client.AppsV1Api(api_client)
 
         async def check_deployment_ready():
-            try:
-                deployment = await apps_api.read_namespaced_deployment(
-                    name=name, namespace=namespace
-                )
-                status = deployment.status
+            deployment = await apps_api.read_namespaced_deployment(
+                name=name, namespace=namespace
+            )
+            status = deployment.status
 
-                if status.ready_replicas and status.replicas:
-                    return status.ready_replicas >= status.replicas
-                return False
-            except Exception:
-                return False
+            if status.ready_replicas and status.replicas:
+                return status.ready_replicas >= status.replicas
 
-        await self._wait_with_timeout(check_deployment_ready, timeout_seconds)
+            return False
+
+        await self._wait_with_timeout(check_deployment_ready, timeout_seconds, name)
 
     async def _wait_for_service_ready(
         self,
@@ -646,24 +636,16 @@ class KubernetesRunner(AbstractRunner):
         core_api = kubernetes_asyncio.client.CoreV1Api(api_client)
 
         async def check_service_ready():
-            try:
-                await core_api.read_namespaced_service(name=name, namespace=namespace)
+            endpoints = await core_api.read_namespaced_endpoints(
+                name=name, namespace=namespace
+            )
+            if endpoints.subsets:
+                for subset in endpoints.subsets:
+                    if subset.addresses:  # These are ready pod addresses
+                        return True
+            return False
 
-                try:
-                    endpoints = await core_api.read_namespaced_endpoints(
-                        name=name, namespace=namespace
-                    )
-                    if endpoints.subsets:
-                        for subset in endpoints.subsets:
-                            if subset.addresses:
-                                return True
-                    return False
-                except Exception:
-                    return False
-            except Exception:
-                return False
-
-        await self._wait_with_timeout(check_service_ready, timeout_seconds)
+        await self._wait_with_timeout(check_service_ready, timeout_seconds, name)
 
     async def _wait_for_pod_ready(
         self,
@@ -676,31 +658,40 @@ class KubernetesRunner(AbstractRunner):
         core_api = kubernetes_asyncio.client.CoreV1Api(api_client)
 
         async def check_pod_ready():
-            try:
-                pod = await core_api.read_namespaced_pod(name=name, namespace=namespace)
-                if pod.status.phase == "Running":
-                    if pod.status.container_statuses:
-                        return all(
-                            status.ready for status in pod.status.container_statuses
-                        )
-                    return True
-                return False
-            except Exception:
-                return False
+            pod = await core_api.read_namespaced_pod(name=name, namespace=namespace)
+            if pod.status.phase == "Running":
+                if pod.status.container_statuses:
+                    return all(status.ready for status in pod.status.container_statuses)
+                return True
+            return False
 
-        await self._wait_with_timeout(check_pod_ready, timeout_seconds)
+        await self._wait_with_timeout(check_pod_ready, timeout_seconds, name)
 
-    async def _wait_with_timeout(self, check_func, timeout_seconds: int) -> None:
+    async def _wait_with_timeout(
+        self, check_func, timeout_seconds: int, name: str
+    ) -> None:
         """Generic timeout wrapper for readiness checks."""
         start_time = time.time()
 
         while time.time() - start_time < timeout_seconds:
-            if await check_func():
-                return
+            try:
+                if await check_func():
+                    return
+            except kubernetes_asyncio.client.ApiException as e:
+                if e.status == 404:
+                    pass
+                else:
+                    wandb.termerror(
+                        f"{LOG_PREFIX}Error waiting for resource '{name}': {e}"
+                    )
+                    raise
+            except Exception as e:
+                wandb.termerror(f"{LOG_PREFIX}Error waiting for resource '{name}': {e}")
+                raise
             await asyncio.sleep(2)
 
-        raise asyncio.TimeoutError(
-            f"Resource not ready within {timeout_seconds} seconds"
+        raise LaunchError(
+            f"Resource '{name}' not ready within {timeout_seconds} seconds"
         )
 
     async def _prepare_resource(
@@ -774,14 +765,18 @@ class KubernetesRunner(AbstractRunner):
                 )
                 cont["env"] = env
 
-        await kubernetes_asyncio.utils.create_from_dict(
-            api_client, config, namespace=namespace
-        )
-
-        if wait_for_ready:
-            await self._wait_for_resource_ready(
-                api_client, config, namespace, wait_timeout
+        try:
+            await kubernetes_asyncio.utils.create_from_dict(
+                api_client, config, namespace=namespace
             )
+
+            if wait_for_ready:
+                await self._wait_for_resource_ready(
+                    api_client, config, namespace, wait_timeout
+                )
+        except Exception as e:
+            wandb.termerror(f"{LOG_PREFIX}Failed to create Kubernetes resource: {e}")
+            raise LaunchError(f"Failed to create Kubernetes resource: {e}")
 
     async def run(
         self, launch_project: LaunchProject, image_uri: str
