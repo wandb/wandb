@@ -368,12 +368,13 @@ def make_file_path_upload_safe(path: str) -> str:
 
     Raises:
         ValueError: If running on Windows and the key contains invalid filename characters
-                   (\\, :, *, ?, ", <, >, |)
+                   (\, :, *, ?, ", <, >, |)
     """
     sys_platform = platform.system()
     if sys_platform == "Windows" and not check_windows_valid_filename(path):
         raise ValueError(
-            f'Path {path} is invalid. Please remove invalid filename characters (\\, :, *, ?, ", <, >, |)'
+            f"Path {path} is invalid. Please remove invalid filename characters"
+            r' (\, :, *, ?, ", <, >, |)'
         )
 
     # On Windows, convert forward slashes to backslashes.
