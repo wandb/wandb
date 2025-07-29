@@ -19,7 +19,7 @@ type ConfigMsg struct {
 
 // SummaryMsg contains summary data from the wandb run.
 type SummaryMsg struct {
-	Summary map[string]any
+	Summary *spb.SummaryRecord
 }
 
 // SystemInfoMsg contains system/environment information.

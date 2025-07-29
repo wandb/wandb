@@ -8,6 +8,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runenvironment"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/watcher"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -37,6 +38,7 @@ type Model struct {
 	runOverview    RunOverview
 	runConfig      *runconfig.RunConfig
 	runEnvironment *runenvironment.RunEnvironment
+	runSummary     *runsummary.RunSummary
 
 	// msgChan is the channel to receive watcher callbacks.
 	msgChan chan tea.Msg
@@ -63,7 +65,8 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		watcher:        watcher.New(watcher.Params{}),
 		watcherStarted: false,
 		runConfig:      runconfig.New(),
-		msgChan:        make(chan tea.Msg, 100), // Buffered channel for watcher callbacks
+		runSummary:     runsummary.New(),
+		msgChan:        make(chan tea.Msg, 100),
 		logger:         logger,
 	}
 
@@ -259,7 +262,18 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 		m.sidebar.SetRunOverview(m.runOverview)
 	case SummaryMsg:
 		m.logger.Debug("model: processing SummaryMsg")
-		m.runOverview.Summary = msg.Summary
+		for _, update := range msg.Summary.Update {
+			err := m.runSummary.SetFromRecord(update)
+			if err != nil {
+				m.logger.Error(
+					fmt.Sprintf("model: error processing summary: %v", err))
+			}
+		}
+
+		for _, remove := range msg.Summary.Remove {
+			m.runSummary.RemoveFromRecord(remove)
+		}
+		m.runOverview.Summary = m.runSummary.ToNestedMaps()
 		m.sidebar.SetRunOverview(m.runOverview)
 	case FileCompleteMsg:
 		m.logger.Debug("model: processing FileCompleteMsg - file is complete!")

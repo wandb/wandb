@@ -115,12 +115,7 @@ func (r *WandbReader) ReadNext() (tea.Msg, error) {
 		}
 
 	case *spb.Record_Summary:
-		summaryMap := make(map[string]any)
-		for _, item := range rec.Summary.Update {
-			key := strings.Join(item.NestedKey, ".")
-			summaryMap[key] = strings.Trim(item.ValueJson, `"`)
-		}
-		return SummaryMsg{Summary: summaryMap}, nil
+		return SummaryMsg{Summary: rec.Summary}, nil
 
 	case *spb.Record_Environment:
 		return SystemInfoMsg{Record: rec.Environment}, nil

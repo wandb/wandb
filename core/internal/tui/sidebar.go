@@ -53,7 +53,7 @@ type Sidebar struct {
 var (
 	sidebarStyle        = lipgloss.NewStyle().Padding(0, 1)
 	sidebarBorderStyle  = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(lipgloss.Color("238"))
-	sidebarHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).MarginBottom(1)
+	sidebarHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).MarginBottom(0)
 	sidebarSectionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Bold(true).MarginTop(1)
 	sidebarKeyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	sidebarValueStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
