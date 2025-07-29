@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -21,7 +23,6 @@ const (
 
 // Sidebar animation constants
 const (
-	// Golden ratio: ~1.618, so sidebar takes ~38.2% of width for a 16:10 feel
 	SidebarWidthRatio = 0.382
 	SidebarMinWidth   = 40
 	SidebarMaxWidth   = 80
@@ -34,7 +35,7 @@ type RunOverview struct {
 	RunPath     string
 	Config      map[string]any
 	Summary     map[string]any
-	Environment map[string]string
+	Environment map[string]any // Changed from map[string]string
 }
 
 // Sidebar represents a collapsible sidebar panel
@@ -49,55 +50,77 @@ type Sidebar struct {
 	runOverview    RunOverview
 }
 
-// SidebarStyle defines the visual style for the sidebar
 var (
-	sidebarStyle = lipgloss.NewStyle().
-			Padding(0, 1)
-
-	sidebarBorderStyle = lipgloss.NewStyle().
-				Border(lipgloss.Border{
-			Top:         "─",
-			Bottom:      "",
-			Left:        "",
-			Right:       "|",
-			TopLeft:     "",
-			TopRight:    "",
-			BottomLeft:  "",
-			BottomRight: "",
-		}).
-		BorderForeground(lipgloss.Color("238"))
-
-	sidebarHeaderStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("86")).
-				MarginBottom(1)
-
-	sidebarSectionStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("245")).
-				Bold(true).
-				MarginTop(1).
-				MarginBottom(2)
-
-	// sidebarKeyStyle = lipgloss.NewStyle().
-	// 		Foreground(lipgloss.Color("241"))
-
-	sidebarValueStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("252"))
+	sidebarStyle        = lipgloss.NewStyle().Padding(0, 1)
+	sidebarBorderStyle  = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(lipgloss.Color("238"))
+	sidebarHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).MarginBottom(1)
+	sidebarSectionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Bold(true).MarginTop(1)
+	sidebarKeyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	sidebarValueStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 )
 
 // NewSidebar creates a new sidebar instance
 func NewSidebar() *Sidebar {
 	vp := viewport.New(SidebarMinWidth, 10)
 	vp.Style = lipgloss.NewStyle()
-
 	return &Sidebar{
 		state:         SidebarCollapsed,
 		currentWidth:  0,
 		targetWidth:   0,
 		expandedWidth: SidebarMinWidth,
 		viewport:      vp,
-		runOverview:   RunOverview{},
 	}
+}
+
+// updateViewportContent updates the viewport with formatted run overview
+func (s *Sidebar) updateViewportContent() {
+	var b strings.Builder
+
+	renderMap(&b, "Config", s.runOverview.Config)
+	renderMap(&b, "Summary", s.runOverview.Summary)
+	renderMap(&b, "Environment", s.runOverview.Environment)
+
+	s.viewport.SetContent(b.String())
+}
+
+// renderMap is a helper to recursively render maps in the sidebar.
+func renderMap(b *strings.Builder, title string, data map[string]any) {
+	if len(data) == 0 {
+		return
+	}
+	b.WriteRune('\n')
+	b.WriteString(sidebarSectionStyle.Render(title))
+	b.WriteRune('\n')
+	writeSortedMap(b, data, 0)
+}
+
+// writeSortedMap recursively writes map content, sorted by key, with indentation.
+func writeSortedMap(b *strings.Builder, m map[string]any, indent int) {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	indentStr := strings.Repeat("  ", indent)
+	for _, k := range keys {
+		v := m[k]
+		keyStr := sidebarKeyStyle.Render(fmt.Sprintf("%s%s:", indentStr, k))
+		if subMap, ok := v.(map[string]any); ok {
+			b.WriteString(keyStr)
+			b.WriteRune('\n')
+			writeSortedMap(b, subMap, indent+1)
+		} else {
+			valStr := sidebarValueStyle.Render(fmt.Sprintf("%v", v))
+			b.WriteString(fmt.Sprintf("%s %s\n", keyStr, valStr))
+		}
+	}
+}
+
+// SetRunOverview sets the run overview information and triggers a content update.
+func (s *Sidebar) SetRunOverview(overview RunOverview) {
+	s.runOverview = overview
+	s.updateViewportContent()
 }
 
 // UpdateDimensions updates the sidebar dimensions based on terminal width
@@ -190,25 +213,6 @@ func (s *Sidebar) Update(msg tea.Msg) (*Sidebar, tea.Cmd) {
 	return s, tea.Batch(cmds...)
 }
 
-// SetRunOverview sets the run overview information
-func (s *Sidebar) SetRunOverview(overview RunOverview) {
-	s.runOverview = overview
-	s.updateViewportContent()
-}
-
-// updateViewportContent updates the viewport with formatted run overview
-func (s *Sidebar) updateViewportContent() {
-	var content strings.Builder
-
-	// Run Path
-	content.WriteString(sidebarSectionStyle.Render("Run Path"))
-	content.WriteString("\n")
-	content.WriteString(sidebarValueStyle.Render(s.runOverview.RunPath))
-	content.WriteString("\n\n")
-
-	s.viewport.SetContent(content.String())
-}
-
 // View renders the sidebar
 func (s *Sidebar) View(height int) string {
 	if s.currentWidth <= 0 {
@@ -220,7 +224,7 @@ func (s *Sidebar) View(height int) string {
 	s.viewport.Height = height - 3        // Account for header and padding
 
 	// Build sidebar content
-	header := sidebarHeaderStyle.Render("Run Overview")
+	header := sidebarHeaderStyle.Render("Overview")
 
 	// Render viewport with current content
 	viewportContent := s.viewport.View()
