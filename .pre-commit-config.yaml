@@ -95,6 +95,7 @@ repos:
         name: "go-imports"
         entry: core/scripts/pre-commit-hooks/run-go-imports.sh
         files: '\.go$'
+        exclude: '\bwire_gen.go$' # Ignore generated file.
         language: "script"
         description: "Runs `goimports`, requires golang"
       - id: go-unit-tests
