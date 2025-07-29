@@ -1964,7 +1964,7 @@ class Artifact:
         root = FilePathStr(str(root or self._default_root()))
         self._add_download_root(root)
 
-        # TODO: download artifacts using core when implemented
+        # FIXME: hack to always download using core without run
         return self._download_using_core_without_run(
             root=root,
             allow_missing_references=allow_missing_references,

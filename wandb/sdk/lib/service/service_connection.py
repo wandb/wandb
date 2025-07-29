@@ -28,8 +28,10 @@ def connect_to_service(
     token = service_token.from_env()
 
     if token:
+        print("Using existing service connection with token", token)
         return ServiceConnection(client=token.connect(), proc=None)
     else:
+        print("Starting new service process")
         return _start_and_connect_service(settings)
 
 

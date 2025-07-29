@@ -318,6 +318,7 @@ class _WandbSetup:
     def ensure_service(self) -> ServiceConnection:
         """Returns a connection to the service process creating it if needed."""
         if self._connection:
+            print("Using existing connection")
             return self._connection
 
         from wandb.sdk.lib.service import service_connection
