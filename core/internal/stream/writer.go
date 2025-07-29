@@ -105,7 +105,7 @@ func (w *Writer) Do(allWork <-chan runwork.Work) {
 			"stream_id", w.settings.GetRunID(),
 		)
 
-		work.Save(w.writeRecord)
+		w.writeRecord(work.ToRecord())
 
 		if w.settings.IsOffline() && !work.BypassOfflineMode() {
 			continue
@@ -133,31 +133,11 @@ func (w *Writer) Close() {
 // Ensure that the messages are numbered and written to the transaction log
 // before network operations could block processing of the record.
 func (w *Writer) writeRecord(record *spb.Record) {
-	switch record.RecordType.(type) {
-	case *spb.Record_Request:
-		// Requests are never written to the transaction log.
-	case nil:
-		w.logger.Error("writer: writeRecord: nil record type")
-
-	default:
-		w.applyRecordNumber(record)
-		w.storeRecord(record)
-	}
-}
-
-// applyRecordNumber labels the protobuf with an increasing number to be stored in transaction log
-func (w *Writer) applyRecordNumber(record *spb.Record) {
-	if record.GetControl().GetLocal() {
+	if record.GetRequest() != nil || record.GetControl().GetLocal() {
 		return
 	}
+
 	w.recordNum += 1
 	record.Num = w.recordNum
-}
-
-// storeRecord stores the record in the append-only log
-func (w *Writer) storeRecord(record *spb.Record) {
-	if record.GetControl().GetLocal() {
-		return
-	}
 	w.storeChan <- record
 }

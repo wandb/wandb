@@ -56,8 +56,9 @@ func (wr WorkRecord) Accept(fn func(*spb.Record)) bool {
 	return true
 }
 
-func (wr WorkRecord) Save(fn func(*spb.Record)) {
-	fn(wr.Record)
+// ToRecord implements Work.ToRecord.
+func (wr WorkRecord) ToRecord() *spb.Record {
+	return wr.Record
 }
 
 func (wr WorkRecord) BypassOfflineMode() bool {
