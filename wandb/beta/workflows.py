@@ -34,11 +34,10 @@ def _add_any(
     be moved to the Artifact class in the future.
 
     Args:
-        artifact: `Artifact` - artifact created with `wandb.Artifact(...)`
-        path_or_obj: `Union[str, ArtifactManifestEntry, WBValue]` - either a
-            str or valid object which indicates what to add to an artifact.
-
-        name: `str` - the name of the object which is added to an artifact.
+        artifact: artifact created with `wandb.Artifact(...)`
+        path_or_obj: either a str or valid object which indicates what to add
+            to an artifact.
+        name: the name of the object which is added to an artifact.
 
     Returns:
         Type[Any] - Union[None, ArtifactManifestEntry, etc]
