@@ -11,7 +11,6 @@ import (
 
 // TBWork makes the TensorBoard integration watch a TB logging directory.
 type TBWork struct {
-	runwork.NotASentinelMixin
 	runwork.AlwaysAcceptMixin
 	runwork.NoopProcessMixin
 
