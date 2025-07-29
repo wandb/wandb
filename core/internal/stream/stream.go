@@ -104,15 +104,10 @@ type StreamParams struct {
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(
 	params StreamParams,
+	loggerFile streamLoggerFile,
+	logger *observability.CoreLogger,
 ) *Stream {
 	symlinkDebugCore(params.Settings, params.LoggerPath)
-	loggerFile := openStreamLoggerFile(params.Settings)
-	logger := streamLogger(
-		loggerFile,
-		params.Settings,
-		params.Sentry,
-		params.LogLevel,
-	)
 
 	s := &Stream{
 		runWork:      runwork.New(BufferSize, logger),

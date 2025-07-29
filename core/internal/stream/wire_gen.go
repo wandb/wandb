@@ -10,6 +10,11 @@ package stream
 
 // InjectStream returns a new Stream.
 func InjectStream(params StreamParams) *Stream {
-	stream := NewStream(params)
+	settings := params.Settings
+	streamStreamLoggerFile := openStreamLoggerFile(settings)
+	client := params.Sentry
+	level := params.LogLevel
+	coreLogger := streamLogger(streamStreamLoggerFile, settings, client, level)
+	stream := NewStream(params, streamStreamLoggerFile, coreLogger)
 	return stream
 }
