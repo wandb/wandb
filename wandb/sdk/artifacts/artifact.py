@@ -1965,7 +1965,13 @@ class Artifact:
         self._add_download_root(root)
 
         # FIXME: hack to always download using core without run
-        return self._download_using_core_without_run(
+        # return self._download_using_core_without_run(
+        #     root=root,
+        #     allow_missing_references=allow_missing_references,
+        #     skip_cache=bool(skip_cache),
+        #     path_prefix=path_prefix,
+        # )
+        return self._download_using_core(
             root=root,
             allow_missing_references=allow_missing_references,
             skip_cache=bool(skip_cache),
