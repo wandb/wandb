@@ -21,6 +21,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
@@ -87,7 +88,7 @@ type Stream struct {
 	sentryClient *sentry_ext.Client
 
 	// clientID is a unique ID for the stream
-	clientID ClientID
+	clientID sharedmode.ClientID
 }
 
 type StreamParams struct {
@@ -104,7 +105,7 @@ type StreamParams struct {
 func NewStream(
 	params StreamParams,
 	backendOrNil *api.Backend,
-	clientID ClientID,
+	clientID sharedmode.ClientID,
 	featureProvider *featurechecker.ServerFeaturesCache,
 	fileStreamOrNil filestream.FileStream,
 	fileTransferManagerOrNil filetransfer.FileTransferManager,
@@ -119,6 +120,7 @@ func NewStream(
 	runfilesUploaderOrNil runfiles.Uploader,
 	runWork runwork.RunWork,
 	streamRun *StreamRun,
+	systemMonitor *monitor.SystemMonitor,
 	terminalPrinter *observability.Printer,
 ) *Stream {
 	symlinkDebugCore(params.Settings, params.LoggerPath)
@@ -167,16 +169,8 @@ func NewStream(
 			Operations:        operations,
 			OutChan:           make(chan *spb.Result, BufferSize),
 			Settings:          s.settings,
-			SystemMonitor: monitor.NewSystemMonitor(monitor.SystemMonitorParams{
-				Ctx:                runWork.BeforeEndCtx(),
-				Logger:             logger,
-				Settings:           s.settings,
-				ExtraWork:          runWork,
-				GpuResourceManager: params.GPUResourceManager,
-				GraphqlClient:      graphqlClientOrNil,
-				WriterID:           string(clientID),
-			}),
-			TerminalPrinter: terminalPrinter,
+			SystemMonitor:     systemMonitor,
+			TerminalPrinter:   terminalPrinter,
 		},
 	)
 
