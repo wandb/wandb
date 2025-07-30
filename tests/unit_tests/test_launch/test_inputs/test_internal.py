@@ -317,9 +317,9 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
                         "type": "string",
                         "format": "secret",
                         "title": "API Key",
-                        "description": "Secret API key"
+                        "description": "Secret API key",
                     }
-                }
+                },
             },
             [],
         ),
@@ -334,15 +334,15 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
                             "secret_token": {
                                 "type": "string",
                                 "format": "secret",
-                                "description": "Nested secret"
+                                "description": "Nested secret",
                             },
                             "public_key": {
                                 "type": "string",
-                                "description": "Public configuration"
-                            }
-                        }
+                                "description": "Public configuration",
+                            },
+                        },
                     }
-                }
+                },
             },
             [],
         ),
@@ -353,8 +353,8 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
                 "properties": {
                     "api_key": {"type": "string", "format": "secret"},
                     "db_password": {"type": "string", "format": "secret"},
-                    "regular_field": {"type": "string"}
-                }
+                    "regular_field": {"type": "string"},
+                },
             },
             [],
         ),
