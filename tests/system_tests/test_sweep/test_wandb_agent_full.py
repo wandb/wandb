@@ -1,6 +1,9 @@
 """Agent tests."""
 
+import contextlib
+import io
 import os
+import sys
 import unittest.mock
 
 import wandb
@@ -106,3 +109,38 @@ def test_agent_ignore_project_entity_run_id(user):
     assert sweep_projects[0] == "actual"
     assert sweep_entities[0] == user
     assert sweep_run_ids[0] != "also_ignored"
+
+
+def test_agent_exception(user):
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "grid",
+        "parameters": {"a": {"values": [1, 2, 3]}},
+    }
+
+    def train():
+        wandb.init()
+        raise Exception("Unexpected error")
+
+    sweep_id = wandb.sweep(sweep_config)
+
+    captured_stderr = io.StringIO()
+    with contextlib.redirect_stderr(captured_stderr):
+        wandb.agent(sweep_id, function=train, count=1)
+
+    stderr_lines = captured_stderr.getvalue().splitlines()
+
+    # Traceback with exception should appear before we finish the run.
+    patterns = ["Traceback", "Exception: Unexpected error", "wandb: Find logs at:"]
+    current_pattern = 0
+
+    for line in stderr_lines:
+        if line.startswith(patterns[current_pattern]):
+            current_pattern += 1
+            if current_pattern == len(patterns):
+                break
+
+    # Verify all patterns were found in order
+    assert current_pattern == len(patterns), (
+        f"Not found in stderr: '{patterns[current_pattern]}'"
+    )
