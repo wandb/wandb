@@ -197,7 +197,7 @@ class Project(Attrs):
             attrs: The attributes of the project.
         """
         super().__init__(dict(attrs))
-        self._is_loaded = False if not attrs else True
+        self._is_loaded = bool(attrs)
         self.client = client
         self.name = project
         self.entity = entity
@@ -206,11 +206,10 @@ class Project(Attrs):
         variable_values = {"project": self.name, "entity": self.entity}
         try:
             response = self.client.execute(self.QUERY, variable_values)
-            project = response["project"]
         except HTTPError as e:
             raise ValueError(f"Unable to fetch project ID: {variable_values!r}") from e
 
-        self._attrs = project
+        self._attrs = response["project"]
         self._is_loaded = True
 
     @property
