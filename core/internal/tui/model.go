@@ -34,6 +34,7 @@ type Model struct {
 	watcher        watcher.Watcher
 	watcherStarted bool // Track if watcher has been started
 	sidebar        *Sidebar
+	rightSidebar   *RightSidebar
 	runOverview    RunOverview
 	runConfig      *runconfig.RunConfig
 	runEnvironment *runenvironment.RunEnvironment
@@ -61,6 +62,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		fileComplete:   false,
 		runPath:        runPath,
 		sidebar:        NewSidebar(),
+		rightSidebar:   NewRightSidebar(),
 		watcher:        watcher.New(watcher.Params{}),
 		watcherStarted: false,
 		runConfig:      runconfig.New(),
@@ -112,6 +114,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.sidebar = updatedSidebar
 	if sidebarCmd != nil {
 		cmds = append(cmds, sidebarCmd)
+	}
+
+	updatedRightSidebar, rightSidebarCmd := m.rightSidebar.Update(msg)
+	m.rightSidebar = updatedRightSidebar
+	if rightSidebarCmd != nil {
+		cmds = append(cmds, rightSidebarCmd)
 	}
 
 	switch msg := msg.(type) {
@@ -170,7 +178,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newModel, cmd := m.handleKeyMsg(msg)
 		return newModel, cmd
 
-	case tea.MouseMsg, tea.WindowSizeMsg, SidebarAnimationMsg:
+	case tea.MouseMsg, tea.WindowSizeMsg, SidebarAnimationMsg, RightSidebarAnimationMsg:
 		newModel, cmd := m.handleOther(msg)
 		return newModel, cmd
 
@@ -193,24 +201,42 @@ func (m *Model) View() string {
 	}
 
 	// Calculate available space for charts
-	availableWidth := m.width - m.sidebar.Width()
+	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
 	dims := CalculateChartDimensions(availableWidth, m.height)
 
 	// Render main content
 	gridView := m.renderGrid(dims)
 
-	// Render sidebar
-	sidebarView := m.sidebar.View(m.height - StatusBarHeight)
-
-	// Combine sidebar and main content (without status bar)
+	// Build the main view based on sidebar visibility
 	var mainView string
-	if m.sidebar.Width() > 0 {
+	leftSidebarView := m.sidebar.View(m.height - StatusBarHeight)
+	rightSidebarView := m.rightSidebar.View(m.height - StatusBarHeight)
+
+	// Handle all combinations of sidebar visibility
+	if m.sidebar.Width() > 0 && m.rightSidebar.Width() > 0 {
+		// Both sidebars visible
 		mainView = lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			sidebarView,
+			leftSidebarView,
+			gridView,
+			rightSidebarView,
+		)
+	} else if m.sidebar.Width() > 0 {
+		// Only left sidebar visible
+		mainView = lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			leftSidebarView,
 			gridView,
 		)
+	} else if m.rightSidebar.Width() > 0 {
+		// Only right sidebar visible
+		mainView = lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			gridView,
+			rightSidebarView,
+		)
 	} else {
+		// No sidebars visible
 		mainView = gridView
 	}
 
@@ -320,7 +346,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	for metricName, value := range msg.Metrics {
 		chart, exists := m.chartsByName[metricName]
 		if !exists {
-			availableWidth := m.width - m.sidebar.Width()
+			availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
 			dims := CalculateChartDimensions(availableWidth, m.height)
 			colorIndex := len(m.allCharts)
 			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, colorIndex, metricName)
@@ -345,12 +371,19 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Check if mouse is in left sidebar
 	if msg.X < m.sidebar.Width() {
 		return m, nil
 	}
 
+	// Check if mouse is in right sidebar
+	if msg.X >= m.width-m.rightSidebar.Width() {
+		return m, nil
+	}
+
+	// Mouse is in the chart area
 	adjustedX := msg.X - m.sidebar.Width()
-	availableWidth := m.width - m.sidebar.Width()
+	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
 	dims := CalculateChartDimensions(availableWidth, m.height)
 
 	row := msg.Y / dims.ChartHeightWithPadding
@@ -388,11 +421,21 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 
 // handleKeyMsg processes keyboard events
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	if msg.Type == tea.KeyCtrlB {
+	switch msg.Type {
+	case tea.KeyCtrlB:
+		// Update the sidebar's expanded width before toggling
+		m.sidebar.UpdateExpandedWidth(m.width, m.rightSidebar.IsVisible())
 		m.sidebar.Toggle()
 		m.updateChartSizes()
 		return m, m.sidebar.animationCmd()
+	case tea.KeyCtrlN:
+		// Update the right sidebar's expanded width before toggling
+		m.rightSidebar.UpdateExpandedWidth(m.width, m.sidebar.IsVisible())
+		m.rightSidebar.Toggle()
+		m.updateChartSizes()
+		return m, m.rightSidebar.animationCmd()
 	}
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		m.logger.Debug("model: quit requested")
@@ -427,12 +470,19 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.sidebar.UpdateDimensions(msg.Width)
+		// Update both sidebars with awareness of each other
+		m.sidebar.UpdateDimensions(msg.Width, m.rightSidebar.IsVisible())
+		m.rightSidebar.UpdateDimensions(msg.Width, m.sidebar.IsVisible())
 		m.updateChartSizes()
 	case SidebarAnimationMsg:
 		if m.sidebar.IsAnimating() {
 			m.updateChartSizes()
 			return m, m.sidebar.animationCmd()
+		}
+	case RightSidebarAnimationMsg:
+		if m.rightSidebar.IsAnimating() {
+			m.updateChartSizes()
+			return m, m.rightSidebar.animationCmd()
 		}
 	}
 	return m, nil
@@ -530,7 +580,7 @@ func (m *Model) renderGridCell(row, col int, dims ChartDimensions) string {
 // renderStatusBar creates the status bar, ensuring it fits on a single line.
 func (m *Model) renderStatusBar() string {
 	// Define the left-side content
-	statusText := " ctrl+b: toggle run overview • r: reload • q: quit • PgUp/PgDn: navigate metrics"
+	statusText := " ctrl+b: toggle run overview • ctrl+n: toggle system metrics • r: reload • q: quit • PgUp/PgDn: navigate"
 	if !m.fileComplete {
 		statusText += " • [Run active...]"
 	} else {
@@ -596,7 +646,12 @@ func (m *Model) loadCurrentPage() {
 
 // updateChartSizes updates all chart sizes when window is resized or sidebar toggled.
 func (m *Model) updateChartSizes() {
-	availableWidth := m.width - m.sidebar.Width()
+	// First update sidebar dimensions so they know about each other
+	m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
+	m.rightSidebar.UpdateDimensions(m.width, m.sidebar.IsVisible())
+
+	// Then calculate available width with updated sidebar widths
+	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
 	dims := CalculateChartDimensions(availableWidth, m.height)
 
 	for _, chart := range m.allCharts {

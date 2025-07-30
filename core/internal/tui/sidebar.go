@@ -21,13 +21,14 @@ const (
 	SidebarExpanding
 )
 
-// Sidebar animation constants
+// Sidebar constants
 const (
-	SidebarWidthRatio = 0.382
-	SidebarMinWidth   = 40
-	SidebarMaxWidth   = 80
-	AnimationDuration = 150 * time.Millisecond
-	AnimationSteps    = 10
+	SidebarWidthRatio     = 0.382
+	SidebarWidthRatioBoth = 0.236 // When both sidebars visible: 0.382 * 0.618 ≈ 0.236
+	SidebarMinWidth       = 40
+	SidebarMaxWidth       = 80
+	AnimationDuration     = 150 * time.Millisecond
+	AnimationSteps        = 10
 )
 
 // RunOverview contains the run information to display
@@ -38,7 +39,7 @@ type RunOverview struct {
 	DisplayName string
 	Config      map[string]any
 	Summary     map[string]any
-	Environment map[string]any // Changed from map[string]string
+	Environment map[string]any
 }
 
 // Sidebar represents a collapsible sidebar panel
@@ -156,9 +157,16 @@ func (s *Sidebar) SetRunOverview(overview RunOverview) {
 }
 
 // UpdateDimensions updates the sidebar dimensions based on terminal width
-func (s *Sidebar) UpdateDimensions(terminalWidth int) {
-	// Calculate sidebar width using golden ratio
-	calculatedWidth := int(float64(terminalWidth) * SidebarWidthRatio)
+func (s *Sidebar) UpdateDimensions(terminalWidth int, rightSidebarVisible bool) {
+	var calculatedWidth int
+
+	if rightSidebarVisible {
+		// When both sidebars are visible, use nested golden ratio
+		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatioBoth)
+	} else {
+		// When only left sidebar is visible, use standard golden ratio
+		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
+	}
 
 	// Clamp to min/max
 	switch {
@@ -317,3 +325,27 @@ func easeOutCubic(t float64) float64 {
 
 // SidebarAnimationMsg is sent during sidebar animations
 type SidebarAnimationMsg struct{}
+
+// UpdateExpandedWidth recalculates the expanded width based on the current terminal width
+// and whether the other sidebar is visible. This ensures correct width when toggling.
+func (s *Sidebar) UpdateExpandedWidth(terminalWidth int, rightSidebarVisible bool) {
+	var calculatedWidth int
+
+	if rightSidebarVisible {
+		// When both sidebars are visible, use nested golden ratio
+		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatioBoth)
+	} else {
+		// When only left sidebar is visible, use standard golden ratio
+		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
+	}
+
+	// Clamp to min/max
+	switch {
+	case calculatedWidth < SidebarMinWidth:
+		s.expandedWidth = SidebarMinWidth
+	case calculatedWidth > SidebarMaxWidth:
+		s.expandedWidth = SidebarMaxWidth
+	default:
+		s.expandedWidth = calculatedWidth
+	}
+}
