@@ -3,7 +3,6 @@
 import contextlib
 import io
 import os
-import sys
 import unittest.mock
 
 import wandb

@@ -187,6 +187,19 @@ class Agent:
                     return
             time.sleep(5)
 
+    def _get_exception_logger_and_term_strs(exc):
+        if isinstance(exc, JobError) and exc.__cause__:
+            # If it's a JobException, get the original exception for display
+            job_exc = exc.__cause__
+            log_str = _format_exception_traceback(job_exc)
+            # Don't long full stacktrace to terminal again because we already
+            # printed it to stderr.
+            term_str = " " + str(job_exc)
+        else:
+            log_str = _format_exception_traceback(exc)
+            term_str = "\n" + log_str
+        return log_str, term_str
+
     def _run_jobs_from_queue(self):
         global _INSTANCES
         _INSTANCES += 1
@@ -233,17 +246,11 @@ class Agent:
                         self._run_status[run_id] = RunStatus.DONE
                     elif self._run_status[run_id] == RunStatus.ERRORED:
                         exc = self._exceptions[run_id]
-                        if isinstance(exc, JobError) and exc.__cause__:
-                            # If it's a JobException, get the original exception for display
-                            job_exc = exc.__cause__
-                            exc_repr = _format_exception_traceback(job_exc)
-                            # Don't long full stacktrace to terminal again because we already
-                            # printed it to stderr.
-                            term_str = " " + str(job_exc)
-                        else:
-                            exc_repr = _format_exception_traceback(exc)
-                            term_str = "\n" + exc_repr
-                        logger.error(f"Run {run_id} errored:\n{exc_repr}")
+                        # Extract to reduce a decision point to avoid ruff c901
+                        log_str, term_str = self._get_exception_logger_and_term_strs(
+                            exc
+                        )
+                        logger.error(f"Run {run_id} errored:\n{log_str}")
                         wandb.termerror(f"Run {run_id} errored:{term_str}")
                         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
                             self._exit_flag = True
