@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/google/wire"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -30,6 +32,12 @@ const (
 	StateStopped int32 = iota
 	StateRunning
 	StatePaused
+)
+
+// SystemMonitorProviders bind SystemMonitorParams and NewSystemMonitor.
+var SystemMonitorProviders = wire.NewSet(
+	wire.Struct(new(SystemMonitorParams), "*"),
+	NewSystemMonitor,
 )
 
 // Resource defines the interface for system resources to be monitored.
@@ -72,7 +80,7 @@ type SystemMonitor struct {
 	graphqlClient graphql.Client
 
 	// Unique identifier of the writer to the run.
-	writerID string
+	writerID sharedmode.ClientID
 }
 
 type SystemMonitorParams struct {
@@ -94,7 +102,7 @@ type SystemMonitorParams struct {
 	GraphqlClient graphql.Client
 
 	// Unique identifier of the writer to the run.
-	WriterID string
+	WriterID sharedmode.ClientID
 }
 
 // NewSystemMonitor initializes and returns a new SystemMonitor instance.
@@ -263,7 +271,7 @@ func (sm *SystemMonitor) probeExecutionContext(git *spb.GitRepoRecord) *spb.Reco
 		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
 		Git:           git,
 
-		WriterId: sm.writerID,
+		WriterId: string(sm.writerID),
 	}}}
 }
 
@@ -271,7 +279,7 @@ func (sm *SystemMonitor) probeExecutionContext(git *spb.GitRepoRecord) *spb.Reco
 func (sm *SystemMonitor) probeResources() *spb.Record {
 	sm.logger.Debug("monitor: probing resources")
 
-	e := &spb.EnvironmentRecord{WriterId: sm.writerID}
+	e := &spb.EnvironmentRecord{WriterId: string(sm.writerID)}
 
 	g, gctx := errgroup.WithContext(sm.ctx)
 	var mu sync.Mutex

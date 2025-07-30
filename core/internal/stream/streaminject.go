@@ -9,9 +9,10 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -27,6 +28,7 @@ var streamProviders = wire.NewSet(
 	NewStream,
 	wire.FieldsOf(
 		new(StreamParams),
+		"GPUResourceManager",
 		"Settings",
 		"Sentry",
 		"LogLevel",
@@ -37,6 +39,7 @@ var streamProviders = wire.NewSet(
 	wire.Struct(new(RecordParser), "*"),
 	featurechecker.NewServerFeaturesCache,
 	filetransfer.NewFileTransferStats,
+	monitor.SystemMonitorProviders,
 	NewBackend,
 	NewFileStream,
 	NewFileTransferManager,
@@ -44,18 +47,14 @@ var streamProviders = wire.NewSet(
 	NewRunfilesUploader,
 	NewStreamRun,
 	observability.NewPrinter,
-	provideClientID,
 	provideFileWatcher,
 	provideRunContext,
 	provideStreamRunWork,
+	sharedmode.RandomClientID,
 	streamLoggerProviders,
 	tensorboard.TBHandlerProviders,
 	wboperation.NewOperations,
 )
-
-func provideClientID() ClientID {
-	return ClientID(randomid.GenerateUniqueID(32))
-}
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})
