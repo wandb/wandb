@@ -17,6 +17,7 @@ from wandb.automations import (
     DoNothing,
     EventType,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
     OnCreateArtifact,
     OnLinkArtifact,
     OnRunMetric,
@@ -197,6 +198,14 @@ def on_create_artifact(scope: ScopableWandbType) -> OnCreateArtifact:
 
 
 @fixture
+def on_link_artifact(scope: ScopableWandbType) -> OnLinkArtifact:
+    return OnLinkArtifact(
+        scope=scope,
+        filter=ArtifactEvent.alias.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
 def on_add_artifact_alias(scope: ScopableWandbType) -> OnAddArtifactAlias:
     return OnAddArtifactAlias(
         scope=scope,
@@ -205,10 +214,10 @@ def on_add_artifact_alias(scope: ScopableWandbType) -> OnAddArtifactAlias:
 
 
 @fixture
-def on_link_artifact(scope: ScopableWandbType) -> OnLinkArtifact:
-    return OnLinkArtifact(
+def on_add_artifact_tag(scope: ScopableWandbType) -> OnAddArtifactTag:
+    return OnAddArtifactTag(
         scope=scope,
-        filter=ArtifactEvent.alias.matches_regex("^prod-.*"),
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
     )
 
 

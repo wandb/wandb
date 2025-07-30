@@ -11,6 +11,7 @@ from wandb.automations import (
     MetricChangeFilter,
     MetricThresholdFilter,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
     OnCreateArtifact,
     OnLinkArtifact,
     OnRunMetric,
@@ -223,5 +224,15 @@ def test_add_artifact_alias_events(scope):
     expected_filter_dict = {"$or": [{"$and": [{"alias": {"$regex": alias_regex}}]}]}
 
     event = OnAddArtifactAlias(scope=scope, filter=declared_filter)
+
+    assert expected_filter_dict == event.filter.model_dump()
+
+
+def test_add_artifact_tag_events(scope):
+    tag_regex = "prod-.*"
+    declared_filter = ArtifactEvent.tag.matches_regex(tag_regex)
+    expected_filter_dict = {"$or": [{"$and": [{"tag": {"$regex": tag_regex}}]}]}
+
+    event = OnAddArtifactTag(scope=scope, filter=declared_filter)
 
     assert expected_filter_dict == event.filter.model_dump()

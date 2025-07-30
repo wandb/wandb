@@ -9,6 +9,7 @@ from .events import (
     MetricChangeFilter,
     MetricThresholdFilter,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
     OnCreateArtifact,
     OnLinkArtifact,
     OnRunMetric,
@@ -51,6 +52,7 @@ __all__ = [
     # Events
     "EventType",  # doc:exclude
     "OnAddArtifactAlias",
+    "OnAddArtifactTag",
     "OnCreateArtifact",
     "OnLinkArtifact",
     "OnRunMetric",
