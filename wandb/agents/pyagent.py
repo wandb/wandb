@@ -48,16 +48,6 @@ def _terminate_thread(thread):
         ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid), None)
 
 
-def _format_exception_traceback(exc):
-    return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-
-
-class JobError(Exception):
-    """Exception raised when a job fails during execution."""
-
-    pass
-
-
 class Job:
     def __init__(self, command):
         self.command = command
@@ -187,19 +177,6 @@ class Agent:
                     return
             time.sleep(5)
 
-    def _get_exception_logger_and_term_strs(exc):
-        if isinstance(exc, JobError) and exc.__cause__:
-            # If it's a JobException, get the original exception for display
-            job_exc = exc.__cause__
-            log_str = _format_exception_traceback(job_exc)
-            # Don't long full stacktrace to terminal again because we already
-            # printed it to stderr.
-            term_str = " " + str(job_exc)
-        else:
-            log_str = _format_exception_traceback(exc)
-            term_str = "\n" + log_str
-        return log_str, term_str
-
     def _run_jobs_from_queue(self):
         global _INSTANCES
         _INSTANCES += 1
@@ -247,9 +224,7 @@ class Agent:
                     elif self._run_status[run_id] == RunStatus.ERRORED:
                         exc = self._exceptions[run_id]
                         # Extract to reduce a decision point to avoid ruff c901
-                        log_str, term_str = self._get_exception_logger_and_term_strs(
-                            exc
-                        )
+                        log_str, term_str = _get_exception_logger_and_term_strs(exc)
                         logger.error(f"Run {run_id} errored:\n{log_str}")
                         wandb.termerror(f"Run {run_id} errored:{term_str}")
                         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
@@ -329,7 +304,7 @@ class Agent:
                 # in setup code.
                 exc_repr = _format_exception_traceback(e)
                 print(exc_repr, file=sys.stderr)  # noqa: T201
-                raise JobError(f"Run threw exception: {str(e)}") from e
+                raise _JobError(f"Run threw exception: {str(e)}") from e
             wandb.finish()
         except KeyboardInterrupt:
             raise
@@ -378,6 +353,30 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
         count=count,
     )
     agent.run()
+
+
+def _format_exception_traceback(exc):
+    return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+
+
+class _JobError(Exception):
+    """Exception raised when a job fails during execution."""
+
+    pass
+
+
+def _get_exception_logger_and_term_strs(exc):
+    if isinstance(exc, _JobError) and exc.__cause__:
+        # If it's a JobException, get the original exception for display
+        job_exc = exc.__cause__
+        log_str = _format_exception_traceback(job_exc)
+        # Don't long full stacktrace to terminal again because we already
+        # printed it to stderr.
+        term_str = " " + str(job_exc)
+    else:
+        log_str = _format_exception_traceback(exc)
+        term_str = "\n" + log_str
+    return log_str, term_str
 
 
 _INSTANCES = 0
