@@ -19,4 +19,4 @@ This version raises errors that would previously have been suppressed during cal
 
 ### Changed
 
-- Errors encountered while linking an artifact are no longer suppressed/silenced. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9968)
+- Errors encountered while linking an artifact are no longer suppressed/silenced, and `Artifact.link()` and `Run.link_artifact()` no longer return `None` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9968)
