@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
+from requests import HTTPError
 from wandb import Api
 from wandb.apis import internal
 from wandb.sdk import wandb_login
@@ -302,3 +303,46 @@ def test_create_run_with_dictionary__throws_error():
                     "config": 1,
                 },
             )
+
+
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+def test_project_id_lazy_load(monkeypatch):
+    api = wandb.Api()
+    mock_execute = MagicMock(
+        return_value={
+            "project": {
+                "id": "123",
+                "createdAt": "2021-01-01T00:00:00Z",
+                "isBenchmark": False,
+            }
+        }
+    )
+    monkeypatch.setattr(wandb.apis.public.api.RetryingClient, "execute", mock_execute)
+    project = wandb.apis.public.Project(
+        client=api.client,
+        entity="test-entity",
+        project="test-project",
+        attrs={},
+    )
+
+    assert project.id == "123"
+    assert project.created_at == "2021-01-01T00:00:00Z"
+    assert project.is_benchmark is False
+
+    mock_execute.assert_called_once()
+
+
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+def test_project_load__raises_error(monkeypatch):
+    api = wandb.Api()
+    mock_execute = MagicMock(side_effect=HTTPError(response=MagicMock(status_code=404)))
+    monkeypatch.setattr(wandb.apis.public.api.RetryingClient, "execute", mock_execute)
+    project = wandb.apis.public.Project(
+        client=api.client,
+        entity="test-entity",
+        project="test-project",
+        attrs={},
+    )
+
+    with pytest.raises(ValueError):
+        project._load()
