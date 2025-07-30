@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/google/wire"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/debounce"
@@ -41,6 +42,11 @@ const (
 	ConsoleFileName           = "output.log"
 )
 
+var senderProviders = wire.NewSet(
+	wire.Struct(new(SenderParams), "*"),
+	NewSender,
+)
+
 type SenderParams struct {
 	Logger              *observability.CoreLogger
 	Operations          *wboperation.WandbOperations
@@ -55,9 +61,7 @@ type SenderParams struct {
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
 	StreamRun           *StreamRun
-	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
-	OutChan             chan *spb.Result
 	RunWork             runwork.RunWork
 }
 
@@ -221,8 +225,8 @@ func NewSender(
 		graphqlClient: params.GraphqlClient,
 		mailbox:       params.Mailbox,
 		streamRun:     params.StreamRun,
-		runSummary:    params.RunSummary,
-		outChan:       params.OutChan,
+		runSummary:    runsummary.New(),
+		outChan:       make(chan *spb.Result, BufferSize),
 		summaryDebouncer: debounce.NewDebouncer(
 			summaryDebouncerRateLimit,
 			summaryDebouncerBurstSize,
@@ -237,6 +241,11 @@ func NewSender(
 	}
 
 	return s
+}
+
+// ResponseChan contains responses for the client.
+func (h *Sender) ResponseChan() <-chan *spb.Result {
+	return h.outChan
 }
 
 // Do processes all work on the input channel.
