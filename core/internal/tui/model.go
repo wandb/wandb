@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -121,6 +120,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reader = msg.Reader
 		// Perform the initial read.
 		return m, ReadAvailableRecords(m.reader)
+
+	case ReloadMsg:
+		// TODO: I think the watch part doesn't work properly, need to fix.
+		if m.watcherStarted {
+			m.logger.Debug("model: finishing watcher")
+			m.watcher.Finish()
+		}
+		return m, tea.Batch(
+			InitializeReader(m.runPath),
+			m.waitForWatcherMsg(),
+		)
 
 	case BatchedRecordsMsg:
 		m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
@@ -286,7 +296,7 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 			m.fileComplete = true
 			// Stop the watcher
 			if m.watcherStarted {
-				log.Printf("Finishing watcher")
+				m.logger.Debug("model: finishing watcher")
 				m.watcher.Finish()
 			}
 		}
@@ -396,8 +406,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		close(m.msgChan) // Clean up the channel
 		return m, tea.Quit
 	case "r":
-		// TODO: convert this into a file reload.
-		m.resetCharts()
+		return m, m.reloadCharts()
 	case "pgup":
 		m.navigatePage(-1)
 	case "pgdown":
@@ -436,13 +445,17 @@ func (m *Model) clearFocus() {
 	}
 }
 
-// resetCharts resets all charts and step counter.
-func (m *Model) resetCharts() {
+// reloadCharts resets all charts and step counter.
+func (m *Model) reloadCharts() tea.Cmd {
 	m.step = 0
 	for _, chart := range m.allCharts {
 		chart.Reset()
 	}
 	m.loadCurrentPage()
+
+	return func() tea.Msg {
+		return ReloadMsg{}
+	}
 }
 
 // navigatePage changes the current page.
@@ -517,9 +530,9 @@ func (m *Model) renderGridCell(row, col int, dims ChartDimensions) string {
 // renderStatusBar creates the status bar, ensuring it fits on a single line.
 func (m *Model) renderStatusBar() string {
 	// Define the left-side content
-	statusText := fmt.Sprintf("Step: %d • ctrl+b: sidebar • r: reset • q: quit • PgUp/PgDn: navigate", m.step)
+	statusText := " ctrl+b: toggle run overview • r: reload • q: quit • PgUp/PgDn: navigate metrics"
 	if !m.fileComplete {
-		statusText += " • [Watching file...]"
+		statusText += " • [Run active...]"
 	} else {
 		statusText += " • [Run complete]"
 	}

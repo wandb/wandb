@@ -94,17 +94,17 @@ func (s *Sidebar) updateViewportContent() {
 
 	if s.runOverview.ID != "" {
 		b.WriteString(sidebarSectionStyle.Render("ID: "))
-		b.WriteString(sidebarValueStyle.Render(fmt.Sprintf("%s", s.runOverview.ID)))
+		b.WriteString(sidebarValueStyle.Render(s.runOverview.ID))
 		b.WriteRune('\n')
 	}
 	if s.runOverview.DisplayName != "" {
 		b.WriteString(sidebarSectionStyle.Render("Name: "))
-		b.WriteString(sidebarValueStyle.Render(fmt.Sprintf("%s", s.runOverview.DisplayName)))
+		b.WriteString(sidebarValueStyle.Render(s.runOverview.DisplayName))
 		b.WriteRune('\n')
 	}
 	if s.runOverview.Project != "" {
 		b.WriteString(sidebarSectionStyle.Render("Project: "))
-		b.WriteString(sidebarValueStyle.Render(fmt.Sprintf("%s", s.runOverview.Project)))
+		b.WriteString(sidebarValueStyle.Render(s.runOverview.Project))
 		b.WriteRune('\n')
 	}
 

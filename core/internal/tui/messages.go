@@ -54,3 +54,6 @@ type InitMsg struct {
 type BatchedRecordsMsg struct {
 	Msgs []tea.Msg
 }
+
+// ReloadMsg indicates that the Run data should be reloaded
+type ReloadMsg struct{}
