@@ -244,13 +244,18 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	case HistoryMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing HistoryMsg with step %d", msg.Step))
 		return m.handleHistoryMsg(msg)
-	case ConfigMsg:
-		m.logger.Debug("model: processing ConfigMsg")
-		onError := func(err error) {
-			m.logger.Error(fmt.Sprintf("Error applying config record: %v", err))
+	case RunMsg:
+		m.logger.Debug("model: processing RunMsg")
+		m.runOverview.ID = msg.ID
+		m.runOverview.DisplayName = msg.DisplayName
+		m.runOverview.Project = msg.Project
+		if msg.Config != nil {
+			onError := func(err error) {
+				m.logger.Error(fmt.Sprintf("model: error applying config record: %v", err))
+			}
+			m.runConfig.ApplyChangeRecord(msg.Config, onError)
+			m.runOverview.Config = m.runConfig.CloneTree()
 		}
-		m.runConfig.ApplyChangeRecord(msg.Record, onError)
-		m.runOverview.Config = m.runConfig.CloneTree()
 		m.sidebar.SetRunOverview(m.runOverview)
 	case SystemInfoMsg:
 		m.logger.Debug("model: processing SystemInfoMsg")

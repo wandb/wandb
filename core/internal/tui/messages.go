@@ -12,9 +12,12 @@ type HistoryMsg struct {
 	Step    int
 }
 
-// ConfigMsg contains configuration data from the wandb run.
-type ConfigMsg struct {
-	Record *spb.ConfigRecord
+// RunMsg contains data from the wandb run record.
+type RunMsg struct {
+	ID          string
+	Project     string
+	DisplayName string
+	Config      *spb.ConfigRecord
 }
 
 // SummaryMsg contains summary data from the wandb run.

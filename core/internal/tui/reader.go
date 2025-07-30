@@ -83,9 +83,12 @@ func (r *WandbReader) ReadNext() (tea.Msg, error) {
 
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_Run:
-		if rec.Run.Config != nil {
-			return ConfigMsg{Record: rec.Run.Config}, nil
-		}
+		return RunMsg{
+			ID:          rec.Run.RunId,
+			DisplayName: rec.Run.DisplayName,
+			Project:     rec.Run.Project,
+			Config:      rec.Run.Config,
+		}, nil
 
 	case *spb.Record_History:
 		metrics := make(map[string]float64)

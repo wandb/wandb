@@ -33,6 +33,9 @@ const (
 // RunOverview contains the run information to display
 type RunOverview struct {
 	RunPath     string
+	Project     string
+	ID          string
+	DisplayName string
 	Config      map[string]any
 	Summary     map[string]any
 	Environment map[string]any // Changed from map[string]string
@@ -53,16 +56,29 @@ type Sidebar struct {
 var (
 	sidebarStyle        = lipgloss.NewStyle().Padding(0, 1)
 	sidebarBorderStyle  = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(lipgloss.Color("238"))
-	sidebarHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).MarginBottom(0)
-	sidebarSectionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Bold(true).MarginTop(1)
+	sidebarHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).MarginLeft(1)
+	sidebarSectionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Bold(true)
 	sidebarKeyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	sidebarValueStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+
+	RightBorder = lipgloss.Border{
+		Top:         " ",
+		Bottom:      " ",
+		Left:        "",
+		Right:       "│",
+		TopLeft:     " ",
+		TopRight:    "│",
+		BottomLeft:  " ",
+		BottomRight: "│",
+	}
 )
 
 // NewSidebar creates a new sidebar instance
 func NewSidebar() *Sidebar {
 	vp := viewport.New(SidebarMinWidth, 10)
-	vp.Style = lipgloss.NewStyle()
+	vp.Style = lipgloss.NewStyle().
+		BorderStyle(RightBorder).
+		BorderForeground(lipgloss.Color("238"))
 	return &Sidebar{
 		state:         SidebarCollapsed,
 		currentWidth:  0,
@@ -75,6 +91,22 @@ func NewSidebar() *Sidebar {
 // updateViewportContent updates the viewport with formatted run overview
 func (s *Sidebar) updateViewportContent() {
 	var b strings.Builder
+
+	if s.runOverview.ID != "" {
+		b.WriteString(sidebarSectionStyle.Render("ID: "))
+		b.WriteString(sidebarValueStyle.Render(fmt.Sprintf("%s", s.runOverview.ID)))
+		b.WriteRune('\n')
+	}
+	if s.runOverview.DisplayName != "" {
+		b.WriteString(sidebarSectionStyle.Render("Name: "))
+		b.WriteString(sidebarValueStyle.Render(fmt.Sprintf("%s", s.runOverview.DisplayName)))
+		b.WriteRune('\n')
+	}
+	if s.runOverview.Project != "" {
+		b.WriteString(sidebarSectionStyle.Render("Project: "))
+		b.WriteString(sidebarValueStyle.Render(fmt.Sprintf("%s", s.runOverview.Project)))
+		b.WriteRune('\n')
+	}
 
 	renderMap(&b, "Config", s.runOverview.Config)
 	renderMap(&b, "Summary", s.runOverview.Summary)
@@ -224,7 +256,7 @@ func (s *Sidebar) View(height int) string {
 	s.viewport.Height = height - 3        // Account for header and padding
 
 	// Build sidebar content
-	header := sidebarHeaderStyle.Render("Overview")
+	header := sidebarHeaderStyle.Render("Run Overview")
 
 	// Render viewport with current content
 	viewportContent := s.viewport.View()
