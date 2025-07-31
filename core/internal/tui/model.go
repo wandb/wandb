@@ -14,6 +14,24 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// ASCII art for the loading screen
+var wandbArt = `
+██     ██  █████  ███    ██ ██████  ██████
+██     ██ ██   ██ ████   ██ ██   ██ ██   ██
+██  █  ██ ███████ ██ ██  ██ ██   ██ ██████
+██ ███ ██ ██   ██ ██  ██ ██ ██   ██ ██   ██
+ ███ ███  ██   ██ ██   ████ ██████  ██████
+
+`
+var observerArt = `
+ ██████  ██████  ███████ ███████ ██████  ██    ██ ███████ ██████
+██    ██ ██   ██ ██      ██      ██   ██ ██    ██ ██      ██   ██
+██    ██ ██████  ███████ █████   ██████  ██    ██ █████   ██████
+██    ██ ██   ██      ██ ██      ██   ██  ██  ██  ██      ██   ██
+ ██████  ██████  ███████ ███████ ██   ██   ████   ███████ ██   ██
+
+`
+
 type RunState int32
 
 const (
@@ -38,6 +56,7 @@ type Model struct {
 	currentPage    int
 	totalPages     int
 	fileComplete   bool
+	isLoading      bool
 	runState       RunState
 	runPath        string
 	reader         *WandbReader
@@ -70,6 +89,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		currentPage:    0,
 		totalPages:     0,
 		fileComplete:   false,
+		isLoading:      true,
 		runPath:        runPath,
 		sidebar:        NewSidebar(),
 		rightSidebar:   NewRightSidebar(),
@@ -145,6 +165,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.logger.Debug("model: finishing watcher")
 			m.watcher.Finish()
 		}
+		// Reset loading state on reload
+		m.isLoading = true
 		return m, tea.Batch(
 			InitializeReader(m.runPath),
 			m.waitForWatcherMsg(),
@@ -210,6 +232,11 @@ func (m *Model) View() string {
 		return "Loading..."
 	}
 
+	// Show loading screen if still loading
+	if m.isLoading {
+		return m.renderLoadingScreen()
+	}
+
 	// Calculate available space for charts (account for header)
 	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
 	availableHeight := m.height - StatusBarHeight - 1 // -1 for the metrics header
@@ -257,6 +284,39 @@ func (m *Model) View() string {
 
 	// Combine main view and status bar
 	return lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
+}
+
+// renderLoadingScreen shows the wandb observer ASCII art centered on screen
+func (m *Model) renderLoadingScreen() string {
+	// WANDB brand color
+	wandbColor := lipgloss.Color("#FFBE00")
+
+	// Style for the ASCII art
+	artStyle := lipgloss.NewStyle().
+		Foreground(wandbColor).
+		Bold(true)
+
+	// Create the full ASCII art with spacing
+	logoContent := lipgloss.JoinVertical(
+		lipgloss.Center,
+		artStyle.Render(wandbArt),
+		artStyle.Render(observerArt),
+	)
+
+	// Center the logo on the screen
+	centeredLogo := lipgloss.Place(
+		m.width,
+		m.height-StatusBarHeight,
+		lipgloss.Center,
+		lipgloss.Center,
+		logoContent,
+	)
+
+	// Render status bar
+	statusBar := m.renderStatusBar()
+
+	// Combine logo and status bar
+	return lipgloss.JoinVertical(lipgloss.Left, centeredLogo, statusBar)
 }
 
 // startWatcher starts watching the file for changes
@@ -369,6 +429,12 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	for metricName, value := range msg.Metrics {
 		chart, exists := m.chartsByName[metricName]
 		if !exists {
+			// First chart creation - exit loading state
+			if m.isLoading {
+				m.isLoading = false
+				m.logger.Debug("model: exiting loading state - first chart created")
+			}
+
 			availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
 			dims := CalculateChartDimensions(availableWidth, m.height)
 			colorIndex := len(m.allCharts)
@@ -553,7 +619,7 @@ func (m *Model) navigatePage(direction int) {
 
 // renderGrid creates the chart grid view.
 func (m *Model) renderGrid(dims ChartDimensions) string {
-	// Build header with navigation info
+	// Build header with navigation info.
 	header := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("230")).
@@ -650,7 +716,7 @@ func (m *Model) renderStatusBar() string {
 		statusText += " • State: Failed"
 	}
 
-	rightPart := pageInfoStyle.Render("v0.21.1")
+	rightPart := pageInfoStyle.Render("wandb v0.21.1")
 	rightWidth := lipgloss.Width(rightPart)
 
 	// Calculate available width for the left part and render it with truncation
