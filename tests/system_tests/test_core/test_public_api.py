@@ -488,17 +488,22 @@ def test_projects(user, wandb_backend_spy):
 
 
 def test_project_get_id(user, wandb_backend_spy):
-    body = {
-        "data": {
-            "project": {
-                "id": "123",
-            },
-        },
-    }
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ProjectID"),
-        gql.Constant(content=body),
+        gql.Matcher(operation="Project"),
+        gql.once(
+            content={
+                "data": {
+                    "project": {
+                        "id": "123",
+                        "name": "test",
+                        "entityName": "test-entity",
+                        "createdAt": "2021-01-01T00:00:00Z",
+                        "isBenchmark": False,
+                    },
+                },
+            }
+        ),
     )
 
     project = Api().project(user, "test")
@@ -507,15 +512,21 @@ def test_project_get_id(user, wandb_backend_spy):
 
 
 def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend_spy):
-    body = {
-        "data": {
-            "project": None,
-        },
-    }
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ProjectID"),
-        gql.Constant(content=body),
+        gql.Matcher(operation="Project"),
+        gql.once(
+            content={
+                "data": {
+                    "project": {
+                        "name": "test",
+                        "entityName": "test-entity",
+                        "createdAt": "2021-01-01T00:00:00Z",
+                        "isBenchmark": False,
+                    },
+                },
+            }
+        ),
     )
 
     with pytest.raises(ValueError):
@@ -1207,3 +1218,52 @@ def test_runs_histories_empty(wandb_backend_spy):
     assert not runs.histories(format="default")  # empty list
     for format in ("pandas", "polars"):
         assert runs.histories(samples=2, format=format).shape == (0, 0)
+
+
+def test_run_upload_file_with_directory_traversal(
+    wandb_backend_spy,
+    stub_run_gql_once,
+    tmp_path,
+    monkeypatch,
+):
+    stub_run_gql_once()
+    runs_files_gql_body = {
+        "data": {
+            "project": {
+                "run": {
+                    "files": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "RmlsZToxODMw",
+                                    "name": "__/test.txt",
+                                    "state": "finished",
+                                    "user": {
+                                        "name": "test",
+                                        "username": "test",
+                                    },
+                                }
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+    }
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="RunFiles"),
+        gql.Constant(content=runs_files_gql_body),
+    )
+    mock_push = mock.MagicMock()
+    monkeypatch.setattr(wandb.sdk.internal.internal_api.Api, "push", mock_push)
+    tmp_path.joinpath("root").mkdir()
+    root = tmp_path.joinpath("root")
+    tmp_path.joinpath("test.txt").write_text("test")
+    api = Api()
+    run = api.run("test/test/test")
+
+    run.upload_file("../test.txt", root=str(root))
+
+    mock_push.assert_called_once()
+    assert "__/test.txt" in mock_push.call_args[0][0]

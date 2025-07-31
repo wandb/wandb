@@ -30,4 +30,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `wandb.Video` will not print a progress spinner while encoding video when `WANDB_SILENT`/`WANDB_QUIET` environment variables are set (@jacobromero in https://github.com/wandb/wandb/pull/10064)
 - Fixed registries fetched using `api.registries()` from having an extra `wandb-registry-` prefix in the name and full_name fields (@estellazx in https://github.com/wandb/wandb/pull/10187)
 - Fixed a crash that could happen when using `sync_tensorboard` (@timoffex in https://github.com/wandb/wandb/pull/10199)
-- When a Sweeps run function called by API via `wandb.agent()` throws an exception, we will now log that exception server-side. (This was already working for runs called by the `wandb agent` CLI command.) (@kelu-wandb in https://github.com/wandb/wandb/pull/10244)
+- `Api().run(...).upload_file` no longer throws an error when uploading a file in a different path relative to the provided root directory (@jacobromero in https://github.com/wandb/wandb/pull/10228)
+- When a Sweeps run function called by `wandb.agent()` throws an exception, we will now log that exception server-side. (This was already working for runs called by the `wandb agent` CLI command.) (@kelu-wandb in https://github.com/wandb/wandb/pull/10244)
