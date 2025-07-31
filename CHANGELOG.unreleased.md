@@ -22,6 +22,7 @@ The default ordering for `Api().runs(...)` and `Api().sweeps(...)` is now ascend
 - Support `first` summary option in `define_metric` (@kptkin in https://github.com/wandb/wandb/pull/10121)
 - Add support for paginated sweeps (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/10122)
 - `pattern` parameter to `Api().run().files` to only get files matching a given pattern from the W&B backend (@jacobromero in https://github.com/wandb/wandb/pull/10163)
+- Add optional `format` key to Launch input JSONSchema to specify a string with a secret format (@domphan-wandb in https://github.com/wandb/wandb/pull/10207)
 
 ### Changed
 
