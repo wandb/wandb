@@ -2,7 +2,6 @@ package stream
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -23,7 +22,6 @@ import (
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
-	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
@@ -93,94 +91,6 @@ type Stream struct {
 	clientID string
 }
 
-// symlinkDebugCore symlinks the debug-core.log file to the run's directory.
-func symlinkDebugCore(
-	settings *settings.Settings,
-	loggerPath string,
-) {
-	if loggerPath == "" {
-		return
-	}
-
-	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
-
-	err := os.Symlink(loggerPath, targetPath)
-	if err != nil {
-		slog.Error(
-			"error symlinking debug-core.log",
-			"loggerPath", loggerPath,
-			"targetPath", targetPath,
-			"error", err)
-	}
-}
-
-// streamLoggerFile returns the file to use for logging.
-func streamLoggerFile(settings *settings.Settings) *os.File {
-	path := settings.GetInternalLogFile()
-	loggerFile, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-
-	if err != nil {
-		slog.Error(
-			"error opening log file",
-			"path", path,
-			"error", err)
-		return nil
-	} else {
-		return loggerFile
-	}
-}
-
-func streamLogger(
-	loggerFile *os.File,
-	settings *settings.Settings,
-	sentryClient *sentry_ext.Client,
-	logLevel slog.Level,
-) *observability.CoreLogger {
-	sentryClient.SetUser(
-		settings.GetEntity(),
-		settings.GetEmail(),
-		settings.GetUserName(),
-	)
-
-	var writer io.Writer
-	if loggerFile != nil {
-		writer = loggerFile
-	} else {
-		writer = io.Discard
-	}
-
-	logger := observability.NewCoreLogger(
-		slog.New(slog.NewJSONHandler(
-			writer,
-			&slog.HandlerOptions{
-				Level: logLevel,
-				// AddSource: true,
-			},
-		)),
-		&observability.CoreLoggerParams{
-			Tags:   observability.Tags{},
-			Sentry: sentryClient,
-		},
-	)
-
-	logger.Info(
-		"stream: starting",
-		"core version", version.Version)
-
-	tags := observability.Tags{
-		"run_id":   settings.GetRunID(),
-		"run_url":  settings.GetRunURL(),
-		"project":  settings.GetProject(),
-		"base_url": settings.GetBaseURL(),
-	}
-	if settings.GetSweepURL() != "" {
-		tags["sweep_url"] = settings.GetSweepURL()
-	}
-	logger.SetGlobalTags(tags)
-
-	return logger
-}
-
 type StreamParams struct {
 	Commit     string
 	Settings   *settings.Settings
@@ -196,7 +106,7 @@ func NewStream(
 	params StreamParams,
 ) *Stream {
 	symlinkDebugCore(params.Settings, params.LoggerPath)
-	loggerFile := streamLoggerFile(params.Settings)
+	loggerFile := openStreamLoggerFile(params.Settings)
 	logger := streamLogger(
 		loggerFile,
 		params.Settings,
