@@ -117,3 +117,7 @@ When preparing a release that can include breaking changes, consider applying ch
     - Owner: @jacobromero
     - Deprecated in 0.21.0
     - can do in >= 0.22
+
+- Make `wandb.apis.public.runs.Run::load()` private:
+    - Owner: @jacobromero
+    - Can do in >= 0.22
