@@ -38,4 +38,4 @@ The default ordering for `Api().runs(...)` and `Api().sweeps(...)` is now ascend
 - Fixed a crash that could happen when using `sync_tensorboard` (@timoffex in https://github.com/wandb/wandb/pull/10199)
 - `Api().run(...).upload_file` no longer throws an error when uploading a file in a different path relative to the provided root directory (@jacobromero in https://github.com/wandb/wandb/pull/10228)
 - Calling `load()` function on a public API run object no longer throws `TypeError`. (@jacobromero in https://github.com/wandb/wandb/pull/10050)
-- When a Sweeps run function called by `wandb.agent()` API throws an exception, we will now log that exception server-side. (This previously only happened for runs called by the `wandb agent` CLI command.) (@kelu-wandb in https://github.com/wandb/wandb/pull/10244)
+- When a Sweeps run function called by `wandb.agent()` API throws an exception, it will now appear on the logs page for the run. (This previously only happened for runs called by the `wandb agent` CLI command.) (@kelu-wandb in https://github.com/wandb/wandb/pull/10244)
