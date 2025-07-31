@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// RightSidebar represents a collapsible right sidebar panel
+// RightSidebar represents a collapsible right sidebar panel.
 type RightSidebar struct {
 	state          SidebarState
 	currentWidth   int

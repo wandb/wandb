@@ -213,7 +213,8 @@ func (m *Model) View() string {
 	rightSidebarView := m.rightSidebar.View(m.height - StatusBarHeight)
 
 	// Handle all combinations of sidebar visibility
-	if m.sidebar.Width() > 0 && m.rightSidebar.Width() > 0 {
+	switch {
+	case m.sidebar.Width() > 0 && m.rightSidebar.Width() > 0:
 		// Both sidebars visible
 		mainView = lipgloss.JoinHorizontal(
 			lipgloss.Top,
@@ -221,21 +222,21 @@ func (m *Model) View() string {
 			gridView,
 			rightSidebarView,
 		)
-	} else if m.sidebar.Width() > 0 {
+	case m.sidebar.Width() > 0:
 		// Only left sidebar visible
 		mainView = lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			leftSidebarView,
 			gridView,
 		)
-	} else if m.rightSidebar.Width() > 0 {
+	case m.rightSidebar.Width() > 0:
 		// Only right sidebar visible
 		mainView = lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			gridView,
 			rightSidebarView,
 		)
-	} else {
+	default:
 		// No sidebars visible
 		mainView = gridView
 	}
