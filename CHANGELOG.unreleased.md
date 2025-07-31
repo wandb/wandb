@@ -13,6 +13,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Notable Changes
+
+The default ordering for `Api().runs(...)` and `Api().sweeps(...)` is now ascending order based on the runs `created_at` time.
+
 ### Added
 
 - Support `first` summary option in `define_metric` (@kptkin in https://github.com/wandb/wandb/pull/10121)
@@ -23,6 +27,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - `Sweep.name` property will now return user-edited display name if available (falling back to original name from sweep config, then sweep ID as before) (@kelu-wandb in https://github.com/wandb/wandb/pull/10144)
+- `Api().runs(...)` and `Api().sweeps(...)` now returns runs in ascending order according to the runs `created_at` time. (@jacobromero in https://github.com/wandb/wandb/pull/10130)
 
 ### Fixed
 
