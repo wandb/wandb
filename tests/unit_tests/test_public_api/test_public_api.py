@@ -264,6 +264,48 @@ def test_initialize_api_does_not_prompt_for_api_key__when_using_env_var(monkeypa
 
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+def test_create_run_with_dictionary_config():
+    run = wandb.apis.public.Run(
+        client=wandb.Api().client,
+        entity="test",
+        project="test",
+        run_id="test",
+        attrs={"config": '{"test": "test"}'},
+    )
+    assert run.config == {"test": "test"}
+
+
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+def test_create_run_with_dictionary__config_not_parsable():
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        run = wandb.apis.public.Run(
+            client=wandb.Api().client,
+            entity="test",
+            project="test",
+            run_id="test",
+            attrs={
+                "config": {"test": "test"},
+            },
+        )
+        assert run.config == {"test": "test"}
+
+
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
+def test_create_run_with_dictionary__throws_error():
+    with mock.patch.object(wandb, "login", mock.MagicMock()):
+        with pytest.raises(wandb.errors.CommError):
+            wandb.apis.public.Run(
+                client=wandb.Api().client,
+                entity="test",
+                project="test",
+                run_id="test",
+                attrs={
+                    "config": 1,
+                },
+            )
+
+
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
 def test_project_id_lazy_load(monkeypatch):
     api = wandb.Api()
     mock_execute = MagicMock(
