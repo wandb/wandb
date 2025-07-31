@@ -2,14 +2,12 @@ package stream
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/featurechecker"
-	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -84,20 +82,13 @@ type Stream struct {
 	clientID sharedmode.ClientID
 }
 
-type StreamParams struct {
-	Commit     GitCommitHash
-	Settings   *settings.Settings
-	Sentry     *sentry_ext.Client
-	LoggerPath string
-	LogLevel   slog.Level
+// DebugCorePath is the absolute path to the debug-core.log file.
+type DebugCorePath string
 
-	GPUResourceManager *monitor.GPUResourceManager
-}
-
-// NewStream creates a new stream with the given settings and responders.
+// NewStream creates a new stream.
 func NewStream(
-	params StreamParams,
 	clientID sharedmode.ClientID,
+	debugCorePath DebugCorePath,
 	featureProvider *featurechecker.ServerFeaturesCache,
 	graphqlClientOrNil graphql.Client,
 	handler *Handler,
@@ -107,9 +98,11 @@ func NewStream(
 	recordParser *RecordParser,
 	runWork runwork.RunWork,
 	sender *Sender,
+	sentry *sentry_ext.Client,
+	settings *settings.Settings,
 	streamRun *StreamRun,
 ) *Stream {
-	symlinkDebugCore(params.Settings, params.LoggerPath)
+	symlinkDebugCore(settings, string(debugCorePath))
 
 	s := &Stream{
 		runWork:            runWork,
@@ -119,11 +112,11 @@ func NewStream(
 		graphqlClientOrNil: graphqlClientOrNil,
 		logger:             logger,
 		loggerFile:         loggerFile,
-		settings:           params.Settings,
+		settings:           settings,
 		recordParser:       recordParser,
 		handler:            handler,
 		sender:             sender,
-		sentryClient:       params.Sentry,
+		sentryClient:       sentry,
 		clientID:           clientID,
 	}
 
