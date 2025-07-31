@@ -34,7 +34,15 @@ type SystemInfoMsg struct {
 type FileChangedMsg struct{}
 
 // FileCompleteMsg indicates that the file has been completely read.
-type FileCompleteMsg struct{}
+type FileCompleteMsg struct {
+	ExitCode int32
+}
+
+// StatsMsg contains system metrics data from a wandb stats record.
+type StatsMsg struct {
+	Timestamp int64              // Unix timestamp in seconds
+	Metrics   map[string]float64 // metric name -> value
+}
 
 // ErrorMsg wraps an error.
 type ErrorMsg struct {

@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -15,23 +17,285 @@ type RightSidebar struct {
 	expandedWidth  int
 	animationStep  int
 	animationTimer time.Time
+
+	// System metrics grid
+	metricsGrid *SystemMetricsGrid
 }
 
 var (
 	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
 	rightSidebarBorderStyle = lipgloss.NewStyle().Border(lipgloss.Border{Left: "│"}).BorderForeground(lipgloss.Color("238"))
+	rightSidebarHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).MarginLeft(1)
 
 	LeftBorder = lipgloss.Border{
 		Top:         " ",
 		Bottom:      " ",
 		Left:        "│",
 		Right:       "",
-		TopLeft:     "│",
+		TopLeft:     "|",
 		TopRight:    " ",
-		BottomLeft:  "│",
+		BottomLeft:  "|",
 		BottomRight: " ",
 	}
 )
+
+// System metrics grid configuration
+const (
+	MetricsGridRows      = 3
+	MetricsGridCols      = 2
+	MetricsPerPage       = MetricsGridRows * MetricsGridCols
+	MinMetricChartWidth  = 18
+	MinMetricChartHeight = 4
+)
+
+// Metric definitions - which metrics to display and their configuration
+var systemMetrics = []MetricConfig{
+	{Name: "cpu.ecpu_percent", Title: "E-CPU (%)", MinY: 0, MaxY: 100, Unit: "%"},
+	{Name: "cpu.pcpu_percent", Title: "P-CPU (%)", MinY: 0, MaxY: 100, Unit: "%"},
+	{Name: "memory.used_percent", Title: "Memory (%)", MinY: 0, MaxY: 100, Unit: "%"},
+	{Name: "cpu.avg_temp", Title: "CPU Temp (°C)", MinY: 0, MaxY: 100, Unit: "°C"},
+	{Name: "gpu.0.gpu", Title: "GPU (%)", MinY: 0, MaxY: 100, Unit: "%"},
+	{Name: "gpu.0.temp", Title: "GPU Temp (°C)", MinY: 0, MaxY: 100, Unit: "%"},
+	{Name: "system.powerWatts", Title: "Power (W)", MinY: 0, MaxY: 50, Unit: "W"},
+}
+
+// MetricConfig defines configuration for a system metric
+type MetricConfig struct {
+	Name  string
+	Title string
+	MinY  float64
+	MaxY  float64
+	Unit  string
+}
+
+// SystemMetricsGrid manages the grid of system metric charts
+type SystemMetricsGrid struct {
+	charts       [][]*timeserieslinechart.Model
+	allCharts    []*timeserieslinechart.Model
+	chartConfigs []MetricConfig
+	currentPage  int
+	totalPages   int
+	focusedRow   int
+	focusedCol   int
+	width        int
+	height       int
+}
+
+// NewSystemMetricsGrid creates a new system metrics grid
+func NewSystemMetricsGrid(width, height int) *SystemMetricsGrid {
+	grid := &SystemMetricsGrid{
+		charts:       make([][]*timeserieslinechart.Model, MetricsGridRows),
+		allCharts:    make([]*timeserieslinechart.Model, 0),
+		chartConfigs: make([]MetricConfig, 0),
+		currentPage:  0,
+		focusedRow:   -1,
+		focusedCol:   -1,
+		width:        width,
+		height:       height,
+	}
+
+	// Initialize grid rows
+	for row := 0; row < MetricsGridRows; row++ {
+		grid.charts[row] = make([]*timeserieslinechart.Model, MetricsGridCols)
+	}
+
+	// Create charts for each metric
+	for i, metric := range systemMetrics {
+		dims := grid.calculateChartDimensions()
+		chart := grid.createMetricChart(metric, dims.ChartWidth, dims.ChartHeight, i)
+		grid.allCharts = append(grid.allCharts, &chart)
+		grid.chartConfigs = append(grid.chartConfigs, metric)
+	}
+
+	grid.totalPages = (len(grid.allCharts) + MetricsPerPage - 1) / MetricsPerPage
+	grid.loadCurrentPage()
+
+	return grid
+}
+
+// createMetricChart creates a time series chart for a system metric
+func (g *SystemMetricsGrid) createMetricChart(config MetricConfig, width, height, colorIndex int) timeserieslinechart.Model {
+	// Use different colors for different metrics
+	colors := []string{"4", "10", "5", "6", "3", "2"}
+	color := colors[colorIndex%len(colors)]
+
+	graphStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+
+	now := time.Now()
+	minTime := now.Add(-5 * time.Minute) // Show last 5 minutes
+
+	chart := timeserieslinechart.New(width, height,
+		timeserieslinechart.WithTimeRange(minTime, now),
+		timeserieslinechart.WithYRange(config.MinY, config.MaxY),
+		timeserieslinechart.WithAxesStyles(axisStyle, labelStyle),
+		timeserieslinechart.WithStyle(graphStyle),
+		timeserieslinechart.WithUpdateHandler(timeserieslinechart.SecondUpdateHandler(1)),
+		timeserieslinechart.WithXLabelFormatter(timeserieslinechart.HourTimeLabelFormatter()),
+		timeserieslinechart.WithYLabelFormatter(func(i int, v float64) string {
+			return fmt.Sprintf("%.0f%s", v, config.Unit)
+		}),
+		timeserieslinechart.WithXYSteps(2, 3), // Fewer steps for smaller charts
+	)
+
+	return chart
+}
+
+// AddDataPoint adds a new data point to the appropriate metric chart
+func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, value float64) {
+	for i, config := range g.chartConfigs {
+		if config.Name == metricName && i < len(g.allCharts) {
+			timePoint := timeserieslinechart.TimePoint{
+				Time:  time.Unix(timestamp, 0),
+				Value: value,
+			}
+			g.allCharts[i].Push(timePoint)
+
+			// Update the time range to show from start to latest data point
+			chart := g.allCharts[i]
+			minTime := time.Unix(timestamp, 0).Add(-5 * time.Minute)
+			maxTime := time.Unix(timestamp, 0).Add(10 * time.Second) // Small buffer for visibility
+			chart.SetTimeRange(minTime, maxTime)
+			chart.SetViewTimeRange(minTime, maxTime)
+
+			chart.DrawBraille() // Use braille for higher resolution
+			break
+		}
+	}
+}
+
+// ChartDimensions for metric charts
+type MetricChartDimensions struct {
+	ChartWidth             int
+	ChartHeight            int
+	ChartWidthWithPadding  int
+	ChartHeightWithPadding int
+}
+
+// calculateChartDimensions computes dimensions for metric charts
+func (g *SystemMetricsGrid) calculateChartDimensions() MetricChartDimensions {
+	availableHeight := g.height - 2 // Just header and minimal padding
+	chartHeightWithPadding := availableHeight / MetricsGridRows
+	chartWidthWithPadding := g.width / MetricsGridCols
+
+	borderChars := 2
+	titleLines := 1
+
+	chartWidth := chartWidthWithPadding - borderChars
+	chartHeight := chartHeightWithPadding - borderChars - titleLines
+
+	// Ensure minimum size
+	if chartHeight < MinMetricChartHeight {
+		chartHeight = MinMetricChartHeight
+	}
+	if chartWidth < MinMetricChartWidth {
+		chartWidth = MinMetricChartWidth
+	}
+
+	return MetricChartDimensions{
+		ChartWidth:             chartWidth,
+		ChartHeight:            chartHeight,
+		ChartWidthWithPadding:  chartWidthWithPadding,
+		ChartHeightWithPadding: chartHeightWithPadding,
+	}
+}
+
+// loadCurrentPage loads charts for the current page
+func (g *SystemMetricsGrid) loadCurrentPage() {
+	// Clear current grid
+	for row := 0; row < MetricsGridRows; row++ {
+		for col := 0; col < MetricsGridCols; col++ {
+			g.charts[row][col] = nil
+		}
+	}
+
+	startIdx := g.currentPage * MetricsPerPage
+	endIdx := startIdx + MetricsPerPage
+	if endIdx > len(g.allCharts) {
+		endIdx = len(g.allCharts)
+	}
+
+	idx := startIdx
+	for row := 0; row < MetricsGridRows && idx < endIdx; row++ {
+		for col := 0; col < MetricsGridCols && idx < endIdx; col++ {
+			g.charts[row][col] = g.allCharts[idx]
+			idx++
+		}
+	}
+}
+
+// Navigate changes pages
+func (g *SystemMetricsGrid) Navigate(direction int) {
+	if g.totalPages <= 1 {
+		return
+	}
+
+	g.currentPage += direction
+	if g.currentPage < 0 {
+		g.currentPage = g.totalPages - 1
+	} else if g.currentPage >= g.totalPages {
+		g.currentPage = 0
+	}
+
+	g.loadCurrentPage()
+}
+
+// Resize updates dimensions and resizes all charts
+func (g *SystemMetricsGrid) Resize(width, height int) {
+	g.width = width
+	g.height = height
+
+	dims := g.calculateChartDimensions()
+	for _, chart := range g.allCharts {
+		chart.Resize(dims.ChartWidth, dims.ChartHeight)
+		chart.DrawBraille()
+	}
+
+	g.loadCurrentPage()
+}
+
+// View renders the metrics grid
+func (g *SystemMetricsGrid) View() string {
+	dims := g.calculateChartDimensions()
+
+	var rows []string
+	for row := 0; row < MetricsGridRows; row++ {
+		var cols []string
+		for col := 0; col < MetricsGridCols; col++ {
+			if row < len(g.charts) && col < len(g.charts[row]) && g.charts[row][col] != nil {
+				chart := g.charts[row][col]
+				config := g.chartConfigs[g.currentPage*MetricsPerPage+row*MetricsGridCols+col]
+
+				// Render chart with title
+				chartView := chart.View()
+				boxContent := lipgloss.JoinVertical(
+					lipgloss.Left,
+					titleStyle.Render(config.Title),
+					chartView,
+				)
+
+				box := borderStyle.Render(boxContent)
+				cell := lipgloss.Place(
+					dims.ChartWidthWithPadding,
+					dims.ChartHeightWithPadding,
+					lipgloss.Left,
+					lipgloss.Top,
+					box,
+				)
+				cols = append(cols, cell)
+			} else {
+				// Empty cell
+				cols = append(cols, lipgloss.NewStyle().
+					Width(dims.ChartWidthWithPadding).
+					Height(dims.ChartHeightWithPadding).
+					Render(""))
+			}
+		}
+		rowView := lipgloss.JoinHorizontal(lipgloss.Left, cols...)
+		rows = append(rows, rowView)
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
 
 // NewRightSidebar creates a new right sidebar instance
 func NewRightSidebar() *RightSidebar {
@@ -40,6 +304,7 @@ func NewRightSidebar() *RightSidebar {
 		currentWidth:  0,
 		targetWidth:   0,
 		expandedWidth: SidebarMinWidth,
+		metricsGrid:   NewSystemMetricsGrid(SidebarMinWidth-3, 20), // Will be resized
 	}
 }
 
@@ -89,9 +354,27 @@ func (rs *RightSidebar) Toggle() {
 	}
 }
 
-// Update handles animation updates for the right sidebar
+// Update handles animation updates and forwards system metrics data
 func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 	var cmds []tea.Cmd
+
+	// Handle system metrics data
+	switch msg := msg.(type) {
+	case StatsMsg:
+		// Forward data to metrics grid
+		for metricName, value := range msg.Metrics {
+			rs.metricsGrid.AddDataPoint(metricName, msg.Timestamp, value)
+		}
+	case tea.KeyMsg:
+		if rs.state == SidebarExpanded {
+			switch msg.String() {
+			case "ctrl+pgup":
+				rs.metricsGrid.Navigate(-1)
+			case "ctrl+pgdown":
+				rs.metricsGrid.Navigate(1)
+			}
+		}
+	}
 
 	// Handle animation
 	if rs.state == SidebarExpanding || rs.state == SidebarCollapsing {
@@ -128,19 +411,41 @@ func (rs *RightSidebar) View(height int) string {
 		return ""
 	}
 
-	// Placeholder content for now
-	content := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("245")).
-		Italic(true).
-		Render("System Metrics\n(Coming Soon)")
+	// Update metrics grid dimensions
+	rs.metricsGrid.Resize(rs.currentWidth-3, height-1)
+
+	// Build header with navigation info
+	header := rightSidebarHeaderStyle.Render("System Metrics")
+
+	// Add navigation info
+	navInfo := ""
+	if rs.metricsGrid.totalPages > 0 {
+		startIdx := rs.metricsGrid.currentPage*MetricsPerPage + 1
+		endIdx := startIdx + MetricsPerPage - 1
+		totalMetrics := len(rs.metricsGrid.allCharts)
+		if endIdx > totalMetrics {
+			endIdx = totalMetrics
+		}
+		navInfo = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, totalMetrics))
+	}
+
+	headerLine := lipgloss.JoinHorizontal(lipgloss.Left, header, navInfo)
+	metricsView := rs.metricsGrid.View()
+
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		headerLine,
+		metricsView,
+	)
 
 	// Apply styles with exact dimensions
 	styledContent := rightSidebarStyle.
-		Width(rs.currentWidth-1). // Account for border
+		Width(rs.currentWidth - 1). // Account for border
 		Height(height).
-		MaxWidth(rs.currentWidth-1).
+		MaxWidth(rs.currentWidth - 1).
 		MaxHeight(height).
-		Align(lipgloss.Center, lipgloss.Center).
 		Render(content)
 
 	// Apply border (only on the left side)
@@ -200,5 +505,14 @@ func (rs *RightSidebar) UpdateExpandedWidth(terminalWidth int, leftSidebarVisibl
 		rs.expandedWidth = SidebarMaxWidth
 	default:
 		rs.expandedWidth = calculatedWidth
+	}
+}
+
+// ProcessStatsMsg processes a stats message and updates the metrics
+func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
+	if rs.metricsGrid != nil {
+		for metricName, value := range msg.Metrics {
+			rs.metricsGrid.AddDataPoint(metricName, msg.Timestamp, value)
+		}
 	}
 }

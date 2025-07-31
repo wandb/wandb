@@ -14,6 +14,15 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type RunState int32
+
+const (
+	RunStateRunning RunState = iota
+	RunStateFinished
+	RunStateFailed
+	RunStateCrashed
+)
+
 // Model represents the main application state.
 type Model struct {
 	allCharts    []*EpochLineChart
@@ -29,6 +38,7 @@ type Model struct {
 	currentPage    int
 	totalPages     int
 	fileComplete   bool
+	runState       RunState
 	runPath        string
 	reader         *WandbReader
 	watcher        watcher.Watcher
@@ -200,9 +210,10 @@ func (m *Model) View() string {
 		return "Loading..."
 	}
 
-	// Calculate available space for charts
+	// Calculate available space for charts (account for header)
 	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
-	dims := CalculateChartDimensions(availableWidth, m.height)
+	availableHeight := m.height - StatusBarHeight - 1 // -1 for the metrics header
+	dims := CalculateChartDimensions(availableWidth, availableHeight)
 
 	// Render main content
 	gridView := m.renderGrid(dims)
@@ -294,6 +305,9 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 			m.runOverview.Config = m.runConfig.CloneTree()
 		}
 		m.sidebar.SetRunOverview(m.runOverview)
+	case StatsMsg:
+		m.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
+		m.rightSidebar.ProcessStatsMsg(msg)
 	case SystemInfoMsg:
 		m.logger.Debug("model: processing SystemInfoMsg")
 		if m.runEnvironment == nil {
@@ -321,6 +335,13 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 		m.logger.Debug("model: processing FileCompleteMsg - file is complete!")
 		if !m.fileComplete {
 			m.fileComplete = true
+			switch msg.ExitCode {
+			case 0:
+				m.runState = RunStateFinished
+			default:
+				m.runState = RunStateFailed
+			}
+
 			// Stop the watcher
 			if m.watcherStarted {
 				m.logger.Debug("model: finishing watcher")
@@ -330,6 +351,7 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	case ErrorMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
 		m.fileComplete = true
+		m.runState = RunStateFailed
 		// Stop the watcher
 		if m.watcherStarted {
 			m.logger.Debug("model: finishing watcher due to error")
@@ -531,6 +553,32 @@ func (m *Model) navigatePage(direction int) {
 
 // renderGrid creates the chart grid view.
 func (m *Model) renderGrid(dims ChartDimensions) string {
+	// Build header with navigation info
+	header := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("230")).
+		MarginLeft(1).
+		MarginTop(1).
+		Render("Metrics")
+
+	// Add navigation info
+	navInfo := ""
+	if m.totalPages > 0 && len(m.allCharts) > 0 {
+		startIdx := m.currentPage*ChartsPerPage + 1
+		endIdx := startIdx + ChartsPerPage - 1
+		totalMetrics := len(m.allCharts)
+		if endIdx > totalMetrics {
+			endIdx = totalMetrics
+		}
+		navInfo = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			MarginTop(1).
+			Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, totalMetrics))
+	}
+
+	headerLine := lipgloss.JoinHorizontal(lipgloss.Left, header, navInfo)
+
+	// Render grid
 	var rows []string
 	for row := range GridRows {
 		var cols []string
@@ -541,7 +589,10 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 		rowView := lipgloss.JoinHorizontal(lipgloss.Left, cols...)
 		rows = append(rows, rowView)
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+	gridContent := lipgloss.JoinVertical(lipgloss.Left, rows...)
+
+	// Combine header and grid
+	return lipgloss.JoinVertical(lipgloss.Left, headerLine, gridContent)
 }
 
 // renderGridCell renders a single grid cell
@@ -581,19 +632,25 @@ func (m *Model) renderGridCell(row, col int, dims ChartDimensions) string {
 // renderStatusBar creates the status bar, ensuring it fits on a single line.
 func (m *Model) renderStatusBar() string {
 	// Define the left-side content
-	statusText := " ctrl+b: toggle run overview • ctrl+n: toggle system metrics • r: reload • q: quit • PgUp/PgDn: navigate"
-	if !m.fileComplete {
-		statusText += " • [Run active...]"
-	} else {
-		statusText += " • [Run complete]"
+	statusText := " ctrl+b: toggle run overview • ctrl+n: toggle system metrics"
+
+	// Add system metrics navigation hint if right sidebar is visible
+	if m.rightSidebar.IsVisible() {
+		statusText += " • ctrl+pgup/pgdn: metrics pages"
 	}
 
-	// Define and style the right-side content
-	pageInfo := ""
-	if m.totalPages > 0 {
-		pageInfo = fmt.Sprintf("Page %d/%d", m.currentPage+1, m.totalPages)
+	statusText += " • r: reload • q: quit • PgUp/PgDn: navigate"
+
+	switch m.runState {
+	case RunStateRunning:
+		statusText += " • State: Running"
+	case RunStateFinished:
+		statusText += " • State: Finished"
+	case RunStateFailed:
+		statusText += " • State: Failed"
 	}
-	rightPart := pageInfoStyle.Render(pageInfo)
+
+	rightPart := pageInfoStyle.Render("v0.21.1")
 	rightWidth := lipgloss.Width(rightPart)
 
 	// Calculate available width for the left part and render it with truncation
@@ -653,7 +710,8 @@ func (m *Model) updateChartSizes() {
 
 	// Then calculate available width with updated sidebar widths
 	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
-	dims := CalculateChartDimensions(availableWidth, m.height)
+	availableHeight := m.height - StatusBarHeight - 1 // -1 for the metrics header
+	dims := CalculateChartDimensions(availableWidth, availableHeight)
 
 	for _, chart := range m.allCharts {
 		chart.Resize(dims.ChartWidth, dims.ChartHeight)

@@ -155,9 +155,11 @@ github.com/Microsoft/go-winio/pkg/guid
 # github.com/NimbleMarkets/ntcharts v0.3.1
 ## explicit; go 1.22.0
 github.com/NimbleMarkets/ntcharts/canvas
+github.com/NimbleMarkets/ntcharts/canvas/buffer
 github.com/NimbleMarkets/ntcharts/canvas/graph
 github.com/NimbleMarkets/ntcharts/canvas/runes
 github.com/NimbleMarkets/ntcharts/linechart
+github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart
 # github.com/ProtonMail/go-crypto v1.3.0
 ## explicit; go 1.22.0
 github.com/ProtonMail/go-crypto/bitcurves

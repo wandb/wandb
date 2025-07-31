@@ -15,6 +15,7 @@ import (
 type WandbReader struct {
 	store          *stream.Store
 	exitSeen       bool
+	exitCode       int32
 	lastGoodOffset int64
 }
 
@@ -48,7 +49,7 @@ func (r *WandbReader) ReadNext() (tea.Msg, error) {
 	if err != nil {
 		if err == io.EOF {
 			if r.exitSeen {
-				return FileCompleteMsg{}, io.EOF
+				return FileCompleteMsg{ExitCode: r.exitCode}, io.EOF
 			}
 
 			// For live runs with EOF, seek back to last known good position
@@ -117,6 +118,26 @@ func (r *WandbReader) ReadNext() (tea.Msg, error) {
 			return HistoryMsg{Metrics: metrics, Step: step}, nil
 		}
 
+	case *spb.Record_Stats:
+		metrics := make(map[string]float64)
+		var timestamp int64
+
+		if rec.Stats.Timestamp != nil {
+			timestamp = rec.Stats.Timestamp.Seconds
+		}
+
+		for _, item := range rec.Stats.Item {
+			key := item.Key
+			valueStr := strings.Trim(item.ValueJson, `"`)
+			if value, err := strconv.ParseFloat(valueStr, 64); err == nil {
+				metrics[key] = value
+			}
+		}
+
+		if len(metrics) > 0 {
+			return StatsMsg{Timestamp: timestamp, Metrics: metrics}, nil
+		}
+
 	case *spb.Record_Summary:
 		return SummaryMsg{Summary: rec.Summary}, nil
 
@@ -125,7 +146,8 @@ func (r *WandbReader) ReadNext() (tea.Msg, error) {
 
 	case *spb.Record_Exit:
 		r.exitSeen = true
-		return FileCompleteMsg{}, nil
+		r.exitCode = rec.Exit.ExitCode
+		return FileCompleteMsg{ExitCode: r.exitCode}, nil
 	}
 
 	// Return nil for unhandled record types
