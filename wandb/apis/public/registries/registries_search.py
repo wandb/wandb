@@ -20,7 +20,7 @@ from ._utils import ensure_registry_prefix_on_names
 
 
 class Registries(Paginator):
-    """Iterator that returns Registries."""
+    """Lazy iterator that returns Registries."""
 
     QUERY = gql(
         """
@@ -143,7 +143,7 @@ class Registries(Paginator):
 
 
 class Collections(Paginator):
-    """Iterator that returns Artifact collections in the Registry."""
+    """Lazy iterator that returns Artifact collections in the Registry."""
 
     QUERY = gql(
         """
@@ -311,7 +311,7 @@ class Collections(Paginator):
 
 
 class Versions(Paginator):
-    """Iterator that returns Artifact versions in the Registry."""
+    """Lazy iterator that returns Artifact versions in the Registry."""
 
     def __init__(
         self,
