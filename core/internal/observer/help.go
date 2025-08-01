@@ -6,10 +6,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const (
-	helpKeyWidth = 20
-)
-
 // HelpEntry represents a single entry in the help screen
 type HelpEntry struct {
 	Key         string
@@ -24,34 +20,6 @@ type HelpModel struct {
 	width    int
 	height   int
 }
-
-var (
-	// helpTitleStyle = lipgloss.NewStyle().
-	// 		Bold(true).
-	// 		Background(wandbColor).
-	// 		Foreground(lipgloss.Color("#000000")).
-	// 		Padding(0, 1).
-	// 		MarginTop(1).
-	// 		MarginBottom(1)
-
-	helpKeyStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("230")).
-			Width(helpKeyWidth)
-
-	helpDescStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245"))
-
-	helpSectionStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(wandbColor).
-				MarginTop(1).
-				MarginBottom(1)
-
-	helpContentStyle = lipgloss.NewStyle().
-				MarginLeft(2).
-				MarginTop(2)
-)
 
 // NewHelp creates a new help screen
 func NewHelp() *HelpModel {

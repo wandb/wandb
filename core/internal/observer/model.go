@@ -105,18 +105,6 @@ func (m *Model) Init() tea.Cmd {
 	)
 }
 
-// waitForWatcherMsg returns a command that waits for messages from the watcher
-func (m *Model) waitForWatcherMsg() tea.Cmd {
-	return func() tea.Msg {
-		m.logger.Debug("model: waiting for watcher message...")
-		msg := <-m.msgChan
-		if msg != nil {
-			m.logger.Debug(fmt.Sprintf("model: received watcher message: %T", msg))
-		}
-		return msg
-	}
-}
-
 // Update implements tea.Model.
 //
 //gocyclo:ignore
@@ -341,408 +329,6 @@ func (m *Model) renderLoadingScreen() string {
 	return lipgloss.JoinVertical(lipgloss.Left, centeredLogo, statusBar)
 }
 
-// startWatcher starts watching the file for changes
-func (m *Model) startWatcher() error {
-	m.logger.Debug(fmt.Sprintf("model: startWatcher called for path: %s", m.runPath))
-	m.watcherStarted = true
-
-	// Register the file with the watcher
-	err := m.watcher.Watch(m.runPath, func() {
-		m.logger.Debug(fmt.Sprintf("model: watcher callback triggered! File changed: %s", m.runPath))
-		// This callback is called from the watcher's goroutine
-		// Send a message through the channel
-		select {
-		case m.msgChan <- FileChangedMsg{}:
-			m.logger.Debug("model: FileChangedMsg sent to channel")
-		default:
-			m.logger.Warn("model: msgChan is full, dropping FileChangedMsg")
-		}
-	})
-
-	if err != nil {
-		m.logger.Error(fmt.Sprintf("model: error in watcher.Watch: %v", err))
-		return err
-	}
-
-	m.logger.Debug("model: watcher registered successfully")
-	return nil
-}
-
-// processRecordMsg handles messages that carry data from the .wandb file.
-func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case HistoryMsg:
-		m.logger.Debug(fmt.Sprintf("model: processing HistoryMsg with step %d", msg.Step))
-		return m.handleHistoryMsg(msg)
-	case RunMsg:
-		m.logger.Debug("model: processing RunMsg")
-		m.runOverview.ID = msg.ID
-		m.runOverview.DisplayName = msg.DisplayName
-		m.runOverview.Project = msg.Project
-		if msg.Config != nil {
-			onError := func(err error) {
-				m.logger.Error(fmt.Sprintf("model: error applying config record: %v", err))
-			}
-			m.runConfig.ApplyChangeRecord(msg.Config, onError)
-			m.runOverview.Config = m.runConfig.CloneTree()
-		}
-		m.sidebar.SetRunOverview(m.runOverview)
-	case StatsMsg:
-		m.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
-		m.rightSidebar.ProcessStatsMsg(msg)
-	case SystemInfoMsg:
-		m.logger.Debug("model: processing SystemInfoMsg")
-		if m.runEnvironment == nil {
-			m.runEnvironment = runenvironment.New(msg.Record.GetWriterId())
-		}
-		m.runEnvironment.ProcessRecord(msg.Record)
-		m.runOverview.Environment = m.runEnvironment.ToRunConfigData()
-		m.sidebar.SetRunOverview(m.runOverview)
-	case SummaryMsg:
-		m.logger.Debug("model: processing SummaryMsg")
-		for _, update := range msg.Summary.Update {
-			err := m.runSummary.SetFromRecord(update)
-			if err != nil {
-				m.logger.Error(
-					fmt.Sprintf("model: error processing summary: %v", err))
-			}
-		}
-
-		for _, remove := range msg.Summary.Remove {
-			m.runSummary.RemoveFromRecord(remove)
-		}
-		m.runOverview.Summary = m.runSummary.ToNestedMaps()
-		m.sidebar.SetRunOverview(m.runOverview)
-	case FileCompleteMsg:
-		m.logger.Debug("model: processing FileCompleteMsg - file is complete!")
-		if !m.fileComplete {
-			m.fileComplete = true
-			switch msg.ExitCode {
-			case 0:
-				m.runState = RunStateFinished
-			default:
-				m.runState = RunStateFailed
-			}
-
-			// Stop the watcher
-			if m.watcherStarted {
-				m.logger.Debug("model: finishing watcher")
-				m.watcher.Finish()
-			}
-		}
-	case ErrorMsg:
-		m.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
-		m.fileComplete = true
-		m.runState = RunStateFailed
-		// Stop the watcher
-		if m.watcherStarted {
-			m.logger.Debug("model: finishing watcher due to error")
-			m.watcher.Finish()
-		}
-	}
-	return m, nil
-}
-
-// handleHistoryMsg processes new history data
-func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
-	m.step = msg.Step
-	m.logger.Debug(fmt.Sprintf("model: handling history message for step %d with %d metrics", msg.Step, len(msg.Metrics)))
-
-	for metricName, value := range msg.Metrics {
-		chart, exists := m.chartsByName[metricName]
-		if !exists {
-			// First chart creation - exit loading state
-			if m.isLoading {
-				m.isLoading = false
-				m.logger.Debug("model: exiting loading state - first chart created")
-			}
-
-			availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
-			dims := CalculateChartDimensions(availableWidth, m.height)
-			colorIndex := len(m.allCharts)
-			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, colorIndex, metricName)
-
-			m.allCharts = append(m.allCharts, chart)
-			m.chartsByName[metricName] = chart
-
-			m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
-			m.logger.Debug(fmt.Sprintf("model: created new chart for metric: %s", metricName))
-		}
-		chart.AddDataPoint(value)
-		chart.Draw()
-	}
-
-	m.loadCurrentPage()
-	m.updateChartSizes()
-	return m, nil
-}
-
-// handleMouseMsg processes mouse events
-func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
-	if !tea.MouseEvent(msg).IsWheel() {
-		return m, nil
-	}
-
-	// Check if mouse is in left sidebar
-	if msg.X < m.sidebar.Width() {
-		return m, nil
-	}
-
-	// Check if mouse is in right sidebar
-	if msg.X >= m.width-m.rightSidebar.Width() {
-		return m, nil
-	}
-
-	// Mouse is in the chart area
-	adjustedX := msg.X - m.sidebar.Width()
-	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
-	dims := CalculateChartDimensions(availableWidth, m.height)
-
-	row := msg.Y / dims.ChartHeightWithPadding
-	col := adjustedX / dims.ChartWidthWithPadding
-
-	if row >= 0 && row < GridRows && col >= 0 && col < GridCols && m.charts[row][col] != nil {
-		chart := m.charts[row][col]
-
-		chartStartX := col * dims.ChartWidthWithPadding
-		graphStartX := chartStartX + 1
-		if chart.YStep() > 0 {
-			graphStartX += chart.Origin().X + 1
-		}
-
-		relativeMouseX := adjustedX - graphStartX
-
-		if relativeMouseX >= 0 && relativeMouseX < chart.GraphWidth() {
-			m.clearFocus()
-			m.focusedRow = row
-			m.focusedCol = col
-			chart.SetFocused(true)
-
-			switch msg.Button {
-			case tea.MouseButtonWheelUp:
-				chart.HandleZoom("in", relativeMouseX)
-			case tea.MouseButtonWheelDown:
-				chart.HandleZoom("out", relativeMouseX)
-			}
-			chart.Draw()
-		}
-	}
-
-	return m, nil
-}
-
-// handleKeyMsg processes keyboard events
-func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyCtrlB:
-		// Update the sidebar's expanded width before toggling
-		m.sidebar.UpdateExpandedWidth(m.width, m.rightSidebar.IsVisible())
-		m.sidebar.Toggle()
-		m.updateChartSizes()
-		return m, m.sidebar.animationCmd()
-	case tea.KeyCtrlN:
-		// Update the right sidebar's expanded width before toggling
-		m.rightSidebar.UpdateExpandedWidth(m.width, m.sidebar.IsVisible())
-		m.rightSidebar.Toggle()
-		m.updateChartSizes()
-		return m, m.rightSidebar.animationCmd()
-	}
-
-	switch msg.String() {
-	case "h", "?":
-		m.help.Toggle()
-		return m, nil
-	case "q", "ctrl+c":
-		m.logger.Debug("model: quit requested")
-		if m.reader != nil {
-			m.reader.Close()
-		}
-		if m.watcherStarted {
-			m.logger.Debug("model: finishing watcher on quit")
-			m.watcher.Finish()
-		}
-		close(m.msgChan) // Clean up the channel
-		return m, tea.Quit
-	case "r":
-		return m, m.reloadCharts()
-	case "pgup":
-		m.navigatePage(-1)
-	case "pgdown":
-		m.navigatePage(1)
-	}
-	return m, nil
-}
-
-// handleOther handles remaining message types.
-func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.MouseMsg:
-		newModel, cmd := m.handleMouseMsg(msg)
-		if cmd != nil {
-			return newModel, cmd
-		}
-		return m, nil
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.help.SetSize(msg.Width, msg.Height)
-		// Update both sidebars with awareness of each other
-		m.sidebar.UpdateDimensions(msg.Width, m.rightSidebar.IsVisible())
-		m.rightSidebar.UpdateDimensions(msg.Width, m.sidebar.IsVisible())
-		m.updateChartSizes()
-	case SidebarAnimationMsg:
-		if m.sidebar.IsAnimating() {
-			m.updateChartSizes()
-			return m, m.sidebar.animationCmd()
-		}
-	case RightSidebarAnimationMsg:
-		if m.rightSidebar.IsAnimating() {
-			m.updateChartSizes()
-			return m, m.rightSidebar.animationCmd()
-		}
-	}
-	return m, nil
-}
-
-// clearFocus removes focus from all charts.
-func (m *Model) clearFocus() {
-	if m.focusedRow >= 0 && m.focusedCol >= 0 && m.charts[m.focusedRow][m.focusedCol] != nil {
-		m.charts[m.focusedRow][m.focusedCol].SetFocused(false)
-	}
-}
-
-// reloadCharts resets all charts and step counter.
-func (m *Model) reloadCharts() tea.Cmd {
-	m.step = 0
-	m.isLoading = true // Reset to loading state
-
-	m.allCharts = make([]*EpochLineChart, 0)
-	m.chartsByName = make(map[string]*EpochLineChart)
-	m.totalPages = 0
-	m.currentPage = 0
-
-	// Hide sidebars synchronously (no animation)
-	if m.sidebar.IsVisible() {
-		m.sidebar.state = SidebarCollapsed
-		m.sidebar.currentWidth = 0
-		m.sidebar.targetWidth = 0
-	}
-	if m.rightSidebar.IsVisible() {
-		m.rightSidebar.state = SidebarCollapsed
-		m.rightSidebar.currentWidth = 0
-		m.rightSidebar.targetWidth = 0
-	}
-
-	// Reset system metrics
-	m.rightSidebar.Reset()
-
-	// Update chart sizes with sidebars hidden
-	m.updateChartSizes()
-	m.loadCurrentPage()
-
-	return func() tea.Msg {
-		return ReloadMsg{}
-	}
-}
-
-// navigatePage changes the current page.
-func (m *Model) navigatePage(direction int) {
-	if m.totalPages <= 1 {
-		return
-	}
-	m.clearFocus()
-	if direction < 0 {
-		m.currentPage--
-		if m.currentPage < 0 {
-			m.currentPage = m.totalPages - 1
-		}
-	} else {
-		m.currentPage++
-		if m.currentPage >= m.totalPages {
-			m.currentPage = 0
-		}
-	}
-	m.loadCurrentPage()
-}
-
-// renderGrid creates the chart grid view.
-func (m *Model) renderGrid(dims ChartDimensions) string {
-	// Always build header with navigation info (now always visible when not loading)
-	header := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("230")).
-		MarginLeft(1).
-		MarginTop(1).
-		Render("Metrics")
-
-	// Add navigation info
-	navInfo := ""
-	if m.totalPages > 0 && len(m.allCharts) > 0 {
-		startIdx := m.currentPage*ChartsPerPage + 1
-		endIdx := startIdx + ChartsPerPage - 1
-		totalMetrics := len(m.allCharts)
-		if endIdx > totalMetrics {
-			endIdx = totalMetrics
-		}
-		navInfo = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
-			MarginTop(1).
-			Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, totalMetrics))
-	}
-
-	headerLine := lipgloss.JoinHorizontal(lipgloss.Left, header, navInfo)
-
-	// Render grid
-	var rows []string
-	for row := range GridRows {
-		var cols []string
-		for col := range GridCols {
-			cellContent := m.renderGridCell(row, col, dims)
-			cols = append(cols, cellContent)
-		}
-		rowView := lipgloss.JoinHorizontal(lipgloss.Left, cols...)
-		rows = append(rows, rowView)
-	}
-	gridContent := lipgloss.JoinVertical(lipgloss.Left, rows...)
-
-	// Combine header and grid
-	return lipgloss.JoinVertical(lipgloss.Left, headerLine, gridContent)
-}
-
-// renderGridCell renders a single grid cell
-func (m *Model) renderGridCell(row, col int, dims ChartDimensions) string {
-	if row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
-		chart := m.charts[row][col]
-		chartView := chart.View()
-
-		boxStyle := borderStyle
-		if row == m.focusedRow && col == m.focusedCol {
-			boxStyle = focusedBorderStyle
-		}
-
-		boxContent := lipgloss.JoinVertical(
-			lipgloss.Left,
-			titleStyle.Render(chart.Title()),
-			chartView,
-		)
-
-		box := boxStyle.Render(boxContent)
-
-		return lipgloss.Place(
-			dims.ChartWidthWithPadding,
-			dims.ChartHeightWithPadding,
-			lipgloss.Left,
-			lipgloss.Top,
-			box,
-		)
-	}
-
-	return lipgloss.NewStyle().
-		Width(dims.ChartWidthWithPadding).
-		Height(dims.ChartHeightWithPadding).
-		Render("")
-}
-
 // renderStatusBar creates the status bar, ensuring it fits on a single line.
 func (m *Model) renderStatusBar() string {
 	statusText := ""
@@ -787,46 +373,75 @@ func (m *Model) renderStatusBar() string {
 	return statusBarStyle.Width(m.width).Render(finalBarContent)
 }
 
-// loadCurrentPage loads the charts for the current page into the grid.
-func (m *Model) loadCurrentPage() {
-	m.charts = make([][]*EpochLineChart, GridRows)
-	for row := 0; row < GridRows; row++ {
-		m.charts[row] = make([]*EpochLineChart, GridCols)
-	}
-
-	startIdx := m.currentPage * ChartsPerPage
-	endIdx := startIdx + ChartsPerPage
-	if endIdx > len(m.allCharts) {
-		endIdx = len(m.allCharts)
-	}
-
-	idx := startIdx
-	for row := 0; row < GridRows && idx < endIdx; row++ {
-		for col := 0; col < GridCols && idx < endIdx; col++ {
-			m.charts[row][col] = m.allCharts[idx]
-			if m.charts[row][col] != nil {
-				m.charts[row][col].Draw()
-			}
-			idx++
+// waitForWatcherMsg returns a command that waits for messages from the watcher
+func (m *Model) waitForWatcherMsg() tea.Cmd {
+	return func() tea.Msg {
+		m.logger.Debug("model: waiting for watcher message...")
+		msg := <-m.msgChan
+		if msg != nil {
+			m.logger.Debug(fmt.Sprintf("model: received watcher message: %T", msg))
 		}
+		return msg
 	}
 }
 
-// updateChartSizes updates all chart sizes when window is resized or sidebar toggled.
-func (m *Model) updateChartSizes() {
-	// First update sidebar dimensions so they know about each other
-	m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
-	m.rightSidebar.UpdateDimensions(m.width, m.sidebar.IsVisible())
+// startWatcher starts watching the file for changes
+func (m *Model) startWatcher() error {
+	m.logger.Debug(fmt.Sprintf("model: startWatcher called for path: %s", m.runPath))
+	m.watcherStarted = true
 
-	// Then calculate available width with updated sidebar widths
-	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
-	availableHeight := m.height - StatusBarHeight - 1 // -1 for the metrics header
-	dims := CalculateChartDimensions(availableWidth, availableHeight)
+	// Register the file with the watcher
+	err := m.watcher.Watch(m.runPath, func() {
+		m.logger.Debug(fmt.Sprintf("model: watcher callback triggered! File changed: %s", m.runPath))
+		// This callback is called from the watcher's goroutine
+		// Send a message through the channel
+		select {
+		case m.msgChan <- FileChangedMsg{}:
+			m.logger.Debug("model: FileChangedMsg sent to channel")
+		default:
+			m.logger.Warn("model: msgChan is full, dropping FileChangedMsg")
+		}
+	})
 
-	for _, chart := range m.allCharts {
-		chart.Resize(dims.ChartWidth, dims.ChartHeight)
-		chart.Draw()
+	if err != nil {
+		m.logger.Error(fmt.Sprintf("model: error in watcher.Watch: %v", err))
+		return err
 	}
 
+	m.logger.Debug("model: watcher registered successfully")
+	return nil
+}
+
+// reloadCharts resets all charts and step counter.
+func (m *Model) reloadCharts() tea.Cmd {
+	m.step = 0
+	m.isLoading = true // Reset to loading state
+
+	m.allCharts = make([]*EpochLineChart, 0)
+	m.chartsByName = make(map[string]*EpochLineChart)
+	m.totalPages = 0
+	m.currentPage = 0
+
+	// Hide sidebars synchronously (no animation)
+	if m.sidebar.IsVisible() {
+		m.sidebar.state = SidebarCollapsed
+		m.sidebar.currentWidth = 0
+		m.sidebar.targetWidth = 0
+	}
+	if m.rightSidebar.IsVisible() {
+		m.rightSidebar.state = SidebarCollapsed
+		m.rightSidebar.currentWidth = 0
+		m.rightSidebar.targetWidth = 0
+	}
+
+	// Reset system metrics
+	m.rightSidebar.Reset()
+
+	// Update chart sizes with sidebars hidden
+	m.updateChartSizes()
 	m.loadCurrentPage()
+
+	return func() tea.Msg {
+		return ReloadMsg{}
+	}
 }

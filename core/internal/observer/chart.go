@@ -10,16 +10,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var graphColors = []string{"4", "10", "5", "6", "3", "2", "13", "14", "11", "9", "12", "1", "7", "8", "15"}
-
-var (
-	axisStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")) // gray
-
-	labelStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245")) // light gray
-)
-
 // EpochLineChart is a custom line chart for epoch-based data
 type EpochLineChart struct {
 	linechart.Model

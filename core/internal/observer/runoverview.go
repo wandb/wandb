@@ -21,16 +21,6 @@ const (
 	SidebarExpanding
 )
 
-// Sidebar constants
-const (
-	SidebarWidthRatio     = 0.382
-	SidebarWidthRatioBoth = 0.236 // When both sidebars visible: 0.382 * 0.618 ≈ 0.236
-	SidebarMinWidth       = 40
-	SidebarMaxWidth       = 80
-	AnimationDuration     = 150 * time.Millisecond
-	AnimationSteps        = 10
-)
-
 // RunOverview contains the run information to display
 type RunOverview struct {
 	RunPath     string
@@ -53,26 +43,6 @@ type Sidebar struct {
 	viewport       viewport.Model
 	runOverview    RunOverview
 }
-
-var (
-	sidebarStyle        = lipgloss.NewStyle().Padding(0, 1)
-	sidebarBorderStyle  = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(lipgloss.Color("238"))
-	sidebarHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).MarginLeft(1)
-	sidebarSectionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Bold(true)
-	sidebarKeyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	sidebarValueStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-
-	RightBorder = lipgloss.Border{
-		Top:         " ",
-		Bottom:      " ",
-		Left:        "",
-		Right:       "│",
-		TopLeft:     " ",
-		TopRight:    "│",
-		BottomLeft:  " ",
-		BottomRight: "│",
-	}
-)
 
 // NewSidebar creates a new sidebar instance
 func NewSidebar() *Sidebar {

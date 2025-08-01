@@ -22,32 +22,6 @@ type RightSidebar struct {
 	metricsGrid *SystemMetricsGrid
 }
 
-var (
-	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
-	rightSidebarBorderStyle = lipgloss.NewStyle().Border(lipgloss.Border{Left: "│"}).BorderForeground(lipgloss.Color("238"))
-	rightSidebarHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).MarginLeft(1)
-
-	LeftBorder = lipgloss.Border{
-		Top:         " ",
-		Bottom:      " ",
-		Left:        "│",
-		Right:       "",
-		TopLeft:     "|",
-		TopRight:    " ",
-		BottomLeft:  "|",
-		BottomRight: " ",
-	}
-)
-
-// System metrics grid configuration
-const (
-	MetricsGridRows      = 3
-	MetricsGridCols      = 2
-	MetricsPerPage       = MetricsGridRows * MetricsGridCols
-	MinMetricChartWidth  = 18
-	MinMetricChartHeight = 4
-)
-
 // Metric definitions - which metrics to display and their configuration
 var systemMetrics = []MetricConfig{
 	{Name: "cpu.ecpu_percent", Title: "E-CPU (%)", MinY: 0, MaxY: 100, Unit: "%"},

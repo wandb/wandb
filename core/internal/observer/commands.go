@@ -1,6 +1,8 @@
 package observer
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -36,3 +38,9 @@ func ReadAvailableRecords(reader *WandbReader) tea.Cmd {
 		return nil // No new messages
 	}
 }
+
+// AnimationDuration is the duration for sidebar animations
+const AnimationDuration = 150 * time.Millisecond
+
+// AnimationSteps is the number of steps in sidebar animations
+const AnimationSteps = 10
