@@ -14,6 +14,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// WANDB brand color
+const wandbColor = lipgloss.Color("#FFBE00")
+
 // ASCII art for the loading screen
 var wandbArt = `
 ██     ██  █████  ███    ██ ██████  ██████
@@ -43,9 +46,9 @@ const (
 
 // Model represents the main application state.
 type Model struct {
+	help         *HelpModel
 	allCharts    []*EpochLineChart
 	chartsByName map[string]*EpochLineChart
-
 	// charts holds the current page of charts arranged in grid
 	charts         [][]*EpochLineChart
 	width          int
@@ -80,6 +83,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
 
 	m := &Model{
+		help:           NewHelp(),
 		allCharts:      make([]*EpochLineChart, 0),
 		chartsByName:   make(map[string]*EpochLineChart),
 		charts:         make([][]*EpochLineChart, GridRows),
@@ -140,6 +144,36 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.logger.Debug(fmt.Sprintf("model: Update received message: %T", msg))
 
+	// Handle window resize for help
+	if msg, ok := msg.(tea.WindowSizeMsg); ok {
+		m.help.SetSize(msg.Width, msg.Height)
+	}
+
+	// Check for help toggle key first, before passing to help screen
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		switch keyMsg.String() {
+		case "h", "?":
+			m.help.Toggle()
+			return m, nil
+		}
+	}
+
+	// Handle help screen UI updates if active (only for UI-related messages)
+	if m.help.IsActive() {
+		switch msg.(type) {
+		case tea.KeyMsg, tea.MouseMsg:
+			// Only pass UI events to help screen
+			updatedHelp, helpCmd := m.help.Update(msg)
+			m.help = updatedHelp
+			if helpCmd != nil {
+				cmds = append(cmds, helpCmd)
+			}
+			// Return early only for UI events when help is active
+			return m, tea.Batch(cmds...)
+		}
+		// For non-UI messages, continue processing below
+	}
+
 	updatedSidebar, sidebarCmd := m.sidebar.Update(msg)
 	m.sidebar = updatedSidebar
 	if sidebarCmd != nil {
@@ -160,13 +194,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, ReadAvailableRecords(m.reader)
 
 	case ReloadMsg:
+		// Reset run state
+		m.runState = RunStateRunning
+		m.fileComplete = false
+
 		// TODO: I think the watch part doesn't work properly, need to fix.
 		if m.watcherStarted {
 			m.logger.Debug("model: finishing watcher")
 			m.watcher.Finish()
+			m.watcherStarted = false
 		}
-		// Reset loading state on reload
-		m.isLoading = true
 		return m, tea.Batch(
 			InitializeReader(m.runPath),
 			m.waitForWatcherMsg(),
@@ -237,6 +274,13 @@ func (m *Model) View() string {
 		return m.renderLoadingScreen()
 	}
 
+	// Show help screen if active
+	if m.help.IsActive() {
+		helpView := m.help.View()
+		statusBar := m.renderStatusBar()
+		return lipgloss.JoinVertical(lipgloss.Left, helpView, statusBar)
+	}
+
 	// Calculate available space for charts (account for header)
 	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
 	availableHeight := m.height - StatusBarHeight - 1 // -1 for the metrics header
@@ -288,9 +332,6 @@ func (m *Model) View() string {
 
 // renderLoadingScreen shows the wandb observer ASCII art centered on screen
 func (m *Model) renderLoadingScreen() string {
-	// WANDB brand color
-	wandbColor := lipgloss.Color("#FFBE00")
-
 	// Style for the ASCII art
 	artStyle := lipgloss.NewStyle().
 		Foreground(wandbColor).
@@ -451,6 +492,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	}
 
 	m.loadCurrentPage()
+	m.updateChartSizes()
 	return m, nil
 }
 
@@ -526,6 +568,9 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	}
 
 	switch msg.String() {
+	case "h", "?":
+		m.help.Toggle()
+		return m, nil
 	case "q", "ctrl+c":
 		m.logger.Debug("model: quit requested")
 		if m.reader != nil {
@@ -559,6 +604,7 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.help.SetSize(msg.Width, msg.Height)
 		// Update both sidebars with awareness of each other
 		m.sidebar.UpdateDimensions(msg.Width, m.rightSidebar.IsVisible())
 		m.rightSidebar.UpdateDimensions(msg.Width, m.sidebar.IsVisible())
@@ -587,9 +633,30 @@ func (m *Model) clearFocus() {
 // reloadCharts resets all charts and step counter.
 func (m *Model) reloadCharts() tea.Cmd {
 	m.step = 0
-	for _, chart := range m.allCharts {
-		chart.Reset()
+	m.isLoading = true // Reset to loading state
+
+	m.allCharts = make([]*EpochLineChart, 0)
+	m.chartsByName = make(map[string]*EpochLineChart)
+	m.totalPages = 0
+	m.currentPage = 0
+
+	// Hide sidebars synchronously (no animation)
+	if m.sidebar.IsVisible() {
+		m.sidebar.state = SidebarCollapsed
+		m.sidebar.currentWidth = 0
+		m.sidebar.targetWidth = 0
 	}
+	if m.rightSidebar.IsVisible() {
+		m.rightSidebar.state = SidebarCollapsed
+		m.rightSidebar.currentWidth = 0
+		m.rightSidebar.targetWidth = 0
+	}
+
+	// Reset system metrics
+	m.rightSidebar.Reset()
+
+	// Update chart sizes with sidebars hidden
+	m.updateChartSizes()
 	m.loadCurrentPage()
 
 	return func() tea.Msg {
@@ -619,7 +686,7 @@ func (m *Model) navigatePage(direction int) {
 
 // renderGrid creates the chart grid view.
 func (m *Model) renderGrid(dims ChartDimensions) string {
-	// Build header with navigation info.
+	// Always build header with navigation info (now always visible when not loading)
 	header := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("230")).
@@ -697,26 +764,22 @@ func (m *Model) renderGridCell(row, col int, dims ChartDimensions) string {
 
 // renderStatusBar creates the status bar, ensuring it fits on a single line.
 func (m *Model) renderStatusBar() string {
-	// Define the left-side content
-	statusText := " ctrl+b: toggle run overview • ctrl+n: toggle system metrics"
+	statusText := ""
 
-	// Add system metrics navigation hint if right sidebar is visible
-	if m.rightSidebar.IsVisible() {
-		statusText += " • ctrl+pgup/pgdn: metrics pages"
+	if m.isLoading {
+		statusText = " Loading data..."
+	} else {
+		switch m.runState {
+		case RunStateRunning:
+			statusText = " State: Running"
+		case RunStateFinished:
+			statusText = " State: Finished"
+		case RunStateFailed:
+			statusText = " State: Failed"
+		}
 	}
 
-	statusText += " • r: reload • q: quit • PgUp/PgDn: navigate"
-
-	switch m.runState {
-	case RunStateRunning:
-		statusText += " • State: Running"
-	case RunStateFinished:
-		statusText += " • State: Finished"
-	case RunStateFailed:
-		statusText += " • State: Failed"
-	}
-
-	rightPart := pageInfoStyle.Render("wandb v0.21.1")
+	rightPart := pageInfoStyle.Render("h: toggle help")
 	rightWidth := lipgloss.Width(rightPart)
 
 	// Calculate available width for the left part and render it with truncation

@@ -6,7 +6,9 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
@@ -26,7 +28,7 @@ func mainWithExitCode() int {
 
 	if flag.NArg() != 1 {
 		// TODO: make this nicer.
-		fmt.Fprintf(os.Stderr, "Usage: %s <path-to-wandb-file>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s <path-to-run-directory>\n", os.Args[0])
 		os.Exit(1)
 	}
 
@@ -70,11 +72,18 @@ func mainWithExitCode() int {
 		},
 	)
 
-	// TODO: make this nicer.
-	runPath := flag.Arg(0)
+	// Get the directory path from arguments
+	runDir := flag.Arg(0)
+
+	// Find the .wandb file in the directory
+	wandbFile, err := findWandbFile(runDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
 
 	// Create the model
-	model := tui.NewModel(runPath, logger)
+	model := tui.NewModel(wandbFile, logger)
 
 	// Initialize the program
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
@@ -84,4 +93,41 @@ func mainWithExitCode() int {
 	}
 
 	return 0
+}
+
+// findWandbFile searches for a .wandb file in the given directory
+func findWandbFile(dir string) (string, error) {
+	// Check if the directory exists
+	info, err := os.Stat(dir)
+	if err != nil {
+		return "", fmt.Errorf("cannot access directory: %w", err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("path is not a directory: %s", dir)
+	}
+
+	// Read directory contents
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", fmt.Errorf("cannot read directory: %w", err)
+	}
+
+	// Look for .wandb file
+	var wandbFiles []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".wandb") {
+			wandbFiles = append(wandbFiles, entry.Name())
+		}
+	}
+
+	// Check results
+	if len(wandbFiles) == 0 {
+		return "", fmt.Errorf("no .wandb file found in directory: %s", dir)
+	}
+	if len(wandbFiles) > 1 {
+		return "", fmt.Errorf("multiple .wandb files found in directory: %s", dir)
+	}
+
+	// Return the full path to the .wandb file
+	return filepath.Join(dir, wandbFiles[0]), nil
 }

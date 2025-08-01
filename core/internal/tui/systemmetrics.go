@@ -55,7 +55,7 @@ var systemMetrics = []MetricConfig{
 	{Name: "memory.used_percent", Title: "Memory (%)", MinY: 0, MaxY: 100, Unit: "%"},
 	{Name: "cpu.avg_temp", Title: "CPU Temp (°C)", MinY: 0, MaxY: 100, Unit: "°C"},
 	{Name: "gpu.0.gpu", Title: "GPU (%)", MinY: 0, MaxY: 100, Unit: "%"},
-	{Name: "gpu.0.temp", Title: "GPU Temp (°C)", MinY: 0, MaxY: 100, Unit: "%"},
+	{Name: "gpu.0.temp", Title: "GPU Temp (°C)", MinY: 0, MaxY: 100, Unit: "°C"},
 	{Name: "system.powerWatts", Title: "Power (W)", MinY: 0, MaxY: 50, Unit: "W"},
 }
 
@@ -250,6 +250,32 @@ func (g *SystemMetricsGrid) Resize(width, height int) {
 		chart.DrawBraille()
 	}
 
+	g.loadCurrentPage()
+}
+
+// Reset clears all metrics data and recreates charts
+func (g *SystemMetricsGrid) Reset() {
+	// Clear all existing charts
+	g.allCharts = make([]*timeserieslinechart.Model, 0)
+	g.chartConfigs = make([]MetricConfig, 0)
+	g.currentPage = 0
+
+	// Clear the grid
+	for row := 0; row < MetricsGridRows; row++ {
+		for col := 0; col < MetricsGridCols; col++ {
+			g.charts[row][col] = nil
+		}
+	}
+
+	// Recreate charts for each metric
+	for i, metric := range systemMetrics {
+		dims := g.calculateChartDimensions()
+		chart := g.createMetricChart(metric, dims.ChartWidth, dims.ChartHeight, i)
+		g.allCharts = append(g.allCharts, &chart)
+		g.chartConfigs = append(g.chartConfigs, metric)
+	}
+
+	g.totalPages = (len(g.allCharts) + MetricsPerPage - 1) / MetricsPerPage
 	g.loadCurrentPage()
 }
 
@@ -514,5 +540,13 @@ func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 		for metricName, value := range msg.Metrics {
 			rs.metricsGrid.AddDataPoint(metricName, msg.Timestamp, value)
 		}
+	}
+}
+
+// Reset clears all system metrics data
+func (rs *RightSidebar) Reset() {
+	// Reset the metrics grid
+	if rs.metricsGrid != nil {
+		rs.metricsGrid.Reset()
 	}
 }
