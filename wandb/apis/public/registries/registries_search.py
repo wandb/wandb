@@ -142,7 +142,7 @@ class Registries(Paginator):
         ]
 
 
-class Collections(Paginator):
+class Collections(Paginator["ArtifactCollection"]):
     """An lazy iterator of `ArtifactCollection` objects in a Registry."""
 
     QUERY = gql(
@@ -310,7 +310,7 @@ class Collections(Paginator):
         ]
 
 
-class Versions(Paginator):
+class Versions(Paginator["Artifact"]):
     """An lazy iterator of `Artifact` objects in a Registry."""
 
     def __init__(
