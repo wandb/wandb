@@ -21,7 +21,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
@@ -106,6 +105,7 @@ func NewStream(
 	params StreamParams,
 	backendOrNil *api.Backend,
 	clientID ClientID,
+	featureProvider *featurechecker.ServerFeaturesCache,
 	fileStreamOrNil filestream.FileStream,
 	fileTransferManagerOrNil filetransfer.FileTransferManager,
 	fileTransferStats filetransfer.FileTransferStats,
@@ -115,46 +115,26 @@ func NewStream(
 	logger *observability.CoreLogger,
 	operations *wboperation.WandbOperations,
 	peeker *observability.Peeker,
+	recordParser *RecordParser,
 	runfilesUploaderOrNil runfiles.Uploader,
 	runWork runwork.RunWork,
+	streamRun *StreamRun,
 	terminalPrinter *observability.Printer,
 ) *Stream {
 	symlinkDebugCore(params.Settings, params.LoggerPath)
 
 	s := &Stream{
 		runWork:            runWork,
-		run:                NewStreamRun(),
+		run:                streamRun,
 		operations:         operations,
+		featureProvider:    featureProvider,
 		graphqlClientOrNil: graphqlClientOrNil,
 		logger:             logger,
 		loggerFile:         loggerFile,
 		settings:           params.Settings,
+		recordParser:       recordParser,
 		sentryClient:       params.Sentry,
 		clientID:           clientID,
-	}
-
-	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
-		ExtraWork: runWork,
-		Logger:    logger,
-		Settings:  s.settings,
-	})
-
-	s.featureProvider = featurechecker.NewServerFeaturesCache(
-		runWork.BeforeEndCtx(),
-		graphqlClientOrNil,
-		logger,
-	)
-
-	s.recordParser = &RecordParser{
-		BeforeRunEndCtx:    runWork.BeforeEndCtx(),
-		FeatureProvider:    s.featureProvider,
-		GraphqlClientOrNil: graphqlClientOrNil,
-		Logger:             logger,
-		Operations:         operations,
-		TBHandler:          tbHandler,
-		Run:                s.run,
-		Settings:           s.settings,
-		ClientID:           clientID,
 	}
 
 	mailbox := mailbox.New()
@@ -212,13 +192,13 @@ func NewStream(
 			FileWatcher:         fileWatcher,
 			RunfilesUploader:    runfilesUploaderOrNil,
 			Peeker:              peeker,
-			StreamRun:           s.run,
+			StreamRun:           streamRun,
 			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
 			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
 			RunWork:             runWork,
-			FeatureProvider:     s.featureProvider,
+			FeatureProvider:     featureProvider,
 		},
 	)
 
