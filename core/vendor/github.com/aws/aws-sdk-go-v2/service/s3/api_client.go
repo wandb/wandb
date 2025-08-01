@@ -4,6 +4,7 @@ package s3
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -29,6 +30,7 @@ import (
 	"github.com/aws/smithy-go/logging"
 	"github.com/aws/smithy-go/metrics"
 	"github.com/aws/smithy-go/middleware"
+	smithyrand "github.com/aws/smithy-go/rand"
 	"github.com/aws/smithy-go/tracing"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"net"
@@ -191,6 +193,8 @@ func New(options Options, optFns ...func(*Options)) *Client {
 	resolveHTTPClient(&options)
 
 	resolveHTTPSignerV4(&options)
+
+	resolveIdempotencyTokenProvider(&options)
 
 	resolveEndpointResolverV2(&options)
 
@@ -465,6 +469,7 @@ func NewFromConfig(cfg aws.Config, optFns ...func(*Options)) *Client {
 	resolveAWSRetryMaxAttempts(cfg, &opts)
 	resolveAWSRetryMode(cfg, &opts)
 	resolveAWSEndpointResolver(cfg, &opts)
+	resolveInterceptors(cfg, &opts)
 	resolveUseARNRegion(cfg, &opts)
 	resolveDisableMultiRegionAccessPoints(cfg, &opts)
 	resolveDisableExpressAuth(cfg, &opts)
@@ -583,6 +588,10 @@ func resolveAWSEndpointResolver(cfg aws.Config, o *Options) {
 		return
 	}
 	o.EndpointResolver = withEndpointResolver(cfg.EndpointResolver, cfg.EndpointResolverWithOptions)
+}
+
+func resolveInterceptors(cfg aws.Config, o *Options) {
+	o.Interceptors = cfg.Interceptors.Copy()
 }
 
 func addClientUserAgent(stack *middleware.Stack, options Options) error {
@@ -713,6 +722,13 @@ func addIsPaginatorUserAgent(o *Options) {
 		ua.AddUserAgentFeature(awsmiddleware.UserAgentFeaturePaginator)
 		return nil
 	})
+}
+
+func resolveIdempotencyTokenProvider(o *Options) {
+	if o.IdempotencyTokenProvider != nil {
+		return
+	}
+	o.IdempotencyTokenProvider = smithyrand.NewUUIDIdempotencyToken(cryptorand.Reader)
 }
 
 func addRetry(stack *middleware.Stack, o Options) error {
@@ -912,6 +928,11 @@ func resolveMeterProvider(options *Options) {
 	if options.MeterProvider == nil {
 		options.MeterProvider = metrics.NopMeterProvider{}
 	}
+}
+
+// IdempotencyTokenProvider interface for providing idempotency token
+type IdempotencyTokenProvider interface {
+	GetIdempotencyToken() (string, error)
 }
 
 func addMetadataRetrieverMiddleware(stack *middleware.Stack) error {
@@ -1280,6 +1301,69 @@ func addDisableHTTPSMiddleware(stack *middleware.Stack, o Options) error {
 	return stack.Finalize.Insert(&disableHTTPSMiddleware{
 		DisableHTTPS: o.EndpointOptions.DisableHTTPS,
 	}, "ResolveEndpointV2", middleware.After)
+}
+
+func addInterceptBeforeRetryLoop(stack *middleware.Stack, opts Options) error {
+	return stack.Finalize.Insert(&smithyhttp.InterceptBeforeRetryLoop{
+		Interceptors: opts.Interceptors.BeforeRetryLoop,
+	}, "Retry", middleware.Before)
+}
+
+func addInterceptAttempt(stack *middleware.Stack, opts Options) error {
+	return stack.Finalize.Insert(&smithyhttp.InterceptAttempt{
+		BeforeAttempt: opts.Interceptors.BeforeAttempt,
+		AfterAttempt:  opts.Interceptors.AfterAttempt,
+	}, "Retry", middleware.After)
+}
+
+func addInterceptExecution(stack *middleware.Stack, opts Options) error {
+	return stack.Initialize.Add(&smithyhttp.InterceptExecution{
+		BeforeExecution: opts.Interceptors.BeforeExecution,
+		AfterExecution:  opts.Interceptors.AfterExecution,
+	}, middleware.Before)
+}
+
+func addInterceptBeforeSerialization(stack *middleware.Stack, opts Options) error {
+	return stack.Serialize.Insert(&smithyhttp.InterceptBeforeSerialization{
+		Interceptors: opts.Interceptors.BeforeSerialization,
+	}, "OperationSerializer", middleware.Before)
+}
+
+func addInterceptAfterSerialization(stack *middleware.Stack, opts Options) error {
+	return stack.Serialize.Insert(&smithyhttp.InterceptAfterSerialization{
+		Interceptors: opts.Interceptors.AfterSerialization,
+	}, "OperationSerializer", middleware.After)
+}
+
+func addInterceptBeforeSigning(stack *middleware.Stack, opts Options) error {
+	return stack.Finalize.Insert(&smithyhttp.InterceptBeforeSigning{
+		Interceptors: opts.Interceptors.BeforeSigning,
+	}, "Signing", middleware.Before)
+}
+
+func addInterceptAfterSigning(stack *middleware.Stack, opts Options) error {
+	return stack.Finalize.Insert(&smithyhttp.InterceptAfterSigning{
+		Interceptors: opts.Interceptors.AfterSigning,
+	}, "Signing", middleware.After)
+}
+
+func addInterceptTransmit(stack *middleware.Stack, opts Options) error {
+	return stack.Deserialize.Add(&smithyhttp.InterceptTransmit{
+		BeforeTransmit: opts.Interceptors.BeforeTransmit,
+		AfterTransmit:  opts.Interceptors.AfterTransmit,
+	}, middleware.After)
+}
+
+func addInterceptBeforeDeserialization(stack *middleware.Stack, opts Options) error {
+	return stack.Deserialize.Insert(&smithyhttp.InterceptBeforeDeserialization{
+		Interceptors: opts.Interceptors.BeforeDeserialization,
+	}, "OperationDeserializer", middleware.After) // (deserialize stack is called in reverse)
+}
+
+func addInterceptAfterDeserialization(stack *middleware.Stack, opts Options) error {
+	return stack.Deserialize.Insert(&smithyhttp.InterceptAfterDeserialization{
+		Interceptors: opts.Interceptors.AfterDeserialization,
+	}, "OperationDeserializer", middleware.Before)
 }
 
 type spanInitializeStart struct {

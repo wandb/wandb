@@ -73,6 +73,11 @@ func (s *Settings) GetCredentialsFile() string {
 	return s.Proto.CredentialsFile.GetValue()
 }
 
+// Whether we are in silent mode.
+func (s *Settings) IsSilent() bool {
+	return s.Proto.Silent.GetValue()
+}
+
 // Whether we are in offline mode.
 func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
@@ -86,6 +91,17 @@ func (s *Settings) IsSync() bool {
 // Path to the transaction log file, that is being synced.
 func (s *Settings) GetTransactionLogPath() string {
 	return s.Proto.SyncFile.GetValue()
+}
+
+// Whether to skip saving the run events to the transaction log.
+//
+// This is only relevant for online runs. Can be used to reduce the
+// amount of data written to disk.
+//
+// Should be used with caution, as it removes the gurantees about
+// recoverability.
+func (s *Settings) IsSkipTransactionLog() bool {
+	return s.Proto.XSkipTransactionLog.GetValue()
 }
 
 // Whether we are in shared mode.
@@ -501,6 +517,41 @@ func (s *Settings) GetStatsOpenMetricsHeaders() map[string]string {
 	return s.Proto.XStatsOpenMetricsHttpHeaders.GetValue()
 }
 
+// The scheme and hostname for contacting the CoreWeave metadata server.
+func (s *Settings) GetStatsCoreWeaveMetadataBaseURL() string {
+	return s.Proto.XStatsCoreweaveMetadataBaseUrl.GetValue()
+}
+
+// The relative path on the CoreWeave metadata server to which to make requests.
+func (s *Settings) GetStatsCoreWeaveMetadataEndpoint() string {
+	return s.Proto.XStatsCoreweaveMetadataEndpoint.GetValue()
+}
+
+// User-provided CPU count to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsCpuCount() int32 {
+	return s.Proto.XStatsCpuCount.GetValue()
+}
+
+// User-provided Logical CPU count to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsCpuLogicalCount() int32 {
+	return s.Proto.XStatsCpuLogicalCount.GetValue()
+}
+
+// User-provided GPU count to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsGpuCount() int32 {
+	return s.Proto.XStatsGpuCount.GetValue()
+}
+
+// User-provided GPU type to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsGpuType() string {
+	return s.Proto.XStatsGpuType.GetValue()
+}
+
+// Whether to track the process-specific metrics for the entire process tree.
+func (s *Settings) GetStatsTrackProcessTree() bool {
+	return s.Proto.XStatsTrackProcessTree.GetValue()
+}
+
 // The label for the run namespacing for console output and system metrics.
 func (s *Settings) GetLabel() string {
 	return s.Proto.XLabel.GetValue()
@@ -540,4 +591,14 @@ func (s *Settings) UpdateRunID(runID string) {
 // Update server-side derived summary computation setting.
 func (s *Settings) UpdateServerSideDerivedSummary(enable bool) {
 	s.Proto.XServerSideDerivedSummary = &wrapperspb.BoolValue{Value: enable}
+}
+
+// Updates the scheme and hostname for contacting the CoreWeave metadata server.
+func (s *Settings) UpdateStatsCoreWeaveMetadataBaseURL(baseURL string) {
+	s.Proto.XStatsCoreweaveMetadataBaseUrl = &wrapperspb.StringValue{Value: baseURL}
+}
+
+// Updates the relative path on the CoreWeave metadata server to which to make requests.
+func (s *Settings) UpdateStatsCoreWeaveMetadataEndpoint(endpoint string) {
+	s.Proto.XStatsCoreweaveMetadataEndpoint = &wrapperspb.StringValue{Value: endpoint}
 }

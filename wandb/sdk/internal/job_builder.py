@@ -19,6 +19,7 @@ from typing import (
 )
 
 import wandb
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api
@@ -108,6 +109,7 @@ class JobSourceDict(TypedDict, total=False):
     input_types: Dict[str, Any]
     output_types: Dict[str, Any]
     runtime: Optional[str]
+    services: Dict[str, str]
 
 
 class ArtifactInfoForJob(TypedDict):
@@ -128,12 +130,6 @@ def get_min_supported_for_source_dict(
     return min_seen
 
 
-class JobArtifact(Artifact):
-    def __init__(self, name: str, *args: Any, **kwargs: Any):
-        super().__init__(name, "placeholder", *args, **kwargs)
-        self._type = JOB_ARTIFACT_TYPE  # Get around type restriction.
-
-
 class JobBuilder:
     _settings: SettingsStatic
     _metadatafile_path: Optional[str]
@@ -148,6 +144,7 @@ class JobBuilder:
     _job_version_alias: Optional[str]
     _is_notebook_run: bool
     _verbose: bool
+    _services: Dict[str, str]
 
     def __init__(self, settings: SettingsStatic, verbose: bool = False):
         self._settings = settings
@@ -167,6 +164,7 @@ class JobBuilder:
         self._is_notebook_run = self._get_is_notebook_run()
         self._verbose = verbose
         self._partial = False
+        self._services = {}
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -549,10 +547,13 @@ class JobBuilder:
             "runtime": runtime,
         }
 
+        if self._services:
+            source_info["services"] = self._services
+
         assert source_info is not None
         assert name is not None
 
-        artifact = JobArtifact(name)
+        artifact = InternalArtifact(name, JOB_ARTIFACT_TYPE)
 
         _logger.info("adding wandb-job metadata file")
         with artifact.new_file("wandb-job.json") as f:

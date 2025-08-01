@@ -150,8 +150,7 @@ class InterfaceBase:
         if run._settings.run_notes is not None:
             proto_run.notes = run._settings.run_notes
         if run._settings.run_tags is not None:
-            for tag in run._settings.run_tags:
-                proto_run.tags.append(tag)
+            proto_run.tags.extend(run._settings.run_tags)
         if run._start_time is not None:
             proto_run.start_time.FromMicroseconds(int(run._start_time * 1e6))
         if run._starting_step is not None:
@@ -166,6 +165,16 @@ class InterfaceBase:
             proto_run.host = run._settings.host
         if run._settings.resumed:
             proto_run.resumed = run._settings.resumed
+        if run._settings.fork_from:
+            run_moment = run._settings.fork_from
+            proto_run.branch_point.run = run_moment.run
+            proto_run.branch_point.metric = run_moment.metric
+            proto_run.branch_point.value = run_moment.value
+        if run._settings.resume_from:
+            run_moment = run._settings.resume_from
+            proto_run.branch_point.run = run_moment.run
+            proto_run.branch_point.metric = run_moment.metric
+            proto_run.branch_point.value = run_moment.value
         if run._forked:
             proto_run.forked = run._forked
         if run._config is not None:
@@ -205,13 +214,6 @@ class InterfaceBase:
 
     @abstractmethod
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
-        raise NotImplementedError
-
-    def publish_metadata(self, metadata: pb.MetadataRequest) -> None:
-        self._publish_metadata(metadata)
-
-    @abstractmethod
-    def _publish_metadata(self, metadata: pb.MetadataRequest) -> None:
         raise NotImplementedError
 
     @abstractmethod
@@ -428,7 +430,6 @@ class InterfaceBase:
 
     def deliver_link_artifact(
         self,
-        run: "Run",
         artifact: "Artifact",
         portfolio_name: str,
         aliases: Iterable[str],
@@ -442,9 +443,9 @@ class InterfaceBase:
         else:
             link_artifact.server_id = artifact.id if artifact.id else ""
         link_artifact.portfolio_name = portfolio_name
-        link_artifact.portfolio_entity = entity or run.entity
+        link_artifact.portfolio_entity = entity or ""
         link_artifact.portfolio_organization = organization or ""
-        link_artifact.portfolio_project = project or run.project
+        link_artifact.portfolio_project = project or ""
         link_artifact.portfolio_aliases.extend(aliases)
 
         return self._deliver_link_artifact(link_artifact)
@@ -660,6 +661,13 @@ class InterfaceBase:
 
     @abstractmethod
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
+        raise NotImplementedError
+
+    def publish_environment(self, environment: pb.EnvironmentRecord) -> None:
+        self._publish_environment(environment)
+
+    @abstractmethod
+    def _publish_environment(self, environment: pb.EnvironmentRecord) -> None:
         raise NotImplementedError
 
     def publish_partial_history(
@@ -988,16 +996,6 @@ class InterfaceBase:
     @abstractmethod
     def _deliver_get_system_metrics(
         self, get_summary: pb.GetSystemMetricsRequest
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
-    def deliver_get_system_metadata(self) -> MailboxHandle[pb.Result]:
-        get_system_metadata = pb.GetSystemMetadataRequest()
-        return self._deliver_get_system_metadata(get_system_metadata)
-
-    @abstractmethod
-    def _deliver_get_system_metadata(
-        self, get_system_metadata: pb.GetSystemMetadataRequest
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 

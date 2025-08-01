@@ -1,9 +1,9 @@
 package rules
 
 import (
-	//nolint:revive // Validator rules each use dot imports for convenience.
 	"github.com/vektah/gqlparser/v2/ast"
-	. "github.com/vektah/gqlparser/v2/validator"
+	//nolint:staticcheck // Validator rules each use dot imports for convenience.
+	. "github.com/vektah/gqlparser/v2/validator/core"
 )
 
 var ProvidedRequiredArgumentsRule = Rule{
@@ -61,8 +61,4 @@ var ProvidedRequiredArgumentsRule = Rule{
 			}
 		})
 	},
-}
-
-func init() {
-	AddRule(ProvidedRequiredArgumentsRule.Name, ProvidedRequiredArgumentsRule.RuleFunc)
 }

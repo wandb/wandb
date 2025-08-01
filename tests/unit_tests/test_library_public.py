@@ -30,6 +30,7 @@ SYMBOLS_ROOT_DATATYPES = {
 
 SYMBOLS_ROOT_SDK = {
     "ArtifactTTL",
+    "Run",
     "login",
     "init",
     "log",
@@ -79,7 +80,6 @@ SYMBOLS_ROOT_OTHER = {
     "data_types",
     "division",
     "docker",
-    "wandb.docker",  # what is this?
     "dummy",
     "ensure_configured",
     "env",
@@ -110,7 +110,6 @@ SYMBOLS_ROOT_OTHER = {
     "sync",
     "sys",
     "tensorboard",
-    "wandb.tensorboard",  # TODO: much like wandb.docker, this mysteriously failed in CI...?
     "tensorflow",
     "termerror",
     "termlog",
@@ -149,7 +148,7 @@ SYMBOLS_TYPING = {
     "annotations",
 }
 
-SYMBOLS_SERVICE = {"attach", "detach", "teardown"}
+SYMBOLS_SERVICE = {"attach", "_attach", "teardown", "_teardown"}
 
 SYMBOLS_ANALYTICS = {"analytics", "_Sentry", "_sentry"}
 
@@ -235,8 +234,7 @@ SYMBOLS_RUN_OTHER = {
 
 
 def test_library_run():
-    Run = wandb.wandb_sdk.wandb_run.Run  # noqa: N806
-    symbol_list = dir(Run)
+    symbol_list = dir(wandb.Run)
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
     symbol_unknown = (
         symbol_public_set

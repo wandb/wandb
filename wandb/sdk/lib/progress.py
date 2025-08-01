@@ -7,31 +7,11 @@ import contextlib
 import time
 from typing import Iterable, Iterator, NoReturn
 
-from wandb import env
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface import interface
 from wandb.sdk.lib import asyncio_compat
 
 from . import printer as p
-
-
-def print_sync_dedupe_stats(
-    printer: p.Printer,
-    final_result: pb.PollExitResponse,
-) -> None:
-    """Print how much W&B sync reduced the amount of uploaded data.
-
-    Args:
-        final_result: The final PollExit result.
-    """
-    deduped_bytes = final_result.pusher_stats.deduped_bytes
-    total_bytes = final_result.pusher_stats.total_bytes
-
-    if total_bytes <= 0 or deduped_bytes <= 0:
-        return
-
-    frac = deduped_bytes / total_bytes
-    printer.display(f"W&B sync reduced upload amount by {frac:.1%}")
 
 
 async def loop_printing_operation_stats(
@@ -107,8 +87,7 @@ class ProgressPrinter:
         progress_text_area: p.DynamicText | None,
         default_text: str,
     ) -> None:
-        # Not implemented by the legacy service.
-        self._show_operation_stats = not env.is_require_legacy_service()
+        self._show_operation_stats = True
         self._printer = printer
         self._progress_text_area = progress_text_area
         self._default_text = default_text

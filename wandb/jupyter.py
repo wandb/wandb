@@ -19,13 +19,13 @@ from requests.compat import urljoin
 
 import wandb
 import wandb.util
-from wandb.sdk import wandb_run, wandb_setup
+from wandb.sdk import wandb_setup
 from wandb.sdk.lib import filesystem
 
 logger = logging.getLogger(__name__)
 
 
-def display_if_magic_is_used(run: wandb_run.Run) -> bool:
+def display_if_magic_is_used(run: wandb.Run) -> bool:
     """Display a run's page if the cell has the %%wandb cell magic.
 
     Args:
@@ -53,7 +53,7 @@ class _WandbCellMagicState:
         self._height = height
         self._already_displayed = False
 
-    def display_if_allowed(self, run: wandb_run.Run) -> None:
+    def display_if_allowed(self, run: wandb.Run) -> None:
         """Display a run's iframe if one is not already displayed.
 
         Args:
@@ -93,7 +93,7 @@ def _display_by_wandb_path(path: str, *, height: int) -> None:
         )
 
 
-def _display_wandb_run(run: wandb_run.Run, *, height: int) -> None:
+def _display_wandb_run(run: wandb.Run, *, height: int) -> None:
     """Display a run (usually in an iframe).
 
     Args:
@@ -148,7 +148,7 @@ class WandBMagics(Magics):
         if path:
             _display_by_wandb_path(path, height=height)
             displayed = True
-        elif run := wandb_setup._setup(start_service=False).most_recent_active_run:
+        elif run := wandb_setup.singleton().most_recent_active_run:
             _display_wandb_run(run, height=height)
             displayed = True
         else:
@@ -246,12 +246,11 @@ def notebook_metadata(silent: bool) -> dict[str, str]:
 
         if jupyter_metadata:
             return jupyter_metadata
-        wandb.termerror(error_message)
-        return {}
     except Exception:
-        wandb.termerror(error_message)
         logger.exception(error_message)
-        return {}
+
+    wandb.termerror(error_message)
+    return {}
 
 
 def jupyter_servers_and_kernel_id():
@@ -273,9 +272,10 @@ def jupyter_servers_and_kernel_id():
             servers.extend(list(serverapp.list_running_servers()))
         if notebookapp is not None:
             servers.extend(list(notebookapp.list_running_servers()))
-        return servers, kernel_id
     except (AttributeError, ValueError, ImportError):
         return [], None
+
+    return servers, kernel_id
 
 
 def attempt_colab_load_ipynb():
@@ -289,17 +289,20 @@ def attempt_colab_load_ipynb():
 
 def attempt_kaggle_load_ipynb():
     kaggle = wandb.util.get_module("kaggle_session")
-    if kaggle:
-        try:
-            client = kaggle.UserSessionClient()
-            parsed = json.loads(client.get_exportable_ipynb()["source"])
-            # TODO: couldn't find a way to get the name of the notebook...
-            parsed["metadata"]["name"] = "kaggle.ipynb"
-            return parsed
-        except Exception:
-            wandb.termerror("Unable to load kaggle notebook.")
-            logger.exception("Unable to load kaggle notebook.")
-            return None
+    if not kaggle:
+        return None
+
+    try:
+        client = kaggle.UserSessionClient()
+        parsed = json.loads(client.get_exportable_ipynb()["source"])
+        # TODO: couldn't find a way to get the name of the notebook...
+        parsed["metadata"]["name"] = "kaggle.ipynb"
+    except Exception:
+        wandb.termerror("Unable to load kaggle notebook.")
+        logger.exception("Unable to load kaggle notebook.")
+        return None
+
+    return parsed
 
 
 def attempt_colab_login(
@@ -458,7 +461,7 @@ class Notebook:
 
         return False
 
-    def save_history(self, run: wandb_run.Run):
+    def save_history(self, run: wandb.Run):
         """This saves all cell executions in the current session as a new notebook."""
         try:
             from nbformat import v4, validator, write  # type: ignore

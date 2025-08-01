@@ -3,29 +3,35 @@ LABEL maintainer='Weights & Biases <support@wandb.com>'
 
 # Install dependencies
 RUN apt-get update && apt-get upgrade -y \
-    && apt-get install -y git gcc python3-dev curl \
+    && apt-get install -y git gcc python3-dev curl --no-install-recommends \
     && apt-get -qy autoremove \
     && apt-get clean && rm -r /var/lib/apt/lists/*
 
 # Download and install Go bootstrap
-# Go 1.23 ships with a package containing a critical security vulnerability.
+# Go 1.24 ships with a package containing a critical security vulnerability.
 # We will use a bootstrap version of Go to build a patched version.
-COPY --from=golang:1.23-alpine /usr/local/go/ /usr/local/go-bootstrap
+COPY --from=golang:1.24-alpine /usr/local/go/ /usr/local/go-bootstrap
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 # Set up Go environment for bootstrap
 ENV GOPATH=/go
 ENV PATH=$PATH:/usr/local/go-bootstrap/bin:$GOPATH/bin
+# Prevents go from downloading potentially vulnerable packages
+ENV GOTOOLCHAIN=local
 
 # Clone Go source and build with updated dependencies
 # remove bootstrap version of go
 RUN git clone https://go.googlesource.com/go /usr/local/go-source && \
     cd /usr/local/go-source && \
-    git checkout go1.23.6 && \
+    git checkout go1.24.4 && \
     # Update dependencies in the Go source
-    cd src && \
-    go mod edit -require=golang.org/x/crypto@v0.31.0 && \
-    go mod edit -require=golang.org/x/net@v0.36.0 && \
+    cd /usr/local/go-source/src/crypto/internal/fips140/sha3/_asm && \
+    go mod edit -require=golang.org/x/crypto@v0.38.0 && \
+    go mod tidy && \
+    cd /usr/local/go-source/src && \
+    go mod edit -require=golang.org/x/crypto@v0.38.0 && \
+    go mod edit -require=golang.org/x/net@v0.40.0 && \
+    go mod tidy && \
     go mod download && \
     ./make.bash && \
     cd / && \

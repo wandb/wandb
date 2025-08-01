@@ -4,7 +4,7 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.errors import CommError, UsageError
+from wandb.errors import CommError
 from wandb.sdk.lib import runid
 
 
@@ -77,32 +77,6 @@ def test_send_wandb_config_start_time_on_init(wandb_backend_spy):
         assert "t" in config["_wandb"]["value"]
 
 
-def test_resume_allow_success(wandb_backend_spy):
-    with wandb.init() as run:
-        run.log({"acc": 10}, step=15, commit=True)
-    with wandb.init(resume="allow", id=run.id) as run:
-        run.log({"acc": 10})
-
-    with wandb_backend_spy.freeze() as snapshot:
-        history = snapshot.history(run_id=run.id)
-        assert history[0]["_step"] == 15
-        assert history[1]["_step"] == 16
-
-
-def test_resume_never_failure(user):
-    run = wandb.init(project="project")
-    run_id = run.id
-    run.finish()
-
-    with pytest.raises(UsageError):
-        wandb.init(resume="never", id=run_id, project="project")
-
-
-def test_resume_must_failure(user):
-    with pytest.raises(UsageError):
-        wandb.init(resume="must", project="project")
-
-
 def test_resume_auto_failure(user, tmp_path):
     # env vars have a higher priority than the BASE settings
     # so that if that is set (e.g. by some other test/fixture),
@@ -149,7 +123,6 @@ def test_init_param_not_set_telemetry(wandb_backend_spy):
         assert 16 not in features  # set_init_config
 
 
-@pytest.mark.wandb_core_only
 def test_shared_mode_x_label(user):
     _ = user  # Create a fake user on the backend server.
 
@@ -172,24 +145,24 @@ def test_shared_mode_x_label(user):
         assert run.settings.x_label == "node-rank"
 
 
-@pytest.mark.wandb_core_only
-def test_resume_from_run_id_is_not_set(wandb_backend_spy):
-    run_id = runid.generate_id()
+@pytest.mark.parametrize("skip_transaction_log", [True, False])
+def test_skip_transaction_log(user, skip_transaction_log):
+    """Test that the skip transaction log setting works correctly.
 
-    gql = wandb_backend_spy.gql
-    data = {
-        "data": {
-            "rewindRun": {
-                "rewoundRun": {"id": run_id},
-            },
+    If skip_transaction_log is True, the transaction log file should not be created.
+    If skip_transaction_log is False, the transaction log file should be created.
+    """
+    with wandb.init(
+        settings={
+            "x_skip_transaction_log": skip_transaction_log,
+            "mode": "online",
         }
-    }
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="RewindRun"),
-        gql.once(content=data, status=200),
-    )
-
-    with wandb.init(resume_from=f"{run_id}?_step=10") as rewound_run:
+    ) as run:
         pass
+    assert os.path.exists(run._settings.sync_file) == (not skip_transaction_log)
 
-    assert rewound_run.id == run_id
+
+def test_skip_transaction_log_offline(user):
+    """Test that skip transaction log is not allowed in offline mode."""
+    with pytest.raises(ValueError):
+        wandb.init(settings={"mode": "offline", "x_skip_transaction_log": True})

@@ -1,6 +1,7 @@
 import hashlib
 import os
-from typing import Optional
+import pathlib
+from typing import TYPE_CHECKING, Optional, Union
 
 from wandb import util
 from wandb.sdk.lib import filesystem, runid
@@ -9,27 +10,40 @@ from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
 
+if TYPE_CHECKING:
+    import numpy as np
+
 
 class Audio(BatchableMedia):
-    """Wandb class for audio clips.
-
-    Args:
-        data_or_path: (string or numpy array) A path to an audio file
-            or a numpy array of audio data.
-        sample_rate: (int) Sample rate, required when passing in raw
-            numpy array of audio data.
-        caption: (string) Caption to display with audio.
-    """
+    """W&B class for audio clips."""
 
     _log_type = "audio-file"
 
-    def __init__(self, data_or_path, sample_rate=None, caption=None):
-        """Accept a path to an audio file or a numpy array of audio data."""
+    def __init__(
+        self,
+        data_or_path: Union[
+            str,
+            pathlib.Path,
+            list,
+            "np.ndarray",
+        ],
+        sample_rate: Optional[int] = None,
+        caption: Optional[str] = None,
+    ):
+        """Accept a path to an audio file or a numpy array of audio data.
+
+        Args:
+            data_or_path: A path to an audio file or a NumPy array of audio data.
+            sample_rate: Sample rate, required when passing in raw NumPy array of audio data.
+            caption: Caption to display with audio.
+        """
         super().__init__(caption=caption)
         self._duration = None
         self._sample_rate = sample_rate
 
-        if isinstance(data_or_path, str):
+        if isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             if self.path_is_reference(data_or_path):
                 self._path = data_or_path
                 self._sha256 = hashlib.sha256(data_or_path.encode("utf-8")).hexdigest()
@@ -48,6 +62,7 @@ class Audio(BatchableMedia):
             )
 
             tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".wav")
+
             soundfile.write(tmp_path, data_or_path, sample_rate)
             self._duration = len(data_or_path) / float(sample_rate)
 
@@ -55,10 +70,18 @@ class Audio(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls):
+        """Get media subdirectory.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         return os.path.join("media", "audio")
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
+        """Deserialize JSON object into it's class representation.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         return cls(
             source_artifact.get_entry(json_obj["path"]).download(),
             caption=json_obj["caption"],
@@ -67,6 +90,10 @@ class Audio(BatchableMedia):
     def bind_to_run(
         self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
     ):
+        """Bind this object to a run.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.path_is_reference(self._path):
             raise ValueError(
                 "Audio media created by a reference to external storage cannot currently be added to a run"
@@ -75,6 +102,10 @@ class Audio(BatchableMedia):
         return super().bind_to_run(run, key, step, id_, ignore_copy_err)
 
     def to_json(self, run):
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run)
         json_dict.update(
             {
@@ -85,6 +116,10 @@ class Audio(BatchableMedia):
 
     @classmethod
     def seq_to_json(cls, seq, run, key, step):
+        """Convert a sequence of Audio objects to a JSON representation.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         audio_list = list(seq)
 
         util.get_module(
@@ -112,14 +147,20 @@ class Audio(BatchableMedia):
 
     @classmethod
     def durations(cls, audio_list):
+        """Calculate the duration of the audio files."""
         return [a._duration for a in audio_list]
 
     @classmethod
     def sample_rates(cls, audio_list):
+        """Get sample rates of the audio files."""
         return [a._sample_rate for a in audio_list]
 
     @classmethod
     def captions(cls, audio_list):
+        """Get the captions of the audio files.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         captions = [a._caption for a in audio_list]
         if all(c is None for c in captions):
             return False
@@ -127,6 +168,10 @@ class Audio(BatchableMedia):
             return ["" if c is None else c for c in captions]
 
     def resolve_ref(self):
+        """Resolve the reference to the actual file path.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path

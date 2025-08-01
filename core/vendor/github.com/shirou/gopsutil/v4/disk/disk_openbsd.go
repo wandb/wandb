@@ -13,7 +13,7 @@ import (
 	"github.com/shirou/gopsutil/v4/internal/common"
 )
 
-func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, error) {
+func PartitionsWithContext(_ context.Context, _ bool) ([]PartitionStat, error) {
 	var ret []PartitionStat
 
 	// get length
@@ -27,7 +27,8 @@ func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, erro
 		return ret, err
 	}
 
-	for _, stat := range fs {
+	for i := range fs {
+		stat := &fs[i]
 		opts := []string{"rw"}
 		if stat.F_flags&unix.MNT_RDONLY != 0 {
 			opts = []string{"rw"}
@@ -70,7 +71,7 @@ func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, erro
 	return ret, nil
 }
 
-func IOCountersWithContext(ctx context.Context, names ...string) (map[string]IOCountersStat, error) {
+func IOCountersWithContext(_ context.Context, names ...string) (map[string]IOCountersStat, error) {
 	ret := make(map[string]IOCountersStat)
 
 	r, err := unix.SysctlRaw("hw.diskstats")
@@ -122,7 +123,7 @@ func parseDiskstats(buf []byte) (Diskstats, error) {
 	return ds, nil
 }
 
-func UsageWithContext(ctx context.Context, path string) (*UsageStat, error) {
+func UsageWithContext(_ context.Context, path string) (*UsageStat, error) {
 	stat := unix.Statfs_t{}
 	err := unix.Statfs(path, &stat)
 	if err != nil {
@@ -151,10 +152,10 @@ func getFsType(stat unix.Statfs_t) string {
 	return common.ByteToString(stat.F_fstypename[:])
 }
 
-func SerialNumberWithContext(ctx context.Context, name string) (string, error) {
+func SerialNumberWithContext(_ context.Context, _ string) (string, error) {
 	return "", common.ErrNotImplementedError
 }
 
-func LabelWithContext(ctx context.Context, name string) (string, error) {
+func LabelWithContext(_ context.Context, _ string) (string, error) {
 	return "", common.ErrNotImplementedError
 }

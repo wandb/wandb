@@ -13,7 +13,7 @@ Consider removing tests once Pydantic v1 support is dropped.
 
 # Ignored linter rules to ensure compatibility with older pydantic and/or python versions.
 # ruff: noqa: UP006  # allow e.g. `List[X]` instead of `list[x]`
-# ruff: noqa: UP007  # allow e.g. `Union[X, Y]` instead of `X | Y` (pydantic<2.6)
+# ruff: noqa: UP045  # allow e.g. `Optional[X]` instead of `X | None` (pydantic<2.6)
 
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ from wandb._pydantic import (
     field_validator,
     model_validator,
 )
+from wandb.sdk.artifacts._generated import ArtifactVersionFiles
 
 
 def test_field_validator_before():
@@ -151,7 +152,9 @@ def test_model_fields_class_property():
 def test_model_fields_set_property():
     class Model(CompatBaseModel):
         x: int
-        y: Optional[str] = None  # noqa: UP007  # `Optional[X]` instead of `X | None` for pydantic<2.6 compatibility
+        y: Optional[str] = (
+            None  # `Optional[X]` instead of `X | None` for pydantic<2.6 compatibility
+        )
 
     obj = Model(x=1)
     assert obj.model_fields_set == {"x"}
@@ -251,3 +254,48 @@ def test_model_dump_methods_with_json_fields():
     # Check that `.model_dump_json(round_trip=True)` behavior is consistent.
     rt_json = obj.model_dump_json(round_trip=True)
     assert json.loads(rt_json) == obj.model_dump(round_trip=True)
+
+
+# ------------------------------------------------------------------------------
+def test_generated_pydantic_fragment_validates_response_data():
+    """Check that the generated fragment validates the response data.
+
+    In Pydantic v1 environments, this partly guards against regressions of:
+    - https://github.com/wandb/wandb/pull/9795
+    """
+    response_data = {
+        "project": {
+            "artifactType": {
+                "artifact": {
+                    "files": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "QXJ0aWZhY3RGaWxlOjE2OTgzNjI1MDc6cmFuZG9tX2ltYWdlLnBuZw==",
+                                    "name": "random_image.png",
+                                    "url": "https://api.wandb.fake/artifactsV2/gcp-us/wandb/abcdef",
+                                    "sizeBytes": 30168,
+                                    "storagePath": "wandb_artifacts/626357751/1698362507/7e8ff39b55a1a62101758a6dc7a69f70",
+                                    "mimetype": None,
+                                    "updatedAt": None,
+                                    "digest": "fo/zm1WhpiEBdYptx6afcA==",
+                                    "md5": "fo/zm1WhpiEBdYptx6afcA==",
+                                    "directUrl": "https://fake-url.com",
+                                },
+                                "cursor": "YXJyYXljb25uZWN0aW9uOjA=",
+                            }
+                        ],
+                        "pageInfo": {
+                            "endCursor": "YXJyYXljb25uZWN0aW9uOjA=",
+                            "hasNextPage": False,
+                        },
+                    }
+                }
+            }
+        }
+    }
+    validated = ArtifactVersionFiles.model_validate(response_data)
+    assert (
+        validated.project.artifact_type.artifact.files.edges[0].node.name
+        == "random_image.png"
+    )

@@ -115,6 +115,7 @@ def _create_job(
     build_context: Optional[str] = None,
     dockerfile: Optional[str] = None,
     base_image: Optional[str] = None,
+    services: Optional[Dict[str, str]] = None,
 ) -> Tuple[Optional[Artifact], str, List[str]]:
     wandb.termlog(f"Creating launch job of type: {job_type}...")
 
@@ -169,6 +170,7 @@ def _create_job(
 
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
     job_builder._settings.job_name = name
+    job_builder._services = services or {}
     if job_type == "code":
         assert entrypoint is not None
         job_name = _make_code_artifact(
@@ -421,7 +423,7 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
 def _make_code_artifact(
     api: Api,
     job_builder: JobBuilder,
-    run: "wandb.sdk.wandb_run.Run",
+    run: "wandb.Run",
     path: str,
     entrypoint: str,
     entity: Optional[str],

@@ -34,7 +34,7 @@ if version.parse(langchain.__version__) < version.parse("0.0.188"):
     )
 
 # isort: off
-from langchain.callbacks.tracers import WandbTracer  # noqa: E402, I001
+from langchain.callbacks.tracers import WandbTracer  # noqa: E402
 
 
 class WandbTracer(WandbTracer):
