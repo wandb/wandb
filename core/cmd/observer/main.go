@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observer"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
-	"github.com/wandb/wandb/core/internal/tui"
 	"github.com/wandb/wandb/core/internal/version"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -83,7 +83,7 @@ func mainWithExitCode() int {
 	}
 
 	// Create the model
-	model := tui.NewModel(wandbFile, logger)
+	model := observer.NewModel(wandbFile, logger)
 
 	// Initialize the program
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())

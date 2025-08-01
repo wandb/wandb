@@ -1,4 +1,4 @@
-package tui
+package observer
 
 import (
 	tea "github.com/charmbracelet/bubbletea"

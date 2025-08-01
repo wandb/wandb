@@ -1,4 +1,4 @@
-package tui
+package observer
 
 import (
 	"fmt"

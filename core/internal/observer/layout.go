@@ -1,4 +1,4 @@
-package tui
+package observer
 
 import "github.com/charmbracelet/lipgloss"
 
