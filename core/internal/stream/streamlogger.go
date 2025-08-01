@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -14,6 +15,12 @@ import (
 
 // streamLoggerFile is a file that backs a Stream's logger.
 type streamLoggerFile *os.File
+
+// streamLoggerProviders provides stream logging-related bindings.
+var streamLoggerProviders = wire.NewSet(
+	openStreamLoggerFile,
+	streamLogger,
+)
 
 // symlinkDebugCore symlinks the debug-core.log file to the run's directory.
 func symlinkDebugCore(

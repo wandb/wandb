@@ -27,7 +27,7 @@ type RecordParser struct {
 	Run                *StreamRun
 	TBHandler          *tensorboard.TBHandler
 
-	ClientID string
+	ClientID ClientID
 	Settings *settings.Settings
 }
 
@@ -46,7 +46,7 @@ func (p *RecordParser) Parse(record *spb.Record) runwork.Work {
 			FeatureProvider:    p.FeatureProvider,
 			GraphqlClientOrNil: p.GraphqlClientOrNil,
 			Logger:             p.Logger,
-			ClientID:           p.ClientID,
+			ClientID:           string(p.ClientID),
 		}
 
 	case record.GetTbrecord() != nil:

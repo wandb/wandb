@@ -31,6 +31,10 @@ The default ordering for `Api().runs(...)` and `Api().sweeps(...)` is now ascend
 - Artifact with large file (>2GB) uploads faster by using parallel hashing on system with more cores (@pingleiwandb in https://github.com/wandb/wandb/pull/10136)
 - Remove the implementation of `__bool__` for the registry iterators to align with python lazy iterators. (@estellazx in https://github.com/wandb/wandb/pull/10259)
 
+### Deprecated
+
+- The `wandb.beta.workflows` module and its contents (including `log_model()`, `use_model()`, and `link_model()`) are deprecated and will be removed in a future release (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10205).
+
 ### Fixed
 
 - Correct the artifact url for organization registry artifacts to be independent of the artifact type (@ibindlish in https://github.com/wandb/wandb/pull/10049)
