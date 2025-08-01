@@ -17,6 +17,8 @@ type Work interface {
 	// them.
 	//
 	// The WaitGroup is used to signal when proceed() has been invoked.
+	// To prevent deadlocks, it must not block on other work entering
+	// the pipeline.
 	Schedule(wg *sync.WaitGroup, proceed func())
 
 	// Accept indicates the work has entered the pipeline.

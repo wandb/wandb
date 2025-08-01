@@ -30,12 +30,12 @@ type TBWork struct {
 // The right way to think about the TensorBoard integration is to pretend it
 // exists entirely in the client: the Schedule step can be viewed as something
 // that happens in the client itself.
-func (w *TBWork) Schedule(wg *sync.WaitGroup, process func()) {
+func (w *TBWork) Schedule(wg *sync.WaitGroup, proceed func()) {
 	err := w.TBHandler.Handle(w.Record.GetTbrecord())
 	if err != nil {
 		w.Logger.CaptureError(err)
 	}
-	process()
+	proceed()
 }
 
 // ToRecord implements Work.ToRecord.
