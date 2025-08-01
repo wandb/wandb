@@ -1734,7 +1734,7 @@ class Api:
         organization: Optional[str] = None,
         filter: Optional[Dict[str, Any]] = None,
     ) -> Registries:
-        """Returns a lazy iterator of Registry objects.
+        """Returns a lazy iterator of `Registry` objects.
 
         Use the iterator to search and filter registries, collections,
         or artifact versions across your organization's registry.
@@ -1751,7 +1751,7 @@ class Api:
                     `tag`, `alias`, `created_at`, `updated_at`, `metadata`
 
         Returns:
-            A lazy iterator of Registry objects.
+            A lazy iterator of `Registry` objects.
 
         Examples:
         Find all registries with the names that contain "model"
