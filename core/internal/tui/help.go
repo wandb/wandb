@@ -94,13 +94,14 @@ func (h *HelpModel) generateHelpContent() string {
 	content := helpTitleStyle.Render("wandb observer - Help") + "\n\n"
 
 	for _, entry := range h.entries {
-		if entry.Key == "" {
+		switch {
+		case entry.Key == "":
 			// Empty line for spacing
 			content += "\n"
-		} else if entry.Description == "" {
+		case entry.Description == "":
 			// Section header
 			content += helpSectionStyle.Render(entry.Key) + "\n"
-		} else {
+		default:
 			// Regular entry
 			key := helpKeyStyle.Render(entry.Key)
 			desc := helpDescStyle.Render(entry.Description)

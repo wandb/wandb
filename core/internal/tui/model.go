@@ -139,6 +139,8 @@ func (m *Model) waitForWatcherMsg() tea.Cmd {
 }
 
 // Update implements tea.Model.
+//
+//gocyclo:ignore
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
