@@ -576,12 +576,17 @@ github.com/google/s2a-go/internal/v2/remotesigner
 github.com/google/s2a-go/internal/v2/tlsconfigstore
 github.com/google/s2a-go/retry
 github.com/google/s2a-go/stream
+# github.com/google/subcommands v1.2.0
+## explicit
+github.com/google/subcommands
 # github.com/google/uuid v1.6.0
 ## explicit
 github.com/google/uuid
 # github.com/google/wire v0.6.0
 ## explicit; go 1.12
 github.com/google/wire
+github.com/google/wire/cmd/wire
+github.com/google/wire/internal/wire
 # github.com/googleapis/enterprise-certificate-proxy v0.3.6
 ## explicit; go 1.23.0
 github.com/googleapis/enterprise-certificate-proxy/client

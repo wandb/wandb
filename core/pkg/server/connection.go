@@ -351,7 +351,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		sentryClient = nc.sentryClient
 	}
 
-	strm := stream.NewStream(
+	strm := stream.InjectStream(
 		stream.StreamParams{
 			Settings:           settings,
 			Commit:             nc.commit,
