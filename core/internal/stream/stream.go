@@ -8,21 +8,14 @@ import (
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
-	"github.com/wandb/wandb/core/internal/filestream"
-	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
-	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
-	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -92,7 +85,7 @@ type Stream struct {
 }
 
 type StreamParams struct {
-	Commit     string
+	Commit     GitCommitHash
 	Settings   *settings.Settings
 	Sentry     *sentry_ext.Client
 	LoggerPath string
@@ -104,24 +97,17 @@ type StreamParams struct {
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(
 	params StreamParams,
-	backendOrNil *api.Backend,
 	clientID sharedmode.ClientID,
 	featureProvider *featurechecker.ServerFeaturesCache,
-	fileStreamOrNil filestream.FileStream,
-	fileTransferManagerOrNil filetransfer.FileTransferManager,
-	fileTransferStats filetransfer.FileTransferStats,
-	fileWatcher watcher.Watcher,
 	graphqlClientOrNil graphql.Client,
+	handler *Handler,
 	loggerFile streamLoggerFile,
 	logger *observability.CoreLogger,
 	operations *wboperation.WandbOperations,
-	peeker *observability.Peeker,
 	recordParser *RecordParser,
-	runfilesUploaderOrNil runfiles.Uploader,
 	runWork runwork.RunWork,
+	sender *Sender,
 	streamRun *StreamRun,
-	systemMonitor *monitor.SystemMonitor,
-	terminalPrinter *observability.Printer,
 ) *Stream {
 	symlinkDebugCore(params.Settings, params.LoggerPath)
 
@@ -135,11 +121,12 @@ func NewStream(
 		loggerFile:         loggerFile,
 		settings:           params.Settings,
 		recordParser:       recordParser,
+		handler:            handler,
+		sender:             sender,
 		sentryClient:       params.Sentry,
 		clientID:           clientID,
 	}
 
-	mailbox := mailbox.New()
 	switch {
 	case s.settings.IsSync():
 		s.reader = NewReader(ReaderParams{
@@ -158,43 +145,6 @@ func NewStream(
 			"id", s.settings.GetRunID(),
 		)
 	}
-
-	s.handler = NewHandler(
-		HandlerParams{
-			Commit:            params.Commit,
-			FileTransferStats: fileTransferStats,
-			FwdChan:           make(chan runwork.Work, BufferSize),
-			Logger:            logger,
-			Mailbox:           mailbox,
-			Operations:        operations,
-			OutChan:           make(chan *spb.Result, BufferSize),
-			Settings:          s.settings,
-			SystemMonitor:     systemMonitor,
-			TerminalPrinter:   terminalPrinter,
-		},
-	)
-
-	s.sender = NewSender(
-		SenderParams{
-			Logger:              logger,
-			Operations:          operations,
-			Settings:            s.settings,
-			Backend:             backendOrNil,
-			FileStream:          fileStreamOrNil,
-			FileTransferManager: fileTransferManagerOrNil,
-			FileTransferStats:   fileTransferStats,
-			FileWatcher:         fileWatcher,
-			RunfilesUploader:    runfilesUploaderOrNil,
-			Peeker:              peeker,
-			StreamRun:           streamRun,
-			RunSummary:          runsummary.New(),
-			GraphqlClient:       graphqlClientOrNil,
-			OutChan:             make(chan *spb.Result, BufferSize),
-			Mailbox:             mailbox,
-			RunWork:             runWork,
-			FeatureProvider:     featureProvider,
-		},
-	)
 
 	s.dispatcher = NewDispatcher(logger)
 
@@ -244,7 +194,7 @@ func (s *Stream) Start() {
 		// the handler to the sender directly
 		s.wg.Add(1)
 		go func() {
-			s.sender.Do(s.handler.fwdChan)
+			s.sender.Do(s.handler.OutChan())
 			s.wg.Done()
 		}()
 	case s.settings.IsSync():
@@ -259,7 +209,7 @@ func (s *Stream) Start() {
 
 		s.wg.Add(1)
 		go func() {
-			s.sender.Do(s.handler.fwdChan)
+			s.sender.Do(s.handler.OutChan())
 			s.wg.Done()
 		}()
 	default:
@@ -269,7 +219,7 @@ func (s *Stream) Start() {
 		// that will forward it to the sender
 		s.wg.Add(1)
 		go func() {
-			s.writer.Do(s.handler.fwdChan)
+			s.writer.Do(s.handler.OutChan())
 			s.wg.Done()
 		}()
 
@@ -281,9 +231,12 @@ func (s *Stream) Start() {
 	}
 
 	// handle dispatching between components
-	for _, ch := range []chan *spb.Result{s.handler.outChan, s.sender.outChan} {
+	for _, ch := range []<-chan *spb.Result{
+		s.handler.ResponseChan(),
+		s.sender.ResponseChan(),
+	} {
 		s.wg.Add(1)
-		go func(ch chan *spb.Result) {
+		go func(ch <-chan *spb.Result) {
 			for result := range ch {
 				s.dispatcher.handleRespond(result)
 			}

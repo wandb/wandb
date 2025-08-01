@@ -11,6 +11,7 @@ import (
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gitops"
@@ -38,15 +39,20 @@ const (
 	ConfigFileName       = "config.yaml"
 )
 
+var handlerProviders = wire.NewSet(
+	wire.Struct(new(HandlerParams), "*"),
+	NewHandler,
+)
+
+type GitCommitHash string
+
 type HandlerParams struct {
 	// Commit is the W&B Git commit hash
-	Commit            string
+	Commit            GitCommitHash
 	FileTransferStats filetransfer.FileTransferStats
-	FwdChan           chan runwork.Work
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
 	Operations        *wboperation.WandbOperations
-	OutChan           chan *spb.Result
 	Settings          *settings.Settings
 	SystemMonitor     *monitor.SystemMonitor
 	TerminalPrinter   *observability.Printer
@@ -54,9 +60,8 @@ type HandlerParams struct {
 
 // Handler handles the incoming messages, processes them, and passes them to the writer.
 type Handler struct {
-
 	// commit is the W&B Git commit hash
-	commit string
+	commit GitCommitHash
 
 	// fileTransferStats reports file upload/download statistics
 	fileTransferStats filetransfer.FileTransferStats
@@ -125,12 +130,12 @@ func NewHandler(
 	return &Handler{
 		commit:               params.Commit,
 		fileTransferStats:    params.FileTransferStats,
-		fwdChan:              params.FwdChan,
+		fwdChan:              make(chan runwork.Work, BufferSize),
 		logger:               params.Logger,
 		mailbox:              params.Mailbox,
 		metricHandler:        runmetric.New(),
 		operations:           params.Operations,
-		outChan:              params.OutChan,
+		outChan:              make(chan *spb.Result, BufferSize),
 		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
 		runHistorySampler:    runhistory.NewRunHistorySampler(),
 		runSummary:           runsummary.New(),
@@ -139,6 +144,16 @@ func NewHandler(
 		systemMonitor:        params.SystemMonitor,
 		terminalPrinter:      params.TerminalPrinter,
 	}
+}
+
+// ResponseChan contains responses for the client.
+func (h *Handler) ResponseChan() <-chan *spb.Result {
+	return h.outChan
+}
+
+// OutChan contains work to pass to the next stream component.
+func (h *Handler) OutChan() <-chan runwork.Work {
+	return h.fwdChan
 }
 
 // Do processes all work on the input channel.
