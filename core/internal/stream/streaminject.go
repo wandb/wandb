@@ -4,6 +4,7 @@ package stream
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/api"
@@ -13,6 +14,8 @@ import (
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/watcher"
@@ -20,21 +23,20 @@ import (
 )
 
 // InjectStream returns a new Stream.
-func InjectStream(params StreamParams) *Stream {
+func InjectStream(
+	commit GitCommitHash,
+	gpuResourceManager *monitor.GPUResourceManager,
+	debugCorePath DebugCorePath,
+	logLevel slog.Level,
+	sentry *sentry_ext.Client,
+	settings *settings.Settings,
+) *Stream {
 	wire.Build(streamProviders)
 	return &Stream{}
 }
 
 var streamProviders = wire.NewSet(
 	NewStream,
-	wire.FieldsOf(
-		new(StreamParams),
-		"Commit",
-		"GPUResourceManager",
-		"Settings",
-		"Sentry",
-		"LogLevel",
-	),
 	wire.Bind(new(runwork.ExtraWork), new(runwork.RunWork)),
 	wire.Bind(new(api.Peeker), new(*observability.Peeker)),
 	wire.Struct(new(observability.Peeker)),
