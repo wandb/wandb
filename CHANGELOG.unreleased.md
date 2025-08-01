@@ -28,6 +28,7 @@ The default ordering for `Api().runs(...)` and `Api().sweeps(...)` is now ascend
 
 - `Sweep.name` property will now return user-edited display name if available (falling back to original name from sweep config, then sweep ID as before) (@kelu-wandb in https://github.com/wandb/wandb/pull/10144)
 - `Api().runs(...)` and `Api().sweeps(...)` now returns runs in ascending order according to the runs `created_at` time. (@jacobromero in https://github.com/wandb/wandb/pull/10130)
+- Artifact with large file (>2GB) uploads faster by using parallel hashing on system with more cores (@pingleiwandb in https://github.com/wandb/wandb/pull/10136)
 
 ### Fixed
 
