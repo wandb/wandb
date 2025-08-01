@@ -44,7 +44,10 @@ func mainWithExitCode() int {
 	}
 
 	// Sentry reporting.
-	enableErrorReporting, _ := strconv.ParseBool(os.Getenv("WANDB_ERROR_REPORTING"))
+	enableErrorReporting := true
+	if os.Getenv("WANDB_ERROR_REPORTING") != "" {
+		enableErrorReporting, _ = strconv.ParseBool(os.Getenv("WANDB_ERROR_REPORTING"))
+	}
 
 	sentryClient := sentry_ext.New(sentry_ext.Params{
 		Disabled:         !enableErrorReporting,
