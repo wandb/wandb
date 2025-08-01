@@ -20,18 +20,12 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	"golang.org/x/time/rate"
 )
-
-// ClientID is a unique ID for a stream.
-//
-// This identifies the process that uploaded a set of metrics when
-// running in "shared" mode, where there may be multiple writers for
-// the same run.
-type ClientID string
 
 // NewBackend returns a Backend or nil if we're offline.
 func NewBackend(
@@ -99,7 +93,7 @@ func NewGraphQLClient(
 	backend *api.Backend,
 	settings *settings.Settings,
 	peeker *observability.Peeker,
-	clientID ClientID,
+	clientID sharedmode.ClientID,
 ) graphql.Client {
 	if settings.IsOffline() {
 		return nil
@@ -171,7 +165,7 @@ func NewFileStream(
 	printer *observability.Printer,
 	settings *settings.Settings,
 	peeker api.Peeker,
-	clientID ClientID,
+	clientID sharedmode.ClientID,
 ) filestream.FileStream {
 	if settings.IsOffline() {
 		return nil
