@@ -274,9 +274,9 @@ def _login(
     timeout: Optional[int] = None,
     verify: bool = False,
     referrer: str = "models",
+    update_api_key: bool = True,
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
-    _update_api_key: bool = True,
 ) -> bool:
     if wandb.run is not None:
         if not _disable_warning:
@@ -321,7 +321,7 @@ def _login(
         wlogin._verify_login(key)
 
     if not key_is_pre_configured:
-        if _update_api_key:
+        if update_api_key:
             wlogin.try_save_api_key(key)
         wlogin.update_session(key, status=key_status)
         wlogin._update_global_anonymous_setting()
