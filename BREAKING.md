@@ -121,3 +121,8 @@ When preparing a release that can include breaking changes, consider applying ch
 - Make `wandb.apis.public.runs.Run::load()` private:
     - Owner: @jacobromero
     - Can do in >= 0.22
+
+- Remove `wandb.beta.workflows`, `wandb.beta.workflows::log_model()`, `wandb.beta.workflows::link_model()`, `wandb.beta.workflows::use_model()`:
+    - Owner: @tonyyli-wandb
+    - Deprecated in 0.21.1 (https://github.com/wandb/wandb/pull/10205)
+    - can do in >= 0.23
