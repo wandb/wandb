@@ -120,7 +120,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 func (m *Model) Init() tea.Cmd {
 	m.logger.Debug("model: Init called")
 	return tea.Batch(
-		tea.SetWindowTitle("wandb moni"),
+		tea.SetWindowTitle("wandb observer"),
 		InitializeReader(m.runPath),
 		m.waitForWatcherMsg(), // Start listening for watcher messages
 	)
