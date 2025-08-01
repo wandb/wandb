@@ -52,7 +52,7 @@ PROJECT_FRAGMENT = """fragment ProjectFragment on Project {
 
 
 class Projects(Paginator["Project"]):
-    """An iterable collection of `Project` objects.
+    """An lazy iterator of `Project` objects.
 
     An iterable interface to access projects created and saved by the entity.
 
