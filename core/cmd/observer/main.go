@@ -24,6 +24,17 @@ func main() {
 }
 
 func mainWithExitCode() int {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "wandb-observer - Terminal UI for viewing W&B runs locally\n\n")
+		fmt.Fprintf(os.Stderr, "Usage:\n")
+		fmt.Fprintf(os.Stderr, "  %s <run-directory>\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Arguments:\n")
+		fmt.Fprintf(os.Stderr, "  <run-directory>    Path to a W&B run directory containing a .wandb file\n")
+		fmt.Fprintf(os.Stderr, "                     Example: /path/to/.wandb/run-20250731_170606-iazb7i1k\n\n")
+		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
+		fmt.Fprintf(os.Stderr, "  WANDB_DEBUG           Enable debug logging (creates wandb_observer.debug.log)\n")
+	}
+
 	flag.Parse()
 
 	if flag.NArg() != 1 {
