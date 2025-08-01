@@ -7,7 +7,6 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -21,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/internal/watchertest"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
