@@ -71,7 +71,7 @@ if TYPE_CHECKING:
 
 
 class ArtifactTypes(Paginator["ArtifactType"]):
-    """An iterable collection of artifact types for a specific project.
+    """An lazy iterator of `ArtifactType` objects for a specific project.
 
     <!-- lazydoc-ignore-init: internal -->
     """
