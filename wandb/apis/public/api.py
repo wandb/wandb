@@ -313,6 +313,7 @@ class Api:
                     self.settings.get("silent", False)
                     or self.settings.get("quiet", False)
                 ),
+                update_api_key=False,
             )
 
         self._viewer = None
