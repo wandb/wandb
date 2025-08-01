@@ -91,25 +91,32 @@ func NewHelp() *HelpModel {
 
 // generateHelpContent generates the help screen content
 func (h *HelpModel) generateHelpContent() string {
-	content := helpTitleStyle.Render("wandb observer - Help") + "\n\n"
+	artStyle := lipgloss.NewStyle().
+		Foreground(wandbColor).
+		Bold(true)
 
+	// Build the ASCII art section separately
+	artSection := artStyle.Render(wandbArt) + "\n" + artStyle.Render(observerArt) + "\n\n"
+
+	// Build the help entries section
+	helpSection := ""
 	for _, entry := range h.entries {
 		switch {
 		case entry.Key == "":
 			// Empty line for spacing
-			content += "\n"
+			helpSection += "\n"
 		case entry.Description == "":
 			// Section header
-			content += helpSectionStyle.Render(entry.Key) + "\n"
+			helpSection += helpSectionStyle.Render(entry.Key) + "\n"
 		default:
 			// Regular entry
 			key := helpKeyStyle.Render(entry.Key)
 			desc := helpDescStyle.Render(entry.Description)
-			content += lipgloss.JoinHorizontal(lipgloss.Top, key, desc) + "\n"
+			helpSection += lipgloss.JoinHorizontal(lipgloss.Top, key, desc) + "\n"
 		}
 	}
 
-	return content
+	return artSection + helpSection
 }
 
 // SetSize updates the size of the help screen
