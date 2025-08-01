@@ -106,13 +106,15 @@ func NewStream(
 	params StreamParams,
 	loggerFile streamLoggerFile,
 	logger *observability.CoreLogger,
+	operations *wboperation.WandbOperations,
+	runWork runwork.RunWork,
 ) *Stream {
 	symlinkDebugCore(params.Settings, params.LoggerPath)
 
 	s := &Stream{
-		runWork:      runwork.New(BufferSize, logger),
+		runWork:      runWork,
 		run:          NewStreamRun(),
-		operations:   wboperation.NewOperations(),
+		operations:   operations,
 		logger:       logger,
 		loggerFile:   loggerFile,
 		settings:     params.Settings,
@@ -124,12 +126,12 @@ func NewStream(
 	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
 
-	backendOrNil := NewBackend(s.logger, params.Settings)
+	backendOrNil := NewBackend(logger, params.Settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
-	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
+	fileWatcher := watcher.New(watcher.Params{Logger: logger})
 	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
-		ExtraWork: s.runWork,
-		Logger:    s.logger,
+		ExtraWork: runWork,
+		Logger:    logger,
 		Settings:  s.settings,
 	})
 	var fileStreamOrNil filestream.FileStream
@@ -144,8 +146,8 @@ func NewStream(
 		)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
-			s.logger,
-			s.operations,
+			logger,
+			operations,
 			terminalPrinter,
 			params.Settings,
 			peeker,
@@ -153,13 +155,13 @@ func NewStream(
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
-			s.logger,
+			logger,
 			params.Settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
-			s.runWork,
-			s.logger,
-			s.operations,
+			runWork,
+			logger,
+			operations,
 			params.Settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
@@ -169,17 +171,17 @@ func NewStream(
 	}
 
 	s.featureProvider = featurechecker.NewServerFeaturesCache(
-		s.runWork.BeforeEndCtx(),
+		runWork.BeforeEndCtx(),
 		s.graphqlClientOrNil,
-		s.logger,
+		logger,
 	)
 
 	s.recordParser = &RecordParser{
-		BeforeRunEndCtx:    s.runWork.BeforeEndCtx(),
+		BeforeRunEndCtx:    runWork.BeforeEndCtx(),
 		FeatureProvider:    s.featureProvider,
 		GraphqlClientOrNil: s.graphqlClientOrNil,
-		Logger:             s.logger,
-		Operations:         s.operations,
+		Logger:             logger,
+		Operations:         operations,
 		TBHandler:          tbHandler,
 		Run:                s.run,
 		Settings:           s.settings,
@@ -190,18 +192,18 @@ func NewStream(
 	switch {
 	case s.settings.IsSync():
 		s.reader = NewReader(ReaderParams{
-			Logger:   s.logger,
+			Logger:   logger,
 			Settings: s.settings,
-			RunWork:  s.runWork,
+			RunWork:  runWork,
 		})
 	case !s.settings.IsSkipTransactionLog():
 		s.writer = NewWriter(WriterParams{
-			Logger:   s.logger,
+			Logger:   logger,
 			Settings: s.settings,
 			FwdChan:  make(chan runwork.Work, BufferSize),
 		})
 	default:
-		s.logger.Info("stream: not syncing, skipping transaction log",
+		logger.Info("stream: not syncing, skipping transaction log",
 			"id", s.settings.GetRunID(),
 		)
 	}
@@ -211,16 +213,16 @@ func NewStream(
 			Commit:            params.Commit,
 			FileTransferStats: fileTransferStats,
 			FwdChan:           make(chan runwork.Work, BufferSize),
-			Logger:            s.logger,
+			Logger:            logger,
 			Mailbox:           mailbox,
-			Operations:        s.operations,
+			Operations:        operations,
 			OutChan:           make(chan *spb.Result, BufferSize),
 			Settings:          s.settings,
 			SystemMonitor: monitor.NewSystemMonitor(monitor.SystemMonitorParams{
-				Ctx:                s.runWork.BeforeEndCtx(),
-				Logger:             s.logger,
+				Ctx:                runWork.BeforeEndCtx(),
+				Logger:             logger,
 				Settings:           s.settings,
-				ExtraWork:          s.runWork,
+				ExtraWork:          runWork,
 				GpuResourceManager: params.GPUResourceManager,
 				GraphqlClient:      s.graphqlClientOrNil,
 				WriterID:           s.clientID,
@@ -231,8 +233,8 @@ func NewStream(
 
 	s.sender = NewSender(
 		SenderParams{
-			Logger:              s.logger,
-			Operations:          s.operations,
+			Logger:              logger,
+			Operations:          operations,
 			Settings:            s.settings,
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,
@@ -246,14 +248,14 @@ func NewStream(
 			GraphqlClient:       s.graphqlClientOrNil,
 			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
-			RunWork:             s.runWork,
+			RunWork:             runWork,
 			FeatureProvider:     s.featureProvider,
 		},
 	)
 
-	s.dispatcher = NewDispatcher(s.logger)
+	s.dispatcher = NewDispatcher(logger)
 
-	s.logger.Info("stream: created new stream", "id", s.settings.GetRunID())
+	logger.Info("stream: created new stream", "id", s.settings.GetRunID())
 	return s
 }
 
