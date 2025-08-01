@@ -8,8 +8,12 @@ package stream
 
 import (
 	"github.com/google/wire"
+	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
@@ -22,9 +26,19 @@ func InjectStream(params StreamParams) *Stream {
 	client := params.Sentry
 	level := params.LogLevel
 	coreLogger := streamLogger(streamStreamLoggerFile, settings, client, level)
+	backend := NewBackend(coreLogger, settings)
+	clientID := provideClientID()
 	wandbOperations := wboperation.NewOperations()
+	printer := observability.NewPrinter()
+	peeker := &observability.Peeker{}
+	fileStream := NewFileStream(backend, coreLogger, wandbOperations, printer, settings, peeker, clientID)
+	fileTransferStats := filetransfer.NewFileTransferStats()
+	fileTransferManager := NewFileTransferManager(fileTransferStats, coreLogger, settings)
+	watcher := provideFileWatcher(coreLogger)
+	graphqlClient := NewGraphQLClient(backend, settings, peeker, clientID)
 	runWork := provideStreamRunWork(coreLogger)
-	stream := NewStream(params, streamStreamLoggerFile, coreLogger, wandbOperations, runWork)
+	uploader := NewRunfilesUploader(runWork, coreLogger, wandbOperations, settings, fileStream, fileTransferManager, watcher, graphqlClient)
+	stream := NewStream(params, backend, clientID, fileStream, fileTransferManager, fileTransferStats, watcher, graphqlClient, streamStreamLoggerFile, coreLogger, wandbOperations, peeker, uploader, runWork, printer)
 	return stream
 }
 
@@ -36,9 +50,23 @@ var streamProviders = wire.NewSet(
 		"Settings",
 		"Sentry",
 		"LogLevel",
-	), provideStreamRunWork,
+	), wire.Bind(new(runwork.ExtraWork), new(runwork.RunWork)), wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), filetransfer.NewFileTransferStats, NewBackend,
+	NewFileStream,
+	NewFileTransferManager,
+	NewGraphQLClient,
+	NewRunfilesUploader, observability.NewPrinter, provideClientID,
+	provideFileWatcher,
+	provideStreamRunWork,
 	streamLoggerProviders, wboperation.NewOperations,
 )
+
+func provideClientID() ClientID {
+	return ClientID(randomid.GenerateUniqueID(32))
+}
+
+func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
+	return watcher.New(watcher.Params{Logger: logger})
+}
 
 func provideStreamRunWork(logger *observability.CoreLogger) runwork.RunWork {
 	return runwork.New(BufferSize, logger)
