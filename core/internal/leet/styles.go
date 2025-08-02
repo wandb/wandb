@@ -54,7 +54,9 @@ const leetArt = `
 
 // Chart colors
 // TODO: talk to design, adhere to our official color scheme.
+
 // var graphColors = []string{"4", "10", "5", "6", "3", "2", "13", "14", "11", "9", "12", "1", "7", "8", "15"}
+
 var graphColors = []string{
 	"#E281FE",
 	"#E78DE3",
@@ -68,42 +70,44 @@ var graphColors = []string{
 	"#FFCF4F",
 }
 
-// "#E587EF"
-// "#E589EC"
-// "#E68BE6"
-// "#E78DE3"
-// "#E88FDE"
-// "#E891D9"
-// "#E993D5"
-// "#EA95D1"
-// "#EA97CC"
-// "#EB99C8"
-// "#EC9BC4"
-// "#ED9DBF"
-// "#ED9FBB"
-// "#EEA1B6"
-// "#EFA3B1"
-// "#F0A5AD"
-// "#F0A7A8"
-// "#F1A9A4"
-// "#F2AB9F"
-// "#F3AD9B"
-// "#F3AF98"
-// "#F4B192"
-// "#F5B38E"
-// "#F6B688"
-// "#F6B784"
-// "#F7B980"
-// "#F8BC7B"
-// "#F8BD78"
-// "#F9BF73"
-// "#FAC26D"
-// "#FBC36B"
-// "#FCC565"
-// "#FCC761"
-// "#FDC95C"
-// "#FECB58"
-// "#FFCD54"
+// var graphColors = []string{
+// 	"#E587EF",
+// 	"#E589EC",
+// 	"#E68BE6",
+// 	"#E78DE3",
+// 	"#E88FDE",
+// 	"#E891D9",
+// 	"#E993D5",
+// 	"#EA95D1",
+// 	"#EA97CC",
+// 	"#EB99C8",
+// 	"#EC9BC4",
+// 	"#ED9DBF",
+// 	"#ED9FBB",
+// 	"#EEA1B6",
+// 	"#EFA3B1",
+// 	"#F0A5AD",
+// 	"#F0A7A8",
+// 	"#F1A9A4",
+// 	"#F2AB9F",
+// 	"#F3AD9B",
+// 	"#F3AF98",
+// 	"#F4B192",
+// 	"#F5B38E",
+// 	"#F6B688",
+// 	"#F6B784",
+// 	"#F7B980",
+// 	"#F8BC7B",
+// 	"#F8BD78",
+// 	"#F9BF73",
+// 	"#FAC26D",
+// 	"#FBC36B",
+// 	"#FCC565",
+// 	"#FCC761",
+// 	"#FDC95C",
+// 	"#FECB58",
+// 	"#FFCD54",
+// }
 
 // Chart styles
 var (
