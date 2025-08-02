@@ -1,5 +1,5 @@
 // Messages for the Bubble Tea model
-package observer
+package leet
 
 import (
 	tea "github.com/charmbracelet/bubbletea"

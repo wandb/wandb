@@ -1,4 +1,4 @@
-package observer
+package leet
 
 import (
 	"fmt"
@@ -99,7 +99,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 func (m *Model) Init() tea.Cmd {
 	m.logger.Debug("model: Init called")
 	return tea.Batch(
-		tea.SetWindowTitle("wandb observer"),
+		tea.SetWindowTitle("wandb leet"),
 		InitializeReader(m.runPath),
 		m.waitForWatcherMsg(), // Start listening for watcher messages
 	)
@@ -299,7 +299,7 @@ func (m *Model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
 }
 
-// renderLoadingScreen shows the wandb observer ASCII art centered on screen
+// renderLoadingScreen shows the wandb leet ASCII art centered on screen
 func (m *Model) renderLoadingScreen() string {
 	// Style for the ASCII art
 	artStyle := lipgloss.NewStyle().
@@ -310,7 +310,7 @@ func (m *Model) renderLoadingScreen() string {
 	logoContent := lipgloss.JoinVertical(
 		lipgloss.Center,
 		artStyle.Render(wandbArt),
-		artStyle.Render(observerArt),
+		artStyle.Render(leetArt),
 	)
 
 	// Center the logo on the screen

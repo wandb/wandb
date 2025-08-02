@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/observer"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/version"
 
@@ -25,14 +25,15 @@ func main() {
 
 func mainWithExitCode() int {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "wandb-observer - Terminal UI for viewing W&B runs locally\n\n")
+		fmt.Fprintf(os.Stderr, "wandb-leet - Lightweight Experiment Exploration Tool\n\n")
+		fmt.Fprintf(os.Stderr, "A terminal UI for viewing your W&B runs locally.\n\n")
 		fmt.Fprintf(os.Stderr, "Usage:\n")
-		fmt.Fprintf(os.Stderr, "  %s <run-directory>\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  wandb-leet <run-directory>\n\n")
 		fmt.Fprintf(os.Stderr, "Arguments:\n")
 		fmt.Fprintf(os.Stderr, "  <run-directory>       Path to a W&B run directory containing a .wandb file\n")
 		fmt.Fprintf(os.Stderr, "                        Example: /path/to/.wandb/run-20250731_170606-iazb7i1k\n\n")
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
-		fmt.Fprintf(os.Stderr, "  WANDB_DEBUG           Enable debug logging (creates wandb_observer.debug.log)\n")
+		fmt.Fprintf(os.Stderr, "  WANDB_DEBUG           Enable debug logging (creates wandb-leet.debug.log)\n")
 	}
 
 	flag.Parse()
@@ -59,7 +60,7 @@ func mainWithExitCode() int {
 	// Enable debug logging if WANDB_DEBUG env var is set.
 	var writer io.Writer
 	if os.Getenv("WANDB_DEBUG") != "" {
-		loggerFile, err := os.OpenFile("wandb_observer.debug.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		loggerFile, err := os.OpenFile("wandb-leet.debug.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
 			fmt.Println("fatal:", err)
 			return 1
@@ -96,7 +97,7 @@ func mainWithExitCode() int {
 	}
 
 	// Create the model
-	model := observer.NewModel(wandbFile, logger)
+	model := leet.NewModel(wandbFile, logger)
 
 	// Initialize the program
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())

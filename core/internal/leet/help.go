@@ -1,4 +1,4 @@
-package observer
+package leet
 
 import (
 	"github.com/charmbracelet/bubbles/viewport"
@@ -24,6 +24,9 @@ type HelpModel struct {
 // NewHelp creates a new help screen
 func NewHelp() *HelpModel {
 	entries := []HelpEntry{
+		{Key: "── W&B LEET: Lightweight Experiment Exploration Tool ──", Description: ""},
+		{Key: "", Description: ""},
+
 		// General
 		{Key: "h, ?", Description: "Toggle this help screen"},
 		{Key: "q, ctrl+c", Description: "Quit"},
@@ -31,13 +34,13 @@ func NewHelp() *HelpModel {
 		{Key: "", Description: ""},
 
 		// Panels
-		{Key: "── Panels ──", Description: ""},
+		{Key: "Panels", Description: ""},
 		{Key: "ctrl+b", Description: "Toggle run overview sidebar"},
 		{Key: "ctrl+n", Description: "Toggle system metrics sidebar"},
 		{Key: "", Description: ""},
 
 		// Navigation
-		{Key: "── Navigation ──", Description: ""},
+		{Key: "Navigation", Description: ""},
 		{Key: "pgup/pgdn", Description: "Navigate between chart pages"},
 		{Key: "ctrl+pgup/pgdn", Description: "Navigate between system metrics pages"},
 		{Key: "up/down", Description: "Scroll in run overview"},
@@ -64,7 +67,7 @@ func (h *HelpModel) generateHelpContent() string {
 		Bold(true)
 
 	// Build the ASCII art section separately
-	artSection := artStyle.Render(wandbArt) + "\n" + artStyle.Render(observerArt) + "\n\n"
+	artSection := artStyle.Render(wandbArt) + "\n" + artStyle.Render(leetArt) + "\n\n"
 
 	// Build the help entries section
 	helpSection := ""

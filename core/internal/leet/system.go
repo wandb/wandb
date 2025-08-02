@@ -1,4 +1,4 @@
-package observer
+package leet
 
 import (
 	"fmt"
@@ -90,7 +90,19 @@ func NewSystemMetricsGrid(width, height int) *SystemMetricsGrid {
 // createMetricChart creates a time series chart for a system metric
 func (g *SystemMetricsGrid) createMetricChart(config MetricConfig, width, height, colorIndex int) timeserieslinechart.Model {
 	// Use different colors for different metrics
-	colors := []string{"4", "10", "5", "6", "3", "2"}
+	// colors := []string{"4", "10", "5", "6", "3", "2"}
+	colors := []string{
+		"#E281FE",
+		"#E78DE3",
+		"#E993D5",
+		"#ED9FBB",
+		"#F0A5AD",
+		"#F2AB9F",
+		"#F6B784",
+		"#F8BD78",
+		"#FBC36B",
+		"#FFCF4F",
+	}
 	color := colors[colorIndex%len(colors)]
 
 	graphStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
