@@ -45,4 +45,4 @@ from .public import Api as PublicApi  # noqa
 
 reset_path()
 
-__all__ = ["InternalApi", "PublicApi"]
+__all__ = ("InternalApi", "PublicApi")
