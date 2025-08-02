@@ -1,3 +1,11 @@
+# v1.30.2 (2025-07-30)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.30.1 (2025-07-29)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.30.0 (2025-07-28)
 
 * **Feature**: Add support for HTTP interceptors.
