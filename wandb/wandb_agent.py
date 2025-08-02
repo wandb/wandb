@@ -378,13 +378,14 @@ class Agent:
         wandb_lib.config_util.save_config_file_from_dict(
             sweep_param_path, command["args"]
         )
+        args_json_file_path = os.path.join(base_dir, json_file)
 
         env = dict(os.environ)
 
         sweep_vars: Dict[str, Any] = sweep_utils.create_sweep_command_args(command)
 
         if "${args_json_file}" in sweep_command:
-            with open(json_file, "w") as fp:
+            with open(args_json_file_path, "w") as fp:
                 fp.write(sweep_vars["args_json"][0])
 
         if self._function:
@@ -399,7 +400,7 @@ class Agent:
         else:
             sweep_vars["interpreter"] = ["python"]
             sweep_vars["program"] = [command["program"]]
-            sweep_vars["args_json_file"] = [json_file]
+            sweep_vars["args_json_file"] = [args_json_file_path]
             if not platform.system() == "Windows":
                 sweep_vars["env"] = ["/usr/bin/env"]
             command_list = []
