@@ -9,7 +9,6 @@ import json
 import logging
 import multiprocessing.dummy
 import os
-import re
 import shutil
 import stat
 import tempfile
@@ -76,7 +75,7 @@ from ._graphql_fragments import _gql_artifact_fragment, omit_artifact_fields
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
     ArtifactPath,
-    _LinkArtifactFields,
+    LinkArtifactFields,
     ensure_logged,
     ensure_not_finalized,
     is_artifact_registry_project,
@@ -174,12 +173,6 @@ class Artifact:
         incremental: bool = False,
         use_as: str | None = None,
     ) -> None:
-        if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
-            raise ValueError(
-                f"Artifact name may only contain alphanumeric characters, dashes, "
-                f"underscores, and dots. Invalid name: {name}"
-            )
-
         from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
         if incremental and not isinstance(self, InternalArtifact):
@@ -541,10 +534,8 @@ class Artifact:
         self._tags = tags
         self._saved_tags = copy(tags)
 
-        metadata_str = attrs["metadata"]
-        self._metadata = validate_metadata(
-            json.loads(metadata_str) if metadata_str else {}
-        )
+        # Note: `artifact.metadata` here is expected to be a (nullable) JSON-serialized string
+        self._metadata = validate_metadata(attrs["metadata"])
 
         self._ttl_duration_seconds = validate_ttl_duration_seconds(
             attrs.get("ttlDurationSeconds")
@@ -2803,7 +2794,7 @@ class Artifact:
             ):
                 raise ValueError("Unable to fetch fields for linked artifact")
 
-            link_fields = _LinkArtifactFields(
+            link_fields = LinkArtifactFields(
                 entity_name=proj.entity_name,
                 project_name=proj.name,
                 name=f"{col.name}:{version}",
@@ -2816,7 +2807,7 @@ class Artifact:
 
     def _create_linked_artifact_using_source_artifact(
         self,
-        link_fields: _LinkArtifactFields,
+        link_fields: LinkArtifactFields,
     ) -> Artifact:
         """Copies the source artifact to a linked artifact."""
         linked_artifact = copy(self)

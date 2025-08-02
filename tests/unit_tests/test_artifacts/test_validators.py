@@ -1,7 +1,8 @@
 import pytest
+from hypothesis import example, given
+from hypothesis.strategies import from_regex, just, one_of, tuples
 from wandb.sdk.artifacts._validators import (
     REGISTRY_PREFIX,
-    RESERVED_ARTIFACT_TYPE_PREFIX,
     validate_artifact_type,
     validate_project_name,
 )
@@ -37,22 +38,34 @@ def test_validate_project_name_valid(project_name):
     validate_project_name(project_name)
 
 
-@pytest.mark.parametrize(
-    "artifact_type, name",
-    [
-        (RESERVED_ARTIFACT_TYPE_PREFIX + "invalid", "name"),
-        ("job", "name"),
-        ("run_table", "run-name"),
-        ("code", "source-name"),
-    ],
+# Original test cases
+@example(type_and_name=("job", "name"))
+@example(type_and_name=("run_table", "run-name"))
+@example(type_and_name=("code", "source-name"))
+@example(type_and_name=("wandb-invalid", "name"))
+@given(
+    type_and_name=one_of(
+        # "wandb-*" artifact types are ALWAYS reserved
+        tuples(
+            from_regex(r"^wandb-[$a-zA-Z0-9_\-.]*$"),
+            from_regex(r"^[a-zA-Z0-9_\-.]*$"),
+        ),
+        # "job" artifact type is ALWAYS reserved
+        tuples(just("job"), from_regex(r"^[a-zA-Z0-9_\-.]*$")),
+        # "run_table" artifact type is reserved for artifacts named: "run-*"
+        tuples(just("run_table"), from_regex(r"^run-[a-zA-Z0-9_\-.]*$")),
+        # "code" artifact type is reserved for artifacts named: "source-*"
+        tuples(just("code"), from_regex(r"^source-[a-zA-Z0-9_\-.]*$")),
+    )
 )
-def test_validate_artifact_type_invalid(artifact_type, name):
+def test_validate_artifact_type_invalid(type_and_name: tuple[str, str]):
+    typ, name = type_and_name
     with pytest.raises(ValueError, match="is reserved for internal use"):
-        validate_artifact_type(artifact_type, name)
+        validate_artifact_type(typ, name)
 
 
 @pytest.mark.parametrize(
-    "artifact_type, name",
+    "type_and_name",
     [
         ("dataset", "name"),
         ("wandbtype", "name"),
@@ -60,5 +73,6 @@ def test_validate_artifact_type_invalid(artifact_type, name):
         ("run_table", "name"),
     ],
 )
-def test_validate_artifact_type_valid(artifact_type, name):
-    assert validate_artifact_type(artifact_type, name) == artifact_type
+def test_validate_artifact_type_valid(type_and_name: tuple[str, str]):
+    typ, name = type_and_name
+    assert validate_artifact_type(typ, name) == typ
