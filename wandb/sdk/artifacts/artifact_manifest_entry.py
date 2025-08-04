@@ -161,12 +161,12 @@ class ArtifactManifestEntry:
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
-        
+
         # Fast integrity check using cached checksum from sidecar file
         if os.path.exists(dest_path):
             # Try to read cached checksum first (avoids expensive MD5 computation)
             cached_checksum = self._read_cached_checksum(dest_path)
-            
+
             if cached_checksum is not None:
                 if self.digest == cached_checksum:
                     return FilePathStr(dest_path)
@@ -199,7 +199,9 @@ class ArtifactManifestEntry:
             self._write_checksum_cache(dest_path, self.digest)
             return FilePathStr(dest_path)
         else:
-            final_path = str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
+            final_path = str(
+                filesystem.copy_or_overwrite_changed(cache_path, dest_path)
+            )
             # Cache the checksum for future downloads
             self._write_checksum_cache(final_path, self.digest)
             return FilePathStr(final_path)
@@ -272,34 +274,34 @@ class ArtifactManifestEntry:
     def _read_cached_checksum(self, file_path: str) -> str | None:
         """Read checksum from sidecar file if it exists and is valid."""
         checksum_path = self._get_checksum_file_path(file_path)
-        
+
         try:
             # Check if both files exist
             if not (os.path.exists(file_path) and os.path.exists(checksum_path)):
                 return None
-                
+
             # Verify checksum file is newer than or equal to the actual file
             file_mtime = os.path.getmtime(file_path)
             checksum_mtime = os.path.getmtime(checksum_path)
-            
+
             if checksum_mtime < file_mtime:
                 # File was modified after checksum was written
                 return None
-                
+
             # Read and return the cached checksum
-            with open(checksum_path, 'r') as f:
+            with open(checksum_path) as f:
                 return f.read().strip()
-                
-        except (OSError, IOError):
+
+        except OSError:
             return None
 
     def _write_checksum_cache(self, file_path: str, checksum: str) -> None:
         """Write checksum to sidecar file."""
         checksum_path = self._get_checksum_file_path(file_path)
         try:
-            with open(checksum_path, 'w') as f:
+            with open(checksum_path, "w") as f:
                 f.write(checksum)
-        except (OSError, IOError):
+        except OSError:
             # Non-critical failure, just log it
             logger.debug(f"Failed to write checksum cache for {file_path}")
 
