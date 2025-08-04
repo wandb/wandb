@@ -91,13 +91,18 @@ class Sentry:
         self.scope.set_client(client)
 
     @_safe_noop
-    def message(self, message: str, repeat: bool = True) -> str | None:
+    def message(
+        self,
+        message: str,
+        repeat: bool = True,
+        level: str = "info",
+    ) -> str | None:
         """Send a message to Sentry."""
         if not repeat and message in self._sent_messages:
             return None
         self._sent_messages.add(message)
         with sentry_sdk.scope.use_isolation_scope(self.scope):  # type: ignore
-            return sentry_sdk.capture_message(message)  # type: ignore
+            return sentry_sdk.capture_message(message, level=level)  # type: ignore
 
     @_safe_noop
     def exception(

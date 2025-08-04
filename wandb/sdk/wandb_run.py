@@ -131,6 +131,7 @@ if TYPE_CHECKING:
         input_types: dict[str, Any]
         output_types: dict[str, Any]
         runtime: str | None
+        services: dict[str, str]
 
 
 logger = logging.getLogger("wandb")
@@ -2729,15 +2730,10 @@ class Run:
                 ),
             )
 
-        # Print some final statistics.
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
         result = poll_exit_handle.wait_or(timeout=None)
-        progress.print_sync_dedupe_stats(
-            self._printer,
-            result.response.poll_exit_response,
-        )
-
         self._poll_exit_response = result.response.poll_exit_response
+
         internal_messages_handle = self._backend.interface.deliver_internal_messages()
         result = internal_messages_handle.wait_or(timeout=None)
         self._internal_messages_response = result.response.internal_messages_response

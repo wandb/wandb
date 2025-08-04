@@ -41,7 +41,6 @@ def install_wandb(session: nox.Session):
     """Builds and installs wandb."""
     session.env["WANDB_BUILD_COVERAGE"] = "true"
     session.env["WANDB_BUILD_GORACEDETECT"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
     if session.venv_backend == "uv":
         install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
@@ -735,38 +734,6 @@ def combine_test_results(session: nox.Session) -> None:
     )
 
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
-
-
-@nox.session(name="bump-go-version")
-def bump_go_version(session: nox.Session) -> None:
-    """Bump the Go version."""
-    install_timed(session, "bump2version", "requests")
-
-    # Get the latest Go version.
-    get_go_version_output = session.run(
-        "./tools/get_go_version.py",
-        silent=True,
-        external=True,
-    )
-
-    # Guaranteed by silent=True above, but poorly documented in nox.
-    assert isinstance(get_go_version_output, str)
-
-    latest_version = get_go_version_output.strip()
-    session.log(f"Latest Go version: {latest_version}")
-
-    # Run bump2version with the fetched version
-    session.run(
-        "bump2version",
-        "patch",
-        "--new-version",
-        latest_version,
-        "--config-file",
-        ".bumpversion.go.cfg",
-        "--no-commit",
-        "--allow-dirty",
-        external=True,
-    )
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)

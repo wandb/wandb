@@ -32,21 +32,14 @@ Note:
     the main wandb package.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import tempfile
 import time
 import urllib
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Collection,
-    Dict,
-    List,
-    Literal,
-    Mapping,
-    Optional,
-)
+from typing import TYPE_CHECKING, Any, Collection, Literal, Mapping
 
 from wandb_gql import gql
 
@@ -117,6 +110,30 @@ def _server_provides_internal_id_for_project(client) -> bool:
     ]
 
 
+@normalize_exceptions
+def _convert_to_dict(value: Any) -> dict[str, Any]:
+    """Converts a value to a dictionary.
+
+    If the value is already a dictionary, the value is returned unchanged.
+    If the value is a string, bytes, or bytearray, it is parsed as JSON.
+    For any other type, a TypeError is raised.
+    """
+    if value is None:
+        return {}
+
+    if isinstance(value, dict):
+        return value
+
+    if isinstance(value, (str, bytes, bytearray)):
+        try:
+            return json.loads(value)
+        except json.decoder.JSONDecodeError:
+            # ignore invalid utf-8 or control characters
+            return json.loads(value, strict=False)
+
+    raise TypeError(f"Unable to convert {value} to a dict")
+
+
 class Runs(SizedPaginator["Run"]):
     """An iterable collection of runs associated with a project and optional filter.
 
@@ -129,8 +146,10 @@ class Runs(SizedPaginator["Run"]):
         project: (str) The name of the project to fetch runs from.
         filters: (Optional[Dict[str, Any]]) A dictionary of filters to apply
             to the runs query.
-        order: (Optional[str]) The order of the runs, can be "asc" or "desc"
-            Defaults to "desc".
+        order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
+            If you prepend order with a + order is ascending (default).
+            If you prepend order with a - order is descending.
+            The default order is run.created_at from oldest to newest.
         per_page: (int) The number of runs to fetch per request (default is 50).
         include_sweeps: (bool) Whether to include sweep information in the
             runs. Defaults to True.
@@ -173,14 +192,17 @@ class Runs(SizedPaginator["Run"]):
 
     def __init__(
         self,
-        client: "RetryingClient",
+        client: RetryingClient,
         entity: str,
         project: str,
-        filters: Optional[Dict[str, Any]] = None,
-        order: Optional[str] = None,
+        filters: dict[str, Any] | None = None,
+        order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
     ):
+        if not order:
+            order = "+created_at"
+
         self.QUERY = gql(
             f"""#graphql
             query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
@@ -298,7 +320,7 @@ class Runs(SizedPaginator["Run"]):
     def histories(
         self,
         samples: int = 500,
-        keys: Optional[List[str]] = None,
+        keys: list[str] | None = None,
         x_axis: str = "_step",
         format: Literal["default", "pandas", "polars"] = "default",
         stream: Literal["default", "system"] = "default",
@@ -435,11 +457,11 @@ class Run(Attrs):
 
     def __init__(
         self,
-        client: "RetryingClient",
+        client: RetryingClient,
         entity: str,
         project: str,
         run_id: str,
-        attrs: Optional[Mapping] = None,
+        attrs: Mapping | None = None,
         include_sweeps: bool = True,
     ):
         """Initialize a Run object.
@@ -463,9 +485,10 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
-        self._metadata: Optional[Dict[str, Any]] = None
+        self._metadata: dict[str, Any] | None = None
         self._state = _attrs.get("state", "not found")
-        self.server_provides_internal_id_field: Optional[bool] = None
+        self.server_provides_internal_id_field: bool | None = None
+        self._is_loaded: bool = False
 
         self.load(force=not _attrs)
 
@@ -519,13 +542,14 @@ class Run(Attrs):
     @classmethod
     def create(
         cls,
-        api,
-        run_id=None,
-        project=None,
-        entity=None,
+        api: public.Api,
+        run_id: str | None = None,
+        project: str | None = None,
+        entity: str | None = None,
         state: Literal["running", "pending"] = "running",
     ):
         """Create a run for the given project."""
+        api._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
         mutation = gql(
@@ -572,6 +596,7 @@ class Run(Attrs):
 
     def load(self, force=False):
         if force or not self._attrs:
+            self._is_loaded = False
             query = gql(f"""#graphql
             query Run($project: String!, $entity: String!, $name: String!) {{
                 project(name: $project, entityName: $entity) {{
@@ -592,7 +617,6 @@ class Run(Attrs):
             ):
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
-            self._state = self._attrs["state"]
 
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
@@ -605,32 +629,31 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
+        if not self._is_loaded:
+            self._load_from_attrs()
+            self._is_loaded = True
+
+        return self._attrs
+
+    def _load_from_attrs(self):
+        self._state = self._attrs.get("state", None)
+        self._attrs["config"] = _convert_to_dict(self._attrs.get("config"))
+        self._attrs["summaryMetrics"] = _convert_to_dict(
+            self._attrs.get("summaryMetrics")
+        )
+        self._attrs["systemMetrics"] = _convert_to_dict(
+            self._attrs.get("systemMetrics")
+        )
+
         if "projectId" in self._attrs:
             self._project_internal_id = int(self._attrs["projectId"])
         else:
             self._project_internal_id = None
 
-        try:
-            self._attrs["summaryMetrics"] = (
-                json.loads(self._attrs["summaryMetrics"])
-                if self._attrs.get("summaryMetrics")
-                else {}
-            )
-        except json.decoder.JSONDecodeError:
-            # ignore invalid utf-8 or control characters
-            self._attrs["summaryMetrics"] = json.loads(
-                self._attrs["summaryMetrics"],
-                strict=False,
-            )
-        self._attrs["systemMetrics"] = (
-            json.loads(self._attrs["systemMetrics"])
-            if self._attrs.get("systemMetrics")
-            else {}
-        )
         if self._attrs.get("user"):
             self.user = public.User(self.client, self._attrs["user"])
         config_user, config_raw = {}, {}
-        for key, value in json.loads(self._attrs.get("config") or "{}").items():
+        for key, value in self._attrs.get("config").items():
             config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
             if isinstance(value, dict) and "value" in value:
                 config[key] = value["value"]
@@ -639,7 +662,6 @@ class Run(Attrs):
         config_raw.update(config_user)
         self._attrs["config"] = config_user
         self._attrs["rawconfig"] = config_raw
-        return self._attrs
 
     @normalize_exceptions
     def wait_until_finished(self):
@@ -782,17 +804,35 @@ class Run(Attrs):
         return [json.loads(line) for line in response["project"]["run"][node]]
 
     @normalize_exceptions
-    def files(self, names=None, per_page=50):
-        """Return a file path for each file named.
+    def files(
+        self,
+        names: list[str] | None = None,
+        pattern: str | None = None,
+        per_page: int = 50,
+    ):
+        """Returns a `Files` object for all files in the run which match the given criteria.
+
+        You can specify a list of exact file names to match, or a pattern to match against.
+        If both are provided, the pattern will be ignored.
 
         Args:
             names (list): names of the requested files, if empty returns all files
+            pattern (str, optional): Pattern to match when returning files from W&B.
+                This pattern uses mySQL's LIKE syntax,
+                so matching all files that end with .json would be "%.json".
+                If both names and pattern are provided, a ValueError will be raised.
             per_page (int): number of results per page.
 
         Returns:
             A `Files` object, which is an iterator over `File` objects.
         """
-        return public.Files(self.client, self, names or [], per_page)
+        return public.Files(
+            self.client,
+            self,
+            names or [],
+            pattern=pattern,
+            per_page=per_page,
+        )
 
     @normalize_exceptions
     def file(self, name):
@@ -827,8 +867,9 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
         root = os.path.abspath(root)
         name = os.path.relpath(path, root)
+        upload_path = util.make_file_path_upload_safe(name)
         with open(os.path.join(root, name), "rb") as f:
-            api.push({LogicalPath(name): f})
+            api.push({LogicalPath(upload_path): f})
         return public.Files(self.client, self, [name])[0]
 
     @normalize_exceptions
@@ -1039,9 +1080,9 @@ class Run(Attrs):
     @normalize_exceptions
     def log_artifact(
         self,
-        artifact: "wandb.Artifact",
-        aliases: Optional[Collection[str]] = None,
-        tags: Optional[Collection[str]] = None,
+        artifact: wandb.Artifact,
+        aliases: Collection[str] | None = None,
+        tags: Collection[str] | None = None,
     ):
         """Declare an artifact as output of a run.
 

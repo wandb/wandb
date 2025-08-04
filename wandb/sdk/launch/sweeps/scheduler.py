@@ -36,7 +36,6 @@ if TYPE_CHECKING:
     import wandb.apis.public as public
     from wandb.apis.internal import Api
     from wandb.apis.public import QueuedRun, Run
-    from wandb.sdk.wandb_run import Run as SdkRun
 
 
 _logger = logging.getLogger(__name__)
@@ -255,10 +254,10 @@ class Scheduler(ABC):
             _id: w for _id, w in self._workers.items() if _id not in self.busy_workers
         }
 
-    def _init_wandb_run(self) -> "SdkRun":
+    def _init_wandb_run(self) -> "wandb.Run":
         """Controls resume or init logic for a scheduler wandb run."""
         settings = wandb.Settings(disable_job_creation=True)
-        run: SdkRun = wandb.init(  # type: ignore
+        run: wandb.Run = wandb.init(  # type: ignore
             name=f"Scheduler.{self._sweep_id}",
             resume="allow",
             config=self._kwargs,  # when run as a job, this sets config

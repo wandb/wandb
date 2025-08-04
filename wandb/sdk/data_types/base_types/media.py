@@ -1,7 +1,6 @@
 import hashlib
 import os
 import pathlib
-import platform
 import re
 import shutil
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union, cast
@@ -18,38 +17,11 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-    from ...wandb_run import Run as LocalRun
-
-
-SYS_PLATFORM = platform.system()
-
-
-def check_windows_valid_filename(path: Union[int, str]) -> bool:
-    r"""Verify that the given path does not contain any invalid characters for a Windows filename.
-
-    Windows filenames cannot contain the following characters:
-    < > : " \ / | ? *
-
-    For more details, refer to the official documentation:
-    https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
-
-    Args:
-        path: The file path to check, which can be either an integer or a string.
-
-    Returns:
-        bool: True if the path does not contain any invalid characters, False otherwise.
-    """
-    return not bool(re.search(r'[<>:"\\?*]', path))  # type: ignore
-
 
 def _wb_filename(
     key: Union[str, int], step: Union[str, int], id: Union[str, int], extension: str
 ) -> str:
     r"""Generates a safe filename/path for storing media files, using the provided key, step, and id.
-
-    The filename is made safe by:
-    1. Removing any leading slashes to prevent writing to absolute paths
-    2. Replacing '.' and '..' with underscores to prevent directory traversal attacks
 
     If the key contains slashes (e.g. 'images/cats/fluffy.jpg'), subdirectories will be created:
         media/
@@ -70,28 +42,7 @@ def _wb_filename(
         ValueError: If running on Windows and the key contains invalid filename characters
                    (\\, :, *, ?, ", <, >, |)
     """
-    if SYS_PLATFORM == "Windows" and not check_windows_valid_filename(key):
-        raise ValueError(
-            f'Media {key} is invalid. Please remove invalid filename characters (\\, :, *, ?, ", <, >, |)'
-        )
-
-    # On Windows, convert forward slashes to backslashes.
-    # This ensures that the key is a valid filename on Windows.
-    if SYS_PLATFORM == "Windows":
-        key = str(key).replace("/", os.sep)
-
-    # Avoid writing to absolute paths by striping any leading slashes.
-    # The key has already been validated for windows operating systems in util.check_windows_valid_filename
-    # This ensures the key does not contain invalid characters for windows, such as '\' or ':'.
-    # So we can check only for '/' in the key.
-    key = str(key).lstrip(os.sep)
-
-    # Avoid directory traversal by replacing dots with underscores.
-    keys = key.split(os.sep)
-    keys = [k.replace(".", "_") if k in (os.curdir, os.pardir) else k for k in keys]
-
-    # Recombine the key into a relative path.
-    key = os.sep.join(keys)
+    key = util.make_file_path_upload_safe(str(key))
 
     return f"{str(key)}_{str(step)}_{str(id)}{extension}"
 
@@ -104,7 +55,7 @@ class Media(WBValue):
     """
 
     _path: Optional[str]
-    _run: Optional["LocalRun"]
+    _run: Optional["wandb.Run"]
     _caption: Optional[str]
     _is_tmp: Optional[bool]
     _extension: Optional[str]
@@ -156,7 +107,7 @@ class Media(WBValue):
 
     def bind_to_run(
         self,
-        run: "LocalRun",
+        run: "wandb.Run",
         key: Union[int, str],
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
@@ -205,7 +156,7 @@ class Media(WBValue):
             self._path = new_path
             run._publish_file(media_path)
 
-    def to_json(self, run: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run: Union["wandb.Run", "Artifact"]) -> dict:
         """Serialize the object into a JSON blob.
 
         Uses run or artifact to store additional data. If `run_or_artifact` is a
@@ -223,14 +174,13 @@ class Media(WBValue):
         # into Media itself we should get rid of them
         from wandb import Image
         from wandb.data_types import Audio
-        from wandb.sdk.wandb_run import Run
 
         json_obj: Dict[str, Any] = {}
 
         if self._caption is not None:
             json_obj["caption"] = self._caption
 
-        if isinstance(run, Run):
+        if isinstance(run, wandb.Run):
             json_obj.update(
                 {
                     "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
@@ -357,7 +307,7 @@ class BatchableMedia(Media):
     def seq_to_json(
         cls: Type["BatchableMedia"],
         seq: Sequence["BatchableMedia"],
-        run: "LocalRun",
+        run: "wandb.Run",
         key: str,
         step: Union[int, str],
     ) -> dict:

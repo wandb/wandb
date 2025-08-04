@@ -46,7 +46,7 @@ jobs:
 
       - name: Bump Version
         run: |
-          bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${{ github.event.inputs.version }}
+          bump2version patch --no-tag --no-commit --config-file .bumpversion.cfg --new-version ${{ github.event.inputs.version }}
 
       - name: Update CHANGELOG.md
         if: ${{ inputs.update-changelog }}
@@ -254,35 +254,6 @@ jobs:
           name: wandb-sdk-distribution-${{ matrix.os }}
           path: ./dist
 
-  build-universal-wheel:
-    name: Build universal wheel (no wandb-core)
-    needs: prepare-release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: release-${{ github.event.inputs.version }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Build wheel
-        run: pip wheel -w wheelhouse --no-deps .
-        env:
-          WANDB_BUILD_UNIVERSAL: True
-
-      - name: Copy wheel to ./dist
-        run: |
-          mkdir dist/
-          cp wheelhouse/wandb-*-py3-none-any.whl dist/
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wandb-sdk-distribution-universal
-          path: ./dist
-
   build-sdist:
     name: Create source distribution
     needs: prepare-release
@@ -315,7 +286,6 @@ jobs:
         build-platform-wheels,
         build-linux-arm64-wheels,
         build-macos-10-wheels,
-        build-universal-wheel,
         build-sdist,
       ]
     continue-on-error: true
@@ -490,7 +460,7 @@ jobs:
           IFS='.' read -r major minor patch <<< "${{ github.event.inputs.version }}"
           new_version="${major}.${minor}.$((patch + 1)).dev1"
           git checkout -b bump-${new_version}
-          bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${new_version}
+          bump2version patch --no-tag --no-commit --config-file .bumpversion.cfg --new-version ${new_version}
           git commit -am "chore(sdk): bump version to ${new_version}"
           git push -u origin bump-${new_version}
 

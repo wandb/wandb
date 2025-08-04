@@ -34,7 +34,6 @@ type fileTransferStats struct {
 
 	uploadedBytes *atomic.Int64
 	totalBytes    *atomic.Int64
-	dedupedBytes  *atomic.Int64
 
 	wandbCount    *atomic.Int32
 	mediaCount    *atomic.Int32
@@ -50,7 +49,6 @@ func NewFileTransferStats() FileTransferStats {
 
 		uploadedBytes: &atomic.Int64{},
 		totalBytes:    &atomic.Int64{},
-		dedupedBytes:  &atomic.Int64{},
 
 		wandbCount:    &atomic.Int32{},
 		mediaCount:    &atomic.Int32{},
@@ -65,7 +63,6 @@ func (fts *fileTransferStats) GetFilesStats() *spb.FilePusherStats {
 	return &spb.FilePusherStats{
 		UploadedBytes: fts.uploadedBytes.Load(),
 		TotalBytes:    fts.totalBytes.Load(),
-		DedupedBytes:  fts.dedupedBytes.Load(),
 	}
 }
 
