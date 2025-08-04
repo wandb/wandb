@@ -41,12 +41,13 @@ func NewHelp() *HelpModel {
 
 		// Navigation
 		{Key: "Navigation", Description: ""},
-		{Key: "pgup/pgdn", Description: "Navigate between chart pages"},
-		{Key: "ctrl+pgup/pgdn", Description: "Navigate between system metrics pages"},
+		{Key: "pgup/pgdn, shift+up/down", Description: "Navigate between chart pages"},
+		{Key: "ctrl+pgup/pgdn, ctrl+shift+up/down", Description: "Navigate between system metrics pages"},
 		{Key: "up/down", Description: "Scroll in run overview"},
 		// TODO: make it work :)
 		// {Key: "home/end", Description: "Jump to top/bottom of run overview"},
 		{Key: "Mouse wheel", Description: "Zoom in/out on focused chart"},
+		{Key: "Shift+mouse select", Description: "Select text"},
 	}
 
 	vp := viewport.New(80, 20) // Initial size, will be updated

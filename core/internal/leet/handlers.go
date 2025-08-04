@@ -209,6 +209,11 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		m.rightSidebar.Toggle()
 		m.updateChartSizes()
 		return m, m.rightSidebar.animationCmd()
+	case tea.KeyPgUp, tea.KeyShiftUp:
+		m.navigatePage(-1)
+
+	case tea.KeyPgDown, tea.KeyShiftDown:
+		m.navigatePage(1)
 	}
 
 	switch msg.String() {
@@ -231,12 +236,6 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 	case "r":
 		return m, m.reloadCharts()
-
-	case "pgup":
-		m.navigatePage(-1)
-
-	case "pgdown":
-		m.navigatePage(1)
 	}
 
 	return m, nil
