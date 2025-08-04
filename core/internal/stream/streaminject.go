@@ -3,12 +3,16 @@
 package stream
 
 import (
+	"context"
+
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
@@ -30,17 +34,22 @@ var streamProviders = wire.NewSet(
 	wire.Bind(new(runwork.ExtraWork), new(runwork.RunWork)),
 	wire.Bind(new(api.Peeker), new(*observability.Peeker)),
 	wire.Struct(new(observability.Peeker)),
+	wire.Struct(new(RecordParser), "*"),
+	featurechecker.NewServerFeaturesCache,
 	filetransfer.NewFileTransferStats,
 	NewBackend,
 	NewFileStream,
 	NewFileTransferManager,
 	NewGraphQLClient,
 	NewRunfilesUploader,
+	NewStreamRun,
 	observability.NewPrinter,
 	provideClientID,
 	provideFileWatcher,
+	provideRunContext,
 	provideStreamRunWork,
 	streamLoggerProviders,
+	tensorboard.TBHandlerProviders,
 	wboperation.NewOperations,
 )
 
@@ -50,6 +59,10 @@ func provideClientID() ClientID {
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})
+}
+
+func provideRunContext(extraWork runwork.ExtraWork) context.Context {
+	return extraWork.BeforeEndCtx()
 }
 
 func provideStreamRunWork(logger *observability.CoreLogger) runwork.RunWork {

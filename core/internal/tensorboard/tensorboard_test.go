@@ -39,7 +39,7 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 	t.Helper()
 
 	runWork := runworktest.New()
-	fileReadDleay := waitingtest.NewFakeDelay()
+	fileReadDelay := waitingtest.NewFakeDelay()
 
 	tmpdir := t.TempDir()
 	toPath := func(slashPath string) string {
@@ -56,7 +56,7 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 		ExtraWork:     runWork,
 		Logger:        observability.NewNoOpLogger(),
 		Settings:      settings,
-		FileReadDelay: fileReadDleay,
+		FileReadDelay: fileReadDelay,
 	})
 
 	return testContext{

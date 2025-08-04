@@ -7,12 +7,15 @@
 package stream
 
 import (
+	"context"
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
@@ -28,19 +31,45 @@ func InjectStream(params StreamParams) *Stream {
 	coreLogger := streamLogger(streamStreamLoggerFile, settings, client, level)
 	backend := NewBackend(coreLogger, settings)
 	clientID := provideClientID()
+	runWork := provideStreamRunWork(coreLogger)
+	context := provideRunContext(runWork)
+	peeker := &observability.Peeker{}
+	graphqlClient := NewGraphQLClient(backend, settings, peeker, clientID)
+	serverFeaturesCache := featurechecker.NewServerFeaturesCache(context, graphqlClient, coreLogger)
 	wandbOperations := wboperation.NewOperations()
 	printer := observability.NewPrinter()
-	peeker := &observability.Peeker{}
 	fileStream := NewFileStream(backend, coreLogger, wandbOperations, printer, settings, peeker, clientID)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileTransferManager := NewFileTransferManager(fileTransferStats, coreLogger, settings)
 	watcher := provideFileWatcher(coreLogger)
-	graphqlClient := NewGraphQLClient(backend, settings, peeker, clientID)
-	runWork := provideStreamRunWork(coreLogger)
+	streamRun := NewStreamRun()
+	fileReadDelay := _wireFileReadDelayValue
+	tensorboardParams := tensorboard.Params{
+		ExtraWork:     runWork,
+		Logger:        coreLogger,
+		Settings:      settings,
+		FileReadDelay: fileReadDelay,
+	}
+	tbHandler := tensorboard.NewTBHandler(tensorboardParams)
+	recordParser := &RecordParser{
+		BeforeRunEndCtx:    context,
+		FeatureProvider:    serverFeaturesCache,
+		GraphqlClientOrNil: graphqlClient,
+		Logger:             coreLogger,
+		Operations:         wandbOperations,
+		Run:                streamRun,
+		TBHandler:          tbHandler,
+		ClientID:           clientID,
+		Settings:           settings,
+	}
 	uploader := NewRunfilesUploader(runWork, coreLogger, wandbOperations, settings, fileStream, fileTransferManager, watcher, graphqlClient)
-	stream := NewStream(params, backend, clientID, fileStream, fileTransferManager, fileTransferStats, watcher, graphqlClient, streamStreamLoggerFile, coreLogger, wandbOperations, peeker, uploader, runWork, printer)
+	stream := NewStream(params, backend, clientID, serverFeaturesCache, fileStream, fileTransferManager, fileTransferStats, watcher, graphqlClient, streamStreamLoggerFile, coreLogger, wandbOperations, peeker, recordParser, uploader, runWork, streamRun, printer)
 	return stream
 }
+
+var (
+	_wireFileReadDelayValue = tensorboard.FileReadDelay(nil)
+)
 
 // streaminject.go:
 
@@ -50,14 +79,16 @@ var streamProviders = wire.NewSet(
 		"Settings",
 		"Sentry",
 		"LogLevel",
-	), wire.Bind(new(runwork.ExtraWork), new(runwork.RunWork)), wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), filetransfer.NewFileTransferStats, NewBackend,
+	), wire.Bind(new(runwork.ExtraWork), new(runwork.RunWork)), wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), wire.Struct(new(RecordParser), "*"), featurechecker.NewServerFeaturesCache, filetransfer.NewFileTransferStats, NewBackend,
 	NewFileStream,
 	NewFileTransferManager,
 	NewGraphQLClient,
-	NewRunfilesUploader, observability.NewPrinter, provideClientID,
+	NewRunfilesUploader,
+	NewStreamRun, observability.NewPrinter, provideClientID,
 	provideFileWatcher,
+	provideRunContext,
 	provideStreamRunWork,
-	streamLoggerProviders, wboperation.NewOperations,
+	streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations,
 )
 
 func provideClientID() ClientID {
@@ -66,6 +97,10 @@ func provideClientID() ClientID {
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})
+}
+
+func provideRunContext(extraWork runwork.ExtraWork) context.Context {
+	return extraWork.BeforeEndCtx()
 }
 
 func provideStreamRunWork(logger *observability.CoreLogger) runwork.RunWork {
