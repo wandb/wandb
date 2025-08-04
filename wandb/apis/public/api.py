@@ -1744,7 +1744,7 @@ class Api:
             organization: (str, optional) The organization of the registry to fetch.
                 If not specified, use the organization specified in the user's settings.
             filter: (dict, optional) MongoDB-style filter to apply to each object in the registry iterator.
-                Fields available to filter for collections are
+                Fields available to filter for registries are
                     `name`, `description`, `created_at`, `updated_at`.
                 Fields available to filter for collections are
                     `name`, `tag`, `description`, `created_at`, `updated_at`
