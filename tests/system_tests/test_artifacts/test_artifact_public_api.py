@@ -119,7 +119,9 @@ def test_artifact_download(user, api, sample_data):
     else:
         part = "mnist:v0"
     assert path == os.path.abspath(os.path.join(".", "artifacts", part))
-    assert os.listdir(path) == ["digits.h5"]
+    # Filter out sidecar checksum files when checking directory contents
+    dir_contents = [f for f in os.listdir(path) if not f.endswith('.wbchecksum')]
+    assert dir_contents == ["digits.h5"]
 
 
 def test_artifact_exists(user, api, sample_data):
@@ -172,7 +174,9 @@ def test_artifact_checkout(user, api, sample_data):
     art = api.artifact("mnist:v0", type="dataset")
     path = art.checkout()
     assert path == os.path.abspath(os.path.join(".", "artifacts", "mnist"))
-    assert os.listdir(path) == ["digits.h5"]
+    # Filter out sidecar checksum files when checking directory contents
+    dir_contents = [f for f in os.listdir(path) if not f.endswith('.wbchecksum')]
+    assert dir_contents == ["digits.h5"]
 
 
 def test_artifact_run_used(user, api, sample_data):
