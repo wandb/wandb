@@ -2,6 +2,7 @@ package leet
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -16,7 +17,10 @@ type ChartDimensions struct {
 
 // CalculateChartDimensions computes the chart dimensions based on window size
 func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
-	availableHeight := windowHeight - StatusBarHeight
+	// windowHeight here should already have StatusBarHeight subtracted by the caller
+	// Reserve space for header (1 line + 1 margin top)
+	headerHeight := 2
+	availableHeight := windowHeight - headerHeight
 	chartHeightWithPadding := availableHeight / GridRows
 	chartWidthWithPadding := windowWidth / GridCols
 
@@ -39,6 +43,22 @@ func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
 		ChartHeight:            chartHeight,
 		ChartWidthWithPadding:  chartWidthWithPadding,
 		ChartHeightWithPadding: chartHeightWithPadding,
+	}
+}
+
+// sortCharts sorts all charts alphabetically by title and reassigns colors
+func (m *Model) sortCharts() {
+	sort.Slice(m.allCharts, func(i, j int) bool {
+		return m.allCharts[i].Title() < m.allCharts[j].Title()
+	})
+
+	// Rebuild chartsByName map and reassign colors based on sorted order
+	m.chartsByName = make(map[string]*EpochLineChart)
+	for i, chart := range m.allCharts {
+		m.chartsByName[chart.Title()] = chart
+		// Update chart color based on new position
+		chart.graphStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(graphColors[i%len(graphColors)]))
 	}
 }
 
@@ -66,13 +86,13 @@ func (m *Model) loadCurrentPage() {
 
 // updateChartSizes updates all chart sizes when window is resized or sidebar toggled
 func (m *Model) updateChartSizes() {
-	// Update sidebar dimensions
+	// Update sidebar dimensions - they need to know about each other
 	m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
 	m.rightSidebar.UpdateDimensions(m.width, m.sidebar.IsVisible())
 
-	// Calculate available width
-	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
-	availableHeight := m.height - StatusBarHeight - 1
+	// Calculate available width (subtract 2 for left/right margins of the grid container)
+	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width() - 2
+	availableHeight := m.height - StatusBarHeight
 	dims := CalculateChartDimensions(availableWidth, availableHeight)
 
 	// Resize all charts
@@ -87,12 +107,10 @@ func (m *Model) updateChartSizes() {
 
 // renderGrid creates the chart grid view
 func (m *Model) renderGrid(dims ChartDimensions) string {
-	// Build header
+	// Build header with consistent padding
 	header := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("230")).
-		MarginLeft(1).
-		MarginTop(1).
 		Render("Metrics")
 
 	// Add navigation info
@@ -106,11 +124,18 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 		}
 		navInfo = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240")).
-			MarginTop(1).
 			Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, totalMetrics))
 	}
 
+	// Combine header and nav info horizontally
 	headerLine := lipgloss.JoinHorizontal(lipgloss.Left, header, navInfo)
+
+	// Create header container with consistent padding
+	headerContainer := lipgloss.NewStyle().
+		MarginLeft(1).
+		MarginTop(1).
+		MarginBottom(0).
+		Render(headerLine)
 
 	// Render grid
 	var rows []string
@@ -125,8 +150,14 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 	}
 	gridContent := lipgloss.JoinVertical(lipgloss.Left, rows...)
 
-	// Combine header and grid
-	return lipgloss.JoinVertical(lipgloss.Left, headerLine, gridContent)
+	// Create grid container with consistent padding (removed bottom margin)
+	gridContainer := lipgloss.NewStyle().
+		MarginLeft(1).
+		MarginRight(1).
+		Render(gridContent)
+
+	// Combine header container and grid container
+	return lipgloss.JoinVertical(lipgloss.Left, headerContainer, gridContainer)
 }
 
 // renderGridCell renders a single grid cell

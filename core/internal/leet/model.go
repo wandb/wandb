@@ -156,21 +156,32 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case InitMsg:
 		m.logger.Debug("model: InitMsg received, reader initialized")
 		m.reader = msg.Reader
-		// Use optimized bulk loading for initial read
-		return m, ReadAllDataOptimized(m.reader)
+		// Read all available records
+		return m, ReadAllData(m.reader)
 
-	case BulkDataMsg:
-		m.logger.Debug("model: BulkDataMsg received")
-		var cmd tea.Cmd
-		m, cmd = m.processRecordMsg(msg)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
+	case BatchedRecordsMsg:
+		m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
+
+		// Process all messages
+		for _, subMsg := range msg.Msgs {
+			var cmd tea.Cmd
+			m, cmd = m.processRecordMsg(subMsg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 
-		// Start watcher if file isn't complete
+		// Only exit loading state if we have actual metric data (charts)
+		if m.isLoading && len(m.allCharts) > 0 {
+			m.isLoading = false
+		}
+
+		// Start watcher after initial load if file isn't complete
 		if !m.fileComplete && !m.watcherStarted {
 			if err := m.startWatcher(); err != nil {
 				m.logger.Error(fmt.Sprintf("model: error starting watcher: %v", err))
+			} else {
+				m.logger.Info("model: watcher started successfully")
 			}
 		}
 		return m, tea.Batch(cmds...)
@@ -180,29 +191,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.fileComplete = false
 
 		if m.watcherStarted {
-			m.logger.Debug("model: finishing watcher")
+			m.logger.Debug("model: finishing watcher for reload")
 			m.watcher.Finish()
 			m.watcherStarted = false
 		}
+
+		// Create a new watcher instance
+		m.watcher = watcher.New(watcher.Params{})
+
+		// Clear the message channel
+		for len(m.msgChan) > 0 {
+			<-m.msgChan
+		}
+
 		return m, tea.Batch(
 			InitializeReader(m.runPath),
 			m.waitForWatcherMsg(),
 		)
 
-	case BatchedRecordsMsg:
-		m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
-		for _, subMsg := range msg.Msgs {
-			var cmd tea.Cmd
-			m, cmd = m.processRecordMsg(subMsg)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		}
-		return m, tea.Batch(cmds...)
-
 	case FileChangedMsg:
 		m.logger.Debug("model: fileChangedMsg received - file has changed!")
 		cmds = append(cmds, ReadAvailableRecords(m.reader))
+		// Always continue waiting for more changes
 		cmds = append(cmds, m.waitForWatcherMsg())
 		return m, tea.Batch(cmds...)
 
@@ -241,12 +251,15 @@ func (m *Model) View() string {
 	if m.help.IsActive() {
 		helpView := m.help.View()
 		statusBar := m.renderStatusBar()
-		return lipgloss.JoinVertical(lipgloss.Left, helpView, statusBar)
+
+		// Ensure we use exact height
+		content := lipgloss.JoinVertical(lipgloss.Left, helpView, statusBar)
+		return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, content)
 	}
 
-	// Calculate available space for charts
-	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
-	availableHeight := m.height - StatusBarHeight - 1
+	// Calculate available space for charts (subtract 2 for margins)
+	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width() - 2
+	availableHeight := m.height - StatusBarHeight
 	dims := CalculateChartDimensions(availableWidth, availableHeight)
 
 	// Render main content
@@ -284,8 +297,11 @@ func (m *Model) View() string {
 	// Render status bar
 	statusBar := m.renderStatusBar()
 
-	// Combine main view and status bar
-	return lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
+	// Combine main view and status bar, ensuring exact height
+	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
+
+	// Place the view to ensure it fills the terminal exactly
+	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, fullView)
 }
 
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen
@@ -314,8 +330,8 @@ func (m *Model) renderLoadingScreen() string {
 
 // renderStatusBar creates the status bar
 func (m *Model) renderStatusBar() string {
+	// Left side content
 	statusText := ""
-
 	if m.isLoading {
 		statusText = " Loading data..."
 	} else {
@@ -329,28 +345,26 @@ func (m *Model) renderStatusBar() string {
 		}
 	}
 
-	rightPart := pageInfoStyle.Render("h: toggle help")
-	rightWidth := lipgloss.Width(rightPart)
+	// Right side content
+	helpText := "h: toggle help"
 
-	availableWidth := m.width - rightWidth
-	leftPart := lipgloss.NewStyle().
-		MaxWidth(availableWidth).
-		Render(statusText)
-	leftWidth := lipgloss.Width(leftPart)
-
-	spacerWidth := m.width - leftWidth - rightWidth
-	if spacerWidth < 0 {
-		spacerWidth = 0
+	// Calculate padding to fill the entire width
+	statusLen := lipgloss.Width(statusText)
+	helpLen := lipgloss.Width(helpText)
+	paddingLen := m.width - statusLen - helpLen
+	if paddingLen < 1 {
+		paddingLen = 1
 	}
-	spacer := strings.Repeat(" ", spacerWidth)
+	padding := strings.Repeat(" ", paddingLen)
 
-	finalBarContent := lipgloss.JoinHorizontal(lipgloss.Top,
-		leftPart,
-		spacer,
-		rightPart,
-	)
+	// Combine all parts
+	fullStatus := statusText + padding + helpText
 
-	return statusBarStyle.Width(m.width).Render(finalBarContent)
+	// Apply the status bar style to the full width
+	return statusBarStyle.
+		Width(m.width).
+		MaxWidth(m.width).
+		Render(fullStatus)
 }
 
 // waitForWatcherMsg returns a command that waits for messages from the watcher
@@ -382,6 +396,7 @@ func (m *Model) startWatcher() error {
 
 	if err != nil {
 		m.logger.Error(fmt.Sprintf("model: error in watcher.Watch: %v", err))
+		m.watcherStarted = false
 		return err
 	}
 

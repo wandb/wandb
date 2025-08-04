@@ -1,6 +1,8 @@
 package leet
 
 import (
+	"context"
+	"io"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,35 +19,51 @@ func InitializeReader(runPath string) tea.Cmd {
 	}
 }
 
-// ReadAllDataOptimized creates a command to read all data using bulk processing
-func ReadAllDataOptimized(reader *WandbReader) tea.Cmd {
+// ReadAllData reads all available data and processes it.
+func ReadAllData(reader *WandbReader) tea.Cmd {
 	return func() tea.Msg {
-		data, err := reader.ReadAllDataOptimized()
+		records, err := reader.ReadAllRecords()
 		if err != nil {
 			return ErrorMsg{Err: err}
 		}
-		return BulkDataMsg{Data: data}
+
+		ctx := context.Background()
+		msgs, err := ProcessRecords(ctx, records)
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
+
+		return BatchedRecordsMsg{Msgs: msgs}
 	}
 }
 
-// ReadAvailableRecords reads all available records from the reader until a
-// temporary EOF is reached. Used for live monitoring.
+// ReadAvailableRecords reads new records for live monitoring.
 func ReadAvailableRecords(reader *WandbReader) tea.Cmd {
 	return func() tea.Msg {
 		var msgs []tea.Msg
-		for {
+		recordCount := 0
+		const maxRecordsPerBatch = 100
+
+		for recordCount < maxRecordsPerBatch {
 			msg, err := reader.ReadNext()
-			if msg != nil {
-				msgs = append(msgs, msg)
+			if err == io.EOF {
+				// No more records available right now
+				break
 			}
 			if err != nil {
-				break
+				// Log error but continue
+				continue
+			}
+			if msg != nil {
+				msgs = append(msgs, msg)
+				recordCount++
 			}
 		}
 
 		if len(msgs) > 0 {
 			return BatchedRecordsMsg{Msgs: msgs}
 		}
+		// No new records found
 		return nil
 	}
 }

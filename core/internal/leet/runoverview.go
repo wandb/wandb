@@ -295,27 +295,3 @@ func easeOutCubic(t float64) float64 {
 
 // SidebarAnimationMsg is sent during sidebar animations
 type SidebarAnimationMsg struct{}
-
-// UpdateExpandedWidth recalculates the expanded width based on the current terminal width
-// and whether the other sidebar is visible. This ensures correct width when toggling.
-func (s *Sidebar) UpdateExpandedWidth(terminalWidth int, rightSidebarVisible bool) {
-	var calculatedWidth int
-
-	if rightSidebarVisible {
-		// When both sidebars are visible, use nested golden ratio
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatioBoth)
-	} else {
-		// When only left sidebar is visible, use standard golden ratio
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
-	}
-
-	// Clamp to min/max
-	switch {
-	case calculatedWidth < SidebarMinWidth:
-		s.expandedWidth = SidebarMinWidth
-	case calculatedWidth > SidebarMaxWidth:
-		s.expandedWidth = SidebarMaxWidth
-	default:
-		s.expandedWidth = calculatedWidth
-	}
-}

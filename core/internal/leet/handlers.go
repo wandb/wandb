@@ -2,8 +2,6 @@ package leet
 
 import (
 	"fmt"
-	"sort"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wandb/wandb/core/internal/runenvironment"
@@ -12,9 +10,6 @@ import (
 // processRecordMsg handles messages that carry data from the .wandb file.
 func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case BulkDataMsg:
-		return m.handleBulkData(msg.Data)
-
 	case HistoryMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing HistoryMsg with step %d", msg.Step))
 		return m.handleHistoryMsg(msg)
@@ -73,6 +68,7 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 			if m.watcherStarted {
 				m.logger.Debug("model: finishing watcher")
 				m.watcher.Finish()
+				m.watcherStarted = false
 			}
 		}
 
@@ -83,158 +79,48 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 		if m.watcherStarted {
 			m.logger.Debug("model: finishing watcher due to error")
 			m.watcher.Finish()
+			m.watcherStarted = false
 		}
 	}
 
 	return m, nil
 }
 
-// handleBulkData processes bulk loaded data efficiently
-func (m *Model) handleBulkData(data *ProcessedData) (*Model, tea.Cmd) {
-	startTime := time.Now()
-
-	// Process run info
-	if data.RunInfo != nil {
-		m.runOverview.ID = data.RunInfo.ID
-		m.runOverview.DisplayName = data.RunInfo.DisplayName
-		m.runOverview.Project = data.RunInfo.Project
-	}
-
-	// Process config, summary, and environment
-	if data.Config != nil {
-		m.runConfig = data.Config
-		m.runOverview.Config = m.runConfig.CloneTree()
-	}
-	if data.SummaryData != nil {
-		m.runSummary = data.SummaryData
-		m.runOverview.Summary = m.runSummary.ToNestedMaps()
-	}
-	if data.Environment != nil {
-		m.runEnvironment = data.Environment
-		m.runOverview.Environment = m.runEnvironment.ToRunConfigData()
-	}
-
-	// Update sidebar
-	m.sidebar.SetRunOverview(m.runOverview)
-
-	// Process system stats
-	for _, stats := range data.Stats {
-		m.rightSidebar.ProcessStatsMsg(stats)
-	}
-
-	// Process history data
-	if len(data.HistoryByStep) > 0 {
-		m.loadHistoryDataBulk(data.HistoryByStep)
-	}
-
-	// Update run state
-	if data.FileComplete {
-		m.fileComplete = true
-		if data.ExitCode == 0 {
-			m.runState = RunStateFinished
-		} else {
-			m.runState = RunStateFailed
-		}
-	}
-
-	m.logger.Debug(fmt.Sprintf("Bulk data processed in %v", time.Since(startTime)))
-	return m, nil
-}
-
-// loadHistoryDataBulk efficiently loads all history data at once
-func (m *Model) loadHistoryDataBulk(historyData map[int]map[string]float64) {
-	// Get all unique metric names
-	metricNames := make(map[string]bool)
-	maxStep := 0
-
-	for step, metrics := range historyData {
-		if step > maxStep {
-			maxStep = step
-		}
-		for metricName := range metrics {
-			metricNames[metricName] = true
-		}
-	}
-
-	// Create charts for all metrics
-	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
-	dims := CalculateChartDimensions(availableWidth, m.height)
-
-	for metricName := range metricNames {
-		if _, exists := m.chartsByName[metricName]; !exists {
-			colorIndex := len(m.allCharts)
-			chart := NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, colorIndex, metricName)
-			m.allCharts = append(m.allCharts, chart)
-			m.chartsByName[metricName] = chart
-		}
-	}
-
-	// Sort steps for consistent ordering
-	steps := make([]int, 0, len(historyData))
-	for step := range historyData {
-		steps = append(steps, step)
-	}
-	sort.Ints(steps)
-
-	// Prepare data for each metric
-	metricData := make(map[string][]float64)
-	for metricName := range metricNames {
-		metricData[metricName] = make([]float64, 0, len(steps))
-	}
-
-	// Fill in values in order
-	for _, step := range steps {
-		metrics := historyData[step]
-		for metricName := range metricNames {
-			if value, exists := metrics[metricName]; exists {
-				metricData[metricName] = append(metricData[metricName], value)
-			}
-		}
-	}
-
-	// Set bulk data for each chart
-	for metricName, values := range metricData {
-		if chart, exists := m.chartsByName[metricName]; exists {
-			chart.SetDataBulk(values)
-		}
-	}
-
-	// Update state
-	m.step = maxStep
-	m.isLoading = false
-	m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
-
-	// Load current page and draw visible charts
-	m.loadCurrentPage()
-	m.drawVisibleCharts()
-}
-
-// handleHistoryMsg processes new history data for live updates
+// handleHistoryMsg processes new history data
 func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	m.step = msg.Step
 
-	// Exit loading state on first data
-	if m.isLoading && len(msg.Metrics) > 0 {
-		m.isLoading = false
-	}
+	// Track if we need to sort
+	needsSort := false
 
 	// Add data points to existing charts or create new ones
 	for metricName, value := range msg.Metrics {
 		chart, exists := m.chartsByName[metricName]
 		if !exists {
-			availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
-			dims := CalculateChartDimensions(availableWidth, m.height)
-			colorIndex := len(m.allCharts)
-			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, colorIndex, metricName)
+			availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width() - 4
+			dims := CalculateChartDimensions(availableWidth, m.height-StatusBarHeight)
+			// Create chart without color - it will be assigned during sort
+			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, 0, metricName)
 
 			m.allCharts = append(m.allCharts, chart)
 			m.chartsByName[metricName] = chart
-			m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
+			needsSort = true
 		}
 		chart.AddDataPoint(value)
 	}
 
-	// Only reload page if we created new charts
+	// Sort if we added new charts (this will also assign/reassign colors)
+	if needsSort {
+		m.sortCharts()
+		m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
+	}
+
+	// Exit loading state only when we have actual charts with data
+	if m.isLoading && len(m.allCharts) > 0 {
+		m.isLoading = false
+	}
+
+	// Reload page and draw
 	if len(msg.Metrics) > 0 {
 		m.loadCurrentPage()
 		m.drawVisibleCharts()
@@ -265,15 +151,19 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Mouse is in the chart area
-	adjustedX := msg.X - m.sidebar.Width()
-	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
+	// Mouse is in the chart area - account for padding
+	const gridPadding = 1
+	adjustedX := msg.X - m.sidebar.Width() - gridPadding
+	adjustedY := msg.Y - gridPadding - 1 // -1 for header
+
+	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width() - (gridPadding * 2)
 	dims := CalculateChartDimensions(availableWidth, m.height)
 
-	row := msg.Y / dims.ChartHeightWithPadding
+	row := adjustedY / dims.ChartHeightWithPadding
 	col := adjustedX / dims.ChartWidthWithPadding
 
-	if row >= 0 && row < GridRows && col >= 0 && col < GridCols && m.charts[row][col] != nil {
+	if row >= 0 && row < GridRows && col >= 0 && col < GridCols &&
+		row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
 		chart := m.charts[row][col]
 
 		chartStartX := col * dims.ChartWidthWithPadding
@@ -307,13 +197,15 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlB:
-		m.sidebar.UpdateExpandedWidth(m.width, m.rightSidebar.IsVisible())
+		// Recalculate width before toggling
+		m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
 		m.sidebar.Toggle()
 		m.updateChartSizes()
 		return m, m.sidebar.animationCmd()
 
 	case tea.KeyCtrlN:
-		m.rightSidebar.UpdateExpandedWidth(m.width, m.sidebar.IsVisible())
+		// Recalculate width before toggling
+		m.rightSidebar.UpdateDimensions(m.width, m.sidebar.IsVisible())
 		m.rightSidebar.Toggle()
 		m.updateChartSizes()
 		return m, m.rightSidebar.animationCmd()
@@ -332,6 +224,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		if m.watcherStarted {
 			m.logger.Debug("model: finishing watcher on quit")
 			m.watcher.Finish()
+			m.watcherStarted = false
 		}
 		close(m.msgChan)
 		return m, tea.Quit
@@ -359,18 +252,24 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.help.SetSize(msg.Width, msg.Height)
+
+		// Update dimensions before updating sizes
 		m.sidebar.UpdateDimensions(msg.Width, m.rightSidebar.IsVisible())
 		m.rightSidebar.UpdateDimensions(msg.Width, m.sidebar.IsVisible())
 		m.updateChartSizes()
 
 	case SidebarAnimationMsg:
 		if m.sidebar.IsAnimating() {
+			// During animation, update other sidebar's dimensions
+			m.rightSidebar.UpdateDimensions(m.width, m.sidebar.IsVisible())
 			m.updateChartSizes()
 			return m, m.sidebar.animationCmd()
 		}
 
 	case RightSidebarAnimationMsg:
 		if m.rightSidebar.IsAnimating() {
+			// During animation, update other sidebar's dimensions
+			m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
 			m.updateChartSizes()
 			return m, m.rightSidebar.animationCmd()
 		}

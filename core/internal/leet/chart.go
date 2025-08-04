@@ -13,21 +13,24 @@ import (
 // EpochLineChart is a custom line chart for epoch-based data
 type EpochLineChart struct {
 	linechart.Model
-	data       []float64
-	graphStyle lipgloss.Style
-	maxSteps   int
-	focused    bool
-	zoomLevel  float64
-	title      string
-	minValue   float64
-	maxValue   float64
-	dirty      bool
+	data         []float64
+	graphStyle   lipgloss.Style
+	maxSteps     int
+	focused      bool
+	title        string
+	minValue     float64
+	maxValue     float64
+	dirty        bool
+	isZoomed     bool    // Track if user has zoomed
+	userViewMinX float64 // Preserve user's zoom settings
+	userViewMaxX float64
 }
 
 // NewEpochLineChart creates a new epoch-based line chart
 func NewEpochLineChart(width, height int, colorIndex int, title string) *EpochLineChart {
+	// Temporarily use a default style - it will be updated during sorting
 	graphStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(graphColors[colorIndex%len(graphColors)]))
+		Foreground(lipgloss.Color(graphColors[0]))
 
 	chart := &EpochLineChart{
 		Model: linechart.New(width, height, 0, 20, 0, 1,
@@ -39,11 +42,11 @@ func NewEpochLineChart(width, height int, colorIndex int, title string) *EpochLi
 		graphStyle: graphStyle,
 		maxSteps:   20,
 		focused:    false,
-		zoomLevel:  1.0,
 		title:      title,
 		minValue:   math.Inf(1),
 		maxValue:   math.Inf(-1),
 		dirty:      false,
+		isZoomed:   false,
 	}
 
 	chart.Model.AxisStyle = axisStyle
@@ -134,8 +137,12 @@ func (c *EpochLineChart) updateRanges() {
 	if step > int(c.MaxX()) {
 		newMax := float64(((step + 9) / 10) * 10) // Round up to nearest 10
 		c.SetXRange(0, newMax)
-		c.SetViewXRange(0, newMax)
 		c.maxSteps = int(newMax)
+
+		// Only update view if not zoomed
+		if !c.isZoomed {
+			c.SetViewXRange(0, newMax)
+		}
 	}
 
 	c.Model.SetXYRange(c.MinX(), c.MaxX(), newMinY, newMaxY)
@@ -168,12 +175,12 @@ func (c *EpochLineChart) Reset() {
 	c.SetXRange(0, 20)
 	c.SetViewXRange(0, 20)
 	c.maxSteps = 20
-	c.zoomLevel = 1.0
 	c.minValue = math.Inf(1)
 	c.maxValue = math.Inf(-1)
 	c.SetYRange(0, 1)
 	c.SetViewYRange(0, 1)
 	c.dirty = true
+	c.isZoomed = false
 }
 
 // HandleZoom processes zoom events with mouse position
@@ -191,10 +198,8 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	// Calculate new range
 	var newRange float64
 	if direction == "in" {
-		c.zoomLevel *= (1 - zoomFactor)
 		newRange = viewRange * (1 - zoomFactor)
 	} else {
-		c.zoomLevel *= (1 + zoomFactor)
 		newRange = viewRange * (1 + zoomFactor)
 	}
 
@@ -224,6 +229,9 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	}
 
 	c.SetViewXRange(newMin, newMax)
+	c.userViewMinX = newMin
+	c.userViewMaxX = newMax
+	c.isZoomed = true
 	c.dirty = true
 }
 
