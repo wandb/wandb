@@ -9,6 +9,7 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -28,6 +29,7 @@ var streamProviders = wire.NewSet(
 	NewStream,
 	wire.FieldsOf(
 		new(StreamParams),
+		"Commit",
 		"GPUResourceManager",
 		"Settings",
 		"Sentry",
@@ -39,6 +41,8 @@ var streamProviders = wire.NewSet(
 	wire.Struct(new(RecordParser), "*"),
 	featurechecker.NewServerFeaturesCache,
 	filetransfer.NewFileTransferStats,
+	handlerProviders,
+	mailbox.New,
 	monitor.SystemMonitorProviders,
 	NewBackend,
 	NewFileStream,
@@ -50,6 +54,7 @@ var streamProviders = wire.NewSet(
 	provideFileWatcher,
 	provideRunContext,
 	provideStreamRunWork,
+	senderProviders,
 	sharedmode.RandomClientID,
 	streamLoggerProviders,
 	tensorboard.TBHandlerProviders,

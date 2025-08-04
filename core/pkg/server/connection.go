@@ -354,7 +354,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	strm := stream.InjectStream(
 		stream.StreamParams{
 			Settings:           settings,
-			Commit:             nc.commit,
+			Commit:             stream.GitCommitHash(nc.commit),
 			LogLevel:           nc.logLevel,
 			Sentry:             sentryClient,
 			LoggerPath:         nc.loggerPath,
