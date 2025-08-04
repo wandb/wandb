@@ -130,12 +130,12 @@ var (
 
 // Status bar styles
 var (
-	pageInfoStyle = lipgloss.NewStyle().
-		// Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}).
-		// Background(lipgloss.AdaptiveColor{Light: "#4ECDC4", Dark: "#0C8599"}).
-		Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#2B3038"}).
-		Background(lipgloss.AdaptiveColor{Light: "#4ECDC4", Dark: "#A9FDF2"}).
-		Padding(0, 1)
+	// pageInfoStyle = lipgloss.NewStyle().
+	// 	// Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}).
+	// 	// Background(lipgloss.AdaptiveColor{Light: "#4ECDC4", Dark: "#0C8599"}).
+	// 	Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#2B3038"}).
+	// 	Background(lipgloss.AdaptiveColor{Light: "#4ECDC4", Dark: "#A9FDF2"}).
+	// 	Padding(0, 1)
 
 	statusBarStyle = lipgloss.NewStyle().
 		// Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#FFFFFF"}).
