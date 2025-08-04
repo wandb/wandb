@@ -3490,7 +3490,7 @@ class Run:
 
         # If returned directory contains only one file, return path to that file
         # Filter out sidecar checksum files when counting directory contents
-        dir_list = [f for f in os.listdir(path) if not f.endswith('.wbchecksum')]
+        dir_list = [f for f in os.listdir(path) if not f.endswith(".wbchecksum")]
         if len(dir_list) == 1:
             return FilePathStr(os.path.join(path, dir_list[0]))
         return path
