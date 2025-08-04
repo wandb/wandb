@@ -46,8 +46,8 @@ func NewHelp() *HelpModel {
 		{Key: "up/down", Description: "Scroll in run overview"},
 		// TODO: make it work :)
 		// {Key: "home/end", Description: "Jump to top/bottom of run overview"},
-		{Key: "Mouse wheel", Description: "Zoom in/out on focused chart"},
-		{Key: "Shift+mouse select", Description: "Select text"},
+		{Key: "mouse wheel", Description: "Zoom in/out on focused chart"},
+		{Key: "shift+mouse select", Description: "Select text"},
 	}
 
 	vp := viewport.New(80, 20) // Initial size, will be updated
