@@ -352,14 +352,12 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	}
 
 	strm := stream.InjectStream(
-		stream.StreamParams{
-			Settings:           settings,
-			Commit:             stream.GitCommitHash(nc.commit),
-			LogLevel:           nc.logLevel,
-			Sentry:             sentryClient,
-			LoggerPath:         nc.loggerPath,
-			GPUResourceManager: nc.gpuResourceManager,
-		},
+		stream.GitCommitHash(nc.commit),
+		nc.gpuResourceManager,
+		stream.DebugCorePath(nc.loggerPath),
+		nc.logLevel,
+		nc.sentryClient,
+		settings,
 	)
 	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	strm.Start()
