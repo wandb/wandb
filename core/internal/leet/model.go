@@ -43,7 +43,7 @@ type Model struct {
 	runPath        string
 	reader         *WandbReader
 	watcher        watcher.Watcher
-	watcherStarted bool // Track if watcher has been started
+	watcherStarted bool
 	sidebar        *Sidebar
 	rightSidebar   *RightSidebar
 	runOverview    RunOverview
@@ -101,13 +101,11 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		tea.SetWindowTitle("wandb leet"),
 		InitializeReader(m.runPath),
-		m.waitForWatcherMsg(), // Start listening for watcher messages
+		m.waitForWatcherMsg(),
 	)
 }
 
 // Update implements tea.Model.
-//
-//gocyclo:ignore
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -118,7 +116,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.help.SetSize(msg.Width, msg.Height)
 	}
 
-	// Check for help toggle key first, before passing to help screen
+	// Check for help toggle key first
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
 		case "h", "?":
@@ -127,22 +125,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Handle help screen UI updates if active (only for UI-related messages)
+	// Handle help screen UI updates if active
 	if m.help.IsActive() {
 		switch msg.(type) {
 		case tea.KeyMsg, tea.MouseMsg:
-			// Only pass UI events to help screen
 			updatedHelp, helpCmd := m.help.Update(msg)
 			m.help = updatedHelp
 			if helpCmd != nil {
 				cmds = append(cmds, helpCmd)
 			}
-			// Return early only for UI events when help is active
 			return m, tea.Batch(cmds...)
 		}
-		// For non-UI messages, continue processing below
 	}
 
+	// Update sidebars
 	updatedSidebar, sidebarCmd := m.sidebar.Update(msg)
 	m.sidebar = updatedSidebar
 	if sidebarCmd != nil {
@@ -155,19 +151,34 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, rightSidebarCmd)
 	}
 
+	// Handle specific message types
 	switch msg := msg.(type) {
 	case InitMsg:
 		m.logger.Debug("model: InitMsg received, reader initialized")
 		m.reader = msg.Reader
-		// Perform the initial read.
-		return m, ReadAvailableRecords(m.reader)
+		// Use optimized bulk loading for initial read
+		return m, ReadAllDataOptimized(m.reader)
+
+	case BulkDataMsg:
+		m.logger.Debug("model: BulkDataMsg received")
+		var cmd tea.Cmd
+		m, cmd = m.processRecordMsg(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+
+		// Start watcher if file isn't complete
+		if !m.fileComplete && !m.watcherStarted {
+			if err := m.startWatcher(); err != nil {
+				m.logger.Error(fmt.Sprintf("model: error starting watcher: %v", err))
+			}
+		}
+		return m, tea.Batch(cmds...)
 
 	case ReloadMsg:
-		// Reset run state
 		m.runState = RunStateRunning
 		m.fileComplete = false
 
-		// TODO: I think the watch part doesn't work properly, need to fix.
 		if m.watcherStarted {
 			m.logger.Debug("model: finishing watcher")
 			m.watcher.Finish()
@@ -180,35 +191,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case BatchedRecordsMsg:
 		m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
-		// Process all records from the batch.
 		for _, subMsg := range msg.Msgs {
-			m.logger.Debug(fmt.Sprintf("model: processing sub-message: %T", subMsg))
 			var cmd tea.Cmd
 			m, cmd = m.processRecordMsg(subMsg)
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
 		}
-
-		// After processing initial messages, start the watcher if needed
-		if !m.fileComplete && !m.watcherStarted {
-			m.logger.Debug(fmt.Sprintf("model: starting watcher - fileComplete: %v, watcherStarted: %v", m.fileComplete, m.watcherStarted))
-			if err := m.startWatcher(); err != nil {
-				m.logger.Error(fmt.Sprintf("model: error starting watcher: %v", err))
-			} else {
-				m.logger.Info("model: watcher started successfully")
-			}
-		} else {
-			m.logger.Info(fmt.Sprintf("model: not starting watcher - fileComplete: %v, watcherStarted: %v", m.fileComplete, m.watcherStarted))
-		}
-
 		return m, tea.Batch(cmds...)
 
 	case FileChangedMsg:
 		m.logger.Debug("model: fileChangedMsg received - file has changed!")
-		// File changed, read new records
 		cmds = append(cmds, ReadAvailableRecords(m.reader))
-		// Continue waiting for watcher messages
 		cmds = append(cmds, m.waitForWatcherMsg())
 		return m, tea.Batch(cmds...)
 
@@ -221,7 +215,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return newModel, cmd
 
 	default:
-		// Process individual record messages
+		// Process other record messages
 		var cmd tea.Cmd
 		m, cmd = m.processRecordMsg(msg)
 		if cmd != nil {
@@ -250,9 +244,9 @@ func (m *Model) View() string {
 		return lipgloss.JoinVertical(lipgloss.Left, helpView, statusBar)
 	}
 
-	// Calculate available space for charts (account for header)
+	// Calculate available space for charts
 	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
-	availableHeight := m.height - StatusBarHeight - 1 // -1 for the metrics header
+	availableHeight := m.height - StatusBarHeight - 1
 	dims := CalculateChartDimensions(availableWidth, availableHeight)
 
 	// Render main content
@@ -263,10 +257,8 @@ func (m *Model) View() string {
 	leftSidebarView := m.sidebar.View(m.height - StatusBarHeight)
 	rightSidebarView := m.rightSidebar.View(m.height - StatusBarHeight)
 
-	// Handle all combinations of sidebar visibility
 	switch {
 	case m.sidebar.Width() > 0 && m.rightSidebar.Width() > 0:
-		// Both sidebars visible
 		mainView = lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			leftSidebarView,
@@ -274,25 +266,22 @@ func (m *Model) View() string {
 			rightSidebarView,
 		)
 	case m.sidebar.Width() > 0:
-		// Only left sidebar visible
 		mainView = lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			leftSidebarView,
 			gridView,
 		)
 	case m.rightSidebar.Width() > 0:
-		// Only right sidebar visible
 		mainView = lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			gridView,
 			rightSidebarView,
 		)
 	default:
-		// No sidebars visible
 		mainView = gridView
 	}
 
-	// Render status bar that spans the full width
+	// Render status bar
 	statusBar := m.renderStatusBar()
 
 	// Combine main view and status bar
@@ -301,19 +290,16 @@ func (m *Model) View() string {
 
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen
 func (m *Model) renderLoadingScreen() string {
-	// Style for the ASCII art
 	artStyle := lipgloss.NewStyle().
 		Foreground(wandbColor).
 		Bold(true)
 
-	// Create the full ASCII art with spacing
 	logoContent := lipgloss.JoinVertical(
 		lipgloss.Center,
 		artStyle.Render(wandbArt),
 		artStyle.Render(leetArt),
 	)
 
-	// Center the logo on the screen
 	centeredLogo := lipgloss.Place(
 		m.width,
 		m.height-StatusBarHeight,
@@ -322,14 +308,11 @@ func (m *Model) renderLoadingScreen() string {
 		logoContent,
 	)
 
-	// Render status bar
 	statusBar := m.renderStatusBar()
-
-	// Combine logo and status bar
 	return lipgloss.JoinVertical(lipgloss.Left, centeredLogo, statusBar)
 }
 
-// renderStatusBar creates the status bar, ensuring it fits on a single line.
+// renderStatusBar creates the status bar
 func (m *Model) renderStatusBar() string {
 	statusText := ""
 
@@ -349,21 +332,18 @@ func (m *Model) renderStatusBar() string {
 	rightPart := pageInfoStyle.Render("h: toggle help")
 	rightWidth := lipgloss.Width(rightPart)
 
-	// Calculate available width for the left part and render it with truncation
 	availableWidth := m.width - rightWidth
 	leftPart := lipgloss.NewStyle().
 		MaxWidth(availableWidth).
 		Render(statusText)
 	leftWidth := lipgloss.Width(leftPart)
 
-	// Calculate the spacer width
 	spacerWidth := m.width - leftWidth - rightWidth
 	if spacerWidth < 0 {
 		spacerWidth = 0
 	}
 	spacer := strings.Repeat(" ", spacerWidth)
 
-	// Join the parts and apply the final bar style
 	finalBarContent := lipgloss.JoinHorizontal(lipgloss.Top,
 		leftPart,
 		spacer,
@@ -390,11 +370,8 @@ func (m *Model) startWatcher() error {
 	m.logger.Debug(fmt.Sprintf("model: startWatcher called for path: %s", m.runPath))
 	m.watcherStarted = true
 
-	// Register the file with the watcher
 	err := m.watcher.Watch(m.runPath, func() {
 		m.logger.Debug(fmt.Sprintf("model: watcher callback triggered! File changed: %s", m.runPath))
-		// This callback is called from the watcher's goroutine
-		// Send a message through the channel
 		select {
 		case m.msgChan <- FileChangedMsg{}:
 			m.logger.Debug("model: FileChangedMsg sent to channel")
@@ -412,17 +389,17 @@ func (m *Model) startWatcher() error {
 	return nil
 }
 
-// reloadCharts resets all charts and step counter.
+// reloadCharts resets all charts and reloads data
 func (m *Model) reloadCharts() tea.Cmd {
 	m.step = 0
-	m.isLoading = true // Reset to loading state
+	m.isLoading = true
 
 	m.allCharts = make([]*EpochLineChart, 0)
 	m.chartsByName = make(map[string]*EpochLineChart)
 	m.totalPages = 0
 	m.currentPage = 0
 
-	// Hide sidebars synchronously (no animation)
+	// Hide sidebars
 	if m.sidebar.IsVisible() {
 		m.sidebar.state = SidebarCollapsed
 		m.sidebar.currentWidth = 0
@@ -437,11 +414,36 @@ func (m *Model) reloadCharts() tea.Cmd {
 	// Reset system metrics
 	m.rightSidebar.Reset()
 
-	// Update chart sizes with sidebars hidden
+	// Update chart sizes
 	m.updateChartSizes()
 	m.loadCurrentPage()
 
 	return func() tea.Msg {
 		return ReloadMsg{}
 	}
+}
+
+// clearFocus removes focus from all charts
+func (m *Model) clearFocus() {
+	if m.focusedRow >= 0 && m.focusedCol >= 0 &&
+		m.focusedRow < len(m.charts) && m.focusedCol < len(m.charts[m.focusedRow]) &&
+		m.charts[m.focusedRow][m.focusedCol] != nil {
+		m.charts[m.focusedRow][m.focusedCol].SetFocused(false)
+	}
+}
+
+// navigatePage changes the current page
+func (m *Model) navigatePage(direction int) {
+	if m.totalPages <= 1 {
+		return
+	}
+	m.clearFocus()
+	m.currentPage += direction
+	if m.currentPage < 0 {
+		m.currentPage = m.totalPages - 1
+	} else if m.currentPage >= m.totalPages {
+		m.currentPage = 0
+	}
+	m.loadCurrentPage()
+	m.drawVisibleCharts()
 }

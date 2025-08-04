@@ -63,5 +63,10 @@ type BatchedRecordsMsg struct {
 	Msgs []tea.Msg
 }
 
+// BulkDataMsg contains pre-processed bulk data for efficient loading
+type BulkDataMsg struct {
+	Data *ProcessedData
+}
+
 // ReloadMsg indicates that the Run data should be reloaded
 type ReloadMsg struct{}

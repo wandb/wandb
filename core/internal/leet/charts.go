@@ -3,7 +3,6 @@ package leet
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -43,41 +42,7 @@ func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
 	}
 }
 
-// handleHistoryMsg processes new history data
-func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
-	m.step = msg.Step
-	m.logger.Debug(fmt.Sprintf("model: handling history message for step %d with %d metrics", msg.Step, len(msg.Metrics)))
-
-	for metricName, value := range msg.Metrics {
-		chart, exists := m.chartsByName[metricName]
-		if !exists {
-			// First chart creation - exit loading state
-			if m.isLoading {
-				m.isLoading = false
-				m.logger.Debug("model: exiting loading state - first chart created")
-			}
-
-			availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
-			dims := CalculateChartDimensions(availableWidth, m.height)
-			colorIndex := len(m.allCharts)
-			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, colorIndex, metricName)
-
-			m.allCharts = append(m.allCharts, chart)
-			m.chartsByName[metricName] = chart
-
-			m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
-			m.logger.Debug(fmt.Sprintf("model: created new chart for metric: %s", metricName))
-		}
-		chart.AddDataPoint(value)
-		chart.Draw()
-	}
-
-	m.loadCurrentPage()
-	m.updateChartSizes()
-	return m, nil
-}
-
-// loadCurrentPage loads the charts for the current page into the grid.
+// loadCurrentPage loads the charts for the current page into the grid
 func (m *Model) loadCurrentPage() {
 	m.charts = make([][]*EpochLineChart, GridRows)
 	for row := 0; row < GridRows; row++ {
@@ -94,63 +59,35 @@ func (m *Model) loadCurrentPage() {
 	for row := 0; row < GridRows && idx < endIdx; row++ {
 		for col := 0; col < GridCols && idx < endIdx; col++ {
 			m.charts[row][col] = m.allCharts[idx]
-			if m.charts[row][col] != nil {
-				m.charts[row][col].Draw()
-			}
 			idx++
 		}
 	}
 }
 
-// updateChartSizes updates all chart sizes when window is resized or sidebar toggled.
+// updateChartSizes updates all chart sizes when window is resized or sidebar toggled
 func (m *Model) updateChartSizes() {
-	// First update sidebar dimensions so they know about each other
+	// Update sidebar dimensions
 	m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
 	m.rightSidebar.UpdateDimensions(m.width, m.sidebar.IsVisible())
 
-	// Then calculate available width with updated sidebar widths
+	// Calculate available width
 	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
-	availableHeight := m.height - StatusBarHeight - 1 // -1 for the metrics header
+	availableHeight := m.height - StatusBarHeight - 1
 	dims := CalculateChartDimensions(availableWidth, availableHeight)
 
+	// Resize all charts
 	for _, chart := range m.allCharts {
 		chart.Resize(dims.ChartWidth, dims.ChartHeight)
-		chart.Draw()
+		chart.dirty = true
 	}
 
 	m.loadCurrentPage()
+	m.drawVisibleCharts()
 }
 
-// navigatePage changes the current page.
-func (m *Model) navigatePage(direction int) {
-	if m.totalPages <= 1 {
-		return
-	}
-	m.clearFocus()
-	if direction < 0 {
-		m.currentPage--
-		if m.currentPage < 0 {
-			m.currentPage = m.totalPages - 1
-		}
-	} else {
-		m.currentPage++
-		if m.currentPage >= m.totalPages {
-			m.currentPage = 0
-		}
-	}
-	m.loadCurrentPage()
-}
-
-// clearFocus removes focus from all charts.
-func (m *Model) clearFocus() {
-	if m.focusedRow >= 0 && m.focusedCol >= 0 && m.charts[m.focusedRow][m.focusedCol] != nil {
-		m.charts[m.focusedRow][m.focusedCol].SetFocused(false)
-	}
-}
-
-// renderGrid creates the chart grid view.
+// renderGrid creates the chart grid view
 func (m *Model) renderGrid(dims ChartDimensions) string {
-	// Always build header with navigation info (now always visible when not loading)
+	// Build header
 	header := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("230")).
@@ -177,9 +114,9 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 
 	// Render grid
 	var rows []string
-	for row := range GridRows {
+	for row := 0; row < GridRows; row++ {
 		var cols []string
-		for col := range GridCols {
+		for col := 0; col < GridCols; col++ {
 			cellContent := m.renderGridCell(row, col, dims)
 			cols = append(cols, cellContent)
 		}

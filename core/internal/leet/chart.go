@@ -21,6 +21,7 @@ type EpochLineChart struct {
 	title      string
 	minValue   float64
 	maxValue   float64
+	dirty      bool
 }
 
 // NewEpochLineChart creates a new epoch-based line chart
@@ -28,33 +29,13 @@ func NewEpochLineChart(width, height int, colorIndex int, title string) *EpochLi
 	graphStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(graphColors[colorIndex%len(graphColors)]))
 
-	// Start with X range of 0-20 steps and Y range will be auto-adjusted
 	chart := &EpochLineChart{
 		Model: linechart.New(width, height, 0, 20, 0, 1,
-			linechart.WithXYSteps(4, 5), // More Y steps for better granularity
+			linechart.WithXYSteps(4, 5),
 			linechart.WithAutoXRange(),
-			linechart.WithYLabelFormatter(func(index int, f float64) string {
-				// Custom formatter to handle decimal places properly
-				if f == 0 {
-					return "0"
-				}
-				// For very small numbers, use scientific notation
-				if math.Abs(f) < 0.001 {
-					return fmt.Sprintf("%.1e", f)
-				}
-				// For small numbers, show more decimal places
-				if math.Abs(f) < 0.1 {
-					return fmt.Sprintf("%.4f", f)
-				}
-				// For numbers less than 10, show 2 decimal places
-				if math.Abs(f) < 10 {
-					return fmt.Sprintf("%.2f", f)
-				}
-				// For larger numbers, show 1 decimal place
-				return fmt.Sprintf("%.1f", f)
-			}),
+			linechart.WithYLabelFormatter(formatYLabel),
 		),
-		data:       make([]float64, 0),
+		data:       make([]float64, 0, 1000),
 		graphStyle: graphStyle,
 		maxSteps:   20,
 		focused:    false,
@@ -62,21 +43,58 @@ func NewEpochLineChart(width, height int, colorIndex int, title string) *EpochLi
 		title:      title,
 		minValue:   math.Inf(1),
 		maxValue:   math.Inf(-1),
+		dirty:      false,
 	}
 
-	// Set axis and label styles manually
 	chart.Model.AxisStyle = axisStyle
 	chart.Model.LabelStyle = labelStyle
 
 	return chart
 }
 
-// AddDataPoint adds a new data point for the next step
+// formatYLabel formats Y-axis labels
+func formatYLabel(index int, f float64) string {
+	if f == 0 {
+		return "0"
+	}
+	if math.Abs(f) < 0.001 {
+		return fmt.Sprintf("%.1e", f)
+	}
+	if math.Abs(f) < 0.1 {
+		return fmt.Sprintf("%.4f", f)
+	}
+	if math.Abs(f) < 10 {
+		return fmt.Sprintf("%.2f", f)
+	}
+	return fmt.Sprintf("%.1f", f)
+}
+
+// SetDataBulk sets all data points at once for optimal performance
+func (c *EpochLineChart) SetDataBulk(values []float64) {
+	c.data = make([]float64, len(values))
+	copy(c.data, values)
+
+	// Calculate min/max in one pass
+	c.minValue = math.Inf(1)
+	c.maxValue = math.Inf(-1)
+
+	for _, v := range values {
+		if v < c.minValue {
+			c.minValue = v
+		}
+		if v > c.maxValue {
+			c.maxValue = v
+		}
+	}
+
+	c.updateRanges()
+	c.dirty = true
+}
+
+// AddDataPoint adds a new data point for live updates
 func (c *EpochLineChart) AddDataPoint(value float64) {
 	c.data = append(c.data, value)
-	step := len(c.data)
 
-	// Update min/max values
 	if value < c.minValue {
 		c.minValue = value
 	}
@@ -84,87 +102,93 @@ func (c *EpochLineChart) AddDataPoint(value float64) {
 		c.maxValue = value
 	}
 
-	// Auto-adjust Y range with some padding
-	valueRange := c.maxValue - c.minValue
+	c.updateRanges()
+	c.dirty = true
+}
 
-	// Handle different scales of data appropriately
-	var padding float64
-	if valueRange == 0 {
-		// All values are the same
-		absValue := math.Abs(c.maxValue)
-		switch {
-		case absValue < 0.001:
-			padding = 0.0001 // Very small values
-		case absValue < 0.1:
-			padding = absValue * 0.1 // Small values
-		default:
-			padding = 0.1
-		}
-	} else {
-		padding = valueRange * 0.1
-		// Ensure minimum padding for very small ranges
-		if padding < 1e-6 {
-			padding = 1e-6
-		}
+// updateRanges updates the chart ranges based on current data
+func (c *EpochLineChart) updateRanges() {
+	if len(c.data) == 0 {
+		return
 	}
+
+	step := len(c.data)
+
+	// Calculate Y range with padding
+	valueRange := c.maxValue - c.minValue
+	padding := c.calculatePadding(valueRange)
 
 	newMinY := c.minValue - padding
 	newMaxY := c.maxValue + padding
 
-	// For very small values, ensure we don't go negative if all values are positive
+	// Don't go negative for non-negative data
 	if c.minValue >= 0 && newMinY < 0 {
 		newMinY = 0
 	}
 
-	// Set both the data range and view range
+	// Update Y ranges
 	c.SetYRange(newMinY, newMaxY)
 	c.SetViewYRange(newMinY, newMaxY)
 
-	// Force the chart to recalculate by calling SetXYRange
-	c.Model.SetXYRange(c.MinX(), c.MaxX(), newMinY, newMaxY)
-
 	// Auto-expand X range if needed
 	if step > int(c.MaxX()) {
-		newMax := float64(step + 10) // Expand by 10 steps at a time
+		newMax := float64(((step + 9) / 10) * 10) // Round up to nearest 10
 		c.SetXRange(0, newMax)
 		c.SetViewXRange(0, newMax)
 		c.maxSteps = int(newMax)
-
-		// Update the full range including Y to ensure consistency
-		c.Model.SetXYRange(0, newMax, newMinY, newMaxY)
 	}
+
+	c.Model.SetXYRange(c.MinX(), c.MaxX(), newMinY, newMaxY)
+}
+
+// calculatePadding determines appropriate padding for the Y axis
+func (c *EpochLineChart) calculatePadding(valueRange float64) float64 {
+	if valueRange == 0 {
+		absValue := math.Abs(c.maxValue)
+		switch {
+		case absValue < 0.001:
+			return 0.0001
+		case absValue < 0.1:
+			return absValue * 0.1
+		default:
+			return 0.1
+		}
+	}
+
+	padding := valueRange * 0.1
+	if padding < 1e-6 {
+		padding = 1e-6
+	}
+	return padding
 }
 
 // Reset clears all data
 func (c *EpochLineChart) Reset() {
-	c.data = make([]float64, 0)
+	c.data = make([]float64, 0, 1000)
 	c.SetXRange(0, 20)
 	c.SetViewXRange(0, 20)
 	c.maxSteps = 20
 	c.zoomLevel = 1.0
 	c.minValue = math.Inf(1)
 	c.maxValue = math.Inf(-1)
-	// Don't set a fixed Y range - let it be determined by data
 	c.SetYRange(0, 1)
 	c.SetViewYRange(0, 1)
+	c.dirty = true
 }
 
 // HandleZoom processes zoom events with mouse position
 func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
-	// Zoom factor
-	zoomFactor := 0.1
+	const zoomFactor = 0.1
 
-	// Get current view range
 	viewMin := c.ViewMinX()
 	viewMax := c.ViewMaxX()
 	viewRange := viewMax - viewMin
 
 	// Calculate the step position under the mouse
-	// mouseX is relative to the chart's graph area
 	mouseProportion := float64(mouseX) / float64(c.GraphWidth())
 	stepUnderMouse := viewMin + mouseProportion*viewRange
 
-	// Calculate new range based on zoom direction
+	// Calculate new range
 	var newRange float64
 	if direction == "in" {
 		c.zoomLevel *= (1 - zoomFactor)
@@ -174,7 +198,7 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 		newRange = viewRange * (1 + zoomFactor)
 	}
 
-	// Ensure minimum and maximum zoom levels
+	// Clamp zoom levels
 	if newRange < 5 {
 		newRange = 5
 	}
@@ -182,17 +206,15 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 		newRange = float64(c.maxSteps)
 	}
 
-	// Calculate new min and max, keeping the step under the mouse at the same position
+	// Calculate new bounds keeping mouse position stable
 	newMin := stepUnderMouse - newRange*mouseProportion
 	newMax := stepUnderMouse + newRange*(1-mouseProportion)
 
-	// Ensure we don't go below 0
+	// Clamp to valid range
 	if newMin < 0 {
 		newMin = 0
 		newMax = newRange
 	}
-
-	// Ensure we don't go beyond max steps
 	if newMax > float64(c.maxSteps) {
 		newMax = float64(c.maxSteps)
 		newMin = newMax - newRange
@@ -201,8 +223,8 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 		}
 	}
 
-	// Update view range
 	c.SetViewXRange(newMin, newMax)
+	c.dirty = true
 }
 
 // Draw renders the line chart using Braille patterns
@@ -211,10 +233,27 @@ func (c *EpochLineChart) Draw() {
 	c.DrawXYAxisAndLabel()
 
 	if len(c.data) < 2 {
+		c.dirty = false
 		return
 	}
 
-	// Create braille grid for high-resolution drawing
+	// Calculate visible range
+	viewMinX := int(c.ViewMinX())
+	viewMaxX := int(c.ViewMaxX() + 1)
+
+	if viewMinX < 0 {
+		viewMinX = 0
+	}
+	if viewMaxX > len(c.data) {
+		viewMaxX = len(c.data)
+	}
+
+	if viewMaxX <= viewMinX || viewMaxX-viewMinX < 2 {
+		c.dirty = false
+		return
+	}
+
+	// Create braille grid
 	bGrid := graph.NewBrailleGrid(
 		c.GraphWidth(),
 		c.GraphHeight(),
@@ -222,49 +261,34 @@ func (c *EpochLineChart) Draw() {
 		0, float64(c.GraphHeight()),
 	)
 
-	// Calculate scale factors based on view range
+	// Calculate scale factors
 	xScale := float64(c.GraphWidth()) / (c.ViewMaxX() - c.ViewMinX())
 	yScale := float64(c.GraphHeight()) / (c.ViewMaxY() - c.ViewMinY())
 
-	// Convert data points to braille grid coordinates
-	points := make([]canvas.Float64Point, 0, len(c.data))
-	for i, value := range c.data {
-		// Only include points within the view range
-		stepX := float64(i)
-		if stepX >= c.ViewMinX() && stepX <= c.ViewMaxX() {
-			x := (stepX - c.ViewMinX()) * xScale
-			y := (value - c.ViewMinY()) * yScale
+	// Convert visible data points to canvas coordinates
+	points := make([]canvas.Float64Point, 0, viewMaxX-viewMinX)
+	for i := viewMinX; i < viewMaxX; i++ {
+		x := (float64(i) - c.ViewMinX()) * xScale
+		y := (c.data[i] - c.ViewMinY()) * yScale
 
-			// Clamp to graph bounds
-			if x >= 0 && x <= float64(c.GraphWidth()) && y >= 0 && y <= float64(c.GraphHeight()) {
-				points = append(points, canvas.Float64Point{X: x, Y: y})
-			}
+		if x >= 0 && x <= float64(c.GraphWidth()) && y >= 0 && y <= float64(c.GraphHeight()) {
+			points = append(points, canvas.Float64Point{X: x, Y: y})
 		}
 	}
 
 	if len(points) < 2 {
+		c.dirty = false
 		return
 	}
 
 	// Draw lines between consecutive points
 	for i := 0; i < len(points)-1; i++ {
-		p1 := points[i]
-		p2 := points[i+1]
-
-		// Get braille grid points
-		gp1 := bGrid.GridPoint(p1)
-		gp2 := bGrid.GridPoint(p2)
-
-		// Get all points between p1 and p2 for smooth line
-		linePoints := graph.GetLinePoints(gp1, gp2)
-
-		// Set all points in the braille grid
-		for _, p := range linePoints {
-			bGrid.Set(p)
-		}
+		gp1 := bGrid.GridPoint(points[i])
+		gp2 := bGrid.GridPoint(points[i+1])
+		drawLine(bGrid, gp1, gp2)
 	}
 
-	// Get braille patterns and draw them
+	// Render braille patterns
 	startX := 0
 	if c.YStep() > 0 {
 		startX = c.Origin().X + 1
@@ -275,6 +299,59 @@ func (c *EpochLineChart) Draw() {
 		canvas.Point{X: startX, Y: 0},
 		patterns,
 		c.graphStyle)
+
+	c.dirty = false
+}
+
+// drawLine draws a line using Bresenham's algorithm
+func drawLine(bGrid *graph.BrailleGrid, p1, p2 canvas.Point) {
+	dx := abs(p2.X - p1.X)
+	dy := abs(p2.Y - p1.Y)
+
+	sx := 1
+	if p1.X > p2.X {
+		sx = -1
+	}
+
+	sy := 1
+	if p1.Y > p2.Y {
+		sy = -1
+	}
+
+	err := dx - dy
+	x, y := p1.X, p1.Y
+
+	for {
+		bGrid.Set(canvas.Point{X: x, Y: y})
+
+		if x == p2.X && y == p2.Y {
+			break
+		}
+
+		e2 := 2 * err
+		if e2 > -dy {
+			err -= dy
+			x += sx
+		}
+		if e2 < dx {
+			err += dx
+			y += sy
+		}
+	}
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// DrawIfNeeded only draws if the chart is marked as dirty
+func (c *EpochLineChart) DrawIfNeeded() {
+	if c.dirty {
+		c.Draw()
+	}
 }
 
 // Title returns the chart title

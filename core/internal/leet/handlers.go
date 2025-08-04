@@ -2,6 +2,8 @@ package leet
 
 import (
 	"fmt"
+	"sort"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wandb/wandb/core/internal/runenvironment"
@@ -10,9 +12,13 @@ import (
 // processRecordMsg handles messages that carry data from the .wandb file.
 func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case BulkDataMsg:
+		return m.handleBulkData(msg.Data)
+
 	case HistoryMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing HistoryMsg with step %d", msg.Step))
 		return m.handleHistoryMsg(msg)
+
 	case RunMsg:
 		m.logger.Debug("model: processing RunMsg")
 		m.runOverview.ID = msg.ID
@@ -26,9 +32,11 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 			m.runOverview.Config = m.runConfig.CloneTree()
 		}
 		m.sidebar.SetRunOverview(m.runOverview)
+
 	case StatsMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
 		m.rightSidebar.ProcessStatsMsg(msg)
+
 	case SystemInfoMsg:
 		m.logger.Debug("model: processing SystemInfoMsg")
 		if m.runEnvironment == nil {
@@ -37,21 +45,21 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 		m.runEnvironment.ProcessRecord(msg.Record)
 		m.runOverview.Environment = m.runEnvironment.ToRunConfigData()
 		m.sidebar.SetRunOverview(m.runOverview)
+
 	case SummaryMsg:
 		m.logger.Debug("model: processing SummaryMsg")
 		for _, update := range msg.Summary.Update {
 			err := m.runSummary.SetFromRecord(update)
 			if err != nil {
-				m.logger.Error(
-					fmt.Sprintf("model: error processing summary: %v", err))
+				m.logger.Error(fmt.Sprintf("model: error processing summary: %v", err))
 			}
 		}
-
 		for _, remove := range msg.Summary.Remove {
 			m.runSummary.RemoveFromRecord(remove)
 		}
 		m.runOverview.Summary = m.runSummary.ToNestedMaps()
 		m.sidebar.SetRunOverview(m.runOverview)
+
 	case FileCompleteMsg:
 		m.logger.Debug("model: processing FileCompleteMsg - file is complete!")
 		if !m.fileComplete {
@@ -62,24 +70,188 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 			default:
 				m.runState = RunStateFailed
 			}
-
-			// Stop the watcher
 			if m.watcherStarted {
 				m.logger.Debug("model: finishing watcher")
 				m.watcher.Finish()
 			}
 		}
+
 	case ErrorMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
 		m.fileComplete = true
 		m.runState = RunStateFailed
-		// Stop the watcher
 		if m.watcherStarted {
 			m.logger.Debug("model: finishing watcher due to error")
 			m.watcher.Finish()
 		}
 	}
+
 	return m, nil
+}
+
+// handleBulkData processes bulk loaded data efficiently
+func (m *Model) handleBulkData(data *ProcessedData) (*Model, tea.Cmd) {
+	startTime := time.Now()
+
+	// Process run info
+	if data.RunInfo != nil {
+		m.runOverview.ID = data.RunInfo.ID
+		m.runOverview.DisplayName = data.RunInfo.DisplayName
+		m.runOverview.Project = data.RunInfo.Project
+	}
+
+	// Process config, summary, and environment
+	if data.Config != nil {
+		m.runConfig = data.Config
+		m.runOverview.Config = m.runConfig.CloneTree()
+	}
+	if data.SummaryData != nil {
+		m.runSummary = data.SummaryData
+		m.runOverview.Summary = m.runSummary.ToNestedMaps()
+	}
+	if data.Environment != nil {
+		m.runEnvironment = data.Environment
+		m.runOverview.Environment = m.runEnvironment.ToRunConfigData()
+	}
+
+	// Update sidebar
+	m.sidebar.SetRunOverview(m.runOverview)
+
+	// Process system stats
+	for _, stats := range data.Stats {
+		m.rightSidebar.ProcessStatsMsg(stats)
+	}
+
+	// Process history data
+	if len(data.HistoryByStep) > 0 {
+		m.loadHistoryDataBulk(data.HistoryByStep)
+	}
+
+	// Update run state
+	if data.FileComplete {
+		m.fileComplete = true
+		if data.ExitCode == 0 {
+			m.runState = RunStateFinished
+		} else {
+			m.runState = RunStateFailed
+		}
+	}
+
+	m.logger.Debug(fmt.Sprintf("Bulk data processed in %v", time.Since(startTime)))
+	return m, nil
+}
+
+// loadHistoryDataBulk efficiently loads all history data at once
+func (m *Model) loadHistoryDataBulk(historyData map[int]map[string]float64) {
+	// Get all unique metric names
+	metricNames := make(map[string]bool)
+	maxStep := 0
+
+	for step, metrics := range historyData {
+		if step > maxStep {
+			maxStep = step
+		}
+		for metricName := range metrics {
+			metricNames[metricName] = true
+		}
+	}
+
+	// Create charts for all metrics
+	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
+	dims := CalculateChartDimensions(availableWidth, m.height)
+
+	for metricName := range metricNames {
+		if _, exists := m.chartsByName[metricName]; !exists {
+			colorIndex := len(m.allCharts)
+			chart := NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, colorIndex, metricName)
+			m.allCharts = append(m.allCharts, chart)
+			m.chartsByName[metricName] = chart
+		}
+	}
+
+	// Sort steps for consistent ordering
+	steps := make([]int, 0, len(historyData))
+	for step := range historyData {
+		steps = append(steps, step)
+	}
+	sort.Ints(steps)
+
+	// Prepare data for each metric
+	metricData := make(map[string][]float64)
+	for metricName := range metricNames {
+		metricData[metricName] = make([]float64, 0, len(steps))
+	}
+
+	// Fill in values in order
+	for _, step := range steps {
+		metrics := historyData[step]
+		for metricName := range metricNames {
+			if value, exists := metrics[metricName]; exists {
+				metricData[metricName] = append(metricData[metricName], value)
+			}
+		}
+	}
+
+	// Set bulk data for each chart
+	for metricName, values := range metricData {
+		if chart, exists := m.chartsByName[metricName]; exists {
+			chart.SetDataBulk(values)
+		}
+	}
+
+	// Update state
+	m.step = maxStep
+	m.isLoading = false
+	m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
+
+	// Load current page and draw visible charts
+	m.loadCurrentPage()
+	m.drawVisibleCharts()
+}
+
+// handleHistoryMsg processes new history data for live updates
+func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
+	m.step = msg.Step
+
+	// Exit loading state on first data
+	if m.isLoading && len(msg.Metrics) > 0 {
+		m.isLoading = false
+	}
+
+	// Add data points to existing charts or create new ones
+	for metricName, value := range msg.Metrics {
+		chart, exists := m.chartsByName[metricName]
+		if !exists {
+			availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width()
+			dims := CalculateChartDimensions(availableWidth, m.height)
+			colorIndex := len(m.allCharts)
+			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, colorIndex, metricName)
+
+			m.allCharts = append(m.allCharts, chart)
+			m.chartsByName[metricName] = chart
+			m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
+		}
+		chart.AddDataPoint(value)
+	}
+
+	// Only reload page if we created new charts
+	if len(msg.Metrics) > 0 {
+		m.loadCurrentPage()
+		m.drawVisibleCharts()
+	}
+
+	return m, nil
+}
+
+// drawVisibleCharts only draws charts that are currently visible
+func (m *Model) drawVisibleCharts() {
+	for row := 0; row < GridRows; row++ {
+		for col := 0; col < GridCols; col++ {
+			if row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
+				m.charts[row][col].DrawIfNeeded()
+			}
+		}
+	}
 }
 
 // handleMouseMsg processes mouse events
@@ -88,13 +260,8 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Check if mouse is in left sidebar
-	if msg.X < m.sidebar.Width() {
-		return m, nil
-	}
-
-	// Check if mouse is in right sidebar
-	if msg.X >= m.width-m.rightSidebar.Width() {
+	// Check if mouse is in sidebars
+	if msg.X < m.sidebar.Width() || msg.X >= m.width-m.rightSidebar.Width() {
 		return m, nil
 	}
 
@@ -129,7 +296,7 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 			case tea.MouseButtonWheelDown:
 				chart.HandleZoom("out", relativeMouseX)
 			}
-			chart.Draw()
+			chart.DrawIfNeeded()
 		}
 	}
 
@@ -140,13 +307,12 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlB:
-		// Update the sidebar's expanded width before toggling
 		m.sidebar.UpdateExpandedWidth(m.width, m.rightSidebar.IsVisible())
 		m.sidebar.Toggle()
 		m.updateChartSizes()
 		return m, m.sidebar.animationCmd()
+
 	case tea.KeyCtrlN:
-		// Update the right sidebar's expanded width before toggling
 		m.rightSidebar.UpdateExpandedWidth(m.width, m.sidebar.IsVisible())
 		m.rightSidebar.Toggle()
 		m.updateChartSizes()
@@ -157,6 +323,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	case "h", "?":
 		m.help.Toggle()
 		return m, nil
+
 	case "q", "ctrl+c":
 		m.logger.Debug("model: quit requested")
 		if m.reader != nil {
@@ -166,45 +333,48 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 			m.logger.Debug("model: finishing watcher on quit")
 			m.watcher.Finish()
 		}
-		close(m.msgChan) // Clean up the channel
+		close(m.msgChan)
 		return m, tea.Quit
+
 	case "r":
 		return m, m.reloadCharts()
+
 	case "pgup":
 		m.navigatePage(-1)
+
 	case "pgdown":
 		m.navigatePage(1)
 	}
+
 	return m, nil
 }
 
-// handleOther handles remaining message types.
+// handleOther handles remaining message types
 func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.MouseMsg:
-		newModel, cmd := m.handleMouseMsg(msg)
-		if cmd != nil {
-			return newModel, cmd
-		}
-		return m, nil
+		return m.handleMouseMsg(msg)
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.help.SetSize(msg.Width, msg.Height)
-		// Update both sidebars with awareness of each other
 		m.sidebar.UpdateDimensions(msg.Width, m.rightSidebar.IsVisible())
 		m.rightSidebar.UpdateDimensions(msg.Width, m.sidebar.IsVisible())
 		m.updateChartSizes()
+
 	case SidebarAnimationMsg:
 		if m.sidebar.IsAnimating() {
 			m.updateChartSizes()
 			return m, m.sidebar.animationCmd()
 		}
+
 	case RightSidebarAnimationMsg:
 		if m.rightSidebar.IsAnimating() {
 			m.updateChartSizes()
 			return m, m.rightSidebar.animationCmd()
 		}
 	}
+
 	return m, nil
 }

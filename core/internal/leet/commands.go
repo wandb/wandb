@@ -17,8 +17,19 @@ func InitializeReader(runPath string) tea.Cmd {
 	}
 }
 
+// ReadAllDataOptimized creates a command to read all data using bulk processing
+func ReadAllDataOptimized(reader *WandbReader) tea.Cmd {
+	return func() tea.Msg {
+		data, err := reader.ReadAllDataOptimized()
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
+		return BulkDataMsg{Data: data}
+	}
+}
+
 // ReadAvailableRecords reads all available records from the reader until a
-// temporary EOF is reached.
+// temporary EOF is reached. Used for live monitoring.
 func ReadAvailableRecords(reader *WandbReader) tea.Cmd {
 	return func() tea.Msg {
 		var msgs []tea.Msg
@@ -35,7 +46,7 @@ func ReadAvailableRecords(reader *WandbReader) tea.Cmd {
 		if len(msgs) > 0 {
 			return BatchedRecordsMsg{Msgs: msgs}
 		}
-		return nil // No new messages
+		return nil
 	}
 }
 
