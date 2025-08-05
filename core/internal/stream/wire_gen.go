@@ -72,7 +72,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		FileReadDelay: fileReadDelay,
 	}
 	tbHandler := tensorboard.NewTBHandler(params)
-	recordParser := &RecordParser{
+	streamRecordParser := &recordParser{
 		BeforeRunEndCtx:    context,
 		FeatureProvider:    serverFeaturesCache,
 		GraphqlClientOrNil: client,
@@ -105,7 +105,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		RunWork:             runWork,
 	}
 	sender := NewSender(senderParams)
-	stream := NewStream(clientID, debugCorePath, serverFeaturesCache, client, handler, streamStreamLoggerFile, coreLogger, wandbOperations, recordParser, runWork, sender, sentry, settings2, streamRun)
+	stream := NewStream(clientID, debugCorePath, serverFeaturesCache, client, handler, streamStreamLoggerFile, coreLogger, wandbOperations, streamRecordParser, runWork, sender, sentry, settings2, streamRun)
 	return stream
 }
 
@@ -116,7 +116,7 @@ var (
 // streaminject.go:
 
 var streamProviders = wire.NewSet(
-	NewStream, wire.Bind(new(runwork.ExtraWork), new(runwork.RunWork)), wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), wire.Struct(new(RecordParser), "*"), featurechecker.NewServerFeaturesCache, filetransfer.NewFileTransferStats, handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewBackend,
+	NewStream, wire.Bind(new(runwork.ExtraWork), new(runwork.RunWork)), wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filetransfer.NewFileTransferStats, handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewBackend,
 	NewFileStream,
 	NewFileTransferManager,
 	NewGraphQLClient,
@@ -124,6 +124,7 @@ var streamProviders = wire.NewSet(
 	NewStreamRun, observability.NewPrinter, provideFileWatcher,
 	provideRunContext,
 	provideStreamRunWork,
+	RecordParserProviders,
 	senderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations,
 )
 

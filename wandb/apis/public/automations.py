@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class Automations(Paginator["Automation"]):
-    """An iterable collection of `Automation` objects.
+    """An lazy iterator of `Automation` objects.
 
     <!-- lazydoc-ignore-init: internal -->
     """

@@ -1735,7 +1735,7 @@ class Api:
         organization: Optional[str] = None,
         filter: Optional[Dict[str, Any]] = None,
     ) -> Registries:
-        """Returns a Registry iterator.
+        """Returns a lazy iterator of `Registry` objects.
 
         Use the iterator to search and filter registries, collections,
         or artifact versions across your organization's registry.
@@ -1743,7 +1743,7 @@ class Api:
         Args:
             organization: (str, optional) The organization of the registry to fetch.
                 If not specified, use the organization specified in the user's settings.
-            filter: (dict, optional) MongoDB-style filter to apply to each object in the registry iterator.
+            filter: (dict, optional) MongoDB-style filter to apply to each object in the lazy registry iterator.
                 Fields available to filter for registries are
                     `name`, `description`, `created_at`, `updated_at`.
                 Fields available to filter for collections are
@@ -1752,7 +1752,7 @@ class Api:
                     `tag`, `alias`, `created_at`, `updated_at`, `metadata`
 
         Returns:
-            A registry iterator.
+            A lazy iterator of `Registry` objects.
 
         Examples:
         Find all registries with the names that contain "model"
