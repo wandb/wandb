@@ -101,7 +101,7 @@ func (r *WandbReader) tryReopenStore() error {
 
 	// Reset to last known good position if we have one
 	if r.lastGoodOffset > 0 {
-		r.store.SeekToOffset(r.lastGoodOffset)
+		_ = r.store.SeekToOffset(r.lastGoodOffset)
 	} else {
 		r.lastGoodOffset = r.store.GetCurrentOffset()
 		if r.lastGoodOffset < 0 {
@@ -218,7 +218,7 @@ func (r *WandbReader) ReadNext() (tea.Msg, error) {
 				if err != nil {
 					// Still failing, seek to last known good
 					if r.lastGoodOffset > 0 && r.lastGoodOffset < beforeReadOffset {
-						r.store.SeekToOffset(r.lastGoodOffset)
+						_ = r.store.SeekToOffset(r.lastGoodOffset)
 					}
 					return nil, err
 				}
