@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -85,23 +86,32 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	fileStream := NewFileStream(backend, coreLogger, wandbOperations, printer, settings2, peeker, clientID)
 	fileTransferManager := NewFileTransferManager(fileTransferStats, coreLogger, settings2)
 	watcher := provideFileWatcher(coreLogger)
-	uploader := NewRunfilesUploader(runWork, coreLogger, wandbOperations, settings2, fileStream, fileTransferManager, watcher, client)
+	uploaderFactory := &runfiles.UploaderFactory{
+		ExtraWork:    runWork,
+		FileStream:   fileStream,
+		FileTransfer: fileTransferManager,
+		FileWatcher:  watcher,
+		GraphQL:      client,
+		Logger:       coreLogger,
+		Operations:   wandbOperations,
+		Settings:     settings2,
+	}
 	senderFactory := &SenderFactory{
-		Logger:              coreLogger,
-		Operations:          wandbOperations,
-		Settings:            settings2,
-		Backend:             backend,
-		FeatureProvider:     serverFeaturesCache,
-		FileStream:          fileStream,
-		FileTransferManager: fileTransferManager,
-		FileTransferStats:   fileTransferStats,
-		FileWatcher:         watcher,
-		RunfilesUploader:    uploader,
-		GraphqlClient:       client,
-		Peeker:              peeker,
-		StreamRun:           streamRun,
-		Mailbox:             mailboxMailbox,
-		RunWork:             runWork,
+		Logger:                  coreLogger,
+		Operations:              wandbOperations,
+		Settings:                settings2,
+		Backend:                 backend,
+		FeatureProvider:         serverFeaturesCache,
+		FileStream:              fileStream,
+		FileTransferManager:     fileTransferManager,
+		FileTransferStats:       fileTransferStats,
+		FileWatcher:             watcher,
+		RunfilesUploaderFactory: uploaderFactory,
+		GraphqlClient:           client,
+		Peeker:                  peeker,
+		StreamRun:               streamRun,
+		Mailbox:                 mailboxMailbox,
+		RunWork:                 runWork,
 	}
 	writerFactory := &WriterFactory{
 		Logger:   coreLogger,
@@ -122,12 +132,10 @@ var streamProviders = wire.NewSet(
 	NewFileStream,
 	NewFileTransferManager,
 	NewGraphQLClient,
-	NewRunfilesUploader,
 	NewStreamRun, observability.NewPrinter, provideFileWatcher,
 	provideRunContext,
 	provideStreamRunWork,
-	RecordParserProviders,
-	senderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, writerProviders,
+	RecordParserProviders, runfiles.UploaderProviders, senderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, writerProviders,
 )
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
