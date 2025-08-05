@@ -347,7 +347,8 @@ func (m *Model) renderLoadingScreen() string {
 func (m *Model) renderStatusBar() string {
 	// Left side content
 	statusText := ""
-	if m.waitingForConfigKey {
+	switch {
+	case m.waitingForConfigKey:
 		// Show config hint
 		switch m.configKeyType {
 		case "c":
@@ -359,9 +360,9 @@ func (m *Model) renderStatusBar() string {
 		case "R":
 			statusText = " Press 1-9 to set system rows (ESC to cancel)"
 		}
-	} else if m.isLoading {
+	case m.isLoading:
 		statusText = " Loading data..."
-	} else {
+	default:
 		switch m.runState {
 		case RunStateRunning:
 			statusText = " State: Running"
