@@ -30,13 +30,9 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// TBHandlerProviders bind Params and NewTBHandler.
-//
-// FileReadDelay is bound to nil to use the default one.
+// TBHandlerProviders binds TBHandlerFactory.
 var TBHandlerProviders = wire.NewSet(
-	NewTBHandler,
-	wire.Struct(new(Params), "*"),
-	wire.InterfaceValue(new(FileReadDelay), FileReadDelay(nil)),
+	wire.Struct(new(TBHandlerFactory), "*"),
 )
 
 // TBHandler saves TensorBoard data with the run.
@@ -62,26 +58,20 @@ type TBHandler struct {
 	streams []*tfEventStream
 }
 
-type FileReadDelay waiting.Delay
-
-type Params struct {
-	ExtraWork     runwork.ExtraWork
-	Logger        *observability.CoreLogger
-	Settings      *settings.Settings
-	FileReadDelay FileReadDelay
+// TBHandlerFactory constructs a TBHandler.
+type TBHandlerFactory struct {
+	ExtraWork runwork.ExtraWork
+	Logger    *observability.CoreLogger
+	Settings  *settings.Settings
 }
 
-func NewTBHandler(params Params) *TBHandler {
-	if params.FileReadDelay == nil {
-		params.FileReadDelay = waiting.NewDelay(5 * time.Second)
-	}
-
+func (f *TBHandlerFactory) New(fileReadDelay waiting.Delay) *TBHandler {
 	tb := &TBHandler{
-		rootDirGuesser: NewRootDirGuesser(params.Logger),
-		extraWork:      params.ExtraWork,
-		logger:         params.Logger,
-		settings:       params.Settings,
-		fileReadDelay:  params.FileReadDelay,
+		rootDirGuesser: NewRootDirGuesser(f.Logger),
+		extraWork:      f.ExtraWork,
+		logger:         f.Logger,
+		settings:       f.Settings,
+		fileReadDelay:  fileReadDelay,
 
 		streams: make([]*tfEventStream, 0),
 	}
