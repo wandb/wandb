@@ -9,6 +9,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -27,7 +28,7 @@ type RecordParser struct {
 	Run                *StreamRun
 	TBHandler          *tensorboard.TBHandler
 
-	ClientID string
+	ClientID sharedmode.ClientID
 	Settings *settings.Settings
 }
 
@@ -46,7 +47,7 @@ func (p *RecordParser) Parse(record *spb.Record) runwork.Work {
 			FeatureProvider:    p.FeatureProvider,
 			GraphqlClientOrNil: p.GraphqlClientOrNil,
 			Logger:             p.Logger,
-			ClientID:           p.ClientID,
+			ClientID:           string(p.ClientID),
 		}
 
 	case record.GetTbrecord() != nil:

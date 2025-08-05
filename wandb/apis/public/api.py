@@ -313,6 +313,7 @@ class Api:
                     self.settings.get("silent", False)
                     or self.settings.get("quiet", False)
                 ),
+                update_api_key=False,
             )
 
         self._viewer = None
@@ -1141,8 +1142,8 @@ class Api:
                 For example: `{"config.experiment_name": "foo"}` would find runs with a config entry
                     of experiment name set to "foo"
             order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
-                If you prepend order with a + order is ascending.
-                If you prepend order with a - order is descending (default).
+                If you prepend order with a + order is ascending (default).
+                If you prepend order with a - order is descending.
                 The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
             include_sweeps: (bool) Whether to include the sweep runs in the results.
@@ -1743,7 +1744,7 @@ class Api:
             organization: (str, optional) The organization of the registry to fetch.
                 If not specified, use the organization specified in the user's settings.
             filter: (dict, optional) MongoDB-style filter to apply to each object in the registry iterator.
-                Fields available to filter for collections are
+                Fields available to filter for registries are
                     `name`, `description`, `created_at`, `updated_at`.
                 Fields available to filter for collections are
                     `name`, `tag`, `description`, `created_at`, `updated_at`

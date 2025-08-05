@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -27,6 +28,15 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+)
+
+// TBHandlerProviders bind Params and NewTBHandler.
+//
+// FileReadDelay is bound to nil to use the default one.
+var TBHandlerProviders = wire.NewSet(
+	NewTBHandler,
+	wire.Struct(new(Params), "*"),
+	wire.InterfaceValue(new(FileReadDelay), FileReadDelay(nil)),
 )
 
 // TBHandler saves TensorBoard data with the run.
@@ -52,13 +62,13 @@ type TBHandler struct {
 	streams []*tfEventStream
 }
 
+type FileReadDelay waiting.Delay
+
 type Params struct {
-	runwork.ExtraWork
-
-	Logger   *observability.CoreLogger
-	Settings *settings.Settings
-
-	FileReadDelay waiting.Delay
+	ExtraWork     runwork.ExtraWork
+	Logger        *observability.CoreLogger
+	Settings      *settings.Settings
+	FileReadDelay FileReadDelay
 }
 
 func NewTBHandler(params Params) *TBHandler {

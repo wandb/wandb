@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import mmap
 import sys
+import time
 from typing import TYPE_CHECKING, NewType
 
 from wandb.sdk.lib.paths import StrPath
@@ -14,6 +16,8 @@ if TYPE_CHECKING:
 ETag = NewType("ETag", str)
 HexMD5 = NewType("HexMD5", str)
 B64MD5 = NewType("B64MD5", str)
+
+logger = logging.getLogger(__name__)
 
 
 def _md5(data: bytes = b"") -> _hashlib.HASH:
@@ -44,7 +48,16 @@ def hex_to_b64_id(encoded_string: str | bytes) -> B64MD5:
 
 
 def md5_file_b64(*paths: StrPath) -> B64MD5:
-    return _b64_from_hasher(_md5_file_hasher(*paths))
+    start_time = time.monotonic()
+    digest = _b64_from_hasher(_md5_file_hasher(*paths))
+    hash_time_seconds = time.monotonic() - start_time
+    if hash_time_seconds > 1.0:
+        logger.debug(
+            "Computed MD5 hash for file. paths=%s, hashTimeMs=%d",
+            paths,
+            int(hash_time_seconds * 1000),
+        )
+    return digest
 
 
 def md5_file_hex(*paths: StrPath) -> HexMD5:

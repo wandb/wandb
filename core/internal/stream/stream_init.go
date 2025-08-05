@@ -20,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -92,13 +93,12 @@ func NewGraphQLClient(
 	backend *api.Backend,
 	settings *settings.Settings,
 	peeker *observability.Peeker,
-	// clientID is an ID for this process.
-	//
-	// This identifies the process that uploaded a set of metrics when
-	// running in "shared" mode, where there may be multiple writers for
-	// the same run.
-	clientID string,
+	clientID sharedmode.ClientID,
 ) graphql.Client {
+	if settings.IsOffline() {
+		return nil
+	}
+
 	// TODO: This is used for the service account feature to associate the run
 	// with the specified user. Note that we are using environment variables
 	// here, instead of the settings object (which is ideally would be the only
@@ -120,7 +120,7 @@ func NewGraphQLClient(
 	// simultaneously for the same run ID in shared mode.
 	if settings.IsSharedMode() {
 		graphqlHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
-		graphqlHeaders["X-WANDB-CLIENT-ID"] = clientID
+		graphqlHeaders["X-WANDB-CLIENT-ID"] = string(clientID)
 	}
 	// When enabled, this header instructs the backend to compute the derived summary
 	// using history updates, instead of relying on the SDK to calculate and send it.
@@ -165,18 +165,17 @@ func NewFileStream(
 	printer *observability.Printer,
 	settings *settings.Settings,
 	peeker api.Peeker,
-	// clientID is an ID for this process.
-	//
-	// This identifies the process that uploaded a set of metrics when
-	// running in "shared" mode, where there may be multiple writers for
-	// the same run.
-	clientID string,
+	clientID sharedmode.ClientID,
 ) filestream.FileStream {
+	if settings.IsOffline() {
+		return nil
+	}
+
 	fileStreamHeaders := map[string]string{}
 	maps.Copy(fileStreamHeaders, settings.GetExtraHTTPHeaders())
 	if settings.IsSharedMode() {
 		fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
-		fileStreamHeaders["X-WANDB-ASYNC-CLIENT-ID"] = clientID
+		fileStreamHeaders["X-WANDB-ASYNC-CLIENT-ID"] = string(clientID)
 	}
 	if settings.IsEnableServerSideDerivedSummary() {
 		fileStreamHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
@@ -228,6 +227,10 @@ func NewFileTransferManager(
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
 ) filetransfer.FileTransferManager {
+	if settings.IsOffline() {
+		return nil
+	}
+
 	fileTransferRetryClient := retryablehttp.NewClient()
 	fileTransferRetryClient.Logger = logger
 	fileTransferRetryClient.CheckRetry = filetransfer.FileTransferRetryPolicy
@@ -295,6 +298,10 @@ func NewRunfilesUploader(
 	fileWatcher watcher.Watcher,
 	graphQL graphql.Client,
 ) runfiles.Uploader {
+	if settings.IsOffline() {
+		return nil
+	}
+
 	return runfiles.NewUploader(runfiles.UploaderParams{
 		ExtraWork:    extraWork,
 		Logger:       logger,

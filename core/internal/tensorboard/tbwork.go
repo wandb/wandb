@@ -11,7 +11,6 @@ import (
 
 // TBWork makes the TensorBoard integration watch a TB logging directory.
 type TBWork struct {
-	runwork.NotASentinelMixin
 	runwork.AlwaysAcceptMixin
 	runwork.NoopProcessMixin
 
@@ -31,18 +30,16 @@ type TBWork struct {
 // The right way to think about the TensorBoard integration is to pretend it
 // exists entirely in the client: the Schedule step can be viewed as something
 // that happens in the client itself.
-func (w *TBWork) Schedule(wg *sync.WaitGroup, process func()) {
+func (w *TBWork) Schedule(wg *sync.WaitGroup, proceed func()) {
 	err := w.TBHandler.Handle(w.Record.GetTbrecord())
 	if err != nil {
 		w.Logger.CaptureError(err)
 	}
-	process()
+	proceed()
 }
 
-// Save implements Work.Save.
-func (w *TBWork) Save(write func(*spb.Record)) {
-	write(w.Record)
-}
+// ToRecord implements Work.ToRecord.
+func (w *TBWork) ToRecord() *spb.Record { return w.Record }
 
 // DebugInfo implements Work.DebugInfo
 func (w *TBWork) DebugInfo() string {
