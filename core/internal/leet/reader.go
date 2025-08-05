@@ -19,67 +19,153 @@ type WandbReader struct {
 	exitSeen       bool
 	exitCode       int32
 	lastGoodOffset int64
+	filepath       string
 }
 
 // NewWandbReader creates a new wandb file reader.
 func NewWandbReader(runPath string) (*WandbReader, error) {
 	// Check if file exists
-	if _, err := os.Stat(runPath); os.IsNotExist(err) {
+	info, err := os.Stat(runPath)
+	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("wandb file not found: %s", runPath)
 	}
 
 	store := stream.NewStore(runPath)
-	err := store.Open(os.O_RDONLY)
 
-	// If we get a header EOF error, the file exists but is empty - that's OK
-	if err != nil && !strings.Contains(err.Error(), "failed to read header: EOF") {
-		return nil, err
-	}
-
-	initialOffset := store.GetCurrentOffset()
-	if initialOffset < 0 {
-		initialOffset = 0
-	}
-
-	return &WandbReader{
+	reader := &WandbReader{
 		store:          store,
+		filepath:       runPath,
 		exitSeen:       false,
-		lastGoodOffset: initialOffset,
-	}, nil
+		lastGoodOffset: 0,
+	}
+
+	// Check if file is too small for header (7 bytes minimum)
+	if info.Size() < 7 {
+		// File is too small, but might grow later (for live monitoring)
+		return reader, nil
+	}
+
+	// Try to open the store for reading
+	err = store.Open(os.O_RDONLY)
+	if err != nil {
+		// If the error is about header verification, the file might be incomplete
+		if strings.Contains(err.Error(), "VerifyWandbHeader") ||
+			strings.Contains(err.Error(), "invalid W&B") ||
+			strings.Contains(err.Error(), "EOF") {
+			// File exists but header is not valid yet
+			// Close the store and we'll retry later
+			store.Close()
+			reader.store = nil
+			return reader, nil
+		}
+		return nil, fmt.Errorf("failed to open store: %w", err)
+	}
+
+	// Get initial offset after header (should be 7 for W&B files)
+	initialOffset := store.GetCurrentOffset()
+	if initialOffset > 0 {
+		reader.lastGoodOffset = initialOffset
+	} else {
+		reader.lastGoodOffset = 7 // Default to after header
+	}
+
+	return reader, nil
+}
+
+// tryReopenStore attempts to reopen the store if it's not open
+func (r *WandbReader) tryReopenStore() error {
+	if r.store != nil {
+		return nil // Already open
+	}
+
+	// Check if file now has enough bytes for header
+	info, err := os.Stat(r.filepath)
+	if err != nil {
+		return err
+	}
+
+	if info.Size() < 7 {
+		return fmt.Errorf("file too small for header")
+	}
+
+	// Create new store if needed
+	if r.store == nil {
+		r.store = stream.NewStore(r.filepath)
+	}
+
+	// Try to open the store
+	err = r.store.Open(os.O_RDONLY)
+	if err != nil {
+		return err
+	}
+
+	// Reset to last known good position if we have one
+	if r.lastGoodOffset > 0 {
+		r.store.SeekToOffset(r.lastGoodOffset)
+	} else {
+		r.lastGoodOffset = r.store.GetCurrentOffset()
+		if r.lastGoodOffset < 0 {
+			r.lastGoodOffset = 7 // Default to after header
+		}
+	}
+
+	return nil
 }
 
 // ReadAllRecords reads all available records from the file.
 func (r *WandbReader) ReadAllRecords() ([]*spb.Record, error) {
 	var records []*spb.Record
 
+	// Try to open store if not already open
+	if err := r.tryReopenStore(); err != nil {
+		// If we can't open the store, return empty records
+		return records, nil
+	}
+
+	if r.store == nil {
+		return records, nil
+	}
+
 	for {
+		// Save position before attempting read
+		currentPos := r.store.GetCurrentOffset()
+
 		record, err := r.store.Read()
 
 		if err == io.EOF {
-			r.lastGoodOffset = r.store.GetCurrentOffset()
-			if r.lastGoodOffset < 0 {
-				r.lastGoodOffset = 0
+			// Update last good offset to current position
+			if currentPos > 0 {
+				r.lastGoodOffset = currentPos
 			}
 			break
 		}
 
 		if err != nil {
-			// Empty file with no header yet - that's OK
-			if strings.Contains(err.Error(), "failed to read header: EOF") {
-				r.lastGoodOffset = 0
-				break
+			// Error reading record - it might be incomplete
+			// Recover and try to continue from next block
+			r.store.Recover()
+
+			// Try one more read after recovery
+			record, err = r.store.Read()
+			if err != nil {
+				// Still failing, update last good position and continue
+				if currentPos > 0 && currentPos > r.lastGoodOffset {
+					r.lastGoodOffset = currentPos
+				}
+				continue
 			}
-			continue
 		}
 
 		if record != nil {
 			records = append(records, record)
 
-			currentOffset := r.store.GetCurrentOffset()
-			if currentOffset > 0 {
-				r.lastGoodOffset = currentOffset
+			// Update last good offset after successful read
+			newPos := r.store.GetCurrentOffset()
+			if newPos > 0 {
+				r.lastGoodOffset = newPos
 			}
 
+			// Check for exit record
 			if exit, ok := record.RecordType.(*spb.Record_Exit); ok {
 				r.exitSeen = true
 				r.exitCode = exit.Exit.ExitCode
@@ -92,39 +178,76 @@ func (r *WandbReader) ReadAllRecords() ([]*spb.Record, error) {
 
 // ReadNext reads the next record for live monitoring.
 func (r *WandbReader) ReadNext() (tea.Msg, error) {
-	// Always try to read first
+	// Try to open store if not already open (for files that are being written)
+	if err := r.tryReopenStore(); err != nil {
+		return nil, io.EOF
+	}
+
+	if r.store == nil {
+		return nil, io.EOF
+	}
+
+	// Save position before attempting read
+	beforeReadOffset := r.store.GetCurrentOffset()
+	if beforeReadOffset < 0 {
+		beforeReadOffset = r.lastGoodOffset
+	}
+
+	// Try to read the next record
 	record, err := r.store.Read()
 
 	if err == io.EOF && !r.exitSeen {
 		// We hit EOF, but the run isn't finished yet
-		// Seek back to where we last successfully read
-		if err := r.store.SeekToOffset(r.lastGoodOffset); err != nil {
-			r.store.Recover()
+		// Seek back to last known good position and wait for more data
+		if r.lastGoodOffset > 0 {
+			if seekErr := r.store.SeekToOffset(r.lastGoodOffset); seekErr != nil {
+				// If seek fails, try to recover
+				r.store.Recover()
+			}
 		}
-		// Try reading again after seeking
-		record, err = r.store.Read()
+		return nil, io.EOF
 	}
 
-	if err != nil {
-		if err == io.EOF {
-			// Still EOF after seeking, we're truly at the end for now
-			if r.exitSeen {
-				return FileCompleteMsg{ExitCode: r.exitCode}, io.EOF
+	if err != nil && err != io.EOF {
+		// Error reading - might be incomplete record in live file
+		// Try to recover by seeking back to before this read attempt
+		if beforeReadOffset > 0 {
+			if seekErr := r.store.SeekToOffset(beforeReadOffset); seekErr == nil {
+				// Successfully seeked back, try reading again
+				record, err = r.store.Read()
+				if err != nil {
+					// Still failing, seek to last known good
+					if r.lastGoodOffset > 0 && r.lastGoodOffset < beforeReadOffset {
+						r.store.SeekToOffset(r.lastGoodOffset)
+					}
+					return nil, err
+				}
+			} else {
+				// Seek failed, try recover
+				r.store.Recover()
+				return nil, err
 			}
+		} else {
+			// No valid offset to seek back to
+			r.store.Recover()
 			return nil, err
 		}
-		// Other errors
-		r.store.Recover()
-		return nil, err
+	}
+
+	if err == io.EOF {
+		if r.exitSeen {
+			return FileCompleteMsg{ExitCode: r.exitCode}, io.EOF
+		}
+		return nil, io.EOF
 	}
 
 	// Successfully read a record
-	// Update our position to after this record
-	currentOffset := r.store.GetCurrentOffset()
-	if currentOffset > 0 {
-		r.lastGoodOffset = currentOffset
+	afterReadOffset := r.store.GetCurrentOffset()
+	if afterReadOffset > 0 {
+		r.lastGoodOffset = afterReadOffset
 	}
 
+	// Check if this is an exit record
 	if exit, ok := record.RecordType.(*spb.Record_Exit); ok {
 		r.exitSeen = true
 		r.exitCode = exit.Exit.ExitCode
@@ -149,34 +272,58 @@ func ProcessRecords(ctx context.Context, records []*spb.Record) ([]tea.Msg, erro
 
 // recordToMsg converts a record to the appropriate message type.
 func recordToMsg(record *spb.Record) tea.Msg {
+	if record == nil {
+		return nil
+	}
+
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_Run:
-		return RunMsg{
-			ID:          rec.Run.RunId,
-			DisplayName: rec.Run.DisplayName,
-			Project:     rec.Run.Project,
-			Config:      rec.Run.Config,
+		if rec.Run != nil {
+			return RunMsg{
+				ID:          rec.Run.RunId,
+				DisplayName: rec.Run.DisplayName,
+				Project:     rec.Run.Project,
+				Config:      rec.Run.Config,
+			}
 		}
 	case *spb.Record_History:
-		return parseHistory(rec.History)
+		if rec.History != nil {
+			return parseHistory(rec.History)
+		}
 	case *spb.Record_Stats:
-		return parseStats(rec.Stats)
+		if rec.Stats != nil {
+			return parseStats(rec.Stats)
+		}
 	case *spb.Record_Summary:
-		return SummaryMsg{Summary: rec.Summary}
+		if rec.Summary != nil {
+			return SummaryMsg{Summary: rec.Summary}
+		}
 	case *spb.Record_Environment:
-		return SystemInfoMsg{Record: rec.Environment}
+		if rec.Environment != nil {
+			return SystemInfoMsg{Record: rec.Environment}
+		}
 	case *spb.Record_Exit:
-		return FileCompleteMsg{ExitCode: rec.Exit.ExitCode}
+		if rec.Exit != nil {
+			return FileCompleteMsg{ExitCode: rec.Exit.ExitCode}
+		}
 	}
 	return nil
 }
 
 // parseHistory extracts metrics from a history record.
 func parseHistory(history *spb.HistoryRecord) tea.Msg {
+	if history == nil {
+		return nil
+	}
+
 	metrics := make(map[string]float64)
 	var step int
 
 	for _, item := range history.Item {
+		if item == nil {
+			continue
+		}
+
 		key := strings.Join(item.NestedKey, ".")
 		if key == "_step" {
 			if val, err := strconv.Atoi(strings.Trim(item.ValueJson, `"`)); err == nil {
@@ -202,6 +349,10 @@ func parseHistory(history *spb.HistoryRecord) tea.Msg {
 
 // parseStats extracts metrics from a stats record.
 func parseStats(stats *spb.StatsRecord) tea.Msg {
+	if stats == nil {
+		return nil
+	}
+
 	metrics := make(map[string]float64)
 	var timestamp int64
 
@@ -210,6 +361,10 @@ func parseStats(stats *spb.StatsRecord) tea.Msg {
 	}
 
 	for _, item := range stats.Item {
+		if item == nil {
+			continue
+		}
+
 		if value, err := strconv.ParseFloat(strings.Trim(item.ValueJson, `"`), 64); err == nil {
 			metrics[item.Key] = value
 		}
