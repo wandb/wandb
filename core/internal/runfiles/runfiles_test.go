@@ -110,19 +110,21 @@ func TestUploader(t *testing.T) {
 
 		fakeFileWatcher = watchertest.NewFakeWatcher()
 
-		uploader = NewUploader(runfilestest.WithTestDefaults(UploaderParams{
-			GraphQL:      mockGQLClient,
-			FileStream:   fakeFileStream,
-			FileTransfer: fakeFileTransfer,
-			FileWatcher:  fakeFileWatcher,
-			BatchDelay:   batchDelay,
-			Settings: settings.From(&spb.Settings{
-				FilesDir:    &wrapperspb.StringValue{Value: filesDir},
-				IgnoreGlobs: &spb.ListStringValue{Value: ignoreGlobs},
-				XOffline:    &wrapperspb.BoolValue{Value: isOffline},
-				XSync:       &wrapperspb.BoolValue{Value: isSync},
-			}),
-		}))
+		uploader = runfilestest.WithTestDefaults(
+			runfilestest.Params{
+				GraphQL:      mockGQLClient,
+				FileStream:   fakeFileStream,
+				FileTransfer: fakeFileTransfer,
+				FileWatcher:  fakeFileWatcher,
+				Settings: settings.From(&spb.Settings{
+					FilesDir:    &wrapperspb.StringValue{Value: filesDir},
+					IgnoreGlobs: &spb.ListStringValue{Value: ignoreGlobs},
+					XOffline:    &wrapperspb.BoolValue{Value: isOffline},
+					XSync:       &wrapperspb.BoolValue{Value: isSync},
+				}),
+				BatchDelay: batchDelay,
+			},
+		)
 
 		t.Run(name, test)
 	}

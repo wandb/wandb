@@ -91,16 +91,17 @@ func NewStream(
 	debugCorePath DebugCorePath,
 	featureProvider *featurechecker.ServerFeaturesCache,
 	graphqlClientOrNil graphql.Client,
-	handler *Handler,
+	handlerFactory *HandlerFactory,
 	loggerFile streamLoggerFile,
 	logger *observability.CoreLogger,
 	operations *wboperation.WandbOperations,
 	recordParser *recordParser,
 	runWork runwork.RunWork,
-	sender *Sender,
+	senderFactory *SenderFactory,
 	sentry *sentry_ext.Client,
 	settings *settings.Settings,
 	streamRun *StreamRun,
+	writerFactory *WriterFactory,
 ) *Stream {
 	symlinkDebugCore(settings, string(debugCorePath))
 
@@ -114,8 +115,8 @@ func NewStream(
 		loggerFile:         loggerFile,
 		settings:           settings,
 		recordParser:       recordParser,
-		handler:            handler,
-		sender:             sender,
+		handler:            handlerFactory.New(),
+		sender:             senderFactory.New(),
 		sentryClient:       sentry,
 		clientID:           clientID,
 	}
@@ -128,11 +129,7 @@ func NewStream(
 			RunWork:  runWork,
 		})
 	case !s.settings.IsSkipTransactionLog():
-		s.writer = NewWriter(WriterParams{
-			Logger:   logger,
-			Settings: s.settings,
-			FwdChan:  make(chan runwork.Work, BufferSize),
-		})
+		s.writer = writerFactory.New(make(chan runwork.Work, BufferSize))
 	default:
 		logger.Info("stream: not syncing, skipping transaction log",
 			"id", s.settings.GetRunID(),

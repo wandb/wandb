@@ -57,7 +57,7 @@ SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
 
 
 class Sweeps(SizedPaginator["Sweep"]):
-    """An iterable collection of `Sweep` objects.
+    """A lazy iterator over a collection of `Sweep` objects.
 
     Examples:
     ```python
