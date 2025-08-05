@@ -22,14 +22,13 @@ func makeHandler(
 	s := settings.New()
 	s.UpdateServerSideDerivedSummary(skipDerivedSummary)
 
-	h := stream.NewHandler(
-		stream.HandlerParams{
-			Logger:          observability.NewNoOpLogger(),
-			Settings:        s,
-			TerminalPrinter: observability.NewPrinter(),
-			Commit:          stream.GitCommitHash(commit),
-		},
-	)
+	handlerFactory := stream.HandlerFactory{
+		Logger:          observability.NewNoOpLogger(),
+		Settings:        s,
+		TerminalPrinter: observability.NewPrinter(),
+		Commit:          stream.GitCommitHash(commit),
+	}
+	h := handlerFactory.New()
 
 	go h.Do(inChan)
 

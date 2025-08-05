@@ -58,25 +58,24 @@ func makeSender(client graphql.Client) *stream.Sender {
 		watchertest.NewFakeWatcher(),
 		client,
 	)
-	sender := stream.NewSender(
-		stream.SenderParams{
-			Logger:              logger,
-			Settings:            settings,
-			Backend:             backend,
-			FileStream:          fileStream,
-			FileTransferManager: fileTransferManager,
-			RunfilesUploader:    runfilesUploader,
-			Mailbox:             mailbox.New(),
-			GraphqlClient:       client,
-			RunWork:             runWork,
-			FeatureProvider: featurechecker.NewServerFeaturesCache(
-				runWork.BeforeEndCtx(),
-				nil,
-				logger,
-			),
-		},
-	)
-	return sender
+
+	senderFactory := stream.SenderFactory{
+		Logger:              logger,
+		Settings:            settings,
+		Backend:             backend,
+		FileStream:          fileStream,
+		FileTransferManager: fileTransferManager,
+		RunfilesUploader:    runfilesUploader,
+		Mailbox:             mailbox.New(),
+		GraphqlClient:       client,
+		RunWork:             runWork,
+		FeatureProvider: featurechecker.NewServerFeaturesCache(
+			runWork.BeforeEndCtx(),
+			nil,
+			logger,
+		),
+	}
+	return senderFactory.New()
 }
 
 // Verify that arguments are properly passed through to graphql
