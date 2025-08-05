@@ -135,7 +135,9 @@ def _convert_to_dict(value: Any) -> dict[str, Any]:
 
 
 class Runs(SizedPaginator["Run"]):
-    """An iterable collection of runs associated with a project and optional filter.
+    """A lazy iterator of `Run` objects associated with a project and optional filter.
+
+    Runs are retrieved in pages from the W&B server as needed.
 
     This is generally used indirectly using the `Api.runs` namespace.
 
