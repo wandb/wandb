@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runupserter"
@@ -15,11 +16,23 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// RecordParserProviders binds RecordParser to the real implementation.
+var RecordParserProviders = wire.NewSet(
+	wire.Bind(new(RecordParser), new(*recordParser)),
+	wire.Struct(new(recordParser), "*"),
+)
+
 // RecordParser turns Records into Work.
 //
 // Records coming from the client via interprocess communication, or those
 // read from a transaction log, pass through here first.
-type RecordParser struct {
+type RecordParser interface {
+	// Parse returns the Work corresponding to a Record.
+	Parse(record *spb.Record) runwork.Work
+}
+
+// recordParser is the real implementation of RecordParser.
+type recordParser struct {
 	BeforeRunEndCtx    context.Context
 	FeatureProvider    *featurechecker.ServerFeaturesCache
 	GraphqlClientOrNil graphql.Client
@@ -32,8 +45,11 @@ type RecordParser struct {
 	Settings *settings.Settings
 }
 
-// Parse returns the Work corresponding to a Record.
-func (p *RecordParser) Parse(record *spb.Record) runwork.Work {
+// Ensure recordParser implements RecordParser.
+var _ RecordParser = &recordParser{}
+
+// Parse implements RecordParser.Parse.
+func (p *recordParser) Parse(record *spb.Record) runwork.Work {
 	switch {
 	case record.GetRun() != nil:
 		return &runupserter.RunUpdateWork{

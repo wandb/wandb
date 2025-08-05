@@ -61,7 +61,7 @@ type Stream struct {
 	reader *Reader
 
 	// recordParser turns Records into Work.
-	recordParser *RecordParser
+	recordParser *recordParser
 
 	// handler is the handler for the stream
 	handler *Handler
@@ -95,7 +95,7 @@ func NewStream(
 	loggerFile streamLoggerFile,
 	logger *observability.CoreLogger,
 	operations *wboperation.WandbOperations,
-	recordParser *RecordParser,
+	recordParser *recordParser,
 	runWork runwork.RunWork,
 	sender *Sender,
 	sentry *sentry_ext.Client,
