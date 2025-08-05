@@ -61,6 +61,7 @@ var streamProviders = wire.NewSet(
 	streamLoggerProviders,
 	tensorboard.TBHandlerProviders,
 	wboperation.NewOperations,
+	writerProviders,
 )
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {

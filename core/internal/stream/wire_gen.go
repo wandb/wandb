@@ -52,7 +52,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	}
 	systemMonitor := monitor.NewSystemMonitor(systemMonitorParams)
 	printer := observability.NewPrinter()
-	handlerParams := HandlerParams{
+	handlerFactory := &HandlerFactory{
 		Commit:            commit,
 		FileTransferStats: fileTransferStats,
 		Logger:            coreLogger,
@@ -62,7 +62,6 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		SystemMonitor:     systemMonitor,
 		TerminalPrinter:   printer,
 	}
-	handler := NewHandler(handlerParams)
 	streamRun := NewStreamRun()
 	fileReadDelay := _wireFileReadDelayValue
 	params := tensorboard.Params{
@@ -87,7 +86,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	fileTransferManager := NewFileTransferManager(fileTransferStats, coreLogger, settings2)
 	watcher := provideFileWatcher(coreLogger)
 	uploader := NewRunfilesUploader(runWork, coreLogger, wandbOperations, settings2, fileStream, fileTransferManager, watcher, client)
-	senderParams := SenderParams{
+	senderFactory := &SenderFactory{
 		Logger:              coreLogger,
 		Operations:          wandbOperations,
 		Settings:            settings2,
@@ -104,8 +103,11 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Mailbox:             mailboxMailbox,
 		RunWork:             runWork,
 	}
-	sender := NewSender(senderParams)
-	stream := NewStream(clientID, debugCorePath, serverFeaturesCache, client, handler, streamStreamLoggerFile, coreLogger, wandbOperations, streamRecordParser, runWork, sender, sentry, settings2, streamRun)
+	writerFactory := &WriterFactory{
+		Logger:   coreLogger,
+		Settings: settings2,
+	}
+	stream := NewStream(clientID, debugCorePath, serverFeaturesCache, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, streamRecordParser, runWork, senderFactory, sentry, settings2, streamRun, writerFactory)
 	return stream
 }
 
@@ -125,7 +127,7 @@ var streamProviders = wire.NewSet(
 	provideRunContext,
 	provideStreamRunWork,
 	RecordParserProviders,
-	senderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations,
+	senderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, writerProviders,
 )
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
