@@ -62,7 +62,7 @@ func (m *ConfigManager) Load() error {
 		if os.IsNotExist(err) {
 			// No config file yet, ensure directory exists
 			if dir := filepath.Dir(m.configPath); dir != "" {
-				os.MkdirAll(dir, 0755)
+				_ = os.MkdirAll(dir, 0755)
 			}
 			return m.save()
 		}
