@@ -16,10 +16,9 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// RecordParserProviders binds RecordParser to the real implementation.
+// RecordParserProviders binds RecordParserFactory.
 var RecordParserProviders = wire.NewSet(
-	wire.Bind(new(RecordParser), new(*recordParser)),
-	wire.Struct(new(recordParser), "*"),
+	wire.Struct(new(RecordParserFactory), "*"),
 )
 
 // RecordParser turns Records into Work.
@@ -31,8 +30,8 @@ type RecordParser interface {
 	Parse(record *spb.Record) runwork.Work
 }
 
-// recordParser is the real implementation of RecordParser.
-type recordParser struct {
+// RecordParserFactory constructs the real RecordParser.
+type RecordParserFactory struct {
 	BeforeRunEndCtx    context.Context
 	FeatureProvider    *featurechecker.ServerFeaturesCache
 	GraphqlClientOrNil graphql.Client
@@ -43,6 +42,16 @@ type recordParser struct {
 
 	ClientID sharedmode.ClientID
 	Settings *settings.Settings
+}
+
+// New returns a new RecordParser.
+func (f *RecordParserFactory) New() *recordParser {
+	return &recordParser{*f}
+}
+
+// recordParser is the real implementation of RecordParser.
+type recordParser struct {
+	RecordParserFactory // injected fields
 }
 
 // Ensure recordParser implements RecordParser.

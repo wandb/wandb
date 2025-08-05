@@ -73,7 +73,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		FileReadDelay: fileReadDelay,
 	}
 	tbHandler := tensorboard.NewTBHandler(params)
-	streamRecordParser := &recordParser{
+	recordParserFactory := &RecordParserFactory{
 		BeforeRunEndCtx:    context,
 		FeatureProvider:    serverFeaturesCache,
 		GraphqlClientOrNil: client,
@@ -123,7 +123,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Logger:   coreLogger,
 		Settings: settings2,
 	}
-	stream := NewStream(clientID, debugCorePath, serverFeaturesCache, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, streamRecordParser, runWork, senderFactory, sentry, settings2, streamRun, writerFactory)
+	stream := NewStream(clientID, debugCorePath, serverFeaturesCache, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, recordParserFactory, runWork, senderFactory, sentry, settings2, streamRun, writerFactory)
 	return stream
 }
 

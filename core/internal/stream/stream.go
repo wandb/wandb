@@ -60,8 +60,8 @@ type Stream struct {
 	// reader is the reader for the stream
 	reader *Reader
 
-	// recordParser turns Records into Work.
-	recordParser *recordParser
+	// RecordParser turns Records into Work.
+	recordParser RecordParser
 
 	// handler is the handler for the stream
 	handler *Handler
@@ -95,7 +95,7 @@ func NewStream(
 	loggerFile streamLoggerFile,
 	logger *observability.CoreLogger,
 	operations *wboperation.WandbOperations,
-	recordParser *recordParser,
+	recordParserFactory *RecordParserFactory,
 	runWork runwork.RunWork,
 	senderFactory *SenderFactory,
 	sentry *sentry_ext.Client,
@@ -104,6 +104,8 @@ func NewStream(
 	writerFactory *WriterFactory,
 ) *Stream {
 	symlinkDebugCore(settings, string(debugCorePath))
+
+	recordParser := recordParserFactory.New()
 
 	s := &Stream{
 		runWork:            runWork,
