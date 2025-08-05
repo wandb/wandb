@@ -3703,18 +3703,18 @@ class Run:
         self._printer.display(f"Tracking run with wandb version {wandb.__version__}")
 
     def _header_sync_info(self) -> None:
+        sync_dir = self._settings.sync_dir
+        info = [f"Run data is saved locally in {self._printer.files(sync_dir)}"]
+
         if self._settings._offline:
-            self._printer.display(
-                [
-                    f"W&B syncing is set to {self._printer.code('`offline`')}"
-                    f" in this directory. Run {self._printer.code('`wandb online`')}"
-                    f" or set {self._printer.code('WANDB_MODE=online')}"
-                    " to enable cloud syncing.",
-                ]
-            )
+            info = [
+                f"W&B syncing is set to {self._printer.code('`offline`')}"
+                f" in this directory. Run {self._printer.code('`wandb online`')}"
+                f" or set {self._printer.code('WANDB_MODE=online')}"
+                " to enable cloud syncing.",
+            ] + info
+            self._printer.display(info)
         else:
-            sync_dir = self._settings.sync_dir
-            info = [f"Run data is saved locally in {self._printer.files(sync_dir)}"]
             if not self._printer.supports_html:
                 info.append(
                     f"Run {self._printer.code('`wandb offline`')} to turn off syncing."
