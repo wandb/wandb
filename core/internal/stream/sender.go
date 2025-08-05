@@ -28,6 +28,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -48,21 +49,21 @@ var senderProviders = wire.NewSet(
 
 // SenderFactory constructs a Sender.
 type SenderFactory struct {
-	Logger              *observability.CoreLogger
-	Operations          *wboperation.WandbOperations
-	Settings            *settings.Settings
-	Backend             *api.Backend
-	FeatureProvider     *featurechecker.ServerFeaturesCache
-	FileStream          fs.FileStream
-	FileTransferManager filetransfer.FileTransferManager
-	FileTransferStats   filetransfer.FileTransferStats
-	FileWatcher         watcher.Watcher
-	RunfilesUploader    runfiles.Uploader
-	GraphqlClient       graphql.Client
-	Peeker              *observability.Peeker
-	StreamRun           *StreamRun
-	Mailbox             *mailbox.Mailbox
-	RunWork             runwork.RunWork
+	Logger                  *observability.CoreLogger
+	Operations              *wboperation.WandbOperations
+	Settings                *settings.Settings
+	Backend                 *api.Backend
+	FeatureProvider         *featurechecker.ServerFeaturesCache
+	FileStream              fs.FileStream
+	FileTransferManager     filetransfer.FileTransferManager
+	FileTransferStats       filetransfer.FileTransferStats
+	FileWatcher             watcher.Watcher
+	RunfilesUploaderFactory *runfiles.UploaderFactory
+	GraphqlClient           graphql.Client
+	Peeker                  *observability.Peeker
+	StreamRun               *StreamRun
+	Mailbox                 *mailbox.Mailbox
+	RunWork                 runwork.RunWork
 }
 
 // Sender performs blocking operations to process Work, such as uploading data.
@@ -185,6 +186,13 @@ func (f *SenderFactory) New() *Sender {
 		outputFileName = *path
 	}
 
+	var runfilesUploader runfiles.Uploader
+	if !f.Settings.IsOffline() {
+		runfilesUploader = f.RunfilesUploaderFactory.New(
+			/*batchDelay=*/ waiting.NewDelay(50 * time.Millisecond),
+		)
+	}
+
 	consoleLogsSenderParams := runconsolelogs.Params{
 		ConsoleOutputFile:     outputFileName,
 		FilesDir:              f.Settings.GetFilesDir(),
@@ -192,7 +200,7 @@ func (f *SenderFactory) New() *Sender {
 		Logger:                f.Logger,
 		FileStreamOrNil:       f.FileStream,
 		Label:                 f.Settings.GetLabel(),
-		RunfilesUploaderOrNil: f.RunfilesUploader,
+		RunfilesUploaderOrNil: runfilesUploader,
 		Structured: f.FeatureProvider.GetFeature(
 			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
 		).Enabled,
@@ -207,7 +215,7 @@ func (f *SenderFactory) New() *Sender {
 		fileTransferManager: f.FileTransferManager,
 		fileTransferStats:   f.FileTransferStats,
 		fileWatcher:         f.FileWatcher,
-		runfilesUploader:    f.RunfilesUploader,
+		runfilesUploader:    runfilesUploader,
 		artifactsSaver: artifacts.NewArtifactSaveManager(
 			f.Logger,
 			f.GraphqlClient,
