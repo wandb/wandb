@@ -1,3 +1,5 @@
+//go:build !wandb_core
+
 package leet
 
 import "github.com/charmbracelet/lipgloss"

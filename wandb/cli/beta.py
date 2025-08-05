@@ -5,21 +5,24 @@ These commands are experimental and may change or be removed in future versions.
 
 from __future__ import annotations
 
+import os
 import pathlib
+import platform
+import subprocess
 import sys
 
 import click
 
 import wandb
-from wandb.errors import WandbCoreNotAvailableError
+from wandb import _sentry
+from wandb.errors import WandbCoreNotAvailableError, WandbLeetNotAvailableError
 from wandb.sdk.wandb_sync import _sync
 from wandb.util import get_core_path
 
 
 @click.group()
 def beta():
-    """Beta versions of wandb CLI commands. Requires wandb-core."""
-    # this is the future that requires wandb-core!
+    """Beta versions of wandb CLI commands."""
     import wandb.env
 
     wandb._sentry.configure_scope(process_context="wandb_beta")
@@ -33,6 +36,52 @@ def beta():
             fg="red",
             err=True,
         )
+
+
+@beta.command(
+    name="leet",
+    context_settings={"default_map": {}},
+    help=(
+        "Lightweight Experiment Exploration Tool\n\n"
+        "A terminal UI for viewing your W&B runs locally."
+    ),
+)
+@click.pass_context
+@click.argument("wandb_dir", nargs=1, type=click.Path(exists=True))
+def leet(ctx, wandb_dir: str):
+    _sentry.configure_scope(process_context="leet")
+
+    try:
+        leet_path = get_leet_path()
+        if platform.system() == "Windows":
+            creationflags: int = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+            start_new_session = False
+        else:
+            creationflags = 0
+            start_new_session = True
+
+        proc = subprocess.Popen(
+            [leet_path, wandb_dir],
+            env=os.environ,
+            close_fds=True,
+            creationflags=creationflags,
+            start_new_session=start_new_session,
+        )
+        proc.wait()
+    except Exception as e:
+        _sentry.reraise(e)
+
+
+def get_leet_path() -> str:
+    """Returns the path to the wandb-leet binary."""
+    bin_path = pathlib.Path(__file__).parent.parent / "bin" / "wandb-leet"
+    if not bin_path.exists():
+        raise WandbLeetNotAvailableError(
+            f"File not found: {bin_path}."
+            " Please contact support at support@wandb.com."
+            f" Your platform is: {platform.platform()}."
+        )
+    return str(bin_path)
 
 
 @beta.command(

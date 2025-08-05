@@ -1,4 +1,4 @@
-// Messages for the Bubble Tea model
+//go:build !wandb_core
 package leet
 
 import (

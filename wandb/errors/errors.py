@@ -38,3 +38,6 @@ class UnsupportedError(UsageError):
 
 class WandbCoreNotAvailableError(Error):
     """Raised when wandb core is not available."""
+
+class WandbLeetNotAvailableError(Error):
+    """Raised when wandb leet is not available."""
