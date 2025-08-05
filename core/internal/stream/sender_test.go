@@ -11,6 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -48,27 +49,26 @@ func makeSender(client graphql.Client) *stream.Sender {
 		logger,
 		settings,
 	)
-	runfilesUploader := stream.NewRunfilesUploader(
-		runWork,
-		logger,
-		nil, // operations
-		settings,
-		fileStream,
-		fileTransferManager,
-		watchertest.NewFakeWatcher(),
-		client,
-	)
+	runfilesUploaderFactory := &runfiles.UploaderFactory{
+		ExtraWork:    runWork,
+		FileStream:   fileStream,
+		FileTransfer: fileTransferManager,
+		FileWatcher:  watchertest.NewFakeWatcher(),
+		GraphQL:      client,
+		Logger:       logger,
+		Settings:     settings,
+	}
 
 	senderFactory := stream.SenderFactory{
-		Logger:              logger,
-		Settings:            settings,
-		Backend:             backend,
-		FileStream:          fileStream,
-		FileTransferManager: fileTransferManager,
-		RunfilesUploader:    runfilesUploader,
-		Mailbox:             mailbox.New(),
-		GraphqlClient:       client,
-		RunWork:             runWork,
+		Logger:                  logger,
+		Settings:                settings,
+		Backend:                 backend,
+		FileStream:              fileStream,
+		FileTransferManager:     fileTransferManager,
+		RunfilesUploaderFactory: runfilesUploaderFactory,
+		Mailbox:                 mailbox.New(),
+		GraphqlClient:           client,
+		RunWork:                 runWork,
 		FeatureProvider: featurechecker.NewServerFeaturesCache(
 			runWork.BeforeEndCtx(),
 			nil,
