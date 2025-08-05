@@ -13,7 +13,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.85.0
 	github.com/getsentry/sentry-go v0.34.1
 	github.com/go-git/go-git/v5 v5.16.2
-	github.com/golang/mock v1.6.0
 	github.com/google/wire v0.6.0
 	github.com/googleapis/gax-go/v2 v2.15.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
@@ -25,6 +24,7 @@ require (
 	github.com/spf13/afero v1.14.0
 	github.com/stretchr/testify v1.10.0
 	github.com/wandb/simplejsonext v0.0.0-20241203202201-90635f1d8677
+	go.uber.org/mock v0.5.2
 	gocloud.dev v0.43.0
 	golang.org/x/sync v0.16.0
 	golang.org/x/time v0.12.0
