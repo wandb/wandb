@@ -56,6 +56,7 @@ type uploader struct {
 func newUploader(
 	f *UploaderFactory,
 	batchDelay waiting.Delay,
+	fileStream filestream.FileStream,
 ) *uploader {
 	switch {
 	case f.ExtraWork == nil:
@@ -64,7 +65,7 @@ func newUploader(
 		panic("runfiles: Logger is nil")
 	case f.Settings == nil:
 		panic("runfiles: Settings is nil")
-	case f.FileStream == nil:
+	case fileStream == nil:
 		panic("runfiles: FileStream is nil")
 	case f.FileTransfer == nil:
 		panic("runfiles: FileTransfer is nil")
@@ -78,7 +79,7 @@ func newUploader(
 		extraWork:  f.ExtraWork,
 		logger:     f.Logger,
 		operations: f.Operations,
-		fs:         f.FileStream,
+		fs:         fileStream,
 		ftm:        f.FileTransfer,
 		settings:   f.Settings,
 		graphQL:    f.GraphQL,

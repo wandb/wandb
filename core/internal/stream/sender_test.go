@@ -7,6 +7,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
@@ -35,15 +36,11 @@ func makeSender(client graphql.Client) *stream.Sender {
 		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
 	})
 	backend := stream.NewBackend(logger, settings)
-	fileStream := stream.NewFileStream(
-		backend,
-		logger,
-		nil, // operations
-		observability.NewPrinter(),
-		settings,
-		nil, // peeker
-		"clientId",
-	)
+	fileStreamFactory := &filestream.FileStreamFactory{
+		Logger:   logger,
+		Printer:  observability.NewPrinter(),
+		Settings: settings,
+	}
 	fileTransferManager := stream.NewFileTransferManager(
 		filetransfer.NewFileTransferStats(),
 		logger,
@@ -51,7 +48,6 @@ func makeSender(client graphql.Client) *stream.Sender {
 	)
 	runfilesUploaderFactory := &runfiles.UploaderFactory{
 		ExtraWork:    runWork,
-		FileStream:   fileStream,
 		FileTransfer: fileTransferManager,
 		FileWatcher:  watchertest.NewFakeWatcher(),
 		GraphQL:      client,
@@ -63,7 +59,7 @@ func makeSender(client graphql.Client) *stream.Sender {
 		Logger:                  logger,
 		Settings:                settings,
 		Backend:                 backend,
-		FileStream:              fileStream,
+		FileStreamFactory:       fileStreamFactory,
 		FileTransferManager:     fileTransferManager,
 		RunfilesUploaderFactory: runfilesUploaderFactory,
 		Mailbox:                 mailbox.New(),

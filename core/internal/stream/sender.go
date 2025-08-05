@@ -28,6 +28,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -49,12 +50,13 @@ var senderProviders = wire.NewSet(
 
 // SenderFactory constructs a Sender.
 type SenderFactory struct {
+	ClientID                sharedmode.ClientID
 	Logger                  *observability.CoreLogger
 	Operations              *wboperation.WandbOperations
 	Settings                *settings.Settings
 	Backend                 *api.Backend
 	FeatureProvider         *featurechecker.ServerFeaturesCache
-	FileStream              fs.FileStream
+	FileStreamFactory       *fs.FileStreamFactory
 	FileTransferManager     filetransfer.FileTransferManager
 	FileTransferStats       filetransfer.FileTransferStats
 	FileWatcher             watcher.Watcher
@@ -186,10 +188,22 @@ func (f *SenderFactory) New() *Sender {
 		outputFileName = *path
 	}
 
+	var fileStream fs.FileStream
+	if !f.Settings.IsOffline() {
+		fileStream = NewFileStream(
+			f.FileStreamFactory,
+			f.Backend,
+			f.Settings,
+			f.Peeker,
+			f.ClientID,
+		)
+	}
+
 	var runfilesUploader runfiles.Uploader
 	if !f.Settings.IsOffline() {
 		runfilesUploader = f.RunfilesUploaderFactory.New(
-			/*batchDelay=*/ waiting.NewDelay(50 * time.Millisecond),
+			/*batchDelay=*/ waiting.NewDelay(50*time.Millisecond),
+			fileStream,
 		)
 	}
 
@@ -198,7 +212,7 @@ func (f *SenderFactory) New() *Sender {
 		FilesDir:              f.Settings.GetFilesDir(),
 		EnableCapture:         f.Settings.IsConsoleCaptureEnabled(),
 		Logger:                f.Logger,
-		FileStreamOrNil:       f.FileStream,
+		FileStreamOrNil:       fileStream,
 		Label:                 f.Settings.GetLabel(),
 		RunfilesUploaderOrNil: runfilesUploader,
 		Structured: f.FeatureProvider.GetFeature(
@@ -211,7 +225,7 @@ func (f *SenderFactory) New() *Sender {
 		logger:              f.Logger,
 		operations:          f.Operations,
 		settings:            f.Settings,
-		fileStream:          f.FileStream,
+		fileStream:          fileStream,
 		fileTransferManager: f.FileTransferManager,
 		fileTransferStats:   f.FileTransferStats,
 		fileWatcher:         f.FileWatcher,

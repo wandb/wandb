@@ -62,7 +62,6 @@ type UploaderTesting interface {
 // UploaderFactory constructs Uploader instances.
 type UploaderFactory struct {
 	ExtraWork    runwork.ExtraWork
-	FileStream   filestream.FileStream
 	FileTransfer filetransfer.FileTransferManager
 	FileWatcher  watcher.Watcher
 	GraphQL      graphql.Client
@@ -77,6 +76,7 @@ type UploaderFactory struct {
 // within this duration of each other are combined into a single GraphQL call.
 func (f *UploaderFactory) New(
 	batchDelay waiting.Delay,
+	fileStream filestream.FileStream,
 ) Uploader {
-	return newUploader(f, batchDelay)
+	return newUploader(f, batchDelay, fileStream)
 }
