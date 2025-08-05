@@ -65,11 +65,7 @@ func makeSender(client graphql.Client) *stream.Sender {
 		Mailbox:                 mailbox.New(),
 		GraphqlClient:           client,
 		RunWork:                 runWork,
-		FeatureProvider: featurechecker.NewServerFeaturesCache(
-			runWork.BeforeEndCtx(),
-			nil,
-			logger,
-		),
+		FeatureProvider:         featurechecker.NewServerFeaturesCache(nil, logger),
 	}
 	return senderFactory.New()
 }
