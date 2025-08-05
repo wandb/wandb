@@ -131,7 +131,6 @@ func NewStream(
 		s.writer = NewWriter(WriterParams{
 			Logger:   logger,
 			Settings: s.settings,
-			FwdChan:  make(chan runwork.Work, BufferSize),
 		})
 	default:
 		logger.Info("stream: not syncing, skipping transaction log",
@@ -190,6 +189,7 @@ func (s *Stream) Start() {
 			s.sender.Do(s.handler.OutChan())
 			s.wg.Done()
 		}()
+
 	case s.settings.IsSync():
 		// if we are syncing, we need to read the data from the transaction log
 		// and forward it to the handler, that will forward it to the sender
@@ -205,11 +205,17 @@ func (s *Stream) Start() {
 			s.sender.Do(s.handler.OutChan())
 			s.wg.Done()
 		}()
+
 	default:
-		// This is the default case, where we are not skipping the transaction log
-		// and we are not syncing. We only get the data from the client and the
-		// handler handles it passing it to the writer (storing in the transaction log),
-		// that will forward it to the sender
+		// The default case: we write all records to the transaction log
+		// and forward them to the sender.
+		flowControl := NewFlowControl(
+			s.settings.GetTransactionLogPath(),
+			s.writer.Flush,
+			s.logger,
+			s.recordParser,
+		)
+
 		s.wg.Add(1)
 		go func() {
 			s.writer.Do(s.handler.OutChan())
@@ -218,7 +224,13 @@ func (s *Stream) Start() {
 
 		s.wg.Add(1)
 		go func() {
-			s.sender.Do(s.writer.fwdChan)
+			flowControl.Do(s.writer.Chan())
+			s.wg.Done()
+		}()
+
+		s.wg.Add(1)
+		go func() {
+			s.sender.Do(flowControl.Chan())
 			s.wg.Done()
 		}()
 	}
