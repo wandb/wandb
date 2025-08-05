@@ -28,6 +28,9 @@ type EpochLineChart struct {
 
 // NewEpochLineChart creates a new epoch-based line chart
 func NewEpochLineChart(width, height int, colorIndex int, title string) *EpochLineChart {
+	// Get colors from current color scheme
+	graphColors := GetGraphColors()
+
 	// Temporarily use a default style - it will be updated during sorting
 	graphStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(graphColors[0]))

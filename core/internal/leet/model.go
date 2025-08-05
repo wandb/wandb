@@ -56,10 +56,23 @@ type Model struct {
 
 	// logger is the debug logger for the application.
 	logger *observability.CoreLogger
+
+	// Config key handling state
+	waitingForConfigKey bool
+	configKeyType       string // "c", "r", "C", "R"
 }
 
 func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
+
+	// Load config first
+	cfg := GetConfig()
+	if err := cfg.Load(); err != nil {
+		logger.Error(fmt.Sprintf("model: failed to load config: %v", err))
+	}
+
+	// Update grid dimensions from config
+	UpdateGridDimensions()
 
 	m := &Model{
 		help:           NewHelp(),
@@ -334,7 +347,19 @@ func (m *Model) renderLoadingScreen() string {
 func (m *Model) renderStatusBar() string {
 	// Left side content
 	statusText := ""
-	if m.isLoading {
+	if m.waitingForConfigKey {
+		// Show config hint
+		switch m.configKeyType {
+		case "c":
+			statusText = " Press 1-9 to set metrics columns (ESC to cancel)"
+		case "r":
+			statusText = " Press 1-9 to set metrics rows (ESC to cancel)"
+		case "C":
+			statusText = " Press 1-9 to set system columns (ESC to cancel)"
+		case "R":
+			statusText = " Press 1-9 to set system rows (ESC to cancel)"
+		}
+	} else if m.isLoading {
 		statusText = " Loading data..."
 	} else {
 		switch m.runState {
@@ -348,7 +373,7 @@ func (m *Model) renderStatusBar() string {
 	}
 
 	// Right side content
-	helpText := "h: toggle help"
+	helpText := "h: toggle help "
 
 	// Calculate padding to fill the entire width
 	statusLen := lipgloss.Width(statusText)
@@ -463,4 +488,32 @@ func (m *Model) navigatePage(direction int) {
 	}
 	m.loadCurrentPage()
 	m.drawVisibleCharts()
+}
+
+// rebuildGrids rebuilds the chart grids with new dimensions
+func (m *Model) rebuildGrids() {
+	// Rebuild metrics grid
+	m.charts = make([][]*EpochLineChart, GridRows)
+	for row := 0; row < GridRows; row++ {
+		m.charts[row] = make([]*EpochLineChart, GridCols)
+	}
+
+	// Recalculate total pages
+	ChartsPerPage = GridRows * GridCols
+	m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
+
+	// Ensure current page is valid
+	if m.currentPage >= m.totalPages && m.totalPages > 0 {
+		m.currentPage = m.totalPages - 1
+	}
+
+	// Rebuild system metrics grid if sidebar is initialized
+	if m.rightSidebar != nil && m.rightSidebar.metricsGrid != nil {
+		m.rightSidebar.metricsGrid.RebuildGrid()
+	}
+
+	// Clear focus as grid layout has changed
+	m.clearFocus()
+	m.focusedRow = -1
+	m.focusedCol = -1
 }

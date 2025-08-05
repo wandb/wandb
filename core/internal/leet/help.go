@@ -30,13 +30,21 @@ func NewHelp() *HelpModel {
 		// General
 		{Key: "h, ?", Description: "Toggle this help screen"},
 		{Key: "q, ctrl+c", Description: "Quit"},
-		{Key: "r", Description: "Reload run data"},
+		{Key: "alt+r", Description: "Reload run data"},
 		{Key: "", Description: ""},
 
 		// Panels
 		{Key: "Panels", Description: ""},
 		{Key: "ctrl+b", Description: "Toggle run overview sidebar"},
 		{Key: "ctrl+n", Description: "Toggle system metrics sidebar"},
+		{Key: "", Description: ""},
+
+		// Configuration
+		{Key: "Configuration", Description: ""},
+		{Key: "c + [1-9]", Description: "Set metrics grid columns"},
+		{Key: "r + [1-9]", Description: "Set metrics grid rows"},
+		{Key: "C + [1-9]", Description: "Set system grid columns (Shift+c)"},
+		{Key: "R + [1-9]", Description: "Set system grid rows (Shift+r)"},
 		{Key: "", Description: ""},
 
 		// Navigation

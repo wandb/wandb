@@ -52,6 +52,9 @@ func (m *Model) sortCharts() {
 		return m.allCharts[i].Title() < m.allCharts[j].Title()
 	})
 
+	// Get colors from current color scheme
+	graphColors := GetGraphColors()
+
 	// Rebuild chartsByName map and reassign colors based on sorted order
 	m.chartsByName = make(map[string]*EpochLineChart)
 	for i, chart := range m.allCharts {

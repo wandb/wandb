@@ -309,6 +309,37 @@ func (g *SystemMetricsGrid) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
+// RebuildGrid rebuilds the grid structure with new dimensions
+func (g *SystemMetricsGrid) RebuildGrid() {
+	// Update grid dimensions from config
+	UpdateGridDimensions()
+
+	// Rebuild grid structure
+	g.charts = make([][]*timeserieslinechart.Model, MetricsGridRows)
+	for row := 0; row < MetricsGridRows; row++ {
+		g.charts[row] = make([]*timeserieslinechart.Model, MetricsGridCols)
+	}
+
+	// Recalculate pages
+	MetricsPerPage = MetricsGridRows * MetricsGridCols
+	g.totalPages = (len(g.allCharts) + MetricsPerPage - 1) / MetricsPerPage
+
+	// Ensure current page is valid
+	if g.currentPage >= g.totalPages && g.totalPages > 0 {
+		g.currentPage = g.totalPages - 1
+	}
+
+	// Reload current page
+	g.loadCurrentPage()
+
+	// Resize all charts
+	dims := g.calculateChartDimensions()
+	for _, chart := range g.allCharts {
+		chart.Resize(dims.ChartWidth, dims.ChartHeight)
+		chart.DrawBraille()
+	}
+}
+
 // NewRightSidebar creates a new right sidebar instance
 func NewRightSidebar() *RightSidebar {
 	return &RightSidebar{

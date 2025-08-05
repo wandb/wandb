@@ -2,8 +2,8 @@ package leet
 
 import "github.com/charmbracelet/lipgloss"
 
-// Layout constants
-const (
+// Default layout constants
+var (
 	GridRows        = 3
 	GridCols        = 5
 	ChartsPerPage   = GridRows * GridCols
@@ -12,8 +12,8 @@ const (
 	MinChartHeight  = 5
 )
 
-// System metrics grid configuration
-const (
+// Default system metrics grid configuration
+var (
 	MetricsGridRows      = 3
 	MetricsGridCols      = 2
 	MetricsPerPage       = MetricsGridRows * MetricsGridCols
@@ -52,62 +52,41 @@ const leetArt = `
 ███████ ███████ ███████    ██
 `
 
-// Chart colors
-// TODO: talk to design, adhere to our official color scheme.
-
-// var graphColors = []string{"4", "10", "5", "6", "3", "2", "13", "14", "11", "9", "12", "1", "7", "8", "15"}
-
-var graphColors = []string{
-	"#E281FE",
-	"#E78DE3",
-	"#E993D5",
-	"#ED9FBB",
-	"#F0A5AD",
-	"#F2AB9F",
-	"#F6B784",
-	"#F8BD78",
-	"#FBC36B",
-	"#FFCF4F",
+// Color schemes
+var colorSchemes = map[string][]string{
+	"sunset-glow": { // Golden-pink gradient (default)
+		"#E281FE",
+		"#E78DE3",
+		"#E993D5",
+		"#ED9FBB",
+		"#F0A5AD",
+		"#F2AB9F",
+		"#F6B784",
+		"#F8BD78",
+		"#FBC36B",
+		"#FFCF4F",
+	},
 }
 
-// var graphColors = []string{
-// 	"#E587EF",
-// 	"#E589EC",
-// 	"#E68BE6",
-// 	"#E78DE3",
-// 	"#E88FDE",
-// 	"#E891D9",
-// 	"#E993D5",
-// 	"#EA95D1",
-// 	"#EA97CC",
-// 	"#EB99C8",
-// 	"#EC9BC4",
-// 	"#ED9DBF",
-// 	"#ED9FBB",
-// 	"#EEA1B6",
-// 	"#EFA3B1",
-// 	"#F0A5AD",
-// 	"#F0A7A8",
-// 	"#F1A9A4",
-// 	"#F2AB9F",
-// 	"#F3AD9B",
-// 	"#F3AF98",
-// 	"#F4B192",
-// 	"#F5B38E",
-// 	"#F6B688",
-// 	"#F6B784",
-// 	"#F7B980",
-// 	"#F8BC7B",
-// 	"#F8BD78",
-// 	"#F9BF73",
-// 	"#FAC26D",
-// 	"#FBC36B",
-// 	"#FCC565",
-// 	"#FCC761",
-// 	"#FDC95C",
-// 	"#FECB58",
-// 	"#FFCD54",
-// }
+// GetGraphColors returns the colors for the current color scheme
+func GetGraphColors() []string {
+	return colorSchemes["sunset-glow"]
+}
+
+// UpdateGridDimensions updates the grid dimensions from config
+func UpdateGridDimensions() {
+	cfg := GetConfig()
+
+	rows, cols := cfg.GetMetricsGrid()
+	GridRows = rows
+	GridCols = cols
+	ChartsPerPage = GridRows * GridCols
+
+	sysRows, sysCols := cfg.GetSystemGrid()
+	MetricsGridRows = sysRows
+	MetricsGridCols = sysCols
+	MetricsPerPage = MetricsGridRows * MetricsGridCols
+}
 
 // Chart styles
 var (
