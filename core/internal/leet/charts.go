@@ -50,6 +50,14 @@ func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
 
 // sortCharts sorts all charts alphabetically by title and reassigns colors
 func (m *Model) sortCharts() {
+	m.chartMu.Lock()
+	defer m.chartMu.Unlock()
+
+	m.sortChartsNoLock()
+}
+
+// sortChartsNoLock sorts charts without acquiring the mutex (caller must hold the lock)
+func (m *Model) sortChartsNoLock() {
 	sort.Slice(m.allCharts, func(i, j int) bool {
 		return m.allCharts[i].Title() < m.allCharts[j].Title()
 	})
@@ -69,6 +77,14 @@ func (m *Model) sortCharts() {
 
 // loadCurrentPage loads the charts for the current page into the grid
 func (m *Model) loadCurrentPage() {
+	m.chartMu.Lock()
+	defer m.chartMu.Unlock()
+
+	m.loadCurrentPageNoLock()
+}
+
+// loadCurrentPageNoLock loads the current page without acquiring the mutex
+func (m *Model) loadCurrentPageNoLock() {
 	m.charts = make([][]*EpochLineChart, GridRows)
 	for row := 0; row < GridRows; row++ {
 		m.charts[row] = make([]*EpochLineChart, GridCols)
@@ -100,11 +116,13 @@ func (m *Model) updateChartSizes() {
 	availableHeight := m.height - StatusBarHeight
 	dims := CalculateChartDimensions(availableWidth, availableHeight)
 
-	// Resize all charts
+	// Resize all charts with mutex protection
+	m.chartMu.Lock()
 	for _, chart := range m.allCharts {
 		chart.Resize(dims.ChartWidth, dims.ChartHeight)
 		chart.dirty = true
 	}
+	m.chartMu.Unlock()
 
 	m.loadCurrentPage()
 	m.drawVisibleCharts()
@@ -118,18 +136,21 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 		Foreground(lipgloss.Color("230")).
 		Render("Metrics")
 
-	// Add navigation info
+	// Add navigation info with mutex protection for chart count
 	navInfo := ""
-	if m.totalPages > 0 && len(m.allCharts) > 0 {
+	m.chartMu.RLock()
+	chartCount := len(m.allCharts)
+	m.chartMu.RUnlock()
+
+	if m.totalPages > 0 && chartCount > 0 {
 		startIdx := m.currentPage*ChartsPerPage + 1
 		endIdx := startIdx + ChartsPerPage - 1
-		totalMetrics := len(m.allCharts)
-		if endIdx > totalMetrics {
-			endIdx = totalMetrics
+		if endIdx > chartCount {
+			endIdx = chartCount
 		}
 		navInfo = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240")).
-			Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, totalMetrics))
+			Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, chartCount))
 	}
 
 	// Combine header and nav info horizontally
@@ -167,6 +188,10 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 
 // renderGridCell renders a single grid cell
 func (m *Model) renderGridCell(row, col int, dims ChartDimensions) string {
+	// Use RLock for reading charts
+	m.chartMu.RLock()
+	defer m.chartMu.RUnlock()
+
 	if row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
 		chart := m.charts[row][col]
 		chartView := chart.View()

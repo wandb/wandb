@@ -102,7 +102,7 @@ func mainWithExitCode() int {
 	// Initialize the program
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
-		logger.Error(fmt.Sprintf("observer: %v", err))
+		logger.Error(fmt.Sprintf("wandb-leet: %v", err))
 		return 1
 	}
 

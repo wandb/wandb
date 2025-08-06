@@ -4,7 +4,10 @@ package leet
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runconfig"
@@ -27,11 +30,15 @@ const (
 
 // Model represents the main application state.
 type Model struct {
-	help         *HelpModel
+	help *HelpModel
+
+	// Chart data protected by mutex
+	chartMu      sync.RWMutex
 	allCharts    []*EpochLineChart
 	chartsByName map[string]*EpochLineChart
 	// charts holds the current page of charts arranged in grid
-	charts         [][]*EpochLineChart
+	charts [][]*EpochLineChart
+
 	width          int
 	height         int
 	step           int
@@ -56,6 +63,11 @@ type Model struct {
 	// msgChan is the channel to receive watcher callbacks.
 	msgChan chan tea.Msg
 
+	// File change debouncing
+	lastFileChange time.Time
+	debounceTimer  *time.Timer
+	debounceMu     sync.Mutex
+
 	// logger is the debug logger for the application.
 	logger *observability.CoreLogger
 
@@ -76,6 +88,10 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	// Update grid dimensions from config
 	UpdateGridDimensions()
 
+	// Calculate initial buffer size based on expected metrics
+	// Start with 1000, will grow dynamically if needed
+	initialBufferSize := 1000
+
 	m := &Model{
 		help:           NewHelp(),
 		allCharts:      make([]*EpochLineChart, 0),
@@ -95,7 +111,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		watcherStarted: false,
 		runConfig:      runconfig.New(),
 		runSummary:     runsummary.New(),
-		msgChan:        make(chan tea.Msg, 100),
+		msgChan:        make(chan tea.Msg, initialBufferSize),
 		logger:         logger,
 	}
 
@@ -108,6 +124,26 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	})
 
 	return m
+}
+
+// recoverPanic recovers from panics and logs them
+func (m *Model) recoverPanic(context string) {
+	if r := recover(); r != nil {
+		stackTrace := string(debug.Stack())
+		m.logger.Error(fmt.Sprintf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace))
+
+		// Set the run state to crashed
+		m.runState = RunStateCrashed
+
+		// Try to clean up
+		if m.watcherStarted {
+			m.watcher.Finish()
+			m.watcherStarted = false
+		}
+		if m.reader != nil {
+			m.reader.Close()
+		}
+	}
 }
 
 // Init implements tea.Model.
@@ -124,6 +160,9 @@ func (m *Model) Init() tea.Cmd {
 //
 //gocyclo:ignore
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Recover from any panics in Update
+	defer m.recoverPanic("Update")
+
 	var cmds []tea.Cmd
 
 	m.logger.Debug(fmt.Sprintf("model: Update received message: %T", msg))
@@ -189,7 +228,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Only exit loading state if we have actual metric data (charts)
-		if m.isLoading && len(m.allCharts) > 0 {
+		m.chartMu.RLock()
+		hasCharts := len(m.allCharts) > 0
+		m.chartMu.RUnlock()
+
+		if m.isLoading && hasCharts {
 			m.isLoading = false
 		}
 
@@ -227,8 +270,33 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 
 	case FileChangedMsg:
-		m.logger.Debug("model: fileChangedMsg received - file has changed!")
-		cmds = append(cmds, ReadAvailableRecords(m.reader))
+		// Debounce file changes
+		m.debounceMu.Lock()
+		now := time.Now()
+		timeSinceLastChange := now.Sub(m.lastFileChange)
+		m.lastFileChange = now
+
+		// If we have a pending timer, stop it
+		if m.debounceTimer != nil {
+			m.debounceTimer.Stop()
+		}
+
+		// Only process if enough time has passed since last change (100ms debounce)
+		if timeSinceLastChange > 100*time.Millisecond {
+			m.logger.Debug("model: processing FileChangedMsg after debounce")
+			m.debounceMu.Unlock()
+			cmds = append(cmds, ReadAvailableRecords(m.reader))
+		} else {
+			// Set a timer to process after debounce period
+			m.debounceTimer = time.AfterFunc(100*time.Millisecond, func() {
+				select {
+				case m.msgChan <- FileChangedMsg{}:
+				default:
+					m.logger.Warn("model: msgChan full during debounce timer")
+				}
+			})
+			m.debounceMu.Unlock()
+		}
 		// Always continue waiting for more changes
 		cmds = append(cmds, m.waitForWatcherMsg())
 		return m, tea.Batch(cmds...)
@@ -255,8 +323,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View implements tea.Model
 func (m *Model) View() string {
+	// Recover from any panics in View
+	defer m.recoverPanic("View")
+
 	if m.width == 0 || m.height == 0 {
 		return "Loading..."
+	}
+
+	// Check if we're in a crashed state
+	if m.runState == RunStateCrashed {
+		return m.renderCrashedScreen()
 	}
 
 	// Show loading screen if still loading
@@ -321,6 +397,34 @@ func (m *Model) View() string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, fullView)
 }
 
+// renderCrashedScreen shows an error screen when the app has crashed
+func (m *Model) renderCrashedScreen() string {
+	errorStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("196")).
+		Bold(true)
+
+	errorContent := lipgloss.JoinVertical(
+		lipgloss.Center,
+		errorStyle.Render("Application Error"),
+		"",
+		"The application encountered an error and recovered.",
+		"Please check the debug log for details.",
+		"",
+		"Press 'q' to quit or 'alt+r' to reload.",
+	)
+
+	centered := lipgloss.Place(
+		m.width,
+		m.height-StatusBarHeight,
+		lipgloss.Center,
+		lipgloss.Center,
+		errorContent,
+	)
+
+	statusBar := m.renderStatusBar()
+	return lipgloss.JoinVertical(lipgloss.Left, centered, statusBar)
+}
+
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen
 func (m *Model) renderLoadingScreen() string {
 	artStyle := lipgloss.NewStyle().
@@ -372,7 +476,16 @@ func (m *Model) renderStatusBar() string {
 			statusText = " State: Finished"
 		case RunStateFailed:
 			statusText = " State: Failed"
+		case RunStateCrashed:
+			statusText = " State: Error (recovered)"
 		}
+	}
+
+	// Add buffer status if channel is getting full
+	bufferUsage := len(m.msgChan)
+	bufferCapacity := cap(m.msgChan)
+	if bufferUsage > bufferCapacity*3/4 {
+		statusText += fmt.Sprintf(" [Buffer: %d/%d]", bufferUsage, bufferCapacity)
 	}
 
 	// Right side content
@@ -400,6 +513,9 @@ func (m *Model) renderStatusBar() string {
 // waitForWatcherMsg returns a command that waits for messages from the watcher
 func (m *Model) waitForWatcherMsg() tea.Cmd {
 	return func() tea.Msg {
+		// Recover from panics in the watcher goroutine
+		defer m.recoverPanic("waitForWatcherMsg")
+
 		m.logger.Debug("model: waiting for watcher message...")
 		msg := <-m.msgChan
 		if msg != nil {
@@ -415,12 +531,46 @@ func (m *Model) startWatcher() error {
 	m.watcherStarted = true
 
 	err := m.watcher.Watch(m.runPath, func() {
+		// This callback runs in a separate goroutine
+		defer m.recoverPanic("watcher callback")
+
 		m.logger.Debug(fmt.Sprintf("model: watcher callback triggered! File changed: %s", m.runPath))
+
+		// Try to send the message, but don't block
 		select {
 		case m.msgChan <- FileChangedMsg{}:
 			m.logger.Debug("model: FileChangedMsg sent to channel")
 		default:
-			m.logger.Warn("model: msgChan is full, dropping FileChangedMsg")
+			// Channel is full, check if we need to grow it
+			currentCap := cap(m.msgChan)
+			if currentCap < 10000 { // Max buffer size
+				m.logger.Warn(fmt.Sprintf("model: msgChan full (cap=%d), growing buffer", currentCap))
+				// Create a new larger channel
+				newCap := currentCap * 2
+				if newCap > 10000 {
+					newCap = 10000
+				}
+				newChan := make(chan tea.Msg, newCap)
+				// Transfer existing messages
+				close(m.msgChan)
+				for msg := range m.msgChan {
+					select {
+					case newChan <- msg:
+					default:
+						m.logger.Error("model: failed to transfer message to new channel")
+					}
+				}
+				m.msgChan = newChan
+				// Try to send the current message
+				select {
+				case m.msgChan <- FileChangedMsg{}:
+					m.logger.Debug("model: FileChangedMsg sent to new channel")
+				default:
+					m.logger.Error("model: still cannot send FileChangedMsg after growing buffer")
+				}
+			} else {
+				m.logger.Warn("model: msgChan is at max capacity, dropping FileChangedMsg")
+			}
 		}
 	})
 
@@ -438,9 +588,13 @@ func (m *Model) startWatcher() error {
 func (m *Model) reloadCharts() tea.Cmd {
 	m.step = 0
 	m.isLoading = true
+	m.runState = RunStateRunning // Reset from crashed state if applicable
 
+	m.chartMu.Lock()
 	m.allCharts = make([]*EpochLineChart, 0)
 	m.chartsByName = make(map[string]*EpochLineChart)
+	m.chartMu.Unlock()
+
 	m.totalPages = 0
 	m.currentPage = 0
 
@@ -503,7 +657,12 @@ func (m *Model) rebuildGrids() {
 
 	// Recalculate total pages
 	ChartsPerPage = GridRows * GridCols
-	m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
+
+	m.chartMu.RLock()
+	chartCount := len(m.allCharts)
+	m.chartMu.RUnlock()
+
+	m.totalPages = (chartCount + ChartsPerPage - 1) / ChartsPerPage
 
 	// Ensure current page is valid
 	if m.currentPage >= m.totalPages && m.totalPages > 0 {

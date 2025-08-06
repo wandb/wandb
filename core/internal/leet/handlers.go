@@ -11,6 +11,9 @@ import (
 
 // processRecordMsg handles messages that carry data from the .wandb file.
 func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
+	// Recover from any panics in message processing
+	defer m.recoverPanic("processRecordMsg")
+
 	switch msg := msg.(type) {
 	case HistoryMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing HistoryMsg with step %d", msg.Step))
@@ -95,6 +98,10 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	// Track if we need to sort
 	needsSort := false
 
+	// Lock for write when modifying charts
+	m.chartMu.Lock()
+	defer m.chartMu.Unlock()
+
 	// Add data points to existing charts or create new ones
 	for metricName, value := range msg.Metrics {
 		chart, exists := m.chartsByName[metricName]
@@ -107,13 +114,18 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 			m.allCharts = append(m.allCharts, chart)
 			m.chartsByName[metricName] = chart
 			needsSort = true
+
+			// Log when we're creating many charts
+			if len(m.allCharts)%1000 == 0 {
+				m.logger.Info(fmt.Sprintf("model: created %d charts", len(m.allCharts)))
+			}
 		}
 		chart.AddDataPoint(value)
 	}
 
 	// Sort if we added new charts (this will also assign/reassign colors)
 	if needsSort {
-		m.sortCharts()
+		m.sortChartsNoLock() // Use a version that doesn't acquire the lock
 		m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
 	}
 
@@ -124,7 +136,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 	// Reload page and draw
 	if len(msg.Metrics) > 0 {
-		m.loadCurrentPage()
+		m.loadCurrentPageNoLock() // Use a version that doesn't acquire the lock
 		m.drawVisibleCharts()
 	}
 
@@ -133,6 +145,15 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 // drawVisibleCharts only draws charts that are currently visible
 func (m *Model) drawVisibleCharts() {
+	// This is called from handleHistoryMsg which already holds the lock,
+	// but also from other places, so we need to be careful
+	// Use RLock since we're only reading the charts grid
+	defer func() {
+		if r := recover(); r != nil {
+			m.logger.Error(fmt.Sprintf("panic in drawVisibleCharts: %v", r))
+		}
+	}()
+
 	for row := 0; row < GridRows; row++ {
 		for col := 0; col < GridCols; col++ {
 			if row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
@@ -163,6 +184,10 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 
 	row := adjustedY / dims.ChartHeightWithPadding
 	col := adjustedX / dims.ChartWidthWithPadding
+
+	// Use RLock for reading charts
+	m.chartMu.RLock()
+	defer m.chartMu.RUnlock()
 
 	if row >= 0 && row < GridRows && col >= 0 && col < GridCols &&
 		row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
