@@ -60,15 +60,17 @@ type TBHandler struct {
 
 // TBHandlerFactory constructs a TBHandler.
 type TBHandlerFactory struct {
-	ExtraWork runwork.ExtraWork
-	Logger    *observability.CoreLogger
-	Settings  *settings.Settings
+	Logger   *observability.CoreLogger
+	Settings *settings.Settings
 }
 
-func (f *TBHandlerFactory) New(fileReadDelay waiting.Delay) *TBHandler {
+func (f *TBHandlerFactory) New(
+	extraWork runwork.ExtraWork,
+	fileReadDelay waiting.Delay,
+) *TBHandler {
 	tb := &TBHandler{
 		rootDirGuesser: NewRootDirGuesser(f.Logger),
-		extraWork:      f.ExtraWork,
+		extraWork:      extraWork,
 		logger:         f.Logger,
 		settings:       f.Settings,
 		fileReadDelay:  fileReadDelay,
