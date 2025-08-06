@@ -30,6 +30,11 @@ def build_wandb_leet(
         target_arch: The target architecture (GOARCH) or an empty string
             to use the current architecture.
     """
+    # The `disable_grpc_modules` build tag reduces binary size by ~12MB.
+    # Without it, cloud.google.com/go/storage transitively includes test
+    # dependencies (grpc/stats/opentelemetry.test) that pull in the entire
+    # envoyproxy/go-control-plane package.
+    build_tags = ["-tags", "disable_grpc_modules"]
     output_flags = ["-o", str(".." / output_path)]
 
     ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha=wandb_commit_sha)}"]
@@ -42,6 +47,7 @@ def build_wandb_leet(
         [
             str(go_binary),
             "build",
+            *build_tags,
             *ld_flags,
             *output_flags,
             *vendor_flags,
