@@ -125,7 +125,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 	// Sort if we added new charts (this will also assign/reassign colors)
 	if needsSort {
-		m.sortChartsNoLock() // Use a version that doesn't acquire the lock
+		m.sortCharts()
 		m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
 	}
 
