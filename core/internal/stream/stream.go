@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -14,6 +15,8 @@ import (
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
+	"github.com/wandb/wandb/core/internal/tensorboard"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -60,8 +63,8 @@ type Stream struct {
 	// reader is the reader for the stream
 	reader *Reader
 
-	// recordParser turns Records into Work.
-	recordParser *recordParser
+	// RecordParser turns Records into Work.
+	recordParser RecordParser
 
 	// handler is the handler for the stream
 	handler *Handler
@@ -91,18 +94,25 @@ func NewStream(
 	debugCorePath DebugCorePath,
 	featureProvider *featurechecker.ServerFeaturesCache,
 	graphqlClientOrNil graphql.Client,
-	handler *Handler,
+	handlerFactory *HandlerFactory,
 	loggerFile streamLoggerFile,
 	logger *observability.CoreLogger,
 	operations *wboperation.WandbOperations,
-	recordParser *recordParser,
+	recordParserFactory *RecordParserFactory,
 	runWork runwork.RunWork,
-	sender *Sender,
+	senderFactory *SenderFactory,
 	sentry *sentry_ext.Client,
 	settings *settings.Settings,
 	streamRun *StreamRun,
+	tbHandlerFactory *tensorboard.TBHandlerFactory,
+	writerFactory *WriterFactory,
 ) *Stream {
 	symlinkDebugCore(settings, string(debugCorePath))
+
+	tbHandler := tbHandlerFactory.New(
+		/*fileReadDelay=*/ waiting.NewDelay(5 * time.Second),
+	)
+	recordParser := recordParserFactory.New(tbHandler)
 
 	s := &Stream{
 		runWork:            runWork,
@@ -114,8 +124,8 @@ func NewStream(
 		loggerFile:         loggerFile,
 		settings:           settings,
 		recordParser:       recordParser,
-		handler:            handler,
-		sender:             sender,
+		handler:            handlerFactory.New(),
+		sender:             senderFactory.New(),
 		sentryClient:       sentry,
 		clientID:           clientID,
 	}
@@ -128,11 +138,7 @@ func NewStream(
 			RunWork:  runWork,
 		})
 	case !s.settings.IsSkipTransactionLog():
-		s.writer = NewWriter(WriterParams{
-			Logger:   logger,
-			Settings: s.settings,
-			FwdChan:  make(chan runwork.Work, BufferSize),
-		})
+		s.writer = writerFactory.New(make(chan runwork.Work, BufferSize))
 	default:
 		logger.Info("stream: not syncing, skipping transaction log",
 			"id", s.settings.GetRunID(),

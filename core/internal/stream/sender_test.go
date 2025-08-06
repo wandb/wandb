@@ -7,10 +7,12 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -34,49 +36,42 @@ func makeSender(client graphql.Client) *stream.Sender {
 		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
 	})
 	backend := stream.NewBackend(logger, settings)
-	fileStream := stream.NewFileStream(
-		backend,
-		logger,
-		nil, // operations
-		observability.NewPrinter(),
-		settings,
-		nil, // peeker
-		"clientId",
-	)
+	fileStreamFactory := &filestream.FileStreamFactory{
+		Logger:   logger,
+		Printer:  observability.NewPrinter(),
+		Settings: settings,
+	}
 	fileTransferManager := stream.NewFileTransferManager(
 		filetransfer.NewFileTransferStats(),
 		logger,
 		settings,
 	)
-	runfilesUploader := stream.NewRunfilesUploader(
-		runWork,
-		logger,
-		nil, // operations
-		settings,
-		fileStream,
-		fileTransferManager,
-		watchertest.NewFakeWatcher(),
-		client,
-	)
-	sender := stream.NewSender(
-		stream.SenderParams{
-			Logger:              logger,
-			Settings:            settings,
-			Backend:             backend,
-			FileStream:          fileStream,
-			FileTransferManager: fileTransferManager,
-			RunfilesUploader:    runfilesUploader,
-			Mailbox:             mailbox.New(),
-			GraphqlClient:       client,
-			RunWork:             runWork,
-			FeatureProvider: featurechecker.NewServerFeaturesCache(
-				runWork.BeforeEndCtx(),
-				nil,
-				logger,
-			),
-		},
-	)
-	return sender
+	runfilesUploaderFactory := &runfiles.UploaderFactory{
+		ExtraWork:    runWork,
+		FileTransfer: fileTransferManager,
+		FileWatcher:  watchertest.NewFakeWatcher(),
+		GraphQL:      client,
+		Logger:       logger,
+		Settings:     settings,
+	}
+
+	senderFactory := stream.SenderFactory{
+		Logger:                  logger,
+		Settings:                settings,
+		Backend:                 backend,
+		FileStreamFactory:       fileStreamFactory,
+		FileTransferManager:     fileTransferManager,
+		RunfilesUploaderFactory: runfilesUploaderFactory,
+		Mailbox:                 mailbox.New(),
+		GraphqlClient:           client,
+		RunWork:                 runWork,
+		FeatureProvider: featurechecker.NewServerFeaturesCache(
+			runWork.BeforeEndCtx(),
+			nil,
+			logger,
+		),
+	}
+	return senderFactory.New()
 }
 
 // Verify that arguments are properly passed through to graphql

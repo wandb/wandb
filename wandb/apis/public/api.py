@@ -1099,7 +1099,7 @@ class Api:
         per_page: int = 50,
         include_sweeps: bool = True,
     ):
-        """Return a set of runs from a project that match the filters provided.
+        """Returns a `Runs` object, which lazily iterates over `Run` objects.
 
         Fields you can filter by include:
         - `createdAt`: The timestamp when the run was created. (in ISO 8601 format, e.g. "2023-01-01T12:00:00Z")

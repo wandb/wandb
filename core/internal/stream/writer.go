@@ -4,16 +4,20 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-type WriterParams struct {
+var writerProviders = wire.NewSet(
+	wire.Struct(new(WriterFactory), "*"),
+)
+
+type WriterFactory struct {
 	Logger   *observability.CoreLogger
 	Settings *settings.Settings
-	FwdChan  chan runwork.Work
 }
 
 // Writer saves work to the transaction log.
@@ -34,12 +38,12 @@ type Writer struct {
 	recordNum int64
 }
 
-// NewWriter returns a new Writer.
-func NewWriter(params WriterParams) *Writer {
+// New returns a new Writer.
+func (f *WriterFactory) New(fwdChan chan runwork.Work) *Writer {
 	return &Writer{
-		logger:   params.Logger,
-		settings: params.Settings,
-		fwdChan:  params.FwdChan,
+		logger:   f.Logger,
+		settings: f.Settings,
+		fwdChan:  fwdChan,
 	}
 }
 
