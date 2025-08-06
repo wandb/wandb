@@ -53,21 +53,7 @@ def leet(ctx, wandb_dir: str):
 
     try:
         leet_path = get_leet_path()
-        if platform.system() == "Windows":
-            creationflags: int = subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
-            start_new_session = False
-        else:
-            creationflags = 0
-            start_new_session = True
-
-        proc = subprocess.Popen(
-            [leet_path, wandb_dir],
-            env=os.environ,
-            close_fds=True,
-            creationflags=creationflags,
-            start_new_session=start_new_session,
-        )
-        proc.wait()
+        subprocess.run([leet_path, wandb_dir], env=os.environ)
     except Exception as e:
         _sentry.reraise(e)
 
