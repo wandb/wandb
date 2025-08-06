@@ -8,7 +8,6 @@ from __future__ import annotations
 import os
 import pathlib
 import platform
-import subprocess
 import sys
 
 import click
@@ -53,7 +52,7 @@ def leet(ctx, wandb_dir: str):
 
     try:
         leet_path = get_leet_path()
-        subprocess.run([leet_path, wandb_dir], env=os.environ)
+        os.execvp(leet_path, [leet_path, wandb_dir])
     except Exception as e:
         _sentry.reraise(e)
 
