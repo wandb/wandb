@@ -219,6 +219,18 @@ def test_metric_nan_mean(wandb_backend_spy):
         assert math.isnan(summary["val"]["mean"])
 
 
+def test_metric_inf_mean(wandb_backend_spy):
+    with wandb.init() as run:
+        run.define_metric("val", summary="mean")
+        run.log(dict(mystep=1, val=2))
+        run.log(dict(mystep=1, val=float("inf")))
+        run.log(dict(mystep=1, val=4))
+
+    with wandb_backend_spy.freeze() as snapshot:
+        summary = snapshot.summary(run_id=run.id)
+        assert math.isinf(summary["val"]["mean"])
+
+
 def test_metric_nan_min_norm(wandb_backend_spy):
     with wandb.init() as run:
         run.define_metric("val", summary="min")
