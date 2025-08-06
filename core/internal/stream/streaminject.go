@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -49,18 +50,19 @@ var streamProviders = wire.NewSet(
 	NewFileStream,
 	NewFileTransferManager,
 	NewGraphQLClient,
-	NewRunfilesUploader,
 	NewStreamRun,
 	observability.NewPrinter,
 	provideFileWatcher,
 	provideRunContext,
 	provideStreamRunWork,
 	RecordParserProviders,
+	runfiles.UploaderProviders,
 	senderProviders,
 	sharedmode.RandomClientID,
 	streamLoggerProviders,
 	tensorboard.TBHandlerProviders,
 	wboperation.NewOperations,
+	writerProviders,
 )
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {

@@ -8,7 +8,6 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
@@ -17,12 +16,8 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
-	"github.com/wandb/wandb/core/internal/waiting"
-	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	"golang.org/x/time/rate"
 )
@@ -286,31 +281,4 @@ func NewFileTransferManager(
 			FileTransferStats: fileTransferStats,
 		},
 	)
-}
-
-func NewRunfilesUploader(
-	extraWork runwork.ExtraWork,
-	logger *observability.CoreLogger,
-	operations *wboperation.WandbOperations,
-	settings *settings.Settings,
-	fileStream filestream.FileStream,
-	fileTransfer filetransfer.FileTransferManager,
-	fileWatcher watcher.Watcher,
-	graphQL graphql.Client,
-) runfiles.Uploader {
-	if settings.IsOffline() {
-		return nil
-	}
-
-	return runfiles.NewUploader(runfiles.UploaderParams{
-		ExtraWork:    extraWork,
-		Logger:       logger,
-		Operations:   operations,
-		Settings:     settings,
-		FileStream:   fileStream,
-		FileTransfer: fileTransfer,
-		GraphQL:      graphQL,
-		FileWatcher:  fileWatcher,
-		BatchDelay:   waiting.NewDelay(50 * time.Millisecond),
-	})
 }

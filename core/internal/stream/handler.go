@@ -40,13 +40,12 @@ const (
 )
 
 var handlerProviders = wire.NewSet(
-	wire.Struct(new(HandlerParams), "*"),
-	NewHandler,
+	wire.Struct(new(HandlerFactory), "*"),
 )
 
 type GitCommitHash string
 
-type HandlerParams struct {
+type HandlerFactory struct {
 	// Commit is the W&B Git commit hash
 	Commit            GitCommitHash
 	FileTransferStats filetransfer.FileTransferStats
@@ -58,7 +57,7 @@ type HandlerParams struct {
 	TerminalPrinter   *observability.Printer
 }
 
-// Handler handles the incoming messages, processes them, and passes them to the writer.
+// Handler performs non-blocking operations to preprocess incoming Work.
 type Handler struct {
 	// commit is the W&B Git commit hash
 	commit GitCommitHash
@@ -123,26 +122,24 @@ type Handler struct {
 	terminalPrinter *observability.Printer
 }
 
-// NewHandler creates a new handler
-func NewHandler(
-	params HandlerParams,
-) *Handler {
+// New returns a new Handler.
+func (f *HandlerFactory) New() *Handler {
 	return &Handler{
-		commit:               params.Commit,
-		fileTransferStats:    params.FileTransferStats,
+		commit:               f.Commit,
+		fileTransferStats:    f.FileTransferStats,
 		fwdChan:              make(chan runwork.Work, BufferSize),
-		logger:               params.Logger,
-		mailbox:              params.Mailbox,
+		logger:               f.Logger,
+		mailbox:              f.Mailbox,
 		metricHandler:        runmetric.New(),
-		operations:           params.Operations,
+		operations:           f.Operations,
 		outChan:              make(chan *spb.Result, BufferSize),
 		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
 		runHistorySampler:    runhistory.NewRunHistorySampler(),
 		runSummary:           runsummary.New(),
 		runTimer:             timer.New(0),
-		settings:             params.Settings,
-		systemMonitor:        params.SystemMonitor,
-		terminalPrinter:      params.TerminalPrinter,
+		settings:             f.Settings,
+		systemMonitor:        f.SystemMonitor,
+		terminalPrinter:      f.TerminalPrinter,
 	}
 }
 
