@@ -3,7 +3,6 @@
 package stream
 
 import (
-	"context"
 	"log/slog"
 
 	"github.com/google/wire"
@@ -15,7 +14,6 @@ import (
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
@@ -39,7 +37,6 @@ func InjectStream(
 
 var streamProviders = wire.NewSet(
 	NewStream,
-	wire.Bind(new(runwork.ExtraWork), new(runwork.RunWork)),
 	wire.Bind(new(api.Peeker), new(*observability.Peeker)),
 	wire.Struct(new(observability.Peeker)),
 	featurechecker.NewServerFeaturesCache,
@@ -54,8 +51,6 @@ var streamProviders = wire.NewSet(
 	NewStreamRun,
 	observability.NewPrinter,
 	provideFileWatcher,
-	provideRunContext,
-	provideStreamRunWork,
 	RecordParserProviders,
 	runfiles.UploaderProviders,
 	senderProviders,
@@ -68,12 +63,4 @@ var streamProviders = wire.NewSet(
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})
-}
-
-func provideRunContext(extraWork runwork.ExtraWork) context.Context {
-	return extraWork.BeforeEndCtx()
-}
-
-func provideStreamRunWork(logger *observability.CoreLogger) runwork.RunWork {
-	return runwork.New(BufferSize, logger)
 }
