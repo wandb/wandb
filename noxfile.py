@@ -818,9 +818,7 @@ def wandb_core_size_check(session: nox.Session) -> None:
     session.log("=" * 60)
     session.log(f"PyPI v{pypi_version}: {fmt_size(pypi_size)} ({pypi_size:,} bytes)")
     session.log(f"Current:      {fmt_size(current_size)} ({current_size:,} bytes)")
-    session.log(
-        f"Difference:   {fmt_size(abs(diff))} ({'+' if diff > 0 else ''}{pct:+.1f}%)"
-    )
+    session.log(f"Difference:   {fmt_size(abs(diff))} ({pct:+.1f}%)")
     session.log("=" * 60)
 
     if pct > 10:
