@@ -18,7 +18,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
-	"github.com/wandb/wandb/core/internal/wboperation"
 	"golang.org/x/time/rate"
 )
 
@@ -154,10 +153,8 @@ func NewGraphQLClient(
 }
 
 func NewFileStream(
+	factory *filestream.FileStreamFactory,
 	backend *api.Backend,
-	logger *observability.CoreLogger,
-	operations *wboperation.WandbOperations,
-	printer *observability.Printer,
 	settings *settings.Settings,
 	peeker api.Peeker,
 	clientID sharedmode.ClientID,
@@ -202,19 +199,16 @@ func NewFileStream(
 
 	fileStreamRetryClient := backend.NewClient(opts)
 
-	params := filestream.FileStreamParams{
-		Settings:   settings,
-		Logger:     logger,
-		Operations: operations,
-		Printer:    printer,
-		ApiClient:  fileStreamRetryClient,
-	}
-
+	var transmitRateLimit *rate.Limiter
 	if txInterval := settings.GetFileStreamTransmitInterval(); txInterval > 0 {
-		params.TransmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 1)
+		transmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 1)
 	}
 
-	return filestream.NewFileStream(params)
+	return factory.New(
+		fileStreamRetryClient,
+		/*heartbeatStopwatch=*/ nil,
+		transmitRateLimit,
+	)
 }
 
 func NewFileTransferManager(

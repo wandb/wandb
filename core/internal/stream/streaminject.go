@@ -9,6 +9,7 @@ import (
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/monitor"
@@ -42,12 +43,12 @@ var streamProviders = wire.NewSet(
 	wire.Bind(new(api.Peeker), new(*observability.Peeker)),
 	wire.Struct(new(observability.Peeker)),
 	featurechecker.NewServerFeaturesCache,
+	filestream.FileStreamProviders,
 	filetransfer.NewFileTransferStats,
 	handlerProviders,
 	mailbox.New,
 	monitor.SystemMonitorProviders,
 	NewBackend,
-	NewFileStream,
 	NewFileTransferManager,
 	NewGraphQLClient,
 	NewStreamRun,

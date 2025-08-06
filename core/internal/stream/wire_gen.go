@@ -11,6 +11,7 @@ import (
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/monitor"
@@ -83,12 +84,16 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		ClientID:           clientID,
 		Settings:           settings2,
 	}
-	fileStream := NewFileStream(backend, coreLogger, wandbOperations, printer, settings2, peeker, clientID)
+	fileStreamFactory := &filestream.FileStreamFactory{
+		Logger:     coreLogger,
+		Operations: wandbOperations,
+		Printer:    printer,
+		Settings:   settings2,
+	}
 	fileTransferManager := NewFileTransferManager(fileTransferStats, coreLogger, settings2)
 	watcher := provideFileWatcher(coreLogger)
 	uploaderFactory := &runfiles.UploaderFactory{
 		ExtraWork:    runWork,
-		FileStream:   fileStream,
 		FileTransfer: fileTransferManager,
 		FileWatcher:  watcher,
 		GraphQL:      client,
@@ -97,12 +102,13 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Settings:     settings2,
 	}
 	senderFactory := &SenderFactory{
+		ClientID:                clientID,
 		Logger:                  coreLogger,
 		Operations:              wandbOperations,
 		Settings:                settings2,
 		Backend:                 backend,
 		FeatureProvider:         serverFeaturesCache,
-		FileStream:              fileStream,
+		FileStreamFactory:       fileStreamFactory,
 		FileTransferManager:     fileTransferManager,
 		FileTransferStats:       fileTransferStats,
 		FileWatcher:             watcher,
@@ -128,8 +134,7 @@ var (
 // streaminject.go:
 
 var streamProviders = wire.NewSet(
-	NewStream, wire.Bind(new(runwork.ExtraWork), new(runwork.RunWork)), wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filetransfer.NewFileTransferStats, handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewBackend,
-	NewFileStream,
+	NewStream, wire.Bind(new(runwork.ExtraWork), new(runwork.RunWork)), wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewBackend,
 	NewFileTransferManager,
 	NewGraphQLClient,
 	NewStreamRun, observability.NewPrinter, provideFileWatcher,
