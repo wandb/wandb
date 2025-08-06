@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -14,6 +15,8 @@ import (
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
+	"github.com/wandb/wandb/core/internal/tensorboard"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -101,11 +104,15 @@ func NewStream(
 	sentry *sentry_ext.Client,
 	settings *settings.Settings,
 	streamRun *StreamRun,
+	tbHandlerFactory *tensorboard.TBHandlerFactory,
 	writerFactory *WriterFactory,
 ) *Stream {
 	symlinkDebugCore(settings, string(debugCorePath))
 
-	recordParser := recordParserFactory.New()
+	tbHandler := tbHandlerFactory.New(
+		/*fileReadDelay=*/ waiting.NewDelay(5 * time.Second),
+	)
+	recordParser := recordParserFactory.New(tbHandler)
 
 	s := &Stream{
 		runWork:            runWork,

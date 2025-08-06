@@ -52,12 +52,12 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 	}
 	settings := settings.From(settingsProto)
 
-	handler := tensorboard.NewTBHandler(tensorboard.Params{
-		ExtraWork:     runWork,
-		Logger:        observability.NewNoOpLogger(),
-		Settings:      settings,
-		FileReadDelay: fileReadDelay,
-	})
+	factory := tensorboard.TBHandlerFactory{
+		ExtraWork: runWork,
+		Logger:    observability.NewNoOpLogger(),
+		Settings:  settings,
+	}
+	handler := factory.New(fileReadDelay)
 
 	return testContext{
 		Handler: handler,
