@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 from typing import Any, Union
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,13 @@ try:
         """Wrapper for <json|orjson>.dumps."""
         cls = kwargs.pop("cls", None)
         try:
+            if isinstance(obj, float) and obj == float("inf"):
+                return "Infinity"
+            elif isinstance(obj, float) and obj == float("-inf"):
+                return "-Infinity"
+            elif isinstance(obj, float) and math.isnan(obj):
+                return "NaN"
+
             _kwargs = kwargs.copy()
             if cls:
                 _kwargs["default"] = cls.default
