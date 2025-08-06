@@ -38,20 +38,23 @@ type RecordParserFactory struct {
 	Logger             *observability.CoreLogger
 	Operations         *wboperation.WandbOperations
 	Run                *StreamRun
-	TBHandler          *tensorboard.TBHandler
 
 	ClientID sharedmode.ClientID
 	Settings *settings.Settings
 }
 
 // New returns a new RecordParser.
-func (f *RecordParserFactory) New() *recordParser {
-	return &recordParser{*f}
+func (f *RecordParserFactory) New(
+	tbHandler *tensorboard.TBHandler,
+) *recordParser {
+	return &recordParser{*f, tbHandler}
 }
 
 // recordParser is the real implementation of RecordParser.
 type recordParser struct {
 	RecordParserFactory // injected fields
+
+	tbHandler *tensorboard.TBHandler
 }
 
 // Ensure recordParser implements RecordParser.
@@ -79,13 +82,13 @@ func (p *recordParser) Parse(record *spb.Record) runwork.Work {
 		return &tensorboard.TBWork{
 			Record:    record,
 			Logger:    p.Logger,
-			TBHandler: p.TBHandler,
+			TBHandler: p.tbHandler,
 		}
 
 	case record.GetExit() != nil:
 		return NewRunExitWork(RunExitWorkParams{
 			Record:    record,
-			TBHandler: p.TBHandler,
+			TBHandler: p.tbHandler,
 		})
 
 	default:

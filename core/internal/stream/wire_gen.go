@@ -65,14 +65,6 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		TerminalPrinter:   printer,
 	}
 	streamRun := NewStreamRun()
-	fileReadDelay := _wireFileReadDelayValue
-	params := tensorboard.Params{
-		ExtraWork:     runWork,
-		Logger:        coreLogger,
-		Settings:      settings2,
-		FileReadDelay: fileReadDelay,
-	}
-	tbHandler := tensorboard.NewTBHandler(params)
 	recordParserFactory := &RecordParserFactory{
 		BeforeRunEndCtx:    context,
 		FeatureProvider:    serverFeaturesCache,
@@ -80,7 +72,6 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Logger:             coreLogger,
 		Operations:         wandbOperations,
 		Run:                streamRun,
-		TBHandler:          tbHandler,
 		ClientID:           clientID,
 		Settings:           settings2,
 	}
@@ -119,17 +110,18 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Mailbox:                 mailboxMailbox,
 		RunWork:                 runWork,
 	}
+	tbHandlerFactory := &tensorboard.TBHandlerFactory{
+		ExtraWork: runWork,
+		Logger:    coreLogger,
+		Settings:  settings2,
+	}
 	writerFactory := &WriterFactory{
 		Logger:   coreLogger,
 		Settings: settings2,
 	}
-	stream := NewStream(clientID, debugCorePath, serverFeaturesCache, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, recordParserFactory, runWork, senderFactory, sentry, settings2, streamRun, writerFactory)
+	stream := NewStream(clientID, debugCorePath, serverFeaturesCache, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, recordParserFactory, runWork, senderFactory, sentry, settings2, streamRun, tbHandlerFactory, writerFactory)
 	return stream
 }
-
-var (
-	_wireFileReadDelayValue = tensorboard.FileReadDelay(nil)
-)
 
 // streaminject.go:
 
