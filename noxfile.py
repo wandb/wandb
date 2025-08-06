@@ -793,6 +793,17 @@ def wandb_core_size_check(session: nox.Session) -> None:
     )[0]
     current_size = current_binary.stat().st_size
 
+    # Check for baseline override when size has legitimately increased.
+    baseline_file = pathlib.Path("core/.binary-size-baseline")
+    if current_size > 1.1 * pypi_size and baseline_file.exists():
+        baseline_size = int(baseline_file.read_text().strip())
+        if current_size <= baseline_size:
+            session.log(
+                f"Size increase from PyPI accepted (baseline: {baseline_size:,} bytes)"
+            )
+            pypi_size = baseline_size  # Use baseline for comparison
+            pypi_version = "baseline"
+
     # Format and display results.
     def fmt_size(b: int) -> str:
         for unit in ["B", "KB", "MB"]:
@@ -813,6 +824,14 @@ def wandb_core_size_check(session: nox.Session) -> None:
     session.log("=" * 60)
 
     if pct > 10:
+        session.log("")
+        session.log("❌ Binary size increased beyond acceptable threshold!")
+        session.log("")
+        session.log("If this increase is necessary and optimized:")
+        session.log("  1. Verify the increase is justified")
+        session.log(f"  2. Run: echo '{current_size}' > core/.binary-size-baseline")
+        session.log("  3. Commit with: 'Accept binary size increase due to <reason>'")
+        session.log("")
         session.error(f"Binary size increased by {pct:.1f}% (>10% threshold)")
     elif pct > 5:
         session.warn(f"Binary size increased by {pct:.1f}%")
