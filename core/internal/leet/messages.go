@@ -64,5 +64,12 @@ type BatchedRecordsMsg struct {
 	Msgs []tea.Msg
 }
 
+// ChunkedBatchMsg contains a chunk of messages with progress info
+type ChunkedBatchMsg struct {
+	Msgs     []tea.Msg
+	HasMore  bool // Indicates if there are more chunks to read
+	Progress int  // Number of records in this chunk
+}
+
 // ReloadMsg indicates that the Run data should be reloaded
 type ReloadMsg struct{}

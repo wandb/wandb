@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -112,6 +113,97 @@ func (r *WandbReader) tryReopenStore() error {
 	}
 
 	return nil
+}
+
+// ReadAllRecordsChunked reads all available records in chunks and sends them as batches
+func (r *WandbReader) ReadAllRecordsChunked() tea.Cmd {
+	return func() tea.Msg {
+		const chunkSize = 100                          // Process records in chunks
+		const maxTimePerChunk = 100 * time.Millisecond // Increased time limit
+
+		// Try to open store if not already open
+		if err := r.tryReopenStore(); err != nil {
+			// If we can't open the store yet, return empty batch
+			return ChunkedBatchMsg{Msgs: []tea.Msg{}, HasMore: false}
+		}
+
+		if r.store == nil {
+			return ChunkedBatchMsg{Msgs: []tea.Msg{}, HasMore: false}
+		}
+
+		var msgs []tea.Msg
+		recordCount := 0
+		startTime := time.Now()
+		hitEOF := false
+
+		for recordCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
+			// Save position before attempting read
+			currentPos := r.store.GetCurrentOffset()
+
+			record, err := r.store.Read()
+
+			if err == io.EOF {
+				// Update last good offset to current position
+				if currentPos > 0 {
+					r.lastGoodOffset = currentPos
+				}
+				hitEOF = true
+				break
+			}
+
+			if err != nil {
+				// Error reading record - it might be incomplete
+				// Recover and try to continue from next block
+				r.store.Recover()
+
+				// Try one more read after recovery
+				record, err = r.store.Read()
+				if err != nil {
+					// Still failing, update last good position and break
+					if currentPos > 0 && currentPos > r.lastGoodOffset {
+						r.lastGoodOffset = currentPos
+					}
+					// Don't continue, might be corrupted
+					break
+				}
+			}
+
+			if record != nil {
+				if msg := recordToMsg(record); msg != nil {
+					msgs = append(msgs, msg)
+					recordCount++
+				}
+
+				// Update last good offset after successful read
+				newPos := r.store.GetCurrentOffset()
+				if newPos > 0 {
+					r.lastGoodOffset = newPos
+				}
+
+				// Check for exit record
+				if exit, ok := record.RecordType.(*spb.Record_Exit); ok {
+					r.exitSeen = true
+					r.exitCode = exit.Exit.ExitCode
+					msgs = append(msgs, FileCompleteMsg{ExitCode: r.exitCode})
+					hitEOF = true // Treat as EOF
+					break
+				}
+			}
+		}
+
+		// Determine if there's more to read
+		hasMore := false
+		if !r.exitSeen && !hitEOF && recordCount > 0 {
+			// We have records and didn't hit EOF, there might be more
+			hasMore = true
+		}
+
+		return ChunkedBatchMsg{
+			Msgs:     msgs,
+			HasMore:  hasMore,
+			Progress: recordCount,
+		}
+	}
 }
 
 // ReadAllRecords reads all available records from the file.

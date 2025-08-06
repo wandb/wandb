@@ -39,6 +39,12 @@ func ReadAllData(reader *WandbReader) tea.Cmd {
 	}
 }
 
+// ReadAllRecordsChunked reads records in chunks for progressive loading
+func ReadAllRecordsChunked(reader *WandbReader) tea.Cmd {
+	// This is now defined in reader.go as a function that returns tea.Cmd
+	return reader.ReadAllRecordsChunked()
+}
+
 // ReadAvailableRecords reads new records for live monitoring.
 func ReadAvailableRecords(reader *WandbReader) tea.Cmd {
 	return func() tea.Msg {

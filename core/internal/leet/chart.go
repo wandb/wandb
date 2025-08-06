@@ -381,3 +381,14 @@ func (c *EpochLineChart) IsFocused() bool {
 func (c *EpochLineChart) SetFocused(focused bool) {
 	c.focused = focused
 }
+
+// Resize updates the chart dimensions
+func (c *EpochLineChart) Resize(width, height int) {
+	// Check if dimensions actually changed
+	if c.Width() != width || c.Height() != height {
+		c.Model.Resize(width, height)
+		c.dirty = true
+		// Force recalculation of ranges after resize
+		c.updateRanges()
+	}
+}

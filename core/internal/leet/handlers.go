@@ -125,7 +125,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 	// Sort if we added new charts (this will also assign/reassign colors)
 	if needsSort {
-		m.sortCharts()
+		m.sortChartsNoLock() // Use a version that doesn't acquire the lock
 		m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
 	}
 
@@ -145,19 +145,21 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 // drawVisibleCharts only draws charts that are currently visible
 func (m *Model) drawVisibleCharts() {
-	// This is called from handleHistoryMsg which already holds the lock,
-	// but also from other places, so we need to be careful
-	// Use RLock since we're only reading the charts grid
 	defer func() {
 		if r := recover(); r != nil {
 			m.logger.Error(fmt.Sprintf("panic in drawVisibleCharts: %v", r))
 		}
 	}()
 
+	// Force redraw all visible charts
 	for row := 0; row < GridRows; row++ {
 		for col := 0; col < GridCols; col++ {
 			if row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
-				m.charts[row][col].DrawIfNeeded()
+				chart := m.charts[row][col]
+				// Always force a redraw when this is called
+				chart.dirty = true
+				chart.Draw()
+				chart.dirty = false
 			}
 		}
 	}
@@ -229,17 +231,47 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 	switch msg.Type {
 	case tea.KeyCtrlB:
-		// Recalculate width before toggling
+		// Prevent concurrent animations
+		m.animationMu.Lock()
+		if m.animating {
+			m.animationMu.Unlock()
+			return m, nil
+		}
+		m.animating = true
+		m.animationMu.Unlock()
+
+		// Update dimensions BEFORE toggling
 		m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
+		m.rightSidebar.UpdateDimensions(m.width, true) // Will be visible after toggle
+
+		// Toggle the sidebar
 		m.sidebar.Toggle()
+
+		// Update chart sizes and force redraw
 		m.updateChartSizes()
+
 		return m, m.sidebar.animationCmd()
 
 	case tea.KeyCtrlN:
-		// Recalculate width before toggling
+		// Prevent concurrent animations
+		m.animationMu.Lock()
+		if m.animating {
+			m.animationMu.Unlock()
+			return m, nil
+		}
+		m.animating = true
+		m.animationMu.Unlock()
+
+		// Update dimensions BEFORE toggling
 		m.rightSidebar.UpdateDimensions(m.width, m.sidebar.IsVisible())
+		m.sidebar.UpdateDimensions(m.width, true) // Will be visible after toggle
+
+		// Toggle the sidebar
 		m.rightSidebar.Toggle()
+
+		// Update chart sizes and force redraw
 		m.updateChartSizes()
+
 		return m, m.rightSidebar.animationCmd()
 
 	case tea.KeyPgUp, tea.KeyShiftUp:
@@ -396,20 +428,50 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 		m.height = msg.Height
 		m.help.SetSize(msg.Width, msg.Height)
 
-		// Update dimensions before updating sizes
+		// Update sidebar dimensions based on new window size
 		m.sidebar.UpdateDimensions(msg.Width, m.rightSidebar.IsVisible())
 		m.rightSidebar.UpdateDimensions(msg.Width, m.sidebar.IsVisible())
+
+		// Then update chart sizes
 		m.updateChartSizes()
 
 	case SidebarAnimationMsg:
 		if m.sidebar.IsAnimating() {
-			// During animation, update other sidebar's dimensions
+			// Don't update chart sizes during every animation frame
+			// Just continue the animation
+			return m, m.sidebar.animationCmd()
+		} else {
+			// Animation complete - now update everything
+			m.animationMu.Lock()
+			m.animating = false
+			m.animationMu.Unlock()
+
+			// Final update after animation completes
 			m.rightSidebar.UpdateDimensions(m.width, m.sidebar.IsVisible())
 			m.updateChartSizes()
-			return m, m.sidebar.animationCmd()
+
+			// Force redraw all visible charts now that animation is complete
+			m.drawVisibleCharts()
 		}
 
 	case RightSidebarAnimationMsg:
+		if m.rightSidebar.IsAnimating() {
+			// Don't update chart sizes during every animation frame
+			// Just continue the animation
+			return m, m.rightSidebar.animationCmd()
+		} else {
+			// Animation complete - now update everything
+			m.animationMu.Lock()
+			m.animating = false
+			m.animationMu.Unlock()
+
+			// Final update after animation completes
+			m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
+			m.updateChartSizes()
+
+			// Force redraw all visible charts now that animation is complete
+			m.drawVisibleCharts()
+		}
 		if m.rightSidebar.IsAnimating() {
 			// During animation, update other sidebar's dimensions
 			m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())

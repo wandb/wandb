@@ -107,24 +107,48 @@ func (m *Model) loadCurrentPageNoLock() {
 
 // updateChartSizes updates all chart sizes when window is resized or sidebar toggled
 func (m *Model) updateChartSizes() {
-	// Update sidebar dimensions - they need to know about each other
-	m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
-	m.rightSidebar.UpdateDimensions(m.width, m.sidebar.IsVisible())
+	// Prevent concurrent updates
+	defer func() {
+		if r := recover(); r != nil {
+			m.logger.Error(fmt.Sprintf("panic in updateChartSizes: %v", r))
+		}
+	}()
+
+	// Get current sidebar widths
+	leftWidth := m.sidebar.Width()
+	rightWidth := m.rightSidebar.Width()
+
+	// Validate widths
+	if leftWidth < 0 {
+		leftWidth = 0
+	}
+	if rightWidth < 0 {
+		rightWidth = 0
+	}
 
 	// Calculate available width (subtract 2 for left/right margins of the grid container)
-	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width() - 2
+	availableWidth := m.width - leftWidth - rightWidth - 2
+
+	// Ensure minimum width
+	if availableWidth < MinChartWidth*GridCols {
+		availableWidth = MinChartWidth * GridCols
+	}
+
 	availableHeight := m.height - StatusBarHeight
 	dims := CalculateChartDimensions(availableWidth, availableHeight)
 
 	// Resize all charts with mutex protection
 	m.chartMu.Lock()
 	for _, chart := range m.allCharts {
-		chart.Resize(dims.ChartWidth, dims.ChartHeight)
-		chart.dirty = true
+		if chart != nil {
+			chart.Resize(dims.ChartWidth, dims.ChartHeight)
+			chart.dirty = true
+		}
 	}
 	m.chartMu.Unlock()
 
 	m.loadCurrentPage()
+	// Force redraw of visible charts after resize
 	m.drawVisibleCharts()
 }
 

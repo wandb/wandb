@@ -61,12 +61,21 @@ type Model struct {
 	runSummary     *runsummary.RunSummary
 
 	// msgChan is the channel to receive watcher callbacks.
+	// Increased buffer size for large files
 	msgChan chan tea.Msg
 
 	// File change debouncing
 	lastFileChange time.Time
 	debounceTimer  *time.Timer
 	debounceMu     sync.Mutex
+
+	// Animation synchronization
+	animationMu sync.Mutex
+	animating   bool
+
+	// Loading progress
+	recordsLoaded int
+	loadStartTime time.Time
 
 	// logger is the debug logger for the application.
 	logger *observability.CoreLogger
@@ -212,8 +221,61 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case InitMsg:
 		m.logger.Debug("model: InitMsg received, reader initialized")
 		m.reader = msg.Reader
-		// Read all available records
-		return m, ReadAllData(m.reader)
+		m.loadStartTime = time.Now()
+		// Start chunked reading
+		return m, ReadAllRecordsChunked(m.reader)
+
+	case ChunkedBatchMsg:
+		m.logger.Debug(fmt.Sprintf("model: ChunkedBatchMsg received with %d messages, hasMore=%v",
+			len(msg.Msgs), msg.HasMore))
+
+		// Update progress
+		m.recordsLoaded += msg.Progress
+
+		// Process all messages in this chunk
+		processedCount := 0
+		for _, subMsg := range msg.Msgs {
+			var cmd tea.Cmd
+			m, cmd = m.processRecordMsg(subMsg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			processedCount++
+		}
+
+		m.logger.Debug(fmt.Sprintf("model: processed %d messages from chunk", processedCount))
+
+		// Exit loading state once we have some data to show
+		m.chartMu.RLock()
+		hasCharts := len(m.allCharts) > 0
+		m.chartMu.RUnlock()
+
+		if m.isLoading && hasCharts {
+			m.isLoading = false
+			m.logger.Info(fmt.Sprintf("model: initial data loaded, showing UI after %v",
+				time.Since(m.loadStartTime)))
+		}
+
+		// Continue reading if there's more data
+		if msg.HasMore {
+			m.logger.Debug("model: requesting next chunk")
+			cmds = append(cmds, m.reader.ReadAllRecordsChunked())
+		} else {
+			// All initial data loaded
+			m.logger.Info(fmt.Sprintf("model: finished loading %d records in %v",
+				m.recordsLoaded, time.Since(m.loadStartTime)))
+
+			// Start watcher if file isn't complete
+			if !m.fileComplete && !m.watcherStarted {
+				if err := m.startWatcher(); err != nil {
+					m.logger.Error(fmt.Sprintf("model: error starting watcher: %v", err))
+				} else {
+					m.logger.Info("model: watcher started successfully")
+				}
+			}
+		}
+
+		return m, tea.Batch(cmds...)
 
 	case BatchedRecordsMsg:
 		m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
@@ -263,6 +325,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for len(m.msgChan) > 0 {
 			<-m.msgChan
 		}
+
+		// Reset loading state
+		m.recordsLoaded = 0
+		m.loadStartTime = time.Now()
 
 		return m, tea.Batch(
 			InitializeReader(m.runPath),
@@ -350,8 +416,40 @@ func (m *Model) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, content)
 	}
 
+	// Get sidebar widths (ensure they're valid)
+	leftWidth := m.sidebar.Width()
+	rightWidth := m.rightSidebar.Width()
+
+	// Sanity check widths
+	if leftWidth < 0 {
+		leftWidth = 0
+	}
+	if rightWidth < 0 {
+		rightWidth = 0
+	}
+
+	// Ensure we have enough space for content
+	totalSidebarWidth := leftWidth + rightWidth
+	if totalSidebarWidth >= m.width-10 { // Leave at least 10 chars for content
+		// Sidebars are too wide, force collapse one
+		if rightWidth > 0 {
+			m.rightSidebar.state = SidebarCollapsed
+			m.rightSidebar.currentWidth = 0
+			rightWidth = 0
+		}
+		if leftWidth+10 >= m.width {
+			m.sidebar.state = SidebarCollapsed
+			m.sidebar.currentWidth = 0
+			leftWidth = 0
+		}
+	}
+
 	// Calculate available space for charts (subtract 2 for margins)
-	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width() - 2
+	availableWidth := m.width - leftWidth - rightWidth - 2
+	if availableWidth < MinChartWidth {
+		availableWidth = MinChartWidth
+	}
+
 	availableHeight := m.height - StatusBarHeight
 	dims := CalculateChartDimensions(availableWidth, availableHeight)
 
@@ -360,30 +458,40 @@ func (m *Model) View() string {
 
 	// Build the main view based on sidebar visibility
 	var mainView string
-	leftSidebarView := m.sidebar.View(m.height - StatusBarHeight)
-	rightSidebarView := m.rightSidebar.View(m.height - StatusBarHeight)
 
-	switch {
-	case m.sidebar.Width() > 0 && m.rightSidebar.Width() > 0:
-		mainView = lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			leftSidebarView,
-			gridView,
-			rightSidebarView,
-		)
-	case m.sidebar.Width() > 0:
-		mainView = lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			leftSidebarView,
-			gridView,
-		)
-	case m.rightSidebar.Width() > 0:
-		mainView = lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			gridView,
-			rightSidebarView,
-		)
-	default:
+	if leftWidth > 0 || rightWidth > 0 {
+		leftSidebarView := ""
+		rightSidebarView := ""
+
+		if leftWidth > 0 {
+			leftSidebarView = m.sidebar.View(m.height - StatusBarHeight)
+		}
+		if rightWidth > 0 {
+			rightSidebarView = m.rightSidebar.View(m.height - StatusBarHeight)
+		}
+
+		switch {
+		case leftWidth > 0 && rightWidth > 0:
+			mainView = lipgloss.JoinHorizontal(
+				lipgloss.Top,
+				leftSidebarView,
+				gridView,
+				rightSidebarView,
+			)
+		case leftWidth > 0:
+			mainView = lipgloss.JoinHorizontal(
+				lipgloss.Top,
+				leftSidebarView,
+				gridView,
+			)
+		case rightWidth > 0:
+			mainView = lipgloss.JoinHorizontal(
+				lipgloss.Top,
+				gridView,
+				rightSidebarView,
+			)
+		}
+	} else {
 		mainView = gridView
 	}
 
@@ -467,7 +575,17 @@ func (m *Model) renderStatusBar() string {
 			statusText = " Press 1-9 to set system rows (ESC to cancel)"
 		}
 	case m.isLoading:
-		statusText = " Loading data..."
+		// Show loading progress
+		m.chartMu.RLock()
+		chartCount := len(m.allCharts)
+		m.chartMu.RUnlock()
+
+		if m.recordsLoaded > 0 {
+			statusText = fmt.Sprintf(" Loading data... [%d records, %d metrics]",
+				m.recordsLoaded, chartCount)
+		} else {
+			statusText = " Loading data..."
+		}
 	default:
 		switch m.runState {
 		case RunStateRunning:
