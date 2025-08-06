@@ -35,6 +35,11 @@ def build_wandb_core(
         target_arch: The target architecture (GOARCH) or an empty string
             to use the current architecture.
     """
+    # Using the `disable_grpc_modules` tag makes the binary smaller by about 12MB.
+    # cloud.google.com/go/storage pulls in test dependencies
+    # (specifically, google.golang.org/grpc/stats/opentelemetry.test)
+    # that in turn pull in the whole github.com/envoyproxy/go-control-plane.
+    build_tags = ["-tags", "disable_grpc_modules"]
     coverage_flags = ["-cover"] if with_code_coverage else []
     race_detect_flags = ["-race"] if with_race_detection else []
     output_flags = ["-o", str(".." / output_path)]
@@ -49,6 +54,7 @@ def build_wandb_core(
         [
             str(go_binary),
             "build",
+            *build_tags,
             *coverage_flags,
             *race_detect_flags,
             *ld_flags,
