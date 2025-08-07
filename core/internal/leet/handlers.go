@@ -229,6 +229,8 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 }
 
 // handleKeyMsg processes keyboard events
+//
+//gocyclo:ignore
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	// Handle filter mode input FIRST
 	if m.filterMode {

@@ -31,8 +31,16 @@ const (
 	SidebarMaxWidth       = 80
 )
 
-// WANDB brand color
-const wandbColor = lipgloss.Color("#FCBC32")
+// WANDB brand colors
+const (
+	// Primary
+	moon900    = lipgloss.Color("#171A1F")
+	wandbColor = lipgloss.Color("#FCBC32")
+	moon50     = lipgloss.Color("#FDFDFD")
+	// Secondary
+	teal450 = lipgloss.Color("#10BFCC")
+	moon450 = lipgloss.Color("#8F949E")
+)
 
 // ASCII art for the loading screen and the help page
 var wandbArt = `

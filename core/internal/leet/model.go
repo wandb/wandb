@@ -166,21 +166,22 @@ func matchPattern(pattern, str string) bool {
 	match := 0 // position in string matched by *
 
 	for si < len(str) {
-		if pi < len(pattern) && (pattern[pi] == '?' || pattern[pi] == str[si]) {
+		switch {
+		case pi < len(pattern) && (pattern[pi] == '?' || pattern[pi] == str[si]):
 			// Character match or ? wildcard
 			pi++
 			si++
-		} else if pi < len(pattern) && pattern[pi] == '*' {
+		case pi < len(pattern) && pattern[pi] == '*':
 			// * wildcard - record position and try to match rest
 			star = pi
 			match = si
 			pi++
-		} else if star != -1 {
+		case star != -1:
 			// Backtrack to last * and try matching one more character
 			pi = star + 1
 			match++
 			si = match
-		} else {
+		default:
 			// No match
 			return false
 		}
