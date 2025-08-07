@@ -28,6 +28,7 @@ from wandb.sdk.launch.runner.kubernetes_runner import (
     add_label_to_pods,
     add_wandb_env,
     ensure_api_key_secret,
+    ensure_env_vars_secret,
     maybe_create_imagepull_secret,
 )
 
@@ -1116,6 +1117,88 @@ async def test_create_api_key_secret_exists():
     assert secret.metadata.name == "wandb-api-key-testagent"
     assert secret.data["password"] == base64.b64encode(b"testsecret").decode()
     assert api.calls["delete"] == 1
+
+
+@pytest.mark.asyncio
+async def test_create_env_vars_secret():
+    api = MockCoreV1Api()
+    env_vars = {
+        "DATABASE_URL": "postgresql://user:pass@localhost/db",
+        "API_SECRET": "secret123",
+        "DEBUG_MODE": "true"
+    }
+    await ensure_env_vars_secret(api, "wandb-secrets-testrun", "wandb", env_vars)
+    
+    namespace, secret = api.secrets[0]
+    assert namespace == "wandb"
+    assert secret.metadata.name == "wandb-secrets-testrun"
+    assert secret.type == "Opaque"
+    
+    # Verify all env vars are base64 encoded in the secret
+    expected_data = {
+        "DATABASE_URL": base64.b64encode(b"postgresql://user:pass@localhost/db").decode(),
+        "API_SECRET": base64.b64encode(b"secret123").decode(),
+        "DEBUG_MODE": base64.b64encode(b"true").decode()
+    }
+    assert secret.data == expected_data
+
+
+@pytest.mark.asyncio
+async def test_create_env_vars_secret_exists():
+    api = MockCoreV1Api()
+    
+    # Create secret with same name but different data, assert it gets overwritten
+    secret_data = {"OLD_VAR": "old_value"}
+    labels = {"wandb.ai/created-by": "launch-agent"}
+    secret = client.V1Secret(
+        data=secret_data,
+        metadata=client.V1ObjectMeta(
+            name="wandb-secrets-testrun", namespace="wandb", labels=labels
+        ),
+        kind="Secret",
+        type="Opaque",
+    )
+    await api.create_namespaced_secret("wandb", secret)
+    
+    env_vars = {
+        "DATABASE_URL": "postgresql://user:pass@localhost/db",
+        "API_SECRET": "secret123"
+    }
+    await ensure_env_vars_secret(api, "wandb-secrets-testrun", "wandb", env_vars)
+    
+    namespace, secret = api.secrets[0]
+    assert namespace == "wandb"
+    assert secret.metadata.name == "wandb-secrets-testrun"
+    expected_data = {
+        "DATABASE_URL": base64.b64encode(b"postgresql://user:pass@localhost/db").decode(),
+        "API_SECRET": base64.b64encode(b"secret123").decode()
+    }
+    assert secret.data == expected_data
+    assert api.calls["delete"] == 1
+
+
+@pytest.mark.asyncio 
+async def test_create_env_vars_secret_exists_different_owner():
+    api = MockCoreV1Api()
+    
+    # Create secret with same name but owned by someone else
+    secret_data = {"OLD_VAR": "old_value"}
+    labels = {"owner": "someone-else"}  # Not launch-agent
+    secret = client.V1Secret(
+        data=secret_data,
+        metadata=client.V1ObjectMeta(
+            name="wandb-secrets-testrun", namespace="wandb", labels=labels
+        ),
+        kind="Secret",
+        type="Opaque",
+    )
+    await api.create_namespaced_secret("wandb", secret)
+    
+    env_vars = {"DATABASE_URL": "postgresql://user:pass@localhost/db"}
+    
+    # Should raise LaunchError since we can't overwrite someone else's secret
+    with pytest.raises(LaunchError, match="Kubernetes secret already exists in namespace wandb with incorrect data"):
+        await ensure_env_vars_secret(api, "wandb-secrets-testrun", "wandb", env_vars)
 
 
 # Test monitor class.

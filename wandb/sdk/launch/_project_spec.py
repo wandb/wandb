@@ -485,6 +485,18 @@ class LaunchProject:
         )
         return env_vars
 
+    def get_secrets_dict(self) -> Dict[str, str]:
+        """Get secrets from the launch spec.
+        
+        Returns:
+            Dictionary of secret environment variables.
+        """
+        if "_wandb_secrets" in self.launch_spec:
+            secrets = self.launch_spec["_wandb_secrets"]
+            if isinstance(secrets, dict):
+                return secrets
+        return {}
+
     def parse_existing_requirements(self) -> str:
         from packaging.requirements import InvalidRequirement, Requirement
 
