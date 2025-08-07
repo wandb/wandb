@@ -33,6 +33,8 @@ func NewHelp() *HelpModel {
 		{Key: "h, ?", Description: "Toggle this help screen"},
 		{Key: "q, ctrl+c", Description: "Quit"},
 		{Key: "alt+r", Description: "Reload run data"},
+		{Key: "/", Description: "Filter metrics by pattern"},
+		{Key: "ctrl+l", Description: "Clear active filter"},
 		{Key: "", Description: ""},
 
 		// Panels

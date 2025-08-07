@@ -73,6 +73,11 @@ func (m *Model) sortChartsNoLock() {
 		chart.graphStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(graphColors[i%len(graphColors)]))
 	}
+
+	// Initialize filtered charts if not already done
+	if m.filteredCharts == nil || (len(m.filteredCharts) == 0 && m.activeFilter == "") {
+		m.filteredCharts = m.allCharts
+	}
 }
 
 // loadCurrentPage loads the charts for the current page into the grid
@@ -90,16 +95,22 @@ func (m *Model) loadCurrentPageNoLock() {
 		m.charts[row] = make([]*EpochLineChart, GridCols)
 	}
 
+	// Use filtered charts if filter is active, otherwise use all charts
+	chartsToShow := m.filteredCharts
+	if len(chartsToShow) == 0 && m.activeFilter == "" {
+		chartsToShow = m.allCharts
+	}
+
 	startIdx := m.currentPage * ChartsPerPage
 	endIdx := startIdx + ChartsPerPage
-	if endIdx > len(m.allCharts) {
-		endIdx = len(m.allCharts)
+	if endIdx > len(chartsToShow) {
+		endIdx = len(chartsToShow)
 	}
 
 	idx := startIdx
 	for row := 0; row < GridRows && idx < endIdx; row++ {
 		for col := 0; col < GridCols && idx < endIdx; col++ {
-			m.charts[row][col] = m.allCharts[idx]
+			m.charts[row][col] = chartsToShow[idx]
 			idx++
 		}
 	}
@@ -163,7 +174,11 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 	// Add navigation info with mutex protection for chart count
 	navInfo := ""
 	m.chartMu.RLock()
-	chartCount := len(m.allCharts)
+	chartCount := len(m.filteredCharts)
+	if chartCount == 0 && m.activeFilter == "" {
+		chartCount = len(m.allCharts)
+	}
+	totalCount := len(m.allCharts)
 	m.chartMu.RUnlock()
 
 	if m.totalPages > 0 && chartCount > 0 {
@@ -172,9 +187,18 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 		if endIdx > chartCount {
 			endIdx = chartCount
 		}
-		navInfo = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
-			Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, chartCount))
+
+		// Show filter info if active
+		if m.activeFilter != "" {
+			navInfo = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("240")).
+				Render(fmt.Sprintf(" [%d-%d of %d filtered from %d total]",
+					startIdx, endIdx, chartCount, totalCount))
+		} else {
+			navInfo = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("240")).
+				Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, chartCount))
+		}
 	}
 
 	// Combine header and nav info horizontally

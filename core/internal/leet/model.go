@@ -39,6 +39,12 @@ type Model struct {
 	// charts holds the current page of charts arranged in grid
 	charts [][]*EpochLineChart
 
+	// Filter state
+	filterMode     bool              // Whether we're currently typing a filter
+	filterInput    string            // The current filter being typed
+	activeFilter   string            // The confirmed filter in use
+	filteredCharts []*EpochLineChart // Filtered subset of charts
+
 	width          int
 	height         int
 	step           int
@@ -106,6 +112,10 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		allCharts:      make([]*EpochLineChart, 0),
 		chartsByName:   make(map[string]*EpochLineChart),
 		charts:         make([][]*EpochLineChart, GridRows),
+		filteredCharts: make([]*EpochLineChart, 0),
+		filterMode:     false,
+		filterInput:    "",
+		activeFilter:   "",
 		step:           0,
 		focusedRow:     -1,
 		focusedCol:     -1,
@@ -133,6 +143,162 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	})
 
 	return m
+}
+
+// matchPattern implements simple glob pattern matching that treats / as a regular character
+func matchPattern(pattern, str string) bool {
+	// Convert both to lowercase for case-insensitive matching
+	pattern = strings.ToLower(pattern)
+	str = strings.ToLower(str)
+
+	// Handle special cases
+	if pattern == "" {
+		return true
+	}
+	if pattern == "*" {
+		return true
+	}
+
+	// Simple implementation of glob matching
+	pi := 0    // pattern index
+	si := 0    // string index
+	star := -1 // position of last * in pattern
+	match := 0 // position in string matched by *
+
+	for si < len(str) {
+		if pi < len(pattern) && (pattern[pi] == '?' || pattern[pi] == str[si]) {
+			// Character match or ? wildcard
+			pi++
+			si++
+		} else if pi < len(pattern) && pattern[pi] == '*' {
+			// * wildcard - record position and try to match rest
+			star = pi
+			match = si
+			pi++
+		} else if star != -1 {
+			// Backtrack to last * and try matching one more character
+			pi = star + 1
+			match++
+			si = match
+		} else {
+			// No match
+			return false
+		}
+	}
+
+	// Check for remaining wildcards in pattern
+	for pi < len(pattern) && pattern[pi] == '*' {
+		pi++
+	}
+
+	return pi == len(pattern)
+}
+
+// applyFilter applies the current filter pattern to charts
+func (m *Model) applyFilter(pattern string) {
+	m.chartMu.Lock()
+	defer m.chartMu.Unlock()
+
+	if pattern == "" {
+		// No filter, use all charts
+		m.filteredCharts = m.allCharts
+	} else {
+		// Apply filter
+		m.filteredCharts = make([]*EpochLineChart, 0)
+
+		// If pattern has no wildcards, treat as substring match
+		useSubstring := !strings.Contains(pattern, "*") && !strings.Contains(pattern, "?")
+
+		for _, chart := range m.allCharts {
+			chartTitle := chart.Title()
+
+			var matched bool
+			if useSubstring {
+				// Simple substring match (case-insensitive)
+				matched = strings.Contains(strings.ToLower(chartTitle), strings.ToLower(pattern))
+			} else {
+				// Use our custom glob matcher
+				matched = matchPattern(pattern, chartTitle)
+			}
+
+			if matched {
+				m.filteredCharts = append(m.filteredCharts, chart)
+			}
+		}
+	}
+
+	// Recalculate pages based on filtered charts
+	m.totalPages = (len(m.filteredCharts) + ChartsPerPage - 1) / ChartsPerPage
+	if m.currentPage >= m.totalPages && m.totalPages > 0 {
+		m.currentPage = 0
+	}
+
+	m.loadCurrentPageNoLock()
+}
+
+// enterFilterMode enters filter input mode
+func (m *Model) enterFilterMode() {
+	m.filterMode = true
+	m.filterInput = m.activeFilter // Start with current filter
+}
+
+// exitFilterMode exits filter input mode and optionally applies the filter
+func (m *Model) exitFilterMode(apply bool) {
+	m.filterMode = false
+	if apply {
+		m.activeFilter = m.filterInput
+		m.applyFilter(m.activeFilter)
+		m.drawVisibleCharts()
+	} else {
+		// Restore previous filter
+		m.filterInput = m.activeFilter
+		m.applyFilter(m.activeFilter)
+	}
+}
+
+// clearFilter removes the active filter
+func (m *Model) clearFilter() {
+	m.activeFilter = ""
+	m.filterInput = ""
+	m.applyFilter("")
+	m.drawVisibleCharts()
+}
+
+// getFilteredChartCount returns the number of charts matching the current filter
+func (m *Model) getFilteredChartCount() int {
+	if m.filterMode {
+		// Count matches for current input
+		count := 0
+		pattern := m.filterInput
+		if pattern == "" {
+			return len(m.allCharts)
+		}
+
+		m.chartMu.RLock()
+		defer m.chartMu.RUnlock()
+
+		// If pattern has no wildcards, treat as substring match
+		useSubstring := !strings.Contains(pattern, "*") && !strings.Contains(pattern, "?")
+
+		for _, chart := range m.allCharts {
+			chartTitle := chart.Title()
+
+			var matched bool
+			if useSubstring {
+				// Simple substring match (case-insensitive)
+				matched = strings.Contains(strings.ToLower(chartTitle), strings.ToLower(pattern))
+			} else {
+				// Use our custom glob matcher
+				matched = matchPattern(pattern, chartTitle)
+			}
+
+			if matched {
+				count++
+			}
+		}
+		return count
+	}
+	return len(m.filteredCharts)
 }
 
 // recoverPanic recovers from panics and logs them
@@ -562,6 +728,14 @@ func (m *Model) renderStatusBar() string {
 	// Left side content
 	statusText := ""
 	switch {
+	case m.filterMode:
+		// Show filter input with cursor
+		matchCount := m.getFilteredChartCount()
+		m.chartMu.RLock()
+		totalCount := len(m.allCharts)
+		m.chartMu.RUnlock()
+		statusText = fmt.Sprintf(" Filter: /%s_ [%d/%d matches]",
+			m.filterInput, matchCount, totalCount)
 	case m.waitingForConfigKey:
 		// Show config hint
 		switch m.configKeyType {
@@ -587,6 +761,7 @@ func (m *Model) renderStatusBar() string {
 			statusText = " Loading data..."
 		}
 	default:
+		// Build status text with run state
 		switch m.runState {
 		case RunStateRunning:
 			statusText = " State: Running"
@@ -597,6 +772,16 @@ func (m *Model) renderStatusBar() string {
 		case RunStateCrashed:
 			statusText = " State: Error (recovered)"
 		}
+
+		// Add filter info if active (separated with a bullet point)
+		if m.activeFilter != "" {
+			m.chartMu.RLock()
+			filteredCount := len(m.filteredCharts)
+			totalCount := len(m.allCharts)
+			m.chartMu.RUnlock()
+			statusText += fmt.Sprintf(" • Filter: \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
+				m.activeFilter, filteredCount, totalCount)
+		}
 	}
 
 	// Add buffer status if channel is getting full
@@ -606,8 +791,11 @@ func (m *Model) renderStatusBar() string {
 		statusText += fmt.Sprintf(" [Buffer: %d/%d]", bufferUsage, bufferCapacity)
 	}
 
-	// Right side content
-	helpText := "h: toggle help "
+	// Right side content - hide help text in filter mode
+	helpText := ""
+	if !m.filterMode {
+		helpText = "h: toggle help "
+	}
 
 	// Calculate padding to fill the entire width
 	statusLen := lipgloss.Width(statusText)
@@ -704,6 +892,9 @@ func (m *Model) startWatcher() error {
 
 // reloadCharts resets all charts and reloads data
 func (m *Model) reloadCharts() tea.Cmd {
+	// Save current filter
+	savedFilter := m.activeFilter
+
 	m.step = 0
 	m.isLoading = true
 	m.runState = RunStateRunning // Reset from crashed state if applicable
@@ -711,6 +902,7 @@ func (m *Model) reloadCharts() tea.Cmd {
 	m.chartMu.Lock()
 	m.allCharts = make([]*EpochLineChart, 0)
 	m.chartsByName = make(map[string]*EpochLineChart)
+	m.filteredCharts = make([]*EpochLineChart, 0)
 	m.chartMu.Unlock()
 
 	m.totalPages = 0
@@ -730,6 +922,9 @@ func (m *Model) reloadCharts() tea.Cmd {
 
 	// Reset system metrics
 	m.rightSidebar.Reset()
+
+	// Restore filter after reset
+	m.activeFilter = savedFilter
 
 	// Update chart sizes
 	m.updateChartSizes()

@@ -125,8 +125,14 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 	// Sort if we added new charts (this will also assign/reassign colors)
 	if needsSort {
-		m.sortChartsNoLock() // Use a version that doesn't acquire the lock
-		m.totalPages = (len(m.allCharts) + ChartsPerPage - 1) / ChartsPerPage
+		m.sortChartsNoLock()
+		// Apply current filter to new charts
+		if m.activeFilter != "" {
+			m.applyFilter(m.activeFilter)
+		} else if len(m.filteredCharts) == 0 {
+			m.filteredCharts = m.allCharts
+		}
+		m.totalPages = (len(m.filteredCharts) + ChartsPerPage - 1) / ChartsPerPage
 	}
 
 	// Exit loading state only when we have actual charts with data
@@ -136,7 +142,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 	// Reload page and draw
 	if len(msg.Metrics) > 0 {
-		m.loadCurrentPageNoLock() // Use a version that doesn't acquire the lock
+		m.loadCurrentPageNoLock()
 		m.drawVisibleCharts()
 	}
 
@@ -224,7 +230,47 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 
 // handleKeyMsg processes keyboard events
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	// If we're waiting for a config key, handle that first
+	// Handle filter mode input FIRST
+	if m.filterMode {
+		switch msg.Type {
+		case tea.KeyEsc:
+			// Cancel filter input
+			m.exitFilterMode(false)
+			return m, nil
+		case tea.KeyEnter:
+			// Apply filter
+			m.exitFilterMode(true)
+			return m, nil
+		case tea.KeyBackspace:
+			// Remove last character
+			if len(m.filterInput) > 0 {
+				m.filterInput = m.filterInput[:len(m.filterInput)-1]
+				// Live preview
+				m.applyFilter(m.filterInput)
+				m.drawVisibleCharts()
+			}
+			return m, nil
+		case tea.KeyRunes:
+			// Add typed characters
+			m.filterInput += string(msg.Runes)
+			// Live preview
+			m.applyFilter(m.filterInput)
+			m.drawVisibleCharts()
+			return m, nil
+		case tea.KeySpace:
+			// Add space
+			m.filterInput += " "
+			// Live preview
+			m.applyFilter(m.filterInput)
+			m.drawVisibleCharts()
+			return m, nil
+		default:
+			// Ignore other keys in filter mode
+			return m, nil
+		}
+	}
+
+	// If we're waiting for a config key, handle that next
 	if m.waitingForConfigKey {
 		return m.handleConfigNumberKey(msg)
 	}
@@ -274,6 +320,13 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 		return m, m.rightSidebar.animationCmd()
 
+	case tea.KeyCtrlL:
+		// Clear filter with Ctrl+L
+		if m.activeFilter != "" {
+			m.clearFilter()
+			return m, nil
+		}
+
 	case tea.KeyPgUp, tea.KeyShiftUp:
 		m.navigatePage(-1)
 
@@ -298,6 +351,11 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		}
 		close(m.msgChan)
 		return m, tea.Quit
+
+	case "/":
+		// Enter filter mode
+		m.enterFilterMode()
+		return m, nil
 
 	case "r":
 		// Lowercase r for metrics rows
