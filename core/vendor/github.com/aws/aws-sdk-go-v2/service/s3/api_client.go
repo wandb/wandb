@@ -464,6 +464,7 @@ func NewFromConfig(cfg aws.Config, optFns ...func(*Options)) *Client {
 		AppID:                      cfg.AppID,
 		RequestChecksumCalculation: cfg.RequestChecksumCalculation,
 		ResponseChecksumValidation: cfg.ResponseChecksumValidation,
+		AuthSchemePreference:       cfg.AuthSchemePreference,
 	}
 	resolveAWSRetryerProvider(cfg, &opts)
 	resolveAWSRetryMaxAttempts(cfg, &opts)
