@@ -12,3 +12,11 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Notable Changes
+
+This release uses [orjson](https://github.com/ijl/orjson) by default for serializing/deserializing JSON objects. This may cause some issues in edge cases with `NaN`, `+Infinity`, `-Infinity` values.
+You can use `_WANDB_USE_JSON` environment variable to revert back to using the previous JSON serialization library.
+
+### Changed
+-  `orjson` is now used by default for serializing/deserializing JSON objects.

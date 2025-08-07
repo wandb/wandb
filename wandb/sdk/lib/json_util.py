@@ -1,36 +1,32 @@
 import json
 import logging
 import math
+import os
 from typing import Any, Union
 
 logger = logging.getLogger(__name__)
 
 
-def _create_orjson_fragments(obj: Any) -> Any:
-    """Create orjson fragments for non-serializable objects.
-
-    Orjson fragments are not serialized by orjson.
-    So this allows us to still support non-standard json types. (inf, -inf, nan)
-    """
-    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
-        return orjson.Fragment(json.dumps(obj))
-    return obj
-
-
-def _walk_and_create_fragments(obj: Any) -> Any:
-    if isinstance(obj, dict):
-        return {k: _walk_and_create_fragments(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [_walk_and_create_fragments(v) for v in obj]
-    else:
-        return _create_orjson_fragments(obj)
-
-
-try:
+if "_WANDB_USE_JSON" not in os.environ:
     import orjson  # type: ignore
 
-    # todo: orjson complies with the json standard and does not support
-    #  NaN, Infinity, and -Infinity. Should be fixed in the future.
+    def _create_orjson_fragments(obj: Any) -> Any:
+        """Create orjson fragments for non-serializable objects.
+
+        Orjson fragments are not serialized by orjson.
+        So this allows us to still support non-standard json types. (inf, -inf, nan)
+        """
+        if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+            return orjson.Fragment(json.dumps(obj))
+        return obj
+
+    def _walk_and_create_fragments(obj: Any) -> Any:
+        if isinstance(obj, dict):
+            return {k: _walk_and_create_fragments(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [_walk_and_create_fragments(v) for v in obj]
+        else:
+            return _create_orjson_fragments(obj)
 
     # additional safeguard for now
     def dumps(obj: Any, **kwargs: Any) -> str:
@@ -89,5 +85,5 @@ try:
             decoded = json.load(fp)
 
         return decoded
-except ImportError:
+else:
     from json import dump, dumps, load, loads  # type: ignore[assignment] # noqa: F401
