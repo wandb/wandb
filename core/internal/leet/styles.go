@@ -62,7 +62,7 @@ const leetArt = `
 
 // Color schemes
 var colorSchemes = map[string][]string{
-	"sunset-glow": { // Golden-pink gradient (default)
+	"sunset-glow": { // Golden-pink gradient
 		"#E281FE",
 		"#E78DE3",
 		"#E993D5",
