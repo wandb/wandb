@@ -133,6 +133,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 			m.filteredCharts = m.allCharts
 		}
 		m.totalPages = (len(m.filteredCharts) + ChartsPerPage - 1) / ChartsPerPage
+	}
 
 	// Exit loading state only when we have actual charts with data
 	if m.isLoading && len(m.allCharts) > 0 {

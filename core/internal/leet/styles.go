@@ -34,8 +34,6 @@ const (
 // WANDB brand color
 const wandbColor = lipgloss.Color("#FCBC32")
 
-// const wandbColor = lipgloss.Color("#FFCF4F")
-
 // ASCII art for the loading screen and the help page
 var wandbArt = `
 ██     ██  █████  ███    ██ ██████  ██████
@@ -68,6 +66,40 @@ var colorSchemes = map[string][]string{
 		"#FBC36B",
 		"#FFCF4F",
 	},
+	"wandb-vibe-10": {
+		"#B1B4B9",
+		"#58D3DB",
+		"#5ED6A4",
+		"#FCA36F",
+		"#FF7A88",
+		"#7DB1FA",
+		"#BBE06B",
+		"#FFCF4D",
+		"#E180FF",
+		"#B199FF",
+	},
+	"wandb-vibe-20": {
+		"#D4D5D9",
+		"#565C66",
+		"#A9EDF2",
+		"#038194",
+		"#A1F0CB",
+		"#00875A",
+		"#FFCFB2",
+		"#C2562F",
+		"#FFC7CA",
+		"#CC2944",
+		"#BDD9FF",
+		"#1F59C4",
+		"#D0ED9D",
+		"#5F8A2D",
+		"#FFE49E",
+		"#B8740F",
+		"#EFC2FC",
+		"#9E36C2",
+		"#D6C9FF",
+		"#6645D1",
+	},
 }
 
 // GetGraphColors returns the colors for the current color scheme
@@ -90,6 +122,25 @@ func UpdateGridDimensions() {
 	MetricsPerPage = MetricsGridRows * MetricsGridCols
 }
 
+// Metrics grid styles
+var (
+	headerStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("230"))
+
+	navInfoStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240"))
+
+	headerContainerStyle = lipgloss.NewStyle().
+				MarginLeft(1).
+				MarginTop(1).
+				MarginBottom(0)
+
+	gridContainerStyle = lipgloss.NewStyle().
+				MarginLeft(1).
+				MarginRight(1)
+)
+
 // Chart styles
 var (
 	borderStyle = lipgloss.NewStyle().
@@ -100,7 +151,7 @@ var (
 			Foreground(lipgloss.Color("250")). // light gray
 			Bold(true)
 
-	focusedBorderStyle = borderStyle.BorderForeground(lipgloss.Color("4"))
+	focusedBorderStyle = borderStyle.BorderForeground(lipgloss.Color("#E1F7FA"))
 
 	axisStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240")) // gray

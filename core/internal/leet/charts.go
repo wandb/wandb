@@ -49,12 +49,12 @@ func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
 }
 
 // sortCharts sorts all charts alphabetically by title and reassigns colors
-func (m *Model) sortCharts() {
-	m.chartMu.Lock()
-	defer m.chartMu.Unlock()
+// func (m *Model) sortCharts() {
+// 	m.chartMu.Lock()
+// 	defer m.chartMu.Unlock()
 
-	m.sortChartsNoLock()
-}
+// 	m.sortChartsNoLock()
+// }
 
 // sortChartsNoLock sorts charts without acquiring the mutex (caller must hold the lock)
 func (m *Model) sortChartsNoLock() {
@@ -166,10 +166,7 @@ func (m *Model) updateChartSizes() {
 // renderGrid creates the chart grid view
 func (m *Model) renderGrid(dims ChartDimensions) string {
 	// Build header with consistent padding
-	header := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("230")).
-		Render("Metrics")
+	header := headerStyle.Render("Metrics")
 
 	// Add navigation info with mutex protection for chart count
 	navInfo := ""
@@ -190,13 +187,11 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 
 		// Show filter info if active
 		if m.activeFilter != "" {
-			navInfo = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("240")).
+			navInfo = navInfoStyle.
 				Render(fmt.Sprintf(" [%d-%d of %d filtered from %d total]",
 					startIdx, endIdx, chartCount, totalCount))
 		} else {
-			navInfo = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("240")).
+			navInfo = navInfoStyle.
 				Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, chartCount))
 		}
 	}
@@ -205,11 +200,7 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 	headerLine := lipgloss.JoinHorizontal(lipgloss.Left, header, navInfo)
 
 	// Create header container with consistent padding
-	headerContainer := lipgloss.NewStyle().
-		MarginLeft(1).
-		MarginTop(1).
-		MarginBottom(0).
-		Render(headerLine)
+	headerContainer := headerContainerStyle.Render(headerLine)
 
 	// Render grid
 	var rows []string
@@ -225,10 +216,7 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 	gridContent := lipgloss.JoinVertical(lipgloss.Left, rows...)
 
 	// Create grid container with consistent padding (removed bottom margin)
-	gridContainer := lipgloss.NewStyle().
-		MarginLeft(1).
-		MarginRight(1).
-		Render(gridContent)
+	gridContainer := gridContainerStyle.Render(gridContent)
 
 	// Combine header container and grid container
 	return lipgloss.JoinVertical(lipgloss.Left, headerContainer, gridContainer)
