@@ -5,19 +5,19 @@ go 1.24.5
 require (
 	cloud.google.com/go/storage v1.56.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.2
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.11.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.2
 	github.com/Khan/genqlient v0.8.1
 	github.com/aws/aws-sdk-go-v2 v1.37.2
-	github.com/aws/aws-sdk-go-v2/config v1.30.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.85.0
-	github.com/getsentry/sentry-go v0.34.1
+	github.com/aws/aws-sdk-go-v2/config v1.30.3
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.86.0
+	github.com/getsentry/sentry-go v0.35.0
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/google/wire v0.6.0
 	github.com/googleapis/gax-go/v2 v2.15.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/golang-lru v1.0.2
-	github.com/prometheus/client_golang v1.22.0
+	github.com/prometheus/client_golang v1.23.0
 	github.com/prometheus/common v0.65.0
 	github.com/radovskyb/watcher v1.0.7
 	github.com/shirou/gopsutil/v4 v4.25.6
@@ -28,7 +28,7 @@ require (
 	gocloud.dev v0.43.0
 	golang.org/x/sync v0.16.0
 	golang.org/x/time v0.12.0
-	google.golang.org/api v0.244.0
+	google.golang.org/api v0.246.0
 	google.golang.org/grpc v1.74.2
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v3 v3.0.1
@@ -57,20 +57,20 @@ require (
 	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.0 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.18.0 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.17.0 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.3 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.2 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.18.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.2 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.2 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.8.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.26.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.31.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.35.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.8.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.27.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.32.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.36.0 // indirect
 	github.com/aws/smithy-go v1.22.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.9.1 // indirect
@@ -90,7 +90,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.3 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/subcommands v1.2.0 // indirect
