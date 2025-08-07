@@ -66,7 +66,6 @@ type SenderFactory struct {
 	Peeker                  *observability.Peeker
 	StreamRun               *StreamRun
 	Mailbox                 *mailbox.Mailbox
-	RunWork                 runwork.RunWork
 }
 
 // Sender performs blocking operations to process Work, such as uploading data.
@@ -148,7 +147,7 @@ type Sender struct {
 }
 
 // New returns a new Sender.
-func (f *SenderFactory) New() *Sender {
+func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 	// Guaranteed not to fail.
 	maybeOutputFileName, _ := paths.Relative(ConsoleFileName)
 	outputFileName := *maybeOutputFileName
@@ -204,6 +203,7 @@ func (f *SenderFactory) New() *Sender {
 	if !f.Settings.IsOffline() {
 		runfilesUploader = f.RunfilesUploaderFactory.New(
 			/*batchDelay=*/ waiting.NewDelay(50*time.Millisecond),
+			runWork,
 			fileStream,
 		)
 	}
@@ -223,7 +223,7 @@ func (f *SenderFactory) New() *Sender {
 	}
 
 	s := &Sender{
-		runWork:             f.RunWork,
+		runWork:             runWork,
 		logger:              f.Logger,
 		operations:          f.Operations,
 		settings:            f.Settings,

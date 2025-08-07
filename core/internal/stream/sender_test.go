@@ -47,7 +47,6 @@ func makeSender(client graphql.Client) *stream.Sender {
 		settings,
 	)
 	runfilesUploaderFactory := &runfiles.UploaderFactory{
-		ExtraWork:    runWork,
 		FileTransfer: fileTransferManager,
 		FileWatcher:  watchertest.NewFakeWatcher(),
 		GraphQL:      client,
@@ -64,10 +63,9 @@ func makeSender(client graphql.Client) *stream.Sender {
 		RunfilesUploaderFactory: runfilesUploaderFactory,
 		Mailbox:                 mailbox.New(),
 		GraphqlClient:           client,
-		RunWork:                 runWork,
 		FeatureProvider:         featurechecker.NewServerFeaturesCache(nil, logger),
 	}
-	return senderFactory.New()
+	return senderFactory.New(runWork)
 }
 
 // Verify that arguments are properly passed through to graphql

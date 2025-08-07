@@ -84,16 +84,11 @@ type SystemMonitor struct {
 
 // SystemMonitorFactory constructs a SystemMonitor.
 type SystemMonitorFactory struct {
-	Ctx context.Context
-
 	// A logger for internal debug logging.
 	Logger *observability.CoreLogger
 
 	// Stream settings.
 	Settings *settings.Settings
-
-	// Extrawork accepts outgoing messages for the run.
-	ExtraWork runwork.ExtraWork
 
 	// GpuResourceManager manages costly resources used for GPU metrics.
 	GpuResourceManager *GPUResourceManager
@@ -108,18 +103,15 @@ type SystemMonitorFactory struct {
 // New initializes and returns a new SystemMonitor instance.
 //
 // It sets up resources based on provided settings and configures the metrics buffer.
-func (f *SystemMonitorFactory) New() *SystemMonitor {
-	if f.Ctx == nil {
-		f.Ctx = context.Background()
-	}
-	ctx, cancel := context.WithCancel(f.Ctx)
+func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
+	ctx, cancel := context.WithCancel(extraWork.BeforeEndCtx())
 	sm := &SystemMonitor{
 		ctx:              ctx,
 		cancel:           cancel,
 		wg:               sync.WaitGroup{},
 		settings:         f.Settings,
 		logger:           f.Logger,
-		extraWork:        f.ExtraWork,
+		extraWork:        extraWork,
 		samplingInterval: defaultSamplingInterval,
 		graphqlClient:    f.GraphqlClient,
 		writerID:         f.WriterID,

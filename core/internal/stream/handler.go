@@ -123,10 +123,10 @@ type Handler struct {
 }
 
 // New returns a new Handler.
-func (f *HandlerFactory) New() *Handler {
+func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
 	var systemMonitor *monitor.SystemMonitor
 	if f.SystemMonitorFactory != nil { // nil in tests only
-		systemMonitor = f.SystemMonitorFactory.New()
+		systemMonitor = f.SystemMonitorFactory.New(extraWork)
 	}
 
 	return &Handler{
