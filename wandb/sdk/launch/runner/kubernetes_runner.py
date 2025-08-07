@@ -513,17 +513,14 @@ class KubernetesRunner(AbstractRunner):
 
             cont["env"] = env
 
-        # Handle wandb team secrets (create once, apply to all containers)
         secrets = launch_project.get_secrets_dict()
         if secrets:
-            # Create the secret once
             wandb_team_secrets_secret = await self._handle_wandb_team_secrets(
                 launch_project=launch_project,
                 core_api=core_api,
                 namespace=namespace,
             )
-            
-            # Add secret references to all containers
+
             secrets_name = f"wandb-secrets-{launch_project.run_id}"
             for cont in containers:
                 env = cont.setdefault("env", [])
@@ -581,6 +578,7 @@ class KubernetesRunner(AbstractRunner):
         secret_name = "wandb-api-key"
         if release_name:
             secret_name += f"-{release_name}"
+        # prevent collision with launch agent's api key secret
         secret_name += f"-{launch_project.run_id}"
 
         def handle_exception(e):
