@@ -14,7 +14,10 @@ async def _mock_maybe_create_imagepull_secret(*args, **kwargs):
 
 
 async def _mock_ensure_api_key_secret(*args, **kwargs):
-    pass
+    # Return a mock secret with the expected structure
+    mock_secret = MagicMock()
+    mock_secret.metadata.name = "wandb-api-key-testname"
+    return mock_secret
 
 
 async def _mock_maybe_create_wandb_team_secrets_secret(*args, **kwargs):

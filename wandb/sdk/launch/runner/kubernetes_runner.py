@@ -513,8 +513,8 @@ class KubernetesRunner(AbstractRunner):
 
             cont["env"] = env
 
-        secrets = launch_project.get_secrets_dict()
-        if secrets:
+        team_secrets = launch_project.get_secrets_dict()
+        if team_secrets:
             wandb_team_secrets_secret = await self._handle_wandb_team_secrets(
                 launch_project=launch_project,
                 core_api=core_api,
@@ -524,7 +524,7 @@ class KubernetesRunner(AbstractRunner):
             secrets_name = f"wandb-secrets-{launch_project.run_id}"
             for cont in containers:
                 env = cont.setdefault("env", [])
-                for secret_key in secrets.keys():
+                for secret_key in team_secrets.keys():
                     env.append(
                         {
                             "name": secret_key,
@@ -1242,7 +1242,7 @@ async def _create_secret_with_launch_agent_conflict_handling(
     namespace: str,
     error_context: str,
 ) -> "V1Secret":
-    """Helper function to create a secret with intelligent 409 conflict handling.
+    """Helper function to create a secret with conflict handling.
 
     This handles the case where launch-agent created secrets may need to be
     replaced if they have different data, but other existing secrets should
