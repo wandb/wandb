@@ -769,42 +769,27 @@ def importer_tests(session: nox.Session, importer: str):
 
 @nox.session(name="wandb-core-size-check", python="3.10")
 def wandb_core_size_check(session: nox.Session) -> None:
-    """Compare wandb-core binary size against latest PyPI release."""
-    import json
-    from urllib.request import urlopen
-
-    # Install wandb from PyPI and get the size of the wandb-core binary.
-    install_timed(session, "wandb")
-    pypi_binary = list(
-        (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
-    )[0]
-    pypi_size = pypi_binary.stat().st_size
-
-    with urlopen("https://pypi.org/pypi/wandb/json") as response:
-        data = json.loads(response.read())
-    pypi_version = data["info"]["version"]
-
-    # Build and install current version.
+    """Compare wandb-core binary size against main branch."""
+    # Build and install main branch version
+    session.run("git", "fetch", "origin", "main", external=True)
+    session.run("git", "checkout", "origin/main", external=True)
     install_wandb(session, dev=False)
 
-    # Get current binary size.
+    main_binary = list(
+        (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
+    )[0]
+    main_size = main_binary.stat().st_size
+
+    # Build and install current branch version
+    session.run("git", "checkout", "-", external=True)
+    install_wandb(session, dev=False)
+
     current_binary = list(
         (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
     )[0]
     current_size = current_binary.stat().st_size
 
-    # Check for baseline override when size has legitimately increased.
-    baseline_file = pathlib.Path("core/.binary-size-baseline")
-    if current_size > 1.1 * pypi_size and baseline_file.exists():
-        baseline_size = int(baseline_file.read_text().strip())
-        if current_size <= baseline_size:
-            session.log(
-                f"Size increase from PyPI accepted (baseline: {baseline_size:,} bytes)"
-            )
-            pypi_size = baseline_size  # Use baseline for comparison
-            pypi_version = "baseline"
-
-    # Format and display results.
+    # Format and display results
     def fmt_size(b: int) -> str:
         for unit in ["B", "KB", "MB"]:
             if b < 1024:
@@ -812,13 +797,15 @@ def wandb_core_size_check(session: nox.Session) -> None:
             b /= 1024
         return f"{b:.1f} GB"
 
-    diff = current_size - pypi_size
-    pct = (diff / pypi_size * 100) if pypi_size else 0
+    diff = current_size - main_size
+    pct = (diff / main_size * 100) if main_size else 0
 
     session.log("=" * 60)
-    session.log(f"PyPI v{pypi_version}: {fmt_size(pypi_size)} ({pypi_size:,} bytes)")
+    session.log(f"Main branch:  {fmt_size(main_size)} ({main_size:,} bytes)")
     session.log(f"Current:      {fmt_size(current_size)} ({current_size:,} bytes)")
-    session.log(f"Difference:   {fmt_size(abs(diff))} ({pct:+.1f}%)")
+    session.log(
+        f"Difference:   {fmt_size(abs(diff))} ({'+' if diff > 0 else ''}{pct:+.1f}%)"
+    )
     session.log("=" * 60)
 
     if pct > 10:
@@ -827,8 +814,7 @@ def wandb_core_size_check(session: nox.Session) -> None:
         session.log("")
         session.log("If this increase is necessary and optimized:")
         session.log("  1. Verify the increase is justified")
-        session.log(f"  2. Run: echo '{current_size}' > core/.binary-size-baseline")
-        session.log("  3. Commit with: 'Accept binary size increase due to <reason>'")
+        session.log("  2. Document the reason in your PR description")
         session.log("")
         session.error(f"Binary size increased by {pct:.1f}% (>10% threshold)")
     elif pct > 5:
