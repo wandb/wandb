@@ -314,6 +314,7 @@ class Api:
                     or self.settings.get("quiet", False)
                 ),
                 update_api_key=False,
+                _disable_warning=True,
             )
 
         self._viewer = None
