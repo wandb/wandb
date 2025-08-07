@@ -223,6 +223,7 @@ async def test_kubernetes_run_env_vars(
     project.get_env_vars_dict = lambda _, __: {
         "WANDB_API_KEY": "test-key",
     }
+    project.get_secrets_dict = lambda: {}
     project.job_base_image = None
 
     environment = loader.environment_from_config({})
@@ -449,6 +450,15 @@ class MockCoreV1Api:
 
     async def delete_namespace(self, name):
         self.namespaces.remove(name)
+
+    async def create_namespaced_secret(self, namespace, secret):
+        return secret
+
+    async def read_namespaced_secret(self, name, namespace):
+        return MagicMock(data={}, metadata=MagicMock(labels={}))
+
+    async def delete_namespaced_secret(self, name, namespace):
+        pass
 
 
 def pods(job_name):

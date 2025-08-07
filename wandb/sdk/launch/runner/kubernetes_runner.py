@@ -559,7 +559,7 @@ class KubernetesRunner(AbstractRunner):
 
     async def _handle_additional_secrets(
         self,
-        container_env: List[Dict[str, str]],
+        container_env: List[Dict[str, Any]],
         launch_project: LaunchProject,
         core_api: "CoreV1Api",
         namespace: str,
