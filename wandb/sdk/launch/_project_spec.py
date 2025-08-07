@@ -487,7 +487,7 @@ class LaunchProject:
 
     def get_secrets_dict(self) -> Dict[str, str]:
         """Get secrets from the launch spec.
-        
+
         Returns:
             Dictionary of secret environment variables.
         """

@@ -312,8 +312,8 @@ async def test_kubernetes_run_with_secrets(
         "_wandb_secrets": {
             "DATABASE_URL": "postgresql://user:pass@localhost/db",
             "API_SECRET": "secret123",
-            "DEBUG_MODE": "true"
-        }
+            "DEBUG_MODE": "true",
+        },
     }
     project.fill_macros = lambda _: project.resource_args
     project.override_entrypoint.command = None
@@ -328,7 +328,7 @@ async def test_kubernetes_run_with_secrets(
     project.get_secrets_dict = lambda: {
         "DATABASE_URL": "postgresql://user:pass@localhost/db",
         "API_SECRET": "secret123",
-        "DEBUG_MODE": "true"
+        "DEBUG_MODE": "true",
     }
     project.job_base_image = None
 
@@ -361,7 +361,7 @@ async def test_kubernetes_run_with_secrets(
 
     # Verify secrets are referenced in environment variables
     container_env = job["spec"]["template"]["spec"]["containers"][0]["env"]
-    
+
     expected_secrets = [
         {
             "name": "DATABASE_URL",
@@ -391,7 +391,7 @@ async def test_kubernetes_run_with_secrets(
             },
         },
     ]
-    
+
     for expected_secret in expected_secrets:
         assert expected_secret in container_env
 
