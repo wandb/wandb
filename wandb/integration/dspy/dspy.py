@@ -1,11 +1,11 @@
 """DSPy ↔ Weights & Biases integration."""
+
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import wandb
-from wandb.sdk.lib import telemetry as wb_telemetry
 import wandb.util
 
 dspy = wandb.util.get_module(
@@ -25,8 +25,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         # Safety check – we need a run to stream data into.
         if wandb.run is None:
             raise wandb.Error(
-                "You must call `wandb.init()` before instantiating "
-                "WandbDSPyCallback()."
+                "You must call `wandb.init()` before instantiating WandbDSPyCallback()."
             )
 
         # Record feature usage for internal telemetry (optional but recommended).
@@ -38,7 +37,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         call_id: str,
         instance: Any,
         inputs: dict[str, Any],
-    ) -> None:  # noqa: D401
+    ) -> None:
         """Invoked by DSPy *before* an evaluation round starts."""
         print("on_evaluate_start", call_id, instance, inputs)
 
