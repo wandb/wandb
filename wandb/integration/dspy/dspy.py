@@ -39,7 +39,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         inputs: dict[str, Any],
     ) -> None:
         """Invoked by DSPy *before* an evaluation round starts."""
-        print("on_evaluate_start", call_id, instance, inputs)
+        logger.debug("on_evaluate_start", call_id, instance, inputs)
 
     def on_evaluate_end(
         self,
@@ -47,4 +47,4 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         outputs: Any | None,
         exception: Exception | None = None,
     ) -> None:
-        print("on_evaluate_end", call_id, outputs, exception)
+        logger.debug("on_evaluate_end", call_id, outputs, exception)
