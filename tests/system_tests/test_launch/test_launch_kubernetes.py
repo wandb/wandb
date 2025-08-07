@@ -17,7 +17,7 @@ async def _mock_ensure_api_key_secret(*args, **kwargs):
     pass
 
 
-async def _mock_ensure_env_vars_secret(*args, **kwargs):
+async def _mock_maybe_create_wandb_team_secrets_secret(*args, **kwargs):
     pass
 
 
@@ -349,8 +349,8 @@ async def test_kubernetes_run_with_secrets(
     )
     monkeypatch.setattr(
         kubernetes_runner,
-        "ensure_env_vars_secret",
-        _mock_ensure_env_vars_secret,
+        "maybe_create_wandb_team_secrets_secret",
+        _mock_maybe_create_wandb_team_secrets_secret,
     )
     run = await runner.run(project, "hello-world")
 

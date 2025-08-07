@@ -489,7 +489,7 @@ class LaunchProject:
         """Get secrets from the launch spec.
 
         Returns:
-            Dictionary of secret environment variables.
+            Dictionary of wandb team secret environment variables.
         """
         if "_wandb_secrets" in self.launch_spec:
             secrets = self.launch_spec["_wandb_secrets"]

@@ -28,7 +28,7 @@ from wandb.sdk.launch.runner.kubernetes_runner import (
     add_label_to_pods,
     add_wandb_env,
     ensure_api_key_secret,
-    ensure_env_vars_secret,
+    maybe_create_wandb_team_secrets_secret,
     maybe_create_imagepull_secret,
 )
 
@@ -1127,7 +1127,7 @@ async def test_create_env_vars_secret():
         "API_SECRET": "secret123",
         "DEBUG_MODE": "true",
     }
-    await ensure_env_vars_secret(api, "wandb-secrets-testrun", "wandb", env_vars)
+    await maybe_create_wandb_team_secrets_secret(api, "wandb-secrets-testrun", "wandb", env_vars)
 
     namespace, secret = api.secrets[0]
     assert namespace == "wandb"
@@ -1166,7 +1166,7 @@ async def test_create_env_vars_secret_exists():
         "DATABASE_URL": "postgresql://user:pass@localhost/db",
         "API_SECRET": "secret123",
     }
-    await ensure_env_vars_secret(api, "wandb-secrets-testrun", "wandb", env_vars)
+    await maybe_create_wandb_team_secrets_secret(api, "wandb-secrets-testrun", "wandb", env_vars)
 
     namespace, secret = api.secrets[0]
     assert namespace == "wandb"
@@ -1205,7 +1205,7 @@ async def test_create_env_vars_secret_exists_different_owner():
         LaunchError,
         match="Kubernetes secret already exists in namespace wandb with incorrect data",
     ):
-        await ensure_env_vars_secret(api, "wandb-secrets-testrun", "wandb", env_vars)
+        await maybe_create_wandb_team_secrets_secret(api, "wandb-secrets-testrun", "wandb", env_vars)
 
 
 # Test monitor class.
