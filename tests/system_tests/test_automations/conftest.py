@@ -17,6 +17,7 @@ from wandb.automations import (
     DoNothing,
     EventType,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
     OnCreateArtifact,
     OnLinkArtifact,
     OnRunMetric,
@@ -243,6 +244,11 @@ def on_add_artifact_alias(scope, artifact_filter) -> OnAddArtifactAlias:
 
 
 @fixture
+def on_add_artifact_tag(scope, artifact_filter) -> OnAddArtifactTag:
+    return OnAddArtifactTag(scope=scope, filter=artifact_filter)
+
+
+@fixture
 def on_run_metric_threshold(scope) -> OnRunMetric:
     run_filter = RunEvent.name.contains("my-run")
     metric_filter = RunEvent.metric("my-metric").mean(5).gt(0)
@@ -261,8 +267,9 @@ def event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     """An event object for defining a **new** automation."""
     event2fixture: dict[EventType, str] = {
         EventType.CREATE_ARTIFACT: on_create_artifact.__name__,
-        EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
+        EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
+        EventType.ADD_ARTIFACT_TAG: on_add_artifact_tag.__name__,
         EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
         EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
     }

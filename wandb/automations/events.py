@@ -37,10 +37,12 @@ class EventType(LenientStrEnum):
     UPDATE_ARTIFACT_ALIAS = "UPDATE_ARTIFACT_ALIAS"  # NOTE: Avoid in new automations
 
     CREATE_ARTIFACT = "CREATE_ARTIFACT"
-    ADD_ARTIFACT_ALIAS = "ADD_ARTIFACT_ALIAS"
     LINK_ARTIFACT = "LINK_MODEL"
     # Note: "LINK_MODEL" is the (legacy) value expected by the backend, but we
     # name it "LINK_ARTIFACT" here in the public API for clarity and consistency.
+
+    ADD_ARTIFACT_ALIAS = "ADD_ARTIFACT_ALIAS"
+    ADD_ARTIFACT_TAG = "ADD_ARTIFACT_TAG"
 
     # ---------------------------------------------------------------------------
     # Events triggered by Run conditions
@@ -192,6 +194,12 @@ class OnAddArtifactAlias(_BaseMutationEventInput):
     event_type: Literal[EventType.ADD_ARTIFACT_ALIAS] = EventType.ADD_ARTIFACT_ALIAS
 
 
+class OnAddArtifactTag(_BaseMutationEventInput):
+    """A new tag is assigned to an artifact."""
+
+    event_type: Literal[EventType.ADD_ARTIFACT_TAG] = EventType.ADD_ARTIFACT_TAG
+
+
 class OnCreateArtifact(_BaseMutationEventInput):
     """A new artifact is created."""
 
@@ -238,6 +246,7 @@ InputEvent = Annotated[
     Union[
         OnLinkArtifact,
         OnAddArtifactAlias,
+        OnAddArtifactTag,
         OnCreateArtifact,
         OnRunMetric,
     ],
@@ -264,6 +273,7 @@ class RunEvent:
 
 class ArtifactEvent:
     alias = FilterableField()
+    tag = FilterableField()
 
 
 MetricThresholdFilter.model_rebuild()
@@ -272,6 +282,7 @@ _WrappedSavedEventFilter.model_rebuild()
 
 OnLinkArtifact.model_rebuild()
 OnAddArtifactAlias.model_rebuild()
+OnAddArtifactTag.model_rebuild()
 OnCreateArtifact.model_rebuild()
 OnRunMetric.model_rebuild()
 
