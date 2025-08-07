@@ -73,3 +73,6 @@ type ChunkedBatchMsg struct {
 
 // ReloadMsg indicates that the Run data should be reloaded
 type ReloadMsg struct{}
+
+// HeartbeatMsg is sent periodically for live runs to ensure we don't miss data
+type HeartbeatMsg struct{}

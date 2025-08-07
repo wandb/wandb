@@ -89,6 +89,11 @@ type Model struct {
 	// Config key handling state
 	waitingForConfigKey bool
 	configKeyType       string // "c", "r", "C", "R"
+
+	// Heartbeat for live runs
+	heartbeatTimer    *time.Timer
+	heartbeatInterval time.Duration
+	heartbeatMu       sync.Mutex
 }
 
 func NewModel(runPath string, logger *observability.CoreLogger) *Model {
@@ -103,35 +108,40 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	// Update grid dimensions from config
 	UpdateGridDimensions()
 
+	// Get heartbeat interval from config
+	heartbeatInterval := cfg.GetHeartbeatInterval()
+	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
+
 	// Calculate initial buffer size based on expected metrics
 	// Start with 1000, will grow dynamically if needed
 	initialBufferSize := 1000
 
 	m := &Model{
-		help:           NewHelp(),
-		allCharts:      make([]*EpochLineChart, 0),
-		chartsByName:   make(map[string]*EpochLineChart),
-		charts:         make([][]*EpochLineChart, GridRows),
-		filteredCharts: make([]*EpochLineChart, 0),
-		filterMode:     false,
-		filterInput:    "",
-		activeFilter:   "",
-		step:           0,
-		focusedRow:     -1,
-		focusedCol:     -1,
-		currentPage:    0,
-		totalPages:     0,
-		fileComplete:   false,
-		isLoading:      true,
-		runPath:        runPath,
-		sidebar:        NewSidebar(),
-		rightSidebar:   NewRightSidebar(),
-		watcher:        watcher.New(watcher.Params{}),
-		watcherStarted: false,
-		runConfig:      runconfig.New(),
-		runSummary:     runsummary.New(),
-		msgChan:        make(chan tea.Msg, initialBufferSize),
-		logger:         logger,
+		help:              NewHelp(),
+		allCharts:         make([]*EpochLineChart, 0),
+		chartsByName:      make(map[string]*EpochLineChart),
+		charts:            make([][]*EpochLineChart, GridRows),
+		filteredCharts:    make([]*EpochLineChart, 0),
+		filterMode:        false,
+		filterInput:       "",
+		activeFilter:      "",
+		step:              0,
+		focusedRow:        -1,
+		focusedCol:        -1,
+		currentPage:       0,
+		totalPages:        0,
+		fileComplete:      false,
+		isLoading:         true,
+		runPath:           runPath,
+		sidebar:           NewSidebar(),
+		rightSidebar:      NewRightSidebar(),
+		watcher:           watcher.New(watcher.Params{}),
+		watcherStarted:    false,
+		runConfig:         runconfig.New(),
+		runSummary:        runsummary.New(),
+		msgChan:           make(chan tea.Msg, initialBufferSize),
+		logger:            logger,
+		heartbeatInterval: heartbeatInterval,
 	}
 
 	for row := range GridRows {
@@ -319,6 +329,87 @@ func (m *Model) recoverPanic(context string) {
 		if m.reader != nil {
 			m.reader.Close()
 		}
+		// Stop heartbeat
+		m.stopHeartbeat()
+	}
+}
+
+// startHeartbeat starts the heartbeat timer for live runs
+func (m *Model) startHeartbeat() {
+	m.heartbeatMu.Lock()
+	defer m.heartbeatMu.Unlock()
+
+	// Stop any existing timer
+	if m.heartbeatTimer != nil {
+		m.heartbeatTimer.Stop()
+	}
+
+	// Only start heartbeat for live runs
+	if m.runState != RunStateRunning || m.fileComplete {
+		m.logger.Debug("model: not starting heartbeat - run not active")
+		return
+	}
+
+	m.logger.Debug(fmt.Sprintf("model: starting heartbeat with interval %v", m.heartbeatInterval))
+
+	// Create a new timer
+	m.heartbeatTimer = time.AfterFunc(m.heartbeatInterval, func() {
+		// This runs in a separate goroutine
+		defer m.recoverPanic("heartbeat callback")
+
+		// Only send heartbeat if run is still active
+		if m.runState == RunStateRunning && !m.fileComplete {
+			select {
+			case m.msgChan <- HeartbeatMsg{}:
+				m.logger.Debug("model: heartbeat triggered")
+			default:
+				m.logger.Warn("model: msgChan full, dropping heartbeat")
+			}
+		}
+	})
+}
+
+// resetHeartbeat resets the heartbeat timer
+func (m *Model) resetHeartbeat() {
+	m.heartbeatMu.Lock()
+	defer m.heartbeatMu.Unlock()
+
+	// Stop existing timer
+	if m.heartbeatTimer != nil {
+		m.heartbeatTimer.Stop()
+	}
+
+	// Only restart if run is still active
+	if m.runState != RunStateRunning || m.fileComplete {
+		return
+	}
+
+	m.logger.Debug("model: resetting heartbeat timer")
+
+	// Start a new timer
+	m.heartbeatTimer = time.AfterFunc(m.heartbeatInterval, func() {
+		defer m.recoverPanic("heartbeat callback")
+
+		if m.runState == RunStateRunning && !m.fileComplete {
+			select {
+			case m.msgChan <- HeartbeatMsg{}:
+				m.logger.Debug("model: heartbeat triggered after reset")
+			default:
+				m.logger.Warn("model: msgChan full, dropping heartbeat after reset")
+			}
+		}
+	})
+}
+
+// stopHeartbeat stops the heartbeat timer
+func (m *Model) stopHeartbeat() {
+	m.heartbeatMu.Lock()
+	defer m.heartbeatMu.Unlock()
+
+	if m.heartbeatTimer != nil {
+		m.heartbeatTimer.Stop()
+		m.heartbeatTimer = nil
+		m.logger.Debug("model: heartbeat stopped")
 	}
 }
 
@@ -432,12 +523,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.logger.Info(fmt.Sprintf("model: finished loading %d records in %v",
 				m.recordsLoaded, time.Since(m.loadStartTime)))
 
-			// Start watcher if file isn't complete
+			// Start watcher and heartbeat if file isn't complete
 			if !m.fileComplete && !m.watcherStarted {
 				if err := m.startWatcher(); err != nil {
 					m.logger.Error(fmt.Sprintf("model: error starting watcher: %v", err))
 				} else {
 					m.logger.Info("model: watcher started successfully")
+					// Start heartbeat for live runs
+					m.startHeartbeat()
 				}
 			}
 		}
@@ -465,12 +558,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.isLoading = false
 		}
 
-		// Start watcher after initial load if file isn't complete
+		// Start watcher and heartbeat after initial load if file isn't complete
 		if !m.fileComplete && !m.watcherStarted {
 			if err := m.startWatcher(); err != nil {
 				m.logger.Error(fmt.Sprintf("model: error starting watcher: %v", err))
 			} else {
 				m.logger.Info("model: watcher started successfully")
+				// Start heartbeat for live runs
+				m.startHeartbeat()
 			}
 		}
 		return m, tea.Batch(cmds...)
@@ -478,6 +573,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ReloadMsg:
 		m.runState = RunStateRunning
 		m.fileComplete = false
+
+		// Stop heartbeat
+		m.stopHeartbeat()
 
 		if m.watcherStarted {
 			m.logger.Debug("model: finishing watcher for reload")
@@ -502,7 +600,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.waitForWatcherMsg(),
 		)
 
+	case HeartbeatMsg:
+		m.logger.Debug("model: processing HeartbeatMsg")
+		// Treat heartbeat like a file change event
+		// This will trigger a read and reset the heartbeat timer
+		cmds = append(cmds, ReadAvailableRecords(m.reader))
+		// Reset heartbeat for next interval
+		m.resetHeartbeat()
+		// Continue waiting for watcher messages
+		cmds = append(cmds, m.waitForWatcherMsg())
+		return m, tea.Batch(cmds...)
+
 	case FileChangedMsg:
+		// Reset heartbeat when we get a real file change
+		m.resetHeartbeat()
+
 		// Debounce file changes
 		m.debounceMu.Lock()
 		now := time.Now()

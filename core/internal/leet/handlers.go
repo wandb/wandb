@@ -17,6 +17,10 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case HistoryMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing HistoryMsg with step %d", msg.Step))
+		// Reset heartbeat on successful data read
+		if m.runState == RunStateRunning && !m.fileComplete {
+			m.resetHeartbeat()
+		}
 		return m.handleHistoryMsg(msg)
 
 	case RunMsg:
@@ -35,6 +39,10 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 
 	case StatsMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
+		// Reset heartbeat on successful data read
+		if m.runState == RunStateRunning && !m.fileComplete {
+			m.resetHeartbeat()
+		}
 		m.rightSidebar.ProcessStatsMsg(msg)
 
 	case SystemInfoMsg:
@@ -70,6 +78,8 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 			default:
 				m.runState = RunStateFailed
 			}
+			// Stop heartbeat since run is complete
+			m.stopHeartbeat()
 			if m.watcherStarted {
 				m.logger.Debug("model: finishing watcher")
 				m.watcher.Finish()
@@ -81,6 +91,8 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 		m.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
 		m.fileComplete = true
 		m.runState = RunStateFailed
+		// Stop heartbeat on error
+		m.stopHeartbeat()
 		if m.watcherStarted {
 			m.logger.Debug("model: finishing watcher due to error")
 			m.watcher.Finish()
@@ -346,6 +358,8 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		if m.reader != nil {
 			m.reader.Close()
 		}
+		// Stop heartbeat
+		m.stopHeartbeat()
 		if m.watcherStarted {
 			m.logger.Debug("model: finishing watcher on quit")
 			m.watcher.Finish()
