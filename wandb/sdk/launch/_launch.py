@@ -185,6 +185,7 @@ async def _launch(
     synchronous: Optional[bool] = None,
     run_id: Optional[str] = None,
     repository: Optional[str] = None,
+    services: Optional[Dict[str, str]] = None,
 ) -> AbstractRun:
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
     if launch_config is None:
@@ -211,6 +212,7 @@ async def _launch(
     validate_launch_spec_source(launch_spec)
     launch_project = LaunchProject.from_spec(launch_spec, api)
     launch_project.fetch_and_validate_project()
+    launch_project._services = services
     entrypoint = launch_project.get_job_entry_point()
     image_uri = (
         launch_project.docker_image or launch_project.job_base_image
