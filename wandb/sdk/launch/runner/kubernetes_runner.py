@@ -936,7 +936,7 @@ class KubernetesRunner(AbstractRunner):
                 *[
                     self._prepare_resource(
                         api_client,
-                        resource.get("config"),
+                        resource.get("config", {}),
                         namespace,
                         launch_project.run_id,
                         launch_project,
