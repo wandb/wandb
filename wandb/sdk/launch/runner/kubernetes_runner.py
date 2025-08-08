@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import time
-import uuid
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
@@ -28,6 +27,7 @@ from wandb.sdk.launch.runner.kubernetes_monitor import (
     CustomResource,
     LaunchKubernetesMonitor,
 )
+from wandb.sdk.launch.utils import recursive_macro_sub
 from wandb.sdk.lib.retry import ExponentialBackoff, retry_async
 from wandb.util import get_module
 
@@ -62,6 +62,9 @@ from kubernetes_asyncio.client.api.core_v1_api import (  # type: ignore # noqa: 
 from kubernetes_asyncio.client.api.custom_objects_api import (  # type: ignore # noqa: E402
     CustomObjectsApi,
 )
+from kubernetes_asyncio.client.api.networking_v1_api import (  # type: ignore # noqa: E402
+    NetworkingV1Api,
+)
 from kubernetes_asyncio.client.models.v1_secret import (  # type: ignore # noqa: E402
     V1Secret,
 )
@@ -85,6 +88,7 @@ class KubernetesSubmittedRun(AbstractRun):
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
         apps_api: "AppsV1Api",
+        network_api: "NetworkingV1Api",
         name: str,
         namespace: Optional[str] = "default",
         secret: Optional["V1Secret"] = None,
@@ -103,6 +107,7 @@ class KubernetesSubmittedRun(AbstractRun):
         Arguments:
             batch_api: Kubernetes BatchV1Api object.
             core_api: Kubernetes CoreV1Api object.
+            network_api: Kubernetes NetworkV1Api object.
             name: Name of the job.
             namespace: Kubernetes namespace.
             secret: Kubernetes secret.
@@ -113,6 +118,7 @@ class KubernetesSubmittedRun(AbstractRun):
         self.batch_api = batch_api
         self.core_api = core_api
         self.apps_api = apps_api
+        self.network_api = network_api
         self.name = name
         self.namespace = namespace
         self._fail_count = 0
@@ -207,11 +213,9 @@ class KubernetesSubmittedRun(AbstractRun):
                 (self.core_api, "service"),
                 (self.batch_api, "job"),
                 (self.core_api, "pod"),
-                (self.core_api, "config_map"),
                 (self.core_api, "secret"),
                 (self.apps_api, "deployment"),
-                (self.apps_api, "replica_set"),
-                (self.apps_api, "daemon_set"),
+                (self.network_api, "network_policy"),
             ]
 
             for api_client, resource_type in resource_cleanups:
@@ -700,7 +704,6 @@ class KubernetesRunner(AbstractRunner):
         config: Dict[str, Any],
         namespace: str,
         run_id: str,
-        auxiliary_resource_label_key: str,
         launch_project: LaunchProject,
         api_key_secret: Optional["V1Secret"] = None,
         wait_for_ready: bool = True,
@@ -713,7 +716,6 @@ class KubernetesRunner(AbstractRunner):
             config: The resource configuration to prepare.
             namespace: The namespace to create the resource in.
             run_id: The run ID to label the resource with.
-            auxiliary_resource_label_key: The key of the auxiliary resource label.
             launch_project: The launch project to get environment variables from.
             api_key_secret: The API key secret to inject.
             wait_for_ready: Whether to wait for the resource to be ready after creation.
@@ -722,24 +724,7 @@ class KubernetesRunner(AbstractRunner):
         config.setdefault("metadata", {})
         config["metadata"].setdefault("labels", {})
         config["metadata"]["labels"][WANDB_K8S_RUN_ID] = run_id
-        config["metadata"]["labels"][WANDB_K8S_LABEL_AUXILIARY_RESOURCE] = (
-            auxiliary_resource_label_key
-        )
         config["metadata"]["labels"]["wandb.ai/created-by"] = "launch-agent"
-
-        if config.get("kind") == "Service" or config.get("kind") == "Deployment":
-            config.setdefault("metadata", {})
-            original_name = config["metadata"].get("name", config.get("kind"))
-            safe_name = make_name_dns_safe(original_name)
-            safe_entity = make_name_dns_safe(launch_project.target_entity or "")
-            safe_project = make_name_dns_safe(launch_project.target_project or "")
-            safe_run_id = make_name_dns_safe(run_id or "")
-
-            new_name = f"{safe_name}-{safe_entity}-{safe_project}-{safe_run_id}"
-            config["metadata"]["name"] = new_name
-            wandb.termlog(
-                f"{LOG_PREFIX}Modified {config.get('kind')} name from '{original_name}' to '{new_name}'"
-            )
 
         env_vars = launch_project.get_env_vars_dict(
             self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
@@ -920,19 +905,29 @@ class KubernetesRunner(AbstractRunner):
         batch_api = kubernetes_asyncio.client.BatchV1Api(api_client)
         core_api = kubernetes_asyncio.client.CoreV1Api(api_client)
         apps_api = kubernetes_asyncio.client.AppsV1Api(api_client)
+        network_api = kubernetes_asyncio.client.NetworkingV1Api(api_client)
 
         namespace = self.get_namespace(resource_args, context)
         job, secret = await self._inject_defaults(
             resource_args, launch_project, image_uri, namespace, core_api
         )
 
-        additional_services = launch_project.launch_spec.get("additional_services", [])
-        auxiliary_resource_label_key = None
+        update_dict = {
+            "project_name": launch_project.target_project,
+            "entity_name": launch_project.target_entity,
+            "run_id": launch_project.run_id,
+            "run_name": launch_project.name,
+            "image_uri": image_uri,
+            "author": launch_project.author,
+        }
+        update_dict.update(os.environ)
+        additional_services: List[Dict[str, Any]] = recursive_macro_sub(
+            launch_project.launch_spec.get("additional_services", []), update_dict
+        )
         if additional_services:
             wandb.termlog(
                 f"{LOG_PREFIX}Creating additional services: {additional_services}"
             )
-            auxiliary_resource_label_key = f"aux-{uuid.uuid4()}"
 
             wait_for_ready = resource_args.get("wait_for_ready", True)
             wait_timeout = resource_args.get("wait_timeout", 300)
@@ -941,10 +936,9 @@ class KubernetesRunner(AbstractRunner):
                 *[
                     self._prepare_resource(
                         api_client,
-                        resource.get("config"),
+                        resource.get("config", {}),
                         namespace,
                         launch_project.run_id,
-                        auxiliary_resource_label_key,
                         launch_project,
                         secret,
                         wait_for_ready,
@@ -982,10 +976,11 @@ class KubernetesRunner(AbstractRunner):
             batch_api,
             core_api,
             apps_api,
+            network_api,
             job_name,
             namespace,
             secret,
-            auxiliary_resource_label_key,
+            f"aux-{launch_project.target_entity}-{launch_project.target_project}-{launch_project.run_id}",
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             await submitted_job.wait()
