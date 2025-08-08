@@ -25,6 +25,7 @@ dependencies = [
     "pydantic<3",
     "eval_type_backport; python_version < '3.10'",
     "packaging",
+    "orjson",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -106,7 +107,6 @@ launch = [
     "tornado>=6.5.0;python_version>='3.9'",
 ]
 models = ["cloudpickle"]
-perf = ["orjson"]
 importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
 
