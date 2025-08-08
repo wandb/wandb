@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
 
@@ -921,10 +921,9 @@ class KubernetesRunner(AbstractRunner):
             "author": launch_project.author,
         }
         update_dict.update(os.environ)
-        additional_services = recursive_macro_sub(
+        additional_services: List[Dict[str, Any]] = recursive_macro_sub(
             launch_project.launch_spec.get("additional_services", []), update_dict
         )
-        additional_services = cast(Dict[str, Any], additional_services)
         if additional_services:
             wandb.termlog(
                 f"{LOG_PREFIX}Creating additional services: {additional_services}"
