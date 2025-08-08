@@ -43,7 +43,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	wandbOperations := wboperation.NewOperations()
 	runWork := provideStreamRunWork(coreLogger)
 	context := provideRunContext(runWork)
-	systemMonitorParams := monitor.SystemMonitorParams{
+	systemMonitorFactory := &monitor.SystemMonitorFactory{
 		Ctx:                context,
 		Logger:             coreLogger,
 		Settings:           settings2,
@@ -52,17 +52,16 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		GraphqlClient:      client,
 		WriterID:           clientID,
 	}
-	systemMonitor := monitor.NewSystemMonitor(systemMonitorParams)
 	printer := observability.NewPrinter()
 	handlerFactory := &HandlerFactory{
-		Commit:            commit,
-		FileTransferStats: fileTransferStats,
-		Logger:            coreLogger,
-		Mailbox:           mailboxMailbox,
-		Operations:        wandbOperations,
-		Settings:          settings2,
-		SystemMonitor:     systemMonitor,
-		TerminalPrinter:   printer,
+		Commit:               commit,
+		FileTransferStats:    fileTransferStats,
+		Logger:               coreLogger,
+		Mailbox:              mailboxMailbox,
+		Operations:           wandbOperations,
+		Settings:             settings2,
+		SystemMonitorFactory: systemMonitorFactory,
+		TerminalPrinter:      printer,
 	}
 	streamRun := NewStreamRun()
 	recordParserFactory := &RecordParserFactory{

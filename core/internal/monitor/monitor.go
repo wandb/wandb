@@ -34,10 +34,9 @@ const (
 	StatePaused
 )
 
-// SystemMonitorProviders bind SystemMonitorParams and NewSystemMonitor.
+// SystemMonitorProviders binds SystemMonitorFactory.
 var SystemMonitorProviders = wire.NewSet(
-	wire.Struct(new(SystemMonitorParams), "*"),
-	NewSystemMonitor,
+	wire.Struct(new(SystemMonitorFactory), "*"),
 )
 
 // Resource defines the interface for system resources to be monitored.
@@ -83,7 +82,8 @@ type SystemMonitor struct {
 	writerID sharedmode.ClientID
 }
 
-type SystemMonitorParams struct {
+// SystemMonitorFactory constructs a SystemMonitor.
+type SystemMonitorFactory struct {
 	Ctx context.Context
 
 	// A logger for internal debug logging.
@@ -105,24 +105,24 @@ type SystemMonitorParams struct {
 	WriterID sharedmode.ClientID
 }
 
-// NewSystemMonitor initializes and returns a new SystemMonitor instance.
+// New initializes and returns a new SystemMonitor instance.
 //
 // It sets up resources based on provided settings and configures the metrics buffer.
-func NewSystemMonitor(params SystemMonitorParams) *SystemMonitor {
-	if params.Ctx == nil {
-		params.Ctx = context.Background()
+func (f *SystemMonitorFactory) New() *SystemMonitor {
+	if f.Ctx == nil {
+		f.Ctx = context.Background()
 	}
-	ctx, cancel := context.WithCancel(params.Ctx)
+	ctx, cancel := context.WithCancel(f.Ctx)
 	sm := &SystemMonitor{
 		ctx:              ctx,
 		cancel:           cancel,
 		wg:               sync.WaitGroup{},
-		settings:         params.Settings,
-		logger:           params.Logger,
-		extraWork:        params.ExtraWork,
+		settings:         f.Settings,
+		logger:           f.Logger,
+		extraWork:        f.ExtraWork,
 		samplingInterval: defaultSamplingInterval,
-		graphqlClient:    params.GraphqlClient,
-		writerID:         params.WriterID,
+		graphqlClient:    f.GraphqlClient,
+		writerID:         f.WriterID,
 	}
 
 	if sm.settings.IsDisableStats() {
@@ -143,7 +143,7 @@ func NewSystemMonitor(params SystemMonitorParams) *SystemMonitor {
 	}
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
-	sm.initializeResources(params.GpuResourceManager)
+	sm.initializeResources(f.GpuResourceManager)
 
 	return sm
 }

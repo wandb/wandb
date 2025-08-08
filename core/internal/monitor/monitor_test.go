@@ -12,14 +12,13 @@ import (
 )
 
 func newTestSystemMonitor() *monitor.SystemMonitor {
-	return monitor.NewSystemMonitor(
-		monitor.SystemMonitorParams{
-			Logger:             observability.NewNoOpLogger(),
-			Settings:           settings.From(&spb.Settings{}),
-			ExtraWork:          runworktest.New(),
-			GpuResourceManager: monitor.NewGPUResourceManager(false),
-		},
-	)
+	factory := &monitor.SystemMonitorFactory{
+		Logger:             observability.NewNoOpLogger(),
+		Settings:           settings.From(&spb.Settings{}),
+		ExtraWork:          runworktest.New(),
+		GpuResourceManager: monitor.NewGPUResourceManager(false),
+	}
+	return factory.New()
 }
 
 func TestSystemMonitor_BasicStateTransitions(t *testing.T) {
