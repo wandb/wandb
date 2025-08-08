@@ -23,7 +23,7 @@ ENV GOTOOLCHAIN=local
 # remove bootstrap version of go
 RUN git clone https://go.googlesource.com/go /usr/local/go-source && \
     cd /usr/local/go-source && \
-    git checkout go1.24.4 && \
+    git checkout go1.24.5 && \
     # Update dependencies in the Go source
     cd /usr/local/go-source/src/crypto/internal/fips140/sha3/_asm && \
     go mod edit -require=golang.org/x/crypto@v0.38.0 && \

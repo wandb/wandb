@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.37.2
 	github.com/aws/aws-sdk-go-v2/config v1.30.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.86.0
-	github.com/getsentry/sentry-go v0.34.1
+	github.com/getsentry/sentry-go v0.35.0
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/google/wire v0.6.0
 	github.com/googleapis/gax-go/v2 v2.15.0

@@ -421,6 +421,9 @@ jobs:
             source .venv-deps/bin/activate
             uv pip install .
             python -c 'import wandb'
+      - run:
+          name: Check wandb-core binary size vs latest release on PyPI
+          command: nox -s wandb-core-size-check
       - save-test-results
 
   unit-tests-go:
