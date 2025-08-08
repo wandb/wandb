@@ -2625,6 +2625,7 @@ class Run:
         installed_packages_list: list[str],
         docker_image_name: str | None = None,
         args: list[str] | None = None,
+        services: dict[str, str] | None = None,
     ) -> Artifact | None:
         docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
 
@@ -2641,6 +2642,9 @@ class Run:
             "output_types": output_types,
             "runtime": self._settings._python,
         }
+
+        if services:
+            source_info["services"] = services
         job_artifact = self._construct_job_artifact(
             name, source_info, installed_packages_list
         )
@@ -2648,7 +2652,10 @@ class Run:
         return job_artifact
 
     def _log_job_artifact_with_image(
-        self, docker_image_name: str, args: list[str] | None = None
+        self,
+        docker_image_name: str,
+        args: list[str] | None = None,
+        services: dict[str, str] | None = None,
     ) -> Artifact:
         packages, in_types, out_types = self._make_job_source_reqs()
         job_artifact = self._create_image_job(
@@ -2657,6 +2664,7 @@ class Run:
             packages,
             args=args,
             docker_image_name=docker_image_name,
+            services=services,
         )
 
         assert job_artifact
