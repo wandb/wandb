@@ -134,6 +134,7 @@ class LaunchProject:
         self._queue_name: Optional[str] = None
         self._queue_entity: Optional[str] = None
         self._run_queue_item_id: Optional[str] = None
+        self._services: Optional[Dict[str, str]] = None
 
     def init_source(self) -> None:
         if self.docker_image is not None:
@@ -471,6 +472,8 @@ class LaunchProject:
             env_vars[wandb.env.LAUNCH_QUEUE_ENTITY] = self.queue_entity
         if self.run_queue_item_id:
             env_vars[wandb.env.LAUNCH_TRACE_ID] = self.run_queue_item_id
+        if self._services:
+            env_vars["WANDB_SERVICES"] = json.dumps(self._services)
 
         _inject_wandb_config_env_vars(self.override_config, env_vars, max_env_length)
         _inject_file_overrides_env_vars(self.override_files, env_vars, max_env_length)

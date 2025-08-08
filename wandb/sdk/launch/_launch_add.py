@@ -152,6 +152,7 @@ def _launch_add(
     sweep_id: Optional[str] = None,
     author: Optional[str] = None,
     priority: Optional[int] = None,
+    services: Optional[Dict[str, str]] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
         None,
@@ -193,7 +194,7 @@ def _launch_add(
         )
 
         job_artifact = run._log_job_artifact_with_image(  # type: ignore
-            docker_image_uri, launch_project.override_args
+            docker_image_uri, launch_project.override_args, services
         )
         job_name = job_artifact.wait().name
 

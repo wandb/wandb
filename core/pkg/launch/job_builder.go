@@ -156,6 +156,7 @@ type JobSourceMetadata struct {
 	OutputTypes data_types.TypeRepresentation `json:"output_types"`
 	Runtime     *string                       `json:"runtime,omitempty"`
 	Partial     *string                       `json:"_partial,omitempty"`
+	Services    map[string]string             `json:"services,omitempty"`
 }
 
 type ArtifactInfoForJob struct {
@@ -633,6 +634,13 @@ func (j *JobBuilder) Build(
 	} else {
 		metadataString = ""
 		sourceInfo.InputTypes = data_types.ResolveTypes(runConfig)
+	}
+
+	if servicesJson, exists := os.LookupEnv("WANDB_SERVICES"); exists {
+		var services map[string]string
+		if err := json.Unmarshal([]byte(servicesJson), &services); err == nil {
+			sourceInfo.Services = services
+		}
 	}
 
 	baseArtifact := &spb.ArtifactRecord{

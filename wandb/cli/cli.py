@@ -1374,6 +1374,14 @@ def launch_sweep(
     help="""When --queue is passed, set the priority of the job. Launch jobs with higher priority
     are served first.  The order, from highest to lowest priority, is: critical, high, medium, low""",
 )
+@click.option(
+    "--service",
+    "-s",
+    "services",
+    multiple=True,
+    callback=parse_service_config,
+    help="Service configurations in format serviceName=policy. Valid policies: always, never",
+)
 @display_error
 def launch(
     uri,
@@ -1398,6 +1406,7 @@ def launch(
     dockerfile,
     priority,
     job_name,
+    services,
 ):
     """Start a W&B run from the given URI.
 
@@ -1487,6 +1496,7 @@ def launch(
             build_context=build_context,
             dockerfile=dockerfile,
             entity=entity,
+            services=services,
         )
         if artifact is None:
             raise LaunchError(f"Failed to create job from uri: {uri}")
@@ -1538,6 +1548,7 @@ def launch(
                     synchronous=(not run_async),
                     run_id=run_id,
                     repository=repository,
+                    services=services,
                 )
             )
             if asyncio.run(run.get_status()).state in [
@@ -1578,6 +1589,7 @@ def launch(
                 run_id=run_id,
                 repository=repository,
                 priority=priority,
+                services=services,
             )
 
         except Exception as e:
