@@ -14,7 +14,7 @@ import requests
 from hypothesis import given
 from hypothesis.strategies import from_regex, text
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
-from wandb.sdk.artifacts._validators import ARTIFACT_NAME_MAXLEN
+from wandb.sdk.artifacts._validators import MAX_NAME_LEN
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
@@ -389,7 +389,7 @@ def test_invalid_artifact_type(type):
     invalid_name=(
         text(  # Too many characters
             alphabet={*ascii_letters, *digits, "_", "-", " "},
-            min_size=ARTIFACT_NAME_MAXLEN + 1,
+            min_size=MAX_NAME_LEN + 1,
         )
         | from_regex(  # Contains invalid characters
             r"(\w|\d|\s)*(/)(\w|\d|\s)*",

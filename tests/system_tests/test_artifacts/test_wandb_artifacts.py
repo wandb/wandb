@@ -19,10 +19,7 @@ import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 from wandb import Artifact, util
 from wandb.errors.errors import CommError
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts._validators import (
-    ARTIFACT_NAME_MAXLEN,
-    RESERVED_ARTIFACT_TYPE_PREFIX,
-)
+from wandb.sdk.artifacts._validators import MAX_NAME_LEN, RESERVED_ARTIFACT_TYPE_PREFIX
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
@@ -1707,7 +1704,7 @@ def test_change_type_of_internal_artifact_collection(user):
 @pytest.mark.parametrize(
     "invalid_name",
     [
-        "a" * (ARTIFACT_NAME_MAXLEN + 1),  # Name too long
+        "a" * (MAX_NAME_LEN + 1),  # Name too long
         "my/artifact",  # Invalid character(s)
     ],
 )

@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import astuple, dataclass, field, replace
 from functools import wraps
+from textwrap import shorten
 from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVar, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import Self
 
 from wandb._iterutils import always_list
-from wandb._pydantic import gql_typename
+from wandb._pydantic import from_json, gql_typename, to_json
 from wandb.util import json_friendly_val
 
 from ._generated import ArtifactPortfolioTypeFields, ArtifactSequenceTypeFields
@@ -28,17 +28,20 @@ if TYPE_CHECKING:
 
 
 REGISTRY_PREFIX: Final[str] = "wandb-registry-"
+REGISTRY_PREFIX_LEN: Final[int] = len(REGISTRY_PREFIX)
+
 MAX_ARTIFACT_METADATA_KEYS: Final[int] = 100
 
-ARTIFACT_NAME_MAXLEN: Final[int] = 128
-ARTIFACT_NAME_INVALID_CHARS: Final[frozenset[str]] = frozenset({"/"})
+MAX_NAME_LEN: Final[int] = 128
+"""The default maximum length for most W&B names, unless otherwise specified (or ignored)."""
+
 
 LINKED_ARTIFACT_COLLECTION_TYPE: Final[str] = gql_typename(ArtifactPortfolioTypeFields)
 SOURCE_ARTIFACT_COLLECTION_TYPE: Final[str] = gql_typename(ArtifactSequenceTypeFields)
 
 
 @dataclass
-class _LinkArtifactFields:
+class LinkArtifactFields:
     """Keep this list updated with fields where the linked artifact and the source artifact differ."""
 
     entity_name: str
@@ -62,28 +65,55 @@ class _LinkArtifactFields:
         return self._linked_artifacts
 
 
+INVALID_ARTIFACT_CHARS: Final[frozenset[str]] = frozenset("/:")
+"""Invalid characters for artifact names or other components of an artifact path."""
+
+VALID_ARTIFACT_PATTERN: re.Pattern[str] = re.compile(r"^[a-zA-Z0-9_\-.]+$")
+"""Regex pattern for validating artifact names."""
+
+
+def truncate(name: str, max_len: int) -> str:
+    """Truncates a string to avoid long error messages."""
+    # Add some extra buffer, partly to account for the ellipsis
+    return shorten(name, width=max_len + 5, placeholder="...")
+
+
+def join_reprs(items: Collection[str]) -> str:
+    """Returns an ordered representation of the given characters for inline display."""
+    return ", ".join(sorted(map(repr, items)))
+
+
 def validate_artifact_name(name: str) -> str:
-    """Validate the artifact name, returning it if successful.
+    """Validate an artifact name, returning it if successful.
 
     Raises:
         ValueError: If the artifact name is invalid.
     """
-    if len(name) > ARTIFACT_NAME_MAXLEN:
-        short_name = f"{name[:ARTIFACT_NAME_MAXLEN]} ..."
+    if len(name) > MAX_NAME_LEN:
         raise ValueError(
-            f"Artifact name is longer than {ARTIFACT_NAME_MAXLEN} characters: {short_name!r}"
+            f"Artifact name is longer than {MAX_NAME_LEN} characters: {truncate(name, MAX_NAME_LEN)!r}"
         )
 
-    if ARTIFACT_NAME_INVALID_CHARS.intersection(name):
+    # Note: This check was absorbed from `Artifact.__init__` as of 2025-07-28.
+    # If this check causes issues here, remove it and restore it to
+    # its original position at the top of `Artifact.__init__`.
+    if not VALID_ARTIFACT_PATTERN.match(name):
+        raise ValueError(
+            f"Artifact names may only contain alphanumeric characters, dashes, "
+            f"underscores, and dots. Invalid name: {name!r}"
+        )
+
+    if INVALID_ARTIFACT_CHARS.intersection(name):
         raise ValueError(
             "Artifact names must not contain any of the following characters: "
-            f"{', '.join(sorted(ARTIFACT_NAME_INVALID_CHARS))}.  Got: {name!r}"
+            f"{join_reprs(INVALID_ARTIFACT_CHARS)}.  Got: {name!r}"
         )
 
     return name
 
 
-INVALID_URL_CHARACTERS = ("/", "\\", "#", "?", "%", ":", "\r", "\n")
+INVALID_URL_CHARS: Final[frozenset[str]] = frozenset("/\\#?%:\r\n")
+"""Invalid characters for project/registry names."""
 
 
 def validate_project_name(name: str) -> None:
@@ -95,33 +125,30 @@ def validate_project_name(name: str) -> None:
     Raises:
         ValueError: If the name is invalid (too long or contains invalid characters).
     """
-    max_len = 128
-
-    if len(name) == 0:
+    if not name:
         raise ValueError("Project name cannot be empty")
 
-    registry_name = ""
-    if name.startswith(REGISTRY_PREFIX):
-        registry_name = name[len(REGISTRY_PREFIX) :]
-        if len(registry_name) == 0:
-            raise ValueError("Registry name cannot be empty")
+    if name == REGISTRY_PREFIX:
+        raise ValueError("Registry name cannot be empty")
 
-    if len(name) > max_len:
-        if registry_name:
-            raise ValueError(
-                f"Invalid registry name {registry_name!r}, must be {max_len - len(REGISTRY_PREFIX)} characters or less"
-            )
-        else:
-            raise ValueError(
-                f"Invalid project name {name!r}, must be {max_len} characters or less"
-            )
+    if is_artifact_registry_project(name):
+        validated_name = name[REGISTRY_PREFIX_LEN:]
+        max_len = MAX_NAME_LEN - REGISTRY_PREFIX_LEN
+        name_type = "registry"
+    else:
+        validated_name = name
+        max_len = MAX_NAME_LEN
+        name_type = "project"
+
+    if len(validated_name) > max_len:
+        raise ValueError(
+            f"Invalid {name_type!s} name {truncate(validated_name, max_len)!r}, must be {max_len!r} characters or less"
+        )
 
     # Find the first occurrence of any invalid character
-    if invalid_chars := set(INVALID_URL_CHARACTERS).intersection(name):
-        error_name = registry_name or name
-        invalid_chars_repr = ", ".join(sorted(map(repr, invalid_chars)))
+    if invalid_chars := set(INVALID_URL_CHARS).intersection(validated_name):
         raise ValueError(
-            f"Invalid project/registry name {error_name!r}, cannot contain characters: {invalid_chars_repr!s}"
+            f"Invalid {name_type!s} name {validated_name!r}, cannot contain characters: {join_reprs(invalid_chars)}"
         )
 
 
@@ -133,10 +160,9 @@ def validate_aliases(aliases: Collection[str] | str) -> list[str]:
     """
     aliases_list = always_list(aliases)
 
-    invalid_chars = ("/", ":")
-    if any(char in alias for alias in aliases_list for char in invalid_chars):
+    if any(INVALID_ARTIFACT_CHARS.intersection(alias) for alias in aliases_list):
         raise ValueError(
-            f"Aliases must not contain any of the following characters: {', '.join(invalid_chars)}"
+            f"Aliases must not contain any of the following characters: {join_reprs(INVALID_ARTIFACT_CHARS)}"
         )
     return aliases_list
 
@@ -144,20 +170,19 @@ def validate_aliases(aliases: Collection[str] | str) -> list[str]:
 def validate_artifact_types_list(artifact_types: list[str]) -> list[str]:
     """Return True if the artifact types list is valid, False otherwise."""
     artifact_types = always_list(artifact_types)
-    invalid_chars = ("/", ":")
+
     if any(
-        char in type or len(type) > 128
-        for type in artifact_types
-        for char in invalid_chars
+        INVALID_ARTIFACT_CHARS.intersection(typ) or (len(typ) > MAX_NAME_LEN)
+        for typ in artifact_types
     ):
         raise ValueError(
-            f"""Artifact types must not contain any of the following characters: {", ".join(invalid_chars)}
-              and must be less than equal to 128 characters"""
+            f"Artifact types must not contain any of the following characters: {join_reprs(INVALID_ARTIFACT_CHARS)} "
+            f"and must be less than equal to {MAX_NAME_LEN!r} characters"
         )
     return artifact_types
 
 
-_VALID_TAG_PATTERN: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")
+VALID_TAG_PATTERN: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")
 
 
 def validate_tags(tags: Collection[str] | str) -> list[str]:
@@ -170,7 +195,7 @@ def validate_tags(tags: Collection[str] | str) -> list[str]:
     """
     tags_list = always_list(tags)
 
-    if any(not _VALID_TAG_PATTERN.match(tag) for tag in tags_list):
+    if not all(VALID_TAG_PATTERN.match(tag) for tag in tags_list):
         raise ValueError(
             "Invalid tag(s).  "
             "Tags must only contain alphanumeric characters separated by hyphens, underscores, and/or spaces."
@@ -179,8 +204,8 @@ def validate_tags(tags: Collection[str] | str) -> list[str]:
 
 
 RESERVED_ARTIFACT_TYPE_PREFIX: Final[str] = "wandb-"
-RESERVED_ARTIFACT_TYPES: Final[tuple[str, ...]] = ("job", "run_table", "code")
 RESERVED_ARTIFACT_NAME_PREFIXES: Final[dict[str, str]] = {
+    "job": "",  # "job" artifact type is always reserved for internal use regardless of artifact name
     "run_table": "run-",
     "code": "source-",
 }
@@ -188,28 +213,33 @@ RESERVED_ARTIFACT_NAME_PREFIXES: Final[dict[str, str]] = {
 
 def validate_artifact_type(typ: str, name: str) -> str:
     """Validate the artifact type and return it as a string."""
-    if typ in RESERVED_ARTIFACT_TYPES:
-        reserved_name_prefix = RESERVED_ARTIFACT_NAME_PREFIXES.get(typ)
-        if not reserved_name_prefix or name.startswith(reserved_name_prefix):
-            raise ValueError(
-                f"Artifact type {typ!r} is reserved for internal use. "
-                "Please use a different type."
-            )
-    elif typ.startswith(RESERVED_ARTIFACT_TYPE_PREFIX):
+    # Check if the artifact *type* matches a reserved prefix
+    if typ.startswith(RESERVED_ARTIFACT_TYPE_PREFIX):
         raise ValueError(
-            f"Artifact type {typ!r} is reserved for internal use. "
-            "Please use a different type."
+            f"Artifact type {typ!r} is reserved for internal use. Please use a different type."
         )
+
+    if (
+        # For certain artifact types, check if the artifact *name* matches a reserved prefix
+        ((reserved_name_prefix := RESERVED_ARTIFACT_NAME_PREFIXES.get(typ)) is not None)
+        and name.startswith(reserved_name_prefix)
+    ):
+        raise ValueError(
+            f"Artifact type {typ!r} is reserved for internal use. Please use a different type."
+        )
+
     return typ
 
 
-def validate_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+def validate_metadata(metadata: dict[str, Any] | str | None) -> dict[str, Any]:
     """Validate the artifact metadata and return it as a dict."""
     if metadata is None:
         return {}
-    if not isinstance(metadata, dict):
-        raise TypeError(f"metadata must be dict, not {type(metadata)}")
-    return cast(Dict[str, Any], json.loads(json.dumps(json_friendly_val(metadata))))
+    if isinstance(metadata, str):
+        return from_json(metadata) if metadata else {}
+    if isinstance(metadata, dict):
+        return cast(Dict[str, Any], from_json(to_json(json_friendly_val(metadata))))
+    raise TypeError(f"Invalid artifact metadata type: {type(metadata)!r}")
 
 
 def validate_ttl_duration_seconds(gql_ttl_duration_seconds: int | None) -> int | None:
