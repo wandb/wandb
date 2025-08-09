@@ -125,6 +125,14 @@ from .fragments import (
     FileUrlsFragmentEdges,
     FileUrlsFragmentEdgesNode,
     FileUrlsFragmentPageInfo,
+    RegistryVersionsPage,
+    RegistryVersionsPageEdges,
+    RegistryVersionsPageEdgesNode,
+    RegistryVersionsPageEdgesNodeAliases,
+    RegistryVersionsPageEdgesNodeArtifactCollection,
+    RegistryVersionsPageEdgesNodeArtifactCollectionProject,
+    RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity,
+    RegistryVersionsPagePageInfo,
 )
 from .input_types import (
     ArtifactAliasInput,
@@ -165,6 +173,7 @@ from .operations import (
     PROJECT_ARTIFACT_TYPE_GQL,
     PROJECT_ARTIFACT_TYPES_GQL,
     PROJECT_ARTIFACTS_GQL,
+    REGISTRY_VERSIONS_GQL,
     RUN_INPUT_ARTIFACTS_GQL,
     RUN_OUTPUT_ARTIFACTS_GQL,
     UNLINK_ARTIFACT_GQL,
@@ -198,6 +207,11 @@ from .project_artifacts import (
     ProjectArtifactsProject,
     ProjectArtifactsProjectArtifactType,
     ProjectArtifactsProjectArtifactTypeArtifactCollection,
+)
+from .registry_versions import (
+    RegistryVersions,
+    RegistryVersionsOrganization,
+    RegistryVersionsOrganizationOrgEntity,
 )
 from .run_input_artifacts import (
     RunInputArtifacts,
@@ -255,6 +269,7 @@ __all__ = [
     "PROJECT_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACT_TYPES_GQL",
     "PROJECT_ARTIFACT_TYPE_GQL",
+    "REGISTRY_VERSIONS_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
     "UNLINK_ARTIFACT_GQL",
@@ -379,6 +394,9 @@ __all__ = [
     "LinkArtifactLinkArtifact",
     "UnlinkArtifact",
     "UnlinkArtifactUnlinkArtifact",
+    "RegistryVersions",
+    "RegistryVersionsOrganization",
+    "RegistryVersionsOrganizationOrgEntity",
     "ArtifactAliasInput",
     "ArtifactCollectionAliasInput",
     "LinkArtifactInput",
@@ -414,6 +432,14 @@ __all__ = [
     "FilesFragmentEdges",
     "FilesFragmentEdgesNode",
     "FilesFragmentPageInfo",
+    "RegistryVersionsPage",
+    "RegistryVersionsPageEdges",
+    "RegistryVersionsPageEdgesNode",
+    "RegistryVersionsPageEdgesNodeAliases",
+    "RegistryVersionsPageEdgesNodeArtifactCollection",
+    "RegistryVersionsPageEdgesNodeArtifactCollectionProject",
+    "RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity",
+    "RegistryVersionsPagePageInfo",
     "ArtifactCollectionState",
     "ArtifactState",
 ]

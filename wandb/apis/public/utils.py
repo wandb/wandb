@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import re
 from enum import Enum
-from typing import Any, Dict, Iterable, Mapping, Optional, Set
+from typing import Any, Iterable, Mapping
 from urllib.parse import urlparse
 
 from wandb_gql import gql
@@ -75,16 +77,15 @@ def parse_org_from_registry_path(path: str, path_type: PathType) -> str:
 
 
 def fetch_org_from_settings_or_entity(
-    settings: dict, default_entity: Optional[str] = None
+    settings: dict, default_entity: str | None = None
 ) -> str:
     """Fetch the org from either the settings or deriving it from the entity.
 
     Returns the org from the settings if available. If no org is passed in or set, the entity is used to fetch the org.
 
     Args:
-        organization (str | None): The organization to fetch the org for.
-        settings (dict): The settings to fetch the org for.
-        default_entity (str | None): The default entity to fetch the org for.
+        settings: The settings to fetch the org for.
+        default_entity: The default entity to fetch the org for.
     """
     if (organization := settings.get("organization")) is None:
         # Fetch the org via the Entity. Won't work if default entity is a personal entity and belongs to multiple orgs
@@ -110,27 +111,31 @@ def fetch_org_from_settings_or_entity(
 class _GQLCompatRewriter(visitor.Visitor):
     """GraphQL AST visitor to rewrite queries/mutations to be compatible with older server versions."""
 
-    omit_variables: Set[str]
-    omit_fragments: Set[str]
-    omit_fields: Set[str]
-    rename_fields: Dict[str, str]
+    omit_variables: set[str]  #: GQL variables to omit anywhere in the request.
+    omit_fragments: set[str]  #: Fragments to omit anywhere in the request.
+    omit_fields: set[str]  #: Fields to omit anywhere in the request.
+    omit_fragment_fields: dict[str, set[str]]  #: Fields to omit on specific fragments.
+    rename_fields: dict[str, str]
 
     def __init__(
         self,
-        omit_variables: Optional[Iterable[str]] = None,
-        omit_fragments: Optional[Iterable[str]] = None,
-        omit_fields: Optional[Iterable[str]] = None,
-        rename_fields: Optional[Mapping[str, str]] = None,
+        omit_variables: Iterable[str] | None = None,
+        omit_fragments: Iterable[str] | None = None,
+        omit_fields: Iterable[str] | None = None,
+        omit_fragment_fields: dict[str, Iterable[str]] | None = None,
+        rename_fields: Mapping[str, str] | None = None,
     ):
         self.omit_variables = set(omit_variables or ())
         self.omit_fragments = set(omit_fragments or ())
         self.omit_fields = set(omit_fields or ())
+        self.omit_fragment_fields = dict(
+            {k: set(vs) for k, vs in (omit_fragment_fields or {}).items()}
+        )
         self.rename_fields = dict(rename_fields or {})
 
     def enter_VariableDefinition(self, node: ast.VariableDefinition, *_, **__) -> Any:  # noqa: N802
         if node.variable.name.value in self.omit_variables:
             return visitor.REMOVE
-        # return node
 
     def enter_ObjectField(self, node: ast.ObjectField, *_, **__) -> Any:  # noqa: N802
         # For context, note that e.g.:
@@ -161,9 +166,24 @@ class _GQLCompatRewriter(visitor.Visitor):
         if node.name.value in self.omit_fragments:
             return visitor.REMOVE
 
-    def enter_Field(self, node: ast.Field, *_, **__) -> Any:  # noqa: N802
+    def enter_Field(  # noqa: N802
+        self, node: ast.Field, _, __, ___, ancestors: list[ast.Node]
+    ) -> Any:
+        # Check if we're in a fragment that has to omit this field
+        parent_fragments = (
+            a for a in ancestors[::-1] if isinstance(a, ast.FragmentDefinition)
+        )
+        if (
+            (fragment := next(parent_fragments, None))
+            and (frag_fields := self.omit_fragment_fields.get(fragment.name.value))
+            and node.name.value in frag_fields
+        ):
+            return visitor.REMOVE
+
+        # Check if we should omit this field anywhere in the request
         if node.name.value in self.omit_fields:
             return visitor.REMOVE
+
         if new_name := self.rename_fields.get(node.name.value):
             node.name.value = new_name
             return node
@@ -176,19 +196,22 @@ class _GQLCompatRewriter(visitor.Visitor):
 
 def gql_compat(
     request_string: str,
-    omit_variables: Optional[Iterable[str]] = None,
-    omit_fragments: Optional[Iterable[str]] = None,
-    omit_fields: Optional[Iterable[str]] = None,
-    rename_fields: Optional[Mapping[str, str]] = None,
+    omit_variables: Iterable[str] | None = None,
+    omit_fragments: Iterable[str] | None = None,
+    omit_fields: Iterable[str] | None = None,
+    omit_fragment_fields: Mapping[str, Iterable[str]] | None = None,
+    rename_fields: Mapping[str, str] | None = None,
 ) -> ast.Document:
     """Rewrite a GraphQL request string to ensure compatibility with older server versions.
 
     Args:
-        request_string (str): The GraphQL request string to rewrite.
-        omit_variables (Iterable[str] | None): Names of variables to remove from the request string.
-        omit_fragments (Iterable[str] | None): Names of fragments to remove from the request string.
-        omit_fields (Iterable[str] | None): Names of fields to remove from the request string.
-        rename_fields (Mapping[str, str] | None):
+        request_string: The GraphQL request string to rewrite.
+        omit_variables: Names of variables to remove from the request string.
+        omit_fragments: Names of fragments to remove from the request string.
+        omit_fields: Names of fields to remove from the request string.
+        omit_fragment_fields:
+            A mapping of `{fragment -> {specific_fields...}}` to remove from the request string.
+        rename_fields:
             A mapping of fields to rename in the request string, given as `{old_name -> new_name}`.
 
     Returns:
@@ -197,7 +220,13 @@ def gql_compat(
     # Parse the request into a GraphQL AST
     doc = gql(request_string)
 
-    if not (omit_variables or omit_fragments or omit_fields or rename_fields):
+    if not (
+        omit_variables
+        or omit_fragments
+        or omit_fields
+        or omit_fragment_fields
+        or rename_fields
+    ):
         return doc
 
     # Visit the AST with our visitor to filter out unwanted fragments
@@ -205,6 +234,7 @@ def gql_compat(
         omit_variables=omit_variables,
         omit_fragments=omit_fragments,
         omit_fields=omit_fields,
+        omit_fragment_fields=omit_fragment_fields,
         rename_fields=rename_fields,
     )
     return visitor.visit(doc, rewriter)

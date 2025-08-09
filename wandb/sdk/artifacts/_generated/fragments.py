@@ -209,6 +209,50 @@ class FilesFragmentPageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+class RegistryVersionsPage(GQLBase):
+    page_info: RegistryVersionsPagePageInfo = Field(alias="pageInfo")
+    edges: List[RegistryVersionsPageEdges]
+
+
+class RegistryVersionsPageEdges(GQLBase):
+    node: Optional[RegistryVersionsPageEdgesNode]
+
+
+class RegistryVersionsPageEdgesNode(GQLBase):
+    artifact_collection: Optional[RegistryVersionsPageEdgesNodeArtifactCollection] = (
+        Field(alias="artifactCollection")
+    )
+    version_index: Optional[int] = Field(alias="versionIndex")
+    artifact: Optional[ArtifactFragment]
+    aliases: List[RegistryVersionsPageEdgesNodeAliases]
+
+
+class RegistryVersionsPageEdgesNodeAliases(GQLBase):
+    alias: str
+
+
+class RegistryVersionsPageEdgesNodeArtifactCollection(GQLBase):
+    typename__: Typename[
+        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
+    ]
+    project: Optional[RegistryVersionsPageEdgesNodeArtifactCollectionProject]
+    name: str
+
+
+class RegistryVersionsPageEdgesNodeArtifactCollectionProject(GQLBase):
+    name: str
+    entity: RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity
+
+
+class RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity(GQLBase):
+    name: str
+
+
+class RegistryVersionsPagePageInfo(GQLBase):
+    end_cursor: Optional[str] = Field(alias="endCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
+
+
 ArtifactCollectionsFragment.model_rebuild()
 ArtifactCollectionsFragmentEdges.model_rebuild()
 ArtifactCollectionsFragmentEdgesNode.model_rebuild()
@@ -240,5 +284,14 @@ FilesFragment.model_rebuild()
 FilesFragmentEdges.model_rebuild()
 FilesFragmentEdgesNode.model_rebuild()
 FilesFragmentPageInfo.model_rebuild()
+RegistryVersionsPage.model_rebuild()
+RegistryVersionsPageEdges.model_rebuild()
+RegistryVersionsPageEdgesNode.model_rebuild()
+RegistryVersionsPageEdgesNodeAliases.model_rebuild()
+RegistryVersionsPageEdgesNodeArtifactCollection.model_rebuild()
+RegistryVersionsPageEdgesNodeArtifactCollectionProject.model_rebuild()
+RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity.model_rebuild()
+RegistryVersionsPagePageInfo.model_rebuild()
+ArtifactFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactTypeFragment.model_rebuild()

@@ -1,0 +1,51 @@
+query RegistryVersions(
+  $organization: String!
+  $registryFilter: JSONString
+  $collectionFilter: JSONString
+  $artifactFilter: JSONString
+  $cursor: String
+  $perPage: Int
+) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+      artifactMemberships(
+        projectFilters: $registryFilter
+        collectionFilters: $collectionFilter
+        filters: $artifactFilter
+        after: $cursor
+        first: $perPage
+      ) {
+        ...RegistryVersionsPage
+      }
+    }
+  }
+}
+
+fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
+  edges {
+    node {
+      artifactCollection {
+        __typename
+        project {
+          name
+          entity {
+            name
+          }
+        }
+        name
+      }
+      versionIndex
+      artifact {
+        ...ArtifactFragment
+      }
+      aliases {
+        alias
+      }
+    }
+  }
+}

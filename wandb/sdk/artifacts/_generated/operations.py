@@ -28,6 +28,7 @@ __all__ = [
     "PROJECT_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACT_TYPES_GQL",
     "PROJECT_ARTIFACT_TYPE_GQL",
+    "REGISTRY_VERSIONS_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
     "UNLINK_ARTIFACT_GQL",
@@ -1001,6 +1002,97 @@ mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
     artifactID
     success
     clientMutationId
+  }
+}
+"""
+
+REGISTRY_VERSIONS_GQL = """
+query RegistryVersions($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString, $cursor: String, $perPage: Int) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+      artifactMemberships(
+        projectFilters: $registryFilter
+        collectionFilters: $collectionFilter
+        filters: $artifactFilter
+        after: $cursor
+        first: $perPage
+      ) {
+        ...RegistryVersionsPage
+      }
+    }
+  }
+}
+
+fragment ArtifactFragment on Artifact {
+  id
+  artifactSequence {
+    project {
+      entityName
+      name
+    }
+    name
+  }
+  versionIndex
+  artifactType {
+    name
+  }
+  description
+  metadata
+  ttlDurationSeconds @include(if: true)
+  ttlIsInherited @include(if: true)
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+  tags @include(if: true) {
+    name
+  }
+  historyStep @include(if: true)
+  state
+  currentManifest {
+    file {
+      directUrl
+    }
+  }
+  commitHash
+  fileCount
+  createdAt
+  updatedAt
+}
+
+fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
+  edges {
+    node {
+      artifactCollection {
+        __typename
+        project {
+          name
+          entity {
+            name
+          }
+        }
+        name
+      }
+      versionIndex
+      artifact {
+        ...ArtifactFragment
+      }
+      aliases {
+        alias
+      }
+    }
   }
 }
 """
