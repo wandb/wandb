@@ -133,6 +133,7 @@ from .operations import (
     PROJECT_ARTIFACTS_GQL,
     RUN_INPUT_ARTIFACTS_GQL,
     RUN_OUTPUT_ARTIFACTS_GQL,
+    UNLINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
     UPDATE_ARTIFACT_SEQUENCE_GQL,
@@ -180,6 +181,7 @@ from .run_output_artifacts import (
     RunOutputArtifactsProjectRunOutputArtifactsEdges,
     RunOutputArtifactsProjectRunOutputArtifactsPageInfo,
 )
+from .unlink_artifact import UnlinkArtifact, UnlinkArtifactUnlinkArtifact
 from .update_artifact import UpdateArtifact, UpdateArtifactUpdateArtifact
 from .update_artifact_portfolio import (
     UpdateArtifactPortfolio,
@@ -216,6 +218,7 @@ __all__ = [
     "PROJECT_ARTIFACT_TYPE_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
+    "UNLINK_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
     "UPDATE_ARTIFACT_SEQUENCE_GQL",
@@ -313,6 +316,8 @@ __all__ = [
     "DeleteArtifactDeleteArtifactArtifact",
     "LinkArtifact",
     "LinkArtifactLinkArtifact",
+    "UnlinkArtifact",
+    "UnlinkArtifactUnlinkArtifact",
     "ArtifactAliasInput",
     "ArtifactCollectionAliasInput",
     "LinkArtifactInput",

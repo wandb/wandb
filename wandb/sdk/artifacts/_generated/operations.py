@@ -25,6 +25,7 @@ __all__ = [
     "PROJECT_ARTIFACT_TYPE_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
+    "UNLINK_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
     "UPDATE_ARTIFACT_SEQUENCE_GQL",
@@ -747,6 +748,18 @@ LINK_ARTIFACT_GQL = """
 mutation LinkArtifact($input: LinkArtifactInput!) {
   linkArtifact(input: $input) {
     versionIndex
+  }
+}
+"""
+
+UNLINK_ARTIFACT_GQL = """
+mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
+  unlinkArtifact(
+    input: {artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID}
+  ) {
+    artifactID
+    success
+    clientMutationId
   }
 }
 """
