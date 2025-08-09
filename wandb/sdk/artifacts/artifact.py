@@ -72,6 +72,7 @@ from ._generated import (
     ADD_ALIASES_GQL,
     ARTIFACT_BY_ID_GQL,
     ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
+    ARTIFACT_CREATED_BY_GQL,
     ARTIFACT_FILE_URLS_GQL,
     ARTIFACT_USED_BY_GQL,
     DELETE_ALIASES_GQL,
@@ -85,6 +86,7 @@ from ._generated import (
     ArtifactByID,
     ArtifactCollectionAliasInput,
     ArtifactCollectionMembershipFileUrls,
+    ArtifactCreatedBy,
     ArtifactFileUrls,
     ArtifactUsedBy,
     FetchArtifactManifest,
@@ -2593,39 +2595,22 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        query = gql(
-            """
-            query ArtifactCreatedBy(
-                $id: ID!
-            ) {
-                artifact(id: $id) {
-                    createdBy {
-                        ... on Run {
-                            name
-                            project {
-                                name
-                                entityName
-                            }
-                        }
-                    }
-                }
-            }
-        """
-        )
-        assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": self.id},
-        )
-        creator = response.get("artifact", {}).get("createdBy", {})
-        if creator.get("name") is None:
-            return None
-        return Run(
-            self._client,
-            creator["project"]["entityName"],
-            creator["project"]["name"],
-            creator["name"],
-        )
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact queries")
+
+        query = gql(ARTIFACT_CREATED_BY_GQL)
+        gql_vars = {"id": self.id}
+        data = self._client.execute(query, variable_values=gql_vars)
+        result = ArtifactCreatedBy.model_validate(data)
+
+        if (
+            (artifact := result.artifact)
+            and (creator := artifact.created_by)
+            and (name := creator.name)
+            and (project := creator.project)
+        ):
+            return Run(self._client, project.entity_name, project.name, name)
+        return None
 
     @ensure_logged
     def json_encode(self) -> dict[str, Any]:
