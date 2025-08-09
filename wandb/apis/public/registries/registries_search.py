@@ -12,7 +12,11 @@ from wandb_gql import gql
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.utils import gql_compat
 from wandb.sdk.artifacts._generated import (
+    REGISTRY_COLLECTIONS_GQL,
     REGISTRY_VERSIONS_GQL,
+    ArtifactCollectionType,
+    RegistryCollections,
+    RegistryCollectionsPage,
     RegistryVersions,
     RegistryVersionsPage,
 )
@@ -156,69 +160,9 @@ class Registries(Paginator):
 class Collections(Paginator["ArtifactCollection"]):
     """An lazy iterator of `ArtifactCollection` objects in a Registry."""
 
-    QUERY = gql(
-        """
-        query Collections(
-            $organization: String!,
-            $registryFilter: JSONString,
-            $collectionFilter: JSONString,
-            $collectionTypes: [ArtifactCollectionType!],
-            $cursor: String,
-            $perPage: Int
-        ) {
-            organization(name: $organization) {
-                orgEntity {
-                    name
-                    artifactCollections(
-                        projectFilters: $registryFilter,
-                        filters: $collectionFilter,
-                        collectionTypes: $collectionTypes,
-                        after: $cursor,
-                        first: $perPage
-                    ) {
-                        totalCount
-                        pageInfo {
-                            endCursor
-                            hasNextPage
-                        }
-                        edges {
-                            cursor
-                            node {
-                                id
-                                name
-                                description
-                                createdAt
-                                tags {
-                                    edges {
-                                        node {
-                                            name
-                                        }
-                                    }
-                                }
-                                project {
-                                    name
-                                    entity {
-                                        name
-                                    }
-                                }
-                                defaultArtifactType {
-                                    name
-                                }
-                                aliases {
-                                    edges {
-                                        node {
-                                            alias
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-    )
+    QUERY = gql(REGISTRY_COLLECTIONS_GQL)
+
+    last_response: RegistryCollectionsPage | None
 
     def __init__(
         self,
@@ -234,14 +178,10 @@ class Collections(Paginator["ArtifactCollection"]):
         self.collection_filter = collection_filter or {}
 
         variables = {
-            "registryFilter": (
-                json.dumps(self.registry_filter) if self.registry_filter else None
-            ),
-            "collectionFilter": (
-                json.dumps(self.collection_filter) if self.collection_filter else None
-            ),
+            "registryFilter": json.dumps(f) if (f := registry_filter) else None,
+            "collectionFilter": json.dumps(f) if (f := collection_filter) else None,
             "organization": self.organization,
-            "collectionTypes": ["PORTFOLIO"],
+            "collectionTypes": [ArtifactCollectionType.PORTFOLIO],
             "perPage": per_page,
         }
 
@@ -266,58 +206,60 @@ class Collections(Paginator["ArtifactCollection"]):
 
     @property
     def length(self):
-        if self.last_response:
-            return self.last_response["organization"]["orgEntity"][
-                "artifactCollections"
-            ]["totalCount"]
-        else:
+        if self.last_response is None:
             return None
+        return self.last_response.total_count
 
     @property
     def more(self):
-        if self.last_response:
-            return self.last_response["organization"]["orgEntity"][
-                "artifactCollections"
-            ]["pageInfo"]["hasNextPage"]
-        else:
+        if self.last_response is None:
             return True
+        return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self):
-        if self.last_response:
-            return self.last_response["organization"]["orgEntity"][
-                "artifactCollections"
-            ]["pageInfo"]["endCursor"]
-        else:
+        if self.last_response is None:
             return None
+        return self.last_response.page_info.end_cursor
+
+    @override
+    def _update_response(self) -> None:
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        result = RegistryCollections.model_validate(data)
+        if not (
+            (org_data := result.organization)
+            and (org_entity_data := org_data.org_entity)
+        ):
+            raise ValueError(
+                f"Organization {self.organization!r} not found. Please verify the organization name is correct."
+            )
+
+        try:
+            page_data = org_entity_data.artifact_collections
+            self.last_response = RegistryCollectionsPage.model_validate(page_data)
+        except (LookupError, AttributeError, ValidationError) as e:
+            raise ValueError("Unexpected response data") from e
 
     def convert_objects(self):
         from wandb.apis.public import ArtifactCollection
 
-        if not self.last_response:
+        if self.last_response is None:
             return []
-        if (
-            not self.last_response["organization"]
-            or not self.last_response["organization"]["orgEntity"]
-        ):
-            raise ValueError(
-                f"Organization '{self.organization}' not found. Please verify the organization name is correct"
-            )
 
+        nodes = (e.node for e in self.last_response.edges)
         return [
             ArtifactCollection(
                 self.client,
-                r["node"]["project"]["entity"]["name"],
-                r["node"]["project"]["name"],
-                r["node"]["name"],
-                r["node"]["defaultArtifactType"]["name"],
+                project.entity.name,
+                project.name,
+                node.name,
+                node.default_artifact_type.name,
                 self.organization,
-                r["node"],
+                node.model_dump(),
                 is_sequence=False,
             )
-            for r in self.last_response["organization"]["orgEntity"][
-                "artifactCollections"
-            ]["edges"]
+            for node in nodes
+            if (project := node.project)
         ]
 
 

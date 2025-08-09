@@ -28,6 +28,7 @@ __all__ = [
     "PROJECT_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACT_TYPES_GQL",
     "PROJECT_ARTIFACT_TYPE_GQL",
+    "REGISTRY_COLLECTIONS_GQL",
     "REGISTRY_VERSIONS_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
@@ -1040,6 +1041,66 @@ fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
       }
       aliases {
         alias
+      }
+    }
+  }
+}
+"""
+
+REGISTRY_COLLECTIONS_GQL = """
+query RegistryCollections($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $collectionTypes: [ArtifactCollectionType!], $cursor: String, $perPage: Int) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+      artifactCollections(
+        projectFilters: $registryFilter
+        filters: $collectionFilter
+        collectionTypes: $collectionTypes
+        after: $cursor
+        first: $perPage
+      ) {
+        ...RegistryCollectionsPage
+      }
+    }
+  }
+}
+
+fragment RegistryCollectionsPage on ArtifactCollectionConnection {
+  totalCount
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
+  edges {
+    cursor
+    node {
+      __typename
+      id
+      name
+      description
+      createdAt
+      tags {
+        edges {
+          node {
+            name
+          }
+        }
+      }
+      project {
+        name
+        entity {
+          name
+        }
+      }
+      defaultArtifactType {
+        name
+      }
+      aliases {
+        edges {
+          node {
+            alias
+          }
+        }
       }
     }
   }
