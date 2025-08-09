@@ -74,6 +74,7 @@ from ._generated import (
     ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
     ARTIFACT_CREATED_BY_GQL,
     ARTIFACT_FILE_URLS_GQL,
+    ARTIFACT_TYPE_GQL,
     ARTIFACT_USED_BY_GQL,
     DELETE_ALIASES_GQL,
     DELETE_ARTIFACT_GQL,
@@ -88,6 +89,7 @@ from ._generated import (
     ArtifactCollectionMembershipFileUrls,
     ArtifactCreatedBy,
     ArtifactFileUrls,
+    ArtifactType,
     ArtifactUsedBy,
     FetchArtifactManifest,
     FetchLinkedArtifacts,
@@ -2626,37 +2628,22 @@ class Artifact:
         entity_name: str, project_name: str, name: str, client: RetryingClient
     ) -> str | None:
         """Returns the expected type for a given artifact name and project."""
-        query = gql(
-            """
-            query ArtifactType(
-                $entityName: String,
-                $projectName: String,
-                $name: String!
-            ) {
-                project(name: $projectName, entityName: $entityName) {
-                    artifact(name: $name) {
-                        artifactType {
-                            name
-                        }
-                    }
-                }
-            }
-            """
-        )
-        if ":" not in name:
-            name += ":latest"
-        response = client.execute(
-            query,
-            variable_values={
-                "entityName": entity_name,
-                "projectName": project_name,
-                "name": name,
-            },
-        )
-        return (
-            ((response.get("project") or {}).get("artifact") or {}).get("artifactType")
-            or {}
-        ).get("name")
+        query = gql(ARTIFACT_TYPE_GQL)
+        gql_vars = {
+            "entityName": entity_name,
+            "projectName": project_name,
+            "name": name if (":" in name) else f"{name}:latest",
+        }
+        data = client.execute(query, variable_values=gql_vars)
+        result = ArtifactType.model_validate(data)
+
+        if (
+            (project := result.project)
+            and (artifact := project.artifact)
+            and (artifact_type := artifact.artifact_type)
+        ):
+            return artifact_type.name
+        return None
 
     def _load_manifest(self, url: str) -> ArtifactManifest:
         with requests.get(url) as response:

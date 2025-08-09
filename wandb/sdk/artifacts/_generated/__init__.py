@@ -22,6 +22,12 @@ from .artifact_created_by import (
     ArtifactCreatedByArtifactCreatedByUser,
 )
 from .artifact_file_urls import ArtifactFileUrls, ArtifactFileUrlsArtifact
+from .artifact_type import (
+    ArtifactType,
+    ArtifactTypeProject,
+    ArtifactTypeProjectArtifact,
+    ArtifactTypeProjectArtifactArtifactType,
+)
 from .artifact_used_by import (
     ArtifactUsedBy,
     ArtifactUsedByArtifact,
@@ -131,6 +137,7 @@ from .operations import (
     ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
     ARTIFACT_CREATED_BY_GQL,
     ARTIFACT_FILE_URLS_GQL,
+    ARTIFACT_TYPE_GQL,
     ARTIFACT_USED_BY_GQL,
     ARTIFACT_VERSION_FILES_GQL,
     CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
@@ -218,6 +225,7 @@ __all__ = [
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
     "ARTIFACT_CREATED_BY_GQL",
     "ARTIFACT_FILE_URLS_GQL",
+    "ARTIFACT_TYPE_GQL",
     "ARTIFACT_USED_BY_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
@@ -335,6 +343,10 @@ __all__ = [
     "ArtifactCreatedByArtifactCreatedByRun",
     "ArtifactCreatedByArtifactCreatedByRunProject",
     "ArtifactCreatedByArtifactCreatedByUser",
+    "ArtifactType",
+    "ArtifactTypeProject",
+    "ArtifactTypeProjectArtifact",
+    "ArtifactTypeProjectArtifactArtifactType",
     "AddAliases",
     "AddAliasesAddAliases",
     "DeleteAliases",

@@ -8,6 +8,7 @@ __all__ = [
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
     "ARTIFACT_CREATED_BY_GQL",
     "ARTIFACT_FILE_URLS_GQL",
+    "ARTIFACT_TYPE_GQL",
     "ARTIFACT_USED_BY_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
@@ -693,6 +694,18 @@ query ArtifactCreatedBy($id: ID!) {
           name
           entityName
         }
+      }
+    }
+  }
+}
+"""
+
+ARTIFACT_TYPE_GQL = """
+query ArtifactType($entityName: String, $projectName: String, $name: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    artifact(name: $name) {
+      artifactType {
+        name
       }
     }
   }
