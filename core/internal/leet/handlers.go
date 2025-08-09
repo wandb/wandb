@@ -104,6 +104,8 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 }
 
 // handleHistoryMsg processes new history data
+//
+//gocyclo:ignore
 func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	m.step = msg.Step
 
@@ -211,6 +213,8 @@ func (m *Model) drawVisibleCharts() {
 }
 
 // handleMouseMsg processes mouse events
+//
+//gocyclo:ignore
 func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 	// Check if mouse is in sidebars
 	if msg.X < m.sidebar.Width() || msg.X >= m.width-m.rightSidebar.Width() {
