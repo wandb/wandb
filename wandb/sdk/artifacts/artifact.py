@@ -17,11 +17,21 @@ import time
 from collections import deque
 from copy import copy
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from functools import partial
 from itertools import filterfalse
 from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Iterator, Literal, Sequence, Type, final
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Final,
+    Iterator,
+    Literal,
+    Sequence,
+    Type,
+    final,
+)
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
@@ -61,6 +71,8 @@ from wandb.util import (
 from ._generated import (
     ADD_ALIASES_GQL,
     ARTIFACT_BY_ID_GQL,
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
+    ARTIFACT_FILE_URLS_GQL,
     DELETE_ALIASES_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
@@ -69,8 +81,11 @@ from ._generated import (
     ArtifactAliasInput,
     ArtifactByID,
     ArtifactCollectionAliasInput,
+    ArtifactCollectionMembershipFileUrls,
+    ArtifactFileUrls,
     FetchArtifactManifest,
     FetchLinkedArtifacts,
+    FileUrlsFragment,
     LinkArtifact,
     LinkArtifactInput,
     TagInput,
@@ -121,6 +136,9 @@ if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient
 
 logger = logging.getLogger(__name__)
+
+
+_MB: Final[int] = 1024 * 1024
 
 
 @final
@@ -2086,14 +2104,14 @@ class Artifact:
         multipart: bool | None = None,
     ) -> FilePathStr:
         nfiles = len(self.manifest.entries)
-        size = sum(e.size or 0 for e in self.manifest.entries.values())
-        log = False
-        if nfiles > 5000 or size > 50 * 1024 * 1024:
-            log = True
+        size_mb = self.size / _MB
+
+        if log := (nfiles > 5000 or size_mb > 50):
             termlog(
-                f"Downloading large artifact {self.name}, {size / (1024 * 1024):.2f}MB. {nfiles} files... ",
+                f"Downloading large artifact {self.name!r}, {size_mb:.2f}MB. {nfiles!r} files...",
             )
-            start_time = datetime.now()
+            start_time = time.monotonic()
+
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
 
         def _download_entry(
@@ -2132,44 +2150,62 @@ class Artifact:
                 cookies=_thread_local_api_settings.cookies,
                 headers=_thread_local_api_settings.headers,
             )
+
+            batch_size = env.get_artifact_fetch_file_url_batch_size()
+
             active_futures = set()
-            has_next_page = True
-            cursor = None
-            while has_next_page:
-                fetch_url_batch_size = env.get_artifact_fetch_file_url_batch_size()
-                attrs = self._fetch_file_urls(cursor, fetch_url_batch_size)
-                has_next_page = attrs["pageInfo"]["hasNextPage"]
-                cursor = attrs["pageInfo"]["endCursor"]
-                for edge in attrs["edges"]:
-                    entry = self.get_entry(edge["node"]["name"])
+            cursor, has_more = None, True
+            while has_more:
+                files_page = self._fetch_file_urls(cursor=cursor, per_page=batch_size)
+
+                has_more = files_page.page_info.has_next_page
+                cursor = files_page.page_info.end_cursor
+
+                # `File` nodes are formally nullable, so filter them out just in case.
+                file_nodes = (e.node for e in files_page.edges if e.node)
+                for node in file_nodes:
+                    entry = self.get_entry(node.name)
                     # TODO: uncomment once artifact downloads are supported in core
                     # if require_core and entry.ref is None:
                     #     # Handled by core
                     #     continue
-                    entry._download_url = edge["node"]["directUrl"]
+                    entry._download_url = node.direct_url
                     if (not path_prefix) or entry.path.startswith(str(path_prefix)):
                         active_futures.add(executor.submit(download_entry, entry))
+
                 # Wait for download threads to catch up.
-                max_backlog = fetch_url_batch_size
-                if len(active_futures) > max_backlog:
+                #
+                # Extra context and observations (tonyyli):
+                # - Even though the ThreadPoolExecutor limits the number of
+                #   concurrently-executed tasks, its internal task queue is unbounded.
+                #   The code below seems intended to ensure that at most `batch_size`
+                #   "backlogged" futures are held in memory at any given time.  This seems like
+                #   a reasonable safeguard against unbounded memory consumption.
+                #
+                # - We should probably use a builtin (bounded) Queue or Semaphore here instead.
+                #   Consider this for a future change, or (depending on risk and risk tolerance)
+                #   managing this logic via asyncio instead, if viable.
+                if len(active_futures) > batch_size:
                     for future in concurrent.futures.as_completed(active_futures):
                         future.result()  # check for errors
                         active_futures.remove(future)
-                        if len(active_futures) <= max_backlog:
+                        if len(active_futures) <= batch_size:
                             break
+
             # Check for errors.
             for future in concurrent.futures.as_completed(active_futures):
                 future.result()
 
         if log:
-            now = datetime.now()
-            delta = abs((now - start_time).total_seconds())
-            hours = int(delta // 3600)
-            minutes = int((delta - hours * 3600) // 60)
-            seconds = delta - hours * 3600 - minutes * 60
-            speed = size / 1024 / 1024 / delta
+            # If you're wondering if we can display a `timedelta`, note that it
+            # doesn't really support custom string format specifiers (compared to
+            # e.g. `datetime` objs).  To truncate the number of decimal places for
+            # the seconds part, we manually convert/format each part below.
+            dt_secs = abs(time.monotonic() - start_time)
+            hrs, mins = divmod(dt_secs, 3600)
+            mins, secs = divmod(mins, 60)
             termlog(
-                f"Done. {hours}:{minutes}:{seconds:.1f} ({speed:.1f}MB/s)",
+                f"Done. {int(hrs):02d}:{int(mins):02d}:{secs:04.1f} ({size_mb / dt_secs:.1f}MB/s)",
                 prefix=False,
             )
         return FilePathStr(root)
@@ -2178,79 +2214,44 @@ class Artifact:
         retry_timedelta=timedelta(minutes=3),
         retryable_exceptions=(requests.RequestException),
     )
-    def _fetch_file_urls(self, cursor: str | None, per_page: int | None = 5000) -> Any:
+    def _fetch_file_urls(
+        self, cursor: str | None, per_page: int = 5000
+    ) -> FileUrlsFragment:
+        if self._client is None:
+            raise RuntimeError("Client not initialized")
+
         if InternalApi()._server_supports(
             pb.ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         ):
-            query = gql(
-                """
-                query ArtifactCollectionMembershipFileURLs($entityName: String!, $projectName: String!, \
-                        $artifactName: String!, $artifactVersionIndex: String!, $cursor: String, $perPage: Int) {
-                    project(name: $projectName, entityName: $entityName) {
-                        artifactCollection(name: $artifactName) {
-                            artifactMembership(aliasName: $artifactVersionIndex) {
-                                files(after: $cursor, first: $perPage) {
-                                    pageInfo {
-                                        hasNextPage
-                                        endCursor
-                                    }
-                                    edges {
-                                        node {
-                                            name
-                                            directUrl
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                """
-            )
-            assert self._client is not None
-            response = self._client.execute(
-                query,
-                variable_values={
-                    "entityName": self.entity,
-                    "projectName": self.project,
-                    "artifactName": self.name.split(":")[0],
-                    "artifactVersionIndex": self.version,
-                    "cursor": cursor,
-                    "perPage": per_page,
-                },
-                timeout=60,
-            )
-            return response["project"]["artifactCollection"]["artifactMembership"][
-                "files"
-            ]
+            query = gql(ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL)
+            gql_vars = {
+                "entityName": self.entity,
+                "projectName": self.project,
+                "artifactName": self.name.split(":")[0],
+                "artifactVersionIndex": self.version,
+                "cursor": cursor,
+                "perPage": per_page,
+            }
+            data = self._client.execute(query, variable_values=gql_vars, timeout=60)
+            result = ArtifactCollectionMembershipFileUrls.model_validate(data)
+
+            if not (
+                (project := result.project)
+                and (collection := project.artifact_collection)
+                and (membership := collection.artifact_membership)
+                and (files := membership.files)
+            ):
+                raise ValueError(f"Unable to fetch files for artifact: {self.name!r}")
+            return files
         else:
-            query = gql(
-                """
-                query ArtifactFileURLs($id: ID!, $cursor: String, $perPage: Int) {
-                    artifact(id: $id) {
-                        files(after: $cursor, first: $perPage) {
-                            pageInfo {
-                                hasNextPage
-                                endCursor
-                            }
-                            edges {
-                                node {
-                                    name
-                                    directUrl
-                                }
-                            }
-                        }
-                    }
-                }
-                """
-            )
-            assert self._client is not None
-            response = self._client.execute(
-                query,
-                variable_values={"id": self.id, "cursor": cursor, "perPage": per_page},
-                timeout=60,
-            )
-            return response["artifact"]["files"]
+            query = gql(ARTIFACT_FILE_URLS_GQL)
+            gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
+            data = self._client.execute(query, variable_values=gql_vars, timeout=60)
+            result = ArtifactFileUrls.model_validate(data)
+
+            if not ((artifact := result.artifact) and (files := artifact.files)):
+                raise ValueError(f"Unable to fetch files for artifact: {self.name!r}")
+            return files
 
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:
