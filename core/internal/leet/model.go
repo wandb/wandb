@@ -878,7 +878,7 @@ func (m *Model) renderStatusBar() string {
 		m.chartMu.RLock()
 		totalCount := len(m.allCharts)
 		m.chartMu.RUnlock()
-		statusText = fmt.Sprintf(" Filter: /%s_ [%d/%d matches]",
+		statusText = fmt.Sprintf(" Filter: /%s_ [%d/%d matches] (Enter to apply)",
 			m.filterInput, matchCount, totalCount)
 	case m.waitingForConfigKey:
 		// Show config hint
