@@ -177,6 +177,19 @@ query ArtifactByID($id: ID!) {
   }
 }
 
+query ArtifactByName(
+  $entityName: String!
+  $projectName: String!
+  $name: String!
+  $enableTracking: Boolean
+) {
+  project(name: $projectName, entityName: $entityName) {
+    artifact(name: $name, enableTracking: $enableTracking) {
+      ...ArtifactFragment
+    }
+  }
+}
+
 query ArtifactViaMembershipByName($entityName: String!, $projectName: String!, $name: String!) {
   project(name: $projectName, entityName: $entityName) {
     artifactCollectionMembership(name: $name) {

@@ -2,6 +2,7 @@
 
 from .add_aliases import AddAliases, AddAliasesAddAliases
 from .artifact_by_id import ArtifactByID
+from .artifact_by_name import ArtifactByName, ArtifactByNameProject
 from .artifact_collection_membership_file_urls import (
     ArtifactCollectionMembershipFileUrls,
     ArtifactCollectionMembershipFileUrlsProject,
@@ -140,6 +141,7 @@ from .move_artifact_collection import (
 from .operations import (
     ADD_ALIASES_GQL,
     ARTIFACT_BY_ID_GQL,
+    ARTIFACT_BY_NAME_GQL,
     ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
     ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
     ARTIFACT_CREATED_BY_GQL,
@@ -229,6 +231,7 @@ from .update_artifact_sequence import (
 __all__ = [
     "ADD_ALIASES_GQL",
     "ARTIFACT_BY_ID_GQL",
+    "ARTIFACT_BY_NAME_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
     "ARTIFACT_CREATED_BY_GQL",
@@ -341,6 +344,8 @@ __all__ = [
     "FetchArtifactManifestProjectArtifactCurrentManifest",
     "FetchArtifactManifestProjectArtifactCurrentManifestFile",
     "ArtifactByID",
+    "ArtifactByName",
+    "ArtifactByNameProject",
     "ArtifactViaMembershipByName",
     "ArtifactViaMembershipByNameProject",
     "ArtifactViaMembershipByNameProjectArtifactCollectionMembership",

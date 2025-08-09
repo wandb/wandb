@@ -4,6 +4,7 @@
 __all__ = [
     "ADD_ALIASES_GQL",
     "ARTIFACT_BY_ID_GQL",
+    "ARTIFACT_BY_NAME_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
     "ARTIFACT_CREATED_BY_GQL",
@@ -618,6 +619,60 @@ ARTIFACT_BY_ID_GQL = """
 query ArtifactByID($id: ID!) {
   artifact(id: $id) {
     ...ArtifactFragment
+  }
+}
+
+fragment ArtifactFragment on Artifact {
+  id
+  artifactSequence {
+    project {
+      entityName
+      name
+    }
+    name
+  }
+  versionIndex
+  artifactType {
+    name
+  }
+  description
+  metadata
+  ttlDurationSeconds @include(if: true)
+  ttlIsInherited @include(if: true)
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+  tags @include(if: true) {
+    name
+  }
+  historyStep @include(if: true)
+  state
+  currentManifest {
+    file {
+      directUrl
+    }
+  }
+  commitHash
+  fileCount
+  createdAt
+  updatedAt
+}
+"""
+
+ARTIFACT_BY_NAME_GQL = """
+query ArtifactByName($entityName: String!, $projectName: String!, $name: String!, $enableTracking: Boolean) {
+  project(name: $projectName, entityName: $entityName) {
+    artifact(name: $name, enableTracking: $enableTracking) {
+      ...ArtifactFragment
+    }
   }
 }
 
