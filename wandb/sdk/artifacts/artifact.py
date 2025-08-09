@@ -73,6 +73,7 @@ from ._generated import (
     ARTIFACT_BY_ID_GQL,
     ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
     ARTIFACT_FILE_URLS_GQL,
+    ARTIFACT_USED_BY_GQL,
     DELETE_ALIASES_GQL,
     DELETE_ARTIFACT_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
@@ -85,6 +86,7 @@ from ._generated import (
     ArtifactCollectionAliasInput,
     ArtifactCollectionMembershipFileUrls,
     ArtifactFileUrls,
+    ArtifactUsedBy,
     FetchArtifactManifest,
     FetchLinkedArtifacts,
     FileUrlsFragment,
@@ -2560,41 +2562,26 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        query = gql(
-            """
-            query ArtifactUsedBy(
-                $id: ID!,
-            ) {
-                artifact(id: $id) {
-                    usedBy {
-                        edges {
-                            node {
-                                name
-                                project {
-                                    name
-                                    entityName
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            """
-        )
-        assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": self.id},
-        )
-        return [
-            Run(
-                self._client,
-                edge["node"]["project"]["entityName"],
-                edge["node"]["project"]["name"],
-                edge["node"]["name"],
-            )
-            for edge in response.get("artifact", {}).get("usedBy", {}).get("edges", [])
-        ]
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact queries")
+
+        query = gql(ARTIFACT_USED_BY_GQL)
+        gql_vars = {"id": self.id}
+        data = self._client.execute(query, variable_values=gql_vars)
+        result = ArtifactUsedBy.model_validate(data)
+
+        if (
+            (artifact := result.artifact)
+            and (used_by := artifact.used_by)
+            and (edges := used_by.edges)
+        ):
+            run_nodes = (e.node for e in edges)
+            return [
+                Run(self._client, proj.entity_name, proj.name, run.name)
+                for run in run_nodes
+                if (proj := run.project)
+            ]
+        return []
 
     @ensure_logged
     def logged_by(self) -> Run | None:

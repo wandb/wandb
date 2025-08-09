@@ -7,6 +7,7 @@ __all__ = [
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
     "ARTIFACT_FILE_URLS_GQL",
+    "ARTIFACT_USED_BY_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ALIASES_GQL",
@@ -659,6 +660,24 @@ fragment ArtifactFragment on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+"""
+
+ARTIFACT_USED_BY_GQL = """
+query ArtifactUsedBy($id: ID!) {
+  artifact(id: $id) {
+    usedBy {
+      edges {
+        node {
+          name
+          project {
+            name
+            entityName
+          }
+        }
+      }
+    }
+  }
 }
 """
 
