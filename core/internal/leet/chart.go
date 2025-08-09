@@ -5,6 +5,7 @@ package leet
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/NimbleMarkets/ntcharts/canvas"
 	"github.com/NimbleMarkets/ntcharts/canvas/graph"
@@ -391,4 +392,53 @@ func (c *EpochLineChart) Resize(width, height int) {
 		// Force recalculation of ranges after resize
 		c.updateRanges()
 	}
+}
+
+// truncateTitle truncates a title to fit within maxWidth, adding ellipsis if needed
+func truncateTitle(title string, maxWidth int) string {
+	if lipgloss.Width(title) <= maxWidth {
+		return title
+	}
+
+	// Account for ellipsis width (3 chars)
+	if maxWidth <= 3 {
+		// Not enough space even for ellipsis
+		return "..."
+	}
+
+	availableWidth := maxWidth - 3
+
+	// Try to break at a separator for cleaner truncation
+	separators := []string{"/", "_", ".", "-", ":"}
+
+	// Find the best truncation point
+	bestTruncateAt := 0
+	for i := range title {
+		if lipgloss.Width(title[:i]) > availableWidth {
+			break
+		}
+		bestTruncateAt = i
+	}
+
+	// If we have a reasonable amount of text, look for a separator
+	if bestTruncateAt > availableWidth/2 {
+		// Look for a separator near the truncation point for cleaner break
+		for _, sep := range separators {
+			if idx := strings.LastIndex(title[:bestTruncateAt], sep); idx > bestTruncateAt*2/3 {
+				// Found a good separator position
+				bestTruncateAt = idx + len(sep)
+				break
+			}
+		}
+	}
+
+	// Safety check
+	if bestTruncateAt <= 0 {
+		bestTruncateAt = 1
+	}
+	if bestTruncateAt > len(title) {
+		bestTruncateAt = len(title)
+	}
+
+	return title[:bestTruncateAt] + "..."
 }

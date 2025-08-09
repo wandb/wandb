@@ -114,6 +114,14 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	m.chartMu.Lock()
 	defer m.chartMu.Unlock()
 
+	// Save the currently focused chart's title if any
+	var previouslyFocusedTitle string
+	if m.focusedRow >= 0 && m.focusedCol >= 0 &&
+		m.focusedRow < len(m.charts) && m.focusedCol < len(m.charts[m.focusedRow]) &&
+		m.charts[m.focusedRow][m.focusedCol] != nil {
+		previouslyFocusedTitle = m.charts[m.focusedRow][m.focusedCol].Title()
+	}
+
 	// Add data points to existing charts or create new ones
 	for metricName, value := range msg.Metrics {
 		chart, exists := m.chartsByName[metricName]
@@ -155,6 +163,25 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	// Reload page and draw
 	if len(msg.Metrics) > 0 {
 		m.loadCurrentPageNoLock()
+
+		// Restore focus if the previously focused chart is still visible
+		if previouslyFocusedTitle != "" {
+			for row := 0; row < GridRows; row++ {
+				for col := 0; col < GridCols; col++ {
+					if row < len(m.charts) && col < len(m.charts[row]) &&
+						m.charts[row][col] != nil &&
+						m.charts[row][col].Title() == previouslyFocusedTitle {
+						// Restore focus to this chart
+						m.focusedRow = row
+						m.focusedCol = col
+						m.focusedTitle = previouslyFocusedTitle
+						m.charts[row][col].SetFocused(true)
+						break
+					}
+				}
+			}
+		}
+
 		m.drawVisibleCharts()
 	}
 
@@ -185,10 +212,6 @@ func (m *Model) drawVisibleCharts() {
 
 // handleMouseMsg processes mouse events
 func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
-	if !tea.MouseEvent(msg).IsWheel() {
-		return m, nil
-	}
-
 	// Check if mouse is in sidebars
 	if msg.X < m.sidebar.Width() || msg.X >= m.width-m.rightSidebar.Width() {
 		return m, nil
@@ -200,10 +223,24 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 	adjustedY := msg.Y - gridPadding - 1 // -1 for header
 
 	availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width() - (gridPadding * 2)
-	dims := CalculateChartDimensions(availableWidth, m.height)
+	dims := CalculateChartDimensions(availableWidth, m.height-StatusBarHeight)
 
 	row := adjustedY / dims.ChartHeightWithPadding
 	col := adjustedX / dims.ChartWidthWithPadding
+
+	// Handle left click for focus
+	if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
+		tea.MouseEvent(msg).Action == tea.MouseActionPress {
+		if row >= 0 && row < GridRows && col >= 0 && col < GridCols {
+			m.updateFocusedChart(row, col)
+		}
+		return m, nil
+	}
+
+	// Handle wheel events for zoom
+	if !tea.MouseEvent(msg).IsWheel() {
+		return m, nil
+	}
 
 	// Use RLock for reading charts
 	m.chartMu.RLock()
@@ -222,10 +259,10 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 		relativeMouseX := adjustedX - graphStartX
 
 		if relativeMouseX >= 0 && relativeMouseX < chart.GraphWidth() {
-			m.clearFocus()
-			m.focusedRow = row
-			m.focusedCol = col
-			chart.SetFocused(true)
+			// Focus the chart when zooming (if not already focused)
+			if row != m.focusedRow || col != m.focusedCol {
+				m.updateFocusedChart(row, col)
+			}
 
 			switch msg.Button {
 			case tea.MouseButtonWheelUp:

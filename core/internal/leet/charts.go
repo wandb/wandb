@@ -233,13 +233,24 @@ func (m *Model) renderGridCell(row, col int, dims ChartDimensions) string {
 		chartView := chart.View()
 
 		boxStyle := borderStyle
+		// Highlight if focused
 		if row == m.focusedRow && col == m.focusedCol {
 			boxStyle = focusedBorderStyle
 		}
 
+		// Calculate available width for title (account for padding inside box)
+		// Box has 1 char padding on each side, so -2
+		availableTitleWidth := dims.ChartWidthWithPadding - 4
+		if availableTitleWidth < 10 {
+			availableTitleWidth = 10
+		}
+
+		// Truncate the title if needed
+		displayTitle := truncateTitle(chart.Title(), availableTitleWidth)
+
 		boxContent := lipgloss.JoinVertical(
 			lipgloss.Left,
-			titleStyle.Render(chart.Title()),
+			titleStyle.Render(displayTitle),
 			chartView,
 		)
 

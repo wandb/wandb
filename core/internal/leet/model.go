@@ -45,6 +45,9 @@ type Model struct {
 	activeFilter   string            // The confirmed filter in use
 	filteredCharts []*EpochLineChart // Filtered subset of charts
 
+	// Focused chart's full title for display in status bar
+	focusedTitle string
+
 	width          int
 	height         int
 	step           int
@@ -125,6 +128,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		filterMode:        false,
 		filterInput:       "",
 		activeFilter:      "",
+		focusedTitle:      "",
 		step:              0,
 		focusedRow:        -1,
 		focusedCol:        -1,
@@ -310,6 +314,33 @@ func (m *Model) getFilteredChartCount() int {
 		return count
 	}
 	return len(m.filteredCharts)
+}
+
+// updateFocusedChart updates which chart is focused and stores its full title
+func (m *Model) updateFocusedChart(row, col int) bool {
+	// Check if clicking on the already focused chart (to unfocus)
+	if row == m.focusedRow && col == m.focusedCol {
+		m.clearFocus()
+		return true // Focus was toggled off
+	}
+
+	// Clear previous focus
+	m.clearFocus()
+
+	// Set new focus
+	m.chartMu.RLock()
+	defer m.chartMu.RUnlock()
+
+	if row >= 0 && row < GridRows && col >= 0 && col < GridCols &&
+		row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
+		m.focusedRow = row
+		m.focusedCol = col
+		m.focusedTitle = m.charts[row][col].Title()
+		m.charts[row][col].SetFocused(true)
+		return true // Focus was set
+	}
+
+	return false // No valid chart to focus
 }
 
 // recoverPanic recovers from panics and logs them
@@ -895,6 +926,11 @@ func (m *Model) renderStatusBar() string {
 			statusText += fmt.Sprintf(" • Filter: \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
 				m.activeFilter, filteredCount, totalCount)
 		}
+
+		// Add focused metric name if a chart is focused
+		if m.focusedTitle != "" {
+			statusText += fmt.Sprintf(" • Focused: %s", m.focusedTitle)
+		}
 	}
 
 	// Add buffer status if channel is getting full
@@ -1021,6 +1057,9 @@ func (m *Model) reloadCharts() tea.Cmd {
 	m.totalPages = 0
 	m.currentPage = 0
 
+	// Clear focus state
+	m.clearFocus()
+
 	// Hide sidebars
 	if m.sidebar.IsVisible() {
 		m.sidebar.state = SidebarCollapsed
@@ -1055,6 +1094,9 @@ func (m *Model) clearFocus() {
 		m.charts[m.focusedRow][m.focusedCol] != nil {
 		m.charts[m.focusedRow][m.focusedCol].SetFocused(false)
 	}
+	m.focusedRow = -1
+	m.focusedCol = -1
+	m.focusedTitle = ""
 }
 
 // navigatePage changes the current page
@@ -1062,7 +1104,7 @@ func (m *Model) navigatePage(direction int) {
 	if m.totalPages <= 1 {
 		return
 	}
-	m.clearFocus()
+	m.clearFocus() // Clear focus when changing pages
 	m.currentPage += direction
 	if m.currentPage < 0 {
 		m.currentPage = m.totalPages - 1
@@ -1100,7 +1142,7 @@ func (m *Model) rebuildGrids() {
 		m.rightSidebar.metricsGrid.RebuildGrid()
 	}
 
-	// Clear focus as grid layout has changed
+	// Clear focus state when resizing
 	m.clearFocus()
 	m.focusedRow = -1
 	m.focusedCol = -1
