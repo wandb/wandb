@@ -210,6 +210,20 @@ class FilesFragmentPageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+class RegistriesPage(GQLBase):
+    page_info: RegistriesPagePageInfo = Field(alias="pageInfo")
+    edges: List[RegistriesPageEdges]
+
+
+class RegistriesPageEdges(GQLBase):
+    node: Optional[RegistryFragment]
+
+
+class RegistriesPagePageInfo(GQLBase):
+    end_cursor: Optional[str] = Field(alias="endCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
+
+
 class RegistryCollectionsPage(GQLBase):
     total_count: int = Field(alias="totalCount")
     page_info: RegistryCollectionsPagePageInfo = Field(alias="pageInfo")
@@ -277,6 +291,31 @@ class RegistryCollectionsPageEdgesNodeTagsEdgesNode(GQLBase):
 class RegistryCollectionsPagePageInfo(GQLBase):
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
+
+
+class RegistryFragment(GQLBase):
+    id: GQLId
+    allow_all_artifact_types_in_registry: bool = Field(
+        alias="allowAllArtifactTypesInRegistry"
+    )
+    artifact_types: RegistryFragmentArtifactTypes = Field(alias="artifactTypes")
+    name: str
+    description: Optional[str]
+    created_at: str = Field(alias="createdAt")
+    updated_at: Optional[str] = Field(alias="updatedAt")
+    access: Optional[str]
+
+
+class RegistryFragmentArtifactTypes(GQLBase):
+    edges: List[RegistryFragmentArtifactTypesEdges]
+
+
+class RegistryFragmentArtifactTypesEdges(GQLBase):
+    node: Optional[RegistryFragmentArtifactTypesEdgesNode]
+
+
+class RegistryFragmentArtifactTypesEdgesNode(GQLBase):
+    name: str
 
 
 class RegistryVersionsPage(GQLBase):
@@ -358,6 +397,9 @@ FilesFragment.model_rebuild()
 FilesFragmentEdges.model_rebuild()
 FilesFragmentEdgesNode.model_rebuild()
 FilesFragmentPageInfo.model_rebuild()
+RegistriesPage.model_rebuild()
+RegistriesPageEdges.model_rebuild()
+RegistriesPagePageInfo.model_rebuild()
 RegistryCollectionsPage.model_rebuild()
 RegistryCollectionsPageEdges.model_rebuild()
 RegistryCollectionsPageEdgesNode.model_rebuild()
@@ -371,6 +413,10 @@ RegistryCollectionsPageEdgesNodeTags.model_rebuild()
 RegistryCollectionsPageEdgesNodeTagsEdges.model_rebuild()
 RegistryCollectionsPageEdgesNodeTagsEdgesNode.model_rebuild()
 RegistryCollectionsPagePageInfo.model_rebuild()
+RegistryFragment.model_rebuild()
+RegistryFragmentArtifactTypes.model_rebuild()
+RegistryFragmentArtifactTypesEdges.model_rebuild()
+RegistryFragmentArtifactTypesEdgesNode.model_rebuild()
 RegistryVersionsPage.model_rebuild()
 RegistryVersionsPageEdges.model_rebuild()
 RegistryVersionsPageEdgesNode.model_rebuild()
@@ -382,4 +428,5 @@ RegistryVersionsPagePageInfo.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactFragmentWithoutAliases.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
+RegistryFragment.model_rebuild()
 ArtifactFragment.model_rebuild()

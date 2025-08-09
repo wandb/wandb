@@ -12,18 +12,18 @@ from wandb_gql import gql
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.utils import gql_compat
 from wandb.sdk.artifacts._generated import (
+    FETCH_REGISTRIES_GQL,
     REGISTRY_COLLECTIONS_GQL,
     REGISTRY_VERSIONS_GQL,
     ArtifactCollectionType,
+    FetchRegistries,
+    RegistriesPage,
     RegistryCollections,
     RegistryCollectionsPage,
     RegistryVersions,
     RegistryVersionsPage,
 )
-from wandb.sdk.artifacts._graphql_fragments import (
-    _gql_registry_fragment,
-    omit_artifact_fields,
-)
+from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
 from wandb.sdk.artifacts._validators import remove_registry_prefix
 
 from ._utils import ensure_registry_prefix_on_names
@@ -37,29 +37,10 @@ if TYPE_CHECKING:
 class Registries(Paginator):
     """An lazy iterator of `Registry` objects."""
 
-    QUERY = gql(
-        """
-        query Registries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
-            organization(name: $organization) {
-                orgEntity {
-                    name
-                    projects(filters: $filters, after: $cursor, first: $perPage) {
-                        pageInfo {
-                            endCursor
-                            hasNextPage
-                        }
-                        edges {
-                            node {
-                                ...RegistryFragment
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-        + _gql_registry_fragment()
-    )
+    QUERY = gql(FETCH_REGISTRIES_GQL)
+
+    last_response: RegistriesPage | None
+    _last_org_entity: str | None
 
     def __init__(
         self,
@@ -77,6 +58,8 @@ class Registries(Paginator):
         }
 
         super().__init__(client, variables, per_page)
+
+        self._last_org_entity = None
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth
@@ -105,55 +88,54 @@ class Registries(Paginator):
 
     @property
     def length(self):
-        if self.last_response:
-            return len(
-                self.last_response["organization"]["orgEntity"]["projects"]["edges"]
-            )
-        else:
+        if self.last_response is None:
             return None
+        return len(self.last_response.edges)
 
     @property
     def more(self):
-        if self.last_response:
-            return self.last_response["organization"]["orgEntity"]["projects"][
-                "pageInfo"
-            ]["hasNextPage"]
-        else:
+        if self.last_response is None:
             return True
+        return self.last_response.page_info.has_next_page
 
     @property
     def cursor(self):
-        if self.last_response:
-            return self.last_response["organization"]["orgEntity"]["projects"][
-                "pageInfo"
-            ]["endCursor"]
-        else:
+        if self.last_response is None:
             return None
+        return self.last_response.page_info.end_cursor
 
-    def convert_objects(self):
-        if not self.last_response:
-            return []
-        if (
-            not self.last_response["organization"]
-            or not self.last_response["organization"]["orgEntity"]
-        ):
+    @override
+    def _update_response(self) -> None:
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        result = FetchRegistries.model_validate(data)
+        if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
-                f"Organization '{self.organization}' not found. Please verify the organization name is correct"
+                f"Organization {self.organization!r} not found. Please verify the organization name is correct."
             )
 
+        try:
+            page_data = org_entity.projects
+            self.last_response = RegistriesPage.model_validate(page_data)
+            self._last_org_entity = org_entity.name
+        except (LookupError, AttributeError, ValidationError) as e:
+            raise ValueError("Unexpected response data") from e
+
+    def convert_objects(self):
         from wandb.apis.public.registries.registry import Registry
 
+        if (self.last_response is None) or (self._last_org_entity is None):
+            return []
+
+        nodes = (e.node for e in self.last_response.edges)
         return [
             Registry(
                 self.client,
-                self.organization,
-                self.last_response["organization"]["orgEntity"]["name"],
-                remove_registry_prefix(r["node"]["name"]),
-                r["node"],
+                organization=self.organization,
+                entity=self._last_org_entity,
+                name=remove_registry_prefix(node.name),
+                attrs=node.model_dump(),
             )
-            for r in self.last_response["organization"]["orgEntity"]["projects"][
-                "edges"
-            ]
+            for node in nodes
         ]
 
 
