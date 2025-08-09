@@ -60,12 +60,14 @@ from wandb.util import (
 
 from ._generated import (
     ADD_ALIASES_GQL,
+    ARTIFACT_BY_ID_GQL,
     DELETE_ALIASES_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
     LINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
     ArtifactAliasInput,
+    ArtifactByID,
     ArtifactCollectionAliasInput,
     FetchArtifactManifest,
     FetchLinkedArtifacts,
@@ -259,32 +261,26 @@ class Artifact:
         if (artifact := artifact_instance_cache.get(artifact_id)) is not None:
             return artifact
 
-        query = gql(
-            """
-            query ArtifactByID($id: ID!) {
-                artifact(id: $id) {
-                    ...ArtifactFragment
-                }
-            }
-            """
-            + _gql_artifact_fragment()
+        query = gql_compat(
+            ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(api=InternalApi())
         )
-        response = client.execute(
-            query,
-            variable_values={"id": artifact_id},
-        )
-        attrs = response.get("artifact")
-        if attrs is None:
+
+        data = client.execute(query, variable_values={"id": artifact_id})
+        result = ArtifactByID.model_validate(data)
+
+        if (art := result.artifact) is None:
             return None
 
-        src_collection = attrs["artifactSequence"]
-        src_project = src_collection["project"]
+        src_collection = art.artifact_sequence
+        src_project = src_collection.project
 
-        entity_name = src_project["entityName"] if src_project else ""
-        project_name = src_project["name"] if src_project else ""
+        entity_name = src_project.entity_name if src_project else ""
+        project_name = src_project.name if src_project else ""
 
-        name = "{}:v{}".format(src_collection["name"], attrs["versionIndex"])
-        return cls._from_attrs(entity_name, project_name, name, attrs, client)
+        name = f"{src_collection.name}:v{art.version_index}"
+        return cls._from_attrs(
+            entity_name, project_name, name, art.model_dump(), client
+        )
 
     @classmethod
     def _membership_from_name(
@@ -1255,31 +1251,22 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
-        query_template = """
-            query ArtifactByIDShort($id: ID!) {
-                artifact(id: $id) {
-                    ...ArtifactFragment
-                }
-            }
-        """ + _gql_artifact_fragment()
-
-        query = gql(query_template)
-
         assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": artifact_id},
+
+        query = gql_compat(
+            ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(api=InternalApi())
         )
 
-        try:
-            attrs = response["artifact"]
-        except LookupError:
+        data = self._client.execute(query, variable_values={"id": artifact_id})
+        result = ArtifactByID.model_validate(data)
+
+        if not (artifact := result.artifact):
             raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
-        else:
-            # _populate_after_save is only called on source artifacts, not linked artifacts
-            # We have to manually set is_link because we aren't fetching the collection the artifact.
-            # That requires greater refactoring for commitArtifact to return the artifact collection type.
-            self._assign_attrs(attrs, is_link=False)
+
+        # _populate_after_save is only called on source artifacts, not linked artifacts
+        # We have to manually set is_link because we aren't fetching the collection the artifact.
+        # That requires greater refactoring for commitArtifact to return the artifact collection type.
+        self._assign_attrs(artifact.model_dump(), is_link=False)
 
     @normalize_exceptions
     def _update(self) -> None:
