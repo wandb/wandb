@@ -177,6 +177,26 @@ query ArtifactByID($id: ID!) {
   }
 }
 
+query ArtifactViaMembershipByName($entityName: String!, $projectName: String!, $name: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactCollectionMembership(name: $name) {
+      id
+      artifactCollection {
+        id
+        name
+        project {
+          id
+          entityName
+          name
+        }
+      }
+      artifact {
+        ...ArtifactFragment
+      }
+    }
+  }
+}
+
 query ArtifactUsedBy($id: ID!) {
   artifact(id: $id) {
     usedBy {

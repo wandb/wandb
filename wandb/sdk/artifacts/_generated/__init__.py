@@ -42,6 +42,13 @@ from .artifact_version_files import (
     ArtifactVersionFilesProjectArtifactType,
     ArtifactVersionFilesProjectArtifactTypeArtifact,
 )
+from .artifact_via_membership_by_name import (
+    ArtifactViaMembershipByName,
+    ArtifactViaMembershipByNameProject,
+    ArtifactViaMembershipByNameProjectArtifactCollectionMembership,
+    ArtifactViaMembershipByNameProjectArtifactCollectionMembershipArtifactCollection,
+    ArtifactViaMembershipByNameProjectArtifactCollectionMembershipArtifactCollectionProject,
+)
 from .create_artifact_collection_tag_assignments import (
     CreateArtifactCollectionTagAssignments,
     CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignments,
@@ -140,6 +147,7 @@ from .operations import (
     ARTIFACT_TYPE_GQL,
     ARTIFACT_USED_BY_GQL,
     ARTIFACT_VERSION_FILES_GQL,
+    ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
     CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
     DELETE_ALIASES_GQL,
     DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
@@ -228,6 +236,7 @@ __all__ = [
     "ARTIFACT_TYPE_GQL",
     "ARTIFACT_USED_BY_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
+    "ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL",
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ALIASES_GQL",
     "DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
@@ -332,6 +341,11 @@ __all__ = [
     "FetchArtifactManifestProjectArtifactCurrentManifest",
     "FetchArtifactManifestProjectArtifactCurrentManifestFile",
     "ArtifactByID",
+    "ArtifactViaMembershipByName",
+    "ArtifactViaMembershipByNameProject",
+    "ArtifactViaMembershipByNameProjectArtifactCollectionMembership",
+    "ArtifactViaMembershipByNameProjectArtifactCollectionMembershipArtifactCollection",
+    "ArtifactViaMembershipByNameProjectArtifactCollectionMembershipArtifactCollectionProject",
     "ArtifactUsedBy",
     "ArtifactUsedByArtifact",
     "ArtifactUsedByArtifactUsedBy",
