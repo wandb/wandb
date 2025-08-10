@@ -92,6 +92,7 @@ from ._generated import (
     ArtifactCollectionMembershipFileUrls,
     ArtifactCreatedBy,
     ArtifactFileUrls,
+    ArtifactFragment,
     ArtifactType,
     ArtifactUsedBy,
     ArtifactViaMembershipByName,
@@ -308,9 +309,7 @@ class Artifact:
         project_name = src_project.name if src_project else ""
 
         name = f"{src_collection.name}:v{art.version_index}"
-        return cls._from_attrs(
-            entity_name, project_name, name, art.model_dump(), client
-        )
+        return cls._from_attrs(entity_name, project_name, name, art, client)
 
     @classmethod
     def _membership_from_name(
@@ -410,7 +409,7 @@ class Artifact:
             entity_project = f"{entity}/{project}"
             raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
 
-        return cls._from_attrs(entity, project, name, art_attrs.model_dump(), client)
+        return cls._from_attrs(entity, project, name, art_attrs, client)
 
     @classmethod
     def _from_attrs(
@@ -418,7 +417,7 @@ class Artifact:
         entity: str,
         project: str,
         name: str,
-        attrs: dict[str, Any],
+        attrs: dict[str, Any] | ArtifactFragment,
         client: RetryingClient,
         aliases: list[str] | None = None,
     ) -> Artifact:
@@ -428,7 +427,9 @@ class Artifact:
         artifact._entity = entity
         artifact._project = project
         artifact._name = name
-        artifact._assign_attrs(attrs, aliases)
+
+        validated_attrs = ArtifactFragment.model_validate(attrs)
+        artifact._assign_attrs(validated_attrs, aliases)
 
         artifact.finalize()
 
@@ -441,29 +442,24 @@ class Artifact:
     # doesn't make it clear if the artifact is a link or not and have to manually set it.
     def _assign_attrs(
         self,
-        attrs: dict[str, Any],
+        art: ArtifactFragment,
         aliases: list[str] | None = None,
         is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
-        self._id = attrs["id"]
+        self._id = art.id
 
-        src_version = f"v{attrs['versionIndex']}"
-        src_collection = attrs["artifactSequence"]
-        src_project = src_collection["project"]
+        src_collection = art.artifact_sequence
+        src_project = src_collection.project
 
-        self._source_entity = src_project["entityName"] if src_project else ""
-        self._source_project = src_project["name"] if src_project else ""
-        self._source_name = f"{src_collection['name']}:{src_version}"
-        self._source_version = src_version
+        self._source_entity = src_project.entity_name if src_project else ""
+        self._source_project = src_project.name if src_project else ""
+        self._source_name = f"{src_collection.name}:v{art.version_index}"
+        self._source_version = f"v{art.version_index}"
 
-        if self._entity is None:
-            self._entity = self._source_entity
-        if self._project is None:
-            self._project = self._source_project
-
-        if self._name is None:
-            self._name = self._source_name
+        self._entity = self._entity or self._source_entity
+        self._project = self._project or self._source_project
+        self._name = self._name or self._source_name
 
         # TODO: Refactor artifact query to fetch artifact via membership instead
         # and get the collection type
@@ -471,33 +467,35 @@ class Artifact:
             self._is_link = (
                 self._entity != self._source_entity
                 or self._project != self._source_project
-                or self._name != self._source_name
+                or self._name.split(":")[0] != self._source_name.split(":")[0]
             )
         else:
             self._is_link = is_link
 
-        self._type = attrs["artifactType"]["name"]
-        self._description = attrs["description"]
+        self._type = art.artifact_type.name
+        self._description = art.description
 
-        entity = self._entity
-        project = self._project
-        collection, *_ = self._name.split(":")
-
-        processed_aliases = []
         # The future of aliases is to move all alias fetches to the membership level
         # so we don't have to do the collection fetches below
         if aliases:
             processed_aliases = aliases
-        else:
+        elif art.aliases:
+            entity = self._entity
+            project = self._project
+            collection = self._name.split(":")[0]
             processed_aliases = [
-                obj["alias"]
-                for obj in attrs["aliases"]
-                if obj["artifactCollection"]
-                and obj["artifactCollection"]["project"]
-                and obj["artifactCollection"]["project"]["entityName"] == entity
-                and obj["artifactCollection"]["project"]["name"] == project
-                and obj["artifactCollection"]["name"] == collection
+                art_alias.alias
+                for art_alias in art.aliases
+                if (
+                    (coll := art_alias.artifact_collection)
+                    and (proj := coll.project)
+                    and proj.entity_name == entity
+                    and proj.name == project
+                    and coll.name == collection
+                )
             ]
+        else:
+            processed_aliases = []
 
         version_aliases = list(filter(alias_is_version_index, processed_aliases))
         other_aliases = list(filterfalse(alias_is_version_index, processed_aliases))
@@ -507,49 +505,42 @@ class Artifact:
                 version_aliases, too_short=TooFewItemsError, too_long=TooManyItemsError
             )
         except TooFewItemsError:
-            version = src_version  # default to the source version
+            version = f"v{art.version_index}"  # default to the source version
         except TooManyItemsError:
             msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
             raise ValueError(msg) from None
 
         self._version = version
-
-        if ":" not in self._name:
-            self._name = f"{self._name}:{version}"
+        self._name = self._name if (":" in self._name) else f"{self._name}:{version}"
 
         self._aliases = other_aliases
-        self._saved_aliases = copy(other_aliases)
+        self._saved_aliases = copy(self._aliases)
 
-        tags = [obj["name"] for obj in (attrs.get("tags") or [])]
-        self._tags = tags
-        self._saved_tags = copy(tags)
+        self._tags = [tag.name for tag in (art.tags or [])]
+        self._saved_tags = copy(self._tags)
 
-        metadata_str = attrs["metadata"]
-        self._metadata = validate_metadata(
-            json.loads(metadata_str) if metadata_str else {}
-        )
+        self._metadata = validate_metadata(art.metadata)
 
         self._ttl_duration_seconds = validate_ttl_duration_seconds(
-            attrs.get("ttlDurationSeconds")
+            art.ttl_duration_seconds
         )
         self._ttl_is_inherited = (
-            True if (attrs.get("ttlIsInherited") is None) else attrs["ttlIsInherited"]
+            True if (art.ttl_is_inherited is None) else art.ttl_is_inherited
         )
 
-        self._state = ArtifactState(attrs["state"])
+        self._state = ArtifactState(art.state)
 
-        try:
-            manifest_url = attrs["currentManifest"]["file"]["directUrl"]
-        except (LookupError, TypeError):
-            self._manifest = None
-        else:
-            self._manifest = _DeferredArtifactManifest(manifest_url)
+        self._manifest = (
+            _DeferredArtifactManifest(manifest.file.direct_url)
+            if (manifest := art.current_manifest)
+            else None
+        )
 
-        self._commit_hash = attrs["commitHash"]
-        self._file_count = attrs["fileCount"]
-        self._created_at = attrs["createdAt"]
-        self._updated_at = attrs["updatedAt"]
-        self._history_step = attrs.get("historyStep", None)
+        self._commit_hash = art.commit_hash
+        self._file_count = art.file_count
+        self._created_at = art.created_at
+        self._updated_at = art.updated_at
+        self._history_step = art.history_step
 
     @ensure_logged
     def new_draft(self) -> Artifact:
@@ -1251,7 +1242,7 @@ class Artifact:
         # _populate_after_save is only called on source artifacts, not linked artifacts
         # We have to manually set is_link because we aren't fetching the collection the artifact.
         # That requires greater refactoring for commitArtifact to return the artifact collection type.
-        self._assign_attrs(artifact.model_dump(), is_link=False)
+        self._assign_attrs(artifact, is_link=False)
 
     @normalize_exceptions
     def _update(self) -> None:
@@ -1378,7 +1369,7 @@ class Artifact:
         result = UpdateArtifact.model_validate(data).update_artifact
         if not (result and (artifact := result.artifact)):
             raise ValueError("Unable to parse updateArtifact response")
-        self._assign_attrs(artifact.model_dump())
+        self._assign_attrs(artifact)
 
         self._ttl_changed = False  # Reset after updating artifact
 

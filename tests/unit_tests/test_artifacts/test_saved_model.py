@@ -153,6 +153,7 @@ def make_local_artifact_public(art):
             "aliases": [
                 {
                     "artifactCollection": {
+                        "__typename": "ArtifactSequence",
                         "project": {
                             "entityName": "FAKE_ENTITY",
                             "name": "FAKE_PROJECT",
@@ -180,7 +181,7 @@ def make_local_artifact_public(art):
             },
             "commitHash": "FAKE_HASH",
             "fileCount": 0,
-            "createdAt": None,
+            "createdAt": "FAKE_CREATED_AT",
             "updatedAt": None,
         },
         None,
