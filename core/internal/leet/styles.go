@@ -236,11 +236,9 @@ var (
 
 	helpSectionStyle = lipgloss.NewStyle().
 				Bold(true).
-				Foreground(wandbColor).
-				MarginTop(1).
-				MarginBottom(1)
+				Foreground(wandbColor)
 
 	helpContentStyle = lipgloss.NewStyle().
 				MarginLeft(2).
-				MarginTop(2)
+				MarginTop(1)
 )

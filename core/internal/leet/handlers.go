@@ -78,6 +78,8 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 			default:
 				m.runState = RunStateFailed
 			}
+			// Update sidebar with new state
+			m.sidebar.SetRunState(m.runState)
 			// Stop heartbeat since run is complete
 			m.stopHeartbeat()
 			if m.watcherStarted {
@@ -91,6 +93,8 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 		m.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
 		m.fileComplete = true
 		m.runState = RunStateFailed
+		// Update sidebar with new state
+		m.sidebar.SetRunState(m.runState)
 		// Stop heartbeat on error
 		m.stopHeartbeat()
 		if m.watcherStarted {
@@ -289,15 +293,28 @@ func (m *Model) handleOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 	switch msg.Type {
 	case tea.KeyEsc:
-		// Cancel filter
+		// Cancel filter input - restore to last applied state
 		m.overviewFilterMode = false
 		m.overviewFilterInput = ""
-		m.sidebar.clearFilter()
+		// Restore the applied filter if any
+		if m.sidebar.filterApplied && m.sidebar.appliedQuery != "" {
+			m.sidebar.filterQuery = m.sidebar.appliedQuery
+			m.sidebar.applyFilter()
+			m.sidebar.calculateSectionHeights()
+		} else {
+			// No applied filter, clear everything
+			m.sidebar.filterActive = false
+			m.sidebar.filterQuery = ""
+			m.sidebar.applyFilter()
+			m.sidebar.calculateSectionHeights()
+		}
 		return m, nil
 
 	case tea.KeyEnter:
 		// Apply filter
 		m.overviewFilterMode = false
+		m.sidebar.filterQuery = m.overviewFilterInput // Ensure query is set
+		m.sidebar.confirmFilter()
 		return m, nil
 
 	case tea.KeyBackspace:
@@ -424,9 +441,16 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m, m.rightSidebar.animationCmd()
 
 	case tea.KeyCtrlL:
-		// Clear filter with Ctrl+L
+		// Clear filter with Ctrl+L for charts
 		if m.activeFilter != "" {
 			m.clearFilter()
+			return m, nil
+		}
+
+	case tea.KeyCtrlK:
+		// Clear overview filter with Ctrl+K
+		if m.sidebar.IsFiltering() {
+			m.sidebar.clearFilter()
 			return m, nil
 		}
 
@@ -435,13 +459,6 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 	case tea.KeyPgDown, tea.KeyShiftDown:
 		m.navigatePage(1)
-
-	case tea.KeyCtrlOpenBracket:
-		// Enter filter mode for overview
-		m.overviewFilterMode = true
-		m.overviewFilterInput = ""
-		m.sidebar.startFilter()
-		return m, nil
 	}
 
 	switch msg.String() {
@@ -469,10 +486,15 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		m.enterFilterMode()
 		return m, nil
 
-	case ".":
-		// Enter filter mode for overview
+	case "[":
+		// Enter filter mode for overview - using [ as it's simple
 		m.overviewFilterMode = true
-		m.overviewFilterInput = ""
+		// Start with existing filter if any
+		if m.sidebar.filterApplied && m.sidebar.appliedQuery != "" {
+			m.overviewFilterInput = m.sidebar.appliedQuery
+		} else {
+			m.overviewFilterInput = ""
+		}
 		m.sidebar.startFilter()
 		return m, nil
 

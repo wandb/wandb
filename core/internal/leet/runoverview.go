@@ -63,17 +63,22 @@ type Sidebar struct {
 	animationTimer time.Time
 	runOverview    RunOverview
 
-	// Section management
+	// Section management - reordered: Environment, Config, Summary
 	sections      []SectionView
 	activeSection int
 
 	// Filter state
 	filterActive  bool
 	filterQuery   string
-	filterSection string // "@c", "@s", "@e", or ""
+	filterApplied bool   // Whether filter is applied (after Enter)
+	appliedQuery  string // The query that was applied
+	filterSection string // "@e", "@c", "@s", or ""
 
 	// Dimensions
 	height int
+
+	// Run state (moved from model)
+	runState RunState
 }
 
 // NewSidebar creates a new sidebar instance
@@ -84,12 +89,18 @@ func NewSidebar() *Sidebar {
 		targetWidth:   0,
 		expandedWidth: SidebarMinWidth,
 		sections: []SectionView{
-			{Title: "Config", ItemsPerPage: 12, Active: true},
-			{Title: "Summary", ItemsPerPage: 15},
-			{Title: "Environment", ItemsPerPage: 8},
+			{Title: "Environment", ItemsPerPage: 10, Active: true}, // First now
+			{Title: "Config", ItemsPerPage: 15},
+			{Title: "Summary", ItemsPerPage: 20},
 		},
 		activeSection: 0,
+		runState:      RunStateRunning,
 	}
+}
+
+// SetRunState sets the run state for display
+func (s *Sidebar) SetRunState(state RunState) {
+	s.runState = state
 }
 
 // flattenMap converts nested maps to flat key-value pairs
@@ -125,25 +136,62 @@ func flattenMap(data map[string]any, prefix string, result *[]KeyValuePair, path
 	}
 }
 
+// processEnvironment handles special processing for environment section
+func processEnvironment(data map[string]any) []KeyValuePair {
+	if data == nil {
+		return []KeyValuePair{}
+	}
+
+	// Get the first writer ID's data
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+
+	if len(keys) == 0 {
+		return []KeyValuePair{}
+	}
+
+	sort.Strings(keys)
+	firstKey := keys[0]
+
+	// Get the value for the first key
+	firstValue, ok := data[firstKey]
+	if !ok {
+		return []KeyValuePair{}
+	}
+
+	// If it's a map, flatten it
+	if valueMap, ok := firstValue.(map[string]any); ok {
+		result := make([]KeyValuePair, 0)
+		flattenMap(valueMap, "", &result, []string{})
+		return result
+	}
+
+	// Otherwise, return as is
+	return []KeyValuePair{
+		{Key: firstKey, Value: fmt.Sprintf("%v", firstValue), Path: []string{firstKey}},
+	}
+}
+
 // updateSections updates section data from run overview
 func (s *Sidebar) updateSections() {
-	// Update Config section
+	// Update Environment section (index 0)
+	envItems := processEnvironment(s.runOverview.Environment)
+	s.sections[0].Items = envItems
+
+	// Update Config section (index 1)
 	configItems := make([]KeyValuePair, 0)
 	flattenMap(s.runOverview.Config, "", &configItems, []string{})
-	s.sections[0].Items = configItems
+	s.sections[1].Items = configItems
 
-	// Update Summary section
+	// Update Summary section (index 2)
 	summaryItems := make([]KeyValuePair, 0)
 	flattenMap(s.runOverview.Summary, "", &summaryItems, []string{})
-	s.sections[1].Items = summaryItems
-
-	// Update Environment section
-	envItems := make([]KeyValuePair, 0)
-	flattenMap(s.runOverview.Environment, "", &envItems, []string{})
-	s.sections[2].Items = envItems
+	s.sections[2].Items = summaryItems
 
 	// Apply filter if active
-	if s.filterActive {
+	if s.filterActive || s.filterApplied {
 		s.applyFilter()
 	} else {
 		// Use original items as filtered items
@@ -161,18 +209,21 @@ func (s *Sidebar) updateSections() {
 // applyFilter filters items based on current filter query
 func (s *Sidebar) applyFilter() {
 	query := strings.TrimSpace(s.filterQuery)
+	if s.filterApplied {
+		query = strings.TrimSpace(s.appliedQuery)
+	}
 
 	// Parse section prefix
 	sectionFilter := ""
-	if strings.HasPrefix(query, "@c ") {
+	if strings.HasPrefix(query, "@e ") {
+		sectionFilter = "environment"
+		query = strings.TrimPrefix(query, "@e ")
+	} else if strings.HasPrefix(query, "@c ") {
 		sectionFilter = "config"
 		query = strings.TrimPrefix(query, "@c ")
 	} else if strings.HasPrefix(query, "@s ") {
 		sectionFilter = "summary"
 		query = strings.TrimPrefix(query, "@s ")
-	} else if strings.HasPrefix(query, "@e ") {
-		sectionFilter = "environment"
-		query = strings.TrimPrefix(query, "@e ")
 	}
 
 	query = strings.ToLower(query)
@@ -231,9 +282,9 @@ func (s *Sidebar) calculateSectionHeights() {
 		return
 	}
 
-	// Reserve space for header
-	headerLines := 5 // ID, Name, Project + spacing
-	availableHeight := s.height - headerLines
+	// Reserve space for header - further reduced
+	headerLines := 6                              // "Run Overview" (1 + 1 margin) + State + ID + Name + Project
+	availableHeight := s.height - headerLines - 1 // -1 to ensure no overflow
 
 	// Calculate heights for each section
 	totalSections := 0
@@ -247,8 +298,8 @@ func (s *Sidebar) calculateSectionHeights() {
 		return
 	}
 
-	// Overhead per section (title + dots + spacing)
-	sectionOverhead := 3
+	// Overhead per section (title + minimal spacing)
+	sectionOverhead := 2 // title line + 1 spacing
 	availableForContent := availableHeight - (totalSections * sectionOverhead)
 
 	if availableForContent < totalSections*3 {
@@ -256,11 +307,13 @@ func (s *Sidebar) calculateSectionHeights() {
 		availableForContent = totalSections * 3
 	}
 
-	// Distribute space proportionally with limits
-	configMax := 12
-	summaryMax := 15
-	envMax := 8
+	// Distribute space proportionally - increased limits to use more vertical space
+	envMax := 12
+	configMax := 20
+	summaryMax := 25
 
+	// First pass: allocate based on actual item counts
+	totalDesired := 0
 	for i := range s.sections {
 		section := &s.sections[i]
 		itemCount := len(section.FilteredItems)
@@ -272,18 +325,50 @@ func (s *Sidebar) calculateSectionHeights() {
 
 		var maxHeight int
 		switch i {
-		case 0: // Config
-			maxHeight = configMax
-		case 1: // Summary
-			maxHeight = summaryMax
-		case 2: // Environment
+		case 0: // Environment
 			maxHeight = envMax
+		case 1: // Config
+			maxHeight = configMax
+		case 2: // Summary
+			maxHeight = summaryMax
 		}
 
-		// Allocate height
-		desired := min(itemCount, maxHeight)
-		section.Height = min(desired, availableForContent/totalSections)
-		section.ItemsPerPage = section.Height
+		section.Height = min(itemCount, maxHeight)
+		totalDesired += section.Height
+	}
+
+	// Second pass: if we have extra space, distribute it proportionally
+	if totalDesired < availableForContent {
+		extraSpace := availableForContent - totalDesired
+
+		for i := range s.sections {
+			section := &s.sections[i]
+			if section.Height > 0 && len(section.FilteredItems) > section.Height {
+				// This section has more items to show
+				var maxHeight int
+				switch i {
+				case 0: // Environment
+					maxHeight = envMax
+				case 1: // Config
+					maxHeight = configMax
+				case 2: // Summary
+					maxHeight = summaryMax
+				}
+
+				// Give this section a proportional share of extra space
+				proportion := float64(section.Height) / float64(totalDesired)
+				extraForSection := int(float64(extraSpace) * proportion)
+
+				newHeight := min(section.Height+extraForSection, len(section.FilteredItems))
+				newHeight = min(newHeight, maxHeight)
+				section.Height = newHeight
+			}
+		}
+	}
+
+	// Set items per page based on calculated height
+	for i := range s.sections {
+		s.sections[i].ItemsPerPage = s.sections[i].Height
 	}
 }
 
@@ -418,12 +503,27 @@ func (s *Sidebar) navigatePage(direction int) {
 // startFilter activates filter mode
 func (s *Sidebar) startFilter() {
 	s.filterActive = true
-	s.filterQuery = ""
+	// If we have an applied filter, start with that value
+	if s.filterApplied && s.appliedQuery != "" {
+		s.filterQuery = s.appliedQuery
+	} else {
+		s.filterQuery = ""
+	}
 }
 
-// updateFilter updates the filter query
+// updateFilter updates the filter query (for live preview)
 func (s *Sidebar) updateFilter(query string) {
 	s.filterQuery = query
+	s.applyFilter()
+	s.calculateSectionHeights()
+}
+
+// confirmFilter applies the filter (on Enter)
+func (s *Sidebar) confirmFilter() {
+	s.filterApplied = true
+	s.appliedQuery = s.filterQuery // This line was already correct
+	s.filterActive = false
+	// Need to reapply the filter with the confirmed query
 	s.applyFilter()
 	s.calculateSectionHeights()
 }
@@ -431,7 +531,9 @@ func (s *Sidebar) updateFilter(query string) {
 // clearFilter clears the active filter
 func (s *Sidebar) clearFilter() {
 	s.filterActive = false
+	s.filterApplied = false
 	s.filterQuery = ""
+	s.appliedQuery = ""
 	s.filterSection = ""
 
 	// Restore original items
@@ -443,6 +545,28 @@ func (s *Sidebar) clearFilter() {
 	}
 
 	s.calculateSectionHeights()
+}
+
+// GetSelectedItem returns the currently selected key-value pair
+func (s *Sidebar) GetSelectedItem() (key, value string) {
+	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
+		return "", ""
+	}
+
+	section := &s.sections[s.activeSection]
+	if len(section.FilteredItems) == 0 {
+		return "", ""
+	}
+
+	startIdx := section.CurrentPage * section.ItemsPerPage
+	itemIdx := startIdx + section.CursorPos
+
+	if itemIdx >= 0 && itemIdx < len(section.FilteredItems) {
+		item := section.FilteredItems[itemIdx]
+		return item.Key, item.Value
+	}
+
+	return "", ""
 }
 
 // Update handles animation and input updates for the sidebar
@@ -458,10 +582,12 @@ func (s *Sidebar) Update(msg tea.Msg) (*Sidebar, tea.Cmd) {
 				s.navigateUp()
 			case tea.KeyDown:
 				s.navigateDown()
-			case tea.KeyCtrlUp:
-				s.navigateSection(-1)
-			case tea.KeyCtrlDown:
+			case tea.KeyTab:
+				// Tab to navigate between sections (vim-inspired alternative)
 				s.navigateSection(1)
+			case tea.KeyShiftTab:
+				// Shift+Tab to go backwards
+				s.navigateSection(-1)
 			case tea.KeyLeft:
 				s.navigatePage(-1)
 			case tea.KeyRight:
@@ -493,67 +619,6 @@ func (s *Sidebar) Update(msg tea.Msg) (*Sidebar, tea.Cmd) {
 	}
 
 	return s, tea.Batch(cmds...)
-}
-
-// renderPaginationDots creates pagination indicators
-func renderPaginationDots(current, total int) string {
-	if total <= 1 {
-		return ""
-	}
-
-	const maxDots = 20
-	dots := make([]string, 0, maxDots)
-
-	if total <= maxDots {
-		// Show all dots
-		for i := 0; i < total; i++ {
-			if i == current {
-				dots = append(dots, "●")
-			} else {
-				dots = append(dots, "•")
-			}
-		}
-	} else {
-		// Show smart dots with ellipsis
-		if current < 3 {
-			// Near start
-			for i := 0; i < 5; i++ {
-				if i == current {
-					dots = append(dots, "●")
-				} else {
-					dots = append(dots, "•")
-				}
-			}
-			dots = append(dots, "...")
-			dots = append(dots, "•", "•")
-		} else if current > total-4 {
-			// Near end
-			dots = append(dots, "•", "•")
-			dots = append(dots, "...")
-			for i := total - 5; i < total; i++ {
-				if i == current {
-					dots = append(dots, "●")
-				} else {
-					dots = append(dots, "•")
-				}
-			}
-		} else {
-			// In middle
-			dots = append(dots, "•", "•")
-			dots = append(dots, "...")
-			for i := current - 1; i <= current+1; i++ {
-				if i == current {
-					dots = append(dots, "●")
-				} else {
-					dots = append(dots, "•")
-				}
-			}
-			dots = append(dots, "...")
-			dots = append(dots, "•", "•")
-		}
-	}
-
-	return "  " + strings.Join(dots, " ")
 }
 
 // truncateValue truncates long values for display
@@ -593,7 +658,7 @@ func (s *Sidebar) renderSection(idx int, width int) string {
 	titleText := section.Title
 	infoText := ""
 
-	if s.filterActive && filteredItems != totalItems {
+	if (s.filterActive || s.filterApplied) && filteredItems != totalItems {
 		infoText = fmt.Sprintf(" [%d-%d of %d filtered from %d]",
 			startIdx+1, endIdx, filteredItems, totalItems)
 	} else if filteredItems > section.ItemsPerPage {
@@ -605,9 +670,9 @@ func (s *Sidebar) renderSection(idx int, width int) string {
 	lines = append(lines, titleStyle.Render(titleText)+
 		lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(infoText))
 
-	// Render items
-	maxKeyWidth := width / 3
-	maxValueWidth := width - maxKeyWidth - 2
+	// Render items - no colon, increased key width
+	maxKeyWidth := (width * 2) / 5           // 40% for keys
+	maxValueWidth := width - maxKeyWidth - 1 // Account for space between
 
 	for i := startIdx; i < endIdx && i < len(section.FilteredItems); i++ {
 		item := section.FilteredItems[i]
@@ -624,25 +689,17 @@ func (s *Sidebar) renderSection(idx int, width int) string {
 		key := truncateValue(item.Key, maxKeyWidth)
 		value := truncateValue(item.Value, maxValueWidth)
 
+		// Render without colon
 		line := fmt.Sprintf("%s %s",
-			keyStyle.Width(maxKeyWidth).Render(key+":"),
+			keyStyle.Width(maxKeyWidth).Render(key),
 			valueStyle.Render(value))
 		lines = append(lines, line)
-	}
-
-	// Add pagination dots
-	totalPages := (filteredItems + section.ItemsPerPage - 1) / section.ItemsPerPage
-	if totalPages > 1 {
-		dots := renderPaginationDots(section.CurrentPage, totalPages)
-		lines = append(lines, lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
-			Render(dots))
 	}
 
 	return strings.Join(lines, "\n")
 }
 
-// View renders the sidebar
+// View renders the sidebar - optimized spacing
 func (s *Sidebar) View(height int) string {
 	if s.currentWidth <= 0 {
 		return ""
@@ -653,6 +710,28 @@ func (s *Sidebar) View(height int) string {
 
 	// Build header
 	var lines []string
+
+	// Add "Run Overview" title with no left padding and margin below
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("230")).
+		MarginBottom(1)
+	lines = append(lines, titleStyle.Render("Run Overview"))
+
+	// Add run state first
+	stateText := "State: "
+	switch s.runState {
+	case RunStateRunning:
+		stateText += "Running"
+	case RunStateFinished:
+		stateText += "Finished"
+	case RunStateFailed:
+		stateText += "Failed"
+	case RunStateCrashed:
+		stateText += "Error"
+	}
+	lines = append(lines, sidebarKeyStyle.Render("State: ")+
+		sidebarValueStyle.Render(strings.TrimPrefix(stateText, "State: ")))
 
 	if s.runOverview.ID != "" {
 		lines = append(lines, sidebarKeyStyle.Render("ID: ")+
@@ -667,9 +746,8 @@ func (s *Sidebar) View(height int) string {
 			sidebarValueStyle.Render(s.runOverview.Project))
 	}
 
-	if len(lines) > 0 {
-		lines = append(lines, "") // Add spacing
-	}
+	// Single empty line before sections
+	lines = append(lines, "")
 
 	// Render sections
 	contentWidth := s.currentWidth - 4 // Account for padding and border
@@ -677,15 +755,26 @@ func (s *Sidebar) View(height int) string {
 		sectionContent := s.renderSection(i, contentWidth)
 		if sectionContent != "" {
 			lines = append(lines, sectionContent)
+			// Only add spacing between sections if not the last one
 			if i < len(s.sections)-1 {
-				lines = append(lines, "") // Add spacing between sections
+				// Check if next section has content
+				hasNextContent := false
+				for j := i + 1; j < len(s.sections); j++ {
+					if len(s.sections[j].FilteredItems) > 0 {
+						hasNextContent = true
+						break
+					}
+				}
+				if hasNextContent {
+					lines = append(lines, "") // Add spacing between sections
+				}
 			}
 		}
 	}
 
 	content := strings.Join(lines, "\n")
 
-	// Apply styles
+	// Apply styles - ensure exact height
 	styledContent := sidebarStyle.
 		Width(s.currentWidth - 1).
 		Height(height).
@@ -726,19 +815,22 @@ func (s *Sidebar) animationCmd() tea.Cmd {
 	})
 }
 
-// IsFiltering returns true if the sidebar is in filter mode
+// IsFiltering returns true if the sidebar is in filter mode or has an applied filter
 func (s *Sidebar) IsFiltering() bool {
-	return s.filterActive
+	return s.filterActive || s.filterApplied
 }
 
-// GetFilterQuery returns the current filter query
+// GetFilterQuery returns the current or applied filter query
 func (s *Sidebar) GetFilterQuery() string {
+	if s.filterApplied {
+		return s.appliedQuery
+	}
 	return s.filterQuery
 }
 
 // GetFilterInfo returns formatted filter information for status bar
 func (s *Sidebar) GetFilterInfo() string {
-	if !s.filterActive || s.filterQuery == "" {
+	if (!s.filterActive && !s.filterApplied) || (s.filterQuery == "" && s.appliedQuery == "") {
 		return ""
 	}
 

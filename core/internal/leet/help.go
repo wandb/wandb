@@ -33,14 +33,28 @@ func NewHelp() *HelpModel {
 		{Key: "h, ?", Description: "Toggle this help screen"},
 		{Key: "q, ctrl+c", Description: "Quit"},
 		{Key: "alt+r", Description: "Reload run data"},
-		{Key: "/", Description: "Filter metrics by pattern"},
-		{Key: "ctrl+l", Description: "Clear active filter"},
 		{Key: "", Description: ""},
 
 		// Panels
 		{Key: "Panels", Description: ""},
 		{Key: "ctrl+b", Description: "Toggle run overview sidebar"},
 		{Key: "ctrl+n", Description: "Toggle system metrics sidebar"},
+		{Key: "", Description: ""},
+
+		// Charts
+		{Key: "Charts", Description: ""},
+		{Key: "/", Description: "Filter metrics by pattern"},
+		{Key: "ctrl+l", Description: "Clear active filter"},
+		{Key: "", Description: ""},
+
+		// Run Overview Navigation (when sidebar open)
+		{Key: "Run Overview", Description: ""},
+		{Key: "[", Description: "Filter overview items"},
+		{Key: "ctrl+k", Description: "Clear overview filter"},
+		{Key: "up/down", Description: "Navigate items in section"},
+		{Key: "tab/shift+tab", Description: "Switch between sections"},
+		{Key: "left/right", Description: "Navigate pages in section"},
+		{Key: "@e/@c/@s", Description: "Filter specific section (environment/config/summary)"},
 		{Key: "", Description: ""},
 
 		// Configuration
@@ -55,9 +69,6 @@ func NewHelp() *HelpModel {
 		{Key: "Navigation", Description: ""},
 		{Key: "pgup/pgdn, shift+up/down", Description: "Navigate between chart pages"},
 		{Key: "ctrl+pgup/pgdn, ctrl+shift+up/down", Description: "Navigate between system metrics pages"},
-		{Key: "up/down", Description: "Scroll in run overview"},
-		// TODO: make it work :)
-		// {Key: "home/end", Description: "Jump to top/bottom of run overview"},
 		{Key: "mouse wheel", Description: "Zoom in/out on focused chart"},
 		{Key: "shift+mouse select", Description: "Select text"},
 	}

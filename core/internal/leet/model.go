@@ -780,7 +780,7 @@ func (m *Model) View() string {
 		rightSidebarView := ""
 
 		if leftWidth > 0 {
-			leftSidebarView = m.sidebar.View(m.height - StatusBarHeight)
+			leftSidebarView = m.sidebar.View(m.height - StatusBarHeight - 2)
 		}
 		if rightWidth > 0 {
 			rightSidebarView = m.rightSidebar.View(m.height - StatusBarHeight)
@@ -884,7 +884,7 @@ func (m *Model) renderStatusBar() string {
 		if filterInfo == "" {
 			filterInfo = "no matches"
 		}
-		statusText = fmt.Sprintf(" Overview filter: /%s_ [%s] (@c/@s/@e for sections)",
+		statusText = fmt.Sprintf(" Overview filter: [%s_ [%s] (@e/@c/@s for sections • Enter to apply)",
 			m.overviewFilterInput, filterInfo)
 	case m.filterMode:
 		// Show chart filter input with cursor
@@ -919,38 +919,48 @@ func (m *Model) renderStatusBar() string {
 			statusText = " Loading data..."
 		}
 	default:
-		// Build status text with run state
-		switch m.runState {
-		case RunStateRunning:
-			statusText = " State: Running"
-		case RunStateFinished:
-			statusText = " State: Finished"
-		case RunStateFailed:
-			statusText = " State: Failed"
-		case RunStateCrashed:
-			statusText = " State: Error (recovered)"
-		}
-
 		// Add filter info if active (separated with a bullet point)
 		if m.activeFilter != "" {
 			m.chartMu.RLock()
 			filteredCount := len(m.filteredCharts)
 			totalCount := len(m.allCharts)
 			m.chartMu.RUnlock()
-			statusText += fmt.Sprintf(" • Filter: \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
+			statusText = fmt.Sprintf(" Filter: \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
 				m.activeFilter, filteredCount, totalCount)
 		}
 
 		// Add overview filter info if active
 		if m.sidebar.IsFiltering() {
 			filterInfo := m.sidebar.GetFilterInfo()
-			statusText += fmt.Sprintf(" • Overview: \"%s\" [%s]",
+			if statusText != "" {
+				statusText += " • "
+			}
+			statusText += fmt.Sprintf("Overview: \"%s\" [%s] ([ to change, Ctrl+K to clear)",
 				m.sidebar.GetFilterQuery(), filterInfo)
+		}
+
+		// Add selected overview item if sidebar is visible (no truncation)
+		if m.sidebar.IsVisible() {
+			key, value := m.sidebar.GetSelectedItem()
+			if key != "" {
+				if statusText != "" {
+					statusText += " • "
+				}
+				statusText += fmt.Sprintf("Selected: %s: %s", key, value)
+			}
 		}
 
 		// Add focused metric name if a chart is focused
 		if m.focusedTitle != "" {
-			statusText += fmt.Sprintf(" • Focused: %s", m.focusedTitle)
+			if statusText != "" {
+				statusText += " • "
+			}
+			statusText += fmt.Sprintf("Focused: %s", m.focusedTitle)
+		}
+
+		// If nothing else to show, add a space to prevent empty status
+		if statusText == "" {
+			statusText = " "
 		}
 	}
 
@@ -961,10 +971,10 @@ func (m *Model) renderStatusBar() string {
 		statusText += fmt.Sprintf(" [Buffer: %d/%d]", bufferUsage, bufferCapacity)
 	}
 
-	// Right side content - update help text
+	// Right side content - simplified
 	helpText := ""
 	if !m.filterMode && !m.overviewFilterMode {
-		helpText = "h: help • ctrl+>: filter overview "
+		helpText = "h: help "
 	}
 
 	// Calculate padding to fill the entire width
