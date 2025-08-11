@@ -1,4 +1,4 @@
-"""W&B × DSPy integration package."""
+"""W&B DSPy integration package."""
 
 from .dspy import WandbDSPyCallback
 
