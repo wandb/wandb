@@ -4,6 +4,7 @@ import os
 import pathlib
 
 import pandas as pd
+import wandb
 from metaflow import FlowSpec, Parameter, step
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
@@ -43,7 +44,11 @@ class WandbExampleFlowDecoBoth(FlowSpec):
 
     @step
     def train(self):
-        self.clf = RandomForestClassifier(random_state=self.seed)
+        self.clf = RandomForestClassifier(
+            n_estimators=2,
+            max_depth=2,
+            random_state=self.seed,
+        )
         self.clf.fit(self.X_train, self.y_train)
         self.next(self.end)
 
@@ -54,4 +59,5 @@ class WandbExampleFlowDecoBoth(FlowSpec):
 
 
 if __name__ == "__main__":
+    wandb.setup()
     WandbExampleFlowDecoBoth()

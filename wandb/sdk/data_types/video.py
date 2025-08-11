@@ -6,7 +6,8 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Type, Union
 
 import wandb
-from wandb import util
+from wandb import env, util
+from wandb.sdk import wandb_setup
 from wandb.sdk.lib import filesystem, printer, printer_asyncio, runid
 
 from . import _dtypes
@@ -21,6 +22,14 @@ if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
 
     from ..wandb_run import Run as LocalRun
+
+
+def _should_print_spinner() -> bool:
+    singleton = wandb_setup.singleton_if_setup()
+    if singleton and (singleton.settings.quiet or singleton.settings.silent):
+        return False
+
+    return not env.is_quiet() and not env.is_silent()
 
 
 # This helper function is a workaround for the issue discussed here:
@@ -80,40 +89,38 @@ class Video(BatchableMedia):
         """Initialize a W&B Video object.
 
         Args:
-            data_or_path:
-                Video can be initialized with a path to a file or an io object.
-                Video can be initialized with a numpy tensor.
-                The numpy tensor must be either 4 dimensional or 5 dimensional.
+            data_or_path: Video can be initialized with a path to a file or an io object.
+                Video can be initialized with a numpy tensor. The numpy tensor
+                must be either 4 dimensional or 5 dimensional.
                 The dimensions should be (number of frames, channel, height, width) or
                 (batch, number of frames, channel, height, width)
                 The format parameter must be specified with the format argument
                 when initializing with a numpy array
                 or io object.
             caption: Caption associated with the video for display.
-            fps:
-                The frame rate to use when encoding raw video frames.
+            fps: The frame rate to use when encoding raw video frames.
                 Default value is 4.
                 This parameter has no effect when data_or_path is a string, or bytes.
-            format:
-                Format of video, necessary if initializing with a numpy array
+            format: Format of video, necessary if initializing with a numpy array
                 or io object. This parameter will be used to determine the format
                 to use when encoding the video data. Accepted values are "gif",
                 "mp4", "webm", or "ogg".
                 If no value is provided, the default format will be "gif".
 
         Examples:
-            ### Log a numpy array as a video
-            ```python
-            import numpy as np
-            import wandb
+        Log a numpy array as a video
 
-            with wandb.init() as run:
-                # axes are (number of frames, channel, height, width)
-                frames = np.random.randint(
-                    low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
-                )
-                run.log({"video": wandb.Video(frames, format="mp4", fps=4)})
-            ```
+        ```python
+        import numpy as np
+        import wandb
+
+        with wandb.init() as run:
+            # axes are (number of frames, channel, height, width)
+            frames = np.random.randint(
+                low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8
+            )
+            run.log({"video": wandb.Video(frames, format="mp4", fps=4)})
+        ```
         """
         super().__init__(caption=caption)
 
@@ -167,13 +174,21 @@ class Video(BatchableMedia):
                     "wandb.Video accepts a file path or numpy like data as input"
                 )
             fps = fps or 4
-            printer_asyncio.run_async_with_spinner(
-                printer.new_printer(),
-                "Encoding video...",
-                functools.partial(self.encode, fps=fps),
-            )
+
+            if _should_print_spinner():
+                printer_asyncio.run_async_with_spinner(
+                    printer.new_printer(),
+                    "Encoding video...",
+                    functools.partial(self.encode, fps=fps),
+                )
+            else:
+                self.encode(fps=fps)
 
     def encode(self, fps: int = 4) -> None:
+        """Encode the video data to a file.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # import ImageSequenceClip from the appropriate MoviePy module
         mpy = util.get_module(
             "moviepy.video.io.ImageSequenceClip",
@@ -199,9 +214,17 @@ class Video(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Video"]) -> str:
+        """Get media subdirectory for video files.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         return os.path.join("media", "videos")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
 
@@ -256,6 +279,10 @@ class Video(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
+        """Convert a sequence of Video objects to a JSON representation.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         base_path = os.path.join(run.dir, cls.get_media_subdir())
         filesystem.mkdir_exists_ok(base_path)
 

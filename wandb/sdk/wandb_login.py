@@ -55,25 +55,26 @@ def login(
     `verify=True`.
 
     Args:
-        anonymous: (string, optional) Can be "must", "allow", or "never".
+        anonymous: Set to "must", "allow", or "never".
             If set to "must", always log a user in anonymously. If set to
             "allow", only create an anonymous user if the user
             isn't already logged in. If set to "never", never log a
-            user anonymously. Default set to "never".
-        key: (string, optional) The API key to use.
-        relogin: (bool, optional) If true, will re-prompt for API key.
-        host: (string, optional) The host to connect to.
-        force: (bool, optional) If true, will force a relogin.
-        timeout: (int, optional) Number of seconds to wait for user input.
-        verify: (bool) Verify the credentials with the W&B server.
-        referrer: (string, optional) The referrer to use in the URL login request.
+            user anonymously. Default set to "never". Defaults to `None`.
+        key: The API key to use.
+        relogin: If true, will re-prompt for API key.
+        host: The host to connect to.
+        force: If true, will force a relogin.
+        timeout: Number of seconds to wait for user input.
+        verify: Verify the credentials with the W&B server.
+        referrer: The referrer to use in the URL login request.
+
 
     Returns:
-        bool: if key is configured
+        bool: If `key` is configured.
 
     Raises:
-        AuthenticationError - if api_key fails verification with the server
-        UsageError - if api_key cannot be configured and no tty
+        AuthenticationError: If `api_key` fails verification with the server.
+        UsageError: If `api_key` cannot be configured and no tty.
     """
     _handle_host_wandb_setting(host)
     return _login(
@@ -258,7 +259,8 @@ class _WandbLogin:
 
         if not is_api_key_valid:
             raise AuthenticationError(
-                "API key verification failed. Make sure your API key is valid."
+                f"API key verification failed for host {self._settings.base_url}."
+                " Make sure your API key is valid."
             )
 
 
@@ -272,6 +274,7 @@ def _login(
     timeout: Optional[int] = None,
     verify: bool = False,
     referrer: str = "models",
+    update_api_key: bool = True,
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
 ) -> bool:
@@ -318,7 +321,8 @@ def _login(
         wlogin._verify_login(key)
 
     if not key_is_pre_configured:
-        wlogin.try_save_api_key(key)
+        if update_api_key:
+            wlogin.try_save_api_key(key)
         wlogin.update_session(key, status=key_status)
         wlogin._update_global_anonymous_setting()
 

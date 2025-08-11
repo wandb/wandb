@@ -585,6 +585,15 @@ pub struct Deprecated {
     /// wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
     #[prost(bool, tag = "27")]
     pub artifact_init_use_as: bool,
+    /// wandb.beta.workflows.log_model() called
+    #[prost(bool, tag = "28")]
+    pub beta_workflows_log_model: bool,
+    /// wandb.beta.workflows.use_model() called
+    #[prost(bool, tag = "29")]
+    pub beta_workflows_use_model: bool,
+    /// wandb.beta.workflows.link_model() called
+    #[prost(bool, tag = "30")]
+    pub beta_workflows_link_model: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
@@ -1184,6 +1193,8 @@ pub struct MetricSummary {
     pub none: bool,
     #[prost(bool, tag = "7")]
     pub copy: bool,
+    #[prost(bool, tag = "8")]
+    pub first: bool,
 }
 ///
 /// ConfigRecord: wandb/sdk/wandb_config/Config

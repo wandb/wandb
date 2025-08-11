@@ -9,6 +9,7 @@ import logging
 import os
 import queue
 import socket
+import sys
 import threading
 import time
 import traceback
@@ -222,17 +223,10 @@ class Agent:
                         self._run_status[run_id] = RunStatus.DONE
                     elif self._run_status[run_id] == RunStatus.ERRORED:
                         exc = self._exceptions[run_id]
-                        exc_type, exc_value, exc_traceback = (
-                            exc.__class__,
-                            exc,
-                            exc.__traceback__,
-                        )
-                        exc_traceback_formatted = traceback.format_exception(
-                            exc_type, exc_value, exc_traceback
-                        )
-                        exc_repr = "".join(exc_traceback_formatted)
-                        logger.error(f"Run {run_id} errored:\n{exc_repr}")
-                        wandb.termerror(f"Run {run_id} errored:\n{exc_repr}")
+                        # Extract to reduce a decision point to avoid ruff c901
+                        log_str, term_str = _get_exception_logger_and_term_strs(exc)
+                        logger.error(f"Run {run_id} errored:\n{log_str}")
+                        wandb.termerror(f"Run {run_id} errored:{term_str}")
                         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
                             self._exit_flag = True
                             return
@@ -299,7 +293,18 @@ class Agent:
             for k, v in job.config.items():
                 wandb.termlog("\t{}: {}".format(k, v["value"]))
 
-            self._function()
+            try:
+                self._function()
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                # Log the run's exceptions directly to stderr to match CLI case, and wrap so we
+                # can identify it as coming from the job later later. This will get automatically
+                # logged by console_capture.py. Exception handler below will also handle exceptions
+                # in setup code.
+                exc_repr = _format_exception_traceback(e)
+                print(exc_repr, file=sys.stderr)  # noqa: T201
+                raise _JobError(f"Run threw exception: {str(e)}") from e
             wandb.finish()
         except KeyboardInterrupt:
             raise
@@ -348,6 +353,30 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
         count=count,
     )
     agent.run()
+
+
+def _format_exception_traceback(exc):
+    return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+
+
+class _JobError(Exception):
+    """Exception raised when a job fails during execution."""
+
+    pass
+
+
+def _get_exception_logger_and_term_strs(exc):
+    if isinstance(exc, _JobError) and exc.__cause__:
+        # If it's a JobException, get the original exception for display
+        job_exc = exc.__cause__
+        log_str = _format_exception_traceback(job_exc)
+        # Don't long full stacktrace to terminal again because we already
+        # printed it to stderr.
+        term_str = " " + str(job_exc)
+    else:
+        log_str = _format_exception_traceback(exc)
+        term_str = "\n" + log_str
+    return log_str, term_str
 
 
 _INSTANCES = 0

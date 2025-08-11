@@ -284,6 +284,7 @@ class Api:
         self._extra_http_headers.update(_thread_local_api_settings.headers or {})
 
         auth = None
+        api_key = api_key or self.default_settings.get("api_key")
         if api_key:
             auth = ("api", api_key)
         elif self.access_token is not None:
@@ -362,6 +363,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
+
         self._server_features_cache: Optional[Dict[str, bool]] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
@@ -3233,6 +3235,7 @@ class Api:
         entity: Optional[str] = None,
         state: Optional[str] = None,
         prior_runs: Optional[List[str]] = None,
+        display_name: Optional[str] = None,
         template_variable_values: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, List[str]]:
         """Upsert a sweep object.
@@ -3247,6 +3250,7 @@ class Api:
             entity (str): entity to use
             state (str): state
             prior_runs (list): IDs of existing runs to add to the sweep
+            display_name (str): display name for the sweep
             template_variable_values (dict): template variable values
         """
         project_query = """
@@ -3270,6 +3274,7 @@ class Api:
             $scheduler: JSONString,
             $state: String,
             $priorRunsFilters: JSONString,
+            $displayName: String,
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -3281,6 +3286,7 @@ class Api:
                 scheduler: $scheduler,
                 state: $state,
                 priorRunsFilters: $priorRunsFilters,
+                displayName: $displayName,
             }) {
                 sweep {
                     name
@@ -3357,6 +3363,7 @@ class Api:
                     "templateVariableValues": json.dumps(template_variable_values),
                     "scheduler": scheduler,
                     "priorRunsFilters": filters,
+                    "displayName": display_name,
                 }
                 if state:
                     variables["state"] = state
@@ -4661,3 +4668,56 @@ class Api:
         success: bool = response["stopRun"].get("success")
 
         return success
+
+    @normalize_exceptions
+    def create_custom_chart(
+        self,
+        entity: str,
+        name: str,
+        display_name: str,
+        spec_type: str,
+        access: str,
+        spec: Union[str, Mapping[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(spec, str):
+            spec = json.dumps(spec)
+
+        mutation = gql(
+            """
+            mutation CreateCustomChart(
+                $entity: String!
+                $name: String!
+                $displayName: String!
+                $type: String!
+                $access: String!
+                $spec: JSONString!
+            ) {
+                createCustomChart(
+                    input: {
+                        entity: $entity
+                        name: $name
+                        displayName: $displayName
+                        type: $type
+                        access: $access
+                        spec: $spec
+                    }
+                ) {
+                    chart { id }
+                }
+            }
+            """
+        )
+
+        variable_values = {
+            "entity": entity,
+            "name": name,
+            "displayName": display_name,
+            "type": spec_type,
+            "access": access,
+            "spec": spec,
+        }
+
+        result: Optional[Dict[str, Any]] = self.gql(mutation, variable_values)[
+            "createCustomChart"
+        ]
+        return result

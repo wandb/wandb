@@ -14,12 +14,13 @@ from wandb.sdk.artifacts._graphql_fragments import (
     _gql_artifact_fragment,
     _gql_registry_fragment,
 )
+from wandb.sdk.artifacts._validators import remove_registry_prefix
 
 from ._utils import ensure_registry_prefix_on_names
 
 
 class Registries(Paginator):
-    """Iterator that returns Registries."""
+    """An lazy iterator of `Registry` objects."""
 
     QUERY = gql(
         """
@@ -61,9 +62,6 @@ class Registries(Paginator):
         }
 
         super().__init__(client, variables, per_page)
-
-    def __bool__(self):
-        return bool(self.objects)
 
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth
@@ -135,7 +133,7 @@ class Registries(Paginator):
                 self.client,
                 self.organization,
                 self.last_response["organization"]["orgEntity"]["name"],
-                r["node"]["name"],
+                remove_registry_prefix(r["node"]["name"]),
                 r["node"],
             )
             for r in self.last_response["organization"]["orgEntity"]["projects"][
@@ -144,8 +142,8 @@ class Registries(Paginator):
         ]
 
 
-class Collections(Paginator):
-    """Iterator that returns Artifact collections in the Registry."""
+class Collections(Paginator["ArtifactCollection"]):
+    """An lazy iterator of `ArtifactCollection` objects in a Registry."""
 
     QUERY = gql(
         """
@@ -238,9 +236,6 @@ class Collections(Paginator):
 
         super().__init__(client, variables, per_page)
 
-    def __bool__(self):
-        return len(self) > 0 or len(self.objects) > 0
-
     def __next__(self):
         # Implement custom next since its possible to load empty pages because of auth
         self.index += 1
@@ -315,8 +310,8 @@ class Collections(Paginator):
         ]
 
 
-class Versions(Paginator):
-    """Iterator that returns Artifact versions in the Registry."""
+class Versions(Paginator["Artifact"]):
+    """An lazy iterator of `Artifact` objects in a Registry."""
 
     def __init__(
         self,
@@ -406,9 +401,6 @@ class Versions(Paginator):
             if not self._load_page():
                 raise StopIteration
         return self.objects[self.index]
-
-    def __bool__(self):
-        return len(self) > 0 or len(self.objects) > 0
 
     @property
     def length(self):

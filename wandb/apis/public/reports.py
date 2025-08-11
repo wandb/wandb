@@ -1,4 +1,8 @@
-"""Public API: reports."""
+"""W&B Public API for Report objects.
+
+This module provides classes for interacting with W&B reports and
+managing report-related data.
+"""
 
 import ast
 import json
@@ -15,15 +19,16 @@ from wandb.sdk.lib import ipython
 
 
 class Reports(SizedPaginator["BetaReport"]):
-    """An iterable collection of `BetaReport` objects for a given W&B project.
+    """Reports is a lazy iterator of `BetaReport` objects.
 
     Args:
-        client: The W&B API client to use for making requests.
-        project: The name of the project that the report belongs to.
-        name (str, optional): Name of the report to filter by.
-        entity (str, optional): The entity (user or team) that owns the project.
-            Defaults to the entity of the project if not specified.
-        per_page (int, optional): Number of reports to fetch per page (default is 50).
+        client (`wandb.apis.internal.Api`): The API client instance to use.
+        project (`wandb.sdk.internal.Project`): The project to fetch reports from.
+        name (str, optional): The name of the report to filter by. If `None`,
+            fetches all reports.
+        entity (str, optional): The entity name for the project. Defaults to
+            the project entity.
+        per_page (int): Number of reports to fetch per page (default is 50).
     """
 
     QUERY = gql(
@@ -72,7 +77,11 @@ class Reports(SizedPaginator["BetaReport"]):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
+    def _length(self):
+        """The number of reports in the project.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: Add the count the backend
         if self.last_response:
             return len(self.objects)
@@ -80,25 +89,37 @@ class Reports(SizedPaginator["BetaReport"]):
             return None
 
     @property
-    def more(self):
+    def more(self) -> bool:
+        """Returns whether there are more files to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
-            return self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
+            return bool(
+                self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
+            )
         else:
             return True
 
     @property
     def cursor(self):
+        """Returns the cursor position for pagination of file results.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return self.last_response["project"]["allViews"]["edges"][-1]["cursor"]
         else:
             return None
 
     def update_variables(self):
+        """Updates the GraphQL query variables for pagination."""
         self.variables.update(
             {"reportCursor": self.cursor, "reportLimit": self.per_page}
         )
 
     def convert_objects(self):
+        """Converts GraphQL edges to File objects."""
         if self.last_response["project"] is None:
             raise ValueError(
                 f"Project {self.variables['project']} does not exist under entity {self.variables['entity']}"
@@ -118,7 +139,7 @@ class Reports(SizedPaginator["BetaReport"]):
 
 
 class BetaReport(Attrs):
-    """Represents a report object in the W&B system.
+    """BetaReport is a class associated with reports created in W&B.
 
     Provides access to report attributes (name, description, user, spec,
     timestamps) and methods for retrieving associated runs,
@@ -156,9 +177,11 @@ class BetaReport(Attrs):
 
     @property
     def sections(self):
+        """Get the panel sections (groups) from the report."""
         return self.spec["panelGroups"]
 
     def runs(self, section, per_page=50, only_selected=True):
+        """Get runs associated with a section of the report."""
         run_set_idx = section.get("openRunSet", 0)
         run_set = section["runSets"][run_set_idx]
         order = self.query_generator.key_to_server_path(run_set["sort"]["key"])
@@ -256,6 +279,11 @@ class BetaReport(Attrs):
 
 
 class PythonMongoishQueryGenerator:
+    """Converts Python-style query expressions to MongoDB-style queries for W&B reports.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
     SPACER = "----------"
     DECIMAL_SPACER = ";;;"
     FRONTEND_NAME_MAPPING = {
@@ -366,6 +394,10 @@ class PythonMongoishQueryGenerator:
         return field_name.replace(self.SPACER, ".")  # Allow dotted fields
 
     def python_to_mongo(self, filterstr):
+        """Convert Python expresion to MongoDB filter.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         try:
             tree = ast.parse(self._convert(filterstr), mode="eval")
         except SyntaxError as e:
@@ -384,6 +416,10 @@ class PythonMongoishQueryGenerator:
         return {"$or": [{op: values}]}
 
     def front_to_back(self, name):
+        """Convert frontend metric names to backend field names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         name, *rest = name.split(".")
         rest = "." + ".".join(rest) if rest else ""
 
@@ -397,6 +433,10 @@ class PythonMongoishQueryGenerator:
             return f"summary_metrics.{name}{rest}"
 
     def back_to_front(self, name):
+        """Convert backend field names to frontend metric names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if name in self.FRONTEND_NAME_MAPPING_REVERSED:
             return self.FRONTEND_NAME_MAPPING_REVERSED[name]
         elif name in self.FRONTEND_NAME_MAPPING:
@@ -413,6 +453,10 @@ class PythonMongoishQueryGenerator:
 
     # These are only used for ParallelCoordinatesPlot because it has weird backend names...
     def pc_front_to_back(self, name):
+        """Convert ParallelCoordinatesPlot to backend field names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         name, *rest = name.split(".")
         rest = "." + ".".join(rest) if rest else ""
         if name is None:
@@ -429,6 +473,10 @@ class PythonMongoishQueryGenerator:
             return f"summary:{name}{rest}"
 
     def pc_back_to_front(self, name):
+        """Convert backend backend field names to ParallelCoordinatesPlot names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if name is None:
             return None
         elif "summary:" in name:
@@ -448,6 +496,11 @@ class PythonMongoishQueryGenerator:
 
 
 class PanelMetricsHelper:
+    """Converts Python-style query expressions to MongoDB-style queries for W&B reports.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
     FRONTEND_NAME_MAPPING = {
         "Step": "_step",
         "Relative Time (Wall)": "_absolute_runtime",
@@ -460,17 +513,29 @@ class PanelMetricsHelper:
     RUN_MAPPING_REVERSED = {v: k for k, v in RUN_MAPPING.items()}
 
     def front_to_back(self, name):
+        """Convert frontend metric names to backend field names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if name in self.FRONTEND_NAME_MAPPING:
             return self.FRONTEND_NAME_MAPPING[name]
         return name
 
     def back_to_front(self, name):
+        """Convert backend field names to frontend metric names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if name in self.FRONTEND_NAME_MAPPING_REVERSED:
             return self.FRONTEND_NAME_MAPPING_REVERSED[name]
         return name
 
     # ScatterPlot and ParallelCoords have weird conventions
     def special_front_to_back(self, name):
+        """Convert frontend metric names to backend field names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if name is None:
             return name
 
@@ -497,6 +562,10 @@ class PanelMetricsHelper:
         return "summary:" + name
 
     def special_back_to_front(self, name):
+        """Convert backend field names to frontend metric names.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if name is not None:
             kind, rest = name.split(":", 1)
 

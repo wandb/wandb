@@ -203,7 +203,7 @@ class Table(Media):
     This means you can embed `Images`, `Video`, `Audio`, and other sorts of rich, annotated media
     directly in Tables, alongside other traditional scalar values.
 
-    This class is the primary class used to generate the W&B Tables
+    This class is the primary class used to generate W&B Tables
     https://docs.wandb.ai/guides/models/tables/.
     """
 
@@ -236,6 +236,7 @@ class Table(Media):
             data: (List[List[any]]) 2D row-oriented array of values.
             dataframe: (pandas.DataFrame) DataFrame object used to create the table.
                 When set, `data` and `columns` arguments are ignored.
+            rows: (List[List[any]]) 2D row-oriented array of values.
             optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
                 - If a singular bool value, then the optionality is enforced for all
                 columns specified at construction time
@@ -410,13 +411,15 @@ class Table(Media):
     def cast(self, col_name, dtype, optional=False):
         """Casts a column to a specific data type.
 
-        This can be one of the normal python classes, an internal W&B type, or an
-        example object, like an instance of wandb.Image or wandb.Classes.
+        This can be one of the normal python classes, an internal W&B type,
+        or an example object, like an instance of wandb.Image or
+        wandb.Classes.
 
         Args:
-            col_name: (str) - The name of the column to cast.
-            dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - The target dtype.
-            optional: (bool) - If the column should allow Nones.
+            col_name (str): The name of the column to cast.
+            dtype (class, wandb.wandb_sdk.interface._dtypes.Type, any): The
+                target dtype.
+            optional (bool): If the column should allow Nones.
         """
         assert col_name in self.columns
 
@@ -499,14 +502,17 @@ class Table(Media):
 
     @allow_relogging_after_mutation
     def add_row(self, *row):
-        """Deprecated; use add_data instead."""
+        """Deprecated. Use `Table.add_data` method instead."""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
     @allow_relogging_after_mutation
     @allow_incremental_logging_after_append
     def add_data(self, *data):
-        """Adds a new row of data to the table. The maximum amount of rows in a table is determined by `wandb.Table.MAX_ARTIFACT_ROWS`.
+        """Adds a new row of data to the table.
+
+        The maximum amount ofrows in a table is determined by
+        `wandb.Table.MAX_ARTIFACT_ROWS`.
 
         The length of the data should match the length of the table column.
         """
@@ -589,6 +595,10 @@ class Table(Media):
             return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
+        """Bind this object to a run.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # We set `warn=False` since Tables will now always be logged to both
         # files and artifacts. The file limit will never practically matter and
         # this code path will be ultimately removed. The 10k limit warning confuses
@@ -603,10 +613,18 @@ class Table(Media):
 
     @classmethod
     def get_media_subdir(cls):
+        """Get media subdirectory.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         return os.path.join("media", "table")
 
     @classmethod
     def from_json(cls, json_obj, source_artifact: "artifact.Artifact"):
+        """Deserialize JSON object into it's class representation.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         data = []
         column_types = None
         np_deserialized_columns = {}
@@ -690,6 +708,10 @@ class Table(Media):
         return new_obj
 
     def to_json(self, run_or_artifact):
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
 
         if self.log_mode == "INCREMENTAL":
@@ -705,7 +727,7 @@ class Table(Media):
                 }
             )
 
-        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+        if isinstance(run_or_artifact, wandb.Run):
             if self.log_mode == "INCREMENTAL":
                 wbvalue_type = "incremental-table-file"
             else:
@@ -799,11 +821,11 @@ class Table(Media):
 
         Yields:
         ------
-        index : int
-            The index of the row. Using this value in other W&B tables
+        index: The index of the row. Using this value in other W&B tables
             will automatically build a relationship between the tables
-        row : List[any]
-            The data of the row.
+        row: The data of the row.
+
+        <!-- lazydoc-ignore: internal -->
         """
         for ndx in range(len(self.data)):
             index = _TableIndex(ndx)
@@ -812,12 +834,20 @@ class Table(Media):
 
     @allow_relogging_after_mutation
     def set_pk(self, col_name):
+        """Set primary key type for Table object.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: Docs
         assert col_name in self.columns
         self.cast(col_name, _PrimaryKeyType())
 
     @allow_relogging_after_mutation
     def set_fk(self, col_name, table, table_col):
+        """Set foreign key type for Table object.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: Docs
         assert col_name in self.columns
         assert col_name != self._pk_col
@@ -1003,7 +1033,10 @@ class Table(Media):
         return pd.DataFrame.from_records(self.data, columns=self.columns)
 
     def index_ref(self, index):
-        """Gets a reference of the index of a row in the table."""
+        """Gets a reference of the index of a row in the table.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         assert index < len(self.data)
         _index = _TableIndex(index)
         _index.set_table(self)
@@ -1015,14 +1048,12 @@ class Table(Media):
         """Adds one or more computed columns based on existing data.
 
         Args:
-            fn: A function which accepts one or two parameters, ndx (int) and row (dict),
-                which is expected to return a dict representing new columns for that row, keyed
-                by the new column names.
-
-                `ndx` is an integer representing the index of the row. Only included if `include_ndx`
+            fn: A function which accepts one or two parameters, ndx (int) and
+                row (dict), which is expected to return a dict representing
+                new columns for that row, keyed by the new column names.
+            - `ndx` is an integer representing the index of the row. Only included if `include_ndx`
                       is set to `True`.
-
-                `row` is a dictionary keyed by existing columns
+            - `row` is a dictionary keyed by existing columns
         """
         new_columns = {}
         for ndx, row in self.iterrows():
@@ -1056,7 +1087,8 @@ class _PartitionTablePartEntry:
 class PartitionedTable(Media):
     """A table which is composed of multiple sub-tables.
 
-    Currently, PartitionedTable is designed to point to a directory within an artifact.
+    Currently, PartitionedTable is designed to point to a directory within an
+    artifact.
     """
 
     _log_type = "partitioned-table"
@@ -1075,7 +1107,7 @@ class PartitionedTable(Media):
         json_obj = {
             "_type": PartitionedTable._log_type,
         }
-        if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
+        if isinstance(artifact_or_run, wandb.Run):
             artifact_entry_url = self._get_artifact_entry_ref_url()
             if artifact_entry_url is None:
                 raise ValueError(
@@ -1099,12 +1131,9 @@ class PartitionedTable(Media):
     def iterrows(self):
         """Iterate over rows as (ndx, row).
 
-        Yields:
-        ------
-        index : int
-            The index of the row.
-        row : List[any]
-            The data of the row.
+        Args:
+            index (int): The index of the row.
+            row (List[any]): The data of the row.
         """
         columns = None
         ndx = 0
@@ -1233,7 +1262,7 @@ class JoinedTable(Media):
         json_obj = {
             "_type": JoinedTable._log_type,
         }
-        if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
+        if isinstance(artifact_or_run, wandb.Run):
             artifact_entry_url = self._get_artifact_entry_ref_url()
             if artifact_entry_url is None:
                 raise ValueError(

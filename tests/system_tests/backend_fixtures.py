@@ -157,8 +157,8 @@ class BackendFixtureFactory:
     def __post_init__(self, service_url: str):
         self._client = httpx.Client(
             base_url=service_url,
-            # event_hooks={"response": [httpx.Response.raise_for_status]},
-            # timeout=None,
+            # The default 5s timeout is sometimes too short in CI.
+            timeout=30,
         )
 
     def __enter__(self):
@@ -171,7 +171,14 @@ class BackendFixtureFactory:
 
     def make_user(self, name: str | None = None, admin: bool = False) -> str:
         """Create a new user and return their username."""
-        name = name or f"user-{self.worker_id}-{random_string()}"
+        # Many tests use the username as the API key.
+        # However, the API key must be 40 characters long after the first hyphen.
+        # So we need to pad the username
+        # with the appropriate number of random characters.
+        name = name or (
+            f"user-{self.worker_id}-"
+            f"{random_string(length=(40 - len(self.worker_id) - 1))}"
+        )
 
         self.send_cmds(
             UserCmd("up", username=name, admin=admin),

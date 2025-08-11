@@ -12,12 +12,12 @@ import (
 	"sync/atomic"
 
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 
-	"github.com/wandb/wandb/core/pkg/monitor"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -351,15 +351,13 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		sentryClient = nc.sentryClient
 	}
 
-	strm := stream.NewStream(
-		stream.StreamParams{
-			Settings:           settings,
-			Commit:             nc.commit,
-			LogLevel:           nc.logLevel,
-			Sentry:             sentryClient,
-			LoggerPath:         nc.loggerPath,
-			GPUResourceManager: nc.gpuResourceManager,
-		},
+	strm := stream.InjectStream(
+		stream.GitCommitHash(nc.commit),
+		nc.gpuResourceManager,
+		stream.DebugCorePath(nc.loggerPath),
+		nc.logLevel,
+		nc.sentryClient,
+		settings,
 	)
 	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	strm.Start()

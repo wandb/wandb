@@ -7,6 +7,7 @@ package runfiles
 
 import (
 	"github.com/Khan/genqlient/graphql"
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -17,6 +18,11 @@ import (
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+)
+
+// UploaderProviders binds UploaderFactory.
+var UploaderProviders = wire.NewSet(
+	wire.Struct(new(UploaderFactory), "*"),
 )
 
 // Uploader uploads the files in a run's files directory.
@@ -44,10 +50,6 @@ type Uploader interface {
 	Finish()
 }
 
-func NewUploader(params UploaderParams) Uploader {
-	return newUploader(params)
-}
-
 // UploaderTesting has additional test-only Uploader methods.
 type UploaderTesting interface {
 	// FlushSchedulingForTest blocks until all requested uploads are scheduled.
@@ -57,20 +59,24 @@ type UploaderTesting interface {
 	FlushSchedulingForTest()
 }
 
-type UploaderParams struct {
+// UploaderFactory constructs Uploader instances.
+type UploaderFactory struct {
 	ExtraWork    runwork.ExtraWork
+	FileTransfer filetransfer.FileTransferManager
+	FileWatcher  watcher.Watcher
+	GraphQL      graphql.Client
 	Logger       *observability.CoreLogger
 	Operations   *wboperation.WandbOperations
 	Settings     *settings.Settings
-	FileStream   filestream.FileStream
-	FileTransfer filetransfer.FileTransferManager
-	GraphQL      graphql.Client
-	FileWatcher  watcher.Watcher
+}
 
-	// How long to wait to batch upload operations.
-	//
-	// This helps if multiple uploads are scheduled around the same time by
-	// grouping those that fall within this duration of each other and reducing
-	// the number of GraphQL invocations.
-	BatchDelay waiting.Delay
+// New returns a new Uploader.
+//
+// batchDelay is how long to wait to batch upload operations. Uploads scheduled
+// within this duration of each other are combined into a single GraphQL call.
+func (f *UploaderFactory) New(
+	batchDelay waiting.Delay,
+	fileStream filestream.FileStream,
+) Uploader {
+	return newUploader(f, batchDelay, fileStream)
 }
