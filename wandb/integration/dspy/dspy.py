@@ -35,7 +35,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
 
         self._did_log_config: bool = False
         self._temp_info_dict: dict[str, Any] = {}
-        self._program_table: Optional[wandb.Table] = None
+        self._program_table: wandb.Table | None = None
         self._is_valid_score: bool = False
         self._row_idx: int = 0
 
@@ -75,6 +75,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
 
         try:
             from dspy.predict.predict import Predict
+
             sig = next(
                 param.signature
                 for _, param in program_obj.named_parameters()
@@ -155,6 +156,10 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
             self._program_table = wandb.Table(columns=columns, log_mode="INCREMENTAL")
 
         if self._program_table is not None and self._is_valid_score:
-            self._program_table.add_data(self._row_idx, *self._temp_info_dict.values(), float(outputs))
-            wandb.run.log({"program_signature": self._program_table}, step=self._row_idx)
+            self._program_table.add_data(
+                self._row_idx, *self._temp_info_dict.values(), float(outputs)
+            )
+            wandb.run.log(
+                {"program_signature": self._program_table}, step=self._row_idx
+            )
             self._row_idx += 1
