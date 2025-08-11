@@ -45,6 +45,10 @@ type Model struct {
 	activeFilter   string            // The confirmed filter in use
 	filteredCharts []*EpochLineChart // Filtered subset of charts
 
+	// Overview filter state
+	overviewFilterMode  bool   // Whether we're typing an overview filter
+	overviewFilterInput string // The current overview filter being typed
+
 	// Focused chart's full title for display in status bar
 	focusedTitle string
 
@@ -120,32 +124,34 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	initialBufferSize := 1000
 
 	m := &Model{
-		help:              NewHelp(),
-		allCharts:         make([]*EpochLineChart, 0),
-		chartsByName:      make(map[string]*EpochLineChart),
-		charts:            make([][]*EpochLineChart, GridRows),
-		filteredCharts:    make([]*EpochLineChart, 0),
-		filterMode:        false,
-		filterInput:       "",
-		activeFilter:      "",
-		focusedTitle:      "",
-		step:              0,
-		focusedRow:        -1,
-		focusedCol:        -1,
-		currentPage:       0,
-		totalPages:        0,
-		fileComplete:      false,
-		isLoading:         true,
-		runPath:           runPath,
-		sidebar:           NewSidebar(),
-		rightSidebar:      NewRightSidebar(),
-		watcher:           watcher.New(watcher.Params{}),
-		watcherStarted:    false,
-		runConfig:         runconfig.New(),
-		runSummary:        runsummary.New(),
-		msgChan:           make(chan tea.Msg, initialBufferSize),
-		logger:            logger,
-		heartbeatInterval: heartbeatInterval,
+		help:                NewHelp(),
+		allCharts:           make([]*EpochLineChart, 0),
+		chartsByName:        make(map[string]*EpochLineChart),
+		charts:              make([][]*EpochLineChart, GridRows),
+		filteredCharts:      make([]*EpochLineChart, 0),
+		filterMode:          false,
+		filterInput:         "",
+		activeFilter:        "",
+		overviewFilterMode:  false,
+		overviewFilterInput: "",
+		focusedTitle:        "",
+		step:                0,
+		focusedRow:          -1,
+		focusedCol:          -1,
+		currentPage:         0,
+		totalPages:          0,
+		fileComplete:        false,
+		isLoading:           true,
+		runPath:             runPath,
+		sidebar:             NewSidebar(),
+		rightSidebar:        NewRightSidebar(),
+		watcher:             watcher.New(watcher.Params{}),
+		watcherStarted:      false,
+		runConfig:           runconfig.New(),
+		runSummary:          runsummary.New(),
+		msgChan:             make(chan tea.Msg, initialBufferSize),
+		logger:              logger,
+		heartbeatInterval:   heartbeatInterval,
 	}
 
 	for row := range GridRows {
@@ -872,8 +878,16 @@ func (m *Model) renderStatusBar() string {
 	// Left side content
 	statusText := ""
 	switch {
+	case m.overviewFilterMode:
+		// Show overview filter input
+		filterInfo := m.sidebar.GetFilterInfo()
+		if filterInfo == "" {
+			filterInfo = "no matches"
+		}
+		statusText = fmt.Sprintf(" Overview filter: /%s_ [%s] (@c/@s/@e for sections)",
+			m.overviewFilterInput, filterInfo)
 	case m.filterMode:
-		// Show filter input with cursor
+		// Show chart filter input with cursor
 		matchCount := m.getFilteredChartCount()
 		m.chartMu.RLock()
 		totalCount := len(m.allCharts)
@@ -927,6 +941,13 @@ func (m *Model) renderStatusBar() string {
 				m.activeFilter, filteredCount, totalCount)
 		}
 
+		// Add overview filter info if active
+		if m.sidebar.IsFiltering() {
+			filterInfo := m.sidebar.GetFilterInfo()
+			statusText += fmt.Sprintf(" • Overview: \"%s\" [%s]",
+				m.sidebar.GetFilterQuery(), filterInfo)
+		}
+
 		// Add focused metric name if a chart is focused
 		if m.focusedTitle != "" {
 			statusText += fmt.Sprintf(" • Focused: %s", m.focusedTitle)
@@ -940,10 +961,10 @@ func (m *Model) renderStatusBar() string {
 		statusText += fmt.Sprintf(" [Buffer: %d/%d]", bufferUsage, bufferCapacity)
 	}
 
-	// Right side content - hide help text in filter mode
+	// Right side content - update help text
 	helpText := ""
-	if !m.filterMode {
-		helpText = "h: toggle help "
+	if !m.filterMode && !m.overviewFilterMode {
+		helpText = "h: help • ctrl+>: filter overview "
 	}
 
 	// Calculate padding to fill the entire width

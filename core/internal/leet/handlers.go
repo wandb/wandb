@@ -281,11 +281,59 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleOverviewFilter handles overview filter input
+func (m *Model) handleOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	if !m.overviewFilterMode {
+		return m, nil
+	}
+
+	switch msg.Type {
+	case tea.KeyEsc:
+		// Cancel filter
+		m.overviewFilterMode = false
+		m.overviewFilterInput = ""
+		m.sidebar.clearFilter()
+		return m, nil
+
+	case tea.KeyEnter:
+		// Apply filter
+		m.overviewFilterMode = false
+		return m, nil
+
+	case tea.KeyBackspace:
+		// Remove last character
+		if len(m.overviewFilterInput) > 0 {
+			m.overviewFilterInput = m.overviewFilterInput[:len(m.overviewFilterInput)-1]
+			m.sidebar.updateFilter(m.overviewFilterInput)
+		}
+		return m, nil
+
+	case tea.KeyRunes:
+		// Add typed characters
+		m.overviewFilterInput += string(msg.Runes)
+		m.sidebar.updateFilter(m.overviewFilterInput)
+		return m, nil
+
+	case tea.KeySpace:
+		// Add space
+		m.overviewFilterInput += " "
+		m.sidebar.updateFilter(m.overviewFilterInput)
+		return m, nil
+	}
+
+	return m, nil
+}
+
 // handleKeyMsg processes keyboard events
 //
 //gocyclo:ignore
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	// Handle filter mode input FIRST
+	// Handle overview filter mode FIRST
+	if m.overviewFilterMode {
+		return m.handleOverviewFilter(msg)
+	}
+
+	// Handle filter mode input
 	if m.filterMode {
 		switch msg.Type {
 		case tea.KeyEsc:
@@ -387,6 +435,13 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 	case tea.KeyPgDown, tea.KeyShiftDown:
 		m.navigatePage(1)
+
+	case tea.KeyCtrlOpenBracket:
+		// Enter filter mode for overview
+		m.overviewFilterMode = true
+		m.overviewFilterInput = ""
+		m.sidebar.startFilter()
+		return m, nil
 	}
 
 	switch msg.String() {
@@ -410,8 +465,15 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "/":
-		// Enter filter mode
+		// Enter filter mode for charts
 		m.enterFilterMode()
+		return m, nil
+
+	case ".":
+		// Enter filter mode for overview
+		m.overviewFilterMode = true
+		m.overviewFilterInput = ""
+		m.sidebar.startFilter()
 		return m, nil
 
 	case "r":
@@ -586,12 +648,6 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 
 			// Force redraw all visible charts now that animation is complete
 			m.drawVisibleCharts()
-		}
-		if m.rightSidebar.IsAnimating() {
-			// During animation, update other sidebar's dimensions
-			m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
-			m.updateChartSizes()
-			return m, m.rightSidebar.animationCmd()
 		}
 	}
 
