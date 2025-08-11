@@ -47,14 +47,14 @@ type GitCommitHash string
 
 type HandlerFactory struct {
 	// Commit is the W&B Git commit hash
-	Commit            GitCommitHash
-	FileTransferStats filetransfer.FileTransferStats
-	Logger            *observability.CoreLogger
-	Mailbox           *mailbox.Mailbox
-	Operations        *wboperation.WandbOperations
-	Settings          *settings.Settings
-	SystemMonitor     *monitor.SystemMonitor
-	TerminalPrinter   *observability.Printer
+	Commit               GitCommitHash
+	FileTransferStats    filetransfer.FileTransferStats
+	Logger               *observability.CoreLogger
+	Mailbox              *mailbox.Mailbox
+	Operations           *wboperation.WandbOperations
+	Settings             *settings.Settings
+	SystemMonitorFactory *monitor.SystemMonitorFactory
+	TerminalPrinter      *observability.Printer
 }
 
 // Handler performs non-blocking operations to preprocess incoming Work.
@@ -124,6 +124,11 @@ type Handler struct {
 
 // New returns a new Handler.
 func (f *HandlerFactory) New() *Handler {
+	var systemMonitor *monitor.SystemMonitor
+	if f.SystemMonitorFactory != nil { // nil in tests only
+		systemMonitor = f.SystemMonitorFactory.New()
+	}
+
 	return &Handler{
 		commit:               f.Commit,
 		fileTransferStats:    f.FileTransferStats,
@@ -138,7 +143,7 @@ func (f *HandlerFactory) New() *Handler {
 		runSummary:           runsummary.New(),
 		runTimer:             timer.New(0),
 		settings:             f.Settings,
-		systemMonitor:        f.SystemMonitor,
+		systemMonitor:        systemMonitor,
 		terminalPrinter:      f.TerminalPrinter,
 	}
 }
