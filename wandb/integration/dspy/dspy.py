@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 import wandb.util
