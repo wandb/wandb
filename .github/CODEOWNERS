@@ -48,10 +48,14 @@
 /.github @wandb/sdk-team
 
 
-# Artifacts, Automations, and Launch teams
+# Artifacts, Registries, Automations, and Launch teams
 /core/pkg/artifacts/                  @wandb/mlw-team @wandb/sdk-team
 /wandb/sdk/artifacts/                 @wandb/mlw-team @wandb/sdk-team
 /wandb/automations/                   @wandb/mlw-team @wandb/sdk-team
+/wandb/apis/public/registries/        @wandb/mlw-team @wandb/sdk-team
+/wandb/apis/public/artifacts.py       @wandb/mlw-team @wandb/sdk-team
+/wandb/apis/public/automations.py     @wandb/mlw-team @wandb/sdk-team
+/wandb/apis/public/integrations.py    @wandb/mlw-team @wandb/sdk-team
 /tests/system_tests/test_artifacts/   @wandb/mlw-team @wandb/sdk-team
 /tests/system_tests/test_registries/  @wandb/mlw-team @wandb/sdk-team
 /tests/system_tests/test_automations/ @wandb/mlw-team @wandb/sdk-team
