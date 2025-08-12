@@ -37,10 +37,16 @@ def install_timed(session: nox.Session, *args, **kwargs):
         session.install(*args, **kwargs)
 
 
-def install_wandb(session: nox.Session):
-    """Builds and installs wandb."""
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
+def install_wandb(session: nox.Session, dev: bool = True):
+    """Builds and installs wandb.
+
+    Args:
+        dev: Whether to set dev build flags. Note that this
+            increases the binary size.
+    """
+    if dev:
+        session.env["WANDB_BUILD_COVERAGE"] = "true"
+        session.env["WANDB_BUILD_GORACEDETECT"] = "true"
 
     if session.venv_backend == "uv":
         install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
@@ -759,3 +765,57 @@ def importer_tests(session: nox.Session, importer: str):
             session.posargs or [f"tests/system_tests/test_importers/test_{importer}"]
         ),
     )
+
+
+@nox.session(name="wandb-core-size-check", python="3.10")
+def wandb_core_size_check(session: nox.Session) -> None:
+    """Compare wandb-core binary size against main branch."""
+    # Build and install main branch version
+    session.run("git", "fetch", "origin", "main", external=True)
+    session.run("git", "checkout", "origin/main", external=True)
+    install_wandb(session, dev=False)
+
+    main_binary = list(
+        (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
+    )[0]
+    main_size = main_binary.stat().st_size
+
+    # Build and install current branch version
+    session.run("git", "checkout", "-", external=True)
+    install_wandb(session, dev=False)
+
+    current_binary = list(
+        (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
+    )[0]
+    current_size = current_binary.stat().st_size
+
+    # Format and display results
+    def fmt_size(b: int) -> str:
+        for unit in ["B", "KB", "MB"]:
+            if b < 1024:
+                return f"{b:.1f} {unit}"
+            b /= 1024
+        return f"{b:.1f} GB"
+
+    diff = current_size - main_size
+    pct = (diff / main_size * 100) if main_size else 0
+
+    session.log("=" * 60)
+    session.log(f"Main branch:  {fmt_size(main_size)} ({main_size:,} bytes)")
+    session.log(f"Current:      {fmt_size(current_size)} ({current_size:,} bytes)")
+    session.log(
+        f"Difference:   {fmt_size(abs(diff))} ({'+' if diff > 0 else ''}{pct:+.1f}%)"
+    )
+    session.log("=" * 60)
+
+    if pct > 10:
+        session.log("")
+        session.log("❌ Binary size increased beyond acceptable threshold!")
+        session.log("")
+        session.log("If this increase is necessary and optimized:")
+        session.log("  1. Verify the increase is justified")
+        session.log("  2. Document the reason in your PR description")
+        session.log("")
+        session.error(f"Binary size increased by {pct:.1f}% (>10% threshold)")
+    elif pct > 5:
+        session.warn(f"Binary size increased by {pct:.1f}%")

@@ -34,16 +34,16 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	clientID := sharedmode.RandomClientID()
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	coreLogger := streamLogger(streamStreamLoggerFile, settings2, sentry, logLevel)
-	runWork := provideStreamRunWork(coreLogger)
-	context := provideRunContext(runWork)
 	backend := NewBackend(coreLogger, settings2)
 	peeker := &observability.Peeker{}
 	client := NewGraphQLClient(backend, settings2, peeker, clientID)
-	serverFeaturesCache := featurechecker.NewServerFeaturesCache(context, client, coreLogger)
+	serverFeaturesCache := featurechecker.NewServerFeaturesCache(client, coreLogger)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	mailboxMailbox := mailbox.New()
 	wandbOperations := wboperation.NewOperations()
-	systemMonitorParams := monitor.SystemMonitorParams{
+	runWork := provideStreamRunWork(coreLogger)
+	context := provideRunContext(runWork)
+	systemMonitorFactory := &monitor.SystemMonitorFactory{
 		Ctx:                context,
 		Logger:             coreLogger,
 		Settings:           settings2,
@@ -52,17 +52,16 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		GraphqlClient:      client,
 		WriterID:           clientID,
 	}
-	systemMonitor := monitor.NewSystemMonitor(systemMonitorParams)
 	printer := observability.NewPrinter()
 	handlerFactory := &HandlerFactory{
-		Commit:            commit,
-		FileTransferStats: fileTransferStats,
-		Logger:            coreLogger,
-		Mailbox:           mailboxMailbox,
-		Operations:        wandbOperations,
-		Settings:          settings2,
-		SystemMonitor:     systemMonitor,
-		TerminalPrinter:   printer,
+		Commit:               commit,
+		FileTransferStats:    fileTransferStats,
+		Logger:               coreLogger,
+		Mailbox:              mailboxMailbox,
+		Operations:           wandbOperations,
+		Settings:             settings2,
+		SystemMonitorFactory: systemMonitorFactory,
+		TerminalPrinter:      printer,
 	}
 	streamRun := NewStreamRun()
 	recordParserFactory := &RecordParserFactory{

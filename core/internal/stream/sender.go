@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -216,6 +217,7 @@ func (f *SenderFactory) New() *Sender {
 		Label:                 f.Settings.GetLabel(),
 		RunfilesUploaderOrNil: runfilesUploader,
 		Structured: f.FeatureProvider.GetFeature(
+			context.Background(),
 			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
 		).Enabled,
 	}
@@ -235,6 +237,7 @@ func (f *SenderFactory) New() *Sender {
 			f.GraphqlClient,
 			f.FileTransferManager,
 			f.FeatureProvider.GetFeature(
+				context.Background(),
 				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
 			).Enabled,
 		),
