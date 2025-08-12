@@ -957,7 +957,7 @@ func (m *Model) renderStatusBar() string {
 			if statusText != "" {
 				statusText += " • "
 			}
-			statusText += fmt.Sprintf("%s", m.focusedTitle)
+			statusText += m.focusedTitle
 		}
 
 		// If nothing else to show, add a space to prevent empty status
