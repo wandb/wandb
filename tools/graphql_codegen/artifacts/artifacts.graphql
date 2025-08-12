@@ -159,6 +159,18 @@ query FetchLinkedArtifacts($artifactID: ID!) {
   }
 }
 
+query FetchArtifactManifest($entityName: String!, $projectName: String!, $name: String!) {
+  project(entityName: $entityName, name: $projectName) {
+    artifact(name: $name) {
+      currentManifest {
+        file {
+          directUrl
+        }
+      }
+    }
+  }
+}
+
 # ---------------------------------------------------------------------------
 mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
   addAliases(input: { artifactID: $artifactID, aliases: $aliases }) {
