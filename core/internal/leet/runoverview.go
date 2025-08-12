@@ -37,7 +37,7 @@ type SectionView struct {
 	CurrentPage   int
 	ItemsPerPage  int
 	CursorPos     int // Position within current page
-	Height        int // Allocated height for this section
+	Height        int // Total allocated height for this section (including title)
 	Active        bool
 	FilterMatches int
 }
@@ -282,44 +282,51 @@ func (s *Sidebar) calculateSectionHeights() {
 		return
 	}
 
-	// Reserve space for header - further reduced
-	headerLines := 6                              // "Run Overview" (1 + 1 margin) + State + ID + Name + Project
-	availableHeight := s.height - headerLines - 1 // -1 to ensure no overflow
+	// Reserve space for header
+	headerLines := 7 // "Run Overview" (1 + 1 margin) + State + ID + Name + Project + 1 empty line before sections
+	availableHeight := s.height - headerLines
 
-	// Calculate heights for each section
-	totalSections := 0
+	// Calculate how many sections have items
+	activeSections := 0
 	for i := range s.sections {
 		if len(s.sections[i].FilteredItems) > 0 {
-			totalSections++
+			activeSections++
 		}
 	}
 
-	if totalSections == 0 {
+	if activeSections == 0 {
 		return
 	}
 
-	// Overhead per section (title + minimal spacing)
-	sectionOverhead := 2 // title line + 1 spacing
-	availableForContent := availableHeight - (totalSections * sectionOverhead)
-
-	if availableForContent < totalSections*3 {
-		// Minimum viable space
-		availableForContent = totalSections * 3
+	// Calculate available space for all sections
+	// We need 1 line spacing between sections (activeSections - 1)
+	spacingBetweenSections := 0
+	if activeSections > 1 {
+		spacingBetweenSections = activeSections - 1
 	}
 
-	// Distribute space proportionally - increased limits to use more vertical space
-	envMax := 12
+	totalAvailable := availableHeight - spacingBetweenSections
+	if totalAvailable < activeSections*2 {
+		// Not enough space, give minimum to each
+		totalAvailable = activeSections * 2
+	}
+
+	// Distribute space proportionally
+	envMax := 12 // Total lines including title
 	configMax := 20
 	summaryMax := 25
 
-	// First pass: allocate based on actual item counts
+	// First pass: calculate desired heights
 	totalDesired := 0
+	desiredHeights := make([]int, len(s.sections))
+
 	for i := range s.sections {
 		section := &s.sections[i]
 		itemCount := len(section.FilteredItems)
 
 		if itemCount == 0 {
 			section.Height = 0
+			desiredHeights[i] = 0
 			continue
 		}
 
@@ -333,42 +340,99 @@ func (s *Sidebar) calculateSectionHeights() {
 			maxHeight = summaryMax
 		}
 
-		section.Height = min(itemCount, maxHeight)
-		totalDesired += section.Height
+		// Calculate desired height (title + items)
+		// We need at least 2 lines (title + 1 item)
+		desired := min(itemCount+1, maxHeight) // +1 for title
+		if desired < 2 {
+			desired = 2
+		}
+
+		desiredHeights[i] = desired
+		totalDesired += desired
 	}
 
-	// Second pass: if we have extra space, distribute it proportionally
-	if totalDesired < availableForContent {
-		extraSpace := availableForContent - totalDesired
+	// Second pass: scale down if necessary
+	if totalDesired > totalAvailable {
+		// Scale down proportionally
+		scaleFactor := float64(totalAvailable) / float64(totalDesired)
 
+		allocated := 0
 		for i := range s.sections {
-			section := &s.sections[i]
-			if section.Height > 0 && len(section.FilteredItems) > section.Height {
-				// This section has more items to show
-				var maxHeight int
-				switch i {
-				case 0: // Environment
-					maxHeight = envMax
-				case 1: // Config
-					maxHeight = configMax
-				case 2: // Summary
-					maxHeight = summaryMax
+			if desiredHeights[i] > 0 {
+				scaled := int(float64(desiredHeights[i]) * scaleFactor)
+				if scaled < 2 && s.sections[i].FilteredItems != nil && len(s.sections[i].FilteredItems) > 0 {
+					scaled = 2 // Minimum for non-empty sections
 				}
+				s.sections[i].Height = scaled
+				allocated += scaled
+			} else {
+				s.sections[i].Height = 0
+			}
+		}
 
-				// Give this section a proportional share of extra space
-				proportion := float64(section.Height) / float64(totalDesired)
-				extraForSection := int(float64(extraSpace) * proportion)
+		// Distribute any remaining space to the largest section
+		if allocated < totalAvailable {
+			remainder := totalAvailable - allocated
+			// Give remainder to Summary section if it has items
+			if len(s.sections[2].FilteredItems) > 0 && s.sections[2].Height > 0 {
+				s.sections[2].Height += remainder
+			} else if len(s.sections[1].FilteredItems) > 0 && s.sections[1].Height > 0 {
+				s.sections[1].Height += remainder
+			} else if len(s.sections[0].FilteredItems) > 0 && s.sections[0].Height > 0 {
+				s.sections[0].Height += remainder
+			}
+		}
+	} else {
+		// We have enough space, use desired heights
+		for i := range s.sections {
+			s.sections[i].Height = desiredHeights[i]
+		}
 
-				newHeight := min(section.Height+extraForSection, len(section.FilteredItems))
-				newHeight = min(newHeight, maxHeight)
-				section.Height = newHeight
+		// Distribute extra space if available
+		if totalDesired < totalAvailable {
+			extraSpace := totalAvailable - totalDesired
+
+			// Prioritize Summary, then Config, then Environment
+			for i := 2; i >= 0 && extraSpace > 0; i-- {
+				section := &s.sections[i]
+				if section.Height > 0 {
+					itemCount := len(section.FilteredItems)
+					currentItems := section.Height - 1 // Subtract title
+
+					if currentItems < itemCount {
+						var maxHeight int
+						switch i {
+						case 0: // Environment
+							maxHeight = envMax
+						case 1: // Config
+							maxHeight = configMax
+						case 2: // Summary
+							maxHeight = summaryMax
+						}
+
+						// How much more can this section take?
+						maxIncrease := min(maxHeight-section.Height, itemCount+1-section.Height)
+						increase := min(maxIncrease, extraSpace)
+
+						section.Height += increase
+						extraSpace -= increase
+					}
+				}
 			}
 		}
 	}
 
 	// Set items per page based on calculated height
+	// ItemsPerPage is the number of data items we can show (excluding title)
 	for i := range s.sections {
-		s.sections[i].ItemsPerPage = s.sections[i].Height
+		if s.sections[i].Height > 0 {
+			s.sections[i].ItemsPerPage = s.sections[i].Height - 1 // -1 for title
+			if s.sections[i].ItemsPerPage < 1 {
+				s.sections[i].ItemsPerPage = 1
+			}
+		} else {
+			s.sections[i].ItemsPerPage = 0
+		}
 	}
 }
 
@@ -521,7 +585,7 @@ func (s *Sidebar) updateFilter(query string) {
 // confirmFilter applies the filter (on Enter)
 func (s *Sidebar) confirmFilter() {
 	s.filterApplied = true
-	s.appliedQuery = s.filterQuery // This line was already correct
+	s.appliedQuery = s.filterQuery
 	s.filterActive = false
 	// Need to reapply the filter with the confirmed query
 	s.applyFilter()
@@ -636,7 +700,7 @@ func truncateValue(value string, maxWidth int) string {
 func (s *Sidebar) renderSection(idx int, width int) string {
 	section := &s.sections[idx]
 
-	if len(section.FilteredItems) == 0 {
+	if len(section.FilteredItems) == 0 || section.Height == 0 {
 		return ""
 	}
 
@@ -654,6 +718,7 @@ func (s *Sidebar) renderSection(idx int, width int) string {
 	// Calculate page info
 	startIdx := section.CurrentPage * section.ItemsPerPage
 	endIdx := min(startIdx+section.ItemsPerPage, filteredItems)
+	actualItemsToShow := endIdx - startIdx
 
 	titleText := section.Title
 	infoText := ""
@@ -674,14 +739,22 @@ func (s *Sidebar) renderSection(idx int, width int) string {
 	maxKeyWidth := (width * 2) / 5           // 40% for keys
 	maxValueWidth := width - maxKeyWidth - 1 // Account for space between
 
-	for i := startIdx; i < endIdx && i < len(section.FilteredItems); i++ {
-		item := section.FilteredItems[i]
+	// Only render as many items as we have space for
+	itemsToRender := min(actualItemsToShow, section.ItemsPerPage)
+
+	for i := 0; i < itemsToRender; i++ {
+		itemIdx := startIdx + i
+		if itemIdx >= len(section.FilteredItems) {
+			break
+		}
+
+		item := section.FilteredItems[itemIdx]
 
 		keyStyle := sidebarKeyStyle
 		valueStyle := sidebarValueStyle
 
 		// Highlight cursor position if section is active
-		if section.Active && i-startIdx == section.CursorPos {
+		if section.Active && i == section.CursorPos {
 			keyStyle = keyStyle.Background(lipgloss.Color("237"))
 			valueStyle = valueStyle.Background(lipgloss.Color("237"))
 		}
@@ -752,6 +825,10 @@ func (s *Sidebar) View(height int) string {
 	// Render sections
 	contentWidth := s.currentWidth - 4 // Account for padding and border
 	for i := range s.sections {
+		if s.sections[i].Height == 0 {
+			continue
+		}
+
 		sectionContent := s.renderSection(i, contentWidth)
 		if sectionContent != "" {
 			lines = append(lines, sectionContent)
@@ -760,7 +837,7 @@ func (s *Sidebar) View(height int) string {
 				// Check if next section has content
 				hasNextContent := false
 				for j := i + 1; j < len(s.sections); j++ {
-					if len(s.sections[j].FilteredItems) > 0 {
+					if s.sections[j].Height > 0 {
 						hasNextContent = true
 						break
 					}
