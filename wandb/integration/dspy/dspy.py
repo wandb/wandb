@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class WandbDSPyCallback(dspy.utils.BaseCallback):
-    def __init__(self) -> None:
+    def __init__(self, log_devset: bool = False) -> None:
         if wandb.run is None:
             raise wandb.Error(
                 "You must call `wandb.init()` before instantiating WandbDSPyCallback()."
@@ -32,7 +32,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         # Record feature usage for internal telemetry (optional but recommended).
         # with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
         #     tel.feature.dspy = True
-
+        self.log_devset: bool = log_devset
         self._did_log_config: bool = False
         self._temp_info_dict: dict[str, Any] = {}
         self._program_table: wandb.Table | None = None
@@ -127,12 +127,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
             # if self.log_devset:
             #     devset_obj = inputs.get("devset", None)
             #     if devset_obj:
-            #         dev_len = self._safe_len(devset_obj)
-            #         if dev_len is not None:
-            #             print("devset_length", dev_len)
-            #             # TODO (ayulockin): log devset as artifact
-            #             # Parse from stringified `Example` objects to `dict`s
-            #             pass
+            #         print("devset_obj", devset_obj)
 
         # 2) Build/append program signature tables from the 'program' input
         program_obj = inputs.get("program", None)
