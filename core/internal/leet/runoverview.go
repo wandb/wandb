@@ -121,16 +121,16 @@ func flattenMap(data map[string]any, prefix string, result *[]KeyValuePair, path
 		if prefix != "" {
 			fullKey = prefix + "." + k
 		}
-		newPath := append(path, k)
+		path := append(path, k)
 
 		switch val := v.(type) {
 		case map[string]any:
-			flattenMap(val, fullKey, result, newPath)
+			flattenMap(val, fullKey, result, path)
 		default:
 			*result = append(*result, KeyValuePair{
 				Key:   fullKey,
 				Value: fmt.Sprintf("%v", v),
-				Path:  newPath,
+				Path:  path,
 			})
 		}
 	}
@@ -215,13 +215,14 @@ func (s *Sidebar) applyFilter() {
 
 	// Parse section prefix
 	sectionFilter := ""
-	if strings.HasPrefix(query, "@e ") {
+	switch {
+	case strings.HasPrefix(query, "@e "):
 		sectionFilter = "environment"
 		query = strings.TrimPrefix(query, "@e ")
-	} else if strings.HasPrefix(query, "@c ") {
+	case strings.HasPrefix(query, "@c "):
 		sectionFilter = "config"
 		query = strings.TrimPrefix(query, "@c ")
-	} else if strings.HasPrefix(query, "@s ") {
+	case strings.HasPrefix(query, "@s "):
 		sectionFilter = "summary"
 		query = strings.TrimPrefix(query, "@s ")
 	}
@@ -376,11 +377,12 @@ func (s *Sidebar) calculateSectionHeights() {
 		if allocated < totalAvailable {
 			remainder := totalAvailable - allocated
 			// Give remainder to Summary section if it has items
-			if len(s.sections[2].FilteredItems) > 0 && s.sections[2].Height > 0 {
+			switch {
+			case len(s.sections[2].FilteredItems) > 0 && s.sections[2].Height > 0:
 				s.sections[2].Height += remainder
-			} else if len(s.sections[1].FilteredItems) > 0 && s.sections[1].Height > 0 {
+			case len(s.sections[1].FilteredItems) > 0 && s.sections[1].Height > 0:
 				s.sections[1].Height += remainder
-			} else if len(s.sections[0].FilteredItems) > 0 && s.sections[0].Height > 0 {
+			case len(s.sections[0].FilteredItems) > 0 && s.sections[0].Height > 0:
 				s.sections[0].Height += remainder
 			}
 		}
@@ -659,6 +661,7 @@ func (s *Sidebar) Update(msg tea.Msg) (*Sidebar, tea.Cmd) {
 			case tea.KeyRight:
 				s.navigatePage(1)
 			}
+		default:
 		}
 	}
 
@@ -725,12 +728,13 @@ func (s *Sidebar) renderSection(idx int, width int) string {
 	titleText := section.Title
 	infoText := ""
 
-	if (s.filterActive || s.filterApplied) && filteredItems != totalItems {
+	switch {
+	case (s.filterActive || s.filterApplied) && filteredItems != totalItems:
 		infoText = fmt.Sprintf(" [%d-%d of %d filtered from %d]",
 			startIdx+1, endIdx, filteredItems, totalItems)
-	} else if filteredItems > section.ItemsPerPage {
+	case filteredItems > section.ItemsPerPage:
 		infoText = fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, filteredItems)
-	} else if filteredItems > 0 {
+	case filteredItems > 0:
 		infoText = fmt.Sprintf(" [%d items]", filteredItems)
 	}
 
