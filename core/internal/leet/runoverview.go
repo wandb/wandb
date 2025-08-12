@@ -277,6 +277,8 @@ func (s *Sidebar) applyFilter() {
 }
 
 // calculateSectionHeights dynamically allocates heights to sections
+//
+//gocyclo:ignore
 func (s *Sidebar) calculateSectionHeights() {
 	if s.height == 0 {
 		return
@@ -783,13 +785,7 @@ func (s *Sidebar) View(height int) string {
 
 	// Build header
 	var lines []string
-
-	// Add "Run Overview" title with no left padding and margin below
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("230")).
-		MarginBottom(1)
-	lines = append(lines, titleStyle.Render("Run Overview"))
+	lines = append(lines, sidebarHeaderStyle.Render("Run Overview"))
 
 	// Add run state first
 	stateText := "State: "
@@ -918,7 +914,7 @@ func (s *Sidebar) GetFilterInfo() string {
 		if section.FilterMatches > 0 {
 			totalMatches += section.FilterMatches
 			matchInfo = append(matchInfo,
-				fmt.Sprintf("%s: %d", section.Title, section.FilterMatches))
+				fmt.Sprintf("@%s: %d", strings.ToLower(section.Title)[:1], section.FilterMatches))
 		}
 	}
 

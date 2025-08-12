@@ -874,6 +874,8 @@ func (m *Model) renderLoadingScreen() string {
 }
 
 // renderStatusBar creates the status bar
+//
+//gocyclo:ignore
 func (m *Model) renderStatusBar() string {
 	// Left side content
 	statusText := ""
@@ -946,7 +948,7 @@ func (m *Model) renderStatusBar() string {
 				if statusText != "" {
 					statusText += " • "
 				}
-				statusText += fmt.Sprintf("Selected: %s: %s", key, value)
+				statusText += fmt.Sprintf("%s: %s", key, value)
 			}
 		}
 
@@ -955,7 +957,7 @@ func (m *Model) renderStatusBar() string {
 			if statusText != "" {
 				statusText += " • "
 			}
-			statusText += fmt.Sprintf("Focused: %s", m.focusedTitle)
+			statusText += fmt.Sprintf("%s", m.focusedTitle)
 		}
 
 		// If nothing else to show, add a space to prevent empty status
