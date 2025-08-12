@@ -61,11 +61,13 @@ from wandb.util import (
 from ._generated import (
     ADD_ALIASES_GQL,
     DELETE_ALIASES_GQL,
+    FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
     LINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
     ArtifactAliasInput,
     ArtifactCollectionAliasInput,
+    FetchArtifactManifest,
     FetchLinkedArtifacts,
     LinkArtifact,
     LinkArtifactInput,
@@ -1063,37 +1065,24 @@ class Artifact:
             return self._manifest
 
         if self._manifest is None:
-            query = gql(
-                """
-                query ArtifactManifest(
-                    $entityName: String!,
-                    $projectName: String!,
-                    $name: String!
-                ) {
-                    project(entityName: $entityName, name: $projectName) {
-                        artifact(name: $name) {
-                            currentManifest {
-                                file {
-                                    directUrl
-                                }
-                            }
-                        }
-                    }
-                }
-                """
-            )
-            assert self._client is not None
-            response = self._client.execute(
-                query,
-                variable_values={
-                    "entityName": self._entity,
-                    "projectName": self._project,
-                    "name": self._name,
-                },
-            )
-            attrs = response["project"]["artifact"]
-            manifest_url = attrs["currentManifest"]["file"]["directUrl"]
-            self._manifest = self._load_manifest(manifest_url)
+            if self._client is None:
+                raise RuntimeError("Client not initialized for artifact queries")
+
+            query = gql(FETCH_ARTIFACT_MANIFEST_GQL)
+            gql_vars = {
+                "entityName": self.entity,
+                "projectName": self.project,
+                "name": self.name,
+            }
+            data = self._client.execute(query, variable_values=gql_vars)
+            result = FetchArtifactManifest.model_validate(data)
+            if not (
+                (project := result.project)
+                and (artifact := project.artifact)
+                and (manifest := artifact.current_manifest)
+            ):
+                raise ValueError("Failed to fetch artifact manifest")
+            self._manifest = self._load_manifest(manifest.file.direct_url)
 
         return self._manifest
 
