@@ -27,6 +27,11 @@ from .create_artifact_collection_tag_assignments import (
     CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignmentsTags,
 )
 from .delete_aliases import DeleteAliases, DeleteAliasesDeleteAliases
+from .delete_artifact import (
+    DeleteArtifact,
+    DeleteArtifactDeleteArtifact,
+    DeleteArtifactDeleteArtifactArtifact,
+)
 from .delete_artifact_collection_tag_assignments import (
     DeleteArtifactCollectionTagAssignments,
     DeleteArtifactCollectionTagAssignmentsDeleteArtifactCollectionTagAssignments,
@@ -114,6 +119,7 @@ from .operations import (
     CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
     DELETE_ALIASES_GQL,
     DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
+    DELETE_ARTIFACT_GQL,
     DELETE_ARTIFACT_PORTFOLIO_GQL,
     DELETE_ARTIFACT_SEQUENCE_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
@@ -196,6 +202,7 @@ __all__ = [
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ALIASES_GQL",
     "DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
+    "DELETE_ARTIFACT_GQL",
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
@@ -301,6 +308,9 @@ __all__ = [
     "DeleteAliasesDeleteAliases",
     "UpdateArtifact",
     "UpdateArtifactUpdateArtifact",
+    "DeleteArtifact",
+    "DeleteArtifactDeleteArtifact",
+    "DeleteArtifactDeleteArtifactArtifact",
     "LinkArtifact",
     "LinkArtifactLinkArtifact",
     "ArtifactAliasInput",

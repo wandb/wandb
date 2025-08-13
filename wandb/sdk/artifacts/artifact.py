@@ -74,6 +74,7 @@ from ._generated import (
     ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
     ARTIFACT_FILE_URLS_GQL,
     DELETE_ALIASES_GQL,
+    DELETE_ARTIFACT_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
     LINK_ARTIFACT_GQL,
@@ -2417,28 +2418,13 @@ class Artifact:
 
     @normalize_exceptions
     def _delete(self, delete_aliases: bool = False) -> None:
-        mutation = gql(
-            """
-            mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
-                deleteArtifact(input: {
-                    artifactID: $artifactID
-                    deleteAliases: $deleteAliases
-                }) {
-                    artifact {
-                        id
-                    }
-                }
-            }
-            """
-        )
-        assert self._client is not None
-        self._client.execute(
-            mutation,
-            variable_values={
-                "artifactID": self.id,
-                "deleteAliases": delete_aliases,
-            },
-        )
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        mutation = gql(DELETE_ARTIFACT_GQL)
+        gql_vars = {"artifactID": self.id, "deleteAliases": delete_aliases}
+
+        self._client.execute(mutation, variable_values=gql_vars)
 
     @normalize_exceptions
     def link(

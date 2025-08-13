@@ -11,6 +11,7 @@ __all__ = [
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ALIASES_GQL",
     "DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
+    "DELETE_ARTIFACT_GQL",
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
@@ -729,6 +730,16 @@ fragment ArtifactFragment on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+"""
+
+DELETE_ARTIFACT_GQL = """
+mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
+  deleteArtifact(input: {artifactID: $artifactID, deleteAliases: $deleteAliases}) {
+    artifact {
+      id
+    }
+  }
 }
 """
 

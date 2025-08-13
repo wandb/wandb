@@ -215,6 +215,14 @@ mutation UpdateArtifact(
   }
 }
 
+mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
+  deleteArtifact(input: { artifactID: $artifactID, deleteAliases: $deleteAliases }) {
+    artifact {
+      id
+    }
+  }
+}
+
 mutation LinkArtifact($input: LinkArtifactInput!) {
   linkArtifact(input: $input) {
     versionIndex
