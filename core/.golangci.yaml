@@ -1,0 +1,7 @@
+# https://golangci-lint.run/usage/configuration/
+version: "2"
+linters:
+  exclusions:
+    # https://golangci-lint.run/usage/false-positives/#preset-std-error-handling
+    presets:
+      - std-error-handling

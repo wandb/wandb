@@ -122,7 +122,7 @@ def test_log_media_with_invalid_character_on_windows(
     mock_run, image_media, invalid_character
 ):
     run = mock_run()
-    with pytest.raises(ValueError, match="Media .* is invalid"):
+    with pytest.raises(ValueError, match="Path .* is invalid"):
         image_media.bind_to_run(run, f"image{invalid_character}test", 0)
 
 

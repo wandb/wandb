@@ -5,19 +5,21 @@ import (
 	"testing"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -25,7 +27,7 @@ const validLinkArtifactResponse = `{
 	"linkArtifact": { "versionIndex": 0 }
 }`
 
-func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Sender {
+func makeSender(client graphql.Client) *stream.Sender {
 	runWork := runworktest.New()
 	logger := observability.NewNoOpLogger()
 	settings := wbsettings.From(&spb.Settings{
@@ -34,57 +36,44 @@ func makeSender(client graphql.Client, resultChan chan *spb.Result) *stream.Send
 		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
 	})
 	backend := stream.NewBackend(logger, settings)
-	fileStream := stream.NewFileStream(
-		backend,
-		logger,
-		nil, // operations
-		observability.NewPrinter(),
-		settings,
-		nil, // peeker
-		"clientId",
-	)
+	fileStreamFactory := &filestream.FileStreamFactory{
+		Logger:   logger,
+		Printer:  observability.NewPrinter(),
+		Settings: settings,
+	}
 	fileTransferManager := stream.NewFileTransferManager(
 		filetransfer.NewFileTransferStats(),
 		logger,
 		settings,
 	)
-	runfilesUploader := stream.NewRunfilesUploader(
-		runWork,
-		logger,
-		nil, // operations
-		settings,
-		fileStream,
-		fileTransferManager,
-		watchertest.NewFakeWatcher(),
-		client,
-	)
-	sender := stream.NewSender(
-		stream.SenderParams{
-			Logger:              logger,
-			Settings:            settings,
-			Backend:             backend,
-			FileStream:          fileStream,
-			FileTransferManager: fileTransferManager,
-			RunfilesUploader:    runfilesUploader,
-			OutChan:             resultChan,
-			Mailbox:             mailbox.New(),
-			GraphqlClient:       client,
-			RunWork:             runWork,
-			FeatureProvider: featurechecker.NewServerFeaturesCache(
-				runWork.BeforeEndCtx(),
-				nil,
-				logger,
-			),
-		},
-	)
-	return sender
+	runfilesUploaderFactory := &runfiles.UploaderFactory{
+		ExtraWork:    runWork,
+		FileTransfer: fileTransferManager,
+		FileWatcher:  watchertest.NewFakeWatcher(),
+		GraphQL:      client,
+		Logger:       logger,
+		Settings:     settings,
+	}
+
+	senderFactory := stream.SenderFactory{
+		Logger:                  logger,
+		Settings:                settings,
+		Backend:                 backend,
+		FileStreamFactory:       fileStreamFactory,
+		FileTransferManager:     fileTransferManager,
+		RunfilesUploaderFactory: runfilesUploaderFactory,
+		Mailbox:                 mailbox.New(),
+		GraphqlClient:           client,
+		RunWork:                 runWork,
+		FeatureProvider:         featurechecker.NewServerFeaturesCache(nil, logger),
+	}
+	return senderFactory.New()
 }
 
 // Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	outChan := make(chan *spb.Result, 1)
-	sender := makeSender(mockGQL, outChan)
+	sender := makeSender(mockGQL)
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	linkArtifact := &spb.Record{
@@ -111,7 +100,7 @@ func TestSendLinkArtifact(t *testing.T) {
 		validLinkArtifactResponse,
 	)
 	sender.SendRecord(linkArtifact)
-	<-outChan
+	<-sender.ResponseChan()
 
 	requests := mockGQL.AllRequests()
 	assert.Len(t, requests, 1)
@@ -145,7 +134,7 @@ func TestSendLinkArtifact(t *testing.T) {
 		validLinkArtifactResponse,
 	)
 	sender.SendRecord(linkArtifact)
-	<-outChan
+	<-sender.ResponseChan()
 
 	requests = mockGQL.AllRequests()
 	assert.Len(t, requests, 2)
@@ -179,7 +168,7 @@ func TestSendLinkArtifact(t *testing.T) {
 		validLinkArtifactResponse,
 	)
 	sender.SendRecord(linkArtifact)
-	<-outChan
+	<-sender.ResponseChan()
 
 	requests = mockGQL.AllRequests()
 	assert.Len(t, requests, 3)
@@ -194,7 +183,7 @@ func TestSendLinkArtifact(t *testing.T) {
 
 func TestSendUseArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	sender := makeSender(mockGQL, make(chan *spb.Result, 1))
+	sender := makeSender(mockGQL)
 
 	useArtifact := &spb.Record{
 		RecordType: &spb.Record_UseArtifact{

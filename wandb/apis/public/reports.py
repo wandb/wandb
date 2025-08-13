@@ -19,7 +19,7 @@ from wandb.sdk.lib import ipython
 
 
 class Reports(SizedPaginator["BetaReport"]):
-    """Reports is an iterable collection of `BetaReport` objects.
+    """Reports is a lazy iterator of `BetaReport` objects.
 
     Args:
         client (`wandb.apis.internal.Api`): The API client instance to use.

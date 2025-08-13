@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
@@ -52,32 +53,36 @@ type uploader struct {
 	watcher watcher.Watcher
 }
 
-func newUploader(params UploaderParams) *uploader {
+func newUploader(
+	f *UploaderFactory,
+	batchDelay waiting.Delay,
+	fileStream filestream.FileStream,
+) *uploader {
 	switch {
-	case params.ExtraWork == nil:
+	case f.ExtraWork == nil:
 		panic("runfiles: ExtraWork is nil")
-	case params.Logger == nil:
+	case f.Logger == nil:
 		panic("runfiles: Logger is nil")
-	case params.Settings == nil:
+	case f.Settings == nil:
 		panic("runfiles: Settings is nil")
-	case params.FileStream == nil:
+	case fileStream == nil:
 		panic("runfiles: FileStream is nil")
-	case params.FileTransfer == nil:
+	case f.FileTransfer == nil:
 		panic("runfiles: FileTransfer is nil")
-	case params.GraphQL == nil:
+	case f.GraphQL == nil:
 		panic("runfiles: GraphQL is nil")
-	case params.FileWatcher == nil:
+	case f.FileWatcher == nil:
 		panic("runfiles: FileWatcher is nil")
 	}
 
 	uploader := &uploader{
-		extraWork:  params.ExtraWork,
-		logger:     params.Logger,
-		operations: params.Operations,
-		fs:         params.FileStream,
-		ftm:        params.FileTransfer,
-		settings:   params.Settings,
-		graphQL:    params.GraphQL,
+		extraWork:  f.ExtraWork,
+		logger:     f.Logger,
+		operations: f.Operations,
+		fs:         fileStream,
+		ftm:        f.FileTransfer,
+		settings:   f.Settings,
+		graphQL:    f.GraphQL,
 
 		knownFiles:  make(map[paths.RelativePath]*savedFile),
 		uploadAtEnd: make(map[paths.RelativePath]struct{}),
@@ -85,11 +90,11 @@ func newUploader(params UploaderParams) *uploader {
 		uploadWG: &sync.WaitGroup{},
 		stateMu:  &sync.Mutex{},
 
-		watcher: params.FileWatcher,
+		watcher: f.FileWatcher,
 	}
 
 	uploader.uploadBatcher = newUploadBatcher(
-		params.BatchDelay,
+		batchDelay,
 		uploader.upload,
 	)
 

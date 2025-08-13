@@ -22,6 +22,7 @@ async def pass_if_cancelled() -> None:
         # asyncio_compat.run() to turn into task cancellation.
         with _got_cancelled_lock:
             _got_cancelled = True
+        raise
 
 
 if __name__ == "__main__":

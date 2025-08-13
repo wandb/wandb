@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 )
 
 // MockClient is a mock implementation of the genqlient Client interface.

@@ -14,7 +14,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import click
 import yaml
@@ -93,6 +93,39 @@ class ClickWandbException(ClickException):
                 " traceback.\n"
                 f"{orig_type}: {self.message}"
             )
+
+
+def parse_service_config(
+    ctx: Optional[click.Context],
+    param: Optional[click.Parameter],
+    value: Optional[Tuple[str, ...]],
+) -> Dict[str, str]:
+    """Parse service configurations in format serviceName=policy."""
+    if not value:
+        return {}
+
+    result = {}
+    for config in value:
+        if "=" not in config:
+            raise click.BadParameter(
+                f"Service must be in format 'serviceName=policy', got '{config}'"
+            )
+
+        service_name, policy = config.split("=", 1)
+        service_name = service_name.strip()
+        policy = policy.strip()
+        if not service_name:
+            raise click.BadParameter("Service name cannot be empty")
+
+        # Simple validation for two policies
+        if policy not in ["always", "never"]:
+            raise click.BadParameter(
+                f"Policy must be 'always' or 'never', got '{policy}'"
+            )
+
+        result[service_name] = policy
+
+    return result
 
 
 def display_error(func):
@@ -1864,6 +1897,15 @@ def describe(job):
     "job_type",
     type=click.Choice(("git", "code", "image")),
 )
+@click.option(
+    "--service",
+    "-s",
+    "services",
+    multiple=True,
+    callback=parse_service_config,
+    help="Service configurations in format serviceName=policy. Valid policies: always, never",
+    hidden=True,
+)
 @click.argument("path")
 def create(
     path,
@@ -1879,6 +1921,7 @@ def create(
     build_context,
     base_image,
     dockerfile,
+    services,
 ):
     """Create a job from a source, without a wandb run.
 
@@ -1928,6 +1971,7 @@ def create(
         build_context=build_context,
         base_image=base_image,
         dockerfile=dockerfile,
+        services=services,
     )
     if not artifact:
         wandb.termerror("Job creation failed")

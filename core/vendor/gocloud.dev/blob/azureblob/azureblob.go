@@ -188,11 +188,31 @@ type ServiceURLOptions struct {
 func NewDefaultServiceURLOptions() *ServiceURLOptions {
 	isCDN, _ := strconv.ParseBool(os.Getenv("AZURE_STORAGE_IS_CDN"))
 	isLocalEmulator, _ := strconv.ParseBool(os.Getenv("AZURE_STORAGE_IS_LOCAL_EMULATOR"))
+	accountName := os.Getenv("AZURE_STORAGE_ACCOUNT")
+	protocol := os.Getenv("AZURE_STORAGE_PROTOCOL")
+	connectionString := os.Getenv("AZURE_STORAGE_CONNECTION_STRING")
+	if connectionString == "" {
+		connectionString = os.Getenv("AZURE_STORAGEBLOB_CONNECTIONSTRING")
+	}
+	if connectionString != "" {
+		// Parse the connection string to get a default account name and protocol.
+		// Format: DefaultEndpointsProtocol=https;AccountName=some-account;AccountKey=very-secure;EndpointSuffix=core.windows.net
+		for _, part := range strings.Split(connectionString, ";") {
+			keyval := strings.Split(part, "=")
+			if len(keyval) == 2 {
+				if accountName == "" && keyval[0] == "AccountName" {
+					accountName = keyval[1]
+				} else if protocol == "" && keyval[0] == "DefaultEndpointsProtocol" {
+					protocol = keyval[1]
+				}
+			}
+		}
+	}
 	return &ServiceURLOptions{
-		AccountName:     os.Getenv("AZURE_STORAGE_ACCOUNT"),
+		AccountName:     accountName,
 		SASToken:        os.Getenv("AZURE_STORAGE_SAS_TOKEN"),
 		StorageDomain:   os.Getenv("AZURE_STORAGE_DOMAIN"),
-		Protocol:        os.Getenv("AZURE_STORAGE_PROTOCOL"),
+		Protocol:        protocol,
 		IsCDN:           isCDN,
 		IsLocalEmulator: isLocalEmulator,
 	}

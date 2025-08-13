@@ -58,9 +58,9 @@ func (w *RunUpdateWork) Accept(_ func(*spb.Record)) bool {
 	return true
 }
 
-// Save implements Work.Save.
-func (w *RunUpdateWork) Save(write func(*spb.Record)) {
-	write(w.Record)
+// ToRecord implements Work.ToRecord.
+func (w *RunUpdateWork) ToRecord() *spb.Record {
+	return w.Record
 }
 
 // Process implements Work.Process.
@@ -162,11 +162,6 @@ func runInitErrorResult(err error) *spb.RunUpdateResult {
 // BypassOfflineMode implements Work.BypassOfflineMode.
 func (w *RunUpdateWork) BypassOfflineMode() bool {
 	return true
-}
-
-// Sentinel implements Work.Sentinel.
-func (w *RunUpdateWork) Sentinel() any {
-	return nil
 }
 
 // DebugInfo implements Work.DebugInfo.

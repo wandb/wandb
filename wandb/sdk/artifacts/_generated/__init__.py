@@ -34,6 +34,13 @@ from .delete_artifact_sequence import (
     DeleteArtifactSequenceDeleteArtifactSequenceArtifactCollection,
 )
 from .enums import ArtifactCollectionState, ArtifactState
+from .fetch_artifact_manifest import (
+    FetchArtifactManifest,
+    FetchArtifactManifestProject,
+    FetchArtifactManifestProjectArtifact,
+    FetchArtifactManifestProjectArtifactCurrentManifest,
+    FetchArtifactManifestProjectArtifactCurrentManifestFile,
+)
 from .fetch_linked_artifacts import (
     FetchLinkedArtifacts,
     FetchLinkedArtifactsArtifact,
@@ -94,6 +101,7 @@ from .operations import (
     DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
     DELETE_ARTIFACT_PORTFOLIO_GQL,
     DELETE_ARTIFACT_SEQUENCE_GQL,
+    FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
     LINK_ARTIFACT_GQL,
     MOVE_ARTIFACT_COLLECTION_GQL,
@@ -172,6 +180,7 @@ __all__ = [
     "DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
+    "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
     "LINK_ARTIFACT_GQL",
     "MOVE_ARTIFACT_COLLECTION_GQL",
@@ -256,6 +265,11 @@ __all__ = [
     "FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeAliases",
     "FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection",
     "FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollectionProject",
+    "FetchArtifactManifest",
+    "FetchArtifactManifestProject",
+    "FetchArtifactManifestProjectArtifact",
+    "FetchArtifactManifestProjectArtifactCurrentManifest",
+    "FetchArtifactManifestProjectArtifactCurrentManifestFile",
     "AddAliases",
     "AddAliasesAddAliases",
     "DeleteAliases",

@@ -11,7 +11,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	. "github.com/wandb/wandb/core/internal/runconsolelogs"
-	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runfilestest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sparselist"
@@ -31,8 +30,8 @@ func TestFileStreamUpdates(t *testing.T) {
 		FilesDir:          settings.GetFilesDir(),
 		EnableCapture:     true,
 		Logger:            observability.NewNoOpLogger(),
-		RunfilesUploaderOrNil: runfiles.NewUploader(
-			runfilestest.WithTestDefaults(runfiles.UploaderParams{}),
+		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(
+			runfilestest.Params{},
 		),
 		FileStreamOrNil: fileStream,
 		GetNow: func() time.Time {
@@ -70,8 +69,8 @@ func TestFileStreamUpdatesDisabled(t *testing.T) {
 		FilesDir:          settings.GetFilesDir(),
 		EnableCapture:     false,
 		Logger:            observability.NewNoOpLogger(),
-		RunfilesUploaderOrNil: runfiles.NewUploader(
-			runfilestest.WithTestDefaults(runfiles.UploaderParams{}),
+		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(
+			runfilestest.Params{},
 		),
 		FileStreamOrNil: fileStream,
 		GetNow: func() time.Time {

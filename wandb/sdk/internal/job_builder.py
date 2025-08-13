@@ -109,6 +109,7 @@ class JobSourceDict(TypedDict, total=False):
     input_types: Dict[str, Any]
     output_types: Dict[str, Any]
     runtime: Optional[str]
+    services: Dict[str, str]
 
 
 class ArtifactInfoForJob(TypedDict):
@@ -143,6 +144,7 @@ class JobBuilder:
     _job_version_alias: Optional[str]
     _is_notebook_run: bool
     _verbose: bool
+    _services: Dict[str, str]
 
     def __init__(self, settings: SettingsStatic, verbose: bool = False):
         self._settings = settings
@@ -162,6 +164,7 @@ class JobBuilder:
         self._is_notebook_run = self._get_is_notebook_run()
         self._verbose = verbose
         self._partial = False
+        self._services = {}
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -543,6 +546,9 @@ class JobBuilder:
             "output_types": output_types,
             "runtime": runtime,
         }
+
+        if self._services:
+            source_info["services"] = self._services
 
         assert source_info is not None
         assert name is not None

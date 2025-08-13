@@ -1,119 +1,123 @@
 fragment SlackIntegrationFields on SlackIntegration {
-    __typename
-    id
-    teamName
-    channelName
+  __typename
+  id
+  teamName
+  channelName
 }
 fragment GenericWebhookIntegrationFields on GenericWebhookIntegration {
-    __typename
-    id
-    name
-    urlEndpoint
+  __typename
+  id
+  name
+  urlEndpoint
 }
 
 # ------------------------------------------------------------------------------
 fragment ProjectScopeFields on Project {
-    __typename
-    id
-    name
+  __typename
+  id
+  name
 }
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
-    __typename
-    id
-    name
+  __typename
+  id
+  name
 }
 fragment ArtifactSequenceScopeFields on ArtifactSequence {
-    __typename
-    id
-    name
+  __typename
+  id
+  name
 }
 
 # ------------------------------------------------------------------------------
 fragment FilterEventFields on FilterEventTriggeringCondition {
-    __typename
-    eventType
-    filter
+  __typename
+  eventType
+  filter
 }
 
 # ------------------------------------------------------------------------------
 fragment QueueJobActionFields on QueueJobTriggeredAction {
-    __typename
-    queue {
-        id
-        name
-    }
-    template
+  __typename
+  queue {
+    id
+    name
+  }
+  template
 }
 fragment NotificationActionFields on NotificationTriggeredAction {
+  __typename
+  integration {
     __typename
-    integration {
-        __typename
-        ...SlackIntegrationFields
-    }
-    title
-    message
-    severity
+    ...SlackIntegrationFields
+  }
+  title
+  message
+  severity
 }
 fragment GenericWebhookActionFields on GenericWebhookTriggeredAction {
+  __typename
+  integration {
     __typename
-    integration {
-        __typename
-        ...GenericWebhookIntegrationFields
-    }
-    requestPayload
+    ...GenericWebhookIntegrationFields
+  }
+  requestPayload
 }
 fragment NoOpActionFields on NoOpTriggeredAction {
-    __typename
-    noOp # GraphQL doesn't support empty objects, so this should be an ignored placeholder field
+  __typename
+  noOp # GraphQL doesn't support empty objects, so this should be an ignored placeholder field
 }
 
 # ------------------------------------------------------------------------------
 fragment TriggerFields on Trigger {
+  __typename
+
+  id
+  createdAt
+  updatedAt
+
+  name
+  description
+  enabled
+
+  scope {
     __typename
-
-    id
-    createdAt
-    updatedAt
-
-    name
-    description
-    enabled
-
-    scope {
-        __typename
-        ...ProjectScopeFields
-        ...ArtifactPortfolioScopeFields
-        ...ArtifactSequenceScopeFields
-    }
-    event: triggeringCondition {
-        __typename
-        ...FilterEventFields
-    }
-    action: triggeredAction {
-        __typename
-        ...QueueJobActionFields
-        ...NotificationActionFields
-        ...GenericWebhookActionFields
-        ...NoOpActionFields
-    }
+    ...ProjectScopeFields
+    ...ArtifactPortfolioScopeFields
+    ...ArtifactSequenceScopeFields
+  }
+  event: triggeringCondition {
+    __typename
+    ...FilterEventFields
+  }
+  action: triggeredAction {
+    __typename
+    ...QueueJobActionFields
+    ...NotificationActionFields
+    ...GenericWebhookActionFields
+    ...NoOpActionFields
+  }
 }
 
 # ------------------------------------------------------------------------------
 fragment PageInfoFields on PageInfo {
-    endCursor
-    hasNextPage
+  endCursor
+  hasNextPage
 }
 
 # ------------------------------------------------------------------------------
 fragment ProjectConnectionFields on ProjectConnection {
-    __typename
-    pageInfo {...PageInfoFields}
-    edges {
-        cursor
-        node {
-            triggers {...TriggerFields}
-        }
+  __typename
+  pageInfo {
+    ...PageInfoFields
+  }
+  edges {
+    cursor
+    node {
+      triggers {
+        ...TriggerFields
+      }
     }
+  }
 }
 
 # For now, this query is used to fetch all triggers known to the user.
@@ -121,133 +125,124 @@ fragment ProjectConnectionFields on ProjectConnection {
 # top-level `triggers(...)` query.  The fact that triggers can only be searched under
 # an individual project or collection is a bit awkward, but has historically been
 # needed to support the UI alone.
-query GetAutomations (
-    $cursor: String,
-    $perPage: Int,
-) {
-    searchScope: viewer {
-        projects(after: $cursor, first: $perPage) {
-            ...ProjectConnectionFields
-        }
+query GetAutomations($cursor: String, $perPage: Int) {
+  searchScope: viewer {
+    projects(after: $cursor, first: $perPage) {
+      ...ProjectConnectionFields
     }
+  }
 }
-query GetAutomationsByEntity (
-    $entityName: String!,
-    $cursor: String,
-    $perPage: Int,
-) {
-    searchScope: entity (name: $entityName) {
-        projects(after: $cursor, first: $perPage) {
-            ...ProjectConnectionFields
-        }
+query GetAutomationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
+  searchScope: entity(name: $entityName) {
+    projects(after: $cursor, first: $perPage) {
+      ...ProjectConnectionFields
     }
+  }
 }
 
 # ------------------------------------------------------------------------------
 fragment CreateAutomationResult on CreateFilterTriggerPayload {
-    __typename
-    trigger {...TriggerFields}
+  __typename
+  trigger {
+    ...TriggerFields
+  }
 }
 mutation CreateAutomation($params: CreateFilterTriggerInput!) {
-    result: createFilterTrigger(input: $params) {
-        ...CreateAutomationResult
-    }
+  result: createFilterTrigger(input: $params) {
+    ...CreateAutomationResult
+  }
 }
 
 fragment UpdateAutomationResult on UpdateFilterTriggerPayload {
-    __typename
-    trigger {...TriggerFields}
+  __typename
+  trigger {
+    ...TriggerFields
+  }
 }
 mutation UpdateAutomation($params: UpdateFilterTriggerInput!) {
-    result: updateFilterTrigger(input: $params) {
-        ...UpdateAutomationResult
-    }
+  result: updateFilterTrigger(input: $params) {
+    ...UpdateAutomationResult
+  }
 }
 
 fragment DeleteAutomationResult on DeleteTriggerPayload {
-    __typename
-    success
+  __typename
+  success
 }
 mutation DeleteAutomation($id: ID!) {
-    result: deleteTrigger(input: {triggerID: $id}) {
-        ...DeleteAutomationResult
-    }
+  result: deleteTrigger(input: { triggerID: $id }) {
+    ...DeleteAutomationResult
+  }
 }
 
 # ------------------------------------------------------------------------------
 fragment IntegrationConnectionFields on IntegrationConnection {
-    __typename
-    pageInfo {...PageInfoFields}
-    edges {
-        cursor
-        node {
-            __typename
-            ...SlackIntegrationFields
-            ...GenericWebhookIntegrationFields
-        }
+  __typename
+  pageInfo {
+    ...PageInfoFields
+  }
+  edges {
+    cursor
+    node {
+      __typename
+      ...SlackIntegrationFields
+      ...GenericWebhookIntegrationFields
     }
+  }
 }
 fragment SlackIntegrationConnectionFields on IntegrationConnection {
-    __typename
-    pageInfo {...PageInfoFields}
-    edges {
-        cursor
-        node {
-            __typename
-            ...SlackIntegrationFields
-        }
+  __typename
+  pageInfo {
+    ...PageInfoFields
+  }
+  edges {
+    cursor
+    node {
+      __typename
+      ...SlackIntegrationFields
     }
+  }
 }
 fragment GenericWebhookIntegrationConnectionFields on IntegrationConnection {
-    __typename
-    pageInfo {...PageInfoFields}
-    edges {
-        cursor
-        node {
-            __typename
-            ...GenericWebhookIntegrationFields
-        }
+  __typename
+  pageInfo {
+    ...PageInfoFields
+  }
+  edges {
+    cursor
+    node {
+      __typename
+      ...GenericWebhookIntegrationFields
     }
+  }
 }
 
-query IntegrationsByEntity(
-    $entityName: String!,
-    $cursor: String,
-    $perPage: Int,
-) {
-    entity(name: $entityName) {
-        integrations(after: $cursor, first: $perPage) {
-            ...IntegrationConnectionFields
-        }
+query IntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
+  entity(name: $entityName) {
+    integrations(after: $cursor, first: $perPage) {
+      ...IntegrationConnectionFields
     }
+  }
 }
-query SlackIntegrationsByEntity(
-    $entityName: String!,
-    $cursor: String,
-    $perPage: Int,
-) {
-    entity(name: $entityName) {
-        integrations(after: $cursor, first: $perPage) {
-            ...SlackIntegrationConnectionFields
-        }
+query SlackIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
+  entity(name: $entityName) {
+    integrations(after: $cursor, first: $perPage) {
+      ...SlackIntegrationConnectionFields
     }
+  }
 }
-query GenericWebhookIntegrationsByEntity(
-    $entityName: String!,
-    $cursor: String,
-    $perPage: Int,
-) {
-    entity(name: $entityName) {
-        integrations(after: $cursor, first: $perPage) {
-            ...GenericWebhookIntegrationConnectionFields
-        }
+query GenericWebhookIntegrationsByEntity($entityName: String!, $cursor: String, $perPage: Int) {
+  entity(name: $entityName) {
+    integrations(after: $cursor, first: $perPage) {
+      ...GenericWebhookIntegrationConnectionFields
     }
+  }
 }
 
 mutation CreateGenericWebhookIntegration($params: CreateGenericWebhookIntegrationInput!) {
-    createGenericWebhookIntegration(input: $params) {
-        integration {
-            ...GenericWebhookIntegrationFields
-        }
+  createGenericWebhookIntegration(input: $params) {
+    integration {
+      ...GenericWebhookIntegrationFields
     }
+  }
 }

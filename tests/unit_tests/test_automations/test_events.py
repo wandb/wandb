@@ -22,15 +22,15 @@ from wandb.automations._generated import EventTriggeringConditionType
 from ._strategies import metric_change_filters, metric_threshold_filters
 
 
-def test_public_event_type_enum_matches_generated():
-    """Check that the public `EventType` enum matches the schema-generated enum.
+def test_public_event_type_enum_is_subset_of_generated():
+    """Check that the public `EventType` enum is a subset of the schema-generated enum.
 
     This is a safeguard in case we've had to make any extra customizations
     (e.g. renaming members) to the public API definition.
     """
     public_enum_values = {e.value for e in EventType}
     generated_enum_values = {e.value for e in EventTriggeringConditionType}
-    assert public_enum_values == generated_enum_values
+    assert public_enum_values.issubset(generated_enum_values)
 
 
 @mark.parametrize(

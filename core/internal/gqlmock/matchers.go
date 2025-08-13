@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 )
 
 // WithOpName matches any GraphQL request with the given OpName.

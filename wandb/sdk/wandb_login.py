@@ -259,7 +259,8 @@ class _WandbLogin:
 
         if not is_api_key_valid:
             raise AuthenticationError(
-                "API key verification failed. Make sure your API key is valid."
+                f"API key verification failed for host {self._settings.base_url}."
+                " Make sure your API key is valid."
             )
 
 
@@ -273,6 +274,7 @@ def _login(
     timeout: Optional[int] = None,
     verify: bool = False,
     referrer: str = "models",
+    update_api_key: bool = True,
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
 ) -> bool:
@@ -319,7 +321,8 @@ def _login(
         wlogin._verify_login(key)
 
     if not key_is_pre_configured:
-        wlogin.try_save_api_key(key)
+        if update_api_key:
+            wlogin.try_save_api_key(key)
         wlogin.update_session(key, status=key_status)
         wlogin._update_global_anonymous_setting()
 

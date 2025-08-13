@@ -1,6 +1,9 @@
 # NOTE: We use Hatch to build wandb, and it respects the *first* .gitignore
 # file it sees. It doesn't consider .gitignore files in subdirectories.
 
+# Mac file system metadata
+.DS_Store
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

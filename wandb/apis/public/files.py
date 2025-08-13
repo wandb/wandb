@@ -76,7 +76,7 @@ FILE_FRAGMENT = """fragment RunFilesFragment on Run {
 
 
 class Files(SizedPaginator["File"]):
-    """An iterable collection of `File` objects.
+    """A lazy iterator over a collection of `File` objects.
 
     Access and manage files uploaded to W&B during a run. Handles pagination
     automatically when iterating through large collections of files.
@@ -128,7 +128,9 @@ class Files(SizedPaginator["File"]):
         upload: bool = False,
         pattern: str | None = None,
     ):
-        """An iterable collection of `File` objects for a specific run.
+        """Initialize a lazy iterator over a collection of `File` objects.
+
+        Files are retrieved in pages from the W&B server as needed.
 
         Args:
         client: The run object that contains the files

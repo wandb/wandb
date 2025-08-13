@@ -6,6 +6,8 @@ import datetime
 import json
 import logging
 import os
+import time
+import uuid
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
@@ -20,6 +22,7 @@ from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.sdk.launch.runner.abstract import Status
 from wandb.sdk.launch.runner.kubernetes_monitor import (
     WANDB_K8S_LABEL_AGENT,
+    WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
     WANDB_K8S_LABEL_MONITOR,
     WANDB_K8S_RUN_ID,
     CustomResource,
@@ -47,6 +50,9 @@ get_module(
 
 import kubernetes_asyncio  # type: ignore # noqa: E402
 from kubernetes_asyncio import client  # noqa: E402
+from kubernetes_asyncio.client.api.apps_v1_api import (  # type: ignore # noqa: E402
+    AppsV1Api,
+)
 from kubernetes_asyncio.client.api.batch_v1_api import (  # type: ignore # noqa: E402
     BatchV1Api,
 )
@@ -78,9 +84,11 @@ class KubernetesSubmittedRun(AbstractRun):
         self,
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
+        apps_api: "AppsV1Api",
         name: str,
         namespace: Optional[str] = "default",
         secret: Optional["V1Secret"] = None,
+        auxiliary_resource_label_key: Optional[str] = None,
     ) -> None:
         """Initialize a KubernetesSubmittedRun.
 
@@ -104,10 +112,12 @@ class KubernetesSubmittedRun(AbstractRun):
         """
         self.batch_api = batch_api
         self.core_api = core_api
+        self.apps_api = apps_api
         self.name = name
         self.namespace = namespace
         self._fail_count = 0
         self.secret = secret
+        self.auxiliary_resource_label_key = auxiliary_resource_label_key
 
     @property
     def id(self) -> str:
@@ -149,6 +159,7 @@ class KubernetesSubmittedRun(AbstractRun):
             await asyncio.sleep(5)
 
         await self._delete_secret()
+        await self._delete_auxiliary_resources_by_label()
         return (
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
@@ -157,6 +168,7 @@ class KubernetesSubmittedRun(AbstractRun):
         status = LaunchKubernetesMonitor.get_status(self.name)
         if status in ["stopped", "failed", "finished", "preempted"]:
             await self._delete_secret()
+            await self._delete_auxiliary_resources_by_label()
         return status
 
     async def cancel(self) -> None:
@@ -167,6 +179,7 @@ class KubernetesSubmittedRun(AbstractRun):
                 name=self.name,
             )
             await self._delete_secret()
+            await self._delete_auxiliary_resources_by_label()
         except ApiException as e:
             raise LaunchError(
                 f"Failed to delete Kubernetes Job {self.name} in namespace {self.namespace}: {str(e)}"
@@ -180,6 +193,52 @@ class KubernetesSubmittedRun(AbstractRun):
                 namespace=self.secret.metadata.namespace,
             )
             self.secret = None
+
+    async def _delete_auxiliary_resources_by_label(self) -> None:
+        if self.auxiliary_resource_label_key is None:
+            return
+
+        label_selector = (
+            f"{WANDB_K8S_LABEL_AUXILIARY_RESOURCE}={self.auxiliary_resource_label_key}"
+        )
+
+        try:
+            resource_cleanups = [
+                (self.core_api, "service"),
+                (self.batch_api, "job"),
+                (self.core_api, "pod"),
+                (self.core_api, "config_map"),
+                (self.core_api, "secret"),
+                (self.apps_api, "deployment"),
+                (self.apps_api, "replica_set"),
+                (self.apps_api, "daemon_set"),
+            ]
+
+            for api_client, resource_type in resource_cleanups:
+                try:
+                    list_method = getattr(
+                        api_client, f"list_namespaced_{resource_type}"
+                    )
+                    delete_method = getattr(
+                        api_client, f"delete_namespaced_{resource_type}"
+                    )
+
+                    # List resources with our label
+                    resources = await list_method(
+                        namespace=self.namespace, label_selector=label_selector
+                    )
+
+                    # Delete each resource
+                    for resource in resources.items:
+                        await delete_method(
+                            name=resource.metadata.name, namespace=self.namespace
+                        )
+
+                except (AttributeError, ApiException) as e:
+                    wandb.termwarn(f"Could not clean up {resource_type}: {e}")
+
+        except Exception as e:
+            wandb.termwarn(f"Failed to clean up some auxiliary resources: {e}")
 
 
 class CrdSubmittedRun(AbstractRun):
@@ -366,6 +425,7 @@ class KubernetesRunner(AbstractRunner):
             job_metadata["generateName"] = make_name_dns_safe(
                 f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
             )
+        job_metadata["namespace"] = namespace
 
         for i, cont in enumerate(containers):
             if "name" not in cont:
@@ -488,6 +548,235 @@ class KubernetesRunner(AbstractRunner):
             )
 
         return job, api_key_secret
+
+    async def _wait_for_resource_ready(
+        self,
+        api_client: kubernetes_asyncio.client.ApiClient,
+        config: Dict[str, Any],
+        namespace: str,
+        timeout_seconds: int = 300,
+    ) -> None:
+        """Wait for a Kubernetes resource to be ready.
+
+        Arguments:
+            api_client: The Kubernetes API client.
+            config: The resource configuration.
+            namespace: The namespace where the resource was created.
+            timeout_seconds: Maximum time to wait for readiness.
+        """
+        resource_kind = config.get("kind")
+        resource_name = config.get("metadata", {}).get("name")
+
+        if not resource_kind or not resource_name:
+            wandb.termerror(
+                f"{LOG_PREFIX}Cannot wait for resource without kind or name"
+            )
+            return
+
+        wandb.termlog(
+            f"{LOG_PREFIX}Waiting for {resource_kind} '{resource_name}' to be ready..."
+        )
+
+        start_time = time.time()
+
+        if resource_kind == "Deployment":
+            await self._wait_for_deployment_ready(
+                api_client, resource_name, namespace, timeout_seconds
+            )
+        elif resource_kind == "Service":
+            await self._wait_for_service_ready(
+                api_client, resource_name, namespace, timeout_seconds
+            )
+        elif resource_kind == "Pod":
+            await self._wait_for_pod_ready(
+                api_client, resource_name, namespace, timeout_seconds
+            )
+        else:
+            wandb.termlog(
+                f"{LOG_PREFIX}No specific readiness check for {resource_kind}, waiting 5 seconds..."
+            )
+            await asyncio.sleep(5)
+
+        elapsed = time.time() - start_time
+        wandb.termlog(
+            f"{LOG_PREFIX}{resource_kind} '{resource_name}' is ready after {elapsed:.1f}s"
+        )
+
+    async def _wait_for_deployment_ready(
+        self,
+        api_client: kubernetes_asyncio.client.ApiClient,
+        name: str,
+        namespace: str,
+        timeout_seconds: int,
+    ) -> None:
+        """Wait for a Deployment to be ready."""
+        apps_api = kubernetes_asyncio.client.AppsV1Api(api_client)
+
+        async def check_deployment_ready():
+            deployment = await apps_api.read_namespaced_deployment(
+                name=name, namespace=namespace
+            )
+            status = deployment.status
+
+            if status.ready_replicas and status.replicas:
+                return status.ready_replicas >= status.replicas
+
+            return False
+
+        await self._wait_with_timeout(check_deployment_ready, timeout_seconds, name)
+
+    async def _wait_for_service_ready(
+        self,
+        api_client: kubernetes_asyncio.client.ApiClient,
+        name: str,
+        namespace: str,
+        timeout_seconds: int,
+    ) -> None:
+        """Wait for a Service to have endpoints."""
+        core_api = kubernetes_asyncio.client.CoreV1Api(api_client)
+
+        async def check_service_ready():
+            endpoints = await core_api.read_namespaced_endpoints(
+                name=name, namespace=namespace
+            )
+            if endpoints.subsets:
+                for subset in endpoints.subsets:
+                    if subset.addresses:  # These are ready pod addresses
+                        return True
+            return False
+
+        await self._wait_with_timeout(check_service_ready, timeout_seconds, name)
+
+    async def _wait_for_pod_ready(
+        self,
+        api_client: kubernetes_asyncio.client.ApiClient,
+        name: str,
+        namespace: str,
+        timeout_seconds: int,
+    ) -> None:
+        """Wait for a Pod to be ready."""
+        core_api = kubernetes_asyncio.client.CoreV1Api(api_client)
+
+        async def check_pod_ready():
+            pod = await core_api.read_namespaced_pod(name=name, namespace=namespace)
+            if pod.status.phase == "Running":
+                if pod.status.container_statuses:
+                    return all(status.ready for status in pod.status.container_statuses)
+                return True
+            return False
+
+        await self._wait_with_timeout(check_pod_ready, timeout_seconds, name)
+
+    async def _wait_with_timeout(
+        self, check_func, timeout_seconds: int, name: str
+    ) -> None:
+        """Generic timeout wrapper for readiness checks."""
+        start_time = time.time()
+
+        while time.time() - start_time < timeout_seconds:
+            try:
+                if await check_func():
+                    return
+            except kubernetes_asyncio.client.ApiException as e:
+                if e.status == 404:
+                    pass
+                else:
+                    wandb.termerror(
+                        f"{LOG_PREFIX}Error waiting for resource '{name}': {e}"
+                    )
+                    raise
+            except Exception as e:
+                wandb.termerror(f"{LOG_PREFIX}Error waiting for resource '{name}': {e}")
+                raise
+            await asyncio.sleep(2)
+
+        raise LaunchError(
+            f"Resource '{name}' not ready within {timeout_seconds} seconds"
+        )
+
+    async def _prepare_resource(
+        self,
+        api_client: kubernetes_asyncio.client.ApiClient,
+        config: Dict[str, Any],
+        namespace: str,
+        run_id: str,
+        auxiliary_resource_label_key: str,
+        launch_project: LaunchProject,
+        api_key_secret: Optional["V1Secret"] = None,
+        wait_for_ready: bool = True,
+        wait_timeout: int = 300,
+    ) -> None:
+        """Prepare a service for launch.
+
+        Arguments:
+            api_client: The Kubernetes API client.
+            config: The resource configuration to prepare.
+            namespace: The namespace to create the resource in.
+            run_id: The run ID to label the resource with.
+            auxiliary_resource_label_key: The key of the auxiliary resource label.
+            launch_project: The launch project to get environment variables from.
+            api_key_secret: The API key secret to inject.
+            wait_for_ready: Whether to wait for the resource to be ready after creation.
+            wait_timeout: Maximum time in seconds to wait for resource readiness.
+        """
+        config.setdefault("metadata", {})
+        config["metadata"].setdefault("labels", {})
+        config["metadata"]["labels"][WANDB_K8S_RUN_ID] = run_id
+        config["metadata"]["labels"][WANDB_K8S_LABEL_AUXILIARY_RESOURCE] = (
+            auxiliary_resource_label_key
+        )
+        config["metadata"]["labels"]["wandb.ai/created-by"] = "launch-agent"
+
+        if config.get("kind") == "Service" or config.get("kind") == "Deployment":
+            config.setdefault("metadata", {})
+            original_name = config["metadata"].get("name", config.get("kind"))
+            safe_name = make_name_dns_safe(original_name)
+            safe_entity = make_name_dns_safe(launch_project.target_entity or "")
+            safe_project = make_name_dns_safe(launch_project.target_project or "")
+            safe_run_id = make_name_dns_safe(run_id or "")
+
+            new_name = f"{safe_name}-{safe_entity}-{safe_project}-{safe_run_id}"
+            config["metadata"]["name"] = new_name
+            wandb.termlog(
+                f"{LOG_PREFIX}Modified {config.get('kind')} name from '{original_name}' to '{new_name}'"
+            )
+
+        env_vars = launch_project.get_env_vars_dict(
+            self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        )
+        wandb_config_env = {
+            "WANDB_CONFIG": env_vars.get("WANDB_CONFIG", "{}"),
+        }
+        add_wandb_env(config, wandb_config_env)
+
+        if api_key_secret:
+            for cont in yield_containers(config):
+                env = cont.setdefault("env", [])
+                env.append(
+                    {
+                        "name": "WANDB_API_KEY",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": api_key_secret.metadata.name,
+                                "key": "password",
+                            }
+                        },
+                    }
+                )
+                cont["env"] = env
+
+        try:
+            await kubernetes_asyncio.utils.create_from_dict(
+                api_client, config, namespace=namespace
+            )
+
+            if wait_for_ready:
+                await self._wait_for_resource_ready(
+                    api_client, config, namespace, wait_timeout
+                )
+        except Exception as e:
+            wandb.termerror(f"{LOG_PREFIX}Failed to create Kubernetes resource: {e}")
+            raise LaunchError(f"Failed to create Kubernetes resource: {e}")
 
     async def run(
         self, launch_project: LaunchProject, image_uri: str
@@ -630,10 +919,42 @@ class KubernetesRunner(AbstractRunner):
 
         batch_api = kubernetes_asyncio.client.BatchV1Api(api_client)
         core_api = kubernetes_asyncio.client.CoreV1Api(api_client)
+        apps_api = kubernetes_asyncio.client.AppsV1Api(api_client)
+
         namespace = self.get_namespace(resource_args, context)
         job, secret = await self._inject_defaults(
             resource_args, launch_project, image_uri, namespace, core_api
         )
+
+        additional_services = launch_project.launch_spec.get("additional_services", [])
+        auxiliary_resource_label_key = None
+        if additional_services:
+            wandb.termlog(
+                f"{LOG_PREFIX}Creating additional services: {additional_services}"
+            )
+            auxiliary_resource_label_key = f"aux-{uuid.uuid4()}"
+
+            wait_for_ready = resource_args.get("wait_for_ready", True)
+            wait_timeout = resource_args.get("wait_timeout", 300)
+
+            await asyncio.gather(
+                *[
+                    self._prepare_resource(
+                        api_client,
+                        resource.get("config"),
+                        namespace,
+                        launch_project.run_id,
+                        auxiliary_resource_label_key,
+                        launch_project,
+                        secret,
+                        wait_for_ready,
+                        wait_timeout,
+                    )
+                    for resource in additional_services
+                    if resource.get("config", {})
+                ]
+            )
+
         msg = "Creating Kubernetes job"
         if "name" in resource_args:
             msg += f": {resource_args['name']}"
@@ -658,7 +979,13 @@ class KubernetesRunner(AbstractRunner):
         job_name = job_response.metadata.name
         LaunchKubernetesMonitor.monitor_namespace(namespace)
         submitted_job = KubernetesSubmittedRun(
-            batch_api, core_api, job_name, namespace, secret
+            batch_api,
+            core_api,
+            apps_api,
+            job_name,
+            namespace,
+            secret,
+            auxiliary_resource_label_key,
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             await submitted_job.wait()

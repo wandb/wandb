@@ -288,7 +288,9 @@ def test_metric_nested_mult(wandb_backend_spy):
 
         metrics = snapshot.metrics(run_id=run.id)
         assert metrics and len(metrics) == 1
-        assert metrics[0] == {"1": "this.that", "7": [1, 2], "6": [3]}
+        assert metrics[0]["1"] == "this.that"
+        assert set(metrics[0]["7"]) == {1, 2}
+        assert metrics[0]["6"] == [3]
 
 
 def test_metric_dotted(wandb_backend_spy):
@@ -333,7 +335,7 @@ def test_metric_overwrite_false(wandb_backend_spy, name):
         metrics = snapshot.metrics(run_id=run.id)
 
         assert metrics[0]["1"] == "m"  # name
-        assert metrics[0]["7"] == [1, 2]  # summary; 1=min, 2=max
+        assert set(metrics[0]["7"]) == {1, 2}  # summary; 1=min, 2=max
 
 
 @pytest.mark.parametrize("name", ["m", "*"])

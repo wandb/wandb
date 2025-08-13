@@ -101,6 +101,7 @@ func (b *Breadcrumb) MarshalJSON() ([]byte, error) {
 	return json.Marshal((*breadcrumb)(b))
 }
 
+// Logger provides a chaining API for structured logging to Sentry.
 type Logger interface {
 	// Write implements the io.Writer interface. Currently, the [sentry.Hub] is
 	// context aware, in order to get the correct trace correlation. Using this
@@ -108,51 +109,47 @@ type Logger interface {
 	// Write it is recommended to create a NewLogger so that the associated context
 	// is passed correctly.
 	Write(p []byte) (n int, err error)
-	// Trace emits a [LogLevelTrace] log to Sentry.
-	// Arguments are handled in the manner of [fmt.Print].
-	Trace(ctx context.Context, v ...interface{})
-	// Debug emits a [LogLevelDebug] log to Sentry.
-	// Arguments are handled in the manner of [fmt.Print].
-	Debug(ctx context.Context, v ...interface{})
-	// Info emits a [LogLevelInfo] log to Sentry.
-	// Arguments are handled in the manner of [fmt.Print].
-	Info(ctx context.Context, v ...interface{})
-	// Warn emits a [LogLevelWarn] log to Sentry.
-	// Arguments are handled in the manner of [fmt.Print].
-	Warn(ctx context.Context, v ...interface{})
-	// Error emits a [LogLevelError] log to Sentry.
-	// Arguments are handled in the manner of [fmt.Print].
-	Error(ctx context.Context, v ...interface{})
-	// Fatal emits a [LogLevelFatal] log to Sentry followed by a call to [os.Exit](1).
-	// Arguments are handled in the manner of [fmt.Print].
-	Fatal(ctx context.Context, v ...interface{})
-	// Panic emits a [LogLevelFatal] log to Sentry followed by a call to panic().
-	// Arguments are handled in the manner of [fmt.Print].
-	Panic(ctx context.Context, v ...interface{})
 
-	// Tracef emits a [LogLevelTrace] log to Sentry.
-	// Arguments are handled in the manner of [fmt.Printf].
-	Tracef(ctx context.Context, format string, v ...interface{})
-	// Debugf emits a [LogLevelDebug] log to Sentry.
-	// Arguments are handled in the manner of [fmt.Printf].
-	Debugf(ctx context.Context, format string, v ...interface{})
-	// Infof emits a [LogLevelInfo] log to Sentry.
-	// Arguments are handled in the manner of [fmt.Printf].
-	Infof(ctx context.Context, format string, v ...interface{})
-	// Warnf emits a [LogLevelWarn] log to Sentry.
-	// Arguments are handled in the manner of [fmt.Printf].
-	Warnf(ctx context.Context, format string, v ...interface{})
-	// Errorf emits a [LogLevelError] log to Sentry.
-	// Arguments are handled in the manner of [fmt.Printf].
-	Errorf(ctx context.Context, format string, v ...interface{})
-	// Fatalf emits a [LogLevelFatal] log to Sentry followed by a call to [os.Exit](1).
-	// Arguments are handled in the manner of [fmt.Printf].
-	Fatalf(ctx context.Context, format string, v ...interface{})
-	// Panicf emits a [LogLevelFatal] log to Sentry followed by a call to panic().
-	// Arguments are handled in the manner of [fmt.Printf].
-	Panicf(ctx context.Context, format string, v ...interface{})
-	// SetAttributes allows attaching parameters to the log message using the attribute API.
+	// SetAttributes allows attaching parameters to the logger using the attribute API.
+	// These attributes will be included in all subsequent log entries.
 	SetAttributes(...attribute.Builder)
+
+	// Trace defines the [sentry.LogLevel] for the log entry.
+	Trace() LogEntry
+	// Debug defines the [sentry.LogLevel] for the log entry.
+	Debug() LogEntry
+	// Info defines the [sentry.LogLevel] for the log entry.
+	Info() LogEntry
+	// Warn defines the [sentry.LogLevel] for the log entry.
+	Warn() LogEntry
+	// Error defines the [sentry.LogLevel] for the log entry.
+	Error() LogEntry
+	// Fatal defines the [sentry.LogLevel] for the log entry.
+	Fatal() LogEntry
+	// Panic defines the [sentry.LogLevel] for the log entry.
+	Panic() LogEntry
+	// GetCtx returns the [context.Context] set on the logger.
+	GetCtx() context.Context
+}
+
+// LogEntry defines the interface for a log entry that supports chaining attributes.
+type LogEntry interface {
+	// WithCtx creates a new LogEntry with the specified context without overwriting the previous one.
+	WithCtx(ctx context.Context) LogEntry
+	// String adds a string attribute to the LogEntry.
+	String(key, value string) LogEntry
+	// Int adds an int attribute to the LogEntry.
+	Int(key string, value int) LogEntry
+	// Int64 adds an int64 attribute to the LogEntry.
+	Int64(key string, value int64) LogEntry
+	// Float64 adds a float64 attribute to the LogEntry.
+	Float64(key string, value float64) LogEntry
+	// Bool adds a bool attribute to the LogEntry.
+	Bool(key string, value bool) LogEntry
+	// Emit emits the LogEntry with the provided arguments.
+	Emit(args ...interface{})
+	// Emitf emits the LogEntry using a format string and arguments.
+	Emitf(format string, args ...interface{})
 }
 
 // Attachment allows associating files with your events to aid in investigation.
@@ -595,10 +592,12 @@ func (e *Event) checkInMarshalJSON() ([]byte, error) {
 
 	if e.MonitorConfig != nil {
 		checkIn.MonitorConfig = &MonitorConfig{
-			Schedule:      e.MonitorConfig.Schedule,
-			CheckInMargin: e.MonitorConfig.CheckInMargin,
-			MaxRuntime:    e.MonitorConfig.MaxRuntime,
-			Timezone:      e.MonitorConfig.Timezone,
+			Schedule:              e.MonitorConfig.Schedule,
+			CheckInMargin:         e.MonitorConfig.CheckInMargin,
+			MaxRuntime:            e.MonitorConfig.MaxRuntime,
+			Timezone:              e.MonitorConfig.Timezone,
+			FailureIssueThreshold: e.MonitorConfig.FailureIssueThreshold,
+			RecoveryThreshold:     e.MonitorConfig.RecoveryThreshold,
 		}
 	}
 
@@ -644,7 +643,17 @@ type Log struct {
 	Attributes map[string]Attribute `json:"attributes,omitempty"`
 }
 
+type AttrType string
+
+const (
+	AttributeInvalid AttrType = ""
+	AttributeBool    AttrType = "boolean"
+	AttributeInt     AttrType = "integer"
+	AttributeFloat   AttrType = "double"
+	AttributeString  AttrType = "string"
+)
+
 type Attribute struct {
-	Value any    `json:"value"`
-	Type  string `json:"type"`
+	Value any      `json:"value"`
+	Type  AttrType `json:"type"`
 }

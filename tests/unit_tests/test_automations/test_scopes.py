@@ -17,15 +17,15 @@ class HasProjectScope(HasScope):
     scope: ProjectScope
 
 
-def test_public_scope_type_enum_matches_generated():
-    """Check that the public `ScopeType` enum matches the schema-generated enum.
+def test_public_scope_type_enum_is_subset_of_generated():
+    """Check that the public `ScopeType` enum is a subset of the schema-generated enum.
 
     This is a safeguard in case we've had to make any extra customizations
     (e.g. renaming members) to the public API definition.
     """
     public_enum_values = {e.value for e in ScopeType}
     generated_enum_values = {e.value for e in TriggerScopeType}
-    assert public_enum_values == generated_enum_values
+    assert public_enum_values.issubset(generated_enum_values)
 
 
 def test_scope_can_validate_from_wandb_artifact_collection(

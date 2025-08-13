@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 
 
 class Integrations(Paginator["Integration"]):
+    """An lazy iterator of `Integration` objects."""
+
     last_response: IntegrationConnectionFields | None
     _query: Document
 
@@ -78,7 +80,7 @@ class Integrations(Paginator["Integration"]):
 
 
 class WebhookIntegrations(Paginator["WebhookIntegration"]):
-    """An iterable collection of `WebhookIntegration` objects.
+    """An lazy iterator of `WebhookIntegration` objects.
 
     <!-- lazydoc-ignore-class: internal -->
     """
@@ -142,7 +144,7 @@ class WebhookIntegrations(Paginator["WebhookIntegration"]):
 
 
 class SlackIntegrations(Paginator["SlackIntegration"]):
-    """An iterable collection of `SlackIntegration` objects.
+    """An lazy iterator of `SlackIntegration` objects.
 
     <!-- lazydoc-ignore-class: internal -->
     """

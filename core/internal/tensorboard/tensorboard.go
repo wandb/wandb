@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -27,6 +28,11 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+)
+
+// TBHandlerProviders binds TBHandlerFactory.
+var TBHandlerProviders = wire.NewSet(
+	wire.Struct(new(TBHandlerFactory), "*"),
 )
 
 // TBHandler saves TensorBoard data with the run.
@@ -52,26 +58,20 @@ type TBHandler struct {
 	streams []*tfEventStream
 }
 
-type Params struct {
-	runwork.ExtraWork
-
-	Logger   *observability.CoreLogger
-	Settings *settings.Settings
-
-	FileReadDelay waiting.Delay
+// TBHandlerFactory constructs a TBHandler.
+type TBHandlerFactory struct {
+	ExtraWork runwork.ExtraWork
+	Logger    *observability.CoreLogger
+	Settings  *settings.Settings
 }
 
-func NewTBHandler(params Params) *TBHandler {
-	if params.FileReadDelay == nil {
-		params.FileReadDelay = waiting.NewDelay(5 * time.Second)
-	}
-
+func (f *TBHandlerFactory) New(fileReadDelay waiting.Delay) *TBHandler {
 	tb := &TBHandler{
-		rootDirGuesser: NewRootDirGuesser(params.Logger),
-		extraWork:      params.ExtraWork,
-		logger:         params.Logger,
-		settings:       params.Settings,
-		fileReadDelay:  params.FileReadDelay,
+		rootDirGuesser: NewRootDirGuesser(f.Logger),
+		extraWork:      f.ExtraWork,
+		logger:         f.Logger,
+		settings:       f.Settings,
+		fileReadDelay:  fileReadDelay,
 
 		streams: make([]*tfEventStream, 0),
 	}

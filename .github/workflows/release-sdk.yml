@@ -46,7 +46,7 @@ jobs:
 
       - name: Bump Version
         run: |
-          bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${{ github.event.inputs.version }}
+          bump2version patch --no-tag --no-commit --config-file .bumpversion.cfg --new-version ${{ github.event.inputs.version }}
 
       - name: Update CHANGELOG.md
         if: ${{ inputs.update-changelog }}
@@ -460,7 +460,7 @@ jobs:
           IFS='.' read -r major minor patch <<< "${{ github.event.inputs.version }}"
           new_version="${major}.${minor}.$((patch + 1)).dev1"
           git checkout -b bump-${new_version}
-          bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${new_version}
+          bump2version patch --no-tag --no-commit --config-file .bumpversion.cfg --new-version ${new_version}
           git commit -am "chore(sdk): bump version to ${new_version}"
           git push -u origin bump-${new_version}
 

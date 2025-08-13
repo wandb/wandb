@@ -39,7 +39,7 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 	t.Helper()
 
 	runWork := runworktest.New()
-	fileReadDleay := waitingtest.NewFakeDelay()
+	fileReadDelay := waitingtest.NewFakeDelay()
 
 	tmpdir := t.TempDir()
 	toPath := func(slashPath string) string {
@@ -52,12 +52,12 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 	}
 	settings := settings.From(settingsProto)
 
-	handler := tensorboard.NewTBHandler(tensorboard.Params{
-		ExtraWork:     runWork,
-		Logger:        observability.NewNoOpLogger(),
-		Settings:      settings,
-		FileReadDelay: fileReadDleay,
-	})
+	factory := tensorboard.TBHandlerFactory{
+		ExtraWork: runWork,
+		Logger:    observability.NewNoOpLogger(),
+		Settings:  settings,
+	}
+	handler := factory.New(fileReadDelay)
 
 	return testContext{
 		Handler: handler,

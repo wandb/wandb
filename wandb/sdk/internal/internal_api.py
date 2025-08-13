@@ -284,6 +284,7 @@ class Api:
         self._extra_http_headers.update(_thread_local_api_settings.headers or {})
 
         auth = None
+        api_key = api_key or self.default_settings.get("api_key")
         if api_key:
             auth = ("api", api_key)
         elif self.access_token is not None:

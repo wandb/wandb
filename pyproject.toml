@@ -414,6 +414,5 @@ module = [
     "wandb_gql.*",
     "wandb_graphql.*",
     "wandb.vendor.*",
-    "wandb.vendor.pynvml.pynvml.*",
 ]
 ignore_missing_imports = true
