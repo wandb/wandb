@@ -78,6 +78,7 @@ from ._generated import (
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
     LINK_ARTIFACT_GQL,
+    UNLINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
     ArtifactAliasInput,
     ArtifactByID,
@@ -2536,28 +2537,14 @@ class Artifact:
 
     @normalize_exceptions
     def _unlink(self) -> None:
-        mutation = gql(
-            """
-            mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
-                unlinkArtifact(
-                    input: { artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID }
-                ) {
-                    artifactID
-                    success
-                    clientMutationId
-                }
-            }
-            """
-        )
-        assert self._client is not None
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        mutation = gql(UNLINK_ARTIFACT_GQL)
+        gql_vars = {"artifactID": self.id, "artifactPortfolioID": self.collection.id}
+
         try:
-            self._client.execute(
-                mutation,
-                variable_values={
-                    "artifactID": self.id,
-                    "artifactPortfolioID": self.collection.id,
-                },
-            )
+            self._client.execute(mutation, variable_values=gql_vars)
         except CommError as e:
             raise CommError(
                 f"You do not have permission to unlink the artifact {self.qualified_name}"

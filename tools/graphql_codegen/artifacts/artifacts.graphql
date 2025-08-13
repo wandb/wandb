@@ -228,3 +228,11 @@ mutation LinkArtifact($input: LinkArtifactInput!) {
     versionIndex
   }
 }
+
+mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
+  unlinkArtifact(input: { artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID }) {
+    artifactID
+    success
+    clientMutationId
+  }
+}
