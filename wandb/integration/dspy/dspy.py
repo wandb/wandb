@@ -38,6 +38,9 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         self._is_valid_score: bool = False
         self._row_idx: int = 0
 
+        self._return_all_scores: bool = False
+        self._return_outputs: bool = False
+
     def _flatten_dict(
         self, nested: Any, parent_key: str = "", sep: str = "."
     ) -> dict[str, Any]:
@@ -111,6 +114,10 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
                 serializable = {
                     k: v for k, v in instance_vars.items() if not k.startswith("_")
                 }
+                if "return_all_scores" in serializable:
+                    self._return_all_scores = serializable["return_all_scores"]
+                if "return_outputs" in serializable:
+                    self._return_outputs = serializable["return_outputs"]
                 if serializable:
                     if "devset" in serializable:
                         del serializable["devset"]
@@ -135,15 +142,21 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         outputs: Any | None,
         exception: Exception | None = None,
     ) -> None:
-        if isinstance(outputs, (int, float)) and exception is None:
-            self._is_valid_score = True
-            wandb.log({"score": float(outputs)}, step=self._row_idx)
+        if not self._return_all_scores and not self._return_outputs:
+            # we expect a single float value
+            if isinstance(outputs, (int, float)) and exception is None:
+                wandb.log({"score": float(outputs)}, step=self._row_idx)
+        elif self._return_outputs or self._return_all_scores:
+            # we expect a tuple where the first value is the float score
+            if isinstance(outputs, tuple) and exception is None:
+                outputs = outputs[0]
+                wandb.log({"score": float(outputs)}, step=self._row_idx)
 
-        if self._program_table is None and self._is_valid_score:
+        if self._program_table is None:
             columns = ["step", *self._temp_info_dict.keys(), "score"]
             self._program_table = wandb.Table(columns=columns, log_mode="INCREMENTAL")
 
-        if self._program_table is not None and self._is_valid_score:
+        if self._program_table is not None:
             self._program_table.add_data(
                 self._row_idx, *self._temp_info_dict.values(), float(outputs)
             )
