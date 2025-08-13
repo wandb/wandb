@@ -1,32 +1,32 @@
+from typing import Iterator
 from unittest.mock import patch
 
-import pytest
+from pytest import fixture, mark, raises, skip
 from wandb import Api
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
-@pytest.fixture
-def default_organization(user_in_orgs_factory):
+@fixture
+def default_organization(user_in_orgs_factory) -> Iterator[str]:
     """Provides the name of the single default organization."""
     user_in_orgs = user_in_orgs_factory()
     yield user_in_orgs.organization_names[0]
 
 
-@pytest.fixture
-def skip_if_server_does_not_support_create_registry():
+@fixture
+def skip_if_server_does_not_support_create_registry() -> None:
     """Skips the test for older server versions that do not support Api.create_registry()."""
     if not InternalApi()._server_supports(
         ServerFeature.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
     ):
-        pytest.skip("Cannot create a test registry on this server version.")
+        skip("Cannot create a test registry on this server version.")
 
 
-@pytest.mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_registry_create_edit(default_organization):
+@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
+def test_registry_create_edit(default_organization, api: Api):
     """Tests the basic CRUD operations for a registry."""
-    api = Api()
     registry_name = "test"
     initial_description = "Initial registry description."
     updated_description = "Updated registry description."
@@ -72,10 +72,9 @@ def test_registry_create_edit(default_organization):
     assert artifact_type_1 in fetched_registry.artifact_types
 
 
-@pytest.mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_delete_registry(default_organization):
+@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
+def test_delete_registry(default_organization, api: Api):
     """Tests the ability to delete a registry."""
-    api = Api()
     registry_name = "test"
 
     api.create_registry(
@@ -89,21 +88,20 @@ def test_delete_registry(default_organization):
 
     registry.delete()
 
-    with pytest.raises(ValueError, match="Failed to load registry"):
+    with raises(ValueError, match="Failed to load registry"):
         registry.load()
 
     # Try to delete again, should fail
-    with pytest.raises(
+    with raises(
         ValueError,
         match="Failed to delete registry",
     ):
         registry.delete()
 
 
-@pytest.mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_registry_create_edit_artifact_types(default_organization):
+@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
+def test_registry_create_edit_artifact_types(default_organization, api: Api):
     """Tests the ability to create, edit, and delete artifact types in a registry."""
-    api = Api()
     artifact_type_1 = "model-1"
     artifact_type_2 = "model-2"
     registry_name = "test"
@@ -119,7 +117,7 @@ def test_registry_create_edit_artifact_types(default_organization):
 
     # Test restriction: Cannot add types if allow_all is True
     registry.artifact_types.append(artifact_type_1)
-    with pytest.raises(
+    with raises(
         ValueError,
         match="Cannot update artifact types when `allows_all_artifact_types` is True. Set it to False first.",
     ):
@@ -140,17 +138,16 @@ def test_registry_create_edit_artifact_types(default_organization):
     assert registry.artifact_types.draft == ()
 
     # try to remove a type that has been saved
-    with pytest.raises(
+    with raises(
         ValueError,
         match="Cannot remove artifact type",
     ):
         registry.artifact_types.remove(artifact_type_1)
 
 
-@pytest.mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_registry_create_duplicate_name(default_organization):
+@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
+def test_registry_create_duplicate_name(default_organization, api: Api):
     """Tests that creating a registry with a duplicate name fails."""
-    api = Api()
     registry_name = "test"
 
     # Create the first registry
@@ -164,7 +161,7 @@ def test_registry_create_duplicate_name(default_organization):
 
     # Attempt to create another registry with the same name
     # Note error is generic to avoid leaking permission information
-    with pytest.raises(ValueError, match="please use a different name"):
+    with raises(ValueError, match="please use a different name"):
         api.create_registry(
             organization=default_organization,
             name=registry_name,
@@ -173,11 +170,10 @@ def test_registry_create_duplicate_name(default_organization):
         )
 
 
-@pytest.mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_infer_organization_from_create_load(default_organization):
+@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
+def test_infer_organization_from_create_load(default_organization, api: Api):
     """Tests that the organization is inferred from the create and load methods."""
     # This user only belongs to one organization, so we can test that the organization is inferred
-    api = Api()
     registry_name = "test"
     registry = api.create_registry(
         name=registry_name,
@@ -190,14 +186,13 @@ def test_infer_organization_from_create_load(default_organization):
     assert fetched_registry.organization == default_organization
 
 
-@pytest.mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_input_invalid_organizations(default_organization):
+@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
+def test_input_invalid_organizations(default_organization, api: Api):
     """Tests that invalid organization inputs raise errors."""
     bad_org_name = f"{default_organization}_wrong_organization"
 
-    api = Api()
     registry_name = "test"
-    with pytest.raises(
+    with raises(
         ValueError,
         match=f"Organization entity for {bad_org_name} not found.",
     ):
@@ -207,24 +202,27 @@ def test_input_invalid_organizations(default_organization):
             organization=bad_org_name,
         )
 
-    with pytest.raises(
+    with raises(
         ValueError,
         match=f"Organization entity for {bad_org_name} not found.",
     ):
         api.registry(registry_name, f"{default_organization}_wrong_organization")
 
 
-@pytest.mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_user_in_multiple_orgs(user_in_orgs_factory):
+@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
+def test_user_in_multiple_orgs(user_in_orgs_factory, api: Api):
     """Tests that the organization is inferred from the create and load methods."""
     user_in_orgs = user_in_orgs_factory(number_of_orgs=2)
     organizations = user_in_orgs.organization_names
 
-    api = Api()
+    assert len(organizations) == 2
+
+    org1, org2 = organizations
+
     registry_name = "test"
 
     # user belongs to 2 orgs, so they have to specify which one they want to create the registry in
-    with pytest.raises(ValueError, match="Multiple organizations found for entity."):
+    with raises(ValueError, match="Multiple organizations found for entity."):
         api.create_registry(
             name=registry_name,
             visibility="organization",
@@ -233,25 +231,24 @@ def test_user_in_multiple_orgs(user_in_orgs_factory):
     registry_org1 = api.create_registry(
         name=registry_name,
         visibility="organization",
-        organization=organizations[0],
+        organization=org1,
     )
     assert registry_org1
-    assert registry_org1.organization == organizations[0]
+    assert registry_org1.organization == org1
 
     registry_org2 = api.create_registry(
         name=registry_name,
         visibility="organization",
-        organization=organizations[1],
+        organization=org2,
     )
     assert registry_org2
-    assert registry_org2.organization == organizations[1]
+    assert registry_org2.organization == org2
 
 
-@pytest.mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_invalid_artifact_type_input(default_organization):
-    api = Api()
+@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
+def test_invalid_artifact_type_input(default_organization, api: Api):
     registry_name = "test"
-    with pytest.raises(ValueError, match="Artifact types must not contain any of the"):
+    with raises(ValueError, match="Artifact types must not contain any of the"):
         api.create_registry(
             organization=default_organization,
             name=registry_name,
@@ -267,15 +264,14 @@ def test_invalid_artifact_type_input(default_organization):
     )
 
     registry.artifact_types.append("::///")
-    with pytest.raises(ValueError, match="Artifact types must not contain any of the"):
+    with raises(ValueError, match="Artifact types must not contain any of the"):
         registry.save()
 
 
-@pytest.mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_create_registry_invalid_visibility_input(default_organization):
-    api = Api()
+@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
+def test_create_registry_invalid_visibility_input(default_organization, api: Api):
     registry_name = "test"
-    with pytest.raises(ValueError, match="Invalid visibility"):
+    with raises(ValueError, match="Invalid visibility"):
         api.create_registry(
             organization=default_organization,
             name=registry_name,
@@ -283,11 +279,10 @@ def test_create_registry_invalid_visibility_input(default_organization):
         )
 
 
-@pytest.mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_create_registry_invalid_registry_name(default_organization):
-    api = Api()
+@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
+def test_create_registry_invalid_registry_name(default_organization, api: Api):
     registry_name = "::::????"
-    with pytest.raises(ValueError, match="Invalid project/registry name"):
+    with raises(ValueError, match="Invalid project/registry name"):
         api.create_registry(
             organization=default_organization,
             name=registry_name,
@@ -301,13 +296,13 @@ def test_create_registry_invalid_registry_name(default_organization):
     )
     assert registry
     registry.name = "p" * 200
-    with pytest.raises(ValueError, match="must be 113 characters or less"):
+    with raises(ValueError, match="must be 113 characters or less"):
         registry.save()
 
 
-@pytest.mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
+@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
 @patch("wandb.apis.public.registries.registry.wandb.termlog")
-def test_edit_registry_name(mock_termlog, default_organization, api):
+def test_edit_registry_name(mock_termlog, default_organization, api: Api):
     registry_name = "test"
     registry = api.create_registry(
         organization=default_organization,
@@ -325,7 +320,7 @@ def test_edit_registry_name(mock_termlog, default_organization, api):
     assert registry.description == "This is the initial description"
 
     # Double check we didn't create a new registry instead of renaming the old one
-    with pytest.raises(ValueError, match="Failed to load registry"):
+    with raises(ValueError, match="Failed to load registry"):
         api.registry(registry_name, default_organization)
 
     new_name_registry = api.registry(new_registry_name, default_organization)
