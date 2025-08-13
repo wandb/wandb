@@ -177,6 +177,22 @@ query ArtifactByID($id: ID!) {
   }
 }
 
+query ArtifactUsedBy($id: ID!) {
+  artifact(id: $id) {
+    usedBy {
+      edges {
+        node {
+          name
+          project {
+            name
+            entityName
+          }
+        }
+      }
+    }
+  }
+}
+
 # ---------------------------------------------------------------------------
 mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
   addAliases(input: { artifactID: $artifactID, aliases: $aliases }) {
