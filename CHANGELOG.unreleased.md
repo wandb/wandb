@@ -12,3 +12,8 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- git diff patch files are now generated for the closest ancestor commit when no upstream branch is set. (@jacobromero in https://github.com/wandb/wandb/pull/10132)
+    - bug introduced in v0.18.0
