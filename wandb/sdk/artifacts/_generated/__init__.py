@@ -2,12 +2,19 @@
 
 from .add_aliases import AddAliases, AddAliasesAddAliases
 from .artifact_by_id import ArtifactByID
+from .artifact_collection_membership_file_urls import (
+    ArtifactCollectionMembershipFileUrls,
+    ArtifactCollectionMembershipFileUrlsProject,
+    ArtifactCollectionMembershipFileUrlsProjectArtifactCollection,
+    ArtifactCollectionMembershipFileUrlsProjectArtifactCollectionArtifactMembership,
+)
 from .artifact_collection_membership_files import (
     ArtifactCollectionMembershipFiles,
     ArtifactCollectionMembershipFilesProject,
     ArtifactCollectionMembershipFilesProjectArtifactCollection,
     ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembership,
 )
+from .artifact_file_urls import ArtifactFileUrls, ArtifactFileUrlsArtifact
 from .artifact_version_files import (
     ArtifactVersionFiles,
     ArtifactVersionFilesProject,
@@ -80,6 +87,10 @@ from .fragments import (
     FilesFragmentEdges,
     FilesFragmentEdgesNode,
     FilesFragmentPageInfo,
+    FileUrlsFragment,
+    FileUrlsFragmentEdges,
+    FileUrlsFragmentEdgesNode,
+    FileUrlsFragmentPageInfo,
 )
 from .input_types import (
     ArtifactAliasInput,
@@ -96,7 +107,9 @@ from .move_artifact_collection import (
 from .operations import (
     ADD_ALIASES_GQL,
     ARTIFACT_BY_ID_GQL,
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
     ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
+    ARTIFACT_FILE_URLS_GQL,
     ARTIFACT_VERSION_FILES_GQL,
     CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
     DELETE_ALIASES_GQL,
@@ -177,6 +190,8 @@ __all__ = [
     "ADD_ALIASES_GQL",
     "ARTIFACT_BY_ID_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL",
+    "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
+    "ARTIFACT_FILE_URLS_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ALIASES_GQL",
@@ -240,6 +255,12 @@ __all__ = [
     "ArtifactCollectionMembershipFilesProject",
     "ArtifactCollectionMembershipFilesProjectArtifactCollection",
     "ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembership",
+    "ArtifactCollectionMembershipFileUrls",
+    "ArtifactCollectionMembershipFileUrlsProject",
+    "ArtifactCollectionMembershipFileUrlsProjectArtifactCollection",
+    "ArtifactCollectionMembershipFileUrlsProjectArtifactCollectionArtifactMembership",
+    "ArtifactFileUrls",
+    "ArtifactFileUrlsArtifact",
     "ProjectArtifactTypes",
     "ProjectArtifactTypesProject",
     "ProjectArtifactType",
@@ -309,6 +330,10 @@ __all__ = [
     "ArtifactsFragment",
     "ArtifactsFragmentEdges",
     "ArtifactsFragmentPageInfo",
+    "FileUrlsFragment",
+    "FileUrlsFragmentEdges",
+    "FileUrlsFragmentEdgesNode",
+    "FileUrlsFragmentPageInfo",
     "FilesFragment",
     "FilesFragmentEdges",
     "FilesFragmentEdgesNode",

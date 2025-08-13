@@ -5,6 +5,8 @@ __all__ = [
     "ADD_ALIASES_GQL",
     "ARTIFACT_BY_ID_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL",
+    "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
+    "ARTIFACT_FILE_URLS_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ALIASES_GQL",
@@ -256,6 +258,57 @@ fragment FilesFragment on FileConnection {
   pageInfo {
     endCursor
     hasNextPage
+  }
+}
+"""
+
+ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL = """
+query ArtifactCollectionMembershipFileUrls($entityName: String!, $projectName: String!, $artifactName: String!, $artifactVersionIndex: String!, $cursor: String, $perPage: Int) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactCollection(name: $artifactName) {
+      __typename
+      artifactMembership(aliasName: $artifactVersionIndex) {
+        files(after: $cursor, first: $perPage) {
+          ...FileUrlsFragment
+        }
+      }
+    }
+  }
+}
+
+fragment FileUrlsFragment on FileConnection {
+  pageInfo {
+    hasNextPage
+    endCursor
+  }
+  edges {
+    node {
+      name
+      directUrl
+    }
+  }
+}
+"""
+
+ARTIFACT_FILE_URLS_GQL = """
+query ArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
+  artifact(id: $id) {
+    files(after: $cursor, first: $perPage) {
+      ...FileUrlsFragment
+    }
+  }
+}
+
+fragment FileUrlsFragment on FileConnection {
+  pageInfo {
+    hasNextPage
+    endCursor
+  }
+  edges {
+    node {
+      name
+      directUrl
+    }
   }
 }
 """

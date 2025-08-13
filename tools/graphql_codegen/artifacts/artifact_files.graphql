@@ -59,3 +59,43 @@ query ArtifactCollectionMembershipFiles(
     }
   }
 }
+
+fragment FileUrlsFragment on FileConnection {
+  pageInfo {
+    hasNextPage
+    endCursor
+  }
+  edges {
+    node {
+      name
+      directUrl
+    }
+  }
+}
+
+query ArtifactCollectionMembershipFileUrls(
+  $entityName: String!
+  $projectName: String!
+  $artifactName: String!
+  $artifactVersionIndex: String!
+  $cursor: String
+  $perPage: Int
+) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactCollection(name: $artifactName) {
+      artifactMembership(aliasName: $artifactVersionIndex) {
+        files(after: $cursor, first: $perPage) {
+          ...FileUrlsFragment
+        }
+      }
+    }
+  }
+}
+
+query ArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
+  artifact(id: $id) {
+    files(after: $cursor, first: $perPage) {
+      ...FileUrlsFragment
+    }
+  }
+}
