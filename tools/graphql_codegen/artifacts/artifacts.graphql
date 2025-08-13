@@ -171,6 +171,12 @@ query FetchArtifactManifest($entityName: String!, $projectName: String!, $name: 
   }
 }
 
+query ArtifactByID($id: ID!) {
+  artifact(id: $id) {
+    ...ArtifactFragment
+  }
+}
+
 # ---------------------------------------------------------------------------
 mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
   addAliases(input: { artifactID: $artifactID, aliases: $aliases }) {
