@@ -38,9 +38,6 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         self._is_valid_score: bool = False
         self._row_idx: int = 0
 
-        self._return_all_scores: bool = False
-        self._return_outputs: bool = False
-
     def _flatten_dict(
         self, nested: Any, parent_key: str = "", sep: str = "."
     ) -> dict[str, Any]:
@@ -114,12 +111,9 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
                 serializable = {
                     k: v for k, v in instance_vars.items() if not k.startswith("_")
                 }
-                if "return_all_scores" in serializable:
-                    self._return_all_scores = serializable["return_all_scores"]
-                if "return_outputs" in serializable:
-                    self._return_outputs = serializable["return_outputs"]
                 if serializable:
                     if "devset" in serializable:
+                        # we don't want to log the devset in the config
                         del serializable["devset"]
                     wandb.run.config.update(serializable)
             except Exception as e:
@@ -142,15 +136,10 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         outputs: Any | None,
         exception: Exception | None = None,
     ) -> None:
-        if not self._return_all_scores and not self._return_outputs:
-            # we expect a single float value
-            if isinstance(outputs, (int, float)) and exception is None:
-                wandb.log({"score": float(outputs)}, step=self._row_idx)
-        elif self._return_outputs or self._return_all_scores:
-            # we expect a tuple where the first value is the float score
-            if isinstance(outputs, tuple) and exception is None:
-                outputs = outputs[0]
-                wandb.log({"score": float(outputs)}, step=self._row_idx)
+        assert isinstance(outputs, dspy.evaluate.evaluate.EvaluationResult)
+        wandb.log({"score": float(outputs.score)}, step=self._row_idx)
+
+        # TODO (ayulockin): log the preds as a separate table for each eval end.
 
         if self._program_table is None:
             columns = ["step", *self._temp_info_dict.keys(), "score"]
@@ -158,7 +147,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
 
         if self._program_table is not None:
             self._program_table.add_data(
-                self._row_idx, *self._temp_info_dict.values(), float(outputs)
+                self._row_idx, *self._temp_info_dict.values(), float(outputs.score)
             )
             wandb.run.log(
                 {"program_signature": self._program_table}, step=self._row_idx
