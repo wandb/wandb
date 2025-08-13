@@ -14,6 +14,13 @@ from .artifact_collection_membership_files import (
     ArtifactCollectionMembershipFilesProjectArtifactCollection,
     ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembership,
 )
+from .artifact_created_by import (
+    ArtifactCreatedBy,
+    ArtifactCreatedByArtifact,
+    ArtifactCreatedByArtifactCreatedByRun,
+    ArtifactCreatedByArtifactCreatedByRunProject,
+    ArtifactCreatedByArtifactCreatedByUser,
+)
 from .artifact_file_urls import ArtifactFileUrls, ArtifactFileUrlsArtifact
 from .artifact_used_by import (
     ArtifactUsedBy,
@@ -122,6 +129,7 @@ from .operations import (
     ARTIFACT_BY_ID_GQL,
     ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
     ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
+    ARTIFACT_CREATED_BY_GQL,
     ARTIFACT_FILE_URLS_GQL,
     ARTIFACT_USED_BY_GQL,
     ARTIFACT_VERSION_FILES_GQL,
@@ -208,6 +216,7 @@ __all__ = [
     "ARTIFACT_BY_ID_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
+    "ARTIFACT_CREATED_BY_GQL",
     "ARTIFACT_FILE_URLS_GQL",
     "ARTIFACT_USED_BY_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
@@ -321,6 +330,11 @@ __all__ = [
     "ArtifactUsedByArtifactUsedByEdges",
     "ArtifactUsedByArtifactUsedByEdgesNode",
     "ArtifactUsedByArtifactUsedByEdgesNodeProject",
+    "ArtifactCreatedBy",
+    "ArtifactCreatedByArtifact",
+    "ArtifactCreatedByArtifactCreatedByRun",
+    "ArtifactCreatedByArtifactCreatedByRunProject",
+    "ArtifactCreatedByArtifactCreatedByUser",
     "AddAliases",
     "AddAliasesAddAliases",
     "DeleteAliases",

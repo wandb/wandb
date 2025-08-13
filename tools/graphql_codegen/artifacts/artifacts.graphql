@@ -193,6 +193,20 @@ query ArtifactUsedBy($id: ID!) {
   }
 }
 
+query ArtifactCreatedBy($id: ID!) {
+  artifact(id: $id) {
+    createdBy {
+      ... on Run {
+        name
+        project {
+          name
+          entityName
+        }
+      }
+    }
+  }
+}
+
 # ---------------------------------------------------------------------------
 mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
   addAliases(input: { artifactID: $artifactID, aliases: $aliases }) {
