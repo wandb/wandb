@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from functools import partial
 from itertools import filterfalse
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -1073,11 +1073,7 @@ class Artifact:
 
         Includes any references tracked by this artifact.
         """
-        total_size: int = 0
-        for entry in self.manifest.entries.values():
-            if entry.size is not None:
-                total_size += entry.size
-        return total_size
+        return sum(entry.size for entry in self.manifest.entries.values() if entry.size)
 
     @property
     @ensure_logged
@@ -1145,7 +1141,7 @@ class Artifact:
         Returns:
             Boolean. `False` if artifact is saved. `True` if artifact is not saved.
         """
-        return self._state == ArtifactState.PENDING
+        return self._state is ArtifactState.PENDING
 
     def _is_draft_save_started(self) -> bool:
         return self._save_handle is not None
@@ -1166,7 +1162,7 @@ class Artifact:
             settings: A settings object to use when initializing an automatic run. Most
                 commonly used in testing harness.
         """
-        if self._state != ArtifactState.PENDING:
+        if self._state is not ArtifactState.PENDING:
             return self._update()
 
         if self._incremental:
@@ -1433,7 +1429,7 @@ class Artifact:
             self._tmp_dir = tempfile.TemporaryDirectory()
         path = os.path.join(self._tmp_dir.name, name.lstrip("/"))
 
-        filesystem.mkdir_exists_ok(os.path.dirname(path))
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         try:
             with fsync_open(path, mode, encoding) as f:
                 yield f
@@ -1540,30 +1536,27 @@ class Artifact:
             ValueError: Policy must be "mutable" or "immutable"
         """
         if not os.path.isdir(local_path):
-            raise ValueError(f"Path is not a directory: {local_path}")
+            raise ValueError(f"Path is not a directory: {local_path!r}")
 
         termlog(
-            "Adding directory to artifact ({})... ".format(
-                os.path.join(".", os.path.normpath(local_path))
-            ),
+            f"Adding directory to artifact ({Path('.', local_path)})... ",
             newline=False,
         )
-        start_time = time.time()
+        start_time = time.monotonic()
 
-        paths = []
+        paths: deque[tuple[str, str]] = deque()
+        logical_root = name or ""  # shared prefix, if any, for logical paths
         for dirpath, _, filenames in os.walk(local_path, followlinks=True):
             for fname in filenames:
                 physical_path = os.path.join(dirpath, fname)
                 logical_path = os.path.relpath(physical_path, start=local_path)
-                if name is not None:
-                    logical_path = os.path.join(name, logical_path)
+                logical_path = os.path.join(logical_root, logical_path)
                 paths.append((logical_path, physical_path))
 
-        def add_manifest_file(log_phy_path: tuple[str, str]) -> None:
-            logical_path, physical_path = log_phy_path
+        def add_manifest_file(logical_pth: str, physical_pth: str) -> None:
             self._add_local_file(
-                name=logical_path,
-                path=physical_path,
+                name=logical_pth,
+                path=physical_pth,
                 skip_cache=skip_cache,
                 policy=policy,
                 overwrite=merge,
@@ -1571,11 +1564,11 @@ class Artifact:
 
         num_threads = 8
         pool = multiprocessing.dummy.Pool(num_threads)
-        pool.map(add_manifest_file, paths)
+        pool.starmap(add_manifest_file, paths)
         pool.close()
         pool.join()
 
-        termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+        termlog("Done. %.1fs" % (time.monotonic() - start_time), prefix=False)
 
     @ensure_not_finalized
     def add_reference(
@@ -1813,10 +1806,8 @@ class Artifact:
             return
 
         path = str(PurePosixPath(item))
-        entry = self.manifest.get_entry_by_path(path)
-        if entry:
-            self.manifest.remove_entry(entry)
-            return
+        if entry := self.manifest.get_entry_by_path(path):
+            return self.manifest.remove_entry(entry)
 
         entries = self.manifest.get_entries_in_directory(path)
         if not entries:
@@ -1874,8 +1865,7 @@ class Artifact:
 
         # If the entry is a reference from another artifact, then get it directly from
         # that artifact.
-        referenced_id = entry._referenced_artifact_id()
-        if referenced_id:
+        if referenced_id := entry._referenced_artifact_id():
             assert self._client is not None
             artifact = self._from_id(referenced_id, client=self._client)
             assert artifact is not None
@@ -1894,10 +1884,9 @@ class Artifact:
         item_path = item.download()
 
         # Load the object from the JSON blob
-        result = None
-        json_obj = {}
         with open(item_path) as file:
             json_obj = json.load(file)
+
         result = wb_class.from_json(json_obj, self)
         result._set_artifact_source(self, name)
         return result
@@ -1911,10 +1900,9 @@ class Artifact:
         Returns:
             The artifact relative name.
         """
-        entry = self._added_local_paths.get(local_path, None)
-        if entry is None:
-            return None
-        return entry.path
+        if entry := self._added_local_paths.get(local_path):
+            return entry.path
+        return None
 
     def _get_obj_entry(
         self, name: str
@@ -1931,8 +1919,7 @@ class Artifact:
         """
         for wb_class in WBValue.type_mapping().values():
             wandb_file_name = wb_class.with_suffix(name)
-            entry = self.manifest.entries.get(wandb_file_name)
-            if entry is not None:
+            if entry := self.manifest.entries.get(wandb_file_name):
                 return entry, wb_class
         return None, None
 
