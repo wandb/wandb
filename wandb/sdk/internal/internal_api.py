@@ -1,4 +1,3 @@
-import ast
 import base64
 import datetime
 import functools
@@ -69,42 +68,42 @@ if TYPE_CHECKING:
     class CreateArtifactFileSpecInput(TypedDict, total=False):
         """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql."""
 
-        artifactID: str  # noqa: N815
+        artifactID: str
         name: str
         md5: str
         mimetype: Optional[str]
-        artifactManifestID: Optional[str]  # noqa: N815
-        uploadPartsInput: Optional[List[Dict[str, object]]]  # noqa: N815
+        artifactManifestID: Optional[str]
+        uploadPartsInput: Optional[List[Dict[str, object]]]
 
     class CreateArtifactFilesResponseFile(TypedDict):
         id: str
         name: str
-        displayName: str  # noqa: N815
-        uploadUrl: Optional[str]  # noqa: N815
-        uploadHeaders: Sequence[str]  # noqa: N815
-        uploadMultipartUrls: "UploadPartsResponse"  # noqa: N815
-        storagePath: str  # noqa: N815
+        displayName: str
+        uploadUrl: Optional[str]
+        uploadHeaders: Sequence[str]
+        uploadMultipartUrls: "UploadPartsResponse"
+        storagePath: str
         artifact: "CreateArtifactFilesResponseFileNode"
 
     class CreateArtifactFilesResponseFileNode(TypedDict):
         id: str
 
     class UploadPartsResponse(TypedDict):
-        uploadUrlParts: List["UploadUrlParts"]  # noqa: N815
-        uploadID: str  # noqa: N815
+        uploadUrlParts: List["UploadUrlParts"]
+        uploadID: str
 
     class UploadUrlParts(TypedDict):
-        partNumber: int  # noqa: N815
-        uploadUrl: str  # noqa: N815
+        partNumber: int
+        uploadUrl: str
 
     class CompleteMultipartUploadArtifactInput(TypedDict):
         """Corresponds to `type CompleteMultipartUploadArtifactInput` in schema.graphql."""
 
-        completeMultipartAction: str  # noqa: N815
-        completedParts: Dict[int, str]  # noqa: N815
-        artifactID: str  # noqa: N815
-        storagePath: str  # noqa: N815
-        uploadID: str  # noqa: N815
+        completeMultipartAction: str
+        completedParts: Dict[int, str]
+        artifactID: str
+        storagePath: str
+        uploadID: str
         md5: str
 
     class CompleteMultipartUploadArtifactResponse(TypedDict):
@@ -237,7 +236,7 @@ class Api:
             ]
         ] = None,
         load_settings: bool = True,
-        retry_timedelta: datetime.timedelta = datetime.timedelta(  # noqa: B008 # okay because it's immutable
+        retry_timedelta: datetime.timedelta = datetime.timedelta(  # okay because it's immutable
             days=7
         ),
         environ: MutableMapping = os.environ,
@@ -285,6 +284,7 @@ class Api:
         self._extra_http_headers.update(_thread_local_api_settings.headers or {})
 
         auth = None
+        api_key = api_key or self.default_settings.get("api_key")
         if api_key:
             auth = ("api", api_key)
         elif self.access_token is not None:
@@ -363,6 +363,7 @@ class Api:
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
+
         self._server_features_cache: Optional[Dict[str, bool]] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
@@ -398,8 +399,7 @@ class Api:
         except requests.exceptions.HTTPError as err:
             response = err.response
             assert response is not None
-            logger.error(f"{response.status_code} response executing GraphQL.")
-            logger.error(response.text)
+            logger.exception("Error executing GraphQL.")
             for error in parse_backend_error_messages(response):
                 wandb.termerror(f"Error while calling W&B API: {error} ({response})")
             raise
@@ -2984,11 +2984,8 @@ class Api:
                 logger.debug("upload_file: %s complete", url)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error(f"upload_file exception {url}: {e}")
-            request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers!r}")
+            logger.exception(f"upload_file exception for {url=}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = status_code == 400 and "RequestTimeout" in str(
@@ -3050,11 +3047,8 @@ class Api:
                     logger.debug("upload_file: %s complete", url)
                 response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error(f"upload_file exception {url}: {e}")
-            request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers}")
+            logger.exception(f"upload_file exception for {url=}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = (
@@ -3181,10 +3175,8 @@ class Api:
                 },
                 timeout=60,
             )
-        except Exception as e:
-            # GQL raises exceptions with stringified python dictionaries :/
-            message = ast.literal_eval(e.args[0])["message"]
-            logger.error("Error communicating with W&B: %s", message)
+        except Exception:
+            logger.exception("Error communicating with W&B.")
             return []
         else:
             result: List[Dict[str, Any]] = json.loads(
@@ -3243,6 +3235,7 @@ class Api:
         entity: Optional[str] = None,
         state: Optional[str] = None,
         prior_runs: Optional[List[str]] = None,
+        display_name: Optional[str] = None,
         template_variable_values: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, List[str]]:
         """Upsert a sweep object.
@@ -3257,6 +3250,7 @@ class Api:
             entity (str): entity to use
             state (str): state
             prior_runs (list): IDs of existing runs to add to the sweep
+            display_name (str): display name for the sweep
             template_variable_values (dict): template variable values
         """
         project_query = """
@@ -3280,6 +3274,7 @@ class Api:
             $scheduler: JSONString,
             $state: String,
             $priorRunsFilters: JSONString,
+            $displayName: String,
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -3291,6 +3286,7 @@ class Api:
                 scheduler: $scheduler,
                 state: $state,
                 priorRunsFilters: $priorRunsFilters,
+                displayName: $displayName,
             }) {
                 sweep {
                     name
@@ -3367,6 +3363,7 @@ class Api:
                     "templateVariableValues": json.dumps(template_variable_values),
                     "scheduler": scheduler,
                     "priorRunsFilters": filters,
+                    "displayName": display_name,
                 }
                 if state:
                     variables["state"] = state
@@ -3376,8 +3373,8 @@ class Api:
                     variable_values=variables,
                     check_retry_fn=util.no_retry_4xx,
                 )
-            except UsageError as e:
-                raise e
+            except UsageError:
+                raise
             except Exception as e:
                 # graphql schema exception is generic
                 err = e
@@ -4671,3 +4668,56 @@ class Api:
         success: bool = response["stopRun"].get("success")
 
         return success
+
+    @normalize_exceptions
+    def create_custom_chart(
+        self,
+        entity: str,
+        name: str,
+        display_name: str,
+        spec_type: str,
+        access: str,
+        spec: Union[str, Mapping[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(spec, str):
+            spec = json.dumps(spec)
+
+        mutation = gql(
+            """
+            mutation CreateCustomChart(
+                $entity: String!
+                $name: String!
+                $displayName: String!
+                $type: String!
+                $access: String!
+                $spec: JSONString!
+            ) {
+                createCustomChart(
+                    input: {
+                        entity: $entity
+                        name: $name
+                        displayName: $displayName
+                        type: $type
+                        access: $access
+                        spec: $spec
+                    }
+                ) {
+                    chart { id }
+                }
+            }
+            """
+        )
+
+        variable_values = {
+            "entity": entity,
+            "name": name,
+            "displayName": display_name,
+            "type": spec_type,
+            "access": access,
+            "spec": spec,
+        }
+
+        result: Optional[Dict[str, Any]] = self.gql(mutation, variable_values)[
+            "createCustomChart"
+        ]
+        return result

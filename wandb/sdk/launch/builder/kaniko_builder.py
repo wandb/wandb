@@ -336,14 +336,15 @@ class KanikoBuilder(AbstractBuilder):
                 pod_name = get_pod_name_safe(k8s_job)
                 if pod_name:
                     msg += f" View logs with `kubectl logs -n {NAMESPACE} {pod_name}`."
-                raise Exception(msg)
+                raise Exception(msg)  # noqa: TRY301
             try:
                 pods_from_job = await core_v1.list_namespaced_pod(
                     namespace=NAMESPACE, label_selector=f"job-name={build_job_name}"
                 )
                 if len(pods_from_job.items) != 1:
-                    raise Exception(
-                        f"Expected 1 pod for job {build_job_name}, found {len(pods_from_job.items)}"
+                    raise Exception(  # noqa: TRY301
+                        f"Expected 1 pod for job {build_job_name},"
+                        f" found {len(pods_from_job.items)}"
                     )
                 pod_name = pods_from_job.items[0].metadata.name
                 logs = await core_v1.read_namespaced_pod_log(pod_name, NAMESPACE)
@@ -358,7 +359,7 @@ class KanikoBuilder(AbstractBuilder):
             wandb.termerror(
                 f"{LOG_PREFIX}Exception when creating Kubernetes resources: {e}\n"
             )
-            raise e
+            raise
         finally:
             wandb.termlog(f"{LOG_PREFIX}Cleaning up resources")
             try:

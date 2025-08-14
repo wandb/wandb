@@ -265,6 +265,14 @@ def test_run_summary(wandb_backend_spy):
         assert snapshot.summary(run_id=run.storage_id)["cool"] == 1000
 
 
+def test_run_load_multiple_times(user):
+    run = Api().create_run()
+    run.summary.update({"cool": 1000})
+
+    run.load()
+    run.load()
+
+
 def test_run_create(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
     upsert_bucket_spy = gql.Capture()
@@ -485,6 +493,222 @@ def test_projects(user, wandb_backend_spy):
     # projects doesn't provide a length for now, so we iterate
     # them all to count
     assert sum([1 for _ in projects]) == 2
+
+
+def test_project_get_id(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Project"),
+        gql.once(
+            content={
+                "data": {
+                    "project": {
+                        "id": "123",
+                        "name": "test",
+                        "entityName": "test-entity",
+                        "createdAt": "2021-01-01T00:00:00Z",
+                        "isBenchmark": False,
+                    },
+                },
+            }
+        ),
+    )
+
+    project = Api().project(user, "test")
+
+    assert project.id == "123"
+
+
+def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Project"),
+        gql.once(
+            content={
+                "data": {
+                    "project": {
+                        "name": "test",
+                        "entityName": "test-entity",
+                        "createdAt": "2021-01-01T00:00:00Z",
+                        "isBenchmark": False,
+                    },
+                },
+            }
+        ),
+    )
+
+    with pytest.raises(ValueError):
+        project = Api().project(user, "test")
+        project.id  # noqa: B018
+
+
+def test_project_get_sweeps(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+    body = {
+        "data": {
+            "project": {
+                "totalSweeps": 1,
+                "sweeps": {
+                    "edges": [
+                        {
+                            "node": {
+                                "name": "test",
+                                "id": "test",
+                                "sweep_name": None,
+                            },
+                        },
+                    ],
+                    "pageInfo": {
+                        "endCursor": None,
+                        "hasNextPage": False,
+                    },
+                },
+            },
+        },
+    }
+    sweep_gql_body = {
+        "data": {
+            "project": {
+                "sweep": {
+                    "name": "test",
+                    "id": "test",
+                    "state": "finished",
+                },
+            },
+        },
+    }
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetSweeps"),
+        gql.Constant(content=body),
+    )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Sweep"),
+        gql.Constant(content=sweep_gql_body),
+    )
+
+    project = Api().project(user, "test")
+
+    sweeps = project.sweeps()
+    assert len(sweeps) == 1
+    assert sweeps[0].id == "test"
+
+
+def test_project_get_sweeps_paginated(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+
+    first_page_body = {
+        "data": {
+            "project": {
+                "totalSweeps": 2,
+                "sweeps": {
+                    "edges": [
+                        {
+                            "node": {
+                                "name": "test-sweep-1",
+                                "id": "test-1",
+                                "sweep_name": None,
+                            },
+                            "cursor": "cursor-1",
+                        },
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": True,
+                        "endCursor": "cursor-1",
+                    },
+                },
+            },
+        },
+    }
+
+    second_page_body = {
+        "data": {
+            "project": {
+                "totalSweeps": 2,
+                "sweeps": {
+                    "edges": [
+                        {
+                            "node": {
+                                "name": "test-sweep-2",
+                                "id": "test-2",
+                                "sweep_name": None,
+                            },
+                            "cursor": None,
+                        },
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": False,
+                        "endCursor": None,
+                    },
+                },
+            },
+        },
+    }
+
+    sweep_gql_body = {
+        "data": {
+            "project": {
+                "sweep": {
+                    "name": "test",
+                    "id": "test",
+                    "state": "finished",
+                },
+            },
+        },
+    }
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetSweeps"),
+        gql.Sequence(
+            [
+                gql.Constant(content=first_page_body),
+                gql.Constant(content=second_page_body),
+            ]
+        ),
+    )
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="Sweep"),
+        gql.Constant(content=sweep_gql_body),
+    )
+
+    project = Api().project(user, "test")
+    sweeps = project.sweeps(per_page=1)
+
+    assert len(sweeps) == 2
+    assert sweeps[0].id == "test-sweep-1"
+    assert sweeps[1].id == "test-sweep-2"
+
+
+def test_project_get_sweeps_empty(user, wandb_backend_spy):
+    gql = wandb_backend_spy.gql
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="GetSweeps"),
+        gql.Constant(
+            content={
+                "data": {
+                    "project": {
+                        "totalSweeps": 0,
+                        "sweeps": {
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": None,
+                            },
+                        },
+                    },
+                },
+            }
+        ),
+    )
+
+    project = Api().project(user, "test")
+    sweeps = project.sweeps()
+    assert len(sweeps) == 0
+    assert sweeps.more is False
+
+    with pytest.raises(IndexError):
+        sweeps[0]
 
 
 def test_delete_files_for_multiple_runs(
@@ -842,7 +1066,7 @@ def test_delete_api_key_failure(wandb_backend_spy, stub_search_users):
     assert not user.delete_api_key(api_key["name"])
 
 
-def test_generate_api_key_success(wandb_backend_spy, stub_search_users):
+def test_generate_api_key_success(wandb_backend_spy, stub_search_users, api):
     email = "test@test.com"
     api_key_1 = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
     api_key_2 = {"name": "Y" * 40, "id": "QXBpS2V5OjE4MzE="}
@@ -853,7 +1077,7 @@ def test_generate_api_key_success(wandb_backend_spy, stub_search_users):
         gql.once(content={"data": {"generateApiKey": {"apiKey": api_key_2}}}),
     )
 
-    user = Api().user(email)
+    user = api.user(email)
     old_key = user.api_keys[0]
     new_key = user.generate_api_key("good")
 
@@ -862,7 +1086,7 @@ def test_generate_api_key_success(wandb_backend_spy, stub_search_users):
     assert user.api_keys[-1] == new_key
 
 
-def test_generate_api_key_failure(wandb_backend_spy, stub_search_users):
+def test_generate_api_key_failure(wandb_backend_spy, stub_search_users, api):
     email = "test@test.com"
     api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
     stub_search_users(email=email, api_keys=[api_key], teams=[])
@@ -872,7 +1096,7 @@ def test_generate_api_key_failure(wandb_backend_spy, stub_search_users):
         gql.once(content={"error": "resource already exists"}, status=409),
     )
 
-    user = Api().user(email)
+    user = api.user(email)
 
     assert user.generate_api_key("conflict") is None
 
@@ -1002,3 +1226,52 @@ def test_runs_histories_empty(wandb_backend_spy):
     assert not runs.histories(format="default")  # empty list
     for format in ("pandas", "polars"):
         assert runs.histories(samples=2, format=format).shape == (0, 0)
+
+
+def test_run_upload_file_with_directory_traversal(
+    wandb_backend_spy,
+    stub_run_gql_once,
+    tmp_path,
+    monkeypatch,
+):
+    stub_run_gql_once()
+    runs_files_gql_body = {
+        "data": {
+            "project": {
+                "run": {
+                    "files": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "RmlsZToxODMw",
+                                    "name": "__/test.txt",
+                                    "state": "finished",
+                                    "user": {
+                                        "name": "test",
+                                        "username": "test",
+                                    },
+                                }
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+    }
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="RunFiles"),
+        gql.Constant(content=runs_files_gql_body),
+    )
+    mock_push = mock.MagicMock()
+    monkeypatch.setattr(wandb.sdk.internal.internal_api.Api, "push", mock_push)
+    tmp_path.joinpath("root").mkdir()
+    root = tmp_path.joinpath("root")
+    tmp_path.joinpath("test.txt").write_text("test")
+    api = Api()
+    run = api.run("test/test/test")
+
+    run.upload_file("../test.txt", root=str(root))
+
+    mock_push.assert_called_once()
+    assert "__/test.txt" in mock_push.call_args[0][0]

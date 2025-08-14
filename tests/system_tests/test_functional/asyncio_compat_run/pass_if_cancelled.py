@@ -13,8 +13,8 @@ async def pass_if_cancelled() -> None:
     global _got_cancelled
 
     try:
-        print("TEST READY", flush=True)  # noqa: T201
-        print(f"Ready at {time.monotonic()}", file=sys.stderr)  # noqa: T201
+        print("TEST READY", flush=True)
+        print(f"Ready at {time.monotonic()}", file=sys.stderr)
         await asyncio.sleep(5)
 
     except asyncio.CancelledError:
@@ -22,6 +22,7 @@ async def pass_if_cancelled() -> None:
         # asyncio_compat.run() to turn into task cancellation.
         with _got_cancelled_lock:
             _got_cancelled = True
+        raise
 
 
 if __name__ == "__main__":
@@ -32,19 +33,19 @@ if __name__ == "__main__":
             cancelled = _got_cancelled
 
         if cancelled:
-            print(  # noqa: T201
+            print(
                 f"PASS: Cancelled by KeyboardInterrupt ({time.monotonic()})",
                 file=sys.stderr,
             )
             sys.exit(0)
         else:
-            print(  # noqa: T201
+            print(
                 f"FAIL: Interrupted but not cancelled ({time.monotonic()})",
                 file=sys.stderr,
             )
             sys.exit(1)
     else:
-        print(  # noqa: T201
+        print(
             f"FAIL: Not interrupted by parent ({time.monotonic()})",
             file=sys.stderr,
         )

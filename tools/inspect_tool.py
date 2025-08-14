@@ -37,7 +37,7 @@ def inspect_wandb_transaction_log(wandb_file: str, pause: bool = False) -> None:
                 )
                 return None
             else:
-                raise e
+                raise
 
     ds = datastore.DataStore()
     try:

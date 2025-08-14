@@ -1,20 +1,45 @@
-"""Public API: runs."""
+"""W&B Public API for Runs.
+
+This module provides classes for interacting with W&B runs and their associated
+data.
+
+Example:
+```python
+from wandb.apis.public import Api
+
+# Get runs matching filters
+runs = Api().runs(
+    path="entity/project", filters={"state": "finished", "config.batch_size": 32}
+)
+
+# Access run data
+for run in runs:
+    print(f"Run: {run.name}")
+    print(f"Config: {run.config}")
+    print(f"Metrics: {run.summary}")
+
+    # Get history with pandas
+    history_df = run.history(keys=["loss", "accuracy"], pandas=True)
+
+    # Work with artifacts
+    for artifact in run.logged_artifacts():
+        print(f"Artifact: {artifact.name}")
+```
+
+Note:
+    This module is part of the W&B Public API and provides read/write access
+    to run data. For logging new runs, use the wandb.init() function from
+    the main wandb package.
+"""
+
+from __future__ import annotations
 
 import json
 import os
 import tempfile
 import time
 import urllib
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Collection,
-    Dict,
-    List,
-    Literal,
-    Mapping,
-    Optional,
-)
+from typing import TYPE_CHECKING, Any, Collection, Literal, Mapping
 
 from wandb_gql import gql
 
@@ -85,22 +110,101 @@ def _server_provides_internal_id_for_project(client) -> bool:
     ]
 
 
-class Runs(SizedPaginator["Run"]):
-    """An iterable collection of runs associated with a project and optional filter.
+@normalize_exceptions
+def _convert_to_dict(value: Any) -> dict[str, Any]:
+    """Converts a value to a dictionary.
 
-    This is generally used indirectly via the `Api`.runs method.
+    If the value is already a dictionary, the value is returned unchanged.
+    If the value is a string, bytes, or bytearray, it is parsed as JSON.
+    For any other type, a TypeError is raised.
+    """
+    if value is None:
+        return {}
+
+    if isinstance(value, dict):
+        return value
+
+    if isinstance(value, (str, bytes, bytearray)):
+        try:
+            return json.loads(value)
+        except json.decoder.JSONDecodeError:
+            # ignore invalid utf-8 or control characters
+            return json.loads(value, strict=False)
+
+    raise TypeError(f"Unable to convert {value} to a dict")
+
+
+class Runs(SizedPaginator["Run"]):
+    """A lazy iterator of `Run` objects associated with a project and optional filter.
+
+    Runs are retrieved in pages from the W&B server as needed.
+
+    This is generally used indirectly using the `Api.runs` namespace.
+
+    Args:
+        client: (`wandb.apis.public.RetryingClient`) The API client to use
+            for requests.
+        entity: (str) The entity (username or team) that owns the project.
+        project: (str) The name of the project to fetch runs from.
+        filters: (Optional[Dict[str, Any]]) A dictionary of filters to apply
+            to the runs query.
+        order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
+            If you prepend order with a + order is ascending (default).
+            If you prepend order with a - order is descending.
+            The default order is run.created_at from oldest to newest.
+        per_page: (int) The number of runs to fetch per request (default is 50).
+        include_sweeps: (bool) Whether to include sweep information in the
+            runs. Defaults to True.
+
+    Examples:
+    ```python
+    from wandb.apis.public.runs import Runs
+    from wandb.apis.public import Api
+
+    # Get all runs from a project that satisfy the filters
+    filters = {"state": "finished", "config.optimizer": "adam"}
+
+    runs = Api().runs(
+        client=api.client,
+        entity="entity",
+        project="project_name",
+        filters=filters,
+    )
+
+    # Iterate over runs and print details
+    for run in runs:
+        print(f"Run name: {run.name}")
+        print(f"Run ID: {run.id}")
+        print(f"Run URL: {run.url}")
+        print(f"Run state: {run.state}")
+        print(f"Run config: {run.config}")
+        print(f"Run summary: {run.summary}")
+        print(f"Run history (samples=5): {run.history(samples=5)}")
+        print("----------")
+
+    # Get histories for all runs with specific metrics
+    histories_df = runs.histories(
+        samples=100,  # Number of samples per run
+        keys=["loss", "accuracy"],  # Metrics to fetch
+        x_axis="_step",  # X-axis metric
+        format="pandas",  # Return as pandas DataFrame
+    )
+    ```
     """
 
     def __init__(
         self,
-        client: "RetryingClient",
+        client: RetryingClient,
         entity: str,
         project: str,
-        filters: Optional[Dict[str, Any]] = None,
-        order: Optional[str] = None,
+        filters: dict[str, Any] | None = None,
+        order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
     ):
+        if not order:
+            order = "+created_at"
+
         self.QUERY = gql(
             f"""#graphql
             query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
@@ -111,7 +215,7 @@ class Runs(SizedPaginator["Run"]):
                     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
                         edges {{
                             node {{
-                                {"" if _server_provides_internal_id_for_project(client) else "internalId"}
+                                {"projectId" if _server_provides_internal_id_for_project(client) else ""}
                                 ...RunFragment
                             }}
                             cursor
@@ -143,27 +247,44 @@ class Runs(SizedPaginator["Run"]):
         super().__init__(client, variables, per_page)
 
     @property
-    def length(self):
-        if self.last_response:
-            return self.last_response["project"]["runCount"]
-        else:
-            return None
+    def _length(self):
+        """Returns the total number of runs.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        if not self.last_response:
+            self._load_page()
+        return self.last_response["project"]["runCount"]
 
     @property
-    def more(self):
+    def more(self) -> bool:
+        """Returns whether there are more runs to fetch.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
-            return self.last_response["project"]["runs"]["pageInfo"]["hasNextPage"]
+            return bool(
+                self.last_response["project"]["runs"]["pageInfo"]["hasNextPage"]
+            )
         else:
             return True
 
     @property
     def cursor(self):
+        """Returns the cursor position for pagination of runs results.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         if self.last_response:
             return self.last_response["project"]["runs"]["edges"][-1]["cursor"]
         else:
             return None
 
     def convert_objects(self):
+        """Converts GraphQL edges to Runs objects.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         objs = []
         if self.last_response is None or self.last_response.get("project") is None:
             raise ValueError("Could not find project {}".format(self.project))
@@ -201,7 +322,7 @@ class Runs(SizedPaginator["Run"]):
     def histories(
         self,
         samples: int = 500,
-        keys: Optional[List[str]] = None,
+        keys: list[str] | None = None,
         x_axis: str = "_step",
         format: Literal["default", "pandas", "polars"] = "default",
         stream: Literal["default", "system"] = "default",
@@ -209,15 +330,19 @@ class Runs(SizedPaginator["Run"]):
         """Return sampled history metrics for all runs that fit the filters conditions.
 
         Args:
-            samples : (int, optional) The number of samples to return per run
-            keys : (list[str], optional) Only return metrics for specific keys
-            x_axis : (str, optional) Use this metric as the xAxis defaults to _step
-            format : (Literal, optional) Format to return data in, options are "default", "pandas", "polars"
-            stream : (Literal, optional) "default" for metrics, "system" for machine metrics
+            samples: The number of samples to return per run
+            keys: Only return metrics for specific keys
+            x_axis: Use this metric as the xAxis defaults to _step
+            format: Format to return data in, options are "default", "pandas",
+                "polars"
+            stream: "default" for metrics, "system" for machine metrics
         Returns:
-            pandas.DataFrame: If format="pandas", returns a `pandas.DataFrame` of history metrics.
-            polars.DataFrame: If format="polars", returns a `polars.DataFrame` of history metrics.
-            list of dicts: If format="default", returns a list of dicts containing history metrics with a run_id key.
+            pandas.DataFrame: If `format="pandas"`, returns a `pandas.DataFrame`
+                of history metrics.
+            polars.DataFrame: If `format="polars"`, returns a `polars.DataFrame`
+                of history metrics.
+            list of dicts: If `format="default"`, returns a list of dicts
+                containing history metrics with a `run_id` key.
         """
         if format not in ("default", "pandas", "polars"):
             raise ValueError(
@@ -301,6 +426,14 @@ class Runs(SizedPaginator["Run"]):
 class Run(Attrs):
     """A single run associated with an entity and project.
 
+    Args:
+        client: The W&B API client.
+        entity: The entity associated with the run.
+        project: The project associated with the run.
+        run_id: The unique identifier for the run.
+        attrs: The attributes of the run.
+        include_sweeps: Whether to include sweeps in the run.
+
     Attributes:
         tags ([str]): a list of tags associated with the run
         url (str): the url of this run
@@ -326,11 +459,11 @@ class Run(Attrs):
 
     def __init__(
         self,
-        client: "RetryingClient",
+        client: RetryingClient,
         entity: str,
         project: str,
         run_id: str,
-        attrs: Optional[Mapping] = None,
+        attrs: Mapping | None = None,
         include_sweeps: bool = True,
     ):
         """Initialize a Run object.
@@ -354,27 +487,32 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
-        self._metadata: Optional[Dict[str, Any]] = None
+        self._metadata: dict[str, Any] | None = None
         self._state = _attrs.get("state", "not found")
-        self.server_provides_internal_id_field: Optional[bool] = None
+        self.server_provides_internal_id_field: bool | None = None
+        self._is_loaded: bool = False
 
         self.load(force=not _attrs)
 
     @property
     def state(self):
+        """The state of the run. Can be one of: Finished, Failed, Crashed, or Running."""
         return self._state
 
     @property
     def entity(self):
+        """The entity associated with the run."""
         return self._entity
 
     @property
     def username(self):
+        """This API is deprecated. Use `entity` instead."""
         wandb.termwarn("Run.username is deprecated. Please use Run.entity instead.")
         return self._entity
 
     @property
     def storage_id(self):
+        """The unique storage identifier for the run."""
         # For compatibility with wandb.Run, which has storage IDs
         # in self.storage_id and names in self.id.
 
@@ -382,32 +520,44 @@ class Run(Attrs):
 
     @property
     def id(self):
+        """The unique identifier for the run."""
         return self._attrs.get("name")
 
     @id.setter
     def id(self, new_id):
+        """Set the unique identifier for the run."""
         attrs = self._attrs
         attrs["name"] = new_id
         return new_id
 
     @property
     def name(self):
+        """The name of the run."""
         return self._attrs.get("displayName")
 
     @name.setter
     def name(self, new_name):
+        """Set the name of the run."""
         self._attrs["displayName"] = new_name
         return new_name
 
     @classmethod
-    def create(cls, api, run_id=None, project=None, entity=None):
+    def create(
+        cls,
+        api: public.Api,
+        run_id: str | None = None,
+        project: str | None = None,
+        entity: str | None = None,
+        state: Literal["running", "pending"] = "running",
+    ):
         """Create a run for the given project."""
+        api._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or api.settings.get("project") or "uncategorized"
         mutation = gql(
             """
-        mutation UpsertBucket($project: String, $entity: String, $name: String!) {
-            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name}) {
+        mutation UpsertBucket($project: String, $entity: String, $name: String!, $state: String) {
+            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name, state: $state}) {
                 bucket {
                     project {
                         name
@@ -421,7 +571,12 @@ class Run(Attrs):
         }
         """
         )
-        variables = {"entity": entity, "project": project, "name": run_id}
+        variables = {
+            "entity": entity,
+            "project": project,
+            "name": run_id,
+            "state": state,
+        }
         res = api.client.execute(mutation, variable_values=variables)
         res = res["upsertBucket"]["bucket"]
         return Run(
@@ -437,30 +592,25 @@ class Run(Attrs):
                 "tags": [],
                 "description": None,
                 "notes": None,
-                "state": "running",
+                "state": state,
             },
         )
 
     def load(self, force=False):
-        query = gql(
-            """
-        query Run($project: String!, $entity: String!, $name: String!) {{
-            project(name: $project, entityName: $entity) {{
-                run(name: $name) {{
-                    {}
-                    ...RunFragment
+        if force or not self._attrs:
+            self._is_loaded = False
+            query = gql(f"""#graphql
+            query Run($project: String!, $entity: String!, $name: String!) {{
+                project(name: $project, entityName: $entity) {{
+                    run(name: $name) {{
+                        {"projectId" if _server_provides_internal_id_for_project(self.client) else ""}
+                        ...RunFragment
+                    }}
                 }}
             }}
-        }}
-        {}
-        """.format(
-                "projectId"
-                if _server_provides_internal_id_for_project(self.client)
-                else "",
-                RUN_FRAGMENT,
-            )
-        )
-        if force or not self._attrs:
+            {RUN_FRAGMENT}
+            """)
+
             response = self._exec(query)
             if (
                 response is None
@@ -469,7 +619,6 @@ class Run(Attrs):
             ):
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
-            self._state = self._attrs["state"]
 
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
@@ -482,32 +631,31 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
+        if not self._is_loaded:
+            self._load_from_attrs()
+            self._is_loaded = True
+
+        return self._attrs
+
+    def _load_from_attrs(self):
+        self._state = self._attrs.get("state", None)
+        self._attrs["config"] = _convert_to_dict(self._attrs.get("config"))
+        self._attrs["summaryMetrics"] = _convert_to_dict(
+            self._attrs.get("summaryMetrics")
+        )
+        self._attrs["systemMetrics"] = _convert_to_dict(
+            self._attrs.get("systemMetrics")
+        )
+
         if "projectId" in self._attrs:
             self._project_internal_id = int(self._attrs["projectId"])
         else:
             self._project_internal_id = None
 
-        try:
-            self._attrs["summaryMetrics"] = (
-                json.loads(self._attrs["summaryMetrics"])
-                if self._attrs.get("summaryMetrics")
-                else {}
-            )
-        except json.decoder.JSONDecodeError:
-            # ignore invalid utf-8 or control characters
-            self._attrs["summaryMetrics"] = json.loads(
-                self._attrs["summaryMetrics"],
-                strict=False,
-            )
-        self._attrs["systemMetrics"] = (
-            json.loads(self._attrs["systemMetrics"])
-            if self._attrs.get("systemMetrics")
-            else {}
-        )
         if self._attrs.get("user"):
             self.user = public.User(self.client, self._attrs["user"])
         config_user, config_raw = {}, {}
-        for key, value in json.loads(self._attrs.get("config") or "{}").items():
+        for key, value in self._attrs.get("config").items():
             config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
             if isinstance(value, dict) and "value" in value:
                 config[key] = value["value"]
@@ -516,10 +664,10 @@ class Run(Attrs):
         config_raw.update(config_user)
         self._attrs["config"] = config_user
         self._attrs["rawconfig"] = config_raw
-        return self._attrs
 
     @normalize_exceptions
     def wait_until_finished(self):
+        """Check the state of the run until it is finished."""
         query = gql(
             """
             query RunState($project: String!, $entity: String!, $name: String!) {
@@ -570,7 +718,12 @@ class Run(Attrs):
 
     @normalize_exceptions
     def delete(self, delete_artifacts=False):
-        """Delete the given run from the wandb backend."""
+        """Delete the given run from the wandb backend.
+
+        Args:
+            delete_artifacts (bool, optional): Whether to delete the artifacts
+                associated with the run.
+        """
         mutation = gql(
             """
             mutation DeleteRun(
@@ -599,10 +752,15 @@ class Run(Attrs):
         )
 
     def save(self):
+        """Persist changes to the run object to the W&B backend."""
         self.update()
 
     @property
     def json_config(self):
+        """Return the run config as a JSON string.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         config = {}
         if "_wandb" in self.rawconfig:
             config["_wandb"] = {"value": self.rawconfig["_wandb"], "desc": None}
@@ -648,17 +806,35 @@ class Run(Attrs):
         return [json.loads(line) for line in response["project"]["run"][node]]
 
     @normalize_exceptions
-    def files(self, names=None, per_page=50):
-        """Return a file path for each file named.
+    def files(
+        self,
+        names: list[str] | None = None,
+        pattern: str | None = None,
+        per_page: int = 50,
+    ):
+        """Returns a `Files` object for all files in the run which match the given criteria.
+
+        You can specify a list of exact file names to match, or a pattern to match against.
+        If both are provided, the pattern will be ignored.
 
         Args:
             names (list): names of the requested files, if empty returns all files
+            pattern (str, optional): Pattern to match when returning files from W&B.
+                This pattern uses mySQL's LIKE syntax,
+                so matching all files that end with .json would be "%.json".
+                If both names and pattern are provided, a ValueError will be raised.
             per_page (int): number of results per page.
 
         Returns:
             A `Files` object, which is an iterator over `File` objects.
         """
-        return public.Files(self.client, self, names or [], per_page)
+        return public.Files(
+            self.client,
+            self,
+            names or [],
+            pattern=pattern,
+            per_page=per_page,
+        )
 
     @normalize_exceptions
     def file(self, name):
@@ -674,16 +850,17 @@ class Run(Attrs):
 
     @normalize_exceptions
     def upload_file(self, path, root="."):
-        """Upload a file.
+        """Upload a local file to W&B, associating it with this run.
 
         Args:
-            path (str): name of file to upload.
-            root (str): the root path to save the file relative to.  i.e.
-                If you want to have the file saved in the run as "my_dir/file.txt"
+            path (str): Path to the file to upload. Can be absolute or relative.
+            root (str): The root path to save the file relative to. For example,
+                if you want to have the file saved in the run as "my_dir/file.txt"
                 and you're currently in "my_dir" you would set root to "../".
+                Defaults to current directory (".").
 
         Returns:
-            A `File` matching the name argument.
+            A `File` object representing the uploaded file.
         """
         api = InternalApi(
             default_settings={"entity": self.entity, "project": self.project},
@@ -692,8 +869,9 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
         root = os.path.abspath(root)
         name = os.path.relpath(path, root)
+        upload_path = util.make_file_path_upload_safe(name)
         with open(os.path.join(root, name), "rb") as f:
-            api.push({LogicalPath(name): f})
+            api.push({LogicalPath(upload_path): f})
         return public.Files(self.client, self, [name])[0]
 
     @normalize_exceptions
@@ -742,15 +920,6 @@ class Run(Attrs):
     def scan_history(self, keys=None, page_size=1000, min_step=None, max_step=None):
         """Returns an iterable collection of all history records for a run.
 
-        Example:
-            Export all the loss values for an example run
-
-            ```python
-            run = api.run("l2k2/examples-numpy-boston/i0wt6xua")
-            history = run.scan_history(keys=["Loss"])
-            losses = [row["Loss"] for row in history]
-            ```
-
         Args:
             keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
             page_size (int, optional): size of pages to fetch from the api.
@@ -759,6 +928,15 @@ class Run(Attrs):
 
         Returns:
             An iterable collection over history records (dict).
+
+        Example:
+        Export all the loss values for an example run
+
+        ```python
+        run = api.run("entity/project-name/run-id")
+        history = run.scan_history(keys=["Loss"])
+        losses = [row["Loss"] for row in history]
+        ```
         """
         if keys is not None and not isinstance(keys, list):
             wandb.termerror("keys must be specified in a list")
@@ -808,23 +986,27 @@ class Run(Attrs):
             An iterable collection of all Artifact objects logged as outputs during this run.
 
         Example:
-            >>> import wandb
-            >>> import tempfile
-            >>> with tempfile.NamedTemporaryFile(
-            ...     mode="w", delete=False, suffix=".txt"
-            ... ) as tmp:
-            ...     tmp.write("This is a test artifact")
-            ...     tmp_path = tmp.name
-            >>> run = wandb.init(project="artifact-example")
-            >>> artifact = wandb.Artifact("test_artifact", type="dataset")
-            >>> artifact.add_file(tmp_path)
-            >>> run.log_artifact(artifact)
-            >>> run.finish()
-            >>> api = wandb.Api()
-            >>> finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
-            >>> for logged_artifact in finished_run.logged_artifacts():
-            ...     print(logged_artifact.name)
-            test_artifact
+        ```python
+        import wandb
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as tmp:
+            tmp.write("This is a test artifact")
+            tmp_path = tmp.name
+        run = wandb.init(project="artifact-example")
+        artifact = wandb.Artifact("test_artifact", type="dataset")
+        artifact.add_file(tmp_path)
+        run.log_artifact(artifact)
+        run.finish()
+
+        api = wandb.Api()
+
+        finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+
+        for logged_artifact in finished_run.logged_artifacts():
+            print(logged_artifact.name)
+        ```
+
         """
         return public.RunArtifacts(self.client, self, mode="logged", per_page=per_page)
 
@@ -843,15 +1025,19 @@ class Run(Attrs):
             An iterable collection of Artifact objects explicitly used as inputs in this run.
 
         Example:
-            >>> import wandb
-            >>> run = wandb.init(project="artifact-example")
-            >>> run.use_artifact("test_artifact:latest")
-            >>> run.finish()
-            >>> api = wandb.Api()
-            >>> finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
-            >>> for used_artifact in finished_run.used_artifacts():
-            ...     print(used_artifact.name)
-            test_artifact
+        ```python
+        import wandb
+
+        run = wandb.init(project="artifact-example")
+        run.use_artifact("test_artifact:latest")
+        run.finish()
+
+        api = wandb.Api()
+        finished_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+        for used_artifact in finished_run.used_artifacts():
+            print(used_artifact.name)
+        test_artifact
+        ```
         """
         return public.RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
@@ -869,7 +1055,7 @@ class Run(Attrs):
                 feature's artifact swapping functionality.
 
         Returns:
-            A `Artifact` object.
+            An `Artifact` object.
         """
         api = InternalApi(
             default_settings={"entity": self.entity, "project": self.project},
@@ -896,9 +1082,9 @@ class Run(Attrs):
     @normalize_exceptions
     def log_artifact(
         self,
-        artifact: "wandb.Artifact",
-        aliases: Optional[Collection[str]] = None,
-        tags: Optional[Collection[str]] = None,
+        artifact: wandb.Artifact,
+        aliases: Collection[str] | None = None,
+        tags: Collection[str] | None = None,
     ):
         """Declare an artifact as output of a run.
 
@@ -918,7 +1104,7 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if not isinstance(artifact, wandb.Artifact):
-            raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")
+            raise TypeError("You must pass a wandb.Api().artifact() to use_artifact")
         if artifact.is_draft():
             raise ValueError(
                 "Only existing artifacts are accepted by this api. "
@@ -942,6 +1128,7 @@ class Run(Attrs):
 
     @property
     def summary(self):
+        """A mutable dict-like property that holds summary values associated with the run."""
         if self._summary is None:
             from wandb.old.summary import HTTPSummary
 
@@ -951,6 +1138,7 @@ class Run(Attrs):
 
     @property
     def path(self):
+        """The path of the run. The path is a list containing the entity, project, and run_id."""
         return [
             urllib.parse.quote_plus(str(self.entity)),
             urllib.parse.quote_plus(str(self.project)),
@@ -959,12 +1147,22 @@ class Run(Attrs):
 
     @property
     def url(self):
+        """The URL of the run.
+
+        The run URL is generated from the entity, project, and run_id. For
+        SaaS users, it takes the form of `https://wandb.ai/entity/project/run_id`.
+        """
         path = self.path
         path.insert(2, "runs")
         return self.client.app_url + "/".join(path)
 
     @property
     def metadata(self):
+        """Metadata about the run from wandb-metadata.json.
+
+        Metadata includes the run's description, tags, start time, memory
+        usage and more.
+        """
         if self._metadata is None:
             try:
                 f = self.file("wandb-metadata.json")
@@ -980,6 +1178,7 @@ class Run(Attrs):
 
     @property
     def lastHistoryStep(self):  # noqa: N802
+        """Returns the last step logged in the run's history."""
         query = gql(
             """
         query RunHistoryKeys($project: String!, $entity: String!, $name: String!) {

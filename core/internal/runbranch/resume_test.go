@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -31,6 +30,7 @@ type Bucket struct {
 	Tags             []string `json:"tags"`
 	WandbConfig      string   `json:"wandbConfig"`
 	Id               string   `json:"id"`
+	Notes            *string  `json:"notes"`
 }
 
 func TestNeverResumeEmptyResponse(t *testing.T) {
@@ -1304,23 +1304,69 @@ func TestExtractRunStateAdjustsStartTime(t *testing.T) {
 		mockGQL,
 		"must")
 
-	// Set a non-zero StartTime in the input RunParams
-	initialStartTime := time.Now()
 	params := &runbranch.RunParams{
-		StartTime: initialStartTime,
-		Entity:    "test-entity",
-		Project:   "test-project",
-		RunID:     "test-run-id",
+		Entity:  "test-entity",
+		Project: "test-project",
+		RunID:   "test-run-id",
 	}
 	err = resumeState.UpdateForResume(params, runconfig.New())
 
 	assert.Nil(t, err, "GetUpdates should not return an error")
 
-	// Check that StartTime was adjusted correctly
-	expectedStartTime := initialStartTime.Add(time.Duration(-130) * time.Second)
-	assert.Equal(t, expectedStartTime, params.StartTime, "StartTime should be adjusted based on the runtime")
-
 	// Verify other fields are set correctly
 	assert.Equal(t, int32(130), params.Runtime, "Runtime should be set to the maximum value")
 	assert.True(t, params.Resumed, "Resumed flag should be set to true")
+}
+
+func TestResumedRunNotes(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+
+	notes := "test-notes"
+	config := `{}`
+	historyLineCount := 5
+	eventsLineCount := 10
+	logLineCount := 15
+	summary := `{}`
+	history := `[]`
+
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:             "TestRun",
+				EventsTail:       `[]`,
+				WandbConfig:      `{"t": 1}`,
+				Config:           &config,
+				HistoryLineCount: &historyLineCount,
+				EventsLineCount:  &eventsLineCount,
+				LogLineCount:     &logLineCount,
+				SummaryMetrics:   &summary,
+				HistoryTail:      &history,
+				Notes:            &notes,
+			},
+		},
+	}
+
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+
+	params := &runbranch.RunParams{
+		Entity:  "test-entity",
+		Project: "test-project",
+		RunID:   "test-run-id",
+	}
+
+	err = resumeState.UpdateForResume(params, runconfig.New())
+	assert.Nil(t, err, "GetUpdates should not return an error")
+
+	assert.Equal(t, notes, params.Notes, "Notes should be set to the value from the response")
 }

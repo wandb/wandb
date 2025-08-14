@@ -162,6 +162,25 @@ class ArtifactsFragmentPageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+class FileUrlsFragment(GQLBase):
+    page_info: FileUrlsFragmentPageInfo = Field(alias="pageInfo")
+    edges: List[FileUrlsFragmentEdges]
+
+
+class FileUrlsFragmentEdges(GQLBase):
+    node: Optional[FileUrlsFragmentEdgesNode]
+
+
+class FileUrlsFragmentEdgesNode(GQLBase):
+    name: str
+    direct_url: str = Field(alias="directUrl")
+
+
+class FileUrlsFragmentPageInfo(GQLBase):
+    has_next_page: bool = Field(alias="hasNextPage")
+    end_cursor: Optional[str] = Field(alias="endCursor")
+
+
 class FilesFragment(GQLBase):
     edges: List[FilesFragmentEdges]
     page_info: FilesFragmentPageInfo = Field(alias="pageInfo")
@@ -213,6 +232,10 @@ ArtifactTypesFragmentPageInfo.model_rebuild()
 ArtifactsFragment.model_rebuild()
 ArtifactsFragmentEdges.model_rebuild()
 ArtifactsFragmentPageInfo.model_rebuild()
+FileUrlsFragment.model_rebuild()
+FileUrlsFragmentEdges.model_rebuild()
+FileUrlsFragmentEdgesNode.model_rebuild()
+FileUrlsFragmentPageInfo.model_rebuild()
 FilesFragment.model_rebuild()
 FilesFragmentEdges.model_rebuild()
 FilesFragmentEdgesNode.model_rebuild()

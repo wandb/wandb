@@ -11,13 +11,10 @@ Example:
 
 from __future__ import annotations
 
-import os
 from typing import Iterable
 
 import wandb
-from wandb.env import _REQUIRE_LEGACY_SERVICE
 from wandb.errors import UnsupportedError
-from wandb.sdk import wandb_run
 
 
 class _Requires:
@@ -33,21 +30,20 @@ class _Requires:
     def require_require(self) -> None:
         pass
 
-    def _require_service(self) -> None:
-        wandb.teardown = wandb._teardown  # type: ignore
-        wandb.attach = wandb._attach  # type: ignore
-        wandb_run.Run.detach = wandb_run.Run._detach  # type: ignore
-
     def require_service(self) -> None:
-        self._require_service()
-
-    def require_core(self) -> None:
+        # Legacy no-op kept solely for backward compatibility:
+        # some integrations (e.g. PyTorch Lightning) still call
+        # `wandb.require('service')`, which routes here.
         wandb.termwarn(
-            "`wandb.require('core')` is redundant as it is now the default behavior."
+            "`wandb.require('service')` is a no-op as it is now the default behavior."
         )
 
-    def require_legacy_service(self) -> None:
-        os.environ[_REQUIRE_LEGACY_SERVICE] = "true"
+    def require_core(self) -> None:
+        # Legacy no-op kept solely for backward compatibility:
+        # many public codebases still call `wandb.require('core')`.
+        wandb.termwarn(
+            "`wandb.require('core')` is a no-op as it is now the default behavior."
+        )
 
     def apply(self) -> None:
         """Call require_* method for supported features."""
@@ -64,7 +60,6 @@ class _Requires:
             func()
 
         if last_message:
-            wandb.termwarn("Supported requirements are: `legacy-service`, `service`.")
             raise UnsupportedError(last_message)
 
 
@@ -91,10 +86,3 @@ def require(
 
     f = _Requires(features=features)
     f.apply()
-
-
-def _import_module_hook() -> None:
-    """On wandb import, setup anything needed based on parent process require calls."""
-    # TODO: optimize by caching which pids this has been done for or use real import hooks
-    # TODO: make this more generic, but for now this works
-    require("service")

@@ -88,20 +88,12 @@ pub struct Imports {
     pub autogluon: bool,
     #[prost(bool, tag = "16")]
     pub autokeras: bool,
-    /// bool avalanche = 17;
     #[prost(bool, tag = "18")]
     pub catalyst: bool,
-    /// bool dalle_pytorch = 19;
-    /// bool datasets = 20;
     #[prost(bool, tag = "21")]
     pub deepchem: bool,
     #[prost(bool, tag = "22")]
     pub deepctr: bool,
-    /// bool deeppavlov = 23;
-    /// bool detectron = 24;
-    /// bool paddle = 25;
-    /// bool parlai = 26;
-    /// bool prophet = 27;
     #[prost(bool, tag = "28")]
     pub pycaret: bool,
     #[prost(bool, tag = "29")]
@@ -156,8 +148,6 @@ pub struct Imports {
     pub joblib: bool,
     #[prost(bool, tag = "54")]
     pub dask: bool,
-    #[prost(bool, tag = "55")]
-    pub asyncio: bool,
     #[prost(bool, tag = "56")]
     pub paddleocr: bool,
     #[prost(bool, tag = "57")]
@@ -427,9 +417,6 @@ pub struct Feature {
     /// HuggingFace Autologging
     #[prost(bool, tag = "54")]
     pub hf_pipeline_autolog: bool,
-    /// Using wandb core internal process
-    #[prost(bool, tag = "55")]
-    pub core: bool,
     /// Using c wandb library
     #[prost(bool, tag = "56")]
     pub lib_c: bool,
@@ -532,21 +519,9 @@ pub struct Deprecated {
     /// wandb.integration.keras.WandbCallback(data_type=...) called
     #[prost(bool, tag = "1")]
     pub keras_callback_data_type: bool,
-    /// wandb.run.mode called
-    #[prost(bool, tag = "2")]
-    pub run_mode: bool,
-    /// wandb.run.save() called without arguments
-    #[prost(bool, tag = "3")]
-    pub run_save_no_args: bool,
-    /// wandb.run.join() called
-    #[prost(bool, tag = "4")]
-    pub run_join: bool,
     /// wandb.plots.* called
     #[prost(bool, tag = "5")]
     pub plots: bool,
-    /// wandb.run.log(sync=...) called
-    #[prost(bool, tag = "6")]
-    pub run_log_sync: bool,
     /// wandb.init(config_include_keys=...) called
     #[prost(bool, tag = "7")]
     pub init_config_include_keys: bool,
@@ -610,6 +585,15 @@ pub struct Deprecated {
     /// wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
     #[prost(bool, tag = "27")]
     pub artifact_init_use_as: bool,
+    /// wandb.beta.workflows.log_model() called
+    #[prost(bool, tag = "28")]
+    pub beta_workflows_log_model: bool,
+    /// wandb.beta.workflows.use_model() called
+    #[prost(bool, tag = "29")]
+    pub beta_workflows_use_model: bool,
+    /// wandb.beta.workflows.link_model() called
+    #[prost(bool, tag = "30")]
+    pub beta_workflows_link_model: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Issues {
@@ -637,7 +621,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -688,6 +672,8 @@ pub mod record {
         NoopLinkArtifact(()),
         #[prost(message, tag = "25")]
         UseArtifact(super::UseArtifactRecord),
+        #[prost(message, tag = "26")]
+        Environment(super::EnvironmentRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1207,6 +1193,8 @@ pub struct MetricSummary {
     pub none: bool,
     #[prost(bool, tag = "7")]
     pub copy: bool,
+    #[prost(bool, tag = "8")]
+    pub first: bool,
 }
 ///
 /// ConfigRecord: wandb/sdk/wandb_config/Config
@@ -1621,7 +1609,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 80, 81, 82, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1665,8 +1653,6 @@ pub mod request {
         RunStatus(super::RunStatusRequest),
         #[prost(message, tag = "21")]
         Cancel(super::CancelRequest),
-        #[prost(message, tag = "22")]
-        Metadata(super::MetadataRequest),
         #[prost(message, tag = "23")]
         InternalMessages(super::InternalMessagesRequest),
         #[prost(message, tag = "24")]
@@ -1699,8 +1685,6 @@ pub mod request {
         LinkArtifact(super::LinkArtifactRequest),
         #[prost(message, tag = "79")]
         RunFinishWithoutExit(super::RunFinishWithoutExitRequest),
-        #[prost(message, tag = "80")]
-        GetSystemMetadata(super::GetSystemMetadataRequest),
         #[prost(message, tag = "81")]
         SyncFinish(super::SyncFinishRequest),
         /// Requests information about tasks the service is performing.
@@ -1716,7 +1700,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 73, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1772,8 +1756,6 @@ pub mod response {
         SyncResponse(super::SyncResponse),
         #[prost(message, tag = "72")]
         RunFinishWithoutExitResponse(super::RunFinishWithoutExitResponse),
-        #[prost(message, tag = "73")]
-        GetSystemMetadataResponse(super::GetSystemMetadataResponse),
         #[prost(message, tag = "74")]
         OperationsResponse(super::OperationStatsResponse),
         #[prost(message, tag = "1000")]
@@ -1935,18 +1917,6 @@ pub struct GetSystemMetricsResponse {
         ::prost::alloc::string::String,
         SystemMetricsBuffer,
     >,
-}
-///
-/// GetSystemMetadataRequest: request system metadata
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetSystemMetadataRequest {
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RequestInfo>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetSystemMetadataResponse {
-    #[prost(message, optional, tag = "1")]
-    pub metadata: ::core::option::Option<MetadataRequest>,
 }
 ///
 /// StatusRequest:
@@ -2587,7 +2557,7 @@ pub struct CancelRequest {
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct CancelResponse {}
 ///
-/// MetadataRequest
+/// Run environment including system, hardware, software, and execution parameters.
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct DiskInfo {
     #[prost(uint64, tag = "1")]
@@ -2688,78 +2658,134 @@ pub struct TpuInfo {
     #[prost(uint32, tag = "4")]
     pub count: u32,
 }
+/// CoreWeaveInfo stores information about a CoreWeave compute environment.
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MetadataRequest {
+pub struct CoreWeaveInfo {
+    #[prost(string, tag = "1")]
+    pub cluster_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub org_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub region: ::prost::alloc::string::String,
+}
+/// EnvironmentRecord stores a snapshot of the system, hardware, software,
+/// and execution parameters captured at a run writer initialization.
+///
+/// A single W&B Run can have multiple "writers" that contribute data to the run.
+/// Examples include:
+///    - Multiple processes logging to the same run in a distributed training setup
+///      (`wandb.init(id="<run-id>", mode="shared")`)
+///    - Resuming a previous run (`wandb.init(id="<run-id>", resume="must")`),
+///      which creates a new writer session, potentially on a different machine.
+///
+/// Because each writer can have a distinct environment (e.g., different OS,
+/// hardware, or git state), this record is associated with that writer's
+/// unique `writer_id` to preserve its specific context.
+///
+/// The environment and system metadata captured by this specific writer.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct EnvironmentRecord {
+    /// Operating system, e.g., "macOS-14.4.1-arm64-arm-64bit".
     #[prost(string, tag = "1")]
     pub os: ::prost::alloc::string::String,
+    /// Version of the Python interpreter, e.g., "3.11.8".
     #[prost(string, tag = "2")]
     pub python: ::prost::alloc::string::String,
+    /// Timestamp when the writer started.
     #[prost(message, optional, tag = "3")]
-    pub heartbeat_at: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(message, optional, tag = "4")]
     pub started_at: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(string, tag = "5")]
+    /// Docker image ID, if running in a Docker container.
+    #[prost(string, tag = "4")]
     pub docker: ::prost::alloc::string::String,
-    #[prost(string, tag = "6")]
-    pub cuda: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag = "7")]
+    /// Command-line arguments passed to the script.
+    #[prost(string, repeated, tag = "5")]
     pub args: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(string, tag = "8")]
-    pub state: ::prost::alloc::string::String,
-    #[prost(string, tag = "9")]
+    /// The name of the program or script being executed.
+    #[prost(string, tag = "6")]
     pub program: ::prost::alloc::string::String,
-    #[prost(string, tag = "10")]
+    /// Path to the program or script.
+    #[prost(string, tag = "7")]
     pub code_path: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "11")]
-    pub git: ::core::option::Option<GitRepoRecord>,
-    #[prost(string, tag = "12")]
-    pub email: ::prost::alloc::string::String,
-    #[prost(string, tag = "13")]
-    pub root: ::prost::alloc::string::String,
-    #[prost(string, tag = "14")]
-    pub host: ::prost::alloc::string::String,
-    #[prost(string, tag = "15")]
-    pub username: ::prost::alloc::string::String,
-    #[prost(string, tag = "16")]
-    pub executable: ::prost::alloc::string::String,
-    #[prost(string, tag = "17")]
+    /// The local filesystem path to the code being executed.
+    #[prost(string, tag = "8")]
     pub code_path_local: ::prost::alloc::string::String,
-    #[prost(string, tag = "18")]
+    /// Information about the Git repository, if applicable.
+    #[prost(message, optional, tag = "9")]
+    pub git: ::core::option::Option<GitRepoRecord>,
+    /// Email of the logged-in user.
+    #[prost(string, tag = "10")]
+    pub email: ::prost::alloc::string::String,
+    /// Root directory where the script was executed.
+    #[prost(string, tag = "11")]
+    pub root: ::prost::alloc::string::String,
+    /// Hostname of the machine.
+    #[prost(string, tag = "12")]
+    pub host: ::prost::alloc::string::String,
+    /// Username of the user running the script.
+    #[prost(string, tag = "13")]
+    pub username: ::prost::alloc::string::String,
+    /// Path to the executable that is running the script (e.g., path to python).
+    #[prost(string, tag = "14")]
+    pub executable: ::prost::alloc::string::String,
+    /// URL of the Colab notebook, if running in Google Colab.
+    #[prost(string, tag = "15")]
     pub colab: ::prost::alloc::string::String,
-    #[prost(uint32, tag = "19")]
+    /// Number of physical CPU cores.
+    #[prost(uint32, tag = "16")]
     pub cpu_count: u32,
-    #[prost(uint32, tag = "20")]
+    /// Number of logical CPU cores.
+    #[prost(uint32, tag = "17")]
     pub cpu_count_logical: u32,
-    #[prost(string, tag = "21")]
+    /// Primary GPU type or name.
+    #[prost(string, tag = "18")]
     pub gpu_type: ::prost::alloc::string::String,
-    #[prost(uint32, tag = "22")]
+    /// Total number of GPUs.
+    #[prost(uint32, tag = "19")]
     pub gpu_count: u32,
-    #[prost(map = "string, message", tag = "23")]
+    /// Detailed information about mounted disk volumes.
+    #[prost(map = "string, message", tag = "20")]
     pub disk: ::std::collections::HashMap<::prost::alloc::string::String, DiskInfo>,
-    #[prost(message, optional, tag = "24")]
+    /// Information about system memory.
+    #[prost(message, optional, tag = "21")]
     pub memory: ::core::option::Option<MemoryInfo>,
-    #[prost(message, optional, tag = "25")]
+    /// CPU information.
+    #[prost(message, optional, tag = "22")]
     pub cpu: ::core::option::Option<CpuInfo>,
-    #[prost(message, optional, tag = "26")]
+    /// Information specific to Apple Silicon hardware.
+    #[prost(message, optional, tag = "23")]
     pub apple: ::core::option::Option<AppleInfo>,
-    #[prost(message, repeated, tag = "27")]
+    /// Detailed information for each NVIDIA GPU.
+    #[prost(message, repeated, tag = "24")]
     pub gpu_nvidia: ::prost::alloc::vec::Vec<GpuNvidiaInfo>,
-    #[prost(message, repeated, tag = "28")]
+    /// Version of the CUDA toolkit, if available.
+    #[prost(string, tag = "25")]
+    pub cuda_version: ::prost::alloc::string::String,
+    /// Detailed information for each AMD GPU.
+    #[prost(message, repeated, tag = "26")]
     pub gpu_amd: ::prost::alloc::vec::Vec<GpuAmdInfo>,
-    #[prost(map = "string, string", tag = "29")]
+    /// Information from the Slurm workload manager, if present.
+    #[prost(map = "string, string", tag = "27")]
     pub slurm: ::std::collections::HashMap<
         ::prost::alloc::string::String,
         ::prost::alloc::string::String,
     >,
-    #[prost(string, tag = "30")]
-    pub cuda_version: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "31")]
+    /// Information about AWS Trainium hardware.
+    #[prost(message, optional, tag = "28")]
     pub trainium: ::core::option::Option<TrainiumInfo>,
-    #[prost(message, optional, tag = "32")]
+    /// Information about Google TPU hardware.
+    #[prost(message, optional, tag = "29")]
     pub tpu: ::core::option::Option<TpuInfo>,
-    /// Flag indicating whether the request originated from the user.
-    #[prost(bool, optional, tag = "200")]
-    pub user_modified: ::core::option::Option<bool>,
+    /// Information about CoreWeave cloud environment.
+    #[prost(message, optional, tag = "30")]
+    pub coreweave: ::core::option::Option<CoreWeaveInfo>,
+    /// A unique identifier for this writer session.
+    ///
+    /// This ID distinguishes this writer's metadata from that of other writers
+    /// that may be contributing to the same run.
+    #[prost(string, tag = "199")]
+    pub writer_id: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PythonPackagesRequest {
@@ -2893,6 +2919,8 @@ pub enum ServerFeature {
     AutomationActionNoOp = 11,
     /// Indicates that the server supports including artifact types in registry creation.
     IncludeArtifactTypesInRegistryCreation = 12,
+    /// Indicates that the server supports querying for a artifact collection membership on the project.
+    ProjectArtifactCollectionMembership = 13,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2922,6 +2950,9 @@ impl ServerFeature {
             Self::IncludeArtifactTypesInRegistryCreation => {
                 "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION"
             }
+            Self::ProjectArtifactCollectionMembership => {
+                "PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2949,6 +2980,9 @@ impl ServerFeature {
             "AUTOMATION_ACTION_NO_OP" => Some(Self::AutomationActionNoOp),
             "INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION" => {
                 Some(Self::IncludeArtifactTypesInRegistryCreation)
+            }
+            "PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP" => {
+                Some(Self::ProjectArtifactCollectionMembership)
             }
             _ => None,
         }
@@ -3016,7 +3050,7 @@ pub mod system_monitor_service_client {
     }
     impl<T> SystemMonitorServiceClient<T>
     where
-        T: tonic::client::GrpcService<tonic::body::BoxBody>,
+        T: tonic::client::GrpcService<tonic::body::Body>,
         T::Error: Into<StdError>,
         T::ResponseBody: Body<Data = Bytes> + std::marker::Send + 'static,
         <T::ResponseBody as Body>::Error: Into<StdError> + std::marker::Send,
@@ -3037,13 +3071,13 @@ pub mod system_monitor_service_client {
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
+                http::Request<tonic::body::Body>,
                 Response = http::Response<
-                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
+                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
                 >,
             >,
             <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
+                http::Request<tonic::body::Body>,
             >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             SystemMonitorServiceClient::new(InterceptedService::new(inner, interceptor))
@@ -3269,7 +3303,7 @@ pub mod system_monitor_service_server {
         B: Body + std::marker::Send + 'static,
         B::Error: Into<StdError> + std::marker::Send + 'static,
     {
-        type Response = http::Response<tonic::body::BoxBody>;
+        type Response = http::Response<tonic::body::Body>;
         type Error = std::convert::Infallible;
         type Future = BoxFuture<Self::Response, Self::Error>;
         fn poll_ready(
@@ -3420,7 +3454,9 @@ pub mod system_monitor_service_server {
                 }
                 _ => {
                     Box::pin(async move {
-                        let mut response = http::Response::new(empty_body());
+                        let mut response = http::Response::new(
+                            tonic::body::Body::default(),
+                        );
                         let headers = response.headers_mut();
                         headers
                             .insert(

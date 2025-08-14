@@ -20,6 +20,13 @@ IS_PYDANTIC_V2: bool = int(pydantic_major) >= 2
 BaseModelType: TypeAlias = Type[BaseModel]
 
 
+def gql_typename(cls: type[BaseModel]) -> str:
+    """Get the GraphQL typename for a Pydantic model."""
+    if (field := cls.model_fields.get("typename__")) and (typename := field.default):
+        return typename
+    raise TypeError(f"Cannot extract GraphQL typename from: {cls.__qualname__!r}.")
+
+
 if IS_PYDANTIC_V2:
     import pydantic_core  # pydantic_core is only installed by pydantic v2
 

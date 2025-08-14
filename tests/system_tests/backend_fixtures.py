@@ -99,6 +99,39 @@ class OrgMemberState:
     role: Literal["admin", "member", "viewer"]
 
 
+@dataclass(frozen=True)
+class TeamCmd(FixtureCmd):
+    path: ClassVar[str] = "db/team"
+
+    command: Literal["up", "down"]
+
+    username: str | None = None
+    fixtureData: TeamOrgState | None = None  # noqa: N815
+
+
+@dataclass(frozen=True)
+class TeamOrgState:
+    planName: str  # noqa: N815
+    team: _Team
+    organization: _Organization
+
+
+@dataclass(frozen=True)
+class _Team:
+    name: str
+
+
+@dataclass(frozen=True)
+class _Organization:
+    name: str
+
+
+@dataclass(frozen=True)
+class TeamAndOrgNames:
+    team: str
+    org: str
+
+
 def random_string(alphabet: str = ascii_lowercase + digits, length: int = 12) -> str:
     """Generate a random string of a given length.
 
@@ -124,8 +157,8 @@ class BackendFixtureFactory:
     def __post_init__(self, service_url: str):
         self._client = httpx.Client(
             base_url=service_url,
-            # event_hooks={"response": [httpx.Response.raise_for_status]},
-            # timeout=None,
+            # The default 5s timeout is sometimes too short in CI.
+            timeout=30,
         )
 
     def __enter__(self):
@@ -138,7 +171,14 @@ class BackendFixtureFactory:
 
     def make_user(self, name: str | None = None, admin: bool = False) -> str:
         """Create a new user and return their username."""
-        name = name or f"user-{self.worker_id}-{random_string()}"
+        # Many tests use the username as the API key.
+        # However, the API key must be 40 characters long after the first hyphen.
+        # So we need to pad the username
+        # with the appropriate number of random characters.
+        name = name or (
+            f"user-{self.worker_id}-"
+            f"{random_string(length=(40 - len(self.worker_id) - 1))}"
+        )
 
         self.send_cmds(
             UserCmd("up", username=name, admin=admin),
@@ -163,6 +203,43 @@ class BackendFixtureFactory:
         )
         return name
 
+    def make_team(
+        self,
+        name: str | None = None,
+        *,
+        username: str,
+        org_name: str | None = None,
+        plan_name: str | None = None,
+    ) -> TeamAndOrgNames:
+        """Create a new team within a new org and return the team name."""
+        # Create the new org.
+        #
+        # We rely on the Org "down" cmd for cleanup, NOT the Team "down" cmd.
+        # Unfortunately, the Team "down" cmd, as currently implemented, is
+        # overly aggressive and deletes ALL orgs and teams, which can affect
+        # other tests which may still be running (or have yet to run).
+        org_name = self.make_org(org_name, username=username)
+
+        name = name or f"team-{self.worker_id}-{random_string()}"
+        plan_name = plan_name or f"plan-{self.worker_id}-{random_string()}"
+
+        self.send_cmds(
+            TeamCmd(
+                "up",
+                username=username,
+                fixtureData=TeamOrgState(
+                    planName=plan_name,
+                    team=_Team(name=name),
+                    organization=_Organization(name=org_name),
+                ),
+            ),
+        )
+
+        # DO NOT register the Team "down" cmd for cleanup.
+        # As mentioned above, we rely on the Org "down" cmd for cleanup.
+
+        return TeamAndOrgNames(team=name, org=org_name)
+
     def send_cmds(self, *cmds: FixtureCmd) -> None:
         for cmd in cmds:
             self._send(cmd.path, data=asdict(cmd))
@@ -171,13 +248,13 @@ class BackendFixtureFactory:
         # trigger fixture
         endpoint = str(self._client.base_url.join(path))
         # FIXME: Figure out how SDK team preferences/conventions for replacing print statements
-        print(f"Triggering fixture on {endpoint!r}: {data!r}", file=sys.stderr)  # noqa: T201
+        print(f"Triggering fixture on {endpoint!r}: {data!r}", file=sys.stderr)
         try:
             response = self._client.post(path, json=data)
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
             # FIXME: Figure out how SDK team preferences/conventions for replacing print statements
-            print(e.response.json(), file=sys.stderr)  # noqa: T201
+            print(e.response.text, file=sys.stderr)
 
     def cleanup(self) -> None:
         while True:

@@ -87,6 +87,10 @@ type Options struct {
 	// Signature Version 4 (SigV4) Signer
 	HTTPSignerV4 HTTPSignerV4
 
+	// Provides idempotency tokens values that will be automatically populated into
+	// idempotent API operations.
+	IdempotencyTokenProvider IdempotencyTokenProvider
+
 	// The logger writer interface to write logging messages to.
 	Logger logging.Logger
 
@@ -173,12 +177,18 @@ type Options struct {
 	// implementation if nil.
 	HTTPClient HTTPClient
 
+	// Client registry of operation interceptors.
+	Interceptors smithyhttp.InterceptorRegistry
+
 	// The auth scheme resolver which determines how to authenticate for each
 	// operation.
 	AuthSchemeResolver AuthSchemeResolver
 
 	// The list of auth schemes supported by the client.
 	AuthSchemes []smithyhttp.AuthScheme
+
+	// Priority list of preferred auth scheme names (e.g. sigv4a).
+	AuthSchemePreference []string
 }
 
 // Copy creates a clone where the APIOptions list is deep copied.
@@ -186,6 +196,7 @@ func (o Options) Copy() Options {
 	to := o
 	to.APIOptions = make([]func(*middleware.Stack) error, len(o.APIOptions))
 	copy(to.APIOptions, o.APIOptions)
+	to.Interceptors = o.Interceptors.Copy()
 
 	return to
 }

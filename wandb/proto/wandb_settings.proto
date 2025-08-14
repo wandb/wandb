@@ -50,9 +50,9 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 192
+// Next ID: 199
 message Settings {
-  reserved 3, 6, 8, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 100, 136, 137, 176;
+  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 100, 136, 137, 173, 176;
 
   // The W&B API key.
   //
@@ -325,13 +325,37 @@ message Settings {
   // Assumes 0-based indexing matching CUDA/ROCm device enumeration.
   ListIntValue x_stats_gpu_device_ids = 186;
 
+  // System CPU count.
+  //
+  // If set, overrides the auto-detected value saved in the run metadata.
+  google.protobuf.Int32Value x_stats_cpu_count = 194;
+
+  // Logical CPU count.
+  //
+  // If set, overrides the auto-detected value saved in the run metadata.
+  google.protobuf.Int32Value x_stats_cpu_logical_count = 195;
+
+  // GPU device count.
+  //
+  // If set, overrides the auto-detected value saved in the run metadata.
+  google.protobuf.Int32Value x_stats_gpu_count = 196;
+
+  // GPU type.
+  //
+  // If set, overrides the auto-detected value saved in the run metadata.
+  google.protobuf.StringValue x_stats_gpu_type = 197;
+
+  // Whether to monitor the entire process tree for resource usage, starting from `x_stats_pid`.
+  //
+  // When `True`, the system monitor aggregates the RSS, CPU%, and thread count
+  // from the process with PID `x_stats_pid` and all of its descendants.
+  // This can have a performance overhead and is disabled by default.
+  google.protobuf.BoolValue x_stats_track_process_tree = 198;
+
   // Label to assign to system metrics and console logs collected for the run
   // to group by on the frontend. Can be used to distinguish data from different
   // processes in a distributed training job.
   google.protobuf.StringValue x_label = 181;
-
-  // Explicitly require wandb-core to not be used.
-  google.protobuf.BoolValue x_require_legacy_service = 173;
 
   // Determines whether to save internal wandb files and metadata.
   //
@@ -390,10 +414,15 @@ message Settings {
   // recoverability.
   google.protobuf.BoolValue x_skip_transaction_log = 191;
 
+  // The scheme and hostname for contacting the CoreWeave metadata server.
+  google.protobuf.StringValue x_stats_coreweave_metadata_base_url = 192;
+
+  // The relative path on the CoreWeave metadata server to which to make requests.
+  google.protobuf.StringValue x_stats_coreweave_metadata_endpoint = 193;
+
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue x_cli_only_mode = 4;
   google.protobuf.BoolValue _colab = 5;
-  google.protobuf.BoolValue x_disable_setproctitle = 9;
   google.protobuf.BoolValue x_disable_viewer = 11;
   google.protobuf.BoolValue x_flow_control_custom = 16;
   google.protobuf.BoolValue x_flow_control_disabled = 17;

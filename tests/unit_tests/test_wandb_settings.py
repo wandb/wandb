@@ -42,7 +42,6 @@ def test_invalid_field_type():
         Settings(api_key=271828)  # must be a string
 
 
-@pytest.mark.wandb_core_only
 def test_program_python_m():
     with tempfile.TemporaryDirectory() as tmpdir:
         path_module = os.path.join(tmpdir, "module")
@@ -339,6 +338,10 @@ def test_preprocess_bool_settings(setting: str):
             "x_stats_open_metrics_filters",
             '{"DCGM_FI_DEV_POWER_USAGE": {"pod": "dcgm-*"}}',
         ),
+        (
+            "x_extra_http_headers",
+            '{"User-Agent": "foobar"}',
+        ),
     ],
 )
 def test_preprocess_dict_settings(setting: str, value: str):
@@ -548,3 +551,9 @@ def test_program_relpath_windows(root_dir, expected_result):
             f.write("# Test file for program_relpath testing")
         result = Settings._get_program_relpath(test_file_path, root_dir)
         assert expected_result(result)
+
+
+@pytest.mark.parametrize("restricted_chars", [":", ";", ",", "#", "?", "/", "'"])
+def test_run_id_validation(restricted_chars):
+    with pytest.raises(UsageError):
+        Settings(run_id=f"test{restricted_chars}")

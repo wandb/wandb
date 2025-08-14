@@ -489,12 +489,12 @@ class FileStreamApi:
         # TODO: Consolidate with internal_util.ExceptionThread
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             exc_info = sys.exc_info()
             self._exc_info = exc_info
             logger.exception("generic exception in filestream thread")
             wandb._sentry.exception(exc_info)
-            raise e
+            raise
 
     def _handle_response(self, response: Union[Exception, "requests.Response"]) -> None:
         """Log dropped chunks and updates dynamic settings."""
@@ -682,8 +682,5 @@ def request_with_retry(
                 error_message = response.json()["error"]  # todo: clean this up
             except Exception:
                 pass
-            logger.error(f"requests_with_retry error: {error_message}")
-            logger.exception(
-                "requests_with_retry encountered unretryable exception: %s", e
-            )
+            logger.exception(f"requests_with_retry error: {error_message}")
             return e

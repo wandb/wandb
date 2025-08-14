@@ -13,6 +13,17 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
+// End of support notice: Beginning October 1, 2025, Amazon S3 will stop returning
+// DisplayName . Update your applications to use canonical IDs (unique identifier
+// for Amazon Web Services accounts), Amazon Web Services account ID (12 digit
+// identifier) or IAM ARNs (full resource naming) as a direct replacement of
+// DisplayName .
+//
+// This change affects the following Amazon Web Services Regions: US East (N.
+// Virginia) Region, US West (N. California) Region, US West (Oregon) Region, Asia
+// Pacific (Singapore) Region, Asia Pacific (Sydney) Region, Asia Pacific (Tokyo)
+// Region, Europe (Ireland) Region, and South America (São Paulo) Region.
+//
 // This operation is not supported for directory buckets.
 //
 // Returns some or all (up to 1,000) of the objects in a bucket. You can use the
@@ -98,6 +109,9 @@ type ListObjectsInput struct {
 	Bucket *string
 
 	// A delimiter is a character that you use to group keys.
+	//
+	// CommonPrefixes is filtered out from results if it is not lexicographically
+	// greater than the key-marker.
 	Delimiter *string
 
 	// Encoding type used by Amazon S3 to encode the [object keys] in the response. Responses are
@@ -226,9 +240,12 @@ type ListObjectsOutput struct {
 	Prefix *string
 
 	// If present, indicates that the requester was successfully charged for the
-	// request.
+	// request. For more information, see [Using Requester Pays buckets for storage transfers and usage]in the Amazon Simple Storage Service user
+	// guide.
 	//
 	// This functionality is not supported for directory buckets.
+	//
+	// [Using Requester Pays buckets for storage transfers and usage]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/RequesterPaysBuckets.html
 	RequestCharged types.RequestCharged
 
 	// Metadata pertaining to the operation's result.
@@ -341,6 +358,36 @@ func (c *Client) addOperationListObjectsMiddlewares(stack *middleware.Stack, opt
 		return err
 	}
 	if err = addSerializeImmutableHostnameBucketMiddleware(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAttempt(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptExecution(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptTransmit(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeDeserialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterDeserialization(stack, options); err != nil {
 		return err
 	}
 	if err = addSpanInitializeStart(stack); err != nil {

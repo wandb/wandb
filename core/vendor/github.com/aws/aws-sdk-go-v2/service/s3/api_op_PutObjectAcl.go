@@ -99,7 +99,9 @@ import (
 // cannot do both.
 //
 // Grantee Values You can specify the person (grantee) to whom you're assigning
-// access rights (using request elements) in the following ways:
+// access rights (using request elements) in the following ways. For examples of
+// how to specify these grantee values in JSON format, see the Amazon Web Services
+// CLI example in [Enabling Amazon S3 server access logging]in the Amazon S3 User Guide.
 //
 //   - By the person's ID:
 //
@@ -160,6 +162,7 @@ import (
 // [CopyObject]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html
 // [What permissions can I grant?]: https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#permissions
 // [GetObject]: https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html
+// [Enabling Amazon S3 server access logging]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html
 func (c *Client) PutObjectAcl(ctx context.Context, params *PutObjectAclInput, optFns ...func(*Options)) (*PutObjectAclOutput, error) {
 	if params == nil {
 		params = &PutObjectAclInput{}
@@ -301,9 +304,12 @@ func (in *PutObjectAclInput) bindEndpointParams(p *EndpointParameters) {
 type PutObjectAclOutput struct {
 
 	// If present, indicates that the requester was successfully charged for the
-	// request.
+	// request. For more information, see [Using Requester Pays buckets for storage transfers and usage]in the Amazon Simple Storage Service user
+	// guide.
 	//
 	// This functionality is not supported for directory buckets.
+	//
+	// [Using Requester Pays buckets for storage transfers and usage]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/RequesterPaysBuckets.html
 	RequestCharged types.RequestCharged
 
 	// Metadata pertaining to the operation's result.
@@ -425,6 +431,36 @@ func (c *Client) addOperationPutObjectAclMiddlewares(stack *middleware.Stack, op
 		return err
 	}
 	if err = s3cust.AddExpressDefaultChecksumMiddleware(stack); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAttempt(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptExecution(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptTransmit(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeDeserialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterDeserialization(stack, options); err != nil {
 		return err
 	}
 	if err = addSpanInitializeStart(stack); err != nil {

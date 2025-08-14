@@ -1,3 +1,54 @@
+# v1.86.0 (2025-08-04)
+
+* **Feature**: Support configurable auth scheme preferences in service clients via AWS_AUTH_SCHEME_PREFERENCE in the environment, auth_scheme_preference in the config file, and through in-code settings on LoadDefaultConfig and client constructor methods.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.85.1 (2025-07-30)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.85.0 (2025-07-28)
+
+* **Feature**: Add support for HTTP interceptors.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.84.1 (2025-07-19)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.84.0 (2025-07-15)
+
+* **Feature**: Amazon S3 Metadata live inventory tables provide a queryable inventory of all the objects in your general purpose bucket so that you can determine the latest state of your data. To help minimize your storage costs, use journal table record expiration to set a retention period for your records.
+
+# v1.83.0 (2025-07-02)
+
+* **Feature**: Added support for directory bucket creation with tags and bucket ARN retrieval in CreateBucket, ListDirectoryBuckets, and HeadBucket operations
+
+# v1.82.0 (2025-06-25)
+
+* **Feature**: Adds support for additional server-side encryption mode and storage class values for accessing Amazon FSx data from Amazon S3 using S3 Access Points
+
+# v1.81.0 (2025-06-18)
+
+* **Feature**: Added support for renaming objects within the same bucket using the new RenameObject API.
+
+# v1.80.3 (2025-06-17)
+
+* **Dependency Update**: Update to smithy-go v1.22.4.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.80.2 (2025-06-10)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.80.1 (2025-06-06)
+
+* No change notes available for this release.
+
+# v1.80.0 (2025-05-29)
+
+* **Feature**: Adding checksum support for S3 PutBucketOwnershipControls API.
+
 # v1.79.4 (2025-05-22)
 
 * **Dependency Update**: Updated to the latest SDK module versions

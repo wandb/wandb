@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -253,18 +252,14 @@ func processResponse(
 		params.StartingStep += 1
 	}
 
-	// if we are resuming, we need to update the start time to be the start time
-	// of the last run minus the runtime for the duration computation
-	if !params.StartTime.IsZero() {
-		params.StartTime = params.StartTime.Add(
-			time.Duration(-params.Runtime) * time.Second,
-		)
-	}
-
 	// If the user provided tags when initializing, use them. Otherwise,
 	// initialize to the previous run's tags.
 	if len(params.Tags) == 0 {
 		params.Tags = data.GetTags()
+	}
+
+	if params.Notes == "" && data.GetNotes() != nil {
+		params.Notes = *data.GetNotes()
 	}
 
 	// Get GQL ID, required for auth checks around writing to a run

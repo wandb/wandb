@@ -59,6 +59,19 @@ type PutBucketOwnershipControlsInput struct {
 	// This member is required.
 	OwnershipControls *types.OwnershipControls
 
+	//  Indicates the algorithm used to create the checksum for the object when you
+	// use the SDK. This header will not provide any additional functionality if you
+	// don't use the SDK. When you send this header, there must be a corresponding
+	// x-amz-checksum-algorithm header sent. Otherwise, Amazon S3 fails the request
+	// with the HTTP status code 400 Bad Request . For more information, see [Checking object integrity] in the
+	// Amazon S3 User Guide.
+	//
+	// If you provide an individual checksum, Amazon S3 ignores any provided
+	// ChecksumAlgorithm parameter.
+	//
+	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
+	ChecksumAlgorithm types.ChecksumAlgorithm
+
 	// The MD5 hash of the OwnershipControls request body.
 	//
 	// For requests made using the Amazon Web Services Command Line Interface (CLI) or
@@ -201,6 +214,36 @@ func (c *Client) addOperationPutBucketOwnershipControlsMiddlewares(stack *middle
 	if err = s3cust.AddExpressDefaultChecksumMiddleware(stack); err != nil {
 		return err
 	}
+	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAttempt(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptExecution(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptTransmit(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeDeserialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterDeserialization(stack, options); err != nil {
+		return err
+	}
 	if err = addSpanInitializeStart(stack); err != nil {
 		return err
 	}
@@ -231,9 +274,19 @@ func newServiceMetadataMiddleware_opPutBucketOwnershipControls(region string) *a
 	}
 }
 
+// getPutBucketOwnershipControlsRequestAlgorithmMember gets the request checksum
+// algorithm value provided as input.
+func getPutBucketOwnershipControlsRequestAlgorithmMember(input interface{}) (string, bool) {
+	in := input.(*PutBucketOwnershipControlsInput)
+	if len(in.ChecksumAlgorithm) == 0 {
+		return "", false
+	}
+	return string(in.ChecksumAlgorithm), true
+}
+
 func addPutBucketOwnershipControlsInputChecksumMiddlewares(stack *middleware.Stack, options Options) error {
 	return addInputChecksumMiddleware(stack, internalChecksum.InputMiddlewareOptions{
-		GetAlgorithm:                     nil,
+		GetAlgorithm:                     getPutBucketOwnershipControlsRequestAlgorithmMember,
 		RequireChecksum:                  true,
 		RequestChecksumCalculation:       options.RequestChecksumCalculation,
 		EnableTrailingChecksum:           false,

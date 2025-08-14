@@ -8,15 +8,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/wandb/wandb/core/pkg/monitor"
 	"golang.org/x/time/rate"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gitops"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
@@ -24,7 +24,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -40,26 +39,28 @@ const (
 	ConfigFileName       = "config.yaml"
 )
 
-type HandlerParams struct {
+var handlerProviders = wire.NewSet(
+	wire.Struct(new(HandlerFactory), "*"),
+)
+
+type GitCommitHash string
+
+type HandlerFactory struct {
 	// Commit is the W&B Git commit hash
-	Commit            string
-	FileTransferStats filetransfer.FileTransferStats
-	FwdChan           chan runwork.Work
-	Logger            *observability.CoreLogger
-	Mailbox           *mailbox.Mailbox
-	Operations        *wboperation.WandbOperations
-	OutChan           chan *spb.Result
-	Settings          *settings.Settings
-	SystemMonitor     *monitor.SystemMonitor
-	TBHandler         *tensorboard.TBHandler
-	TerminalPrinter   *observability.Printer
+	Commit               GitCommitHash
+	FileTransferStats    filetransfer.FileTransferStats
+	Logger               *observability.CoreLogger
+	Mailbox              *mailbox.Mailbox
+	Operations           *wboperation.WandbOperations
+	Settings             *settings.Settings
+	SystemMonitorFactory *monitor.SystemMonitorFactory
+	TerminalPrinter      *observability.Printer
 }
 
-// Handler handles the incoming messages, processes them, and passes them to the writer.
+// Handler performs non-blocking operations to preprocess incoming Work.
 type Handler struct {
-
 	// commit is the W&B Git commit hash
-	commit string
+	commit GitCommitHash
 
 	// fileTransferStats reports file upload/download statistics
 	fileTransferStats filetransfer.FileTransferStats
@@ -71,9 +72,6 @@ type Handler struct {
 	logger *observability.CoreLogger
 
 	mailbox *mailbox.Mailbox
-
-	// metadata stores the run metadata including system stats
-	metadata *spb.MetadataRequest
 
 	// metricHandler is the metric handler for the stream
 	metricHandler *runmetric.MetricHandler
@@ -120,35 +118,44 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
-	// tbHandler is the tensorboard handler
-	tbHandler *tensorboard.TBHandler
-
 	// terminalPrinter gathers terminal messages to send back to the user process
 	terminalPrinter *observability.Printer
 }
 
-// NewHandler creates a new handler
-func NewHandler(
-	params HandlerParams,
-) *Handler {
+// New returns a new Handler.
+func (f *HandlerFactory) New() *Handler {
+	var systemMonitor *monitor.SystemMonitor
+	if f.SystemMonitorFactory != nil { // nil in tests only
+		systemMonitor = f.SystemMonitorFactory.New()
+	}
+
 	return &Handler{
-		commit:               params.Commit,
-		fileTransferStats:    params.FileTransferStats,
-		fwdChan:              params.FwdChan,
-		logger:               params.Logger,
-		mailbox:              params.Mailbox,
+		commit:               f.Commit,
+		fileTransferStats:    f.FileTransferStats,
+		fwdChan:              make(chan runwork.Work, BufferSize),
+		logger:               f.Logger,
+		mailbox:              f.Mailbox,
 		metricHandler:        runmetric.New(),
-		operations:           params.Operations,
-		outChan:              params.OutChan,
+		operations:           f.Operations,
+		outChan:              make(chan *spb.Result, BufferSize),
 		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
 		runHistorySampler:    runhistory.NewRunHistorySampler(),
 		runSummary:           runsummary.New(),
-		runTimer:             timer.New(),
-		settings:             params.Settings,
-		systemMonitor:        params.SystemMonitor,
-		tbHandler:            params.TBHandler,
-		terminalPrinter:      params.TerminalPrinter,
+		runTimer:             timer.New(0),
+		settings:             f.Settings,
+		systemMonitor:        systemMonitor,
+		terminalPrinter:      f.TerminalPrinter,
 	}
+}
+
+// ResponseChan contains responses for the client.
+func (h *Handler) ResponseChan() <-chan *spb.Result {
+	return h.outChan
+}
+
+// OutChan contains work to pass to the next stream component.
+func (h *Handler) OutChan() <-chan runwork.Work {
+	return h.fwdChan
 }
 
 // Do processes all work on the input channel.
@@ -237,7 +244,8 @@ func (h *Handler) handleRecord(record *spb.Record) {
 	case *spb.Record_Stats:
 	case *spb.Record_Telemetry:
 	case *spb.Record_UseArtifact:
-		// The above are no-ops in the handler.
+	case *spb.Record_Environment:
+	// The above are no-ops in the handler.
 
 	case *spb.Record_Exit:
 		h.handleExit(record, x.Exit)
@@ -247,12 +255,8 @@ func (h *Handler) handleRecord(record *spb.Record) {
 		h.handleMetric(record)
 	case *spb.Record_Request:
 		h.handleRequest(record)
-	case *spb.Record_Run:
-		h.handleRun(record)
 	case *spb.Record_Summary:
 		h.handleSummary(x.Summary)
-	case *spb.Record_Tbrecord:
-		h.handleTBrecord(x.Tbrecord)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRecord: record type is nil"))
@@ -285,8 +289,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 
 	case *spb.Request_RunStatus:
 		h.handleRequestRunStatus(record)
-	case *spb.Request_Metadata:
-		h.handleMetadata(x.Metadata)
 	case *spb.Request_Status:
 		h.handleRequestStatus(record)
 	case *spb.Request_SenderMark:
@@ -327,8 +329,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestCancel(x.Cancel)
 	case *spb.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record)
-	case *spb.Request_GetSystemMetadata:
-		h.handleRequestGetSystemMetadata(record)
 	case *spb.Request_InternalMessages:
 		h.handleRequestInternalMessages(record)
 	case *spb.Request_SyncFinish:
@@ -473,10 +473,12 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	var ok bool
 	run := request.Run
 
-	// offsset by run.Runtime to account for potential run branching
-	startTime := run.StartTime.AsTime().Add(time.Duration(-run.Runtime) * time.Second)
-	// start the run timer
-	h.runTimer.Start(&startTime)
+	// Add on to the previous run time for branched runs.
+	offset := time.Duration(run.Runtime) * time.Second
+	h.runTimer = timer.New(offset)
+
+	// start the timer
+	h.runTimer.Start()
 
 	if h.runRecord, ok = proto.Clone(run).(*spb.RunRecord); !ok {
 		h.logger.CaptureFatalAndPanic(
@@ -486,7 +488,7 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
 
-	// initialize the run metadata from settings
+	// TODO: Move computation of git state to wandb-core.
 	var git *spb.GitRepoRecord
 	if run.GetGit().GetRemoteUrl() != "" || run.GetGit().GetCommit() != "" {
 		git = &spb.GitRepoRecord{
@@ -495,29 +497,8 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 		}
 	}
 
-	metadata := &spb.MetadataRequest{
-		Os:            h.settings.GetOS(),
-		Python:        h.settings.GetPython(),
-		Host:          h.settings.GetHostProcessorName(),
-		Program:       h.settings.GetProgram(),
-		CodePath:      h.settings.GetProgramRelativePath(),
-		CodePathLocal: h.settings.GetProgramRelativePathFromCwd(),
-		Email:         h.settings.GetEmail(),
-		Root:          h.settings.GetRootDir(),
-		Username:      h.settings.GetUserName(),
-		Docker:        h.settings.GetDockerImageName(),
-		Executable:    h.settings.GetExecutable(),
-		Args:          h.settings.GetArgs(),
-		Colab:         h.settings.GetColabURL(),
-		StartedAt:     run.GetStartTime(),
-		Git:           git,
-	}
-	h.handleMetadata(metadata)
-
 	// start the system monitor
-	if !h.settings.IsDisableStats() && !h.settings.IsDisableMachineInfo() {
-		h.systemMonitor.Start()
-	}
+	h.systemMonitor.Start(git)
 
 	// save code and patch
 	if h.settings.IsSaveCode() && !h.settings.IsDisableMachineInfo() {
@@ -659,58 +640,6 @@ func (h *Handler) handlePatchSave() {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
-	if h.settings.IsDisableMeta() || h.settings.IsDisableMachineInfo() || !h.settings.IsPrimary() {
-		return
-	}
-
-	if h.metadata == nil {
-		// Save the metadata on the first call.
-		h.metadata = proto.Clone(request).(*spb.MetadataRequest)
-	} else {
-		// Merge the metadata on subsequent calls.
-		// The order of the merge depends on the origin of the request.
-		// The request originating from the user should take precedence.
-		if request.GetXUserModified() {
-			proto.Merge(h.metadata, request)
-		} else {
-			proto.Merge(request, h.metadata)
-			h.metadata = request
-		}
-	}
-
-	mo := protojson.MarshalOptions{
-		Indent: "  ",
-		// EmitUnpopulated: true,
-	}
-	jsonBytes, err := mo.Marshal(h.metadata)
-	if err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("error marshalling metadata: %v", err))
-		return
-	}
-	filePath := filepath.Join(h.settings.GetFilesDir(), MetaFileName)
-	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("error writing metadata file: %v", err))
-		return
-	}
-
-	record := &spb.Record{
-		RecordType: &spb.Record_Files{
-			Files: &spb.FilesRecord{
-				Files: []*spb.FilesItem{
-					{
-						Path: MetaFileName,
-						Type: spb.FilesItem_WANDB,
-					},
-				},
-			},
-		},
-	}
-	h.fwdRecord(record)
-}
-
 func (h *Handler) handleRequestAttach(record *spb.Record) {
 	response := &spb.Response{
 		ResponseType: &spb.Response_AttachResponse{
@@ -731,25 +660,17 @@ func (h *Handler) handleRequestCancel(request *spb.CancelRequest) {
 }
 
 func (h *Handler) handleRequestPause() {
-	h.runTimer.Pause()
+	h.runTimer.Stop()
 	h.systemMonitor.Pause()
 }
 
 func (h *Handler) handleRequestResume() {
-	h.runTimer.Resume()
+	h.runTimer.Start()
 	h.systemMonitor.Resume()
 }
 
-func (h *Handler) handleRun(record *spb.Record) {
-	h.fwdRecordWithControl(record,
-		func(control *spb.Control) {
-			control.AlwaysSend = true
-		},
-	)
-}
-
 func (h *Handler) handleRequestRunFinishWithoutExit(record *spb.Record) {
-	h.runTimer.Pause()
+	h.runTimer.Stop()
 	h.updateRunTiming()
 	h.systemMonitor.Finish()
 	h.flushPartialHistory(true, h.partialHistoryStep+1)
@@ -758,7 +679,7 @@ func (h *Handler) handleRequestRunFinishWithoutExit(record *spb.Record) {
 
 func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 	// stop the run timer and set the runtime
-	h.runTimer.Pause()
+	h.runTimer.Stop()
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
 	if !h.settings.IsSync() && !h.settings.IsEnableServerSideDerivedSummary() {
@@ -834,18 +755,6 @@ func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestGetSystemMetadata(record *spb.Record) {
-	response := &spb.Response{
-		ResponseType: &spb.Response_GetSystemMetadataResponse{
-			GetSystemMetadataResponse: &spb.GetSystemMetadataResponse{
-				Metadata: h.metadata,
-			},
-		},
-	}
-
-	h.respond(record, response)
-}
-
 func (h *Handler) handleRequestInternalMessages(record *spb.Record) {
 	messages := h.terminalPrinter.Read()
 	response := &spb.Response{
@@ -897,23 +806,22 @@ func (h *Handler) updateRunTiming() {
 	record := &spb.Record{
 		RecordType: &spb.Record_Summary{
 			Summary: &spb.SummaryRecord{
-				Update: []*spb.SummaryItem{{
-					NestedKey: []string{"_wandb", "runtime"},
-					ValueJson: strconv.Itoa(runtime),
-				}},
+				Update: []*spb.SummaryItem{
+					{
+						NestedKey: []string{"_wandb", "runtime"},
+						ValueJson: strconv.Itoa(runtime),
+					},
+					{
+						Key:       "_runtime",
+						ValueJson: strconv.Itoa(runtime),
+					},
+				},
 			},
 		},
 	}
 
 	h.handleSummary(record.GetSummary())
 	h.fwdRecord(record)
-}
-
-func (h *Handler) handleTBrecord(record *spb.TBRecord) {
-	if err := h.tbHandler.Handle(record); err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("handler: failed to handle TB record: %v", err))
-	}
 }
 
 func (h *Handler) handleRequestNetworkStatus(record *spb.Record) {
@@ -1138,8 +1046,4 @@ func (h *Handler) handleRequestSampledHistory(record *spb.Record) {
 			},
 		},
 	})
-}
-
-func (h *Handler) GetRun() *spb.RunRecord {
-	return h.runRecord
 }

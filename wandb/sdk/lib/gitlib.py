@@ -87,9 +87,9 @@ class GitRepo:
             return None
         try:
             return self.repo.git.rev_parse("--show-toplevel")
-        except GitCommandError as e:
+        except GitCommandError:
             # todo: collect telemetry on this
-            logger.error(f"git root error: {e}")
+            logger.exception("git root error")
             return None
 
     @property
@@ -214,11 +214,12 @@ class GitRepo:
                         most_recent_ancestor = ancestor
                     elif self.repo.is_ancestor(most_recent_ancestor, ancestor):  # type: ignore
                         most_recent_ancestor = ancestor
-            return most_recent_ancestor
         except GitCommandError as e:
             logger.debug("git remote upstream fork point could not be found")
             logger.debug(str(e))
             return None
+
+        return most_recent_ancestor
 
     def tag(self, name: str, message: Optional[str]) -> Any:
         if not self.repo:

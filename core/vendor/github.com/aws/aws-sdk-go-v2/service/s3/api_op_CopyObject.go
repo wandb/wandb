@@ -15,6 +15,18 @@ import (
 	"time"
 )
 
+// End of support notice: Beginning October 1, 2025, Amazon S3 will discontinue
+// support for creating new Email Grantee Access Control Lists (ACL). Email Grantee
+// ACLs created prior to this date will continue to work and remain accessible
+// through the Amazon Web Services Management Console, Command Line Interface
+// (CLI), SDKs, and REST API. However, you will no longer be able to create new
+// Email Grantee ACLs.
+//
+// This change affects the following Amazon Web Services Regions: US East (N.
+// Virginia) Region, US West (N. California) Region, US West (Oregon) Region, Asia
+// Pacific (Singapore) Region, Asia Pacific (Sydney) Region, Asia Pacific (Tokyo)
+// Region, Europe (Ireland) Region, and South America (São Paulo) Region.
+//
 // Creates a copy of an object that is already stored in Amazon S3.
 //
 // You can store individual objects of up to 5 TB in Amazon S3. You create a copy
@@ -213,14 +225,12 @@ type CopyObjectInput struct {
 	//
 	// S3 on Outposts - When you use this action with S3 on Outposts, you must use the
 	// Outpost bucket access point ARN or the access point alias for the destination
-	// bucket.
-	//
-	// You can only copy objects within the same Outpost bucket. It's not supported to
-	// copy objects across different Amazon Web Services Outposts, between buckets on
-	// the same Outposts, or between Outposts buckets and any other bucket types. For
-	// more information about S3 on Outposts, see [What is S3 on Outposts?]in the S3 on Outposts guide. When
-	// you use this action with S3 on Outposts through the REST API, you must direct
-	// requests to the S3 on Outposts hostname, in the format
+	// bucket. You can only copy objects within the same Outpost bucket. It's not
+	// supported to copy objects across different Amazon Web Services Outposts, between
+	// buckets on the same Outposts, or between Outposts buckets and any other bucket
+	// types. For more information about S3 on Outposts, see [What is S3 on Outposts?]in the S3 on Outposts
+	// guide. When you use this action with S3 on Outposts through the REST API, you
+	// must direct requests to the S3 on Outposts hostname, in the format
 	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com . The
 	// hostname isn't required when you use the Amazon Web Services CLI or SDKs.
 	//
@@ -683,6 +693,13 @@ type CopyObjectInput struct {
 	//   the same customer managed key that you specified for the directory bucket's
 	//   default encryption configuration.
 	//
+	//   - S3 access points for Amazon FSx - When accessing data stored in Amazon FSx
+	//   file systems using S3 access points, the only valid server side encryption
+	//   option is aws:fsx . All Amazon FSx file systems have encryption configured by
+	//   default and are encrypted at rest. Data is automatically encrypted before being
+	//   written to the file system, and automatically decrypted as it is read. These
+	//   processes are handled transparently by Amazon FSx.
+	//
 	// [Using Server-Side Encryption]: https://docs.aws.amazon.com/AmazonS3/latest/dev/serv-side-encryption.html
 	// [Specifying server-side encryption with KMS for new object uploads]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-specifying-kms-encryption.html
 	// [customer managed key]: https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#customer-cmk
@@ -853,9 +870,12 @@ type CopyObjectOutput struct {
 	Expiration *string
 
 	// If present, indicates that the requester was successfully charged for the
-	// request.
+	// request. For more information, see [Using Requester Pays buckets for storage transfers and usage]in the Amazon Simple Storage Service user
+	// guide.
 	//
 	// This functionality is not supported for directory buckets.
+	//
+	// [Using Requester Pays buckets for storage transfers and usage]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/RequesterPaysBuckets.html
 	RequestCharged types.RequestCharged
 
 	// If server-side encryption with a customer-provided encryption key was
@@ -881,7 +901,10 @@ type CopyObjectOutput struct {
 	SSEKMSKeyId *string
 
 	// The server-side encryption algorithm used when you store this object in Amazon
-	// S3 (for example, AES256 , aws:kms , aws:kms:dsse ).
+	// S3 or Amazon FSx.
+	//
+	// When accessing data stored in Amazon FSx file systems using S3 access points,
+	// the only valid server side encryption option is aws:fsx .
 	ServerSideEncryption types.ServerSideEncryption
 
 	// Version ID of the newly created copy.
@@ -1002,6 +1025,36 @@ func (c *Client) addOperationCopyObjectMiddlewares(stack *middleware.Stack, opti
 		return err
 	}
 	if err = addSerializeImmutableHostnameBucketMiddleware(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAttempt(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptExecution(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptTransmit(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeDeserialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterDeserialization(stack, options); err != nil {
 		return err
 	}
 	if err = addSpanInitializeStart(stack); err != nil {

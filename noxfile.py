@@ -37,11 +37,16 @@ def install_timed(session: nox.Session, *args, **kwargs):
         session.install(*args, **kwargs)
 
 
-def install_wandb(session: nox.Session):
-    """Builds and installs wandb."""
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+def install_wandb(session: nox.Session, dev: bool = True):
+    """Builds and installs wandb.
+
+    Args:
+        dev: Whether to set dev build flags. Note that this
+            increases the binary size.
+    """
+    if dev:
+        session.env["WANDB_BUILD_COVERAGE"] = "true"
+        session.env["WANDB_BUILD_GORACEDETECT"] = "true"
 
     if session.venv_backend == "uv":
         install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
@@ -150,9 +155,6 @@ def run_pytest(
     pytest_env.update(go_coverage_env(session))
     session.notify("coverage")
 
-    if session.python == "3.8":
-        pytest_opts.extend(["-k", "not test_launch"])
-
     session.run(
         "pytest",
         *pytest_opts,
@@ -179,9 +181,15 @@ def unit_tests(session: nox.Session) -> None:
         "polyfactory",
     )
 
+    paths = session.posargs or ["tests/unit_tests"]
+
+    # Launch is not supported on 3.8
+    if session.python == "3.8":
+        paths.append("--ignore=tests/unit_tests/test_launch")
+
     run_pytest(
         session,
-        paths=session.posargs or ["tests/unit_tests"],
+        paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={"n": "8"},
     )
@@ -204,7 +212,6 @@ def unit_tests_pydantic_v1(session: nox.Session) -> None:
         paths=session.posargs
         or [
             "tests/unit_tests/test_wandb_settings.py",
-            "tests/unit_tests/test_wandb_metadata.py",
             "tests/unit_tests/test_wandb_run.py",
             "tests/unit_tests/test_pydantic_v1_compat.py",
             "tests/unit_tests/test_artifacts",
@@ -223,18 +230,21 @@ def system_tests(session: nox.Session) -> None:
         "annotated-types",  # for test_reports
     )
 
+    paths = session.posargs or [
+        "tests/system_tests",
+        "--ignore=tests/system_tests/test_importers",
+        "--ignore=tests/system_tests/test_notebooks",
+        "--ignore=tests/system_tests/test_functional",
+        "--ignore=tests/system_tests/test_experimental",
+    ]
+
+    # Launch is not supported on 3.8
+    if session.python == "3.8":
+        paths.append("--ignore=tests/system_tests/test_launch")
+
     run_pytest(
         session,
-        paths=(
-            session.posargs
-            or [
-                "tests/system_tests",
-                "--ignore=tests/system_tests/test_importers",
-                "--ignore=tests/system_tests/test_notebooks",
-                "--ignore=tests/system_tests/test_functional",
-                "--ignore=tests/system_tests/test_experimental",
-            ]
-        ),
+        paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
         opts={"n": "8"},
     )
@@ -482,19 +492,18 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
     elif pb == 4:
         session.install("protobuf~=4.23.4")
         session.install("mypy-protobuf~=3.5.0")
-        session.install("grpcio~=1.50.0")
-        session.install("grpcio-tools~=1.50.0")
+        session.install("grpcio~=1.51.0")
+        session.install("grpcio-tools~=1.51.0")
     elif pb == 5:
         session.install("protobuf~=5.27.0")
         session.install("mypy-protobuf~=3.6.0")
         session.install("grpcio~=1.64.1")
         session.install("grpcio-tools~=1.64.1")
     elif pb == 6:
-        session.install("mypy-protobuf==3.6.0")
-        # TODO: update to 1.72.0 when released
-        session.install("grpcio==1.72.0rc1")
-        session.install("grpcio-tools==1.72.0rc1")
-        session.install("protobuf==6.30.2")
+        session.install("protobuf~=6.30.2")
+        session.install("mypy-protobuf~=3.6.0")
+        session.install("grpcio~=1.72.1")
+        session.install("grpcio-tools~=1.72.1")
     else:
         session.error("Invalid protobuf version given. `pb` must be 3, 4, 5, or 6.")
 
@@ -571,6 +580,7 @@ def mypy_report(session: nox.Session) -> None:
         # https://github.com/python/mypy/issues/17166
         "mypy != 1.10.0",
         "numpy",
+        "packaging",
         "pandas-stubs",
         "pip",
         "platformdirs",
@@ -585,10 +595,6 @@ def mypy_report(session: nox.Session) -> None:
         "types-pytz",
         "types-PyYAML",
         "types-requests",
-        # Fix for removal of pkg_resources
-        # TODO(@jacobromero): remove version constraint
-        # after migrating away from pkg_resources
-        "types-setuptools < 80.7",
         "types-six",
         "types-tqdm",
     )
@@ -736,38 +742,6 @@ def combine_test_results(session: nox.Session) -> None:
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
 
 
-@nox.session(name="bump-go-version")
-def bump_go_version(session: nox.Session) -> None:
-    """Bump the Go version."""
-    install_timed(session, "bump2version", "requests")
-
-    # Get the latest Go version.
-    get_go_version_output = session.run(
-        "./tools/get_go_version.py",
-        silent=True,
-        external=True,
-    )
-
-    # Guaranteed by silent=True above, but poorly documented in nox.
-    assert isinstance(get_go_version_output, str)
-
-    latest_version = get_go_version_output.strip()
-    session.log(f"Latest Go version: {latest_version}")
-
-    # Run bump2version with the fetched version
-    session.run(
-        "bump2version",
-        "patch",
-        "--new-version",
-        latest_version,
-        "--config-file",
-        ".bumpversion.go.cfg",
-        "--no-commit",
-        "--allow-dirty",
-        external=True,
-    )
-
-
 @nox.session(python=_SUPPORTED_PYTHONS)
 @nox.parametrize("importer", ["wandb", "mlflow"])
 def importer_tests(session: nox.Session, importer: str):
@@ -791,3 +765,57 @@ def importer_tests(session: nox.Session, importer: str):
             session.posargs or [f"tests/system_tests/test_importers/test_{importer}"]
         ),
     )
+
+
+@nox.session(name="wandb-core-size-check", python="3.10")
+def wandb_core_size_check(session: nox.Session) -> None:
+    """Compare wandb-core binary size against main branch."""
+    # Build and install main branch version
+    session.run("git", "fetch", "origin", "main", external=True)
+    session.run("git", "checkout", "origin/main", external=True)
+    install_wandb(session, dev=False)
+
+    main_binary = list(
+        (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
+    )[0]
+    main_size = main_binary.stat().st_size
+
+    # Build and install current branch version
+    session.run("git", "checkout", "-", external=True)
+    install_wandb(session, dev=False)
+
+    current_binary = list(
+        (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
+    )[0]
+    current_size = current_binary.stat().st_size
+
+    # Format and display results
+    def fmt_size(b: int) -> str:
+        for unit in ["B", "KB", "MB"]:
+            if b < 1024:
+                return f"{b:.1f} {unit}"
+            b /= 1024
+        return f"{b:.1f} GB"
+
+    diff = current_size - main_size
+    pct = (diff / main_size * 100) if main_size else 0
+
+    session.log("=" * 60)
+    session.log(f"Main branch:  {fmt_size(main_size)} ({main_size:,} bytes)")
+    session.log(f"Current:      {fmt_size(current_size)} ({current_size:,} bytes)")
+    session.log(
+        f"Difference:   {fmt_size(abs(diff))} ({'+' if diff > 0 else ''}{pct:+.1f}%)"
+    )
+    session.log("=" * 60)
+
+    if pct > 10:
+        session.log("")
+        session.log("❌ Binary size increased beyond acceptable threshold!")
+        session.log("")
+        session.log("If this increase is necessary and optimized:")
+        session.log("  1. Verify the increase is justified")
+        session.log("  2. Document the reason in your PR description")
+        session.log("")
+        session.error(f"Binary size increased by {pct:.1f}% (>10% threshold)")
+    elif pct > 5:
+        session.warn(f"Binary size increased by {pct:.1f}%")
