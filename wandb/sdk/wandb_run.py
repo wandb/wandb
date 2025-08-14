@@ -3890,8 +3890,8 @@ class Run:
 
         panel = []
 
-        # Render history if available
-        if history:
+        # Render history if available (unless histogram is disabled)
+        if history and not settings.disable_histogram:
             logger.info("rendering history")
 
             sampled_history = {

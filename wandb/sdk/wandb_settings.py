@@ -493,6 +493,9 @@ class Settings(BaseModel, validate_assignment=True):
     silent: bool = False
     """Flag to suppress all output."""
 
+    disable_histogram: bool = False
+    """Flag to suppress histogram/sparkline display at run end."""
+
     start_method: Optional[str] = None
     """Method to use for starting subprocesses.
 
