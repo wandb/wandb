@@ -1559,6 +1559,7 @@ async def test_kubernetes_submitted_run_get_logs(pods, logs, expected):
         batch_api=MagicMock(),
         core_api=core_api,
         apps_api=MagicMock(),
+        network_api=MagicMock(),
         namespace="wandb",
         name="test_run",
     )

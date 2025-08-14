@@ -32,7 +32,6 @@ type RecordParser interface {
 
 // RecordParserFactory constructs the real RecordParser.
 type RecordParserFactory struct {
-	BeforeRunEndCtx    context.Context
 	FeatureProvider    *featurechecker.ServerFeaturesCache
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
@@ -45,16 +44,18 @@ type RecordParserFactory struct {
 
 // New returns a new RecordParser.
 func (f *RecordParserFactory) New(
+	beforeRunEndCtx context.Context,
 	tbHandler *tensorboard.TBHandler,
 ) *recordParser {
-	return &recordParser{*f, tbHandler}
+	return &recordParser{*f, beforeRunEndCtx, tbHandler}
 }
 
 // recordParser is the real implementation of RecordParser.
 type recordParser struct {
 	RecordParserFactory // injected fields
 
-	tbHandler *tensorboard.TBHandler
+	beforeRunEndCtx context.Context
+	tbHandler       *tensorboard.TBHandler
 }
 
 // Ensure recordParser implements RecordParser.
@@ -70,7 +71,7 @@ func (p *recordParser) Parse(record *spb.Record) runwork.Work {
 			StreamRunUpserter: p.Run,
 
 			Settings:           p.Settings,
-			BeforeRunEndCtx:    p.BeforeRunEndCtx,
+			BeforeRunEndCtx:    p.beforeRunEndCtx,
 			Operations:         p.Operations,
 			FeatureProvider:    p.FeatureProvider,
 			GraphqlClientOrNil: p.GraphqlClientOrNil,
