@@ -2784,7 +2784,7 @@ def enabled(service):
     help="""Checks and verifies local instance of W&B. W&B checks for:
 
     Checks that the host is not `api.wandb.ai` (host check).
-    
+
     Verifies if the user is logged in correctly using the provided API key (login check).
 
     Checks that requests are made over HTTPS (secure requests).
