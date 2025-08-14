@@ -76,6 +76,7 @@ from ._generated import (
     ARTIFACT_FILE_URLS_GQL,
     ARTIFACT_TYPE_GQL,
     ARTIFACT_USED_BY_GQL,
+    ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
     DELETE_ALIASES_GQL,
     DELETE_ARTIFACT_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
@@ -91,6 +92,7 @@ from ._generated import (
     ArtifactFileUrls,
     ArtifactType,
     ArtifactUsedBy,
+    ArtifactViaMembershipByName,
     FetchArtifactManifest,
     FetchLinkedArtifacts,
     FileUrlsFragment,
@@ -317,7 +319,7 @@ class Artifact:
         name: str,
         client: RetryingClient,
     ) -> Artifact:
-        if not InternalApi()._server_supports(
+        if not (api := InternalApi())._server_supports(
             pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
         ):
             raise UnsupportedError(
@@ -325,56 +327,31 @@ class Artifact:
                 "by this version of wandb server. Consider updating to the latest version."
             )
 
-        query = gql(
-            f"""
-            query ArtifactByName($entityName: String!, $projectName: String!, $name: String!) {{
-                project(name: $projectName, entityName: $entityName) {{
-                    artifactCollectionMembership(name: $name) {{
-                        id
-                        artifactCollection {{
-                            id
-                            name
-                            project {{
-                                id
-                                entityName
-                                name
-                            }}
-                        }}
-                        artifact {{
-                            ...ArtifactFragment
-                        }}
-                    }}
-                }}
-            }}
-            {_gql_artifact_fragment()}
-            """
-        )
+        omit_fields = omit_artifact_fields(api=api)
+        query = gql_compat(ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL, omit_fields=omit_fields)
 
-        query_variable_values: dict[str, Any] = {
-            "entityName": entity,
-            "projectName": project,
-            "name": name,
-        }
-        response = client.execute(
-            query,
-            variable_values=query_variable_values,
-        )
-        if not (project_attrs := response.get("project")):
+        gql_vars = {"entityName": entity, "projectName": project, "name": name}
+        data = client.execute(query, variable_values=gql_vars)
+        result = ArtifactViaMembershipByName.model_validate(data)
+
+        if not (project_attrs := result.project):
             raise ValueError(f"project {project!r} not found under entity {entity!r}")
-        if not (acm_attrs := project_attrs.get("artifactCollectionMembership")):
+
+        if not (acm_attrs := project_attrs.artifact_collection_membership):
             entity_project = f"{entity}/{project}"
             raise ValueError(
                 f"artifact membership {name!r} not found in {entity_project!r}"
             )
-        if not (ac_attrs := acm_attrs.get("artifactCollection")):
+
+        if not (ac_attrs := acm_attrs.artifact_collection):
             raise ValueError("artifact collection not found")
-        if not (
-            (ac_name := ac_attrs.get("name"))
-            and (ac_project_attrs := ac_attrs.get("project"))
-        ):
+
+        if not ((ac_name := ac_attrs.name) and (ac_project_attrs := ac_attrs.project)):
             raise ValueError("artifact collection project not found")
-        ac_project = ac_project_attrs.get("name")
-        ac_entity = ac_project_attrs.get("entityName")
+
+        ac_project = ac_project_attrs.name
+        ac_entity = ac_project_attrs.entity_name
+
         if is_artifact_registry_project(ac_project) and project == "model-registry":
             wandb.termwarn(
                 "This model registry has been migrated and will be discontinued. "
@@ -383,11 +360,12 @@ class Artifact:
             )
             entity = ac_entity
             project = ac_project
-        if not (attrs := acm_attrs.get("artifact")):
+
+        if not (attrs := acm_attrs.artifact):
             entity_project = f"{entity}/{project}"
             raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
 
-        return cls._from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity, project, name, attrs.model_dump(), client)
 
     @classmethod
     def _from_name(
