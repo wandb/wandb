@@ -89,6 +89,7 @@ class KubernetesSubmittedRun(AbstractRun):
         namespace: Optional[str] = "default",
         secret: Optional["V1Secret"] = None,
         auxiliary_resource_label_key: Optional[str] = None,
+        wandb_team_secrets_secret: Optional["V1Secret"] = None,
     ) -> None:
         """Initialize a KubernetesSubmittedRun.
 
@@ -118,6 +119,7 @@ class KubernetesSubmittedRun(AbstractRun):
         self._fail_count = 0
         self.secret = secret
         self.auxiliary_resource_label_key = auxiliary_resource_label_key
+        self.wandb_team_secrets_secret = wandb_team_secrets_secret
 
     @property
     def id(self) -> str:
@@ -186,13 +188,18 @@ class KubernetesSubmittedRun(AbstractRun):
             ) from e
 
     async def _delete_secret(self) -> None:
-        # Cleanup secret if not running in a helm-managed context
-        if not os.environ.get("WANDB_RELEASE_NAME") and self.secret:
+        if self.secret:
             await self.core_api.delete_namespaced_secret(
                 name=self.secret.metadata.name,
                 namespace=self.secret.metadata.namespace,
             )
             self.secret = None
+        if self.wandb_team_secrets_secret:
+            await self.core_api.delete_namespaced_secret(
+                name=self.wandb_team_secrets_secret.metadata.name,
+                namespace=self.wandb_team_secrets_secret.metadata.namespace,
+            )
+            self.wandb_team_secrets_secret = None
 
     async def _delete_auxiliary_resources_by_label(self) -> None:
         if self.auxiliary_resource_label_key is None:
@@ -387,8 +394,8 @@ class KubernetesRunner(AbstractRunner):
         image_uri: str,
         namespace: str,
         core_api: "CoreV1Api",
-    ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
-        """Apply our default values, return job dict and api key secret.
+    ) -> Tuple[Dict[str, Any], Optional["V1Secret"], Optional["V1Secret"]]:
+        """Apply our default values, return job dict, api key secret, and wandb team secrets secret.
 
         Arguments:
             resource_args (Dict[str, Any]): The resource args to launch.
@@ -398,7 +405,7 @@ class KubernetesRunner(AbstractRunner):
             core_api (CoreV1Api): The core api.
 
         Returns:
-            Tuple[Dict[str, Any], Optional["V1Secret"]]: The resource args and api key secret.
+            Tuple[Dict[str, Any], Optional["V1Secret"], Optional["V1Secret"]]: The resource args, api key secret, and wandb team secrets secret.
         """
         job: Dict[str, Any] = {
             "apiVersion": "batch/v1",
@@ -468,6 +475,8 @@ class KubernetesRunner(AbstractRunner):
             self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
         api_key_secret = None
+        wandb_team_secrets_secret = None
+
         for cont in containers:
             # Add our env vars to user supplied env vars
             env = cont.get("env") or []
@@ -481,31 +490,13 @@ class KubernetesRunner(AbstractRunner):
                     )
                 ):
                     # Override API key with secret. TODO: Do the same for other runners
-                    release_name = os.environ.get("WANDB_RELEASE_NAME")
-                    secret_name = "wandb-api-key"
-                    if release_name:
-                        secret_name += f"-{release_name}"
-                    else:
-                        secret_name += f"-{launch_project.run_id}"
-
-                    def handle_exception(e):
-                        wandb.termwarn(
-                            f"Exception when ensuring Kubernetes API key secret: {e}. Retrying..."
-                        )
-
-                    api_key_secret = await retry_async(
-                        backoff=ExponentialBackoff(
-                            initial_sleep=datetime.timedelta(seconds=1),
-                            max_sleep=datetime.timedelta(minutes=1),
-                            max_retries=API_KEY_SECRET_MAX_RETRIES,
-                        ),
-                        fn=ensure_api_key_secret,
-                        on_exc=handle_exception,
-                        core_api=core_api,
-                        secret_name=secret_name,
-                        namespace=namespace,
+                    api_key_secret = await self._create_api_key_secret(
                         api_key=value,
+                        launch_project=launch_project,
+                        core_api=core_api,
+                        namespace=namespace,
                     )
+                    secret_name = api_key_secret.metadata.name
                     env.append(
                         {
                             "name": key,
@@ -519,7 +510,33 @@ class KubernetesRunner(AbstractRunner):
                     )
                 else:
                     env.append({"name": key, "value": value})
+
             cont["env"] = env
+
+        team_secrets = launch_project.get_secrets_dict()
+        if team_secrets:
+            wandb_team_secrets_secret = await self._handle_wandb_team_secrets(
+                launch_project=launch_project,
+                core_api=core_api,
+                namespace=namespace,
+            )
+
+            secrets_name = f"wandb-secrets-{launch_project.run_id}"
+            for cont in containers:
+                env = cont.setdefault("env", [])
+                for secret_key in team_secrets.keys():
+                    env.append(
+                        {
+                            "name": secret_key,
+                            "valueFrom": {
+                                "secretKeyRef": {
+                                    "name": secrets_name,
+                                    "key": secret_key,
+                                }
+                            },
+                        }
+                    )
+                cont["env"] = env
 
         pod_spec["containers"] = containers
         pod_template["spec"] = pod_spec
@@ -547,7 +564,75 @@ class KubernetesRunner(AbstractRunner):
                 LaunchAgent.name(),
             )
 
-        return job, api_key_secret
+        return job, api_key_secret, wandb_team_secrets_secret
+
+    async def _create_api_key_secret(
+        self,
+        api_key: str,
+        launch_project: LaunchProject,
+        core_api: "CoreV1Api",
+        namespace: str,
+    ) -> "V1Secret":
+        """Create API key secret for the launch project."""
+        release_name = os.environ.get("WANDB_RELEASE_NAME")
+        secret_name = "wandb-api-key"
+        if release_name:
+            secret_name += f"-{release_name}"
+        # prevent collision with launch agent's api key secret
+        secret_name += f"-{launch_project.run_id}"
+
+        def handle_exception(e):
+            wandb.termwarn(
+                f"Exception when ensuring Kubernetes API key secret: {e}. Retrying..."
+            )
+
+        return await retry_async(
+            backoff=ExponentialBackoff(
+                initial_sleep=datetime.timedelta(seconds=1),
+                max_sleep=datetime.timedelta(minutes=1),
+                max_retries=API_KEY_SECRET_MAX_RETRIES,
+            ),
+            fn=ensure_api_key_secret,
+            on_exc=handle_exception,
+            core_api=core_api,
+            secret_name=secret_name,
+            namespace=namespace,
+            api_key=api_key,
+        )
+
+    async def _handle_wandb_team_secrets(
+        self,
+        launch_project: LaunchProject,
+        core_api: "CoreV1Api",
+        namespace: str,
+    ) -> Optional["V1Secret"]:
+        """Create wandb team secrets from launch project."""
+        secrets = launch_project.get_secrets_dict()
+        if not secrets:
+            return None
+
+        secrets_name = f"wandb-secrets-{launch_project.run_id}"
+
+        def handle_secrets_exception(e):
+            wandb.termwarn(
+                f"Exception when ensuring Kubernetes secrets: {e}. Retrying..."
+            )
+
+        wandb_team_secrets_secret = await retry_async(
+            backoff=ExponentialBackoff(
+                initial_sleep=datetime.timedelta(seconds=1),
+                max_sleep=datetime.timedelta(minutes=1),
+                max_retries=API_KEY_SECRET_MAX_RETRIES,
+            ),
+            fn=maybe_create_wandb_team_secrets_secret,
+            on_exc=handle_secrets_exception,
+            core_api=core_api,
+            secret_name=secrets_name,
+            namespace=namespace,
+            env_vars=secrets,
+        )
+
+        return wandb_team_secrets_secret
 
     async def _wait_for_resource_ready(
         self,
@@ -922,7 +1007,7 @@ class KubernetesRunner(AbstractRunner):
         apps_api = kubernetes_asyncio.client.AppsV1Api(api_client)
 
         namespace = self.get_namespace(resource_args, context)
-        job, secret = await self._inject_defaults(
+        job, secret, wandb_team_secrets_secret = await self._inject_defaults(
             resource_args, launch_project, image_uri, namespace, core_api
         )
 
@@ -986,6 +1071,7 @@ class KubernetesRunner(AbstractRunner):
             namespace,
             secret,
             auxiliary_resource_label_key,
+            wandb_team_secrets_secret,
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             await submitted_job.wait()
@@ -1047,37 +1133,51 @@ async def ensure_api_key_secret(
         type="kubernetes.io/basic-auth",
     )
 
-    try:
-        try:
-            return await core_api.create_namespaced_secret(namespace, secret)
-        except ApiException as e:
-            # 409 = conflict = secret already exists
-            if e.status == 409:
-                existing_secret = await core_api.read_namespaced_secret(
-                    name=secret_name, namespace=namespace
-                )
-                if existing_secret.data != secret_data:
-                    # If it's a previous secret made by launch agent, clean it up
-                    if (
-                        existing_secret.metadata.labels.get("wandb.ai/created-by")
-                        == "launch-agent"
-                    ):
-                        await core_api.delete_namespaced_secret(
-                            name=secret_name, namespace=namespace
-                        )
-                        return await core_api.create_namespaced_secret(
-                            namespace, secret
-                        )
-                    else:
-                        raise LaunchError(
-                            f"Kubernetes secret already exists in namespace {namespace} with incorrect data: {secret_name}"
-                        )
-                return existing_secret
-            raise
-    except Exception as e:
-        raise LaunchError(
-            f"Exception when ensuring Kubernetes API key secret: {str(e)}\n"
-        )
+    return await _create_secret_with_launch_agent_conflict_handling(
+        core_api=core_api,
+        secret=secret,
+        namespace=namespace,
+        error_context="API key",
+    )
+
+
+async def maybe_create_wandb_team_secrets_secret(
+    core_api: "CoreV1Api",
+    secret_name: str,
+    namespace: str,
+    env_vars: Dict[str, str],
+) -> "V1Secret":
+    """Create a secret containing wandb team secrets.
+
+    Arguments:
+        core_api: The Kubernetes CoreV1Api object.
+        secret_name: The name to use for the secret.
+        namespace: The namespace to create the secret in.
+        env_vars: Dictionary of environment variable names to values
+
+    Returns:
+        The created secret
+    """
+    secret_data = {
+        key: base64.b64encode(value.encode()).decode()
+        for key, value in env_vars.items()
+    }
+    labels = {"wandb.ai/created-by": "launch-agent"}
+    secret = client.V1Secret(
+        data=secret_data,
+        metadata=client.V1ObjectMeta(
+            name=secret_name, namespace=namespace, labels=labels
+        ),
+        kind="Secret",
+        type="Opaque",
+    )
+
+    return await _create_secret_with_launch_agent_conflict_handling(
+        core_api=core_api,
+        secret=secret,
+        namespace=namespace,
+        error_context="wandb team secrets",
+    )
 
 
 async def maybe_create_imagepull_secret(
@@ -1134,6 +1234,61 @@ async def maybe_create_imagepull_secret(
             raise
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
+
+
+async def _create_secret_with_launch_agent_conflict_handling(
+    core_api: "CoreV1Api",
+    secret: "V1Secret",
+    namespace: str,
+    error_context: str,
+) -> "V1Secret":
+    """Helper function to create a secret with conflict handling.
+
+    This handles the case where launch-agent created secrets may need to be
+    replaced if they have different data, but other existing secrets should
+    cause an error.
+
+    Arguments:
+        core_api: The Kubernetes CoreV1Api object.
+        secret: The secret object to create.
+        namespace: The namespace to create the secret in.
+        error_context: Context string for error messages.
+
+    Returns:
+        The created or existing secret.
+    """
+    try:
+        try:
+            return await core_api.create_namespaced_secret(namespace, secret)
+        except ApiException as e:
+            # 409 = conflict = secret already exists
+            if e.status == 409:
+                secret_name = secret.metadata.name
+                existing_secret = await core_api.read_namespaced_secret(
+                    name=secret_name, namespace=namespace
+                )
+                if existing_secret.data != secret.data:
+                    # If it's a previous secret made by launch agent, clean it up
+                    if (
+                        existing_secret.metadata.labels.get("wandb.ai/created-by")
+                        == "launch-agent"
+                    ):
+                        await core_api.delete_namespaced_secret(
+                            name=secret_name, namespace=namespace
+                        )
+                        return await core_api.create_namespaced_secret(
+                            namespace, secret
+                        )
+                    else:
+                        raise LaunchError(
+                            f"Kubernetes secret already exists in namespace {namespace} with incorrect data: {secret_name}"
+                        )
+                return existing_secret
+            raise
+    except Exception as e:
+        raise LaunchError(
+            f"Exception when ensuring Kubernetes {error_context} secret: {str(e)}\n"
+        )
 
 
 def yield_containers(root: Any) -> Iterator[dict]:

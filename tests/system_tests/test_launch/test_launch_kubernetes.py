@@ -14,6 +14,13 @@ async def _mock_maybe_create_imagepull_secret(*args, **kwargs):
 
 
 async def _mock_ensure_api_key_secret(*args, **kwargs):
+    # Return a mock secret with the expected structure
+    mock_secret = MagicMock()
+    mock_secret.metadata.name = "wandb-api-key-testname"
+    return mock_secret
+
+
+async def _mock_maybe_create_wandb_team_secrets_secret(*args, **kwargs):
     pass
 
 
@@ -219,6 +226,7 @@ async def test_kubernetes_run_env_vars(
     project.get_env_vars_dict = lambda _, __: {
         "WANDB_API_KEY": "test-key",
     }
+    project.get_secrets_dict = lambda: {}
     project.job_base_image = None
 
     environment = loader.environment_from_config({})
@@ -260,6 +268,136 @@ async def test_kubernetes_run_env_vars(
         },
     }
     assert api_key_secret in job["spec"]["template"]["spec"]["containers"][0]["env"]
+
+
+@pytest.mark.asyncio
+async def test_kubernetes_run_with_secrets(
+    use_local_wandb_backend,
+    monkeypatch,
+    assets_path,
+):
+    _ = use_local_wandb_backend
+
+    jobs = {}
+    status = MockDict(
+        {
+            "succeeded": 1,
+            "failed": 0,
+            "active": 0,
+            "conditions": None,
+        }
+    )
+
+    entity_name = "testentity"
+    project_name = "testproject"
+    expected_generate_name = make_name_dns_safe(f"launch-{entity_name}-{project_name}-")
+    expected_run_name = expected_generate_name + "testname"
+
+    setup_mock_kubernetes_client(monkeypatch, jobs, pods(expected_run_name), status)
+
+    project = MagicMock()
+    project.resource_args = {
+        "kubernetes": {
+            "configFile": str(assets_path("launch_k8s_config.yaml")),
+        }
+    }
+    project.name = "testname"
+    project.sweep_id = None
+    project.target_entity = entity_name
+    project.target_project = project_name
+    project.override_config = {}
+    project.override_args = ["-a", "2"]
+    project.override_files = {}
+    project.run_id = "testname"
+    project.docker_image = "hello-world"
+    project.job = "testjob"
+    project.launch_spec = {
+        "_resume_count": 0,
+        "_wandb_secrets": {
+            "DATABASE_URL": "postgresql://user:pass@localhost/db",
+            "API_SECRET": "secret123",
+            "DEBUG_MODE": "true",
+        },
+    }
+    project.fill_macros = lambda _: project.resource_args
+    project.override_entrypoint.command = None
+    project.queue_name = None
+    project.queue_entity = None
+    project.run_queue_item_id = None
+    project.get_env_vars_dict = lambda _, __: {
+        "WANDB_BASE_URL": "http://localhost",
+        "WANDB_ENTITY": "testentity",
+        "WANDB_PROJECT": "testproject",
+    }
+    project.get_secrets_dict = lambda: {
+        "DATABASE_URL": "postgresql://user:pass@localhost/db",
+        "API_SECRET": "secret123",
+        "DEBUG_MODE": "true",
+    }
+    project.job_base_image = None
+
+    environment = loader.environment_from_config({})
+    api = Api()
+    runner = loader.runner_from_config(
+        runner_name="kubernetes",
+        api=api,
+        runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
+        environment=environment,
+        registry=MagicMock(),
+    )
+    monkeypatch.setattr(
+        kubernetes_runner,
+        "maybe_create_imagepull_secret",
+        _mock_maybe_create_imagepull_secret,
+    )
+    monkeypatch.setattr(
+        kubernetes_runner,
+        "maybe_create_wandb_team_secrets_secret",
+        _mock_maybe_create_wandb_team_secrets_secret,
+    )
+    run = await runner.run(project, "hello-world")
+
+    assert run.name == expected_run_name
+
+    job = await run.batch_api.read_namespaced_job(
+        name=run.name, namespace=run.namespace
+    )
+
+    # Verify secrets are referenced in environment variables
+    container_env = job["spec"]["template"]["spec"]["containers"][0]["env"]
+
+    expected_secrets = [
+        {
+            "name": "DATABASE_URL",
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": f"wandb-secrets-{project.run_id}",
+                    "key": "DATABASE_URL",
+                }
+            },
+        },
+        {
+            "name": "API_SECRET",
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": f"wandb-secrets-{project.run_id}",
+                    "key": "API_SECRET",
+                }
+            },
+        },
+        {
+            "name": "DEBUG_MODE",
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": f"wandb-secrets-{project.run_id}",
+                    "key": "DEBUG_MODE",
+                }
+            },
+        },
+    ]
+
+    for expected_secret in expected_secrets:
+        assert expected_secret in container_env
 
 
 class MockDict(dict):
@@ -315,6 +453,15 @@ class MockCoreV1Api:
 
     async def delete_namespace(self, name):
         self.namespaces.remove(name)
+
+    async def create_namespaced_secret(self, namespace, secret):
+        return secret
+
+    async def read_namespaced_secret(self, name, namespace):
+        return MagicMock(data={}, metadata=MagicMock(labels={}))
+
+    async def delete_namespaced_secret(self, name, namespace):
+        pass
 
 
 def pods(job_name):
