@@ -208,9 +208,10 @@ def _create_job(
     if "latest" not in aliases:
         aliases += ["latest"]
 
+    metadata = {"_partial": True}
     if schema:
         _validate_schema(schema)
-        schema = {
+        metadata = {
             "input_schemas": {
                 "@wandb.config": schema,
             }
@@ -226,7 +227,7 @@ def _create_job(
         project_name=project,
         run_name=run.id,  # type: ignore # run will be deleted after creation
         description=description,
-        metadata=schema if schema else {"_partial": True},
+        metadata=metadata,
         is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
