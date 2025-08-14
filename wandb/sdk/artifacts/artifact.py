@@ -71,6 +71,7 @@ from wandb.util import (
 from ._generated import (
     ADD_ALIASES_GQL,
     ARTIFACT_BY_ID_GQL,
+    ARTIFACT_BY_NAME_GQL,
     ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
     ARTIFACT_CREATED_BY_GQL,
     ARTIFACT_FILE_URLS_GQL,
@@ -86,6 +87,7 @@ from ._generated import (
     UPDATE_ARTIFACT_GQL,
     ArtifactAliasInput,
     ArtifactByID,
+    ArtifactByName,
     ArtifactCollectionAliasInput,
     ArtifactCollectionMembershipFileUrls,
     ArtifactCreatedBy,
@@ -101,7 +103,7 @@ from ._generated import (
     TagInput,
     UpdateArtifact,
 )
-from ._graphql_fragments import _gql_artifact_fragment, omit_artifact_fields
+from ._graphql_fragments import omit_artifact_fields
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
     ArtifactPath,
@@ -377,59 +379,38 @@ class Artifact:
         client: RetryingClient,
         enable_tracking: bool = False,
     ) -> Artifact:
-        if InternalApi()._server_supports(
+        if (api := InternalApi())._server_supports(
             pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
         ):
             return cls._membership_from_name(
-                entity=entity,
-                project=project,
-                name=name,
-                client=client,
+                entity=entity, project=project, name=name, client=client
             )
 
-        query_variable_values: dict[str, Any] = {
+        supports_enable_tracking_gql_var = api.server_project_type_introspection()
+        omit_vars = None if supports_enable_tracking_gql_var else {"enableTracking"}
+        omit_fields = omit_artifact_fields(api=api)
+
+        gql_vars = {
             "entityName": entity,
             "projectName": project,
             "name": name,
+            "enableTracking": enable_tracking,
         }
-        query_vars = ["$entityName: String!", "$projectName: String!", "$name: String!"]
-        query_args = ["name: $name"]
-
-        server_supports_enabling_artifact_usage_tracking = (
-            InternalApi().server_project_type_introspection()
+        query = gql_compat(
+            ARTIFACT_BY_NAME_GQL, omit_variables=omit_vars, omit_fields=omit_fields
         )
-        if server_supports_enabling_artifact_usage_tracking:
-            query_vars.append("$enableTracking: Boolean")
-            query_args.append("enableTracking: $enableTracking")
-            query_variable_values["enableTracking"] = enable_tracking
 
-        vars_str = ", ".join(query_vars)
-        args_str = ", ".join(query_args)
+        data = client.execute(query, variable_values=gql_vars)
+        result = ArtifactByName.model_validate(data)
 
-        query = gql(
-            f"""
-            query ArtifactByName({vars_str}) {{
-                project(name: $projectName, entityName: $entityName) {{
-                    artifact({args_str}) {{
-                        ...ArtifactFragment
-                    }}
-                }}
-            }}
-            {_gql_artifact_fragment()}
-            """
-        )
-        response = client.execute(
-            query,
-            variable_values=query_variable_values,
-        )
-        project_attrs = response.get("project")
-        if not project_attrs:
-            raise ValueError(f"project '{project}' not found under entity '{entity}'")
-        attrs = project_attrs.get("artifact")
-        if not attrs:
-            raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
+        if not (proj_attrs := result.project):
+            raise ValueError(f"project {project!r} not found under entity {entity!r}")
 
-        return cls._from_attrs(entity, project, name, attrs, client)
+        if not (art_attrs := proj_attrs.artifact):
+            entity_project = f"{entity}/{project}"
+            raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
+
+        return cls._from_attrs(entity, project, name, art_attrs.model_dump(), client)
 
     @classmethod
     def _from_attrs(
