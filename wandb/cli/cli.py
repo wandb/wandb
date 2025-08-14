@@ -1906,6 +1906,12 @@ def describe(job):
     help="Service configurations in format serviceName=policy. Valid policies: always, never",
     hidden=True,
 )
+@click.option(
+    "--schema",
+    type=str,
+    help="Path to the schema file for the job.",
+    hidden=True,
+)
 @click.argument("path")
 def create(
     path,
@@ -1922,6 +1928,7 @@ def create(
     base_image,
     dockerfile,
     services,
+    schema,
 ):
     """Create a job from a source, without a wandb run.
 
@@ -1956,6 +1963,12 @@ def create(
         wandb.termerror("Cannot provide --base-image/-B for an `image` job")
         return
 
+    if schema:
+        schema_dict = util.load_json_yaml_dict(schema)
+        if schema_dict is None:
+            wandb.termerror(f"Invalid format for schema file: {schema}")
+            return
+
     artifact, action, aliases = _create_job(
         api=api,
         path=path,
@@ -1972,6 +1985,7 @@ def create(
         base_image=base_image,
         dockerfile=dockerfile,
         services=services,
+        schema=schema_dict,
     )
     if not artifact:
         wandb.termerror("Job creation failed")
