@@ -71,16 +71,16 @@ class Registries(Paginator):
 
     def collections(self, filter: dict[str, Any] | None = None) -> Collections:
         return Collections(
-            self.client,
-            self.organization,
+            client=self.client,
+            organization=self.organization,
             registry_filter=self.filter,
             collection_filter=filter,
         )
 
     def versions(self, filter: dict[str, Any] | None = None) -> Versions:
         return Versions(
-            self.client,
-            self.organization,
+            client=self.client,
+            organization=self.organization,
             registry_filter=self.filter,
             collection_filter=None,
             artifact_filter=filter,
@@ -129,7 +129,7 @@ class Registries(Paginator):
         nodes = (e.node for e in self.last_response.edges)
         return [
             Registry(
-                self.client,
+                client=self.client,
                 organization=self.organization,
                 entity=self._last_org_entity,
                 name=remove_registry_prefix(node.name),
@@ -162,7 +162,7 @@ class Collections(Paginator["ArtifactCollection"]):
         variables = {
             "registryFilter": json.dumps(f) if (f := registry_filter) else None,
             "collectionFilter": json.dumps(f) if (f := collection_filter) else None,
-            "organization": self.organization,
+            "organization": organization,
             "collectionTypes": [ArtifactCollectionType.PORTFOLIO],
             "perPage": per_page,
         }
@@ -179,8 +179,8 @@ class Collections(Paginator["ArtifactCollection"]):
 
     def versions(self, filter: dict[str, Any] | None = None) -> Versions:
         return Versions(
-            self.client,
-            self.organization,
+            client=self.client,
+            organization=self.organization,
             registry_filter=self.registry_filter,
             collection_filter=self.collection_filter,
             artifact_filter=filter,
@@ -231,13 +231,13 @@ class Collections(Paginator["ArtifactCollection"]):
         nodes = (e.node for e in self.last_response.edges)
         return [
             ArtifactCollection(
-                self.client,
-                project.entity.name,
-                project.name,
-                node.name,
-                node.default_artifact_type.name,
-                self.organization,
-                node.model_dump(),
+                client=self.client,
+                entity=project.entity.name,
+                project=project.name,
+                name=node.name,
+                type=node.default_artifact_type.name,
+                organization=self.organization,
+                attrs=node.model_dump(),
                 is_sequence=False,
             )
             for node in nodes
@@ -331,12 +331,12 @@ class Versions(Paginator["Artifact"]):
         nodes = (e.node for e in self.last_response.edges)
         return [
             Artifact._from_attrs(
-                project.entity.name,
-                project.name,
-                f"{collection.name}:v{node.version_index}",
-                artifact,
-                self.client,
-                [alias.alias for alias in node.aliases],
+                entity=project.entity.name,
+                project=project.name,
+                name=f"{collection.name}:v{node.version_index}",
+                attrs=artifact,
+                client=self.client,
+                aliases=[alias.alias for alias in node.aliases],
             )
             for node in nodes
             if (
