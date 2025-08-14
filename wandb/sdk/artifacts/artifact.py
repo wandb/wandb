@@ -17,11 +17,21 @@ import time
 from collections import deque
 from copy import copy
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from functools import partial
 from itertools import filterfalse
 from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Iterator, Literal, Sequence, Type, final
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Final,
+    Iterator,
+    Literal,
+    Sequence,
+    Type,
+    final,
+)
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
@@ -60,19 +70,41 @@ from wandb.util import (
 
 from ._generated import (
     ADD_ALIASES_GQL,
+    ARTIFACT_BY_ID_GQL,
+    ARTIFACT_BY_NAME_GQL,
+    ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
+    ARTIFACT_CREATED_BY_GQL,
+    ARTIFACT_FILE_URLS_GQL,
+    ARTIFACT_TYPE_GQL,
+    ARTIFACT_USED_BY_GQL,
+    ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
     DELETE_ALIASES_GQL,
+    DELETE_ARTIFACT_GQL,
+    FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
     LINK_ARTIFACT_GQL,
+    UNLINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
     ArtifactAliasInput,
+    ArtifactByID,
+    ArtifactByName,
     ArtifactCollectionAliasInput,
+    ArtifactCollectionMembershipFileUrls,
+    ArtifactCreatedBy,
+    ArtifactFileUrls,
+    ArtifactFragment,
+    ArtifactType,
+    ArtifactUsedBy,
+    ArtifactViaMembershipByName,
+    FetchArtifactManifest,
     FetchLinkedArtifacts,
+    FileUrlsFragment,
     LinkArtifact,
     LinkArtifactInput,
     TagInput,
     UpdateArtifact,
 )
-from ._graphql_fragments import _gql_artifact_fragment, omit_artifact_fields
+from ._graphql_fragments import omit_artifact_fields
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
     ArtifactPath,
@@ -117,6 +149,9 @@ if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient
 
 logger = logging.getLogger(__name__)
+
+
+_MB: Final[int] = 1024 * 1024
 
 
 @final
@@ -257,32 +292,24 @@ class Artifact:
         if (artifact := artifact_instance_cache.get(artifact_id)) is not None:
             return artifact
 
-        query = gql(
-            """
-            query ArtifactByID($id: ID!) {
-                artifact(id: $id) {
-                    ...ArtifactFragment
-                }
-            }
-            """
-            + _gql_artifact_fragment()
+        query = gql_compat(
+            ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(api=InternalApi())
         )
-        response = client.execute(
-            query,
-            variable_values={"id": artifact_id},
-        )
-        attrs = response.get("artifact")
-        if attrs is None:
+
+        data = client.execute(query, variable_values={"id": artifact_id})
+        result = ArtifactByID.model_validate(data)
+
+        if (art := result.artifact) is None:
             return None
 
-        src_collection = attrs["artifactSequence"]
-        src_project = src_collection["project"]
+        src_collection = art.artifact_sequence
+        src_project = src_collection.project
 
-        entity_name = src_project["entityName"] if src_project else ""
-        project_name = src_project["name"] if src_project else ""
+        entity_name = src_project.entity_name if src_project else ""
+        project_name = src_project.name if src_project else ""
 
-        name = "{}:v{}".format(src_collection["name"], attrs["versionIndex"])
-        return cls._from_attrs(entity_name, project_name, name, attrs, client)
+        name = f"{src_collection.name}:v{art.version_index}"
+        return cls._from_attrs(entity_name, project_name, name, art, client)
 
     @classmethod
     def _membership_from_name(
@@ -293,7 +320,7 @@ class Artifact:
         name: str,
         client: RetryingClient,
     ) -> Artifact:
-        if not InternalApi()._server_supports(
+        if not (api := InternalApi())._server_supports(
             pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
         ):
             raise UnsupportedError(
@@ -301,56 +328,31 @@ class Artifact:
                 "by this version of wandb server. Consider updating to the latest version."
             )
 
-        query = gql(
-            f"""
-            query ArtifactByName($entityName: String!, $projectName: String!, $name: String!) {{
-                project(name: $projectName, entityName: $entityName) {{
-                    artifactCollectionMembership(name: $name) {{
-                        id
-                        artifactCollection {{
-                            id
-                            name
-                            project {{
-                                id
-                                entityName
-                                name
-                            }}
-                        }}
-                        artifact {{
-                            ...ArtifactFragment
-                        }}
-                    }}
-                }}
-            }}
-            {_gql_artifact_fragment()}
-            """
-        )
+        omit_fields = omit_artifact_fields(api=api)
+        query = gql_compat(ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL, omit_fields=omit_fields)
 
-        query_variable_values: dict[str, Any] = {
-            "entityName": entity,
-            "projectName": project,
-            "name": name,
-        }
-        response = client.execute(
-            query,
-            variable_values=query_variable_values,
-        )
-        if not (project_attrs := response.get("project")):
+        gql_vars = {"entityName": entity, "projectName": project, "name": name}
+        data = client.execute(query, variable_values=gql_vars)
+        result = ArtifactViaMembershipByName.model_validate(data)
+
+        if not (project_attrs := result.project):
             raise ValueError(f"project {project!r} not found under entity {entity!r}")
-        if not (acm_attrs := project_attrs.get("artifactCollectionMembership")):
+
+        if not (acm_attrs := project_attrs.artifact_collection_membership):
             entity_project = f"{entity}/{project}"
             raise ValueError(
                 f"artifact membership {name!r} not found in {entity_project!r}"
             )
-        if not (ac_attrs := acm_attrs.get("artifactCollection")):
+
+        if not (ac_attrs := acm_attrs.artifact_collection):
             raise ValueError("artifact collection not found")
-        if not (
-            (ac_name := ac_attrs.get("name"))
-            and (ac_project_attrs := ac_attrs.get("project"))
-        ):
+
+        if not ((ac_name := ac_attrs.name) and (ac_project_attrs := ac_attrs.project)):
             raise ValueError("artifact collection project not found")
-        ac_project = ac_project_attrs.get("name")
-        ac_entity = ac_project_attrs.get("entityName")
+
+        ac_project = ac_project_attrs.name
+        ac_entity = ac_project_attrs.entity_name
+
         if is_artifact_registry_project(ac_project) and project == "model-registry":
             wandb.termwarn(
                 "This model registry has been migrated and will be discontinued. "
@@ -359,11 +361,12 @@ class Artifact:
             )
             entity = ac_entity
             project = ac_project
-        if not (attrs := acm_attrs.get("artifact")):
+
+        if not (attrs := acm_attrs.artifact):
             entity_project = f"{entity}/{project}"
             raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
 
-        return cls._from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity, project, name, attrs.model_dump(), client)
 
     @classmethod
     def _from_name(
@@ -375,59 +378,38 @@ class Artifact:
         client: RetryingClient,
         enable_tracking: bool = False,
     ) -> Artifact:
-        if InternalApi()._server_supports(
+        if (api := InternalApi())._server_supports(
             pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
         ):
             return cls._membership_from_name(
-                entity=entity,
-                project=project,
-                name=name,
-                client=client,
+                entity=entity, project=project, name=name, client=client
             )
 
-        query_variable_values: dict[str, Any] = {
+        supports_enable_tracking_gql_var = api.server_project_type_introspection()
+        omit_vars = None if supports_enable_tracking_gql_var else {"enableTracking"}
+        omit_fields = omit_artifact_fields(api=api)
+
+        gql_vars = {
             "entityName": entity,
             "projectName": project,
             "name": name,
+            "enableTracking": enable_tracking,
         }
-        query_vars = ["$entityName: String!", "$projectName: String!", "$name: String!"]
-        query_args = ["name: $name"]
-
-        server_supports_enabling_artifact_usage_tracking = (
-            InternalApi().server_project_type_introspection()
+        query = gql_compat(
+            ARTIFACT_BY_NAME_GQL, omit_variables=omit_vars, omit_fields=omit_fields
         )
-        if server_supports_enabling_artifact_usage_tracking:
-            query_vars.append("$enableTracking: Boolean")
-            query_args.append("enableTracking: $enableTracking")
-            query_variable_values["enableTracking"] = enable_tracking
 
-        vars_str = ", ".join(query_vars)
-        args_str = ", ".join(query_args)
+        data = client.execute(query, variable_values=gql_vars)
+        result = ArtifactByName.model_validate(data)
 
-        query = gql(
-            f"""
-            query ArtifactByName({vars_str}) {{
-                project(name: $projectName, entityName: $entityName) {{
-                    artifact({args_str}) {{
-                        ...ArtifactFragment
-                    }}
-                }}
-            }}
-            {_gql_artifact_fragment()}
-            """
-        )
-        response = client.execute(
-            query,
-            variable_values=query_variable_values,
-        )
-        project_attrs = response.get("project")
-        if not project_attrs:
-            raise ValueError(f"project '{project}' not found under entity '{entity}'")
-        attrs = project_attrs.get("artifact")
-        if not attrs:
-            raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
+        if not (proj_attrs := result.project):
+            raise ValueError(f"project {project!r} not found under entity {entity!r}")
 
-        return cls._from_attrs(entity, project, name, attrs, client)
+        if not (art_attrs := proj_attrs.artifact):
+            entity_project = f"{entity}/{project}"
+            raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
+
+        return cls._from_attrs(entity, project, name, art_attrs, client)
 
     @classmethod
     def _from_attrs(
@@ -435,7 +417,7 @@ class Artifact:
         entity: str,
         project: str,
         name: str,
-        attrs: dict[str, Any],
+        attrs: dict[str, Any] | ArtifactFragment,
         client: RetryingClient,
         aliases: list[str] | None = None,
     ) -> Artifact:
@@ -445,7 +427,9 @@ class Artifact:
         artifact._entity = entity
         artifact._project = project
         artifact._name = name
-        artifact._assign_attrs(attrs, aliases)
+
+        validated_attrs = ArtifactFragment.model_validate(attrs)
+        artifact._assign_attrs(validated_attrs, aliases)
 
         artifact.finalize()
 
@@ -458,29 +442,24 @@ class Artifact:
     # doesn't make it clear if the artifact is a link or not and have to manually set it.
     def _assign_attrs(
         self,
-        attrs: dict[str, Any],
+        art: ArtifactFragment,
         aliases: list[str] | None = None,
         is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
-        self._id = attrs["id"]
+        self._id = art.id
 
-        src_version = f"v{attrs['versionIndex']}"
-        src_collection = attrs["artifactSequence"]
-        src_project = src_collection["project"]
+        src_collection = art.artifact_sequence
+        src_project = src_collection.project
 
-        self._source_entity = src_project["entityName"] if src_project else ""
-        self._source_project = src_project["name"] if src_project else ""
-        self._source_name = f"{src_collection['name']}:{src_version}"
-        self._source_version = src_version
+        self._source_entity = src_project.entity_name if src_project else ""
+        self._source_project = src_project.name if src_project else ""
+        self._source_name = f"{src_collection.name}:v{art.version_index}"
+        self._source_version = f"v{art.version_index}"
 
-        if self._entity is None:
-            self._entity = self._source_entity
-        if self._project is None:
-            self._project = self._source_project
-
-        if self._name is None:
-            self._name = self._source_name
+        self._entity = self._entity or self._source_entity
+        self._project = self._project or self._source_project
+        self._name = self._name or self._source_name
 
         # TODO: Refactor artifact query to fetch artifact via membership instead
         # and get the collection type
@@ -488,33 +467,35 @@ class Artifact:
             self._is_link = (
                 self._entity != self._source_entity
                 or self._project != self._source_project
-                or self._name != self._source_name
+                or self._name.split(":")[0] != self._source_name.split(":")[0]
             )
         else:
             self._is_link = is_link
 
-        self._type = attrs["artifactType"]["name"]
-        self._description = attrs["description"]
+        self._type = art.artifact_type.name
+        self._description = art.description
 
-        entity = self._entity
-        project = self._project
-        collection, *_ = self._name.split(":")
-
-        processed_aliases = []
         # The future of aliases is to move all alias fetches to the membership level
         # so we don't have to do the collection fetches below
         if aliases:
             processed_aliases = aliases
-        else:
+        elif art.aliases:
+            entity = self._entity
+            project = self._project
+            collection = self._name.split(":")[0]
             processed_aliases = [
-                obj["alias"]
-                for obj in attrs["aliases"]
-                if obj["artifactCollection"]
-                and obj["artifactCollection"]["project"]
-                and obj["artifactCollection"]["project"]["entityName"] == entity
-                and obj["artifactCollection"]["project"]["name"] == project
-                and obj["artifactCollection"]["name"] == collection
+                art_alias.alias
+                for art_alias in art.aliases
+                if (
+                    (coll := art_alias.artifact_collection)
+                    and (proj := coll.project)
+                    and proj.entity_name == entity
+                    and proj.name == project
+                    and coll.name == collection
+                )
             ]
+        else:
+            processed_aliases = []
 
         version_aliases = list(filter(alias_is_version_index, processed_aliases))
         other_aliases = list(filterfalse(alias_is_version_index, processed_aliases))
@@ -524,49 +505,42 @@ class Artifact:
                 version_aliases, too_short=TooFewItemsError, too_long=TooManyItemsError
             )
         except TooFewItemsError:
-            version = src_version  # default to the source version
+            version = f"v{art.version_index}"  # default to the source version
         except TooManyItemsError:
             msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
             raise ValueError(msg) from None
 
         self._version = version
-
-        if ":" not in self._name:
-            self._name = f"{self._name}:{version}"
+        self._name = self._name if (":" in self._name) else f"{self._name}:{version}"
 
         self._aliases = other_aliases
-        self._saved_aliases = copy(other_aliases)
+        self._saved_aliases = copy(self._aliases)
 
-        tags = [obj["name"] for obj in (attrs.get("tags") or [])]
-        self._tags = tags
-        self._saved_tags = copy(tags)
+        self._tags = [tag.name for tag in (art.tags or [])]
+        self._saved_tags = copy(self._tags)
 
-        metadata_str = attrs["metadata"]
-        self._metadata = validate_metadata(
-            json.loads(metadata_str) if metadata_str else {}
-        )
+        self._metadata = validate_metadata(art.metadata)
 
         self._ttl_duration_seconds = validate_ttl_duration_seconds(
-            attrs.get("ttlDurationSeconds")
+            art.ttl_duration_seconds
         )
         self._ttl_is_inherited = (
-            True if (attrs.get("ttlIsInherited") is None) else attrs["ttlIsInherited"]
+            True if (art.ttl_is_inherited is None) else art.ttl_is_inherited
         )
 
-        self._state = ArtifactState(attrs["state"])
+        self._state = ArtifactState(art.state)
 
-        try:
-            manifest_url = attrs["currentManifest"]["file"]["directUrl"]
-        except (LookupError, TypeError):
-            self._manifest = None
-        else:
-            self._manifest = _DeferredArtifactManifest(manifest_url)
+        self._manifest = (
+            _DeferredArtifactManifest(manifest.file.direct_url)
+            if (manifest := art.current_manifest)
+            else None
+        )
 
-        self._commit_hash = attrs["commitHash"]
-        self._file_count = attrs["fileCount"]
-        self._created_at = attrs["createdAt"]
-        self._updated_at = attrs["updatedAt"]
-        self._history_step = attrs.get("historyStep", None)
+        self._commit_hash = art.commit_hash
+        self._file_count = art.file_count
+        self._created_at = art.created_at
+        self._updated_at = art.updated_at
+        self._history_step = art.history_step
 
     @ensure_logged
     def new_draft(self) -> Artifact:
@@ -1063,37 +1037,24 @@ class Artifact:
             return self._manifest
 
         if self._manifest is None:
-            query = gql(
-                """
-                query ArtifactManifest(
-                    $entityName: String!,
-                    $projectName: String!,
-                    $name: String!
-                ) {
-                    project(entityName: $entityName, name: $projectName) {
-                        artifact(name: $name) {
-                            currentManifest {
-                                file {
-                                    directUrl
-                                }
-                            }
-                        }
-                    }
-                }
-                """
-            )
-            assert self._client is not None
-            response = self._client.execute(
-                query,
-                variable_values={
-                    "entityName": self._entity,
-                    "projectName": self._project,
-                    "name": self._name,
-                },
-            )
-            attrs = response["project"]["artifact"]
-            manifest_url = attrs["currentManifest"]["file"]["directUrl"]
-            self._manifest = self._load_manifest(manifest_url)
+            if self._client is None:
+                raise RuntimeError("Client not initialized for artifact queries")
+
+            query = gql(FETCH_ARTIFACT_MANIFEST_GQL)
+            gql_vars = {
+                "entityName": self.entity,
+                "projectName": self.project,
+                "name": self.name,
+            }
+            data = self._client.execute(query, variable_values=gql_vars)
+            result = FetchArtifactManifest.model_validate(data)
+            if not (
+                (project := result.project)
+                and (artifact := project.artifact)
+                and (manifest := artifact.current_manifest)
+            ):
+                raise ValueError("Failed to fetch artifact manifest")
+            self._manifest = self._load_manifest(manifest.file.direct_url)
 
         return self._manifest
 
@@ -1266,31 +1227,22 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
-        query_template = """
-            query ArtifactByIDShort($id: ID!) {
-                artifact(id: $id) {
-                    ...ArtifactFragment
-                }
-            }
-        """ + _gql_artifact_fragment()
-
-        query = gql(query_template)
-
         assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": artifact_id},
+
+        query = gql_compat(
+            ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(api=InternalApi())
         )
 
-        try:
-            attrs = response["artifact"]
-        except LookupError:
+        data = self._client.execute(query, variable_values={"id": artifact_id})
+        result = ArtifactByID.model_validate(data)
+
+        if not (artifact := result.artifact):
             raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
-        else:
-            # _populate_after_save is only called on source artifacts, not linked artifacts
-            # We have to manually set is_link because we aren't fetching the collection the artifact.
-            # That requires greater refactoring for commitArtifact to return the artifact collection type.
-            self._assign_attrs(attrs, is_link=False)
+
+        # _populate_after_save is only called on source artifacts, not linked artifacts
+        # We have to manually set is_link because we aren't fetching the collection the artifact.
+        # That requires greater refactoring for commitArtifact to return the artifact collection type.
+        self._assign_attrs(artifact, is_link=False)
 
     @normalize_exceptions
     def _update(self) -> None:
@@ -1417,7 +1369,7 @@ class Artifact:
         result = UpdateArtifact.model_validate(data).update_artifact
         if not (result and (artifact := result.artifact)):
             raise ValueError("Unable to parse updateArtifact response")
-        self._assign_attrs(artifact.model_dump())
+        self._assign_attrs(artifact)
 
         self._ttl_changed = False  # Reset after updating artifact
 
@@ -2110,14 +2062,14 @@ class Artifact:
         multipart: bool | None = None,
     ) -> FilePathStr:
         nfiles = len(self.manifest.entries)
-        size = sum(e.size or 0 for e in self.manifest.entries.values())
-        log = False
-        if nfiles > 5000 or size > 50 * 1024 * 1024:
-            log = True
+        size_mb = self.size / _MB
+
+        if log := (nfiles > 5000 or size_mb > 50):
             termlog(
-                f"Downloading large artifact {self.name}, {size / (1024 * 1024):.2f}MB. {nfiles} files... ",
+                f"Downloading large artifact {self.name!r}, {size_mb:.2f}MB. {nfiles!r} files...",
             )
-            start_time = datetime.now()
+            start_time = time.monotonic()
+
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
 
         def _download_entry(
@@ -2156,44 +2108,62 @@ class Artifact:
                 cookies=_thread_local_api_settings.cookies,
                 headers=_thread_local_api_settings.headers,
             )
+
+            batch_size = env.get_artifact_fetch_file_url_batch_size()
+
             active_futures = set()
-            has_next_page = True
-            cursor = None
-            while has_next_page:
-                fetch_url_batch_size = env.get_artifact_fetch_file_url_batch_size()
-                attrs = self._fetch_file_urls(cursor, fetch_url_batch_size)
-                has_next_page = attrs["pageInfo"]["hasNextPage"]
-                cursor = attrs["pageInfo"]["endCursor"]
-                for edge in attrs["edges"]:
-                    entry = self.get_entry(edge["node"]["name"])
+            cursor, has_more = None, True
+            while has_more:
+                files_page = self._fetch_file_urls(cursor=cursor, per_page=batch_size)
+
+                has_more = files_page.page_info.has_next_page
+                cursor = files_page.page_info.end_cursor
+
+                # `File` nodes are formally nullable, so filter them out just in case.
+                file_nodes = (e.node for e in files_page.edges if e.node)
+                for node in file_nodes:
+                    entry = self.get_entry(node.name)
                     # TODO: uncomment once artifact downloads are supported in core
                     # if require_core and entry.ref is None:
                     #     # Handled by core
                     #     continue
-                    entry._download_url = edge["node"]["directUrl"]
+                    entry._download_url = node.direct_url
                     if (not path_prefix) or entry.path.startswith(str(path_prefix)):
                         active_futures.add(executor.submit(download_entry, entry))
+
                 # Wait for download threads to catch up.
-                max_backlog = fetch_url_batch_size
-                if len(active_futures) > max_backlog:
+                #
+                # Extra context and observations (tonyyli):
+                # - Even though the ThreadPoolExecutor limits the number of
+                #   concurrently-executed tasks, its internal task queue is unbounded.
+                #   The code below seems intended to ensure that at most `batch_size`
+                #   "backlogged" futures are held in memory at any given time.  This seems like
+                #   a reasonable safeguard against unbounded memory consumption.
+                #
+                # - We should probably use a builtin (bounded) Queue or Semaphore here instead.
+                #   Consider this for a future change, or (depending on risk and risk tolerance)
+                #   managing this logic via asyncio instead, if viable.
+                if len(active_futures) > batch_size:
                     for future in concurrent.futures.as_completed(active_futures):
                         future.result()  # check for errors
                         active_futures.remove(future)
-                        if len(active_futures) <= max_backlog:
+                        if len(active_futures) <= batch_size:
                             break
+
             # Check for errors.
             for future in concurrent.futures.as_completed(active_futures):
                 future.result()
 
         if log:
-            now = datetime.now()
-            delta = abs((now - start_time).total_seconds())
-            hours = int(delta // 3600)
-            minutes = int((delta - hours * 3600) // 60)
-            seconds = delta - hours * 3600 - minutes * 60
-            speed = size / 1024 / 1024 / delta
+            # If you're wondering if we can display a `timedelta`, note that it
+            # doesn't really support custom string format specifiers (compared to
+            # e.g. `datetime` objs).  To truncate the number of decimal places for
+            # the seconds part, we manually convert/format each part below.
+            dt_secs = abs(time.monotonic() - start_time)
+            hrs, mins = divmod(dt_secs, 3600)
+            mins, secs = divmod(mins, 60)
             termlog(
-                f"Done. {hours}:{minutes}:{seconds:.1f} ({speed:.1f}MB/s)",
+                f"Done. {int(hrs):02d}:{int(mins):02d}:{secs:04.1f} ({size_mb / dt_secs:.1f}MB/s)",
                 prefix=False,
             )
         return FilePathStr(root)
@@ -2202,79 +2172,44 @@ class Artifact:
         retry_timedelta=timedelta(minutes=3),
         retryable_exceptions=(requests.RequestException),
     )
-    def _fetch_file_urls(self, cursor: str | None, per_page: int | None = 5000) -> Any:
+    def _fetch_file_urls(
+        self, cursor: str | None, per_page: int = 5000
+    ) -> FileUrlsFragment:
+        if self._client is None:
+            raise RuntimeError("Client not initialized")
+
         if InternalApi()._server_supports(
             pb.ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
         ):
-            query = gql(
-                """
-                query ArtifactCollectionMembershipFileURLs($entityName: String!, $projectName: String!, \
-                        $artifactName: String!, $artifactVersionIndex: String!, $cursor: String, $perPage: Int) {
-                    project(name: $projectName, entityName: $entityName) {
-                        artifactCollection(name: $artifactName) {
-                            artifactMembership(aliasName: $artifactVersionIndex) {
-                                files(after: $cursor, first: $perPage) {
-                                    pageInfo {
-                                        hasNextPage
-                                        endCursor
-                                    }
-                                    edges {
-                                        node {
-                                            name
-                                            directUrl
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                """
-            )
-            assert self._client is not None
-            response = self._client.execute(
-                query,
-                variable_values={
-                    "entityName": self.entity,
-                    "projectName": self.project,
-                    "artifactName": self.name.split(":")[0],
-                    "artifactVersionIndex": self.version,
-                    "cursor": cursor,
-                    "perPage": per_page,
-                },
-                timeout=60,
-            )
-            return response["project"]["artifactCollection"]["artifactMembership"][
-                "files"
-            ]
+            query = gql(ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL)
+            gql_vars = {
+                "entityName": self.entity,
+                "projectName": self.project,
+                "artifactName": self.name.split(":")[0],
+                "artifactVersionIndex": self.version,
+                "cursor": cursor,
+                "perPage": per_page,
+            }
+            data = self._client.execute(query, variable_values=gql_vars, timeout=60)
+            result = ArtifactCollectionMembershipFileUrls.model_validate(data)
+
+            if not (
+                (project := result.project)
+                and (collection := project.artifact_collection)
+                and (membership := collection.artifact_membership)
+                and (files := membership.files)
+            ):
+                raise ValueError(f"Unable to fetch files for artifact: {self.name!r}")
+            return files
         else:
-            query = gql(
-                """
-                query ArtifactFileURLs($id: ID!, $cursor: String, $perPage: Int) {
-                    artifact(id: $id) {
-                        files(after: $cursor, first: $perPage) {
-                            pageInfo {
-                                hasNextPage
-                                endCursor
-                            }
-                            edges {
-                                node {
-                                    name
-                                    directUrl
-                                }
-                            }
-                        }
-                    }
-                }
-                """
-            )
-            assert self._client is not None
-            response = self._client.execute(
-                query,
-                variable_values={"id": self.id, "cursor": cursor, "perPage": per_page},
-                timeout=60,
-            )
-            return response["artifact"]["files"]
+            query = gql(ARTIFACT_FILE_URLS_GQL)
+            gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
+            data = self._client.execute(query, variable_values=gql_vars, timeout=60)
+            result = ArtifactFileUrls.model_validate(data)
+
+            if not ((artifact := result.artifact) and (files := artifact.files)):
+                raise ValueError(f"Unable to fetch files for artifact: {self.name!r}")
+            return files
 
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:
@@ -2440,28 +2375,13 @@ class Artifact:
 
     @normalize_exceptions
     def _delete(self, delete_aliases: bool = False) -> None:
-        mutation = gql(
-            """
-            mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
-                deleteArtifact(input: {
-                    artifactID: $artifactID
-                    deleteAliases: $deleteAliases
-                }) {
-                    artifact {
-                        id
-                    }
-                }
-            }
-            """
-        )
-        assert self._client is not None
-        self._client.execute(
-            mutation,
-            variable_values={
-                "artifactID": self.id,
-                "deleteAliases": delete_aliases,
-            },
-        )
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        mutation = gql(DELETE_ARTIFACT_GQL)
+        gql_vars = {"artifactID": self.id, "deleteAliases": delete_aliases}
+
+        self._client.execute(mutation, variable_values=gql_vars)
 
     @normalize_exceptions
     def link(self, target_path: str, aliases: list[str] | None = None) -> Artifact:
@@ -2566,28 +2486,14 @@ class Artifact:
 
     @normalize_exceptions
     def _unlink(self) -> None:
-        mutation = gql(
-            """
-            mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
-                unlinkArtifact(
-                    input: { artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID }
-                ) {
-                    artifactID
-                    success
-                    clientMutationId
-                }
-            }
-            """
-        )
-        assert self._client is not None
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        mutation = gql(UNLINK_ARTIFACT_GQL)
+        gql_vars = {"artifactID": self.id, "artifactPortfolioID": self.collection.id}
+
         try:
-            self._client.execute(
-                mutation,
-                variable_values={
-                    "artifactID": self.id,
-                    "artifactPortfolioID": self.collection.id,
-                },
-            )
+            self._client.execute(mutation, variable_values=gql_vars)
         except CommError as e:
             raise CommError(
                 f"You do not have permission to unlink the artifact {self.qualified_name}"
@@ -2603,41 +2509,26 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        query = gql(
-            """
-            query ArtifactUsedBy(
-                $id: ID!,
-            ) {
-                artifact(id: $id) {
-                    usedBy {
-                        edges {
-                            node {
-                                name
-                                project {
-                                    name
-                                    entityName
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            """
-        )
-        assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": self.id},
-        )
-        return [
-            Run(
-                self._client,
-                edge["node"]["project"]["entityName"],
-                edge["node"]["project"]["name"],
-                edge["node"]["name"],
-            )
-            for edge in response.get("artifact", {}).get("usedBy", {}).get("edges", [])
-        ]
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact queries")
+
+        query = gql(ARTIFACT_USED_BY_GQL)
+        gql_vars = {"id": self.id}
+        data = self._client.execute(query, variable_values=gql_vars)
+        result = ArtifactUsedBy.model_validate(data)
+
+        if (
+            (artifact := result.artifact)
+            and (used_by := artifact.used_by)
+            and (edges := used_by.edges)
+        ):
+            run_nodes = (e.node for e in edges)
+            return [
+                Run(self._client, proj.entity_name, proj.name, run.name)
+                for run in run_nodes
+                if (proj := run.project)
+            ]
+        return []
 
     @ensure_logged
     def logged_by(self) -> Run | None:
@@ -2649,39 +2540,22 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        query = gql(
-            """
-            query ArtifactCreatedBy(
-                $id: ID!
-            ) {
-                artifact(id: $id) {
-                    createdBy {
-                        ... on Run {
-                            name
-                            project {
-                                name
-                                entityName
-                            }
-                        }
-                    }
-                }
-            }
-        """
-        )
-        assert self._client is not None
-        response = self._client.execute(
-            query,
-            variable_values={"id": self.id},
-        )
-        creator = response.get("artifact", {}).get("createdBy", {})
-        if creator.get("name") is None:
-            return None
-        return Run(
-            self._client,
-            creator["project"]["entityName"],
-            creator["project"]["name"],
-            creator["name"],
-        )
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact queries")
+
+        query = gql(ARTIFACT_CREATED_BY_GQL)
+        gql_vars = {"id": self.id}
+        data = self._client.execute(query, variable_values=gql_vars)
+        result = ArtifactCreatedBy.model_validate(data)
+
+        if (
+            (artifact := result.artifact)
+            and (creator := artifact.created_by)
+            and (name := creator.name)
+            and (project := creator.project)
+        ):
+            return Run(self._client, project.entity_name, project.name, name)
+        return None
 
     @ensure_logged
     def json_encode(self) -> dict[str, Any]:
@@ -2697,37 +2571,22 @@ class Artifact:
         entity_name: str, project_name: str, name: str, client: RetryingClient
     ) -> str | None:
         """Returns the expected type for a given artifact name and project."""
-        query = gql(
-            """
-            query ArtifactType(
-                $entityName: String,
-                $projectName: String,
-                $name: String!
-            ) {
-                project(name: $projectName, entityName: $entityName) {
-                    artifact(name: $name) {
-                        artifactType {
-                            name
-                        }
-                    }
-                }
-            }
-            """
-        )
-        if ":" not in name:
-            name += ":latest"
-        response = client.execute(
-            query,
-            variable_values={
-                "entityName": entity_name,
-                "projectName": project_name,
-                "name": name,
-            },
-        )
-        return (
-            ((response.get("project") or {}).get("artifact") or {}).get("artifactType")
-            or {}
-        ).get("name")
+        query = gql(ARTIFACT_TYPE_GQL)
+        gql_vars = {
+            "entityName": entity_name,
+            "projectName": project_name,
+            "name": name if (":" in name) else f"{name}:latest",
+        }
+        data = client.execute(query, variable_values=gql_vars)
+        result = ArtifactType.model_validate(data)
+
+        if (
+            (project := result.project)
+            and (artifact := project.artifact)
+            and (artifact_type := artifact.artifact_type)
+        ):
+            return artifact_type.name
+        return None
 
     def _load_manifest(self, url: str) -> ArtifactManifest:
         with requests.get(url) as response:
