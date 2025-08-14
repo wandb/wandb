@@ -638,7 +638,7 @@ def python_coverage_env(session: nox.Session) -> dict[str, str]:
     Configures the 'coverage' tool https://coverage.readthedocs.io/en/latest/
     to be usable with the "coverage" session.
 
-    pytest invoke coverage; for pytest it is via the pytest-cov package.
+    pytest invokes coverage via the pytest-cov package.
     """
     # https://coverage.readthedocs.io/en/latest/cmd.html#data-file
     _NOX_PYTEST_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)
