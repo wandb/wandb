@@ -159,6 +159,54 @@ query FetchLinkedArtifacts($artifactID: ID!) {
   }
 }
 
+query FetchArtifactManifest($entityName: String!, $projectName: String!, $name: String!) {
+  project(entityName: $entityName, name: $projectName) {
+    artifact(name: $name) {
+      currentManifest {
+        file {
+          directUrl
+        }
+      }
+    }
+  }
+}
+
+query ArtifactByID($id: ID!) {
+  artifact(id: $id) {
+    ...ArtifactFragment
+  }
+}
+
+query ArtifactUsedBy($id: ID!) {
+  artifact(id: $id) {
+    usedBy {
+      edges {
+        node {
+          name
+          project {
+            name
+            entityName
+          }
+        }
+      }
+    }
+  }
+}
+
+query ArtifactCreatedBy($id: ID!) {
+  artifact(id: $id) {
+    createdBy {
+      ... on Run {
+        name
+        project {
+          name
+          entityName
+        }
+      }
+    }
+  }
+}
+
 # ---------------------------------------------------------------------------
 mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
   addAliases(input: { artifactID: $artifactID, aliases: $aliases }) {
@@ -197,8 +245,24 @@ mutation UpdateArtifact(
   }
 }
 
+mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
+  deleteArtifact(input: { artifactID: $artifactID, deleteAliases: $deleteAliases }) {
+    artifact {
+      id
+    }
+  }
+}
+
 mutation LinkArtifact($input: LinkArtifactInput!) {
   linkArtifact(input: $input) {
     versionIndex
+  }
+}
+
+mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
+  unlinkArtifact(input: { artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID }) {
+    artifactID
+    success
+    clientMutationId
   }
 }

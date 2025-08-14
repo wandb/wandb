@@ -3,13 +3,20 @@
 
 __all__ = [
     "ADD_ALIASES_GQL",
+    "ARTIFACT_BY_ID_GQL",
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL",
+    "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
+    "ARTIFACT_CREATED_BY_GQL",
+    "ARTIFACT_FILE_URLS_GQL",
+    "ARTIFACT_USED_BY_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ALIASES_GQL",
     "DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
+    "DELETE_ARTIFACT_GQL",
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
+    "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
     "LINK_ARTIFACT_GQL",
     "MOVE_ARTIFACT_COLLECTION_GQL",
@@ -20,6 +27,7 @@ __all__ = [
     "PROJECT_ARTIFACT_TYPE_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
+    "UNLINK_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
     "UPDATE_ARTIFACT_SEQUENCE_GQL",
@@ -254,6 +262,57 @@ fragment FilesFragment on FileConnection {
   pageInfo {
     endCursor
     hasNextPage
+  }
+}
+"""
+
+ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL = """
+query ArtifactCollectionMembershipFileUrls($entityName: String!, $projectName: String!, $artifactName: String!, $artifactVersionIndex: String!, $cursor: String, $perPage: Int) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactCollection(name: $artifactName) {
+      __typename
+      artifactMembership(aliasName: $artifactVersionIndex) {
+        files(after: $cursor, first: $perPage) {
+          ...FileUrlsFragment
+        }
+      }
+    }
+  }
+}
+
+fragment FileUrlsFragment on FileConnection {
+  pageInfo {
+    hasNextPage
+    endCursor
+  }
+  edges {
+    node {
+      name
+      directUrl
+    }
+  }
+}
+"""
+
+ARTIFACT_FILE_URLS_GQL = """
+query ArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
+  artifact(id: $id) {
+    files(after: $cursor, first: $perPage) {
+      ...FileUrlsFragment
+    }
+  }
+}
+
+fragment FileUrlsFragment on FileConnection {
+  pageInfo {
+    hasNextPage
+    endCursor
+  }
+  edges {
+    node {
+      name
+      directUrl
+    }
   }
 }
 """
@@ -539,6 +598,107 @@ query FetchLinkedArtifacts($artifactID: ID!) {
 }
 """
 
+FETCH_ARTIFACT_MANIFEST_GQL = """
+query FetchArtifactManifest($entityName: String!, $projectName: String!, $name: String!) {
+  project(entityName: $entityName, name: $projectName) {
+    artifact(name: $name) {
+      currentManifest {
+        file {
+          directUrl
+        }
+      }
+    }
+  }
+}
+"""
+
+ARTIFACT_BY_ID_GQL = """
+query ArtifactByID($id: ID!) {
+  artifact(id: $id) {
+    ...ArtifactFragment
+  }
+}
+
+fragment ArtifactFragment on Artifact {
+  id
+  artifactSequence {
+    project {
+      entityName
+      name
+    }
+    name
+  }
+  versionIndex
+  artifactType {
+    name
+  }
+  description
+  metadata
+  ttlDurationSeconds @include(if: true)
+  ttlIsInherited @include(if: true)
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+  tags @include(if: true) {
+    name
+  }
+  historyStep @include(if: true)
+  state
+  currentManifest {
+    file {
+      directUrl
+    }
+  }
+  commitHash
+  fileCount
+  createdAt
+  updatedAt
+}
+"""
+
+ARTIFACT_USED_BY_GQL = """
+query ArtifactUsedBy($id: ID!) {
+  artifact(id: $id) {
+    usedBy {
+      edges {
+        node {
+          name
+          project {
+            name
+            entityName
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+ARTIFACT_CREATED_BY_GQL = """
+query ArtifactCreatedBy($id: ID!) {
+  artifact(id: $id) {
+    createdBy {
+      __typename
+      ... on Run {
+        name
+        project {
+          name
+          entityName
+        }
+      }
+    }
+  }
+}
+"""
+
 ADD_ALIASES_GQL = """
 mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
   addAliases(input: {artifactID: $artifactID, aliases: $aliases}) {
@@ -611,10 +771,32 @@ fragment ArtifactFragment on Artifact {
 }
 """
 
+DELETE_ARTIFACT_GQL = """
+mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
+  deleteArtifact(input: {artifactID: $artifactID, deleteAliases: $deleteAliases}) {
+    artifact {
+      id
+    }
+  }
+}
+"""
+
 LINK_ARTIFACT_GQL = """
 mutation LinkArtifact($input: LinkArtifactInput!) {
   linkArtifact(input: $input) {
     versionIndex
+  }
+}
+"""
+
+UNLINK_ARTIFACT_GQL = """
+mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
+  unlinkArtifact(
+    input: {artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID}
+  ) {
+    artifactID
+    success
+    clientMutationId
   }
 }
 """
