@@ -207,6 +207,16 @@ query ArtifactCreatedBy($id: ID!) {
   }
 }
 
+query ArtifactType($entityName: String, $projectName: String, $name: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    artifact(name: $name) {
+      artifactType {
+        name
+      }
+    }
+  }
+}
+
 # ---------------------------------------------------------------------------
 mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
   addAliases(input: { artifactID: $artifactID, aliases: $aliases }) {
