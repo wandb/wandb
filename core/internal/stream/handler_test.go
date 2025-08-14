@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/version"
@@ -28,7 +29,7 @@ func makeHandler(
 		TerminalPrinter: observability.NewPrinter(),
 		Commit:          stream.GitCommitHash(commit),
 	}
-	h := handlerFactory.New()
+	h := handlerFactory.New(runworktest.New())
 
 	go h.Do(inChan)
 
