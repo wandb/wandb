@@ -13,7 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 )
 
 // NewDetector returns a resource detector which detects resource attributes on:
@@ -84,8 +84,8 @@ func (d *detector) Detect(ctx context.Context) (*resource.Resource, error) {
 		b.add(semconv.HostTypeKey, d.detector.GCEHostType)
 		b.add(semconv.HostIDKey, d.detector.GCEHostID)
 		b.add(semconv.HostNameKey, d.detector.GCEHostName)
-		b.add(semconv.GCPGceInstanceNameKey, d.detector.GCEInstanceName)
-		b.add(semconv.GCPGceInstanceHostnameKey, d.detector.GCEInstanceHostname)
+		b.add(semconv.GCPGCEInstanceNameKey, d.detector.GCEInstanceName)
+		b.add(semconv.GCPGCEInstanceHostnameKey, d.detector.GCEInstanceHostname)
 	default:
 		// We don't support this platform yet, so just return with what we have
 	}

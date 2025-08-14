@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"math"
 	"net/url"
 	"os"
 	"slices"
@@ -310,7 +308,7 @@ func (as *ArtifactSaver) uploadFiles(
 		if entry.LocalPath == nil {
 			continue
 		}
-		parts, err := multiPartRequest(*entry.LocalPath)
+		parts, err := createMultiPartRequest(as.logger, *entry.LocalPath)
 		if err != nil {
 			return err
 		}
@@ -490,56 +488,6 @@ func newUploadTask(
 	}
 }
 
-const (
-	S3MinMultiUploadSize = 2 << 30   // 2 GiB, the threshold we've chosen to switch to multipart
-	S3MaxMultiUploadSize = 5 << 40   // 5 TiB, maximum possible object size
-	S3DefaultChunkSize   = 100 << 20 // 1 MiB
-	S3MaxParts           = 10000
-)
-
-func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get file size for path %s: %w", path, err)
-	}
-	fileSize := fileInfo.Size()
-
-	if fileSize < S3MinMultiUploadSize {
-		// We don't need to use multipart for small files.
-		return nil, nil
-	}
-	if fileSize > S3MaxMultiUploadSize {
-		return nil, fmt.Errorf("file size exceeds maximum S3 object size: %v", fileSize)
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-
-	partsInfo := []gql.UploadPartsInput{}
-	partNumber := int64(1)
-	buffer := make([]byte, getChunkSize(fileSize))
-	for {
-		bytesRead, err := file.Read(buffer)
-		if err != nil && err != io.EOF {
-			return nil, err
-		}
-		if bytesRead == 0 {
-			break
-		}
-		partsInfo = append(partsInfo, gql.UploadPartsInput{
-			PartNumber: partNumber,
-			HexMD5:     hashencode.ComputeHexMD5(buffer[:bytesRead]),
-		})
-		partNumber++
-	}
-	return partsInfo, nil
-}
-
 func (as *ArtifactSaver) uploadMultipart(
 	path string,
 	fileInfo serverFileResponse,
@@ -561,6 +509,9 @@ func (as *ArtifactSaver) uploadMultipart(
 	// TODO: add mid-upload cancel.
 
 	contentType := getContentType(fileInfo.uploadHeaders)
+
+	// Record start time for network upload phase
+	uploadStartTime := time.Now()
 
 	partInfo := fileInfo.multipartUploadInfo
 	for i, part := range partInfo {
@@ -636,6 +587,19 @@ func (as *ArtifactSaver) uploadMultipart(
 		as.ctx, as.graphqlClient, gql.CompleteMultipartActionComplete, partEtags,
 		fileInfo.birthArtifactID, *fileInfo.storagePath, fileInfo.uploadID,
 	)
+
+	// Log network upload time
+	uploadTime := time.Since(uploadStartTime)
+	uploadSpeedMBps := float64(statInfo.Size()) / (1024 * 1024) / uploadTime.Seconds()
+	as.logger.Debug("Completed multipart upload",
+		"fileName", fileInfo.name,
+		"uploadTimeMs", uploadTime.Milliseconds(),
+		"uploadSpeedMBps", uploadSpeedMBps,
+		"numParts", len(partData),
+		"fileSize", statInfo.Size(),
+		"chunkSize", chunkSize,
+	)
+
 	return uploadResult{name: fileInfo.name, err: err}
 }
 
@@ -646,17 +610,6 @@ func getContentType(headers []string) string {
 		}
 	}
 	return ""
-}
-
-func getChunkSize(fileSize int64) int64 {
-	if fileSize < S3DefaultChunkSize*S3MaxParts {
-		return S3DefaultChunkSize
-	}
-	// Use a larger chunk size if we would need more than 10,000 chunks.
-	chunkSize := int64(math.Ceil(float64(fileSize) / float64(S3MaxParts)))
-	// Round up to the nearest multiple of 4096.
-	chunkSize = int64(math.Ceil(float64(chunkSize)/4096) * 4096)
-	return chunkSize
 }
 
 func (as *ArtifactSaver) cacheEntry(entry ManifestEntry) {

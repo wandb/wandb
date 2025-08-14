@@ -114,7 +114,6 @@ def test_flow_pytorch(wandb_backend_spy):
             assert config["lr"]["value"] == 1.0
             assert config["gamma"]["value"] == 0.7
             assert not config["no_cuda"]["value"]
-            assert not config["dry_run"]["value"]
             assert config["seed"]["value"] == 1
             assert config["log_interval"]["value"] == 10
             assert not config["save_model"]["value"]

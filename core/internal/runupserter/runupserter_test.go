@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -19,6 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 

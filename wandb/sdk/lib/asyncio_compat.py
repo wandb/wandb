@@ -100,6 +100,9 @@ class _Runner:
                 raise _RunnerCancelledError()
 
         finally:
+            # NOTE: asyncio.run() cancels all tasks after the main task exits,
+            #   but this is not documented, so we cancel them explicitly here
+            #   as well. It also blocks until canceled tasks complete.
             cancellation_task.cancel()
             fn_task.cancel()
 

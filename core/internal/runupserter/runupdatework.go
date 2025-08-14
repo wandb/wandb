@@ -9,6 +9,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -35,6 +36,8 @@ type StreamRunUpserter interface {
 
 // RunUpdateWork implements Work to initialize or update a run.
 type RunUpdateWork struct {
+	runwork.SimpleScheduleMixin
+
 	// Record contains the RunRecord that triggered this work.
 	Record *spb.Record
 
@@ -55,9 +58,9 @@ func (w *RunUpdateWork) Accept(_ func(*spb.Record)) bool {
 	return true
 }
 
-// Save implements Work.Save.
-func (w *RunUpdateWork) Save(write func(*spb.Record)) {
-	write(w.Record)
+// ToRecord implements Work.ToRecord.
+func (w *RunUpdateWork) ToRecord() *spb.Record {
+	return w.Record
 }
 
 // Process implements Work.Process.
@@ -159,11 +162,6 @@ func runInitErrorResult(err error) *spb.RunUpdateResult {
 // BypassOfflineMode implements Work.BypassOfflineMode.
 func (w *RunUpdateWork) BypassOfflineMode() bool {
 	return true
-}
-
-// Sentinel implements Work.Sentinel.
-func (w *RunUpdateWork) Sentinel() any {
-	return nil
 }
 
 // DebugInfo implements Work.DebugInfo.
