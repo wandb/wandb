@@ -2384,9 +2384,7 @@ class Artifact:
         self._client.execute(mutation, variable_values=gql_vars)
 
     @normalize_exceptions
-    def link(
-        self, target_path: str, aliases: list[str] | None = None
-    ) -> Artifact | None:
+    def link(self, target_path: str, aliases: list[str] | None = None) -> Artifact:
         """Link this artifact to a portfolio (a promoted collection of artifacts).
 
         Args:
@@ -2405,7 +2403,7 @@ class Artifact:
             ArtifactNotLoggedError: If the artifact is not logged.
 
         Returns:
-            The linked artifact if linking was successful, otherwise None.
+            The linked artifact.
         """
         from wandb import Api
 
@@ -2466,12 +2464,7 @@ class Artifact:
 
         # Fetch the linked artifact to return it
         linked_path = f"{target.to_str()}:v{version_idx}"
-
-        try:
-            return api._artifact(linked_path)
-        except Exception as e:
-            wandb.termerror(f"Error fetching link artifact after linking: {e}")
-            return None
+        return api._artifact(linked_path)
 
     @ensure_logged
     def unlink(self) -> None:
