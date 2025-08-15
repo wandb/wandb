@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Any, Union
 import wandb
 import wandb.integration.sagemaker as sagemaker
 from wandb.env import CONFIG_DIR
-from wandb.sdk.lib import import_hooks, wb_logging
+from wandb.sdk.lib import asyncio_manager, import_hooks, wb_logging
 
 from . import wandb_settings
 from .lib import config_util, server
@@ -94,6 +94,9 @@ class _WandbSetup:
         settings: Settings | None = None,
         environ: dict | None = None,
     ) -> None:
+        self._asyncer = asyncio_manager.AsyncioManager()
+        self._asyncer.start()
+
         self._connection: ServiceConnection | None = None
 
         self._active_runs: list[wandb_run.Run] = []
@@ -113,6 +116,11 @@ class _WandbSetup:
         wandb.termsetup(self._settings, None)
 
         self._setup()
+
+    @property
+    def asyncer(self) -> asyncio_manager.AsyncioManager:
+        """The internal asyncio thread used by wandb."""
+        return self._asyncer
 
     def add_active_run(self, run: wandb_run.Run) -> None:
         """Append a run to the active runs list.
@@ -322,7 +330,10 @@ class _WandbSetup:
 
         from wandb.sdk.lib.service import service_connection
 
-        self._connection = service_connection.connect_to_service(self._settings)
+        self._connection = service_connection.connect_to_service(
+            self._asyncer,
+            self._settings,
+        )
         return self._connection
 
     def assert_service(self) -> ServiceConnection:

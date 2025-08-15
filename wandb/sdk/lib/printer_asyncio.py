@@ -1,6 +1,7 @@
 import asyncio
 from typing import Callable, TypeVar
 
+from wandb.sdk import wandb_setup
 from wandb.sdk.lib import asyncio_compat, printer
 
 _T = TypeVar("_T")
@@ -43,4 +44,5 @@ def run_async_with_spinner(
             func_running.set()
             return res
 
-    return asyncio_compat.run(_loop_run_with_spinner)
+    asyncer = wandb_setup._setup(start_service=False).asyncer
+    return asyncer.run(_loop_run_with_spinner)

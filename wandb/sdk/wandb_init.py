@@ -996,7 +996,6 @@ class _WandbInit:
             result = wait_with_progress(
                 run_init_handle,
                 timeout=timeout,
-                progress_after=1,
                 display_progress=display_init_message,
             )
 
