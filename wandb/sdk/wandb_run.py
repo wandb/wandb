@@ -3890,7 +3890,7 @@ class Run:
 
         panel = []
 
-        # Render history if available (unless histogram is disabled)
+        # Render history if available (unless sparkline is disabled)
         if history and not settings.disable_sparkline:
             logger.info("rendering history")
 
