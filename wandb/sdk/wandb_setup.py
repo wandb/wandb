@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Any, Union
 import wandb
 import wandb.integration.sagemaker as sagemaker
 from wandb.env import CONFIG_DIR
-from wandb.sdk.lib import import_hooks, wb_logging
+from wandb.sdk.lib import asyncio_manager, import_hooks, wb_logging
 
 from . import wandb_settings
 from .lib import config_util, server
@@ -89,6 +89,9 @@ class _WandbSetup:
     """W&B library singleton."""
 
     def __init__(self, pid: int) -> None:
+        self._asyncer = asyncio_manager.AsyncioManager()
+        self._asyncer.start()
+
         self._connection: ServiceConnection | None = None
 
         self._active_runs: list[wandb_run.Run] = []
@@ -103,6 +106,11 @@ class _WandbSetup:
 
         self._settings: Settings | None = None
         self._settings_environ: dict[str, str] | None = None
+
+    @property
+    def asyncer(self) -> asyncio_manager.AsyncioManager:
+        """The internal asyncio thread used by wandb."""
+        return self._asyncer
 
     def add_active_run(self, run: wandb_run.Run) -> None:
         """Append a run to the active runs list.
@@ -366,14 +374,13 @@ class _WandbSetup:
     def _teardown(self, exit_code: int | None = None) -> None:
         import_hooks.unregister_all_post_import_hooks()
 
-        if not self._connection:
-            return
+        if self._connection:
+            internal_exit_code = self._connection.teardown(exit_code or 0)
+        else:
+            internal_exit_code = None
 
-        # Reset to None so that setup() creates a new connection.
-        connection = self._connection
-        self._connection = None
+        self._asyncer.join()
 
-        internal_exit_code = connection.teardown(exit_code or 0)
         if internal_exit_code not in (None, 0):
             sys.exit(internal_exit_code)
 
@@ -384,7 +391,10 @@ class _WandbSetup:
 
         from wandb.sdk.lib.service import service_connection
 
-        self._connection = service_connection.connect_to_service(self.settings)
+        self._connection = service_connection.connect_to_service(
+            self._asyncer,
+            self.settings,
+        )
         return self._connection
 
     def assert_service(self) -> ServiceConnection:
