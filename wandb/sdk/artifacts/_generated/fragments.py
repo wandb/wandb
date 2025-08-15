@@ -38,32 +38,6 @@ class ArtifactCollectionsFragmentPageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class ArtifactFragment(GQLBase):
-    id: GQLId
-    artifact_sequence: ArtifactFragmentArtifactSequence = Field(
-        alias="artifactSequence"
-    )
-    version_index: Optional[int] = Field(alias="versionIndex")
-    artifact_type: ArtifactFragmentArtifactType = Field(alias="artifactType")
-    description: Optional[str]
-    metadata: Optional[Any]
-    ttl_duration_seconds: Optional[Any] = Field(
-        alias="ttlDurationSeconds", default=None
-    )
-    ttl_is_inherited: Optional[bool] = Field(alias="ttlIsInherited", default=None)
-    aliases: Optional[List[ArtifactFragmentAliases]] = None
-    tags: Optional[List[ArtifactFragmentTags]] = None
-    history_step: Optional[Any] = Field(alias="historyStep", default=None)
-    state: ArtifactState
-    current_manifest: Optional[ArtifactFragmentCurrentManifest] = Field(
-        alias="currentManifest"
-    )
-    commit_hash: Optional[str] = Field(alias="commitHash")
-    file_count: Any = Field(alias="fileCount")
-    created_at: str = Field(alias="createdAt")
-    updated_at: Optional[str] = Field(alias="updatedAt")
-
-
 class ArtifactFragmentAliases(GQLBase):
     artifact_collection: Optional[ArtifactFragmentAliasesArtifactCollection] = Field(
         alias="artifactCollection"
@@ -84,29 +58,56 @@ class ArtifactFragmentAliasesArtifactCollectionProject(GQLBase):
     name: str
 
 
-class ArtifactFragmentArtifactSequence(GQLBase):
-    project: Optional[ArtifactFragmentArtifactSequenceProject]
+class ArtifactFragmentWithoutAliases(GQLBase):
+    id: GQLId
+    artifact_sequence: ArtifactFragmentWithoutAliasesArtifactSequence = Field(
+        alias="artifactSequence"
+    )
+    version_index: Optional[int] = Field(alias="versionIndex")
+    artifact_type: ArtifactFragmentWithoutAliasesArtifactType = Field(
+        alias="artifactType"
+    )
+    description: Optional[str]
+    metadata: Optional[Any]
+    ttl_duration_seconds: Optional[Any] = Field(
+        alias="ttlDurationSeconds", default=None
+    )
+    ttl_is_inherited: Optional[bool] = Field(alias="ttlIsInherited", default=None)
+    tags: Optional[List[ArtifactFragmentWithoutAliasesTags]] = None
+    history_step: Optional[Any] = Field(alias="historyStep", default=None)
+    state: ArtifactState
+    current_manifest: Optional[ArtifactFragmentWithoutAliasesCurrentManifest] = Field(
+        alias="currentManifest"
+    )
+    commit_hash: Optional[str] = Field(alias="commitHash")
+    file_count: Any = Field(alias="fileCount")
+    created_at: str = Field(alias="createdAt")
+    updated_at: Optional[str] = Field(alias="updatedAt")
+
+
+class ArtifactFragmentWithoutAliasesArtifactSequence(GQLBase):
+    project: Optional[ArtifactFragmentWithoutAliasesArtifactSequenceProject]
     name: str
 
 
-class ArtifactFragmentArtifactSequenceProject(GQLBase):
+class ArtifactFragmentWithoutAliasesArtifactSequenceProject(GQLBase):
     entity_name: str = Field(alias="entityName")
     name: str
 
 
-class ArtifactFragmentArtifactType(GQLBase):
+class ArtifactFragmentWithoutAliasesArtifactType(GQLBase):
     name: str
 
 
-class ArtifactFragmentCurrentManifest(GQLBase):
-    file: ArtifactFragmentCurrentManifestFile
+class ArtifactFragmentWithoutAliasesCurrentManifest(GQLBase):
+    file: ArtifactFragmentWithoutAliasesCurrentManifestFile
 
 
-class ArtifactFragmentCurrentManifestFile(GQLBase):
+class ArtifactFragmentWithoutAliasesCurrentManifestFile(GQLBase):
     direct_url: str = Field(alias="directUrl")
 
 
-class ArtifactFragmentTags(GQLBase):
+class ArtifactFragmentWithoutAliasesTags(GQLBase):
     name: str
 
 
@@ -223,7 +224,7 @@ class RegistryVersionsPageEdgesNode(GQLBase):
         Field(alias="artifactCollection")
     )
     version_index: Optional[int] = Field(alias="versionIndex")
-    artifact: Optional[ArtifactFragment]
+    artifact: Optional[ArtifactFragmentWithoutAliases]
     aliases: List[RegistryVersionsPageEdgesNodeAliases]
 
 
@@ -253,20 +254,24 @@ class RegistryVersionsPagePageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+class ArtifactFragment(ArtifactFragmentWithoutAliases):
+    aliases: Optional[List[ArtifactFragmentAliases]] = None
+
+
 ArtifactCollectionsFragment.model_rebuild()
 ArtifactCollectionsFragmentEdges.model_rebuild()
 ArtifactCollectionsFragmentEdgesNode.model_rebuild()
 ArtifactCollectionsFragmentPageInfo.model_rebuild()
-ArtifactFragment.model_rebuild()
 ArtifactFragmentAliases.model_rebuild()
 ArtifactFragmentAliasesArtifactCollection.model_rebuild()
 ArtifactFragmentAliasesArtifactCollectionProject.model_rebuild()
-ArtifactFragmentArtifactSequence.model_rebuild()
-ArtifactFragmentArtifactSequenceProject.model_rebuild()
-ArtifactFragmentArtifactType.model_rebuild()
-ArtifactFragmentCurrentManifest.model_rebuild()
-ArtifactFragmentCurrentManifestFile.model_rebuild()
-ArtifactFragmentTags.model_rebuild()
+ArtifactFragmentWithoutAliases.model_rebuild()
+ArtifactFragmentWithoutAliasesArtifactSequence.model_rebuild()
+ArtifactFragmentWithoutAliasesArtifactSequenceProject.model_rebuild()
+ArtifactFragmentWithoutAliasesArtifactType.model_rebuild()
+ArtifactFragmentWithoutAliasesCurrentManifest.model_rebuild()
+ArtifactFragmentWithoutAliasesCurrentManifestFile.model_rebuild()
+ArtifactFragmentWithoutAliasesTags.model_rebuild()
 ArtifactPortfolioTypeFields.model_rebuild()
 ArtifactSequenceTypeFields.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
@@ -293,5 +298,6 @@ RegistryVersionsPageEdgesNodeArtifactCollectionProject.model_rebuild()
 RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity.model_rebuild()
 RegistryVersionsPagePageInfo.model_rebuild()
 ArtifactFragment.model_rebuild()
-ArtifactFragment.model_rebuild()
+ArtifactFragmentWithoutAliases.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
+ArtifactFragment.model_rebuild()

@@ -21,7 +21,6 @@ from wandb.sdk.artifacts._graphql_fragments import (
     omit_artifact_fields,
 )
 from wandb.sdk.artifacts._validators import remove_registry_prefix
-from wandb.sdk.internal.internal_api import Api as InternalApi
 
 from ._utils import ensure_registry_prefix_on_names
 
@@ -342,12 +341,8 @@ class Versions(Paginator["Artifact"]):
         self.collection_filter = collection_filter
         self.artifact_filter = artifact_filter or {}
 
-        # Only omit the `aliases` field on the `ArtifactFragment` fragment,
-        # since we don't want to omit it on the `RegistryVersionsPage` fragment.
-        omitted_artifact_fields = omit_artifact_fields(api=InternalApi()) | {"aliases"}
         self.QUERY = gql_compat(
-            REGISTRY_VERSIONS_GQL,
-            omit_fragment_fields={"ArtifactFragment": omitted_artifact_fields},
+            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields()
         )
 
         variables = {

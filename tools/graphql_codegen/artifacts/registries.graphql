@@ -41,7 +41,7 @@ fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
       }
       versionIndex
       artifact {
-        ...ArtifactFragment
+        ...ArtifactFragmentWithoutAliases
       }
       aliases {
         alias
