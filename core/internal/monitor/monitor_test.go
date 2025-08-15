@@ -15,10 +15,9 @@ func newTestSystemMonitor() *monitor.SystemMonitor {
 	factory := &monitor.SystemMonitorFactory{
 		Logger:             observability.NewNoOpLogger(),
 		Settings:           settings.From(&spb.Settings{}),
-		ExtraWork:          runworktest.New(),
 		GpuResourceManager: monitor.NewGPUResourceManager(false),
 	}
-	return factory.New()
+	return factory.New(runworktest.New())
 }
 
 func TestSystemMonitor_BasicStateTransitions(t *testing.T) {

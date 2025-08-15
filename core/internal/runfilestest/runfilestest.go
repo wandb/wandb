@@ -21,7 +21,6 @@ import (
 
 // Params for constructing a runfiles.Uploader for testing.
 type Params struct {
-	ExtraWork    runwork.ExtraWork
 	FileTransfer filetransfer.FileTransferManager
 	FileWatcher  watcher.Watcher
 	GraphQL      graphql.Client
@@ -30,6 +29,7 @@ type Params struct {
 	Settings     *settings.Settings
 
 	BatchDelay waiting.Delay
+	ExtraWork  runwork.ExtraWork
 	FileStream filestream.FileStream
 }
 
@@ -66,7 +66,6 @@ func WithTestDefaults(params Params) runfiles.Uploader {
 	}
 
 	factory := &runfiles.UploaderFactory{
-		ExtraWork:    params.ExtraWork,
 		FileTransfer: params.FileTransfer,
 		FileWatcher:  params.FileWatcher,
 		GraphQL:      params.GraphQL,
@@ -75,5 +74,5 @@ func WithTestDefaults(params Params) runfiles.Uploader {
 		Settings:     params.Settings,
 	}
 
-	return factory.New(params.BatchDelay, params.FileStream)
+	return factory.New(params.BatchDelay, params.ExtraWork, params.FileStream)
 }
