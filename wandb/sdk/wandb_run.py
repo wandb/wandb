@@ -2962,7 +2962,7 @@ class Run:
         artifact: Artifact,
         target_path: str,
         aliases: list[str] | None = None,
-    ) -> Artifact | None:
+    ) -> Artifact:
         """Link the given artifact to a portfolio (a promoted collection of artifacts).
 
         Linked artifacts are visible in the UI for the specified portfolio.
@@ -2976,7 +2976,7 @@ class Run:
             The alias "latest" will always be applied to the latest version of an artifact that is linked.
 
         Returns:
-            The linked artifact if linking was successful, otherwise None.
+            The linked artifact.
 
         """
         if artifact.is_draft() and not artifact._is_draft_save_started():
