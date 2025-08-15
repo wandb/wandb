@@ -23,7 +23,7 @@ SHOW_RUN = "WANDB_SHOW_RUN"
 DEBUG = "WANDB_DEBUG"
 SILENT = "WANDB_SILENT"
 QUIET = "WANDB_QUIET"
-DISABLE_HISTOGRAM = "WANDB_DISABLE_HISTOGRAM"
+DISABLE_SPARKLINE = "WANDB_DISABLE_SPARKLINE"
 INITED = "WANDB_INITED"
 DIR = "WANDB_DIR"
 # Deprecate DESCRIPTION in a future release
@@ -168,8 +168,8 @@ def is_silent() -> bool:
     return _env_as_bool(SILENT, default="false")
 
 
-def is_histogram_disabled() -> bool:
-    return _env_as_bool(DISABLE_HISTOGRAM, default="false")
+def is_sparkline_disabled() -> bool:
+    return _env_as_bool(DISABLE_SPARKLINE, default="false")
 
 
 def error_reporting_enabled() -> bool:
