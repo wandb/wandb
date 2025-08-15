@@ -149,7 +149,7 @@ def run_pytest(
 
     # (pytest-cov) Enable Python code coverage collection.
     # We set "--cov-report=" to suppress terminal output.
-    pytest_opts.extend(["--cov-report=", "--cov", "--no-cov-on-fail"])
+    pytest_opts.extend(["--cov-report=", "--no-cov-on-fail", "--cov=wandb"])
 
     pytest_env.update(python_coverage_env(session))
     pytest_env.update(go_coverage_env(session))
