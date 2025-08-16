@@ -9,7 +9,10 @@ from urllib.parse import ParseResult, urlparse
 
 from wandb import util
 from wandb.errors.term import termlog
-from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
+from wandb.sdk.artifacts.artifact_file_cache import (
+    ArtifactFileCache,
+    get_artifact_file_cache,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
@@ -77,7 +80,6 @@ class GCSHandler(StorageHandler):
         assert self._client is not None  # mypy: unwraps optionality
         assert manifest_entry.ref is not None
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
-        version = manifest_entry.extra.get("versionID")
 
         if self._is_dir(manifest_entry):
             raise _GCSIsADirectoryError(
@@ -86,7 +88,7 @@ class GCSHandler(StorageHandler):
 
         obj = None
         # First attempt to get the generation specified, this will return None if versioning is not enabled
-        if version is not None:
+        if (version := manifest_entry.extra.get("versionID")) is not None:
             obj = self._client.bucket(bucket).get_blob(key, generation=version)
 
         if obj is None:
@@ -179,9 +181,7 @@ class GCSHandler(StorageHandler):
 
         # Always use posix paths, since that's what S3 uses.
         posix_key = PurePosixPath(obj.name)  # the bucket key
-        posix_path = PurePosixPath(bucket) / PurePosixPath(
-            key
-        )  # the path, with the scheme stripped
+        posix_path = PurePosixPath(bucket, key)  # the path, with the scheme stripped
         posix_prefix = PurePosixPath(prefix)  # the prefix, if adding a prefix
         posix_name = PurePosixPath(name or "")
         posix_ref = posix_path
