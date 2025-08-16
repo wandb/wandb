@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import concurrent.futures
-from typing import TYPE_CHECKING, Sequence
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any, Sequence
 
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.paths import FilePathStr, URIStr
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     from wandb.sdk.internal.progress import ProgressFn
 
 
-class StoragePolicy:
+class StoragePolicy(ABC):
     @classmethod
     def lookup_by_name(cls, name: str) -> type[StoragePolicy]:
         import wandb.sdk.artifacts.storage_policies  # noqa: F401
@@ -23,19 +24,25 @@ class StoragePolicy:
         for sub in cls.__subclasses__():
             if sub.name() == name:
                 return sub
-        raise NotImplementedError(f"Failed to find storage policy '{name}'")
+        raise NotImplementedError(f"Failed to find storage policy {name!r}")
 
     @classmethod
+    @abstractmethod
     def name(cls) -> str:
         raise NotImplementedError
 
     @classmethod
-    def from_config(cls, config: dict, api: InternalApi | None = None) -> StoragePolicy:
+    @abstractmethod
+    def from_config(
+        cls, config: dict[str, Any], api: InternalApi | None = None
+    ) -> StoragePolicy:
         raise NotImplementedError
 
-    def config(self) -> dict:
+    @abstractmethod
+    def config(self) -> dict[str, Any]:
         raise NotImplementedError
 
+    @abstractmethod
     def load_file(
         self,
         artifact: Artifact,
@@ -45,6 +52,7 @@ class StoragePolicy:
     ) -> FilePathStr:
         raise NotImplementedError
 
+    @abstractmethod
     def store_file(
         self,
         artifact_id: str,
@@ -55,6 +63,7 @@ class StoragePolicy:
     ) -> bool:
         raise NotImplementedError
 
+    @abstractmethod
     def store_reference(
         self,
         artifact: Artifact,
@@ -65,6 +74,7 @@ class StoragePolicy:
     ) -> Sequence[ArtifactManifestEntry]:
         raise NotImplementedError
 
+    @abstractmethod
     def load_reference(
         self,
         manifest_entry: ArtifactManifestEntry,

@@ -4,7 +4,6 @@ import random
 import tempfile
 from multiprocessing import Pool
 from pathlib import Path
-from urllib.parse import urlparse
 
 import pytest
 import wandb
@@ -13,7 +12,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.staging import get_staging_dir
-from wandb.sdk.artifacts.storage_handler import StorageHandler
+from wandb.sdk.artifacts.storage_handler import SingleStorageHandler, StorageHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
@@ -533,14 +532,15 @@ def test_storage_handler_incomplete():
     class UnfinishedStorageHandler(StorageHandler):
         pass
 
-    ush = UnfinishedStorageHandler()
+    # Instantiation should fail if the StorageHandler impl doesn't fully implement all abstract methods.
+    with pytest.raises(TypeError):
+        _ = UnfinishedStorageHandler()
 
-    with pytest.raises(NotImplementedError):
-        ush.can_handle(parsed_url=urlparse("https://wandb.com"))
-    with pytest.raises(NotImplementedError):
-        ush.load_path(manifest_entry=None)
-    with pytest.raises(NotImplementedError):
-        ush.store_path(artifact=None, path="")
+    class UnfinishedSingleStorageHandler(SingleStorageHandler):
+        pass
+
+    with pytest.raises(TypeError):
+        _ = UnfinishedSingleStorageHandler()
 
 
 def test_unwritable_staging_dir(monkeypatch):
