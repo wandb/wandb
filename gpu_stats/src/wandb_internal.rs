@@ -1609,7 +1609,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1690,6 +1690,9 @@ pub mod request {
         /// Requests information about tasks the service is performing.
         #[prost(message, tag = "82")]
         Operations(super::OperationStatsRequest),
+        /// Public API requests from the client.
+        #[prost(message, tag = "83")]
+        Api(super::ApiRequest),
         #[prost(message, tag = "1000")]
         TestInject(super::TestInjectRequest),
     }
@@ -1700,7 +1703,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 32, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 72, 74, 75, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1758,9 +1761,43 @@ pub mod response {
         RunFinishWithoutExitResponse(super::RunFinishWithoutExitResponse),
         #[prost(message, tag = "74")]
         OperationsResponse(super::OperationStatsResponse),
+        #[prost(message, tag = "75")]
+        ApiResponse(super::ApiResponse),
         #[prost(message, tag = "1000")]
         TestInjectResponse(super::TestInjectResponse),
     }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ApiRunRequest {
+    #[prost(string, tag = "1")]
+    pub entity: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub project: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub name: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ApiRequest {
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RequestInfo>,
+    /// TODO: what operation should core perform? spell them bitches all out here?
+    #[prost(oneof = "api_request::RequestType", tags = "1")]
+    pub request_type: ::core::option::Option<api_request::RequestType>,
+}
+/// Nested message and enum types in `APIRequest`.
+pub mod api_request {
+    /// TODO: what operation should core perform? spell them bitches all out here?
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum RequestType {
+        #[prost(message, tag = "1")]
+        Run(super::ApiRunRequest),
+    }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ApiResponse {
+    /// TODO: stuff such as runs etc. goes in here. or json dump?
+    #[prost(string, tag = "1")]
+    pub value_json: ::prost::alloc::string::String,
 }
 ///
 /// DeferRequest: internal message to defer work

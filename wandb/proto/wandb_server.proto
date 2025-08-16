@@ -81,6 +81,14 @@ message ServerInformTeardownRequest {
 
 message ServerInformTeardownResponse {}
 
+// Initialize an APIStream to process Puublic API requests.
+message ServerInformInitAPIRequest {
+  Settings settings = 1;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformInitAPIResponse {}
+
 /*
  * ServerRequest, ServerResponse: used in sock server
  */
@@ -105,6 +113,7 @@ message ServerRequest {
     ServerInformTeardownRequest inform_teardown = 7;
     ServerInformStartRequest inform_start = 8;
     ServerAuthenticateRequest authenticate = 9;
+    ServerInformInitAPIRequest inform_init_api = 11;
   }
 }
 
@@ -124,5 +133,6 @@ message ServerResponse {
     ServerInformTeardownResponse inform_teardown_response = 7;
     ServerInformStartResponse inform_start_response = 8;
     ServerAuthenticateResponse authenticate_response = 9;
+    ServerInformInitAPIResponse inform_init_api_response = 11;
   }
 }
