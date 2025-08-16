@@ -11,9 +11,15 @@ from urllib.parse import ParseResult
 
 from wandb import util
 from wandb.errors.term import termlog
-from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
+from wandb.sdk.artifacts.artifact_file_cache import (
+    ArtifactFileCache,
+    get_artifact_file_cache,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
+from wandb.sdk.artifacts.storage_handler import (
+    DEFAULT_MAX_OBJECTS,
+    SingleStorageHandler,
+)
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64, md5_string
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -22,15 +28,18 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-class LocalFileHandler(StorageHandler):
+class LocalFileHandler(SingleStorageHandler):
     """Handles file:// references."""
 
-    def __init__(self, scheme: str | None = None) -> None:
+    _scheme: str
+    _cache: ArtifactFileCache
+
+    def __init__(self, scheme: str = "file") -> None:
         """Track files or directories on a local filesystem.
 
         Expand directories to create an entry for each file contained.
         """
-        self._scheme = scheme or "file"
+        self._scheme = scheme
         self._cache = get_artifact_file_cache()
 
     def can_handle(self, parsed_url: ParseResult) -> bool:
@@ -56,8 +65,7 @@ class LocalFileHandler(StorageHandler):
         if hit:
             return path
 
-        md5 = md5_file_b64(local_path)
-        if md5 != manifest_entry.digest:
+        if (md5 := md5_file_b64(local_path)) != manifest_entry.digest:
             raise ValueError(
                 f"Local file reference: Digest mismatch for path {local_path}: expected {manifest_entry.digest} but found {md5}"
             )
@@ -95,7 +103,7 @@ class LocalFileHandler(StorageHandler):
 
         if os.path.isdir(local_path):
             i = 0
-            start_time = time.time()
+            start_time = time.monotonic()
             if checksum:
                 termlog(
                     f'Generating checksum for up to {max_objects} files in "{local_path}"... ',
@@ -126,7 +134,7 @@ class LocalFileHandler(StorageHandler):
                     )
                     entries.append(entry)
             if checksum:
-                termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+                termlog("Done. %.1fs" % (time.monotonic() - start_time), prefix=False)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
@@ -138,5 +146,5 @@ class LocalFileHandler(StorageHandler):
             entries.append(entry)
         else:
             # TODO: update error message if we don't allow directories.
-            raise ValueError(f'Path "{path}" must be a valid file or directory path')
+            raise ValueError(f"Path {path!r} must be a valid file or directory path")
         return entries
