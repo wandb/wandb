@@ -27,21 +27,22 @@ class MultiHandler(_BaseStorageHandler):
 
     def _get_handler(self, url: FilePathStr | URIStr) -> StorageHandler:
         parsed_url = urlparse(url)
-        for handler in self._handlers:
-            if handler.can_handle(parsed_url):
-                return handler
-        if self._default_handler is not None:
-            return self._default_handler
-        raise ValueError(f'No storage handler registered for url "{url!s}"')
+
+        valid_handlers = (h for h in self._handlers if h.can_handle(parsed_url))
+        if handler := next(valid_handlers, self._default_handler):
+            return handler
+        raise ValueError(f"No storage handler registered for url: {url!r}")
 
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> URIStr | FilePathStr:
-        assert manifest_entry.ref is not None
-        handler = self._get_handler(manifest_entry.ref)
-        return handler.load_path(manifest_entry, local=local)
+        if (ref_uri := manifest_entry.ref) is None:
+            raise ValueError(
+                f"Missing ref URI for manifest entry: {manifest_entry.path}"
+            )
+        return self._get_handler(ref_uri).load_path(manifest_entry, local=local)
 
     def store_path(
         self,
@@ -51,7 +52,6 @@ class MultiHandler(_BaseStorageHandler):
         checksum: bool = True,
         max_objects: int | None = None,
     ) -> list[ArtifactManifestEntry]:
-        handler = self._get_handler(path)
-        return handler.store_path(
+        return self._get_handler(path).store_path(
             artifact, path, name=name, checksum=checksum, max_objects=max_objects
         )
