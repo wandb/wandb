@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 import wandb
+from wandb.sdk import wandb_run
 
 
 def _run_history_lines(lines: list[str]) -> list[str]:
@@ -84,6 +85,21 @@ def test_footer_history_downsamples(emulated_terminal):
     assert len(sparkline) == 40
 
 
+def test_footer_history_truncates(monkeypatch, emulated_terminal):
+    monkeypatch.setattr(wandb_run, "_MAX_FOOTER_HISTORY_ROWS", 2)
+
+    with wandb.init(mode="offline") as run:
+        run.log({"a": 1, "b": 2, "c": 3, "d": 4})
+
+    lines = emulated_terminal.read_stderr()
+    assert _run_history_lines(lines) == [
+        "wandb: Run history:",
+        "wandb:     a ▁",
+        "wandb:     b ▁",
+        "wandb: (+ 2) ...",
+    ]
+
+
 def test_footer_summary(emulated_terminal):
     with wandb.init(mode="offline") as run:
         run.log({"x": 1, "z": 3, "y": 2})
@@ -107,3 +123,18 @@ def test_footer_summary_empty(emulated_terminal):
 
     lines = emulated_terminal.read_stderr()
     assert _run_summary_lines(lines) == []
+
+
+def test_footer_summary_truncates(monkeypatch, emulated_terminal):
+    monkeypatch.setattr(wandb_run, "_MAX_FOOTER_SUMMARY_ROWS", 2)
+
+    with wandb.init(mode="offline") as run:
+        run.log({"a": 1, "b": 2, "c": 3, "d": 4})
+
+    lines = emulated_terminal.read_stderr()
+    assert _run_summary_lines(lines) == [
+        "wandb: Run summary:",
+        "wandb:     a 1",
+        "wandb:     b 2",
+        "wandb: (+ 2) ...",
+    ]
