@@ -1,115 +1,109 @@
-"""footer tests."""
+from __future__ import annotations
 
-import numpy as np
-import pytest
+import re
+
 import wandb
 
-LINE_PREFIX = "wandb: "
-RUN_SUMMARY = "Run summary:"
-RUN_HISTORY = "Run history:"
-FOOTER_END_PREFIX = "Synced "
+
+def _run_history_lines(lines: list[str]) -> list[str]:
+    """Returns the lines corresponding to the run history footer."""
+    try:
+        header_idx = lines.index("wandb: Run history:")
+        end_idx = lines.index("wandb:", header_idx)
+    except ValueError:
+        return []
+
+    return lines[header_idx:end_idx]
 
 
-# wandb: Run summary:
-# wandb:        accuracy 0.91145
-# wandb:    val_accuracy 0.8948
-# wandb: Run history:
-# wandb:       accuracy ..
-# wandb:          epoch ..
-# wandb:
-# wandb: Synced 3 W&B file(s), 73 ...
+def _run_summary_lines(lines: list[str]) -> list[str]:
+    """Returns the lines corresponding to the run summary footer."""
+    try:
+        header_idx = lines.index("wandb: Run summary:")
+        end_idx = lines.index("wandb:", header_idx)
+    except ValueError:
+        return []
+
+    return lines[header_idx:end_idx]
 
 
-def remove_prefix(text, prefix):
-    return text[text.startswith(prefix) and len(prefix) :]
+def test_online_footer(user, emulated_terminal):
+    _ = user
+
+    with wandb.init(project="test-project"):
+        emulated_terminal.reset_capsys()
+
+    all_text = "\n".join(emulated_terminal.read_stderr())
+    assert "🚀 View run" in all_text
+    assert "Find logs at:" in all_text
 
 
-def check_keys(lines, start, end, exp_keys):
-    if not exp_keys:
-        assert start not in lines
-        return
-    assert start in lines
-    start_idx = lines.index(start)
-    end_idx = lines.index(end, start_idx)
-    found_lines = lines[start_idx + 1 : end_idx]
-    found_keys = [line.split()[0] for line in found_lines if line]
-    assert found_keys == exp_keys
+def test_offline_footer(emulated_terminal):
+    with wandb.init(mode="offline"):
+        emulated_terminal.reset_capsys()
+
+    all_text = "\n".join(emulated_terminal.read_stderr())
+    assert "You can sync this run to the cloud by running:" in all_text
+    assert " wandb sync " in all_text
+    assert "Find logs at:" in all_text
 
 
-@pytest.fixture
-def check_output_fn(capsys):
-    def check_fn(exp_summary, exp_history):
-        captured = capsys.readouterr()
-        lines = captured.err.splitlines()
-        # for l in captured.err.splitlines():
-        #     print("ERR =", l)
-        # for l in captured.out.splitlines():
-        #     print("OUT =", l)
-        lines = [remove_prefix(line, LINE_PREFIX).strip() for line in lines]
+def test_footer_history(emulated_terminal):
+    with wandb.init(mode="offline") as run:
+        run.log({"b": 1.4, "a": 1, "_x": 1})
+        run.log({"c": -2})
 
-        footer_end = next(
-            iter([line for line in lines if line.startswith(FOOTER_END_PREFIX)])
-        )
-        history_end = RUN_SUMMARY if exp_summary else footer_end
-        check_keys(lines, RUN_HISTORY, history_end, exp_history)
-        check_keys(lines, RUN_SUMMARY, footer_end, exp_summary)
-
-    yield check_fn
+    lines = emulated_terminal.read_stderr()
+    assert _run_history_lines(lines) == [
+        "wandb: Run history:",
+        "wandb: a ▁",
+        "wandb: b ▁",
+        "wandb: c ▁",
+        # _x not shown due to underscore
+    ]
 
 
-def test_footer_private(user, check_output_fn):
-    with wandb.init() as run:
-        run.log(dict(_d=2))
-        run.log(dict(_b=2, _d=8))
-        run.log(dict(_a=1, _b=2))
-        run.log(dict(_a=3))
-    check_output_fn(exp_summary=[], exp_history=[])
+def test_footer_history_empty(emulated_terminal):
+    with wandb.init(mode="offline"):
+        pass
+
+    lines = emulated_terminal.read_stderr()
+    assert _run_history_lines(lines) == []
 
 
-def test_footer_normal(user, check_output_fn):
-    with wandb.init() as run:
-        run.log(dict(d=2))
-        run.log(dict(b="b", d=8))
-        run.log(dict(a=1, b="b"))
-        run.log(dict(a=3))
-    check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=["a", "d"])
+def test_footer_history_downsamples(emulated_terminal):
+    with wandb.init(mode="offline") as run:
+        for i in range(100):
+            run.log({"x": i})
+
+    history = _run_history_lines(emulated_terminal.read_stderr())
+    assert len(history) == 2
+    history_line = re.fullmatch(r"wandb: x (.+)", history[1])
+    assert history_line
+    sparkline = history_line.group(1)
+    assert len(sparkline) == 40
 
 
-def test_footer_summary(user, check_output_fn):
-    with wandb.init() as run:
-        run.log(dict(d="d"))
-        run.log(dict(b="b", d="d"))
-        run.log(dict(a="a", b="b"))
-        run.log(dict(a="a"))
-    check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=[])
+def test_footer_summary(emulated_terminal):
+    with wandb.init(mode="offline") as run:
+        run.log({"x": 1, "z": 3, "y": 2})
+        run.log({"array_is_skipped": [1, 2, 3]})
+        run.log({"z": -5.1, "_private": 0})
+        run.log({"nested": {"skipped": 7}})
+
+    lines = emulated_terminal.read_stderr()
+    assert _run_summary_lines(lines) == [
+        "wandb: Run summary:",
+        "wandb: x 1",
+        "wandb: y 2",
+        "wandb: z -5.1",
+    ]
 
 
-def test_footer_summary_array(user, check_output_fn):
-    with wandb.init() as run:
-        run.log(dict(d="d"))
-        run.log(dict(b="b", d="d"))
-        run.log(dict(a="a", b="b", skipthisbecausearray=[1, 2, 3]))
-        run.log(dict(a="a"))
-    check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=[])
-
-
-def test_footer_summary_image(user, check_output_fn):
-    pytest.importorskip("pillow")
-
-    with wandb.init() as run:
-        run.log(dict(d="d"))
-        run.log(dict(b="b", d="d"))
-        run.log(dict(a="a", b="b"))
-        run.log(dict(a="a"))
-        run.summary["this-is-ignored"] = wandb.Image(np.random.rand(10, 10))
-    check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=[])
-
-
-def test_footer_history(user, check_output_fn):
-    with wandb.init() as run:
+def test_footer_summary_empty(emulated_terminal):
+    with wandb.init(mode="offline") as run:
         run.define_metric("*", summary="none")
-        run.log(dict(d=2))
-        run.log(dict(b="b", d=8))
-        run.log(dict(a=1, b="b"))
-        run.log(dict(a=3))
-    check_output_fn(exp_summary=[], exp_history=["a", "d", "🚀", "⭐️"])
+        run.log({"x": 1})
+
+    lines = emulated_terminal.read_stderr()
+    assert _run_summary_lines(lines) == []
