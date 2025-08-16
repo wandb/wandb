@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 from wandb.errors.term import termwarn
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import StorageHandler
+from wandb.sdk.artifacts.storage_handler import SingleStorageHandler
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
@@ -16,8 +16,10 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-class TrackingHandler(StorageHandler):
-    def __init__(self, scheme: str | None = None) -> None:
+class TrackingHandler(SingleStorageHandler):
+    _scheme: str
+
+    def __init__(self, scheme: str = "") -> None:
         """Track paths with no modification or special processing.
 
         Useful when paths being tracked are on file systems mounted at a standardized
@@ -26,7 +28,7 @@ class TrackingHandler(StorageHandler):
         For example, if the data to track is located on an NFS share mounted on
         `/data`, then it is sufficient to just track the paths.
         """
-        self._scheme = scheme or ""
+        self._scheme = scheme
 
     def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme

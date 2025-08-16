@@ -2,40 +2,69 @@
 
 from __future__ import annotations
 
+import logging
+from collections import deque
 from pathlib import PurePosixPath
-from types import ModuleType
 from typing import TYPE_CHECKING, Sequence
 from urllib.parse import ParseResult, parse_qsl, urlparse
 
+from typing_extensions import Never
+
 import wandb
-from wandb import util
-from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
+from wandb.sdk.artifacts.artifact_file_cache import (
+    ArtifactFileCache,
+    get_artifact_file_cache,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
+from wandb.sdk.artifacts.storage_handler import (
+    DEFAULT_MAX_OBJECTS,
+    SingleStorageHandler,
+)
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
-    import azure.identity  # type: ignore
-    import azure.storage.blob  # type: ignore
+    from azure.identity import DefaultAzureCredential  # type: ignore[import-not-found]
+    from azure.storage.blob import BlobProperties  # type: ignore[import-not-found]
 
     from wandb.sdk.artifacts.artifact import Artifact
 
+logger = logging.getLogger(__name__)
 
-class AzureHandler(StorageHandler):
+
+def _handle_azure_import_error(exc: ImportError) -> Never:
+    # We handle the ImportError this way for continuity/backward compatibility.
+    # In a later (breaking) change, we should really just raise a proper ImportError
+    # or a custom subclass of it.
+    logger.exception(f"Error importing optional module {exc.name!r}")
+    raise wandb.Error(
+        "Azure references require the azure library, run pip install wandb[azure]"
+    )
+
+
+class AzureHandler(SingleStorageHandler):
+    _cache: ArtifactFileCache
+
+    def __init__(self, scheme: str | None = None) -> None:
+        self._cache = get_artifact_file_cache()
+
     def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == "https" and parsed_url.netloc.endswith(
             ".blob.core.windows.net"
         )
-
-    def __init__(self, scheme: str | None = None) -> None:
-        self._cache = get_artifact_file_cache()
 
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> URIStr | FilePathStr:
+        try:
+            from azure.core import MatchConditions  # type: ignore
+            from azure.core.exceptions import ResourceModifiedError  # type: ignore
+            from azure.storage.blob import BlobServiceClient
+        except ImportError as e:
+            _handle_azure_import_error(e)
+
         assert manifest_entry.ref is not None
         if not local:
             return manifest_entry.ref
@@ -48,26 +77,21 @@ class AzureHandler(StorageHandler):
         if hit:
             return path
 
-        account_url, container_name, blob_name, query = self._parse_uri(
-            manifest_entry.ref
-        )
-        version_id = manifest_entry.extra.get("versionID")
-        blob_service_client = self._get_module("azure.storage.blob").BlobServiceClient(
+        account_url, container_name, blob_name, _ = self._parse_uri(manifest_entry.ref)
+        blob_service_client = BlobServiceClient(
             account_url, credential=self._get_credential(account_url)
         )
         blob_client = blob_service_client.get_blob_client(
             container=container_name, blob=blob_name
         )
-        if version_id is None:
+        if (version_id := manifest_entry.extra.get("versionID")) is None:
             # Try current version, then all versions.
             try:
                 downloader = blob_client.download_blob(
                     etag=manifest_entry.digest,
-                    match_condition=self._get_module(
-                        "azure.core"
-                    ).MatchConditions.IfNotModified,
+                    match_condition=MatchConditions.IfNotModified,
                 )
-            except self._get_module("azure.core.exceptions").ResourceModifiedError:
+            except ResourceModifiedError:
                 container_client = blob_service_client.get_container_client(
                     container_name
                 )
@@ -102,6 +126,11 @@ class AzureHandler(StorageHandler):
         checksum: bool = True,
         max_objects: int | None = None,
     ) -> Sequence[ArtifactManifestEntry]:
+        try:
+            from azure.storage.blob import BlobServiceClient
+        except ImportError as e:
+            _handle_azure_import_error(e)
+
         account_url, container_name, blob_name, query = self._parse_uri(path)
         path = URIStr(f"{account_url}/{container_name}/{blob_name}")
 
@@ -110,7 +139,7 @@ class AzureHandler(StorageHandler):
                 ArtifactManifestEntry(path=name or blob_name, digest=path, ref=path)
             ]
 
-        blob_service_client = self._get_module("azure.storage.blob").BlobServiceClient(
+        blob_service_client = BlobServiceClient(
             account_url, credential=self._get_credential(account_url)
         )
         blob_client = blob_service_client.get_blob_client(
@@ -132,7 +161,7 @@ class AzureHandler(StorageHandler):
                     )
                 ]
 
-        entries: list[ArtifactManifestEntry] = []
+        entries: deque[ArtifactManifestEntry] = deque()
         container_client = blob_service_client.get_container_client(container_name)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         for blob_properties in container_client.list_blobs(
@@ -156,29 +185,22 @@ class AzureHandler(StorageHandler):
                     )
                 )
 
-        return entries
+        return list(entries)
 
-    def _get_module(self, name: str) -> ModuleType:
-        module = util.get_module(
-            name,
-            lazy=False,
-            required="Azure references require the azure library, run "
-            "pip install wandb[azure]",
-        )
-        assert isinstance(module, ModuleType)
-        return module
+    def _get_credential(self, account_url: str) -> DefaultAzureCredential | str:
+        try:
+            from azure.identity import DefaultAzureCredential
+        except ImportError as e:
+            _handle_azure_import_error(e)
 
-    def _get_credential(
-        self, account_url: str
-    ) -> azure.identity.DefaultAzureCredential | str:
         # NOTE: Always returns default credential for reinit="create_new" runs.
         if (
-            wandb.run
-            and wandb.run.settings.azure_account_url_to_access_key is not None
-            and account_url in wandb.run.settings.azure_account_url_to_access_key
+            (run := wandb.run)
+            and (url2key := run.settings.azure_account_url_to_access_key)
+            and (access_key := url2key.get(account_url))
         ):
-            return wandb.run.settings.azure_account_url_to_access_key[account_url]
-        return self._get_module("azure.identity").DefaultAzureCredential()
+            return access_key
+        return DefaultAzureCredential()
 
     def _parse_uri(self, uri: str) -> tuple[str, str, str, dict[str, str]]:
         parsed_url = urlparse(uri)
@@ -189,26 +211,24 @@ class AzureHandler(StorageHandler):
 
     def _create_entry(
         self,
-        blob_properties: azure.storage.blob.BlobProperties,
+        blob_properties: BlobProperties,
         path: StrPath,
         ref: URIStr,
     ) -> ArtifactManifestEntry:
-        extra = {"etag": blob_properties.etag.strip('"')}
-        if blob_properties.version_id:
-            extra["versionID"] = blob_properties.version_id
+        etag = blob_properties.etag.strip('"')
+        extra = {"etag": etag}
+        if version_id := blob_properties.version_id:
+            extra["versionID"] = version_id
         return ArtifactManifestEntry(
             path=path,
             ref=ref,
-            digest=blob_properties.etag.strip('"'),
+            digest=etag,
             size=blob_properties.size,
             extra=extra,
         )
 
-    def _is_directory_stub(
-        self, blob_properties: azure.storage.blob.BlobProperties
-    ) -> bool:
-        return (
-            blob_properties.has_key("metadata")
-            and "hdi_isfolder" in blob_properties.metadata
-            and blob_properties.metadata["hdi_isfolder"] == "true"
+    def _is_directory_stub(self, blob_properties: BlobProperties) -> bool:
+        return bool(
+            (metadata := blob_properties.metadata)
+            and metadata.get("hdi_isfolder") == "true"
         )

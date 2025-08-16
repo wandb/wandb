@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Final, Sequence
 
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
@@ -12,18 +13,11 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
-DEFAULT_MAX_OBJECTS = 10**7
+DEFAULT_MAX_OBJECTS: Final[int] = 10_000_000  # 10**7
 
 
-class StorageHandler:
-    def can_handle(self, parsed_url: ParseResult) -> bool:
-        """Checks whether this handler can handle the given url.
-
-        Returns:
-            Whether this handler can handle the given url.
-        """
-        raise NotImplementedError
-
+class StorageHandler(ABC):
+    @abstractmethod
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
@@ -40,6 +34,7 @@ class StorageHandler:
         """
         raise NotImplementedError
 
+    @abstractmethod
     def store_path(
         self,
         artifact: Artifact,
@@ -58,5 +53,16 @@ class StorageHandler:
 
         Returns:
             A list of manifest entries to store within the artifact
+        """
+        raise NotImplementedError
+
+
+class SingleStorageHandler(StorageHandler, ABC):
+    @abstractmethod
+    def can_handle(self, parsed_url: ParseResult) -> bool:
+        """Checks whether this handler can handle the given url.
+
+        Returns:
+            Whether this handler can handle the given url.
         """
         raise NotImplementedError

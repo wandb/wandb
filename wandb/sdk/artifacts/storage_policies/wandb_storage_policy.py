@@ -237,8 +237,7 @@ class WandbStoragePolicy(StoragePolicy):
         download_has_error: threading.Event,
     ):
         while not download_has_error.is_set():
-            item = q.get()
-            if item is _CHUNK_QUEUE_SENTINEL:
+            if (item := q.get()) is _CHUNK_QUEUE_SENTINEL:
                 # Normal shutdown, all the chunks are written
                 return
             elif isinstance(item, _ChunkContent):
@@ -382,37 +381,20 @@ class WandbStoragePolicy(StoragePolicy):
         storage_region = self._config.get("storageRegion", "default")
         md5_hex = b64_to_hex_id(B64MD5(manifest_entry.digest))
 
+        base_url: str = api.settings("base_url")
+
         if storage_layout == StorageLayout.V1:
-            return "{}/artifacts/{}/{}".format(
-                api.settings("base_url"), entity_name, md5_hex
-            )
-        elif storage_layout == StorageLayout.V2:
+            return f"{base_url}/artifacts/{entity_name}/{md5_hex}"
+
+        if storage_layout == StorageLayout.V2:
             if api._server_supports(
                 ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER  # type: ignore
             ):
-                return "{}/artifactsV2/{}/{}/{}/{}/{}/{}/{}".format(
-                    api.settings("base_url"),
-                    storage_region,
-                    quote(entity_name),
-                    quote(project_name),
-                    quote(artifact_name),
-                    quote(manifest_entry.birth_artifact_id or ""),
-                    md5_hex,
-                    manifest_entry.path.name,
-                )
-            return "{}/artifactsV2/{}/{}/{}/{}".format(
-                api.settings("base_url"),
-                storage_region,
-                entity_name,
-                quote(
-                    manifest_entry.birth_artifact_id
-                    if manifest_entry.birth_artifact_id is not None
-                    else ""
-                ),
-                md5_hex,
-            )
-        else:
-            raise Exception(f"unrecognized storage layout: {storage_layout}")
+                return f"{base_url}/artifactsV2/{storage_region}/{quote(entity_name)}/{quote(project_name)}/{quote(artifact_name)}/{quote(manifest_entry.birth_artifact_id or '')}/{md5_hex}/{manifest_entry.path.name}"
+
+            return f"{base_url}/artifactsV2/{storage_region}/{entity_name}/{quote(manifest_entry.birth_artifact_id or '')}/{md5_hex}"
+
+        raise ValueError(f"unrecognized storage layout: {storage_layout!r}")
 
     def s3_multipart_file_upload(
         self,
@@ -422,14 +404,11 @@ class WandbStoragePolicy(StoragePolicy):
         multipart_urls: dict[int, str],
         extra_headers: dict[str, str],
     ) -> list[dict[str, Any]]:
-        etags = []
+        etags: deque[dict[str, Any]] = deque()
         part_number = 1
 
         with open(file_path, "rb") as f:
-            while True:
-                data = f.read(chunk_size)
-                if not data:
-                    break
+            while data := f.read(chunk_size):
                 md5_b64_str = str(hex_to_b64_id(hex_digests[part_number]))
                 upload_resp = self._api.upload_multipart_file_chunk_retry(
                     multipart_urls[part_number],
@@ -437,7 +416,7 @@ class WandbStoragePolicy(StoragePolicy):
                     extra_headers={
                         "content-md5": md5_b64_str,
                         "content-length": str(len(data)),
-                        "content-type": extra_headers.get("Content-Type", ""),
+                        "content-type": extra_headers.get("Content-Type") or "",
                     },
                 )
                 assert upload_resp is not None
@@ -445,7 +424,7 @@ class WandbStoragePolicy(StoragePolicy):
                     {"partNumber": part_number, "hexMD5": upload_resp.headers["ETag"]}
                 )
                 part_number += 1
-        return etags
+        return list(etags)
 
     def default_file_upload(
         self,
@@ -488,21 +467,15 @@ class WandbStoragePolicy(StoragePolicy):
         """
         file_size = entry.size if entry.size is not None else 0
         chunk_size = self.calc_chunk_size(file_size)
-        upload_parts = []
+        upload_parts: deque[dict[str, Any]] = deque()
         hex_digests = {}
         file_path = entry.local_path if entry.local_path is not None else ""
         # Logic for AWS s3 multipart upload.
         # Only chunk files if larger than 2 GiB. Currently can only support up to 5TiB.
-        if (
-            file_size >= S3_MIN_MULTI_UPLOAD_SIZE
-            and file_size <= S3_MAX_MULTI_UPLOAD_SIZE
-        ):
+        if S3_MIN_MULTI_UPLOAD_SIZE <= file_size <= S3_MAX_MULTI_UPLOAD_SIZE:
             part_number = 1
             with open(file_path, "rb") as f:
-                while True:
-                    data = f.read(chunk_size)
-                    if not data:
-                        break
+                while data := f.read(chunk_size):
                     hex_digest = hashlib.md5(data).hexdigest()
                     upload_parts.append(
                         {"hexMD5": hex_digest, "partNumber": part_number}
@@ -516,7 +489,7 @@ class WandbStoragePolicy(StoragePolicy):
                 "artifactManifestID": artifact_manifest_id,
                 "name": entry.path,
                 "md5": entry.digest,
-                "uploadPartsInput": upload_parts,
+                "uploadPartsInput": list(upload_parts),
             }
         ).get()
 
@@ -527,10 +500,8 @@ class WandbStoragePolicy(StoragePolicy):
             return True
         if entry.local_path is None:
             return False
-        extra_headers = {
-            header.split(":", 1)[0]: header.split(":", 1)[1]
-            for header in (resp.upload_headers or {})
-        }
+
+        extra_headers = dict(hdr.split(":", 1) for hdr in (resp.upload_headers or {}))
 
         # This multipart upload isn't available, do a regular single url upload
         if multipart_urls is None and resp.upload_url:
@@ -568,7 +539,7 @@ class WandbStoragePolicy(StoragePolicy):
 
         staging_dir = get_staging_dir()
         try:
-            if not entry.skip_cache and not hit:
+            if not (entry.skip_cache or hit):
                 with cache_open("wb") as f, open(entry.local_path, "rb") as src:
                     shutil.copyfileobj(src, f)
             if entry.local_path.startswith(staging_dir):
