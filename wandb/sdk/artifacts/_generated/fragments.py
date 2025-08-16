@@ -210,6 +210,75 @@ class FilesFragmentPageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+class RegistryCollectionsPage(GQLBase):
+    total_count: int = Field(alias="totalCount")
+    page_info: RegistryCollectionsPagePageInfo = Field(alias="pageInfo")
+    edges: List[RegistryCollectionsPageEdges]
+
+
+class RegistryCollectionsPageEdges(GQLBase):
+    cursor: str
+    node: Optional[RegistryCollectionsPageEdgesNode]
+
+
+class RegistryCollectionsPageEdgesNode(GQLBase):
+    typename__: Typename[
+        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
+    ]
+    id: GQLId
+    name: str
+    description: Optional[str]
+    created_at: str = Field(alias="createdAt")
+    tags: RegistryCollectionsPageEdgesNodeTags
+    project: Optional[RegistryCollectionsPageEdgesNodeProject]
+    default_artifact_type: RegistryCollectionsPageEdgesNodeDefaultArtifactType = Field(
+        alias="defaultArtifactType"
+    )
+    aliases: RegistryCollectionsPageEdgesNodeAliases
+
+
+class RegistryCollectionsPageEdgesNodeAliases(GQLBase):
+    edges: List[RegistryCollectionsPageEdgesNodeAliasesEdges]
+
+
+class RegistryCollectionsPageEdgesNodeAliasesEdges(GQLBase):
+    node: Optional[RegistryCollectionsPageEdgesNodeAliasesEdgesNode]
+
+
+class RegistryCollectionsPageEdgesNodeAliasesEdgesNode(GQLBase):
+    alias: str
+
+
+class RegistryCollectionsPageEdgesNodeDefaultArtifactType(GQLBase):
+    name: str
+
+
+class RegistryCollectionsPageEdgesNodeProject(GQLBase):
+    name: str
+    entity: RegistryCollectionsPageEdgesNodeProjectEntity
+
+
+class RegistryCollectionsPageEdgesNodeProjectEntity(GQLBase):
+    name: str
+
+
+class RegistryCollectionsPageEdgesNodeTags(GQLBase):
+    edges: List[RegistryCollectionsPageEdgesNodeTagsEdges]
+
+
+class RegistryCollectionsPageEdgesNodeTagsEdges(GQLBase):
+    node: RegistryCollectionsPageEdgesNodeTagsEdgesNode
+
+
+class RegistryCollectionsPageEdgesNodeTagsEdgesNode(GQLBase):
+    name: str
+
+
+class RegistryCollectionsPagePageInfo(GQLBase):
+    end_cursor: Optional[str] = Field(alias="endCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
+
+
 class RegistryVersionsPage(GQLBase):
     page_info: RegistryVersionsPagePageInfo = Field(alias="pageInfo")
     edges: List[RegistryVersionsPageEdges]
@@ -289,6 +358,19 @@ FilesFragment.model_rebuild()
 FilesFragmentEdges.model_rebuild()
 FilesFragmentEdgesNode.model_rebuild()
 FilesFragmentPageInfo.model_rebuild()
+RegistryCollectionsPage.model_rebuild()
+RegistryCollectionsPageEdges.model_rebuild()
+RegistryCollectionsPageEdgesNode.model_rebuild()
+RegistryCollectionsPageEdgesNodeAliases.model_rebuild()
+RegistryCollectionsPageEdgesNodeAliasesEdges.model_rebuild()
+RegistryCollectionsPageEdgesNodeAliasesEdgesNode.model_rebuild()
+RegistryCollectionsPageEdgesNodeDefaultArtifactType.model_rebuild()
+RegistryCollectionsPageEdgesNodeProject.model_rebuild()
+RegistryCollectionsPageEdgesNodeProjectEntity.model_rebuild()
+RegistryCollectionsPageEdgesNodeTags.model_rebuild()
+RegistryCollectionsPageEdgesNodeTagsEdges.model_rebuild()
+RegistryCollectionsPageEdgesNodeTagsEdgesNode.model_rebuild()
+RegistryCollectionsPagePageInfo.model_rebuild()
 RegistryVersionsPage.model_rebuild()
 RegistryVersionsPageEdges.model_rebuild()
 RegistryVersionsPageEdgesNode.model_rebuild()
