@@ -28,6 +28,7 @@ __all__ = [
     "PROJECT_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACT_TYPES_GQL",
     "PROJECT_ARTIFACT_TYPE_GQL",
+    "REGISTRY_VERSIONS_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
     "UNLINK_ARTIFACT_GQL",
@@ -385,6 +386,21 @@ query ProjectArtifacts($project: String!, $entity: String!, $type: String!, $col
 }
 
 fragment ArtifactFragment on Artifact {
+  ...ArtifactFragmentWithoutAliases
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+}
+
+fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
     project {
@@ -401,17 +417,6 @@ fragment ArtifactFragment on Artifact {
   metadata
   ttlDurationSeconds @include(if: true)
   ttlIsInherited @include(if: true)
-  aliases @include(if: true) {
-    artifactCollection {
-      __typename
-      project {
-        entityName
-        name
-      }
-      name
-    }
-    alias
-  }
   tags @include(if: true) {
     name
   }
@@ -466,6 +471,21 @@ query RunOutputArtifacts($entity: String!, $project: String!, $runName: String!,
 }
 
 fragment ArtifactFragment on Artifact {
+  ...ArtifactFragmentWithoutAliases
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+}
+
+fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
     project {
@@ -482,17 +502,6 @@ fragment ArtifactFragment on Artifact {
   metadata
   ttlDurationSeconds @include(if: true)
   ttlIsInherited @include(if: true)
-  aliases @include(if: true) {
-    artifactCollection {
-      __typename
-      project {
-        entityName
-        name
-      }
-      name
-    }
-    alias
-  }
   tags @include(if: true) {
     name
   }
@@ -532,6 +541,21 @@ query RunInputArtifacts($entity: String!, $project: String!, $runName: String!, 
 }
 
 fragment ArtifactFragment on Artifact {
+  ...ArtifactFragmentWithoutAliases
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+}
+
+fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
     project {
@@ -548,17 +572,6 @@ fragment ArtifactFragment on Artifact {
   metadata
   ttlDurationSeconds @include(if: true)
   ttlIsInherited @include(if: true)
-  aliases @include(if: true) {
-    artifactCollection {
-      __typename
-      project {
-        entityName
-        name
-      }
-      name
-    }
-    alias
-  }
   tags @include(if: true) {
     name
   }
@@ -623,6 +636,21 @@ query ArtifactByID($id: ID!) {
 }
 
 fragment ArtifactFragment on Artifact {
+  ...ArtifactFragmentWithoutAliases
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+}
+
+fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
     project {
@@ -639,17 +667,6 @@ fragment ArtifactFragment on Artifact {
   metadata
   ttlDurationSeconds @include(if: true)
   ttlIsInherited @include(if: true)
-  aliases @include(if: true) {
-    artifactCollection {
-      __typename
-      project {
-        entityName
-        name
-      }
-      name
-    }
-    alias
-  }
   tags @include(if: true) {
     name
   }
@@ -677,6 +694,21 @@ query ArtifactByName($entityName: String!, $projectName: String!, $name: String!
 }
 
 fragment ArtifactFragment on Artifact {
+  ...ArtifactFragmentWithoutAliases
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+}
+
+fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
     project {
@@ -693,17 +725,6 @@ fragment ArtifactFragment on Artifact {
   metadata
   ttlDurationSeconds @include(if: true)
   ttlIsInherited @include(if: true)
-  aliases @include(if: true) {
-    artifactCollection {
-      __typename
-      project {
-        entityName
-        name
-      }
-      name
-    }
-    alias
-  }
   tags @include(if: true) {
     name
   }
@@ -744,6 +765,21 @@ query ArtifactViaMembershipByName($entityName: String!, $projectName: String!, $
 }
 
 fragment ArtifactFragment on Artifact {
+  ...ArtifactFragmentWithoutAliases
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+}
+
+fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
     project {
@@ -760,85 +796,6 @@ fragment ArtifactFragment on Artifact {
   metadata
   ttlDurationSeconds @include(if: true)
   ttlIsInherited @include(if: true)
-  aliases @include(if: true) {
-    artifactCollection {
-      __typename
-      project {
-        entityName
-        name
-      }
-      name
-    }
-    alias
-  }
-  tags @include(if: true) {
-    name
-  }
-  historyStep @include(if: true)
-  state
-  currentManifest {
-    file {
-      directUrl
-    }
-  }
-  commitHash
-  fileCount
-  createdAt
-  updatedAt
-}
-"""
-
-
-ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL = """
-query ArtifactViaMembershipByName($entityName: String!, $projectName: String!, $name: String!) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactCollectionMembership(name: $name) {
-      id
-      artifactCollection {
-        __typename
-        id
-        name
-        project {
-          id
-          entityName
-          name
-        }
-      }
-      artifact {
-        ...ArtifactFragment
-      }
-    }
-  }
-}
-
-fragment ArtifactFragment on Artifact {
-  id
-  artifactSequence {
-    project {
-      entityName
-      name
-    }
-    name
-  }
-  versionIndex
-  artifactType {
-    name
-  }
-  description
-  metadata
-  ttlDurationSeconds @include(if: true)
-  ttlIsInherited @include(if: true)
-  aliases @include(if: true) {
-    artifactCollection {
-      __typename
-      project {
-        entityName
-        name
-      }
-      name
-    }
-    alias
-  }
   tags @include(if: true) {
     name
   }
@@ -931,6 +888,21 @@ mutation UpdateArtifact($artifactID: ID!, $description: String, $metadata: JSONS
 }
 
 fragment ArtifactFragment on Artifact {
+  ...ArtifactFragmentWithoutAliases
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+}
+
+fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
     project {
@@ -947,17 +919,6 @@ fragment ArtifactFragment on Artifact {
   metadata
   ttlDurationSeconds @include(if: true)
   ttlIsInherited @include(if: true)
-  aliases @include(if: true) {
-    artifactCollection {
-      __typename
-      project {
-        entityName
-        name
-      }
-      name
-    }
-    alias
-  }
   tags @include(if: true) {
     name
   }
@@ -1001,6 +962,86 @@ mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
     artifactID
     success
     clientMutationId
+  }
+}
+"""
+
+REGISTRY_VERSIONS_GQL = """
+query RegistryVersions($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString, $cursor: String, $perPage: Int) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+      artifactMemberships(
+        projectFilters: $registryFilter
+        collectionFilters: $collectionFilter
+        filters: $artifactFilter
+        after: $cursor
+        first: $perPage
+      ) {
+        ...RegistryVersionsPage
+      }
+    }
+  }
+}
+
+fragment ArtifactFragmentWithoutAliases on Artifact {
+  id
+  artifactSequence {
+    project {
+      entityName
+      name
+    }
+    name
+  }
+  versionIndex
+  artifactType {
+    name
+  }
+  description
+  metadata
+  ttlDurationSeconds @include(if: true)
+  ttlIsInherited @include(if: true)
+  tags @include(if: true) {
+    name
+  }
+  historyStep @include(if: true)
+  state
+  currentManifest {
+    file {
+      directUrl
+    }
+  }
+  commitHash
+  fileCount
+  createdAt
+  updatedAt
+}
+
+fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
+  edges {
+    node {
+      artifactCollection {
+        __typename
+        project {
+          name
+          entity {
+            name
+          }
+        }
+        name
+      }
+      versionIndex
+      artifact {
+        ...ArtifactFragmentWithoutAliases
+      }
+      aliases {
+        alias
+      }
+    }
   }
 }
 """

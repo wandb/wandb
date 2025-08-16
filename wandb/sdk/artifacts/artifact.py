@@ -292,9 +292,7 @@ class Artifact:
         if (artifact := artifact_instance_cache.get(artifact_id)) is not None:
             return artifact
 
-        query = gql_compat(
-            ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(api=InternalApi())
-        )
+        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields())
 
         data = client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
@@ -328,8 +326,10 @@ class Artifact:
                 "by this version of wandb server. Consider updating to the latest version."
             )
 
-        omit_fields = omit_artifact_fields(api=api)
-        query = gql_compat(ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL, omit_fields=omit_fields)
+        query = gql_compat(
+            ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
+            omit_fields=omit_artifact_fields(api=api),
+        )
 
         gql_vars = {"entityName": entity, "projectName": project, "name": name}
         data = client.execute(query, variable_values=gql_vars)
@@ -387,7 +387,6 @@ class Artifact:
 
         supports_enable_tracking_gql_var = api.server_project_type_introspection()
         omit_vars = None if supports_enable_tracking_gql_var else {"enableTracking"}
-        omit_fields = omit_artifact_fields(api=api)
 
         gql_vars = {
             "entityName": entity,
@@ -396,7 +395,9 @@ class Artifact:
             "enableTracking": enable_tracking,
         }
         query = gql_compat(
-            ARTIFACT_BY_NAME_GQL, omit_variables=omit_vars, omit_fields=omit_fields
+            ARTIFACT_BY_NAME_GQL,
+            omit_variables=omit_vars,
+            omit_fields=omit_artifact_fields(api=api),
         )
 
         data = client.execute(query, variable_values=gql_vars)
@@ -1225,9 +1226,7 @@ class Artifact:
     def _populate_after_save(self, artifact_id: str) -> None:
         assert self._client is not None
 
-        query = gql_compat(
-            ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(api=InternalApi())
-        )
+        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields())
 
         data = self._client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
@@ -1323,7 +1322,7 @@ class Artifact:
                 for alias in self.aliases
             ]
 
-        omit_fields = omit_artifact_fields(api=InternalApi())
+        omit_fields = omit_artifact_fields()
         omit_variables = set()
 
         if {"ttlIsInherited", "ttlDurationSeconds"} & omit_fields:
@@ -1347,7 +1346,9 @@ class Artifact:
             omit_variables |= {"tagsToAdd", "tagsToDelete"}
 
         mutation = gql_compat(
-            UPDATE_ARTIFACT_GQL, omit_variables=omit_variables, omit_fields=omit_fields
+            UPDATE_ARTIFACT_GQL,
+            omit_variables=omit_variables,
+            omit_fields=omit_fields,
         )
 
         gql_vars = {

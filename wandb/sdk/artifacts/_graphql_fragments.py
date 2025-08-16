@@ -18,10 +18,10 @@ OMITTABLE_ARTIFACT_FIELDS = frozenset(
 )
 
 
-def omit_artifact_fields(api: InternalApi) -> set[str]:
+def omit_artifact_fields(api: InternalApi | None = None) -> set[str]:
     """Return names of Artifact fields to remove from GraphQL requests (for server compatibility)."""
-    allowed_fields = set(api.server_artifact_introspection())
-    return set(OMITTABLE_ARTIFACT_FIELDS - allowed_fields)
+    allowed_fields = (api or InternalApi()).server_artifact_introspection()
+    return set(OMITTABLE_ARTIFACT_FIELDS) - set(allowed_fields)
 
 
 def _gql_artifact_fragment(include_aliases: bool = True) -> str:
