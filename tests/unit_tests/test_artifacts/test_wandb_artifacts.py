@@ -101,8 +101,7 @@ class TestStoreFile:
             entry=ArtifactManifestEntry(
                 path=entry_path,
                 digest=entry_digest,
-                local_path=str(entry_local_path) if entry_local_path else None,
-                size=entry_local_path.stat().st_size if entry_local_path else None,
+                local_path=entry_local_path,
             ),
             preparer=preparer if preparer else mock_preparer(),
         )
@@ -468,10 +467,9 @@ def test_cache_write_failure_is_ignored(monkeypatch, capsys):
     path.write_text("hello")
 
     entry = ArtifactManifestEntry(
-        path=str(path),
+        path=path,
         digest="NWQ0MTQwMmFiYzRiMmE3NmI5NzE5ZDkxMTAxN2M1OTI=",
-        local_path=str(path),
-        size=path.stat().st_size,
+        local_path=path,
     )
 
     policy._write_cache(entry)

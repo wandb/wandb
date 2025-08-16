@@ -1947,8 +1947,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        root = FilePathStr(root or self._default_root())
-        self._add_download_root(root)
+        root = self._add_download_root(root)
 
         # TODO: download artifacts using core when implemented
         # if is_require_core():
@@ -2306,8 +2305,10 @@ class Artifact:
         # use that, otherwise we'll fall back to the system-preferred path.
         return FilePathStr(check_exists(root) or system_preferred_path(root))
 
-    def _add_download_root(self, dir_path: str) -> None:
-        self._download_roots.add(os.path.abspath(dir_path))
+    def _add_download_root(self, dir_path: StrPath | None) -> FilePathStr:
+        root = str(dir_path or self._default_root())
+        self._download_roots.add(os.path.abspath(root))
+        return root
 
     def _local_path_to_name(self, file_path: str) -> str | None:
         """Convert a local file path to a path entry in the artifact."""
