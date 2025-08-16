@@ -21,6 +21,7 @@ __all__ = [
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
+    "FETCH_REGISTRIES_GQL",
     "LINK_ARTIFACT_GQL",
     "MOVE_ARTIFACT_COLLECTION_GQL",
     "PROJECT_ARTIFACTS_GQL",
@@ -1104,5 +1105,47 @@ fragment RegistryCollectionsPage on ArtifactCollectionConnection {
       }
     }
   }
+}
+"""
+
+FETCH_REGISTRIES_GQL = """
+query FetchRegistries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+      projects(filters: $filters, after: $cursor, first: $perPage) {
+        ...RegistriesPage
+      }
+    }
+  }
+}
+
+fragment RegistriesPage on ProjectConnection {
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
+  edges {
+    node {
+      ...RegistryFragment
+    }
+  }
+}
+
+fragment RegistryFragment on Project {
+  id
+  allowAllArtifactTypesInRegistry
+  artifactTypes(includeAll: true) {
+    edges {
+      node {
+        name
+      }
+    }
+  }
+  name
+  description
+  createdAt
+  updatedAt
+  access
 }
 """

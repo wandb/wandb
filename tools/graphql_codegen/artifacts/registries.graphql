@@ -114,3 +114,48 @@ fragment RegistryCollectionsPage on ArtifactCollectionConnection {
     }
   }
 }
+
+query FetchRegistries(
+  $organization: String!
+  $filters: JSONString
+  $cursor: String
+  $perPage: Int
+) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+      projects(filters: $filters, after: $cursor, first: $perPage) {
+        ...RegistriesPage
+      }
+    }
+  }
+}
+
+fragment RegistriesPage on ProjectConnection {
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
+  edges {
+    node {
+      ...RegistryFragment
+    }
+  }
+}
+
+fragment RegistryFragment on Project {
+  id
+  allowAllArtifactTypesInRegistry
+  artifactTypes(includeAll: true) {
+    edges {
+      node {
+        name
+      }
+    }
+  }
+  name
+  description
+  createdAt
+  updatedAt
+  access
+}
