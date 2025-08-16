@@ -156,6 +156,14 @@ def _path_convert(*args: str) -> str:
     return os.path.expanduser(os.path.join(*args))
 
 
+CLIENT_ONLY_SETTINGS = (
+    "reinit",
+    "max_end_of_run_history_metrics",
+    "max_end_of_run_summary_metrics",
+)
+"""Python-only keys that are not fields on the settings proto."""
+
+
 class Settings(BaseModel, validate_assignment=True):
     """Settings for the W&B SDK.
 
@@ -468,6 +476,12 @@ class Settings(BaseModel, validate_assignment=True):
 
     settings_system: Optional[str] = None
     """Path to the system-wide settings file."""
+
+    max_end_of_run_history_metrics: int = 10
+    """Maximum number of history sparklines to display at the end of a run."""
+
+    max_end_of_run_summary_metrics: int = 10
+    """Maximum number of summary metrics to display at the end of a run."""
 
     show_colors: Optional[bool] = None
     """Whether to use colored output in the console.
@@ -1857,8 +1871,7 @@ class Settings(BaseModel, validate_assignment=True):
         """Generate a protobuf representation of the settings."""
         settings_proto = wandb_settings_pb2.Settings()
         for k, v in self.model_dump(exclude_none=True).items():
-            # Client-only settings that don't exist on the protobuf.
-            if k in ("reinit",):
+            if k in CLIENT_ONLY_SETTINGS:
                 continue
 
             # Special case for x_stats_open_metrics_filters.
