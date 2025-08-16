@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Literal, Sequence
 from urllib.parse import urlparse
 
 import wandb
 from wandb import util
 from wandb.apis import PublicApi
-from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
+from wandb.sdk.artifacts.artifact_file_cache import (
+    ArtifactFileCache,
+    get_artifact_file_cache,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import StorageHandler
+from wandb.sdk.artifacts.storage_handler import SingleStorageHandler
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
@@ -21,9 +24,11 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-class WBArtifactHandler(StorageHandler):
+class WBArtifactHandler(SingleStorageHandler):
     """Handles loading and storing Artifact reference-type files."""
 
+    _scheme: Literal["wandb-artifact"]
+    _cache: ArtifactFileCache
     _client: PublicApi | None
 
     def __init__(self) -> None:

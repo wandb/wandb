@@ -1,11 +1,12 @@
 import filecmp
 import os
 import shutil
-import unittest.mock
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from types import SimpleNamespace
 from typing import Iterator, Mapping, Optional
 from urllib.parse import quote
 
@@ -13,6 +14,8 @@ import numpy as np
 import pytest
 import requests
 import responses
+from pytest_mock import MockerFixture
+
 import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
@@ -155,7 +158,7 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
 
 
 @pytest.fixture
-def mock_azure_handler():  # noqa: C901
+def mock_azure_handler(mocker: MockerFixture):
     class BlobServiceClient:
         def __init__(self, account_url, credential):
             pass
@@ -196,71 +199,76 @@ def mock_azure_handler():  # noqa: C901
                     return blob_properties
             raise Exception("Blob does not exist")
 
-    class BlobProperties:
-        def __init__(self, name, version_id, etag, size, metadata):
-            self.name = name
-            self.version_id = version_id
-            self.etag = etag
-            self.size = size
-            self.metadata = metadata
-
-        def has_key(self, k):
-            return k in self.__dict__
+    # Use the real `azure.storage.blob.BlobProperties` class
+    from azure.storage.blob import BlobProperties
+    # NOTE: BlobProperties converts the following variadic keyword args -> attribute names:
+    # - name -> name
+    # - x-ms-version-id -> version_id
+    # - ETag -> etag
+    # - Content-Length -> size
+    # - metadata -> metadata
 
     blobs = [
         BlobProperties(
-            "my-blob",
-            version_id=None,
-            etag="my-blob version None",
-            size=42,
-            metadata={},
+            **{
+                "name": "my-blob",
+                "x-ms-version-id": None,
+                "ETag": "my-blob version None",
+                "Content-Length": 42,
+                "metadata": {},
+            },
         ),
         BlobProperties(
-            "my-blob", version_id="v2", etag="my-blob version v2", size=42, metadata={}
+            **{
+                "name": "my-blob",
+                "x-ms-version-id": "v2",
+                "ETag": "my-blob version v2",
+                "Content-Length": 42,
+                "metadata": {},
+            },
         ),
         BlobProperties(
-            "my-dir/a",
-            version_id=None,
-            etag="my-dir/a version None",
-            size=42,
-            metadata={},
+            **{
+                "name": "my-dir/a",
+                "x-ms-version-id": None,
+                "ETag": "my-dir/a version None",
+                "Content-Length": 42,
+                "metadata": {},
+            },
         ),
         BlobProperties(
-            "my-dir/b",
-            version_id=None,
-            etag="my-dir/b version None",
-            size=42,
-            metadata={},
+            **{
+                "name": "my-dir/b",
+                "x-ms-version-id": None,
+                "ETag": "my-dir/b version None",
+                "Content-Length": 42,
+                "metadata": {},
+            },
         ),
         BlobProperties(
-            "my-dir",
-            version_id=None,
-            etag="my-dir version None",
-            size=0,
-            metadata={"hdi_isfolder": "true"},
+            **{
+                "name": "my-dir",
+                "x-ms-version-id": None,
+                "ETag": "my-dir version None",
+                "Content-Length": 0,
+                "metadata": {"hdi_isfolder": "true"},
+            },
         ),
     ]
 
-    class AzureStorageBlobModule:
-        def __init__(self):
-            self.BlobServiceClient = BlobServiceClient
+    mocked_azure_modules = {
+        "azure.storage.blob": SimpleNamespace(
+            BlobServiceClient=BlobServiceClient,
+        ),
+        "azure.identity": SimpleNamespace(
+            DefaultAzureCredential=lambda: None,
+        ),
+    }
 
-    class AzureIdentityModule:
-        def __init__(self):
-            self.DefaultAzureCredential = lambda: None
+    # For the duration of the test, mock the imported azure modules
+    mocker.patch.dict(sys.modules, mocked_azure_modules)
 
-    def _get_module(self, name):
-        if name == "azure.storage.blob":
-            return AzureStorageBlobModule()
-        if name == "azure.identity":
-            return AzureIdentityModule()
-        raise NotImplementedError
-
-    with unittest.mock.patch(
-        "wandb.sdk.artifacts.storage_handlers.azure_handler.AzureHandler._get_module",
-        new=_get_module,
-    ):
-        yield
+    yield
 
 
 def mock_http(artifact, path=False, headers=None):
