@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 from typing import Iterator
 from unittest.mock import patch
 
 import wandb
 from pytest import fixture, mark, raises, skip
 from wandb import Api, Artifact
+from wandb.apis.public.registries.registry import Registry
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -195,7 +198,7 @@ def test_input_invalid_organizations(default_organization, api: Api):
     registry_name = "test"
     with raises(
         ValueError,
-        match=f"Organization entity for {bad_org_name} not found.",
+        match=f"Organization entity for {bad_org_name!r} not found.",
     ):
         api.create_registry(
             name=registry_name,
@@ -205,7 +208,7 @@ def test_input_invalid_organizations(default_organization, api: Api):
 
     with raises(
         ValueError,
-        match=f"Organization entity for {bad_org_name} not found.",
+        match=f"Organization entity for {bad_org_name!r} not found.",
     ):
         api.registry(registry_name, f"{default_organization}_wrong_organization")
 
@@ -347,30 +350,36 @@ def test_fetch_registries(team: str, org: str, api: Api):
     assert len(registries) == num_registries
 
 
-@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_registries_collections(team: str, org: str, api: Api):
-    registry_name = "test-registry"
-    registry = api.create_registry(
-        organization=org,
-        name=registry_name,
-        visibility="organization",
+@fixture
+def source_artifacts(team: str):
+    """Test source artifacts with distinct names."""
+    count = 3
+
+    artifacts = [Artifact(f"test-artifact-{i}", type="test-type") for i in range(count)]
+    with wandb.init(entity=team) as run:
+        return [run.log_artifact(art) for art in artifacts]
+
+
+@fixture
+def target_registry(org: str, api: Api):
+    """A test registry to be populated with collections and linked artifacts."""
+    return api.create_registry(
+        organization=org, name="test-registry", visibility="organization"
     )
 
-    num_versions = 3
 
+@mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
+def test_registries_collections(
+    org: str, api: Api, source_artifacts: list[Artifact], target_registry: Registry
+):
     # Each version linked to a different registry collection
-    with wandb.init(entity=team) as run:
-        for i in range(num_versions):
-            artifact = Artifact(name=f"test-artifact-{i}", type="test-type")
-            run.log_artifact(artifact)
-
-            target_path = f"{org}/{registry.full_name}/reg-collection-{i}"
-            artifact.link(target_path)
+    for i, artifact in enumerate(source_artifacts):
+        artifact.link(f"{org}/{target_registry.full_name}/reg-collection-{i}")
 
     registries = api.registries(organization=org)
 
     collections = sorted(registries.collections(), key=lambda c: c.name)
-    assert len(collections) == num_versions
+    assert len(collections) == len(source_artifacts)
 
     # Check that we have the correct registry collections
     for i, collection in enumerate(collections):
@@ -379,29 +388,17 @@ def test_registries_collections(team: str, org: str, api: Api):
 
 
 @mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_registries_versions(team: str, org: str, api: Api):
-    registry_name = "test-registry"
-    registry = api.create_registry(
-        organization=org,
-        name=registry_name,
-        visibility="organization",
-    )
-
-    num_versions = 3
-
+def test_registries_versions(
+    org: str, api: Api, source_artifacts: list[Artifact], target_registry: Registry
+):
     # Each version linked to the same registry collection
-    with wandb.init(entity=team) as run:
-        for i in range(num_versions):
-            artifact = Artifact(name=f"test-artifact-{i}", type="test-type")
-            run.log_artifact(artifact)
-
-            target_path = f"{org}/{registry.full_name}/reg-collection"
-            artifact.link(target_path)
+    for artifact in source_artifacts:
+        artifact.link(f"{org}/{target_registry.full_name}/reg-collection")
 
     registries = api.registries(organization=org)
 
     versions = sorted(registries.versions(), key=lambda v: v.name)
-    assert len(versions) == num_versions
+    assert len(versions) == len(source_artifacts)
 
     # Check that the versions are linked to the correct registry collection
     for i, registry_version in enumerate(versions):
