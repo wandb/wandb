@@ -1054,3 +1054,30 @@ class InterfaceBase:
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
+
+    # def deliver_api_request(
+    #     self,
+    #     api_request: pb.APIRequest,
+    # ) -> MailboxHandle[pb.Result]:
+    #     return self._deliver_api_request(api_request)
+
+    # @abstractmethod
+    # def _deliver_api_request(
+    #     self,
+    #     api_request: pb.APIRequest,
+    # ) -> MailboxHandle[pb.Result]:
+    #     raise NotImplementedError
+
+    def deliver_api_run_request(
+        self,
+        entiry: str,
+        project: str,
+        run_id: str,
+    ) -> MailboxHandle[pb.Result]:
+        return self._deliver_api_run_request(entiry, project, run_id)
+
+    @abstractmethod
+    def _deliver_api_run_request(
+        self, entiry: str, project: str, run_id: str
+    ) -> MailboxHandle[pb.Result]:
+        raise NotImplementedError

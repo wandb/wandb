@@ -623,6 +623,9 @@ message Request {
     // Requests information about tasks the service is performing.
     OperationStatsRequest operations = 82;
 
+    // Public API requests from the client.
+    APIRequest api = 83;
+
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -659,8 +662,30 @@ message Response {
     SyncResponse sync_response = 70;
     RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
     OperationStatsResponse operations_response = 74;
+    APIResponse api_response = 75;
+
     TestInjectResponse test_inject_response = 1000;
   }
+}
+
+message APIRunRequest {
+  string entity = 1;
+  string project = 2;
+  string name = 3;
+}
+
+message APIRequest {
+  // TODO: what operation should core perform? spell them bitches all out here?
+  oneof request_type {
+    APIRunRequest run = 1;
+  }
+
+  _RequestInfo _info = 200;
+}
+
+message APIResponse {
+  // TODO: stuff such as runs etc. goes in here. or json dump?
+  string value_json = 1;
 }
 
 /*

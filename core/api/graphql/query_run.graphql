@@ -1,0 +1,45 @@
+# ---------------- Fragment ----------------
+fragment RunFragment on Run {
+  id
+  tags
+  name
+  displayName
+  sweepName
+  state
+  config
+  group
+  jobType
+  commit
+  readOnly
+  createdAt
+  heartbeatAt
+  description
+  notes
+  systemMetrics
+  summaryMetrics
+  historyLineCount
+  user {
+    name
+    username
+  }
+  historyKeys
+}
+
+# -------- Query that omits projectId -------
+query RunWithoutProjectId($project: String!, $entity: String!, $name: String!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      ...RunFragment
+    }
+  }
+}
+
+# -------- Query that *includes* projectId --
+query RunWithProjectId($project: String!, $entity: String!, $name: String!) {
+  project(name: $project, entityName: $entity) {
+    run(name: $name) {
+      projectId
+      ...RunFragment
+    }
+  }
+}

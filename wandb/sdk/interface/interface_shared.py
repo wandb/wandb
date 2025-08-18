@@ -480,3 +480,31 @@ class InterfaceShared(InterfaceBase):
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(run_status=run_status)
         return self._deliver_record(record)
+
+    def _make_api_request(
+        self,
+        run: Optional[pb.APIRunRequest] = None,
+        # TODO: gimme more
+    ) -> pb.Record:
+        api_request = pb.APIRequest()
+        if run:
+            api_request.run.CopyFrom(run)
+        else:
+            raise Exception("Invalid request")
+
+        request = pb.Request(api=api_request)
+        record = self._make_record(request=request)
+        # All requests do not get persisted.
+        record.control.local = True
+
+        return record
+
+    def _deliver_api_run_request(
+        self,
+        entiry: str,
+        project: str,
+        run_id: str,
+    ) -> MailboxHandle[pb.Result]:
+        run = pb.APIRunRequest(entity=entiry, project=project, name=run_id)
+        record = self._make_api_request(run=run)
+        return self._deliver_record(record)
