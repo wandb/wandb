@@ -50,10 +50,12 @@ class ArtifactManifest:
 
     def add_entry(self, entry: ArtifactManifestEntry, overwrite: bool = False) -> None:
         path = entry.path
-        if not overwrite:
-            prev_entry = self.entries.get(path)
-            if prev_entry and (entry.digest != prev_entry.digest):
-                raise ValueError(f"Cannot add the same path twice: {path!r}")
+        if (
+            (not overwrite)
+            and (old_entry := self.entries.get(path))
+            and (entry.digest != old_entry.digest)
+        ):
+            raise ValueError(f"Cannot add the same path twice: {path!r}")
         self.entries[path] = entry
 
     def remove_entry(self, entry: ArtifactManifestEntry) -> None:
@@ -67,9 +69,8 @@ class ArtifactManifest:
 
     def get_entries_in_directory(self, directory: str) -> list[ArtifactManifestEntry]:
         return [
-            self.entries[entry_key]
-            for entry_key in self.entries
-            if entry_key.startswith(
-                directory + "/"
-            )  # entries use forward slash even for windows
+            entry
+            for key, entry in self.entries.items()
+            # entry keys (paths) use forward slash even for windows
+            if key.startswith(f"{directory}/")
         ]
