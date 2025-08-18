@@ -84,6 +84,22 @@ def test_footer_history_downsamples(emulated_terminal):
     assert len(sparkline) == 40
 
 
+def test_footer_history_truncates(emulated_terminal):
+    with wandb.init(
+        mode="offline",
+        settings=wandb.Settings(max_end_of_run_history_metrics=2),
+    ) as run:
+        run.log({f"metric_{idx:04d}": idx for idx in range(2000)})
+
+    lines = emulated_terminal.read_stderr()
+    assert _run_history_lines(lines) == [
+        "wandb: Run history:",
+        "wandb: metric_0000 ▁",
+        "wandb: metric_0001 ▁",
+        "wandb:      +1,998 ...",
+    ]
+
+
 def test_footer_summary(emulated_terminal):
     with wandb.init(mode="offline") as run:
         run.log({"x": 1, "z": 3, "y": 2})
@@ -107,3 +123,19 @@ def test_footer_summary_empty(emulated_terminal):
 
     lines = emulated_terminal.read_stderr()
     assert _run_summary_lines(lines) == []
+
+
+def test_footer_summary_truncates(emulated_terminal):
+    with wandb.init(
+        mode="offline",
+        settings=wandb.Settings(max_end_of_run_summary_metrics=2),
+    ) as run:
+        run.log({f"metric_{idx:04d}": idx for idx in range(2000)})
+
+    lines = emulated_terminal.read_stderr()
+    assert _run_summary_lines(lines) == [
+        "wandb: Run summary:",
+        "wandb: metric_0000 0",
+        "wandb: metric_0001 1",
+        "wandb:      +1,998 ...",
+    ]
