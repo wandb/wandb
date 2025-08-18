@@ -17,7 +17,9 @@ dspy = wandb.util.get_module(
     ),
     lazy=True,  # Delay import until the first attribute access
 )
-assert dspy.__version__ >= "3.0.0", "DSPy 3.0.0 or higher is required. You have " + dspy.__version__
+assert dspy.__version__ >= "3.0.0", (
+    "DSPy 3.0.0 or higher is required. You have " + dspy.__version__
+)
 
 logger = logging.getLogger(__name__)
 
