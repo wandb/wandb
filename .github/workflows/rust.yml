@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
       - name: Setup Rust toolchain
