@@ -2879,4 +2879,186 @@ def verify(host):
         sys.exit(1)
 
 
+@cli.command(context_settings=CONTEXT, help="Generate a meaningful run name using LLM")
+@click.argument("url", required=True)
+@click.option(
+    "--previous-runs",
+    "-p",
+    default=3,
+    type=int,
+    help="Number of previous runs to analyze for context (default: 3)",
+)
+@click.option(
+    "--max-name-length",
+    "-l",
+    default=50,
+    type=int,
+    help="Maximum length of generated name (default: 50)",
+)
+@click.option(
+    "--config-limit",
+    "-c",
+    default=50,
+    type=int,
+    help="Maximum number of config parameters to include (default: 50)",
+)
+@click.option(
+    "--prompt-file",
+    "-f",
+    help="Path to custom prompt template file for names",
+)
+@click.option(
+    "--description-prompt-file",
+    "-d",
+    help="Path to custom prompt template file for descriptions",
+)
+@click.option(
+    "--generate-description",
+    is_flag=True,
+    default=False,
+    help="Also generate a description for the run",
+)
+@click.option(
+    "--description-only",
+    is_flag=True,
+    default=False,
+    help="Only generate description, not name",
+)
+@click.option(
+    "--no-previous-configs",
+    is_flag=True,
+    default=False,
+    help="Don't include previous run configs (only names)",
+)
+@click.option(
+    "--update-run",
+    "-u",
+    is_flag=True,
+    default=False,
+    help="Update the run with the generated name and/or description",
+)
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    default=False,
+    help="Show detailed analysis information",
+)
+@click.option(
+    "--openai-model",
+    default="gpt-4o-mini",
+    help="OpenAI model to use (default: gpt-4o-mini)",
+)
+@display_error
+def generate_run_name(url, previous_runs, max_name_length, config_limit, prompt_file, description_prompt_file, generate_description, description_only, no_previous_configs, update_run, verbose, openai_model):
+    """Generate a meaningful run name and/or description from W&B run config using AI.
+    
+    This command uses AI to analyze the full configuration and generate
+    descriptive names and descriptions. You can customize the analysis by:
+    
+    - Using custom prompt templates (--prompt-file, --description-prompt-file)
+    - Controlling how much config to include (--config-limit)  
+    - Including/excluding previous run configs (--no-previous-configs)
+    - Generating descriptions in addition to names (--generate-description)
+    - Generating only descriptions (--description-only)
+    
+    Examples:
+        # Basic usage - generate name only
+        wandb generate-run-name https://wandb.ai/entity/project/runs/abc123
+        
+        # Generate both name and description
+        wandb generate-run-name URL --generate-description
+        
+        # Generate only description
+        wandb generate-run-name URL --description-only
+        
+        # With custom prompt templates
+        wandb generate-run-name URL --prompt-file my_prompt.txt --description-prompt-file my_desc_prompt.txt
+        
+        # Update the run directly
+        wandb generate-run-name URL --generate-description --update-run
+    """
+    from wandb.sdk.launch.wandb_reference import WandbReference
+    
+    # Parse the URL to extract run information
+    try:
+        ref = WandbReference.parse(url)
+        if not ref or not ref.is_run() or not ref.entity or not ref.project or not ref.run_id:
+            raise ClickException(f"Invalid W&B run URL: {url}")
+    except Exception as e:
+        raise ClickException(f"Failed to parse URL: {e}")
+    
+    # Get API client
+    api = _get_cling_api()
+    if not api.is_authenticated:
+        wandb.termlog("Please log in to W&B first")
+        ctx = click.get_current_context()
+        ctx.invoke(login)
+        api = _get_cling_api(reset=True)
+    
+    # Determine what to generate
+    generate_name = not description_only
+    generate_desc = generate_description or description_only
+    
+    # Generate the content
+    try:
+        from wandb.cli.run_name_generator import RunNameGenerator
+        
+        generator = RunNameGenerator(
+            api=api,
+            entity=ref.entity,
+            project=ref.project,
+            max_name_length=max_name_length,
+            verbose=verbose,
+            openai_model=openai_model,
+            prompt_file=prompt_file,
+            description_prompt_file=description_prompt_file,
+            config_limit=config_limit,
+            include_previous_configs=not no_previous_configs
+        )
+        
+        name, description = generator.generate_name_and_description(
+            run_id=ref.run_id,
+            previous_runs_count=previous_runs,
+            generate_name=generate_name,
+            generate_description=generate_desc
+        )
+        
+        # Display results
+        if generate_name and name:
+            click.echo(f"Generated name: {click.style(name, fg='green', bold=True)}")
+        
+        if generate_desc and description:
+            click.echo(f"Generated description:")
+            for line in description.split('\n'):
+                click.echo(f"  {click.style(line, fg='blue')}")
+        
+        # Update run if requested
+        if update_run:
+            if generate_name and generate_desc:
+                success = generator.update_run_name_and_description(ref.run_id, name, description)
+                if success:
+                    click.echo("✓ Updated run name and description successfully")
+                else:
+                    click.echo("✗ Failed to update run")
+            elif generate_name:
+                success = generator.update_run_name(ref.run_id, name)
+                if success:
+                    click.echo("✓ Updated run name successfully")
+                else:
+                    click.echo("✗ Failed to update run name")
+            elif generate_desc:
+                success = generator.update_run_description(ref.run_id, description)
+                if success:
+                    click.echo("✓ Updated run description successfully")
+                else:
+                    click.echo("✗ Failed to update run description")
+        
+    except Exception as e:
+        if verbose:
+            import traceback
+            traceback.print_exc()
+        raise ClickException(f"Failed to generate content: {e}")
+
+
 cli.add_command(beta)
