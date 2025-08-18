@@ -17,6 +17,7 @@ dspy = wandb.util.get_module(
     ),
     lazy=True,  # Delay import until the first attribute access
 )
+assert dspy.__version__ >= "3.0.0", "DSPy 3.0.0 or higher is required. You have " + dspy.__version__
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +137,9 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         outputs: Any | None,
         exception: Exception | None = None,
     ) -> None:
-        assert isinstance(outputs, dspy.evaluate.evaluate.EvaluationResult)
-        wandb.log({"score": float(outputs.score)}, step=self._row_idx)
+        if exception is None and outputs is not None:
+            assert isinstance(outputs, dspy.evaluate.evaluate.EvaluationResult)
+            wandb.log({"score": float(outputs.score)}, step=self._row_idx)
 
         # TODO (ayulockin): log the preds as a separate table for each eval end.
 
