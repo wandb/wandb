@@ -25,11 +25,13 @@ logger = logging.getLogger(__name__)
 
 
 class WandbDSPyCallback(dspy.utils.BaseCallback):
-    def __init__(self) -> None:
+    def __init__(self, log_results: bool = True) -> None:
         if wandb.run is None:
             raise wandb.Error(
                 "You must call `wandb.init()` before instantiating WandbDSPyCallback()."
             )
+        
+        self.log_results = log_results
 
         # TODO (ayulockin): add telemetry proto
         # Record feature usage for internal telemetry (optional but recommended).
@@ -143,17 +145,93 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
             assert isinstance(outputs, dspy.evaluate.evaluate.EvaluationResult)
             wandb.log({"score": float(outputs.score)}, step=self._row_idx)
 
-        # TODO (ayulockin): log the preds as a separate table for each eval end.
+        # Log the predictions as a separate table for each eval end.
+        if self.log_results and exception is None and outputs is not None:
+            rows = self._parse_results(outputs.results)
+            if rows:
+                self._log_predictions_table(rows)
 
         if self._program_table is None:
-            columns = ["step", *self._temp_info_dict.keys(), "score"]
+            columns = ["step", *(self._temp_info_dict or {}).keys(), "score"]
             self._program_table = wandb.Table(columns=columns, log_mode="INCREMENTAL")
 
         if self._program_table is not None:
             self._program_table.add_data(
-                self._row_idx, *self._temp_info_dict.values(), float(outputs.score)
+                self._row_idx, *(self._temp_info_dict or {}).values(), float(outputs.score)
             )
             wandb.run.log(
                 {"program_signature": self._program_table}, step=self._row_idx
             )
             self._row_idx += 1
+
+    def _parse_results(self, results: list[tuple[dspy.Example, dspy.Prediction | dspy.Completions, bool]]) -> list[dict[str, Any]]:
+        """
+        Convert DSPy evaluation results into row data suitable for W&B Tables.
+
+        Args:
+            results (list[tuple[dspy.Example, dspy.Prediction | dspy.Completions, bool]]):
+                List of (example, prediction, is_correct) tuples from DSPy Evaluate.
+
+        Returns:
+            list[dict[str, Any]]: Rows where each row is a dict of column -> value.
+
+        Examples:
+            >>> # Assuming you have a list of DSPy results named `results`
+            >>> # cb = WandbDSPyCallback(); rows = cb._parse_results(results)  # doctest: +SKIP
+        """
+        _rows: list[dict[str, Any]] = []
+        for example, prediction, is_correct in results:
+            example_dict = example.toDict()
+            if isinstance(prediction, dspy.Prediction):
+                prediction_dict = prediction.toDict()
+            elif isinstance(prediction, dspy.Completions):
+                # Ensure serializable structure
+                try:
+                    prediction_dict = prediction.toDict()  # type: ignore[attr-defined]
+                except Exception:
+                    prediction_dict = list(getattr(prediction, "items", lambda: [])())
+            else:
+                wandb.termwarn(f"Unsupported prediction type: {type(prediction)}")
+                continue
+
+            row: dict[str, Any] = {
+                "example": example_dict,
+                "prediction": prediction_dict,
+                "is_correct": is_correct,
+            }
+            _rows.append(row)
+
+        return _rows
+
+    def _log_predictions_table(self, rows: list[dict[str, Any]]) -> None:
+        """
+        Log predictions as a W&B Table for the current evaluation step.
+
+        Args:
+            rows (list[dict[str, Any]]): List of dict rows where keys are column names.
+
+        Returns:
+            None
+
+        Examples:
+            >>> cb = WandbDSPyCallback(log_results=False)  # doctest: +SKIP
+            >>> cb._row_idx = 0  # doctest: +SKIP
+            >>> cb._log_predictions_table([{"example": {"q": "..."}, "prediction": {"a": "..."}, "is_correct": True}])  # doctest: +SKIP
+        """
+        if not rows:
+            return
+
+        # Derive columns from row dict keys, preserving insertion order and handling missing keys.
+        seen: set[str] = set()
+        columns: list[str] = []
+        for row in rows:
+            for key in row.keys():
+                if key not in seen:
+                    seen.add(key)
+                    columns.append(key)
+
+        # Convert dict rows to list rows matching the derived columns
+        data: list[list[Any]] = [[row.get(col) for col in columns] for row in rows]
+
+        preds_table = wandb.Table(columns=columns, data=data, log_mode="IMMUTABLE")
+        wandb.run.log({f"predictions_{self._row_idx}": preds_table}, step=self._row_idx)
