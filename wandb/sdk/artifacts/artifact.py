@@ -2006,8 +2006,11 @@ class Artifact:
         # - Make sure go core is started
         # - Inform init requires a run id
         # - Send the proto, the implementation is in interface_shared.py
-        if wandb.run is not None:
-            raise ValueError("This should not happen, run should be None")
+
+        # FIXME: disable this check because in wbench we are always inside a run due to using sweep
+        # We still want to setup our own stream for the download.
+        # if wandb.run is not None:
+        #     raise ValueError("This should not happen, run should be None")
         stream_id = generate_id()
         # TODO: Why download_using_core does not set the id here?
         settings = wandb.Settings(run_id=stream_id)
