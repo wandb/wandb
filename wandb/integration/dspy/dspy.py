@@ -30,7 +30,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
             raise wandb.Error(
                 "You must call `wandb.init()` before instantiating WandbDSPyCallback()."
             )
-        
+
         self.log_results = log_results
 
         # TODO (ayulockin): add telemetry proto
@@ -157,16 +157,20 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
 
         if self._program_table is not None:
             self._program_table.add_data(
-                self._row_idx, *(self._temp_info_dict or {}).values(), float(outputs.score)
+                self._row_idx,
+                *(self._temp_info_dict or {}).values(),
+                float(outputs.score),
             )
             wandb.run.log(
                 {"program_signature": self._program_table}, step=self._row_idx
             )
             self._row_idx += 1
 
-    def _parse_results(self, results: list[tuple[dspy.Example, dspy.Prediction | dspy.Completions, bool]]) -> list[dict[str, Any]]:
-        """
-        Convert DSPy evaluation results into row data suitable for W&B Tables.
+    def _parse_results(
+        self,
+        results: list[tuple[dspy.Example, dspy.Prediction | dspy.Completions, bool]],
+    ) -> list[dict[str, Any]]:
+        """Convert DSPy evaluation results into row data suitable for W&B Tables.
 
         Args:
             results (list[tuple[dspy.Example, dspy.Prediction | dspy.Completions, bool]]):
@@ -204,8 +208,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         return _rows
 
     def _log_predictions_table(self, rows: list[dict[str, Any]]) -> None:
-        """
-        Log predictions as a W&B Table for the current evaluation step.
+        """Log predictions as a W&B Table for the current evaluation step.
 
         Args:
             rows (list[dict[str, Any]]): List of dict rows where keys are column names.
@@ -216,7 +219,15 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         Examples:
             >>> cb = WandbDSPyCallback(log_results=False)  # doctest: +SKIP
             >>> cb._row_idx = 0  # doctest: +SKIP
-            >>> cb._log_predictions_table([{"example": {"q": "..."}, "prediction": {"a": "..."}, "is_correct": True}])  # doctest: +SKIP
+            >>> cb._log_predictions_table(
+            ...     [
+            ...         {
+            ...             "example": {"q": "..."},
+            ...             "prediction": {"a": "..."},
+            ...             "is_correct": True,
+            ...         }
+            ...     ]
+            ... )  # doctest: +SKIP
         """
         if not rows:
             return
