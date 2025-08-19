@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections import deque
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import ParseResult, parse_qsl, urlparse
 
 from typing_extensions import Never
@@ -16,10 +16,7 @@ from wandb.sdk.artifacts.artifact_file_cache import (
     get_artifact_file_cache,
 )
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import (
-    DEFAULT_MAX_OBJECTS,
-    SingleStorageHandler,
-)
+from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
@@ -42,14 +39,16 @@ def _handle_azure_import_error(exc: ImportError) -> Never:
     )
 
 
-class AzureHandler(SingleStorageHandler):
+class AzureHandler(StorageHandler):
+    _scheme: Literal["https"]
     _cache: ArtifactFileCache
 
     def __init__(self, scheme: str | None = None) -> None:
+        self._scheme = "https"
         self._cache = get_artifact_file_cache()
 
     def can_handle(self, parsed_url: ParseResult) -> bool:
-        return parsed_url.scheme == "https" and parsed_url.netloc.endswith(
+        return parsed_url.scheme == self._scheme and parsed_url.netloc.endswith(
             ".blob.core.windows.net"
         )
 
@@ -77,18 +76,19 @@ class AzureHandler(SingleStorageHandler):
         if hit:
             return path
 
-        account_url, container_name, blob_name, _ = self._parse_uri(manifest_entry.ref)
+        account_url, container_name, blob_name, _ = _parse_uri(manifest_entry.ref)
         blob_service_client = BlobServiceClient(
-            account_url, credential=self._get_credential(account_url)
+            account_url, credential=_get_credential(account_url)
         )
         blob_client = blob_service_client.get_blob_client(
             container=container_name, blob=blob_name
         )
+        blob_etag = manifest_entry.digest
         if (version_id := manifest_entry.extra.get("versionID")) is None:
             # Try current version, then all versions.
             try:
                 downloader = blob_client.download_blob(
-                    etag=manifest_entry.digest,
+                    etag=blob_etag,
                     match_condition=MatchConditions.IfNotModified,
                 )
             except ResourceModifiedError:
@@ -100,7 +100,7 @@ class AzureHandler(SingleStorageHandler):
                 ):
                     if (
                         blob_properties.name == blob_name
-                        and blob_properties.etag == manifest_entry.digest
+                        and blob_properties.etag == blob_etag
                         and blob_properties.version_id is not None
                     ):
                         downloader = blob_client.download_blob(
@@ -109,8 +109,7 @@ class AzureHandler(SingleStorageHandler):
                         break
                 else:  # didn't break
                     raise ValueError(
-                        f"Couldn't find blob version for {manifest_entry.ref} matching "
-                        f"etag {manifest_entry.digest}."
+                        f"Couldn't find blob version for {manifest_entry.ref} matching etag {blob_etag}."
                     )
         else:
             downloader = blob_client.download_blob(version_id=version_id)
@@ -125,13 +124,13 @@ class AzureHandler(SingleStorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         try:
             from azure.storage.blob import BlobServiceClient
         except ImportError as e:
             _handle_azure_import_error(e)
 
-        account_url, container_name, blob_name, query = self._parse_uri(path)
+        account_url, container_name, blob_name, query = _parse_uri(path)
         path = URIStr(f"{account_url}/{container_name}/{blob_name}")
 
         if not checksum:
@@ -140,95 +139,93 @@ class AzureHandler(SingleStorageHandler):
             ]
 
         blob_service_client = BlobServiceClient(
-            account_url, credential=self._get_credential(account_url)
+            account_url, credential=_get_credential(account_url)
         )
         blob_client = blob_service_client.get_blob_client(
             container=container_name, blob=blob_name
         )
-        if blob_client.exists(version_id=query.get("versionId")):
-            blob_properties = blob_client.get_blob_properties(
-                version_id=query.get("versionId")
+        if (
+            (version_id := query.get("versionId"))
+            and blob_client.exists(version_id=version_id)
+            and not _is_directory_stub(
+                blob_props := blob_client.get_blob_properties(version_id=version_id)
             )
-
-            if not self._is_directory_stub(blob_properties):
-                return [
-                    self._create_entry(
-                        blob_properties,
-                        path=name or PurePosixPath(blob_name).name,
-                        ref=URIStr(
-                            f"{account_url}/{container_name}/{blob_properties.name}"
-                        ),
-                    )
-                ]
+        ):
+            return [
+                _create_entry(
+                    blob_props,
+                    path=name or PurePosixPath(blob_name).name,
+                    ref=f"{account_url}/{container_name}/{blob_props.name}",
+                )
+            ]
 
         entries: deque[ArtifactManifestEntry] = deque()
         container_client = blob_service_client.get_container_client(container_name)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
-        for blob_properties in container_client.list_blobs(
-            name_starts_with=f"{blob_name}/"
-        ):
+        for blob_props in container_client.list_blobs(name_starts_with=f"{blob_name}/"):
             if len(entries) >= max_objects:
                 wandb.termwarn(
                     f"Found more than {max_objects} objects under path, limiting upload "
                     f"to {max_objects} objects. Increase max_objects to upload more"
                 )
                 break
-            if not self._is_directory_stub(blob_properties):
-                suffix = PurePosixPath(blob_properties.name).relative_to(blob_name)
+            if not _is_directory_stub(blob_props):
+                suffix = PurePosixPath(blob_props.name).relative_to(blob_name)
                 entries.append(
-                    self._create_entry(
-                        blob_properties,
+                    _create_entry(
+                        blob_props,
                         path=LogicalPath(name) / suffix if name else suffix,
-                        ref=URIStr(
-                            f"{account_url}/{container_name}/{blob_properties.name}"
-                        ),
+                        ref=f"{account_url}/{container_name}/{blob_props.name}",
                     )
                 )
 
         return list(entries)
 
-    def _get_credential(self, account_url: str) -> DefaultAzureCredential | str:
-        try:
-            from azure.identity import DefaultAzureCredential
-        except ImportError as e:
-            _handle_azure_import_error(e)
 
-        # NOTE: Always returns default credential for reinit="create_new" runs.
-        if (
-            (run := wandb.run)
-            and (url2key := run.settings.azure_account_url_to_access_key)
-            and (access_key := url2key.get(account_url))
-        ):
-            return access_key
-        return DefaultAzureCredential()
+def _get_credential(account_url: str) -> DefaultAzureCredential | str:
+    try:
+        from azure.identity import DefaultAzureCredential
+    except ImportError as e:
+        _handle_azure_import_error(e)
 
-    def _parse_uri(self, uri: str) -> tuple[str, str, str, dict[str, str]]:
-        parsed_url = urlparse(uri)
-        query = dict(parse_qsl(parsed_url.query))
-        account_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-        _, container_name, blob_name = parsed_url.path.split("/", 2)
-        return account_url, container_name, blob_name, query
+    # NOTE: Always returns default credential for reinit="create_new" runs.
+    if (
+        (run := wandb.run)
+        and (url2key := run.settings.azure_account_url_to_access_key)
+        and (access_key := url2key.get(account_url))
+    ):
+        return access_key
+    return DefaultAzureCredential()
 
-    def _create_entry(
-        self,
-        blob_properties: BlobProperties,
-        path: StrPath,
-        ref: URIStr,
-    ) -> ArtifactManifestEntry:
-        etag = blob_properties.etag.strip('"')
-        extra = {"etag": etag}
-        if version_id := blob_properties.version_id:
-            extra["versionID"] = version_id
-        return ArtifactManifestEntry(
-            path=path,
-            ref=ref,
-            digest=etag,
-            size=blob_properties.size,
-            extra=extra,
-        )
 
-    def _is_directory_stub(self, blob_properties: BlobProperties) -> bool:
-        return bool(
-            (metadata := blob_properties.metadata)
-            and metadata.get("hdi_isfolder") == "true"
-        )
+def _parse_uri(uri: str) -> tuple[str, str, str, dict[str, str]]:
+    parsed_url = urlparse(uri)
+    query = dict(parse_qsl(parsed_url.query))
+    account_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    _, container_name, blob_name = parsed_url.path.split("/", 2)
+    return account_url, container_name, blob_name, query
+
+
+def _create_entry(
+    blob_properties: BlobProperties,
+    path: StrPath,
+    ref: URIStr,
+) -> ArtifactManifestEntry:
+    etag = blob_properties.etag.strip('"')
+    extra = {"etag": etag}
+    if version_id := blob_properties.version_id:
+        extra["versionID"] = version_id
+    return ArtifactManifestEntry(
+        path=path,
+        ref=ref,
+        digest=etag,
+        size=blob_properties.size,
+        extra=extra,
+    )
+
+
+def _is_directory_stub(blob_properties: BlobProperties) -> bool:
+    return bool(
+        (metadata := blob_properties.metadata)
+        and metadata.get("hdi_isfolder") == "true"
+    )

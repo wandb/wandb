@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import ParseResult
 
 from wandb.sdk.artifacts.artifact_file_cache import (
@@ -11,7 +11,7 @@ from wandb.sdk.artifacts.artifact_file_cache import (
     get_artifact_file_cache,
 )
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import SingleStorageHandler
+from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-class HTTPHandler(SingleStorageHandler):
+class HTTPHandler(StorageHandler):
     _session: requests.Session
     _scheme: str
     _cache: ArtifactFileCache
@@ -82,7 +82,7 @@ class HTTPHandler(SingleStorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         name = name or os.path.basename(path)
         if not checksum:
             return [ArtifactManifestEntry(path=name, ref=path, digest=path)]

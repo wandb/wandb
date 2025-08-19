@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Final, Sequence
+from typing import TYPE_CHECKING, Final
 
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 DEFAULT_MAX_OBJECTS: Final[int] = 10_000_000  # 10**7
 
 
-class StorageHandler(ABC):
+class _BaseStorageHandler(ABC):
     @abstractmethod
     def load_path(
         self,
@@ -42,7 +42,7 @@ class StorageHandler(ABC):
         name: str | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         """Store the file or directory at the given path to the specified artifact.
 
         Args:
@@ -57,7 +57,7 @@ class StorageHandler(ABC):
         raise NotImplementedError
 
 
-class SingleStorageHandler(StorageHandler, ABC):
+class StorageHandler(_BaseStorageHandler, ABC):  # Handles a single type of storage
     @abstractmethod
     def can_handle(self, parsed_url: ParseResult) -> bool:
         """Checks whether this handler can handle the given url.

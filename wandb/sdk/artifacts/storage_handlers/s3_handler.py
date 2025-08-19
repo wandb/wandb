@@ -5,10 +5,13 @@ from __future__ import annotations
 import os
 import re
 import time
-from dataclasses import astuple, dataclass
+from dataclasses import astuple
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qsl, urlparse
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+from typing_extensions import Self
 
 from wandb import util
 from wandb._strutils import ensureprefix
@@ -19,10 +22,7 @@ from wandb.sdk.artifacts.artifact_file_cache import (
     get_artifact_file_cache,
 )
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import (
-    DEFAULT_MAX_OBJECTS,
-    SingleStorageHandler,
-)
+from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
@@ -41,14 +41,24 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-@dataclass(frozen=True)
-class _ParsedS3URI:
+@pydantic_dataclass(frozen=True)
+class _ParsedObjVersion:
     bucket: str
     key: str
     version: str | None
 
+    @classmethod
+    def from_uri(cls, uri: str) -> Self:
+        url = urlparse(uri)
+        params = dict(parse_qsl(url.query))
+        return cls(
+            bucket=url.netloc,
+            key=url.path.lstrip("/"),  # strip leading slash
+            version=params.get("versionId"),
+        )
 
-class S3Handler(SingleStorageHandler):
+
+class S3Handler(StorageHandler):
     _scheme: str
     _s3: boto3.resources.base.ServiceResource | None
     _cache: ArtifactFileCache
@@ -87,17 +97,6 @@ class S3Handler(SingleStorageHandler):
         self._botocore = util.get_module("botocore")
         return self._s3
 
-    # def _parse_uri(self, uri: str) -> tuple[str, str, str | None]:
-    def _parse_uri(self, uri: str) -> _ParsedS3URI:
-        url = urlparse(uri)
-        query_params = dict(parse_qsl(url.query))
-
-        bucket = url.netloc
-        key = url.path.lstrip("/")  # strip leading slash
-        version = query_params.get("versionId")
-
-        return _ParsedS3URI(bucket=bucket, key=key, version=version)
-
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
@@ -119,7 +118,7 @@ class S3Handler(SingleStorageHandler):
 
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
-        bucket, key, _ = astuple(self._parse_uri(manifest_entry.ref))
+        bucket, key, _ = astuple(_ParsedObjVersion.from_uri(manifest_entry.ref))
 
         extra_args = {}
         if (version := manifest_entry.extra.get("versionID")) is not None:
@@ -130,11 +129,8 @@ class S3Handler(SingleStorageHandler):
             obj = self._s3.Object(bucket, key)
 
         try:
-            etag = (
-                obj_version.head()["ETag"][1:-1]  # escape leading and trailing
-                if version
-                else self._etag_from_obj(obj)
-            )
+            # escape leading and trailing quote
+            etag = (obj_version.head()["ETag"] if version else obj.e_tag).strip('"')
         except self._botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "404":
                 raise FileNotFoundError(
@@ -148,20 +144,18 @@ class S3Handler(SingleStorageHandler):
                 raise ValueError(
                     f"Digest mismatch for object {manifest_entry.ref} with version {version}: expected {manifest_entry.digest} but found {etag}"
                 )
+
             obj = None
             object_versions = self._s3.Bucket(bucket).object_versions.filter(Prefix=key)
+            manifest_entry_etag = manifest_entry.extra.get("etag")
             for object_version in object_versions:
-                if manifest_entry.extra.get("etag") == self._etag_from_obj(
-                    object_version
-                ):
+                if manifest_entry_etag == object_version.e_tag.strip('"'):
                     obj = object_version.Object()
                     extra_args["VersionId"] = object_version.version_id
                     break
             if obj is None:
                 raise FileNotFoundError(
-                    "Couldn't find object version for {}/{} matching etag {}".format(
-                        bucket, key, manifest_entry.extra.get("etag")
-                    )
+                    f"Couldn't find object version for {bucket}/{key} matching etag {manifest_entry_etag}"
                 )
 
         with cache_open(mode="wb") as f:
@@ -175,7 +169,7 @@ class S3Handler(SingleStorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
 
@@ -183,20 +177,22 @@ class S3Handler(SingleStorageHandler):
         # We only need to care about a subset, like version, when
         # parsing. Once we have that, we can store the rest of the
         # metadata in the artifact entry itself.
-        bucket, key, version = astuple(self._parse_uri(path))
+        parsed = _ParsedObjVersion.from_uri(path)
+        bucket, key, version = astuple(parsed)
+
         path = URIStr(f"{self._scheme}://{bucket}/{key}")
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
-            entry_path = name or (key if key != "" else bucket)
+            entry_path = name or key or bucket
             return [ArtifactManifestEntry(path=entry_path, ref=path, digest=path)]
 
         # If an explicit version is specified, use that. Otherwise, use the head version.
-        objs = (
-            [self._s3.ObjectVersion(bucket, key, version).Object()]
+        objs = [
+            self._s3.ObjectVersion(bucket, key, version).Object()
             if version
-            else [self._s3.Object(bucket, key)]
-        )
+            else self._s3.Object(bucket, key)
+        ]
         start_time = None
         multi = False
         if key != "":
@@ -251,12 +247,8 @@ class S3Handler(SingleStorageHandler):
 
     def _size_from_obj(self, obj: boto3.s3.Object | boto3.s3.ObjectSummary) -> int:
         # ObjectSummary has size, Object has content_length
-        size: int
-        if hasattr(obj, "size"):
-            size = obj.size
-        else:
-            size = obj.content_length
-        return size
+        size = getattr(obj, "size", None)
+        return obj.content_length if (size is None) else size
 
     def _entry_from_obj(
         self,
@@ -275,7 +267,7 @@ class S3Handler(SingleStorageHandler):
             prefix: The prefix to add (will be the same as `path` for directories)
             multi: Whether or not this is a multi-object add.
         """
-        bucket, key, _ = astuple(self._parse_uri(path))
+        bucket, key, _ = astuple(_ParsedObjVersion.from_uri(path))
 
         # Always use posix paths, since that's what S3 uses.
         posix_key = PurePosixPath(obj.key)  # the bucket key
@@ -299,17 +291,11 @@ class S3Handler(SingleStorageHandler):
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
             path=posix_name,
-            ref=URIStr(f"{self._scheme}://{str(posix_ref)}"),
-            digest=ETag(self._etag_from_obj(obj)),
+            ref=f"{self._scheme}://{posix_ref}",
+            digest=obj.e_tag.strip('"'),
             size=self._size_from_obj(obj),
             extra=self._extra_from_obj(obj),
         )
-
-    @staticmethod
-    def _etag_from_obj(obj: boto3.s3.Object | boto3.s3.ObjectSummary) -> ETag:
-        etag: ETag
-        etag = obj.e_tag.strip('"')  # escape leading and trailing quote
-        return etag
 
     def _extra_from_obj(
         self, obj: boto3.s3.Object | boto3.s3.ObjectSummary
@@ -319,7 +305,7 @@ class S3Handler(SingleStorageHandler):
             # Convert ObjectSummary to Object to get the version_id.
             obj = self._s3.Object(obj.bucket_name, obj.key)  # type: ignore[union-attr]
         if (version_id := getattr(obj, "version_id", None)) and (version_id != "null"):
-            extra["versionID"] = obj.version_id
+            extra["versionID"] = version_id
         return extra
 
     _CW_LEGACY_NETLOC_REGEX: re.Pattern[str] = re.compile(

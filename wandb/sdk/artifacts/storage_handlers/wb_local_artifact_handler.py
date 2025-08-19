@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Literal, Sequence
+from typing import TYPE_CHECKING, Literal
 
 import wandb
 from wandb import util
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import SingleStorageHandler
+from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-class WBLocalArtifactHandler(SingleStorageHandler):
+class WBLocalArtifactHandler(StorageHandler):
     """Handles loading and storing Artifact reference-type files."""
 
     _scheme: Literal["wandb-client-artifact"]
@@ -45,7 +45,7 @@ class WBLocalArtifactHandler(SingleStorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         """Store the file or directory at the given path within the specified artifact.
 
         Args:

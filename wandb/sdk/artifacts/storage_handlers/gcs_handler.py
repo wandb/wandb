@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import ParseResult, urlparse
 
 from wandb import util
@@ -14,10 +14,7 @@ from wandb.sdk.artifacts.artifact_file_cache import (
     get_artifact_file_cache,
 )
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import (
-    DEFAULT_MAX_OBJECTS,
-    SingleStorageHandler,
-)
+from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
@@ -31,7 +28,7 @@ class _GCSIsADirectoryError(Exception):
     """Raised when we try to download a GCS folder."""
 
 
-class GCSHandler(SingleStorageHandler):
+class GCSHandler(StorageHandler):
     _scheme: str
     _client: gcs_module.client.Client | None
     _cache: ArtifactFileCache
@@ -82,7 +79,6 @@ class GCSHandler(SingleStorageHandler):
         assert self._client is not None  # mypy: unwraps optionality
         assert manifest_entry.ref is not None
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
-        version = manifest_entry.extra.get("versionID")
 
         if self._is_dir(manifest_entry):
             raise _GCSIsADirectoryError(
@@ -91,7 +87,7 @@ class GCSHandler(SingleStorageHandler):
 
         obj = None
         # First attempt to get the generation specified, this will return None if versioning is not enabled
-        if version is not None:
+        if (version := manifest_entry.extra.get("versionID")) is not None:
             obj = self._client.bucket(bucket).get_blob(key, generation=version)
 
         if obj is None:
@@ -119,7 +115,7 @@ class GCSHandler(SingleStorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
 
