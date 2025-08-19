@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import logging
+import os
+import shutil
+import tempfile
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -170,19 +173,6 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         self,
         results: list[tuple[dspy.Example, dspy.Prediction | dspy.Completions, bool]],
     ) -> list[dict[str, Any]]:
-        """Convert DSPy evaluation results into row data suitable for W&B Tables.
-
-        Args:
-            results (list[tuple[dspy.Example, dspy.Prediction | dspy.Completions, bool]]):
-                List of (example, prediction, is_correct) tuples from DSPy Evaluate.
-
-        Returns:
-            list[dict[str, Any]]: Rows where each row is a dict of column -> value.
-
-        Examples:
-            >>> # Assuming you have a list of DSPy results named `results`
-            >>> # cb = WandbDSPyCallback(); rows = cb._parse_results(results)  # doctest: +SKIP
-        """
         _rows: list[dict[str, Any]] = []
         for example, prediction, is_correct in results:
             example_dict = example.toDict()
@@ -208,27 +198,6 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         return _rows
 
     def _log_predictions_table(self, rows: list[dict[str, Any]]) -> None:
-        """Log predictions as a W&B Table for the current evaluation step.
-
-        Args:
-            rows (list[dict[str, Any]]): List of dict rows where keys are column names.
-
-        Returns:
-            None
-
-        Examples:
-            >>> cb = WandbDSPyCallback(log_results=False)  # doctest: +SKIP
-            >>> cb._row_idx = 0  # doctest: +SKIP
-            >>> cb._log_predictions_table(
-            ...     [
-            ...         {
-            ...             "example": {"q": "..."},
-            ...             "prediction": {"a": "..."},
-            ...             "is_correct": True,
-            ...         }
-            ...     ]
-            ... )  # doctest: +SKIP
-        """
         if not rows:
             return
 
@@ -246,3 +215,120 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
 
         preds_table = wandb.Table(columns=columns, data=data, log_mode="IMMUTABLE")
         wandb.run.log({f"predictions_{self._row_idx}": preds_table}, step=self._row_idx)
+
+    def log_best_model(
+        self,
+        model: dspy.Module,
+        *,
+        save_program: bool = True,
+        choice: str = "json",
+        aliases: Sequence[str] = ("best", "latest"),
+    ) -> None:
+        """
+        Save and log the best DSPy program as a W&B model artifact.
+
+        Control saving with two options:
+        - `save_program=True`: Save the whole program (architecture + state). A directory
+          is typically produced and can be loaded with `dspy.load(dir)`.
+        - `choice` selects the state file extension when `save_program=False`.
+
+        Args:
+            model (dspy.Module): The compiled/best DSPy program to persist.
+            save_program (bool, optional): When True, save the entire program
+                (architecture + state). When False, save state-only. Defaults to True.
+            choice (str, optional): One of {"json", "pkl"}. Chooses the filename
+                extension used for state-only saving. Ignored when
+                `save_program=True`. Defaults to "json".
+            aliases (Sequence[str], optional): Artifact aliases to assign
+                when logging. Defaults to ("best", "latest").
+
+        Examples:
+            >>> # Whole-program saving (recommended for portability)
+            >>> callback.log_best_model(best_program, save_program=True)
+
+            >>> # State-only saving to JSON semantics
+            >>> callback.log_best_model(best_program, save_program=False, choice="json")
+
+            >>> # State-only saving to pickle semantics
+            >>> callback.log_best_model(best_program, save_program=False, choice="pkl")
+        """
+        if wandb.run is None:
+            raise wandb.Error(
+                "You must call `wandb.init()` before logging a DSPy model."
+            )
+
+        tmp_dir = tempfile.mkdtemp(prefix="dspy_program_")
+        try:
+            # Decide filename based on choice (used for state-only saving)
+            normalized_choice = choice.lower().strip()
+            if normalized_choice == "json":
+                filename = "program.json"
+            elif normalized_choice == "pkl":
+                filename = "program.pkl"
+            else:
+                wandb.termwarn(
+                    f"Unknown choice '{choice}'. Defaulting to JSON state file."
+                )
+                filename = "program.json"
+
+            # Save per requested mode
+            if save_program:
+                # For whole-program saving, DSPy requires a directory path without a suffix
+                model.save(tmp_dir, save_program=True)
+                artifact_add_fn = ("dir", tmp_dir, "dspy_program")
+            else:
+                file_path = os.path.join(tmp_dir, filename)
+                model.save(file_path, save_program=False)
+                artifact_add_fn = ("file", file_path, f"dspy_program/{filename}")
+
+            # Derive metadata to help discoverability in the UI
+            info_dict = {}
+            try:
+                info_dict = self._extract_program_info(model) or {}
+            except Exception as e:  # pragma: no cover - best effort metadata
+                logger.debug("Failed to extract program info: %s", e)
+
+            metadata = {
+                "dspy_version": getattr(dspy, "__version__", "unknown"),
+                "module_class": model.__class__.__name__,
+                **info_dict,
+            }
+
+            # Create a stable-but-unique artifact name for the run
+            run = wandb.run
+            art_name = f"dspy-program-{run.id}"
+            artifact = wandb.Artifact(name=art_name, type="model", metadata=metadata)
+
+            # Include the saved program under a clear prefix inside the artifact
+            kind, path, name = artifact_add_fn
+            if kind == "dir":
+                artifact.add_dir(path, name=name)
+            else:
+                artifact.add_file(path, name=name)
+
+            logged = run.log_artifact(artifact, aliases=list(aliases))  # type: ignore[call-arg]
+
+            # Optionally block until the upload finishes (if available)
+            try:
+                if hasattr(logged, "wait"):
+                    logged.wait()  # type: ignore[attr-defined]
+            except Exception:  # pragma: no cover - non-critical
+                pass
+
+            # Store a small reference in the run summary for convenience
+            try:
+                ref = getattr(logged, "matched", None) or logged
+                name = getattr(ref, "name", art_name)
+                version = getattr(ref, "version", "")
+                run.summary["best_model_artifact"] = f"{name}:{version}".rstrip(":")
+            except Exception:  # pragma: no cover - best effort
+                pass
+
+        except Exception as e:
+            logger.warning("Failed to log DSPy model artifact: %s", e)
+        finally:
+            if tmp_dir and os.path.isdir(tmp_dir):
+                try:
+                    shutil.rmtree(tmp_dir)
+                except Exception:  # pragma: no cover - cleanup best effort
+                    pass
