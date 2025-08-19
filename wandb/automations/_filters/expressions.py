@@ -9,6 +9,7 @@ from pydantic import ConfigDict, model_serializer
 from typing_extensions import Self, TypeAlias, get_args
 
 from wandb._pydantic import CompatBaseModel, model_validator
+from wandb._strutils import nameof
 
 from .operators import (
     Contains,
@@ -59,7 +60,7 @@ class FilterableField:
         return self._name
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self._name!r})"
+        return f"{nameof(type(self))}({self._name!r})"
 
     # Methods to define filter expressions through chaining
     def matches_regex(self, pattern: str) -> FilterExpr:
@@ -145,7 +146,7 @@ class FilterExpr(CompatBaseModel, SupportsLogicalOpSyntax):
     op: Op
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.field!s}: {self.op!r})"
+        return f"{nameof(type(self))}({self.field!s}: {self.op!r})"
 
     def __rich_repr__(self) -> RichReprResult:
         # https://rich.readthedocs.io/en/stable/pretty.html

@@ -13,6 +13,8 @@ from typing import (
     overload,
 )
 
+from wandb._strutils import nameof
+
 T = TypeVar("T")
 
 
@@ -84,9 +86,7 @@ class FreezableList(MutableSequence[T]):
     ) -> None:
         if isinstance(index, slice):
             # Setting slices might affect saved items, disallow for simplicity
-            raise TypeError(
-                f"{type(self).__name__!r} does not support slice assignment"
-            )
+            raise TypeError(f"{nameof(type(self))!r} does not support slice assignment")
         else:
             if value in self._frozen or value in self._draft:
                 return
@@ -111,7 +111,7 @@ class FreezableList(MutableSequence[T]):
 
     def __delitem__(self, index: Union[int, slice]) -> None:
         if isinstance(index, slice):
-            raise TypeError(f"{type(self).__name__!r} does not support slice deletion")
+            raise TypeError(f"{nameof(type(self))!r} does not support slice deletion")
         else:
             # The frozen items are sequentially first and protected from changes
             len_frozen = len(self._frozen)
@@ -158,7 +158,7 @@ class FreezableList(MutableSequence[T]):
         return self._draft.insert(draft_index, value)
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(frozen={list(self._frozen)!r}, draft={list(self._draft)!r})"
+        return f"{nameof(type(self))}(frozen={list(self._frozen)!r}, draft={list(self._draft)!r})"
 
     @property
     def draft(self) -> Tuple[T, ...]:
@@ -176,4 +176,4 @@ class AddOnlyArtifactTypesList(FreezableList[str]):
             )
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(saved={list(self._frozen)!r}, draft={list(self._draft)!r})"
+        return f"{nameof(type(self))}(saved={list(self._frozen)!r}, draft={list(self._draft)!r})"

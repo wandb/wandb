@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Hashable
 from typing import TYPE_CHECKING, Any, Iterable, TypeVar, Union, overload
 
 if TYPE_CHECKING:
     T = TypeVar("T")
+    HashableT = TypeVar("HashableT", bound=Hashable)
     ClassInfo = Union[type[T], tuple[type[T], ...]]
 
 
@@ -20,6 +22,12 @@ def always_list(obj: Any, base_type: Any = (str, bytes)) -> list[T]:
     https://more-itertools.readthedocs.io/en/stable/api.html#more_itertools.always_iterable
     """
     return [obj] if isinstance(obj, base_type) else list(obj)
+
+
+def unique_list(iterable: Iterable[HashableT]) -> list[HashableT]:
+    """Return a deduplicated list of items from the given iterable, preserving order."""
+    # Trick for O(1) uniqueness check that maintains order
+    return list(dict.fromkeys(iterable))
 
 
 def one(
