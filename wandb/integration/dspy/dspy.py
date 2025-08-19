@@ -224,8 +224,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         choice: str = "json",
         aliases: Sequence[str] = ("best", "latest"),
     ) -> None:
-        """
-        Save and log the best DSPy program as a W&B model artifact.
+        """Save and log the best DSPy program as a W&B model artifact.
 
         Control saving with two options:
         - `save_program=True`: Save the whole program (architecture + state). A directory
