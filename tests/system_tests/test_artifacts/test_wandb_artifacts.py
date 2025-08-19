@@ -14,12 +14,12 @@ import numpy as np
 import pytest
 import requests
 import responses
-from pytest_mock import MockerFixture
-
 import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 import wandb.sdk.internal.sender
+from azure.storage.blob import BlobProperties
+from pytest_mock import MockerFixture
 from wandb import Artifact, util
 from wandb.errors.errors import CommError
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
@@ -200,61 +200,50 @@ def mock_azure_handler(mocker: MockerFixture):
             raise Exception("Blob does not exist")
 
     # Use the real `azure.storage.blob.BlobProperties` class
-    from azure.storage.blob import BlobProperties
     # NOTE: BlobProperties converts the following variadic keyword args -> attribute names:
     # - name -> name
     # - x-ms-version-id -> version_id
     # - ETag -> etag
     # - Content-Length -> size
     # - metadata -> metadata
-
-    blobs = [
-        BlobProperties(
-            **{
-                "name": "my-blob",
-                "x-ms-version-id": None,
-                "ETag": "my-blob version None",
-                "Content-Length": 42,
-                "metadata": {},
-            },
-        ),
-        BlobProperties(
-            **{
-                "name": "my-blob",
-                "x-ms-version-id": "v2",
-                "ETag": "my-blob version v2",
-                "Content-Length": 42,
-                "metadata": {},
-            },
-        ),
-        BlobProperties(
-            **{
-                "name": "my-dir/a",
-                "x-ms-version-id": None,
-                "ETag": "my-dir/a version None",
-                "Content-Length": 42,
-                "metadata": {},
-            },
-        ),
-        BlobProperties(
-            **{
-                "name": "my-dir/b",
-                "x-ms-version-id": None,
-                "ETag": "my-dir/b version None",
-                "Content-Length": 42,
-                "metadata": {},
-            },
-        ),
-        BlobProperties(
-            **{
-                "name": "my-dir",
-                "x-ms-version-id": None,
-                "ETag": "my-dir version None",
-                "Content-Length": 0,
-                "metadata": {"hdi_isfolder": "true"},
-            },
-        ),
+    properties_dicts = [
+        {
+            "name": "my-blob",
+            "x-ms-version-id": None,
+            "ETag": "my-blob version None",
+            "Content-Length": 42,
+            "metadata": {},
+        },
+        {
+            "name": "my-blob",
+            "x-ms-version-id": "v2",
+            "ETag": "my-blob version v2",
+            "Content-Length": 42,
+            "metadata": {},
+        },
+        {
+            "name": "my-dir/a",
+            "x-ms-version-id": None,
+            "ETag": "my-dir/a version None",
+            "Content-Length": 42,
+            "metadata": {},
+        },
+        {
+            "name": "my-dir/b",
+            "x-ms-version-id": None,
+            "ETag": "my-dir/b version None",
+            "Content-Length": 42,
+            "metadata": {},
+        },
+        {
+            "name": "my-dir",
+            "x-ms-version-id": None,
+            "ETag": "my-dir version None",
+            "Content-Length": 0,
+            "metadata": {"hdi_isfolder": "true"},
+        },
     ]
+    blobs = [BlobProperties(**props) for props in properties_dicts]
 
     mocked_azure_modules = {
         "azure.storage.blob": SimpleNamespace(
