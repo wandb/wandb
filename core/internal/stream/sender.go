@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/google/wire"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/debounce"
@@ -27,7 +29,8 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/tensorboard"
+	"github.com/wandb/wandb/core/internal/sharedmode"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -42,58 +45,36 @@ const (
 	ConsoleFileName           = "output.log"
 )
 
-type SenderParams struct {
-	Logger              *observability.CoreLogger
-	Operations          *wboperation.WandbOperations
-	Settings            *settings.Settings
-	Backend             *api.Backend
-	FeatureProvider     *featurechecker.ServerFeaturesCache
-	FileStream          fs.FileStream
-	FileTransferManager filetransfer.FileTransferManager
-	FileTransferStats   filetransfer.FileTransferStats
-	FileWatcher         watcher.Watcher
-	RunfilesUploader    runfiles.Uploader
-	TBHandler           *tensorboard.TBHandler
-	GraphqlClient       graphql.Client
-	Peeker              *observability.Peeker
-	StreamRun           *StreamRun
-	RunSummary          *runsummary.RunSummary
-	Mailbox             *mailbox.Mailbox
-	OutChan             chan *spb.Result
-	RunWork             runwork.RunWork
+var senderProviders = wire.NewSet(
+	wire.Struct(new(SenderFactory), "*"),
+)
+
+// SenderFactory constructs a Sender.
+type SenderFactory struct {
+	ClientID                sharedmode.ClientID
+	Logger                  *observability.CoreLogger
+	Operations              *wboperation.WandbOperations
+	Settings                *settings.Settings
+	Backend                 *api.Backend
+	FeatureProvider         *featurechecker.ServerFeaturesCache
+	FileStreamFactory       *fs.FileStreamFactory
+	FileTransferManager     filetransfer.FileTransferManager
+	FileTransferStats       filetransfer.FileTransferStats
+	FileWatcher             watcher.Watcher
+	RunfilesUploaderFactory *runfiles.UploaderFactory
+	GraphqlClient           graphql.Client
+	Peeker                  *observability.Peeker
+	StreamRun               *StreamRun
+	Mailbox                 *mailbox.Mailbox
 }
 
-// senderSentinel is used when flushing buffered work while finalizing a run.
-type senderSentinel int64
-
-// String returns a string representation of senderSentinel for debugging.
-func (s senderSentinel) String() string {
-	return fmt.Sprintf("senderSentinel(%d)", s)
-}
-
-// Sender is the sender for a stream it handles the incoming messages and sends to the server
-// or/and to the dispatcher/handler
+// Sender performs blocking operations to process Work, such as uploading data.
 type Sender struct {
 	// mu is a coarse mutex for accessing non-threadsafe Sender state.
 	//
 	// It is locked while processing a Record and at specific times during
 	// the finishRun goroutine to guard anything that's not threadsafe.
 	mu sync.Mutex
-
-	// sentinelSent is the largest sentinel value pushed to runWork, incremented
-	// by 1 each time.
-	//
-	// sentinelSeen is the largest sentinel value observed on the input channel.
-	//
-	// It is always true that sentinelSent >= sentinelSeen.
-	//
-	// mu must be held when accessing either field.
-	sentinelSent, sentinelSeen senderSentinel
-
-	// sentinelCond is broadcast whenever sentinelSeen updates.
-	//
-	// The underlying mutex is mu.
-	sentinelCond *sync.Cond
 
 	// runWork is the run's channel of records
 	runWork runwork.RunWork
@@ -133,9 +114,6 @@ type Sender struct {
 	// artifactWG is a wait group for artifact-related goroutines
 	artifactWG sync.WaitGroup
 
-	// tbHandler integrates W&B with TensorBoard
-	tbHandler *tensorboard.TBHandler
-
 	// summaryDebouncer is the debouncer for summary updates
 	summaryDebouncer *debounce.Debouncer
 
@@ -168,18 +146,14 @@ type Sender struct {
 	consoleLogsSender *runconsolelogs.Sender
 }
 
-// NewSender creates a new Sender with the given settings
-func NewSender(
-	params SenderParams,
-) *Sender {
-
-	var outputFileName paths.RelativePath
+// New returns a new Sender.
+func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 	// Guaranteed not to fail.
-	path, _ := paths.Relative(ConsoleFileName)
-	outputFileName = *path
+	maybeOutputFileName, _ := paths.Relative(ConsoleFileName)
+	outputFileName := *maybeOutputFileName
 
-	if params.Settings.GetLabel() != "" {
-		sanitizedLabel := fileutil.SanitizeFilename(params.Settings.GetLabel())
+	if f.Settings.GetLabel() != "" {
+		sanitizedLabel := fileutil.SanitizeFilename(f.Settings.GetLabel())
 		// Guaranteed not to fail.
 		// split filename and extension
 		extension := filepath.Ext(string(outputFileName))
@@ -195,7 +169,7 @@ func NewSender(
 	}
 
 	// If console capture is enabled, we need to create a multipart console log file.
-	if params.Settings.IsConsoleMultipart() {
+	if f.Settings.IsConsoleMultipart() {
 		// This is guaranteed not to fail.
 		timestamp := time.Now()
 		extension := filepath.Ext(string(outputFileName))
@@ -214,60 +188,84 @@ func NewSender(
 		outputFileName = *path
 	}
 
+	var fileStream fs.FileStream
+	if !f.Settings.IsOffline() {
+		fileStream = NewFileStream(
+			f.FileStreamFactory,
+			f.Backend,
+			f.Settings,
+			f.Peeker,
+			f.ClientID,
+		)
+	}
+
+	var runfilesUploader runfiles.Uploader
+	if !f.Settings.IsOffline() {
+		runfilesUploader = f.RunfilesUploaderFactory.New(
+			/*batchDelay=*/ waiting.NewDelay(50*time.Millisecond),
+			runWork,
+			fileStream,
+		)
+	}
+
 	consoleLogsSenderParams := runconsolelogs.Params{
 		ConsoleOutputFile:     outputFileName,
-		FilesDir:              params.Settings.GetFilesDir(),
-		EnableCapture:         params.Settings.IsConsoleCaptureEnabled(),
-		Logger:                params.Logger,
-		FileStreamOrNil:       params.FileStream,
-		Label:                 params.Settings.GetLabel(),
-		RunfilesUploaderOrNil: params.RunfilesUploader,
-		Structured: params.FeatureProvider.GetFeature(
+		FilesDir:              f.Settings.GetFilesDir(),
+		EnableCapture:         f.Settings.IsConsoleCaptureEnabled(),
+		Logger:                f.Logger,
+		FileStreamOrNil:       fileStream,
+		Label:                 f.Settings.GetLabel(),
+		RunfilesUploaderOrNil: runfilesUploader,
+		Structured: f.FeatureProvider.GetFeature(
+			context.Background(),
 			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
 		).Enabled,
 	}
 
 	s := &Sender{
-		runWork:             params.RunWork,
-		logger:              params.Logger,
-		operations:          params.Operations,
-		settings:            params.Settings,
-		fileStream:          params.FileStream,
-		fileTransferManager: params.FileTransferManager,
-		fileTransferStats:   params.FileTransferStats,
-		fileWatcher:         params.FileWatcher,
-		runfilesUploader:    params.RunfilesUploader,
+		runWork:             runWork,
+		logger:              f.Logger,
+		operations:          f.Operations,
+		settings:            f.Settings,
+		fileStream:          fileStream,
+		fileTransferManager: f.FileTransferManager,
+		fileTransferStats:   f.FileTransferStats,
+		fileWatcher:         f.FileWatcher,
+		runfilesUploader:    runfilesUploader,
 		artifactsSaver: artifacts.NewArtifactSaveManager(
-			params.Logger,
-			params.GraphqlClient,
-			params.FileTransferManager,
-			params.FeatureProvider.GetFeature(
+			f.Logger,
+			f.GraphqlClient,
+			f.FileTransferManager,
+			f.FeatureProvider.GetFeature(
+				context.Background(),
 				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
 			).Enabled,
 		),
-		tbHandler:     params.TBHandler,
-		networkPeeker: params.Peeker,
-		graphqlClient: params.GraphqlClient,
-		mailbox:       params.Mailbox,
-		streamRun:     params.StreamRun,
-		runSummary:    params.RunSummary,
-		outChan:       params.OutChan,
+		networkPeeker: f.Peeker,
+		graphqlClient: f.GraphqlClient,
+		mailbox:       f.Mailbox,
+		streamRun:     f.StreamRun,
+		runSummary:    runsummary.New(),
+		outChan:       make(chan *spb.Result, BufferSize),
 		summaryDebouncer: debounce.NewDebouncer(
 			summaryDebouncerRateLimit,
 			summaryDebouncerBurstSize,
-			params.Logger,
+			f.Logger,
 		),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 
-	s.sentinelCond = sync.NewCond(&s.mu)
-
-	backendOrNil := params.Backend
+	backendOrNil := f.Backend
 	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings.Proto, s.logger, false)
 	}
 
 	return s
+}
+
+// ResponseChan contains responses for the client.
+func (h *Sender) ResponseChan() <-chan *spb.Result {
+	return h.outChan
 }
 
 // Do processes all work on the input channel.
@@ -290,7 +288,6 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 
 		s.mu.Lock()
 		work.Process(s.sendRecord, s.outChan)
-		s.observeSentinel(work)
 
 		// TODO: reevaluate the logic here
 		s.summaryDebouncer.Debounce(s.streamSummary)
@@ -629,52 +626,38 @@ func (s *Sender) startFinishRun() {
 	}()
 }
 
-// finishRunSync implements the finishRun goroutine.
+// finishRunSync implements the startFinishRun goroutine.
 //
-// The finish process happens in stages. Each stage is allowed to emit
-// additional Work that is processed by later stages, `flushWork` is called
-// between stages.
+// Subcomponents (such as the console logs sender, run files uploader and
+// FileStream) may depend on each other, so this method shuts down data
+// producers before consumers.
+//
+// This starts after an Exit record is received, after which no more
+// run-modifying records can be generated. Requests may still be processed.
 func (s *Sender) finishRunSync() {
-	runStage := func(stage func()) {
-		stage()
-		s.flushWork()
-	}
-
-	// Wait to finish reading all TensorBoard tfevent files, if any.
-	runStage(func() {
-		s.tbHandler.Finish()
-	})
-
 	// Finish uploading captured console logs.
-	runStage(func() {
-		s.consoleLogsSender.Finish()
-	})
+	s.consoleLogsSender.Finish()
 
 	// Upload the run's finalized summary and config.
-	runStage(func() {
-		s.mu.Lock()
-		defer s.mu.Unlock()
+	s.mu.Lock()
+	s.summaryDebouncer.Flush(s.streamSummary)
+	s.summaryDebouncer.Stop()
+	s.uploadSummaryFile()
 
-		s.summaryDebouncer.Flush(s.streamSummary)
-		s.summaryDebouncer.Stop()
-		s.uploadSummaryFile()
-
-		upserter, _ := s.streamRun.GetRunUpserter()
-		if upserter != nil {
-			upserter.Finish()
-		}
-		s.uploadConfigFile()
-	})
+	upserter, _ := s.streamRun.GetRunUpserter()
+	if upserter != nil {
+		upserter.Finish()
+	}
+	s.uploadConfigFile()
+	s.mu.Unlock()
 
 	// Wait for artifacts operations to complete here to detect
 	// code artifacts, then upload the code (aka "job") artifact, if any.
-	runStage(func() {
-		s.artifactWG.Wait() // TODO: separate stage?
+	s.artifactWG.Wait()
 
-		s.mu.Lock()
-		s.sendJobFlush()
-		s.mu.Unlock()
-	})
+	s.mu.Lock()
+	s.sendJobFlush()
+	s.mu.Unlock()
 
 	// Finish uploading non-artifact files.
 	//
@@ -682,21 +665,17 @@ func (s *Sender) finishRunSync() {
 	// updates to the runfiles uploader. The uploader creates file upload
 	// tasks, so it must be flushed before we close the file transfer
 	// manager.
-	runStage(func() {
-		s.fileWatcher.Finish()
-		if s.fileTransferManager != nil {
-			s.runfilesUploader.UploadRemaining()
-			s.runfilesUploader.Finish()
-			s.fileTransferManager.Close()
-		}
-	})
+	s.fileWatcher.Finish()
+	if s.fileTransferManager != nil {
+		s.runfilesUploader.UploadRemaining()
+		s.runfilesUploader.Finish()
+		s.fileTransferManager.Close()
+	}
 
 	// Mark the run finished.
 	if s.fileStream != nil {
-		runStage(s.finishFileStream)
+		s.finishFileStream()
 	}
-
-	// From this point on, no new work may be generated by this function.
 
 	// Indicate that `run.finish()` is done.
 	//
@@ -743,44 +722,6 @@ func (s *Sender) finishRunSync() {
 	//
 	// Note that any work queued up at this point still gets processed.
 	s.runWork.SetDone()
-}
-
-// flushWork waits until all work currently buffered is processed.
-//
-// It assumes mu is unlocked.
-func (s *Sender) flushWork() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.sentinelSent++
-	sentinel := s.sentinelSent
-	s.runWork.AddWork(runwork.NewSentinel(sentinel))
-
-	// Wait until the sentinel we added is observed, which will happen after
-	// all work that was queued when we added the sentinel is processed.
-	for s.sentinelSeen < sentinel {
-		s.sentinelCond.Wait()
-	}
-}
-
-// observeSentinel updates the seen sentinel value based on work.Sentinel().
-//
-// mu must be held.
-func (s *Sender) observeSentinel(work runwork.Work) {
-	workSentinel := work.Sentinel()
-	if workSentinel == nil {
-		return
-	}
-
-	sentinel, ok := workSentinel.(senderSentinel)
-	if !ok {
-		return
-	}
-
-	if sentinel > s.sentinelSeen {
-		s.sentinelSeen = sentinel
-		s.sentinelCond.Broadcast()
-	}
 }
 
 // finishFileStream waits for FileStream uploads to complete.
@@ -856,6 +797,11 @@ func (s *Sender) uploadMetadataFile() {
 }
 
 func (s *Sender) sendPreempting(record *spb.RunPreemptingRecord) {
+	if s.exitRecord != nil {
+		s.logCalledAfterExit("sendPreempting")
+		return
+	}
+
 	if s.fileStream == nil {
 		return
 	}
@@ -908,6 +854,11 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
+	if s.exitRecord != nil {
+		s.logCalledAfterExit("sendHistory")
+		return
+	}
+
 	if s.fileStream == nil {
 		return
 	}
@@ -934,6 +885,11 @@ func (s *Sender) streamSummary() {
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
+	if s.exitRecord != nil {
+		s.logCalledAfterExit("sendSummary")
+		return
+	}
+
 	for _, update := range summary.Update {
 		if err := s.runSummary.SetFromRecord(update); err != nil {
 			s.logger.CaptureError(
@@ -1053,6 +1009,11 @@ func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
 
 // sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
+	if s.exitRecord != nil {
+		s.logCalledAfterExit("sendSystemMetrics")
+		return
+	}
+
 	if s.fileStream == nil {
 		return
 	}
@@ -1081,10 +1042,20 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 }
 
 func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {
+	if s.exitRecord != nil {
+		s.logCalledAfterExit("sendOutput")
+		return
+	}
+
 	// TODO: implement me
 }
 
 func (s *Sender) sendOutputRaw(_ *spb.Record, outputRaw *spb.OutputRawRecord) {
+	if s.exitRecord != nil {
+		s.logCalledAfterExit("sendOutputRaw")
+		return
+	}
+
 	s.consoleLogsSender.StreamLogs(outputRaw)
 }
 
@@ -1351,4 +1322,10 @@ func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 
 func (s *Sender) sendRequestSyncFinish(record *spb.Record, _ *spb.SyncFinishRequest) {
 	s.syncFinishRecord = record
+}
+
+// logCalledAfterExit logs an error for a method wrongly called after an Exit
+// record has been received.
+func (s *Sender) logCalledAfterExit(method string) {
+	s.logger.CaptureError(fmt.Errorf("sender: %s called after exit", method))
 }

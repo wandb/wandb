@@ -13,9 +13,15 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-### Added
-- Support `first` summary option in `define_metric` (@kptkin in https://github.com/wandb/wandb/pull/10121)
+### Notable Changes
 
-### Fixed
-- Correct the artifact url for organization registry artifacts to be independent of the artifact type (@ibindlish in https://github.com/wandb/wandb/pull/10049)
-- Suffixes on sanitized `InternalArtifact` names have been shortened to 6 alphanumeric characters (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10102)
+This version raises errors that would previously have been suppressed during calls to `Artifact.link()` or `Run.link_artifact()`. While this prevents undetected failures in those methods, it is also a breaking change.
+
+### Added
+
+- New settings for `max_end_of_run_history_metrics` and `max_end_of_run_summary_metrics` (@timoffex in https://github.com/wandb/wandb/pull/10351)
+
+### Changed
+
+- Errors encountered while linking an artifact are no longer suppressed/silenced, and `Artifact.link()` and `Run.link_artifact()` no longer return `None` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9968)
+- The "Run history" and "Run summary" printed at the end of a run are now limited to 10 metrics each (@timoffex in https://github.com/wandb/wandb/pull/10351)

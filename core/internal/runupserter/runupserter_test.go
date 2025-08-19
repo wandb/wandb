@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -19,6 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -43,6 +43,7 @@ func testParams() runupserter.RunUpserterParams {
 		),
 		GraphqlClientOrNil: nil,
 		Logger:             observability.NewNoOpLogger(),
+		ClientID:           "test",
 	}
 }
 
@@ -361,6 +362,28 @@ func TestUpdateConfig_Uploads(t *testing.T) {
 				{
 					"_wandb": {"value": {"m": [], "t": {"12": "%s"}}},
 					"test key": {"value": "test value"}
+				}
+			`, version.Version))))
+}
+
+func TestUpdateEnvironment_Uploads(t *testing.T) {
+	vars := setupUpdateTest(t)
+
+	vars.Upserter.UpdateEnvironment(
+		&spb.EnvironmentRecord{
+			WriterId: "test",
+		},
+	)
+	vars.DebounceDelay.WaitAndTick(t, true /*allowMoreWait*/, time.Second)
+	vars.Upserter.Finish()
+
+	requests := vars.MockClient.AllRequests()
+	assert.Len(t, requests, 2)
+	gqlmock.AssertVariables(t,
+		requests[1],
+		gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
+				{
+					"_wandb": {"value": {"m": [], "e": {"test": {"writerId": "test"}}, "t": {"12": "%s"}}}
 				}
 			`, version.Version))))
 }

@@ -19,6 +19,7 @@ CODEGEN_CONFIGS=(
 SCHEMA_DIR="$PROJECT_DIR/core/api/graphql/schemas"
 SCHEMA_COMMIT=$(cat "$SCHEMA_DIR/commit.hash.txt")  # get the commit hash
 SCHEMA_PATH="$SCHEMA_DIR/schema-latest-${SCHEMA_COMMIT}.graphql"
+SCHEMA_LINK="$SCHEMA_DIR/schema-latest.graphql"
 
 if [ ! -f "$SCHEMA_PATH" ]; then
     echo "[INFO] Schema file does not exist: $SCHEMA_PATH"
@@ -50,6 +51,9 @@ if [ ! -f "$SCHEMA_PATH" ]; then
 else
     echo "[INFO] Schema file already exists, skipping download: $SCHEMA_PATH"
 fi
+
+# Symlink the latest versioned schema file
+ln -svf "$SCHEMA_PATH" "$SCHEMA_LINK"
 
 (
     # Ensure we're at the root directory of the repo

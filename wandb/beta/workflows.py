@@ -1,21 +1,31 @@
+from __future__ import annotations
+
 import json
 import os
-from typing import Any, Dict, List, Optional, Union
+import warnings
+from typing import Any
+
+from typing_extensions import deprecated
 
 import wandb
-import wandb.data_types as data_types
-from wandb.data_types import _SavedModel
+from wandb.data_types import WBValue, _SavedModel
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.lib.deprecate import deprecate as wandb_deprecate
+
+warnings.warn(
+    message=f"The {__name__!r} module is deprecated and will be removed in a future version. Please use the equivalent 'wandb.Run' methods instead.",
+    category=DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def _add_any(
     artifact: Artifact,
-    path_or_obj: Union[
-        str, ArtifactManifestEntry, data_types.WBValue
-    ],  # todo: add dataframe
-    name: Optional[str],
+    path_or_obj: str | ArtifactManifestEntry | WBValue,  # todo: add dataframe
+    name: str | None,
 ) -> Any:
     """Add an object to an artifact.
 
@@ -24,11 +34,10 @@ def _add_any(
     be moved to the Artifact class in the future.
 
     Args:
-        artifact: `Artifact` - artifact created with `wandb.Artifact(...)`
-        path_or_obj: `Union[str, ArtifactManifestEntry, data_types.WBValue]` - either a
-            str or valid object which indicates what to add to an artifact.
-
-        name: `str` - the name of the object which is added to an artifact.
+        artifact: artifact created with `wandb.Artifact(...)`
+        path_or_obj: either a str or valid object which indicates what to add
+            to an artifact.
+        name: the name of the object which is added to an artifact.
 
     Returns:
         Type[Any] - Union[None, ArtifactManifestEntry, etc]
@@ -36,7 +45,7 @@ def _add_any(
     """
     if isinstance(path_or_obj, ArtifactManifestEntry):
         return artifact.add_reference(path_or_obj, name)
-    elif isinstance(path_or_obj, data_types.WBValue):
+    elif isinstance(path_or_obj, WBValue):
         return artifact.add(path_or_obj, name)
     elif isinstance(path_or_obj, str):
         if os.path.isdir(path_or_obj):
@@ -56,12 +65,12 @@ def _add_any(
 def _log_artifact_version(
     name: str,
     type: str,
-    entries: Dict[str, Union[str, ArtifactManifestEntry, data_types.WBValue]],
-    aliases: Optional[Union[str, List[str]]] = None,
-    description: Optional[str] = None,
-    metadata: Optional[dict] = None,
-    project: Optional[str] = None,
-    scope_project: Optional[bool] = None,
+    entries: dict[str, str | ArtifactManifestEntry | WBValue],
+    aliases: str | list[str] | None = None,
+    description: str | None = None,
+    metadata: dict | None = None,
+    project: str | None = None,
+    scope_project: bool | None = None,
     job_type: str = "auto",
 ) -> Artifact:
     """Create an artifact, populate it, and log it with a run.
@@ -113,16 +122,20 @@ def _log_artifact_version(
     return art
 
 
+_LOG_MODEL_DEPRECATION_MSG = "`log_model` is deprecated and will be removed in a future version. Please use `Run.log_artifact` instead."
+
+
+@deprecated(_LOG_MODEL_DEPRECATION_MSG)
 def log_model(
     model_obj: Any,
     name: str = "model",
-    aliases: Optional[Union[str, List[str]]] = None,
-    description: Optional[str] = None,
-    metadata: Optional[dict] = None,
-    project: Optional[str] = None,
-    scope_project: Optional[bool] = None,
-    **kwargs: Dict[str, Any],
-) -> "_SavedModel":
+    aliases: str | list[str] | None = None,
+    description: str | None = None,
+    metadata: dict | None = None,
+    project: str | None = None,
+    scope_project: bool | None = None,
+    **kwargs: dict[str, Any],
+) -> _SavedModel:
     """Log a model object to enable model-centric workflows in the UI.
 
     Supported frameworks include PyTorch, Keras, Tensorflow, Scikit-learn, etc. Under
@@ -168,7 +181,12 @@ def log_model(
         ```
 
     """
-    model = data_types._SavedModel.init(model_obj, **kwargs)
+    wandb_deprecate(
+        field_name=Deprecated.beta__workflows__log_model,
+        warning_message=_LOG_MODEL_DEPRECATION_MSG,
+    )
+
+    model = _SavedModel.init(model_obj, **kwargs)
     _ = _log_artifact_version(
         name=name,
         type="model",
@@ -186,7 +204,11 @@ def log_model(
     return model
 
 
-def use_model(aliased_path: str, unsafe: bool = False) -> "_SavedModel":
+_USE_MODEL_DEPRECATION_MSG = "`use_model` is deprecated and will be removed in a future version. Please update your code to use `Run.use_artifact` instead."
+
+
+@deprecated(_USE_MODEL_DEPRECATION_MSG)
+def use_model(aliased_path: str, unsafe: bool = False) -> _SavedModel:
     """Fetch a saved model from an alias.
 
     Under the hood, we use the alias to fetch the model artifact containing the
@@ -209,6 +231,11 @@ def use_model(aliased_path: str, unsafe: bool = False) -> "_SavedModel":
         model = sm.model_obj()
         ```
     """
+    wandb_deprecate(
+        field_name=Deprecated.beta__workflows__use_model,
+        warning_message=_USE_MODEL_DEPRECATION_MSG,
+    )
+
     if not unsafe:
         raise ValueError("The 'unsafe' parameter must be set to True to load a model.")
 
@@ -234,10 +261,14 @@ def use_model(aliased_path: str, unsafe: bool = False) -> "_SavedModel":
         )
 
 
+_LINK_MODEL_DEPRECATION_MSG = "`link_model` is deprecated and will be removed in a future version. Please use `Run.link_artifact` instead."
+
+
+@deprecated(_LINK_MODEL_DEPRECATION_MSG)
 def link_model(
-    model: "_SavedModel",
+    model: _SavedModel,
     target_path: str,
-    aliases: Optional[Union[str, List[str]]] = None,
+    aliases: str | list[str] | None = None,
 ) -> None:
     """Link the given model to a portfolio.
 
@@ -261,6 +292,11 @@ def link_model(
         link_model(sm, "my-portfolio")
 
     """
+    wandb_deprecate(
+        field_name=Deprecated.beta__workflows__link_model,
+        warning_message=_LINK_MODEL_DEPRECATION_MSG,
+    )
+
     aliases = wandb.util._resolve_aliases(aliases)
 
     if run := wandb_setup.singleton().most_recent_active_run:

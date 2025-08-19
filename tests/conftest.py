@@ -312,6 +312,20 @@ def patch_apikey(mocker: MockerFixture, dummy_api_key: str):
 
 
 @pytest.fixture
+def skip_verify_login(monkeypatch):
+    """Patches the `_verify_login` method to do nothing.
+
+    This method is called whenever wandb.login is called.
+    """
+    monkeypatch.setattr(
+        wandb.sdk.wandb_login._WandbLogin,
+        "_verify_login",
+        unittest.mock.MagicMock(),
+    )
+    yield
+
+
+@pytest.fixture
 def patch_prompt(monkeypatch):
     monkeypatch.setattr(
         wandb.util, "prompt_choices", lambda x, input_timeout=None, jupyter=False: x[0]
@@ -368,7 +382,12 @@ def clean_up():
 
 @pytest.fixture
 def api() -> wandb.PublicApi:
-    return Api()
+    with unittest.mock.patch.object(
+        wandb.sdk.wandb_login,
+        "_login",
+        return_value=True,
+    ):
+        yield Api()
 
 
 # --------------------------------
@@ -429,15 +448,13 @@ def mock_run(test_settings, mocked_backend) -> Generator[Callable, None, None]:
     own unit-tested module instead.
     """
 
-    def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.sdk.wandb_run.Run:
+    def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.Run:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
             "run_id": runid.generate_id(),
             **dict(kwargs_settings),
         }
-        run = wandb.wandb_sdk.wandb_run.Run(
-            settings=test_settings(kwargs_settings), **kwargs
-        )
+        run = wandb.Run(settings=test_settings(kwargs_settings), **kwargs)
         run._set_backend(
             unittest.mock.MagicMock() if use_magic_mock else mocked_backend
         )

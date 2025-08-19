@@ -6,6 +6,11 @@ from __future__ import annotations
 from enum import Enum
 
 
+class ArtifactCollectionType(str, Enum):
+    SEQUENCE = "SEQUENCE"
+    PORTFOLIO = "PORTFOLIO"
+
+
 class ArtifactState(str, Enum):
     PENDING = "PENDING"
     COMMITTED = "COMMITTED"
