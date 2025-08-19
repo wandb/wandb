@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from enum import Enum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, List, Literal, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence
 
 from wandb.sdk.artifacts._validators import (
     REGISTRY_PREFIX,
@@ -21,15 +23,12 @@ class Visibility(str, Enum):
 
     @classmethod
     def _missing_(cls, value: object) -> Any:
-        return next(
-            (e for e in cls if e.name == value),
-            None,
-        )
+        return next((e for e in cls if e.name == value), None)
 
 
 def format_gql_artifact_types_input(
-    artifact_types: Optional[List[str]] = None,
-):
+    artifact_types: list[str] | None,
+) -> list[dict[str, str]]:
     """Format the artifact types for the GQL input.
 
     Args:
@@ -40,8 +39,7 @@ def format_gql_artifact_types_input(
     """
     if artifact_types is None:
         return []
-    new_types = validate_artifact_types_list(artifact_types)
-    return [{"name": type} for type in new_types]
+    return [{"name": typ} for typ in validate_artifact_types_list(artifact_types)]
 
 
 def gql_to_registry_visibility(
@@ -67,14 +65,14 @@ def registry_visibility_to_gql(
     """Convert the registry visibility to the GQL visibility."""
     try:
         return Visibility[visibility].value
-    except KeyError:
+    except LookupError:
+        allowed_str = ", ".join(map(repr, (e.name for e in Visibility)))
         raise ValueError(
-            f"Invalid visibility: {visibility!r}. "
-            f"Must be one of: {', '.join(map(repr, (e.name for e in Visibility)))}"
+            f"Invalid visibility: {visibility!r}. Must be one of: {allowed_str}"
         )
 
 
-def ensure_registry_prefix_on_names(query, in_name=False):
+def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
     """Traverse the filter to prepend the `name` key value with the registry prefix unless the value is a regex.
 
     - in_name: True if we are under a "name" key (or propagating from one).
@@ -105,7 +103,7 @@ def ensure_registry_prefix_on_names(query, in_name=False):
 
 
 @lru_cache(maxsize=10)
-def fetch_org_entity_from_organization(client: "Client", organization: str) -> str:
+def fetch_org_entity_from_organization(client: Client, organization: str) -> str:
     """Fetch the org entity from the organization.
 
     Args:
@@ -127,7 +125,7 @@ def fetch_org_entity_from_organization(client: "Client", organization: str) -> s
         response = client.execute(query, variable_values={"organization": organization})
     except Exception as e:
         raise ValueError(
-            f"Error fetching org entity for organization: {organization}"
+            f"Error fetching org entity for organization: {organization!r}"
         ) from e
 
     if (
@@ -135,6 +133,6 @@ def fetch_org_entity_from_organization(client: "Client", organization: str) -> s
         or not (org_entity := org["orgEntity"])
         or not (org_name := org_entity["name"])
     ):
-        raise ValueError(f"Organization entity for {organization} not found.")
+        raise ValueError(f"Organization entity for {organization!r} not found.")
 
     return org_name

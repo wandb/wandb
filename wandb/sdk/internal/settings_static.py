@@ -4,7 +4,7 @@ from typing import Any, Iterable
 
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.lib import RunMoment
-from wandb.sdk.wandb_settings import Settings
+from wandb.sdk.wandb_settings import CLIENT_ONLY_SETTINGS, Settings
 
 
 class SettingsStatic(Settings):
@@ -41,8 +41,7 @@ class SettingsStatic(Settings):
 
         forks_specified: list[str] = []
         for key in fields:
-            # Skip Python-only keys that do not exist on the proto.
-            if key in ("reinit",):
+            if key in CLIENT_ONLY_SETTINGS:
                 continue
 
             value: Any = None
