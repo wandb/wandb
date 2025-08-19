@@ -1965,24 +1965,28 @@ class Artifact:
         self._add_download_root(root)
 
         # FIXME: hack to always download using core without run
-        # return self._download_using_core_without_run(
+        if os.environ.get("WANDB_DOWNLOAD_USING_CORE") == "true":
+            return self._download_using_core_without_run(
+                root=root,
+                allow_missing_references=allow_missing_references,
+                skip_cache=bool(skip_cache),
+                path_prefix=path_prefix,
+            )
+        else:
+            return self._download(
+                root=root,
+                allow_missing_references=allow_missing_references,
+                skip_cache=skip_cache,
+                path_prefix=path_prefix,
+                multipart=multipart,
+            )
+
+        # FIXME: somehow existing downloading using core is not working as expected
+        # return self._download_using_core(
         #     root=root,
         #     allow_missing_references=allow_missing_references,
         #     skip_cache=bool(skip_cache),
         #     path_prefix=path_prefix,
-        # )
-        return self._download_using_core(
-            root=root,
-            allow_missing_references=allow_missing_references,
-            skip_cache=bool(skip_cache),
-            path_prefix=path_prefix,
-        )
-        # return self._download(
-        #     root=root,
-        #     allow_missing_references=allow_missing_references,
-        #     skip_cache=skip_cache,
-        #     path_prefix=path_prefix,
-        #     multipart=multipart,
         # )
 
     def _download_using_core_without_run(
