@@ -202,7 +202,7 @@ class _WandbLogin:
         # Whenever the key changes, make sure to pull in user settings
         # from server.
         if not self._wandb_setup.settings._offline:
-            self._wandb_setup._update_user_settings()
+            self._wandb_setup.update_user_settings()
 
     def _prompt_api_key(
         self, referrer: Optional[str] = None
