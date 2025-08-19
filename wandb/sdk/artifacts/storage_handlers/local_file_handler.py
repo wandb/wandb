@@ -6,7 +6,7 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import ParseResult
 
 from wandb import util
@@ -16,10 +16,7 @@ from wandb.sdk.artifacts.artifact_file_cache import (
     get_artifact_file_cache,
 )
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import (
-    DEFAULT_MAX_OBJECTS,
-    SingleStorageHandler,
-)
+from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64, md5_string
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -28,7 +25,7 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-class LocalFileHandler(SingleStorageHandler):
+class LocalFileHandler(StorageHandler):
     """Handles file:// references."""
 
     _scheme: str
@@ -83,7 +80,7 @@ class LocalFileHandler(SingleStorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         local_path = util.local_file_uri_to_path(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         # We have a single file or directory

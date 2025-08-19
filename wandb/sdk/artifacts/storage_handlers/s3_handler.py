@@ -7,7 +7,7 @@ import re
 import time
 from dataclasses import astuple, dataclass
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qsl, urlparse
 
 from wandb import util
@@ -18,10 +18,7 @@ from wandb.sdk.artifacts.artifact_file_cache import (
     get_artifact_file_cache,
 )
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import (
-    DEFAULT_MAX_OBJECTS,
-    SingleStorageHandler,
-)
+from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
@@ -47,7 +44,7 @@ class _ParsedS3URI:
     version: str | None
 
 
-class S3Handler(SingleStorageHandler):
+class S3Handler(StorageHandler):
     _scheme: str
     _s3: boto3.resources.base.ServiceResource | None
     _cache: ArtifactFileCache
@@ -147,20 +144,18 @@ class S3Handler(SingleStorageHandler):
                 raise ValueError(
                     f"Digest mismatch for object {manifest_entry.ref} with version {version}: expected {manifest_entry.digest} but found {etag}"
                 )
+
             obj = None
             object_versions = self._s3.Bucket(bucket).object_versions.filter(Prefix=key)
+            manifest_entry_etag = manifest_entry.extra.get("etag")
             for object_version in object_versions:
-                if manifest_entry.extra.get("etag") == self._etag_from_obj(
-                    object_version
-                ):
+                if manifest_entry_etag == self._etag_from_obj(object_version):
                     obj = object_version.Object()
                     extra_args["VersionId"] = object_version.version_id
                     break
             if obj is None:
                 raise FileNotFoundError(
-                    "Couldn't find object version for {}/{} matching etag {}".format(
-                        bucket, key, manifest_entry.extra.get("etag")
-                    )
+                    f"Couldn't find object version for {bucket}/{key} matching etag {manifest_entry_etag}"
                 )
 
         with cache_open(mode="wb") as f:
@@ -174,7 +169,7 @@ class S3Handler(SingleStorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
 
