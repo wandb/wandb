@@ -100,6 +100,9 @@ class _Runner:
                 raise _RunnerCancelledError()
 
         finally:
+            # NOTE: asyncio.run() cancels all tasks after the main task exits,
+            #   but this is not documented, so we cancel them explicitly here
+            #   as well. It also blocks until canceled tasks complete.
             cancellation_task.cancel()
             fn_task.cancel()
 
@@ -154,11 +157,9 @@ class TaskGroup:
         )
 
         for task in done:
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 if exc := task.exception():
                     raise exc
-            except asyncio.CancelledError:
-                pass
 
     def _cancel_all(self) -> None:
         """Cancel all tasks."""
@@ -196,15 +197,16 @@ async def open_task_group() -> AsyncIterator[TaskGroup]:
 def cancel_on_exit(coro: Coroutine[Any, Any, Any]) -> Iterator[None]:
     """Schedule a task, cancelling it when exiting the context manager.
 
-    If the given coroutine raises an exception, that exception is raised
-    when exiting the context manager.
+    If the context manager exits successfully but the given coroutine raises
+    an exception, that exception is reraised. The exception is suppressed
+    if the context manager raises an exception.
     """
     task = asyncio.create_task(coro)
 
     try:
         yield
-    finally:
+
         if task.done() and (exception := task.exception()):
             raise exception
-
+    finally:
         task.cancel()

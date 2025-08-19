@@ -313,6 +313,8 @@ class Api:
                     self.settings.get("silent", False)
                     or self.settings.get("quiet", False)
                 ),
+                update_api_key=False,
+                _disable_warning=True,
             )
 
         self._viewer = None
@@ -987,7 +989,7 @@ class Api:
         future releases.
 
         Args:
-            path: The path to project the report resides in. Specify the
+            path: The path to the project the report resides in. Specify the
                 entity that created the project as a prefix followed by a
                 forward slash.
             name: Name of the report requested.
@@ -1005,7 +1007,6 @@ class Api:
 
         wandb.Api.reports("entity/project")
         ```
-
         """
         entity, project, _ = self._parse_path(path + "/fake_run")
 
@@ -1098,7 +1099,7 @@ class Api:
         per_page: int = 50,
         include_sweeps: bool = True,
     ):
-        """Return a set of runs from a project that match the filters provided.
+        """Returns a `Runs` object, which lazily iterates over `Run` objects.
 
         Fields you can filter by include:
         - `createdAt`: The timestamp when the run was created. (in ISO 8601 format, e.g. "2023-01-01T12:00:00Z")
@@ -1141,8 +1142,8 @@ class Api:
                 For example: `{"config.experiment_name": "foo"}` would find runs with a config entry
                     of experiment name set to "foo"
             order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
-                If you prepend order with a + order is ascending.
-                If you prepend order with a - order is descending (default).
+                If you prepend order with a + order is ascending (default).
+                If you prepend order with a - order is descending.
                 The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
             include_sweeps: (bool) Whether to include the sweep runs in the results.
@@ -1734,7 +1735,7 @@ class Api:
         organization: Optional[str] = None,
         filter: Optional[Dict[str, Any]] = None,
     ) -> Registries:
-        """Returns a Registry iterator.
+        """Returns a lazy iterator of `Registry` objects.
 
         Use the iterator to search and filter registries, collections,
         or artifact versions across your organization's registry.
@@ -1742,8 +1743,8 @@ class Api:
         Args:
             organization: (str, optional) The organization of the registry to fetch.
                 If not specified, use the organization specified in the user's settings.
-            filter: (dict, optional) MongoDB-style filter to apply to each object in the registry iterator.
-                Fields available to filter for collections are
+            filter: (dict, optional) MongoDB-style filter to apply to each object in the lazy registry iterator.
+                Fields available to filter for registries are
                     `name`, `description`, `created_at`, `updated_at`.
                 Fields available to filter for collections are
                     `name`, `tag`, `description`, `created_at`, `updated_at`
@@ -1751,7 +1752,7 @@ class Api:
                     `tag`, `alias`, `created_at`, `updated_at`, `metadata`
 
         Returns:
-            A registry iterator.
+            A lazy iterator of `Registry` objects.
 
         Examples:
         Find all registries with the names that contain "model"

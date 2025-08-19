@@ -71,7 +71,7 @@ if TYPE_CHECKING:
 
 
 class ArtifactTypes(Paginator["ArtifactType"]):
-    """An iterable collection of artifact types for a specific project.
+    """An lazy iterator of `ArtifactType` objects for a specific project.
 
     <!-- lazydoc-ignore-init: internal -->
     """
@@ -714,7 +714,7 @@ class Artifacts(SizedPaginator["Artifact"]):
 
         self.QUERY = gql_compat(
             PROJECT_ARTIFACTS_GQL,
-            omit_fields=omit_artifact_fields(api=InternalApi()),
+            omit_fields=omit_artifact_fields(),
             rename_fields=rename_fields,
         )
 
@@ -818,15 +818,13 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         if mode == "logged":
             self.run_key = "outputArtifacts"
             self.QUERY = gql_compat(
-                RUN_OUTPUT_ARTIFACTS_GQL,
-                omit_fields=omit_artifact_fields(api=InternalApi()),
+                RUN_OUTPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields()
             )
             self._response_cls = RunOutputArtifactsProjectRunOutputArtifacts
         elif mode == "used":
             self.run_key = "inputArtifacts"
             self.QUERY = gql_compat(
-                RUN_INPUT_ARTIFACTS_GQL,
-                omit_fields=omit_artifact_fields(api=InternalApi()),
+                RUN_INPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields()
             )
             self._response_cls = RunInputArtifactsProjectRunInputArtifacts
         else:

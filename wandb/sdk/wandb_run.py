@@ -2962,7 +2962,7 @@ class Run:
         artifact: Artifact,
         target_path: str,
         aliases: list[str] | None = None,
-    ) -> Artifact | None:
+    ) -> Artifact:
         """Link the given artifact to a portfolio (a promoted collection of artifacts).
 
         Linked artifacts are visible in the UI for the specified portfolio.
@@ -2976,7 +2976,7 @@ class Run:
             The alias "latest" will always be applied to the latest version of an artifact that is linked.
 
         Returns:
-            The linked artifact if linking was successful, otherwise None.
+            The linked artifact.
 
         """
         if artifact.is_draft() and not artifact._is_draft_save_started():
@@ -3703,24 +3703,27 @@ class Run:
         self._printer.display(f"Tracking run with wandb version {wandb.__version__}")
 
     def _header_sync_info(self) -> None:
+        sync_location_msg = f"Run data is saved locally in {self._printer.files(self._settings.sync_dir)}"
+
         if self._settings._offline:
-            self._printer.display(
-                [
-                    f"W&B syncing is set to {self._printer.code('`offline`')}"
-                    f" in this directory. Run {self._printer.code('`wandb online`')}"
-                    f" or set {self._printer.code('WANDB_MODE=online')}"
-                    " to enable cloud syncing.",
-                ]
+            offline_warning = (
+                f"W&B syncing is set to {self._printer.code('`offline`')} "
+                f"in this directory. Run {self._printer.code('`wandb online`')} "
+                f"or set {self._printer.code('WANDB_MODE=online')} "
+                "to enable cloud syncing."
             )
+            self._printer.display([offline_warning, sync_location_msg])
         else:
-            sync_dir = self._settings.sync_dir
-            info = [f"Run data is saved locally in {self._printer.files(sync_dir)}"]
+            messages = [sync_location_msg]
+
             if not self._printer.supports_html:
-                info.append(
+                disable_sync_msg = (
                     f"Run {self._printer.code('`wandb offline`')} to turn off syncing."
                 )
+                messages.append(disable_sync_msg)
+
             if not self._settings.quiet and not self._settings.silent:
-                self._printer.display(info)
+                self._printer.display(messages)
 
     def _header_run_info(self) -> None:
         settings, printer = self._settings, self._printer
@@ -3885,64 +3888,101 @@ class Run:
         if settings.quiet or settings.silent:
             return
 
-        panel = []
+        panel: list[str] = []
 
-        # Render history if available
-        if history:
-            logger.info("rendering history")
+        if history and (
+            history_grid := Run._footer_history(history, printer, settings)
+        ):
+            panel.append(history_grid)
 
-            sampled_history = {
-                item.key: wandb.util.downsample(
-                    item.values_float or item.values_int, 40
-                )
-                for item in history.item
-                if not item.key.startswith("_")
-            }
-
-            history_rows = []
-            for key, values in sorted(sampled_history.items()):
-                if any(not isinstance(value, numbers.Number) for value in values):
-                    continue
-                sparkline = printer.sparklines(values)
-                if sparkline:
-                    history_rows.append([key, sparkline])
-            if history_rows:
-                history_grid = printer.grid(
-                    history_rows,
-                    "Run history:",
-                )
-                panel.append(history_grid)
-
-        # Render summary if available
-        if summary:
-            final_summary = {}
-            for item in summary.item:
-                if item.key.startswith("_") or len(item.nested_key) > 0:
-                    continue
-                final_summary[item.key] = json.loads(item.value_json)
-
-            logger.info("rendering summary")
-            summary_rows = []
-            for key, value in sorted(final_summary.items()):
-                # arrays etc. might be too large. for now, we just don't print them
-                if isinstance(value, str):
-                    value = value[:20] + "..." * (len(value) >= 20)
-                    summary_rows.append([key, value])
-                elif isinstance(value, numbers.Number):
-                    value = round(value, 5) if isinstance(value, float) else value
-                    summary_rows.append([key, str(value)])
-                else:
-                    continue
-
-            if summary_rows:
-                summary_grid = printer.grid(
-                    summary_rows,
-                    "Run summary:",
-                )
-                panel.append(summary_grid)
+        if summary and (
+            summary_grid := Run._footer_summary(summary, printer, settings)
+        ):
+            panel.append(summary_grid)
 
         if panel:
             printer.display(printer.panel(panel))
+
+    @staticmethod
+    def _footer_history(
+        history: SampledHistoryResponse,
+        printer: printer.Printer,
+        settings: Settings,
+    ) -> str | None:
+        """Returns the run history formatted for printing to the console."""
+        sorted_history_items = sorted(
+            (item for item in history.item if not item.key.startswith("_")),
+            key=lambda item: item.key,
+        )
+
+        history_rows: list[list[str]] = []
+        for item in sorted_history_items:
+            if len(history_rows) >= settings.max_end_of_run_history_metrics:
+                break
+
+            values = wandb.util.downsample(
+                item.values_float or item.values_int,
+                40,
+            )
+
+            if sparkline := printer.sparklines(values):
+                history_rows.append([item.key, sparkline])
+
+        if not history_rows:
+            return None
+
+        if len(history_rows) < len(sorted_history_items):
+            remaining = len(sorted_history_items) - len(history_rows)
+            history_rows.append([f"+{remaining:,d}", "..."])
+
+        return printer.grid(history_rows, "Run history:")
+
+    @staticmethod
+    def _footer_summary(
+        summary: GetSummaryResponse,
+        printer: printer.Printer,
+        settings: Settings,
+    ) -> str | None:
+        """Returns the run summary formatted for printing to the console."""
+        sorted_summary_items = sorted(
+            (
+                item
+                for item in summary.item
+                if not item.key.startswith("_") and not item.nested_key
+            ),
+            key=lambda item: item.key,
+        )
+
+        summary_rows: list[list[str]] = []
+        skipped = 0
+        for item in sorted_summary_items:
+            if len(summary_rows) >= settings.max_end_of_run_summary_metrics:
+                break
+
+            try:
+                value = json.loads(item.value_json)
+            except json.JSONDecodeError:
+                logger.exception(f"Error decoding summary[{item.key!r}]")
+                skipped += 1
+                continue
+
+            if isinstance(value, str):
+                value = value[:20] + "..." * (len(value) >= 20)
+                summary_rows.append([item.key, value])
+            elif isinstance(value, numbers.Number):
+                value = round(value, 5) if isinstance(value, float) else value
+                summary_rows.append([item.key, str(value)])
+            else:
+                skipped += 1
+
+        if not summary_rows:
+            return None
+
+        if len(summary_rows) < len(sorted_summary_items) - skipped:
+            remaining = len(sorted_summary_items) - len(summary_rows) - skipped
+            summary_rows.append([f"+{remaining:,d}", "..."])
+
+        return printer.grid(summary_rows, "Run summary:")
 
     @staticmethod
     def _footer_internal_messages(

@@ -1,8 +1,6 @@
 package stream
 
 import (
-	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -13,56 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type HeaderOptions struct {
-	IDENT   [4]byte
-	Magic   uint16
-	Version byte
-}
-
-const (
-	// headerMagic is the magic number for the header.
-	headerMagic = 0xBEE1
-	// headerVersion is the version of the header.
-	headerVersion = 0
-	// headerLength is fixed to IDENT(4) + Magic(2) + Version(1) = 7
-	headerLength = 7
-)
-
-// headerIdent returns the header identifier.
-func headerIdent() [4]byte {
-	return [4]byte{':', 'W', '&', 'B'}
-}
-
-// NewHeader returns a new header with default values.
-func NewHeader() *HeaderOptions {
-	return &HeaderOptions{
-		IDENT:   headerIdent(),
-		Magic:   headerMagic,
-		Version: headerVersion,
-	}
-}
-
-// MarshalBinary encodes the header to binary format.
-func (o *HeaderOptions) MarshalBinary(w io.Writer) error {
-
-	if err := binary.Write(w, binary.LittleEndian, o); err != nil {
-		return fmt.Errorf("error writing binary data: %w", err)
-	}
-	return nil
-}
-
-// UnmarshalBinary decodes binary data into the header.
-func (o *HeaderOptions) UnmarshalBinary(r io.Reader) error {
-	if err := binary.Read(r, binary.LittleEndian, o); err != nil {
-		return fmt.Errorf("error reading binary data: %w", err)
-	}
-	return nil
-}
-
-// Valid checks if the header is valid based on a reference header.
-func (o *HeaderOptions) Valid() bool {
-	return o.IDENT == headerIdent() && o.Magic == headerMagic && o.Version == headerVersion
-}
+const wandbStoreVersion = 0
 
 // Store is the persistent store for a stream
 type Store struct {
@@ -93,34 +42,22 @@ func (sr *Store) Open(flag int) error {
 			return fmt.Errorf("store: failed to open file: %v", err)
 		}
 		sr.db = f
-		headerBuffer := make([]byte, headerLength)
 		sr.reader = leveldb.NewReaderExt(f, leveldb.CRCAlgoIEEE)
-		err = sr.reader.ReadHeader(headerBuffer)
+		err = sr.reader.VerifyWandbHeader(wandbStoreVersion)
 		if err != nil {
-			return fmt.Errorf("store: failed to read header: %v", err)
-		}
-		headerReader := bytes.NewReader(headerBuffer)
-		header := NewHeader()
-		if err = header.UnmarshalBinary(headerReader); err != nil {
-			return fmt.Errorf("store: failed to unmarshal header: %v", err)
-		}
-		if !header.Valid() {
-			return errors.New("store: invalid header")
+			return fmt.Errorf("store: Open: %v", err)
 		}
 		return nil
+
 	case os.O_WRONLY:
 		f, err := os.Create(sr.name)
 		if err != nil {
 			return fmt.Errorf("store: failed to open file: %v", err)
 		}
 		sr.db = f
-		var headerBuffer bytes.Buffer
-		header := NewHeader()
-		if err := header.MarshalBinary(&headerBuffer); err != nil {
-			return fmt.Errorf("store: failed to write header: %v", err)
-		}
-		sr.writer = leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, headerBuffer.Bytes())
+		sr.writer = leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, wandbStoreVersion)
 		return nil
+
 	default:
 		// TODO: generalize this?
 		return fmt.Errorf("store: invalid flag %d", flag)

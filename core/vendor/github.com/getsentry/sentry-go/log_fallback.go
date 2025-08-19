@@ -11,55 +11,94 @@ import (
 // Fallback, no-op logger if logging is disabled.
 type noopLogger struct{}
 
-func (*noopLogger) Trace(_ context.Context, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelTrace)
+// noopLogEntry implements LogEntry for the no-op logger.
+type noopLogEntry struct {
+	level       LogLevel
+	shouldPanic bool
 }
-func (*noopLogger) Debug(_ context.Context, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelDebug)
+
+func (n *noopLogEntry) WithCtx(_ context.Context) LogEntry {
+	return n
 }
-func (*noopLogger) Info(_ context.Context, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelInfo)
+
+func (n *noopLogEntry) String(_, _ string) LogEntry {
+	return n
 }
-func (*noopLogger) Warn(_ context.Context, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelWarn)
+
+func (n *noopLogEntry) Int(_ string, _ int) LogEntry {
+	return n
 }
-func (*noopLogger) Error(_ context.Context, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelError)
+
+func (n *noopLogEntry) Int64(_ string, _ int64) LogEntry {
+	return n
 }
-func (*noopLogger) Fatal(_ context.Context, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelFatal)
-	os.Exit(1)
+
+func (n *noopLogEntry) Float64(_ string, _ float64) LogEntry {
+	return n
 }
-func (*noopLogger) Panic(_ context.Context, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelFatal)
-	panic(fmt.Sprintf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelFatal))
+
+func (n *noopLogEntry) Bool(_ string, _ bool) LogEntry {
+	return n
 }
-func (*noopLogger) Tracef(_ context.Context, _ string, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelTrace)
+
+func (n *noopLogEntry) Attributes(_ ...attribute.Builder) LogEntry {
+	return n
 }
-func (*noopLogger) Debugf(_ context.Context, _ string, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelDebug)
+
+func (n *noopLogEntry) Emit(args ...interface{}) {
+	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", n.level)
+	if n.level == LogLevelFatal {
+		if n.shouldPanic {
+			panic(args)
+		}
+		os.Exit(1)
+	}
 }
-func (*noopLogger) Infof(_ context.Context, _ string, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelInfo)
+
+func (n *noopLogEntry) Emitf(message string, args ...interface{}) {
+	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", n.level)
+	if n.level == LogLevelFatal {
+		if n.shouldPanic {
+			panic(fmt.Sprintf(message, args...))
+		}
+		os.Exit(1)
+	}
 }
-func (*noopLogger) Warnf(_ context.Context, _ string, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelWarn)
+
+func (n *noopLogger) GetCtx() context.Context { return context.Background() }
+
+func (*noopLogger) Trace() LogEntry {
+	return &noopLogEntry{level: LogLevelTrace}
 }
-func (*noopLogger) Errorf(_ context.Context, _ string, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelError)
+
+func (*noopLogger) Debug() LogEntry {
+	return &noopLogEntry{level: LogLevelDebug}
 }
-func (*noopLogger) Fatalf(_ context.Context, _ string, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelFatal)
-	os.Exit(1)
+
+func (*noopLogger) Info() LogEntry {
+	return &noopLogEntry{level: LogLevelInfo}
 }
-func (*noopLogger) Panicf(_ context.Context, _ string, _ ...interface{}) {
-	DebugLogger.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelFatal)
-	panic(fmt.Sprintf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelFatal))
+
+func (*noopLogger) Warn() LogEntry {
+	return &noopLogEntry{level: LogLevelWarn}
 }
+
+func (*noopLogger) Error() LogEntry {
+	return &noopLogEntry{level: LogLevelError}
+}
+
+func (*noopLogger) Fatal() LogEntry {
+	return &noopLogEntry{level: LogLevelFatal}
+}
+
+func (*noopLogger) Panic() LogEntry {
+	return &noopLogEntry{level: LogLevelFatal, shouldPanic: true}
+}
+
 func (*noopLogger) SetAttributes(...attribute.Builder) {
 	DebugLogger.Printf("No attributes attached. Turn on logging via EnableLogs")
 }
+
 func (*noopLogger) Write(_ []byte) (n int, err error) {
-	return 0, fmt.Errorf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelInfo)
+	return 0, fmt.Errorf("log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelInfo)
 }
