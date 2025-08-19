@@ -1,4 +1,4 @@
-"""Support for Pandas datatypes.
+"""Support for PyTorch datatypes.
 
 May raise MissingDependencyError on import.
 """
@@ -12,26 +12,27 @@ import wandb
 from . import errors
 
 try:
-    import pandas as pd
+    import torch
+    import torch.nn as nn
 except ImportError as e:
     warning = (
-        "`pandas` not installed >>"
-        " @wandb_log(datasets=True) may not auto log your dataset!"
+        "`torch` (PyTorch) not installed >>"
+        " @wandb_log(models=True) may not auto log your model!"
     )
     raise errors.MissingDependencyError(warning=warning) from e
 
 
-def is_dataframe(data: Any) -> TypeIs[pd.DataFrame]:
-    """Returns whether the data is a Pandas DataFrame."""
-    return isinstance(data, pd.DataFrame)
+def is_nn_module(data: Any) -> TypeIs[nn.Module]:
+    """Returns whether the data is a PyTorch nn.Module."""
+    return isinstance(data, nn.Module)
 
 
-def use_dataframe(
+def use_nn_module(
     name: str,
     run: wandb.Run | None,
     testing: bool = False,
 ) -> str | None:
-    """Log a dependency on a DataFrame input.
+    """Log a dependency on a PyTorch model input.
 
     Args:
         name: Name of the input.
@@ -39,21 +40,21 @@ def use_dataframe(
         testing: True in unit tests.
     """
     if testing:
-        return "datasets"
+        return "models"
     assert run
 
-    wandb.termlog(f"Using artifact: {name} (Pandas DataFrame)")
+    wandb.termlog(f"Using artifact: {name} (PyTorch nn.Module)")
     run.use_artifact(f"{name}:latest")
     return None
 
 
-def track_dataframe(
+def track_nn_module(
     name: str,
-    data: pd.DataFrame,
+    data: nn.Module,
     run: wandb.Run | None,
     testing: bool = False,
 ) -> str | None:
-    """Log a DataFrame output as an artifact.
+    """Log a PyTorch model output as an artifact.
 
     Args:
         name: The output's name.
@@ -62,13 +63,13 @@ def track_dataframe(
         testing: True in unit tests.
     """
     if testing:
-        return "pd.DataFrame"
+        return "nn.Module"
     assert run
 
-    artifact = wandb.Artifact(name, type="dataset")
-    with artifact.new_file(f"{name}.parquet", "wb") as f:
-        data.to_parquet(f, engine="pyarrow")
+    artifact = wandb.Artifact(name, type="model")
+    with artifact.new_file(f"{name}.pkl", "wb") as f:
+        torch.save(data, f)
 
-    wandb.termlog(f"Logging artifact: {name} (Pandas DataFrame)")
+    wandb.termlog(f"Logging artifact: {name} (PyTorch nn.Module)")
     run.log_artifact(artifact)
     return None
