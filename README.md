@@ -60,7 +60,6 @@ Building an LLM app? Track, debug, evaluate, and monitor LLM apps with [Weave](h
   <img alt="Weights and Biases Sweeps" src="">
 </picture>
 </a>
-</a>
 <a target="_blank" href="https://docs.wandb.ai/guides/artifacts/project-scoped-automations?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/automations-dark.svg" width="12.5%">
