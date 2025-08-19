@@ -48,14 +48,22 @@
 /.github @wandb/sdk-team
 
 
-# Artifacts, Automations, and Launch teams
-/core/pkg/artifacts/                  @wandb/mlw-team @wandb/sdk-team
-/wandb/sdk/artifacts/                 @wandb/mlw-team @wandb/sdk-team
-/wandb/automations/                   @wandb/mlw-team @wandb/sdk-team
-/tests/system_tests/test_artifacts/   @wandb/mlw-team @wandb/sdk-team
-/tests/system_tests/test_registries/  @wandb/mlw-team @wandb/sdk-team
-/tests/system_tests/test_automations/ @wandb/mlw-team @wandb/sdk-team
-/tests/unit_tests/test_artifacts/     @wandb/mlw-team @wandb/sdk-team
-/tests/unit_tests/test_registries/    @wandb/mlw-team @wandb/sdk-team
-/tests/unit_tests/test_automations/   @wandb/mlw-team @wandb/sdk-team
-/tests/unit_tests/test_launch/        @wandb/mlw-team @wandb/sdk-team
+# Artifacts, Registries, Automations
+/core/pkg/artifacts/                  @wandb/art-reg-team @wandb/sdk-team
+/wandb/sdk/artifacts/                 @wandb/art-reg-team @wandb/sdk-team
+/wandb/automations/                   @wandb/art-reg-team @wandb/sdk-team
+/wandb/apis/public/registries/        @wandb/art-reg-team @wandb/sdk-team
+/wandb/apis/public/artifacts.py       @wandb/art-reg-team @wandb/sdk-team
+/wandb/apis/public/automations.py     @wandb/art-reg-team @wandb/sdk-team
+/wandb/apis/public/integrations.py    @wandb/art-reg-team @wandb/sdk-team
+/tests/system_tests/test_artifacts/   @wandb/art-reg-team @wandb/sdk-team
+/tests/system_tests/test_registries/  @wandb/art-reg-team @wandb/sdk-team
+/tests/system_tests/test_automations/ @wandb/art-reg-team @wandb/sdk-team
+/tests/unit_tests/test_artifacts/     @wandb/art-reg-team @wandb/sdk-team
+/tests/unit_tests/test_registries/    @wandb/art-reg-team @wandb/sdk-team
+/tests/unit_tests/test_automations/   @wandb/art-reg-team @wandb/sdk-team
+
+# Launch
+/wandb/sdk/launch/                    @wandb/sweeps-launch-team @wandb/sdk-team
+/tests/system_tests/test_launch/      @wandb/sweeps-launch-team @wandb/sdk-team
+/tests/unit_tests/test_launch/        @wandb/sweeps-launch-team @wandb/sdk-team

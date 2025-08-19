@@ -12,7 +12,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import Self
 
 from wandb._iterutils import always_list
-from wandb._pydantic import gql_typename
+from wandb._pydantic import from_json, gql_typename
 from wandb.util import json_friendly_val
 
 from ._generated import ArtifactPortfolioTypeFields, ArtifactSequenceTypeFields
@@ -207,9 +207,11 @@ def validate_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     """Validate the artifact metadata and return it as a dict."""
     if metadata is None:
         return {}
-    if not isinstance(metadata, dict):
-        raise TypeError(f"metadata must be dict, not {type(metadata)}")
-    return cast(Dict[str, Any], json.loads(json.dumps(json_friendly_val(metadata))))
+    if isinstance(metadata, str):
+        return from_json(metadata) if metadata else {}
+    if isinstance(metadata, dict):
+        return cast(Dict[str, Any], json.loads(json.dumps(json_friendly_val(metadata))))
+    raise TypeError(f"metadata must be dict, not {type(metadata)}")
 
 
 def validate_ttl_duration_seconds(gql_ttl_duration_seconds: int | None) -> int | None:

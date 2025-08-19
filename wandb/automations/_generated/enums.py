@@ -6,13 +6,10 @@ from __future__ import annotations
 from enum import Enum
 
 
-class EventTriggeringConditionType(str, Enum):
-    CREATE_ARTIFACT = "CREATE_ARTIFACT"
-    UPDATE_ARTIFACT_ALIAS = "UPDATE_ARTIFACT_ALIAS"
-    ADD_ARTIFACT_ALIAS = "ADD_ARTIFACT_ALIAS"
-    LINK_MODEL = "LINK_MODEL"
-    RUN_METRIC = "RUN_METRIC"
-    RUN_METRIC_CHANGE = "RUN_METRIC_CHANGE"
+class AlertSeverity(str, Enum):
+    INFO = "INFO"
+    WARN = "WARN"
+    ERROR = "ERROR"
 
 
 class TriggerScopeType(str, Enum):
@@ -20,10 +17,15 @@ class TriggerScopeType(str, Enum):
     ARTIFACT_COLLECTION = "ARTIFACT_COLLECTION"
 
 
-class AlertSeverity(str, Enum):
-    INFO = "INFO"
-    WARN = "WARN"
-    ERROR = "ERROR"
+class EventTriggeringConditionType(str, Enum):
+    CREATE_ARTIFACT = "CREATE_ARTIFACT"
+    UPDATE_ARTIFACT_ALIAS = "UPDATE_ARTIFACT_ALIAS"
+    ADD_ARTIFACT_ALIAS = "ADD_ARTIFACT_ALIAS"
+    ADD_ARTIFACT_TAG = "ADD_ARTIFACT_TAG"
+    LINK_MODEL = "LINK_MODEL"
+    RUN_METRIC = "RUN_METRIC"
+    RUN_METRIC_CHANGE = "RUN_METRIC_CHANGE"
+    RUN_STATE = "RUN_STATE"
 
 
 class TriggeredActionType(str, Enum):

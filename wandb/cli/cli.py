@@ -1906,6 +1906,12 @@ def describe(job):
     help="Service configurations in format serviceName=policy. Valid policies: always, never",
     hidden=True,
 )
+@click.option(
+    "--schema",
+    type=str,
+    help="Path to the schema file for the job.",
+    hidden=True,
+)
 @click.argument("path")
 def create(
     path,
@@ -1922,6 +1928,7 @@ def create(
     base_image,
     dockerfile,
     services,
+    schema,
 ):
     """Create a job from a source, without a wandb run.
 
@@ -1956,6 +1963,12 @@ def create(
         wandb.termerror("Cannot provide --base-image/-B for an `image` job")
         return
 
+    if schema:
+        schema_dict = util.load_json_yaml_dict(schema)
+        if schema_dict is None:
+            wandb.termerror(f"Invalid format for schema file: {schema}")
+            return
+
     artifact, action, aliases = _create_job(
         api=api,
         path=path,
@@ -1972,6 +1985,7 @@ def create(
         base_image=base_image,
         dockerfile=dockerfile,
         services=services,
+        schema=schema_dict,
     )
     if not artifact:
         wandb.termerror("Job creation failed")
@@ -2779,7 +2793,37 @@ def enabled(service):
         )
 
 
-@cli.command(context_settings=CONTEXT, help="Verify your local instance")
+@cli.command(
+    context_settings=CONTEXT,
+    help="""Checks and verifies local instance of W&B. W&B checks for:
+
+    Checks that the host is not `api.wandb.ai` (host check).
+
+    Verifies if the user is logged in correctly using the provided API key (login check).
+
+    Checks that requests are made over HTTPS (secure requests).
+
+    Validates the CORS (Cross-Origin Resource Sharing) configuration of the
+    object store (CORS configuration).
+
+    Logs metrics, saves, and downloads files to check if runs are correctly
+    recorded and accessible (run check).
+
+    Saves and downloads artifacts to verify that the artifact storage and
+    retrieval system is working as expected (artifact check).
+
+    Tests the GraphQL endpoint by uploading a file to ensure it can handle
+    signed URL uploads (GraphQL PUT check).
+
+    Checks the ability to send large payloads through the proxy (large payload check).
+
+    Verifies that the installed version of the W&B package is up-to-date and
+    compatible with the server (W&B version check).
+
+    Creates and executes a sweep to ensure that sweep functionality is
+    working correctly (sweeps check).
+""",
+)
 @click.option("--host", default=None, help="Test a specific instance of W&B")
 def verify(host):
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.

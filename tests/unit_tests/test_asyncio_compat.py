@@ -148,6 +148,26 @@ async def test_cancel_on_exit_error_in_task():
 
 
 @pytest.mark.asyncio
+async def test_cancel_on_exit_errors_everywhere():
+    async def fail(msg: str):
+        raise _TestError(msg)
+
+    with pytest.raises(_TestError, match="inner") as exc:
+        with asyncio_compat.cancel_on_exit(fail("outer")):
+            # Ensure the outer task has already failed before raising
+            # an error. We want to make sure that the inner error still
+            # takes priority.
+            await _yield()
+            await fail("inner")
+
+    # The outer error shouldn't appear as the context or cause of the inner one,
+    # or else the default stacktrace will say "During handling of the above
+    # exception, another exception occurred".
+    assert not exc.value.__context__
+    assert not exc.value.__cause__
+
+
+@pytest.mark.asyncio
 async def test_task_group_waits():
     tester = _TaskGroupTester()
     event = asyncio.Event()
