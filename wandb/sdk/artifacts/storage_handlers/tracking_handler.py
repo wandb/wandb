@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from wandb.errors.term import termwarn
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import SingleStorageHandler
+from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-class TrackingHandler(SingleStorageHandler):
+class TrackingHandler(StorageHandler):
     _scheme: str
 
     def __init__(self, scheme: str = "") -> None:
@@ -57,7 +57,7 @@ class TrackingHandler(SingleStorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         url = urlparse(path)
         if name is None:
             raise ValueError(

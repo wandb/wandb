@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections import deque
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import ParseResult, parse_qsl, urlparse
 
 from typing_extensions import Never
@@ -16,10 +16,7 @@ from wandb.sdk.artifacts.artifact_file_cache import (
     get_artifact_file_cache,
 )
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_handler import (
-    DEFAULT_MAX_OBJECTS,
-    SingleStorageHandler,
-)
+from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
@@ -42,7 +39,7 @@ def _handle_azure_import_error(exc: ImportError) -> Never:
     )
 
 
-class AzureHandler(SingleStorageHandler):
+class AzureHandler(StorageHandler):
     _cache: ArtifactFileCache
 
     def __init__(self, scheme: str | None = None) -> None:
@@ -125,7 +122,7 @@ class AzureHandler(SingleStorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         try:
             from azure.storage.blob import BlobServiceClient
         except ImportError as e:

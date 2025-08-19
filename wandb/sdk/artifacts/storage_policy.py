@@ -16,15 +16,19 @@ if TYPE_CHECKING:
     from wandb.sdk.internal.progress import ProgressFn
 
 
+_POLICY_REGISTRY: dict[str, type[StoragePolicy]] = {}
+
+
 class StoragePolicy(ABC):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        _POLICY_REGISTRY[cls.name()] = cls
+
     @classmethod
     def lookup_by_name(cls, name: str) -> type[StoragePolicy]:
-        import wandb.sdk.artifacts.storage_policies  # noqa: F401
-
-        for sub in cls.__subclasses__():
-            if sub.name() == name:
-                return sub
-        raise NotImplementedError(f"Failed to find storage policy {name!r}")
+        if policy := _POLICY_REGISTRY.get(name):
+            return policy
+        raise ValueError(f"Failed to find storage policy {name!r}")
 
     @classmethod
     @abstractmethod

@@ -17,6 +17,7 @@ from urllib.parse import quote
 
 import requests
 import urllib3
+from requests.adapters import HTTPAdapter
 
 from wandb import env
 from wandb.errors.term import termwarn
@@ -89,6 +90,29 @@ class _ChunkContent(NamedTuple):
     data: bytes
 
 
+def _raise_for_status(response: requests.Response, *_, **__) -> None:
+    response.raise_for_status()
+
+
+def make_requests_session() -> requests.Session:
+    """A factory for a `requests.Session` for use in the `WandbStoragePolicy`."""
+    session = requests.Session()
+
+    # Explicitly configure the retry strategy for http/https adapters.
+    adapter = HTTPAdapter(
+        max_retries=_REQUEST_RETRY_STRATEGY,
+        pool_connections=_REQUEST_POOL_CONNECTIONS,
+        pool_maxsize=_REQUEST_POOL_MAXSIZE,
+    )
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
+    # Automatically raise for status on all requests.
+    session.hooks["response"].append(_raise_for_status)
+
+    return session
+
+
 class WandbStoragePolicy(StoragePolicy):
     @classmethod
     def name(cls) -> str:
@@ -96,52 +120,37 @@ class WandbStoragePolicy(StoragePolicy):
 
     @classmethod
     def from_config(
-        cls, config: dict, api: InternalApi | None = None
+        cls, config: dict[str, Any], api: InternalApi | None = None
     ) -> WandbStoragePolicy:
         return cls(config=config, api=api)
 
     def __init__(
         self,
-        config: dict | None = None,
+        config: dict[str, Any] | None = None,
         cache: ArtifactFileCache | None = None,
         api: InternalApi | None = None,
     ) -> None:
-        self._cache = cache or get_artifact_file_cache()
         self._config = config or {}
-        self._session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(
-            max_retries=_REQUEST_RETRY_STRATEGY,
-            pool_connections=_REQUEST_POOL_CONNECTIONS,
-            pool_maxsize=_REQUEST_POOL_MAXSIZE,
-        )
-        self._session.mount("http://", adapter)
-        self._session.mount("https://", adapter)
 
-        s3 = S3Handler()
-        gcs = GCSHandler()
-        azure = AzureHandler()
-        http = HTTPHandler(self._session)
-        https = HTTPHandler(self._session, scheme="https")
-        artifact = WBArtifactHandler()
-        local_artifact = WBLocalArtifactHandler()
-        file_handler = LocalFileHandler()
+        self._cache = cache or get_artifact_file_cache()
 
+        self._session = make_requests_session()
         self._api = api or InternalApi()
         self._handler = MultiHandler(
             handlers=[
-                s3,
-                gcs,
-                azure,
-                http,
-                https,
-                artifact,
-                local_artifact,
-                file_handler,
+                S3Handler(),  # s3
+                GCSHandler(),  # gcs
+                AzureHandler(),  # azure
+                HTTPHandler(self._session),  # http
+                HTTPHandler(self._session, scheme="https"),  # https
+                WBArtifactHandler(),  # artifact
+                WBLocalArtifactHandler(),  # local_artifact
+                LocalFileHandler(),  # file_handler
             ],
             default_handler=TrackingHandler(),
         )
 
-    def config(self) -> dict:
+    def config(self) -> dict[str, Any]:
         return self._config
 
     def load_file(
@@ -168,7 +177,7 @@ class WandbStoragePolicy(StoragePolicy):
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),
-            manifest_entry.size if manifest_entry.size is not None else 0,
+            manifest_entry.size or 0,
         )
         if hit:
             return path
@@ -188,19 +197,22 @@ class WandbStoragePolicy(StoragePolicy):
                 )
                 return path
             # Serial download
-            response = self._session.get(manifest_entry._download_url, stream=True)
             try:
-                response.raise_for_status()
-            except Exception:
+                response = self._session.get(manifest_entry._download_url, stream=True)
+            except requests.HTTPError:
                 # Signed URL might have expired, fall back to fetching it one by one.
                 manifest_entry._download_url = None
         if manifest_entry._download_url is None:
             auth = None
-            http_headers = _thread_local_api_settings.headers or {}
-            if self._api.access_token is not None:
-                http_headers["Authorization"] = f"Bearer {self._api.access_token}"
-            elif _thread_local_api_settings.cookies is None:
+            headers = _thread_local_api_settings.headers
+            cookies = _thread_local_api_settings.cookies
+
+            # For auth, prefer using (in order): auth header, cookies, HTTP Basic Auth
+            if token := self._api.access_token:
+                headers = {**(headers or {}), "Authorization": f"Bearer {token!s}"}
+            elif cookies is not None:
                 auth = ("api", self._api.api_key or "")
+
             response = self._session.get(
                 self._file_url(
                     self._api,
@@ -210,11 +222,10 @@ class WandbStoragePolicy(StoragePolicy):
                     manifest_entry,
                 ),
                 auth=auth,
-                cookies=_thread_local_api_settings.cookies,
-                headers=http_headers,
+                cookies=cookies,
+                headers=headers,
                 stream=True,
             )
-            response.raise_for_status()
 
         with cache_open(mode="wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
@@ -273,7 +284,6 @@ class WandbStoragePolicy(StoragePolicy):
             headers=headers,
             stream=True,
         )
-        response.raise_for_status()
 
         file_offset = start
         for content in response.iter_content(chunk_size=_HTTP_RES_CHUNK_SIZE_BYTES):
@@ -465,11 +475,11 @@ class WandbStoragePolicy(StoragePolicy):
             True if the file was a duplicate (did not need to be uploaded),
             False if it needed to be uploaded or was a reference (nothing to dedupe).
         """
-        file_size = entry.size if entry.size is not None else 0
+        file_size = entry.size or 0
         chunk_size = self.calc_chunk_size(file_size)
         upload_parts: deque[dict[str, Any]] = deque()
         hex_digests = {}
-        file_path = entry.local_path if entry.local_path is not None else ""
+        file_path = entry.local_path or ""
         # Logic for AWS s3 multipart upload.
         # Only chunk files if larger than 2 GiB. Currently can only support up to 5TiB.
         if S3_MIN_MULTI_UPLOAD_SIZE <= file_size <= S3_MAX_MULTI_UPLOAD_SIZE:
