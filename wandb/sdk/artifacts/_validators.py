@@ -11,8 +11,9 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVa
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import Self
 
-from wandb._iterutils import always_list
+from wandb._iterutils import always_list, unique_list
 from wandb._pydantic import from_json, gql_typename
+from wandb._strutils import nameof, removeprefix
 from wandb.util import json_friendly_val
 
 from ._generated import ArtifactPortfolioTypeFields, ArtifactSequenceTypeFields
@@ -97,24 +98,17 @@ def validate_project_name(name: str) -> None:
     """
     max_len = 128
 
-    if len(name) == 0:
+    if not name:
         raise ValueError("Project name cannot be empty")
-
-    registry_name = ""
-    if name.startswith(REGISTRY_PREFIX):
-        registry_name = name[len(REGISTRY_PREFIX) :]
-        if len(registry_name) == 0:
-            raise ValueError("Registry name cannot be empty")
+    if not (registry_name := removeprefix(name, REGISTRY_PREFIX)):
+        raise ValueError("Registry name cannot be empty")
 
     if len(name) > max_len:
-        if registry_name:
-            raise ValueError(
-                f"Invalid registry name {registry_name!r}, must be {max_len - len(REGISTRY_PREFIX)} characters or less"
-            )
+        if registry_name != name:
+            msg = f"Invalid registry name {registry_name!r}, must be {max_len - len(REGISTRY_PREFIX)} characters or less"
         else:
-            raise ValueError(
-                f"Invalid project name {name!r}, must be {max_len} characters or less"
-            )
+            msg = f"Invalid project name {name!r}, must be {max_len} characters or less"
+        raise ValueError(msg)
 
     # Find the first occurrence of any invalid character
     if invalid_chars := set(INVALID_URL_CHARACTERS).intersection(name):
@@ -175,12 +169,15 @@ def validate_tags(tags: Collection[str] | str) -> list[str]:
             "Invalid tag(s).  "
             "Tags must only contain alphanumeric characters separated by hyphens, underscores, and/or spaces."
         )
-    return list(dict.fromkeys(tags_list))
+    return unique_list(tags_list)
 
 
-RESERVED_ARTIFACT_TYPE_PREFIX: Final[str] = "wandb-"
-RESERVED_ARTIFACT_TYPES: Final[tuple[str, ...]] = ("job", "run_table", "code")
-RESERVED_ARTIFACT_NAME_PREFIXES: Final[dict[str, str]] = {
+#: User-created artifacts cannot have an artifact type with this prefix.
+RESERVED_TYPE_PREFIX: Final[str] = "wandb-"
+
+# For certain artifact types, user-created artifacts cannot have an artifact name with these prefixes.
+RESERVED_NAME_PREFIX_BY_TYPE: Final[dict[str, str]] = {
+    "job": "",  # Empty prefix means ALL artifact names are reserved for this artifact type
     "run_table": "run-",
     "code": "source-",
 }
@@ -188,14 +185,10 @@ RESERVED_ARTIFACT_NAME_PREFIXES: Final[dict[str, str]] = {
 
 def validate_artifact_type(typ: str, name: str) -> str:
     """Validate the artifact type and return it as a string."""
-    if typ in RESERVED_ARTIFACT_TYPES:
-        reserved_name_prefix = RESERVED_ARTIFACT_NAME_PREFIXES.get(typ)
-        if not reserved_name_prefix or name.startswith(reserved_name_prefix):
-            raise ValueError(
-                f"Artifact type {typ!r} is reserved for internal use. "
-                "Please use a different type."
-            )
-    elif typ.startswith(RESERVED_ARTIFACT_TYPE_PREFIX):
+    reserved_name_prefix = RESERVED_NAME_PREFIX_BY_TYPE.get(typ)
+    if (
+        (reserved_name_prefix is not None) and name.startswith(reserved_name_prefix)
+    ) or typ.startswith(RESERVED_TYPE_PREFIX):
         raise ValueError(
             f"Artifact type {typ!r} is reserved for internal use. "
             "Please use a different type."
@@ -234,12 +227,12 @@ def ensure_logged(method: DecoratedF) -> DecoratedF:
     If the method is called on an artifact that's not logged, `ArtifactNotLoggedError` is raised.
     """
     # For clarity, use the qualified (full) name of the method
-    method_fullname = method.__qualname__
+    method_name = nameof(method)
 
     @wraps(method)
     def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
         if self.is_draft():
-            raise ArtifactNotLoggedError(fullname=method_fullname, obj=self)
+            raise ArtifactNotLoggedError(fullname=method_name, obj=self)
         return method(self, *args, **kwargs)
 
     return cast(DecoratedF, wrapper)
@@ -251,12 +244,12 @@ def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
     If the method is called on an artifact that's not logged, `ArtifactFinalizedError` is raised.
     """
     # For clarity, use the qualified (full) name of the method
-    method_fullname = method.__qualname__
+    method_name = nameof(method)
 
     @wraps(method)
     def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
         if self._final:
-            raise ArtifactFinalizedError(fullname=method_fullname, obj=self)
+            raise ArtifactFinalizedError(fullname=method_name, obj=self)
         return method(self, *args, **kwargs)
 
     return cast(DecoratedF, wrapper)
@@ -267,11 +260,11 @@ def is_artifact_registry_project(project: str) -> bool:
 
 
 def remove_registry_prefix(project: str) -> str:
-    if is_artifact_registry_project(project):
-        return project[len(REGISTRY_PREFIX) :]
-    raise ValueError(
-        f"Project {project!r} does not have the prefix {REGISTRY_PREFIX}. It is not a registry project"
-    )
+    if not is_artifact_registry_project(project):
+        raise ValueError(
+            f"Project {project!r} does not have the prefix {REGISTRY_PREFIX}. It is not a registry project"
+        )
+    return removeprefix(project, REGISTRY_PREFIX)
 
 
 @pydantic_dataclass
