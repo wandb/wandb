@@ -94,109 +94,216 @@ class Retry(Generic[_R]):
         """The number of iterations the previous __call__ retried."""
         return self._num_iter
 
-    def __call__(self, *args: Any, **kwargs: Any) -> _R:
+    def __call__(
+        self,
+        *args: Any,
+        num_retries: Optional[int] = None,
+        retry_timedelta: Optional[datetime.timedelta] = None,
+        retry_sleep_base: Optional[float] = None,
+        retry_cancel_event: Optional[threading.Event] = None,
+        check_retry_fn: Optional[CheckRetryFnType] = None,
+        **kwargs: Any,
+    ) -> _R:
         """Call the wrapped function, with retries.
 
         Args:
-           retry_timedelta (kwarg): amount of time to retry before giving up.
-           sleep_base (kwarg): amount of time to sleep upon first failure, all other sleeps
-               are derived from this one.
+            num_retries: The number of retries after which to give up.
+            retry_timedelta: An amount of time after which to give up.
+            retry_sleep_base: Number of seconds to sleep for the first retry.
+                This is used as the base for exponential backoff.
+            retry_cancel_event: An event that causes this to raise
+                a RetryCancelledException on the next attempted retry.
+            check_retry_fn: A custom check for deciding whether an exception
+                should be retried. Retrying is prevented if this returns a falsy
+                value, even if more retries are left. This may also return a
+                timedelta that represents a shorter timeout: retrying is
+                prevented if the value is less than the amount of time that has
+                passed since the last timedelta was returned.
         """
-        retry_timedelta = kwargs.pop("retry_timedelta", self._retry_timedelta)
-        if retry_timedelta is None:
-            retry_timedelta = datetime.timedelta(days=365)
-
-        retry_cancel_event = kwargs.pop("retry_cancel_event", self._retry_cancel_event)
-
-        num_retries = kwargs.pop("num_retries", self._num_retries)
-        if num_retries is None:
-            num_retries = 1000000
-
         if os.environ.get("WANDB_TEST"):
-            num_retries = 0
+            max_retries = 0
+        elif num_retries is not None:
+            max_retries = num_retries
+        elif self._num_retries is not None:
+            max_retries = self._num_retries
+        else:
+            max_retries = 1000000
 
-        sleep_base: float = kwargs.pop("retry_sleep_base", 1)
+        if retry_timedelta is not None:
+            timeout = retry_timedelta
+        elif self._retry_timedelta is not None:
+            timeout = self._retry_timedelta
+        else:
+            timeout = datetime.timedelta(days=365)
 
-        # an extra function to allow performing more logic on the filtered exception
-        check_retry_fn: CheckRetryFnType = kwargs.pop(
-            "check_retry_fn", self._check_retry_fn
+        if retry_sleep_base is not None:
+            initial_sleep = retry_sleep_base
+        else:
+            initial_sleep = 1
+
+        retry_loop = _RetryLoop(
+            max_retries=max_retries,
+            timeout=timeout,
+            initial_sleep=initial_sleep,
+            max_sleep=self.MAX_SLEEP_SECONDS,
+            cancel_event=retry_cancel_event or self._retry_cancel_event,
+            retry_check=check_retry_fn or self._check_retry_fn,
         )
 
-        sleep = sleep_base
-        now = NOW_FN()
-        start_time = now
-        start_time_triggered = None
-
+        start_time = NOW_FN()
         self._num_iter = 0
 
         while True:
             try:
                 result = self._call_fn(*args, **kwargs)
-                # Only print resolved attempts once every minute
-                if self._num_iter > 2 and now - self._last_print > datetime.timedelta(
-                    minutes=1
-                ):
-                    self._last_print = NOW_FN()
-                    if self.retry_callback:
-                        self.retry_callback(
-                            200,
-                            f"{self._error_prefix} resolved after {NOW_FN() - start_time}, resuming normal operation.",
-                        )
-                return result
+
             except self._retryable_exceptions as e:
-                # if the secondary check fails, re-raise
-                retry_timedelta_triggered = check_retry_fn(e)
-                if not retry_timedelta_triggered:
-                    raise
-
-                # always enforce num_retries no matter which type of exception was seen
-                if self._num_iter >= num_retries:
-                    raise
-
-                now = NOW_FN()
-
-                # handle a triggered secondary check which could have a shortened timeout
-                if isinstance(retry_timedelta_triggered, datetime.timedelta):
-                    # save the time of the first secondary trigger
-                    if not start_time_triggered:
-                        start_time_triggered = now
-
-                    # make sure that we haven't run out of time from secondary trigger
-                    if now - start_time_triggered >= retry_timedelta_triggered:
-                        raise
-
-                # always enforce the default timeout from start of retries
-                if now - start_time >= retry_timedelta:
+                if not retry_loop.should_retry(e):
                     raise
 
                 if self._num_iter == 2:
                     logger.info("Retry attempt failed:", exc_info=e)
-                    if (
-                        isinstance(e, HTTPError)
-                        and e.response is not None
-                        and self.retry_callback is not None
-                    ):
-                        self.retry_callback(e.response.status_code, e.response.text)
-                    else:
-                        # todo: would like to catch other errors, eg wandb.errors.Error, ConnectionError etc
-                        # but some of these can be raised before the retry handler thread (RunStatusChecker) is
-                        # spawned in wandb_init
-                        wandb.termlog(
-                            f"{self._error_prefix} ({e.__class__.__name__}), entering retry loop."
-                        )
-                # if wandb.env.is_debug():
-                #     traceback.print_exc()
-            cancelled = self._sleep_check_cancelled(
-                sleep + random.random() * 0.25 * sleep, cancel_event=retry_cancel_event
-            )
-            if cancelled:
-                raise RetryCancelledError("retry timeout")
-            sleep *= 2
-            if sleep > self.MAX_SLEEP_SECONDS:
-                sleep = self.MAX_SLEEP_SECONDS
-            now = NOW_FN()
+                    self._print_entered_retry_loop(e)
 
-            self._num_iter += 1
+                retry_loop.wait_before_retry()
+                self._num_iter += 1
+
+            else:
+                if self._num_iter > 2:
+                    self._print_recovered(start_time)
+
+                return result
+
+    def _print_entered_retry_loop(self, exception: Exception) -> None:
+        """Emit a message saying we've begun retrying.
+
+        Either calls the retry callback or prints a warning to console.
+
+        Args:
+            exception: The most recent exception we will retry.
+        """
+        if (
+            isinstance(exception, HTTPError)
+            and exception.response is not None
+            and self.retry_callback is not None
+        ):
+            self.retry_callback(
+                exception.response.status_code,
+                exception.response.text,
+            )
+        else:
+            wandb.termlog(
+                f"{self._error_prefix}"
+                f" ({exception.__class__.__name__}), entering retry loop."
+            )
+
+    def _print_recovered(self, start_time: datetime.datetime) -> None:
+        """Emit a message saying we've recovered after retrying.
+
+        Args:
+            start_time: When we started retrying.
+        """
+        if not self.retry_callback:
+            return
+
+        now = NOW_FN()
+        if now - self._last_print < datetime.timedelta(minutes=1):
+            return
+        self._last_print = now
+
+        time_to_recover = now - start_time
+        self.retry_callback(
+            200,
+            (
+                f"{self._error_prefix} resolved after"
+                f" {time_to_recover}, resuming normal operation."
+            ),
+        )
+
+
+class _RetryLoop:
+    """An invocation of a Retry instance."""
+
+    def __init__(
+        self,
+        *,
+        max_retries: int,
+        timeout: datetime.timedelta,
+        initial_sleep: float,
+        max_sleep: float,
+        cancel_event: Optional[threading.Event],
+        retry_check: CheckRetryFnType,
+    ) -> None:
+        """Start a new call of a Retry instance.
+
+        Args:
+            max_retries: The number of retries after which to give up.
+            timeout: An amount of time after which to give up.
+            initial_sleep: Number of seconds to sleep for the first retry.
+                This is used as the base for exponential backoff.
+            max_sleep: Maximum number of seconds to sleep between retries.
+            cancel_event: An event that's set when the function is cancelled.
+            retry_check: A custom check for deciding whether an exception should
+                be retried. Retrying is prevented if this returns a falsy value,
+                even if more retries are left. This may also return a timedelta
+                that represents a shorter timeout: retrying is prevented if the
+                value is less than the amount of time that has passed since the
+                last timedelta was returned.
+        """
+        self._max_retries = max_retries
+        self._total_retries = 0
+
+        self._timeout = timeout
+        self._start_time = NOW_FN()
+
+        self._next_sleep_time = initial_sleep
+        self._max_sleep = max_sleep
+        self._cancel_event = cancel_event
+
+        self._retry_check = retry_check
+        self._last_custom_timeout: Optional[datetime.datetime] = None
+
+    def should_retry(self, exception: Exception) -> bool:
+        """Returns whether an exception should be retried."""
+        if self._total_retries >= self._max_retries:
+            return False
+        self._total_retries += 1
+
+        now = NOW_FN()
+        if now - self._start_time >= self._timeout:
+            return False
+
+        retry_check_result = self._retry_check(exception)
+        if not retry_check_result:
+            return False
+
+        if isinstance(retry_check_result, datetime.timedelta):
+            if not self._last_custom_timeout:
+                self._last_custom_timeout = now
+
+            if now - self._last_custom_timeout >= retry_check_result:
+                return False
+
+        return True
+
+    def wait_before_retry(self) -> None:
+        """Block until the next retry should happen.
+
+        Raises:
+            RetryCancelledError: If the operation is cancelled.
+        """
+        sleep_amount = self._next_sleep_time * (1 + random.random() * 0.25)
+
+        if self._cancel_event:
+            cancelled = self._cancel_event.wait(sleep_amount)
+            if cancelled:
+                raise RetryCancelledError("Cancelled while retrying.")
+        else:
+            SLEEP_FN(sleep_amount)
+
+        self._next_sleep_time *= 2
+        if self._next_sleep_time > self._max_sleep:
+            self._next_sleep_time = self._max_sleep
 
 
 _F = TypeVar("_F", bound=Callable)
