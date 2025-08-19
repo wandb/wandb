@@ -40,6 +40,9 @@ if TYPE_CHECKING:
         local_path: str
 
 
+_WB_ARTIFACT_SCHEME = "wandb-artifact"
+
+
 class ArtifactManifestEntry:
     """A single entry in an artifact manifest."""
 
@@ -221,15 +224,11 @@ class ArtifactManifestEntry:
             derived_artifact.add_reference(ref_url)
             ```
         """
-        if self._parent_artifact is None:
-            raise NotImplementedError
-        assert self._parent_artifact.id is not None
-        return (
-            "wandb-artifact://"
-            + b64_to_hex_id(B64MD5(self._parent_artifact.id))
-            + "/"
-            + self.path
-        )
+        if (parent_artifact := self.parent_artifact()) is None:
+            raise ValueError("Parent artifact is not set")
+        elif (parent_id := parent_artifact.id) is None:
+            raise ValueError("Parent artifact ID is not set")
+        return f"{_WB_ARTIFACT_SCHEME}://{b64_to_hex_id(B64MD5(parent_id))}/{self.path}"
 
     def to_json(self) -> ArtifactManifestEntryDict:
         contents: ArtifactManifestEntryDict = {
@@ -251,7 +250,7 @@ class ArtifactManifestEntry:
         return contents
 
     def _is_artifact_reference(self) -> bool:
-        return self.ref is not None and urlparse(self.ref).scheme == "wandb-artifact"
+        return self.ref is not None and urlparse(self.ref).scheme == _WB_ARTIFACT_SCHEME
 
     def _referenced_artifact_id(self) -> str | None:
         if not self._is_artifact_reference():

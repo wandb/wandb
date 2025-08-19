@@ -99,7 +99,6 @@ func NewStream(
 	logger *observability.CoreLogger,
 	operations *wboperation.WandbOperations,
 	recordParserFactory *RecordParserFactory,
-	runWork runwork.RunWork,
 	senderFactory *SenderFactory,
 	sentry *sentry_ext.Client,
 	settings *settings.Settings,
@@ -109,10 +108,12 @@ func NewStream(
 ) *Stream {
 	symlinkDebugCore(settings, string(debugCorePath))
 
+	runWork := runwork.New(BufferSize, logger)
 	tbHandler := tbHandlerFactory.New(
-		/*fileReadDelay=*/ waiting.NewDelay(5 * time.Second),
+		runWork,
+		/*fileReadDelay=*/ waiting.NewDelay(5*time.Second),
 	)
-	recordParser := recordParserFactory.New(tbHandler)
+	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
 
 	s := &Stream{
 		runWork:            runWork,
@@ -124,8 +125,8 @@ func NewStream(
 		loggerFile:         loggerFile,
 		settings:           settings,
 		recordParser:       recordParser,
-		handler:            handlerFactory.New(),
-		sender:             senderFactory.New(),
+		handler:            handlerFactory.New(runWork),
+		sender:             senderFactory.New(runWork),
 		sentryClient:       sentry,
 		clientID:           clientID,
 	}

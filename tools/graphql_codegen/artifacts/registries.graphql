@@ -1,0 +1,161 @@
+query RegistryVersions(
+  $organization: String!
+  $registryFilter: JSONString
+  $collectionFilter: JSONString
+  $artifactFilter: JSONString
+  $cursor: String
+  $perPage: Int
+) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+      artifactMemberships(
+        projectFilters: $registryFilter
+        collectionFilters: $collectionFilter
+        filters: $artifactFilter
+        after: $cursor
+        first: $perPage
+      ) {
+        ...RegistryVersionsPage
+      }
+    }
+  }
+}
+
+fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
+  edges {
+    node {
+      artifactCollection {
+        __typename
+        project {
+          name
+          entity {
+            name
+          }
+        }
+        name
+      }
+      versionIndex
+      artifact {
+        ...ArtifactFragmentWithoutAliases
+      }
+      aliases {
+        alias
+      }
+    }
+  }
+}
+
+query RegistryCollections(
+  $organization: String!
+  $registryFilter: JSONString
+  $collectionFilter: JSONString
+  $collectionTypes: [ArtifactCollectionType!]
+  $cursor: String
+  $perPage: Int
+) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+      artifactCollections(
+        projectFilters: $registryFilter
+        filters: $collectionFilter
+        collectionTypes: $collectionTypes
+        after: $cursor
+        first: $perPage
+      ) {
+        ...RegistryCollectionsPage
+      }
+    }
+  }
+}
+
+fragment RegistryCollectionsPage on ArtifactCollectionConnection {
+  totalCount
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
+  edges {
+    cursor
+    node {
+      __typename
+      id
+      name
+      description
+      createdAt
+      tags {
+        edges {
+          node {
+            name
+          }
+        }
+      }
+      project {
+        name
+        entity {
+          name
+        }
+      }
+      defaultArtifactType {
+        name
+      }
+      aliases {
+        edges {
+          node {
+            alias
+          }
+        }
+      }
+    }
+  }
+}
+
+query FetchRegistries(
+  $organization: String!
+  $filters: JSONString
+  $cursor: String
+  $perPage: Int
+) {
+  organization(name: $organization) {
+    orgEntity {
+      name
+      projects(filters: $filters, after: $cursor, first: $perPage) {
+        ...RegistriesPage
+      }
+    }
+  }
+}
+
+fragment RegistriesPage on ProjectConnection {
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
+  edges {
+    node {
+      ...RegistryFragment
+    }
+  }
+}
+
+fragment RegistryFragment on Project {
+  id
+  allowAllArtifactTypesInRegistry
+  artifactTypes(includeAll: true) {
+    edges {
+      node {
+        name
+      }
+    }
+  }
+  name
+  description
+  createdAt
+  updatedAt
+  access
+}

@@ -1,4 +1,7 @@
-fragment ArtifactFragment on Artifact {
+# Base artifact fragment that excludes the `aliases` field.  Necessary for compatibility with both:
+# - the pre-existing `ArtifactFragment` fragment
+# - the `RegistryVersionsPage` fragment, which omits `Artifact.aliases` but includes `ArtifactCollectionMembership.aliases`
+fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
     project {
@@ -15,18 +18,6 @@ fragment ArtifactFragment on Artifact {
   metadata
   ttlDurationSeconds @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
   ttlIsInherited @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
-  aliases @include(if: true) {
-    # Workaround: ensures generated pydantic field defaults to `None`
-    artifactCollection {
-      __typename
-      project {
-        entityName
-        name
-      }
-      name
-    }
-    alias
-  }
   tags @include(if: true) {
     # Workaround: ensures generated pydantic field defaults to `None`
     name
@@ -42,6 +33,22 @@ fragment ArtifactFragment on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+
+fragment ArtifactFragment on Artifact {
+  ...ArtifactFragmentWithoutAliases
+  aliases @include(if: true) {
+    # Workaround: ensures generated pydantic field defaults to `None`
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
 }
 
 fragment ArtifactsFragment on VersionedArtifactConnection {
@@ -174,6 +181,79 @@ query FetchArtifactManifest($entityName: String!, $projectName: String!, $name: 
 query ArtifactByID($id: ID!) {
   artifact(id: $id) {
     ...ArtifactFragment
+  }
+}
+
+query ArtifactByName(
+  $entityName: String!
+  $projectName: String!
+  $name: String!
+  $enableTracking: Boolean
+) {
+  project(name: $projectName, entityName: $entityName) {
+    artifact(name: $name, enableTracking: $enableTracking) {
+      ...ArtifactFragment
+    }
+  }
+}
+
+query ArtifactViaMembershipByName($entityName: String!, $projectName: String!, $name: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactCollectionMembership(name: $name) {
+      id
+      artifactCollection {
+        id
+        name
+        project {
+          id
+          entityName
+          name
+        }
+      }
+      artifact {
+        ...ArtifactFragment
+      }
+    }
+  }
+}
+
+query ArtifactUsedBy($id: ID!) {
+  artifact(id: $id) {
+    usedBy {
+      edges {
+        node {
+          name
+          project {
+            name
+            entityName
+          }
+        }
+      }
+    }
+  }
+}
+
+query ArtifactCreatedBy($id: ID!) {
+  artifact(id: $id) {
+    createdBy {
+      ... on Run {
+        name
+        project {
+          name
+          entityName
+        }
+      }
+    }
+  }
+}
+
+query ArtifactType($entityName: String, $projectName: String, $name: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    artifact(name: $name) {
+      artifactType {
+        name
+      }
+    }
   }
 }
 

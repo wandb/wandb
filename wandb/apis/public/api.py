@@ -989,7 +989,7 @@ class Api:
         future releases.
 
         Args:
-            path: The path to project the report resides in. Specify the
+            path: The path to the project the report resides in. Specify the
                 entity that created the project as a prefix followed by a
                 forward slash.
             name: Name of the report requested.
@@ -1007,7 +1007,6 @@ class Api:
 
         wandb.Api.reports("entity/project")
         ```
-
         """
         entity, project, _ = self._parse_path(path + "/fake_run")
 
