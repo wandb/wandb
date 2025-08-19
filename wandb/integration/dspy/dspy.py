@@ -322,7 +322,6 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
                 run.summary["best_model_artifact"] = f"{name}:{version}".rstrip(":")
             except Exception:  # pragma: no cover - best effort
                 pass
-
         except Exception as e:
             logger.warning("Failed to log DSPy model artifact: %s", e)
         finally:
