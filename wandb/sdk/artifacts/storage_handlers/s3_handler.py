@@ -16,7 +16,7 @@ from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
-from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+from wandb.sdk.lib.paths import StrPath, URIOrFilePathStr, URIStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
@@ -85,7 +85,7 @@ class S3Handler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> URIStr | FilePathStr:
+    ) -> URIOrFilePathStr:
         if not local:
             assert manifest_entry.ref is not None
             return manifest_entry.ref
@@ -155,7 +155,7 @@ class S3Handler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: URIStr | FilePathStr,
+        path: URIOrFilePathStr,
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,

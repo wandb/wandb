@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Sequence
 from urllib.parse import urlparse
 
 from wandb.sdk.artifacts.storage_handler import StorageHandler
-from wandb.sdk.lib.paths import FilePathStr, URIStr
+from wandb.sdk.lib.paths import URIOrFilePathStr
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -24,7 +24,7 @@ class MultiHandler(StorageHandler):
         self._handlers = handlers or []
         self._default_handler = default_handler
 
-    def _get_handler(self, url: FilePathStr | URIStr) -> StorageHandler:
+    def _get_handler(self, url: URIOrFilePathStr) -> StorageHandler:
         parsed_url = urlparse(url)
         for handler in self._handlers:
             if handler.can_handle(parsed_url):
@@ -37,7 +37,7 @@ class MultiHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> URIStr | FilePathStr:
+    ) -> URIOrFilePathStr:
         assert manifest_entry.ref is not None
         handler = self._get_handler(manifest_entry.ref)
         return handler.load_path(manifest_entry, local=local)
@@ -45,7 +45,7 @@ class MultiHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: URIStr | FilePathStr,
+        path: URIOrFilePathStr,
         name: str | None = None,
         checksum: bool = True,
         max_objects: int | None = None,

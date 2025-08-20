@@ -10,7 +10,7 @@ from wandb import util
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
-from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+from wandb.sdk.lib.paths import StrPath, URIOrFilePathStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
@@ -31,7 +31,7 @@ class WBLocalArtifactHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> URIStr | FilePathStr:
+    ) -> URIOrFilePathStr:
         raise NotImplementedError(
             "Should not be loading a path for an artifact entry with unresolved client id."
         )
@@ -39,7 +39,7 @@ class WBLocalArtifactHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: URIStr | FilePathStr,
+        path: URIOrFilePathStr,
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,

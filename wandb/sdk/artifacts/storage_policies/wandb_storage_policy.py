@@ -44,7 +44,7 @@ from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
-from wandb.sdk.lib.paths import FilePathStr, URIStr
+from wandb.sdk.lib.paths import FilePathStr, URIOrFilePathStr
 
 if TYPE_CHECKING:
     from wandb.filesync.step_prepare import StepPrepare
@@ -349,7 +349,7 @@ class WandbStoragePolicy(StoragePolicy):
     def store_reference(
         self,
         artifact: Artifact,
-        path: URIStr | FilePathStr,
+        path: URIOrFilePathStr,
         name: str | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
@@ -363,7 +363,7 @@ class WandbStoragePolicy(StoragePolicy):
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
         dest_path: str | None = None,
-    ) -> FilePathStr | URIStr:
+    ) -> URIOrFilePathStr:
         assert manifest_entry.ref is not None
         used_handler = self._handler._get_handler(manifest_entry.ref)
         if hasattr(used_handler, "_cache") and (dest_path is not None):

@@ -13,7 +13,7 @@ from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
-from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+from wandb.sdk.lib.paths import StrPath, URIOrFilePathStr, URIStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
@@ -44,7 +44,7 @@ class WBArtifactHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> URIStr | FilePathStr:
+    ) -> URIOrFilePathStr:
         """Load the file in the specified artifact given its corresponding entry.
 
         Download the referenced artifact; create and return a new symlink to the caller.
@@ -69,7 +69,7 @@ class WBArtifactHandler(StorageHandler):
             hex_to_b64_id(artifact_id), self.client.client
         )
         assert dep_artifact is not None
-        link_target_path: URIStr | FilePathStr
+        link_target_path: URIOrFilePathStr
         if local:
             link_target_path = dep_artifact.get_entry(artifact_file_path).download()
         else:
@@ -80,7 +80,7 @@ class WBArtifactHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: URIStr | FilePathStr,
+        path: URIOrFilePathStr,
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
@@ -99,7 +99,7 @@ class WBArtifactHandler(StorageHandler):
         """
         # Recursively resolve the reference until a concrete asset is found
         # TODO: Consider resolving server-side for performance improvements.
-        iter_path: URIStr | FilePathStr | None = path
+        iter_path: URIOrFilePathStr | None = path
         while iter_path is not None and urlparse(iter_path).scheme == self._scheme:
             artifact_id = util.host_from_path(iter_path)
             artifact_file_path = util.uri_from_path(iter_path)

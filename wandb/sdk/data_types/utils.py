@@ -8,6 +8,7 @@ import wandb
 from wandb import util
 
 from ..internal import incremental_table_util
+from ..internal.incremental_table_util import ART_TYPE
 from .base_types.media import BatchableMedia, Media
 from .base_types.wb_value import WBValue
 from .image import _server_accepts_image_filenames
@@ -192,7 +193,7 @@ def _log_table_artifact(val: "Media", key: str, run: "LocalRun") -> None:
             val._load_incremental_table_state_from_resumed_run(run, key)
         else:
             val._set_incremental_table_run_target(run)
-        art = incremental_table_util.init_artifact(run, key)
+        art = InternalArtifact(f"run-{run.id}-incr-{key}", ART_TYPE, incremental=True)
         entry_name = incremental_table_util.get_entry_name(val, key)
     else:
         art = InternalArtifact(f"run-{run.id}-{key}", "run_table")

@@ -20,7 +20,7 @@ from wandb.sdk.lib.hashutil import (
     hex_to_b64_id,
     md5_file_b64,
 )
-from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIOrFilePathStr
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +47,9 @@ class ArtifactManifestEntry:
     """A single entry in an artifact manifest."""
 
     path: LogicalPath
-    digest: B64MD5 | URIStr | FilePathStr | ETag
+    digest: B64MD5 | URIOrFilePathStr | ETag
     skip_cache: bool
-    ref: FilePathStr | URIStr | None
+    ref: URIOrFilePathStr | None
     birth_artifact_id: str | None
     size: int | None
     extra: dict
@@ -61,9 +61,9 @@ class ArtifactManifestEntry:
     def __init__(
         self,
         path: StrPath,
-        digest: B64MD5 | URIStr | FilePathStr | ETag,
+        digest: B64MD5 | URIOrFilePathStr | ETag,
         skip_cache: bool | None = False,
-        ref: FilePathStr | URIStr | None = None,
+        ref: URIOrFilePathStr | None = None,
         birth_artifact_id: str | None = None,
         size: int | None = None,
         extra: dict | None = None,
@@ -184,15 +184,13 @@ class ArtifactManifestEntry:
                 executor=executor,
                 multipart=multipart,
             )
+        return FilePathStr(
+            dest_path
+            if skip_cache
+            else filesystem.copy_or_overwrite_changed(cache_path, dest_path)
+        )
 
-        if skip_cache:
-            return FilePathStr(dest_path)
-        else:
-            return FilePathStr(
-                str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
-            )
-
-    def ref_target(self) -> FilePathStr | URIStr:
+    def ref_target(self) -> URIOrFilePathStr:
         """Get the reference URL that is targeted by this artifact entry.
 
         Returns:

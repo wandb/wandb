@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from wandb.errors.term import termwarn
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
-from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+from wandb.sdk.lib.paths import FilePathStr, StrPath, URIOrFilePathStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
@@ -35,7 +35,7 @@ class TrackingHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> URIStr | FilePathStr:
+    ) -> URIOrFilePathStr:
         if local:
             # Likely a user error. The tracking handler is
             # oblivious to the underlying paths, so it has
@@ -51,7 +51,7 @@ class TrackingHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: URIStr | FilePathStr,
+        path: URIOrFilePathStr,
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,

@@ -13,7 +13,7 @@ from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
-from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+from wandb.sdk.lib.paths import StrPath, URIOrFilePathStr, URIStr
 
 if TYPE_CHECKING:
     import google.cloud.storage as gcs_module  # type: ignore
@@ -57,7 +57,7 @@ class GCSHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> URIStr | FilePathStr:
+    ) -> URIOrFilePathStr:
         assert manifest_entry.ref is not None
         if not local:
             return manifest_entry.ref
@@ -107,7 +107,7 @@ class GCSHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: URIStr | FilePathStr,
+        path: URIOrFilePathStr,
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
@@ -198,7 +198,7 @@ class GCSHandler(StorageHandler):
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
             path=posix_name,
-            ref=URIStr(f"{self._scheme}://{str(posix_ref)}"),
+            ref=URIStr(f"{self._scheme}://{posix_ref!s}"),
             digest=obj.etag,
             size=obj.size,
             extra={"versionID": obj.generation},

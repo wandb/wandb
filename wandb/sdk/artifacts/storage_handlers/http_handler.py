@@ -11,7 +11,7 @@ from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.hashutil import ETag
-from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+from wandb.sdk.lib.paths import StrPath, URIOrFilePathStr, URIStr
 
 if TYPE_CHECKING:
     import requests
@@ -33,7 +33,7 @@ class HTTPHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> URIStr | FilePathStr:
+    ) -> URIOrFilePathStr:
         if not local:
             assert manifest_entry.ref is not None
             return manifest_entry.ref
@@ -56,7 +56,7 @@ class HTTPHandler(StorageHandler):
         )
         response.raise_for_status()
 
-        digest: ETag | FilePathStr | URIStr | None
+        digest: ETag | URIOrFilePathStr | None
         digest, size, extra = self._entry_from_headers(response.headers)
         digest = digest or manifest_entry.ref
         if manifest_entry.digest != digest:
@@ -72,7 +72,7 @@ class HTTPHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: URIStr | FilePathStr,
+        path: URIOrFilePathStr,
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
@@ -88,7 +88,7 @@ class HTTPHandler(StorageHandler):
             headers=_thread_local_api_settings.headers,
         ) as response:
             response.raise_for_status()
-            digest: ETag | FilePathStr | URIStr | None
+            digest: ETag | URIOrFilePathStr | None
             digest, size, extra = self._entry_from_headers(response.headers)
             digest = digest or path
         return [

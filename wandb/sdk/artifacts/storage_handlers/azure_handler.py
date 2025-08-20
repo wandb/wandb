@@ -13,7 +13,7 @@ from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
-from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
+from wandb.sdk.lib.paths import LogicalPath, StrPath, URIOrFilePathStr, URIStr
 
 if TYPE_CHECKING:
     import azure.identity  # type: ignore
@@ -35,7 +35,7 @@ class AzureHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> URIStr | FilePathStr:
+    ) -> URIOrFilePathStr:
         assert manifest_entry.ref is not None
         if not local:
             return manifest_entry.ref
@@ -97,7 +97,7 @@ class AzureHandler(StorageHandler):
     def store_path(
         self,
         artifact: Artifact,
-        path: URIStr | FilePathStr,
+        path: URIOrFilePathStr,
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,

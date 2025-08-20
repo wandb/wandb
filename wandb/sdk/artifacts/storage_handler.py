@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Sequence
 
-from wandb.sdk.lib.paths import FilePathStr, URIStr
+from wandb.sdk.lib.paths import URIOrFilePathStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
@@ -28,7 +28,7 @@ class StorageHandler:
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> URIStr | FilePathStr:
+    ) -> URIOrFilePathStr:
         """Load a file or directory given the corresponding index entry.
 
         Args:
@@ -43,7 +43,7 @@ class StorageHandler:
     def store_path(
         self,
         artifact: Artifact,
-        path: URIStr | FilePathStr,
+        path: URIOrFilePathStr,
         name: str | None = None,
         checksum: bool = True,
         max_objects: int | None = None,

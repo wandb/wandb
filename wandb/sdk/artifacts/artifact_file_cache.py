@@ -86,7 +86,7 @@ class ArtifactFileCache:
     ) -> tuple[FilePathStr, bool, Opener]:
         opener = self._opener(path, size, skip_cache=skip_cache)
         hit = path.is_file() and path.stat().st_size == size
-        return FilePathStr(str(path)), hit, opener
+        return FilePathStr(path), hit, opener
 
     def cleanup(
         self,

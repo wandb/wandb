@@ -6,7 +6,7 @@ import concurrent.futures
 from typing import TYPE_CHECKING, Sequence
 
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.lib.paths import FilePathStr, URIStr
+from wandb.sdk.lib.paths import FilePathStr, URIOrFilePathStr
 
 if TYPE_CHECKING:
     from wandb.filesync.step_prepare import StepPrepare
@@ -59,7 +59,7 @@ class StoragePolicy:
     def store_reference(
         self,
         artifact: Artifact,
-        path: URIStr | FilePathStr,
+        path: URIOrFilePathStr,
         name: str | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
@@ -71,5 +71,5 @@ class StoragePolicy:
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
         dest_path: str | None = None,
-    ) -> FilePathStr | URIStr:
+    ) -> URIOrFilePathStr:
         raise NotImplementedError
