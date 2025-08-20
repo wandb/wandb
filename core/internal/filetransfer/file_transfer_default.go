@@ -1,18 +1,44 @@
 package filetransfer
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"os"
 	"path"
+	"runtime"
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/wboperation"
+	"golang.org/x/sync/errgroup"
 )
+
+const (
+	// Parallel download thresholds
+	s3MinMultiDownloadSize     = 2 << 30   // 2 GiB
+	s3DefaultDownloadChunkSize = 100 << 20 // 100 MiB
+	s3DefaultHTTPChunkSize     = 1 << 20   // 1 MiB
+	s3MaxParts                 = 10000
+	downloadQueueSize          = 500 // Max buffered chunks
+)
+
+// chunkData represents downloaded data with its file offset
+type chunkData struct {
+	Offset int64
+	Data   []byte
+}
+
+// downloadPart represents a chunk to download
+type downloadPart struct {
+	PartNumber int
+	StartByte  int64
+	EndByte    int64
+	Size       int64
+}
 
 // DefaultFileTransfer uploads or downloads files to/from the server
 type DefaultFileTransfer struct {
@@ -95,7 +121,21 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 
 // Download downloads a file from the server
 func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
-	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
+	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url, "size", task.Size)
+
+	// Check if we should use parallel download based on task.Size
+	if ft.shouldUseParallelDownload(task) {
+		ft.logger.Debug("using parallel download", "size", task.Size)
+		return ft.downloadParallel(task)
+	}
+
+	// Fallback to serial download for small files
+	ft.logger.Debug("using serial download", "size", task.Size)
+	return ft.downloadSerial(task)
+}
+
+// downloadSerial performs a serial download (original implementation)
+func (ft *DefaultFileTransfer) downloadSerial(task *DefaultDownloadTask) error {
 	dir := path.Dir(task.Path)
 
 	// Check if the directory already exists
@@ -258,4 +298,253 @@ func (pr *ProgressReader) Read(p []byte) (int, error) {
 
 func (pr *ProgressReader) Len() int {
 	return int(pr.len)
+}
+
+// shouldUseParallelDownload checks if file meets threshold for parallel download
+func (ft *DefaultFileTransfer) shouldUseParallelDownload(task *DefaultDownloadTask) bool {
+	// Use task.Size which already contains the file size
+	// No need for HEAD request
+	return task.Size >= s3MinMultiDownloadSize && task.Size > 0
+}
+
+// downloadParallel performs parallel download
+func (ft *DefaultFileTransfer) downloadParallel(task *DefaultDownloadTask) error {
+	ft.logger.Debug("parallel download starting",
+		"path", task.Path,
+		"url", task.Url,
+		"size", task.Size)
+
+	// Calculate parts based on task.Size
+	parts := ft.calculateDownloadParts(task.Size)
+	// *2 because most work are IO bound
+	numWorkers := min(runtime.NumCPU()*2, len(parts))
+
+	// Create output file
+	dir := path.Dir(task.Path)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return err
+	}
+
+	file, err := os.Create(task.Path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Setup channels and context
+	ctx := context.Background()
+	if task.Context != nil {
+		ctx = task.Context
+	}
+
+	chunkQueue := make(chan chunkData, downloadQueueSize)
+	g, ctx := errgroup.WithContext(ctx)
+
+	// Start file writer goroutine
+	g.Go(func() error {
+		return ft.writeChunksToFile(ctx, file, chunkQueue, task)
+	})
+
+	// Start download workers
+	workerTasks := ft.splitDownloadTasks(parts, numWorkers)
+	for i, workerParts := range workerTasks {
+		workerID := i
+		taskParts := workerParts
+
+		g.Go(func() error {
+			for _, part := range taskParts {
+				if err := ft.downloadPart(ctx, task, part, chunkQueue); err != nil {
+					return fmt.Errorf("worker %d failed on part %d: %w", workerID, part.PartNumber, err)
+				}
+			}
+			return nil
+		})
+	}
+
+	// Wait for all downloads to complete
+	downloadErr := g.Wait()
+
+	// Signal writer to stop
+	close(chunkQueue)
+
+	return downloadErr
+}
+
+// downloadPart downloads a single part using Range header
+func (ft *DefaultFileTransfer) downloadPart(
+	ctx context.Context,
+	task *DefaultDownloadTask,
+	part downloadPart,
+	chunkQueue chan<- chunkData,
+) error {
+	// Create range request: "bytes=0-104857599" (0-99MB)
+	rangeHeader := fmt.Sprintf("bytes=%d-%d", part.StartByte, part.EndByte)
+
+	req, err := retryablehttp.NewRequest(http.MethodGet, task.Url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Range", rangeHeader)
+
+	// Add original headers from task
+	for _, header := range task.Headers {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) == 2 {
+			req.Header.Set(parts[0], parts[1])
+		}
+	}
+
+	// retryablehttp.Client handles retries automatically
+	resp, err := ft.client.Do(req.WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusPartialContent {
+		return fmt.Errorf("expected 206 Partial Content, got %d", resp.StatusCode)
+	}
+
+	// Stream response in chunks
+	offset := part.StartByte
+	buffer := make([]byte, s3DefaultHTTPChunkSize) // 1MB buffer
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		n, err := resp.Body.Read(buffer)
+		if n > 0 {
+			chunk := chunkData{
+				Offset: offset,
+				Data:   make([]byte, n),
+			}
+			copy(chunk.Data, buffer[:n])
+
+			select {
+			case chunkQueue <- chunk:
+				offset += int64(n)
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// writeChunksToFile handles writing chunks to file
+// Single goroutine writer - no locks needed
+func (ft *DefaultFileTransfer) writeChunksToFile(
+	ctx context.Context,
+	file *os.File,
+	chunkQueue <-chan chunkData,
+	task *DefaultDownloadTask,
+) error {
+	writtenBytes := int64(0)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case chunk, ok := <-chunkQueue:
+			if !ok {
+				// Channel closed, all chunks written
+				return nil
+			}
+
+			// Seek to correct position (creates sparse file)
+			if _, err := file.Seek(chunk.Offset, io.SeekStart); err != nil {
+				return fmt.Errorf("failed to seek to offset %d: %w", chunk.Offset, err)
+			}
+
+			// Write chunk data
+			if _, err := file.Write(chunk.Data); err != nil {
+				return fmt.Errorf("failed to write chunk at offset %d: %w", chunk.Offset, err)
+			}
+
+			// Update progress (optional - can skip in first iteration)
+			writtenBytes += int64(len(chunk.Data))
+			if task.ProgressCallback != nil {
+				// No locks needed - single writer goroutine
+				task.ProgressCallback(int(writtenBytes), int(task.Size))
+			}
+
+			// Update file transfer stats (optional - can skip in first iteration)
+			// Note: UpdateDownloadStats may not exist yet, using UpdateUploadStats as placeholder
+			// This will need to be addressed when FileDownloadInfo is implemented
+			if ft.fileTransferStats != nil {
+				ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
+					FileKind:      task.FileKind,
+					Path:          task.Path,
+					UploadedBytes: writtenBytes,
+					TotalBytes:    task.Size,
+				})
+			}
+		}
+	}
+}
+
+// calculateDownloadParts splits file into parts for parallel download
+func (ft *DefaultFileTransfer) calculateDownloadParts(fileSize int64) []downloadPart {
+	chunkSize := ft.getDownloadChunkSize(fileSize)
+	numParts := int(fileSize / chunkSize)
+	if fileSize%chunkSize != 0 {
+		numParts++
+	}
+
+	parts := make([]downloadPart, numParts)
+	for i := 0; i < numParts; i++ {
+		startByte := int64(i) * chunkSize
+		endByte := min(startByte+chunkSize-1, fileSize-1)
+
+		parts[i] = downloadPart{
+			PartNumber: i + 1,
+			StartByte:  startByte,
+			EndByte:    endByte,
+			Size:       endByte - startByte + 1,
+		}
+	}
+
+	return parts
+}
+
+// getDownloadChunkSize calculates the optimal chunk size
+func (ft *DefaultFileTransfer) getDownloadChunkSize(fileSize int64) int64 {
+	if fileSize < s3DefaultDownloadChunkSize*s3MaxParts {
+		return s3DefaultDownloadChunkSize
+	}
+	// Calculate larger chunk size if needed
+	chunkSize := int64(math.Ceil(float64(fileSize) / float64(s3MaxParts)))
+	return int64(math.Ceil(float64(chunkSize)/4096) * 4096)
+}
+
+// splitDownloadTasks distributes parts among workers
+func (ft *DefaultFileTransfer) splitDownloadTasks(parts []downloadPart, numWorkers int) [][]downloadPart {
+	partsPerWorker := len(parts) / numWorkers
+	workersWithOneMorePart := len(parts) % numWorkers
+
+	workerTasks := make([][]downloadPart, numWorkers)
+	partIndex := 0
+
+	for i := 0; i < numWorkers; i++ {
+		workerPartCount := partsPerWorker
+		if i < workersWithOneMorePart {
+			workerPartCount++
+		}
+
+		workerTasks[i] = parts[partIndex : partIndex+workerPartCount]
+		partIndex += workerPartCount
+	}
+
+	return workerTasks
 }
