@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -108,12 +109,22 @@ func openStreamLoggerFile(settings *settings.Settings) streamLoggerFile {
 	)
 
 	if err != nil {
+		os.WriteFile(
+			"/tmp/gocore.txt",
+			[]byte(fmt.Sprintf("open log file failed %v", err)),
+			0666,
+		)
 		slog.Error(
 			"error opening log file",
 			"path", path,
 			"error", err)
 		return nil
 	} else {
+		os.WriteFile(
+			"/tmp/gocore.txt",
+			[]byte(fmt.Sprintf("open log file succeeded %v", loggerFile.Name())),
+			0666,
+		)
 		return loggerFile
 	}
 }

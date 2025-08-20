@@ -1999,6 +1999,8 @@ class Artifact:
         print("Downloading using core without run")
         # Dynamic import to avoid circular import
         from wandb.sdk.backend.backend import Backend
+        from datetime import datetime
+        import pathlib
 
         # Download using core without creating a run, let's see how it goes
         # What the existing code is doing is:
@@ -2018,6 +2020,21 @@ class Artifact:
         settings = wl.settings.to_proto()
 
         settings.run_id.value = stream_id
+
+        # Override sync_dir in proto to use timestamp-based directory
+        # Format: wandb/YYYYMMDDHHMMSS (e.g., wandb/20250820152301)
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        sync_dir = pathlib.Path("wandb") / timestamp
+
+        # Override the proto settings for directories
+        settings.sync_dir.value = str(sync_dir)
+        settings.sync_file.value = str(sync_dir / f"{stream_id}.wandb")
+        settings.files_dir.value = str(sync_dir / "files")
+        settings.log_dir.value = str(sync_dir / "logs")
+        settings.log_internal.value = str(sync_dir / "logs" / "debug-internal.log")
+        # Create the sync and log dirs if not exists
+        os.makedirs(sync_dir, exist_ok=True)
+        os.makedirs(sync_dir / "logs", exist_ok=True)
 
         # print("settings", settings)
 
