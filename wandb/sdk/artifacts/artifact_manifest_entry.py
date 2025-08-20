@@ -266,13 +266,25 @@ class ArtifactManifestEntry:
             contents["extra"] = self.extra
         return contents
 
-    def _get_checksum_file_path(self, file_path: str) -> str:
-        """Get the path for the checksum sidecar file."""
-        return f"{file_path}.wbchecksum"
+    def _get_checksum_cache_path(self, file_path: str) -> str:
+        """Get path for checksum in central cache directory."""
+        import hashlib
+        from wandb import env
+        from pathlib import Path
+        
+        # Create a unique cache key based on the file's absolute path
+        abs_path = os.path.abspath(file_path)
+        path_hash = hashlib.sha256(abs_path.encode()).hexdigest()
+        
+        # Store in wandb cache directory under checksums subdirectory
+        cache_dir = Path(env.get_cache_dir()) / "artifacts" / "checksums"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        return str(cache_dir / f"{path_hash}.checksum")
 
     def _read_cached_checksum(self, file_path: str) -> str | None:
-        """Read checksum from sidecar file if it exists and is valid."""
-        checksum_path = self._get_checksum_file_path(file_path)
+        """Read checksum from cache if it exists and is valid."""
+        checksum_path = self._get_checksum_cache_path(file_path)
 
         try:
             # Check if both files exist
@@ -295,8 +307,8 @@ class ArtifactManifestEntry:
             return None
 
     def _write_checksum_cache(self, file_path: str, checksum: str) -> None:
-        """Write checksum to sidecar file."""
-        checksum_path = self._get_checksum_file_path(file_path)
+        """Write checksum to cache directory."""
+        checksum_path = self._get_checksum_cache_path(file_path)
         try:
             with open(checksum_path, "w") as f:
                 f.write(checksum)

@@ -2248,9 +2248,6 @@ class Artifact:
 
         for dirpath, _, files in os.walk(root):
             for file in files:
-                # Skip sidecar checksum files - these are implementation details for performance
-                if file.endswith(".wbchecksum"):
-                    continue
                 full_path = os.path.join(dirpath, file)
                 artifact_path = os.path.relpath(full_path, start=root)
                 try:
