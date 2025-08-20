@@ -6,18 +6,27 @@ import logging
 import mmap
 import sys
 import time
-from typing import TYPE_CHECKING, NewType
+from typing import TYPE_CHECKING
+
+from typing_extensions import TypeAlias
 
 from wandb.sdk.lib.paths import StrPath
 
 if TYPE_CHECKING:
     import _hashlib  # type: ignore[import-not-found]
 
-ETag = NewType("ETag", str)
-HexMD5 = NewType("HexMD5", str)
-B64MD5 = NewType("B64MD5", str)
 
 logger = logging.getLogger(__name__)
+
+# In the future, consider relying on pydantic to validate these types via e.g.
+# - Base64Str: https://docs.pydantic.dev/latest/api/types/#pydantic.types.Base64Str
+# - a custom EncodedStr + Encoder impl: https://docs.pydantic.dev/latest/api/types/#pydantic.types.EncodedStr
+#
+# Note that so long as we continue to support Pydantic v1, the options above will require a compatible shim/backport
+# implementation, since those types are not in Pydantic v1.
+ETag: TypeAlias = str
+HexMD5: TypeAlias = str
+B64MD5: TypeAlias = str
 
 
 def _md5(data: bytes = b"") -> _hashlib.HASH:
