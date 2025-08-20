@@ -40,13 +40,13 @@ class HTTPHandler(StorageHandler):
 
         assert manifest_entry.ref is not None
 
-        path, hit, cache_open = self._cache.check_etag_obj_path(
+        checked_path = self._cache.check_etag_obj_path(
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
-        if hit:
-            return path
+        if checked_path.hit:
+            return checked_path.path
 
         response = self._session.get(
             manifest_entry.ref,
@@ -64,10 +64,10 @@ class HTTPHandler(StorageHandler):
                 f"Digest mismatch for url {manifest_entry.ref}: expected {manifest_entry.digest} but found {digest}"
             )
 
-        with cache_open(mode="wb") as file:
+        with checked_path.open(mode="wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
                 file.write(data)
-        return path
+        return checked_path.path
 
     def store_path(
         self,
