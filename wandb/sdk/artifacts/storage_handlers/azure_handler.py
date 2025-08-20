@@ -40,13 +40,13 @@ class AzureHandler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path, hit, cache_open = self._cache.check_etag_obj_path(
+        checked_path = self._cache.check_etag_obj_path(
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),
             manifest_entry.size or 0,
         )
-        if hit:
-            return path
+        if checked_path.hit:
+            return checked_path.path
 
         account_url, container_name, blob_name, query = self._parse_uri(
             manifest_entry.ref
@@ -90,9 +90,9 @@ class AzureHandler(StorageHandler):
                     )
         else:
             downloader = blob_client.download_blob(version_id=version_id)
-        with cache_open(mode="wb") as f:
+        with checked_path.open(mode="wb") as f:
             downloader.readinto(f)
-        return path
+        return checked_path.path
 
     def store_path(
         self,
