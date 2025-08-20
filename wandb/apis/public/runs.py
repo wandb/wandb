@@ -485,7 +485,7 @@ class Runs(SizedPaginator["Run"]):
         lazy_runs = [run for run in self.objects if run._lazy]
         if lazy_runs:
             from concurrent.futures import ThreadPoolExecutor
-            
+
             # Limit workers to avoid overwhelming the server
             max_workers = min(len(lazy_runs), 10)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
