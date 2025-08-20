@@ -43,8 +43,8 @@ if TYPE_CHECKING:
 
 
 def is_cache_hit(cache: ArtifactFileCache, digest: str, size: int) -> bool:
-    _, hit, _ = cache.check_md5_obj_path(digest, size)
-    return hit
+    checked_path = cache.check_md5_obj_path(digest, size)
+    return checked_path.hit
 
 
 def singleton_queue(x):

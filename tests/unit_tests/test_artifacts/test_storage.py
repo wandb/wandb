@@ -24,21 +24,21 @@ from wandb.sdk.lib.hashutil import ETag, md5_string
 example_digest = md5_string("example")
 
 
-def test_opener_rejects_append_mode(artifact_file_cache):
-    _, _, opener = artifact_file_cache.check_md5_obj_path(example_digest, 7)
+def test_opener_rejects_append_mode(artifact_file_cache: ArtifactFileCache):
+    checked = artifact_file_cache.check_md5_obj_path(example_digest, 7)
 
     with pytest.raises(ValueError):
-        with opener("a"):
+        with checked.open("a"):
             pass
 
     # make sure that the ValueError goes away if we use a valid mode
-    with opener("w") as f:
+    with checked.open("w") as f:
         f.write("example")
 
 
 def test_opener_works_across_filesystem_boundaries(
     tmp_path,
-    artifact_file_cache,
+    artifact_file_cache: ArtifactFileCache,
     fs: FakeFilesystem,
     disable_memray,  # FakeFilesystem breaks memray
 ):
@@ -55,20 +55,18 @@ def test_opener_works_across_filesystem_boundaries(
     fake_tmp_path = Path(str(tmp_path))
     fs.create_dir(fake_tmp_path)
 
-    fake_cache_dir = Path(str(artifact_file_cache._cache_dir))
-    fake_cache_obj_dir = Path(str(artifact_file_cache._obj_dir))
-    fake_cache_temp_dir = Path(str(artifact_file_cache._temp_dir))
-    artifact_file_cache._cache_dir = fake_cache_dir
-    artifact_file_cache._obj_dir = fake_cache_obj_dir
-    artifact_file_cache._temp_dir = fake_cache_temp_dir
+    fake_cache_dir = Path(str(artifact_file_cache._config.cache_dir))
+    fake_cache_obj_dir = Path(str(artifact_file_cache._config.obj_dir))
+    fake_cache_temp_dir = Path(str(artifact_file_cache._config.temp_dir))
+    artifact_file_cache._config.cache_dir = fake_cache_dir
+    artifact_file_cache._config.obj_dir = fake_cache_obj_dir
+    artifact_file_cache._config.temp_dir = fake_cache_temp_dir
     fs.create_dir(fake_cache_dir)
     fs.create_dir(fake_cache_obj_dir)
     fs.create_dir(fake_cache_temp_dir)
 
-    cache_path, _, cache_opener = artifact_file_cache.check_md5_obj_path(
-        example_digest, 7
-    )
-    with cache_opener() as f:
+    checked_cache = artifact_file_cache.check_md5_obj_path(example_digest, 7)
+    with checked_cache.open() as f:
         f.write("test-123")
 
     # Simulate a destination filepath on the mounted filesystem
@@ -80,109 +78,113 @@ def test_opener_works_across_filesystem_boundaries(
     # Sanity check: `os.rename` should fail across the (fake) filesystem boundary
     # This is extra assurance that we're still testing what we expect to test
     with pytest.raises(OSError) as excinfo:
-        os.rename(cache_path, dest_path)
+        os.rename(checked_cache.path, dest_path)
     assert excinfo.value.args[0] == errno.EXDEV
 
     # Now simulate skipping the cache
     artifact_file_cache._override_cache_path = dest_path
-    override_path, _, override_opener = artifact_file_cache.check_md5_obj_path(
-        example_digest, 7
-    )
+    checked_override = artifact_file_cache.check_md5_obj_path(example_digest, 7)
 
-    with override_opener() as f:
+    with checked_override.open() as f:
         f.write("test-abc")
 
     assert dest_path.read_text() == "test-abc"
 
 
-def test_check_md5_obj_path(artifact_file_cache):
+def test_check_md5_obj_path(artifact_file_cache: ArtifactFileCache):
     md5 = md5_string("hi")
-    path, exists, opener = artifact_file_cache.check_md5_obj_path(md5, 2)
+    checked = artifact_file_cache.check_md5_obj_path(md5, 2)
     expected_path = os.path.join(
-        artifact_file_cache._cache_dir,
+        artifact_file_cache._config.cache_dir,
         "obj",
         "md5",
         "49",
         "f68a5c8493ec2c0bf489821c21fc3b",
     )
-    assert path == expected_path
+    assert checked.path == expected_path
 
-    with opener() as f:
+    with checked.open() as f:
         f.write("hi")
-    with open(path) as f:
+    with open(checked.path) as f:
         contents = f.read()
 
-    assert exists is False
+    assert checked.hit is False
     assert contents == "hi"
 
 
-def test_check_md5_obj_path_override(artifact_file_cache):
+def test_check_md5_obj_path_override(artifact_file_cache: ArtifactFileCache):
     md5 = md5_string("hi")
-    override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
-    artifact_file_cache._override_cache_path = override_path
-    path, exists, _ = artifact_file_cache.check_md5_obj_path(md5, 2)
-    assert path == override_path
-    assert exists is False
-
-
-def test_check_etag_obj_path_points_to_opener_dst(artifact_file_cache):
-    path, _, opener = artifact_file_cache.check_etag_obj_path(
-        "http://my/url", "abc", 10
+    override_path = os.path.join(
+        artifact_file_cache._config.cache_dir, "override.cache"
     )
+    artifact_file_cache._override_cache_path = override_path
+    checked = artifact_file_cache.check_md5_obj_path(md5, 2)
+    assert checked.path == override_path
+    assert checked.hit is False
 
-    with opener() as f:
+
+def test_check_etag_obj_path_points_to_opener_dst(
+    artifact_file_cache: ArtifactFileCache,
+):
+    checked = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", 10)
+
+    with checked.open() as f:
         f.write("hi")
-    with open(path) as f:
+    with open(checked.path) as f:
         contents = f.read()
 
     assert contents == "hi"
 
 
-def test_check_etag_obj_path_override(artifact_file_cache):
-    override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
-    artifact_file_cache._override_cache_path = override_path
-    path, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", 2)
-    assert path == override_path
-    assert exists is False
-
-
-def test_check_etag_obj_path_returns_exists_if_exists(artifact_file_cache):
-    size = 123
-    _, exists, opener = artifact_file_cache.check_etag_obj_path(
-        "http://my/url", "abc", size
+def test_check_etag_obj_path_override(artifact_file_cache: ArtifactFileCache):
+    override_path = os.path.join(
+        artifact_file_cache._config.cache_dir, "override.cache"
     )
-    assert not exists
+    artifact_file_cache._override_cache_path = override_path
+    checked = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", 2)
+    assert checked.path == override_path
+    assert checked.hit is False
 
-    with opener() as f:
+
+def test_check_etag_obj_path_returns_exists_if_exists(
+    artifact_file_cache: ArtifactFileCache,
+):
+    size = 123
+    checked = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
+    assert not checked.hit
+
+    with checked.open() as f:
         f.write(size * "a")
 
-    _, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
-    assert exists
+    checked2 = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
+    assert checked2.hit
 
 
-def test_check_etag_obj_path_returns_not_exists_if_incomplete(artifact_file_cache):
+def test_check_etag_obj_path_returns_not_exists_if_incomplete(
+    artifact_file_cache: ArtifactFileCache,
+):
     size = 123
-    _, exists, opener = artifact_file_cache.check_etag_obj_path(
-        "http://my/url", "abc", size
-    )
-    assert not exists
+    checked = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
+    assert not checked.hit
 
-    with opener() as f:
+    with checked.open() as f:
         f.write((size - 1) * "a")
 
-    _, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
-    assert not exists
+    checked2 = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
+    assert not checked2.hit
 
-    with opener() as f:
+    with checked.open() as f:
         f.write(size * "a")
 
-    _, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
-    assert exists
+    checked3 = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
+    assert checked3.hit
 
 
-def test_check_etag_obj_path_does_not_include_etag(artifact_file_cache):
-    path, _, _ = artifact_file_cache.check_etag_obj_path("http://url/1", "abcdef", 10)
-    assert "abcdef" not in path
+def test_check_etag_obj_path_does_not_include_etag(
+    artifact_file_cache: ArtifactFileCache,
+):
+    checked = artifact_file_cache.check_etag_obj_path("http://url/1", "abcdef", 10)
+    assert "abcdef" not in checked.path
 
 
 @pytest.mark.parametrize(
@@ -194,20 +196,20 @@ def test_check_etag_obj_path_does_not_include_etag(artifact_file_cache):
     ],
 )
 def test_check_etag_obj_path_hashes_url_and_etag(
-    url1, url2, etag1, etag2, path_equal, artifact_file_cache
+    url1, url2, etag1, etag2, path_equal, artifact_file_cache: ArtifactFileCache
 ):
-    path_1, _, _ = artifact_file_cache.check_etag_obj_path(url1, etag1, 10)
-    path_2, _, _ = artifact_file_cache.check_etag_obj_path(url2, etag2, 10)
+    checked_1 = artifact_file_cache.check_etag_obj_path(url1, etag1, 10)
+    checked_2 = artifact_file_cache.check_etag_obj_path(url2, etag2, 10)
 
     if path_equal:
-        assert path_1 == path_2
+        assert checked_1.path == checked_2.path
     else:
-        assert path_1 != path_2
+        assert checked_1.path != checked_2.path
 
 
 # This function should only be used in `test_check_write_parallel`,
 # but it needs to be a global function for multiprocessing.
-def _cache_writer(artifact_file_cache):
+def _cache_writer(artifact_file_cache: ArtifactFileCache):
     etag = "abcdef"
     _, _, opener = artifact_file_cache.check_etag_obj_path(
         "http://wandb.ex/foo", etag, 10
@@ -218,7 +220,7 @@ def _cache_writer(artifact_file_cache):
 
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="flaky")
-def test_check_write_parallel(artifact_file_cache):
+def test_check_write_parallel(artifact_file_cache: ArtifactFileCache):
     num_parallel = 5
 
     p = Pool(num_parallel)
@@ -230,7 +232,7 @@ def test_check_write_parallel(artifact_file_cache):
     # Regardless of the ordering, we should be left with one file at the end.
     files = [
         f
-        for f in (artifact_file_cache._cache_dir / "obj" / "etag").rglob("*")
+        for f in (artifact_file_cache._config.cache_dir / "obj" / "etag").rglob("*")
         if f.is_file()
     ]
     assert len(files) == 1
@@ -246,13 +248,13 @@ def test_artifact_file_cache_is_writeable(tmp_path, monkeypatch):
         _ = ArtifactFileCache(tmp_path)
 
 
-def test_artifact_file_cache_cleanup_empty(artifact_file_cache):
+def test_artifact_file_cache_cleanup_empty(artifact_file_cache: ArtifactFileCache):
     reclaimed_bytes = artifact_file_cache.cleanup(100000)
     assert reclaimed_bytes == 0
 
 
-def test_artifact_file_cache_cleanup(artifact_file_cache):
-    cache_root = os.path.join(artifact_file_cache._cache_dir, "obj", "md5")
+def test_artifact_file_cache_cleanup(artifact_file_cache: ArtifactFileCache):
+    cache_root = os.path.join(artifact_file_cache._config.cache_dir, "obj", "md5")
 
     path_1 = os.path.join(cache_root, "aa")
     os.makedirs(path_1)
@@ -281,8 +283,10 @@ def test_artifact_file_cache_cleanup(artifact_file_cache):
     assert reclaimed_bytes == 5000
 
 
-def test_artifact_file_cache_cleanup_tmp_files_when_asked(artifact_file_cache):
-    with open(artifact_file_cache._temp_dir / "foo", "w") as f:
+def test_artifact_file_cache_cleanup_tmp_files_when_asked(
+    artifact_file_cache: ArtifactFileCache,
+):
+    with open(artifact_file_cache._config.temp_dir / "foo", "w") as f:
         f.truncate(1000)
 
     # Even if we are above our target size, the cleanup
@@ -293,9 +297,9 @@ def test_artifact_file_cache_cleanup_tmp_files_when_asked(artifact_file_cache):
 
 
 def test_artifact_file_cache_cleanup_leaves_tmp_files_by_default(
-    artifact_file_cache, capsys
+    artifact_file_cache: ArtifactFileCache, capsys
 ):
-    with open(artifact_file_cache._temp_dir / "foo", "w") as f:
+    with open(artifact_file_cache._config.temp_dir / "foo", "w") as f:
         f.truncate(1000)
 
     # The cleanup should leave temp files alone, even if we haven't reached our target.
@@ -307,14 +311,16 @@ def test_artifact_file_cache_cleanup_leaves_tmp_files_by_default(
     assert "Cache contains 1000.0B of temporary files" in stderr
 
 
-def test_local_file_handler_load_path_uses_cache(artifact_file_cache, tmp_path):
+def test_local_file_handler_load_path_uses_cache(
+    artifact_file_cache: ArtifactFileCache, tmp_path: Path
+):
     file = tmp_path / "file.txt"
     file.write_text("hello")
     uri = file.as_uri()
     digest = "XUFAKrxLKna5cZ2REBfFkg=="
 
-    path, _, opener = artifact_file_cache.check_md5_obj_path(b64_md5=digest, size=5)
-    with opener() as f:
+    checked = artifact_file_cache.check_md5_obj_path(b64_md5=digest, size=5)
+    with checked.open() as f:
         f.write("hello")
 
     handler = LocalFileHandler()
@@ -329,15 +335,17 @@ def test_local_file_handler_load_path_uses_cache(artifact_file_cache, tmp_path):
         ),
         local=True,
     )
-    assert local_path == path
+    assert local_path == checked.path
 
 
-def test_s3_storage_handler_load_path_uses_cache(artifact_file_cache):
+def test_s3_storage_handler_load_path_uses_cache(
+    artifact_file_cache: ArtifactFileCache,
+):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    path, _, opener = artifact_file_cache.check_etag_obj_path(uri, etag, 123)
-    with opener() as f:
+    checked = artifact_file_cache.check_etag_obj_path(uri, etag, 123)
+    with checked.open() as f:
         f.write(123 * "a")
 
     handler = S3Handler()
@@ -352,10 +360,10 @@ def test_s3_storage_handler_load_path_uses_cache(artifact_file_cache):
         ),
         local=True,
     )
-    assert local_path == path
+    assert local_path == checked.path
 
 
-def test_gcs_storage_handler_load_path_nonlocal():
+def test_gcs_storage_handler_load_path_nonlocal(artifact_file_cache: ArtifactFileCache):
     uri = "gs://some-bucket/path/to/file.json"
     etag = "some etag"
 
@@ -372,12 +380,14 @@ def test_gcs_storage_handler_load_path_nonlocal():
     assert local_path == uri
 
 
-def test_gcs_storage_handler_load_path_uses_cache(artifact_file_cache):
+def test_gcs_storage_handler_load_path_uses_cache(
+    artifact_file_cache: ArtifactFileCache,
+):
     uri = "gs://some-bucket/path/to/file.json"
     digest = ETag(md5_string("a" * 123))
 
-    path, _, opener = artifact_file_cache.check_etag_obj_path(uri, digest, 123)
-    with opener() as f:
+    checked = artifact_file_cache.check_etag_obj_path(uri, digest, 123)
+    with checked.open() as f:
         f.write(123 * "a")
 
     handler = GCSHandler()
@@ -392,18 +402,18 @@ def test_gcs_storage_handler_load_path_uses_cache(artifact_file_cache):
         ),
         local=True,
     )
-    assert local_path == path
+    assert local_path == checked.path
 
 
 def test_cache_add_gives_useful_error_when_out_of_space(
-    artifact_file_cache,
+    artifact_file_cache: ArtifactFileCache,
     mock_wandb_log,
 ):
     # Ask to create a 1 quettabyte file to ensure the cache won't find room.
-    _, _, opener = artifact_file_cache.check_md5_obj_path(example_digest, size=10**30)
+    checked = artifact_file_cache.check_md5_obj_path(example_digest, size=10**30)
 
     with pytest.raises(OSError, match="Insufficient free space"):
-        with opener():
+        with checked.open():
             pass
 
     assert mock_wandb_log.warned("Cache size exceeded. Attempting to reclaim space...")
@@ -418,14 +428,14 @@ def test_cache_add_gives_useful_error_when_out_of_space(
 #     cache_paths = []
 #     for i in range(10):
 #         content = f"{i}" * 100
-#         path, _, opener = artifact_file_cache.check_md5_obj_path(md5_string(content), 100)
-#         with opener() as f:
+#         checked = artifact_file_cache.check_md5_obj_path(md5_string(content), 100)
+#         with checked.open() as f:
 #             f.write(content)
 #         cache_paths.append(path)
 #
 #     # This next file won't fit; we should drop 1/2 the files in LRU order.
-#     _, _, opener = artifact_file_cache.check_md5_obj_path(md5_string("x"), 1)
-#     with opener() as f:
+#     checked = artifact_file_cache.check_md5_obj_path(md5_string("x"), 1)
+#     with checked.open() as f:
 #         f.write("x")
 #
 #     for path in cache_paths[:5]:
@@ -436,8 +446,8 @@ def test_cache_add_gives_useful_error_when_out_of_space(
 #     assert fs.get_disk_usage()[1] == 501
 #
 #     # Add something big enough that removing half the items isn't enough.
-#     _, _, opener = artifact_file_cache.check_md5_obj_path(md5_string("y" * 800), 800)
-#     with opener() as f:
+#     checked = artifact_file_cache.check_md5_obj_path(md5_string("y" * 800), 800)
+#     with checked.open() as f:
 #         f.write("y" * 800)
 #
 #     # All paths should have been removed, and the usage is just the new file size.
@@ -446,16 +456,16 @@ def test_cache_add_gives_useful_error_when_out_of_space(
 #     assert fs.get_disk_usage()[1] == 800
 
 
-def test_cache_add_cleans_up_tmp_when_write_fails(artifact_file_cache, monkeypatch):
+def test_cache_add_cleans_up_tmp_when_write_fails(
+    artifact_file_cache: ArtifactFileCache, monkeypatch
+):
     def fail(*args, **kwargs):
         raise OSError
 
-    _, _, opener = artifact_file_cache.check_md5_obj_path(
-        b64_md5=example_digest, size=7
-    )
+    checked = artifact_file_cache.check_md5_obj_path(b64_md5=example_digest, size=7)
 
     with pytest.raises(OSError):
-        with opener() as f:
+        with checked.open() as f:
             f.write("example")
             f.flush()
             os.fsync(f.fileno())

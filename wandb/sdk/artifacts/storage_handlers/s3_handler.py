@@ -92,13 +92,13 @@ class S3Handler(StorageHandler):
 
         assert manifest_entry.ref is not None
 
-        path, hit, cache_open = self._cache.check_etag_obj_path(
+        checked_path = self._cache.check_etag_obj_path(
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
-        if hit:
-            return path
+        if checked_path.hit:
+            return checked_path.path
 
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
@@ -148,9 +148,9 @@ class S3Handler(StorageHandler):
                     )
                 )
 
-        with cache_open(mode="wb") as f:
+        with checked_path.open(mode="wb") as f:
             obj.download_fileobj(f, ExtraArgs=extra_args)
-        return path
+        return checked_path.path
 
     def store_path(
         self,

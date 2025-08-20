@@ -62,13 +62,13 @@ class GCSHandler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path, hit, cache_open = self._cache.check_etag_obj_path(
+        checked_path = self._cache.check_etag_obj_path(
             url=URIStr(manifest_entry.ref),
             etag=ETag(manifest_entry.digest),
             size=manifest_entry.size if manifest_entry.size is not None else 0,
         )
-        if hit:
-            return path
+        if checked_path.hit:
+            return checked_path.path
 
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
@@ -100,9 +100,9 @@ class GCSHandler(StorageHandler):
                     f"expected {manifest_entry.digest} but found {obj.etag}"
                 )
 
-        with cache_open(mode="wb") as f:
+        with checked_path.open(mode="wb") as f:
             obj.download_to_file(f)
-        return path
+        return checked_path.path
 
     def store_path(
         self,
