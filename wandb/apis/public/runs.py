@@ -467,6 +467,7 @@ class Runs(SizedPaginator["Run"]):
 
         This switches to fetching full run data and
         upgrades any already-loaded Run objects to have full data.
+        Uses parallel loading for better performance when upgrading multiple runs.
         """
         if not self._lazy:
             return  # Already in full mode
@@ -480,10 +481,18 @@ class Runs(SizedPaginator["Run"]):
             with_internal_id=_server_provides_internal_id_for_project(self.client),
         )
 
-        # Upgrade any existing runs that have been loaded
-        for run in self.objects:
-            if run._lazy:
-                run.load_full_data()
+        # Upgrade any existing runs that have been loaded - use parallel loading for performance
+        lazy_runs = [run for run in self.objects if run._lazy]
+        if lazy_runs:
+            from concurrent.futures import ThreadPoolExecutor
+            
+            # Limit workers to avoid overwhelming the server
+            max_workers = min(len(lazy_runs), 10)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [executor.submit(run.load_full_data) for run in lazy_runs]
+                # Wait for all to complete
+                for future in futures:
+                    future.result()
 
 
 class Run(Attrs):
