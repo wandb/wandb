@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.35.1
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.35.1.
+
+### Bug Fixes
+
+- Fix race conditions when accessing the scope during logging operations ([#1050](https://github.com/getsentry/sentry-go/pull/1050))
+- Fix nil pointer dereference with malformed URLs when tracing is enabled in `fasthttp` and `fiber` integrations ([#1055](https://github.com/getsentry/sentry-go/pull/1055))
+
+### Misc
+
+- Bump `github.com/gofiber/fiber/v2` from 2.52.5 to 2.52.9 in `/fiber` ([#1067](https://github.com/getsentry/sentry-go/pull/1067))
+
+## 0.35.0
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.35.0.
+
+### Breaking Changes
+
+- Changes to the logging API ([#1046](https://github.com/getsentry/sentry-go/pull/1046))
+
+The logging API now supports a fluent interface for structured logging with attributes:
+
+```go
+// usage before
+logger := sentry.NewLogger(ctx)
+// attributes weren't being set permanently
+logger.SetAttributes(
+    attribute.String("version", "1.0.0"),
+)
+logger.Infof(ctx, "Message with parameters %d and %d", 1, 2)
+
+// new behavior
+ctx := context.Background()
+logger := sentry.NewLogger(ctx)
+
+// Set permanent attributes on the logger
+logger.SetAttributes(
+    attribute.String("version", "1.0.0"),
+)
+
+// Chain attributes on individual log entries
+logger.Info().
+    String("key.string", "value").
+    Int("key.int", 42).
+    Bool("key.bool", true).
+    Emitf("Message with parameters %d and %d", 1, 2)
+```
+
+### Bug Fixes
+
+- Correctly serialize `FailureIssueThreshold` and `RecoveryThreshold` onto check-in payloads ([#1060](https://github.com/getsentry/sentry-go/pull/1060))
+
 ## 0.34.1
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.34.1.

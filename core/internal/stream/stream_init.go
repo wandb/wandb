@@ -8,7 +8,6 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
@@ -17,21 +16,10 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/waiting"
-	"github.com/wandb/wandb/core/internal/watcher"
-	"github.com/wandb/wandb/core/internal/wboperation"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"golang.org/x/time/rate"
 )
-
-// ClientID is a unique ID for a stream.
-//
-// This identifies the process that uploaded a set of metrics when
-// running in "shared" mode, where there may be multiple writers for
-// the same run.
-type ClientID string
 
 // NewBackend returns a Backend or nil if we're offline.
 func NewBackend(
@@ -99,7 +87,7 @@ func NewGraphQLClient(
 	backend *api.Backend,
 	settings *settings.Settings,
 	peeker *observability.Peeker,
-	clientID ClientID,
+	clientID sharedmode.ClientID,
 ) graphql.Client {
 	if settings.IsOffline() {
 		return nil
@@ -165,13 +153,11 @@ func NewGraphQLClient(
 }
 
 func NewFileStream(
+	factory *filestream.FileStreamFactory,
 	backend *api.Backend,
-	logger *observability.CoreLogger,
-	operations *wboperation.WandbOperations,
-	printer *observability.Printer,
 	settings *settings.Settings,
 	peeker api.Peeker,
-	clientID ClientID,
+	clientID sharedmode.ClientID,
 ) filestream.FileStream {
 	if settings.IsOffline() {
 		return nil
@@ -213,19 +199,16 @@ func NewFileStream(
 
 	fileStreamRetryClient := backend.NewClient(opts)
 
-	params := filestream.FileStreamParams{
-		Settings:   settings,
-		Logger:     logger,
-		Operations: operations,
-		Printer:    printer,
-		ApiClient:  fileStreamRetryClient,
-	}
-
+	var transmitRateLimit *rate.Limiter
 	if txInterval := settings.GetFileStreamTransmitInterval(); txInterval > 0 {
-		params.TransmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 1)
+		transmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 1)
 	}
 
-	return filestream.NewFileStream(params)
+	return factory.New(
+		fileStreamRetryClient,
+		/*heartbeatStopwatch=*/ nil,
+		transmitRateLimit,
+	)
 }
 
 func NewFileTransferManager(
@@ -292,31 +275,4 @@ func NewFileTransferManager(
 			FileTransferStats: fileTransferStats,
 		},
 	)
-}
-
-func NewRunfilesUploader(
-	extraWork runwork.ExtraWork,
-	logger *observability.CoreLogger,
-	operations *wboperation.WandbOperations,
-	settings *settings.Settings,
-	fileStream filestream.FileStream,
-	fileTransfer filetransfer.FileTransferManager,
-	fileWatcher watcher.Watcher,
-	graphQL graphql.Client,
-) runfiles.Uploader {
-	if settings.IsOffline() {
-		return nil
-	}
-
-	return runfiles.NewUploader(runfiles.UploaderParams{
-		ExtraWork:    extraWork,
-		Logger:       logger,
-		Operations:   operations,
-		Settings:     settings,
-		FileStream:   fileStream,
-		FileTransfer: fileTransfer,
-		GraphQL:      graphQL,
-		FileWatcher:  fileWatcher,
-		BatchDelay:   waiting.NewDelay(50 * time.Millisecond),
-	})
 }

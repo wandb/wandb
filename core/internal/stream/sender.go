@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/google/wire"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/debounce"
@@ -27,6 +29,8 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/sharedmode"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -41,28 +45,30 @@ const (
 	ConsoleFileName           = "output.log"
 )
 
-type SenderParams struct {
-	Logger              *observability.CoreLogger
-	Operations          *wboperation.WandbOperations
-	Settings            *settings.Settings
-	Backend             *api.Backend
-	FeatureProvider     *featurechecker.ServerFeaturesCache
-	FileStream          fs.FileStream
-	FileTransferManager filetransfer.FileTransferManager
-	FileTransferStats   filetransfer.FileTransferStats
-	FileWatcher         watcher.Watcher
-	RunfilesUploader    runfiles.Uploader
-	GraphqlClient       graphql.Client
-	Peeker              *observability.Peeker
-	StreamRun           *StreamRun
-	RunSummary          *runsummary.RunSummary
-	Mailbox             *mailbox.Mailbox
-	OutChan             chan *spb.Result
-	RunWork             runwork.RunWork
+var senderProviders = wire.NewSet(
+	wire.Struct(new(SenderFactory), "*"),
+)
+
+// SenderFactory constructs a Sender.
+type SenderFactory struct {
+	ClientID                sharedmode.ClientID
+	Logger                  *observability.CoreLogger
+	Operations              *wboperation.WandbOperations
+	Settings                *settings.Settings
+	Backend                 *api.Backend
+	FeatureProvider         *featurechecker.ServerFeaturesCache
+	FileStreamFactory       *fs.FileStreamFactory
+	FileTransferManager     filetransfer.FileTransferManager
+	FileTransferStats       filetransfer.FileTransferStats
+	FileWatcher             watcher.Watcher
+	RunfilesUploaderFactory *runfiles.UploaderFactory
+	GraphqlClient           graphql.Client
+	Peeker                  *observability.Peeker
+	StreamRun               *StreamRun
+	Mailbox                 *mailbox.Mailbox
 }
 
-// Sender is the sender for a stream it handles the incoming messages and sends to the server
-// or/and to the dispatcher/handler
+// Sender performs blocking operations to process Work, such as uploading data.
 type Sender struct {
 	// mu is a coarse mutex for accessing non-threadsafe Sender state.
 	//
@@ -140,18 +146,14 @@ type Sender struct {
 	consoleLogsSender *runconsolelogs.Sender
 }
 
-// NewSender creates a new Sender with the given settings
-func NewSender(
-	params SenderParams,
-) *Sender {
-
-	var outputFileName paths.RelativePath
+// New returns a new Sender.
+func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 	// Guaranteed not to fail.
-	path, _ := paths.Relative(ConsoleFileName)
-	outputFileName = *path
+	maybeOutputFileName, _ := paths.Relative(ConsoleFileName)
+	outputFileName := *maybeOutputFileName
 
-	if params.Settings.GetLabel() != "" {
-		sanitizedLabel := fileutil.SanitizeFilename(params.Settings.GetLabel())
+	if f.Settings.GetLabel() != "" {
+		sanitizedLabel := fileutil.SanitizeFilename(f.Settings.GetLabel())
 		// Guaranteed not to fail.
 		// split filename and extension
 		extension := filepath.Ext(string(outputFileName))
@@ -167,7 +169,7 @@ func NewSender(
 	}
 
 	// If console capture is enabled, we need to create a multipart console log file.
-	if params.Settings.IsConsoleMultipart() {
+	if f.Settings.IsConsoleMultipart() {
 		// This is guaranteed not to fail.
 		timestamp := time.Now()
 		extension := filepath.Ext(string(outputFileName))
@@ -186,57 +188,84 @@ func NewSender(
 		outputFileName = *path
 	}
 
+	var fileStream fs.FileStream
+	if !f.Settings.IsOffline() {
+		fileStream = NewFileStream(
+			f.FileStreamFactory,
+			f.Backend,
+			f.Settings,
+			f.Peeker,
+			f.ClientID,
+		)
+	}
+
+	var runfilesUploader runfiles.Uploader
+	if !f.Settings.IsOffline() {
+		runfilesUploader = f.RunfilesUploaderFactory.New(
+			/*batchDelay=*/ waiting.NewDelay(50*time.Millisecond),
+			runWork,
+			fileStream,
+		)
+	}
+
 	consoleLogsSenderParams := runconsolelogs.Params{
 		ConsoleOutputFile:     outputFileName,
-		FilesDir:              params.Settings.GetFilesDir(),
-		EnableCapture:         params.Settings.IsConsoleCaptureEnabled(),
-		Logger:                params.Logger,
-		FileStreamOrNil:       params.FileStream,
-		Label:                 params.Settings.GetLabel(),
-		RunfilesUploaderOrNil: params.RunfilesUploader,
-		Structured: params.FeatureProvider.GetFeature(
+		FilesDir:              f.Settings.GetFilesDir(),
+		EnableCapture:         f.Settings.IsConsoleCaptureEnabled(),
+		Logger:                f.Logger,
+		FileStreamOrNil:       fileStream,
+		Label:                 f.Settings.GetLabel(),
+		RunfilesUploaderOrNil: runfilesUploader,
+		Structured: f.FeatureProvider.GetFeature(
+			context.Background(),
 			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,
 		).Enabled,
 	}
 
 	s := &Sender{
-		runWork:             params.RunWork,
-		logger:              params.Logger,
-		operations:          params.Operations,
-		settings:            params.Settings,
-		fileStream:          params.FileStream,
-		fileTransferManager: params.FileTransferManager,
-		fileTransferStats:   params.FileTransferStats,
-		fileWatcher:         params.FileWatcher,
-		runfilesUploader:    params.RunfilesUploader,
+		runWork:             runWork,
+		logger:              f.Logger,
+		operations:          f.Operations,
+		settings:            f.Settings,
+		fileStream:          fileStream,
+		fileTransferManager: f.FileTransferManager,
+		fileTransferStats:   f.FileTransferStats,
+		fileWatcher:         f.FileWatcher,
+		runfilesUploader:    runfilesUploader,
 		artifactsSaver: artifacts.NewArtifactSaveManager(
-			params.Logger,
-			params.GraphqlClient,
-			params.FileTransferManager,
-			params.FeatureProvider.GetFeature(
+			f.Logger,
+			f.GraphqlClient,
+			f.FileTransferManager,
+			f.FeatureProvider.GetFeature(
+				context.Background(),
 				spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
 			).Enabled,
 		),
-		networkPeeker: params.Peeker,
-		graphqlClient: params.GraphqlClient,
-		mailbox:       params.Mailbox,
-		streamRun:     params.StreamRun,
-		runSummary:    params.RunSummary,
-		outChan:       params.OutChan,
+		networkPeeker: f.Peeker,
+		graphqlClient: f.GraphqlClient,
+		mailbox:       f.Mailbox,
+		streamRun:     f.StreamRun,
+		runSummary:    runsummary.New(),
+		outChan:       make(chan *spb.Result, BufferSize),
 		summaryDebouncer: debounce.NewDebouncer(
 			summaryDebouncerRateLimit,
 			summaryDebouncerBurstSize,
-			params.Logger,
+			f.Logger,
 		),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 
-	backendOrNil := params.Backend
+	backendOrNil := f.Backend
 	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings.Proto, s.logger, false)
 	}
 
 	return s
+}
+
+// ResponseChan contains responses for the client.
+func (h *Sender) ResponseChan() <-chan *spb.Result {
+	return h.outChan
 }
 
 // Do processes all work on the input channel.

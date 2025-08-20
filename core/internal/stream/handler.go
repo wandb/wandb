@@ -11,6 +11,7 @@ import (
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gitops"
@@ -38,25 +39,28 @@ const (
 	ConfigFileName       = "config.yaml"
 )
 
-type HandlerParams struct {
+var handlerProviders = wire.NewSet(
+	wire.Struct(new(HandlerFactory), "*"),
+)
+
+type GitCommitHash string
+
+type HandlerFactory struct {
 	// Commit is the W&B Git commit hash
-	Commit            string
-	FileTransferStats filetransfer.FileTransferStats
-	FwdChan           chan runwork.Work
-	Logger            *observability.CoreLogger
-	Mailbox           *mailbox.Mailbox
-	Operations        *wboperation.WandbOperations
-	OutChan           chan *spb.Result
-	Settings          *settings.Settings
-	SystemMonitor     *monitor.SystemMonitor
-	TerminalPrinter   *observability.Printer
+	Commit               GitCommitHash
+	FileTransferStats    filetransfer.FileTransferStats
+	Logger               *observability.CoreLogger
+	Mailbox              *mailbox.Mailbox
+	Operations           *wboperation.WandbOperations
+	Settings             *settings.Settings
+	SystemMonitorFactory *monitor.SystemMonitorFactory
+	TerminalPrinter      *observability.Printer
 }
 
-// Handler handles the incoming messages, processes them, and passes them to the writer.
+// Handler performs non-blocking operations to preprocess incoming Work.
 type Handler struct {
-
 	// commit is the W&B Git commit hash
-	commit string
+	commit GitCommitHash
 
 	// fileTransferStats reports file upload/download statistics
 	fileTransferStats filetransfer.FileTransferStats
@@ -118,27 +122,40 @@ type Handler struct {
 	terminalPrinter *observability.Printer
 }
 
-// NewHandler creates a new handler
-func NewHandler(
-	params HandlerParams,
-) *Handler {
+// New returns a new Handler.
+func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
+	var systemMonitor *monitor.SystemMonitor
+	if f.SystemMonitorFactory != nil { // nil in tests only
+		systemMonitor = f.SystemMonitorFactory.New(extraWork)
+	}
+
 	return &Handler{
-		commit:               params.Commit,
-		fileTransferStats:    params.FileTransferStats,
-		fwdChan:              params.FwdChan,
-		logger:               params.Logger,
-		mailbox:              params.Mailbox,
+		commit:               f.Commit,
+		fileTransferStats:    f.FileTransferStats,
+		fwdChan:              make(chan runwork.Work, BufferSize),
+		logger:               f.Logger,
+		mailbox:              f.Mailbox,
 		metricHandler:        runmetric.New(),
-		operations:           params.Operations,
-		outChan:              params.OutChan,
+		operations:           f.Operations,
+		outChan:              make(chan *spb.Result, BufferSize),
 		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
 		runHistorySampler:    runhistory.NewRunHistorySampler(),
 		runSummary:           runsummary.New(),
 		runTimer:             timer.New(0),
-		settings:             params.Settings,
-		systemMonitor:        params.SystemMonitor,
-		terminalPrinter:      params.TerminalPrinter,
+		settings:             f.Settings,
+		systemMonitor:        systemMonitor,
+		terminalPrinter:      f.TerminalPrinter,
 	}
+}
+
+// ResponseChan contains responses for the client.
+func (h *Handler) ResponseChan() <-chan *spb.Result {
+	return h.outChan
+}
+
+// OutChan contains work to pass to the next stream component.
+func (h *Handler) OutChan() <-chan runwork.Work {
+	return h.fwdChan
 }
 
 // Do processes all work on the input channel.

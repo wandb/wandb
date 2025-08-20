@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/google/wire"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/sharedmode"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -30,6 +32,11 @@ const (
 	StateStopped int32 = iota
 	StateRunning
 	StatePaused
+)
+
+// SystemMonitorProviders binds SystemMonitorFactory.
+var SystemMonitorProviders = wire.NewSet(
+	wire.Struct(new(SystemMonitorFactory), "*"),
 )
 
 // Resource defines the interface for system resources to be monitored.
@@ -72,20 +79,16 @@ type SystemMonitor struct {
 	graphqlClient graphql.Client
 
 	// Unique identifier of the writer to the run.
-	writerID string
+	writerID sharedmode.ClientID
 }
 
-type SystemMonitorParams struct {
-	Ctx context.Context
-
+// SystemMonitorFactory constructs a SystemMonitor.
+type SystemMonitorFactory struct {
 	// A logger for internal debug logging.
 	Logger *observability.CoreLogger
 
 	// Stream settings.
 	Settings *settings.Settings
-
-	// Extrawork accepts outgoing messages for the run.
-	ExtraWork runwork.ExtraWork
 
 	// GpuResourceManager manages costly resources used for GPU metrics.
 	GpuResourceManager *GPUResourceManager
@@ -94,27 +97,24 @@ type SystemMonitorParams struct {
 	GraphqlClient graphql.Client
 
 	// Unique identifier of the writer to the run.
-	WriterID string
+	WriterID sharedmode.ClientID
 }
 
-// NewSystemMonitor initializes and returns a new SystemMonitor instance.
+// New initializes and returns a new SystemMonitor instance.
 //
 // It sets up resources based on provided settings and configures the metrics buffer.
-func NewSystemMonitor(params SystemMonitorParams) *SystemMonitor {
-	if params.Ctx == nil {
-		params.Ctx = context.Background()
-	}
-	ctx, cancel := context.WithCancel(params.Ctx)
+func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
+	ctx, cancel := context.WithCancel(extraWork.BeforeEndCtx())
 	sm := &SystemMonitor{
 		ctx:              ctx,
 		cancel:           cancel,
 		wg:               sync.WaitGroup{},
-		settings:         params.Settings,
-		logger:           params.Logger,
-		extraWork:        params.ExtraWork,
+		settings:         f.Settings,
+		logger:           f.Logger,
+		extraWork:        extraWork,
 		samplingInterval: defaultSamplingInterval,
-		graphqlClient:    params.GraphqlClient,
-		writerID:         params.WriterID,
+		graphqlClient:    f.GraphqlClient,
+		writerID:         f.WriterID,
 	}
 
 	if sm.settings.IsDisableStats() {
@@ -135,7 +135,7 @@ func NewSystemMonitor(params SystemMonitorParams) *SystemMonitor {
 	}
 	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
-	sm.initializeResources(params.GpuResourceManager)
+	sm.initializeResources(f.GpuResourceManager)
 
 	return sm
 }
@@ -263,7 +263,7 @@ func (sm *SystemMonitor) probeExecutionContext(git *spb.GitRepoRecord) *spb.Reco
 		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
 		Git:           git,
 
-		WriterId: sm.writerID,
+		WriterId: string(sm.writerID),
 	}}}
 }
 
@@ -271,7 +271,7 @@ func (sm *SystemMonitor) probeExecutionContext(git *spb.GitRepoRecord) *spb.Reco
 func (sm *SystemMonitor) probeResources() *spb.Record {
 	sm.logger.Debug("monitor: probing resources")
 
-	e := &spb.EnvironmentRecord{WriterId: sm.writerID}
+	e := &spb.EnvironmentRecord{WriterId: string(sm.writerID)}
 
 	g, gctx := errgroup.WithContext(sm.ctx)
 	var mu sync.Mutex
