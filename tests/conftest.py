@@ -308,7 +308,6 @@ def patch_apikey(mocker: MockerFixture, dummy_api_key: str):
     mocker.patch.object(wandb.sdk.lib.apikey, "isatty", return_value=True)
     mocker.patch.object(wandb.sdk.lib.apikey, "input", return_value=1)
     mocker.patch.object(wandb.sdk.lib.apikey, "getpass", return_value=dummy_api_key)
-    yield
 
 
 @pytest.fixture
@@ -322,7 +321,6 @@ def skip_verify_login(monkeypatch):
         "_verify_login",
         unittest.mock.MagicMock(),
     )
-    yield
 
 
 @pytest.fixture
@@ -381,13 +379,13 @@ def clean_up():
 
 
 @pytest.fixture
-def api() -> wandb.PublicApi:
+def api() -> Api:
     with unittest.mock.patch.object(
         wandb.sdk.wandb_login,
         "_login",
         return_value=True,
     ):
-        yield Api()
+        return Api()
 
 
 # --------------------------------
