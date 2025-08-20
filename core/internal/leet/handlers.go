@@ -406,14 +406,18 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		m.animating = true
 		m.animationMu.Unlock()
 
+		// Determine what the left sidebar state will be after toggle
+		leftWillBeVisible := !m.sidebar.IsVisible()
+
 		// Update dimensions BEFORE toggling
+		// Pass the ACTUAL future state of the left sidebar
 		m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
-		m.rightSidebar.UpdateDimensions(m.width, true) // Will be visible after toggle
+		m.rightSidebar.UpdateDimensions(m.width, leftWillBeVisible)
 
 		// Toggle the sidebar
 		m.sidebar.Toggle()
 
-		// Update chart sizes and force redraw
+		// Update chart sizes - this will be safe now
 		m.updateChartSizes()
 
 		return m, m.sidebar.animationCmd()
@@ -428,14 +432,18 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		m.animating = true
 		m.animationMu.Unlock()
 
+		// Determine what the right sidebar state will be after toggle
+		rightWillBeVisible := !m.rightSidebar.IsVisible()
+
 		// Update dimensions BEFORE toggling
+		// Pass the ACTUAL future state of the right sidebar
 		m.rightSidebar.UpdateDimensions(m.width, m.sidebar.IsVisible())
-		m.sidebar.UpdateDimensions(m.width, true) // Will be visible after toggle
+		m.sidebar.UpdateDimensions(m.width, rightWillBeVisible)
 
 		// Toggle the sidebar
 		m.rightSidebar.Toggle()
 
-		// Update chart sizes and force redraw
+		// Update chart sizes - this will be safe now
 		m.updateChartSizes()
 
 		return m, m.rightSidebar.animationCmd()

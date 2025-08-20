@@ -144,7 +144,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		isLoading:           true,
 		runPath:             runPath,
 		sidebar:             NewSidebar(),
-		rightSidebar:        NewRightSidebar(),
+		rightSidebar:        NewRightSidebar(logger),
 		watcher:             watcher.New(watcher.Params{}),
 		watcherStarted:      false,
 		runConfig:           runconfig.New(),
