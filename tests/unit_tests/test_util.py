@@ -208,6 +208,25 @@ def test_nested_dataclasses():
     assert converted["nested_dataclass"]["test_dataclass"]["test"] is False
 
 
+def test_nested_dataclasses_containing_real_class():
+    from dataclasses import dataclass
+
+    class TestRealClass:
+        test: bool
+
+        def __init__(self, test: bool):
+            self.test = test
+
+    @dataclass
+    class TestDataClassHolder:
+        test_real_class: TestRealClass
+
+    nested_dataclass = TestDataClassHolder(TestRealClass(True))
+    converted = util.json_friendly_val(nested_dataclass)
+    assert isinstance(converted, dict)
+    assert isinstance(converted["test_real_class"], str)
+
+
 ###############################################################################
 # Test util.make_json_if_not_number
 ###############################################################################
