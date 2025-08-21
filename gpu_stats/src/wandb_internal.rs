@@ -256,6 +256,8 @@ pub struct Imports {
     /// lightning, formerly pytorch-lightning
     #[prost(bool, tag = "106")]
     pub lightning: bool,
+    #[prost(bool, tag = "107")]
+    pub dspy: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Feature {
@@ -468,6 +470,9 @@ pub struct Feature {
     /// User created a rewound run
     #[prost(bool, tag = "72")]
     pub rewind_mode: bool,
+    /// User using WandbDSPyCallback
+    #[prost(bool, tag = "73")]
+    pub dspy_callback: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {

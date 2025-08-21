@@ -36,10 +36,9 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
 
         self.log_results = log_results
 
-        # TODO (ayulockin): add telemetry proto
-        # Record feature usage for internal telemetry (optional but recommended).
-        # with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
-        #     tel.feature.dspy = True
+        with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
+            tel.feature.dspy_callback = True
+
         self._did_log_config: bool = False
         self._temp_info_dict: dict[str, Any] = {}
         self._program_table: wandb.Table | None = None
