@@ -978,9 +978,12 @@ class Run(Attrs):
 
         This method fetches the run's log lines from the GraphQL API, 
         including timestamps, log levels, and messages.
+        
+        Note: This method is limited to fetching up to 10,000 log lines due to API constraints.
+        For runs with more logs, use `scan_logs()` to iterate through all logs.
 
         Args:
-            last: (int, optional) The number of most recent log lines to return (default 10000)
+            last: (int, optional) The number of most recent log lines to return (max 10000)
             pandas: (bool, optional) Return a pandas dataframe (default True)
 
         Returns:
@@ -996,16 +999,25 @@ class Run(Attrs):
         api = wandb.Api()
         run = api.run("entity/project/run_id")
         
-        # Get logs as pandas DataFrame
-        logs_df = run.logs()
+        # Get last 1000 logs as pandas DataFrame
+        logs_df = run.logs(last=1000)
         print(logs_df.head())
         
         # Get logs as list of dicts
         logs_list = run.logs(pandas=False)
         for log in logs_list[:5]:
             print(f"{log['timestamp']}: [{log['level']}] {log['message']}")
+            
+        # For runs with more than 10k logs, use scan_logs()
+        for log in run.scan_logs():
+            print(f"{log['timestamp']}: {log['message']}")
         ```
         """
+        # Limit to 10000 as that's the API's hard limit
+        if last > 10000:
+            wandb.termwarn(f"Requested {last} logs but API limit is 10000. Use scan_logs() for more.")
+            last = 10000
+            
         query = gql(
             """
             query RunLogLines($projectName: String!, $entityName: String!, $runName: String!, $last: Int!) {
@@ -1067,6 +1079,46 @@ class Run(Attrs):
                 return logs
         
         return logs
+    
+    @normalize_exceptions
+    def scan_logs(self, page_size: int = 1000):
+        """Returns an iterable collection of all log lines for a run.
+        
+        This method uses pagination to retrieve all logs, making it suitable for runs
+        with more than 10,000 log lines.
+
+        Args:
+            page_size: (int, optional) Number of log lines to fetch per page (default 1000)
+
+        Returns:
+            An iterable collection over log records (dict) with fields:
+                - timestamp: When the log was created  
+                - level: Log level (error, info, warning, etc.)
+                - message: The log message content
+
+        Example:
+        ```python
+        import wandb
+        api = wandb.Api()
+        run = api.run("entity/project/run_id")
+        
+        # Iterate through all logs
+        for log in run.scan_logs():
+            if log['level'] == 'error':
+                print(f"ERROR: {log['timestamp']}: {log['message']}")
+        
+        # Collect all logs into a list (be careful with memory for large runs)
+        all_logs = list(run.scan_logs())
+        print(f"Total logs: {len(all_logs)}")
+        ```
+        """
+        from wandb.apis.public.history import LogsScan
+        
+        return LogsScan(
+            run=self,
+            client=self.client,
+            page_size=page_size,
+        )
 
     @normalize_exceptions
     def logged_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
