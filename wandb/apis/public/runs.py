@@ -39,7 +39,7 @@ import os
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Collection, Dict, Literal, Mapping
+from typing import TYPE_CHECKING, Any, Collection, Literal, Mapping
 
 from wandb_gql import gql
 
@@ -1265,7 +1265,7 @@ class Run(Attrs):
         )
         return artifact
 
-    def load_full_data(self, force: bool = False) -> Dict[str, Any]:
+    def load_full_data(self, force: bool = False) -> dict[str, Any]:
         """Load full run data including heavy fields like config, systemMetrics, summaryMetrics.
 
         This method is useful when you initially used lazy=True for listing runs,
