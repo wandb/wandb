@@ -44,7 +44,8 @@ type downloadPart struct {
 // DefaultFileTransfer uploads or downloads files to/from the server
 type DefaultFileTransfer struct {
 	// client is the HTTP client for the file transfer
-	client *retryablehttp.Client
+	client            *retryablehttp.Client
+	noKeepAliveClient *retryablehttp.Client
 
 	// logger is the logger for the file transfer
 	logger *observability.CoreLogger
@@ -59,9 +60,18 @@ func NewDefaultFileTransfer(
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
 ) *DefaultFileTransfer {
+	// TODO: proper way to create the client, there is no common creating client package after https://github.com/wandb/wandb/pull/7090
+	// TODO: the client passed in is from NewFileTransferManager https://github.com/wandb/wandb/blob/be8c808bd8ce7d6db6a5e2c703ae82018a5cf5c0/core/internal/stream/stream_init.go#L214
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.DisableKeepAlives = true
+	noKeepAliveClient := retryablehttp.NewClient()
+	noKeepAliveClient.HTTPClient.Transport = tr
+	noKeepAliveClient.Logger = logger
+
 	fileTransfer := &DefaultFileTransfer{
 		logger:            logger,
 		client:            client,
+		noKeepAliveClient: noKeepAliveClient,
 		fileTransferStats: fileTransferStats,
 	}
 	return fileTransfer
@@ -351,7 +361,7 @@ func (ft *DefaultFileTransfer) downloadParallel(task *DefaultDownloadTask) error
 	}
 
 	chunkQueue := make(chan chunkData, downloadQueueSize)
-	
+
 	// Create error group with shared context for all workers
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -396,10 +406,10 @@ func (ft *DefaultFileTransfer) downloadParallel(task *DefaultDownloadTask) error
 	// Use the main goroutine to write chunks to file
 	ft.logger.Info("starting file writer in main goroutine")
 	writerErr := ft.writeChunksToFile(file, chunkQueue, task)
-	
+
 	// Wait for download workers to complete
 	downloadErr := <-downloadComplete
-	
+
 	// Return the first error encountered
 	if writerErr != nil {
 		ft.logger.Error("file writer failed", "error", writerErr)
@@ -442,7 +452,13 @@ func (ft *DefaultFileTransfer) downloadPart(
 
 	// retryablehttp.Client handles retries automatically
 	ft.logger.Debug("sending HTTP request for part", "partNumber", part.PartNumber)
-	resp, err := ft.client.Do(req.WithContext(ctx))
+	var resp *http.Response
+	if os.Getenv("WANDB_DOWNLOAD_DISABLE_KEEPALIVE") == "true" {
+		ft.logger.Info("Using no keep alive client for part", "partNumber", part.PartNumber)
+		resp, err = ft.noKeepAliveClient.Do(req.WithContext(ctx))
+	} else {
+		resp, err = ft.client.Do(req.WithContext(ctx))
+	}
 	if err != nil {
 		ft.logger.Error("HTTP request failed", "partNumber", part.PartNumber, "error", err)
 		return err
@@ -476,12 +492,12 @@ func (ft *DefaultFileTransfer) downloadPart(
 		if n > 0 {
 			chunkCount++
 			totalRead += int64(n)
-			
+
 			// Log every 10MB or on first/last chunk
 			if chunkCount == 1 || totalRead%10485760 == 0 || totalRead == part.Size {
 				ft.logger.Debug("read chunk from part", "partNumber", part.PartNumber, "chunkSize", n, "totalRead", totalRead, "partSize", part.Size)
 			}
-			
+
 			chunk := chunkData{
 				Offset: offset,
 				Data:   make([]byte, n),
@@ -539,7 +555,7 @@ func (ft *DefaultFileTransfer) writeChunksToFile(
 		}
 
 		chunkCount++
-		
+
 		// Seek to correct position (creates sparse file)
 		if _, err := file.Seek(chunk.Offset, io.SeekStart); err != nil {
 			ft.logger.Error("failed to seek", "offset", chunk.Offset, "error", err)
@@ -556,22 +572,22 @@ func (ft *DefaultFileTransfer) writeChunksToFile(
 
 		// Update progress (optional - can skip in first iteration)
 		writtenBytes += int64(len(chunk.Data))
-		
+
 		// Log progress every 100MB or on first chunk
 		if chunkCount == 1 || writtenBytes-lastLoggedBytes >= 104857600 {
 			progress := float64(writtenBytes) / float64(task.Size) * 100
 			duration := time.Since(startTime)
 			speed := float64(writtenBytes) / duration.Seconds() / 1048576 // MB/s
-			ft.logger.Info("file write progress", 
-				"writtenBytes", writtenBytes, 
-				"targetSize", task.Size, 
+			ft.logger.Info("file write progress",
+				"writtenBytes", writtenBytes,
+				"targetSize", task.Size,
 				"progress", fmt.Sprintf("%.1f%%", progress),
 				"speed", fmt.Sprintf("%.1f MB/s", speed),
 				"chunks", chunkCount,
 				"writeDuration", writeDuration)
 			lastLoggedBytes = writtenBytes
 		}
-		
+
 		if task.ProgressCallback != nil {
 			task.ProgressCallback(int(writtenBytes), int(task.Size))
 		}
