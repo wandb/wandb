@@ -974,13 +974,14 @@ class Run(Attrs):
 
     @normalize_exceptions
     def logs(self, last: int = 10000, pandas: bool = True):
-        """Return the logs for a run.
+        """Return the recent logs for a run.
 
         This method fetches the run's log lines from the GraphQL API, 
         including timestamps, log levels, and messages.
         
-        Note: This method is limited to fetching up to 10,000 log lines due to API constraints.
-        For runs with more logs, use `scan_logs()` to iterate through all logs.
+        Note: The W&B API only retains a rolling window of recent logs. Older logs
+        may not be accessible even if the run originally produced more logs.
+        This method can fetch up to 10,000 of the most recent available logs.
 
         Args:
             last: (int, optional) The number of most recent log lines to return (max 10000)
@@ -1007,10 +1008,6 @@ class Run(Attrs):
         logs_list = run.logs(pandas=False)
         for log in logs_list[:5]:
             print(f"{log['timestamp']}: [{log['level']}] {log['message']}")
-            
-        # For runs with more than 10k logs, use scan_logs()
-        for log in run.scan_logs():
-            print(f"{log['timestamp']}: {log['message']}")
         ```
         """
         # Limit to 10000 as that's the API's hard limit
@@ -1082,13 +1079,14 @@ class Run(Attrs):
     
     @normalize_exceptions
     def scan_logs(self, page_size: int = 1000):
-        """Returns an iterable collection of all log lines for a run.
+        """Returns an iterable collection of available log lines for a run.
         
-        This method uses pagination to retrieve all logs, making it suitable for runs
-        with more than 10,000 log lines.
+        This method uses pagination to retrieve all available logs. Note that W&B
+        only retains a rolling window of recent logs (typically the last ~100k logs),
+        so older logs from long-running or verbose runs may no longer be accessible.
 
         Args:
-            page_size: (int, optional) Number of log lines to fetch per page (default 1000)
+            page_size: (int, optional) Number of log lines to fetch per page (default 1000, max 10000)
 
         Returns:
             An iterable collection over log records (dict) with fields:
@@ -1102,14 +1100,14 @@ class Run(Attrs):
         api = wandb.Api()
         run = api.run("entity/project/run_id")
         
-        # Iterate through all logs
+        # Iterate through all available logs
         for log in run.scan_logs():
             if log['level'] == 'error':
                 print(f"ERROR: {log['timestamp']}: {log['message']}")
         
-        # Collect all logs into a list (be careful with memory for large runs)
+        # Collect all available logs into a list
         all_logs = list(run.scan_logs())
-        print(f"Total logs: {len(all_logs)}")
+        print(f"Total available logs: {len(all_logs)}")
         ```
         """
         from wandb.apis.public.history import LogsScan
