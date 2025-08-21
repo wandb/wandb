@@ -39,7 +39,7 @@ import os
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Collection, Literal, Mapping
+from typing import TYPE_CHECKING, Any, Collection, Dict, Literal, Mapping
 
 from wandb_gql import gql
 
