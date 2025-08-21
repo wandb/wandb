@@ -1012,7 +1012,7 @@ class Run(Attrs):
         """
         # Limit to 10000 as that's the API's hard limit
         if last > 10000:
-            wandb.termwarn(f"Requested {last} logs but API limit is 10000. Use scan_logs() for more.")
+            wandb.termwarn(f"Requested {last} logs but API limit is 10000.")
             last = 10000
             
         query = gql(
@@ -1076,47 +1076,6 @@ class Run(Attrs):
                 return logs
         
         return logs
-    
-    @normalize_exceptions
-    def scan_logs(self, page_size: int = 1000):
-        """Returns an iterable collection of available log lines for a run.
-        
-        This method uses pagination to retrieve all available logs. Note that W&B
-        only retains a rolling window of recent logs (typically the last ~100k logs),
-        so older logs from long-running or verbose runs may no longer be accessible.
-
-        Args:
-            page_size: (int, optional) Number of log lines to fetch per page (default 1000, max 10000)
-
-        Returns:
-            An iterable collection over log records (dict) with fields:
-                - timestamp: When the log was created  
-                - level: Log level (error, info, warning, etc.)
-                - message: The log message content
-
-        Example:
-        ```python
-        import wandb
-        api = wandb.Api()
-        run = api.run("entity/project/run_id")
-        
-        # Iterate through all available logs
-        for log in run.scan_logs():
-            if log['level'] == 'error':
-                print(f"ERROR: {log['timestamp']}: {log['message']}")
-        
-        # Collect all available logs into a list
-        all_logs = list(run.scan_logs())
-        print(f"Total available logs: {len(all_logs)}")
-        ```
-        """
-        from wandb.apis.public.history import LogsScan
-        
-        return LogsScan(
-            run=self,
-            client=self.client,
-            page_size=page_size,
-        )
 
     @normalize_exceptions
     def logged_artifacts(self, per_page: int = 100) -> public.RunArtifacts:
