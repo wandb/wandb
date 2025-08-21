@@ -351,19 +351,9 @@ func (ft *DefaultFileTransfer) downloadParallel(task *DefaultDownloadTask) error
 	}
 
 	chunkQueue := make(chan chunkData, downloadQueueSize)
+	
+	// Create error group with shared context for all workers
 	g, ctx := errgroup.WithContext(ctx)
-
-	ft.logger.Info("starting file writer goroutine")
-	// Start file writer goroutine
-	g.Go(func() error {
-		ft.logger.Debug("file writer goroutine started")
-		err := ft.writeChunksToFile(ctx, file, chunkQueue, task)
-		if err != nil {
-			ft.logger.Error("file writer failed", "error", err)
-		}
-		ft.logger.Debug("file writer goroutine completed")
-		return err
-	})
 
 	// Start download workers
 	workerTasks := ft.splitDownloadTasks(parts, numWorkers)
@@ -388,22 +378,40 @@ func (ft *DefaultFileTransfer) downloadParallel(task *DefaultDownloadTask) error
 		})
 	}
 
-	// Wait for all downloads to complete
-	ft.logger.Info("waiting for all download workers to complete")
-	downloadErr := g.Wait()
+	// Start a goroutine to close the channel when all downloads complete
+	downloadComplete := make(chan error, 1)
+	go func() {
+		ft.logger.Info("waiting for all download workers to complete")
+		err := g.Wait()
+		if err != nil {
+			ft.logger.Error("download workers failed", "error", err)
+		} else {
+			ft.logger.Info("all download workers completed successfully")
+		}
+		ft.logger.Debug("closing chunk queue to signal writer to stop")
+		close(chunkQueue)
+		downloadComplete <- err
+	}()
 
+	// Use the main goroutine to write chunks to file
+	ft.logger.Info("starting file writer in main goroutine")
+	writerErr := ft.writeChunksToFile(file, chunkQueue, task)
+	
+	// Wait for download workers to complete
+	downloadErr := <-downloadComplete
+	
+	// Return the first error encountered
+	if writerErr != nil {
+		ft.logger.Error("file writer failed", "error", writerErr)
+		return writerErr
+	}
 	if downloadErr != nil {
-		ft.logger.Error("download workers failed", "error", downloadErr)
-	} else {
-		ft.logger.Info("all download workers completed successfully")
+		ft.logger.Error("download failed", "error", downloadErr)
+		return downloadErr
 	}
 
-	// Signal writer to stop
-	ft.logger.Debug("closing chunk queue to signal writer to stop")
-	close(chunkQueue)
-
-	ft.logger.Info("parallel download completed", "error", downloadErr)
-	return downloadErr
+	ft.logger.Info("parallel download completed successfully")
+	return nil
 }
 
 // downloadPart downloads a single part using Range header
@@ -508,9 +516,8 @@ func (ft *DefaultFileTransfer) downloadPart(
 }
 
 // writeChunksToFile handles writing chunks to file
-// Single goroutine writer - no locks needed
+// Runs in the main goroutine - no locks needed
 func (ft *DefaultFileTransfer) writeChunksToFile(
-	ctx context.Context,
 	file *os.File,
 	chunkQueue <-chan chunkData,
 	task *DefaultDownloadTask,
@@ -523,68 +530,60 @@ func (ft *DefaultFileTransfer) writeChunksToFile(
 	ft.logger.Info("file writer started", "targetSize", task.Size)
 
 	for {
-		select {
-		case <-ctx.Done():
-			ft.logger.Warn("file writer context cancelled", "writtenBytes", writtenBytes, "targetSize", task.Size)
-			return ctx.Err()
-		case chunk, ok := <-chunkQueue:
-			if !ok {
-				// Channel closed, all chunks written
-				duration := time.Since(startTime)
-				ft.logger.Info("file writer completed", "writtenBytes", writtenBytes, "targetSize", task.Size, "chunks", chunkCount, "duration", duration)
-				return nil
-			}
+		chunk, ok := <-chunkQueue
+		if !ok {
+			// Channel closed, all chunks written
+			duration := time.Since(startTime)
+			ft.logger.Info("file writer completed", "writtenBytes", writtenBytes, "targetSize", task.Size, "chunks", chunkCount, "duration", duration)
+			return nil
+		}
 
-			chunkCount++
-			
-			// Seek to correct position (creates sparse file)
-			if _, err := file.Seek(chunk.Offset, io.SeekStart); err != nil {
-				ft.logger.Error("failed to seek", "offset", chunk.Offset, "error", err)
-				return fmt.Errorf("failed to seek to offset %d: %w", chunk.Offset, err)
-			}
+		chunkCount++
+		
+		// Seek to correct position (creates sparse file)
+		if _, err := file.Seek(chunk.Offset, io.SeekStart); err != nil {
+			ft.logger.Error("failed to seek", "offset", chunk.Offset, "error", err)
+			return fmt.Errorf("failed to seek to offset %d: %w", chunk.Offset, err)
+		}
 
-			// Write chunk data
-			writeStart := time.Now()
-			if _, err := file.Write(chunk.Data); err != nil {
-				ft.logger.Error("failed to write chunk", "offset", chunk.Offset, "size", len(chunk.Data), "error", err)
-				return fmt.Errorf("failed to write chunk at offset %d: %w", chunk.Offset, err)
-			}
-			writeDuration := time.Since(writeStart)
+		// Write chunk data
+		writeStart := time.Now()
+		if _, err := file.Write(chunk.Data); err != nil {
+			ft.logger.Error("failed to write chunk", "offset", chunk.Offset, "size", len(chunk.Data), "error", err)
+			return fmt.Errorf("failed to write chunk at offset %d: %w", chunk.Offset, err)
+		}
+		writeDuration := time.Since(writeStart)
 
-			// Update progress (optional - can skip in first iteration)
-			writtenBytes += int64(len(chunk.Data))
-			
-			// Log progress every 100MB or on first chunk
-			if chunkCount == 1 || writtenBytes-lastLoggedBytes >= 104857600 {
-				progress := float64(writtenBytes) / float64(task.Size) * 100
-				duration := time.Since(startTime)
-				speed := float64(writtenBytes) / duration.Seconds() / 1048576 // MB/s
-				ft.logger.Info("file write progress", 
-					"writtenBytes", writtenBytes, 
-					"targetSize", task.Size, 
-					"progress", fmt.Sprintf("%.1f%%", progress),
-					"speed", fmt.Sprintf("%.1f MB/s", speed),
-					"chunks", chunkCount,
-					"writeDuration", writeDuration)
-				lastLoggedBytes = writtenBytes
-			}
-			
-			if task.ProgressCallback != nil {
-				// No locks needed - single writer goroutine
-				task.ProgressCallback(int(writtenBytes), int(task.Size))
-			}
+		// Update progress (optional - can skip in first iteration)
+		writtenBytes += int64(len(chunk.Data))
+		
+		// Log progress every 100MB or on first chunk
+		if chunkCount == 1 || writtenBytes-lastLoggedBytes >= 104857600 {
+			progress := float64(writtenBytes) / float64(task.Size) * 100
+			duration := time.Since(startTime)
+			speed := float64(writtenBytes) / duration.Seconds() / 1048576 // MB/s
+			ft.logger.Info("file write progress", 
+				"writtenBytes", writtenBytes, 
+				"targetSize", task.Size, 
+				"progress", fmt.Sprintf("%.1f%%", progress),
+				"speed", fmt.Sprintf("%.1f MB/s", speed),
+				"chunks", chunkCount,
+				"writeDuration", writeDuration)
+			lastLoggedBytes = writtenBytes
+		}
+		
+		if task.ProgressCallback != nil {
+			task.ProgressCallback(int(writtenBytes), int(task.Size))
+		}
 
-			// Update file transfer stats (optional - can skip in first iteration)
-			// Note: UpdateDownloadStats may not exist yet, using UpdateUploadStats as placeholder
-			// This will need to be addressed when FileDownloadInfo is implemented
-			if ft.fileTransferStats != nil {
-				ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
-					FileKind:      task.FileKind,
-					Path:          task.Path,
-					UploadedBytes: writtenBytes,
-					TotalBytes:    task.Size,
-				})
-			}
+		// Update file transfer stats
+		if ft.fileTransferStats != nil {
+			ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
+				FileKind:      task.FileKind,
+				Path:          task.Path,
+				UploadedBytes: writtenBytes,
+				TotalBytes:    task.Size,
+			})
 		}
 	}
 }
