@@ -33,6 +33,16 @@ type chunkData struct {
 	Data   []byte
 }
 
+// workerStats tracks statistics for a single download worker
+type workerStats struct {
+	WorkerID      int
+	PartsComplete int
+	BytesDownloaded int64
+	NetworkTime   time.Duration
+	StartTime     time.Time
+	EndTime       time.Time
+}
+
 // downloadPart represents a chunk to download
 type downloadPart struct {
 	PartNumber int
@@ -367,6 +377,7 @@ func (ft *DefaultFileTransfer) downloadParallel(task *DefaultDownloadTask) error
 
 	// Start download workers
 	workerTasks := ft.splitDownloadTasks(parts, numWorkers)
+	workerStatsChan := make(chan workerStats, numWorkers)
 	ft.logger.Info("starting download workers", "numWorkers", numWorkers)
 	for i, workerParts := range workerTasks {
 		workerID := i
@@ -374,16 +385,22 @@ func (ft *DefaultFileTransfer) downloadParallel(task *DefaultDownloadTask) error
 
 		ft.logger.Debug("starting worker", "workerID", workerID, "numParts", len(taskParts))
 		g.Go(func() error {
-			ft.logger.Debug("worker started", "workerID", workerID)
+			stats := workerStats{
+				WorkerID:  workerID,
+				StartTime: time.Now(),
+			}
 			for _, part := range taskParts {
-				ft.logger.Debug("worker downloading part", "workerID", workerID, "partNumber", part.PartNumber, "startByte", part.StartByte, "endByte", part.EndByte)
+				networkStart := time.Now()
 				if err := ft.downloadPart(ctx, task, part, chunkQueue); err != nil {
 					ft.logger.Error("worker failed on part", "workerID", workerID, "partNumber", part.PartNumber, "error", err)
 					return fmt.Errorf("worker %d failed on part %d: %w", workerID, part.PartNumber, err)
 				}
-				ft.logger.Debug("worker completed part", "workerID", workerID, "partNumber", part.PartNumber)
+				stats.NetworkTime += time.Since(networkStart)
+				stats.PartsComplete++
+				stats.BytesDownloaded += part.Size
 			}
-			ft.logger.Debug("worker completed all parts", "workerID", workerID)
+			stats.EndTime = time.Now()
+			workerStatsChan <- stats
 			return nil
 		})
 	}
@@ -393,10 +410,36 @@ func (ft *DefaultFileTransfer) downloadParallel(task *DefaultDownloadTask) error
 	go func() {
 		ft.logger.Info("waiting for all download workers to complete")
 		err := g.Wait()
+		close(workerStatsChan)
+		
+		// Collect and log worker statistics
+		var totalNetworkTime time.Duration
+		var totalBytesDownloaded int64
+		var totalParts int
+		for stats := range workerStatsChan {
+			totalNetworkTime += stats.NetworkTime
+			totalBytesDownloaded += stats.BytesDownloaded
+			totalParts += stats.PartsComplete
+			workerDuration := stats.EndTime.Sub(stats.StartTime)
+			speed := float64(stats.BytesDownloaded) / stats.NetworkTime.Seconds() / 1048576 // MB/s
+			ft.logger.Info("worker summary",
+				"workerID", stats.WorkerID,
+				"partsComplete", stats.PartsComplete,
+				"bytesDownloaded", stats.BytesDownloaded,
+				"networkTime", stats.NetworkTime,
+				"totalTime", workerDuration,
+				"avgSpeed", fmt.Sprintf("%.1f MB/s", speed))
+		}
+		
 		if err != nil {
 			ft.logger.Error("download workers failed", "error", err)
 		} else {
-			ft.logger.Info("all download workers completed successfully")
+			avgSpeed := float64(totalBytesDownloaded) / totalNetworkTime.Seconds() / 1048576
+			ft.logger.Info("all workers completed",
+				"totalParts", totalParts,
+				"totalBytes", totalBytesDownloaded,
+				"totalNetworkTime", totalNetworkTime,
+				"avgNetworkSpeed", fmt.Sprintf("%.1f MB/s", avgSpeed))
 		}
 		ft.logger.Debug("closing chunk queue to signal writer to stop")
 		close(chunkQueue)
@@ -405,7 +448,15 @@ func (ft *DefaultFileTransfer) downloadParallel(task *DefaultDownloadTask) error
 
 	// Use the main goroutine to write chunks to file
 	ft.logger.Info("starting file writer in main goroutine")
+	writeStartTime := time.Now()
 	writerErr := ft.writeChunksToFile(file, chunkQueue, task)
+	writeDuration := time.Since(writeStartTime)
+	if writerErr == nil {
+		writeSpeed := float64(task.Size) / writeDuration.Seconds() / 1048576
+		ft.logger.Info("file write completed",
+			"totalWriteTime", writeDuration,
+			"avgWriteSpeed", fmt.Sprintf("%.1f MB/s", writeSpeed))
+	}
 
 	// Wait for download workers to complete
 	downloadErr := <-downloadComplete
@@ -433,7 +484,6 @@ func (ft *DefaultFileTransfer) downloadPart(
 ) error {
 	// Create range request: "bytes=0-104857599" (0-99MB)
 	rangeHeader := fmt.Sprintf("bytes=%d-%d", part.StartByte, part.EndByte)
-	ft.logger.Debug("downloading part", "partNumber", part.PartNumber, "range", rangeHeader, "size", part.Size)
 
 	req, err := retryablehttp.NewRequest(http.MethodGet, task.Url, nil)
 	if err != nil {
@@ -451,7 +501,6 @@ func (ft *DefaultFileTransfer) downloadPart(
 	}
 
 	// retryablehttp.Client handles retries automatically
-	ft.logger.Debug("sending HTTP request for part", "partNumber", part.PartNumber)
 	var resp *http.Response
 	if os.Getenv("WANDB_DOWNLOAD_DISABLE_KEEPALIVE") == "true" {
 		ft.logger.Info("Using no keep alive client for part", "partNumber", part.PartNumber)
@@ -470,7 +519,6 @@ func (ft *DefaultFileTransfer) downloadPart(
 		return fmt.Errorf("expected 206 Partial Content, got %d", resp.StatusCode)
 	}
 
-	ft.logger.Debug("received response for part", "partNumber", part.PartNumber, "statusCode", resp.StatusCode)
 
 	// Stream response in chunks
 	offset := part.StartByte
@@ -478,7 +526,6 @@ func (ft *DefaultFileTransfer) downloadPart(
 	totalRead := int64(0)
 	chunkCount := 0
 
-	ft.logger.Debug("starting to stream part", "partNumber", part.PartNumber, "bufferSize", s3DefaultHTTPChunkSize)
 
 	for {
 		select {
@@ -493,10 +540,6 @@ func (ft *DefaultFileTransfer) downloadPart(
 			chunkCount++
 			totalRead += int64(n)
 
-			// Log every 10MB or on first/last chunk
-			if chunkCount == 1 || totalRead%10485760 == 0 || totalRead == part.Size {
-				ft.logger.Debug("read chunk from part", "partNumber", part.PartNumber, "chunkSize", n, "totalRead", totalRead, "partSize", part.Size)
-			}
 
 			chunk := chunkData{
 				Offset: offset,
@@ -519,7 +562,6 @@ func (ft *DefaultFileTransfer) downloadPart(
 		}
 
 		if err == io.EOF {
-			ft.logger.Debug("completed reading part", "partNumber", part.PartNumber, "totalRead", totalRead, "expectedSize", part.Size)
 			break
 		} else if err != nil {
 			ft.logger.Error("error reading part", "partNumber", part.PartNumber, "error", err, "totalRead", totalRead)
@@ -527,7 +569,6 @@ func (ft *DefaultFileTransfer) downloadPart(
 		}
 	}
 
-	ft.logger.Debug("part download completed", "partNumber", part.PartNumber, "totalRead", totalRead, "chunks", chunkCount)
 	return nil
 }
 
@@ -541,7 +582,11 @@ func (ft *DefaultFileTransfer) writeChunksToFile(
 	writtenBytes := int64(0)
 	chunkCount := 0
 	lastLoggedBytes := int64(0)
+	lastLogTime := time.Now()
 	startTime := time.Now()
+	totalWriteTime := time.Duration(0)
+	minWriteTime := time.Duration(math.MaxInt64)
+	maxWriteTime := time.Duration(0)
 
 	ft.logger.Info("file writer started", "targetSize", task.Size)
 
@@ -550,7 +595,23 @@ func (ft *DefaultFileTransfer) writeChunksToFile(
 		if !ok {
 			// Channel closed, all chunks written
 			duration := time.Since(startTime)
-			ft.logger.Info("file writer completed", "writtenBytes", writtenBytes, "targetSize", task.Size, "chunks", chunkCount, "duration", duration)
+			avgWriteTime := time.Duration(0)
+			if chunkCount > 0 {
+				avgWriteTime = totalWriteTime / time.Duration(chunkCount)
+			}
+			writeSpeed := float64(writtenBytes) / totalWriteTime.Seconds() / 1048576
+			overallSpeed := float64(writtenBytes) / duration.Seconds() / 1048576
+			
+			ft.logger.Info("file write summary",
+				"totalBytes", writtenBytes,
+				"chunks", chunkCount,
+				"totalTime", duration.Round(time.Millisecond),
+				"totalWriteTime", totalWriteTime.Round(time.Millisecond),
+				"avgWriteTime", avgWriteTime.Round(time.Microsecond),
+				"minWriteTime", minWriteTime.Round(time.Microsecond),
+				"maxWriteTime", maxWriteTime.Round(time.Microsecond),
+				"diskWriteSpeed", fmt.Sprintf("%.1f MB/s", writeSpeed),
+				"overallSpeed", fmt.Sprintf("%.1f MB/s", overallSpeed))
 			return nil
 		}
 
@@ -569,23 +630,30 @@ func (ft *DefaultFileTransfer) writeChunksToFile(
 			return fmt.Errorf("failed to write chunk at offset %d: %w", chunk.Offset, err)
 		}
 		writeDuration := time.Since(writeStart)
+		totalWriteTime += writeDuration
+		if writeDuration < minWriteTime {
+			minWriteTime = writeDuration
+		}
+		if writeDuration > maxWriteTime {
+			maxWriteTime = writeDuration
+		}
 
-		// Update progress (optional - can skip in first iteration)
+		// Update progress
 		writtenBytes += int64(len(chunk.Data))
 
-		// Log progress every 100MB or on first chunk
-		if chunkCount == 1 || writtenBytes-lastLoggedBytes >= 104857600 {
+		// Log progress every 500MB and at least every 30 seconds
+		timeSinceLastLog := time.Since(lastLogTime)
+		if writtenBytes-lastLoggedBytes >= 524288000 || timeSinceLastLog >= 30*time.Second {
 			progress := float64(writtenBytes) / float64(task.Size) * 100
 			duration := time.Since(startTime)
-			speed := float64(writtenBytes) / duration.Seconds() / 1048576 // MB/s
+			speed := float64(writtenBytes-lastLoggedBytes) / timeSinceLastLog.Seconds() / 1048576 // MB/s
 			ft.logger.Info("file write progress",
-				"writtenBytes", writtenBytes,
-				"targetSize", task.Size,
 				"progress", fmt.Sprintf("%.1f%%", progress),
+				"written", fmt.Sprintf("%.1f GB", float64(writtenBytes)/1073741824),
 				"speed", fmt.Sprintf("%.1f MB/s", speed),
-				"chunks", chunkCount,
-				"writeDuration", writeDuration)
+				"elapsed", duration.Round(time.Second))
 			lastLoggedBytes = writtenBytes
+			lastLogTime = time.Now()
 		}
 
 		if task.ProgressCallback != nil {
