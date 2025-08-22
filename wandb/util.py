@@ -702,7 +702,7 @@ def json_friendly_val(val: Any) -> Any:
         return converted
     if is_dataclass(val) and not isinstance(val, type):
         converted = asdict(val)
-        return converted
+        return json_friendly_val(converted)
     else:
         if val.__class__.__module__ not in ("builtins", "__builtin__"):
             val = str(val)

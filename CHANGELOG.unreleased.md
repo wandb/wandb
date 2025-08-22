@@ -25,3 +25,6 @@ This version raises errors that would previously have been suppressed during cal
 
 - Errors encountered while linking an artifact are no longer suppressed/silenced, and `Artifact.link()` and `Run.link_artifact()` no longer return `None` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9968)
 - The "Run history" and "Run summary" printed at the end of a run are now limited to 10 metrics each (@timoffex in https://github.com/wandb/wandb/pull/10351)
+
+### Fixed
+- Dataclasses in a run's `config` no long raise `Object of type ... is not JSON serializable` when containing real classes as fields to the dataclass (@jacobromero in https://github.com/wandb/wandb/pull/10371)
