@@ -25,8 +25,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _should_print_spinner() -> bool:
-    singleton = wandb_setup.singleton_if_setup()
-    if singleton and (singleton.settings.quiet or singleton.settings.silent):
+    settings = wandb_setup.singleton().settings_if_loaded
+    if settings and (settings.quiet or settings.silent):
         return False
 
     return not env.is_quiet() and not env.is_silent()

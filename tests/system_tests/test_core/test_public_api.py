@@ -1066,7 +1066,13 @@ def test_delete_api_key_failure(wandb_backend_spy, stub_search_users):
     assert not user.delete_api_key(api_key["name"])
 
 
-def test_generate_api_key_success(wandb_backend_spy, stub_search_users, api):
+def test_generate_api_key_success(
+    wandb_backend_spy,
+    stub_search_users,
+    api,
+    skip_verify_login,
+):
+    _ = skip_verify_login  # Don't verify user API keys.
     email = "test@test.com"
     api_key_1 = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
     api_key_2 = {"name": "Y" * 40, "id": "QXBpS2V5OjE4MzE="}
@@ -1086,7 +1092,13 @@ def test_generate_api_key_success(wandb_backend_spy, stub_search_users, api):
     assert user.api_keys[-1] == new_key
 
 
-def test_generate_api_key_failure(wandb_backend_spy, stub_search_users, api):
+def test_generate_api_key_failure(
+    wandb_backend_spy,
+    stub_search_users,
+    api,
+    skip_verify_login,
+):
+    _ = skip_verify_login  # Don't verify user API keys.
     email = "test@test.com"
     api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
     stub_search_users(email=email, api_keys=[api_key], teams=[])
