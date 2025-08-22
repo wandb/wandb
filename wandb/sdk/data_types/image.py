@@ -84,7 +84,7 @@ def _guess_and_rescale_to_0_255(data: "np.ndarray") -> "np.ndarray":
         data_0_1 = np.random.rand(64, 64, 3)  # Values between 0 and 1
         normalized = _guess_and_rescale_to_0_255(data_0_1)  # Values multiplied by 255
 
-        # [-1, 1] range data  
+        # [-1, 1] range data
         data_neg1_1 = np.random.rand(64, 64, 3) * 2 - 1  # Values between -1 and 1
         normalized = _guess_and_rescale_to_0_255(data_neg1_1)  # Values rescaled to [0, 255]
     """
@@ -186,11 +186,11 @@ class Image(BatchableMedia):
                 If the values are not in the range [0, 255] or all values are in the range [0, 1],
                 the image pixel values will be normalized to the range [0, 255]
                 unless `normalize` is set to False.
-                
+
                 **Data format requirements:**
                 - PyTorch tensor should be in the format (channel, height, width)
                 - NumPy array should be in the format (height, width, channel)
-                
+
                 **Normalization behavior:**
                 - PyTorch tensors and NumPy arrays are automatically normalized
                 - PIL Images and file paths are not normalized
@@ -278,17 +278,23 @@ class Image(BatchableMedia):
             image1 = wandb.Image(tensor_0_1, caption="Normalized from [0,1] range")
 
             # Example 2: [-1, 1] range tensor - values will be rescaled
-            tensor_neg1_1 = torch.rand(3, 64, 64) * 2 - 1  # Random values between -1 and 1
+            tensor_neg1_1 = (
+                torch.rand(3, 64, 64) * 2 - 1
+            )  # Random values between -1 and 1
             image2 = wandb.Image(tensor_neg1_1, caption="Normalized from [-1,1] range")
 
             # Example 3: Avoid normalization by converting to PIL Image
             tensor_0_1 = torch.rand(3, 64, 64)
-            pil_image = PILImage.fromarray((tensor_0_1.permute(1, 2, 0).numpy() * 255).astype('uint8'))
+            pil_image = PILImage.fromarray(
+                (tensor_0_1.permute(1, 2, 0).numpy() * 255).astype("uint8")
+            )
             image3 = wandb.Image(pil_image, caption="No normalization applied")
 
             # Example 4: Disable normalization
             tensor_0_1 = torch.rand(3, 64, 64)
-            image4 = wandb.Image(tensor_0_1, normalize=False, caption="Normalization disabled")
+            image4 = wandb.Image(
+                tensor_0_1, normalize=False, caption="Normalization disabled"
+            )
 
             run.log({"examples": [image1, image2, image3, image4]})
         ```
