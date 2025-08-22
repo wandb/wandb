@@ -59,17 +59,34 @@ def _warn_on_invalid_data_range(
 def _guess_and_rescale_to_0_255(data: "np.ndarray") -> "np.ndarray":
     """Guess the image's format and rescale its values to the range [0, 255].
 
-    This is an unfortunate design flaw carried forward for backward
-    compatibility. A better design would have been to document the expected
-    data format and not mangle the data provided by the user.
+    This function automatically detects the input data range and applies the appropriate
+    normalization to convert values to the [0, 255] range for image display.
 
-    If given data in the range [0, 1], we multiply all values by 255
-    and round down to get integers.
+    Normalization rules:
+    1. If data is in range [0, 1]: multiply by 255 and convert to uint8
+    2. If data is in range [-1, 1]: rescale using 255 * 0.5 * (data + 1) and convert to uint8
+    3. For any other range: clip values to [0, 255] and convert to uint8
 
-    If given data in the range [-1, 1], we rescale it by mapping -1 to 0 and
-    1 to 255, then round down to get integers.
+    Args:
+        data: Input numpy array with image data
 
-    We clip and round all other data.
+    Returns:
+        Normalized numpy array with values in [0, 255] range as uint8
+
+    Note:
+        This normalization is applied to PyTorch tensors and NumPy arrays when passed
+        to wandb.Image, but not to PIL Images or file paths. To avoid normalization,
+        convert tensors to PIL Images before passing to wandb.Image, or use
+        normalize=False parameter.
+
+    Examples:
+        # [0, 1] range data
+        data_0_1 = np.random.rand(64, 64, 3)  # Values between 0 and 1
+        normalized = _guess_and_rescale_to_0_255(data_0_1)  # Values multiplied by 255
+
+        # [-1, 1] range data  
+        data_neg1_1 = np.random.rand(64, 64, 3) * 2 - 1  # Values between -1 and 1
+        normalized = _guess_and_rescale_to_0_255(data_neg1_1)  # Values rescaled to [0, 255]
     """
     try:
         import numpy as np
@@ -169,8 +186,18 @@ class Image(BatchableMedia):
                 If the values are not in the range [0, 255] or all values are in the range [0, 1],
                 the image pixel values will be normalized to the range [0, 255]
                 unless `normalize` is set to False.
-            - pytorch tensor should be in the format (channel, height, width)
-            - NumPy array should be in the format (height, width, channel)
+                
+                **Data format requirements:**
+                - PyTorch tensor should be in the format (channel, height, width)
+                - NumPy array should be in the format (height, width, channel)
+                
+                **Normalization behavior:**
+                - PyTorch tensors and NumPy arrays are automatically normalized
+                - PIL Images and file paths are not normalized
+                - For [0, 1] range data: values are multiplied by 255
+                - For [-1, 1] range data: values are rescaled using 255 * 0.5 * (data + 1)
+                - For other ranges: values are clipped to [0, 255]
+                - To avoid normalization, convert tensors to PIL Images or use normalize=False
             mode: The PIL mode for an image. Most common are "L", "RGB",
                 "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
             caption: Label for display of image.
@@ -236,6 +263,34 @@ class Image(BatchableMedia):
                 )
                 examples.append(image)
             run.log({"examples": examples})
+        ```
+
+        Examples showing normalization behavior:
+
+        ```python
+        import torch
+        import wandb
+        from PIL import Image as PILImage
+
+        with wandb.init() as run:
+            # Example 1: [0, 1] range tensor - values will be multiplied by 255
+            tensor_0_1 = torch.rand(3, 64, 64)  # Random values between 0 and 1
+            image1 = wandb.Image(tensor_0_1, caption="Normalized from [0,1] range")
+
+            # Example 2: [-1, 1] range tensor - values will be rescaled
+            tensor_neg1_1 = torch.rand(3, 64, 64) * 2 - 1  # Random values between -1 and 1
+            image2 = wandb.Image(tensor_neg1_1, caption="Normalized from [-1,1] range")
+
+            # Example 3: Avoid normalization by converting to PIL Image
+            tensor_0_1 = torch.rand(3, 64, 64)
+            pil_image = PILImage.fromarray((tensor_0_1.permute(1, 2, 0).numpy() * 255).astype('uint8'))
+            image3 = wandb.Image(pil_image, caption="No normalization applied")
+
+            # Example 4: Disable normalization
+            tensor_0_1 = torch.rand(3, 64, 64)
+            image4 = wandb.Image(tensor_0_1, normalize=False, caption="Normalization disabled")
+
+            run.log({"examples": [image1, image2, image3, image4]})
         ```
         """
         super().__init__(caption=caption)
