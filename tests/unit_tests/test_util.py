@@ -7,6 +7,7 @@ import sys
 import tarfile
 import tempfile
 import time
+from dataclasses import dataclass
 from unittest import mock
 
 import matplotlib.pyplot as plt
@@ -179,8 +180,6 @@ def test_bfloat16_to_float():
 
 
 def test_dataclass():
-    from dataclasses import dataclass
-
     @dataclass
     class TestDataClass:
         test: bool
@@ -191,8 +190,6 @@ def test_dataclass():
 
 
 def test_nested_dataclasses():
-    from dataclasses import dataclass
-
     @dataclass
     class TestDataClass:
         test: bool
@@ -209,22 +206,25 @@ def test_nested_dataclasses():
 
 
 def test_nested_dataclasses_containing_real_class():
-    from dataclasses import dataclass
-
     class TestRealClass:
         test: bool
 
         def __init__(self, test: bool):
             self.test = test
 
+        def __str__(self):
+            return f"TestRealClass(test={self.test})"
+
     @dataclass
     class TestDataClassHolder:
         test_real_class: TestRealClass
 
-    nested_dataclass = TestDataClassHolder(TestRealClass(True))
+
+    real_class = TestRealClass(True)
+    nested_dataclass = TestDataClassHolder(real_class)
     converted = util.json_friendly_val(nested_dataclass)
     assert isinstance(converted, dict)
-    assert isinstance(converted["test_real_class"], str)
+    assert converted["test_real_class"] == str(real_class)
 
 
 ###############################################################################
