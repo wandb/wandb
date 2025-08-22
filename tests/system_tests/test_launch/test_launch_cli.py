@@ -207,7 +207,7 @@ def test_launch_supplied_docker_image(
     assert "test:tag" in result.output
 
 
-def test_launch_supplied_logfile(runner, monkeypatch, caplog, user):
+def test_launch_supplied_logfile(runner, monkeypatch, wandb_caplog, user):
     """Test that the logfile is set properly when supplied via the CLI."""
 
     def patched_pop_empty_queue(self, queue):
@@ -226,7 +226,7 @@ def test_launch_supplied_logfile(runner, monkeypatch, caplog, user):
     )
 
     with runner.isolated_filesystem():
-        with caplog.at_level("INFO"):
+        with wandb_caplog.at_level("INFO"):
             result = runner.invoke(
                 cli.launch_agent,
                 [

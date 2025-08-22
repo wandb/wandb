@@ -51,6 +51,8 @@ func (err *Error) Error() string {
 	if len(err.Locations) > 0 {
 		res.WriteByte(':')
 		res.WriteString(strconv.Itoa(err.Locations[0].Line))
+		res.WriteByte(':')
+		res.WriteString(strconv.Itoa(err.Locations[0].Column))
 	}
 
 	res.WriteString(": ")
@@ -162,6 +164,15 @@ func ErrorPathf(path ast.Path, message string, args ...interface{}) *Error {
 }
 
 func ErrorPosf(pos *ast.Position, message string, args ...interface{}) *Error {
+	if pos == nil {
+		return ErrorLocf(
+			"",
+			-1,
+			-1,
+			message,
+			args...,
+		)
+	}
 	return ErrorLocf(
 		pos.Src.Name,
 		pos.Line,

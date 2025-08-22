@@ -1,6 +1,8 @@
 import os
 
+import cloudpickle
 import pytest
+import torch
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -72,6 +74,54 @@ def test_tensorflow_keras_saved_model():
     )
 
 
+@pytest.mark.parametrize(
+    (
+        "model_fn",
+        "model_cls",
+        "file_ext",
+        "save_fn",
+    ),
+    [
+        # TODO: Uncomment once _TensorflowKerasSavedModel._serialize is fixed.
+        # (
+        #     keras_model,
+        #     saved_model._TensorflowKerasSavedModel,
+        #     "keras",
+        #     lambda model, path: model.save(path),
+        # ),
+        (
+            sklearn_model,
+            saved_model._SklearnSavedModel,
+            "pkl",
+            lambda model, path: cloudpickle.dump(model, open(path, "wb")),
+        ),
+        (
+            pytorch_model,
+            saved_model._PytorchSavedModel,
+            "pt",
+            lambda model, path: torch.save(
+                model,
+                path,
+                pickle_module=cloudpickle,
+            ),
+        ),
+    ],
+)
+def test_saved_model_path(
+    model_fn,
+    model_cls,
+    file_ext,
+    save_fn,
+    tmp_path,
+):
+    model_path = tmp_path / f"my_model.{file_ext}"
+
+    model = model_fn()
+    save_fn(model, model_path)
+
+    model_cls(model_path)
+
+
 # These classes are used to patch the API
 # so we can simulate downloading an artifact without
 # actually making a network round trip (using the local filesystem)
@@ -103,6 +153,7 @@ def make_local_artifact_public(art):
             "aliases": [
                 {
                     "artifactCollection": {
+                        "__typename": "ArtifactSequence",
                         "project": {
                             "entityName": "FAKE_ENTITY",
                             "name": "FAKE_PROJECT",
@@ -130,7 +181,7 @@ def make_local_artifact_public(art):
             },
             "commitHash": "FAKE_HASH",
             "fileCount": 0,
-            "createdAt": None,
+            "createdAt": "FAKE_CREATED_AT",
             "updatedAt": None,
         },
         None,

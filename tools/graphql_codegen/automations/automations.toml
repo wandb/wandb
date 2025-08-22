@@ -4,25 +4,7 @@
 schema_path = "core/api/graphql/schemas/schema-latest.graphql"
 queries_path = "tools/graphql_codegen/automations/"
 
-files_to_include = [
-    "tools/graphql_codegen/include/base.py",
-    "tools/graphql_codegen/include/typing_compat.py",
-]
-
-# From ariadne-codegen, we don't currently need the generated httpx client,
-# exceptions, etc., so drop the modules generated for these, in favor of
-# the existing internal GQL client.
-modules_to_drop = [
-    "async_base_client",
-    "base_client",
-    # We'll swap in a module with our own custom base class
-    "base_model",
-    "client",
-    "exceptions",
-]
-
-
-target_package_path = "wandb/sdk/automations"
+target_package_path = "wandb/automations"
 target_package_name = "_generated"
 
 include_all_inputs = false # Only generate input types needed for queries
@@ -35,10 +17,10 @@ plugins = [
 ]
 
 [tool.ariadne-codegen.scalars.ID]
-type = ".base.GQLId"
+type = "wandb._pydantic.GQLId"
 
 [tool.ariadne-codegen.scalars.JSONString]
-type = ".base.SerializedToJson"
+type = "str"
 
 [tool.ariadne-codegen.scalars.DateTime]
 type = "datetime.datetime"

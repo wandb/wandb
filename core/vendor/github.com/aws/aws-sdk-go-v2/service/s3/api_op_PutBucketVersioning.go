@@ -211,6 +211,9 @@ func (c *Client) addOperationPutBucketVersioningMiddlewares(stack *middleware.St
 	if err = addRequestChecksumMetricsTracking(stack, options); err != nil {
 		return err
 	}
+	if err = addCredentialSource(stack, options); err != nil {
+		return err
+	}
 	if err = addOpPutBucketVersioningValidationMiddleware(stack); err != nil {
 		return err
 	}
@@ -248,6 +251,36 @@ func (c *Client) addOperationPutBucketVersioningMiddlewares(stack *middleware.St
 		return err
 	}
 	if err = s3cust.AddExpressDefaultChecksumMiddleware(stack); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAttempt(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptExecution(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptTransmit(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeDeserialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterDeserialization(stack, options); err != nil {
 		return err
 	}
 	if err = addSpanInitializeStart(stack); err != nil {

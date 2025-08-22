@@ -10,12 +10,11 @@ try:
     from kfp.components import structures
     from kfp.components._components import _create_task_factory_from_component_spec
     from kfp.components._python_op import _func_to_component_spec
-
-    from wandb.util import parse_version
+    from packaging.version import parse
 
     MIN_KFP_VERSION = "1.6.1"
 
-    if parse_version(kfp_version) < parse_version(MIN_KFP_VERSION):
+    if parse(kfp_version) < parse(MIN_KFP_VERSION):
         wandb.termwarn(
             f"Your version of kfp {kfp_version} may not work.  This integration requires kfp>={MIN_KFP_VERSION}"
         )
@@ -271,7 +270,9 @@ def create_component_from_func(
         Example of a component function declaring file input and output::
 
             def catboost_train_classifier(
-                training_data_path: InputPath("CSV"),  # Path to input data file of type "CSV"
+                training_data_path: InputPath(
+                    "CSV"
+                ),  # Path to input data file of type "CSV"
                 trained_model_path: OutputPath(
                     "CatBoostModel"
                 ),  # Path to output data file of type "CatBoostModel"

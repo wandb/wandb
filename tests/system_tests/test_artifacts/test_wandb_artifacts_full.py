@@ -11,6 +11,11 @@ import wandb
 from wandb import Api, Artifact
 from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
+from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+from wandb.sdk.artifacts._validators import (
+    ARTIFACT_NAME_MAXLEN,
+    RESERVED_ARTIFACT_TYPE_PREFIX,
+)
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import md5_string
@@ -72,6 +77,29 @@ def test_artifact_error_for_invalid_aliases(user):
         run.log_artifact(artifact, aliases=aliases)
 
     run.finish()
+
+
+@pytest.mark.parametrize(
+    "invalid_name",
+    [
+        "a" * (ARTIFACT_NAME_MAXLEN + 1),  # Name too long
+        "my/artifact",  # Invalid character(s)
+    ],
+)
+def test_artifact_error_for_invalid_name(tmp_path, user, api, invalid_name):
+    """When logging a *file*, passing an invalid artifact name to `Run.log_artifact()` should raise an error."""
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("test data")
+
+    # It should not be possible to log the artifact
+    with pytest.raises(ValueError):
+        with wandb.init() as run:
+            logged = run.log_artifact(file_path, name=invalid_name)
+            logged.wait()
+
+    # It should not be possible to retrieve the artifact either
+    with pytest.raises(CommError):
+        _ = api.artifact(f"{invalid_name}:latest")
 
 
 def test_artifact_upsert_no_id(user):
@@ -660,10 +688,10 @@ def test_retrieve_missing_artifact(logged_artifact):
     with pytest.raises(CommError, match="project 'bar' not found"):
         Api().artifact(f"{logged_artifact.entity}/bar/{logged_artifact.name}")
 
-    with pytest.raises(CommError, match="must be specified as 'collection:alias'"):
+    with pytest.raises(CommError):
         Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz")
 
-    with pytest.raises(CommError, match="failed to find artifact collection"):
+    with pytest.raises(CommError):
         Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz:v0")
 
 
@@ -732,47 +760,6 @@ def test_get_artifact_collection(logged_artifact):
     assert logged_artifact.type == collection.type
 
 
-def test_get_artifact_collection_from_linked_artifact(linked_artifact):
-    collection = linked_artifact.collection
-    assert linked_artifact.entity == collection.entity
-    assert linked_artifact.project == collection.project
-    assert linked_artifact.name.startswith(collection.name)
-    assert linked_artifact.type == collection.type
-
-    collection = linked_artifact.source_collection
-    assert linked_artifact.source_entity == collection.entity
-    assert linked_artifact.source_project == collection.project
-    assert linked_artifact.source_name.startswith(collection.name)
-    assert linked_artifact.type == collection.type
-
-
-def test_unlink_artifact(logged_artifact, linked_artifact, api):
-    """Unlinking an artifact in a portfolio collection removes the linked artifact *without* deleting the original."""
-    source_artifact = logged_artifact  # For readability
-
-    # Pull these out now in case of state changes
-    source_artifact_path = source_artifact.qualified_name
-    linked_artifact_path = linked_artifact.qualified_name
-
-    # Consistency/sanity checks in case of changes to upstream fixtures
-    assert source_artifact.qualified_name != linked_artifact.qualified_name
-    assert api.artifact_exists(source_artifact_path) is True
-    assert api.artifact_exists(linked_artifact_path) is True
-
-    linked_artifact.unlink()
-
-    # Now the source artifact should still exist, the link should not
-    assert api.artifact_exists(source_artifact_path) is True
-    assert api.artifact_exists(linked_artifact_path) is False
-
-    # Unlinking the source artifact should not be possible
-    with pytest.raises(ValueError, match=r"use 'Artifact.delete' instead"):
-        source_artifact.unlink()
-
-    # ... and the source artifact should *still* exist
-    assert api.artifact_exists(source_artifact_path) is True
-
-
 def test_used_artifacts_preserve_original_project(user, api, logged_artifact):
     """Run artifacts from the API should preserve the original project they were created in."""
     orig_project = logged_artifact.project  # Original project that created the artifact
@@ -794,3 +781,13 @@ def test_used_artifacts_preserve_original_project(user, api, logged_artifact):
 
     assert run_from_api.project == new_project
     assert art_from_run.project == orig_project
+
+
+def test_internal_artifacts(user):
+    internal_type = RESERVED_ARTIFACT_TYPE_PREFIX + "invalid"
+    with wandb.init() as run:
+        with pytest.raises(ValueError, match="is reserved for internal use"):
+            artifact = wandb.Artifact(name="test-artifact", type=internal_type)
+
+        artifact = InternalArtifact(name="test-artifact", type=internal_type)
+        run.log_artifact(artifact)

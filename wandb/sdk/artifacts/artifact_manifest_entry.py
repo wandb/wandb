@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import logging
 import os
@@ -9,8 +10,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.deprecate import Deprecated, deprecate
+from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,
@@ -36,6 +38,9 @@ if TYPE_CHECKING:
         size: int
         extra: dict
         local_path: str
+
+
+_WB_ARTIFACT_SCHEME = "wandb-artifact"
 
 
 class ArtifactManifestEntry:
@@ -129,7 +134,11 @@ class ArtifactManifestEntry:
         return self._parent_artifact
 
     def download(
-        self, root: str | None = None, skip_cache: bool | None = None
+        self,
+        root: str | None = None,
+        skip_cache: bool | None = None,
+        executor: concurrent.futures.Executor | None = None,
+        multipart: bool | None = None,
     ) -> FilePathStr:
         """Download this artifact entry to the specified root path.
 
@@ -169,7 +178,11 @@ class ArtifactManifestEntry:
             )
         else:
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
-                self._parent_artifact, self, dest_path=override_cache_path
+                self._parent_artifact,
+                self,
+                dest_path=override_cache_path,
+                executor=executor,
+                multipart=multipart,
             )
 
         if skip_cache:
@@ -211,15 +224,11 @@ class ArtifactManifestEntry:
             derived_artifact.add_reference(ref_url)
             ```
         """
-        if self._parent_artifact is None:
-            raise NotImplementedError
-        assert self._parent_artifact.id is not None
-        return (
-            "wandb-artifact://"
-            + b64_to_hex_id(B64MD5(self._parent_artifact.id))
-            + "/"
-            + self.path
-        )
+        if (parent_artifact := self.parent_artifact()) is None:
+            raise ValueError("Parent artifact is not set")
+        elif (parent_id := parent_artifact.id) is None:
+            raise ValueError("Parent artifact ID is not set")
+        return f"{_WB_ARTIFACT_SCHEME}://{b64_to_hex_id(B64MD5(parent_id))}/{self.path}"
 
     def to_json(self) -> ArtifactManifestEntryDict:
         contents: ArtifactManifestEntryDict = {
@@ -241,7 +250,7 @@ class ArtifactManifestEntry:
         return contents
 
     def _is_artifact_reference(self) -> bool:
-        return self.ref is not None and urlparse(self.ref).scheme == "wandb-artifact"
+        return self.ref is not None and urlparse(self.ref).scheme == _WB_ARTIFACT_SCHEME
 
     def _referenced_artifact_id(self) -> str | None:
         if not self._is_artifact_reference():

@@ -104,8 +104,11 @@ def test_artifact_files(user, api, sample_data, wandb_backend_spy):
 
     api = wandb.Api()
     art = api.artifact("mnist:v0", type="dataset")
-    file = art.files()[0]
-    assert "storagePath" not in file._attrs.keys()
+    files = art.files(per_page=1)
+    assert "storagePath" not in files[0]._attrs.keys()
+    assert files.last_response is not None
+    assert files.more is True
+    assert files.cursor is not None
 
 
 def test_artifact_download(user, api, sample_data):
@@ -356,13 +359,53 @@ def test_fetch_registry_artifact(
 
     mock_fetch_artifact_by_name = mocker.patch.object(api.client, "execute")
 
+    mock_artifact_fragment_data = {
+        "name": "test-collection",  # NOTE: relevant
+        "versionIndex": 0,  # NOTE: relevant
+        # ------------------------------------------------------------------------------
+        # NOTE: Remaining artifact fields are placeholders and not as relevant to the test
+        "artifactType": {
+            "name": "model",
+        },
+        "artifactSequence": {
+            "id": "PLACEHOLDER",
+            "name": "test-collection",
+            "project": {
+                "id": "PLACEHOLDER",
+                "entityName": "test-team",
+                "name": "orig-project",
+            },
+        },
+        "id": "PLACEHOLDER",
+        "description": "PLACEHOLDER",
+        "metadata": "{}",
+        "state": "COMMITTED",
+        "currentManifest": None,
+        "fileCount": 0,
+        "commitHash": "PLACEHOLDER",
+        "createdAt": "PLACEHOLDER",
+        "updatedAt": None,
+        # ------------------------------------------------------------------------------
+    }
+
     if expected_artifact_fetched:
         mock_fetch_artifact_by_name.return_value = {
             "project": {
-                "artifact": {
-                    "name": "test-collection",
-                    "version": "v0",
-                }
+                "artifact": mock_artifact_fragment_data,
+                "artifactCollectionMembership": {
+                    "id": "PLACEHOLDER",
+                    "artifact": mock_artifact_fragment_data,
+                    "artifactCollection": {
+                        "__typename": "ArtifactPortfolio",
+                        "id": "PLACEHOLDER",
+                        "name": "test-collection",
+                        "project": {
+                            "id": "PLACEHOLDER",
+                            "entityName": "org-entity-name",  # NOTE: relevant
+                            "name": "wandb-registry-model",  # NOTE: relevant
+                        },
+                    },
+                },
             }
         }
     else:

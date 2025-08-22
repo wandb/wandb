@@ -36,10 +36,8 @@ from types import ModuleType
 from typing import (
     IO,
     TYPE_CHECKING,
-    Any,
     Callable,
     Dict,
-    Generator,
     Iterable,
     List,
     Mapping,
@@ -47,12 +45,12 @@ from typing import (
     Sequence,
     TextIO,
     Tuple,
-    TypeVar,
     Union,
 )
 
 import requests
 import yaml
+from typing_extensions import Any, Generator, TypeGuard, TypeVar
 
 import wandb
 import wandb.env
@@ -69,8 +67,6 @@ from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
-    import packaging.version  # type: ignore[import-not-found]
-
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
     from wandb.sdk.artifacts.artifact import Artifact
@@ -183,6 +179,13 @@ class LazyModuleState:
             assert self.module.__spec__.loader is not None
             self.module.__spec__.loader.exec_module(self.module)
             self.module.__class__ = types.ModuleType
+
+            # Set the submodule as an attribute on the parent module
+            # This enables access to the submodule via normal attribute access.
+            parent, _, child = self.module.__name__.rpartition(".")
+            if parent:
+                parent_module = sys.modules[parent]
+                setattr(parent_module, child, self.module)
 
 
 class LazyModule(types.ModuleType):
@@ -336,6 +339,63 @@ def get_local_path_or_none(path_or_uri: str) -> Optional[str]:
         return local_file_uri_to_path(path_or_uri)
     else:
         return None
+
+
+def check_windows_valid_filename(path: Union[int, str]) -> bool:
+    r"""Verify that the given path does not contain any invalid characters for a Windows filename.
+
+    Windows filenames cannot contain the following characters:
+    < > : " \ / | ? *
+
+    For more details, refer to the official documentation:
+    https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
+
+    Args:
+        path: The file path to check, which can be either an integer or a string.
+
+    Returns:
+        bool: True if the path does not contain any invalid characters, False otherwise.
+    """
+    return not bool(re.search(r'[<>:"\\?*]', path))  # type: ignore
+
+
+def make_file_path_upload_safe(path: str) -> str:
+    r"""Makes the provide path safe for file upload.
+
+    The filename is made safe by:
+    1. Removing any leading slashes to prevent writing to absolute paths
+    2. Replacing '.' and '..' with underscores to prevent directory traversal attacks
+
+    Raises:
+        ValueError: If running on Windows and the key contains invalid filename characters
+                   (\, :, *, ?, ", <, >, |)
+    """
+    sys_platform = platform.system()
+    if sys_platform == "Windows" and not check_windows_valid_filename(path):
+        raise ValueError(
+            f"Path {path} is invalid. Please remove invalid filename characters"
+            r' (\, :, *, ?, ", <, >, |)'
+        )
+
+    # On Windows, convert forward slashes to backslashes.
+    # This ensures that the key is a valid filename on Windows.
+    if sys_platform == "Windows":
+        path = str(path).replace("/", os.sep)
+
+    # Avoid writing to absolute paths by striping any leading slashes.
+    # The key has already been validated for windows operating systems in util.check_windows_valid_filename
+    # This ensures the key does not contain invalid characters for windows, such as '\' or ':'.
+    # So we can check only for '/' in the key.
+    path = path.lstrip(os.sep)
+
+    # Avoid directory traversal by replacing dots with underscores.
+    paths = path.split(os.sep)
+    safe_paths = [
+        p.replace(".", "_") if p in (os.curdir, os.pardir) else p for p in paths
+    ]
+
+    # Recombine the key into a relative path.
+    return os.sep.join(safe_paths)
 
 
 def make_tarfile(
@@ -616,9 +676,7 @@ def json_friendly(  # noqa: C901
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
         wandb.termwarn(
-            "Serializing object of type {} that is {} bytes".format(
-                type(obj).__name__, getsizeof(obj)
-            )
+            f"Serializing object of type {type(obj).__name__} that is {getsizeof(obj)} bytes"
         )
     return obj, converted
 
@@ -1060,18 +1118,6 @@ def has_num(dictionary: Mapping, key: Any) -> bool:
     return key in dictionary and isinstance(dictionary[key], numbers.Number)
 
 
-def get_log_file_path() -> str:
-    """Log file path used in error messages.
-
-    It would probably be better if this pointed to a log file in a
-    run directory.
-    """
-    # TODO(jhr, cvp): refactor
-    if wandb.run is not None:
-        return wandb.run._settings.log_internal
-    return os.path.join("wandb", "debug-internal.log")
-
-
 def docker_image_regex(image: str) -> Any:
     """Regex match for valid docker image names."""
     if image:
@@ -1226,13 +1272,15 @@ def async_call(
         )
         thread.daemon = True
         thread.start()
+
         try:
             result = q.get(True, timeout)
-            if isinstance(result, Exception):
-                raise result.with_traceback(sys.exc_info()[2])
-            return result, thread
         except queue.Empty:
             return None, thread
+
+        if isinstance(result, Exception):
+            raise result.with_traceback(sys.exc_info()[2])
+        return result, thread
 
     return wrapper
 
@@ -1438,6 +1486,25 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
+def are_paths_on_same_drive(path1: str, path2: str) -> bool:
+    """Check if two paths are on the same drive.
+
+    This check is only relevant on Windows,
+    since the concept of drives only exists on Windows.
+    """
+    if platform.system() != "Windows":
+        return True
+
+    try:
+        path1_drive = pathlib.Path(path1).resolve().drive
+        path2_drive = pathlib.Path(path2).resolve().drive
+    except OSError:
+        # If either path is not a valid Windows path, an OSError is raised.
+        return False
+
+    return path1_drive == path2_drive
+
+
 # TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
 def to_forward_slash_path(path: str) -> str:
     if platform.system() == "Windows":
@@ -1530,13 +1597,18 @@ def is_unicode_safe(stream: TextIO) -> bool:
 
 
 def _has_internet() -> bool:
-    """Attempt to open a DNS connection to Googles root servers."""
+    """Returns whether we have internet access.
+
+    Checks for internet access by attempting to open a DNS connection to
+    Google's root servers.
+    """
     try:
         s = socket.create_connection(("8.8.8.8", 53), 0.5)
         s.close()
-        return True
     except OSError:
         return False
+
+    return True
 
 
 def rand_alphanumeric(
@@ -1698,15 +1770,15 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
         raise ValueError("`aliases` must be Iterable or None") from exc
 
 
-def _is_artifact_object(v: Any) -> bool:
+def _is_artifact_object(v: Any) -> "TypeGuard[wandb.Artifact]":
     return isinstance(v, wandb.Artifact)
 
 
-def _is_artifact_string(v: Any) -> bool:
+def _is_artifact_string(v: Any) -> "TypeGuard[str]":
     return isinstance(v, str) and v.startswith("wandb-artifact://")
 
 
-def _is_artifact_version_weave_dict(v: Any) -> bool:
+def _is_artifact_version_weave_dict(v: Any) -> "TypeGuard[dict]":
     return isinstance(v, dict) and v.get("_type") == "artifactVersion"
 
 
@@ -1748,20 +1820,6 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str], bool]:
 def _get_max_cli_version() -> Union[str, None]:
     max_cli_version = wandb.api.max_cli_version()
     return str(max_cli_version) if max_cli_version is not None else None
-
-
-def _is_offline() -> bool:
-    """Returns true if wandb is configured to be offline.
-
-    If there is an active run, returns whether the run is offline.
-    Otherwise, returns the default mode, which is affected by explicit settings
-    passed to `wandb.setup()`, environment variables, and W&B configuration
-    files.
-    """
-    if wandb.run:
-        return wandb.run.settings._offline
-    else:
-        return wandb.setup().settings._offline
 
 
 def ensure_text(
@@ -1937,21 +1995,6 @@ def working_set() -> Iterable[InstalledDistribution]:
             yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
         except (KeyError, UnicodeDecodeError):
             pass
-
-
-def parse_version(version: str) -> "packaging.version.Version":
-    """Parse a version string into a version object.
-
-    This function is a wrapper around the `packaging.version.parse` function, which
-    is used to parse version strings into version objects. If the `packaging` library
-    is not installed, it falls back to the `pkg_resources` library.
-    """
-    try:
-        from packaging.version import parse as parse_version  # type: ignore
-    except ImportError:
-        from pkg_resources import parse_version  # type: ignore[assignment]
-
-    return parse_version(version)
 
 
 def get_core_path() -> str:

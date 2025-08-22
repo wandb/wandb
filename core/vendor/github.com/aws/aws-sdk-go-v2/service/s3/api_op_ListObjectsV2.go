@@ -115,17 +115,18 @@ type ListObjectsV2Input struct {
 	// amzn-s3-demo-bucket--usw2-az1--x-s3 ). For information about bucket naming
 	// restrictions, see [Directory bucket naming rules]in the Amazon S3 User Guide.
 	//
-	// Access points - When you use this action with an access point, you must provide
-	// the alias of the access point in place of the bucket name or specify the access
-	// point ARN. When using the access point ARN, you must direct requests to the
-	// access point hostname. The access point hostname takes the form
+	// Access points - When you use this action with an access point for general
+	// purpose buckets, you must provide the alias of the access point in place of the
+	// bucket name or specify the access point ARN. When you use this action with an
+	// access point for directory buckets, you must provide the access point name in
+	// place of the bucket name. When using the access point ARN, you must direct
+	// requests to the access point hostname. The access point hostname takes the form
 	// AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com. When using this
 	// action with an access point through the Amazon Web Services SDKs, you provide
 	// the access point ARN in place of the bucket name. For more information about
 	// access point ARNs, see [Using access points]in the Amazon S3 User Guide.
 	//
-	// Access points and Object Lambda access points are not supported by directory
-	// buckets.
+	// Object Lambda access points are not supported by directory buckets.
 	//
 	// S3 on Outposts - When you use this action with S3 on Outposts, you must direct
 	// requests to the S3 on Outposts hostname. The S3 on Outposts hostname takes the
@@ -147,6 +148,9 @@ type ListObjectsV2Input struct {
 	ContinuationToken *string
 
 	// A delimiter is a character that you use to group keys.
+	//
+	// CommonPrefixes is filtered out from results if it is not lexicographically
+	// greater than the StartAfter value.
 	//
 	//   - Directory buckets - For directory buckets, / is the only supported delimiter.
 	//
@@ -262,8 +266,7 @@ type ListObjectsV2Output struct {
 
 	//  If ContinuationToken was sent with the request, it is included in the
 	// response. You can use the returned ContinuationToken for pagination of the list
-	// response. You can use this ContinuationToken for pagination of the list
-	// results.
+	// response.
 	ContinuationToken *string
 
 	// Causes keys that contain the same string between the prefix and the first
@@ -315,9 +318,12 @@ type ListObjectsV2Output struct {
 	Prefix *string
 
 	// If present, indicates that the requester was successfully charged for the
-	// request.
+	// request. For more information, see [Using Requester Pays buckets for storage transfers and usage]in the Amazon Simple Storage Service user
+	// guide.
 	//
 	// This functionality is not supported for directory buckets.
+	//
+	// [Using Requester Pays buckets for storage transfers and usage]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/RequesterPaysBuckets.html
 	RequestCharged types.RequestCharged
 
 	// If StartAfter was sent with the request, it is included in the response.
@@ -401,6 +407,9 @@ func (c *Client) addOperationListObjectsV2Middlewares(stack *middleware.Stack, o
 	if err = addIsExpressUserAgent(stack); err != nil {
 		return err
 	}
+	if err = addCredentialSource(stack, options); err != nil {
+		return err
+	}
 	if err = addOpListObjectsV2ValidationMiddleware(stack); err != nil {
 		return err
 	}
@@ -432,6 +441,36 @@ func (c *Client) addOperationListObjectsV2Middlewares(stack *middleware.Stack, o
 		return err
 	}
 	if err = addSerializeImmutableHostnameBucketMiddleware(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAttempt(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptExecution(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptTransmit(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeDeserialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterDeserialization(stack, options); err != nil {
 		return err
 	}
 	if err = addSpanInitializeStart(stack); err != nil {

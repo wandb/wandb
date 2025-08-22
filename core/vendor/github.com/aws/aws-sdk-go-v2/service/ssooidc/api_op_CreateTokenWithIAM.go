@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/ssooidc/types"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
@@ -123,6 +124,11 @@ type CreateTokenWithIAMOutput struct {
 	// to a user.
 	AccessToken *string
 
+	// A structure containing information from the idToken . Only the identityContext
+	// is in it, which is a value extracted from the idToken . This provides direct
+	// access to identity information without requiring JWT parsing.
+	AwsAdditionalDetails *types.AwsAdditionalDetails
+
 	// Indicates the time in seconds when an access token will expire.
 	ExpiresIn int32
 
@@ -226,6 +232,9 @@ func (c *Client) addOperationCreateTokenWithIAMMiddlewares(stack *middleware.Sta
 	if err = addUserAgentRetryMode(stack, options); err != nil {
 		return err
 	}
+	if err = addCredentialSource(stack, options); err != nil {
+		return err
+	}
 	if err = addOpCreateTokenWithIAMValidationMiddleware(stack); err != nil {
 		return err
 	}
@@ -245,6 +254,36 @@ func (c *Client) addOperationCreateTokenWithIAMMiddlewares(stack *middleware.Sta
 		return err
 	}
 	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeRetryLoop(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAttempt(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptExecution(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSerialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterSigning(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptTransmit(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptBeforeDeserialization(stack, options); err != nil {
+		return err
+	}
+	if err = addInterceptAfterDeserialization(stack, options); err != nil {
 		return err
 	}
 	if err = addSpanInitializeStart(stack); err != nil {

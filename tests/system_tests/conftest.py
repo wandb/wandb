@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-from typing import Generator, Iterator
+from dataclasses import dataclass
+from typing import Callable, Generator, Iterator
 
 import pytest
 
@@ -96,6 +97,55 @@ def user(mocker, backend_fixture_factory) -> Iterator[str]:
     }
     mocker.patch.dict(os.environ, envvars)
     yield username
+
+
+@dataclass
+class UserOrg:
+    username: str
+    organization_names: list[str]
+
+
+@pytest.fixture
+def user_in_orgs_factory(
+    mocker: pytest.MonkeyPatch, backend_fixture_factory: BackendFixtureFactory
+) -> Iterator[Callable[[int], UserOrg]]:
+    """Fixture that provides a factory function to create a user and associated orgs.
+
+    Usage in a test:
+        def test_something(user_in_orgs_factory):
+            # Get a user with 2 organizations
+            user_org_data = user_in_orgs_factory(number_of_orgs=2)
+
+            # Get a user with the default (1) organization
+            user_org_data_default = user_in_orgs_factory()
+    """
+    username = backend_fixture_factory.make_user()
+    envvars = {
+        "WANDB_API_KEY": username,
+        "WANDB_ENTITY": username,
+        "WANDB_USERNAME": username,
+    }
+    mocker.patch.dict(os.environ, envvars)
+
+    def _factory(number_of_orgs: int = 1) -> UserOrg:
+        """Creates organizations for the pre-defined user."""
+        if number_of_orgs <= 0:
+            raise ValueError("Number of organizations have to be positive.")
+        try:
+            orgs = [
+                backend_fixture_factory.make_org(username=username)
+                for _ in range(number_of_orgs)
+            ]
+        except Exception as e:
+            pytest.skip(
+                "Failed to fetch organization fixture. "
+                "This is most likely due to an older wandb server version. "
+                f"Error: {e}",
+            )
+
+        return UserOrg(username=username, organization_names=orgs)
+
+    yield _factory
 
 
 @pytest.fixture(scope="session")

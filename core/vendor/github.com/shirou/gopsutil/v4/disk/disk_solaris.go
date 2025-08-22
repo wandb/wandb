@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -16,8 +17,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/shirou/gopsutil/v4/internal/common"
 	"golang.org/x/sys/unix"
+
+	"github.com/shirou/gopsutil/v4/internal/common"
 )
 
 const (
@@ -42,7 +44,7 @@ var fsTypeBlacklist = map[string]struct{}{
 	"proc":   {},
 }
 
-func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, error) {
+func PartitionsWithContext(_ context.Context, _ bool) ([]PartitionStat, error) {
 	ret := make([]PartitionStat, 0, _DEFAULT_NUM_MOUNTS)
 
 	// Scan mnttab(4)
@@ -100,7 +102,7 @@ func IOCountersWithContext(ctx context.Context, names ...string) (map[string]IOC
 	}
 	lines := strings.Split(strings.TrimSpace(string(kstatSysOut)), "\n")
 	if len(lines) == 0 {
-		return nil, fmt.Errorf("no disk class found")
+		return nil, errors.New("no disk class found")
 	}
 	dnamearr := make(map[string]string)
 	nreadarr := make(map[string]uint64)
@@ -197,7 +199,7 @@ func IOCountersWithContext(ctx context.Context, names ...string) (map[string]IOC
 	return ret, nil
 }
 
-func UsageWithContext(ctx context.Context, path string) (*UsageStat, error) {
+func UsageWithContext(_ context.Context, path string) (*UsageStat, error) {
 	statvfs := unix.Statvfs_t{}
 	if err := unix.Statvfs(path, &statvfs); err != nil {
 		return nil, fmt.Errorf("unable to call statvfs(2) on %q: %w", path, err)
@@ -256,6 +258,6 @@ func SerialNumberWithContext(ctx context.Context, name string) (string, error) {
 	return "", nil
 }
 
-func LabelWithContext(ctx context.Context, name string) (string, error) {
+func LabelWithContext(_ context.Context, _ string) (string, error) {
 	return "", common.ErrNotImplementedError
 }

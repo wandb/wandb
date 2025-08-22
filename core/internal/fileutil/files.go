@@ -40,7 +40,9 @@ func CopyFile(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("unable to open source file %s: %w", src, err)
 	}
-	defer source.Close()
+	defer func() {
+		_ = source.Close()
+	}()
 
 	// Create destination directory if it doesn't exist
 	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
@@ -51,7 +53,9 @@ func CopyFile(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("unable to create destination file %s: %w", dst, err)
 	}
-	defer destination.Close()
+	defer func() {
+		_ = destination.Close()
+	}()
 
 	// Copy the contents of the source file to the destination file
 	if _, err := io.Copy(destination, source); err != nil {
@@ -85,7 +89,9 @@ func CopyReaderToFile(reader io.Reader, dst string) error {
 	if err != nil {
 		return fmt.Errorf("unable to create destination file %s: %w", dst, err)
 	}
-	defer destination.Close()
+	defer func() {
+		_ = destination.Close()
+	}()
 
 	// Copy the contents of the reader to the destination file
 	if _, err := io.Copy(destination, reader); err != nil {

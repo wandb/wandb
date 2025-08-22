@@ -147,6 +147,12 @@ class ImageMask(Media):
             self._set_file(val["path"])
         else:
             np = util.get_module("numpy", required="Image mask support requires numpy")
+
+            if util.is_pytorch_tensor_typename(
+                util.get_full_typename(val["mask_data"])
+            ):
+                val["mask_data"] = val["mask_data"].cpu().numpy()
+
             # Add default class mapping
             if "class_labels" not in val:
                 classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
@@ -203,18 +209,16 @@ class ImageMask(Media):
         )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
-        from wandb.sdk.wandb_run import Run
-
         json_dict = super().to_json(run_or_artifact)
 
-        if isinstance(run_or_artifact, Run):
+        if isinstance(run_or_artifact, wandb.Run):
             json_dict["_type"] = self.type_name()
             return json_dict
         elif isinstance(run_or_artifact, wandb.Artifact):
             # Nothing special to add (used to add "digest", but no longer used.)
             return json_dict
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb.Artifact")
+            raise TypeError("to_json accepts wandb_run.Run or wandb.Artifact")
 
     @classmethod
     def type_name(cls: Type["ImageMask"]) -> str:

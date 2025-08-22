@@ -1,8 +1,11 @@
 import asyncio
 import sys
+import threading
+import time
 
 from wandb.sdk.lib import asyncio_compat
 
+_got_cancelled_lock = threading.Lock()
 _got_cancelled = False
 
 
@@ -10,34 +13,40 @@ async def pass_if_cancelled() -> None:
     global _got_cancelled
 
     try:
-        print("TEST READY", flush=True)  # noqa: T201
+        print("TEST READY", flush=True)
+        print(f"Ready at {time.monotonic()}", file=sys.stderr)
         await asyncio.sleep(5)
 
     except asyncio.CancelledError:
         # The test sends a SIGINT to the process, which we expect
         # asyncio_compat.run() to turn into task cancellation.
-        _got_cancelled = True
+        with _got_cancelled_lock:
+            _got_cancelled = True
+        raise
 
 
 if __name__ == "__main__":
     try:
         asyncio_compat.run(pass_if_cancelled)
     except KeyboardInterrupt:
-        if _got_cancelled:
-            print(  # noqa: T201
-                "PASS: Cancelled by KeyboardInterrupt!",
+        with _got_cancelled_lock:
+            cancelled = _got_cancelled
+
+        if cancelled:
+            print(
+                f"PASS: Cancelled by KeyboardInterrupt ({time.monotonic()})",
                 file=sys.stderr,
             )
             sys.exit(0)
         else:
-            print(  # noqa: T201
-                "FAIL: Interrupted but not cancelled!",
+            print(
+                f"FAIL: Interrupted but not cancelled ({time.monotonic()})",
                 file=sys.stderr,
             )
             sys.exit(1)
     else:
-        print(  # noqa: T201
-            "FAIL: Not interrupted by parent.",
+        print(
+            f"FAIL: Not interrupted by parent ({time.monotonic()})",
             file=sys.stderr,
         )
         sys.exit(1)

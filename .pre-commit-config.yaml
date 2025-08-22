@@ -10,7 +10,7 @@ default_stages:
 default_install_hook_types: [pre-push, pre-commit]
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.8.2"
+    rev: "v0.12.0"
     hooks:
       - id: ruff
         args: [--fix]
@@ -78,6 +78,13 @@ repos:
         pass_filenames: false
         language: "script"
         description: "Runs `go generate`, requires golang"
+      - id: go-wire
+        name: go-wire
+        description: Regenerates https://github.com/google/wire files.
+        entry: core/scripts/pre-commit-hooks/run-go-wire.sh
+        files: '\.go$'
+        pass_filenames: false
+        language: script
       - id: go-fmt
         name: "go-fmt"
         entry: core/scripts/pre-commit-hooks/run-go-fmt.sh
@@ -88,6 +95,7 @@ repos:
         name: "go-imports"
         entry: core/scripts/pre-commit-hooks/run-go-imports.sh
         files: '\.go$'
+        exclude: '\bwire_gen.go$' # Ignore generated file.
         language: "script"
         description: "Runs `goimports`, requires golang"
       - id: go-unit-tests

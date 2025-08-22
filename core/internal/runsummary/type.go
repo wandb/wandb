@@ -8,6 +8,7 @@ const (
 	Min
 	Max
 	Mean
+	First
 )
 
 func (f SummaryTypeFlags) IsEmpty() bool {

@@ -445,6 +445,25 @@ func (ExistingObjectReplicationStatus) Values() []ExistingObjectReplicationStatu
 	}
 }
 
+type ExpirationState string
+
+// Enum values for ExpirationState
+const (
+	ExpirationStateEnabled  ExpirationState = "ENABLED"
+	ExpirationStateDisabled ExpirationState = "DISABLED"
+)
+
+// Values returns all known values for ExpirationState. Note that this can be
+// expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (ExpirationState) Values() []ExpirationState {
+	return []ExpirationState{
+		"ENABLED",
+		"DISABLED",
+	}
+}
+
 type ExpirationStatus string
 
 // Enum values for ExpirationStatus
@@ -557,6 +576,25 @@ func (IntelligentTieringStatus) Values() []IntelligentTieringStatus {
 	return []IntelligentTieringStatus{
 		"Enabled",
 		"Disabled",
+	}
+}
+
+type InventoryConfigurationState string
+
+// Enum values for InventoryConfigurationState
+const (
+	InventoryConfigurationStateEnabled  InventoryConfigurationState = "ENABLED"
+	InventoryConfigurationStateDisabled InventoryConfigurationState = "DISABLED"
+)
+
+// Values returns all known values for InventoryConfigurationState. Note that this
+// can be expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (InventoryConfigurationState) Values() []InventoryConfigurationState {
+	return []InventoryConfigurationState{
+		"ENABLED",
+		"DISABLED",
 	}
 }
 
@@ -943,6 +981,7 @@ const (
 	ObjectStorageClassGlacierIr          ObjectStorageClass = "GLACIER_IR"
 	ObjectStorageClassSnow               ObjectStorageClass = "SNOW"
 	ObjectStorageClassExpressOnezone     ObjectStorageClass = "EXPRESS_ONEZONE"
+	ObjectStorageClassFsxOpenzfs         ObjectStorageClass = "FSX_OPENZFS"
 )
 
 // Values returns all known values for ObjectStorageClass. Note that this can be
@@ -962,6 +1001,7 @@ func (ObjectStorageClass) Values() []ObjectStorageClass {
 		"GLACIER_IR",
 		"SNOW",
 		"EXPRESS_ONEZONE",
+		"FSX_OPENZFS",
 	}
 }
 
@@ -1250,11 +1290,31 @@ func (RestoreRequestType) Values() []RestoreRequestType {
 	}
 }
 
+type S3TablesBucketType string
+
+// Enum values for S3TablesBucketType
+const (
+	S3TablesBucketTypeAws      S3TablesBucketType = "aws"
+	S3TablesBucketTypeCustomer S3TablesBucketType = "customer"
+)
+
+// Values returns all known values for S3TablesBucketType. Note that this can be
+// expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (S3TablesBucketType) Values() []S3TablesBucketType {
+	return []S3TablesBucketType{
+		"aws",
+		"customer",
+	}
+}
+
 type ServerSideEncryption string
 
 // Enum values for ServerSideEncryption
 const (
 	ServerSideEncryptionAes256     ServerSideEncryption = "AES256"
+	ServerSideEncryptionAwsFsx     ServerSideEncryption = "aws:fsx"
 	ServerSideEncryptionAwsKms     ServerSideEncryption = "aws:kms"
 	ServerSideEncryptionAwsKmsDsse ServerSideEncryption = "aws:kms:dsse"
 )
@@ -1266,6 +1326,7 @@ const (
 func (ServerSideEncryption) Values() []ServerSideEncryption {
 	return []ServerSideEncryption{
 		"AES256",
+		"aws:fsx",
 		"aws:kms",
 		"aws:kms:dsse",
 	}
@@ -1325,6 +1386,7 @@ const (
 	StorageClassGlacierIr          StorageClass = "GLACIER_IR"
 	StorageClassSnow               StorageClass = "SNOW"
 	StorageClassExpressOnezone     StorageClass = "EXPRESS_ONEZONE"
+	StorageClassFsxOpenzfs         StorageClass = "FSX_OPENZFS"
 )
 
 // Values returns all known values for StorageClass. Note that this can be
@@ -1344,6 +1406,7 @@ func (StorageClass) Values() []StorageClass {
 		"GLACIER_IR",
 		"SNOW",
 		"EXPRESS_ONEZONE",
+		"FSX_OPENZFS",
 	}
 }
 
@@ -1362,6 +1425,25 @@ const (
 func (StorageClassAnalysisSchemaVersion) Values() []StorageClassAnalysisSchemaVersion {
 	return []StorageClassAnalysisSchemaVersion{
 		"V_1",
+	}
+}
+
+type TableSseAlgorithm string
+
+// Enum values for TableSseAlgorithm
+const (
+	TableSseAlgorithmAwsKms TableSseAlgorithm = "aws:kms"
+	TableSseAlgorithmAes256 TableSseAlgorithm = "AES256"
+)
+
+// Values returns all known values for TableSseAlgorithm. Note that this can be
+// expanded in the future, and so it is only as up to date as the client.
+//
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (TableSseAlgorithm) Values() []TableSseAlgorithm {
+	return []TableSseAlgorithm{
+		"aws:kms",
+		"AES256",
 	}
 }
 

@@ -25,8 +25,8 @@ try:
                 encoded = orjson.dumps(
                     obj, option=orjson.OPT_NON_STR_KEYS, **_kwargs
                 ).decode()
-            except Exception as e:
-                logger.exception(f"Error using orjson.dumps: {e}")
+            except Exception:
+                logger.exception("Error using orjson.dumps")
                 if cls:
                     kwargs["cls"] = cls
                 encoded = json.dumps(obj, **kwargs)
@@ -42,8 +42,8 @@ try:
                     _kwargs["default"] = cls.default
                 encoded = orjson.dumps(obj, option=orjson.OPT_NON_STR_KEYS, **_kwargs)
                 fp.write(encoded)
-            except Exception as e:
-                logger.exception(f"Error using orjson.dump: {e}")
+            except Exception:
+                logger.exception("Error using orjson.dump")
                 if cls:
                     kwargs["cls"] = cls
                 json.dump(obj, fp, **kwargs)
@@ -52,8 +52,8 @@ try:
             """Wrapper for orjson.loads."""
             try:
                 decoded = orjson.loads(obj)
-            except Exception as e:
-                logger.exception(f"Error using orjson.loads: {e}")
+            except Exception:
+                logger.exception("Error using orjson.loads")
                 decoded = json.loads(obj)
 
             return decoded
@@ -62,19 +62,14 @@ try:
             """Wrapper for orjson.load."""
             try:
                 decoded = orjson.loads(fp.read())
-            except Exception as e:
-                logger.exception(f"Error using orjson.load: {e}")
+            except Exception:
+                logger.exception("Error using orjson.load")
                 decoded = json.load(fp)
 
             return decoded
 
     else:
-        from json import (  # type: ignore[assignment] # noqa: F401
-            dump,
-            dumps,
-            load,
-            loads,
-        )
+        from json import dump, dumps, load, loads  # type: ignore[assignment]
 
 except ImportError:
     from json import dump, dumps, load, loads  # type: ignore[assignment] # noqa: F401

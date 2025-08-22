@@ -2,6 +2,7 @@ import codecs
 import itertools
 import json
 import os
+import pathlib
 from typing import (
     TYPE_CHECKING,
     ClassVar,
@@ -184,22 +185,7 @@ def box3d(
 
 
 class Object3D(BatchableMedia):
-    """Wandb class for 3D point clouds.
-
-    Args:
-        data_or_path: (numpy array, string, io)
-            Object3D can be initialized from a file or a numpy array.
-
-            You can pass a path to a file or an io object and a file_type
-            which must be one of SUPPORTED_TYPES
-
-    The shape of the numpy array must be one of either:
-    ```
-    [[x y z],       ...] nx3
-    [[x y z c],     ...] nx4 where c is a category with supported range [1, 14]
-    [[x y z r g b], ...] nx6 where is rgb is color
-    ```
-    """
+    """W&B class for 3D point clouds."""
 
     SUPPORTED_TYPES: ClassVar[Set[str]] = {
         "obj",
@@ -214,13 +200,31 @@ class Object3D(BatchableMedia):
 
     def __init__(
         self,
-        data_or_path: Union["np.ndarray", str, "TextIO", dict],
+        data_or_path: Union["np.ndarray", str, pathlib.Path, "TextIO", dict],
+        caption: Optional[str] = None,
         **kwargs: Optional[Union[str, "FileFormat3D"]],
     ) -> None:
-        super().__init__()
+        """Creates a W&B Object3D object.
 
-        if hasattr(data_or_path, "name"):
-            # if the file has a path, we just detect the type and copy it from there
+        Args:
+            data_or_path: Object3D can be initialized from a file or a numpy array.
+            caption: Caption associated with the object for display.
+
+        Examples:
+        The shape of the numpy array must be one of either
+
+        ```text
+        [[x y z],       ...] nx3
+        [[x y z c],     ...] nx4 where c is a category with supported range [1, 14]
+        [[x y z r g b], ...] nx6 where is rgb is color
+        ```
+        """
+        super().__init__(caption=caption)
+
+        if hasattr(data_or_path, "name") and not isinstance(data_or_path, pathlib.Path):
+            # if the file has a path, we just detect the type and copy it from there.
+            # this does not work for pathlib.Path objects,
+            # where `.name` returns the last directory in the path.
             data_or_path = data_or_path.name
 
         if hasattr(data_or_path, "read"):
@@ -246,7 +250,9 @@ class Object3D(BatchableMedia):
                 f.write(object_3d)
 
             self._set_file(tmp_path, is_tmp=True, extension=extension)
-        elif isinstance(data_or_path, str):
+        elif isinstance(data_or_path, (str, pathlib.Path)):
+            data_or_path = str(data_or_path)
+
             path = data_or_path
             extension = None
             for supported_type in Object3D.SUPPORTED_TYPES:
@@ -341,6 +347,8 @@ class Object3D(BatchableMedia):
             data_or_path (Union["TextIO", str]): A path to a file or a `TextIO` stream.
             file_type (str): Specifies the data format passed to `data_or_path`. Required when `data_or_path` is a
                 `TextIO` stream. This parameter is ignored if a file path is provided. The type is taken from the file extension.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         # if file_type is not None and file_type not in cls.SUPPORTED_TYPES:
         #     raise ValueError(
@@ -358,11 +366,14 @@ class Object3D(BatchableMedia):
 
 
         The shape of the numpy array must be one of either:
-        ```
+
+        ```text
         [[x y z],       ...]  # nx3.
         [[x y z c],     ...]  # nx4 where c is a category with supported range [1, 14].
         [[x y z r g b], ...]  # nx6 where is rgb is color.
         ```
+
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if not util.is_numpy_array(data):
             raise ValueError("`data` must be a numpy array")
@@ -397,6 +408,8 @@ class Object3D(BatchableMedia):
             vectors (Optional[Sequence["Vector3D"]]): Each vector is displayed in the point cloud
                 visualization. Can be used to indicate directionality of bounding boxes. Defaults to None.
             point_cloud_type ("lidar/beta"): At this time, only the "lidar/beta" type is supported. Defaults to "lidar/beta".
+
+        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if point_cloud_type not in cls.SUPPORTED_POINT_CLOUD_TYPES:
             raise ValueError("Point cloud type not supported")
@@ -417,9 +430,17 @@ class Object3D(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Object3D"]) -> str:
+        """Get media subdirectory.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         return os.path.join("media", "object3D")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        """Returns the JSON representation expected by the backend.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
 
@@ -439,6 +460,10 @@ class Object3D(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
+        """Convert a sequence of Audio objects to a JSON representation.
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
         seq = list(seq)
 
         jsons = [obj.to_json(run) for obj in seq]

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -83,6 +84,9 @@ type fileStream struct {
 	// This must not include the schema and hostname prefix.
 	path string
 
+	mu         sync.Mutex
+	isFinished bool
+
 	processChan  chan Update
 	feedbackWait *sync.WaitGroup
 
@@ -113,43 +117,50 @@ type fileStream struct {
 	deadChanOnce *sync.Once
 }
 
-type FileStreamParams struct {
-	Settings           *settings.Settings
-	Logger             *observability.CoreLogger
-	Operations         *wboperation.WandbOperations
-	Printer            *observability.Printer
-	ApiClient          api.Client
-	TransmitRateLimit  *rate.Limiter
-	HeartbeatStopwatch waiting.Stopwatch
+// FileStreamProviders binds FileStreamFactory.
+var FileStreamProviders = wire.NewSet(
+	wire.Struct(new(FileStreamFactory), "*"),
+)
+
+type FileStreamFactory struct {
+	Logger     *observability.CoreLogger
+	Operations *wboperation.WandbOperations
+	Printer    *observability.Printer
+	Settings   *settings.Settings
 }
 
-func NewFileStream(params FileStreamParams) FileStream {
+// New returns a new FileStream.
+func (f *FileStreamFactory) New(
+	apiClient api.Client,
+	heartbeatStopwatch waiting.Stopwatch,
+	transmitRateLimit *rate.Limiter,
+) FileStream {
 	// Panic early to avoid surprises. These fields are required.
 	switch {
-	case params.Logger == nil:
+	case f.Logger == nil:
 		panic("filestream: nil logger")
-	case params.Printer == nil:
+	case f.Printer == nil:
 		panic("filestream: nil printer")
 	}
 
 	fs := &fileStream{
-		settings:     params.Settings,
-		logger:       params.Logger,
-		operations:   params.Operations,
-		printer:      params.Printer,
-		apiClient:    params.ApiClient,
+		settings:     f.Settings,
+		logger:       f.Logger,
+		operations:   f.Operations,
+		printer:      f.Printer,
+		apiClient:    apiClient,
 		processChan:  make(chan Update, BufferSize),
 		feedbackWait: &sync.WaitGroup{},
 		deadChanOnce: &sync.Once{},
 		deadChan:     make(chan struct{}),
 	}
 
-	fs.heartbeatStopwatch = params.HeartbeatStopwatch
+	fs.heartbeatStopwatch = heartbeatStopwatch
 	if fs.heartbeatStopwatch == nil {
 		fs.heartbeatStopwatch = waiting.NewStopwatch(defaultHeartbeatInterval)
 	}
 
-	fs.transmitRateLimit = params.TransmitRateLimit
+	fs.transmitRateLimit = transmitRateLimit
 	if fs.transmitRateLimit == nil {
 		fs.transmitRateLimit = rate.NewLimiter(rate.Every(defaultTransmitInterval), 1)
 	}
@@ -179,6 +190,15 @@ func (fs *fileStream) Start(
 
 func (fs *fileStream) StreamUpdate(update Update) {
 	fs.logger.Debug("filestream: stream update", "update", update)
+
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	if fs.isFinished {
+		fs.logger.CaptureError(fmt.Errorf("filestream: StreamUpdate after Finish"))
+		return
+	}
+
 	select {
 	case fs.processChan <- update:
 	case <-fs.deadChan:
@@ -192,6 +212,13 @@ func (fs *fileStream) FinishWithExit(exitCode int32) {
 }
 
 func (fs *fileStream) FinishWithoutExit() {
+	fs.mu.Lock()
+	if fs.isFinished {
+		return
+	}
+	fs.isFinished = true
+	fs.mu.Unlock()
+
 	close(fs.processChan)
 	fs.feedbackWait.Wait()
 	fs.logger.Debug("filestream: closed")

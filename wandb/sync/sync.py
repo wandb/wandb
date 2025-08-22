@@ -54,6 +54,7 @@ class SyncThread(threading.Thread):
         log_path=None,
         append=None,
         skip_console=None,
+        replace_tags=None,
     ):
         threading.Thread.__init__(self)
         # mark this process as internal
@@ -71,6 +72,7 @@ class SyncThread(threading.Thread):
         self._log_path = log_path
         self._append = append
         self._skip_console = skip_console
+        self._replace_tags = replace_tags or {}
 
         self._tmp_dir = tempfile.TemporaryDirectory()
         atexit.register(self._tmp_dir.cleanup)
@@ -94,6 +96,11 @@ class SyncThread(threading.Thread):
                 pb.run.entity = self._entity
             if self._job_type:
                 pb.run.job_type = self._job_type
+            # Replace tags if specified
+            if self._replace_tags:
+                new_tags = [self._replace_tags.get(tag, tag) for tag in pb.run.tags]
+                pb.run.ClearField("tags")
+                pb.run.tags.extend(new_tags)
             pb.control.req_resp = True
         elif record_type in ("output", "output_raw") and self._skip_console:
             return pb, exit_pb, True
@@ -157,13 +164,13 @@ class SyncThread(threading.Thread):
         proto_run.entity = self._entity
         proto_run.telemetry.feature.sync_tfevents = True
 
-        url = "{}/{}/{}/runs/{}".format(
-            self._app_url,
-            url_quote(proto_run.entity),
-            url_quote(proto_run.project),
-            url_quote(proto_run.run_id),
+        url = (
+            f"{self._app_url}"
+            f"/{url_quote(proto_run.entity)}"
+            f"/{url_quote(proto_run.project)}"
+            f"/runs/{url_quote(proto_run.run_id)}"
         )
-        print("Syncing: {} ...".format(url))  # noqa: T201
+        print(f"Syncing: {url} ...")  # noqa: T201
         sys.stdout.flush()
         # using a handler here automatically handles the step
         # logic, adds summaries to the run, and handles different
@@ -241,7 +248,7 @@ class SyncThread(threading.Thread):
                 )
                 return None
             else:
-                raise e
+                raise
 
     def run(self):
         if self._log_path is not None:
@@ -305,13 +312,13 @@ class SyncThread(threading.Thread):
                     if not shown and result_type == "run_result":
                         r = result.run_result.run
                         # TODO(jhr): hardcode until we have settings in sync
-                        url = "{}/{}/{}/runs/{}".format(
-                            self._app_url,
-                            url_quote(r.entity),
-                            url_quote(r.project),
-                            url_quote(r.run_id),
+                        url = (
+                            f"{self._app_url}"
+                            f"/{url_quote(r.entity)}"
+                            f"/{url_quote(r.project)}"
+                            f"/runs/{url_quote(r.run_id)}"
                         )
-                        print("Syncing: {} ... ".format(url), end="")  # noqa: T201
+                        print(f"Syncing: {url} ... ", end="")  # noqa: T201
                         sys.stdout.flush()
                         shown = True
             sm.finish()
@@ -338,6 +345,7 @@ class SyncManager:
         log_path=None,
         append=None,
         skip_console=None,
+        replace_tags=None,
     ):
         self._sync_list = []
         self._thread = None
@@ -353,6 +361,7 @@ class SyncManager:
         self._log_path = log_path
         self._append = append
         self._skip_console = skip_console
+        self._replace_tags = replace_tags or {}
 
     def status(self):
         pass
@@ -376,6 +385,7 @@ class SyncManager:
             log_path=self._log_path,
             append=self._append,
             skip_console=self._skip_console,
+            replace_tags=self._replace_tags,
         )
         self._thread.start()
 

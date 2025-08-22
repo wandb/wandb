@@ -9,12 +9,21 @@ import (
 type RunConfigMetrics struct {
 	// handler parses MetricRecords.
 	handler *MetricHandler
+
+	// serverExpandGlobMetrics indicates that server-side expansion is supported,
+	// so expanded metrics don't need to be added to the config.
+	serverExpandGlobMetrics bool
 }
 
-func NewRunConfigMetrics() *RunConfigMetrics {
+func NewRunConfigMetrics(serverExpandGlobMetrics bool) *RunConfigMetrics {
 	return &RunConfigMetrics{
-		handler: New(),
+		handler:                 New(),
+		serverExpandGlobMetrics: serverExpandGlobMetrics,
 	}
+}
+
+func (rcm *RunConfigMetrics) IsServerExpandGlobMetrics() bool {
+	return rcm.serverExpandGlobMetrics
 }
 
 // ProcessRecord updates metric definitions.
@@ -24,9 +33,6 @@ func (rcm *RunConfigMetrics) ProcessRecord(record *spb.MetricRecord) error {
 
 // ToRunConfigData returns the data to store in the "m" (metrics) field of
 // the run config.
-//
-// May succeed partially, in which case the returned slice contains all
-// metrics that were successfully encoded and the error is non-nil.
 func (rcm *RunConfigMetrics) ToRunConfigData() []map[string]any {
 	var encodedMetrics []map[string]any
 	indexByName := make(map[string]int)
@@ -37,7 +43,20 @@ func (rcm *RunConfigMetrics) ToRunConfigData() []map[string]any {
 			metric,
 			encodedMetrics,
 			indexByName,
+			false,
 		)
+	}
+
+	if rcm.serverExpandGlobMetrics {
+		for name, metric := range rcm.handler.globMetrics {
+			encodedMetrics = rcm.encodeToRunConfigData(
+				name,
+				metric,
+				encodedMetrics,
+				indexByName,
+				true,
+			)
+		}
 	}
 
 	return encodedMetrics
@@ -48,6 +67,7 @@ func (rcm *RunConfigMetrics) encodeToRunConfigData(
 	metric definedMetric,
 	encodedMetrics []map[string]any,
 	indexByName map[string]int,
+	isGlob bool,
 ) []map[string]any {
 	// Early exit if we already added the metric to the array.
 	if _, processed := indexByName[name]; processed {
@@ -61,7 +81,7 @@ func (rcm *RunConfigMetrics) encodeToRunConfigData(
 	// fully built it at the end of the method.
 	encodedMetrics = append(encodedMetrics, nil)
 
-	record := metric.ToRecord(name)
+	record := metric.ToRecord(name, isGlob)
 	defer func() {
 		encodedMetrics[index] = corelib.ProtoEncodeToDict(record)
 	}()
@@ -74,6 +94,8 @@ func (rcm *RunConfigMetrics) encodeToRunConfigData(
 			rcm.handler.definedMetrics[metric.Step],
 			encodedMetrics,
 			indexByName,
+			// Step metrics are never interpreted as globs.
+			false,
 		)
 
 		record.StepMetric = ""

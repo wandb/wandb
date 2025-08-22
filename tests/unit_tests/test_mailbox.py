@@ -238,12 +238,12 @@ def test_deliver_unknown_address():
     mailbox.deliver(response)
 
 
-def test_deliver_no_address(caplog):
+def test_deliver_no_address(wandb_caplog):
     mailbox = mb.Mailbox()
 
     mailbox.deliver(spb.ServerResponse())
 
-    assert "Received response with no mailbox slot" in caplog.text
+    assert "Received response with no mailbox slot" in wandb_caplog.text
 
 
 def test_deliver_after_abandon():

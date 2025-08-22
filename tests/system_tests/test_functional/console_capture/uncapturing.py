@@ -20,23 +20,20 @@ if __name__ == "__main__":
     undo_stdout_hook1 = console_capture.capture_stdout(_stdout_hook1)
     undo_stdout_hook2 = console_capture.capture_stdout(_stdout_hook2)
 
-    print("Line 1.")  # noqa: T201
+    print("Line 1.")
     undo_stdout_hook1()
-    print("Line 2.")  # noqa: T201
+    print("Line 2.")
     undo_stdout_hook2()
-    print("Line 3 (not received.)")  # noqa: T201
+    print("Line 3 (not received.)")
 
     received = received_by_hooks.getvalue()
-    if (
-        received
-        != (
-            "[hook1]Line 1."  # (line-break for readability)
-            "[hook2]Line 1."
-            "[hook1]\n"  # NOTE: print() makes two write() calls!
-            "[hook2]\n"
-            "[hook2]Line 2."
-            "[hook2]\n"
-        )
+    if received != (
+        "[hook1]Line 1."  # (line-break for readability)
+        "[hook2]Line 1."
+        "[hook1]\n"  # NOTE: print() makes two write() calls!
+        "[hook2]\n"
+        "[hook2]Line 2."
+        "[hook2]\n"
     ):
-        print(f"Wrong data: {received!r}", file=sys.stderr)  # noqa: T201
+        print(f"Wrong data: {received!r}", file=sys.stderr)
         sys.exit(1)

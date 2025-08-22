@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/version"
@@ -16,26 +16,20 @@ import (
 )
 
 func makeHandler(
-	inChan, fwdChan chan runwork.Work,
-	outChan chan *spb.Result,
+	inChan chan runwork.Work,
 	commit string,
-	featureProvider *featurechecker.ServerFeaturesCache,
 	skipDerivedSummary bool,
 ) *stream.Handler {
 	s := settings.New()
 	s.UpdateServerSideDerivedSummary(skipDerivedSummary)
 
-	h := stream.NewHandler(
-		stream.HandlerParams{
-			Logger:          observability.NewNoOpLogger(),
-			Settings:        s,
-			FwdChan:         fwdChan,
-			OutChan:         outChan,
-			TerminalPrinter: observability.NewPrinter(),
-			Commit:          commit,
-			FeatureProvider: featureProvider,
-		},
-	)
+	handlerFactory := stream.HandlerFactory{
+		Logger:          observability.NewNoOpLogger(),
+		Settings:        s,
+		TerminalPrinter: observability.NewPrinter(),
+		Commit:          stream.GitCommitHash(commit),
+	}
+	h := handlerFactory.New(runworktest.New())
 
 	go h.Do(inChan)
 
@@ -718,10 +712,8 @@ func TestHandlePartialHistory(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			inChan := make(chan runwork.Work, stream.BufferSize)
-			fwdChan := make(chan runwork.Work, stream.BufferSize)
-			outChan := make(chan *spb.Result, stream.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan, "" /*commit*/, nil, true /*skipDerivedSummary*/)
+			handler := makeHandler(inChan, "" /*commit*/, true /*skipDerivedSummary*/)
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
@@ -731,7 +723,7 @@ func TestHandlePartialHistory(t *testing.T) {
 			inChan <- runwork.WorkRecord{Record: makeFlushRecord()}
 
 			for i, d := range tc.expected {
-				record := (<-fwdChan).(runwork.WorkRecord).Record
+				record := (<-handler.OutChan()).(runwork.WorkRecord).Record
 				actual := makeOutput(record)
 				assert.Equal(t, d.step, actual.step, "wrong step in record %d", i)
 				for k, v := range d.items {
@@ -818,10 +810,8 @@ func TestHandleHistory(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			inChan := make(chan runwork.Work, stream.BufferSize)
-			fwdChan := make(chan runwork.Work, stream.BufferSize)
-			outChan := make(chan *spb.Result, stream.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan, "" /*commit*/, nil, true /*skipDerivedSummary*/)
+			handler := makeHandler(inChan, "" /*commit*/, true /*skipDerivedSummary*/)
 
 			for _, d := range tc.input {
 				record := makeHistoryRecord(d)
@@ -831,7 +821,7 @@ func TestHandleHistory(t *testing.T) {
 			inChan <- runwork.WorkRecord{Record: makeFlushRecord()}
 
 			for _, d := range tc.expected {
-				record := (<-fwdChan).(runwork.WorkRecord).Record
+				record := (<-handler.OutChan()).(runwork.WorkRecord).Record
 				actual := makeOutput(record)
 				if actual.step != d.step {
 					t.Errorf("expected step %v, got %v", d.step, actual.step)
@@ -852,12 +842,10 @@ func TestHandleHistory(t *testing.T) {
 
 func TestHandleHeader(t *testing.T) {
 	inChan := make(chan runwork.Work, 1)
-	fwdChan := make(chan runwork.Work, 1)
-	outChan := make(chan *spb.Result, 1)
 
 	sha := "2a7314df06ab73a741dcb7bc5ecb50cda150b077"
 
-	makeHandler(inChan, fwdChan, outChan, sha, nil, true /*skipDerivedSummary*/)
+	handler := makeHandler(inChan, sha, true /*skipDerivedSummary*/)
 
 	record := &spb.Record{
 		RecordType: &spb.Record_Header{
@@ -866,98 +854,10 @@ func TestHandleHeader(t *testing.T) {
 	}
 	inChan <- runwork.WorkRecord{Record: record}
 
-	record = (<-fwdChan).(runwork.WorkRecord).Record
+	record = (<-handler.OutChan()).(runwork.WorkRecord).Record
 
 	versionInfo := fmt.Sprintf("%s+%s", version.Version, sha)
 	assert.Equal(t, versionInfo, record.GetHeader().GetVersionInfo().GetProducer(), "wrong version info")
-}
-
-func TestHandleServerFeatures(t *testing.T) {
-	featureProvider := featurechecker.NewServerFeaturesCachePreloaded(
-		map[spb.ServerFeature]featurechecker.Feature{
-			spb.ServerFeature_LARGE_FILENAMES: {Enabled: true},
-			spb.ServerFeature_ARTIFACT_TAGS:   {Enabled: false},
-		},
-	)
-
-	inChan := make(chan runwork.Work, 2)
-	outChan := make(chan *spb.Result, 2)
-
-	// Create and send server feature request record
-	inChan <- runwork.WorkRecord{Record: &spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_ServerFeature{
-					ServerFeature: &spb.ServerFeatureRequest{
-						Feature: spb.ServerFeature_LARGE_FILENAMES,
-					},
-				},
-			},
-		},
-	}}
-
-	inChan <- runwork.WorkRecord{Record: &spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_ServerFeature{
-					ServerFeature: &spb.ServerFeatureRequest{
-						Feature: spb.ServerFeature_ARTIFACT_TAGS,
-					},
-				},
-			},
-		},
-	}}
-
-	// Send the record to the handler
-	// Use nil for fwdChan because we expect the handler to not forward any records
-	makeHandler(inChan, nil, outChan, "", featureProvider, true /*skipDerivedSummary*/)
-
-	// Assert the response is the correct value
-	result := <-outChan
-	enabledFeatureResponse := result.GetResponse().GetServerFeatureResponse()
-	assert.NotNil(t, enabledFeatureResponse)
-	assert.True(t, enabledFeatureResponse.GetFeature().Enabled)
-
-	result = <-outChan
-	disabledFeatureResponse := result.GetResponse().GetServerFeatureResponse()
-	assert.NotNil(t, disabledFeatureResponse)
-	assert.False(t, disabledFeatureResponse.GetFeature().Enabled)
-}
-
-func TestHandleServerFeaturesNoFeatures(t *testing.T) {
-	const UNKNOWN_FEATURE = -1
-
-	inChan := make(chan runwork.Work, 1)
-	outChan := make(chan *spb.Result, 1)
-	featureProvider := featurechecker.NewServerFeaturesCachePreloaded(
-		map[spb.ServerFeature]featurechecker.Feature{
-			spb.ServerFeature_LARGE_FILENAMES: {Enabled: true},
-			spb.ServerFeature_ARTIFACT_TAGS:   {Enabled: false},
-		},
-	)
-
-	// Create and send server feature request record
-	inChan <- runwork.WorkRecord{Record: &spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_ServerFeature{
-					ServerFeature: &spb.ServerFeatureRequest{
-						Feature: UNKNOWN_FEATURE,
-					},
-				},
-			},
-		},
-	}}
-
-	// Send the record to the handler
-	// Use nil for fwdChan because we expect the handler to not forward any records
-	makeHandler(inChan, nil, outChan, "", featureProvider, true /*skipDerivedSummary*/)
-
-	// Assert default value enabled is false
-	result := <-outChan
-	serverFeatureResponse := result.GetResponse().GetServerFeatureResponse()
-	assert.NotNil(t, serverFeatureResponse)
-	assert.False(t, serverFeatureResponse.GetFeature().Enabled)
 }
 
 func TestHandleDerivedSummary(t *testing.T) {
@@ -1045,10 +945,8 @@ func TestHandleDerivedSummary(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			inChan := make(chan runwork.Work, 1)
-			fwdChan := make(chan runwork.Work)
-			outChan := make(chan *spb.Result, stream.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan, "" /*commit*/, nil, tc.skipDerivedSummary)
+			handler := makeHandler(inChan, "" /*commit*/, tc.skipDerivedSummary)
 
 			for _, record := range tc.records {
 				inChan <- runwork.WorkRecord{Record: record}
@@ -1056,7 +954,7 @@ func TestHandleDerivedSummary(t *testing.T) {
 
 			seenSummaryRecords := 0
 			for range tc.expectedSummaryRecords + tc.expectedHistoryRecords + tc.expectedExitRecords {
-				work := <-fwdChan
+				work := <-handler.OutChan()
 				record := work.(runwork.WorkRecord).Record
 				if _, ok := record.GetRecordType().(*spb.Record_Summary); ok {
 					seenSummaryRecords++

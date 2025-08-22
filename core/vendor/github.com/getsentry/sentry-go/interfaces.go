@@ -11,16 +11,21 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/getsentry/sentry-go/attribute"
 )
 
-// eventType is the type of an error event.
 const eventType = "event"
-
-// transactionType is the type of a transaction event.
 const transactionType = "transaction"
-
-// checkInType is the type of a check in event.
 const checkInType = "check_in"
+
+var logEvent = struct {
+	Type        string
+	ContentType string
+}{
+	"log",
+	"application/vnd.sentry.items.log+json",
+}
 
 // Level marks the severity of the event.
 type Level string
@@ -34,7 +39,7 @@ const (
 	LevelFatal   Level = "fatal"
 )
 
-// SdkInfo contains all metadata about about the SDK being used.
+// SdkInfo contains all metadata about the SDK.
 type SdkInfo struct {
 	Name         string       `json:"name,omitempty"`
 	Version      string       `json:"version,omitempty"`
@@ -96,6 +101,57 @@ func (b *Breadcrumb) MarshalJSON() ([]byte, error) {
 	return json.Marshal((*breadcrumb)(b))
 }
 
+// Logger provides a chaining API for structured logging to Sentry.
+type Logger interface {
+	// Write implements the io.Writer interface. Currently, the [sentry.Hub] is
+	// context aware, in order to get the correct trace correlation. Using this
+	// might result in incorrect span association on logs. If you need to use
+	// Write it is recommended to create a NewLogger so that the associated context
+	// is passed correctly.
+	Write(p []byte) (n int, err error)
+
+	// SetAttributes allows attaching parameters to the logger using the attribute API.
+	// These attributes will be included in all subsequent log entries.
+	SetAttributes(...attribute.Builder)
+
+	// Trace defines the [sentry.LogLevel] for the log entry.
+	Trace() LogEntry
+	// Debug defines the [sentry.LogLevel] for the log entry.
+	Debug() LogEntry
+	// Info defines the [sentry.LogLevel] for the log entry.
+	Info() LogEntry
+	// Warn defines the [sentry.LogLevel] for the log entry.
+	Warn() LogEntry
+	// Error defines the [sentry.LogLevel] for the log entry.
+	Error() LogEntry
+	// Fatal defines the [sentry.LogLevel] for the log entry.
+	Fatal() LogEntry
+	// Panic defines the [sentry.LogLevel] for the log entry.
+	Panic() LogEntry
+	// GetCtx returns the [context.Context] set on the logger.
+	GetCtx() context.Context
+}
+
+// LogEntry defines the interface for a log entry that supports chaining attributes.
+type LogEntry interface {
+	// WithCtx creates a new LogEntry with the specified context without overwriting the previous one.
+	WithCtx(ctx context.Context) LogEntry
+	// String adds a string attribute to the LogEntry.
+	String(key, value string) LogEntry
+	// Int adds an int attribute to the LogEntry.
+	Int(key string, value int) LogEntry
+	// Int64 adds an int64 attribute to the LogEntry.
+	Int64(key string, value int64) LogEntry
+	// Float64 adds a float64 attribute to the LogEntry.
+	Float64(key string, value float64) LogEntry
+	// Bool adds a bool attribute to the LogEntry.
+	Bool(key string, value bool) LogEntry
+	// Emit emits the LogEntry with the provided arguments.
+	Emit(args ...interface{})
+	// Emitf emits the LogEntry using a format string and arguments.
+	Emitf(format string, args ...interface{})
+}
+
 // Attachment allows associating files with your events to aid in investigation.
 // An event may contain one or more attachments.
 type Attachment struct {
@@ -155,11 +211,36 @@ type Request struct {
 }
 
 var sensitiveHeaders = map[string]struct{}{
+	"_csrf":               {},
+	"_csrf_token":         {},
+	"_session":            {},
+	"_xsrf":               {},
+	"Api-Key":             {},
+	"Apikey":              {},
+	"Auth":                {},
 	"Authorization":       {},
-	"Proxy-Authorization": {},
 	"Cookie":              {},
+	"Credentials":         {},
+	"Csrf":                {},
+	"Csrf-Token":          {},
+	"Csrftoken":           {},
+	"Ip-Address":          {},
+	"Passwd":              {},
+	"Password":            {},
+	"Private-Key":         {},
+	"Privatekey":          {},
+	"Proxy-Authorization": {},
+	"Remote-Addr":         {},
+	"Secret":              {},
+	"Session":             {},
+	"Sessionid":           {},
+	"Token":               {},
+	"User-Session":        {},
+	"X-Api-Key":           {},
+	"X-Csrftoken":         {},
 	"X-Forwarded-For":     {},
 	"X-Real-Ip":           {},
+	"XSRF-TOKEN":          {},
 }
 
 // NewRequest returns a new Sentry Request from the given http.Request.
@@ -324,6 +405,9 @@ type Event struct {
 
 	CheckIn       *CheckIn       `json:"check_in,omitempty"`
 	MonitorConfig *MonitorConfig `json:"monitor_config,omitempty"`
+
+	// The fields below are only relevant for logs
+	Logs []Log `json:"items,omitempty"`
 
 	// The fields below are not part of the final JSON payload.
 
@@ -508,10 +592,12 @@ func (e *Event) checkInMarshalJSON() ([]byte, error) {
 
 	if e.MonitorConfig != nil {
 		checkIn.MonitorConfig = &MonitorConfig{
-			Schedule:      e.MonitorConfig.Schedule,
-			CheckInMargin: e.MonitorConfig.CheckInMargin,
-			MaxRuntime:    e.MonitorConfig.MaxRuntime,
-			Timezone:      e.MonitorConfig.Timezone,
+			Schedule:              e.MonitorConfig.Schedule,
+			CheckInMargin:         e.MonitorConfig.CheckInMargin,
+			MaxRuntime:            e.MonitorConfig.MaxRuntime,
+			Timezone:              e.MonitorConfig.Timezone,
+			FailureIssueThreshold: e.MonitorConfig.FailureIssueThreshold,
+			RecoveryThreshold:     e.MonitorConfig.RecoveryThreshold,
 		}
 	}
 
@@ -546,4 +632,28 @@ type EventHint struct {
 	Context            context.Context
 	Request            *http.Request
 	Response           *http.Response
+}
+
+type Log struct {
+	Timestamp  time.Time            `json:"timestamp,omitempty"`
+	TraceID    TraceID              `json:"trace_id,omitempty"`
+	Level      LogLevel             `json:"level"`
+	Severity   int                  `json:"severity_number,omitempty"`
+	Body       string               `json:"body,omitempty"`
+	Attributes map[string]Attribute `json:"attributes,omitempty"`
+}
+
+type AttrType string
+
+const (
+	AttributeInvalid AttrType = ""
+	AttributeBool    AttrType = "boolean"
+	AttributeInt     AttrType = "integer"
+	AttributeFloat   AttrType = "double"
+	AttributeString  AttrType = "string"
+)
+
+type Attribute struct {
+	Value any      `json:"value"`
+	Type  AttrType `json:"type"`
 }

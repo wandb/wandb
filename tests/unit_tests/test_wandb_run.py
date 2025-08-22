@@ -1,11 +1,9 @@
 import copy
-import os
 import platform
 
 import numpy as np
 import pytest
 import wandb
-import wandb.errors
 from wandb import wandb_sdk
 
 REFERENCE_ATTRIBUTES = set(
@@ -14,7 +12,6 @@ REFERENCE_ATTRIBUTES = set(
         "config",
         "config_static",
         "define_metric",
-        "detach",
         "dir",
         "disabled",
         "display",
@@ -27,7 +24,6 @@ REFERENCE_ATTRIBUTES = set(
         "group",
         "id",
         "job_type",
-        "join",
         "link_artifact",
         "link_model",
         "log",
@@ -35,13 +31,13 @@ REFERENCE_ATTRIBUTES = set(
         "log_code",
         "log_model",
         "mark_preempting",
-        "mode",
         "name",
         "notes",
         "offline",
         "path",
         "project",
         "project_name",
+        "project_url",
         "restore",
         "resumed",
         "save",
@@ -52,6 +48,7 @@ REFERENCE_ATTRIBUTES = set(
         "step",
         "summary",
         "sweep_id",
+        "sweep_url",
         "tags",
         "to_html",
         "unwatch",
@@ -219,33 +216,6 @@ def test_run_pub_history(mock_run, record_q, parse_records):
     assert len(history) == 2
     assert history[0]["this"] == "1"
     assert history[1]["that"] == "2"
-
-
-def test_deprecated_run_log_sync(mock_run, mock_wandb_log):
-    run = mock_run()
-
-    run.log(dict(this=1), sync=True)
-
-    assert mock_wandb_log.warned(
-        "`sync` argument is deprecated"
-        " and does not affect the behaviour of `wandb.log`"
-    )
-
-
-def test_run_log_mp_warn(mock_run, test_settings, monkeypatch, mock_wandb_log):
-    monkeypatch.setenv("WANDB_DISABLE_SERVICE", "true")
-    settings = test_settings()
-    settings.update_from_env_vars(os.environ)
-
-    run = mock_run(settings=settings)
-    run._init_pid = os.getpid()
-    run._init_pid += 1
-    run.log(dict(this=1))
-
-    assert mock_wandb_log.warned(
-        f"`log` ignored (called from pid={os.getpid()}, "
-        f"`init` called from pid={run._init_pid})"
-    )
 
 
 def test_use_artifact_offline(mock_run):

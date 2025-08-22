@@ -132,7 +132,10 @@ def check_run(api: Api) -> bool:
     f.close()
 
     with wandb.init(
-        id=nice_id("check_run"), reinit=True, config=config, project=PROJECT_NAME
+        id=nice_id("check_run"),
+        reinit=True,
+        config=config,
+        project=PROJECT_NAME,
     ) as run:
         run_id = run.id
         entity = run.entity
@@ -155,7 +158,7 @@ def check_run(api: Api) -> bool:
                 "Failed to log to media. Contact W&B for support."
             )
 
-        wandb.save(filepath)
+        run.save(filepath)
     public_api = wandb.Api()
     prev_run = public_api.run(f"{entity}/{PROJECT_NAME}/{run_id}")
     # raise Exception(prev_run.__dict__)
@@ -379,7 +382,7 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
         project=PROJECT_NAME,
         config={"test": "put to graphql"},
     ) as run:
-        wandb.save(gql_fp)
+        run.save(gql_fp)
     public_api = wandb.Api()
     prev_run = public_api.run(f"{run.entity}/{PROJECT_NAME}/{run.id}")
     if prev_run is None:
@@ -471,13 +474,12 @@ def check_wandb_version(api: Api) -> None:
     min_cli_version = server_info.get("cliVersionInfo", {}).get(
         "min_cli_version", "0.0.1"
     )
-    from wandb.util import parse_version
 
-    if parse_version(wandb.__version__) < parse_version(min_cli_version):
-        fail_string = "wandb version out of date, please run pip install --upgrade wandb=={}".format(
-            max_cli_version
-        )
-    elif parse_version(wandb.__version__) > parse_version(max_cli_version):
+    from packaging.version import parse
+
+    if parse(wandb.__version__) < parse(min_cli_version):
+        fail_string = f"wandb version out of date, please run pip install --upgrade wandb=={max_cli_version}"
+    elif parse(wandb.__version__) > parse(max_cli_version):
         fail_string = (
             "wandb version is not supported by your local installation. This could "
             "cause some issues. If you're having problems try: please run `pip "

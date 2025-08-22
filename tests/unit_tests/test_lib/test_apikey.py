@@ -4,6 +4,7 @@ from unittest import mock
 
 import pytest
 from wandb import wandb, wandb_lib
+from wandb.sdk.lib.apikey import _api_key_prompt_str
 
 
 def test_write_netrc(mock_wandb_log):
@@ -12,7 +13,7 @@ def test_write_netrc(mock_wandb_log):
     assert mock_wandb_log.logged("No netrc file found, creating one.")
     with open(wandb_lib.apikey.get_netrc_file_path()) as f:
         assert f.read() == (
-            "machine localhost\n  login vanpelt\n  password {}\n".format(api_key)
+            f"machine localhost\n  login vanpelt\n  password {api_key}\n"
         )
 
 
@@ -37,9 +38,7 @@ def test_write_netrc_update_existing(tmp_path):
     with open(netrc_path) as f:
         assert f.read() == (
             "machine otherhost\n  login other-user\n  password password123\n"
-            "machine localhost\n  login random-user\n  password {}\n".format(
-                new_api_key
-            )
+            f"machine localhost\n  login random-user\n  password {new_api_key}\n"
         )
 
 
@@ -144,3 +143,11 @@ def test_read_apikey_no_netrc_access(tmp_path, monkeypatch, mock_wandb_log):
         api_key = wandb_lib.apikey.api_key(settings)
         assert api_key is None
         assert mock_wandb_log.warned(f"Cannot access {netrc_path}.")
+
+
+def test_apikey_prompt_str():
+    app_url = "http://localhost"
+    auth_base = f"{app_url}/authorize"
+    prompt_str = f"You can find your API key in your browser here: {auth_base}"
+    assert _api_key_prompt_str(app_url) == prompt_str
+    assert _api_key_prompt_str(app_url, "weave") == f"{prompt_str}?ref=weave"

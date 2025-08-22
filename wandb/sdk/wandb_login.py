@@ -13,6 +13,7 @@ from requests.exceptions import ConnectionError
 import wandb
 from wandb.errors import AuthenticationError, UsageError
 from wandb.old.settings import Settings as OldSettings
+from wandb.sdk import wandb_setup
 
 from ..apis import InternalApi
 from .internal.internal_api import Api
@@ -45,6 +46,7 @@ def login(
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
     verify: bool = False,
+    referrer: Optional[str] = None,
 ) -> bool:
     """Set up W&B login credentials.
 
@@ -53,24 +55,26 @@ def login(
     `verify=True`.
 
     Args:
-        anonymous: (string, optional) Can be "must", "allow", or "never".
+        anonymous: Set to "must", "allow", or "never".
             If set to "must", always log a user in anonymously. If set to
             "allow", only create an anonymous user if the user
             isn't already logged in. If set to "never", never log a
-            user anonymously. Default set to "never".
-        key: (string, optional) The API key to use.
-        relogin: (bool, optional) If true, will re-prompt for API key.
-        host: (string, optional) The host to connect to.
-        force: (bool, optional) If true, will force a relogin.
-        timeout: (int, optional) Number of seconds to wait for user input.
-        verify: (bool) Verify the credentials with the W&B server.
+            user anonymously. Default set to "never". Defaults to `None`.
+        key: The API key to use.
+        relogin: If true, will re-prompt for API key.
+        host: The host to connect to.
+        force: If true, will force a relogin.
+        timeout: Number of seconds to wait for user input.
+        verify: Verify the credentials with the W&B server.
+        referrer: The referrer to use in the URL login request.
+
 
     Returns:
-        bool: if key is configured
+        bool: If `key` is configured.
 
     Raises:
-        AuthenticationError - if api_key fails verification with the server
-        UsageError - if api_key cannot be configured and no tty
+        AuthenticationError: If `api_key` fails verification with the server.
+        UsageError: If `api_key` cannot be configured and no tty.
     """
     _handle_host_wandb_setting(host)
     return _login(
@@ -81,6 +85,7 @@ def login(
         force=force,
         timeout=timeout,
         verify=verify,
+        referrer=referrer,
     )
 
 
@@ -112,7 +117,7 @@ class _WandbLogin:
         }
         self.is_anonymous = anonymous == "must"
 
-        self._wandb_setup = wandb.setup()
+        self._wandb_setup = wandb_setup.singleton()
         self._wandb_setup.settings.update_from_dict(login_settings)
         self._settings = self._wandb_setup.settings
 
@@ -197,9 +202,11 @@ class _WandbLogin:
         # Whenever the key changes, make sure to pull in user settings
         # from server.
         if not self._wandb_setup.settings._offline:
-            self._wandb_setup._update_user_settings()
+            self._wandb_setup.update_user_settings()
 
-    def _prompt_api_key(self) -> Tuple[Optional[str], ApiKeyStatus]:
+    def _prompt_api_key(
+        self, referrer: Optional[str] = None
+    ) -> Tuple[Optional[str], ApiKeyStatus]:
         api = Api(self._settings)
         while True:
             try:
@@ -208,6 +215,7 @@ class _WandbLogin:
                     api=api,
                     no_offline=self._settings.force if self._settings else None,
                     no_create=self._settings.force if self._settings else None,
+                    referrer=referrer,
                 )
             except ValueError as e:
                 # invalid key provided, try again
@@ -222,9 +230,11 @@ class _WandbLogin:
                 return None, ApiKeyStatus.OFFLINE
             return key, ApiKeyStatus.VALID
 
-    def prompt_api_key(self) -> Tuple[Optional[str], ApiKeyStatus]:
+    def prompt_api_key(
+        self, referrer: Optional[str] = None
+    ) -> Tuple[Optional[str], ApiKeyStatus]:
         """Updates the global API key by prompting the user."""
-        key, status = self._prompt_api_key()
+        key, status = self._prompt_api_key(referrer)
         if status == ApiKeyStatus.NOTTY:
             directive = (
                 "wandb login [your_api_key]"
@@ -240,17 +250,18 @@ class _WandbLogin:
 
         try:
             is_api_key_valid = api.validate_api_key()
-
-            if not is_api_key_valid:
-                raise AuthenticationError(
-                    "API key verification failed. Make sure your API key is valid."
-                )
         except ConnectionError:
             raise AuthenticationError(
                 "Unable to connect to server to verify API token."
             )
         except Exception:
             raise AuthenticationError("An error occurred while verifying the API key.")
+
+        if not is_api_key_valid:
+            raise AuthenticationError(
+                f"API key verification failed for host {self._settings.base_url}."
+                " Make sure your API key is valid."
+            )
 
 
 def _login(
@@ -262,6 +273,8 @@ def _login(
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
     verify: bool = False,
+    referrer: str = "models",
+    update_api_key: bool = True,
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
 ) -> bool:
@@ -302,13 +315,14 @@ def _login(
         if key and not relogin:
             key_is_pre_configured = True
         else:
-            key, key_status = wlogin.prompt_api_key()
+            key, key_status = wlogin.prompt_api_key(referrer=referrer)
 
     if verify:
         wlogin._verify_login(key)
 
     if not key_is_pre_configured:
-        wlogin.try_save_api_key(key)
+        if update_api_key:
+            wlogin.try_save_api_key(key)
         wlogin.update_session(key, status=key_status)
         wlogin._update_global_anonymous_setting()
 

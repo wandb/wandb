@@ -510,7 +510,7 @@ class RedirectBase:
 
     @property
     def src_stream(self):
-        return getattr(sys, "__{}__".format(self.src))
+        return getattr(sys, f"__{self.src}__")
 
     @property
     def src_fd(self):
@@ -534,12 +534,15 @@ class StreamWrapper(RedirectBase):
         self,
         src: Literal["stdout", "stderr"],
         cbs: Iterable[Callable[[str], None]] = (),
+        *,
+        flush_periodically: bool,
     ) -> None:
         super().__init__(src=src, cbs=cbs)
         self._uninstall: Callable[[], None] | None = None
         self._emulator = TerminalEmulator()
         self._queue: queue.Queue[str] = queue.Queue()
         self._stopped = threading.Event()
+        self._flush_periodically = flush_periodically
 
     def _emulator_write(self) -> None:
         while True:
@@ -600,7 +603,7 @@ class StreamWrapper(RedirectBase):
         self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
 
-        if not wandb.run or wandb.run._settings.mode == "online":
+        if self._flush_periodically:
             self._callback_thread = threading.Thread(target=self._callback)
             self._callback_thread.daemon = True
             self._callback_thread.start()
@@ -732,10 +735,11 @@ _redirects: dict[str, Redirect | None] = {"stdout": None, "stderr": None}
 class Redirect(RedirectBase):
     """Redirect low level file descriptors."""
 
-    def __init__(self, src, cbs=()):
+    def __init__(self, src, cbs=(), *, flush_periodically: bool):
         super().__init__(src=src, cbs=cbs)
         self._installed = False
         self._emulator = TerminalEmulator()
+        self._flush_periodically = flush_periodically
 
     def _pipe(self):
         if pty:
@@ -767,7 +771,7 @@ class Redirect(RedirectBase):
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
         self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
-        if not wandb.run or wandb.run._settings.mode == "online":
+        if self._flush_periodically:
             self._callback_thread = threading.Thread(target=self._callback)
             self._callback_thread.daemon = True
             self._callback_thread.start()
@@ -776,8 +780,9 @@ class Redirect(RedirectBase):
         if not self._installed:
             return
         self._installed = False
-        # If the user printed a very long string (millions of chars) right before wandb.finish(),
-        # it will take a while for it to reach pipe relay. 1 second is enough time for ~5 million chars.
+        # If the user printed a very long string (millions of chars) right
+        # before run.finish(), it will take a while for it to reach pipe relay.
+        # 1 second is enough time for ~5 million chars.
         time.sleep(1)
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)

@@ -10,6 +10,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/runbranch"
+	"github.com/wandb/wandb/core/internal/runconfig"
 )
 
 type RewindResponse struct {
@@ -33,17 +34,16 @@ func TestRewindDifferentRunIDs(t *testing.T) {
 	ctx := context.Background()
 	mockGQL := gqlmock.NewMockClient()
 
-	params, err := runbranch.NewRewindBranch(
+	err := runbranch.NewRewindBranch(
 		ctx, mockGQL, "rewind", "_step", 0,
-	).ApplyChanges(
+	).UpdateForRewind(
 		&runbranch.RunParams{RunID: "other"},
-		runbranch.RunPath{RunID: "other"},
+		runconfig.New(),
 	)
 
-	assert.Nil(t, params, "ApplyChanges should return nil params")
-	assert.NotNil(t, err, "ApplyChanges should return an error")
-	assert.IsType(t, &runbranch.BranchError{}, err, "ApplyChanges should return a BranchError")
-	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+	assert.NotNil(t, err)
+	assert.IsType(t, &runbranch.BranchError{}, err)
+	assert.NotNil(t, err.(*runbranch.BranchError).Response)
 }
 
 // Test that rewind metric name must be "_step", which is the only supported
@@ -53,22 +53,21 @@ func TestRewindUnsupportedMetricName(t *testing.T) {
 	ctx := context.Background()
 	mockGQL := gqlmock.NewMockClient()
 
-	params, err := runbranch.NewRewindBranch(
+	err := runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "other", 0,
-	).ApplyChanges(
+	).UpdateForRewind(
 		&runbranch.RunParams{RunID: "runid"},
-		runbranch.RunPath{RunID: "runid"},
+		runconfig.New(),
 	)
 
-	assert.Nil(t, params, "ApplyChanges should return nil params")
-	assert.NotNil(t, err, "ApplyChanges should return an error")
-	assert.IsType(t, &runbranch.BranchError{}, err, "ApplyChanges should return a BranchError")
-	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+	assert.NotNil(t, err)
+	assert.IsType(t, &runbranch.BranchError{}, err)
+	assert.NotNil(t, err.(*runbranch.BranchError).Response)
 }
 
-// Test that ApplyChanges correctly applies the changes to the run params
+// Test that UpdateForRewind correctly applies the changes to the run params
 // when the response is nil
-func TestApplyChangesNoResponse(t *testing.T) {
+func TestUpdateForRewindNoResponse(t *testing.T) {
 
 	ctx := context.Background()
 	mockGQL := gqlmock.NewMockClient()
@@ -78,22 +77,21 @@ func TestApplyChangesNoResponse(t *testing.T) {
 		string(nilResponse),
 	)
 
-	params, err := runbranch.NewRewindBranch(
+	err := runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "_step", 0,
-	).ApplyChanges(&runbranch.RunParams{
-		RunID: "runid",
-	}, runbranch.RunPath{RunID: "runid"},
+	).UpdateForRewind(
+		&runbranch.RunParams{RunID: "runid"},
+		runconfig.New(),
 	)
 
-	assert.Nil(t, params, "ApplyChanges should return nil params")
-	assert.NotNil(t, err, "ApplyChanges should return an error")
-	assert.IsType(t, &runbranch.BranchError{}, err, "ApplyChanges should return a BranchError")
-	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+	assert.NotNil(t, err)
+	assert.IsType(t, &runbranch.BranchError{}, err)
+	assert.NotNil(t, err.(*runbranch.BranchError).Response)
 }
 
-// Test that ApplyChanges correctly applies the changes to the run params
+// Test that UpdateForRewind correctly applies the changes to the run params
 // when a valid response
-func TestRewindApplyChangesWithResponse(t *testing.T) {
+func TestUpdateForRewindWithResponse(t *testing.T) {
 
 	ctx := context.Background()
 	mockGQL := gqlmock.NewMockClient()
@@ -117,31 +115,28 @@ func TestRewindApplyChangesWithResponse(t *testing.T) {
 		string(response),
 	)
 
-	params, err := runbranch.NewRewindBranch(
+	config := runconfig.New()
+	params := &runbranch.RunParams{RunID: "runid"}
+	err = runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "_step", 10,
-	).ApplyChanges(&runbranch.RunParams{
-		RunID: "runid",
-	}, runbranch.RunPath{RunID: "runid"},
-	)
+	).UpdateForRewind(params, config)
 
-	assert.Nil(t, err, "ApplyChanges should not return an error")
-	assert.NotNil(t, params, "ApplyChanges should return params")
-	assert.Equal(t, "runid", params.RunID, "RunID should be set")
-	assert.Equal(t, int64(11), params.StartingStep, "DisplayName should be set")
-	assert.Equal(t, 10, params.FileStreamOffset[filestream.HistoryChunk], "FileStreamOffset should be set")
-	assert.True(t, params.Forked, "Initialized should be set")
-	assert.Equal(t, "rewound", params.DisplayName, "DisplayName should be set")
-	assert.Equal(t, "sweep", params.SweepID, "SweepID should be set")
-	assert.Equal(t, "storageid", params.StorageID, "StorageID should be set")
+	assert.Nil(t, err)
+	assert.Equal(t, int64(11), params.StartingStep)
+	assert.Equal(t, 10, params.FileStreamOffset[filestream.HistoryChunk])
+	assert.True(t, params.Forked)
+	assert.Equal(t, "rewound", params.DisplayName)
+	assert.Equal(t, "sweep", params.SweepID)
+	assert.Equal(t, "storageid", params.StorageID)
 
-	paramsConfig, err := json.Marshal(params.Config)
-	assert.Nil(t, err, "json.Marshal should not return an error")
-	assert.JSONEq(t, `{"lr" :0.001}`, string(paramsConfig), "Config should be set")
+	configJSON, err := config.Serialize(runconfig.FormatJson)
+	assert.Nil(t, err)
+	assert.JSONEq(t, `{"lr": {"value": 0.001}}`, string(configJSON))
 }
 
-// Test that ApplyChanges correctly applies the changes to the run params
+// Test that UpdateForRewind correctly applies the changes to the run params
 // when a valid response with no config
-func TestRewindApplyChangesConfigNil(t *testing.T) {
+func TestUpdateForRewindConfigNil(t *testing.T) {
 
 	ctx := context.Background()
 	mockGQL := gqlmock.NewMockClient()
@@ -161,24 +156,20 @@ func TestRewindApplyChangesConfigNil(t *testing.T) {
 		string(response),
 	)
 
-	params, err := runbranch.NewRewindBranch(
+	config := runconfig.New()
+	params := &runbranch.RunParams{RunID: "runid"}
+	err = runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "_step", 0,
-	).ApplyChanges(
-		&runbranch.RunParams{
-			RunID: "runid",
-		}, runbranch.RunPath{RunID: "runid"},
-	)
+	).UpdateForRewind(params, config)
 
-	assert.Nil(t, err, "ApplyChanges should not return an error")
-	assert.NotNil(t, params, "ApplyChanges should return params")
-	assert.Equal(t, "runid", params.RunID, "RunID should be set")
-	assert.True(t, params.Forked, "Forked should be set")
-	assert.Nil(t, params.Config, "Config should be nil")
+	assert.Nil(t, err)
+	assert.True(t, params.Forked)
+	assert.Empty(t, config.CloneTree())
 }
 
-// Test that ApplyChanges correctly applies the changes to the run params
+// Test that UpdateForRewind correctly applies the changes to the run params
 // when a valid response with invalid config
-func TestRewindApplyChangesInvalidConfig(t *testing.T) {
+func TestUpdateForRewindInvalidConfig(t *testing.T) {
 
 	ctx := context.Background()
 	mockGQL := gqlmock.NewMockClient()
@@ -199,24 +190,20 @@ func TestRewindApplyChangesInvalidConfig(t *testing.T) {
 		string(response),
 	)
 
-	params, err := runbranch.NewRewindBranch(
+	config := runconfig.New()
+	params := &runbranch.RunParams{RunID: "runid"}
+	err = runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "_step", 0,
-	).ApplyChanges(
-		&runbranch.RunParams{
-			RunID: "runid",
-		}, runbranch.RunPath{RunID: "runid"},
-	)
+	).UpdateForRewind(params, config)
 
-	assert.NotNil(t, err, "ApplyChanges should not return an error")
-	assert.NotNil(t, params, "ApplyChanges should return params")
-	assert.Equal(t, "runid", params.RunID, "RunID should be set")
-	assert.True(t, params.Forked, "Forked should be set")
-	assert.Nil(t, params.Config, "Config should be nil")
+	assert.NotNil(t, err)
+	assert.True(t, params.Forked)
+	assert.Empty(t, config.CloneTree())
 }
 
-// Test that ApplyChanges correctly applies the changes to the run params
+// Test that UpdateForRewind correctly applies the changes to the run params
 // when a valid response with invalid type config
-func TestRewindApplyChangesInvalidTypeConfig(t *testing.T) {
+func TestUpdateForRewindInvalidTypeConfig(t *testing.T) {
 
 	ctx := context.Background()
 	mockGQL := gqlmock.NewMockClient()
@@ -237,24 +224,20 @@ func TestRewindApplyChangesInvalidTypeConfig(t *testing.T) {
 		string(response),
 	)
 
-	params, err := runbranch.NewRewindBranch(
+	config := runconfig.New()
+	params := &runbranch.RunParams{RunID: "runid"}
+	err = runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "_step", 0,
-	).ApplyChanges(
-		&runbranch.RunParams{RunID: "runid"}, runbranch.RunPath{
-			RunID: "runid",
-		},
-	)
+	).UpdateForRewind(params, config)
 
-	assert.NotNil(t, err, "ApplyChanges should not return an error")
-	assert.NotNil(t, params, "ApplyChanges should return params")
-	assert.Equal(t, "runid", params.RunID, "RunID should be set")
-	assert.True(t, params.Forked, "Forked should be set")
-	assert.Nil(t, params.Config, "Config should be nil")
+	assert.NotNil(t, err)
+	assert.True(t, params.Forked)
+	assert.Empty(t, config.CloneTree())
 }
 
-// Test that ApplyChanges correctly applies the changes to the run params
+// Test that UpdateForRewind correctly applies the changes to the run params
 // when a valid response with no value config
-func TestRewindApplyChangesConfigNoValue(t *testing.T) {
+func TestUpdateForRewindConfigNoValue(t *testing.T) {
 
 	ctx := context.Background()
 	mockGQL := gqlmock.NewMockClient()
@@ -276,17 +259,14 @@ func TestRewindApplyChangesConfigNoValue(t *testing.T) {
 		gqlmock.WithOpName("RewindRun"),
 		string(response),
 	)
-	params, err := runbranch.NewRewindBranch(
-		ctx, mockGQL, "runid", "_step", 0,
-	).ApplyChanges(
-		&runbranch.RunParams{RunID: "runid"}, runbranch.RunPath{
-			RunID: "runid",
-		},
-	)
 
-	assert.NotNil(t, err, "ApplyChanges should not return an error")
-	assert.NotNil(t, params, "ApplyChanges should return params")
-	assert.Equal(t, "runid", params.RunID, "RunID should be set")
-	assert.True(t, params.Forked, "Forked should be set")
-	assert.Nil(t, params.Config, "Config should be nil")
+	config := runconfig.New()
+	params := &runbranch.RunParams{RunID: "runid"}
+	err = runbranch.NewRewindBranch(
+		ctx, mockGQL, "runid", "_step", 0,
+	).UpdateForRewind(params, config)
+
+	assert.NotNil(t, err)
+	assert.True(t, params.Forked)
+	assert.Empty(t, config.CloneTree())
 }

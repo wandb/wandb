@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 )
 
 // MockClient is a mock implementation of the genqlient Client interface.
@@ -184,8 +184,9 @@ type notStubbedError struct {
 
 func (e *notStubbedError) Error() string {
 	return fmt.Sprintf(
-		"gqlmock: no stub for request with query '%v' and with variables '%v'",
-		e.req.Query,
-		jsonMarshallToMap(e.req.Variables),
+		"gqlmock: no stub for request with"+
+			" query\n====\n%s\n====\nwith variables\n%s",
+		indent(1, e.req.Query),
+		indent(1, prettyPrintVariables(e.req)),
 	)
 }

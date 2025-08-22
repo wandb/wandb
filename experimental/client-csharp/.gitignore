@@ -1,3 +1,4 @@
 **/bin
 **/obj
 **/Generated
+src/Wandb/wandb-core

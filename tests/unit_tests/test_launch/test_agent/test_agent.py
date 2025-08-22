@@ -728,7 +728,7 @@ def test_agent_logger(mocker):
     mocker.logger.error.assert_called_once_with(f"{LOG_PREFIX}test 1")
     logger.warn("test 2")
     mocker.termwarn.assert_not_called()
-    mocker.logger.warn.assert_called_once_with(f"{LOG_PREFIX}test 2")
+    mocker.logger.warning.assert_called_once_with(f"{LOG_PREFIX}test 2")
     logger.info("test 3")
     mocker.termlog.assert_not_called()
     mocker.logger.info.assert_called_once_with(f"{LOG_PREFIX}test 3")
@@ -743,7 +743,7 @@ def test_agent_logger(mocker):
     mocker.logger.error.assert_called_with(f"{LOG_PREFIX}test 5")
     logger.warn("test 6")
     mocker.termwarn.assert_called_with(f"{LOG_PREFIX}test 6")
-    mocker.logger.warn.assert_called_with(f"{LOG_PREFIX}test 6")
+    mocker.logger.warning.assert_called_with(f"{LOG_PREFIX}test 6")
     logger.info("test 7")
     mocker.termlog.assert_called_with(f"{LOG_PREFIX}test 7")
     mocker.logger.info.assert_called_with(f"{LOG_PREFIX}test 7")
@@ -764,3 +764,32 @@ def test_agent_inf_jobs(mocker):
     )
     agent = LaunchAgent(MagicMock(), config)
     assert agent._max_jobs == float("inf")
+
+
+@pytest.mark.asyncio
+async def test_run_job_api_key_redaction(mocker):
+    """Test that API keys are redacted when logging job details in run_job method."""
+    _setup(mocker)
+    mock_term_log = mocker.termlog
+
+    job_data = {
+        "runQueueItemId": "test-queue-item-id",
+        "runSpec": {
+            "_wandb_api_key": "test_api_key",
+            "docker": {"docker_image": "test-image"},
+            "project": "test-project",
+        },
+    }
+
+    agent = LaunchAgent(
+        api=mocker.api, config={"entity": "test-entity", "project": "test-project"}
+    )
+    agent.update_status = AsyncMock()
+    agent.task_run_job = AsyncMock()
+
+    await agent.run_job(job_data, "test-queue", MagicMock())
+
+    log_message = mock_term_log.call_args[0][0]
+
+    assert "<redacted>" in log_message
+    assert "test_api_key" not in log_message
