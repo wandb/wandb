@@ -219,7 +219,6 @@ def test_nested_dataclasses_containing_real_class():
     class TestDataClassHolder:
         test_real_class: TestRealClass
 
-
     real_class = TestRealClass(True)
     nested_dataclass = TestDataClassHolder(real_class)
     converted = util.json_friendly_val(nested_dataclass)
