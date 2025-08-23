@@ -108,7 +108,7 @@ def mock_boto(artifact, path=False, content_type=None, version_id="1"):
             return BucketStatus()
 
     mock = S3Resource()
-    for handler in artifact._storage_policy._handler._handlers:
+    for handler in artifact.manifest.storage_policy._handler._handlers:
         if isinstance(handler, S3Handler):
             handler._s3 = mock
             handler._botocore = util.get_module("botocore")
@@ -147,7 +147,7 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
             return GSBucket()
 
     mock = GSClient()
-    for handler in artifact._storage_policy._handler._handlers:
+    for handler in artifact.manifest.storage_policy._handler._handlers:
         if isinstance(handler, GCSHandler):
             handler._client = mock
     return mock
@@ -286,7 +286,7 @@ def mock_http(artifact, path=False, headers=None):
             return Response(self.headers)
 
     mock = Session()
-    for handler in artifact._storage_policy._handler._handlers:
+    for handler in artifact.manifest.storage_policy._handler._handlers:
         if isinstance(handler, HTTPHandler):
             handler._session = mock
     return mock
