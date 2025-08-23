@@ -1,18 +1,20 @@
+from __future__ import annotations
+
 import os
 import platform
 from functools import wraps
 from pathlib import PurePath, PurePosixPath
-from typing import Any, NewType, Union
+from typing import Any, Union
+
+from typing_extensions import TypeAlias
 
 # Path _inputs_ should generally accept any kind of path. This is named the same and
 # modeled after the hint defined in the Python standard library's `typeshed`:
 # https://github.com/python/typeshed/blob/0b1cd5989669544866213807afa833a88f649ee7/stdlib/_typeshed/__init__.pyi#L56-L65
-StrPath = Union[str, "os.PathLike[str]"]
+StrPath: TypeAlias = Union[str, "os.PathLike[str]"]
 
-# A native path to a file on a local filesystem.
-FilePathStr = NewType("FilePathStr", str)
-
-URIStr = NewType("URIStr", str)
+FilePathStr: TypeAlias = str  #: A native path to a file on a local filesystem.
+URIStr: TypeAlias = str
 
 
 class LogicalPath(str):
@@ -54,7 +56,7 @@ class LogicalPath(str):
     # will result in different outputs on different platforms; however, it doesn't alter
     # absolute paths or check for prohibited characters etc.
 
-    def __new__(cls, path: StrPath) -> "LogicalPath":
+    def __new__(cls, path: StrPath) -> LogicalPath:
         if isinstance(path, LogicalPath):
             return super().__new__(cls, path)
         if hasattr(path, "as_posix"):
@@ -77,30 +79,30 @@ class LogicalPath(str):
         """Convert this path to a PurePosixPath."""
         return PurePosixPath(self)
 
-    def __getattr__(self, attr: str) -> Any:
+    def __getattr__(self, name: str) -> Any:
         """Act like a subclass of PurePosixPath for all methods not defined on str."""
         try:
-            result = getattr(self.to_path(), attr)
-        except AttributeError as e:
-            raise AttributeError(f"LogicalPath has no attribute {attr!r}") from e
+            attr = getattr(self.to_path(), name)
+        except AttributeError:
+            classname = type(self).__qualname__
+            raise AttributeError(f"{classname!r} has no attribute {name!r}") from None
 
-        if isinstance(result, PurePosixPath):
-            return LogicalPath(result)
+        if isinstance(attr, PurePosixPath):
+            return LogicalPath(attr)
 
         # If the result is a callable (a method), wrap it so that it has the same
         # behavior: if the call result returns a PurePosixPath, return a LogicalPath.
-        if callable(result):
+        if callable(fn := attr):
 
-            @wraps(result)
+            @wraps(fn)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
-                inner_result = result(*args, **kwargs)
-                if isinstance(inner_result, PurePosixPath):
-                    return LogicalPath(inner_result)
-                return inner_result
+                if isinstance(res := fn(*args, **kwargs), PurePosixPath):
+                    return LogicalPath(res)
+                return res
 
             return wrapper
-        return result
+        return attr
 
-    def __truediv__(self, other: StrPath) -> "LogicalPath":
+    def __truediv__(self, other: StrPath) -> LogicalPath:
         """Act like a PurePosixPath for the / operator, but return a LogicalPath."""
         return LogicalPath(self.to_path() / LogicalPath(other))
