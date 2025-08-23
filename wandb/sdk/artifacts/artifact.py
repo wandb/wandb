@@ -54,8 +54,9 @@ from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
-from wandb.sdk.lib import filesystem, retry, runid, telemetry
+from wandb.sdk.lib import retry, runid, telemetry
 from wandb.sdk.lib.deprecate import deprecate
+from wandb.sdk.lib.filesystem import check_exists, system_preferred_path
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
@@ -1967,7 +1968,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        root = FilePathStr(str(root or self._default_root()))
+        root = FilePathStr(root or self._default_root())
         self._add_download_root(root)
 
         # TODO: download artifacts using core when implemented
@@ -2324,8 +2325,7 @@ class Artifact:
         # In case we're on a system where the artifact dir has a name corresponding to
         # an unexpected filesystem, we'll check for alternate roots. If one exists we'll
         # use that, otherwise we'll fall back to the system-preferred path.
-        path = filesystem.check_exists(root) or filesystem.system_preferred_path(root)
-        return FilePathStr(str(path))
+        return FilePathStr(check_exists(root) or system_preferred_path(root))
 
     def _add_download_root(self, dir_path: str) -> None:
         self._download_roots.add(os.path.abspath(dir_path))
