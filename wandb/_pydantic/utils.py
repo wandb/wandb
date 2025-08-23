@@ -78,3 +78,17 @@ else:
                 cls.model_validate(v)
                 return True
         return False
+
+
+# ------------------------------------------------------------------------------
+# Reusable annotations for field types
+
+
+def ensure_json(v: Any) -> Any:
+    """In case the incoming value isn't serialized JSON, reserialize it.
+
+    This lets us use `Json[...]` fields with values that are already deserialized.
+    """
+    # NOTE: Assumes that the deserialized type is not itself a string.
+    # Revisit this if we need to support deserialized types that are str/bytes.
+    return v if isinstance(v, (str, bytes)) else to_json(v)
