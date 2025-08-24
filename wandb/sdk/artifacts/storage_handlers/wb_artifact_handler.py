@@ -113,7 +113,7 @@ class WBArtifactHandler(StorageHandler):
             )
             assert target_artifact is not None
 
-            entry = target_artifact.manifest.get_entry_by_path(artifact_file_path)
+            entry = target_artifact.manifest.entries.get(artifact_file_path)
             assert entry is not None
             iter_path = entry.ref
 
