@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import time
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import ParseResult, urlparse
 
 from wandb import util
 from wandb.errors.term import termlog
-from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
+from wandb.sdk.artifacts.artifact_file_cache import (
+    ArtifactFileCache,
+    get_artifact_file_cache,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
@@ -26,10 +29,12 @@ class _GCSIsADirectoryError(Exception):
 
 
 class GCSHandler(StorageHandler):
+    _scheme: str
     _client: gcs_module.client.Client | None
+    _cache: ArtifactFileCache
 
-    def __init__(self, scheme: str | None = None) -> None:
-        self._scheme = scheme or "gs"
+    def __init__(self, scheme: str = "gs") -> None:
+        self._scheme = scheme
         self._client = None
         self._cache = get_artifact_file_cache()
 
@@ -74,7 +79,6 @@ class GCSHandler(StorageHandler):
         assert self._client is not None  # mypy: unwraps optionality
         assert manifest_entry.ref is not None
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
-        version = manifest_entry.extra.get("versionID")
 
         if self._is_dir(manifest_entry):
             raise _GCSIsADirectoryError(
@@ -83,7 +87,7 @@ class GCSHandler(StorageHandler):
 
         obj = None
         # First attempt to get the generation specified, this will return None if versioning is not enabled
-        if version is not None:
+        if (version := manifest_entry.extra.get("versionID")) is not None:
             obj = self._client.bucket(bucket).get_blob(key, generation=version)
 
         if obj is None:
@@ -111,7 +115,7 @@ class GCSHandler(StorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
 
@@ -131,7 +135,7 @@ class GCSHandler(StorageHandler):
             raise ValueError(f"Object does not exist: {path}#{version}")
         multi = obj is None
         if multi:
-            start_time = time.time()
+            start_time = time.monotonic()
             termlog(
                 f'Generating checksum for up to {max_objects} objects with prefix "{key}"... ',
                 newline=False,
@@ -148,7 +152,7 @@ class GCSHandler(StorageHandler):
             if not obj.name.endswith("/")
         ]
         if start_time is not None:
-            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+            termlog("Done. %.1fs" % (time.monotonic() - start_time), prefix=False)
         if len(entries) > max_objects:
             raise ValueError(
                 f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"
@@ -176,9 +180,7 @@ class GCSHandler(StorageHandler):
 
         # Always use posix paths, since that's what S3 uses.
         posix_key = PurePosixPath(obj.name)  # the bucket key
-        posix_path = PurePosixPath(bucket) / PurePosixPath(
-            key
-        )  # the path, with the scheme stripped
+        posix_path = PurePosixPath(bucket, key)  # the path, with the scheme stripped
         posix_prefix = PurePosixPath(prefix)  # the prefix, if adding a prefix
         posix_name = PurePosixPath(name or "")
         posix_ref = posix_path
