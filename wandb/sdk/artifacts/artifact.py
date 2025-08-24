@@ -1730,7 +1730,7 @@ class Artifact:
 
         val = obj.to_json(self)
         name = obj.with_suffix(name)
-        entry = self.manifest.get_entry_by_path(name)
+        entry = self.manifest.entries.get(name)
         if (not overwrite) and (entry is not None):
             return entry
 
@@ -1815,7 +1815,7 @@ class Artifact:
             return
 
         path = str(PurePosixPath(item))
-        if entry := self.manifest.get_entry_by_path(path):
+        if entry := self.manifest.entries.get(path):
             return self.manifest.remove_entry(entry)
 
         entries = self.manifest.get_entries_in_directory(path)
