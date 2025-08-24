@@ -28,6 +28,7 @@ DEPRECATED_FEATURES = Literal[
     "beta__workflows__log_model",
     "beta__workflows__use_model",
     "beta__workflows__link_model",
+    "artifact_manifest__get_entry_by_path",
 ]
 
 class Deprecated:
@@ -57,3 +58,4 @@ class Deprecated:
     beta__workflows__log_model: DEPRECATED_FEATURES = "beta__workflows__log_model"
     beta__workflows__use_model: DEPRECATED_FEATURES = "beta__workflows__use_model"
     beta__workflows__link_model: DEPRECATED_FEATURES = "beta__workflows__link_model"
+    artifact_manifest__get_entry_by_path: DEPRECATED_FEATURES = "artifact_manifest__get_entry_by_path"
