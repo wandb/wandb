@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, ClassVar, Dict
 
 from pydantic import Field
-from typing_extensions import Annotated
+from typing_extensions import Annotated, deprecated
 
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.artifacts._base_model import ArtifactsBase
 from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.hashutil import HexMD5
 
 if TYPE_CHECKING:
@@ -67,7 +69,17 @@ class ArtifactManifest(ArtifactsBase, ABC):
         except LookupError:
             raise FileNotFoundError(f"Cannot remove missing entry: {entry.path!r}")
 
+    _GET_ENTRY_BY_PATH_DEPRECATED_MSG: ClassVar[str] = (
+        "ArtifactManifest.get_entry_by_path is deprecated, use .entries.get() instead."
+    )
+
+    @property
+    @deprecated(_GET_ENTRY_BY_PATH_DEPRECATED_MSG)
     def get_entry_by_path(self, path: str) -> ArtifactManifestEntry | None:
+        deprecate(
+            field_name=Deprecated.artifactmanifest__get_entry_by_path,
+            warning_message=self._GET_ENTRY_BY_PATH_DEPRECATED_MSG,
+        )
         return self.entries.get(path)
 
     def get_entries_in_directory(self, directory: str) -> list[ArtifactManifestEntry]:
