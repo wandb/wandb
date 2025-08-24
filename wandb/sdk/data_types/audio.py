@@ -179,7 +179,7 @@ class Audio(BatchableMedia):
 
         resolved_name = source_artifact._local_path_to_name(self._path)
         if resolved_name is not None:
-            target_entry = source_artifact.manifest.get_entry_by_path(resolved_name)
+            target_entry = source_artifact.manifest.entries.get(resolved_name)
             if target_entry is not None:
                 return target_entry.ref
 
