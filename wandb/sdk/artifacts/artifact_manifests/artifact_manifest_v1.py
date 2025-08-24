@@ -1,15 +1,45 @@
 """Artifact manifest v1."""
 
+# Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
+# ruff: noqa: UP006
+
 from __future__ import annotations
 
 from operator import itemgetter
-from typing import Final, Mapping
+from typing import Annotated, Any, Dict, Final, Literal
 
+from pydantic import ConfigDict, Field
+
+from wandb._pydantic import field_validator, to_camel
+from wandb.sdk.artifacts._base_model import ArtifactsBase
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.hashutil import HexMD5, _md5
+
+
+class _ManifestV1Data(ArtifactsBase):
+    model_config = ConfigDict(frozen=True, alias_generator=to_camel)
+
+    version: Literal[1] = 1
+
+    storage_policy: str
+    storage_policy_config: Annotated[Dict[str, Any], Field(alias="storagePolicyConfig")]
+
+    entries: Dict[str, ArtifactManifestEntry] = Field(alias="contents")
+
+    @field_validator("entries", mode="before")
+    def _validate_entries(cls, v: Any) -> dict[str, ArtifactManifestEntry]:
+        # The dict keys should be `ArtifactManifestEntry.path`, but they're
+        # not part of the serialized JSON object.  We add it back in validation.
+        # Note that the key deliberately overrides the existing "path" value
+        # if by chance it **was** serialized in the dict.
+        return {
+            key: ArtifactManifestEntry(**{**dict(obj), "path": key})
+            for key, obj in v.items()
+        }
+
 
 #: Inner ArtifactManifestEntry fields to keep when dumping the ArtifactManifest to JSON.
 _JSON_ENTRY_FIELDS: Final[frozenset[str]] = frozenset(
@@ -18,38 +48,23 @@ _JSON_ENTRY_FIELDS: Final[frozenset[str]] = frozenset(
 
 
 class ArtifactManifestV1(ArtifactManifest):
-    @classmethod
-    def version(cls) -> int:
-        return 1
+    v: Literal[1] = 1
+
+    entries: Dict[str, ArtifactManifestEntry] = Field(default_factory=dict)
+
+    storage_policy: StoragePolicy = Field(exclude=True, repr=False)
 
     @classmethod
     def from_manifest_json(
-        cls, manifest_json: dict, api: InternalApi | None = None
+        cls, manifest_json: dict[str, Any], api: InternalApi | None = None
     ) -> ArtifactManifestV1:
-        if manifest_json["version"] != cls.version():
-            raise ValueError(
-                "Expected manifest version 1, got {}".format(manifest_json["version"])
-            )
-
-        storage_policy_name = manifest_json["storagePolicy"]
-        storage_policy_config = manifest_json.get("storagePolicyConfig", {})
-        storage_policy_cls = StoragePolicy.lookup_by_name(storage_policy_name)
-
-        entries = {
-            path: ArtifactManifestEntry(**{**val, "path": path})
-            for path, val in manifest_json["contents"].items()
-        }
-
+        data = _ManifestV1Data(**manifest_json)
+        policy_cls = StoragePolicy.lookup_by_name(data.storage_policy)
         return cls(
-            storage_policy_cls.from_config(storage_policy_config, api=api), entries
+            v=data.version,
+            entries=data.entries,
+            storage_policy=policy_cls.from_config(data.storage_policy_config, api=api),
         )
-
-    def __init__(
-        self,
-        storage_policy: StoragePolicy,
-        entries: Mapping[str, ArtifactManifestEntry] | None = None,
-    ) -> None:
-        super().__init__(storage_policy, entries=entries)
 
     def to_manifest_json(self) -> dict:
         """This is the JSON that's stored in wandb_manifest.json.
@@ -63,7 +78,7 @@ class ArtifactManifestV1(ArtifactManifest):
         return {
             "version": self.version(),
             "storagePolicy": self.storage_policy.name(),
-            "storagePolicyConfig": self.storage_policy.config() or {},
+            "storagePolicyConfig": self.storage_policy.config(),
             "contents": {
                 key: obj.model_dump(include=kept_fields, exclude_defaults=True)
                 for key, obj in self.entries.items()
