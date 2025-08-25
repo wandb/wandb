@@ -910,9 +910,9 @@ func (m *Model) renderStatusBar() string {
 		if m.sidebar.IsFiltering() {
 			filterInfo := m.sidebar.GetFilterInfo()
 			if statusText != "" {
-				statusText += " • "
+				statusText += " •"
 			}
-			statusText += fmt.Sprintf("Overview: \"%s\" [%s] ([ to change, Ctrl+K to clear)",
+			statusText += fmt.Sprintf(" Overview: \"%s\" [%s] ([ to change, Ctrl+K to clear)",
 				m.sidebar.GetFilterQuery(), filterInfo)
 		}
 
@@ -921,18 +921,18 @@ func (m *Model) renderStatusBar() string {
 			key, value := m.sidebar.GetSelectedItem()
 			if key != "" {
 				if statusText != "" {
-					statusText += " • "
+					statusText += " •"
 				}
-				statusText += fmt.Sprintf("%s: %s", key, value)
+				statusText += fmt.Sprintf(" %s: %s", key, value)
 			}
 		}
 
 		// Add focused metric name if a chart is focused
 		if m.focusedTitle != "" {
 			if statusText != "" {
-				statusText += " • "
+				statusText += " •"
 			}
-			statusText += m.focusedTitle
+			statusText += fmt.Sprintf(" %s", m.focusedTitle)
 		}
 
 		// If nothing else to show, add a space to prevent empty status
