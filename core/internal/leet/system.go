@@ -178,7 +178,9 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef, baseKey string) *S
 	return metricChart
 }
 
-// AddDataPoint adds a new data point to the appropriate metric chart
+// AddDataPoint adds a new data point to the appropriate metric chart.
+//
+//gocyclo:ignore
 func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, value float64) {
 	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.AddDataPoint: metric=%s, timestamp=%d, value=%f", metricName, timestamp, value))
 
@@ -191,9 +193,9 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 
 	// Convert bytes to GB for display if needed
 	if def.Unit == "GB" && value > 1024*1024*1024 {
-		value = value / (1024 * 1024 * 1024)
+		value /= 1024 * 1024 * 1024
 	} else if def.Unit == "MB" && value > 1024*1024 {
-		value = value / (1024 * 1024)
+		value /= 1024 * 1024
 	}
 
 	// Extract base key and series name

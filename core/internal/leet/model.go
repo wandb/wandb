@@ -324,14 +324,6 @@ func (m *Model) getFilteredChartCount() int {
 	return len(m.filteredCharts)
 }
 
-// updateFocusedChart updates which chart is focused and stores its full title
-// This is kept for backward compatibility but uses the new focus management
-func (m *Model) updateFocusedChart(row, col int) bool {
-	// This delegates to the new handler
-	m.handleChartGridClick(row, col)
-	return m.focusState.Type == FocusMainChart
-}
-
 // recoverPanic recovers from panics and logs them
 func (m *Model) recoverPanic(context string) {
 	if r := recover(); r != nil {
