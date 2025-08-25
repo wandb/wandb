@@ -57,19 +57,11 @@ def _warn_on_invalid_data_range(
 
 
 def _guess_and_rescale_to_0_255(data: "np.ndarray") -> "np.ndarray":
-    """Guess the image's format and rescale its values to the range [0, 255].
-
-    This is an unfortunate design flaw carried forward for backward
-    compatibility. A better design would have been to document the expected
-    data format and not mangle the data provided by the user.
-
-    If given data in the range [0, 1], we multiply all values by 255
-    and round down to get integers.
-
-    If given data in the range [-1, 1], we rescale it by mapping -1 to 0 and
-    1 to 255, then round down to get integers.
-
-    We clip and round all other data.
+    """Rescale image data to [0, 255] range based on detected format.
+    
+    If data is in [0, 1] range, multiply by 255.
+    If data is in [-1, 1] range, rescale to [0, 255].
+    Otherwise, clip to [0, 255].
     """
     try:
         import numpy as np
@@ -241,14 +233,17 @@ class Image(BatchableMedia):
         ```
 
         Normalization example
-
         ```python
         import torch
         import wandb
 
-        # Tensor with values in [0, 1] range will be multiplied by 255
-        tensor_0_1 = torch.rand(3, 64, 64)
+        # Values in [0, 1] range will be multiplied by 255
+        tensor_0_1 = torch.rand(3, 64, 64)  # Values in [0, 1]
         image = wandb.Image(tensor_0_1, caption="Normalized from [0,1] range")
+
+        # Values in [-1, 1] range will be rescaled to [0, 255]
+        tensor_neg1_1 = torch.rand(3, 64, 64) * 2 - 1  # Values in [-1, 1]
+        image = wandb.Image(tensor_neg1_1, caption="Normalized from [-1,1] range")
 
         # Disable normalization
         image = wandb.Image(tensor_0_1, normalize=False, caption="No normalization")
