@@ -166,6 +166,7 @@ def init(
     save_code: bool | None = None,
     tensorboard: bool | None = None,
     sync_tensorboard: bool | None = None,
+    init_weave: bool | None = None,
     monitor_gym: bool | None = None,
     settings: Settings | dict[str, Any] | None = None,
 ) -> Run:

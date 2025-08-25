@@ -1259,6 +1259,7 @@ def init(  # noqa: C901
     save_code: bool | None = None,
     tensorboard: bool | None = None,
     sync_tensorboard: bool | None = None,
+    init_weave: bool | None = None,
     monitor_gym: bool | None = None,
     settings: Settings | dict[str, Any] | None = None,
 ) -> Run:
@@ -1410,6 +1411,10 @@ def init(  # noqa: C901
         sync_tensorboard: Enables automatic syncing of W&B logs from TensorBoard
             or TensorBoardX, saving relevant event files for viewing in the W&B UI.
             saving relevant event files for viewing in the W&B UI. (Default: `False`)
+        init_weave: Enables automatic initialization of Weave with the same project
+            name as W&B. When set to True, wandb.init() will call weave.init() with
+            the same project, ensuring both W&B and Weave are initialized together.
+            (Default: `False`)
         monitor_gym: Enables automatic logging of videos of the environment when
             using OpenAI Gym.
         settings: Specifies a dictionary or `wandb.Settings` object with advanced
@@ -1483,6 +1488,8 @@ def init(  # noqa: C901
         init_settings.sync_tensorboard = tensorboard
     if sync_tensorboard is not None:
         init_settings.sync_tensorboard = sync_tensorboard
+    if init_weave is not None:
+        init_settings.init_weave = init_weave
     if save_code is not None:
         init_settings.save_code = save_code
     if id is not None:
@@ -1560,7 +1567,30 @@ def init(  # noqa: C901
             if run_settings.x_server_side_derived_summary:
                 init_telemetry.feature.server_side_derived_summary = True
 
-            return wi.init(run_settings, run_config, run_printer)
+            run = wi.init(run_settings, run_config, run_printer)
+
+            # Initialize Weave if requested
+            if run_settings.init_weave and run_settings.project:
+                try:
+                    import weave
+
+                    weave.init(run_settings.project)
+                    run_printer.display(
+                        f"Weave initialized with project: {run_settings.project}"
+                    )
+                except ImportError:
+                    run_printer.display(
+                        "Warning: init_weave is set to True but weave is not installed. "
+                        "Install it with 'pip install weave' to enable Weave integration.",
+                        level="warn",
+                    )
+                except Exception as e:
+                    run_printer.display(
+                        f"Warning: Failed to initialize Weave: {e}",
+                        level="warn",
+                    )
+
+            return run
 
     except KeyboardInterrupt as e:
         if wl:
