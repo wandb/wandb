@@ -160,7 +160,6 @@ CLIENT_ONLY_SETTINGS = (
     "reinit",
     "max_end_of_run_history_metrics",
     "max_end_of_run_summary_metrics",
-    "init_weave",
 )
 """Python-only keys that are not fields on the settings proto."""
 
@@ -540,13 +539,6 @@ class Settings(BaseModel, validate_assignment=True):
 
     sync_tensorboard: Optional[bool] = None
     """Whether to synchronize TensorBoard logs with W&B."""
-
-    init_weave: Optional[bool] = None
-    """Whether to automatically initialize Weave with the same project as W&B.
-    
-    When set to True, wandb.init() will automatically call weave.init() with
-    the same project name, ensuring both W&B and Weave are initialized together.
-    """
 
     table_raise_on_max_row_limit_exceeded: bool = False
     """Whether to raise an exception when table row limits are exceeded."""

@@ -239,7 +239,6 @@ def init(
     save_code: bool | None = None,
     tensorboard: bool | None = None,
     sync_tensorboard: bool | None = None,
-    init_weave: bool | None = None,
     monitor_gym: bool | None = None,
     settings: Settings | dict[str, Any] | None = None,
 ) -> Run:
@@ -391,10 +390,6 @@ def init(
         sync_tensorboard: Enables automatic syncing of W&B logs from TensorBoard
             or TensorBoardX, saving relevant event files for viewing in the W&B UI.
             saving relevant event files for viewing in the W&B UI. (Default: `False`)
-        init_weave: Enables automatic initialization of Weave with the same project
-            name as W&B. When set to True, wandb.init() will call weave.init() with
-            the same project, ensuring both W&B and Weave are initialized together.
-            (Default: `False`)
         monitor_gym: Enables automatic logging of videos of the environment when
             using OpenAI Gym.
         settings: Specifies a dictionary or `wandb.Settings` object with advanced
