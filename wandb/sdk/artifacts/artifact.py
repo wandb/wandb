@@ -68,6 +68,7 @@ from wandb.util import (
     vendor_setup,
 )
 
+from ._factories import make_storage_policy
 from ._generated import (
     ADD_ALIASES_GQL,
     ARTIFACT_BY_ID_GQL,
@@ -135,9 +136,6 @@ from .exceptions import (
 )
 from .staging import get_staging_dir
 from .storage_handlers.gcs_handler import _GCSIsADirectoryError
-from .storage_layout import StorageLayout
-from .storage_policies import WANDB_STORAGE_POLICY
-from .storage_policy import StoragePolicy
 
 reset_path = vendor_setup()
 
@@ -223,10 +221,7 @@ class Artifact:
         # Internal.
         self._client: RetryingClient | None = None
 
-        storage_policy_cls = StoragePolicy.lookup_by_name(WANDB_STORAGE_POLICY)
-        layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
-        policy_config = {"storageLayout": layout}
-        self._storage_policy = storage_policy_cls.from_config(config=policy_config)
+        self._storage_policy = make_storage_policy()
 
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
@@ -271,7 +266,7 @@ class Artifact:
         self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
         self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
-            ArtifactManifestV1(self._storage_policy)
+            ArtifactManifestV1(storage_policy=self._storage_policy)
         )
         self._commit_hash: str | None = None
         self._file_count: int | None = None
