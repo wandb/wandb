@@ -59,23 +59,17 @@ def _warn_on_invalid_data_range(
 def _guess_and_rescale_to_0_255(data: "np.ndarray") -> "np.ndarray":
     """Guess the image's format and rescale its values to the range [0, 255].
 
-    Normalization rules:
-    - [0, 1] range: multiply by 255
-    - [-1, 1] range: rescale using 255 * 0.5 * (data + 1)
-    - Other ranges: clip to [0, 255]
+    This is an unfortunate design flaw carried forward for backward
+    compatibility. A better design would have been to document the expected
+    data format and not mangle the data provided by the user.
 
-    Args:
-        data: Input numpy array with image data
+    If given data in the range [0, 1], we multiply all values by 255
+    and round down to get integers.
 
-    Returns:
-        Normalized numpy array with values in [0, 255] range as uint8
+    If given data in the range [-1, 1], we rescale it by mapping -1 to 0 and
+    1 to 255, then round down to get integers.
 
-    Examples:
-        data_0_1 = np.random.rand(64, 64, 3)  # [0, 1] range
-        normalized = _guess_and_rescale_to_0_255(data_0_1)  # Values multiplied by 255
-
-        data_neg1_1 = np.random.rand(64, 64, 3) * 2 - 1  # [-1, 1] range
-        normalized = _guess_and_rescale_to_0_255(data_neg1_1)  # Values rescaled to [0, 255]
+    We clip and round all other data.
     """
     try:
         import numpy as np
