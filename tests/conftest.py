@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 import pathlib
-import platform
 import shutil
 import sys
 import time
@@ -40,16 +39,8 @@ from wandb.sdk.lib.paths import StrPath
 
 
 @pytest.fixture
-def disable_memray(pytestconfig):
+def disable_memray():
     """Disables the memray plugin for the duration of the test."""
-    if platform.system() == "Windows":
-        # noop on Windows
-        yield
-    else:
-        memray_plugin = pytestconfig.pluginmanager.get_plugin("memray_manager")
-        pytestconfig.pluginmanager.unregister(memray_plugin)
-        yield
-        pytestconfig.pluginmanager.register(memray_plugin, "memray_manager")
 
 
 @pytest.fixture(autouse=True)
