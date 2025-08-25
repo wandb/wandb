@@ -4,8 +4,8 @@ package leet
 
 import (
 	"fmt"
+	"math"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart"
@@ -33,13 +33,16 @@ type RightSidebar struct {
 // SystemMetricChart represents a single metric chart that can have multiple series
 type SystemMetricChart struct {
 	chart        *timeserieslinechart.Model
-	template     *MetricTemplate
+	def          *MetricDef // Metric definition
 	baseKey      string
 	title        string
+	fullTitle    string         // Full title with unit
 	series       map[string]int // series name -> color index
 	seriesColors []string       // colors assigned to each series
 	hasData      bool
 	lastUpdate   time.Time
+	minValue     float64 // Track min value for auto-range
+	maxValue     float64 // Track max value for auto-range
 }
 
 // SystemMetricsGrid manages the grid of system metric charts
@@ -49,13 +52,14 @@ type SystemMetricsGrid struct {
 	orderedCharts  []*SystemMetricChart          // alphabetically ordered list
 
 	// Grid display
-	charts      [][]*timeserieslinechart.Model
-	currentPage int
-	totalPages  int
-	focusedRow  int
-	focusedCol  int
-	width       int
-	height      int
+	charts       [][]*SystemMetricChart // Grid arrangement
+	currentPage  int
+	totalPages   int
+	focusedRow   int
+	focusedCol   int
+	focusedChart *SystemMetricChart // Currently focused chart
+	width        int
+	height       int
 
 	// Color management
 	nextColorIdx int
@@ -69,7 +73,7 @@ func NewSystemMetricsGrid(width, height int, logger *observability.CoreLogger) *
 	grid := &SystemMetricsGrid{
 		chartsByMetric: make(map[string]*SystemMetricChart),
 		orderedCharts:  make([]*SystemMetricChart, 0),
-		charts:         make([][]*timeserieslinechart.Model, MetricsGridRows),
+		charts:         make([][]*SystemMetricChart, MetricsGridRows),
 		currentPage:    0,
 		focusedRow:     -1,
 		focusedCol:     -1,
@@ -81,7 +85,7 @@ func NewSystemMetricsGrid(width, height int, logger *observability.CoreLogger) *
 
 	// Initialize grid rows
 	for row := 0; row < MetricsGridRows; row++ {
-		grid.charts[row] = make([]*timeserieslinechart.Model, MetricsGridCols)
+		grid.charts[row] = make([]*SystemMetricChart, MetricsGridCols)
 	}
 
 	logger.Debug(fmt.Sprintf("SystemMetricsGrid: created with dimensions %dx%d", width, height))
@@ -89,16 +93,28 @@ func NewSystemMetricsGrid(width, height int, logger *observability.CoreLogger) *
 	return grid
 }
 
-// getNextColor returns the next color from the palette
+// getNextColor returns the next color from the wandb-vibe-10 palette
 func (g *SystemMetricsGrid) getNextColor() string {
-	colors := GetGraphColors()
+	// Using wandb-vibe-10 colors from styles.go
+	colors := []string{
+		"#B1B4B9", // 0 - gray
+		"#58D3DB", // 1 - cyan
+		"#5ED6A4", // 2 - green
+		"#FCA36F", // 3 - orange
+		"#FF7A88", // 4 - red
+		"#7DB1FA", // 5 - blue
+		"#BBE06B", // 6 - lime
+		"#FFCF4D", // 7 - yellow
+		"#E180FF", // 8 - purple
+		"#B199FF", // 9 - lavender
+	}
 	color := colors[g.nextColorIdx%len(colors)]
 	g.nextColorIdx++
 	return color
 }
 
 // createMetricChart creates a time series chart for a system metric
-func (g *SystemMetricsGrid) createMetricChart(template *MetricTemplate, baseKey string) *SystemMetricChart {
+func (g *SystemMetricsGrid) createMetricChart(def *MetricDef, baseKey string) *SystemMetricChart {
 	dims := g.calculateChartDimensions()
 
 	// Ensure minimum dimensions to prevent panic
@@ -113,29 +129,9 @@ func (g *SystemMetricsGrid) createMetricChart(template *MetricTemplate, baseKey 
 
 	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.createMetricChart: creating chart with dimensions %dx%d for %s", chartWidth, chartHeight, baseKey))
 
-	// Determine Y range based on metric type
-	minY := 0.0
-	maxY := 100.0
-
-	if template != nil {
-		// Adjust range based on metric type
-		if template.Percentage {
-			minY = 0.0
-			maxY = 100.0
-		} else if strings.Contains(template.YAxis, "Temperature") {
-			minY = 0.0
-			maxY = 100.0
-		} else if strings.Contains(template.YAxis, "Power") {
-			minY = 0.0
-			maxY = 500.0 // Adjust based on typical power consumption
-		} else if strings.Contains(template.YAxis, "Memory") && !template.Percentage {
-			minY = 0.0
-			maxY = 32768.0 // 32GB in MB, will auto-adjust if needed
-		} else if strings.Contains(template.YAxis, "Frequency") {
-			minY = 0.0
-			maxY = 3000.0 // 3GHz in MHz
-		}
-	}
+	// Determine initial Y range
+	minY := def.MinY
+	maxY := def.MaxY
 
 	// Create the chart
 	now := time.Now()
@@ -145,6 +141,12 @@ func (g *SystemMetricsGrid) createMetricChart(template *MetricTemplate, baseKey 
 	firstColor := g.getNextColor()
 	graphStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(firstColor))
 
+	// Create full title with unit
+	fullTitle := def.Title
+	if def.Unit != "" {
+		fullTitle = fmt.Sprintf("%s (%s)", def.Title, def.Unit)
+	}
+
 	chart := timeserieslinechart.New(chartWidth, chartHeight,
 		timeserieslinechart.WithTimeRange(minTime, now),
 		timeserieslinechart.WithYRange(minY, maxY),
@@ -153,10 +155,7 @@ func (g *SystemMetricsGrid) createMetricChart(template *MetricTemplate, baseKey 
 		timeserieslinechart.WithUpdateHandler(timeserieslinechart.SecondUpdateHandler(1)),
 		timeserieslinechart.WithXLabelFormatter(timeserieslinechart.HourTimeLabelFormatter()),
 		timeserieslinechart.WithYLabelFormatter(func(i int, v float64) string {
-			if template != nil && template.Unit != "" {
-				return fmt.Sprintf("%.0f%s", v, template.Unit)
-			}
-			return fmt.Sprintf("%.1f", v)
+			return FormatYLabel(v, def.Unit)
 		}),
 		timeserieslinechart.WithXYSteps(2, 3),
 	)
@@ -164,71 +163,44 @@ func (g *SystemMetricsGrid) createMetricChart(template *MetricTemplate, baseKey 
 	// Create the metric chart wrapper
 	metricChart := &SystemMetricChart{
 		chart:        &chart,
-		template:     template,
+		def:          def,
 		baseKey:      baseKey,
-		title:        g.generateTitle(template, baseKey),
+		title:        def.Title,
+		fullTitle:    fullTitle,
 		series:       make(map[string]int),
 		seriesColors: []string{firstColor},
 		hasData:      false,
 		lastUpdate:   now,
+		minValue:     math.Inf(1),
+		maxValue:     math.Inf(-1),
 	}
 
 	return metricChart
-}
-
-// generateTitle generates a readable title for the metric
-func (g *SystemMetricsGrid) generateTitle(template *MetricTemplate, baseKey string) string {
-	if template != nil {
-		// Extract a shorter title from the YAxis
-		title := template.YAxis
-
-		// Remove common prefixes and suffixes
-		title = strings.TrimPrefix(title, "System ")
-		title = strings.TrimPrefix(title, "Process ")
-		title = strings.TrimPrefix(title, "Apple ")
-
-		// Remove units in parentheses for cleaner display
-		if idx := strings.Index(title, " ("); idx > 0 {
-			title = title[:idx]
-		}
-
-		// Shorten some common long titles
-		replacements := map[string]string{
-			"Utilization":              "Usage",
-			"Temperature":              "Temp",
-			"efficiency cores":         "E-cores",
-			"performance cores":        "P-cores",
-			"Streaming Multiprocessor": "SM",
-		}
-
-		for old, new := range replacements {
-			title = strings.ReplaceAll(title, old, new)
-		}
-
-		return title
-	}
-
-	// Fallback: make the base key more readable
-	parts := strings.Split(baseKey, ".")
-	if len(parts) > 0 {
-		return strings.Title(parts[len(parts)-1])
-	}
-	return baseKey
 }
 
 // AddDataPoint adds a new data point to the appropriate metric chart
 func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, value float64) {
 	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.AddDataPoint: metric=%s, timestamp=%d, value=%f", metricName, timestamp, value))
 
-	// Match metric to template
-	templates := GetSystemMetricTemplates()
-	template := MatchMetricTemplate(metricName, templates)
+	// Match metric to definition
+	def := MatchMetricDef(metricName)
+	if def == nil {
+		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.AddDataPoint: no definition found for metric=%s", metricName))
+		return
+	}
+
+	// Convert bytes to GB for display if needed
+	if def.Unit == "GB" && value > 1024*1024*1024 {
+		value = value / (1024 * 1024 * 1024)
+	} else if def.Unit == "MB" && value > 1024*1024 {
+		value = value / (1024 * 1024)
+	}
 
 	// Extract base key and series name
 	baseKey := ExtractBaseKey(metricName)
 	seriesName := ExtractSeriesName(metricName)
 
-	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.AddDataPoint: baseKey=%s, seriesName=%s, hasTemplate=%v", baseKey, seriesName, template != nil))
+	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.AddDataPoint: baseKey=%s, seriesName=%s, hasDef=%v", baseKey, seriesName, def != nil))
 
 	// Get or create chart
 	chart, exists := g.chartsByMetric[baseKey]
@@ -236,7 +208,7 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.AddDataPoint: creating new chart for baseKey=%s", baseKey))
 
 		// Create new chart for this metric
-		chart = g.createMetricChart(template, baseKey)
+		chart = g.createMetricChart(def, baseKey)
 		g.chartsByMetric[baseKey] = chart
 
 		// Add to ordered list and sort alphabetically
@@ -267,6 +239,14 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.AddDataPoint: new series '%s' added with color %s", seriesName, newColor))
 	}
 
+	// Track min/max for auto-range
+	if value < chart.minValue {
+		chart.minValue = value
+	}
+	if value > chart.maxValue {
+		chart.maxValue = value
+	}
+
 	// Add the data point
 	timePoint := timeserieslinechart.TimePoint{
 		Time:  time.Unix(timestamp, 0),
@@ -291,29 +271,45 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 	chart.chart.SetTimeRange(minTime, maxTime)
 	chart.chart.SetViewTimeRange(minTime, maxTime)
 
-	// Auto-adjust Y range if value exceeds current range
-	if value > chart.chart.MaxY() {
-		newMaxY := value * 1.2 // Add 20% padding
-		chart.chart.SetYRange(chart.chart.MinY(), newMaxY)
-		chart.chart.SetViewYRange(chart.chart.MinY(), newMaxY)
+	// Auto-adjust Y range for non-percentage metrics
+	if chart.def.AutoRange && !chart.def.Percentage {
+		// Calculate range with 10% padding
+		range_ := chart.maxValue - chart.minValue
+		if range_ == 0 {
+			range_ = math.Abs(chart.maxValue) * 0.1
+			if range_ == 0 {
+				range_ = 1
+			}
+		}
+		padding := range_ * 0.1
+
+		newMinY := chart.minValue - padding
+		newMaxY := chart.maxValue + padding
+
+		// Don't go negative for non-negative data
+		if chart.minValue >= 0 && newMinY < 0 {
+			newMinY = 0
+		}
+
+		chart.chart.SetYRange(newMinY, newMaxY)
+		chart.chart.SetViewYRange(newMinY, newMaxY)
 	}
 
-	// Skip drawing if chart dimensions are invalid or grid dimensions are insufficient
-	// This prevents crashes when sidebar is collapsed or animating
+	// Skip drawing if chart dimensions are invalid
 	if chart.chart.Width() <= 0 || chart.chart.Height() <= 0 {
 		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.AddDataPoint: skipping draw, invalid chart dimensions %dx%d",
 			chart.chart.Width(), chart.chart.Height()))
 		return
 	}
 
-	// Also check grid dimensions to ensure we're visible
+	// Check grid dimensions
 	if g.width <= 0 || g.height <= 0 {
 		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.AddDataPoint: skipping draw, grid not visible %dx%d",
 			g.width, g.height))
 		return
 	}
 
-	// Additional safety: check chart's graph dimensions
+	// Check graph dimensions
 	graphWidth := chart.chart.GraphWidth()
 	graphHeight := chart.chart.GraphHeight()
 	if graphWidth <= 0 || graphHeight <= 0 {
@@ -404,7 +400,7 @@ func (g *SystemMetricsGrid) loadCurrentPage() {
 	for row := 0; row < MetricsGridRows && idx < endIdx; row++ {
 		for col := 0; col < MetricsGridCols && idx < endIdx; col++ {
 			if g.orderedCharts[idx].hasData {
-				g.charts[row][col] = g.orderedCharts[idx].chart
+				g.charts[row][col] = g.orderedCharts[idx]
 			}
 			idx++
 		}
@@ -417,6 +413,9 @@ func (g *SystemMetricsGrid) Navigate(direction int) {
 		return
 	}
 
+	// Clear focus when changing pages
+	g.clearFocus()
+
 	g.currentPage += direction
 	if g.currentPage < 0 {
 		g.currentPage = g.totalPages - 1
@@ -425,6 +424,57 @@ func (g *SystemMetricsGrid) Navigate(direction int) {
 	}
 
 	g.loadCurrentPage()
+}
+
+// HandleMouseClick handles mouse clicks for chart selection
+// Returns true if a chart was focused, false if unfocused
+func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
+	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: row=%d, col=%d", row, col))
+	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: BEFORE - focusedRow=%d, focusedCol=%d, focusedChart=%v",
+		g.focusedRow, g.focusedCol, g.focusedChart != nil))
+
+	// Check if clicking on the already focused chart (to unfocus)
+	if row == g.focusedRow && col == g.focusedCol {
+		g.logger.Debug("SystemMetricsGrid.HandleMouseClick: clicking on already focused chart - UNFOCUSING")
+		g.clearFocus()
+		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: AFTER UNFOCUS - focusedRow=%d, focusedCol=%d, focusedChart=%v",
+			g.focusedRow, g.focusedCol, g.focusedChart != nil))
+		return false // Chart was unfocused
+	}
+
+	// Clear previous focus
+	g.logger.Debug("SystemMetricsGrid.HandleMouseClick: clearing previous focus")
+	g.clearFocus()
+
+	// Set new focus
+	if row >= 0 && row < MetricsGridRows && col >= 0 && col < MetricsGridCols &&
+		row < len(g.charts) && col < len(g.charts[row]) && g.charts[row][col] != nil {
+		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: FOCUSING chart at row=%d, col=%d", row, col))
+		g.focusedRow = row
+		g.focusedCol = col
+		g.focusedChart = g.charts[row][col]
+		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: AFTER FOCUS - focusedRow=%d, focusedCol=%d, focusedChart.title='%s'",
+			g.focusedRow, g.focusedCol, g.focusedChart.fullTitle))
+		return true // Focus was set
+	}
+
+	g.logger.Debug("SystemMetricsGrid.HandleMouseClick: no valid chart at position, returning false")
+	return false // No valid chart to focus
+}
+
+// clearFocus removes focus from all charts
+func (g *SystemMetricsGrid) clearFocus() {
+	g.focusedRow = -1
+	g.focusedCol = -1
+	g.focusedChart = nil
+}
+
+// GetFocusedChartTitle returns the title of the focused chart
+func (g *SystemMetricsGrid) GetFocusedChartTitle() string {
+	if g.focusedChart != nil {
+		return g.focusedChart.fullTitle
+	}
+	return ""
 }
 
 // Resize updates dimensions and resizes all charts
@@ -447,7 +497,7 @@ func (g *SystemMetricsGrid) Resize(width, height int) {
 		return
 	}
 
-	// Additional safety check - ensure dimensions are at least minimum viable
+	// Additional safety check
 	if dims.ChartWidth < MinMetricChartWidth || dims.ChartHeight < MinMetricChartHeight {
 		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.Resize: dimensions %dx%d below minimum, skipping resize",
 			dims.ChartWidth, dims.ChartHeight))
@@ -489,6 +539,7 @@ func (g *SystemMetricsGrid) Reset() {
 	g.orderedCharts = make([]*SystemMetricChart, 0)
 	g.currentPage = 0
 	g.nextColorIdx = 0
+	g.clearFocus()
 
 	// Clear the grid
 	for row := 0; row < MetricsGridRows; row++ {
@@ -511,25 +562,50 @@ func (g *SystemMetricsGrid) View() string {
 			cellIdx := g.currentPage*MetricsPerPage + row*MetricsGridCols + col
 
 			if row < len(g.charts) && col < len(g.charts[row]) && g.charts[row][col] != nil && cellIdx < len(g.orderedCharts) {
-				chart := g.charts[row][col]
-				metricChart := g.orderedCharts[cellIdx]
+				metricChart := g.charts[row][col]
+				chart := metricChart.chart
 
-				// Render chart with title
+				// Render chart
 				chartView := chart.View()
 
-				// Add series indicator if multiple series
-				titleText := metricChart.title
+				// Build title with series count and truncation
+				titleText := metricChart.fullTitle
 				if len(metricChart.series) > 1 {
-					titleText = fmt.Sprintf("%s [%d]", titleText, len(metricChart.series))
+					// Use secondary color for [N]
+					countStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+					count := fmt.Sprintf(" [%d]", len(metricChart.series))
+
+					// Calculate available width for title (account for count)
+					availableWidth := dims.ChartWidthWithPadding - 4 - lipgloss.Width(count)
+					if availableWidth < 10 {
+						availableWidth = 10
+					}
+
+					// Truncate title if needed
+					displayTitle := truncateTitle(titleText, availableWidth)
+					titleText = titleStyle.Render(displayTitle) + countStyle.Render(count)
+				} else {
+					// Single series - just truncate if needed
+					availableWidth := dims.ChartWidthWithPadding - 4
+					if availableWidth < 10 {
+						availableWidth = 10
+					}
+					titleText = titleStyle.Render(truncateTitle(titleText, availableWidth))
 				}
 
 				boxContent := lipgloss.JoinVertical(
 					lipgloss.Left,
-					titleStyle.Render(titleText),
+					titleText,
 					chartView,
 				)
 
-				box := borderStyle.Render(boxContent)
+				// Highlight if focused
+				boxStyle := borderStyle
+				if row == g.focusedRow && col == g.focusedCol {
+					boxStyle = focusedBorderStyle
+				}
+
+				box := boxStyle.Render(boxContent)
 				cell := lipgloss.Place(
 					dims.ChartWidthWithPadding,
 					dims.ChartHeightWithPadding,
@@ -559,9 +635,9 @@ func (g *SystemMetricsGrid) RebuildGrid() {
 	UpdateGridDimensions()
 
 	// Rebuild grid structure
-	g.charts = make([][]*timeserieslinechart.Model, MetricsGridRows)
+	g.charts = make([][]*SystemMetricChart, MetricsGridRows)
 	for row := 0; row < MetricsGridRows; row++ {
-		g.charts[row] = make([]*timeserieslinechart.Model, MetricsGridCols)
+		g.charts[row] = make([]*SystemMetricChart, MetricsGridCols)
 	}
 
 	// Recalculate pages
@@ -572,6 +648,9 @@ func (g *SystemMetricsGrid) RebuildGrid() {
 	if g.currentPage >= g.totalPages && g.totalPages > 0 {
 		g.currentPage = g.totalPages - 1
 	}
+
+	// Clear focus since grid structure changed
+	g.clearFocus()
 
 	// Reload current page
 	g.loadCurrentPage()
@@ -703,6 +782,57 @@ func (rs *RightSidebar) Toggle() {
 	}
 }
 
+// HandleMouseClick handles mouse clicks in the sidebar
+// x and y are already adjusted relative to the sidebar's position
+// Returns true if a chart was focused, false if unfocused or no chart clicked
+func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
+	rs.logger.Debug(fmt.Sprintf("RightSidebar.HandleMouseClick: x=%d, y=%d, state=%v", x, y, rs.state))
+
+	if rs.state != SidebarExpanded || rs.metricsGrid == nil {
+		rs.logger.Debug("RightSidebar.HandleMouseClick: sidebar not expanded or no grid, returning false")
+		return false
+	}
+
+	// x is already adjusted relative to sidebar, but we need to account for padding
+	// Account for sidebar padding (0 vertical, 1 horizontal on each side)
+	adjustedX := x - 1
+	if adjustedX < 0 {
+		rs.logger.Debug(fmt.Sprintf("RightSidebar.HandleMouseClick: adjustedX=%d < 0, returning false", adjustedX))
+		return false
+	}
+
+	// Calculate which chart was clicked
+	// Account for header (1 line)
+	adjustedY := y - 1
+	if adjustedY < 0 {
+		rs.logger.Debug(fmt.Sprintf("RightSidebar.HandleMouseClick: adjustedY=%d < 0, returning false", adjustedY))
+		return false
+	}
+
+	dims := rs.metricsGrid.calculateChartDimensions()
+
+	row := adjustedY / dims.ChartHeightWithPadding
+	col := adjustedX / dims.ChartWidthWithPadding
+
+	rs.logger.Debug(fmt.Sprintf("RightSidebar.HandleMouseClick: calculated row=%d, col=%d from dims(w=%d,h=%d)",
+		row, col, dims.ChartWidthWithPadding, dims.ChartHeightWithPadding))
+
+	// This will return true if a chart was focused, false if unfocused
+	result := rs.metricsGrid.HandleMouseClick(row, col)
+	rs.logger.Debug(fmt.Sprintf("RightSidebar.HandleMouseClick: metricsGrid.HandleMouseClick returned %v", result))
+	rs.logger.Debug(fmt.Sprintf("RightSidebar.HandleMouseClick: GetFocusedChartTitle='%s'", rs.GetFocusedChartTitle()))
+
+	return result
+}
+
+// GetFocusedChartTitle returns the title of the focused chart
+func (rs *RightSidebar) GetFocusedChartTitle() string {
+	if rs.metricsGrid != nil {
+		return rs.metricsGrid.GetFocusedChartTitle()
+	}
+	return ""
+}
+
 // Update handles animation updates and forwards system metrics data
 func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 	var cmds []tea.Cmd
@@ -724,6 +854,8 @@ func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 				rs.metricsGrid.Navigate(1)
 			}
 		}
+
+		// Remove duplicate mouse handling - this is handled by the parent model in handlers.go
 	}
 
 	// Handle animation

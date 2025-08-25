@@ -49,14 +49,15 @@ type Model struct {
 	overviewFilterMode  bool   // Whether we're typing an overview filter
 	overviewFilterInput string // The current overview filter being typed
 
-	// Focused chart's full title for display in status bar
-	focusedTitle string
+	// Focus state - centralized focus management
+	focusState   FocusState
+	focusedTitle string // For backward compatibility and status bar display
+	focusedRow   int    // For backward compatibility with existing code
+	focusedCol   int    // For backward compatibility with existing code
 
 	width          int
 	height         int
 	step           int
-	focusedRow     int
-	focusedCol     int
 	currentPage    int
 	totalPages     int
 	fileComplete   bool
@@ -134,10 +135,11 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		activeFilter:        "",
 		overviewFilterMode:  false,
 		overviewFilterInput: "",
+		focusState:          FocusState{Type: FocusNone},
 		focusedTitle:        "",
-		step:                0,
 		focusedRow:          -1,
 		focusedCol:          -1,
+		step:                0,
 		currentPage:         0,
 		totalPages:          0,
 		fileComplete:        false,
@@ -323,30 +325,11 @@ func (m *Model) getFilteredChartCount() int {
 }
 
 // updateFocusedChart updates which chart is focused and stores its full title
+// This is kept for backward compatibility but uses the new focus management
 func (m *Model) updateFocusedChart(row, col int) bool {
-	// Check if clicking on the already focused chart (to unfocus)
-	if row == m.focusedRow && col == m.focusedCol {
-		m.clearFocus()
-		return true // Focus was toggled off
-	}
-
-	// Clear previous focus
-	m.clearFocus()
-
-	// Set new focus
-	m.chartMu.RLock()
-	defer m.chartMu.RUnlock()
-
-	if row >= 0 && row < GridRows && col >= 0 && col < GridCols &&
-		row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
-		m.focusedRow = row
-		m.focusedCol = col
-		m.focusedTitle = m.charts[row][col].Title()
-		m.charts[row][col].SetFocused(true)
-		return true // Focus was set
-	}
-
-	return false // No valid chart to focus
+	// This delegates to the new handler
+	m.handleChartGridClick(row, col)
+	return m.focusState.Type == FocusMainChart
 }
 
 // recoverPanic recovers from panics and logs them
@@ -1120,16 +1103,9 @@ func (m *Model) reloadCharts() tea.Cmd {
 	}
 }
 
-// clearFocus removes focus from all charts
+// clearFocus removes focus from all charts (backward compatibility wrapper)
 func (m *Model) clearFocus() {
-	if m.focusedRow >= 0 && m.focusedCol >= 0 &&
-		m.focusedRow < len(m.charts) && m.focusedCol < len(m.charts[m.focusedRow]) &&
-		m.charts[m.focusedRow][m.focusedCol] != nil {
-		m.charts[m.focusedRow][m.focusedCol].SetFocused(false)
-	}
-	m.focusedRow = -1
-	m.focusedCol = -1
-	m.focusedTitle = ""
+	m.clearAllFocus()
 }
 
 // navigatePage changes the current page
@@ -1137,7 +1113,7 @@ func (m *Model) navigatePage(direction int) {
 	if m.totalPages <= 1 {
 		return
 	}
-	m.clearFocus() // Clear focus when changing pages
+	m.clearAllFocus() // Clear focus when changing pages
 	m.currentPage += direction
 	if m.currentPage < 0 {
 		m.currentPage = m.totalPages - 1
@@ -1176,7 +1152,5 @@ func (m *Model) rebuildGrids() {
 	}
 
 	// Clear focus state when resizing
-	m.clearFocus()
-	m.focusedRow = -1
-	m.focusedCol = -1
+	m.clearAllFocus()
 }

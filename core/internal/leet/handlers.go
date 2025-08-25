@@ -9,6 +9,23 @@ import (
 	"github.com/wandb/wandb/core/internal/runenvironment"
 )
 
+// FocusState represents what is currently focused in the UI
+type FocusState struct {
+	Type  FocusType // What type of element is focused
+	Row   int       // Row in grid (for chart focus)
+	Col   int       // Column in grid (for chart focus)
+	Title string    // Title of focused element
+}
+
+// FocusType indicates what type of UI element is focused
+type FocusType int
+
+const (
+	FocusNone FocusType = iota
+	FocusMainChart
+	FocusSystemChart
+)
+
 // processRecordMsg handles messages that carry data from the .wandb file.
 func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	// Recover from any panics in message processing
@@ -122,10 +139,11 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 	// Save the currently focused chart's title if any
 	var previouslyFocusedTitle string
-	if m.focusedRow >= 0 && m.focusedCol >= 0 &&
-		m.focusedRow < len(m.charts) && m.focusedCol < len(m.charts[m.focusedRow]) &&
-		m.charts[m.focusedRow][m.focusedCol] != nil {
-		previouslyFocusedTitle = m.charts[m.focusedRow][m.focusedCol].Title()
+	if m.focusState.Type == FocusMainChart &&
+		m.focusState.Row >= 0 && m.focusState.Col >= 0 &&
+		m.focusState.Row < len(m.charts) && m.focusState.Col < len(m.charts[m.focusState.Row]) &&
+		m.charts[m.focusState.Row][m.focusState.Col] != nil {
+		previouslyFocusedTitle = m.charts[m.focusState.Row][m.focusState.Col].Title()
 	}
 
 	// Add data points to existing charts or create new ones
@@ -171,17 +189,14 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 		m.loadCurrentPageNoLock()
 
 		// Restore focus if the previously focused chart is still visible
-		if previouslyFocusedTitle != "" {
+		if previouslyFocusedTitle != "" && m.focusState.Type == FocusMainChart {
 			for row := 0; row < GridRows; row++ {
 				for col := 0; col < GridCols; col++ {
 					if row < len(m.charts) && col < len(m.charts[row]) &&
 						m.charts[row][col] != nil &&
 						m.charts[row][col].Title() == previouslyFocusedTitle {
 						// Restore focus to this chart
-						m.focusedRow = row
-						m.focusedCol = col
-						m.focusedTitle = previouslyFocusedTitle
-						m.charts[row][col].SetFocused(true)
+						m.setMainChartFocus(row, col)
 						break
 					}
 				}
@@ -216,16 +231,153 @@ func (m *Model) drawVisibleCharts() {
 	}
 }
 
+// handleChartGridClick handles mouse clicks in the main chart grid
+func (m *Model) handleChartGridClick(row, col int) {
+	// Check if clicking on the already focused chart (to unfocus)
+	if m.focusState.Type == FocusMainChart &&
+		row == m.focusState.Row && col == m.focusState.Col {
+		m.clearAllFocus()
+		return
+	}
+
+	// Set new focus
+	m.chartMu.RLock()
+	defer m.chartMu.RUnlock()
+
+	if row >= 0 && row < GridRows && col >= 0 && col < GridCols &&
+		row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
+		// Clear system chart focus if any
+		if m.rightSidebar.metricsGrid != nil {
+			m.rightSidebar.metricsGrid.clearFocus()
+		}
+		// Clear any existing main chart focus
+		m.clearMainChartFocus()
+		// Set new focus
+		m.setMainChartFocus(row, col)
+	}
+}
+
+// setMainChartFocus sets focus to a main grid chart
+func (m *Model) setMainChartFocus(row, col int) {
+	// Assumes caller holds chartMu lock if needed
+	if row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
+		chart := m.charts[row][col]
+		m.focusState = FocusState{
+			Type:  FocusMainChart,
+			Row:   row,
+			Col:   col,
+			Title: chart.Title(),
+		}
+		m.focusedRow = row // Keep backward compatibility
+		m.focusedCol = col
+		m.focusedTitle = chart.Title()
+		chart.SetFocused(true)
+	}
+}
+
+// clearMainChartFocus clears focus only from main charts
+func (m *Model) clearMainChartFocus() {
+	// Clear main chart focus only
+	if m.focusState.Type == FocusMainChart {
+		if m.focusState.Row >= 0 && m.focusState.Col >= 0 &&
+			m.focusState.Row < len(m.charts) && m.focusState.Col < len(m.charts[m.focusState.Row]) &&
+			m.charts[m.focusState.Row][m.focusState.Col] != nil {
+			m.charts[m.focusState.Row][m.focusState.Col].SetFocused(false)
+		}
+	}
+
+	// Reset focus state only if it was a main chart
+	if m.focusState.Type == FocusMainChart {
+		m.focusState = FocusState{Type: FocusNone}
+		m.focusedRow = -1
+		m.focusedCol = -1
+		m.focusedTitle = ""
+	}
+}
+
+// clearAllFocus clears focus from all UI elements
+func (m *Model) clearAllFocus() {
+	// Clear main chart focus
+	if m.focusState.Type == FocusMainChart {
+		if m.focusState.Row >= 0 && m.focusState.Col >= 0 &&
+			m.focusState.Row < len(m.charts) && m.focusState.Col < len(m.charts[m.focusState.Row]) &&
+			m.charts[m.focusState.Row][m.focusState.Col] != nil {
+			m.charts[m.focusState.Row][m.focusState.Col].SetFocused(false)
+		}
+	}
+
+	// Clear system chart focus
+	if m.rightSidebar.metricsGrid != nil {
+		m.rightSidebar.metricsGrid.clearFocus()
+	}
+
+	// Reset focus state
+	m.focusState = FocusState{Type: FocusNone}
+	m.focusedRow = -1
+	m.focusedCol = -1
+	m.focusedTitle = ""
+}
+
 // handleMouseMsg processes mouse events
 //
 //gocyclo:ignore
 func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
-	// Check if mouse is in sidebars
-	if msg.X < m.sidebar.Width() || msg.X >= m.width-m.rightSidebar.Width() {
+	// Check if mouse is in left sidebar
+	if msg.X < m.sidebar.Width() {
+		// Mouse is in left sidebar - clear any chart focus
+		m.clearAllFocus()
 		return m, nil
 	}
 
-	// Mouse is in the chart area - account for padding
+	// Check if mouse is in right sidebar (for system metrics)
+	rightSidebarStart := m.width - m.rightSidebar.Width()
+	if msg.X >= rightSidebarStart && m.rightSidebar.Width() > 0 {
+		// Adjust coordinates relative to sidebar
+		adjustedX := msg.X - rightSidebarStart
+
+		// Handle left click for focus
+		if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
+			tea.MouseEvent(msg).Action == tea.MouseActionPress {
+
+			m.logger.Debug(fmt.Sprintf("handleMouseMsg: RIGHT SIDEBAR CLICK at adjustedX=%d, Y=%d", adjustedX, msg.Y))
+			m.logger.Debug(fmt.Sprintf("handleMouseMsg: BEFORE - focusState.Type=%v, focusedTitle='%s'", m.focusState.Type, m.focusedTitle))
+
+			// Handle the click in system metrics
+			focusSet := m.rightSidebar.HandleMouseClick(adjustedX, msg.Y)
+
+			m.logger.Debug(fmt.Sprintf("handleMouseMsg: HandleMouseClick returned focusSet=%v", focusSet))
+			m.logger.Debug(fmt.Sprintf("handleMouseMsg: GetFocusedChartTitle='%s'", m.rightSidebar.GetFocusedChartTitle()))
+
+			if focusSet {
+				// System chart was focused - only clear main chart focus
+				m.clearMainChartFocus()
+
+				// Set focus state for system chart
+				title := m.rightSidebar.GetFocusedChartTitle()
+				m.focusState = FocusState{
+					Type:  FocusSystemChart,
+					Title: title,
+				}
+				m.focusedTitle = title
+				m.logger.Debug(fmt.Sprintf("handleMouseMsg: FOCUSED - set focusedTitle='%s'", m.focusedTitle))
+			} else {
+				// System chart was unfocused (clicked on already-focused chart)
+				// The system grid has already cleared its internal focus
+				// We just need to clear our tracking
+				m.logger.Debug("handleMouseMsg: UNFOCUSED - clearing focus state")
+				m.focusState = FocusState{Type: FocusNone}
+				m.focusedTitle = ""
+			}
+
+			m.logger.Debug(fmt.Sprintf("handleMouseMsg: AFTER - focusState.Type=%v, focusedTitle='%s'", m.focusState.Type, m.focusedTitle))
+		}
+
+		// Handle wheel events for zoom (if we want to add zoom to system metrics later)
+		// For now, just return
+		return m, nil
+	}
+
+	// Mouse is in the main chart area - account for padding
 	const gridPadding = 1
 	adjustedX := msg.X - m.sidebar.Width() - gridPadding
 	adjustedY := msg.Y - gridPadding - 1 // -1 for header
@@ -240,7 +392,7 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 	if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
 		tea.MouseEvent(msg).Action == tea.MouseActionPress {
 		if row >= 0 && row < GridRows && col >= 0 && col < GridCols {
-			m.updateFocusedChart(row, col)
+			m.handleChartGridClick(row, col)
 		}
 		return m, nil
 	}
@@ -268,8 +420,10 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 
 		if relativeMouseX >= 0 && relativeMouseX < chart.GraphWidth() {
 			// Focus the chart when zooming (if not already focused)
-			if row != m.focusedRow || col != m.focusedCol {
-				m.updateFocusedChart(row, col)
+			if m.focusState.Type != FocusMainChart ||
+				m.focusState.Row != row || m.focusState.Col != col {
+				m.clearAllFocus()
+				m.setMainChartFocus(row, col)
 			}
 
 			switch msg.Button {

@@ -16,6 +16,9 @@ type Config struct {
 	SystemGrid  GridConfig `json:"system_grid"`
 	ColorScheme string     `json:"color_scheme"`
 	// Heartbeat interval in seconds for live runs
+	//
+	// The file watcher might sometimes miss an update to a .wandb file,
+	// especially at the end of a run.
 	HeartbeatInterval int `json:"heartbeat_interval_seconds"`
 }
 

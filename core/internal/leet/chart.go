@@ -3,7 +3,6 @@
 package leet
 
 import (
-	"fmt"
 	"math"
 	"strings"
 
@@ -63,19 +62,9 @@ func NewEpochLineChart(width, height int, colorIndex int, title string) *EpochLi
 
 // formatYLabel formats Y-axis labels
 func formatYLabel(index int, f float64) string {
-	if f == 0 {
-		return "0"
-	}
-	if math.Abs(f) < 0.001 {
-		return fmt.Sprintf("%.1e", f)
-	}
-	if math.Abs(f) < 0.1 {
-		return fmt.Sprintf("%.4f", f)
-	}
-	if math.Abs(f) < 10 {
-		return fmt.Sprintf("%.2f", f)
-	}
-	return fmt.Sprintf("%.1f", f)
+	// Use the enhanced FormatYLabel function from systemmetrics.go
+	// For regular metrics, we don't have units, so pass empty string
+	return FormatYLabel(f, "")
 }
 
 // SetDataBulk sets all data points at once for optimal performance
