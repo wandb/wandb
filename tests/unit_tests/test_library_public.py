@@ -282,6 +282,7 @@ SYMBOLS_WANDB_INIT = {
     "config",
     "allow_val_change",
     "id",
+    "init_weave",
     "monitor_gym",
     "group",
     "resume",
