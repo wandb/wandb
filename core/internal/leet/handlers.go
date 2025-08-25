@@ -563,6 +563,12 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		// Determine what the left sidebar state will be after toggle
 		leftWillBeVisible := !m.sidebar.IsVisible()
 
+		// Save the new state to config
+		cfg := GetConfig()
+		if err := cfg.SetLeftSidebarVisible(leftWillBeVisible); err != nil {
+			m.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
+		}
+
 		// Update dimensions BEFORE toggling
 		// Pass the ACTUAL future state of the left sidebar
 		m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
@@ -588,6 +594,12 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 		// Determine what the right sidebar state will be after toggle
 		rightWillBeVisible := !m.rightSidebar.IsVisible()
+
+		// Save the new state to config
+		cfg := GetConfig()
+		if err := cfg.SetRightSidebarVisible(rightWillBeVisible); err != nil {
+			m.logger.Error(fmt.Sprintf("model: failed to save right sidebar state: %v", err))
+		}
 
 		// Update dimensions BEFORE toggling
 		// Pass the ACTUAL future state of the right sidebar

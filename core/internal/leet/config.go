@@ -20,6 +20,9 @@ type Config struct {
 	// The file watcher might sometimes miss an update to a .wandb file,
 	// especially at the end of a run.
 	HeartbeatInterval int `json:"heartbeat_interval_seconds"`
+	// Sidebar visibility states
+	LeftSidebarVisible  bool `json:"left_sidebar_visible"`
+	RightSidebarVisible bool `json:"right_sidebar_visible"`
 }
 
 // GridConfig represents grid dimensions
@@ -199,5 +202,35 @@ func (m *ConfigManager) SetHeartbeatInterval(seconds int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.config.HeartbeatInterval = seconds
+	return m.save()
+}
+
+// GetLeftSidebarVisible returns whether the left sidebar should be visible
+func (m *ConfigManager) GetLeftSidebarVisible() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.config.LeftSidebarVisible
+}
+
+// SetLeftSidebarVisible sets the left sidebar visibility
+func (m *ConfigManager) SetLeftSidebarVisible(visible bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.config.LeftSidebarVisible = visible
+	return m.save()
+}
+
+// GetRightSidebarVisible returns whether the right sidebar should be visible
+func (m *ConfigManager) GetRightSidebarVisible() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.config.RightSidebarVisible
+}
+
+// SetRightSidebarVisible sets the right sidebar visibility
+func (m *ConfigManager) SetRightSidebarVisible(visible bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.config.RightSidebarVisible = visible
 	return m.save()
 }

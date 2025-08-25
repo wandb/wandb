@@ -107,7 +107,6 @@ type Model struct {
 func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
 
-	// Load config first
 	cfg := GetConfig()
 	if err := cfg.Load(); err != nil {
 		logger.Error(fmt.Sprintf("model: failed to load config: %v", err))
@@ -163,6 +162,18 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	m.sidebar.SetRunOverview(RunOverview{
 		RunPath: runPath,
 	})
+
+	if cfg.GetLeftSidebarVisible() {
+		m.sidebar.state = SidebarExpanded
+		m.sidebar.currentWidth = m.sidebar.expandedWidth
+		m.sidebar.targetWidth = m.sidebar.expandedWidth
+	}
+
+	if cfg.GetRightSidebarVisible() {
+		m.rightSidebar.state = SidebarExpanded
+		m.rightSidebar.currentWidth = m.rightSidebar.expandedWidth
+		m.rightSidebar.targetWidth = m.rightSidebar.expandedWidth
+	}
 
 	return m
 }

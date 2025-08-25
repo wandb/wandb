@@ -95,7 +95,7 @@ var metricDefs = []MetricDef{
 		Regex: regexp.MustCompile(`^ane\.power(\/l:.+)?$`)},
 
 	// GPU metrics
-	{Title: "GPU", Unit: "%", MinY: 0, MaxY: 100, Percentage: true,
+	{Title: "GPU Utilization", Unit: "%", MinY: 0, MaxY: 100, Percentage: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.gpu(\/l:.+)?$`)},
 	{Title: "GPU Temp", Unit: "°C", MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.temp(\/l:.+)?$`)},
