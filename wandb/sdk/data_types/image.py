@@ -58,7 +58,7 @@ def _warn_on_invalid_data_range(
 
 def _guess_and_rescale_to_0_255(data: "np.ndarray") -> "np.ndarray":
     """Rescale image data to [0, 255] range based on detected format.
-    
+
     If data is in [0, 1] range, multiply by 255.
     If data is in [-1, 1] range, rescale to [0, 255].
     Otherwise, clip to [0, 255].
