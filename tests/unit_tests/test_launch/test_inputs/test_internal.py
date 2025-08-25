@@ -12,6 +12,7 @@ from wandb.sdk.launch.inputs.internal import (
     ConfigTmpDir,
     JobInputArguments,
     StagedLaunchInputs,
+    _prepare_schema,
     _publish_job_input,
     _replace_refs_and_allofs,
     _split_on_unesc_dot,
@@ -115,6 +116,88 @@ class Trainer(BaseModel):
 
 class ExampleSchema(BaseModel):
     trainer: Trainer
+
+
+def test_validate_schema_pydantic_lists():
+    class Item(BaseModel):
+        name: str
+        epochs: int = Field(ge=1)
+
+    class GenericLists(BaseModel):
+        tags: list[str] = Field(min_length=0, max_length=10)
+        probs: list[float] = Field(min_length=1)
+        items: list[Item] = Field(min_length=1)
+        dicts: list[dict[str, str]] = Field(min_length=1)
+        enums: list[DatasetEnum] = Field(min_length=1)
+        enums_no_bounds: list[DatasetEnum] = Field()
+
+    prepared_schema = _prepare_schema(GenericLists)
+
+    props = prepared_schema["properties"]
+    assert props["tags"]["type"] == "array"
+    assert props["tags"]["items"]["type"] == "string"
+    assert props["tags"]["maxItems"] == 10
+
+    assert props["probs"]["type"] == "array"
+    assert props["probs"]["minItems"] == 1
+    assert props["probs"]["items"]["type"] == "number"
+
+    assert props["items"]["type"] == "array"
+    assert props["items"]["minItems"] == 1
+    assert props["items"]["items"]["type"] == "object"
+
+    assert props["dicts"]["type"] == "array"
+    assert props["dicts"]["items"]["type"] == "object"
+
+    assert props["enums"]["type"] == "array"
+    assert props["enums"]["items"]["type"] == "string"
+
+    assert props["enums_no_bounds"]["type"] == "array"
+    assert props["enums_no_bounds"]["items"]["type"] == "string"
+
+    _validate_schema(prepared_schema)
+
+
+def test_validate_schema_pydantic_sets():
+    """Generic Pydantic sets map to JSON Schema arrays properly."""
+
+    class Item(BaseModel):
+        name: str
+        epochs: int = Field(ge=1)
+
+    class GenericSets(BaseModel):
+        tags: set[str] = Field(min_length=0, max_length=10)
+        probs: set[float] = Field(min_length=1)
+        items: set[Item] = Field(min_length=1)
+        dicts: set[dict[str, str]] = Field(min_length=1)
+        enums: set[DatasetEnum] = Field(min_length=1)
+        enums_no_bounds: set[DatasetEnum] = Field()
+
+    prepared_schema = _prepare_schema(GenericSets)
+
+    props = prepared_schema["properties"]
+    assert props["tags"]["type"] == "array"
+    assert props["tags"]["items"]["type"] == "string"
+    assert props["tags"]["maxItems"] == 10
+
+    assert props["probs"]["type"] == "array"
+    assert props["probs"]["minItems"] == 1
+    assert props["probs"]["items"]["type"] == "number"
+
+    assert props["items"]["type"] == "array"
+    assert props["items"]["minItems"] == 1
+    assert props["items"]["items"]["type"] == "object"
+
+    assert props["dicts"]["type"] == "array"
+    assert props["dicts"]["items"]["type"] == "object"
+
+    assert props["enums"]["type"] == "array"
+    assert props["enums"]["items"]["type"] == "string"
+
+    assert props["enums_no_bounds"]["type"] == "array"
+    assert props["enums_no_bounds"]["items"]["type"] == "string"
+
+    _validate_schema(prepared_schema)
 
 
 @pytest.mark.parametrize(
@@ -382,6 +465,173 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
                 "properties": {"key1": {"type": "integer", "default": 5}},
             },
             ["Unevaluated properties are not allowed ('default' was unexpected)"],
+        ),
+        # --- Array passing cases ---
+        # Array: string enum multi-select with bounds and uniqueness
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["a", "b", "c"],
+                        },
+                        "uniqueItems": True,
+                        "minItems": 1,
+                        "maxItems": 3,
+                    }
+                },
+            },
+            [],
+        ),
+        # Array: integer enum multi-select
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "enum": [1, 2, 3],
+                        },
+                        "uniqueItems": True,
+                    }
+                },
+            },
+            [],
+        ),
+        # Array: number enum multi-select, nested inside object
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "config": {
+                        "type": "object",
+                        "properties": {
+                            "lrs": {
+                                "type": "array",
+                                "items": {
+                                    "type": "number",
+                                    "enum": [0.001, 0.01, 0.1],
+                                },
+                                "minItems": 1,
+                            }
+                        },
+                    }
+                },
+            },
+            [],
+        ),
+        # --- Array warning cases ---
+        # Array warning: unsupported 'contains'
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "arr": {
+                        "type": "array",
+                        "contains": {"type": "number"},
+                    }
+                },
+            },
+            ["Unevaluated properties are not allowed ('contains' was unexpected)"],
+        ),
+        # Array warning: unsupported 'prefixItems'
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "tuple_like": {
+                        "type": "array",
+                        "prefixItems": [
+                            {"type": "string"},
+                            {"type": "number"},
+                        ],
+                    }
+                },
+            },
+            ["Unevaluated properties are not allowed ('prefixItems' was unexpected)"],
+        ),
+        # Array warning: minItems wrong type
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "vals": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1.5,
+                    }
+                },
+            },
+            ["1.5 is not of type 'integer'"],
+        ),
+        # --- Generic array passing cases ---
+        # Generic string list with bounds
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 0,
+                        "maxItems": 10,
+                    }
+                },
+            },
+            [],
+        ),
+        # Generic number list with per-item bounds and minItems
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "probs": {
+                        "type": "array",
+                        "items": {"type": "number", "minimum": 0, "maximum": 1},
+                        "minItems": 1,
+                    }
+                },
+            },
+            [],
+        ),
+        # Generic integer list with uniqueness
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "ids": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                        "uniqueItems": True,
+                    }
+                },
+            },
+            [],
+        ),
+        # List of objects
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "epochs": {"type": "integer", "minimum": 1},
+                            },
+                        },
+                        "minItems": 1,
+                    }
+                },
+            },
+            [],
         ),
     ],
 )
