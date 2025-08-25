@@ -60,6 +60,7 @@ catboost
 openai
 gymnasium < 1.0.0
 stable_baselines3
+dspy
 
 requests~=2.23
 responses
