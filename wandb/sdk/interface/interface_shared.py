@@ -10,7 +10,7 @@ from typing import Any, Optional, cast
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
-from wandb.sdk.mailbox import Mailbox, MailboxHandle
+from wandb.sdk.mailbox import MailboxHandle
 from wandb.util import json_dumps_safer, json_friendly
 
 from .interface import InterfaceBase
@@ -19,9 +19,8 @@ logger = logging.getLogger("wandb")
 
 
 class InterfaceShared(InterfaceBase):
-    def __init__(self, mailbox: Optional[Mailbox] = None) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self._mailbox = mailbox
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
         rec = pb.Record()
@@ -67,7 +66,7 @@ class InterfaceShared(InterfaceBase):
         self, job_input: pb.JobInputRequest
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(job_input=job_input)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _make_stats(self, stats_dict: dict) -> pb.StatsRecord:
         stats = pb.StatsRecord()
@@ -263,6 +262,9 @@ class InterfaceShared(InterfaceBase):
     def _publish(self, record: pb.Record, local: Optional[bool] = None) -> None:
         raise NotImplementedError
 
+    def _deliver(self, record: pb.Record) -> "MailboxHandle[pb.Result]":
+        raise NotImplementedError
+
     def _publish_defer(self, state: "pb.DeferRequest.DeferState.V") -> None:
         defer = pb.DeferRequest(state=state)
         rec = self._make_request(defer=defer)
@@ -333,19 +335,19 @@ class InterfaceShared(InterfaceBase):
         log_artifact: pb.LogArtifactRequest,
     ) -> MailboxHandle[pb.Result]:
         rec = self._make_request(log_artifact=log_artifact)
-        return self._deliver_record(rec)
+        return self._deliver(rec)
 
     def _deliver_download_artifact(
         self, download_artifact: pb.DownloadArtifactRequest
     ) -> MailboxHandle[pb.Result]:
         rec = self._make_request(download_artifact=download_artifact)
-        return self._deliver_record(rec)
+        return self._deliver(rec)
 
     def _deliver_link_artifact(
         self, link_artifact: pb.LinkArtifactRequest
     ) -> MailboxHandle[pb.Result]:
         rec = self._make_request(link_artifact=link_artifact)
-        return self._deliver_record(rec)
+        return self._deliver(rec)
 
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         rec = self._make_record(artifact=proto_artifact)
@@ -360,7 +362,7 @@ class InterfaceShared(InterfaceBase):
         status: pb.StatusRequest,
     ) -> MailboxHandle[pb.Result]:
         req = self._make_request(status=status)
-        return self._deliver_record(req)
+        return self._deliver(req)
 
     def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
         rec = self._make_record(exit=exit_data)
@@ -373,110 +375,97 @@ class InterfaceShared(InterfaceBase):
     def _deliver_shutdown(self) -> MailboxHandle[pb.Result]:
         request = pb.Request(shutdown=pb.ShutdownRequest())
         record = self._make_record(request=request)
-        return self._deliver_record(record)
-
-    def _get_mailbox(self) -> Mailbox:
-        mailbox = self._mailbox
-        assert mailbox
-        return mailbox
-
-    def _deliver_record(self, record: pb.Record) -> MailboxHandle[pb.Result]:
-        mailbox = self._get_mailbox()
-
-        handle = mailbox.require_response(record)
-        self._publish(record)
-
-        return handle.map(lambda resp: resp.result_communicate)
+        return self._deliver(record)
 
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle[pb.Result]:
         record = self._make_record(run=run)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_finish_sync(
         self,
         sync_finish: pb.SyncFinishRequest,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(sync_finish=sync_finish)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_run_start(
         self,
         run_start: pb.RunStartRequest,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(run_start=run_start)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_get_summary(
         self,
         get_summary: pb.GetSummaryRequest,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(get_summary=get_summary)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_get_system_metrics(
         self, get_system_metrics: pb.GetSystemMetricsRequest
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(get_system_metrics=get_system_metrics)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_exit(
         self,
         exit_data: pb.RunExitRecord,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_record(exit=exit_data)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def deliver_operation_stats(self):
         record = self._make_request(operation_stats=pb.OperationStatsRequest())
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_poll_exit(
         self,
         poll_exit: pb.PollExitRequest,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(poll_exit=poll_exit)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_finish_without_exit(
         self, run_finish_without_exit: pb.RunFinishWithoutExitRequest
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(run_finish_without_exit=run_finish_without_exit)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_stop_status(
         self,
         stop_status: pb.StopStatusRequest,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(stop_status=stop_status)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_attach(
         self,
         attach: pb.AttachRequest,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(attach=attach)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_network_status(
         self, network_status: pb.NetworkStatusRequest
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(network_status=network_status)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_internal_messages(
         self, internal_message: pb.InternalMessagesRequest
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(internal_messages=internal_message)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_request_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(sampled_history=sampled_history)
-        return self._deliver_record(record)
+        return self._deliver(record)
 
     def _deliver_request_run_status(
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(run_status=run_status)
-        return self._deliver_record(record)
+        return self._deliver(record)

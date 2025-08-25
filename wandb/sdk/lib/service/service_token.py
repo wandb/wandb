@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import abc
+import asyncio
 import os
 import re
-import socket
 
 from typing_extensions import final, override
 
 from wandb import env
+from wandb.sdk.lib import asyncio_manager
 from wandb.sdk.lib.service import ipc_support
-from wandb.sdk.lib.sock_client import SockClient
+
+from .service_client import ServiceClient
 
 _CURRENT_VERSION = "3"
 
@@ -53,8 +55,15 @@ class ServiceToken(abc.ABC):
     """A way of connecting to a running service process."""
 
     @abc.abstractmethod
-    def connect(self) -> SockClient:
+    def connect(
+        self,
+        *,
+        asyncer: asyncio_manager.AsyncioManager,
+    ) -> ServiceClient:
         """Connect to the service process.
+
+        Args:
+            asyncer: A started AsyncioManager for asyncio operations.
 
         Returns:
             A socket object for communicating with the service.
@@ -81,21 +90,25 @@ class UnixServiceToken(ServiceToken):
         self._path = path
 
     @override
-    def connect(self) -> SockClient:
+    def connect(
+        self,
+        *,
+        asyncer: asyncio_manager.AsyncioManager,
+    ) -> ServiceClient:
         if not ipc_support.SUPPORTS_UNIX:
             raise WandbServiceConnectionError("AF_UNIX socket not supported")
 
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-
         try:
             # TODO: This may block indefinitely if the service is unhealthy.
-            sock.connect(self._path)
+            reader, writer = asyncer.run(
+                lambda: asyncio.open_unix_connection(self._path),
+            )
         except Exception as e:
             raise WandbServiceConnectionError(
                 f"Failed to connect to service on socket {self._path}",
             ) from e
 
-        return SockClient(sock)
+        return ServiceClient(asyncer, reader, writer)
 
     @override
     def _as_env_string(self):
@@ -128,18 +141,22 @@ class TCPServiceToken(ServiceToken):
         self._port = port
 
     @override
-    def connect(self) -> SockClient:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
+    def connect(
+        self,
+        *,
+        asyncer: asyncio_manager.AsyncioManager,
+    ) -> ServiceClient:
         try:
             # TODO: This may block indefinitely if the service is unhealthy.
-            sock.connect(("localhost", self._port))
+            reader, writer = asyncer.run(
+                lambda: asyncio.open_connection("localhost", self._port),
+            )
         except Exception as e:
             raise WandbServiceConnectionError(
                 f"Failed to connect to service on port {self._port}",
             ) from e
 
-        return SockClient(sock)
+        return ServiceClient(asyncer, reader, writer)
 
     @override
     def _as_env_string(self):

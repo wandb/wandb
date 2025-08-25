@@ -3,6 +3,7 @@ import pathlib
 import socket
 
 import pytest
+from wandb.sdk.lib import asyncio_manager
 from wandb.sdk.lib.service import ipc_support, service_token
 
 
@@ -17,11 +18,22 @@ def chdir_to_tmp_path(tmp_path):
         os.chdir(cwd)
 
 
+@pytest.fixture(scope="module")
+def asyncer():
+    asyncer = asyncio_manager.AsyncioManager()
+    asyncer.start()
+
+    try:
+        yield asyncer
+    finally:
+        asyncer.join()
+
+
 @pytest.mark.skipif(
     not ipc_support.SUPPORTS_UNIX,
     reason="AF_UNIX sockets not supported",
 )
-def test_unix_token(chdir_to_tmp_path):
+def test_unix_token(asyncer, chdir_to_tmp_path):
     # Unix socket paths are limited to ~100 characters, and tmp_path can be
     # too long on some systems. So instead, we cd into it and use a relative
     # path as the socket name.
@@ -34,11 +46,11 @@ def test_unix_token(chdir_to_tmp_path):
         token = service_token.UnixServiceToken(parent_pid=123, path="socket")
 
         # Connection should succeed.
-        client = token.connect()
+        client = token.connect(asyncer=asyncer)
         client.close()
 
 
-def test_tcp_token():
+def test_tcp_token(asyncer):
     tcp_listener = socket.socket(socket.AF_INET)
     tcp_listener.bind(("127.0.0.1", 0))
     tcp_listener.listen(1)
@@ -47,5 +59,5 @@ def test_tcp_token():
         token = service_token.TCPServiceToken(parent_pid=123, port=port)
 
         # Connection should succeed.
-        client = token.connect()
+        client = token.connect(asyncer=asyncer)
         client.close()

@@ -2723,7 +2723,6 @@ class Run:
             wait_with_progress(
                 exit_handle,
                 timeout=None,
-                progress_after=1,
                 display_progress=functools.partial(
                     self._display_finish_stats,
                     progress_printer,
