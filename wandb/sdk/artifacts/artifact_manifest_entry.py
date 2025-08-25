@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from wandb.proto.wandb_deprecated import Deprecated
-from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.deprecate import deprecate
+from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,
@@ -184,13 +184,11 @@ class ArtifactManifestEntry:
                 executor=executor,
                 multipart=multipart,
             )
-
-        if skip_cache:
-            return FilePathStr(dest_path)
-        else:
-            return FilePathStr(
-                str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
-            )
+        return FilePathStr(
+            dest_path
+            if skip_cache
+            else copy_or_overwrite_changed(cache_path, dest_path)
+        )
 
     def ref_target(self) -> FilePathStr | URIStr:
         """Get the reference URL that is targeted by this artifact entry.
