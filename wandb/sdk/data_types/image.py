@@ -240,6 +240,19 @@ class Image(BatchableMedia):
             run.log({"examples": examples})
         ```
 
+        Normalization example
+
+        ```python
+        import torch
+        import wandb
+
+        # Tensor with values in [0, 1] range will be multiplied by 255
+        tensor_0_1 = torch.rand(3, 64, 64)
+        image = wandb.Image(tensor_0_1, caption="Normalized from [0,1] range")
+
+        # Disable normalization
+        image = wandb.Image(tensor_0_1, normalize=False, caption="No normalization")
+        ```
 
         """
         super().__init__(caption=caption)
