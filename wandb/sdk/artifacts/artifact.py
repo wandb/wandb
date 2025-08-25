@@ -221,8 +221,6 @@ class Artifact:
         # Internal.
         self._client: RetryingClient | None = None
 
-        self._storage_policy = make_storage_policy()
-
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
         self._added_local_paths: dict[str, ArtifactManifestEntry] = {}
@@ -266,7 +264,7 @@ class Artifact:
         self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
         self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
-            ArtifactManifestV1(storage_policy=self._storage_policy)
+            ArtifactManifestV1(storage_policy=make_storage_policy())
         )
         self._commit_hash: str | None = None
         self._file_count: int | None = None
@@ -1640,7 +1638,7 @@ class Artifact:
                 "References must be URIs. To reference a local file, use file://"
             )
 
-        manifest_entries = self._storage_policy.store_reference(
+        manifest_entries = self.manifest.storage_policy.store_reference(
             self,
             URIStr(uri_str),
             name=name,
