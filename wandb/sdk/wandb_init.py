@@ -1560,7 +1560,23 @@ def init(  # noqa: C901
             if run_settings.x_server_side_derived_summary:
                 init_telemetry.feature.server_side_derived_summary = True
 
-            return wi.init(run_settings, run_config, run_printer)
+            run = wi.init(run_settings, run_config, run_printer)
+
+            # Set up automatic Weave integration if Weave is installed
+            from wandb.sdk.lib import weave_integration
+
+            weave_integration.setup_weave_integration(run_settings.project)
+
+            # Register cleanup hook
+            from wandb.sdk.wandb_run import TeardownHook, TeardownStage
+
+            run._teardown_hooks.append(
+                TeardownHook(
+                    weave_integration.cleanup_weave_integration, TeardownStage.LATE
+                )
+            )
+
+            return run
 
     except KeyboardInterrupt as e:
         if wl:
