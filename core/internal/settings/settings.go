@@ -440,6 +440,18 @@ func (s *Settings) IsDisableGit() bool {
 	return s.Proto.DisableGit.GetValue()
 }
 
+// Whether to disable finding fork point from remote branches.
+//
+// When set to True, the SDK will use the latest commit from the upstream
+// branch, if one is set. Otherwise skip generating the diff patch.
+//
+// When set to False, the SDK will try to find the closest commit from all
+// remote branches. This may impact performance for repos with many upstream
+// branches.
+func (s *Settings) IsDisableGitForkPoint() bool {
+	return s.Proto.DisableGitForkPoint.GetValue()
+}
+
 // Whether to disable machine info collection, such as hostname and hardware
 // spec.
 func (s *Settings) IsDisableMachineInfo() bool {

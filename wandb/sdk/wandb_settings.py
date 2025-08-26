@@ -269,6 +269,17 @@ class Settings(BaseModel, validate_assignment=True):
     disable_git: bool = False
     """Whether to disable capturing the git state."""
 
+    disable_infer_git_fork_point: bool = True
+    """Whether to disable inferring fork point from remote branches
+
+    When set to True, the SDK will use the latest commir from the upstream
+    branch, if one is set. Otherwise skip generating the diff patch.
+
+    When set to False, the SDK will try to find the closest commit from all
+    remote branches. This may impact performance for repos with many upstream
+    branches.
+    """
+
     disable_job_creation: bool = True
     """Whether to disable the creation of a job artifact for W&B Launch."""
 
