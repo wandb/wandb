@@ -191,13 +191,6 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 		return
 	}
 
-	// Convert bytes to GB for display if needed
-	if def.Unit == "GB" && value > 1024*1024*1024 {
-		value /= 1024 * 1024 * 1024
-	} else if def.Unit == "MB" && value > 1024*1024 {
-		value /= 1024 * 1024
-	}
-
 	// Extract base key and series name
 	baseKey := ExtractBaseKey(metricName)
 	seriesName := ExtractSeriesName(metricName)

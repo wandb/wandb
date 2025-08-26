@@ -71,19 +71,19 @@ var metricDefs = []MetricDef{
 		Regex: regexp.MustCompile(`^disk\.[^.]+\.usagePercent(\/l:.+)?$`)},
 	{Title: "Disk", Unit: "GB", MinY: 0, MaxY: 1000, AutoRange: true,
 		Regex: regexp.MustCompile(`^disk\.[^.]+\.usageGB(\/l:.+)?$`)},
-	// Per-device I/O patterns (e.g., disk.disk4.in, disk.disk1.out)
-	{Title: "Disk I/O", Unit: "MB/s", MinY: 0, MaxY: 1000, AutoRange: true,
+	// Per-device I/O patterns (e.g., disk.disk4.in, disk.disk1.out) - CUMULATIVE
+	{Title: "Disk I/O Total", Unit: "MB", MinY: 0, MaxY: 10000, AutoRange: true,
 		Regex: regexp.MustCompile(`^disk\.[^.]+\.(in|out)(\/l:.+)?$`)},
-	// Aggregated I/O patterns
-	{Title: "Disk Read", Unit: "MB/s", MinY: 0, MaxY: 1000, AutoRange: true,
+	// Aggregated I/O patterns - CUMULATIVE
+	{Title: "Disk Read Total", Unit: "MB", MinY: 0, MaxY: 10000, AutoRange: true,
 		Regex: regexp.MustCompile(`^disk\.in(\/l:.+)?$`)},
-	{Title: "Disk Write", Unit: "MB/s", MinY: 0, MaxY: 1000, AutoRange: true,
+	{Title: "Disk Write Total", Unit: "MB", MinY: 0, MaxY: 10000, AutoRange: true,
 		Regex: regexp.MustCompile(`^disk\.out(\/l:.+)?$`)},
 
-	// Network metrics
-	{Title: "Network Rx", Unit: "MB/s", MinY: 0, MaxY: 1000, AutoRange: true,
+	// Network metrics - treat as rates instead of cumulative
+	{Title: "Network Rx", Unit: "B", MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^network\.recv(\/l:.+)?$`)},
-	{Title: "Network Tx", Unit: "MB/s", MinY: 0, MaxY: 1000, AutoRange: true,
+	{Title: "Network Tx", Unit: "B", MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^network\.sent(\/l:.+)?$`)},
 
 	// System power
@@ -323,21 +323,21 @@ func FormatYLabel(value float64, unit string) string {
 
 	// For percentages, simple format
 	if unit == "%" {
-		if value == 100 {
-			return "100%"
+		if value >= 100 {
+			return formatFloat(value, 0) + "%"
 		}
-		return formatFloat(value, 1) + "%"
+		if value >= 10 {
+			return formatFloat(value, 1) + "%"
+		}
+		return formatFloat(value, 2) + "%"
 	}
 
-	// For bytes, use binary prefixes
-	if unit == "B" || unit == "GB" {
-		return formatBytes(value, unit == "GB")
-	}
-
-	// For rates (MB/s, GB/s), use decimal prefixes
-	if strings.HasSuffix(unit, "/s") {
-		baseUnit := strings.TrimSuffix(unit, "/s")
-		return formatRate(value, baseUnit)
+	// For temperature - ensure proper ordering by padding
+	if unit == "°C" {
+		if value >= 100 {
+			return formatFloat(value, 0) + "°C"
+		}
+		return formatFloat(value, 1) + "°C"
 	}
 
 	// For power (W)
@@ -345,28 +345,51 @@ func FormatYLabel(value float64, unit string) string {
 		if value >= 1000 {
 			return formatFloat(value/1000, 1) + "kW"
 		}
+		if value >= 100 {
+			return formatFloat(value, 0) + "W"
+		}
 		return formatFloat(value, 1) + "W"
 	}
 
-	// For frequency (MHz)
+	// For frequency (MHz) - ensure proper ordering
 	if unit == "MHz" {
 		if value >= 1000 {
-			return formatFloat(value/1000, 1) + "GHz"
+			return formatFloat(value/1000, 2) + "GHz"
 		}
-		return formatFloat(value, 0) + "MHz"
+		if value >= 100 {
+			return formatFloat(value, 0) + "MHz"
+		}
+		return formatFloat(value, 1) + "MHz"
 	}
 
-	// For temperature
-	if unit == "°C" {
-		return formatFloat(value, 0) + "°C"
+	// For bytes (network metrics are cumulative bytes)
+	if unit == "B" {
+		return formatBytes(value, false)
 	}
 
-	// For memory in MB
+	// For memory/data in MB (disk I/O cumulative)
 	if unit == "MB" {
+		if value >= 1024*1024 {
+			return formatFloat(value/(1024*1024), 1) + "TB"
+		}
 		if value >= 1024 {
 			return formatFloat(value/1024, 1) + "GB"
 		}
 		return formatFloat(value, 0) + "MB"
+	}
+
+	// For memory/data in GB
+	if unit == "GB" {
+		if value >= 1024 {
+			return formatFloat(value/1024, 1) + "TB"
+		}
+		return formatFloat(value, 1) + "GB"
+	}
+
+	// For rates (MB/s, GB/s) - these are actual rates
+	if strings.HasSuffix(unit, "/s") {
+		baseUnit := strings.TrimSuffix(unit, "/s")
+		return formatRate(value, baseUnit)
 	}
 
 	// Default: just show the number with appropriate precision
@@ -376,24 +399,35 @@ func FormatYLabel(value float64, unit string) string {
 	if value >= 1000 {
 		return formatFloat(value/1000, 1) + "k"
 	}
-	if value < 0.001 {
-		return formatFloat(value*1000, 2) + "m"
+	if value < 0.01 {
+		return formatFloat(value*1000, 1) + "m"
 	}
 	if value < 1 {
-		return formatFloat(value, 3)
+		return formatFloat(value, 2)
 	}
-	return formatFloat(value, 1)
+	if value < 10 {
+		return formatFloat(value, 1) + ""
+	}
+	return formatFloat(value, 0)
 }
 
 // formatFloat formats a float with specified decimal places
 func formatFloat(value float64, decimals int) string {
-	// format := "%." + strconv.Itoa(decimals) + "f"
-	result := strings.TrimRight(strings.TrimRight(
-		strconv.FormatFloat(value, 'f', decimals, 64), "0"), ".")
-	if result == "" {
-		result = "0"
+	formatted := strconv.FormatFloat(value, 'f', decimals, 64)
+
+	// Only trim zeros after decimal point, not before it
+	if decimals > 0 && strings.Contains(formatted, ".") {
+		// Remove trailing zeros after decimal point
+		formatted = strings.TrimRight(formatted, "0")
+		// Remove trailing decimal point if no fractional part remains
+		formatted = strings.TrimRight(formatted, ".")
 	}
-	return result
+
+	if formatted == "" {
+		formatted = "0"
+	}
+
+	return formatted
 }
 
 // formatBytes formats byte values with binary prefixes
