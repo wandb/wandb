@@ -43,12 +43,26 @@ META_SCHEMA = {
         {
             "if": {"properties": {"type": {"const": "array"}}},
             "then": {
+                "required": ["items"],
                 "properties": {
-                    "items": {"$ref": "#"},
+                    "items": {
+                        "properties": {
+                            "type": {"enum": ["integer", "number", "string"]},
+                            "enum": {
+                                "type": "array",
+                                "items": {"type": ["integer", "number", "string"]},
+                            },
+                            "title": {"type": "string"},
+                            "description": {"type": "string"},
+                            "format": {"type": "string"},
+                        },
+                        "required": ["type", "enum"],
+                        "unevaluatedProperties": False,
+                    },
                     "uniqueItems": {"type": "boolean"},
                     "minItems": {"type": "integer", "minimum": 0},
                     "maxItems": {"type": "integer", "minimum": 0},
-                }
+                },
             },
         },
     ],

@@ -124,31 +124,17 @@ def test_validate_schema_pydantic_lists():
         epochs: int = Field(ge=1)
 
     class GenericLists(BaseModel):
-        tags: list[str] = Field(min_length=0, max_length=10)
-        probs: list[float] = Field(min_length=1)
-        items: list[Item] = Field(min_length=1)
-        dicts: list[dict[str, str]] = Field(min_length=1)
+        # TODO: Only list of enums are supported for now
+        # tags: list[str] = Field(min_length=0, max_length=10)
+        # probs: list[float] = Field(min_length=1)
+        # items: list[Item] = Field(min_length=1)
+        # dicts: list[dict[str, str]] = Field(min_length=1)
         enums: list[DatasetEnum] = Field(min_length=1)
         enums_no_bounds: list[DatasetEnum] = Field()
 
     prepared_schema = _prepare_schema(GenericLists)
 
     props = prepared_schema["properties"]
-    assert props["tags"]["type"] == "array"
-    assert props["tags"]["items"]["type"] == "string"
-    assert props["tags"]["maxItems"] == 10
-
-    assert props["probs"]["type"] == "array"
-    assert props["probs"]["minItems"] == 1
-    assert props["probs"]["items"]["type"] == "number"
-
-    assert props["items"]["type"] == "array"
-    assert props["items"]["minItems"] == 1
-    assert props["items"]["items"]["type"] == "object"
-
-    assert props["dicts"]["type"] == "array"
-    assert props["dicts"]["items"]["type"] == "object"
-
     assert props["enums"]["type"] == "array"
     assert props["enums"]["items"]["type"] == "string"
 
@@ -166,31 +152,17 @@ def test_validate_schema_pydantic_sets():
         epochs: int = Field(ge=1)
 
     class GenericSets(BaseModel):
-        tags: set[str] = Field(min_length=0, max_length=10)
-        probs: set[float] = Field(min_length=1)
-        items: set[Item] = Field(min_length=1)
-        dicts: set[dict[str, str]] = Field(min_length=1)
+        # TODO: Only set of enums are supported for now
+        # tags: set[str] = Field(min_length=0, max_length=10)
+        # probs: set[float] = Field(min_length=1)
+        # items: set[Item] = Field(min_length=1)
+        # dicts: set[dict[str, str]] = Field(min_length=1)
         enums: set[DatasetEnum] = Field(min_length=1)
         enums_no_bounds: set[DatasetEnum] = Field()
 
     prepared_schema = _prepare_schema(GenericSets)
 
     props = prepared_schema["properties"]
-    assert props["tags"]["type"] == "array"
-    assert props["tags"]["items"]["type"] == "string"
-    assert props["tags"]["maxItems"] == 10
-
-    assert props["probs"]["type"] == "array"
-    assert props["probs"]["minItems"] == 1
-    assert props["probs"]["items"]["type"] == "number"
-
-    assert props["items"]["type"] == "array"
-    assert props["items"]["minItems"] == 1
-    assert props["items"]["items"]["type"] == "object"
-
-    assert props["dicts"]["type"] == "array"
-    assert props["dicts"]["items"]["type"] == "object"
-
     assert props["enums"]["type"] == "array"
     assert props["enums"]["items"]["type"] == "string"
 
@@ -568,70 +540,6 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
                 },
             },
             ["1.5 is not of type 'integer'"],
-        ),
-        # --- Generic array passing cases ---
-        # Generic string list with bounds
-        (
-            {
-                "type": "object",
-                "properties": {
-                    "tags": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "minItems": 0,
-                        "maxItems": 10,
-                    }
-                },
-            },
-            [],
-        ),
-        # Generic number list with per-item bounds and minItems
-        (
-            {
-                "type": "object",
-                "properties": {
-                    "probs": {
-                        "type": "array",
-                        "items": {"type": "number", "minimum": 0, "maximum": 1},
-                        "minItems": 1,
-                    }
-                },
-            },
-            [],
-        ),
-        # Generic integer list with uniqueness
-        (
-            {
-                "type": "object",
-                "properties": {
-                    "ids": {
-                        "type": "array",
-                        "items": {"type": "integer"},
-                        "uniqueItems": True,
-                    }
-                },
-            },
-            [],
-        ),
-        # List of objects
-        (
-            {
-                "type": "object",
-                "properties": {
-                    "items": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {"type": "string"},
-                                "epochs": {"type": "integer", "minimum": 1},
-                            },
-                        },
-                        "minItems": 1,
-                    }
-                },
-            },
-            [],
         ),
     ],
 )
