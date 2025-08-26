@@ -457,9 +457,10 @@ func formatBytes(bytes float64, isGB bool) string {
 // formatRate formats rate values (MB/s, GB/s)
 func formatRate(value float64, baseUnit string) string {
 	// Convert to bytes if needed
-	if baseUnit == "MB" {
+	switch baseUnit {
+	case "MB":
 		value = value * 1024 * 1024
-	} else if baseUnit == "GB" {
+	case "GB":
 		value = value * 1024 * 1024 * 1024
 	}
 
