@@ -37,6 +37,7 @@ from wandb_gql.client import RetryError
 import wandb
 from wandb import env, util
 from wandb._iterutils import one
+from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
@@ -2079,10 +2080,10 @@ class Api:
         # Note: we can't currently define this as a constant outside the method
         # and still keep it nearby in this module, because it relies on pydantic v2-only imports
         fragment_names: dict[ActionType, str] = {
-            ActionType.NO_OP: NoOpActionFields.__name__,
-            ActionType.QUEUE_JOB: QueueJobActionFields.__name__,
-            ActionType.NOTIFICATION: NotificationActionFields.__name__,
-            ActionType.GENERIC_WEBHOOK: GenericWebhookActionFields.__name__,
+            ActionType.NO_OP: nameof(NoOpActionFields),
+            ActionType.QUEUE_JOB: nameof(QueueJobActionFields),
+            ActionType.NOTIFICATION: nameof(NotificationActionFields),
+            ActionType.GENERIC_WEBHOOK: nameof(GenericWebhookActionFields),
         }
 
         return set(

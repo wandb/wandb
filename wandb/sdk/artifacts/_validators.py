@@ -9,7 +9,7 @@ from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVar, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from typing_extensions import Self
+from typing_extensions import Concatenate, ParamSpec, Self
 
 from wandb._iterutils import always_list, unique_list
 from wandb._pydantic import from_json, gql_typename
@@ -24,9 +24,10 @@ if TYPE_CHECKING:
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-    ArtifactT = TypeVar("ArtifactT", bound=Artifact)
-    T = TypeVar("T")
-
+ArtifactT = TypeVar("ArtifactT", bound="Artifact")
+SelfT = TypeVar("SelfT")
+R = TypeVar("R")
+P = ParamSpec("P")
 
 REGISTRY_PREFIX: Final[str] = "wandb-registry-"
 MAX_ARTIFACT_METADATA_KEYS: Final[int] = 100
@@ -151,7 +152,8 @@ def validate_artifact_types_list(artifact_types: list[str]) -> list[str]:
     return artifact_types
 
 
-_VALID_TAG_PATTERN: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")
+TAG_REGEX: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")
+"""Regex pattern for valid tag names."""
 
 
 def validate_tags(tags: Collection[str] | str) -> list[str]:
@@ -162,33 +164,39 @@ def validate_tags(tags: Collection[str] | str) -> list[str]:
     Raises:
         ValueError: If any of the tags contain invalid characters.
     """
-    tags_list = always_list(tags)
-
-    if any(not _VALID_TAG_PATTERN.match(tag) for tag in tags_list):
+    tags_list = unique_list(always_list(tags))
+    if any(not TAG_REGEX.match(tag) for tag in tags_list):
         raise ValueError(
             "Invalid tag(s).  "
             "Tags must only contain alphanumeric characters separated by hyphens, underscores, and/or spaces."
         )
-    return unique_list(tags_list)
+    return tags_list
 
 
-#: User-created artifacts cannot have an artifact type with this prefix.
-RESERVED_TYPE_PREFIX: Final[str] = "wandb-"
+RESERVED_ARTIFACT_TYPE_PREFIX: Final[str] = "wandb-"
+"""Internal, reserved artifact type prefix."""
 
-# For certain artifact types, user-created artifacts cannot have an artifact name with these prefixes.
-RESERVED_NAME_PREFIX_BY_TYPE: Final[dict[str, str]] = {
+RESERVED_ARTIFACT_NAME_PREFIX_BY_TYPE: Final[dict[str, str]] = {
     "job": "",  # Empty prefix means ALL artifact names are reserved for this artifact type
     "run_table": "run-",
     "code": "source-",
 }
+"""Lookup of internal, reserved `Artifact.name` prefixes by `Artifact.type`."""
 
 
 def validate_artifact_type(typ: str, name: str) -> str:
     """Validate the artifact type and return it as a string."""
-    reserved_name_prefix = RESERVED_NAME_PREFIX_BY_TYPE.get(typ)
     if (
-        (reserved_name_prefix is not None) and name.startswith(reserved_name_prefix)
-    ) or typ.startswith(RESERVED_TYPE_PREFIX):
+        # Check if the artifact name is disallowed, based on the artifact type
+        (
+            # This check MUST be against `None`, since "" disallows ALL artifact names
+            (bad_prefix := RESERVED_ARTIFACT_NAME_PREFIX_BY_TYPE.get(typ)) is not None
+            and name.startswith(bad_prefix)
+        )
+        or
+        # Check if the artifact type is disallowed
+        typ.startswith(RESERVED_ARTIFACT_TYPE_PREFIX)
+    ):
         raise ValueError(
             f"Artifact type {typ!r} is reserved for internal use. "
             "Please use a different type."
@@ -217,42 +225,42 @@ def validate_ttl_duration_seconds(gql_ttl_duration_seconds: int | None) -> int |
 
 
 # ----------------------------------------------------------------------------
-DecoratedF = TypeVar("DecoratedF", bound=Callable[..., Any])
-"""Type hint for a decorated function that'll preserve its signature (e.g. for arg autocompletion in IDEs)."""
+MethodT = Callable[Concatenate[SelfT, P], R]
+"""Generic type hint for an instance method, e.g. for use with decorators."""
 
 
-def ensure_logged(method: DecoratedF) -> DecoratedF:
+def ensure_logged(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT, P, R]:
     """Decorator to ensure that an Artifact method can only be called if the artifact has been logged.
 
     If the method is called on an artifact that's not logged, `ArtifactNotLoggedError` is raised.
     """
     # For clarity, use the qualified (full) name of the method
-    method_name = nameof(method)
+    method_fullname = nameof(method)
 
     @wraps(method)
-    def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
+    def wrapper(self: ArtifactT, *args: P.args, **kwargs: P.kwargs) -> R:
         if self.is_draft():
-            raise ArtifactNotLoggedError(fullname=method_name, obj=self)
+            raise ArtifactNotLoggedError(fullname=method_fullname, obj=self)
         return method(self, *args, **kwargs)
 
-    return cast(DecoratedF, wrapper)
+    return wrapper
 
 
-def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
+def ensure_not_finalized(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT, P, R]:
     """Decorator to ensure that an `Artifact` method can only be called if the artifact isn't finalized.
 
     If the method is called on an artifact that's not logged, `ArtifactFinalizedError` is raised.
     """
     # For clarity, use the qualified (full) name of the method
-    method_name = nameof(method)
+    method_fullname = nameof(method)
 
     @wraps(method)
-    def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
+    def wrapper(self: ArtifactT, *args: P.args, **kwargs: P.kwargs) -> R:
         if self._final:
-            raise ArtifactFinalizedError(fullname=method_name, obj=self)
+            raise ArtifactFinalizedError(fullname=method_fullname, obj=self)
         return method(self, *args, **kwargs)
 
-    return cast(DecoratedF, wrapper)
+    return wrapper
 
 
 def is_artifact_registry_project(project: str) -> bool:
