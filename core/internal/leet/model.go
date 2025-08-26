@@ -603,6 +603,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Stop heartbeat
 		m.stopHeartbeat()
 
+		// Close the old reader creating a new one.
+		if m.reader != nil {
+			if err := m.reader.Close(); err != nil {
+				m.logger.Error(fmt.Sprintf("model: error closing reader: %v", err))
+			}
+			m.reader = nil
+		}
+
 		if m.watcherStarted {
 			m.logger.Debug("model: finishing watcher for reload")
 			m.watcher.Finish()
@@ -612,10 +620,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Create a new watcher instance
 		m.watcher = watcher.New(watcher.Params{})
 
-		// Clear the message channel
-		for len(m.msgChan) > 0 {
-			<-m.msgChan
+		// Drain the message channel.
+		close(m.msgChan)
+		for range m.msgChan {
+			// Drain the channel
 		}
+		// Create a new channel
+		m.msgChan = make(chan tea.Msg, 1000)
 
 		// Reset loading state
 		m.recordsLoaded = 0

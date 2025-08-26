@@ -472,6 +472,9 @@ func parseStats(stats *spb.StatsRecord) tea.Msg {
 
 // Close closes the reader.
 func (r *WandbReader) Close() error {
+	if r == nil {
+		return nil
+	}
 	if r.store != nil {
 		return r.store.Close()
 	}
