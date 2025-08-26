@@ -611,10 +611,16 @@ func (h *Handler) handlePatchSave() {
 	if err := git.SavePatch("HEAD", file); err != nil {
 		h.logger.Error("error generating diff", "error", err)
 	} else {
-		files = append(files, &spb.FilesItem{Path: DiffFileName, Type: spb.FilesItem_WANDB})
+		files = append(
+			files,
+			&spb.FilesItem{Path: DiffFileName, Type: spb.FilesItem_WANDB},
+		)
 	}
 
-	if output, err := git.GetUpstreamForkPoint(); err != nil {
+	output, err := git.GetLatestUpstreamCommit(
+		h.settings.IsDisableGitForkPoint(),
+	)
+	if err != nil {
 		h.logger.Error("error getting latest commit", "error", err)
 	} else {
 		diffFileName := fmt.Sprintf("diff_%s.patch", output)
@@ -622,7 +628,10 @@ func (h *Handler) handlePatchSave() {
 		if err := git.SavePatch(output, file); err != nil {
 			h.logger.Error("error generating diff", "error", err)
 		} else {
-			files = append(files, &spb.FilesItem{Path: diffFileName, Type: spb.FilesItem_WANDB})
+			files = append(
+				files,
+				&spb.FilesItem{Path: diffFileName, Type: spb.FilesItem_WANDB},
+			)
 		}
 	}
 

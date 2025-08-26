@@ -58,6 +58,14 @@ func (g *Git) IsAvailable() bool {
 	return true
 }
 
+func (g *Git) GetLatestUpstreamCommit(findForkPoint bool) (string, error) {
+	if findForkPoint {
+		return g.GetUpstreamForkPoint()
+	}
+
+	return g.LatestCommit("@{u}")
+}
+
 func (g *Git) LatestCommit(ref string) (string, error) {
 	// get latest commit
 	command := []string{"git", "rev-parse", ref}
