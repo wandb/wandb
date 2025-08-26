@@ -30,13 +30,16 @@ const (
 
 // Model represents the main application state.
 type Model struct {
+	// Help screen.
 	help *HelpModel
 
-	// Chart data protected by mutex
-	chartMu      sync.RWMutex
-	allCharts    []*EpochLineChart
+	// chartMu is the mutex to protect chart data.
+	chartMu sync.RWMutex
+	// allCharts contains charts of all metrics of an experiment.
+	allCharts []*EpochLineChart
+	// chartsByName maps metric name to its chart.
 	chartsByName map[string]*EpochLineChart
-	// charts holds the current page of charts arranged in grid
+	// charts contains the current page of charts arranged in a 2D grid.
 	charts [][]*EpochLineChart
 
 	// Filter state
@@ -49,7 +52,7 @@ type Model struct {
 	overviewFilterMode  bool   // Whether we're typing an overview filter
 	overviewFilterInput string // The current overview filter being typed
 
-	// Focus state - centralized focus management
+	// Chart focus state.
 	focusState   FocusState
 	focusedTitle string // For backward compatibility and status bar display
 	focusedRow   int    // For backward compatibility with existing code
