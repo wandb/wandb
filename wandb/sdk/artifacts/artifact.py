@@ -30,6 +30,7 @@ from typing import (
     Literal,
     Sequence,
     Type,
+    cast,
     final,
 )
 from urllib.parse import quote, urljoin, urlparse
@@ -102,6 +103,7 @@ from ._generated import (
     FileUrlsFragment,
     LinkArtifact,
     LinkArtifactInput,
+    MembershipWithArtifact,
     TagInput,
     UpdateArtifact,
 )
@@ -337,29 +339,8 @@ class Artifact:
                 f"artifact membership {name!r} not found in {entity_project!r}"
             )
 
-        if not (ac_attrs := acm_attrs.artifact_collection):
-            raise ValueError("artifact collection not found")
-
-        if not ((ac_name := ac_attrs.name) and (ac_project_attrs := ac_attrs.project)):
-            raise ValueError("artifact collection project not found")
-
-        ac_project = ac_project_attrs.name
-        ac_entity = ac_project_attrs.entity_name
-
-        if is_artifact_registry_project(ac_project) and project == "model-registry":
-            wandb.termwarn(
-                "This model registry has been migrated and will be discontinued. "
-                f"Your request was redirected to the corresponding artifact `{ac_name}` in the new registry. "
-                f"Please update your paths to point to the migrated registry directly, `{ac_project}/{ac_name}`."
-            )
-            entity = ac_entity
-            project = ac_project
-
-        if not (attrs := acm_attrs.artifact):
-            entity_project = f"{entity}/{project}"
-            raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
-
-        return cls._from_attrs(entity, project, name, attrs.model_dump(), client)
+        target_path = ArtifactPath(prefix=entity, project=project, name=name)
+        return cls._from_membership(acm_attrs, target=target_path, client=client)
 
     @classmethod
     def _from_name(
@@ -404,6 +385,38 @@ class Artifact:
             raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
 
         return cls._from_attrs(entity, project, name, art_attrs, client)
+
+    @classmethod
+    def _from_membership(
+        cls,
+        membership: MembershipWithArtifact,
+        target: ArtifactPath,
+        client: RetryingClient,
+    ) -> Artifact:
+        if not (
+            (collection := membership.artifact_collection)
+            and (name := collection.name)
+            and (proj := collection.project)
+        ):
+            raise ValueError("Missing artifact collection project in GraphQL response")
+
+        if is_artifact_registry_project(proj.name) and (
+            target.project == "model-registry"
+        ):
+            wandb.termwarn(
+                "This model registry has been migrated and will be discontinued. "
+                f"Your request was redirected to the corresponding artifact {name!r} in the new registry. "
+                f"Please update your paths to point to the migrated registry directly, '{proj.name}/{name}'."
+            )
+            new_entity, new_project = proj.entity_name, proj.name
+        else:
+            new_entity = cast(str, target.prefix)
+            new_project = cast(str, target.project)
+
+        if not (artifact := membership.artifact):
+            raise ValueError(f"Artifact {target.to_str()!r} not found in response")
+
+        return cls._from_attrs(new_entity, new_project, target.name, artifact, client)
 
     @classmethod
     def _from_attrs(
@@ -2404,10 +2417,11 @@ class Artifact:
             # Wait until the artifact is committed before trying to link it.
             self.wait()
 
-        api = Api(overrides={"entity": self.source_entity})
+        api = InternalApi()
+        settings = api.settings()
 
         target = ArtifactPath.from_str(target_path).with_defaults(
-            project=api.settings.get("project") or "uncategorized",
+            project=settings.get("project") or "uncategorized",
         )
 
         # Parse the entity (first part of the path) appropriately,
@@ -2415,11 +2429,8 @@ class Artifact:
         if target.project and is_artifact_registry_project(target.project):
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
-            organization = target.prefix or api.settings.get("organization") or ""
-
-            target.prefix = InternalApi()._resolve_org_entity_name(
-                self.source_entity, organization
-            )
+            org = target.prefix or settings.get("organization") or ""
+            target.prefix = api._resolve_org_entity_name(self.source_entity, org)
         else:
             target = target.with_defaults(prefix=self.source_entity)
 
@@ -2436,16 +2447,35 @@ class Artifact:
             aliases=alias_inputs,
         )
         gql_vars = {"input": gql_input.model_dump(exclude_none=True)}
-        gql_op = gql(LINK_ARTIFACT_GQL)
-        data = self._client.execute(gql_op, variable_values=gql_vars)
 
+        # Newer server versions can return `artifactMembership` directly in the response,
+        # avoiding the need to re-fetch the linked artifact at the end.
+        if api._server_supports(
+            pb.ServerFeature.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
+        ):
+            omit_fragments = set()
+        else:
+            # FIXME: Make `gql_compat` omit nested fragment definitions recursively (but safely)
+            omit_fragments = {
+                "MembershipWithArtifact",
+                "ArtifactFragment",
+                "ArtifactFragmentWithoutAliases",
+            }
+
+        gql_op = gql_compat(LINK_ARTIFACT_GQL, omit_fragments=omit_fragments)
+        data = self._client.execute(gql_op, variable_values=gql_vars)
         result = LinkArtifact.model_validate(data).link_artifact
+
+        # Newer server versions can return artifactMembership directly in the response
+        if result and (membership := result.artifact_membership):
+            return self._from_membership(membership, target=target, client=self._client)
+
+        # Fallback to old behavior, which requires re-fetching the linked artifact to return it
         if not (result and (version_idx := result.version_index) is not None):
             raise ValueError("Unable to parse linked artifact version from response")
 
-        # Fetch the linked artifact to return it
-        linked_path = f"{target.to_str()}:v{version_idx}"
-        return api._artifact(linked_path)
+        link_name = f"{target.to_str()}:v{version_idx}"
+        return Api(overrides={"entity": self.source_entity})._artifact(link_name)
 
     @ensure_logged
     def unlink(self) -> None:

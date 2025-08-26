@@ -210,6 +210,29 @@ class FilesFragmentPageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+class MembershipWithArtifact(GQLBase):
+    id: GQLId
+    artifact_collection: Optional[MembershipWithArtifactArtifactCollection] = Field(
+        alias="artifactCollection"
+    )
+    artifact: Optional[ArtifactFragment]
+
+
+class MembershipWithArtifactArtifactCollection(GQLBase):
+    typename__: Typename[
+        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
+    ]
+    id: GQLId
+    name: str
+    project: Optional[MembershipWithArtifactArtifactCollectionProject]
+
+
+class MembershipWithArtifactArtifactCollectionProject(GQLBase):
+    id: GQLId
+    entity_name: str = Field(alias="entityName")
+    name: str
+
+
 class RegistriesPage(GQLBase):
     page_info: RegistriesPagePageInfo = Field(alias="pageInfo")
     edges: List[RegistriesPageEdges]
@@ -397,6 +420,9 @@ FilesFragment.model_rebuild()
 FilesFragmentEdges.model_rebuild()
 FilesFragmentEdgesNode.model_rebuild()
 FilesFragmentPageInfo.model_rebuild()
+MembershipWithArtifact.model_rebuild()
+MembershipWithArtifactArtifactCollection.model_rebuild()
+MembershipWithArtifactArtifactCollectionProject.model_rebuild()
 RegistriesPage.model_rebuild()
 RegistriesPageEdges.model_rebuild()
 RegistriesPagePageInfo.model_rebuild()
@@ -429,4 +455,5 @@ ArtifactFragment.model_rebuild()
 ArtifactFragmentWithoutAliases.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
 RegistryFragment.model_rebuild()
+ArtifactFragment.model_rebuild()
 ArtifactFragment.model_rebuild()

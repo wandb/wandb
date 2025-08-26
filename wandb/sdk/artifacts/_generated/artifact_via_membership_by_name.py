@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId, Typename
+from wandb._pydantic import GQLBase
 
-from .fragments import ArtifactFragment
+from .fragments import MembershipWithArtifact
 
 
 class ArtifactViaMembershipByName(GQLBase):
@@ -17,41 +17,10 @@ class ArtifactViaMembershipByName(GQLBase):
 
 
 class ArtifactViaMembershipByNameProject(GQLBase):
-    artifact_collection_membership: Optional[
-        ArtifactViaMembershipByNameProjectArtifactCollectionMembership
-    ] = Field(alias="artifactCollectionMembership")
-
-
-class ArtifactViaMembershipByNameProjectArtifactCollectionMembership(GQLBase):
-    id: GQLId
-    artifact_collection: Optional[
-        ArtifactViaMembershipByNameProjectArtifactCollectionMembershipArtifactCollection
-    ] = Field(alias="artifactCollection")
-    artifact: Optional[ArtifactFragment]
-
-
-class ArtifactViaMembershipByNameProjectArtifactCollectionMembershipArtifactCollection(
-    GQLBase
-):
-    typename__: Typename[
-        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
-    ]
-    id: GQLId
-    name: str
-    project: Optional[
-        ArtifactViaMembershipByNameProjectArtifactCollectionMembershipArtifactCollectionProject
-    ]
-
-
-class ArtifactViaMembershipByNameProjectArtifactCollectionMembershipArtifactCollectionProject(
-    GQLBase
-):
-    id: GQLId
-    entity_name: str = Field(alias="entityName")
-    name: str
+    artifact_collection_membership: Optional[MembershipWithArtifact] = Field(
+        alias="artifactCollectionMembership"
+    )
 
 
 ArtifactViaMembershipByName.model_rebuild()
 ArtifactViaMembershipByNameProject.model_rebuild()
-ArtifactViaMembershipByNameProjectArtifactCollectionMembership.model_rebuild()
-ArtifactViaMembershipByNameProjectArtifactCollectionMembershipArtifactCollection.model_rebuild()
