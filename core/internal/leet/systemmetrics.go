@@ -315,6 +315,8 @@ func ExtractSeriesName(metricName string) string {
 }
 
 // FormatYLabel formats Y-axis labels with appropriate units and precision
+//
+//gocyclo:ignore
 func FormatYLabel(value float64, unit string) string {
 	// Handle zero specially
 	if value == 0 {
