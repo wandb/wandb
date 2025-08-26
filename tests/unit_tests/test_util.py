@@ -223,7 +223,7 @@ def test_nested_dataclasses_containing_real_class():
     nested_dataclass = TestDataClassHolder(real_class)
     converted = util.json_friendly_val(nested_dataclass)
     assert isinstance(converted, dict)
-    assert converted["test_real_class"] == str(real_class)
+    assert converted == {"test_real_class": "TestRealClass(test=True)"}
 
 
 ###############################################################################
