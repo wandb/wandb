@@ -54,7 +54,10 @@ from wandb.apis.public.utils import (
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_login
-from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.artifacts._validators import (
+    FullArtifactPath,
+    is_artifact_registry_project,
+)
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
@@ -1522,12 +1525,9 @@ class Api:
                 "Could not determine entity. Please include the entity as part of the artifact name path."
             )
 
+        path = FullArtifactPath(prefix=entity, project=project, name=artifact_name)
         artifact = wandb.Artifact._from_name(
-            entity=entity,
-            project=project,
-            name=artifact_name,
-            client=self.client,
-            enable_tracking=enable_tracking,
+            path=path, client=self.client, enable_tracking=enable_tracking
         )
         if type is not None and artifact.type != type:
             raise ValueError(
