@@ -479,25 +479,33 @@ def proto_python(session: nox.Session, pb: int) -> None:
 
 def _generate_proto_python(session: nox.Session, pb: int) -> None:
     if pb == 3:
-        session.install("protobuf~=3.20.3")
-        session.install("mypy-protobuf~=3.3.0")
-        session.install("grpcio~=1.48.0")
-        session.install("grpcio-tools~=1.48.0")
+        session.install(
+            "protobuf~=3.20.3",
+            "mypy-protobuf>=3.3.0",
+            "grpcio>=1.48.0",
+            "grpcio-tools>=1.48.0",
+        )
     elif pb == 4:
-        session.install("protobuf~=4.23.4")
-        session.install("mypy-protobuf~=3.5.0")
-        session.install("grpcio~=1.51.0")
-        session.install("grpcio-tools~=1.51.0")
+        session.install(
+            "protobuf~=4.23.4",
+            "mypy-protobuf>=3.5.0",
+            "grpcio>=1.51.0",
+            "grpcio-tools>=1.51.0",
+        )
     elif pb == 5:
-        session.install("protobuf~=5.27.0")
-        session.install("mypy-protobuf~=3.6.0")
-        session.install("grpcio~=1.64.1")
-        session.install("grpcio-tools~=1.64.1")
+        session.install(
+            "protobuf~=5.27.0",
+            "mypy-protobuf>=3.6.0",
+            "grpcio>=1.64.1",
+            "grpcio-tools>=1.64.1",
+        )
     elif pb == 6:
-        session.install("protobuf~=6.30.2")
-        session.install("mypy-protobuf~=3.6.0")
-        session.install("grpcio~=1.72.1")
-        session.install("grpcio-tools~=1.72.1")
+        session.install(
+            "protobuf~=6.30.2",
+            "mypy-protobuf>=3.6.0",
+            "grpcio>=1.72.1",
+            "grpcio-tools>=1.72.1",
+        )
     else:
         session.error("Invalid protobuf version given. `pb` must be 3, 4, 5, or 6.")
 
