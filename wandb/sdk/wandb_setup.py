@@ -28,6 +28,7 @@ import logging
 import os
 import pathlib
 import sys
+import threading
 from typing import TYPE_CHECKING, Any, Union
 
 import wandb
@@ -95,6 +96,7 @@ class _WandbSetup:
         self._connection: ServiceConnection | None = None
 
         self._active_runs: list[wandb_run.Run] = []
+        self._active_runs_lock = threading.Lock()
 
         self._sweep_config: dict | None = None
         self._server: server.Server | None = None
@@ -120,8 +122,9 @@ class _WandbSetup:
         Args:
             run: A newly initialized run.
         """
-        if run not in self._active_runs:
-            self._active_runs.append(run)
+        with self._active_runs_lock:
+            if run not in self._active_runs:
+                self._active_runs.append(run)
 
     def remove_active_run(self, run: wandb_run.Run) -> None:
         """Remove the run from the active runs list.
@@ -132,17 +135,19 @@ class _WandbSetup:
             run: A run that is finished or crashed.
         """
         try:
-            self._active_runs.remove(run)
+            with self._active_runs_lock:
+                self._active_runs.remove(run)
         except ValueError:
             pass  # Removing a run multiple times is not an error.
 
     @property
     def most_recent_active_run(self) -> wandb_run.Run | None:
         """The most recently initialized run that is not yet finished."""
-        if not self._active_runs:
-            return None
+        with self._active_runs_lock:
+            if not self._active_runs:
+                return None
 
-        return self._active_runs[-1]
+            return self._active_runs[-1]
 
     def finish_all_active_runs(self) -> None:
         """Finish all unfinished runs.
@@ -154,7 +159,9 @@ class _WandbSetup:
         default and only behavior, it does not seem worth optimizing.
         """
         # Take a snapshot as each call to `finish()` modifies `_active_runs`.
-        runs_copy = list(self._active_runs)
+        with self._active_runs_lock:
+            runs_copy = list(self._active_runs)
+
         for run in runs_copy:
             run.finish()
 
@@ -415,6 +422,8 @@ _singleton: _WandbSetup | None = None
 The value is invalid and must not be used if `os.getpid() != _singleton._pid`.
 """
 
+_singleton_lock = threading.Lock()
+
 
 def singleton() -> _WandbSetup:
     """The W&B singleton for the current process.
@@ -453,18 +462,20 @@ def _setup(
         raise ValueError("Cannot use start_service if load_settings is False.")
 
     pid = os.getpid()
-    if _singleton and _singleton._pid == pid:
-        current_singleton = _singleton
-    else:
-        current_singleton = _WandbSetup(pid=pid)
+    with _singleton_lock:
+        if _singleton and _singleton._pid == pid:
+            current_singleton = _singleton
+        else:
+            current_singleton = _WandbSetup(pid=pid)
 
-    if load_settings:
-        current_singleton._update(settings)
+        if load_settings:
+            current_singleton._update(settings)
 
-    if start_service and not current_singleton.settings._noop:
-        current_singleton.ensure_service()
+        if start_service and not current_singleton.settings._noop:
+            current_singleton.ensure_service()
 
-    _singleton = current_singleton
+        _singleton = current_singleton
+
     return _singleton
 
 
@@ -541,8 +552,9 @@ def teardown(exit_code: int | None = None) -> None:
     """
     global _singleton
 
-    orig_singleton = _singleton
-    _singleton = None
+    with _singleton_lock:
+        orig_singleton = _singleton
+        _singleton = None
 
-    if orig_singleton:
-        orig_singleton._teardown(exit_code=exit_code)
+        if orig_singleton:
+            orig_singleton._teardown(exit_code=exit_code)
