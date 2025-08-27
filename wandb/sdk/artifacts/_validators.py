@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import astuple, dataclass, field, replace
+from dataclasses import astuple, dataclass, field, fields, replace
 from functools import wraps
+from itertools import zip_longest
 from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVar, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -287,7 +288,8 @@ class ArtifactPath:
     def from_str(cls, path: str) -> Self:
         """Instantiate by parsing an artifact path."""
         if len(parts := path.split("/")) <= 3:
-            return cls(*reversed(parts))
+            field_names = (f.name for f in fields(cls))
+            return cls(**dict(zip_longest(field_names, reversed(parts))))
         raise ValueError(
             f"Expected a valid path like `name`, `project/name`, or `prefix/project/name`.  Got: {path!r}"
         )
@@ -307,3 +309,12 @@ class ArtifactPath:
             prefix=self.prefix or prefix,
             project=self.project or project,
         )
+
+
+@pydantic_dataclass
+class FullArtifactPath(ArtifactPath):
+    """Same as ArtifactPath, but with all parts required."""
+
+    prefix: str
+    project: str
+    name: str

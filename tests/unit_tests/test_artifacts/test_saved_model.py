@@ -141,10 +141,14 @@ class ArtifactPatch(Artifact):
 
 
 def make_local_artifact_public(art):
+    from wandb.sdk.artifacts._validators import FullArtifactPath
+
     pub = ArtifactPatch._from_attrs(
-        "FAKE_ENTITY",
-        "FAKE_PROJECT",
-        "FAKE_NAME",
+        FullArtifactPath(
+            prefix="FAKE_ENTITY",
+            project="FAKE_PROJECT",
+            name="FAKE_NAME",
+        ),
         {
             "id": "FAKE_ID",
             "artifactType": {
