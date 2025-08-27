@@ -28,3 +28,4 @@ This version raises errors that would previously have been suppressed during cal
 
 ### Fixed
 - Dataclasses in a run's `config` no long raise `Object of type ... is not JSON serializable` when containing real classes as fields to the dataclass (@jacobromero in https://github.com/wandb/wandb/pull/10371)
+- `Artifact.link()` and `Run.link_artifact()` should be faster on server versions 0.74.0+, requiring 4-5 fewer unnecessary blocking GraphQL requests (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10393).
