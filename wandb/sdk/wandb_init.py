@@ -30,7 +30,7 @@ from wandb import env, trigger
 from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
-from wandb.integration import sagemaker
+from wandb.integration import sagemaker, weave
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
 from wandb.sdk.lib import progress, runid, wb_logging
@@ -1559,7 +1559,15 @@ def init(  # noqa: C901
             if run_settings.x_server_side_derived_summary:
                 init_telemetry.feature.server_side_derived_summary = True
 
-            return wi.init(run_settings, run_config, run_printer)
+            run = wi.init(run_settings, run_config, run_printer)
+
+            # Set up automatic Weave integration if Weave is installed
+            weave.setup_weave_integration(run_settings.project)
+            run._teardown_hooks.append(
+                TeardownHook(weave.cleanup_weave_integration, TeardownStage.LATE)
+            )
+
+            return run
 
     except KeyboardInterrupt as e:
         if wl:
