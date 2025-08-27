@@ -171,7 +171,7 @@ def _replace_refs_and_allofs(schema: dict, defs: Optional[dict]) -> dict:
     return ret
 
 
-def _prepare_schema(schema: dict) -> dict:
+def _prepare_schema(schema: Any) -> dict:
     """Prepare a schema for validation.
 
     This function prepares a schema for validation by:
