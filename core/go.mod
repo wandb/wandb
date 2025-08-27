@@ -13,7 +13,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.1
 	github.com/getsentry/sentry-go v0.35.1
 	github.com/go-git/go-git/v5 v5.16.2
-	github.com/google/wire v0.6.0
+	github.com/google/wire v0.7.0
 	github.com/googleapis/gax-go/v2 v2.15.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/golang-lru v1.0.2
