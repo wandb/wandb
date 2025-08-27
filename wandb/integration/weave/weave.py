@@ -27,21 +27,7 @@ _import_hook_installed = False
 _import_finder: MetaPathFinder | None = None
 
 DISABLE_WEAVE = "WANDB_DISABLE_WEAVE"
-DISABLE_WEAVE_LLM_INIT = "WANDB_DISABLE_WEAVE_LLM_INIT"
-
 WEAVE_PACKAGE_NAME = "weave"
-
-
-# LLM packages that Weave can auto-patch
-LLM_PACKAGES = {
-    "openai",
-    "anthropic",
-    "cohere",
-    "mistralai",
-    "groq",
-    "instructor",
-    "litellm",
-}
 
 
 def _initable() -> bool:
@@ -71,10 +57,6 @@ class _WeaveLoaderWrapper(Loader):
 
         shortname = self._shortname
 
-        # An LLM package was imported, init weave before importing the package
-        if _initable() and (shortname in LLM_PACKAGES):
-            _try_init_weave(reason=f"LLM package {shortname} detected")
-
         # Execute the actual module code
         self._original_loader.exec_module(module)
 
@@ -92,7 +74,7 @@ class _WeaveImportFinder(MetaPathFinder):
 
         # Skip if we don't find packages of interest
         shortname = fullname.split(".")[0]
-        if shortname != WEAVE_PACKAGE_NAME and shortname not in LLM_PACKAGES:
+        if shortname != WEAVE_PACKAGE_NAME:
             return None
 
         # Delegate to default path finder, then wrap its loader
@@ -162,12 +144,6 @@ def setup_weave_integration(project: str | None) -> None:
     # If Weave has already been imported, initialize immediately
     if WEAVE_PACKAGE_NAME in sys.modules:
         _try_init_weave(reason="Weave import detected")
-    # If LLM packages were imported before setup, initialize now (for auto-patching)
-    elif not os.getenv(DISABLE_WEAVE_LLM_INIT):
-        for pkg in LLM_PACKAGES:
-            if pkg in sys.modules and not _weave_initialized:
-                _try_init_weave(reason=f"{pkg} package detected")
-                break
 
     # Install import hook for future imports
     if not _import_hook_installed:
