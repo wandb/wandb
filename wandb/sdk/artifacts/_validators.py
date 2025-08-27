@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import astuple, dataclass, field, replace
+from dataclasses import astuple, dataclass, field, fields, replace
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVar, cast
 
@@ -277,34 +277,50 @@ def remove_registry_prefix(project: str) -> str:
 
 @pydantic_dataclass
 class ArtifactPath:
-    #: The collection name.
     name: str
-    #: The project name, which can also be a registry name.
+    """The collection name."""
     project: Optional[str] = None  # noqa: UP045
-    #: Prefix is often an org or entity name.
+    """The project name, which can also be a registry name."""
     prefix: Optional[str] = None  # noqa: UP045
+    """Prefix is often an org or entity name."""
 
     @classmethod
     def from_str(cls, path: str) -> Self:
         """Instantiate by parsing an artifact path."""
         if len(parts := path.split("/")) <= 3:
-            return cls(*reversed(parts))
+            # Reverse the parts to line up the field names and values, e.g.
+            # - "proj/name" -> name, proj
+            # - "entity/proj/name" -> name, proj, entity
+            vals = parts[::-1]
+            return cls(**{f.name: v for f, v in zip(fields(cls), vals)})
         raise ValueError(
             f"Expected a valid path like `name`, `project/name`, or `prefix/project/name`.  Got: {path!r}"
         )
 
     def to_str(self) -> str:
         """Returns the slash-separated string representation of the path."""
-        return "/".join(filter(bool, reversed(astuple(self))))
+        # Reverse the field values so the parts are joined in the correct order
+        parts = astuple(self)[::-1]
+        return "/".join(filter(bool, parts))
 
     def with_defaults(
         self,
+        *,
         prefix: str | None = None,
         project: str | None = None,
     ) -> Self:
-        """Returns this path with missing values set to the given defaults."""
+        """Returns a copy of this path with missing values set to the given defaults."""
         return replace(
             self,
             prefix=self.prefix or prefix,
             project=self.project or project,
         )
+
+
+@pydantic_dataclass
+class FullArtifactPath(ArtifactPath):
+    """Same as ArtifactPath, but with all parts required."""
+
+    prefix: str
+    project: str
+    name: str
