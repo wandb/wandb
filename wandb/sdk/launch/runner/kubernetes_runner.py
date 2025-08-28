@@ -166,7 +166,7 @@ class KubernetesSubmittedRun(AbstractRun):
                 break
             await asyncio.sleep(5)
 
-        await self._delete_secret()
+        await self._delete_team_secrets()
         await self._delete_auxiliary_resources_by_label()
         return (
             status.state == "finished"
@@ -175,7 +175,7 @@ class KubernetesSubmittedRun(AbstractRun):
     async def get_status(self) -> Status:
         status = LaunchKubernetesMonitor.get_status(self.name)
         if status in ["stopped", "failed", "finished", "preempted"]:
-            await self._delete_secret()
+            await self._delete_team_secrets()
             await self._delete_auxiliary_resources_by_label()
         return status
 
@@ -186,20 +186,45 @@ class KubernetesSubmittedRun(AbstractRun):
                 namespace=self.namespace,
                 name=self.name,
             )
-            await self._delete_secret()
+            await self._delete_team_secrets()
             await self._delete_auxiliary_resources_by_label()
         except ApiException as e:
             raise LaunchError(
                 f"Failed to delete Kubernetes Job {self.name} in namespace {self.namespace}: {str(e)}"
             ) from e
-
-    async def _delete_secret(self) -> None:
+        
+    async def cleanup_job_api_key_secret(self) -> None:
+        try:
+            await self._delete_api_key_secret()
+        except Exception as e:
+            wandb.termwarn(f"Failed to cleanup API key secret: {e}")
+    
+    async def get_job_api_key(self) -> Optional[str]:
+        if not self.secret:
+            return None
+            
+        try:
+            secret = await self.core_api.read_namespaced_secret(
+                name=self.secret.metadata.name,
+                namespace=self.secret.metadata.namespace,
+            )
+            api_key_b64 = secret.data.get("password")
+            if api_key_b64:
+                return base64.b64decode(api_key_b64).decode()
+        except Exception as e:
+            wandb.termwarn(f"Failed to read API key from secret: {e}")
+        
+        return None
+    
+    async def _delete_api_key_secret(self) -> None:
         if self.secret:
             await self.core_api.delete_namespaced_secret(
                 name=self.secret.metadata.name,
                 namespace=self.secret.metadata.namespace,
             )
             self.secret = None
+
+    async def _delete_team_secrets(self) -> None:
         if self.wandb_team_secrets_secret:
             await self.core_api.delete_namespaced_secret(
                 name=self.wandb_team_secrets_secret.metadata.name,
@@ -341,6 +366,14 @@ class CrdSubmittedRun(AbstractRun):
             if status.state in ["finished", "failed", "preempted"]:
                 return status.state == "finished"
             await asyncio.sleep(5)
+
+    async def get_job_api_key(self) -> Optional[str]:
+        """CRD runs don't support job-specific API keys."""
+        return None
+
+    async def cleanup_job_api_key_secret(self) -> None:
+        """CRD runs don't have secrets to cleanup."""
+        pass
 
 
 class KubernetesRunner(AbstractRunner):

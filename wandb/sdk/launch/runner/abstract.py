@@ -122,6 +122,23 @@ class AbstractRun(ABC):
     def id(self) -> Optional[str]:
         pass
 
+    @abstractmethod
+    async def get_job_api_key(self) -> Optional[str]:
+        """Get the API key used for the run.
+
+        Note that this is only used for the public queue, and will only be
+        implemented in the KubernetesRunner.
+        """
+
+    @abstractmethod
+    async def cleanup_job_api_key_secret(self) -> None:
+        """Cleanup api key secret used for public queue runs.
+        
+        This method is called by the agent when it has finished all post-job
+        processing.
+        """
+
+
 
 class AbstractRunner(ABC):
     """Abstract plugin class defining the interface needed to execute W&B Launches.

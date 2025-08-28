@@ -117,6 +117,14 @@ class SagemakerSubmittedRun(AbstractRun):
             self._status = Status("running")
         return self._status
 
+    async def get_job_api_key(self) -> Optional[str]:
+        """SageMaker doesn't support job-specific API keys."""
+        return None
+
+    async def cleanup_job_api_key_secret(self) -> None:
+        """SageMaker doesn't have secrets to cleanup."""
+        pass
+
 
 class SageMakerRunner(AbstractRunner):
     """Runner class, uses a project to create a SagemakerSubmittedRun."""
