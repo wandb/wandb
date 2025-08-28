@@ -34,7 +34,12 @@ def active_run_path() -> RunPath | None:
     """
     singleton = wandb_setup.singleton()
 
-    if (run := singleton.most_recent_active_run) and run.entity and run.project:
+    if (
+        (run := singleton.most_recent_active_run)
+        and run.entity
+        and run.project
+        and run.id
+    ):
         return RunPath(
             entity=run.entity,
             project=run.project,
