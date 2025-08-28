@@ -190,7 +190,6 @@ def wandb_backend_spy(
         "WANDB_BASE_URL",
         f"http://127.0.0.1:{wandb_backend_proxy_server.port}",
     )
-    monkeypatch.setenv("WANDB_DISABLE_WEAVE", "1")
 
     with wandb_backend_proxy_server.spy() as spy:
         yield spy

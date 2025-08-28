@@ -16,26 +16,20 @@ import threading
 
 import wandb
 
-_weave_initialized = False
 _weave_init_lock = threading.Lock()
-_wandb_project: str | None = None
 
-DISABLE_WEAVE = "WANDB_DISABLE_WEAVE"
-WEAVE_PACKAGE_NAME = "weave"
+_DISABLE_WEAVE = "WANDB_DISABLE_WEAVE"
+_WEAVE_PACKAGE_NAME = "weave"
 
 
-def setup_weave_integration(entity: str | None, project: str | None) -> None:
+def setup(entity: str | None, project: str | None) -> None:
     """Set up automatic Weave initialization for the current W&B run.
 
     Args:
         project: The W&B project name to use for Weave initialization.
     """
-    global _wandb_project, _weave_initialized
-
     # We can't or shouldn't init weave; return
-    if os.getenv(DISABLE_WEAVE):
-        return
-    if _weave_initialized:
+    if os.getenv(_DISABLE_WEAVE):
         return
     if not project:
         return
@@ -48,12 +42,12 @@ def setup_weave_integration(entity: str | None, project: str | None) -> None:
 
     # If weave is not yet imported, we can't init it from here.  Instead, we'll
     # rely on the weave library itself to detect a run and init itself.
-    if WEAVE_PACKAGE_NAME not in sys.modules:
+    if _WEAVE_PACKAGE_NAME not in sys.modules:
         return
 
     # If weave has already been imported, initialize immediately
     with _weave_init_lock:
-        if not _wandb_project or _weave_initialized:
+        if not _wandb_project:
             return
         try:
             # This import should have already happened, so it's effectively a no-op.
@@ -64,18 +58,8 @@ def setup_weave_integration(entity: str | None, project: str | None) -> None:
             # breaking the wandb run init flow just in case
             return
 
-        wandb.termlog("Initializing weave")
+        wandb.termlog("Initializing weave.")
         try:
             weave.init(_wandb_project)
         except Exception as e:
             wandb.termwarn(f"Failed to automatically initialize Weave: {e}")
-        else:
-            _weave_initialized = True
-
-
-def cleanup_weave_integration() -> None:
-    """Clean up the Weave integration."""
-    global _weave_initialized, _wandb_project
-
-    _weave_initialized = False
-    _wandb_project = None
