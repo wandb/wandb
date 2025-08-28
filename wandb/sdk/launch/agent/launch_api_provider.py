@@ -7,13 +7,7 @@ from .job_status_tracker import JobAndRunStatusTracker
 _logger = logging.getLogger(__name__)
 
 
-class JobAwareApi:
-    """API factory that intelligently chooses between agent and job credentials.
-    
-    This class provides methods to get the appropriate API instance based on
-    job context.
-    """
-    
+class LaunchApiProvider:
     def __init__(self, agent_api: Api, agent_entity: str):
         self._agent_api = agent_api
         self._agent_entity = agent_entity
@@ -47,12 +41,9 @@ class JobAwareApi:
             job_api_key = await job_tracker.run.get_job_api_key()
             if not job_api_key:
                 return None
-                
-            # Cache API instances by run ID to avoid recreating them
-            # Using run ID as cache key is safer than using API key (no risk of key exposure)
+
             run_id = job_tracker.run_id
             if run_id and run_id not in self._job_api_cache:
-                # Explicit api_key parameter automatically bypasses federated auth!
                 self._job_api_cache[run_id] = Api(
                     api_key=job_api_key,
                     default_settings={"base_url": self._agent_api.api_url}
@@ -64,7 +55,6 @@ class JobAwareApi:
             return None
     
     async def _should_use_job_credentials(self, job_tracker: JobAndRunStatusTracker) -> bool:
-        """Determine if we should try to use job credentials instead of agent credentials."""
         # Always prefer job credentials if available because a user may have
         # restricted projects in the same entity as the agent.
         if not job_tracker.run:
@@ -77,11 +67,6 @@ class JobAwareApi:
             return False
     
     async def remove_job_api_from_cache(self, job_tracker: JobAndRunStatusTracker) -> None:
-        """Remove the specific job's API from cache.
-        
-        Args:
-            job_tracker: Job tracker to remove API for
-        """
         if not job_tracker.run_id:
             return
             

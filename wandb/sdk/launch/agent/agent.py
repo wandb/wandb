@@ -33,7 +33,7 @@ from ..utils import (
     PROJECT_SYNCHRONOUS,
     event_loop_thread_exec,
 )
-from .job_aware_api import JobAwareApi
+from .launch_api_provider import LaunchApiProvider
 from .job_status_tracker import JobAndRunStatusTracker
 from .run_queue_item_file_saver import RunQueueItemFileSaver
 
@@ -204,7 +204,7 @@ class LaunchAgent:
         self._entity = config["entity"]
         self._project = LAUNCH_DEFAULT_PROJECT
         self._api = api
-        self._job_aware_api = JobAwareApi(api, self._entity)
+        self._launch_api_provider = LaunchApiProvider(api, self._entity)
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
         self._jobs: Dict[int, JobAndRunStatusTracker] = {}
@@ -461,7 +461,7 @@ class LaunchAgent:
                 logs = None
                 interval = 1
                 while True:
-                    api = await self._job_aware_api.get_api(job_and_run_status)
+                    api = await self._launch_api_provider.get_api(job_and_run_status)
                     called_init = self._check_run_exists_and_inited(
                         api,
                         job_and_run_status.entity or self._entity,
@@ -507,7 +507,7 @@ class LaunchAgent:
                 except Exception as e:
                     self._internal_logger.warn(f"Failed to cleanup secrets: {e}")
             
-                await self._job_aware_api.remove_job_api_from_cache(job_and_run_status)
+                await self._launch_api_provider.remove_job_api_from_cache(job_and_run_status)
 
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:
