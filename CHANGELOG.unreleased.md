@@ -20,6 +20,7 @@ This version raises errors that would previously have been suppressed during cal
 ### Added
 
 - New settings for `max_end_of_run_history_metrics` and `max_end_of_run_summary_metrics` (@timoffex in https://github.com/wandb/wandb/pull/10351)
+- New `wandb.integration.weave` module for automatically initializing Weave when a W&B run is active (@andrewtruong in https://github.com/wandb/wandb/pull/10389)
 
 ### Changed
 
@@ -27,5 +28,6 @@ This version raises errors that would previously have been suppressed during cal
 - The "Run history" and "Run summary" printed at the end of a run are now limited to 10 metrics each (@timoffex in https://github.com/wandb/wandb/pull/10351)
 
 ### Fixed
+
 - Dataclasses in a run's `config` no long raise `Object of type ... is not JSON serializable` when containing real classes as fields to the dataclass (@jacobromero in https://github.com/wandb/wandb/pull/10371)
 - `Artifact.link()` and `Run.link_artifact()` should be faster on server versions 0.74.0+, requiring 4-5 fewer unnecessary blocking GraphQL requests (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10393).

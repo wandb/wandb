@@ -1,20 +1,27 @@
 from __future__ import annotations
 
-import importlib
 import sys
+import types
+from typing import Any, cast
 
 import pytest
 import wandb
 
 
-def _import(module: str):
-    """Import a module via importlib to exercise import machinery hooks."""
-    return importlib.import_module(module)
-
-
-def _reset_import(module: str):
+def _reset_import(monkeypatch, module: str):
     if module in sys.modules:
-        del sys.modules[module]
+        monkeypatch.delitem(sys.modules, module, raising=False)
+
+
+def _inject_fake_weave(monkeypatch):
+    m = cast(Any, types.ModuleType("weave"))
+
+    def init(project):
+        # no-op stub for weave.init
+        return None
+
+    m.init = init
+    monkeypatch.setitem(sys.modules, "weave", m)
 
 
 @pytest.fixture()
@@ -22,12 +29,7 @@ def setup_env(monkeypatch, tmp_path):
     monkeypatch.delenv("WANDB_DISABLE_WEAVE", raising=False)
     monkeypatch.setenv("WANDB_MODE", "offline")
 
-    # Create a temporary on-disk weave module so a normal import works
-    weave_path = tmp_path / "weave.py"
-    weave_path.write_text("# temporary weave module for tests\n")
-    monkeypatch.syspath_prepend(str(tmp_path))
-
-    _reset_import("weave")
+    _reset_import(monkeypatch, "weave")
 
 
 def test_import_nothing(setup_env, mock_wandb_log):
@@ -35,14 +37,14 @@ def test_import_nothing(setup_env, mock_wandb_log):
     assert not mock_wandb_log.logged("Initializing weave")
 
 
-def test_import_weave(setup_env, mock_wandb_log):
-    _import("weave")
+def test_import_weave(setup_env, mock_wandb_log, monkeypatch):
+    _inject_fake_weave(monkeypatch)
     wandb.init(project="test-project")
     assert mock_wandb_log.logged("Initializing weave")
 
 
 def test_import_weave_disabled(setup_env, mock_wandb_log, monkeypatch):
     monkeypatch.setenv("WANDB_DISABLE_WEAVE", "1")
-    _import("weave")
+    _inject_fake_weave(monkeypatch)
     wandb.init(project="test-project")
     assert not mock_wandb_log.logged("Initializing weave")

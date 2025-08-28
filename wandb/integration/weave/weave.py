@@ -36,9 +36,9 @@ def setup(entity: str | None, project: str | None) -> None:
 
     # Use entity/project when available; otherwise fall back to project only
     if entity:
-        _wandb_project = f"{entity}/{project}"
+        project_path = f"{entity}/{project}"
     else:
-        _wandb_project = project
+        project_path = project
 
     # If weave is not yet imported, we can't init it from here.  Instead, we'll
     # rely on the weave library itself to detect a run and init itself.
@@ -47,8 +47,6 @@ def setup(entity: str | None, project: str | None) -> None:
 
     # If weave has already been imported, initialize immediately
     with _weave_init_lock:
-        if not _wandb_project:
-            return
         try:
             # This import should have already happened, so it's effectively a no-op.
             # We just import to keep the symbol for the init that follows
@@ -60,6 +58,6 @@ def setup(entity: str | None, project: str | None) -> None:
 
         wandb.termlog("Initializing weave.")
         try:
-            weave.init(_wandb_project)
+            weave.init(project_path)
         except Exception as e:
             wandb.termwarn(f"Failed to automatically initialize Weave: {e}")
