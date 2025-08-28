@@ -14,8 +14,13 @@ from wandb.sdk import wandb_setup
 @dataclasses.dataclass(frozen=True)
 class RunPath:
     entity: str
+    """The entity to which the run is logging. Never empty."""
+
     project: str
+    """The project to which the run is logging. Never empty."""
+
     run_id: str
+    """The run's ID. Never empty."""
 
 
 def active_run_path() -> RunPath | None:
@@ -29,7 +34,12 @@ def active_run_path() -> RunPath | None:
     """
     singleton = wandb_setup.singleton()
 
-    if run := singleton.most_recent_active_run:
+    if (
+        (run := singleton.most_recent_active_run)
+        and run.entity
+        and run.project
+        and run.id
+    ):
         return RunPath(
             entity=run.entity,
             project=run.project,

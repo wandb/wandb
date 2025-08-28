@@ -34,3 +34,27 @@ def test_active_run_path__no_run(mock_singleton):
     path = wandb.integration.weave.active_run_path()
 
     assert path is None
+
+
+@pytest.mark.parametrize(
+    "entity,project,run_id",
+    (
+        ("", "project", "id"),
+        ("entity", "", "id"),
+        ("", "", "id"),
+        ("entity", "project", ""),
+        ("", "project", ""),
+        ("entity", "", ""),
+        ("", "", ""),
+    ),
+)
+def test_active_run_path__empty_attr(mock_singleton, entity, project, run_id):
+    mock_singleton.most_recent_active_run = mock.Mock(
+        entity=entity,
+        project=project,
+        id=run_id,
+    )
+
+    path = wandb.integration.weave.active_run_path()
+
+    assert path is None
