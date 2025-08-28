@@ -34,6 +34,7 @@ from ..utils import (
     event_loop_thread_exec,
 )
 from .job_status_tracker import JobAndRunStatusTracker
+from .launch_api_provider import LaunchApiProvider
 from .run_queue_item_file_saver import RunQueueItemFileSaver
 
 AGENT_POLLING_INTERVAL = 10
@@ -203,6 +204,7 @@ class LaunchAgent:
         self._entity = config["entity"]
         self._project = LAUNCH_DEFAULT_PROJECT
         self._api = api
+        self._launch_api_provider = LaunchApiProvider(api, self._entity)
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
         self._jobs: Dict[int, JobAndRunStatusTracker] = {}
@@ -395,9 +397,14 @@ class LaunchAgent:
             wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
     def _check_run_exists_and_inited(
-        self, entity: str, project: str, run_id: str, rqi_id: str
+        self,
+        api: Api,
+        entity: str,
+        project: str,
+        run_id: str,
+        rqi_id: str,
     ) -> bool:
-        """Checks the stateof the run to ensure it has been inited. Note this will not behave well with resuming."""
+        """Checks the state of the run to ensure it has been inited. Note this will not behave well with resuming."""
         # Checks the _wandb key in the run config for the run queue item id. If it exists, the
         # submitted run definitely called init. Falls back to checking state of run.
         # TODO: handle resuming runs
@@ -405,7 +412,7 @@ class LaunchAgent:
         # Sweep runs exist but are in pending state, normal launch runs won't exist
         # so will raise a CommError.
         try:
-            run_state = self._api.get_run_state(entity, project, run_id)
+            run_state = api.get_run_state(entity, project, run_id)
             if run_state.lower() != "pending":
                 return True
         except CommError:
@@ -423,84 +430,93 @@ class LaunchAgent:
         with self._jobs_lock:
             job_and_run_status = self._jobs[thread_id]
 
-        if (
-            job_and_run_status.entity is not None
-            and job_and_run_status.entity != self._entity
-        ):
-            self._internal_logger.info(
-                "Skipping check for completed run status because run is on a different entity than agent",
-            )
-        elif exception is not None:
-            tb_str = traceback.format_exception(
-                type(exception), value=exception, tb=exception.__traceback__
-            )
-            fnames = job_and_run_status.saver.save_contents(
-                "".join(tb_str), "error.log", "error"
-            )
-            await self.fail_run_queue_item(
-                job_and_run_status.run_queue_item_id,
-                str(exception),
-                job_and_run_status.err_stage,
-                fnames,
-            )
-        elif job_and_run_status.project is None or job_and_run_status.run_id is None:
-            self._internal_logger.info(
-                f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {job_and_run_status.run_queue_item_id}",
-            )
-            wandb.termerror(
-                "Missing project or run id on thread called finish thread id"
-            )
-            await self.fail_run_queue_item(
-                job_and_run_status.run_queue_item_id,
-                "submitted job was finished without assigned project or run id",
-                "agent",
-            )
-        elif job_and_run_status.run is not None:
-            called_init = False
-            # We do some weird stuff here getting run info to check for a
-            # created in run in W&B.
-            #
-            # We retry for 60 seconds with an exponential backoff in case
-            # upsert run is taking a while.
-            logs = None
-            interval = 1
-            while True:
-                called_init = self._check_run_exists_and_inited(
-                    self._entity,
-                    job_and_run_status.project,
-                    job_and_run_status.run_id,
-                    job_and_run_status.run_queue_item_id,
+        try:
+            if exception is not None:
+                tb_str = traceback.format_exception(
+                    type(exception), value=exception, tb=exception.__traceback__
                 )
-                if called_init or interval > RUN_INFO_GRACE_PERIOD:
-                    break
-                if not called_init:
-                    # Fetch the logs now if we don't get run info on the
-                    # first try, in case the logs are cleaned from the runner
-                    # environment (e.g. k8s) during the run info grace period.
-                    if interval == 1:
-                        logs = await job_and_run_status.run.get_logs()
-                    await asyncio.sleep(interval)
-                    interval *= 2
-            if not called_init:
-                fnames = None
-                if job_and_run_status.completed_status == "finished":
-                    _msg = "The submitted job exited successfully but failed to call wandb.init"
-                else:
-                    _msg = "The submitted run was not successfully started"
-                if logs:
-                    fnames = job_and_run_status.saver.save_contents(
-                        logs, "error.log", "error"
-                    )
+                fnames = job_and_run_status.saver.save_contents(
+                    "".join(tb_str), "error.log", "error"
+                )
                 await self.fail_run_queue_item(
-                    job_and_run_status.run_queue_item_id, _msg, "run", fnames
+                    job_and_run_status.run_queue_item_id,
+                    str(exception),
+                    job_and_run_status.err_stage,
+                    fnames,
                 )
-        else:
-            self._internal_logger.info(
-                f"Finish thread id {thread_id} had no exception and no run"
-            )
-            wandb._sentry.exception(
-                "launch agent called finish thread id on thread without run or exception"
-            )
+            elif (
+                job_and_run_status.project is None or job_and_run_status.run_id is None
+            ):
+                self._internal_logger.info(
+                    f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {job_and_run_status.run_queue_item_id}",
+                )
+                wandb.termerror(
+                    "Missing project or run id on thread called finish thread id"
+                )
+                await self.fail_run_queue_item(
+                    job_and_run_status.run_queue_item_id,
+                    "submitted job was finished without assigned project or run id",
+                    "agent",
+                )
+            elif job_and_run_status.run is not None:
+                called_init = False
+                # We do some weird stuff here getting run info to check for a
+                # created in run in W&B.
+                #
+                # We retry for 60 seconds with an exponential backoff in case
+                # upsert run is taking a while.
+                logs = None
+                interval = 1
+                while True:
+                    api = await self._launch_api_provider.get_api(job_and_run_status)
+                    called_init = self._check_run_exists_and_inited(
+                        api,
+                        job_and_run_status.entity or self._entity,
+                        job_and_run_status.project,
+                        job_and_run_status.run_id,
+                        job_and_run_status.run_queue_item_id,
+                    )
+                    if called_init or interval > RUN_INFO_GRACE_PERIOD:
+                        break
+                    if not called_init:
+                        # Fetch the logs now if we don't get run info on the
+                        # first try, in case the logs are cleaned from the runner
+                        # environment (e.g. k8s) during the run info grace period.
+                        if interval == 1:
+                            logs = await job_and_run_status.run.get_logs()
+                        await asyncio.sleep(interval)
+                        interval *= 2
+                if not called_init:
+                    fnames = None
+                    if job_and_run_status.completed_status == "finished":
+                        _msg = "The submitted job exited successfully but failed to call wandb.init"
+                    else:
+                        _msg = "The submitted run was not successfully started"
+                    if logs:
+                        fnames = job_and_run_status.saver.save_contents(
+                            logs, "error.log", "error"
+                        )
+                    await self.fail_run_queue_item(
+                        job_and_run_status.run_queue_item_id, _msg, "run", fnames
+                    )
+            else:
+                self._internal_logger.info(
+                    f"Finish thread id {thread_id} had no exception and no run"
+                )
+                wandb._sentry.exception(
+                    "launch agent called finish thread id on thread without run or exception"
+                )
+
+        finally:
+            if job_and_run_status.run:
+                try:
+                    await job_and_run_status.run.cleanup_job_api_key_secret()
+                except Exception as e:
+                    self._internal_logger.warn(f"Failed to cleanup secrets: {e}")
+
+                await self._launch_api_provider.remove_job_api_from_cache(
+                    job_and_run_status
+                )
 
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:

@@ -94,6 +94,14 @@ class LocalSubmittedRun(AbstractRun):
             return Status("finished")
         return Status("failed")
 
+    async def get_job_api_key(self) -> Optional[str]:
+        """Local containers don't support job-specific API keys."""
+        return None
+
+    async def cleanup_job_api_key_secret(self) -> None:
+        """Local containers don't have secrets to cleanup."""
+        pass
+
 
 class LocalContainerRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
