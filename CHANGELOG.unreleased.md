@@ -20,7 +20,7 @@ This version raises errors that would previously have been suppressed during cal
 ### Added
 
 - New settings for `max_end_of_run_history_metrics` and `max_end_of_run_summary_metrics` (@timoffex in https://github.com/wandb/wandb/pull/10351)
-- New `wandb.integration.weave` module for automatically initializing Weave when a W&B run is active (@andrewtruong in https://github.com/wandb/wandb/pull/10389)
+- New `wandb.integration.weave` module for automatically initializing Weave when a W&B run is active and `weave` is imported (@andrewtruong in https://github.com/wandb/wandb/pull/10389)
 
 ### Changed
 
