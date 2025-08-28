@@ -192,17 +192,17 @@ class KubernetesSubmittedRun(AbstractRun):
             raise LaunchError(
                 f"Failed to delete Kubernetes Job {self.name} in namespace {self.namespace}: {str(e)}"
             ) from e
-        
+
     async def cleanup_job_api_key_secret(self) -> None:
         try:
             await self._delete_api_key_secret()
         except Exception as e:
             wandb.termwarn(f"Failed to cleanup API key secret: {e}")
-    
+
     async def get_job_api_key(self) -> Optional[str]:
         if not self.secret:
             return None
-            
+
         try:
             secret = await self.core_api.read_namespaced_secret(
                 name=self.secret.metadata.name,
@@ -213,9 +213,9 @@ class KubernetesSubmittedRun(AbstractRun):
                 return base64.b64decode(api_key_b64).decode()
         except Exception as e:
             wandb.termwarn(f"Failed to read API key from secret: {e}")
-        
+
         return None
-    
+
     async def _delete_api_key_secret(self) -> None:
         if self.secret:
             await self.core_api.delete_namespaced_secret(

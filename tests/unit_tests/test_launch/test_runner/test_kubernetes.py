@@ -1571,21 +1571,21 @@ async def test_kubernetes_submitted_run_get_logs(pods, logs, expected):
 async def test_kubernetes_submitted_run_get_job_api_key_with_secret():
     """Test that get_job_api_key retrieves API key from Kubernetes secret."""
     import base64
-    
+
     core_api = MagicMock()
 
     api_key = "test_api_key_123"
     api_key_b64 = base64.b64encode(api_key.encode()).decode()
-    
+
     mock_secret = MagicMock()
     mock_secret.data = {"password": api_key_b64}
-    
+
     core_api.read_namespaced_secret = AsyncMock(return_value=mock_secret)
-    
+
     secret_mock = MagicMock()
     secret_mock.metadata.name = "test-api-key-secret"
     secret_mock.metadata.namespace = "wandb"
-    
+
     submitted_run = KubernetesSubmittedRun(
         batch_api=MagicMock(),
         core_api=core_api,
@@ -1595,13 +1595,12 @@ async def test_kubernetes_submitted_run_get_job_api_key_with_secret():
         name="test_run",
     )
     submitted_run.secret = secret_mock
-    
+
     result = await submitted_run.get_job_api_key()
     assert result == api_key
 
     core_api.read_namespaced_secret.assert_called_once_with(
-        name="test-api-key-secret",
-        namespace="wandb"
+        name="test-api-key-secret", namespace="wandb"
     )
 
 
@@ -1618,7 +1617,7 @@ async def test_kubernetes_submitted_run_get_job_api_key_no_secret():
     )
     # No secret set
     assert submitted_run.secret is None
-    
+
     result = await submitted_run.get_job_api_key()
     assert result is None
 
@@ -1627,12 +1626,14 @@ async def test_kubernetes_submitted_run_get_job_api_key_no_secret():
 async def test_kubernetes_submitted_run_get_job_api_key_secret_read_fails():
     """Test that get_job_api_key returns None when secret read fails."""
     core_api = MagicMock()
-    core_api.read_namespaced_secret = AsyncMock(side_effect=Exception("Secret not found"))
+    core_api.read_namespaced_secret = AsyncMock(
+        side_effect=Exception("Secret not found")
+    )
 
     secret_mock = MagicMock()
     secret_mock.metadata.name = "test-api-key-secret"
     secret_mock.metadata.namespace = "wandb"
-    
+
     submitted_run = KubernetesSubmittedRun(
         batch_api=MagicMock(),
         core_api=core_api,
@@ -1642,7 +1643,7 @@ async def test_kubernetes_submitted_run_get_job_api_key_secret_read_fails():
         name="test_run",
     )
     submitted_run.secret = secret_mock
-    
+
     result = await submitted_run.get_job_api_key()
     assert result is None
 
@@ -1652,11 +1653,11 @@ async def test_kubernetes_submitted_run_cleanup_job_api_key_secret_success():
     """Test that cleanup_job_api_key_secret deletes the secret successfully."""
     core_api = MagicMock()
     core_api.delete_namespaced_secret = AsyncMock()
-    
+
     secret_mock = MagicMock()
     secret_mock.metadata.name = "test-api-key-secret"
     secret_mock.metadata.namespace = "wandb"
-    
+
     submitted_run = KubernetesSubmittedRun(
         batch_api=MagicMock(),
         core_api=core_api,
@@ -1666,12 +1667,11 @@ async def test_kubernetes_submitted_run_cleanup_job_api_key_secret_success():
         name="test_run",
     )
     submitted_run.secret = secret_mock
-    
+
     await submitted_run.cleanup_job_api_key_secret()
 
     core_api.delete_namespaced_secret.assert_called_once_with(
-        name="test-api-key-secret",
-        namespace="wandb"
+        name="test-api-key-secret", namespace="wandb"
     )
 
 
@@ -1680,7 +1680,7 @@ async def test_kubernetes_submitted_run_cleanup_job_api_key_secret_no_secret():
     """Test that cleanup_job_api_key_secret does nothing when no secret is set."""
     core_api = MagicMock()
     core_api.delete_namespaced_secret = AsyncMock()
-    
+
     submitted_run = KubernetesSubmittedRun(
         batch_api=MagicMock(),
         core_api=core_api,
@@ -1691,26 +1691,29 @@ async def test_kubernetes_submitted_run_cleanup_job_api_key_secret_no_secret():
     )
 
     assert submitted_run.secret is None
-    
+
     await submitted_run.cleanup_job_api_key_secret()
-    
 
     core_api.delete_namespaced_secret.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_kubernetes_submitted_run_cleanup_job_api_key_secret_delete_fails(monkeypatch):
+async def test_kubernetes_submitted_run_cleanup_job_api_key_secret_delete_fails(
+    monkeypatch,
+):
     """Test that cleanup_job_api_key_secret handles deletion failures gracefully."""
     mock_termwarn = MagicMock()
     monkeypatch.setattr("wandb.termwarn", mock_termwarn)
-    
+
     core_api = MagicMock()
-    core_api.delete_namespaced_secret = AsyncMock(side_effect=Exception("Delete failed"))
+    core_api.delete_namespaced_secret = AsyncMock(
+        side_effect=Exception("Delete failed")
+    )
 
     secret_mock = MagicMock()
     secret_mock.metadata.name = "test-api-key-secret"
     secret_mock.metadata.namespace = "wandb"
-    
+
     submitted_run = KubernetesSubmittedRun(
         batch_api=MagicMock(),
         core_api=core_api,
@@ -1724,8 +1727,7 @@ async def test_kubernetes_submitted_run_cleanup_job_api_key_secret_delete_fails(
     await submitted_run.cleanup_job_api_key_secret()
 
     core_api.delete_namespaced_secret.assert_called_once_with(
-        name="test-api-key-secret",
-        namespace="wandb"
+        name="test-api-key-secret", namespace="wandb"
     )
 
     assert mock_termwarn.call_count == 1

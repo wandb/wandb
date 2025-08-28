@@ -133,11 +133,10 @@ class AbstractRun(ABC):
     @abstractmethod
     async def cleanup_job_api_key_secret(self) -> None:
         """Cleanup api key secret used for public queue runs.
-        
+
         This method is called by the agent when it has finished all post-job
         processing.
         """
-
 
 
 class AbstractRunner(ABC):

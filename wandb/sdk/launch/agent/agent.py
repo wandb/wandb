@@ -33,8 +33,8 @@ from ..utils import (
     PROJECT_SYNCHRONOUS,
     event_loop_thread_exec,
 )
-from .launch_api_provider import LaunchApiProvider
 from .job_status_tracker import JobAndRunStatusTracker
+from .launch_api_provider import LaunchApiProvider
 from .run_queue_item_file_saver import RunQueueItemFileSaver
 
 AGENT_POLLING_INTERVAL = 10
@@ -397,7 +397,12 @@ class LaunchAgent:
             wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
     def _check_run_exists_and_inited(
-        self, api: Api, entity: str, project: str, run_id: str, rqi_id: str,
+        self,
+        api: Api,
+        entity: str,
+        project: str,
+        run_id: str,
+        rqi_id: str,
     ) -> bool:
         """Checks the state of the run to ensure it has been inited. Note this will not behave well with resuming."""
         # Checks the _wandb key in the run config for the run queue item id. If it exists, the
@@ -439,7 +444,9 @@ class LaunchAgent:
                     job_and_run_status.err_stage,
                     fnames,
                 )
-            elif job_and_run_status.project is None or job_and_run_status.run_id is None:
+            elif (
+                job_and_run_status.project is None or job_and_run_status.run_id is None
+            ):
                 self._internal_logger.info(
                     f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {job_and_run_status.run_queue_item_id}",
                 )
@@ -506,8 +513,10 @@ class LaunchAgent:
                     await job_and_run_status.run.cleanup_job_api_key_secret()
                 except Exception as e:
                     self._internal_logger.warn(f"Failed to cleanup secrets: {e}")
-            
-                await self._launch_api_provider.remove_job_api_from_cache(job_and_run_status)
+
+                await self._launch_api_provider.remove_job_api_from_cache(
+                    job_and_run_status
+                )
 
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:
