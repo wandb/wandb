@@ -36,6 +36,7 @@ from wandb_gql.client import RetryError
 
 import wandb
 from wandb import env, util
+from wandb._analytics import tracked
 from wandb._iterutils import one
 from wandb._strutils import nameof
 from wandb.apis import public
@@ -1731,6 +1732,7 @@ class Api:
 
         return True
 
+    @tracked
     def registries(
         self,
         organization: Optional[str] = None,
@@ -1798,6 +1800,7 @@ class Api:
         )
         return Registries(self.client, organization, filter)
 
+    @tracked
     def registry(self, name: str, organization: Optional[str] = None) -> Registry:
         """Return a registry given a registry name.
 
@@ -1837,6 +1840,7 @@ class Api:
         registry.load()
         return registry
 
+    @tracked
     def create_registry(
         self,
         name: str,
@@ -1911,6 +1915,7 @@ class Api:
             artifact_types,
         )
 
+    @tracked
     def integrations(
         self,
         entity: Optional[str] = None,
@@ -1934,6 +1939,7 @@ class Api:
         params = {"entityName": entity or self.default_entity}
         return Integrations(client=self.client, variables=params, per_page=per_page)
 
+    @tracked
     def webhook_integrations(
         self, entity: Optional[str] = None, *, per_page: int = 50
     ) -> Iterator["WebhookIntegration"]:
@@ -1977,6 +1983,7 @@ class Api:
             client=self.client, variables=params, per_page=per_page
         )
 
+    @tracked
     def slack_integrations(
         self, *, entity: Optional[str] = None, per_page: int = 50
     ) -> Iterator["SlackIntegration"]:
@@ -2093,6 +2100,7 @@ class Api:
             and (name := fragment_names.get(action))
         )
 
+    @tracked
     def automation(
         self,
         name: str,
@@ -2130,6 +2138,7 @@ class Api:
             too_long=ValueError("Multiple automations found"),
         )
 
+    @tracked
     def automations(
         self,
         entity: Optional[str] = None,
@@ -2187,6 +2196,7 @@ class Api:
         yield from iterator
 
     @normalize_exceptions
+    @tracked
     def create_automation(
         self,
         obj: "NewAutomation",
@@ -2294,6 +2304,7 @@ class Api:
         return Automation.model_validate(result.trigger)
 
     @normalize_exceptions
+    @tracked
     def update_automation(
         self,
         obj: "Automation",
@@ -2416,6 +2427,7 @@ class Api:
         return Automation.model_validate(result.trigger)
 
     @normalize_exceptions
+    @tracked
     def delete_automation(self, obj: Union["Automation", str]) -> Literal[True]:
         """Delete an automation.
 

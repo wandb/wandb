@@ -12,6 +12,8 @@ from wandb_graphql.execution import ExecutionResult
 from wandb_graphql.language import ast
 from wandb_graphql.language.printer import print_ast
 
+from wandb._analytics import X_WANDB_PYTHON_FUNC, tracked_func
+
 
 class GraphQLSession(HTTPTransport):
     def __init__(
@@ -49,8 +51,14 @@ class GraphQLSession(HTTPTransport):
         payload = {"query": query_str, "variables": variable_values or {}}
 
         data_key = "json" if self.use_json else "data"
+
+        if (funcname := tracked_func()) is not None:
+            extra_hdrs = {X_WANDB_PYTHON_FUNC: funcname}
+        else:
+            extra_hdrs = None
+
         post_args = {
-            "headers": self.headers,
+            "headers": {**(self.headers or {}), **(extra_hdrs or {})} or None,
             "cookies": self.cookies,
             "timeout": timeout or self.default_timeout,
             data_key: payload,
