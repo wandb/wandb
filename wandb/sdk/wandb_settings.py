@@ -1439,7 +1439,21 @@ class Settings(BaseModel, validate_assignment=True):
     @classmethod
     def validate_run_tags(cls, value):
         """Validate run tags.
-
+    
+        Validates that each tag:
+        - Is between 1 and 64 characters in length (inclusive)
+        - Converts single string values to tuple format
+        - Preserves None values
+        
+        Args:
+            value: A string, list, tuple, or None representing tags
+            
+        Returns:
+            tuple: A tuple of validated tags, or None
+            
+        Raises:
+            ValueError: If any tag is empty or exceeds 64 characters
+        
         <!-- lazydoc-ignore-classmethod: internal -->
         """
         if value is None:
@@ -1458,7 +1472,7 @@ class Settings(BaseModel, validate_assignment=True):
             tag_str = str(tag)
             if len(tag_str) == 0:
                 raise ValueError(
-                    f"Tag at index {i} is empty. Tags must be between 1 and 64 characters"
+                    "A provided tag is empty. Tags must be between 1 and 64 characters"
                 )
             elif len(tag_str) > 64:
                 # Truncate long tags for display
@@ -1468,7 +1482,7 @@ class Settings(BaseModel, validate_assignment=True):
                     else tag_str
                 )
                 raise ValueError(
-                    f"Tag '{display_tag}' at index {i} is {len(tag_str)} characters. Tags must be between 1 and 64 characters"
+                    f"Tag '{display_tag}' is {len(tag_str)} characters. Tags must be between 1 and 64 characters"
                 )
 
         return tags
