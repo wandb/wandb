@@ -86,6 +86,8 @@ func (r *LiveReader) VerifyWandbHeader(expectedVersion byte) error {
 // Next returns an io.Reader for the next complete record. If no complete record
 // is available *yet* (the file is still being written), it returns io.EOF WITHOUT
 // advancing r.nextOff. Call again when the file grows.
+//
+//gocyclo:ignore
 func (r *LiveReader) Next() (io.Reader, error) {
 	if !r.processedFirstBlock {
 		if err := r.VerifyWandbHeader(0); err != nil {
