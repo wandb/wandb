@@ -51,6 +51,23 @@ fragment ArtifactFragment on Artifact {
   }
 }
 
+fragment MembershipWithArtifact on ArtifactCollectionMembership {
+  id
+  artifactCollection {
+    __typename
+    id
+    name
+    project {
+      id
+      entityName
+      name
+    }
+  }
+  artifact {
+    ...ArtifactFragment
+  }
+}
+
 fragment ArtifactsFragment on VersionedArtifactConnection {
   totalCount
   edges {
@@ -200,19 +217,7 @@ query ArtifactByName(
 query ArtifactViaMembershipByName($entityName: String!, $projectName: String!, $name: String!) {
   project(name: $projectName, entityName: $entityName) {
     artifactCollectionMembership(name: $name) {
-      id
-      artifactCollection {
-        id
-        name
-        project {
-          id
-          entityName
-          name
-        }
-      }
-      artifact {
-        ...ArtifactFragment
-      }
+      ...MembershipWithArtifact
     }
   }
 }
@@ -306,6 +311,10 @@ mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
 mutation LinkArtifact($input: LinkArtifactInput!) {
   linkArtifact(input: $input) {
     versionIndex
+    artifactMembership @include(if: true) {
+      # Workaround: ensures generated pydantic field defaults to `None`
+      ...MembershipWithArtifact
+    }
   }
 }
 

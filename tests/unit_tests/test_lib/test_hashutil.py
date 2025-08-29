@@ -112,7 +112,6 @@ def test_md5_file_hashes_on_mounted_filesystem(
     filesize,
     tmp_path,
     fs: FakeFilesystem,
-    disable_memray,  # FakeFilesystem breaks memray
 ):
     # Some setup we have to do to get this test to play well with `pyfakefs`.
     # Note: Cast to str looks redundant but is intentional (for python<=3.10).
