@@ -239,7 +239,7 @@ jobs:
               -w {dest_dir} \
               -v {wheel}
           CIBW_ENVIRONMENT_MACOS: >
-            MACOSX_DEPLOYMENT_TARGET=11
+            MACOSX_DEPLOYMENT_TARGET=12
 
           # Install Go and Rust for Linux amd64
           CIBW_BEFORE_ALL_LINUX: >

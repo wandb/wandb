@@ -118,12 +118,6 @@ def run_pytest(
     # Print 20 slowest tests.
     pytest_opts.append(f"--durations={opts.get('durations', 20)}")
 
-    if platform.system() != "Windows":  # memray is not supported on Windows.
-        # Track and report memory usage with memray.
-        pytest_opts.append("--memray")
-        # Show the 5 tests that allocate most memory.
-        pytest_opts.append("--most-allocations=5")
-
     # Output test results for tooling.
     junitxml = _NOX_PYTEST_RESULTS_DIR / session_file_name / "junit.xml"
     pytest_opts.append(f"--junitxml={junitxml}")
@@ -149,7 +143,7 @@ def run_pytest(
 
     # (pytest-cov) Enable Python code coverage collection.
     # We set "--cov-report=" to suppress terminal output.
-    pytest_opts.extend(["--cov-report=", "--cov", "--no-cov-on-fail"])
+    pytest_opts.extend(["--cov-report=", "--no-cov-on-fail", "--cov=wandb"])
 
     pytest_env.update(python_coverage_env(session))
     pytest_env.update(go_coverage_env(session))
@@ -638,7 +632,7 @@ def python_coverage_env(session: nox.Session) -> dict[str, str]:
     Configures the 'coverage' tool https://coverage.readthedocs.io/en/latest/
     to be usable with the "coverage" session.
 
-    pytest invoke coverage; for pytest it is via the pytest-cov package.
+    pytest invokes coverage via the pytest-cov package.
     """
     # https://coverage.readthedocs.io/en/latest/cmd.html#data-file
     _NOX_PYTEST_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)

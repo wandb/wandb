@@ -1,3 +1,22 @@
+# v1.38.1 (2025-08-27)
+
+* **Dependency Update**: Update to smithy-go v1.23.0.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.38.0 (2025-08-21)
+
+* **Feature**: Remove incorrect endpoint tests
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.37.1 (2025-08-20)
+
+* **Bug Fix**: Remove unused deserialization code.
+
+# v1.37.0 (2025-08-11)
+
+* **Feature**: Add support for configuring per-service Options via callback on global config.
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.36.0 (2025-08-04)
 
 * **Feature**: Support configurable auth scheme preferences in service clients via AWS_AUTH_SCHEME_PREFERENCE in the environment, auth_scheme_preference in the config file, and through in-code settings on LoadDefaultConfig and client constructor methods.

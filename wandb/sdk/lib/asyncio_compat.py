@@ -23,7 +23,7 @@ def run(fn: Callable[[], Coroutine[Any, Any, _T]]) -> _T:
     Note that due to starting a new thread, this is slightly slow.
     """
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        runner = _Runner()
+        runner = CancellableRunner()
         future = executor.submit(runner.run, fn)
 
         try:
@@ -33,15 +33,16 @@ def run(fn: Callable[[], Coroutine[Any, Any, _T]]) -> _T:
             runner.cancel()
 
 
-class _RunnerCancelledError(Exception):
-    """The `_Runner.run()` invocation was cancelled."""
+class RunnerCancelledError(Exception):
+    """The `CancellableRunner.run()` invocation was cancelled."""
 
 
-class _Runner:
+class CancellableRunner:
     """Runs an asyncio event loop allowing cancellation.
 
-    This is like `asyncio.run()`, except it provides a `cancel()` method
-    meant to be called in a `finally` block.
+    The `run()` method is like `asyncio.run()`. The `cancel()` method may
+    be used in a different thread, for instance in a `finally` block, to cancel
+    all tasks, and it is a no-op if `run()` completed.
 
     Without this, it is impossible to make `asyncio.run()` stop if it runs
     in a non-main thread. In particular, a KeyboardInterrupt causes the
@@ -69,7 +70,7 @@ class _Runner:
             The result of the coroutine returned by `fn`.
 
         Raises:
-            _RunnerCancelledError: If `cancel()` is called.
+            RunnerCancelledError: If `cancel()` is called.
         """
         return asyncio.run(self._run_or_cancel(fn))
 
@@ -79,7 +80,7 @@ class _Runner:
     ) -> _T:
         with self._lock:
             if self._is_cancelled:
-                raise _RunnerCancelledError()
+                raise RunnerCancelledError()
 
             self._loop = asyncio.get_running_loop()
             self._cancel_event = asyncio.Event()
@@ -97,7 +98,7 @@ class _Runner:
             if fn_task.done():
                 return fn_task.result()
             else:
-                raise _RunnerCancelledError()
+                raise RunnerCancelledError()
 
         finally:
             # NOTE: asyncio.run() cancels all tasks after the main task exits,
@@ -157,11 +158,9 @@ class TaskGroup:
         )
 
         for task in done:
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 if exc := task.exception():
                     raise exc
-            except asyncio.CancelledError:
-                pass
 
     def _cancel_all(self) -> None:
         """Cancel all tasks."""
@@ -199,15 +198,16 @@ async def open_task_group() -> AsyncIterator[TaskGroup]:
 def cancel_on_exit(coro: Coroutine[Any, Any, Any]) -> Iterator[None]:
     """Schedule a task, cancelling it when exiting the context manager.
 
-    If the given coroutine raises an exception, that exception is raised
-    when exiting the context manager.
+    If the context manager exits successfully but the given coroutine raises
+    an exception, that exception is reraised. The exception is suppressed
+    if the context manager raises an exception.
     """
     task = asyncio.create_task(coro)
 
     try:
         yield
-    finally:
+
         if task.done() and (exception := task.exception()):
             raise exception
-
+    finally:
         task.cancel()

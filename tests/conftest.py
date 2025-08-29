@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 import pathlib
-import platform
 import shutil
 import sys
 import time
@@ -37,19 +36,6 @@ from wandb.sdk.lib.paths import StrPath
 # --------------------------------
 # Global pytest configuration
 # --------------------------------
-
-
-@pytest.fixture
-def disable_memray(pytestconfig):
-    """Disables the memray plugin for the duration of the test."""
-    if platform.system() == "Windows":
-        # noop on Windows
-        yield
-    else:
-        memray_plugin = pytestconfig.pluginmanager.get_plugin("memray_manager")
-        pytestconfig.pluginmanager.unregister(memray_plugin)
-        yield
-        pytestconfig.pluginmanager.register(memray_plugin, "memray_manager")
 
 
 @pytest.fixture(autouse=True)
@@ -240,14 +226,7 @@ def emulated_terminal(monkeypatch, capsys) -> EmulatedTerminal:
     # This is fragile and could break when click is updated.
     monkeypatch.setattr("click._compat.isatty", lambda *args, **kwargs: True)
 
-    # Reset the captured stderr and stdout buffers, since in the test
-    # environment, memray may prepend lines to stderr that look like:
-    #   '⚠ Memray support for Greenlet is experimental ⚠',
-    #   'Please report any issues at https://github.com/bloomberg/memray/issues',
-    #   ...
-    terminal = EmulatedTerminal(capsys)
-    terminal.reset_capsys()
-    return terminal
+    return EmulatedTerminal(capsys)
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -308,7 +287,6 @@ def patch_apikey(mocker: MockerFixture, dummy_api_key: str):
     mocker.patch.object(wandb.sdk.lib.apikey, "isatty", return_value=True)
     mocker.patch.object(wandb.sdk.lib.apikey, "input", return_value=1)
     mocker.patch.object(wandb.sdk.lib.apikey, "getpass", return_value=dummy_api_key)
-    yield
 
 
 @pytest.fixture
@@ -322,7 +300,6 @@ def skip_verify_login(monkeypatch):
         "_verify_login",
         unittest.mock.MagicMock(),
     )
-    yield
 
 
 @pytest.fixture
@@ -381,13 +358,13 @@ def clean_up():
 
 
 @pytest.fixture
-def api() -> wandb.PublicApi:
+def api() -> Api:
     with unittest.mock.patch.object(
         wandb.sdk.wandb_login,
         "_login",
         return_value=True,
     ):
-        yield Api()
+        return Api()
 
 
 # --------------------------------
