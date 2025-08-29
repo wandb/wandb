@@ -191,12 +191,9 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Cmd {
 			}
 		}
 
-		// Determine if there's more to read
-		hasMore := false
-		if !r.exitSeen && !hitEOF && recordCount > 0 {
-			// We have records and didn't hit EOF, there might be more
-			hasMore = true
-		}
+		// Determine if there's more to read,
+		// i.e. whether we have records and didn't hit EOF, there might be more.
+		hasMore := !r.exitSeen && !hitEOF && recordCount > 0
 
 		return ChunkedBatchMsg{
 			Msgs:     msgs,

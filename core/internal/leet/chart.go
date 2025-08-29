@@ -54,8 +54,8 @@ func NewEpochLineChart(width, height int, colorIndex int, title string) *EpochLi
 		isZoomed:   false,
 	}
 
-	chart.Model.AxisStyle = axisStyle
-	chart.Model.LabelStyle = labelStyle
+	chart.AxisStyle = axisStyle
+	chart.LabelStyle = labelStyle
 
 	return chart
 }
@@ -140,7 +140,7 @@ func (c *EpochLineChart) updateRanges() {
 		}
 	}
 
-	c.Model.SetXYRange(c.MinX(), c.MaxX(), newMinY, newMaxY)
+	c.SetXYRange(c.MinX(), c.MaxX(), newMinY, newMaxY)
 }
 
 // calculatePadding determines appropriate padding for the Y axis
