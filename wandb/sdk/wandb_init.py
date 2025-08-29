@@ -11,7 +11,6 @@ For more on using `wandb.init()`, including code snippets, check out our
 from __future__ import annotations
 
 import contextlib
-import copy
 import dataclasses
 import json
 import logging
@@ -31,7 +30,7 @@ from wandb import env, trigger
 from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
-from wandb.integration import sagemaker
+from wandb.integration import sagemaker, weave
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
 from wandb.sdk.lib import progress, runid, wb_logging
@@ -202,23 +201,7 @@ class _WandbInit:
         Returns:
             A callback to print any generated warnings.
         """
-        exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
-        # check if environment variables have changed
-        singleton_env = {
-            k: v
-            for k, v in wandb_setup.singleton()._environ.items()
-            if k.startswith("WANDB_") and k not in exclude_env_vars
-        }
-        os_env = {
-            k: v
-            for k, v in os.environ.items()
-            if k.startswith("WANDB_") and k not in exclude_env_vars
-        }
-
-        if (
-            set(singleton_env.keys()) == set(os_env.keys())  #
-            and set(singleton_env.values()) == set(os_env.values())
-        ):
+        if not self._wl.did_environment_change():
             return _noop_printer_callback()
 
         def print_warning(run_printer: printer.Printer) -> None:
@@ -475,9 +458,9 @@ class _WandbInit:
             )
             self._telemetry.feature.sagemaker = True
 
-        if self._wl._config:
+        if self._wl.config:
             self._split_artifacts_from_config(
-                self._wl._config,
+                self._wl.config,
                 config_target=result.base_no_artifacts,
                 artifacts=result.artifacts,
             )
@@ -996,7 +979,6 @@ class _WandbInit:
             result = wait_with_progress(
                 run_init_handle,
                 timeout=timeout,
-                progress_after=1,
                 display_progress=display_init_message,
             )
 
@@ -1112,8 +1094,7 @@ def _attach(
     except Exception as e:
         raise UsageError(f"Unable to attach to run {attach_id}") from e
 
-    settings: Settings = copy.copy(_wl._settings)
-
+    settings = _wl.settings.model_copy()
     settings.update_from_dict(
         {
             "run_id": attach_id,
@@ -1578,7 +1559,12 @@ def init(  # noqa: C901
             if run_settings.x_server_side_derived_summary:
                 init_telemetry.feature.server_side_derived_summary = True
 
-            return wi.init(run_settings, run_config, run_printer)
+            run = wi.init(run_settings, run_config, run_printer)
+
+            # Set up automatic Weave integration if Weave is installed
+            weave.setup(run_settings.entity, run_settings.project)
+
+            return run
 
     except KeyboardInterrupt as e:
         if wl:

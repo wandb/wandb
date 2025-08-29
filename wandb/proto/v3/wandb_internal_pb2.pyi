@@ -58,6 +58,10 @@ class _ServerFeatureEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._
     """Indicates that the server supports including artifact types in registry creation."""
     PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP: _ServerFeature.ValueType  # 13
     """Indicates that the server supports querying for a artifact collection membership on the project."""
+    ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE: _ServerFeature.ValueType  # 14
+    """Indicates that the server supports returning an artifact collection membership in the response of a linkArtifact
+    mutation.
+    """
 
 class ServerFeature(_ServerFeature, metaclass=_ServerFeatureEnumTypeWrapper):
     """*
@@ -95,6 +99,10 @@ INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION: ServerFeature.ValueType  # 12
 """Indicates that the server supports including artifact types in registry creation."""
 PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP: ServerFeature.ValueType  # 13
 """Indicates that the server supports querying for a artifact collection membership on the project."""
+ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE: ServerFeature.ValueType  # 14
+"""Indicates that the server supports returning an artifact collection membership in the response of a linkArtifact
+mutation.
+"""
 global___ServerFeature = ServerFeature
 
 class Record(google.protobuf.message.Message):

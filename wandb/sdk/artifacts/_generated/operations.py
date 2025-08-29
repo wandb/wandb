@@ -748,20 +748,7 @@ ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL = """
 query ArtifactViaMembershipByName($entityName: String!, $projectName: String!, $name: String!) {
   project(name: $projectName, entityName: $entityName) {
     artifactCollectionMembership(name: $name) {
-      id
-      artifactCollection {
-        __typename
-        id
-        name
-        project {
-          id
-          entityName
-          name
-        }
-      }
-      artifact {
-        ...ArtifactFragment
-      }
+      ...MembershipWithArtifact
     }
   }
 }
@@ -812,6 +799,23 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+
+fragment MembershipWithArtifact on ArtifactCollectionMembership {
+  id
+  artifactCollection {
+    __typename
+    id
+    name
+    project {
+      id
+      entityName
+      name
+    }
+  }
+  artifact {
+    ...ArtifactFragment
+  }
 }
 """
 
@@ -952,6 +956,74 @@ LINK_ARTIFACT_GQL = """
 mutation LinkArtifact($input: LinkArtifactInput!) {
   linkArtifact(input: $input) {
     versionIndex
+    artifactMembership @include(if: true) {
+      ...MembershipWithArtifact
+    }
+  }
+}
+
+fragment ArtifactFragment on Artifact {
+  ...ArtifactFragmentWithoutAliases
+  aliases @include(if: true) {
+    artifactCollection {
+      __typename
+      project {
+        entityName
+        name
+      }
+      name
+    }
+    alias
+  }
+}
+
+fragment ArtifactFragmentWithoutAliases on Artifact {
+  id
+  artifactSequence {
+    project {
+      entityName
+      name
+    }
+    name
+  }
+  versionIndex
+  artifactType {
+    name
+  }
+  description
+  metadata
+  ttlDurationSeconds @include(if: true)
+  ttlIsInherited @include(if: true)
+  tags @include(if: true) {
+    name
+  }
+  historyStep @include(if: true)
+  state
+  currentManifest {
+    file {
+      directUrl
+    }
+  }
+  commitHash
+  fileCount
+  createdAt
+  updatedAt
+}
+
+fragment MembershipWithArtifact on ArtifactCollectionMembership {
+  id
+  artifactCollection {
+    __typename
+    id
+    name
+    project {
+      id
+      entityName
+      name
+    }
+  }
+  artifact {
+    ...ArtifactFragment
   }
 }
 """
