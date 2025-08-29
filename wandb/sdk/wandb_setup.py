@@ -28,12 +28,13 @@ import logging
 import os
 import pathlib
 import sys
+import threading
 from typing import TYPE_CHECKING, Any, Union
 
 import wandb
 import wandb.integration.sagemaker as sagemaker
 from wandb.env import CONFIG_DIR
-from wandb.sdk.lib import import_hooks, wb_logging
+from wandb.sdk.lib import asyncio_manager, import_hooks, wb_logging
 
 from . import wandb_settings
 from .lib import config_util, server
@@ -89,9 +90,13 @@ class _WandbSetup:
     """W&B library singleton."""
 
     def __init__(self, pid: int) -> None:
+        self._asyncer = asyncio_manager.AsyncioManager()
+        self._asyncer.start()
+
         self._connection: ServiceConnection | None = None
 
         self._active_runs: list[wandb_run.Run] = []
+        self._active_runs_lock = threading.Lock()
 
         self._sweep_config: dict | None = None
         self._server: server.Server | None = None
@@ -104,6 +109,11 @@ class _WandbSetup:
         self._settings: Settings | None = None
         self._settings_environ: dict[str, str] | None = None
 
+    @property
+    def asyncer(self) -> asyncio_manager.AsyncioManager:
+        """The internal asyncio thread used by wandb."""
+        return self._asyncer
+
     def add_active_run(self, run: wandb_run.Run) -> None:
         """Append a run to the active runs list.
 
@@ -112,8 +122,9 @@ class _WandbSetup:
         Args:
             run: A newly initialized run.
         """
-        if run not in self._active_runs:
-            self._active_runs.append(run)
+        with self._active_runs_lock:
+            if run not in self._active_runs:
+                self._active_runs.append(run)
 
     def remove_active_run(self, run: wandb_run.Run) -> None:
         """Remove the run from the active runs list.
@@ -124,17 +135,19 @@ class _WandbSetup:
             run: A run that is finished or crashed.
         """
         try:
-            self._active_runs.remove(run)
+            with self._active_runs_lock:
+                self._active_runs.remove(run)
         except ValueError:
             pass  # Removing a run multiple times is not an error.
 
     @property
     def most_recent_active_run(self) -> wandb_run.Run | None:
         """The most recently initialized run that is not yet finished."""
-        if not self._active_runs:
-            return None
+        with self._active_runs_lock:
+            if not self._active_runs:
+                return None
 
-        return self._active_runs[-1]
+            return self._active_runs[-1]
 
     def finish_all_active_runs(self) -> None:
         """Finish all unfinished runs.
@@ -146,7 +159,9 @@ class _WandbSetup:
         default and only behavior, it does not seem worth optimizing.
         """
         # Take a snapshot as each call to `finish()` modifies `_active_runs`.
-        runs_copy = list(self._active_runs)
+        with self._active_runs_lock:
+            runs_copy = list(self._active_runs)
+
         for run in runs_copy:
             run.finish()
 
@@ -366,14 +381,13 @@ class _WandbSetup:
     def _teardown(self, exit_code: int | None = None) -> None:
         import_hooks.unregister_all_post_import_hooks()
 
-        if not self._connection:
-            return
+        if self._connection:
+            internal_exit_code = self._connection.teardown(exit_code or 0)
+        else:
+            internal_exit_code = None
 
-        # Reset to None so that setup() creates a new connection.
-        connection = self._connection
-        self._connection = None
+        self._asyncer.join()
 
-        internal_exit_code = connection.teardown(exit_code or 0)
         if internal_exit_code not in (None, 0):
             sys.exit(internal_exit_code)
 
@@ -384,7 +398,10 @@ class _WandbSetup:
 
         from wandb.sdk.lib.service import service_connection
 
-        self._connection = service_connection.connect_to_service(self.settings)
+        self._connection = service_connection.connect_to_service(
+            self._asyncer,
+            self.settings,
+        )
         return self._connection
 
     def assert_service(self) -> ServiceConnection:
@@ -404,6 +421,8 @@ _singleton: _WandbSetup | None = None
 
 The value is invalid and must not be used if `os.getpid() != _singleton._pid`.
 """
+
+_singleton_lock = threading.Lock()
 
 
 def singleton() -> _WandbSetup:
@@ -443,18 +462,20 @@ def _setup(
         raise ValueError("Cannot use start_service if load_settings is False.")
 
     pid = os.getpid()
-    if _singleton and _singleton._pid == pid:
-        current_singleton = _singleton
-    else:
-        current_singleton = _WandbSetup(pid=pid)
+    with _singleton_lock:
+        if _singleton and _singleton._pid == pid:
+            current_singleton = _singleton
+        else:
+            current_singleton = _WandbSetup(pid=pid)
 
-    if load_settings:
-        current_singleton._update(settings)
+        if load_settings:
+            current_singleton._update(settings)
 
-    if start_service and not current_singleton.settings._noop:
-        current_singleton.ensure_service()
+        if start_service and not current_singleton.settings._noop:
+            current_singleton.ensure_service()
 
-    _singleton = current_singleton
+        _singleton = current_singleton
+
     return _singleton
 
 
@@ -531,8 +552,9 @@ def teardown(exit_code: int | None = None) -> None:
     """
     global _singleton
 
-    orig_singleton = _singleton
-    _singleton = None
+    with _singleton_lock:
+        orig_singleton = _singleton
+        _singleton = None
 
-    if orig_singleton:
-        orig_singleton._teardown(exit_code=exit_code)
+        if orig_singleton:
+            orig_singleton._teardown(exit_code=exit_code)

@@ -20,8 +20,6 @@ from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutEr
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import md5_string
 
-sm = wandb.wandb_sdk.internal.sender.SendManager
-
 
 def test_add_table_from_dataframe(user):
     import pandas as pd
