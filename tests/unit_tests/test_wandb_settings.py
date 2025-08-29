@@ -42,35 +42,32 @@ def test_invalid_field_type():
         Settings(api_key=271828)  # must be a string
 
 
-def test_run_tags_validation():
-    """Test that run tags are validated for length."""
-    # Valid tags
-    settings = Settings(run_tags=["valid", "tag2"])
-    assert settings.run_tags == ("valid", "tag2")
+@pytest.mark.parametrize("tags,expected_error", [
+    ([""], "Tags must be between 1 and 64 characters"),
+    (["a" * 65], "Tags must be between 1 and 64 characters"),
+    (["valid", "a" * 65, "another_valid"], "Tags must be between 1 and 64 characters"),
+])
+def test_run_tags_validation_errors(tags, expected_error):
+    """Test that invalid run tags raise appropriate errors."""
+    with pytest.raises(ValueError, match=expected_error):
+        Settings(run_tags=tags)
 
-    # Empty tag
-    with pytest.raises(ValueError, match="Tags must be between 1 and 64 characters"):
-        Settings(run_tags=[""])
 
-    # Too long tag
-    with pytest.raises(ValueError, match="Tags must be between 1 and 64 characters"):
-        Settings(run_tags=["a" * 65])
-
-    # Edge case: exactly 64 chars (valid)
-    settings = Settings(run_tags=["a" * 64])
-    assert len(settings.run_tags[0]) == 64
-
-    # Multiple tags with one invalid
-    with pytest.raises(ValueError, match="Tags must be between 1 and 64 characters"):
-        Settings(run_tags=["valid", "a" * 65, "another_valid"])
-
-    # Single string tag (should convert to tuple)
-    settings = Settings(run_tags="single_tag")
-    assert settings.run_tags == ("single_tag",)
-
-    # None value should be allowed
-    settings = Settings(run_tags=None)
-    assert settings.run_tags is None
+@pytest.mark.parametrize("tags,expected", [
+    (["valid", "tag2"], ("valid", "tag2")),
+    (["a" * 64], ("a" * 64,)),
+    ("single_tag", ("single_tag",)),  
+    (None, None),
+])
+def test_run_tags_validation_success(tags, expected):
+    """Test that valid run tags are accepted and converted appropriately."""
+    settings = Settings(run_tags=tags)
+    if expected is None:
+        assert settings.run_tags is None
+    else:
+        assert settings.run_tags == expected
+        if tags == ["a" * 64]:
+            assert len(settings.run_tags[0]) == 64
 
 
 def test_program_python_m():
