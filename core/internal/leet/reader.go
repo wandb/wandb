@@ -3,7 +3,6 @@
 package leet
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -15,12 +14,14 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// WandbReader handles reading records from a .wandb file.
+// WandbReader handles reading records from a W&B LevelDB-style transaction log (.wandb file).
 type WandbReader struct {
-	store    *LiveStore
+	// store is a W&B LevelDB-style transaction log that may be actively written.
+	store *LiveStore
+	// exitSeen indicates whether an ExitRecord has been seen.
 	exitSeen bool
+	// exitCode is the ext code reported in the ExitRecord (if seen).
 	exitCode int32
-	filepath string
 }
 
 // NewWandbReader creates a new wandb file reader.
@@ -36,16 +37,11 @@ func NewWandbReader(runPath string) (*WandbReader, error) {
 		return nil, fmt.Errorf("reader: failed to create live store: %v", err)
 	}
 
-	reader := &WandbReader{
-		store:    store,
-		filepath: runPath,
-		exitSeen: false,
-	}
-
-	return reader, nil
+	return &WandbReader{store: store}, nil
 }
 
-// ReadAllRecordsChunked reads all available records in chunks and sends them as batches
+// ReadAllRecordsChunked reads all available records in chunks
+// and forwards them for processing as batches.
 func (r *WandbReader) ReadAllRecordsChunked() tea.Cmd {
 	return func() tea.Msg {
 		const chunkSize = 100                          // Process records in chunks
@@ -128,19 +124,6 @@ func (r *WandbReader) ReadNext() (tea.Msg, error) {
 	}
 
 	return recordToMsg(record), nil
-}
-
-// ProcessRecords processes a batch of records and returns messages.
-func ProcessRecords(ctx context.Context, records []*spb.Record) ([]tea.Msg, error) {
-	var msgs []tea.Msg
-
-	for _, record := range records {
-		if msg := recordToMsg(record); msg != nil {
-			msgs = append(msgs, msg)
-		}
-	}
-
-	return msgs, nil
 }
 
 // recordToMsg converts a record to the appropriate message type.
@@ -271,9 +254,8 @@ func InitializeReader(runPath string) tea.Cmd {
 	}
 }
 
-// ReadAllRecordsChunked reads records in chunks for progressive loading
+// ReadAllRecordsChunked returns a command to read records in chunks for progressive loading.
 func ReadAllRecordsChunked(reader *WandbReader) tea.Cmd {
-	// This is now defined in reader.go as a function that returns tea.Cmd
 	return reader.ReadAllRecordsChunked()
 }
 
@@ -287,11 +269,10 @@ func ReadAvailableRecords(reader *WandbReader) tea.Cmd {
 		for recordCount < maxRecordsPerBatch {
 			msg, err := reader.ReadNext()
 			if err == io.EOF {
-				// No more records available right now
+				// No more records available right now.
 				break
 			}
 			if err != nil {
-				// Log error but continue
 				continue
 			}
 			if msg != nil {
@@ -303,7 +284,7 @@ func ReadAvailableRecords(reader *WandbReader) tea.Cmd {
 		if len(msgs) > 0 {
 			return BatchedRecordsMsg{Msgs: msgs}
 		}
-		// No new records found
+		// No new records found.
 		return nil
 	}
 }

@@ -12,8 +12,15 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const wandbStoreVersion = 0
+
+// LiveStore is the persistent store for a stream that may be actively
+// written to by another process.
 type LiveStore struct {
-	db     *os.File
+	// db is the underlying database.
+	db *os.File
+	// reader is a LiveReader that reads records from a W&B LevelDB-style log
+	// that may be actively written.
 	reader *leveldb.LiveReader
 }
 
@@ -25,13 +32,14 @@ func NewLiveStore(filename string) (*LiveStore, error) {
 	reader := leveldb.NewLiveReader(f, leveldb.CRCAlgoIEEE)
 
 	// Validate W&B header once; it's OK if it's not fully there yet (io.EOF).
-	if err := reader.VerifyWandbHeader(0); err != nil && !errors.Is(err, io.EOF) {
+	if err := reader.VerifyWandbHeader(wandbStoreVersion); err != nil && !errors.Is(err, io.EOF) {
 		_ = f.Close()
 		return nil, fmt.Errorf("livestore: header verify: %w", err)
 	}
 	return &LiveStore{f, reader}, nil
 }
 
+// Reads the next record from the database.
 func (lr *LiveStore) Read() (*spb.Record, error) {
 	if lr.db == nil {
 		return nil, fmt.Errorf("livestore: db is closed")
@@ -58,6 +66,7 @@ func (lr *LiveStore) Read() (*spb.Record, error) {
 	return msg, nil
 }
 
+// Close closes the database.
 func (ls *LiveStore) Close() error {
 	if ls.db == nil {
 		return nil
