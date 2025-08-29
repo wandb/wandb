@@ -250,11 +250,11 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         # Save per requested mode
         if save_program:
             model.save(save_dir, save_program=True)
-            artifact.add_dir(save_dir, name=artifact_name)
+            artifact.add_dir(save_dir)
         else:
             filename = f"program.{filetype}"
             file_path = os.path.join(save_dir, filename)
             model.save(file_path, save_program=False)
-            artifact.add_file(file_path, name=artifact_name)
+            artifact.add_file(file_path)
 
         self._run.log_artifact(artifact, aliases=list(aliases))
