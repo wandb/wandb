@@ -178,12 +178,9 @@ func ReadCPUStats(ctx context.Context, opts ...Option) (*CPUStats, error) {
 	var up uint32parser
 	pids := make([]uint32, len(names))
 	for i, s := range names {
-		if s == "trace" {
-			continue
-		}
 		pids[i] = up.Parse(s)
 	}
-	if err := up.err; err != nil {
+	if up.err != nil {
 		return nil, err
 	}
 	sort.Slice(pids, func(i, j int) bool {

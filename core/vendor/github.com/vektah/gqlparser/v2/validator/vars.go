@@ -11,7 +11,6 @@ import (
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
-//nolint:staticcheck // We do not care about capitalized error strings
 var ErrUnexpectedType = fmt.Errorf("Unexpected Type")
 
 // VariableValues coerces and validates variable values
@@ -56,14 +55,13 @@ func VariableValues(schema *ast.Schema, op *ast.OperationDefinition, variables m
 
 				jsonNumber, isJSONNumber := val.(json.Number)
 				if isJSONNumber {
-					switch v.Type.NamedType {
-					case "Int":
+					if v.Type.NamedType == "Int" {
 						n, err := jsonNumber.Int64()
 						if err != nil {
 							return nil, gqlerror.ErrorPathf(validator.path, "cannot use value %d as %s", n, v.Type.NamedType)
 						}
 						rv = reflect.ValueOf(n)
-					case "Float":
+					} else if v.Type.NamedType == "Float" {
 						f, err := jsonNumber.Float64()
 						if err != nil {
 							return nil, gqlerror.ErrorPathf(validator.path, "cannot use value %f as %s", f, v.Type.NamedType)

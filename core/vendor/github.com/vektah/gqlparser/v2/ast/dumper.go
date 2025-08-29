@@ -40,13 +40,13 @@ func (d *dumper) dump(v reflect.Value) {
 			d.WriteString("false")
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		fmt.Fprintf(d, "%d", v.Int())
+		d.WriteString(fmt.Sprintf("%d", v.Int()))
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		fmt.Fprintf(d, "%d", v.Uint())
+		d.WriteString(fmt.Sprintf("%d", v.Uint()))
 
 	case reflect.Float32, reflect.Float64:
-		fmt.Fprintf(d, "%.2f", v.Float())
+		d.WriteString(fmt.Sprintf("%.2f", v.Float()))
 
 	case reflect.String:
 		if v.Type().Name() != "string" {
@@ -70,11 +70,11 @@ func (d *dumper) dump(v reflect.Value) {
 }
 
 func (d *dumper) writeIndent() {
-	d.WriteString(strings.Repeat("  ", d.indent))
+	d.Buffer.WriteString(strings.Repeat("  ", d.indent))
 }
 
 func (d *dumper) nl() {
-	d.WriteByte('\n')
+	d.Buffer.WriteByte('\n')
 	d.writeIndent()
 }
 

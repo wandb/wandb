@@ -7,8 +7,8 @@ import (
 
 	"github.com/vektah/gqlparser/v2/ast"
 
-	//nolint:staticcheck // Validator rules each use dot imports for convenience.
-	. "github.com/vektah/gqlparser/v2/validator/core"
+	//nolint:revive // Validator rules each use dot imports for convenience.
+	. "github.com/vektah/gqlparser/v2/validator"
 )
 
 func ruleFuncFieldsOnCorrectType(observers *Events, addError AddErrFunc, disableSuggestion bool) {
@@ -46,6 +46,10 @@ var FieldsOnCorrectTypeRuleWithoutSuggestions = Rule{
 	RuleFunc: func(observers *Events, addError AddErrFunc) {
 		ruleFuncFieldsOnCorrectType(observers, addError, true)
 	},
+}
+
+func init() {
+	AddRule(FieldsOnCorrectTypeRule.Name, FieldsOnCorrectTypeRule.RuleFunc)
 }
 
 // Go through all the implementations of type, as well as the interfaces

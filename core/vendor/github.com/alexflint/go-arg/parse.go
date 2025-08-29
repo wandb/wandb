@@ -90,7 +90,7 @@ func mustParse(config Config, dest ...interface{}) *Parser {
 	p, err := NewParser(config, dest...)
 	if err != nil {
 		fmt.Fprintln(config.Out, err)
-		config.Exit(2)
+		config.Exit(-1)
 		return nil
 	}
 
@@ -130,9 +130,6 @@ type Config struct {
 	// StrictSubcommands intructs the library not to allow global commands after
 	// subcommand
 	StrictSubcommands bool
-
-	// EnvPrefix instructs the library to use a name prefix when reading environment variables.
-	EnvPrefix string
 
 	// Exit is called to terminate the process with an error code (defaults to os.Exit)
 	Exit func(int)
@@ -238,7 +235,7 @@ func NewParser(config Config, dests ...interface{}) (*Parser, error) {
 			panic(fmt.Sprintf("%s is not a pointer (did you forget an ampersand?)", t))
 		}
 
-		cmd, err := cmdFromStruct(name, path{root: i}, t, config.EnvPrefix)
+		cmd, err := cmdFromStruct(name, path{root: i}, t)
 		if err != nil {
 			return nil, err
 		}
@@ -285,17 +282,10 @@ func NewParser(config Config, dests ...interface{}) (*Parser, error) {
 		}
 	}
 
-	// Set the parent of the subcommands to be the top-level command
-	// to make sure that global options work when there is more than one
-	// dest supplied.
-	for _, subcommand := range p.cmd.subcommands {
-		subcommand.parent = p.cmd
-	}
-
 	return &p, nil
 }
 
-func cmdFromStruct(name string, dest path, t reflect.Type, envPrefix string) (*command, error) {
+func cmdFromStruct(name string, dest path, t reflect.Type) (*command, error) {
 	// commands can only be created from pointers to structs
 	if t.Kind() != reflect.Ptr {
 		return nil, fmt.Errorf("subcommands must be pointers to structs but %s is a %s",
@@ -382,9 +372,9 @@ func cmdFromStruct(name string, dest path, t reflect.Type, envPrefix string) (*c
 			case key == "env":
 				// Use override name if provided
 				if value != "" {
-					spec.env = envPrefix + value
+					spec.env = value
 				} else {
-					spec.env = envPrefix + strings.ToUpper(field.Name)
+					spec.env = strings.ToUpper(field.Name)
 				}
 			case key == "subcommand":
 				// decide on a name for the subcommand
@@ -399,7 +389,7 @@ func cmdFromStruct(name string, dest path, t reflect.Type, envPrefix string) (*c
 				}
 
 				// parse the subcommand recursively
-				subcmd, err := cmdFromStruct(cmdnames[0], subdest, field.Type, envPrefix)
+				subcmd, err := cmdFromStruct(cmdnames[0], subdest, field.Type)
 				if err != nil {
 					errs = append(errs, err.Error())
 					return false
@@ -503,15 +493,8 @@ func cmdFromStruct(name string, dest path, t reflect.Type, envPrefix string) (*c
 	return &cmd, nil
 }
 
-// Parse processes the given command line option, storing the results in the fields
-// of the structs from which NewParser was constructed.
-//
-// It returns ErrHelp if "--help" is one of the command line args and ErrVersion if
-// "--version" is one of the command line args (the latter only applies if the
-// destination struct passed to NewParser implements Versioned.)
-//
-// To respond to --help and --version in the way that MustParse does, see examples
-// in the README under "Custom handling of --help and --version".
+// Parse processes the given command line option, storing the results in the field
+// of the structs from which NewParser was constructed
 func (p *Parser) Parse(args []string) error {
 	err := p.process(args)
 	if err != nil {
@@ -625,7 +608,7 @@ func (p *Parser) process(args []string) error {
 	// must use explicit for loop, not range, because we manipulate i inside the loop
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-		if arg == "--" && !allpositional {
+		if arg == "--" {
 			allpositional = true
 			continue
 		}
@@ -700,7 +683,7 @@ func (p *Parser) process(args []string) error {
 		if spec.cardinality == multiple {
 			var values []string
 			if value == "" {
-				for i+1 < len(args) && isValue(args[i+1], spec.field.Type, specs) && args[i+1] != "--" {
+				for i+1 < len(args) && !isFlag(args[i+1]) && args[i+1] != "--" {
 					values = append(values, args[i+1])
 					i++
 					if spec.separate {
@@ -728,7 +711,7 @@ func (p *Parser) process(args []string) error {
 			if i+1 == len(args) {
 				return fmt.Errorf("missing value for %s", arg)
 			}
-			if !isValue(args[i+1], spec.field.Type, specs) {
+			if !nextIsNumeric(spec.field.Type, args[i+1]) && isFlag(args[i+1]) {
 				return fmt.Errorf("missing value for %s", arg)
 			}
 			value = args[i+1]
@@ -753,13 +736,13 @@ func (p *Parser) process(args []string) error {
 		if spec.cardinality == multiple {
 			err := setSliceOrMap(p.val(spec.dest), positionals, true)
 			if err != nil {
-				return fmt.Errorf("error processing %s: %v", spec.placeholder, err)
+				return fmt.Errorf("error processing %s: %v", spec.field.Name, err)
 			}
 			positionals = nil
 		} else {
 			err := scalar.ParseValue(p.val(spec.dest), positionals[0])
 			if err != nil {
-				return fmt.Errorf("error processing %s: %v", spec.placeholder, err)
+				return fmt.Errorf("error processing %s: %v", spec.field.Name, err)
 			}
 			positionals = positionals[1:]
 		}
@@ -774,13 +757,18 @@ func (p *Parser) process(args []string) error {
 			continue
 		}
 
+		name := strings.ToLower(spec.field.Name)
+		if spec.long != "" && !spec.positional {
+			name = "--" + spec.long
+		}
+
 		if spec.required {
 			if spec.short == "" && spec.long == "" {
 				msg := fmt.Sprintf("environment variable %s is required", spec.env)
 				return errors.New(msg)
 			}
 
-			msg := fmt.Sprintf("%s is required", spec.placeholder)
+			msg := fmt.Sprintf("%s is required", name)
 			if spec.env != "" {
 				msg += " (or environment variable " + spec.env + ")"
 			}
@@ -801,29 +789,22 @@ func (p *Parser) process(args []string) error {
 	return nil
 }
 
-// isFlag returns true if a token is a flag such as "-v" or "--user" but not "-" or "--"
-func isFlag(s string) bool {
-	return strings.HasPrefix(s, "-") && strings.TrimLeft(s, "-") != ""
-}
-
-// isValue returns true if a token should be consumed as a value for a flag of type t. This
-// is almost always the inverse of isFlag. The one exception is for negative numbers, in which
-// case we check the list of active options and return true if its not present there.
-func isValue(s string, t reflect.Type, specs []*spec) bool {
+func nextIsNumeric(t reflect.Type, s string) bool {
 	switch t.Kind() {
-	case reflect.Ptr, reflect.Slice:
-		return isValue(s, t.Elem(), specs)
+	case reflect.Ptr:
+		return nextIsNumeric(t.Elem(), s)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Float32, reflect.Float64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 		v := reflect.New(t)
 		err := scalar.ParseValue(v, s)
-		// if value can be parsed and is not an explicit option declared elsewhere, then use it as a value
-		if err == nil && (!strings.HasPrefix(s, "-") || findOption(specs, strings.TrimPrefix(s, "-")) == nil) {
-			return true
-		}
+		return err == nil
+	default:
+		return false
 	}
+}
 
-	// default case that is used in all cases other than negative numbers: inverse of isFlag
-	return !isFlag(s)
+// isFlag returns true if a token is a flag such as "-v" or "--user" but not "-" or "--"
+func isFlag(s string) bool {
+	return strings.HasPrefix(s, "-") && strings.TrimLeft(s, "-") != ""
 }
 
 // val returns a reflect.Value corresponding to the current value for the

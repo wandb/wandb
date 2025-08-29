@@ -20,7 +20,7 @@ type Type struct {
 	NamedType string
 	Elem      *Type
 	NonNull   bool
-	Position  *Position `dump:"-" json:"-"`
+	Position  *Position `dump:"-"`
 }
 
 func (t *Type) Name() string {

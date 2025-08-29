@@ -3,8 +3,8 @@ package rules
 import (
 	"github.com/vektah/gqlparser/v2/ast"
 
-	//nolint:staticcheck // Validator rules each use dot imports for convenience.
-	. "github.com/vektah/gqlparser/v2/validator/core"
+	//nolint:revive // Validator rules each use dot imports for convenience.
+	. "github.com/vektah/gqlparser/v2/validator"
 )
 
 var ScalarLeafsRule = Rule{
@@ -36,4 +36,8 @@ var ScalarLeafsRule = Rule{
 			}
 		})
 	},
+}
+
+func init() {
+	AddRule(ScalarLeafsRule.Name, ScalarLeafsRule.RuleFunc)
 }
