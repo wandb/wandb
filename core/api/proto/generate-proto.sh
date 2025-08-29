@@ -6,6 +6,10 @@ __SCRIPT__=$(readlink -f "$0")
 __DIR__=$(dirname "$__SCRIPT__")
 cd $__DIR__
 ./install-protoc.sh 23.4
+
+# Ensure a consistent install location for protoc plugins and make it available on PATH
+mkdir -p "$HOME/.local/bin"
+export GOBIN="$HOME/.local/bin"
 go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.33.0
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
