@@ -279,8 +279,8 @@ def test_download_respects_skip_cache(user, tmp_path, monkeypatch, skip_download
     artifact.wait()
 
     # Ensure the uploaded file is in the cache.
-    cache_pathstr, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
-    assert not hit
+    checked_path = cache.check_md5_obj_path(entry.digest, entry.size)
+    assert not checked_path.hit
 
     # Manually write a file into the cache path to check that it's:
     # - used, if not skipping the cache (default behavior)
@@ -288,7 +288,7 @@ def test_download_respects_skip_cache(user, tmp_path, monkeypatch, skip_download
     # This is kind of evil and might break if we later force cache validity.
     replaced_cache_content = "corrupt"
 
-    cache_path = Path(cache_pathstr)
+    cache_path = Path(checked_path.path)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(replaced_cache_content)
 
@@ -387,8 +387,8 @@ def test_mutable_uploads_with_cache_enabled(user, tmp_path, monkeypatch, api):
         run.log_artifact(artifact)
 
     # The file is cached
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
-    assert found
+    checked_path = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    assert checked_path.hit
 
     # The staged files are deleted after caching
     staging_files = list(staging_dir.iterdir())
@@ -418,8 +418,8 @@ def test_mutable_uploads_with_cache_disabled(user, tmp_path, monkeypatch):
         run.log_artifact(artifact)
 
     # The file is not cached
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
-    assert not found
+    checked_path = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    assert not checked_path.hit
 
     # The staged files are deleted even if caching is disabled
     staging_files = list(staging_dir.iterdir())
@@ -448,8 +448,8 @@ def test_immutable_uploads_with_cache_enabled(user, tmp_path, monkeypatch):
         run.log_artifact(artifact)
 
     # The file is cached
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
-    assert found
+    checked_path = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    assert checked_path.hit
 
 
 def test_immutable_uploads_with_cache_disabled(user, tmp_path, monkeypatch):
@@ -474,8 +474,8 @@ def test_immutable_uploads_with_cache_disabled(user, tmp_path, monkeypatch):
         run.log_artifact(artifact)
 
     # The file is cached
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
-    assert not found
+    checked_path = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    assert not checked_path.hit
 
 
 def test_local_references(user):
