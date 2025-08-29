@@ -2,7 +2,11 @@
 
 package leet
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"time"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Default layout constants
 var (
@@ -223,6 +227,12 @@ var (
 		BottomRight: " ",
 	}
 )
+
+// AnimationDuration is the duration for sidebar animations
+const AnimationDuration = 150 * time.Millisecond
+
+// AnimationSteps is the number of steps in sidebar animations
+const AnimationSteps = 10
 
 // Help screen styles
 var (

@@ -12,107 +12,37 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // WandbReader handles reading records from a .wandb file.
 type WandbReader struct {
-	store          *stream.Store
-	exitSeen       bool
-	exitCode       int32
-	lastGoodOffset int64
-	filepath       string
+	store    *LiveStore
+	exitSeen bool
+	exitCode int32
+	filepath string
 }
 
 // NewWandbReader creates a new wandb file reader.
 func NewWandbReader(runPath string) (*WandbReader, error) {
 	// Check if file exists
-	info, err := os.Stat(runPath)
+	_, err := os.Stat(runPath)
 	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("wandb file not found: %s", runPath)
+		return nil, fmt.Errorf("reader: wandb file not found: %s", runPath)
 	}
 
-	store := stream.NewStore(runPath)
+	store, err := NewLiveStore(runPath)
+	if err != nil {
+		return nil, fmt.Errorf("reader: failed to create live store: %v", err)
+	}
 
 	reader := &WandbReader{
-		store:          store,
-		filepath:       runPath,
-		exitSeen:       false,
-		lastGoodOffset: 0,
-	}
-
-	// Check if file is too small for header (7 bytes minimum)
-	if info.Size() < 7 {
-		// File is too small, but might grow later (for live monitoring)
-		return reader, nil
-	}
-
-	// Try to open the store for reading
-	err = store.Open(os.O_RDONLY)
-	if err != nil {
-		// If the error is about header verification, the file might be incomplete
-		if strings.Contains(err.Error(), "VerifyWandbHeader") ||
-			strings.Contains(err.Error(), "invalid W&B") ||
-			strings.Contains(err.Error(), "EOF") {
-			// File exists but header is not valid yet
-			// Close the store and we'll retry later
-			store.Close()
-			reader.store = nil
-			return reader, nil
-		}
-		return nil, fmt.Errorf("failed to open store: %w", err)
-	}
-
-	// Get initial offset after header (should be 7 for W&B files)
-	initialOffset := store.GetCurrentOffset()
-	if initialOffset > 0 {
-		reader.lastGoodOffset = initialOffset
-	} else {
-		reader.lastGoodOffset = 7 // Default to after header
+		store:    store,
+		filepath: runPath,
+		exitSeen: false,
 	}
 
 	return reader, nil
-}
-
-// tryReopenStore attempts to reopen the store if it's not open
-func (r *WandbReader) tryReopenStore() error {
-	if r.store != nil {
-		return nil // Already open
-	}
-
-	// Check if file now has enough bytes for header
-	info, err := os.Stat(r.filepath)
-	if err != nil {
-		return err
-	}
-
-	if info.Size() < 7 {
-		return fmt.Errorf("file too small for header")
-	}
-
-	// Create new store if needed
-	if r.store == nil {
-		r.store = stream.NewStore(r.filepath)
-	}
-
-	// Try to open the store
-	err = r.store.Open(os.O_RDONLY)
-	if err != nil {
-		return err
-	}
-
-	// Reset to last known good position if we have one
-	if r.lastGoodOffset > 0 {
-		_ = r.store.SeekToOffset(r.lastGoodOffset)
-	} else {
-		r.lastGoodOffset = r.store.GetCurrentOffset()
-		if r.lastGoodOffset < 0 {
-			r.lastGoodOffset = 7 // Default to after header
-		}
-	}
-
-	return nil
 }
 
 // ReadAllRecordsChunked reads all available records in chunks and sends them as batches
@@ -120,12 +50,6 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Cmd {
 	return func() tea.Msg {
 		const chunkSize = 100                          // Process records in chunks
 		const maxTimePerChunk = 100 * time.Millisecond // Increased time limit
-
-		// Try to open store if not already open
-		if err := r.tryReopenStore(); err != nil {
-			// If we can't open the store yet, return empty batch
-			return ChunkedBatchMsg{Msgs: []tea.Msg{}, HasMore: false}
-		}
 
 		if r.store == nil {
 			return ChunkedBatchMsg{Msgs: []tea.Msg{}, HasMore: false}
@@ -137,47 +61,15 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Cmd {
 		hitEOF := false
 
 		for recordCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
-			// Save position before attempting read
-			currentPos := r.store.GetCurrentOffset()
-
 			record, err := r.store.Read()
-
-			if err == io.EOF {
-				// Update last good offset to current position
-				if currentPos > 0 {
-					r.lastGoodOffset = currentPos
-				}
-				hitEOF = true
-				break
-			}
-
 			if err != nil {
-				// Error reading record - it might be incomplete
-				// Recover and try to continue from next block
-				r.store.Recover()
-
-				// Try one more read after recovery
-				record, err = r.store.Read()
-				if err != nil {
-					// Still failing, update last good position and break
-					if currentPos > 0 && currentPos > r.lastGoodOffset {
-						r.lastGoodOffset = currentPos
-					}
-					// Don't continue, might be corrupted
-					break
-				}
+				break
 			}
 
 			if record != nil {
 				if msg := recordToMsg(record); msg != nil {
 					msgs = append(msgs, msg)
 					recordCount++
-				}
-
-				// Update last good offset after successful read
-				newPos := r.store.GetCurrentOffset()
-				if newPos > 0 {
-					r.lastGoodOffset = newPos
 				}
 
 				// Check for exit record
@@ -203,85 +95,10 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Cmd {
 	}
 }
 
-// ReadAllRecords reads all available records from the file.
-func (r *WandbReader) ReadAllRecords() ([]*spb.Record, error) {
-	var records []*spb.Record
-
-	// Try to open store if not already open
-	if err := r.tryReopenStore(); err != nil {
-		// If we can't open the store, return empty records
-		return records, nil
-	}
-
-	if r.store == nil {
-		return records, nil
-	}
-
-	for {
-		// Save position before attempting read
-		currentPos := r.store.GetCurrentOffset()
-
-		record, err := r.store.Read()
-
-		if err == io.EOF {
-			// Update last good offset to current position
-			if currentPos > 0 {
-				r.lastGoodOffset = currentPos
-			}
-			break
-		}
-
-		if err != nil {
-			// Error reading record - it might be incomplete
-			// Recover and try to continue from next block
-			r.store.Recover()
-
-			// Try one more read after recovery
-			record, err = r.store.Read()
-			if err != nil {
-				// Still failing, update last good position and continue
-				if currentPos > 0 && currentPos > r.lastGoodOffset {
-					r.lastGoodOffset = currentPos
-				}
-				continue
-			}
-		}
-
-		if record != nil {
-			records = append(records, record)
-
-			// Update last good offset after successful read
-			newPos := r.store.GetCurrentOffset()
-			if newPos > 0 {
-				r.lastGoodOffset = newPos
-			}
-
-			// Check for exit record
-			if exit, ok := record.RecordType.(*spb.Record_Exit); ok {
-				r.exitSeen = true
-				r.exitCode = exit.Exit.ExitCode
-			}
-		}
-	}
-
-	return records, nil
-}
-
 // ReadNext reads the next record for live monitoring.
 func (r *WandbReader) ReadNext() (tea.Msg, error) {
-	// Try to open store if not already open (for files that are being written)
-	if err := r.tryReopenStore(); err != nil {
-		return nil, io.EOF
-	}
-
 	if r.store == nil {
 		return nil, io.EOF
-	}
-
-	// Save position before attempting read
-	beforeReadOffset := r.store.GetCurrentOffset()
-	if beforeReadOffset < 0 {
-		beforeReadOffset = r.lastGoodOffset
 	}
 
 	// Try to read the next record
@@ -289,40 +106,11 @@ func (r *WandbReader) ReadNext() (tea.Msg, error) {
 
 	if err == io.EOF && !r.exitSeen {
 		// We hit EOF, but the run isn't finished yet
-		// Seek back to last known good position and wait for more data
-		if r.lastGoodOffset > 0 {
-			if seekErr := r.store.SeekToOffset(r.lastGoodOffset); seekErr != nil {
-				// If seek fails, try to recover
-				r.store.Recover()
-			}
-		}
 		return nil, io.EOF
 	}
 
 	if err != nil && err != io.EOF {
-		// Error reading - might be incomplete record in live file
-		// Try to recover by seeking back to before this read attempt
-		if beforeReadOffset > 0 {
-			if seekErr := r.store.SeekToOffset(beforeReadOffset); seekErr == nil {
-				// Successfully seeked back, try reading again
-				record, err = r.store.Read()
-				if err != nil {
-					// Still failing, seek to last known good
-					if r.lastGoodOffset > 0 && r.lastGoodOffset < beforeReadOffset {
-						_ = r.store.SeekToOffset(r.lastGoodOffset)
-					}
-					return nil, err
-				}
-			} else {
-				// Seek failed, try recover
-				r.store.Recover()
-				return nil, err
-			}
-		} else {
-			// No valid offset to seek back to
-			r.store.Recover()
-			return nil, err
-		}
+		return nil, err
 	}
 
 	if err == io.EOF {
@@ -330,12 +118,6 @@ func (r *WandbReader) ReadNext() (tea.Msg, error) {
 			return FileCompleteMsg{ExitCode: r.exitCode}, io.EOF
 		}
 		return nil, io.EOF
-	}
-
-	// Successfully read a record
-	afterReadOffset := r.store.GetCurrentOffset()
-	if afterReadOffset > 0 {
-		r.lastGoodOffset = afterReadOffset
 	}
 
 	// Check if this is an exit record
@@ -476,4 +258,52 @@ func (r *WandbReader) Close() error {
 		return r.store.Close()
 	}
 	return nil
+}
+
+// InitializeReader creates a command to initialize the wandb reader.
+func InitializeReader(runPath string) tea.Cmd {
+	return func() tea.Msg {
+		reader, err := NewWandbReader(runPath)
+		if err != nil {
+			return ErrorMsg{Err: err}
+		}
+		return InitMsg{Reader: reader}
+	}
+}
+
+// ReadAllRecordsChunked reads records in chunks for progressive loading
+func ReadAllRecordsChunked(reader *WandbReader) tea.Cmd {
+	// This is now defined in reader.go as a function that returns tea.Cmd
+	return reader.ReadAllRecordsChunked()
+}
+
+// ReadAvailableRecords reads new records for live monitoring.
+func ReadAvailableRecords(reader *WandbReader) tea.Cmd {
+	return func() tea.Msg {
+		var msgs []tea.Msg
+		recordCount := 0
+		const maxRecordsPerBatch = 100
+
+		for recordCount < maxRecordsPerBatch {
+			msg, err := reader.ReadNext()
+			if err == io.EOF {
+				// No more records available right now
+				break
+			}
+			if err != nil {
+				// Log error but continue
+				continue
+			}
+			if msg != nil {
+				msgs = append(msgs, msg)
+				recordCount++
+			}
+		}
+
+		if len(msgs) > 0 {
+			return BatchedRecordsMsg{Msgs: msgs}
+		}
+		// No new records found
+		return nil
+	}
 }
