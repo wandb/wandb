@@ -1439,21 +1439,21 @@ class Settings(BaseModel, validate_assignment=True):
     @classmethod
     def validate_run_tags(cls, value):
         """Validate run tags.
-    
+
         Validates that each tag:
         - Is between 1 and 64 characters in length (inclusive)
         - Converts single string values to tuple format
         - Preserves None values
-        
+
         Args:
             value: A string, list, tuple, or None representing tags
-            
+
         Returns:
             tuple: A tuple of validated tags, or None
-            
+
         Raises:
             ValueError: If any tag is empty or exceeds 64 characters
-        
+
         <!-- lazydoc-ignore-classmethod: internal -->
         """
         if value is None:
