@@ -18,6 +18,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+const sentryDSN = "https://2fbeaa43dbe0ed35e536adc7f019ba17@o151352.ingest.us.sentry.io/4507273364242432"
+
 func main() {
 	exitCode := mainWithExitCode()
 	os.Exit(exitCode)
@@ -50,11 +52,14 @@ func mainWithExitCode() int {
 	}
 
 	sentryClient := sentry_ext.New(sentry_ext.Params{
+		DSN:              sentryDSN,
 		Disabled:         !enableErrorReporting,
 		AttachStacktrace: true,
 		Release:          version.Version,
 		Environment:      version.Environment,
 	})
+	// TODO: collect basic env info from experiment data.
+	sentryClient.CaptureMessage("wandb-leet", nil)
 	defer sentryClient.Flush(2)
 
 	// Enable debug logging if WANDB_DEBUG env var is set.
@@ -102,7 +107,7 @@ func mainWithExitCode() int {
 	// Initialize the program
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
-		logger.Error(fmt.Sprintf("wandb-leet: %v", err))
+		logger.CaptureError(fmt.Errorf("wandb-leet: %v", err))
 		return 1
 	}
 

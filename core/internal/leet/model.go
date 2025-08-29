@@ -112,7 +112,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 
 	cfg := GetConfig()
 	if err := cfg.Load(); err != nil {
-		logger.Error(fmt.Sprintf("model: failed to load config: %v", err))
+		logger.CaptureError(fmt.Errorf("model: failed to load config: %v", err))
 	}
 
 	// Update grid dimensions from config
@@ -342,7 +342,7 @@ func (m *Model) getFilteredChartCount() int {
 func (m *Model) recoverPanic(context string) {
 	if r := recover(); r != nil {
 		stackTrace := string(debug.Stack())
-		m.logger.Error(fmt.Sprintf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace))
+		m.logger.CaptureError(fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace))
 
 		// Set the run state to crashed
 		m.runState = RunStateCrashed
@@ -552,7 +552,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Start watcher and heartbeat if file isn't complete
 			if !m.fileComplete && !m.watcherStarted {
 				if err := m.startWatcher(); err != nil {
-					m.logger.Error(fmt.Sprintf("model: error starting watcher: %v", err))
+					m.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
 				} else {
 					m.logger.Info("model: watcher started successfully")
 					// Start heartbeat for live runs
@@ -587,7 +587,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Start watcher and heartbeat after initial load if file isn't complete
 		if !m.fileComplete && !m.watcherStarted {
 			if err := m.startWatcher(); err != nil {
-				m.logger.Error(fmt.Sprintf("model: error starting watcher: %v", err))
+				m.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
 			} else {
 				m.logger.Info("model: watcher started successfully")
 				// Start heartbeat for live runs
@@ -606,7 +606,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Close the old reader creating a new one.
 		if m.reader != nil {
 			if err := m.reader.Close(); err != nil {
-				m.logger.Error(fmt.Sprintf("model: error closing reader: %v", err))
+				m.logger.CaptureError(fmt.Errorf("model: error closing reader: %v", err))
 			}
 			m.reader = nil
 		}
@@ -1045,7 +1045,7 @@ func (m *Model) startWatcher() error {
 					select {
 					case newChan <- msg:
 					default:
-						m.logger.Error("model: failed to transfer message to new channel")
+						m.logger.CaptureError(fmt.Errorf("model: failed to transfer message to new channel"))
 					}
 				}
 				m.msgChan = newChan
@@ -1054,16 +1054,16 @@ func (m *Model) startWatcher() error {
 				case m.msgChan <- FileChangedMsg{}:
 					m.logger.Debug("model: FileChangedMsg sent to new channel")
 				default:
-					m.logger.Error("model: still cannot send FileChangedMsg after growing buffer")
+					m.logger.CaptureError(fmt.Errorf("model: still cannot send FileChangedMsg after growing buffer"))
 				}
 			} else {
-				m.logger.Warn("model: msgChan is at max capacity, dropping FileChangedMsg")
+				m.logger.CaptureWarn("model: msgChan is at max capacity, dropping FileChangedMsg")
 			}
 		}
 	})
 
 	if err != nil {
-		m.logger.Error(fmt.Sprintf("model: error in watcher.Watch: %v", err))
+		m.logger.CaptureError(fmt.Errorf("model: error in watcher.Watch: %v", err))
 		m.watcherStarted = false
 		return err
 	}
