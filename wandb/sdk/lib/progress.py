@@ -70,12 +70,14 @@ def progress_printer(
         default_text: The text to show if no information is available.
     """
     with printer.dynamic_text() as text_area:
-        yield ProgressPrinter(
-            printer,
-            text_area,
-            default_text=default_text,
-        )
-        printer.progress_close()
+        try:
+            yield ProgressPrinter(
+                printer,
+                text_area,
+                default_text=default_text,
+            )
+        finally:
+            printer.progress_close()
 
 
 class ProgressPrinter:
