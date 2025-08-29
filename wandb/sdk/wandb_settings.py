@@ -1468,7 +1468,7 @@ class Settings(BaseModel, validate_assignment=True):
             tags = tuple(value)
 
         # Validate each tag
-        for i, tag in enumerate(tags):
+        for tag in tags:
             tag_str = str(tag)
             if len(tag_str) == 0:
                 raise ValueError(
