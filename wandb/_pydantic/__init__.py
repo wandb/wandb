@@ -1,6 +1,6 @@
 """Internal utilities for working with pydantic."""
 
-from .base import CompatBaseModel, GQLBase
+from .base import CompatBaseModel, GQLBase, JsonableModel
 from .field_types import UNSET, GQLId, SerializedToJson, Typename
 from .utils import (
     IS_PYDANTIC_V2,
@@ -21,6 +21,7 @@ from .v1_compat import (
 __all__ = [
     "IS_PYDANTIC_V2",
     "CompatBaseModel",
+    "JsonableModel",
     "GQLBase",
     "UNSET",
     "Typename",
@@ -36,4 +37,5 @@ __all__ = [
     "from_json",
     "ensure_json",
     "gql_typename",
+    "to_camel",
 ]
