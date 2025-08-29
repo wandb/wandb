@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
@@ -30,7 +29,9 @@ logger = logging.getLogger(__name__)
 
 
 def _flatten_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    def _flatten(d: dict[str, Any], parent_key: str = '', sep: str = '.') -> dict[str, Any]:
+    def _flatten(
+        d: dict[str, Any], parent_key: str = "", sep: str = "."
+    ) -> dict[str, Any]:
         items = []
         for k, v in d.items():
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
@@ -39,6 +40,7 @@ def _flatten_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             else:
                 items.append((new_key, v))
         return dict(items)
+
     return [_flatten(row) for row in rows]
 
 
@@ -150,7 +152,9 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         # The `BaseCallback` does not define the interface for the `outputs` parameter,
         # Currently, we know of `EvaluationResult` which is a subclass of `dspy.Prediction`.
         # We currently support this type and will warn the user if a different type is passed.
-        if exception is None and isinstance(outputs, dspy.evaluate.evaluate.EvaluationResult):
+        if exception is None and isinstance(
+            outputs, dspy.evaluate.evaluate.EvaluationResult
+        ):
             # log the float score as a wandb metric
             score = outputs.score
             wandb.log({"score": float(score)}, step=self._row_idx)
@@ -229,7 +233,6 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         aliases: Sequence[str] = ("best", "latest"),
         artifact_name: str = "dspy-program",
     ) -> None:
-
         # Derive metadata to help discoverability in the UI
         info_dict = self._extract_program_info(model)
         metadata = {
