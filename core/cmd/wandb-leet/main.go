@@ -26,23 +26,33 @@ func main() {
 }
 
 func mainWithExitCode() int {
+	var helpFlag bool
+	flag.BoolVar(&helpFlag, "help", false, "Show help message")
+	flag.BoolVar(&helpFlag, "h", false, "Show help message (shorthand)")
+
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "wandb-leet - Lightweight Experiment Exploration Tool\n\n")
 		fmt.Fprintf(os.Stderr, "A terminal UI for viewing your W&B runs locally.\n\n")
 		fmt.Fprintf(os.Stderr, "Usage:\n")
-		fmt.Fprintf(os.Stderr, "  wandb-leet <run-directory>\n\n")
+		fmt.Fprintf(os.Stderr, "  wandb-leet [<run-directory>]\n")
+		fmt.Fprintf(os.Stderr, "  wandb-leet --help\n\n")
 		fmt.Fprintf(os.Stderr, "Arguments:\n")
 		fmt.Fprintf(os.Stderr, "  <run-directory>       Path to a W&B run directory containing a .wandb file\n")
 		fmt.Fprintf(os.Stderr, "                        Example: /path/to/.wandb/run-20250731_170606-iazb7i1k\n\n")
+		fmt.Fprintf(os.Stderr, "                        If no directory is specified, wandb-leet will look for\n")
+		fmt.Fprintf(os.Stderr, "                        the latest-run symlink in ./wandb or ./.wandb\n\n")
+		fmt.Fprintf(os.Stderr, "Options:\n")
+		fmt.Fprintf(os.Stderr, "  -h, --help            Show this help message\n\n")
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
 		fmt.Fprintf(os.Stderr, "  WANDB_DEBUG           Enable debug logging (creates wandb-leet.debug.log)\n")
+		fmt.Fprintf(os.Stderr, "  WANDB_ERROR_REPORTING Enable/disable error reporting (default: true)\n")
 	}
 
 	flag.Parse()
 
-	if flag.NArg() != 1 {
+	if helpFlag {
 		flag.Usage()
-		os.Exit(1)
+		return 0
 	}
 
 	// Sentry reporting.
@@ -91,8 +101,27 @@ func mainWithExitCode() int {
 		},
 	)
 
-	// Get the directory path from arguments
-	runDir := flag.Arg(0)
+	// Determine the run directory
+	var runDir string
+	if flag.NArg() == 0 {
+		// No arguments provided, try to find latest-run
+		dir, err := findLatestRun()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "\nTry specifying a run directory explicitly:\n")
+			fmt.Fprintf(os.Stderr, "  wandb-leet <run-directory>\n")
+			return 1
+		}
+		runDir = dir
+	} else if flag.NArg() == 1 {
+		// Directory explicitly provided
+		runDir = flag.Arg(0)
+	} else {
+		// Too many arguments
+		fmt.Fprintf(os.Stderr, "Error: too many arguments\n\n")
+		flag.Usage()
+		return 1
+	}
 
 	// Find the .wandb file in the directory
 	wandbFile, err := findWandbFile(runDir)
@@ -112,6 +141,53 @@ func mainWithExitCode() int {
 	}
 
 	return 0
+}
+
+// findLatestRun looks for the latest-run symlink in wandb or .wandb directories
+func findLatestRun() (string, error) {
+	// Try both "wandb" and ".wandb" directories
+	wandbDirs := []string{"wandb", ".wandb"}
+
+	for _, dir := range wandbDirs {
+		if _, err := os.Stat(dir); err != nil {
+			// Directory doesn't exist, try the next one
+			continue
+		}
+
+		// Check for latest-run symlink
+		latestRunPath := filepath.Join(dir, "latest-run")
+		info, err := os.Lstat(latestRunPath)
+		if err != nil {
+			// latest-run doesn't exist in this directory
+			continue
+		}
+
+		// Verify it's a symlink
+		if info.Mode()&os.ModeSymlink == 0 {
+			// Not a symlink, skip
+			continue
+		}
+
+		// Resolve the symlink
+		target, err := filepath.EvalSymlinks(latestRunPath)
+		if err != nil {
+			return "", fmt.Errorf("cannot resolve latest-run symlink in %s: %w", dir, err)
+		}
+
+		// Verify the target exists and is a directory
+		targetInfo, err := os.Stat(target)
+		if err != nil {
+			return "", fmt.Errorf("latest-run symlink target does not exist: %w", err)
+		}
+		if !targetInfo.IsDir() {
+			return "", fmt.Errorf("latest-run symlink does not point to a directory")
+		}
+
+		return target, nil
+	}
+
+	// No latest-run found
+	return "", fmt.Errorf("no latest-run symlink found in ./wandb or ./.wandb")
 }
 
 // findWandbFile searches for a .wandb file in the given directory

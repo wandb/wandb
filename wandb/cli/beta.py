@@ -41,18 +41,32 @@ def beta():
     name="leet",
     context_settings={"default_map": {}},
     help=(
-        "Lightweight Experiment Exploration Tool\n\n"
-        "A terminal UI for viewing your W&B runs locally."
+        "Lightweight Experiment Exploration Tool.\n\n"
+        "A terminal UI for viewing your W&B runs locally.\n\n"
+        "If no directory is specified, wandb-leet will look for "
+        "the latest-run symlink in ./wandb or ./.wandb"
     ),
 )
 @click.pass_context
-@click.argument("wandb_dir", nargs=1, type=click.Path(exists=True))
-def leet(ctx, wandb_dir: str):
+@click.argument("wandb_dir", nargs=1, type=click.Path(exists=True), required=False)
+def leet(ctx, wandb_dir: str = None):
+    """Launch the wandb-leet terminal UI.
+
+    Args:
+        ctx: Click context
+        wandb_dir: Optional path to a W&B run directory containing a .wandb file.
+                   If not provided, looks for latest-run symlink in ./wandb or ./.wandb
+    """
     _sentry.configure_scope(process_context="leet")
 
     try:
         leet_path = get_leet_path()
-        os.execvp(leet_path, [leet_path, wandb_dir])
+
+        args = [leet_path]
+        if wandb_dir:
+            args.append(wandb_dir)
+
+        os.execvp(leet_path, args)
     except Exception as e:
         _sentry.reraise(e)
 

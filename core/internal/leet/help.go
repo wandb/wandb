@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/wandb/wandb/core/internal/version"
 )
 
 // HelpEntry represents a single entry in the help screen.
@@ -26,6 +27,7 @@ type HelpModel struct {
 func NewHelp() *HelpModel {
 	entries := []HelpEntry{
 		{Key: "── W&B LEET: Lightweight Experiment Exploration Tool ──", Description: ""},
+		{Key: "version", Description: version.Version},
 		{Key: "", Description: ""},
 
 		// General
