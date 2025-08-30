@@ -1435,6 +1435,58 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Sweep ID cannot contain only whitespace")
         return value
 
+    @field_validator("run_tags", mode="before")
+    @classmethod
+    def validate_run_tags(cls, value):
+        """Validate run tags.
+
+        Validates that each tag:
+        - Is between 1 and 64 characters in length (inclusive)
+        - Converts single string values to tuple format
+        - Preserves None values
+
+        Args:
+            value: A string, list, tuple, or None representing tags
+
+        Returns:
+            tuple: A tuple of validated tags, or None
+
+        Raises:
+            ValueError: If any tag is empty or exceeds 64 characters
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        if value is None:
+            return None
+
+        # Convert to tuple if needed
+        if isinstance(value, str):
+            tags = (value,)
+        elif isinstance(value, (list, tuple)):
+            tags = tuple(value)
+        else:
+            tags = tuple(value)
+
+        # Validate each tag
+        for tag in tags:
+            tag_str = str(tag)
+            if len(tag_str) == 0:
+                raise ValueError(
+                    "A provided tag is empty. Tags must be between 1 and 64 characters"
+                )
+            elif len(tag_str) > 64:
+                # Truncate long tags for display
+                display_tag = (
+                    f"{tag_str[:20]}...{tag_str[-20:]}"
+                    if len(tag_str) > 43
+                    else tag_str
+                )
+                raise ValueError(
+                    f"Tag '{display_tag}' is {len(tag_str)} characters. Tags must be between 1 and 64 characters"
+                )
+
+        return tags
+
     @field_validator("sweep_param_path", mode="before")
     @classmethod
     def validate_sweep_param_path(cls, value):
