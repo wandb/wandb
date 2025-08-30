@@ -103,7 +103,8 @@ func mainWithExitCode() int {
 
 	// Determine the run directory
 	var runDir string
-	if flag.NArg() == 0 {
+	switch flag.NArg() {
+	case 0:
 		// No arguments provided, try to find latest-run
 		dir, err := findLatestRun()
 		if err != nil {
@@ -113,10 +114,10 @@ func mainWithExitCode() int {
 			return 1
 		}
 		runDir = dir
-	} else if flag.NArg() == 1 {
+	case 1:
 		// Directory explicitly provided
 		runDir = flag.Arg(0)
-	} else {
+	default:
 		// Too many arguments
 		fmt.Fprintf(os.Stderr, "Error: too many arguments\n\n")
 		flag.Usage()
