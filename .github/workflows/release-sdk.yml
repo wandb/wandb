@@ -228,7 +228,6 @@ jobs:
           CIBW_SKIP: cp36-* cp37-*
           CIBW_ARCHS_LINUX: x86_64 #aarch64 is handled by build-linux-arm64-wheels
           CIBW_ARCHS_MACOS: x86_64 arm64 # arm64 == aarch64
-          CIBW_ARCHS_WINDOWS: AMD64 ARM64
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
           # by adding `--ignore-missing-dependencies` to cibuildwheel's default
