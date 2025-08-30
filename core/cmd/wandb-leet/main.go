@@ -115,8 +115,30 @@ func mainWithExitCode() int {
 		}
 		runDir = dir
 	case 1:
-		// Directory explicitly provided
-		runDir = flag.Arg(0)
+		// Directory explicitly provided - resolve symlinks if necessary
+		providedPath := flag.Arg(0)
+
+		// Check if the provided path is a symlink and resolve it
+		info, err := os.Lstat(providedPath)
+		if err == nil && info.Mode()&os.ModeSymlink != 0 {
+			// It's a symlink, resolve it
+			resolved, err := filepath.EvalSymlinks(providedPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: cannot resolve symlink %s: %v\n", providedPath, err)
+				return 1
+			}
+			runDir = resolved
+		} else {
+			runDir = providedPath
+		}
+
+		// Convert to absolute path for consistency
+		absRunDir, err := filepath.Abs(runDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: cannot get absolute path for %s: %v\n", runDir, err)
+			return 1
+		}
+		runDir = absRunDir
 	default:
 		// Too many arguments
 		fmt.Fprintf(os.Stderr, "Error: too many arguments\n\n")
@@ -169,14 +191,21 @@ func findLatestRun() (string, error) {
 			continue
 		}
 
-		// Resolve the symlink
+		// Resolve the symlink to get the actual path
+		// This is critical for file watchers to work correctly
 		target, err := filepath.EvalSymlinks(latestRunPath)
 		if err != nil {
 			return "", fmt.Errorf("cannot resolve latest-run symlink in %s: %w", dir, err)
 		}
 
+		// Convert to absolute path to ensure file watcher works correctly
+		absTarget, err := filepath.Abs(target)
+		if err != nil {
+			return "", fmt.Errorf("cannot get absolute path for %s: %w", target, err)
+		}
+
 		// Verify the target exists and is a directory
-		targetInfo, err := os.Stat(target)
+		targetInfo, err := os.Stat(absTarget)
 		if err != nil {
 			return "", fmt.Errorf("latest-run symlink target does not exist: %w", err)
 		}
@@ -184,7 +213,7 @@ func findLatestRun() (string, error) {
 			return "", fmt.Errorf("latest-run symlink does not point to a directory")
 		}
 
-		return target, nil
+		return absTarget, nil
 	}
 
 	// No latest-run found
