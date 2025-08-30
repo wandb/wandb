@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 from wandb_gql import gql
 
 import wandb
+from wandb._analytics import tracked
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -177,6 +178,7 @@ class Registry:
         """
         self._visibility = value
 
+    @tracked
     def collections(self, filter: Optional[Dict[str, Any]] = None) -> Collections:
         """Returns the collections belonging to the registry."""
         registry_filter = {
@@ -184,6 +186,7 @@ class Registry:
         }
         return Collections(self.client, self.organization, registry_filter, filter)
 
+    @tracked
     def versions(self, filter: Optional[Dict[str, Any]] = None) -> Versions:
         """Returns the versions belonging to the registry."""
         registry_filter = {
@@ -192,6 +195,7 @@ class Registry:
         return Versions(self.client, self.organization, registry_filter, None, filter)
 
     @classmethod
+    @tracked
     def create(
         cls,
         client: "Client",
@@ -256,6 +260,7 @@ class Registry:
             response["upsertModel"]["project"],
         )
 
+    @tracked
     def delete(self) -> None:
         """Delete the registry. This is irreversible."""
         try:
@@ -272,6 +277,7 @@ class Registry:
                 f"Failed to delete registry: {self.name!r} in organization: {self.organization!r}"
             )
 
+    @tracked
     def load(self) -> None:
         """Load the registry attributes from the backend to reflect the latest saved state."""
         load_failure_message = (
@@ -295,6 +301,7 @@ class Registry:
             raise ValueError(load_failure_message)
         self._update_attributes(self.attrs)
 
+    @tracked
     def save(self) -> None:
         """Save registry attributes to the backend."""
         if not InternalApi()._server_supports(
