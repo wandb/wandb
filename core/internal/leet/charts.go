@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// ChartDimensions calculates chart dimensions for the given window size
+// ChartDimensions represents chart dimensions for the given window size.
 type ChartDimensions struct {
 	ChartWidth             int
 	ChartHeight            int
@@ -47,14 +47,6 @@ func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
 		ChartHeightWithPadding: chartHeightWithPadding,
 	}
 }
-
-// sortCharts sorts all charts alphabetically by title and reassigns colors
-// func (m *Model) sortCharts() {
-// 	m.chartMu.Lock()
-// 	defer m.chartMu.Unlock()
-
-// 	m.sortChartsNoLock()
-// }
 
 // sortChartsNoLock sorts charts without acquiring the mutex (caller must hold the lock)
 func (m *Model) sortChartsNoLock() {
@@ -240,10 +232,7 @@ func (m *Model) renderGridCell(row, col int, dims ChartDimensions) string {
 
 		// Calculate available width for title (account for padding inside box)
 		// Box has 1 char padding on each side, so -2
-		availableTitleWidth := dims.ChartWidthWithPadding - 4
-		if availableTitleWidth < 10 {
-			availableTitleWidth = 10
-		}
+		availableTitleWidth := max(dims.ChartWidthWithPadding-4, 10)
 
 		// Truncate the title if needed
 		displayTitle := truncateTitle(chart.Title(), availableTitleWidth)

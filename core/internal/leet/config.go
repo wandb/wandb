@@ -10,35 +10,38 @@ import (
 	"time"
 )
 
-// Config represents the application configuration
+// Config represents the application configuration.
 type Config struct {
+	// MetricsGrid is the dimentions for the main metrics chart grid.
 	MetricsGrid GridConfig `json:"metrics_grid"`
-	SystemGrid  GridConfig `json:"system_grid"`
-	ColorScheme string     `json:"color_scheme"`
-	// Heartbeat interval in seconds for live runs
+	// SystemGrid is the dimentions for the system metrics chart grid.
+	SystemGrid GridConfig `json:"system_grid"`
+	// ColorScheme is the color scheme to display the main metrics.
+	ColorScheme string `json:"color_scheme"`
+	// Heartbeat interval in seconds for live runs.
 	//
 	// The file watcher might sometimes miss an update to a .wandb file,
 	// especially at the end of a run.
 	HeartbeatInterval int `json:"heartbeat_interval_seconds"`
-	// Sidebar visibility states
+	// Sidebar visibility states.
 	LeftSidebarVisible  bool `json:"left_sidebar_visible"`
 	RightSidebarVisible bool `json:"right_sidebar_visible"`
 }
 
-// GridConfig represents grid dimensions
+// GridConfig represents grid dimensions.
 type GridConfig struct {
 	Rows int `json:"rows"`
 	Cols int `json:"cols"`
 }
 
-// ConfigManager handles configuration loading and saving
+// ConfigManager handles configuration loading and saving.
 type ConfigManager struct {
 	config     Config
 	configPath string
 	mu         sync.RWMutex
 }
 
-// Global config instance
+// Global config instance.
 var (
 	configManager *ConfigManager
 	configOnce    sync.Once
@@ -47,7 +50,7 @@ var (
 // Default heartbeat interval in seconds
 const DefaultHeartbeatInterval = 15
 
-// GetConfig returns the singleton config manager
+// GetConfig returns the singleton config manager.
 func GetConfig() *ConfigManager {
 	configOnce.Do(func() {
 		configDir, _ := os.UserConfigDir()
@@ -57,8 +60,8 @@ func GetConfig() *ConfigManager {
 		configManager = &ConfigManager{
 			configPath: configPath,
 			config: Config{
-				MetricsGrid:       GridConfig{Rows: 3, Cols: 5},
-				SystemGrid:        GridConfig{Rows: 3, Cols: 2},
+				MetricsGrid:       GridConfig{Rows: 4, Cols: 3},
+				SystemGrid:        GridConfig{Rows: 6, Cols: 2},
 				ColorScheme:       "sunset-glow",
 				HeartbeatInterval: DefaultHeartbeatInterval,
 			},
@@ -67,7 +70,7 @@ func GetConfig() *ConfigManager {
 	return configManager
 }
 
-// Load loads the configuration from disk or uses defaults
+// Load loads the configuration from disk or uses defaults.
 func (m *ConfigManager) Load() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -96,7 +99,9 @@ func (m *ConfigManager) Load() error {
 	return nil
 }
 
-// save writes the current configuration to disk (must be called with lock held)
+// save writes the current configuration to disk.
+//
+// Must be called with lock held.
 func (m *ConfigManager) save() error {
 	data, err := json.MarshalIndent(m.config, "", "  ")
 	if err != nil {
@@ -111,14 +116,14 @@ func (m *ConfigManager) save() error {
 	return os.Rename(tempPath, m.configPath)
 }
 
-// GetMetricsGrid returns the metrics grid configuration
+// GetMetricsGrid returns the metrics grid configuration.
 func (m *ConfigManager) GetMetricsGrid() (rows, cols int) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.config.MetricsGrid.Rows, m.config.MetricsGrid.Cols
 }
 
-// SetMetricsRows sets the metrics grid rows
+// SetMetricsRows sets the metrics grid rows.
 func (m *ConfigManager) SetMetricsRows(rows int) error {
 	if rows < 1 || rows > 9 {
 		return nil // silently ignore invalid values
@@ -130,7 +135,7 @@ func (m *ConfigManager) SetMetricsRows(rows int) error {
 	return m.save()
 }
 
-// SetMetricsCols sets the metrics grid columns
+// SetMetricsCols sets the metrics grid columns.
 func (m *ConfigManager) SetMetricsCols(cols int) error {
 	if cols < 1 || cols > 9 {
 		return nil
@@ -142,14 +147,14 @@ func (m *ConfigManager) SetMetricsCols(cols int) error {
 	return m.save()
 }
 
-// GetSystemGrid returns the system grid configuration
+// GetSystemGrid returns the system grid configuration.
 func (m *ConfigManager) GetSystemGrid() (rows, cols int) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.config.SystemGrid.Rows, m.config.SystemGrid.Cols
 }
 
-// SetSystemRows sets the system grid rows
+// SetSystemRows sets the system grid rows.
 func (m *ConfigManager) SetSystemRows(rows int) error {
 	if rows < 1 || rows > 9 {
 		return nil
@@ -161,7 +166,7 @@ func (m *ConfigManager) SetSystemRows(rows int) error {
 	return m.save()
 }
 
-// SetSystemCols sets the system grid columns
+// SetSystemCols sets the system grid columns.
 func (m *ConfigManager) SetSystemCols(cols int) error {
 	if cols < 1 || cols > 9 {
 		return nil
@@ -173,14 +178,14 @@ func (m *ConfigManager) SetSystemCols(cols int) error {
 	return m.save()
 }
 
-// GetColorScheme returns the current color scheme
+// GetColorScheme returns the current color scheme.
 func (m *ConfigManager) GetColorScheme() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.config.ColorScheme
 }
 
-// GetHeartbeatInterval returns the heartbeat interval as a Duration
+// GetHeartbeatInterval returns the heartbeat interval as a Duration.
 func (m *ConfigManager) GetHeartbeatInterval() time.Duration {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -193,7 +198,7 @@ func (m *ConfigManager) GetHeartbeatInterval() time.Duration {
 	return time.Duration(interval) * time.Second
 }
 
-// SetHeartbeatInterval sets the heartbeat interval in seconds
+// SetHeartbeatInterval sets the heartbeat interval in seconds.
 func (m *ConfigManager) SetHeartbeatInterval(seconds int) error {
 	if seconds <= 0 {
 		return nil // silently ignore invalid values
@@ -205,14 +210,14 @@ func (m *ConfigManager) SetHeartbeatInterval(seconds int) error {
 	return m.save()
 }
 
-// GetLeftSidebarVisible returns whether the left sidebar should be visible
+// GetLeftSidebarVisible returns whether the left sidebar should be visible.
 func (m *ConfigManager) GetLeftSidebarVisible() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.config.LeftSidebarVisible
 }
 
-// SetLeftSidebarVisible sets the left sidebar visibility
+// SetLeftSidebarVisible sets the left sidebar visibility.
 func (m *ConfigManager) SetLeftSidebarVisible(visible bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -220,14 +225,14 @@ func (m *ConfigManager) SetLeftSidebarVisible(visible bool) error {
 	return m.save()
 }
 
-// GetRightSidebarVisible returns whether the right sidebar should be visible
+// GetRightSidebarVisible returns whether the right sidebar should be visible.
 func (m *ConfigManager) GetRightSidebarVisible() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.config.RightSidebarVisible
 }
 
-// SetRightSidebarVisible sets the right sidebar visibility
+// SetRightSidebarVisible sets the right sidebar visibility.
 func (m *ConfigManager) SetRightSidebarVisible(visible bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -128,8 +128,6 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 //
 //gocyclo:ignore
 func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
-	m.step = msg.Step
-
 	// Track if we need to sort
 	needsSort := false
 
@@ -439,7 +437,7 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleOverviewFilter handles overview filter input
+// handleOverviewFilter handles overview filter input.
 func (m *Model) handleOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	if !m.overviewFilterMode {
 		return m, nil
@@ -705,7 +703,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleConfigNumberKey handles number input for configuration
+// handleConfigNumberKey handles number input for configuration.
 func (m *Model) handleConfigNumberKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	// Cancel on escape
 	if msg.String() == "esc" {

@@ -8,13 +8,13 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// HelpEntry represents a single entry in the help screen
+// HelpEntry represents a single entry in the help screen.
 type HelpEntry struct {
 	Key         string
 	Description string
 }
 
-// HelpModel represents the help screen
+// HelpModel represents the help screen.
 type HelpModel struct {
 	viewport viewport.Model
 	entries  []HelpEntry
@@ -23,7 +23,6 @@ type HelpModel struct {
 	height   int
 }
 
-// NewHelp creates a new help screen
 func NewHelp() *HelpModel {
 	entries := []HelpEntry{
 		{Key: "── W&B LEET: Lightweight Experiment Exploration Tool ──", Description: ""},
@@ -84,7 +83,7 @@ func NewHelp() *HelpModel {
 	return h
 }
 
-// generateHelpContent generates the help screen content
+// generateHelpContent generates the help screen content.
 func (h *HelpModel) generateHelpContent() string {
 	artStyle := lipgloss.NewStyle().
 		Foreground(wandbColor).
@@ -114,7 +113,7 @@ func (h *HelpModel) generateHelpContent() string {
 	return artSection + helpSection
 }
 
-// SetSize updates the size of the help screen
+// SetSize updates the size of the help screen.
 func (h *HelpModel) SetSize(width, height int) {
 	h.width = width
 	h.height = height - StatusBarHeight // Account for status bar
@@ -123,7 +122,7 @@ func (h *HelpModel) SetSize(width, height int) {
 	h.viewport.SetContent(h.generateHelpContent())
 }
 
-// Toggle toggles the help screen visibility
+// Toggle toggles the help screen visibility.
 func (h *HelpModel) Toggle() {
 	h.active = !h.active
 	if h.active {
@@ -132,12 +131,12 @@ func (h *HelpModel) Toggle() {
 	}
 }
 
-// IsActive returns whether the help screen is active
+// IsActive returns whether the help screen is active.
 func (h *HelpModel) IsActive() bool {
 	return h.active
 }
 
-// Update handles messages for the help screen
+// Update handles messages for the help screen.
 func (h *HelpModel) Update(msg tea.Msg) (*HelpModel, tea.Cmd) {
 	if !h.active {
 		return h, nil
@@ -166,7 +165,7 @@ func (h *HelpModel) Update(msg tea.Msg) (*HelpModel, tea.Cmd) {
 	return h, cmd
 }
 
-// View renders the help screen
+// View renders the help screen.
 func (h *HelpModel) View() string {
 	if !h.active {
 		return ""

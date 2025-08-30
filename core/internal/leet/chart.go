@@ -12,7 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// EpochLineChart is a custom line chart for epoch-based data
+// EpochLineChart is a custom line chart for epoch-based data.
 type EpochLineChart struct {
 	linechart.Model
 	data         []float64
@@ -28,7 +28,6 @@ type EpochLineChart struct {
 	userViewMaxX float64
 }
 
-// NewEpochLineChart creates a new epoch-based line chart
 func NewEpochLineChart(width, height int, colorIndex int, title string) *EpochLineChart {
 	// Get colors from current color scheme
 	graphColors := GetGraphColors()
@@ -65,28 +64,6 @@ func formatYLabel(index int, f float64) string {
 	// Use the enhanced FormatYLabel function from systemmetrics.go
 	// For regular metrics, we don't have units, so pass empty string
 	return FormatYLabel(f, "")
-}
-
-// SetDataBulk sets all data points at once for optimal performance
-func (c *EpochLineChart) SetDataBulk(values []float64) {
-	c.data = make([]float64, len(values))
-	copy(c.data, values)
-
-	// Calculate min/max in one pass
-	c.minValue = math.Inf(1)
-	c.maxValue = math.Inf(-1)
-
-	for _, v := range values {
-		if v < c.minValue {
-			c.minValue = v
-		}
-		if v > c.maxValue {
-			c.maxValue = v
-		}
-	}
-
-	c.updateRanges()
-	c.dirty = true
 }
 
 // AddDataPoint adds a new data point for live updates
@@ -306,7 +283,9 @@ func (c *EpochLineChart) Draw() {
 	c.dirty = false
 }
 
-// drawLine draws a line using Bresenham's algorithm
+// drawLine draws a line using Bresenham's algorithm.
+//
+// See https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm.
 func drawLine(bGrid *graph.BrailleGrid, p1, p2 canvas.Point) {
 	dx := abs(p2.X - p1.X)
 	dy := abs(p2.Y - p1.Y)

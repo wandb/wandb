@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// MetricDef represents a simplified metric definition
+// MetricDef represents a simplified system metric definition.
 type MetricDef struct {
 	Title      string         // Display title (without unit)
 	Unit       string         // Unit: "%", "°C", "W", "MB", etc.
@@ -19,8 +19,9 @@ type MetricDef struct {
 	Regex      *regexp.Regexp // Pattern to match metric names (including suffixes)
 }
 
-// metricDefs holds all metric definitions
-// Patterns are ordered from most specific to least specific for proper matching
+// metricDefs holds all metric definitions.
+//
+// Patterns are ordered from most specific to least specific for proper matching.
 var metricDefs = []MetricDef{
 	// CPU metrics
 	{Title: "Process CPU", Unit: "%", MinY: 0, MaxY: 100, Percentage: true,
@@ -238,10 +239,11 @@ func MatchMetricDef(metricName string) *MetricDef {
 	return nil
 }
 
-// ExtractBaseKey extracts the base metric name for grouping
-// e.g., "gpu.0.temp" -> "gpu.temp", "cpu.0.cpu_percent" -> "cpu.cpu_percent"
+// ExtractBaseKey extracts the base metric name for grouping.
+//
+// For example, "gpu.0.temp" -> "gpu.temp", "cpu.0.cpu_percent" -> "cpu.cpu_percent"
 // "disk.disk4.in" -> "disk.in_out" (special case for disk I/O)
-// Also handles suffixes like "/l:..." for shared mode
+// Also handles suffixes like "/l:..." for shared mode.
 func ExtractBaseKey(metricName string) string {
 	// Remove suffix if present
 	if idx := strings.Index(metricName, "/l:"); idx > 0 {
@@ -314,7 +316,7 @@ func ExtractSeriesName(metricName string) string {
 	return "Default"
 }
 
-// FormatYLabel formats Y-axis labels with appropriate units and precision
+// FormatYLabel formats Y-axis labels with appropriate units and precision.
 //
 //gocyclo:ignore
 func FormatYLabel(value float64, unit string) string {
@@ -432,7 +434,7 @@ func formatFloat(value float64, decimals int) string {
 	return formatted
 }
 
-// formatBytes formats byte values with binary prefixes
+// formatBytes formats byte values with binary prefixes.
 func formatBytes(bytes float64, isGB bool) string {
 	// If input is already in GB, convert to bytes
 	if isGB {
@@ -454,7 +456,7 @@ func formatBytes(bytes float64, isGB bool) string {
 	return formatFloat(value, 1) + units[unitIndex]
 }
 
-// formatRate formats rate values (MB/s, GB/s)
+// formatRate formats rate values (MB/s, GB/s).
 func formatRate(value float64, baseUnit string) string {
 	// Convert to bytes if needed
 	switch baseUnit {
@@ -477,35 +479,8 @@ func formatRate(value float64, baseUnit string) string {
 	return formatFloat(value, 0) + "B/s"
 }
 
-// isNumeric checks if a string is a number
+// isNumeric checks if a string is a number.
 func isNumeric(s string) bool {
 	_, err := strconv.Atoi(s)
 	return err == nil
-}
-
-// GetMetricTemplate returns a template for backward compatibility
-// This can be removed once system.go is updated to use MatchMetricDef directly
-type MetricTemplate struct {
-	YAxis      string
-	Percentage bool
-	Unit       string
-}
-
-func MatchMetricTemplate(metricName string, _ map[string]*MetricTemplate) *MetricTemplate {
-	def := MatchMetricDef(metricName)
-	if def == nil {
-		return nil
-	}
-
-	// Convert to old template format for compatibility
-	return &MetricTemplate{
-		YAxis:      def.Title,
-		Percentage: def.Percentage,
-		Unit:       def.Unit,
-	}
-}
-
-func GetSystemMetricTemplates() map[string]*MetricTemplate {
-	// This function is kept for compatibility but is no longer needed
-	return nil
 }

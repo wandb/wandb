@@ -28,7 +28,12 @@ const (
 	RunStateCrashed
 )
 
-// Model represents the main application state.
+// Model describes the application state.
+//
+// NOTE: Bubble Tea programs are comprised of a model and three methods on it:
+//   - Init returns an initial command for the application to run.
+//   - Update handles incoming events and updates the model accordingly.
+//   - View renders the UI based on the data in the model.
 type Model struct {
 	// Help screen.
 	help *HelpModel
@@ -60,7 +65,6 @@ type Model struct {
 
 	width          int
 	height         int
-	step           int
 	currentPage    int
 	totalPages     int
 	fileComplete   bool
@@ -141,7 +145,6 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		focusedTitle:        "",
 		focusedRow:          -1,
 		focusedCol:          -1,
-		step:                0,
 		currentPage:         0,
 		totalPages:          0,
 		fileComplete:        false,
@@ -179,163 +182,6 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	}
 
 	return m
-}
-
-// matchPattern implements simple glob pattern matching that treats / as a regular character
-func matchPattern(pattern, str string) bool {
-	// Convert both to lowercase for case-insensitive matching
-	pattern = strings.ToLower(pattern)
-	str = strings.ToLower(str)
-
-	// Handle special cases
-	if pattern == "" {
-		return true
-	}
-	if pattern == "*" {
-		return true
-	}
-
-	// Simple implementation of glob matching
-	pi := 0    // pattern index
-	si := 0    // string index
-	star := -1 // position of last * in pattern
-	match := 0 // position in string matched by *
-
-	for si < len(str) {
-		switch {
-		case pi < len(pattern) && (pattern[pi] == '?' || pattern[pi] == str[si]):
-			// Character match or ? wildcard
-			pi++
-			si++
-		case pi < len(pattern) && pattern[pi] == '*':
-			// * wildcard - record position and try to match rest
-			star = pi
-			match = si
-			pi++
-		case star != -1:
-			// Backtrack to last * and try matching one more character
-			pi = star + 1
-			match++
-			si = match
-		default:
-			// No match
-			return false
-		}
-	}
-
-	// Check for remaining wildcards in pattern
-	for pi < len(pattern) && pattern[pi] == '*' {
-		pi++
-	}
-
-	return pi == len(pattern)
-}
-
-// applyFilter applies the current filter pattern to charts
-func (m *Model) applyFilter(pattern string) {
-	m.chartMu.Lock()
-	defer m.chartMu.Unlock()
-
-	if pattern == "" {
-		// No filter, use all charts
-		m.filteredCharts = m.allCharts
-	} else {
-		// Apply filter
-		m.filteredCharts = make([]*EpochLineChart, 0)
-
-		// If pattern has no wildcards, treat as substring match
-		useSubstring := !strings.Contains(pattern, "*") && !strings.Contains(pattern, "?")
-
-		for _, chart := range m.allCharts {
-			chartTitle := chart.Title()
-
-			var matched bool
-			if useSubstring {
-				// Simple substring match (case-insensitive)
-				matched = strings.Contains(strings.ToLower(chartTitle), strings.ToLower(pattern))
-			} else {
-				// Use our custom glob matcher
-				matched = matchPattern(pattern, chartTitle)
-			}
-
-			if matched {
-				m.filteredCharts = append(m.filteredCharts, chart)
-			}
-		}
-	}
-
-	// Recalculate pages based on filtered charts
-	m.totalPages = (len(m.filteredCharts) + ChartsPerPage - 1) / ChartsPerPage
-	if m.currentPage >= m.totalPages && m.totalPages > 0 {
-		m.currentPage = 0
-	}
-
-	m.loadCurrentPageNoLock()
-}
-
-// enterFilterMode enters filter input mode
-func (m *Model) enterFilterMode() {
-	m.filterMode = true
-	m.filterInput = m.activeFilter // Start with current filter
-}
-
-// exitFilterMode exits filter input mode and optionally applies the filter
-func (m *Model) exitFilterMode(apply bool) {
-	m.filterMode = false
-	if apply {
-		m.activeFilter = m.filterInput
-		m.applyFilter(m.activeFilter)
-		m.drawVisibleCharts()
-	} else {
-		// Restore previous filter
-		m.filterInput = m.activeFilter
-		m.applyFilter(m.activeFilter)
-	}
-}
-
-// clearFilter removes the active filter
-func (m *Model) clearFilter() {
-	m.activeFilter = ""
-	m.filterInput = ""
-	m.applyFilter("")
-	m.drawVisibleCharts()
-}
-
-// getFilteredChartCount returns the number of charts matching the current filter
-func (m *Model) getFilteredChartCount() int {
-	if m.filterMode {
-		// Count matches for current input
-		count := 0
-		pattern := m.filterInput
-		if pattern == "" {
-			return len(m.allCharts)
-		}
-
-		m.chartMu.RLock()
-		defer m.chartMu.RUnlock()
-
-		// If pattern has no wildcards, treat as substring match
-		useSubstring := !strings.Contains(pattern, "*") && !strings.Contains(pattern, "?")
-
-		for _, chart := range m.allCharts {
-			chartTitle := chart.Title()
-
-			var matched bool
-			if useSubstring {
-				// Simple substring match (case-insensitive)
-				matched = strings.Contains(strings.ToLower(chartTitle), strings.ToLower(pattern))
-			} else {
-				// Use our custom glob matcher
-				matched = matchPattern(pattern, chartTitle)
-			}
-
-			if matched {
-				count++
-			}
-		}
-		return count
-	}
-	return len(m.filteredCharts)
 }
 
 // recoverPanic recovers from panics and logs them
@@ -439,7 +285,9 @@ func (m *Model) stopHeartbeat() {
 	}
 }
 
-// Init implements tea.Model.
+// Init initializes the app model and returns the initial command for the application to run.
+//
+// Required to implement tea.Model.
 func (m *Model) Init() tea.Cmd {
 	m.logger.Debug("model: Init called")
 	return tea.Batch(
@@ -449,11 +297,13 @@ func (m *Model) Init() tea.Cmd {
 	)
 }
 
-// Update implements tea.Model.
+// Update handles incoming events and updates the model accordingly.
+//
+// Required to implement tea.Model.
 //
 //gocyclo:ignore
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Recover from any panics in Update
+	// Attempt to recover from any panics in Update.
 	defer m.recoverPanic("Update")
 
 	var cmds []tea.Cmd
@@ -703,9 +553,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// View implements tea.Model
+// View renders the UI based on the data in the model.
+//
+// Required to implement tea.Model.
 func (m *Model) View() string {
-	// Recover from any panics in View
+	// Attempt to recover from any panics in View.
 	defer m.recoverPanic("View")
 
 	if m.width == 0 || m.height == 0 {
@@ -1077,7 +929,6 @@ func (m *Model) reloadCharts() tea.Cmd {
 	// Save current filter
 	savedFilter := m.activeFilter
 
-	m.step = 0
 	m.isLoading = true
 	m.runState = RunStateRunning // Reset from crashed state if applicable
 

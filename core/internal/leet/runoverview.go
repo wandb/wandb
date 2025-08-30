@@ -22,14 +22,14 @@ const (
 	SidebarExpanding
 )
 
-// KeyValuePair represents a single key-value item to display
+// KeyValuePair represents a single key-value item to display.
 type KeyValuePair struct {
 	Key   string
 	Value string
 	Path  []string // Full path for nested items
 }
 
-// SectionView represents a paginated section in the overview
+// SectionView represents a paginated section in the overview.
 type SectionView struct {
 	Title         string
 	Items         []KeyValuePair
@@ -42,7 +42,7 @@ type SectionView struct {
 	FilterMatches int
 }
 
-// RunOverview contains the run information to display
+// RunOverview contains the run information to display.
 type RunOverview struct {
 	RunPath     string
 	Project     string
@@ -53,7 +53,7 @@ type RunOverview struct {
 	Environment map[string]any
 }
 
-// Sidebar represents a collapsible sidebar panel
+// Sidebar represents a collapsible sidebar panel.
 type Sidebar struct {
 	state          SidebarState
 	currentWidth   int
@@ -63,7 +63,7 @@ type Sidebar struct {
 	animationTimer time.Time
 	runOverview    RunOverview
 
-	// Section management - reordered: Environment, Config, Summary
+	// Section management - reordered: Environment, Config, Summary.
 	sections      []SectionView
 	activeSection int
 
@@ -81,7 +81,6 @@ type Sidebar struct {
 	runState RunState
 }
 
-// NewSidebar creates a new sidebar instance
 func NewSidebar() *Sidebar {
 	return &Sidebar{
 		state:         SidebarCollapsed,
@@ -136,7 +135,7 @@ func flattenMap(data map[string]any, prefix string, result *[]KeyValuePair, path
 	}
 }
 
-// processEnvironment handles special processing for environment section
+// processEnvironment handles special processing for environment section.
 func processEnvironment(data map[string]any) []KeyValuePair {
 	if data == nil {
 		return []KeyValuePair{}
@@ -174,7 +173,7 @@ func processEnvironment(data map[string]any) []KeyValuePair {
 	}
 }
 
-// updateSections updates section data from run overview
+// updateSections updates section data from run overview.
 func (s *Sidebar) updateSections() {
 	// Update Environment section (index 0)
 	envItems := processEnvironment(s.runOverview.Environment)
@@ -206,7 +205,7 @@ func (s *Sidebar) updateSections() {
 	s.calculateSectionHeights()
 }
 
-// applyFilter filters items based on current filter query
+// applyFilter filters items based on current filter query.
 func (s *Sidebar) applyFilter() {
 	query := strings.TrimSpace(s.filterQuery)
 	if s.filterApplied {
@@ -277,7 +276,7 @@ func (s *Sidebar) applyFilter() {
 	}
 }
 
-// calculateSectionHeights dynamically allocates heights to sections
+// calculateSectionHeights dynamically allocates heights to sections.
 //
 //gocyclo:ignore
 func (s *Sidebar) calculateSectionHeights() {
@@ -472,7 +471,7 @@ func (s *Sidebar) UpdateDimensions(terminalWidth int, rightSidebarVisible bool) 
 	}
 }
 
-// Toggle toggles the sidebar state between expanded and collapsed
+// Toggle toggles the sidebar state between expanded and collapsed.
 func (s *Sidebar) Toggle() {
 	switch s.state {
 	case SidebarCollapsed:
@@ -488,7 +487,7 @@ func (s *Sidebar) Toggle() {
 	}
 }
 
-// navigateUp moves cursor up within the active section
+// navigateUp moves cursor up within the active section.
 func (s *Sidebar) navigateUp() {
 	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
 		return
@@ -504,7 +503,7 @@ func (s *Sidebar) navigateUp() {
 	}
 }
 
-// navigateDown moves cursor down within the active section
+// navigateDown moves cursor down within the active section.
 func (s *Sidebar) navigateDown() {
 	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
 		return
@@ -524,7 +523,7 @@ func (s *Sidebar) navigateDown() {
 	}
 }
 
-// navigateSection jumps between sections
+// navigateSection jumps between sections.
 func (s *Sidebar) navigateSection(direction int) {
 	// Find next non-empty section
 	for i := 0; i < len(s.sections); i++ {
@@ -544,7 +543,7 @@ func (s *Sidebar) navigateSection(direction int) {
 	}
 }
 
-// navigatePage changes page within active section
+// navigatePage changes page within active section.
 func (s *Sidebar) navigatePage(direction int) {
 	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
 		return
@@ -568,7 +567,7 @@ func (s *Sidebar) navigatePage(direction int) {
 	section.CursorPos = 0
 }
 
-// startFilter activates filter mode
+// startFilter activates filter mode.
 func (s *Sidebar) startFilter() {
 	s.filterActive = true
 	// If we have an applied filter, start with that value
@@ -579,14 +578,14 @@ func (s *Sidebar) startFilter() {
 	}
 }
 
-// updateFilter updates the filter query (for live preview)
+// updateFilter updates the filter query (for live preview).
 func (s *Sidebar) updateFilter(query string) {
 	s.filterQuery = query
 	s.applyFilter()
 	s.calculateSectionHeights()
 }
 
-// confirmFilter applies the filter (on Enter)
+// confirmFilter applies the filter (on Enter).
 func (s *Sidebar) confirmFilter() {
 	s.filterApplied = true
 	s.appliedQuery = s.filterQuery
@@ -596,7 +595,7 @@ func (s *Sidebar) confirmFilter() {
 	s.calculateSectionHeights()
 }
 
-// clearFilter clears the active filter
+// clearFilter clears the active filter.
 func (s *Sidebar) clearFilter() {
 	s.filterActive = false
 	s.filterApplied = false
@@ -615,7 +614,7 @@ func (s *Sidebar) clearFilter() {
 	s.calculateSectionHeights()
 }
 
-// GetSelectedItem returns the currently selected key-value pair
+// GetSelectedItem returns the currently selected key-value pair.
 func (s *Sidebar) GetSelectedItem() (key, value string) {
 	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
 		return "", ""
@@ -637,7 +636,7 @@ func (s *Sidebar) GetSelectedItem() (key, value string) {
 	return "", ""
 }
 
-// Update handles animation and input updates for the sidebar
+// Update handles animation and input updates for the sidebar.
 func (s *Sidebar) Update(msg tea.Msg) (*Sidebar, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -690,7 +689,7 @@ func (s *Sidebar) Update(msg tea.Msg) (*Sidebar, tea.Cmd) {
 	return s, tea.Batch(cmds...)
 }
 
-// truncateValue truncates long values for display
+// truncateValue truncates long values for display.
 func truncateValue(value string, maxWidth int) string {
 	if lipgloss.Width(value) <= maxWidth {
 		return value
@@ -701,7 +700,7 @@ func truncateValue(value string, maxWidth int) string {
 	return value[:maxWidth-3] + "..."
 }
 
-// renderSection renders a single section
+// renderSection renders a single section.
 func (s *Sidebar) renderSection(idx int, width int) string {
 	section := &s.sections[idx]
 
@@ -778,7 +777,7 @@ func (s *Sidebar) renderSection(idx int, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-// View renders the sidebar - optimized spacing
+// View renders the sidebar - optimized spacing.
 func (s *Sidebar) View(height int) string {
 	if s.currentWidth <= 0 {
 		return ""
@@ -870,34 +869,34 @@ func (s *Sidebar) View(height int) string {
 	return bordered
 }
 
-// Width returns the current width of the sidebar
+// Width returns the current width of the sidebar.
 func (s *Sidebar) Width() int {
 	return s.currentWidth
 }
 
-// IsVisible returns true if the sidebar is visible
+// IsVisible returns true if the sidebar is visible.
 func (s *Sidebar) IsVisible() bool {
 	return s.state != SidebarCollapsed
 }
 
-// IsAnimating returns true if the sidebar is currently animating
+// IsAnimating returns true if the sidebar is currently animating.
 func (s *Sidebar) IsAnimating() bool {
 	return s.state == SidebarExpanding || s.state == SidebarCollapsing
 }
 
-// animationCmd returns a command to continue the animation
+// animationCmd returns a command to continue the animation.
 func (s *Sidebar) animationCmd() tea.Cmd {
 	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg {
 		return SidebarAnimationMsg{}
 	})
 }
 
-// IsFiltering returns true if the sidebar is in filter mode or has an applied filter
+// IsFiltering returns true if the sidebar is in filter mode or has an applied filter.
 func (s *Sidebar) IsFiltering() bool {
 	return s.filterActive || s.filterApplied
 }
 
-// GetFilterQuery returns the current or applied filter query
+// GetFilterQuery returns the current or applied filter query.
 func (s *Sidebar) GetFilterQuery() string {
 	if s.filterApplied {
 		return s.appliedQuery
@@ -905,7 +904,7 @@ func (s *Sidebar) GetFilterQuery() string {
 	return s.filterQuery
 }
 
-// GetFilterInfo returns formatted filter information for status bar
+// GetFilterInfo returns formatted filter information for status bar.
 func (s *Sidebar) GetFilterInfo() string {
 	if (!s.filterActive && !s.filterApplied) || (s.filterQuery == "" && s.appliedQuery == "") {
 		return ""
@@ -929,19 +928,11 @@ func (s *Sidebar) GetFilterInfo() string {
 	return strings.Join(matchInfo, ", ")
 }
 
-// easeOutCubic provides smooth deceleration for animations
+// easeOutCubic provides smooth deceleration for animations.
 func easeOutCubic(t float64) float64 {
 	t--
 	return t*t*t + 1
 }
 
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// SidebarAnimationMsg is sent during sidebar animations
+// SidebarAnimationMsg is sent during sidebar animations.
 type SidebarAnimationMsg struct{}

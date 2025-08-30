@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Default layout constants
+// Default layout constants.
 var (
 	GridRows        = 3
 	GridCols        = 5
@@ -18,7 +18,7 @@ var (
 	MinChartHeight  = 5
 )
 
-// Default system metrics grid configuration
+// Default system metrics grid configuration.
 var (
 	MetricsGridRows      = 3
 	MetricsGridCols      = 2
@@ -27,7 +27,7 @@ var (
 	MinMetricChartHeight = 4
 )
 
-// Sidebar constants
+// Sidebar constants.
 const (
 	SidebarWidthRatio     = 0.382
 	SidebarWidthRatioBoth = 0.236 // When both sidebars visible: 0.382 * 0.618 ≈ 0.236
@@ -35,7 +35,7 @@ const (
 	SidebarMaxWidth       = 80
 )
 
-// WANDB brand colors
+// WANDB brand colors.
 const (
 	// Primary
 	// moon900    = lipgloss.Color("#171A1F")
@@ -46,7 +46,7 @@ const (
 	// moon450 = lipgloss.Color("#8F949E")
 )
 
-// ASCII art for the loading screen and the help page
+// ASCII art for the loading screen and the help page.
 var wandbArt = `
 ██     ██  █████  ███    ██ ██████  ██████
 ██     ██ ██   ██ ████   ██ ██   ██ ██   ██
@@ -64,7 +64,7 @@ const leetArt = `
 ███████ ███████ ███████    ██
 `
 
-// Color schemes
+// Color schemes.
 var colorSchemes = map[string][]string{
 	"sunset-glow": { // Golden-pink gradient
 		"#E281FE",
@@ -114,12 +114,12 @@ var colorSchemes = map[string][]string{
 	},
 }
 
-// GetGraphColors returns the colors for the current color scheme
+// GetGraphColors returns the colors for the current color scheme.
 func GetGraphColors() []string {
 	return colorSchemes["sunset-glow"]
 }
 
-// UpdateGridDimensions updates the grid dimensions from config
+// UpdateGridDimensions updates the grid dimensions from config.
 func UpdateGridDimensions() {
 	cfg := GetConfig()
 
@@ -134,7 +134,7 @@ func UpdateGridDimensions() {
 	MetricsPerPage = MetricsGridRows * MetricsGridCols
 }
 
-// Metrics grid styles
+// Metrics grid styles.
 var (
 	headerStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -153,7 +153,7 @@ var (
 				MarginRight(1)
 )
 
-// Chart styles
+// Chart styles.
 var (
 	borderStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
@@ -172,7 +172,7 @@ var (
 			Foreground(lipgloss.Color("245")) // light gray
 )
 
-// Status bar styles
+// Status bar styles.
 var (
 	// pageInfoStyle = lipgloss.NewStyle().
 	// 	// Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}).
@@ -189,7 +189,7 @@ var (
 	// Background(lipgloss.AdaptiveColor{Light: "#4ECDC4", Dark: "#A9FDF2"})
 )
 
-// Sidebar styles
+// Sidebar styles.
 var (
 	sidebarStyle        = lipgloss.NewStyle().Padding(0, 1)
 	sidebarBorderStyle  = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(lipgloss.Color("238"))
@@ -210,7 +210,7 @@ var (
 	}
 )
 
-// Right sidebar styles
+// Right sidebar styles.
 var (
 	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
 	rightSidebarBorderStyle = lipgloss.NewStyle().Border(lipgloss.Border{Left: "│"}).BorderForeground(lipgloss.Color("238"))
@@ -228,18 +228,18 @@ var (
 	}
 )
 
-// AnimationDuration is the duration for sidebar animations
+// AnimationDuration is the duration for sidebar animations.
 const AnimationDuration = 150 * time.Millisecond
 
-// AnimationSteps is the number of steps in sidebar animations
+// AnimationSteps is the number of steps in sidebar animations.
 const AnimationSteps = 10
 
-// Help screen styles
+// Help screen styles.
 var (
 	helpKeyStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("230")).
-			Width(20) // helpKeyWidth
+			Width(20)
 
 	helpDescStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("245"))

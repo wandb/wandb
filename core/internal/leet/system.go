@@ -93,27 +93,16 @@ func NewSystemMetricsGrid(width, height int, logger *observability.CoreLogger) *
 	return grid
 }
 
-// getNextColor returns the next color from the wandb-vibe-10 palette
+// getNextColor returns the next color from the wandb-vibe-10 palette.
 func (g *SystemMetricsGrid) getNextColor() string {
-	// Using wandb-vibe-10 colors from styles.go
-	colors := []string{
-		"#B1B4B9", // 0 - gray
-		"#58D3DB", // 1 - cyan
-		"#5ED6A4", // 2 - green
-		"#FCA36F", // 3 - orange
-		"#FF7A88", // 4 - red
-		"#7DB1FA", // 5 - blue
-		"#BBE06B", // 6 - lime
-		"#FFCF4D", // 7 - yellow
-		"#E180FF", // 8 - purple
-		"#B199FF", // 9 - lavender
-	}
+	// TODO: make this configurable
+	colors := colorSchemes["wandb-vibe-10"]
 	color := colors[g.nextColorIdx%len(colors)]
 	g.nextColorIdx++
 	return color
 }
 
-// createMetricChart creates a time series chart for a system metric
+// createMetricChart creates a time series chart for a system metric.
 func (g *SystemMetricsGrid) createMetricChart(def *MetricDef, baseKey string) *SystemMetricChart {
 	dims := g.calculateChartDimensions()
 
@@ -135,6 +124,7 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef, baseKey string) *S
 
 	// Create the chart
 	now := time.Now()
+	// TODO: make the display interval configurable.
 	minTime := now.Add(-5 * time.Minute)
 
 	// Use the first color for the default series
@@ -261,6 +251,7 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 	chart.lastUpdate = time.Unix(timestamp, 0)
 
 	// Update time range to show last 5 minutes
+	// TODO: make the display interval configurable.
 	minTime := time.Unix(timestamp, 0).Add(-5 * time.Minute)
 	maxTime := time.Unix(timestamp, 0).Add(10 * time.Second)
 	chart.chart.SetTimeRange(minTime, maxTime)
