@@ -12,3 +12,7 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
+
+### Fixed
+
+- The message "Changes to your wandb environment variables will be ignored" is no longer printed when nothing changed (@timoffex in https://github.com/wandb/wandb/pull/10420)
