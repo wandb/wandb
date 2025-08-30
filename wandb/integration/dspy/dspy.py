@@ -1,0 +1,260 @@
+"""DSPy ↔ Weights & Biases integration."""
+
+from __future__ import annotations
+
+import logging
+import os
+from collections.abc import Mapping, Sequence
+from typing import Any, Literal
+
+import wandb
+import wandb.util
+from wandb.sdk.wandb_run import Run
+
+dspy = wandb.util.get_module(
+    name="dspy",
+    required=(
+        "To use the W&B DSPy integration you need to have the `dspy` "
+        "python package installed.  Install it with `uv pip install dspy`."
+    ),
+    lazy=False,
+)
+if dspy is not None:
+    assert dspy.__version__ >= "3.0.0", (
+        "DSPy 3.0.0 or higher is required. You have " + dspy.__version__
+    )
+
+
+logger = logging.getLogger(__name__)
+
+
+def _flatten_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _flatten(
+        d: dict[str, Any], parent_key: str = "", sep: str = "."
+    ) -> dict[str, Any]:
+        items = []
+        for k, v in d.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, dict):
+                items.extend(_flatten(v, new_key, sep=sep).items())
+            else:
+                items.append((new_key, v))
+        return dict(items)
+
+    return [_flatten(row) for row in rows]
+
+
+class WandbDSPyCallback(dspy.utils.BaseCallback):
+    def __init__(self, log_results: bool = True, wandb_run: Run | None = None) -> None:
+        if wandb_run is None:
+            raise wandb.Error(
+                "You must call `wandb.init()` before instantiating WandbDSPyCallback()."
+            )
+
+        self.log_results = log_results
+
+        with wandb.wandb_lib.telemetry.context(run=wandb_run) as tel:
+            tel.feature.dspy_callback = True
+
+        self._run = wandb_run
+        self._did_log_config: bool = False
+        self._program_info: dict[str, Any] = {}
+        self._program_table: wandb.Table | None = None
+        self._row_idx: int = 0
+
+    def _flatten_dict(
+        self, nested: Any, parent_key: str = "", sep: str = "."
+    ) -> dict[str, Any]:
+        flat: dict[str, Any] = {}
+
+        def _walk(obj: Any, base: str) -> None:
+            if isinstance(obj, Mapping):
+                for k, v in obj.items():
+                    new_key = f"{base}{sep}{k}" if base else str(k)
+                    _walk(v, new_key)
+            elif isinstance(obj, Sequence) and not isinstance(
+                obj, (str, bytes, bytearray)
+            ):
+                for idx, v in enumerate(obj):
+                    new_key = f"{base}{sep}{idx}" if base else str(idx)
+                    _walk(v, new_key)
+            else:
+                # Base can be empty only if the top-level is a scalar; guard against that.
+                key = base if base else ""
+                if key:
+                    flat[key] = obj
+
+        _walk(nested, parent_key)
+        return flat
+
+    def _extract_fields(self, fields: list[dict[str, Any]]) -> dict[str, str]:
+        return {k: str(v) for k, v in fields.items()}
+
+    def _extract_program_info(self, program_obj: Any) -> dict[str, Any]:
+        info_dict = {}
+
+        if program_obj is None:
+            return info_dict
+
+        try:
+            sig = next(
+                param.signature
+                for _, param in program_obj.named_parameters()
+                if isinstance(param, dspy.Predict)
+            )
+
+            if getattr(sig, "signature", None):
+                info_dict["signature"] = sig.signature
+            if getattr(sig, "instructions", None):
+                info_dict["instructions"] = sig.instructions
+            if getattr(sig, "input_fields", None):
+                input_fields = sig.input_fields
+                info_dict["input_fields"] = self._extract_fields(input_fields)
+            if getattr(sig, "output_fields", None):
+                output_fields = sig.output_fields
+                info_dict["output_fields"] = self._extract_fields(output_fields)
+
+            return self._flatten_dict(info_dict)
+        except Exception as e:
+            logger.warning(
+                "Failed to extract program info from Evaluate instance: %s", e
+            )
+        return info_dict
+
+    def on_evaluate_start(
+        self,
+        call_id: str,
+        instance: Any,
+        inputs: dict[str, Any],
+    ) -> None:
+        if not self._did_log_config:
+            instance_vars = vars(instance) if hasattr(instance, "__dict__") else {}
+            serializable = {
+                k: v for k, v in instance_vars.items() if not k.startswith("_")
+            }
+            if "devset" in serializable:
+                # we don't want to log the devset in the config
+                del serializable["devset"]
+
+            wandb.run.config.update(serializable)
+            self._did_log_config = True
+
+        # 2) Build/append program signature tables from the 'program' inputs
+        if program_obj := inputs.get("program"):
+            self._program_info = self._extract_program_info(program_obj)
+
+    def on_evaluate_end(
+        self,
+        call_id: str,
+        outputs: Any | None,
+        exception: Exception | None = None,
+    ) -> None:
+        # The `BaseCallback` does not define the interface for the `outputs` parameter,
+        # Currently, we know of `EvaluationResult` which is a subclass of `dspy.Prediction`.
+        # We currently support this type and will warn the user if a different type is passed.
+        if exception is None and isinstance(
+            outputs, dspy.evaluate.evaluate.EvaluationResult
+        ):
+            # log the float score as a wandb metric
+            score = outputs.score
+            wandb.log({"score": float(score)}, step=self._row_idx)
+
+            # Log the predictions as a separate table for each eval end.
+            # We know that results if of type `list[tuple["dspy.Example", "dspy.Example", Any]]`
+            results = outputs.results
+            if self.log_results:
+                rows = self._parse_results(results)
+                if rows:
+                    self._log_predictions_table(rows)
+        else:
+            wandb.termwarn(
+                f"on_evaluate_end received unexpected outputs type: {type(outputs)}. "
+                "Expected dspy.evaluate.evaluate.EvaluationResult; skipping logging score and `log_results`."
+            )
+
+        # Log the program signature iteratively
+        if self._program_table is None:
+            columns = ["step", *self._program_info.keys()]
+            if isinstance(score, float):
+                columns.append("score")
+            self._program_table = wandb.Table(columns=columns, log_mode="INCREMENTAL")
+
+        if self._program_table is not None:
+            values = list(self._program_info.values())
+            if isinstance(score, float):
+                values.append(score)
+
+            self._program_table.add_data(
+                self._row_idx,
+                *values,
+            )
+            wandb.run.log(
+                {"program_signature": self._program_table}, step=self._row_idx
+            )
+
+        self._row_idx += 1
+
+    def _parse_results(
+        self,
+        results: list[tuple[dspy.Example, dspy.Prediction | dspy.Completions, bool]],
+    ) -> list[dict[str, Any]]:
+        _rows: list[dict[str, Any]] = []
+        for example, prediction, is_correct in results:
+            if isinstance(prediction, dspy.Prediction):
+                prediction_dict = prediction.toDict()
+            if isinstance(prediction, dspy.Completions):
+                prediction_dict = prediction.items()
+
+            row: dict[str, Any] = {
+                "example": example.toDict(),
+                "prediction": prediction_dict,
+                "is_correct": is_correct,
+            }
+            _rows.append(row)
+
+        return _rows
+
+    def _log_predictions_table(self, rows: list[dict[str, Any]]) -> None:
+        rows = _flatten_rows(rows)
+        columns = list(rows[0].keys())
+
+        data: list[list[Any]] = [list(row.values()) for row in rows]
+
+        preds_table = wandb.Table(columns=columns, data=data, log_mode="IMMUTABLE")
+        wandb.run.log({f"predictions_{self._row_idx}": preds_table}, step=self._row_idx)
+
+    def log_best_model(
+        self,
+        model: dspy.Module,
+        *,
+        save_program: bool = True,
+        save_dir: str = "wandb/dspy_program/",
+        filetype: Literal["json", "pkl"] = "json",
+        aliases: Sequence[str] = ("best", "latest"),
+        artifact_name: str = "dspy-program",
+    ) -> None:
+        # Derive metadata to help discoverability in the UI
+        info_dict = self._extract_program_info(model)
+        metadata = {
+            "dspy_version": getattr(dspy, "__version__", "unknown"),
+            "module_class": model.__class__.__name__,
+            **info_dict,
+        }
+        artifact = wandb.Artifact(
+            name=f"{artifact_name}-{self._run.id}",
+            type="model",
+            metadata=metadata,
+        )
+
+        os.makedirs(save_dir, exist_ok=True)
+        # Save per requested mode
+        if save_program:
+            model.save(save_dir, save_program=True)
+            artifact.add_dir(save_dir)
+        else:
+            filename = f"program.{filetype}"
+            file_path = os.path.join(save_dir, filename)
+            model.save(file_path, save_program=False)
+            artifact.add_file(file_path)
+
+        self._run.log_artifact(artifact, aliases=list(aliases))
