@@ -39,7 +39,8 @@ import requests
 
 import wandb
 from wandb import data_types, env
-from wandb._iterutils import one
+from wandb._iterutils import one, unique_list
+from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
 from wandb.apis.public.utils import gql_compat
@@ -912,7 +913,7 @@ class Artifact:
             artifact has not been logged or saved.
         """
         if self._ttl_is_inherited and (self.is_draft() or self._ttl_changed):
-            raise ArtifactNotLoggedError(f"{type(self).__name__}.ttl", self)
+            raise ArtifactNotLoggedError(f"{nameof(type(self))}.ttl", self)
         if self._ttl_duration_seconds is None:
             return None
         return timedelta(seconds=self._ttl_duration_seconds)
@@ -1215,7 +1216,7 @@ class Artifact:
         """
         if self.is_draft():
             if self._save_handle is None:
-                raise ArtifactNotLoggedError(type(self).wait.__qualname__, self)
+                raise ArtifactNotLoggedError(nameof(self.wait), self)
 
             try:
                 result = self._save_handle.wait_or(timeout=timeout)
@@ -1445,7 +1446,7 @@ class Artifact:
             raise ValueError(f"File with name {name!r} already exists at {path!r}")
         except UnicodeEncodeError as e:
             termerror(
-                f"Failed to open the provided file ({type(e).__name__}: {e}). Please "
+                f"Failed to open the provided file ({nameof(type(e))}: {e}). Please "
                 f"provide the proper encoding."
             )
             raise
@@ -2490,7 +2491,7 @@ class Artifact:
         if not self.is_link:
             raise ValueError(
                 f"Artifact {self.qualified_name!r} is not a linked artifact and cannot be unlinked.  "
-                f"To delete it, use {self.delete.__qualname__!r} instead."
+                f"To delete it, use {nameof(self.delete)!r} instead."
             )
 
         self._unlink()
@@ -2649,8 +2650,7 @@ class Artifact:
             )
         )
         for node in linked_nodes:
-            # Trick for O(1) membership check that maintains order
-            alias_names = dict.fromkeys(a.alias for a in node.aliases)
+            alias_names = unique_list(a.alias for a in node.aliases)
             version = f"v{node.version_index}"
             aliases = (
                 [*alias_names, version]

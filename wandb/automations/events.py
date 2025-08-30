@@ -15,6 +15,7 @@ from wandb._pydantic import (
     model_validator,
     pydantic_isinstance,
 )
+from wandb._strutils import nameof
 
 from ._filters import And, MongoLikeFilter, Or
 from ._filters.expressions import FilterableField
@@ -156,7 +157,7 @@ class _BaseEventInput(GQLBase):
         if isinstance(action, (InputActionTypes, SavedActionTypes)):
             return NewAutomation(event=self, action=action)
 
-        raise TypeError(f"Expected a valid action, got: {type(action).__qualname__!r}")
+        raise TypeError(f"Expected a valid action, got: {nameof(type(action))!r}")
 
     def __rshift__(self, other: InputAction) -> NewAutomation:
         """Implements `event >> action` to define an Automation with this event and action."""
@@ -277,7 +278,7 @@ OnRunMetric.model_rebuild()
 
 __all__ = [
     "EventType",
-    *(cls.__name__ for cls in InputEventTypes),
+    *(nameof(cls) for cls in InputEventTypes),
     "RunEvent",
     "ArtifactEvent",
     "MetricThresholdFilter",

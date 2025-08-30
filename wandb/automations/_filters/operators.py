@@ -8,6 +8,7 @@ from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, Stri
 from typing_extensions import TypeAlias, get_args
 
 from wandb._pydantic import GQLBase
+from wandb._strutils import nameof
 
 # for type annotations
 Scalar = Union[StrictStr, StrictInt, StrictFloat, StrictBool]
@@ -62,7 +63,7 @@ class BaseOp(GQLBase, SupportsLogicalOpSyntax):
     def __repr__(self) -> str:
         # Display operand as a positional arg
         values_repr = ", ".join(map(repr, self.model_dump().values()))
-        return f"{type(self).__name__}({values_repr})"
+        return f"{nameof(type(self))}({values_repr})"
 
     def __rich_repr__(self) -> RichReprResult:
         # Display field values as positional args:

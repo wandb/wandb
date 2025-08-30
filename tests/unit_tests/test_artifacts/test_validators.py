@@ -1,7 +1,7 @@
 import pytest
 from wandb.sdk.artifacts._validators import (
     REGISTRY_PREFIX,
-    RESERVED_ARTIFACT_TYPE_PREFIX,
+    RESERVED_TYPE_PREFIX,
     validate_artifact_type,
     validate_project_name,
 )
@@ -40,7 +40,7 @@ def test_validate_project_name_valid(project_name):
 @pytest.mark.parametrize(
     "artifact_type, name",
     [
-        (RESERVED_ARTIFACT_TYPE_PREFIX + "invalid", "name"),
+        (RESERVED_TYPE_PREFIX + "invalid", "name"),
         ("job", "name"),
         ("run_table", "run-name"),
         ("code", "source-name"),
