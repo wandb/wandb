@@ -12,11 +12,3 @@ Add here any changes made in a PR that are relevant to end users. Allowed sectio
 Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
-
-### Changed
-
-- Updated `click` dependency constraint from `>=7.1` to `>=8.0.1` (@willtryagain in https://github.com/wandb/wandb/pull/10418)
-
-### Fixed
-
-- The message "Changes to your wandb environment variables will be ignored" is no longer printed when nothing changed (@timoffex in https://github.com/wandb/wandb/pull/10420)
