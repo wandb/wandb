@@ -42,7 +42,7 @@ def test_printer_term_silent(capsys):
 
     printer.display("something")
     printer.progress_update("update")
-    printer.progress_close("close")
+    printer.progress_close()
     with printer.dynamic_text() as text_area:
         assert text_area is None
 
