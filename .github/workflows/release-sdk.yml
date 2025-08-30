@@ -35,7 +35,7 @@ jobs:
         run: |
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/wandb/wandb.git
+          git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
       - name: Install Dependencies
         run: pip install bump2version click
@@ -530,6 +530,6 @@ jobs:
           slack-message: |
             W&B SDK ${{ github.event.inputs.version }} released :tada::
             - PyPI: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/
-            - Release notes: https://github.com/wandb/wandb/releases/tag/v${{ github.event.inputs.version }}
+            - Release notes: https://github.com/${{ github.repository }}/releases/tag/v${{ github.event.inputs.version }}
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
