@@ -11,6 +11,16 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.21.3] - 2025-08-30
+
+### Changed
+
+- Updated `click` dependency constraint from `>=7.1` to `>=8.0.1` (@willtryagain in https://github.com/wandb/wandb/pull/10418)
+
+### Fixed
+
+- The message "Changes to your wandb environment variables will be ignored" is no longer printed when nothing changed (@timoffex in https://github.com/wandb/wandb/pull/10420)
+
 ## [0.21.2] - 2025-08-28
 
 ### Notable Changes
