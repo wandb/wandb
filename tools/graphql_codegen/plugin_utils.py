@@ -5,9 +5,16 @@ from __future__ import annotations
 import ast
 import subprocess
 import sys
+from collections.abc import Iterable
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Any
+
+from ariadne_codegen.codegen import (
+    generate_expr,
+    generate_method_call,
+    generate_pydantic_field,
+)
 
 if TYPE_CHECKING:
     from typing import TypeGuard
@@ -28,9 +35,9 @@ def apply_ruff(path: str | Path) -> None:
     subprocess.run(["ruff", "format", path], check=True)
 
 
-def imported_names(stmt: ast.Import | ast.ImportFrom) -> list[str]:
+def imported_names(stmt: ast.Import | ast.ImportFrom) -> set[str]:
     """Return the (str) names imported by this `from ... import {names}` statement."""
-    return [alias.name for alias in stmt.names]
+    return {alias.name for alias in stmt.names}
 
 
 def base_class_names(class_def: ast.ClassDef) -> list[str]:
@@ -63,6 +70,11 @@ def is_all_assignment(stmt: ast.stmt) -> TypeGuard[ast.Assign]:
     )
 
 
+def is_name(stmt: ast.stmt) -> TypeGuard[ast.Name]:
+    """Return True if this node is a variable name."""
+    return isinstance(stmt, ast.Name)
+
+
 def is_class_def(stmt: ast.stmt) -> TypeGuard[ast.ClassDef]:
     """Return True if this node is a class definition."""
     return isinstance(stmt, ast.ClassDef)
@@ -78,63 +90,38 @@ def is_import_from(stmt: ast.stmt) -> TypeGuard[ast.ImportFrom]:
     return isinstance(stmt, ast.ImportFrom)
 
 
-def is_model_rebuild(node: ast.stmt) -> TypeGuard[ast.Expr]:
-    """Return True if this node is a generated `PydanticModel.model_rebuild()` statement.
-
-    A module-level statement like:
-        MyModel.model_rebuild()
-
-    will be an AST node like:
-        Expr(
-            value=Call(
-                func=Attribute(
-                    value=Name(id='MyModel'),
-                    attr='model_rebuild',
-                ), ...
-            ),
-        )
-    """
-    return (
-        isinstance(node, ast.Expr)
-        and isinstance(node.value, ast.Call)
-        and isinstance(node.value.func, ast.Attribute)
-        and (node.value.func.attr == "model_rebuild")
-    )
-
-
 def make_model_rebuild(class_name: str) -> ast.Expr:
     """Generate the AST node for a `PydanticModel.model_rebuild()` statement."""
-    return ast.Expr(
-        value=ast.Call(
-            func=ast.Attribute(attr="model_rebuild", value=ast.Name(id=class_name)),
-            args=[],
-            keywords=[],
-        )
-    )
+    return generate_expr(generate_method_call(class_name, "model_rebuild"))
+
+
+def make_pydantic_field(**kwargs: Any) -> ast.Call:
+    """Generate the AST node for a Pydantic `Field(...)` call."""
+    kws = {
+        k: v if isinstance(v, ast.expr) else ast.Constant(v) for k, v in kwargs.items()
+    }
+    return generate_pydantic_field(kws)
 
 
 def collect_imported_names(stmts: Iterable[ast.ImportFrom]) -> list[str]:
     """Return the names to export from the __init__ module by parsing the import statements."""
-    return list(chain.from_iterable(imported_names(stmt) for stmt in stmts))
+    return list(chain.from_iterable(map(sorted, map(imported_names, stmts))))
 
 
 def make_all_assignment(names: Iterable[str]) -> ast.Assign:
     """Generate an `__all__ = [...]` statement to export the given names from __init__.py."""
-    return make_assign(
-        "__all__",
-        ast.List([ast.Constant(name) for name in names]),
-    )
+    return make_assign("__all__", ast.List([ast.Constant(name) for name in names]))
 
 
 def make_assign(target: str, value: ast.expr) -> ast.Assign:
     """Generate the AST node for an `{target} = {value}` assignment statement."""
-    return ast.Assign(targets=[ast.Name(id=target)], value=value)
+    return ast.Assign(targets=[ast.Name(target)], value=value)
 
 
 def make_import(modules: str | Iterable[str]) -> ast.Import:
     """Generate the AST node for an `import {modules}` statement."""
     modules = [modules] if isinstance(modules, str) else modules
-    return ast.Import(names=[ast.alias(name) for name in modules])
+    return ast.Import([ast.alias(name) for name in modules])
 
 
 def make_import_from(
@@ -145,3 +132,8 @@ def make_import_from(
     return ast.ImportFrom(
         module=module, names=[ast.alias(name) for name in names], level=level
     )
+
+
+def make_subscript(name: str, inner: str | ast.expr) -> ast.Subscript:
+    inner_node = inner if isinstance(inner, ast.expr) else ast.Constant(inner)
+    return ast.Subscript(ast.Name(name), inner_node)
