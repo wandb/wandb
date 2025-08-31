@@ -9,8 +9,6 @@ from typing_extensions import Annotated, Self, get_args
 
 from wandb._pydantic import (
     GQLBase,
-    SerializedToJson,
-    ensure_json,
     field_validator,
     model_validator,
     pydantic_isinstance,
@@ -21,7 +19,7 @@ from ._filters import And, MongoLikeFilter, Or
 from ._filters.expressions import FilterableField
 from ._filters.run_metrics import MetricChangeFilter, MetricThresholdFilter, MetricVal
 from ._generated import FilterEventFields
-from ._validators import LenientStrEnum, simplify_op
+from ._validators import LenientStrEnum, SerializedToJson, ensure_json, simplify_op
 from .actions import InputAction, InputActionTypes, SavedActionTypes
 from .scopes import ArtifactCollectionScope, AutomationScope, ProjectScope
 
