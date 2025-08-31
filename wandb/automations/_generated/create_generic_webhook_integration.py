@@ -21,7 +21,7 @@ class CreateGenericWebhookIntegration(GQLResult):
 class CreateGenericWebhookIntegrationCreateGenericWebhookIntegration(GQLResult):
     integration: Union[
         CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationIntegration,
-        CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationGenericWebhookIntegration,
+        GenericWebhookIntegrationFields,
     ] = Field(discriminator="typename__")
 
 
@@ -31,12 +31,6 @@ class CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationI
     typename__: Typename[
         Literal["GitHubOAuthIntegration", "Integration", "SlackIntegration"]
     ]
-
-
-class CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationGenericWebhookIntegration(
-    GenericWebhookIntegrationFields
-):
-    typename__: Typename[Literal["GenericWebhookIntegration"]]
 
 
 CreateGenericWebhookIntegration.model_rebuild()
