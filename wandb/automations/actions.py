@@ -7,7 +7,7 @@ from typing import Any, Literal, Optional, Union
 from pydantic import BeforeValidator, Field
 from typing_extensions import Annotated, Self, get_args
 
-from wandb._pydantic import GQLBase, GQLId, SerializedToJson, Typename
+from wandb._pydantic import GQLBase, GQLId, Typename
 
 from ._generated import (
     AlertSeverity,
@@ -21,6 +21,7 @@ from ._generated import (
 )
 from ._validators import (
     LenientStrEnum,
+    SerializedToJson,
     default_if_none,
     to_input_action,
     to_saved_action,
