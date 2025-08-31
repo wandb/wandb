@@ -5,11 +5,17 @@ from __future__ import annotations
 import ast
 import subprocess
 import sys
+from collections.abc import Iterable
+from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import Any, TypeGuard
 
-if TYPE_CHECKING:
-    from typing import TypeGuard
+import libcst as cst
+from ariadne_codegen.codegen import (
+    generate_expr,
+    generate_method_call,
+    generate_pydantic_field,
+)
 
 
 def remove_module_files(root: Path, module_names: Iterable[str]) -> None:
@@ -27,9 +33,9 @@ def apply_ruff(path: str | Path) -> None:
     subprocess.run(["ruff", "format", path], check=True)
 
 
-def imported_names(stmt: ast.Import | ast.ImportFrom) -> list[str]:
+def imported_names(stmt: ast.Import | ast.ImportFrom) -> set[str]:
     """Return the (str) names imported by this `from ... import {names}` statement."""
-    return [alias.name for alias in stmt.names]
+    return {alias.name for alias in stmt.names}
 
 
 def base_class_names(class_def: ast.ClassDef) -> list[str]:
@@ -51,6 +57,28 @@ def is_redundant_class_def(stmt: ast.ClassDef) -> TypeGuard[ast.ClassDef]:
 
     In general, we only drop redundant subclasses if they inherit from a SINGLE parent class.
     """
+    # if not isinstance(stmt, ast.ClassDef):
+    #     return False
+    # cst_stmt = ast_to_cst(stmt)
+    # if match := (
+    #     m.matches(
+    #         cst_stmt,
+    #         m.ClassDef(
+    #             bases=[m.AtMostN(m.Name(), n=1)],
+    #             body=[m.Pass()],
+    #         ),
+    #     )
+    #     | m.matches(
+    #         cst_stmt,
+    #         m.ClassDef(
+    #             bases=[m.AllOf(m.Name(), ~(m.Name("GQLInput") | m.Name("GQLResult")))],
+    #             body=[m.AnnAssign(target=m.Name("typename__"))],
+    #         ),
+    #     )
+    # ):
+    #     print(f"statement matches redundant subclass definition:\n{ast.unparse(stmt)}")
+    # return match
+
     return (
         is_class_def(stmt)
         and len(stmt.bases) == 1
@@ -79,16 +107,25 @@ def is_import_from(stmt: ast.stmt) -> TypeGuard[ast.ImportFrom]:
 
 def make_model_rebuild(class_name: str) -> ast.Expr:
     """Generate the AST node for a `PydanticModel.model_rebuild()` statement."""
-    return ast.Expr(
-        ast.Call(
-            ast.Attribute(ast.Name(class_name), "model_rebuild"), args=[], keywords=[]
-        )
-    )
+    return generate_expr(generate_method_call(class_name, "model_rebuild"))
+
+
+def make_pydantic_field(**kwargs: Any) -> ast.Call:
+    """Generate the AST node for a Pydantic `Field(...)` call."""
+    kws = {
+        k: v if isinstance(v, ast.expr) else ast.Constant(v) for k, v in kwargs.items()
+    }
+    return generate_pydantic_field(kws)
+
+
+def collect_imported_names(stmts: Iterable[ast.ImportFrom]) -> list[str]:
+    """Return the names to export from the __init__ module by parsing the import statements."""
+    return list(chain.from_iterable(map(sorted, map(imported_names, stmts))))
 
 
 def make_all_assignment(names: Iterable[str]) -> ast.Assign:
     """Generate an `__all__ = [...]` statement to export the given names from __init__.py."""
-    return make_assign("__all__", ast.List([ast.Constant(n) for n in names]))
+    return make_assign("__all__", ast.List([ast.Constant(name) for name in names]))
 
 
 def make_assign(target: str, value: ast.expr) -> ast.Assign:
@@ -101,7 +138,19 @@ def make_import_from(
 ) -> ast.ImportFrom:
     """Generate the AST node for a `from {module} import {names}` statement."""
     names = [names] if isinstance(names, str) else names
-    return ast.ImportFrom(module, names=[ast.alias(n) for n in names], level=level)
+    return ast.ImportFrom(
+        module=module, names=[ast.alias(name) for name in names], level=level
+    )
+
+
+def make_subscript(name: str, inner: str | ast.expr) -> ast.Subscript:
+    inner_node = inner if isinstance(inner, ast.expr) else ast.Constant(inner)
+    return ast.Subscript(ast.Name(name), inner_node)
+
+
+def ast_to_cst(node: ast.AST) -> cst.CSTNode:
+    """Convert a native python AST node to a libcst CST node."""
+    return cst.parse_statement(ast.unparse(node))
 
 
 def make_literal(*vals: Any) -> ast.Subscript:

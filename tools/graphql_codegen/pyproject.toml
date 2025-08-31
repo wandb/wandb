@@ -1,0 +1,5 @@
+[tool.ruff]
+extend = "../../pyproject.toml"
+
+[tool.ruff.per-file-target-version]
+"**/*.py" = "py310"

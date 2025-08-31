@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import ast
 from collections import defaultdict, deque
+from collections.abc import Iterable
 from contextlib import suppress
-from itertools import chain, groupby
+from itertools import groupby
 from pathlib import Path
-from typing import Any, ClassVar, Iterable, Iterator
+from typing import Any, ClassVar
 
 from ariadne_codegen import Plugin
+from ariadne_codegen.client_generators.constants import ANNOTATED, BASE_MODEL_CLASS_NAME
+from ariadne_codegen.codegen import generate_ann_assign
 from graphlib import TopologicalSorter  # Run this only with python 3.9+
 from graphql import (
     ExecutableDefinitionNode,
@@ -27,6 +30,7 @@ from graphql import (
 from .plugin_utils import (
     apply_ruff,
     base_class_names,
+    collect_imported_names,
     imported_names,
     is_class_def,
     is_import_from,
@@ -35,19 +39,14 @@ from .plugin_utils import (
     make_import_from,
     make_literal,
     make_model_rebuild,
+    make_pydantic_field,
+    make_subscript,
     remove_module_files,
 )
-
-DEFAULT_BASE_MODEL_NAME = "BaseModel"  #: The name of the default pydantic base class
 
 # Names of custom-defined types
 GQL_BASE_CLASS_NAME = "GQLBase"  #: Custom base class for GraphQL types
 TYPENAME_TYPE = "Typename"  #: Custom Typename type for field annotations
-
-
-# Names that should be imported from `typing_extensions` to ensure
-# compatibility with all supported python versions.
-TYPING_EXTENSIONS_TYPES = ("override", "Annotated")
 
 # Misc
 ID = "ID"  #: The GraphQL name of the ID type
@@ -65,10 +64,7 @@ class FixFragmentOrder(Plugin):
     """
 
     def generate_fragments_module(self, module: ast.Module, *_, **__) -> ast.Module:
-        return self._ensure_class_order(module)
-
-    @staticmethod
-    def _ensure_class_order(module: ast.Module) -> ast.Module:
+        """Ensures the class definitions and `Class.model_rebuild()` statements are deterministically ordered."""
         # Separate the statements into the following expected groups:
         # - imports
         # - class definitions
@@ -77,63 +73,62 @@ class FixFragmentOrder(Plugin):
         for stmt_type, stmts in groupby(module.body, type):
             grouped_stmts[stmt_type].extend(stmts)
 
+        # Check that we have only the expected statement types
+        expected = {ast.ImportFrom, ast.ClassDef, ast.Expr}
+        if (actual := set(grouped_stmts.keys())) != expected:
+            extra = ", ".join(map(repr, sorted(actual - expected)))
+            missing = ", ".join(map(repr, sorted(expected - actual)))
+            raise ValueError(
+                "Unexpected statements in fragments module. "
+                + (f"Extra stmt types: {extra}. " if extra else "")
+                + (f"Missing stmt types: {missing}. " if missing else "")
+            )
+
         imports = grouped_stmts.pop(ast.ImportFrom)
-        class_defs = grouped_stmts.pop(ast.ClassDef)
+        ordered_class_defs = grouped_stmts.pop(ast.ClassDef)
 
         # Drop the `.model_rebuild()` statements (we'll regenerate them)
-        _ = grouped_stmts.pop(ast.Expr)
+        grouped_stmts.pop(ast.Expr)
 
         # Since we've popped all the expected statement groups, verify there's nothing left
         if grouped_stmts:
             raise ValueError(f"Unexpected statements in module: {list(grouped_stmts)}")
 
-        # For safety, we're going to apply `.model_rebuild()` to all generated fragment types
-        # This'll prevent errors that pop up in pydantic v1 like:
+        # Deterministically reorder the class definitions/model_rebuild() statements,
+        # ensuring parent classes are defined first.
+        #
+        # For safety, apply `.model_rebuild()` to all generated fragment types to prevent
+        # errors in pydantic v1 like:
         #
         #   pydantic.errors.ConfigError: field "node" not yet prepared so type is still a
         #   ForwardRef, you might need to call FilesFragmentEdges.update_forward_refs().
-        model_rebuilds = [
-            make_model_rebuild(class_def.name) for class_def in class_defs
-        ]
+        ordered_class_defs = self._sorted_class_defs(ordered_class_defs)
+        model_rebuilds = [make_model_rebuild(cls_.name) for cls_ in ordered_class_defs]
 
-        # Deterministically reorder the class definitions/model_rebuild() statements,
-        # ensuring parent classes are defined first
-        sorter = ClassDefSorter(class_defs)
-        module.body = [
-            *imports,
-            *sorter.sort_class_defs(class_defs),
-            *sorter.sort_model_rebuilds(model_rebuilds),
-        ]
+        module.body = [*imports, *ordered_class_defs, *model_rebuilds]
         return module
 
-
-class ClassDefSorter:
-    """A sorter for a collection of class definitions."""
-
-    def __init__(self, class_defs: Iterable[ast.ClassDef]) -> None:
-        #: Used to topologically sort the class definitions (which may depend on each other)
-        self.toposorter = TopologicalSorter()
-
-        # Pre-sort the class definitions to ensure deterministic final topological order
-        for class_def in sorted(class_defs, key=lambda cls: cls.name):
-            self.toposorter.add(class_def.name, *base_class_names(class_def))
-
-        #: The deterministic, topologically sorted order of class definitions
-        self.static_order: list[str] = list(self.toposorter.static_order())
-
-    def sort_class_defs(self, class_defs: Iterable[ast.ClassDef]) -> list[ast.ClassDef]:
+    @staticmethod
+    def _sorted_class_defs(class_defs: Iterable[ast.ClassDef]) -> list[ast.ClassDef]:
         """Return the class definitions in topologically sorted order."""
-        return sorted(
-            class_defs,
-            key=lambda class_def: self.static_order.index(class_def.name),
-        )
+        # Pre-sort the class definitions to ensure deterministic final topological order
+        ordered = sorted(class_defs, key=lambda c: c.name)
 
-    def sort_model_rebuilds(self, model_rebuilds: Iterable[ast.Expr]) -> list[ast.Expr]:
-        """Return the model rebuild statements in topologically sorted order."""
-        return sorted(
-            model_rebuilds,
-            key=lambda expr: self.static_order.index(expr.value.func.value.id),
-        )
+        # TopologicalSorter helps sort the classes while respecting parent-child dependencies.
+        ts = TopologicalSorter({cl.name: base_class_names(cl) for cl in ordered})
+
+        # Map class names to their index in the topologically ordered sequence
+        name2idx = {name: idx for idx, name in enumerate(ts.static_order())}
+        return sorted(ordered, key=lambda c: name2idx[c.name])
+
+
+def forget_default_id_type() -> None:
+    # HACK: Override the default python type that ariadne-codegen uses for GraphQL's `ID` type.
+    # See: https://github.com/mirumee/ariadne-codegen/issues/316
+    from ariadne_codegen.client_generators import constants as codegen_constants
+
+    codegen_constants.SIMPLE_TYPE_MAP.pop(ID, None)
+    codegen_constants.INPUT_SCALARS_MAP.pop(ID, None)
 
 
 class GraphQLCodegenPlugin(Plugin):
@@ -207,6 +202,14 @@ class GraphQLCodegenPlugin(Plugin):
     def generate_enums_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
 
+    def generate_input_class(self, class_def: ast.ClassDef, *_, **__) -> ast.ClassDef:
+        # Replace the default base class: `BaseModel` -> `GQLInput`
+        class_def.bases = [
+            ast.Name(GQL_INPUT_CLASS_NAME if (name == BASE_MODEL_CLASS_NAME) else name)
+            for name in base_class_names(class_def)
+        ]
+        return self._rewrite_class(class_def)
+
     def generate_inputs_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
 
@@ -240,10 +243,95 @@ class GraphQLCodegenPlugin(Plugin):
         # - It's a fragment type
         if class_def.name.lower() != operation_definition.name.value.lower():
             self.classes_to_drop.add(class_def.name)
-        return class_def
+        return self._rewrite_class(class_def)
 
     def generate_result_types_module(self, module: ast.Module, *_, **__) -> ast.Module:
         return self._rewrite_generated_module(module)
+
+    def _rewrite_class(
+        self, node: ast.ClassDef, gql_typename: str | None = None
+    ) -> ast.ClassDef:
+        # Rewrite pydantic field definitions (ast.AnnAssign statements) as needed
+        node.body = [
+            self._rewrite_field(stmt, gql_typename)
+            if isinstance(stmt, ast.AnnAssign)
+            else stmt
+            for stmt in node.body
+        ]
+        return node
+
+    def _rewrite_field(
+        self, node: ast.AnnAssign, gql_typenames: list[str] | None = None
+    ) -> ast.AnnAssign:
+        match target := node.target, annotation := node.annotation, node.value:
+            # Handle fields with GraphQL `ID` types. Needed for fields like:
+            #
+            #   my_id: GQLId = Field(alias="myID")
+            #
+            # ... since GQLId is defined as `Annotated[..., Field(frozen=True, repr=False)]`.
+            # Pydantic v1 will complain with an error like:
+            #
+            #   ValueError: cannot specify `Annotated` and value `Field`s together for 'my_id'
+            #
+            # Although Pydantic v2 is more intelligent about merging `Field(...)` metadata, we
+            # need this workaround for v1 compatibility.
+            case (
+                _,
+                ast.Name("GQLId"),
+                ast.Call(ast.Name("Field"), _, pydantic_field_kws),
+            ):
+                kws = {kw.arg: kw.value for kw in pydantic_field_kws}
+                pydantic_field = make_pydantic_field(**kws, frozen=True, repr=False)
+
+                return generate_ann_assign(target, ast.Name("str"), pydantic_field)
+
+            # Handle GraphQL `__typename` fields
+            case ast.Name("typename__"), _, _ if gql_typenames:
+                # We have a specific GraphQL type name for this field, so ensure the field is:
+                #   typename__: Typename[Literal["OrigSchemaTypeName"]] = "OrigSchemaTypeName"
+                if len(gql_typenames) > 1:
+                    # `typename` is actually the name of a GraphQL interface,
+                    # and we want the names of its concrete implementations.
+                    return generate_ann_assign(
+                        target,
+                        make_subscript("Typename", make_literal(*gql_typenames)),
+                        None,
+                    )
+                else:
+                    # `typename` is actually the name of a concrete GraphQL object type
+                    return generate_ann_assign(
+                        target,
+                        make_subscript("Typename", make_literal(gql_typenames[0])),
+                        ast.Constant(gql_typenames[0]),
+                    )
+            case (
+                ast.Name("typename__"),
+                ast.Subscript(ast.Name("Typename")),
+                _,
+            ):
+                return node  # Nothing to do, already handled
+            case ast.Name("typename__"), _, _:
+                # Wrap annotation `T` with the `Typename[T]` annotation, which handles the field alias, e.g.:
+                #   typename__: Literal["MyType", "Other"] = Field(alias="__typename")  # BEFORE
+                #   typename__: Typename[Literal["MyType", "Other"]]                    # AFTER
+                return generate_ann_assign(
+                    target, make_subscript("Typename", annotation)
+                )
+
+            # If this is a union of a single type, drop `Field(discriminator=...)`
+            # since pydantic may complain.
+            # See: https://github.com/pydantic/pydantic/issues/3636
+            case (
+                _,
+                ast.Subscript(ast.Name("Union"), ast.Tuple((only_type, *others))),
+                ast.Call(ast.Name("Field")),
+            ) if not others:
+                # e.g. BEFORE: `field: Union[OnlyType,] = Field(discriminator="...")`
+                # e.g. AFTER:  `field: OnlyType`
+                return generate_ann_assign(target, only_type)
+
+            case _:
+                return node
 
     def generate_fragments_module(
         self,
@@ -261,28 +349,32 @@ class GraphQLCodegenPlugin(Plugin):
             for frag in fragments_definitions.values()
         }
 
-        # Rewrite `typename__` fields:
-        #   - BEFORE: `typename__: str = Field(alias="__typename")`
-        #   - AFTER:  `typename__: Literal["OrigSchemaTypeName"] = "OrigSchemaTypeName"`
-        for class_def in filter(is_class_def, module.body):
-            for stmt in class_def.body:
-                if (
-                    isinstance(stmt, ast.AnnAssign)
-                    and (stmt.target.id == "typename__")
-                    and (names := fragment2typenames.get(class_def.name))
-                ):
-                    stmt.annotation = make_literal(*names)
-                    # Determine if we prepopulate `typename__` with a default field value
-                    # - assign default: Fragment defined on a GQL object type OR interface with 1 impl.
-                    # - omit default: Fragment defined on a GQL interface with multiple impls.
-                    stmt.value = ast.Constant(names[0]) if len(names) == 1 else None
+        module.body = [
+            self._rewrite_class(cls_, fragment2typenames.get(cls_.name))
+            if is_class_def(cls_ := stmt)
+            else stmt
+            for stmt in module.body
+        ]
 
         module = self._rewrite_generated_module(module)
         return ast.fix_missing_locations(module)
 
     def _rewrite_generated_module(self, module: ast.Module) -> ast.Module:
         """Apply common transformations to the generated module, excluding `__init__`."""
-        module = PydanticModuleRewriter().visit(module)
+        # Prepend shared import statements to the module
+        module.body = [
+            make_import_from("__future__", "annotations"),
+            make_import_from(
+                "wandb._pydantic",
+                [
+                    GQL_INPUT_CLASS_NAME,
+                    GQL_RESULT_CLASS_NAME,
+                    TYPENAME_TYPE,
+                ],
+            ),
+            make_import_from("typing_extensions", [ANNOTATED]),
+            *module.body,
+        ]
         module = self._replace_redundant_classes(module)
         return ast.fix_missing_locations(module)
 
@@ -310,96 +402,33 @@ class GraphQLCodegenPlugin(Plugin):
     def _cleanup_init_module(self, module: ast.Module) -> ast.Module:
         """Remove dropped imports and rewrite `__all__` exports in `__init__`."""
         # Drop selected import statements from the __init__ module
-        kept_import_stmts = list(
-            self._filter_init_imports(
-                module.body,
-                omit_modules=self.modules_to_drop,
-                omit_names=self.classes_to_drop,
+        # Ignore imports from modules that are being dropped, and
+        # ignore imported names that are being dropped (e.g. deleted classes).
+        kept_imports = [
+            make_import_from(
+                module=imp.module,
+                names=imported_names(imp) - self.classes_to_drop,
+                level=imp.level,
             )
-        )
+            for stmt in module.body
+            if is_import_from(imp := stmt) and (imp.module not in self.modules_to_drop)
+        ]
 
         # Replace the `__all__ = [...]` export statement
-        names_to_export = chain.from_iterable(map(imported_names, kept_import_stmts))
-        export_stmt = make_all_assignment(names_to_export)
+        export_stmt = make_all_assignment(names=collect_imported_names(kept_imports))
 
         # Update the module with the cleaned-up statements
-        module.body = [export_stmt, *kept_import_stmts]
-        return ast.fix_missing_locations(module)
+        module.body = [export_stmt, *kept_imports]
+        return module
 
     @staticmethod
-    def _filter_init_imports(
-        stmts: Iterable[ast.stmt],
-        omit_modules: Iterable[str],
-        omit_names: Iterable[str],
-    ) -> Iterator[ast.ImportFrom]:
-        """Yield only import statements to keep from the given module statements."""
-        import_from_stmts = (
-            stmt
-            for stmt in stmts
-            # Ignore imports from modules that are being dropped
-            if is_import_from(stmt) and (stmt.module not in omit_modules)
-        )
-        excluded_names = set(omit_names)
-        for stmt in import_from_stmts:
-            # Keep only imported names that aren't being dropped
-            kept_names = sorted(set(imported_names(stmt)) - excluded_names)
-            yield make_import_from(stmt.module, kept_names, level=stmt.level)
+    def _fix_typing_imports(module: ast.Module) -> ast.Module:
+        """Fix the typing imports, if needed, in the generated module."""
+        for stmt in module.body:
+            if is_import_from(stmt) and (stmt.module == "typing"):
+                stmt.names = [alias for alias in stmt.names if alias.name != ANNOTATED]
 
-
-class PydanticModuleRewriter(ast.NodeTransformer):
-    """Applies various modifications to a generated module with pydantic classes."""
-
-    def visit_Module(self, node: ast.Module) -> ast.Module:
-        # Prepend shared import statements to the module. Ruff will clean this up later.
-        node.body = [
-            make_import_from("__future__", "annotations"),
-            make_import_from("wandb._pydantic", [GQL_BASE_CLASS_NAME, TYPENAME_TYPE]),
-            make_import_from("typing_extensions", TYPING_EXTENSIONS_TYPES),
-            *node.body,
-        ]
-        return self.generic_visit(node)
-
-    def visit_ImportFrom(self, node: ast.ImportFrom) -> Any:
-        # Drop typing imports that should be imported from `typing_extensions` instead
-        if node.module == "typing":
-            if kept_names := (set(imported_names(node)) - set(TYPING_EXTENSIONS_TYPES)):
-                return make_import_from(node.module, kept_names)
-            return None
-        else:
-            return node  # Otherwise, keep the import as-is
-
-    def visit_AnnAssign(self, node: ast.AnnAssign) -> ast.AnnAssign:
-        if node.target.id == "typename__":
-            # e.g. BEFORE: `typename__: Literal["MyType"] = Field(alias="__typename")`
-            # e.g. AFTER:  `typename__: Typename[Literal["MyType"]]`
-
-            # T -> Typename[T]
-            node.annotation = ast.Subscript(ast.Name(TYPENAME_TYPE), node.annotation)
-
-            # Drop `= Field(alias="__typename")`, if present
-            if (
-                isinstance(call := node.value, ast.Call)
-                and call.func.id == "Field"
-                and len(call.keywords) == 1
-                and call.keywords[0].arg == "alias"
-            ):
-                node.value = None
-
-        # If this is a union of a single type, drop the `Field(discriminator=...)`
-        # since pydantic may complain.
-        # See: https://github.com/pydantic/pydantic/issues/3636
-        elif (
-            isinstance(annotation := node.annotation, ast.Subscript)
-            and annotation.value.id == "Union"
-            and isinstance(annotation.slice, ast.Tuple)
-            and len(annotation.slice.elts) == 1
-        ):
-            # e.g. BEFORE: `field: Union[OnlyType,] = Field(discriminator="...")`
-            # e.g. AFTER:  `field: OnlyType`
-            node.annotation = annotation.slice.elts[0]  # Union[T,] -> T
-            node.value = None  # drop `= Field(discriminator=...)`, if present
-
-        return self.generic_visit(node)
+        return module
 
     def visit_Name(self, node: ast.Name) -> ast.Name:
         """Visit the name of a base class in a class definition."""
