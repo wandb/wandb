@@ -74,7 +74,7 @@ def test_dspy_callback_end_to_end(wandb_backend_spy):
                 spec_1 = artifact_files[1]
                 assert spec_0.get("name") == "metadata.json"
                 assert spec_1.get("name") == "program.pkl"
-                    
+
             # Check for two artifacts files when `save_program=False`
             # and filetype is `json` or `pkl`
             for spec in artifact_files:
