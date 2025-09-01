@@ -1,5 +1,3 @@
-import sys
-import pathlib
 import dspy
 import wandb
 
@@ -23,7 +21,9 @@ def main() -> None:
             self.auto = "light"
 
     program = MinimalProgram()
-    cb.on_evaluate_start(call_id="c1", instance=FakeEvaluate(), inputs={"program": program})
+    cb.on_evaluate_start(
+        call_id="c1", instance=FakeEvaluate(), inputs={"program": program}
+    )
 
     # Pass an unexpected outputs type (not EvaluationResult)
     class NotAnEvaluationResult:
@@ -36,5 +36,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

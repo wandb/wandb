@@ -1,5 +1,6 @@
-import sys
 import pathlib
+import sys
+
 import dspy
 import wandb
 from dspy.evaluate.evaluate import EvaluationResult  # type: ignore
@@ -40,5 +41,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

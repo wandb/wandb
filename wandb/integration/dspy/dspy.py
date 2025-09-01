@@ -157,9 +157,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         # We currently support this type and will warn the user if a different type is passed.
         score: float | None = None
         if exception is None:
-            if isinstance(
-                outputs, dspy.evaluate.evaluate.EvaluationResult
-            ):
+            if isinstance(outputs, dspy.evaluate.evaluate.EvaluationResult):
                 # log the float score as a wandb metric
                 score = outputs.score
                 wandb.log({"score": float(score)}, step=self._row_idx)

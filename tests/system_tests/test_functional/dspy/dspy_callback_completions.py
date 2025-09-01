@@ -40,7 +40,9 @@ def main() -> None:
             self.auto = "light"
 
     program = MinimalProgram()
-    cb.on_evaluate_start(call_id="c1", instance=FakeEvaluate(), inputs={"program": program})
+    cb.on_evaluate_start(
+        call_id="c1", instance=FakeEvaluate(), inputs={"program": program}
+    )
 
     results = _build_results_stub()
     out = EvaluationResult(score=0.8, results=results)
@@ -51,5 +53,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

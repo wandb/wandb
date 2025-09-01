@@ -178,8 +178,12 @@ def test_dspy_callback_multiple_steps(wandb_backend_spy):
         # Program signature should be logged both times as incremental table
         prog0 = history[0].get("program_signature")
         prog1 = history[1].get("program_signature")
-        assert isinstance(prog0, dict) and prog0.get("_type") == "incremental-table-file"
-        assert isinstance(prog1, dict) and prog1.get("_type") == "incremental-table-file"
+        assert (
+            isinstance(prog0, dict) and prog0.get("_type") == "incremental-table-file"
+        )
+        assert (
+            isinstance(prog1, dict) and prog1.get("_type") == "incremental-table-file"
+        )
 
         summary = snapshot.summary(run_id=run_id)
         assert "predictions_0" in summary

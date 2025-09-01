@@ -1,5 +1,6 @@
-import sys
 import pathlib
+import sys
+
 import dspy
 import wandb
 from dspy.evaluate.evaluate import EvaluationResult  # type: ignore
@@ -34,7 +35,9 @@ def main() -> None:
             self.auto = "light"
 
     program = MinimalProgram()
-    cb.on_evaluate_start(call_id="c1", instance=FakeEvaluate(), inputs={"program": program})
+    cb.on_evaluate_start(
+        call_id="c1", instance=FakeEvaluate(), inputs={"program": program}
+    )
 
     # First step
     cb.on_evaluate_end(call_id="c1", outputs=_results(0.8), exception=None)
@@ -46,5 +49,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
