@@ -30,7 +30,7 @@ def _build_results_stub():
     pred1 = dspy.Prediction(answer="4")
 
     ex2 = dspy.Example(question="What is 3+3?", answer="6")
-    pred2 = dspy.Completions(answer="6")
+    pred2 = dspy.Prediction(answer="6")
 
     return [
         (ex1, pred1, True),
@@ -54,10 +54,10 @@ def main() -> None:
     from wandb.integration.dspy import WandbDSPyCallback
 
     # Init W&B
-    wandb.init(project="dspy-system-test")
+    wandb_run = wandb.init(project="dspy-system-test")
 
     # Build callback
-    cb = WandbDSPyCallback(log_results=True)
+    cb = WandbDSPyCallback(log_results=True, wandb_run=wandb_run)
 
     # Simulate dspy.Evaluate instance and lifecycle
     class FakeEvaluate:
@@ -78,8 +78,8 @@ def main() -> None:
 
     # Exercise model artifact saving in different modes using the real Module API
     cb.log_best_model(program, save_program=True)
-    cb.log_best_model(program, save_program=False, choice="json")
-    cb.log_best_model(program, save_program=False, choice="pkl")
+    cb.log_best_model(program, save_program=False, filetype="json")
+    cb.log_best_model(program, save_program=False, filetype="pkl")
 
     wandb.finish()
 

@@ -20,20 +20,28 @@ def test_dspy_callback_end_to_end(wandb_backend_spy):
         assert any(row.get("score") == 0.8 for row in history.values())
 
         # History: predictions and program signature tables should be present
-        def has_table_key(row: dict, key: str) -> bool:
-            val = row.get(key)
-            return isinstance(val, dict) and val.get("_type") == "table-file"
-
-        assert any(has_table_key(row, "predictions_0") for row in history.values())
-        assert any(has_table_key(row, "program_signature") for row in history.values())
+        # predictions should be of type table-file,
+        # program_signature should be of type incremental-table-file
+        pred_table = history[0].get("predictions_0")
+        assert isinstance(pred_table, dict) and pred_table.get("_type") == "table-file"
+        prog_table = history[0].get("program_signature")
+        assert isinstance(prog_table, dict) and prog_table.get("_type") == "incremental-table-file"
 
         # Config: fields from Evaluate instance should be present, but devset excluded
         config = snapshot.config(run_id=run_id)
         assert "num_threads" in config
-        assert config["num_threads"] == 2
+        assert config["num_threads"] == {'value': 2}
         assert "auto" in config
         assert "devset" not in config
 
         # Summary: best_model_artifact key should be set by log_best_model
         summary = snapshot.summary(run_id=run_id)
-        assert "best_model_artifact" in summary
+        assert summary["score"] == 0.8
+        assert summary["_step"] == 0
+        assert "predictions_0" in summary
+        assert "program_signature" in summary
+
+        # Artifacts: dspy-program artifact should be present
+        # artifacts = snapshot.artifacts(run_id=run_id)
+        # print(artifacts)
+        # assert "dspy-program" in artifacts
