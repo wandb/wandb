@@ -3,7 +3,7 @@ META_SCHEMA = {
     "properties": {
         "type": {
             "type": "string",
-            "enum": ["boolean", "integer", "number", "string", "object"],
+            "enum": ["boolean", "integer", "number", "string", "object", "array"],
         },
         "title": {"type": "string"},
         "description": {"type": "string"},
@@ -11,6 +11,11 @@ META_SCHEMA = {
         "enum": {"type": "array", "items": {"type": ["integer", "number", "string"]}},
         "properties": {"type": "object", "patternProperties": {".*": {"$ref": "#"}}},
         "allOf": {"type": "array", "items": {"$ref": "#"}},
+        # Array-specific properties
+        "items": {"$ref": "#"},
+        "uniqueItems": {"type": "boolean"},
+        "minItems": {"type": "integer", "minimum": 0},
+        "maxItems": {"type": "integer", "minimum": 0},
     },
     "allOf": [
         {
@@ -33,6 +38,31 @@ META_SCHEMA = {
                     "exclusiveMinimum": {"type": "integer"},
                     "exclusiveMaximum": {"type": "integer"},
                 }
+            },
+        },
+        {
+            "if": {"properties": {"type": {"const": "array"}}},
+            "then": {
+                "required": ["items"],
+                "properties": {
+                    "items": {
+                        "properties": {
+                            "type": {"enum": ["integer", "number", "string"]},
+                            "enum": {
+                                "type": "array",
+                                "items": {"type": ["integer", "number", "string"]},
+                            },
+                            "title": {"type": "string"},
+                            "description": {"type": "string"},
+                            "format": {"type": "string"},
+                        },
+                        "required": ["type", "enum"],
+                        "unevaluatedProperties": False,
+                    },
+                    "uniqueItems": {"type": "boolean"},
+                    "minItems": {"type": "integer", "minimum": 0},
+                    "maxItems": {"type": "integer", "minimum": 0},
+                },
             },
         },
     ],

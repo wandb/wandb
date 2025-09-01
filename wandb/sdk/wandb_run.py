@@ -2622,7 +2622,7 @@ class Run:
     ) -> Artifact:
         job_artifact = InternalArtifact(name, job_builder.JOB_ARTIFACT_TYPE)
         if patch_path and os.path.exists(patch_path):
-            job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
+            job_artifact.add_file(FilePathStr(patch_path), "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:
             f.write("\n".join(installed_packages_list))
         with job_artifact.new_file("wandb-job.json") as f:

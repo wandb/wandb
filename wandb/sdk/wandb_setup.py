@@ -183,8 +183,8 @@ class _WandbSetup:
         }
 
         return (
-            set(singleton_env.keys()) == set(os_env.keys())  #
-            and set(singleton_env.values()) == set(os_env.values())
+            set(singleton_env.keys()) != set(os_env.keys())  #
+            or set(singleton_env.values()) != set(os_env.values())
         )
 
     def _load_settings(
