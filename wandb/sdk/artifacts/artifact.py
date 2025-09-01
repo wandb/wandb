@@ -51,6 +51,7 @@ from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk import wandb_setup
+from wandb.sdk.artifacts.storage_policies._multipart import should_multipart_download
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -2082,8 +2083,9 @@ class Artifact:
                 entry.download(
                     root,
                     skip_cache=skip_cache,
-                    executor=executor,
-                    multipart=multipart,
+                    executor=executor
+                    if (should_multipart_download(entry.size or 0, multipart))
+                    else None,
                 )
             except FileNotFoundError as e:
                 if allow_missing_references:

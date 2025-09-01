@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Dict, Final, Optional, Union
 from urllib.parse import urlparse
 
 from pydantic import Field
-from typing_extensions import Annotated, Self, TypedDict, deprecated
+from typing_extensions import Annotated, Self, deprecated
 
 from wandb._pydantic import field_validator, model_validator
 from wandb.proto.wandb_deprecated import Deprecated
@@ -120,7 +120,6 @@ class ArtifactManifestEntry(ArtifactsBase):
         root: str | None = None,
         skip_cache: bool | None = None,
         executor: concurrent.futures.Executor | None = None,
-        multipart: bool | None = None,
     ) -> FilePathStr:
         """Download this artifact entry to the specified root path.
 
@@ -152,11 +151,7 @@ class ArtifactManifestEntry(ArtifactsBase):
         overridden_cache_path = dest_path if skip_cache else None
         if self.ref is None:
             cache_path = artifact.manifest.storage_policy.load_file(
-                artifact,
-                self,
-                dest_path=overridden_cache_path,
-                executor=executor,
-                multipart=multipart,
+                artifact, self, dest_path=overridden_cache_path, executor=executor
             )
         else:
             cache_path = artifact.manifest.storage_policy.load_reference(
