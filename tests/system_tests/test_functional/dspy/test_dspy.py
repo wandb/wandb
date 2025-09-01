@@ -25,12 +25,15 @@ def test_dspy_callback_end_to_end(wandb_backend_spy):
         pred_table = history[0].get("predictions_0")
         assert isinstance(pred_table, dict) and pred_table.get("_type") == "table-file"
         prog_table = history[0].get("program_signature")
-        assert isinstance(prog_table, dict) and prog_table.get("_type") == "incremental-table-file"
+        assert (
+            isinstance(prog_table, dict)
+            and prog_table.get("_type") == "incremental-table-file"
+        )
 
         # Config: fields from Evaluate instance should be present, but devset excluded
         config = snapshot.config(run_id=run_id)
         assert "num_threads" in config
-        assert config["num_threads"] == {'value': 2}
+        assert config["num_threads"] == {"value": 2}
         assert "auto" in config
         assert "devset" not in config
 
