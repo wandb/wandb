@@ -46,10 +46,13 @@ def _flatten_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 class WandbDSPyCallback(dspy.utils.BaseCallback):
     def __init__(self, log_results: bool = True, wandb_run: Run | None = None) -> None:
+        # If no run is provided, use the current global run if available.
         if wandb_run is None:
-            raise wandb.Error(
-                "You must call `wandb.init()` before instantiating WandbDSPyCallback()."
-            )
+            wandb_run = wandb.run
+            if wandb_run is None:
+                raise wandb.Error(
+                    "You must call `wandb.init()` before instantiating WandbDSPyCallback()."
+                )
 
         self.log_results = log_results
 
@@ -152,24 +155,31 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         # The `BaseCallback` does not define the interface for the `outputs` parameter,
         # Currently, we know of `EvaluationResult` which is a subclass of `dspy.Prediction`.
         # We currently support this type and will warn the user if a different type is passed.
-        if exception is None and isinstance(
-            outputs, dspy.evaluate.evaluate.EvaluationResult
-        ):
-            # log the float score as a wandb metric
-            score = outputs.score
-            wandb.log({"score": float(score)}, step=self._row_idx)
+        score: float | None = None
+        if exception is None:
+            if isinstance(
+                outputs, dspy.evaluate.evaluate.EvaluationResult
+            ):
+                # log the float score as a wandb metric
+                score = outputs.score
+                wandb.log({"score": float(score)}, step=self._row_idx)
 
-            # Log the predictions as a separate table for each eval end.
-            # We know that results if of type `list[tuple["dspy.Example", "dspy.Example", Any]]`
-            results = outputs.results
-            if self.log_results:
-                rows = self._parse_results(results)
-                if rows:
-                    self._log_predictions_table(rows)
+                # Log the predictions as a separate table for each eval end.
+                # We know that results if of type `list[tuple["dspy.Example", "dspy.Example", Any]]`
+                results = outputs.results
+                if self.log_results:
+                    rows = self._parse_results(results)
+                    if rows:
+                        self._log_predictions_table(rows)
+            else:
+                wandb.termwarn(
+                    f"on_evaluate_end received unexpected outputs type: {type(outputs)}. "
+                    "Expected dspy.evaluate.evaluate.EvaluationResult; skipping logging score and `log_results`."
+                )
         else:
             wandb.termwarn(
-                f"on_evaluate_end received unexpected outputs type: {type(outputs)}. "
-                "Expected dspy.evaluate.evaluate.EvaluationResult; skipping logging score and `log_results`."
+                f"on_evaluate_end received exception: {exception}. "
+                "Skipping logging score and `log_results`."
             )
 
         # Log the program signature iteratively

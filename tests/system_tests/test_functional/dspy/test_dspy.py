@@ -82,3 +82,147 @@ def test_dspy_callback_end_to_end(wandb_backend_spy):
                 if name in check_uploaded_files:
                     check_uploaded_files.remove(name)
         assert len(check_uploaded_files) == 0
+
+
+def test_dspy_callback_log_results_false(wandb_backend_spy):
+    """Do not log predictions table when log_results=False; still log score and program."""
+    script_path = pathlib.Path(__file__).parent / "dspy_callback_log_results_false.py"
+    subprocess.check_call(["python", str(script_path)])
+
+    with wandb_backend_spy.freeze() as snapshot:
+        run_ids = snapshot.run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids.pop()
+
+        history = snapshot.history(run_id=run_id)
+        # Ensure there is no predictions table logged
+        assert "predictions_0" not in history[0]
+
+        # Program signature should still be present
+        prog_table = history[0].get("program_signature")
+        assert (
+            isinstance(prog_table, dict)
+            and prog_table.get("_type") == "incremental-table-file"
+        )
+
+        summary = snapshot.summary(run_id=run_id)
+        assert summary["score"] == 0.8
+        assert "program_signature" in summary
+        assert "predictions_0" not in summary
+
+
+def test_dspy_callback_unexpected_outputs(wandb_backend_spy):
+    """Unexpected outputs type: skip score and predictions; still log program signature."""
+    script_path = pathlib.Path(__file__).parent / "dspy_callback_unexpected.py"
+    subprocess.check_call(["python", str(script_path)])
+
+    with wandb_backend_spy.freeze() as snapshot:
+        run_ids = snapshot.run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids.pop()
+
+        history = snapshot.history(run_id=run_id)
+        assert all("score" not in row for row in history.values())
+        assert "predictions_0" not in history[0]
+        prog_table = history[0].get("program_signature")
+        assert (
+            isinstance(prog_table, dict)
+            and prog_table.get("_type") == "incremental-table-file"
+        )
+
+        summary = snapshot.summary(run_id=run_id)
+        assert "score" not in summary
+        assert "predictions_0" not in summary
+        assert "program_signature" in summary
+
+
+def test_dspy_callback_exception_path(wandb_backend_spy):
+    """Exception passed: skip score and predictions; still log program signature."""
+    script_path = pathlib.Path(__file__).parent / "dspy_callback_exception.py"
+    subprocess.check_call(["python", str(script_path)])
+
+    with wandb_backend_spy.freeze() as snapshot:
+        run_ids = snapshot.run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids.pop()
+
+        history = snapshot.history(run_id=run_id)
+        assert all("score" not in row for row in history.values())
+        assert "predictions_0" not in history[0]
+        prog_table = history[0].get("program_signature")
+        assert (
+            isinstance(prog_table, dict)
+            and prog_table.get("_type") == "incremental-table-file"
+        )
+
+        summary = snapshot.summary(run_id=run_id)
+        assert "score" not in summary
+        assert "predictions_0" not in summary
+        assert "program_signature" in summary
+
+
+def test_dspy_callback_multiple_steps(wandb_backend_spy):
+    """Two evaluate steps: predictions_0 and predictions_1, and program signature across steps."""
+    script_path = pathlib.Path(__file__).parent / "dspy_callback_multiple_steps.py"
+    subprocess.check_call(["python", str(script_path)])
+
+    with wandb_backend_spy.freeze() as snapshot:
+        run_ids = snapshot.run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids.pop()
+
+        history = snapshot.history(run_id=run_id)
+        # Both steps should have been logged
+        assert "predictions_0" in history[0]
+        assert "predictions_1" in history[1]
+        # Program signature should be logged both times as incremental table
+        prog0 = history[0].get("program_signature")
+        prog1 = history[1].get("program_signature")
+        assert isinstance(prog0, dict) and prog0.get("_type") == "incremental-table-file"
+        assert isinstance(prog1, dict) and prog1.get("_type") == "incremental-table-file"
+
+        summary = snapshot.summary(run_id=run_id)
+        assert "predictions_0" in summary
+        assert "predictions_1" in summary
+        # Latest score should be from the last step
+        assert summary["score"] == 0.9
+
+
+def test_dspy_callback_no_program(wandb_backend_spy):
+    """No program in inputs of on_evaluate_start: still logs program_signature with minimal columns."""
+    script_path = pathlib.Path(__file__).parent / "dspy_callback_no_program.py"
+    subprocess.check_call(["python", str(script_path)])
+
+    with wandb_backend_spy.freeze() as snapshot:
+        run_ids = snapshot.run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids.pop()
+
+        history = snapshot.history(run_id=run_id)
+        assert "predictions_0" in history[0]
+        prog_table = history[0].get("program_signature")
+        assert (
+            isinstance(prog_table, dict)
+            and prog_table.get("_type") == "incremental-table-file"
+        )
+
+        summary = snapshot.summary(run_id=run_id)
+        assert "program_signature" in summary
+
+
+def test_dspy_callback_completions(wandb_backend_spy):
+    """Use a dummy dspy.Completions with items() to exercise the completions branch."""
+    script_path = pathlib.Path(__file__).parent / "dspy_callback_completions.py"
+    subprocess.check_call(["python", str(script_path)])
+
+    with wandb_backend_spy.freeze() as snapshot:
+        run_ids = snapshot.run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids.pop()
+
+        history = snapshot.history(run_id=run_id)
+        # Predictions table should be present; content correctness is validated upstream
+        assert "predictions_0" in history[0]
+
+        summary = snapshot.summary(run_id=run_id)
+        assert "predictions_0" in summary
