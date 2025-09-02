@@ -184,6 +184,11 @@ select = [
     "T20",    # flake8-print
     "RUF100", # unused-noqa
 
+    # We have to get away from accessing -- and testing on! -- private attributes
+    # and methods.  While sometimes justified, it encourages poor test hygiene
+    # and entrenches design decisions that our code has long outgrown.
+    "SLF001", # private-member-access
+
     # tryceratops
     "TRY004", # type-check-without-type-error
     "TRY201", # verbose-raise
@@ -278,7 +283,7 @@ ignore-decorators = [
 "wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/sdk/internal/file_stream.py" = ["TRY300"]
 "wandb/sdk/internal/internal_api.py" = ["TRY300"]
-"wandb/sdk/launch/**" = ["T20"]
+"wandb/sdk/launch/**" = ["T20", "SLF001"]
 "wandb/sdk/launch/agent/agent.py" = ["TRY300"]
 "wandb/sdk/launch/builder/templates/_wandb_bootstrap.py" = ["TRY300"]
 "wandb/sdk/launch/environment/aws_environment.py" = ["TRY300"]
@@ -291,6 +296,38 @@ ignore-decorators = [
 "wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
 "wandb/wandb_controller.py" = ["N806"]
 "wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]
+"wandb/sdk/data_types/**" = ["SLF001"]
+"wandb/sdk/interface/**" = ["SLF001"]
+"wandb/sdk/internal/**" = ["SLF001"]
+"wandb/sdk/lib/**" = ["SLF001"]
+"wandb/sdk/verify/**" = ["SLF001"]
+"wandb/sdk/wandb_*.py" = ["SLF001"]
+"wandb/sync/**" = ["SLF001"]
+"wandb/wandb_*.py" = ["SLF001"]
+"tests/assets/notebooks/init_finishes_previous.ipynb" = ["SLF001"]
+"tests/conftest.py" = ["SLF001"]
+"tests/system_tests/test_core/**" = ["SLF001"]
+"tests/system_tests/test_functional/openai/test_finetuning.py" = ["SLF001"]
+"tests/system_tests/test_launch/**" = ["SLF001"]
+"tests/system_tests/test_notebooks/test_notebooks.py" = ["SLF001"]
+"tests/system_tests/test_sweep/**" = ["SLF001"]
+"tests/system_tests/test_system_metrics/**" = ["SLF001"]
+"tests/system_tests/wandb_backend_spy/**" = ["SLF001"]
+"tests/unit_tests/test_*.py" = ["SLF001"]
+
+"wandb/sdk/artifacts/**" = ["SLF001"]
+"tests/system_tests/test_artifacts/test_artifact_public_api.py" = ["SLF001"]
+"tests/system_tests/test_artifacts/test_data_types.py" = ["SLF001"]
+"tests/system_tests/test_artifacts/test_object_references.py" = ["SLF001"]
+"tests/system_tests/test_artifacts/test_wandb_artifacts.py" = ["SLF001"]
+"tests/system_tests/test_artifacts/test_wandb_artifacts_api.py" = ["SLF001"]
+"tests/system_tests/test_artifacts/test_wandb_artifacts_full.py" = ["SLF001"]
+"tests/system_tests/test_artifacts/test_wandb_run_artifacts.py" = ["SLF001"]
+"tests/system_tests/test_automations/conftest.py" = ["SLF001"]
+"tests/system_tests/test_automations/test_automations_api.py" = ["SLF001"]
+"tests/system_tests/test_registries/conftest.py" = ["SLF001"]
+"tests/system_tests/test_registries/test_registry.py" = ["SLF001"]
+"tests/system_tests/test_registries/test_registry_artifacts_public_api.py" = ["SLF001"]
 
 # Ignore specific naming rules on codegen scripts or plugins.
 # Codegen logic relies on Python's `ast` module, in which implementing a custom
