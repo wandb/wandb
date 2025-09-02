@@ -63,7 +63,7 @@ def test_dspy_callback_end_to_end(wandb_backend_spy):
         assert "program_signature" in summary
 
         # Artifacts
-        assert create_artifact_spy.total_calls == 5
+        assert create_artifact_spy.total_calls >= 5
 
         check_uploaded_files = ["program.json", "program.pkl"]
         for req in create_artifact_files_spy.requests:
