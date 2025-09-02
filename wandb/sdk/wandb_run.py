@@ -892,7 +892,19 @@ class Run:
     def tags(self, tags: Sequence) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_tags = True
-        self._settings.run_tags = tuple(tags)
+
+        try:
+            self._settings.run_tags = tuple(tags)
+        except ValueError as e:
+            # For runtime tag setting, warn instead of crash
+            # Extract the core error message without the pydantic wrapper
+            error_msg = str(e)
+            if "Value error," in error_msg:
+                # Extract the actual error message after "Value error, "
+                error_msg = error_msg.split("Value error, ")[1].split(" [type=")[0]
+            wandb.termwarn(f"Invalid tag detected: {error_msg} Tags not updated.")
+            return
+
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
@@ -2610,7 +2622,7 @@ class Run:
     ) -> Artifact:
         job_artifact = InternalArtifact(name, job_builder.JOB_ARTIFACT_TYPE)
         if patch_path and os.path.exists(patch_path):
-            job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
+            job_artifact.add_file(FilePathStr(patch_path), "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:
             f.write("\n".join(installed_packages_list))
         with job_artifact.new_file("wandb-job.json") as f:

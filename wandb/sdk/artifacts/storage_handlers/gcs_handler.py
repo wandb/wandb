@@ -198,7 +198,7 @@ class GCSHandler(StorageHandler):
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
             path=posix_name,
-            ref=URIStr(f"{self._scheme}://{str(posix_ref)}"),
+            ref=URIStr(f"{self._scheme}://{posix_ref}"),
             digest=obj.etag,
             size=obj.size,
             extra={"versionID": obj.generation},

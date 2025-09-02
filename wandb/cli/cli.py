@@ -1985,7 +1985,7 @@ def create(
         base_image=base_image,
         dockerfile=dockerfile,
         services=services,
-        schema=schema_dict,
+        schema=schema_dict if schema else None,
     )
     if not artifact:
         wandb.termerror("Job creation failed")
