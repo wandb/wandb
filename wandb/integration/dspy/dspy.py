@@ -38,6 +38,7 @@ def _flatten_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         list[dict[str, Any]]: List of flattened dictionaries.
 
     """
+
     def _flatten(
         d: dict[str, Any], parent_key: str = "", sep: str = "."
     ) -> dict[str, Any]:
@@ -73,6 +74,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         # Run your DSPy optimization/evaluation
         ```
     """
+
     def __init__(self, log_results: bool = True, wandb_run: Run | None = None) -> None:
         """Initialize the callback.
 
@@ -367,15 +369,17 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
             Save the complete program and add aliases:
 
             ```python
-            callback.log_best_model(optimized_program, save_program=True,
-                                    aliases=("best", "production"))
+            callback.log_best_model(
+                optimized_program, save_program=True, aliases=("best", "production")
+            )
             ```
 
             Save only the state as JSON:
 
             ```python
-            callback.log_best_model(optimized_program, save_program=False,
-                                    filetype="json")
+            callback.log_best_model(
+                optimized_program, save_program=False, filetype="json"
+            )
             ```
         """
         # Derive metadata to help discoverability in the UI
