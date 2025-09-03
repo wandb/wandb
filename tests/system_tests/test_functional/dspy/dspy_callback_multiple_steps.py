@@ -1,6 +1,3 @@
-import pathlib
-import sys
-
 import dspy
 import wandb
 from dspy.evaluate.evaluate import EvaluationResult  # type: ignore
@@ -21,9 +18,6 @@ def _results(score_value: float):
 
 def main() -> None:
     from wandb.integration.dspy import WandbDSPyCallback
-
-    # Ensure we import local repo 'wandb' package (not site-packages)
-    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))
 
     wandb_run = wandb.init(project="dspy-system-test-steps")
     cb = WandbDSPyCallback(log_results=True, wandb_run=wandb_run)
