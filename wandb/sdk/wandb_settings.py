@@ -1462,17 +1462,16 @@ class Settings(BaseModel, validate_assignment=True):
         # Convert to tuple if needed
         if isinstance(value, str):
             tags = (value,)
-        elif isinstance(value, (list, tuple)):
-            tags = tuple(value)
         else:
             tags = tuple(value)
 
-        # Validate each tag
-        for tag in tags:
+        # Validate each tag and accumulate errors
+        errors = []
+        for i, tag in enumerate(tags):
             tag_str = str(tag)
             if len(tag_str) == 0:
-                raise ValueError(
-                    "A provided tag is empty. Tags must be between 1 and 64 characters"
+                errors.append(
+                    f"Tag at index {i} is empty. Tags must be between 1 and 64 characters"
                 )
             elif len(tag_str) > 64:
                 # Truncate long tags for display
@@ -1481,9 +1480,13 @@ class Settings(BaseModel, validate_assignment=True):
                     if len(tag_str) > 43
                     else tag_str
                 )
-                raise ValueError(
-                    f"Tag '{display_tag}' is {len(tag_str)} characters. Tags must be between 1 and 64 characters"
+                errors.append(
+                    f"Tag '{display_tag}' at index {i} is {len(tag_str)} characters. Tags must be between 1 and 64 characters"
                 )
+
+        # Raise combined error if any validation issues were found
+        if errors:
+            raise ValueError("; ".join(errors))
 
         return tags
 
