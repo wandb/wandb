@@ -345,7 +345,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         model: dspy.Module,
         *,
         save_program: bool = True,
-        save_dir: str = "wandb/dspy_program/",
+        save_dir: str | None = None,
         filetype: Literal["json", "pkl"] = "json",
         aliases: Sequence[str] = ("best", "latest"),
         artifact_name: str = "dspy-program",
@@ -359,7 +359,8 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
             model (dspy.Module): DSPy module to save.
             save_program (bool): Save full program directory if True; otherwise
                 save only the state file. Defaults to `True`.
-            save_dir (str): Directory to store program files before logging. Defaults to `wandb/dspy_program/`.
+            save_dir (str): Directory to store program files before logging. Defaults to a
+                platform-appropriate path equivalent to `wandb/dspy_program`.
             filetype (Literal["json", "pkl"]): State file format when
                 `save_program` is False. Defaults to `json`.
             aliases (Sequence[str]): Aliases for the logged Artifact version. Defaults to `("best", "latest")`.
@@ -394,6 +395,11 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
             type="model",
             metadata=metadata,
         )
+
+        # Resolve and normalize the save directory in a cross-platform way
+        if save_dir is None:
+            save_dir = os.path.join("wandb", "dspy_program")
+        save_dir = os.path.normpath(save_dir)
 
         try:
             os.makedirs(save_dir, exist_ok=True)
