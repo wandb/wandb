@@ -29,6 +29,15 @@ logger = logging.getLogger(__name__)
 
 
 def _flatten_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Flatten a list of nested row dicts into flat key/value dicts.
+
+    Args:
+        rows (list[dict[str, Any]]): List of nested dictionaries to flatten.
+
+    Returns:
+        list[dict[str, Any]]: List of flattened dictionaries.
+
+    """
     def _flatten(
         d: dict[str, Any], parent_key: str = "", sep: str = "."
     ) -> dict[str, Any]:
@@ -45,7 +54,36 @@ def _flatten_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 class WandbDSPyCallback(dspy.utils.BaseCallback):
+    """W&B callback for tracking DSPy evaluation and optimization.
+
+    This callback logs evaluation scores, per-step predictions (optional), and
+    a table capturing the DSPy program signature over time. It can also save
+    the best program as a W&B Artifact for reproducibility.
+
+    Examples:
+        Basic usage within DSPy settings:
+
+        ```python
+        import dspy
+        import wandb
+        from wandb.integration.dspy import WandbDSPyCallback
+
+        wandb.init(project="dspy-optimization")
+        dspy.settings.callbacks.append(WandbDSPyCallback())
+        # Run your DSPy optimization/evaluation
+        ```
+    """
     def __init__(self, log_results: bool = True, wandb_run: Run | None = None) -> None:
+        """Initialize the callback.
+
+        Args:
+            log_results (bool): Whether to log per-evaluation prediction tables.
+            wandb_run (Run | None): Optional W&B run to use. Defaults to the
+                current global run if available.
+
+        Raises:
+            wandb.Error: If no active run is provided or found.
+        """
         # If no run is provided, use the current global run if available.
         if wandb_run is None:
             wandb_run = wandb.run
@@ -68,6 +106,16 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
     def _flatten_dict(
         self, nested: Any, parent_key: str = "", sep: str = "."
     ) -> dict[str, Any]:
+        """Recursively flatten arbitrarily nested mappings and sequences.
+
+        Args:
+            nested (Any): Nested structure of mappings/lists to flatten.
+            parent_key (str): Prefix to prepend to keys in the flattened output.
+            sep (str): Key separator for nested fields.
+
+        Returns:
+            dict[str, Any]: Flattened dictionary representation.
+        """
         flat: dict[str, Any] = {}
 
         def _walk(obj: Any, base: str) -> None:
@@ -91,9 +139,32 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         return flat
 
     def _extract_fields(self, fields: list[dict[str, Any]]) -> dict[str, str]:
+        """Convert signature fields to a flat mapping of strings.
+
+        Note:
+            The input is expected to be a dict-like mapping from field names to
+            field metadata. Values are stringified for logging.
+
+        Args:
+            fields (list[dict[str, Any]]): Mapping of field name to metadata.
+
+        Returns:
+            dict[str, str]: Mapping of field name to string value.
+        """
         return {k: str(v) for k, v in fields.items()}
 
     def _extract_program_info(self, program_obj: Any) -> dict[str, Any]:
+        """Extract signature-related info from a DSPy program.
+
+        Attempts to read the program signature, instructions, input and output
+        fields from a DSPy `Predict` parameter if available.
+
+        Args:
+            program_obj (Any): DSPy program/module instance.
+
+        Returns:
+            dict[str, Any]: Flattened dictionary of signature metadata.
+        """
         info_dict = {}
 
         if program_obj is None:
@@ -130,6 +201,17 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         instance: Any,
         inputs: dict[str, Any],
     ) -> None:
+        """Handle start of a DSPy evaluation call.
+
+        Logs non-private fields from the evaluator instance to W&B config and
+        captures program signature info for later logging.
+
+        Args:
+            call_id (str): Unique identifier for the evaluation call.
+            instance (Any): The evaluation instance (e.g., `dspy.Evaluate`).
+            inputs (dict[str, Any]): Inputs passed to the evaluation (may
+                include a `program` key with the DSPy program).
+        """
         if not self._did_log_config:
             instance_vars = vars(instance) if hasattr(instance, "__dict__") else {}
             serializable = {
@@ -152,6 +234,17 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         outputs: Any | None,
         exception: Exception | None = None,
     ) -> None:
+        """Handle end of a DSPy evaluation call.
+
+        If available, logs a numeric `score` metric and (optionally) per-step
+        prediction tables. Always appends a row to the program-signature table.
+
+        Args:
+            call_id (str): Unique identifier for the evaluation call.
+            outputs (Any | None): Evaluation outputs; supports
+                `dspy.evaluate.evaluate.EvaluationResult`.
+            exception (Exception | None): Exception raised during evaluation, if any.
+        """
         # The `BaseCallback` does not define the interface for the `outputs` parameter,
         # Currently, we know of `EvaluationResult` which is a subclass of `dspy.Prediction`.
         # We currently support this type and will warn the user if a different type is passed.
@@ -206,6 +299,15 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         self,
         results: list[tuple[dspy.Example, dspy.Prediction | dspy.Completions, bool]],
     ) -> list[dict[str, Any]]:
+        """Normalize evaluation results into serializable row dicts.
+
+        Args:
+            results (list[tuple]): Sequence of `(example, prediction, is_correct)`
+                tuples from DSPy evaluation.
+
+        Returns:
+            list[dict[str, Any]]: Rows with `example`, `prediction`, `is_correct`.
+        """
         _rows: list[dict[str, Any]] = []
         for example, prediction, is_correct in results:
             if isinstance(prediction, dspy.Prediction):
@@ -223,6 +325,11 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         return _rows
 
     def _log_predictions_table(self, rows: list[dict[str, Any]]) -> None:
+        """Log a W&B Table of predictions for the current evaluation step.
+
+        Args:
+            rows (list[dict[str, Any]]): Prediction rows to log.
+        """
         rows = _flatten_rows(rows)
         columns = list(rows[0].keys())
 
@@ -241,6 +348,36 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         aliases: Sequence[str] = ("best", "latest"),
         artifact_name: str = "dspy-program",
     ) -> None:
+        """Save and log the best DSPy program as a W&B Artifact.
+
+        You can choose to save the full program (architecture + state) or only
+        the state to a single file (JSON or pickle).
+
+        Args:
+            model (dspy.Module): DSPy module to save.
+            save_program (bool): Save full program directory if True; otherwise
+                save only the state file.
+            save_dir (str): Directory to store program files before logging.
+            filetype (Literal["json", "pkl"]): State file format when
+                `save_program` is False.
+            aliases (Sequence[str]): Aliases for the logged Artifact version.
+            artifact_name (str): Base name for the Artifact.
+
+        Examples:
+            Save the complete program and add aliases:
+
+            ```python
+            callback.log_best_model(optimized_program, save_program=True,
+                                    aliases=("best", "production"))
+            ```
+
+            Save only the state as JSON:
+
+            ```python
+            callback.log_best_model(optimized_program, save_program=False,
+                                    filetype="json")
+            ```
+        """
         # Derive metadata to help discoverability in the UI
         info_dict = self._extract_program_info(model)
         metadata = {
