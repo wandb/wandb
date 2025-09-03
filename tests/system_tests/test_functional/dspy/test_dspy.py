@@ -61,7 +61,6 @@ def run_and_snapshot(wandb_backend_spy):
     return _runner
 
 
-
 def test_dspy_callback_end_to_end(run_and_snapshot):
     # Capture artifact-related GraphQL operations before running the script
     def _setup(spy):
@@ -260,6 +259,7 @@ def test_dspy_callback_completions(run_and_snapshot):
 
     def _cleanup():
         import dspy as _dspy  # type: ignore
+
         importlib.reload(_dspy)
 
     result = run_and_snapshot(_completions, cleanup=_cleanup)
