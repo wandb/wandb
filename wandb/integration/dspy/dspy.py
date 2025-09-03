@@ -358,12 +358,12 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         Args:
             model (dspy.Module): DSPy module to save.
             save_program (bool): Save full program directory if True; otherwise
-                save only the state file.
-            save_dir (str): Directory to store program files before logging.
+                save only the state file. Defaults to `True`.
+            save_dir (str): Directory to store program files before logging. Defaults to `wandb/dspy_program/`.
             filetype (Literal["json", "pkl"]): State file format when
-                `save_program` is False.
-            aliases (Sequence[str]): Aliases for the logged Artifact version.
-            artifact_name (str): Base name for the Artifact.
+                `save_program` is False. Defaults to `json`.
+            aliases (Sequence[str]): Aliases for the logged Artifact version. Defaults to `("best", "latest")`.
+            artifact_name (str): Base name for the Artifact. Defaults to `dspy-program`.
 
         Examples:
             Save the complete program and add aliases:
@@ -395,7 +395,13 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
             metadata=metadata,
         )
 
-        os.makedirs(save_dir, exist_ok=True)
+        try:
+            os.makedirs(save_dir, exist_ok=True)
+        except Exception as exc:
+            wandb.termwarn(
+                f"Could not create or access directory '{save_dir}': {exc}. Skipping artifact logging."
+            )
+            return
         # Save per requested mode
         if save_program:
             model.save(save_dir, save_program=True)
