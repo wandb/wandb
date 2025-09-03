@@ -1481,7 +1481,7 @@ class Settings(BaseModel, validate_assignment=True):
                     else tag_str
                 )
                 errors.append(
-                    f"Tag '{display_tag}' at index {i} is {len(tag_str)} characters. Tags must be between 1 and 64 characters"
+                    f"Tag '{display_tag}' is {len(tag_str)} characters. Tags must be between 1 and 64 characters"
                 )
 
         # Raise combined error if any validation issues were found
