@@ -90,7 +90,7 @@ def test_dspy_callback_end_to_end(run_and_snapshot):
 
     result = run_and_snapshot(_dspy_callback, setup=_setup)
 
-    run_id = result["run_id"]
+    _ = result["run_id"]
     telemetry = result["telemetry"]
     history = result["history"]
     summary = result["summary"]
