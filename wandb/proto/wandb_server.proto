@@ -47,13 +47,6 @@ message ServerInformInitRequest {
 
 message ServerInformInitResponse {}
 
-message ServerInformStartRequest {
-  Settings settings = 1;
-  _RecordInfo _info = 200;
-}
-
-message ServerInformStartResponse {}
-
 message ServerInformFinishRequest {
   _RecordInfo _info = 200;
 }
@@ -87,6 +80,8 @@ message ServerInformTeardownResponse {}
  */
 
 message ServerRequest {
+  reserved 8;
+
   // An ID for the request, if a response is expected.
   //
   // If record_publish or record_communicate is used, this must be equal to
@@ -104,7 +99,6 @@ message ServerRequest {
     ServerInformAttachRequest inform_attach = 5;
     ServerInformDetachRequest inform_detach = 6;
     ServerInformTeardownRequest inform_teardown = 7;
-    ServerInformStartRequest inform_start = 8;
     ServerAuthenticateRequest authenticate = 9;
 
     ServerInitSyncRequest init_sync = 11;
@@ -114,6 +108,8 @@ message ServerRequest {
 }
 
 message ServerResponse {
+  reserved 8;
+
   // The ID of the request this is a response to.
   //
   // If result_communicate is used, this must be equal to
@@ -127,7 +123,6 @@ message ServerResponse {
     ServerInformAttachResponse inform_attach_response = 5;
     ServerInformDetachResponse inform_detach_response = 6;
     ServerInformTeardownResponse inform_teardown_response = 7;
-    ServerInformStartResponse inform_start_response = 8;
     ServerAuthenticateResponse authenticate_response = 9;
 
     ServerInitSyncResponse init_sync_response = 11;

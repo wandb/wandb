@@ -91,20 +91,6 @@ func (s *SockInterface) DeliverRunRecord(
 	return handle, nil
 }
 
-func (s *SockInterface) InformStart(settings *settings.Settings) error {
-	serverRecord := spb.ServerRequest{
-		ServerRequestType: &spb.ServerRequest_InformStart{
-			InformStart: &spb.ServerInformStartRequest{
-				Settings: settings.ToProto(),
-				XInfo: &spb.XRecordInfo{
-					StreamId: s.StreamId,
-				},
-			},
-		},
-	}
-	return s.Conn.Send(&serverRecord)
-}
-
 func (s *SockInterface) DeliverRunStartRequest(settings *settings.Settings) (*mailbox.MailboxHandle, error) {
 	record := spb.Record{
 		RecordType: &spb.Record_Request{
