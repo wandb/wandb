@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Dict, Final, Optional, Union
 from urllib.parse import urlparse
 
 from pydantic import Field
-from typing_extensions import Annotated, Self, deprecated
+from typing_extensions import Annotated, Self, TypedDict, deprecated
 
 from wandb._pydantic import field_validator, model_validator
 from wandb.proto.wandb_deprecated import Deprecated

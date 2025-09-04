@@ -71,7 +71,6 @@ from wandb.util import (
     vendor_setup,
 )
 
-from ._factories import make_storage_policy
 from ._generated import (
     ADD_ALIASES_GQL,
     ARTIFACT_BY_ID_GQL,
@@ -268,7 +267,7 @@ class Artifact:
         self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
         self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
-            ArtifactManifestV1(storage_policy=make_storage_policy())
+            ArtifactManifestV1()
         )
         self._commit_hash: str | None = None
         self._file_count: int | None = None
