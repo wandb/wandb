@@ -51,7 +51,7 @@ class LocalFileHandler(StorageHandler):
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
-            manifest_entry.size if manifest_entry.size is not None else 0,
+            manifest_entry.size or 0,
         )
         if hit:
             return path
