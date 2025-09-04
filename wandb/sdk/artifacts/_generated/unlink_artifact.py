@@ -7,7 +7,7 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLBase
 
 
 class UnlinkArtifact(GQLBase):
@@ -17,7 +17,7 @@ class UnlinkArtifact(GQLBase):
 
 
 class UnlinkArtifactUnlinkArtifact(GQLBase):
-    artifact_id: GQLId = Field(alias="artifactID")
+    artifact_id: str = Field(alias="artifactID", frozen=True, repr=False)
     success: bool
     client_mutation_id: Optional[str] = Field(alias="clientMutationId")
 
