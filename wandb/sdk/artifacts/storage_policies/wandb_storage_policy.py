@@ -16,7 +16,8 @@ from typing import IO, TYPE_CHECKING, Any, NamedTuple, Sequence
 from urllib.parse import quote
 
 import requests
-import urllib3
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from wandb import env
 from wandb.errors.term import termwarn
@@ -54,7 +55,7 @@ if TYPE_CHECKING:
 
 # Sleep length: 0, 2, 4, 8, 16, 32, 64, 120, 120, 120, 120, 120, 120, 120, 120, 120
 # seconds, i.e. a total of 20min 6s.
-_REQUEST_RETRY_STRATEGY = urllib3.util.retry.Retry(
+_REQUEST_RETRY_STRATEGY = Retry(
     backoff_factor=1,
     total=16,
     status_forcelist=(308, 408, 409, 429, 500, 502, 503, 504),
@@ -89,6 +90,45 @@ class _ChunkContent(NamedTuple):
     data: bytes
 
 
+def _raise_for_status(response: requests.Response, *_, **__) -> None:
+    """A `requests.Session` hook to raise for status on all requests."""
+    response.raise_for_status()
+
+
+def _make_http_session() -> requests.Session:
+    """A factory for a `requests.Session` for use in artifact storage handlers."""
+    session = requests.Session()
+
+    # Explicitly configure the retry strategy for http/https adapters.
+    adapter = HTTPAdapter(
+        max_retries=_REQUEST_RETRY_STRATEGY,
+        pool_connections=_REQUEST_POOL_CONNECTIONS,
+        pool_maxsize=_REQUEST_POOL_MAXSIZE,
+    )
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
+    # Always raise on HTTP status errors.
+    session.hooks["response"].append(_raise_for_status)
+    return session
+
+
+def _make_multi_handler(session: requests.Session) -> MultiHandler:
+    return MultiHandler(
+        handlers=[
+            S3Handler(),  # s3
+            GCSHandler(),  # gcs
+            AzureHandler(),  # azure
+            HTTPHandler(session, scheme="http"),  # http
+            HTTPHandler(session, scheme="https"),  # https
+            WBArtifactHandler(),  # artifact
+            WBLocalArtifactHandler(),  # local_artifact
+            LocalFileHandler(),  # file_handler
+        ],
+        default_handler=TrackingHandler(),
+    )
+
+
 class WandbStoragePolicy(StoragePolicy):
     @classmethod
     def name(cls) -> str:
@@ -96,50 +136,22 @@ class WandbStoragePolicy(StoragePolicy):
 
     @classmethod
     def from_config(
-        cls, config: dict, api: InternalApi | None = None
+        cls, config: dict[str, Any], api: InternalApi | None = None
     ) -> WandbStoragePolicy:
         return cls(config=config, api=api)
 
     def __init__(
         self,
-        config: dict | None = None,
+        config: dict[str, Any] | None = None,
         cache: ArtifactFileCache | None = None,
         api: InternalApi | None = None,
+        session: requests.Session | None = None,
     ) -> None:
-        self._cache = cache or get_artifact_file_cache()
         self._config = config or {}
-        self._session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(
-            max_retries=_REQUEST_RETRY_STRATEGY,
-            pool_connections=_REQUEST_POOL_CONNECTIONS,
-            pool_maxsize=_REQUEST_POOL_MAXSIZE,
-        )
-        self._session.mount("http://", adapter)
-        self._session.mount("https://", adapter)
-
-        s3 = S3Handler()
-        gcs = GCSHandler()
-        azure = AzureHandler()
-        http = HTTPHandler(self._session)
-        https = HTTPHandler(self._session, scheme="https")
-        artifact = WBArtifactHandler()
-        local_artifact = WBLocalArtifactHandler()
-        file_handler = LocalFileHandler()
-
+        self._cache = cache or get_artifact_file_cache()
+        self._session = session or _make_http_session()
         self._api = api or InternalApi()
-        self._handler = MultiHandler(
-            handlers=[
-                s3,
-                gcs,
-                azure,
-                http,
-                https,
-                artifact,
-                local_artifact,
-                file_handler,
-            ],
-            default_handler=TrackingHandler(),
-        )
+        self._handler = _make_multi_handler(self._session)
 
     def config(self) -> dict:
         return self._config
@@ -168,12 +180,12 @@ class WandbStoragePolicy(StoragePolicy):
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),
-            manifest_entry.size if manifest_entry.size is not None else 0,
+            manifest_entry.size or 0,
         )
         if hit:
             return path
 
-        if manifest_entry._download_url is not None:
+        if (download_url := manifest_entry._download_url) is not None:
             # Use multipart parallel download for large file
             if (
                 executor is not None
@@ -182,39 +194,39 @@ class WandbStoragePolicy(StoragePolicy):
             ):
                 self._multipart_file_download(
                     executor,
-                    manifest_entry._download_url,
+                    download_url,
                     manifest_entry.size,
                     cache_open,
                 )
                 return path
             # Serial download
-            response = self._session.get(manifest_entry._download_url, stream=True)
             try:
-                response.raise_for_status()
-            except Exception:
+                response = self._session.get(download_url, stream=True)
+            except requests.HTTPError:
                 # Signed URL might have expired, fall back to fetching it one by one.
                 manifest_entry._download_url = None
+
         if manifest_entry._download_url is None:
             auth = None
-            http_headers = _thread_local_api_settings.headers or {}
-            if self._api.access_token is not None:
-                http_headers["Authorization"] = f"Bearer {self._api.access_token}"
-            elif _thread_local_api_settings.cookies is None:
+            headers = _thread_local_api_settings.headers
+            cookies = _thread_local_api_settings.cookies
+
+            # For auth, prefer using (in order): auth header, cookies, HTTP Basic Auth
+            if token := self._api.access_token:
+                headers = {**(headers or {}), "Authorization": f"Bearer {token}"}
+            elif cookies is not None:
                 auth = ("api", self._api.api_key or "")
-            response = self._session.get(
-                self._file_url(
-                    self._api,
-                    artifact.entity,
-                    artifact.project,
-                    artifact.name.split(":")[0],
-                    manifest_entry,
-                ),
-                auth=auth,
-                cookies=_thread_local_api_settings.cookies,
-                headers=http_headers,
-                stream=True,
+
+            file_url = self._file_url(
+                self._api,
+                artifact.entity,
+                artifact.project,
+                artifact.name.split(":")[0],
+                manifest_entry,
             )
-            response.raise_for_status()
+            response = self._session.get(
+                file_url, auth=auth, cookies=cookies, headers=headers, stream=True
+            )
 
         with cache_open(mode="wb") as file:
             for data in response.iter_content(chunk_size=16 * 1024):
@@ -269,12 +281,7 @@ class WandbStoragePolicy(StoragePolicy):
         # Other threads has error, no need to start
         if download_has_error.is_set():
             return
-        response = self._session.get(
-            url=download_url,
-            headers=headers,
-            stream=True,
-        )
-        response.raise_for_status()
+        response = self._session.get(url=download_url, headers=headers, stream=True)
 
         file_offset = start
         for content in response.iter_content(chunk_size=_HTTP_RES_CHUNK_SIZE_BYTES):
@@ -376,43 +383,27 @@ class WandbStoragePolicy(StoragePolicy):
         entity_name: str,
         project_name: str,
         artifact_name: str,
-        manifest_entry: ArtifactManifestEntry,
+        entry: ArtifactManifestEntry,
     ) -> str:
-        storage_layout = self._config.get("storageLayout", StorageLayout.V1)
-        storage_region = self._config.get("storageRegion", "default")
-        md5_hex = b64_to_hex_id(B64MD5(manifest_entry.digest))
+        layout = self._config.get("storageLayout", StorageLayout.V1)
+        region = self._config.get("storageRegion", "default")
+        md5_hex = b64_to_hex_id(entry.digest)
 
-        if storage_layout == StorageLayout.V1:
-            return "{}/artifacts/{}/{}".format(
-                api.settings("base_url"), entity_name, md5_hex
-            )
-        elif storage_layout == StorageLayout.V2:
+        base_url: str = api.settings("base_url")
+
+        if layout == StorageLayout.V1:
+            return f"{base_url}/artifacts/{entity_name}/{md5_hex}"
+
+        if layout == StorageLayout.V2:
+            birth_artifact_id = entry.birth_artifact_id or ""
             if api._server_supports(
-                ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER  # type: ignore
+                ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER
             ):
-                return "{}/artifactsV2/{}/{}/{}/{}/{}/{}/{}".format(
-                    api.settings("base_url"),
-                    storage_region,
-                    quote(entity_name),
-                    quote(project_name),
-                    quote(artifact_name),
-                    quote(manifest_entry.birth_artifact_id or ""),
-                    md5_hex,
-                    manifest_entry.path.name,
-                )
-            return "{}/artifactsV2/{}/{}/{}/{}".format(
-                api.settings("base_url"),
-                storage_region,
-                entity_name,
-                quote(
-                    manifest_entry.birth_artifact_id
-                    if manifest_entry.birth_artifact_id is not None
-                    else ""
-                ),
-                md5_hex,
-            )
-        else:
-            raise Exception(f"unrecognized storage layout: {storage_layout}")
+                return f"{base_url}/artifactsV2/{region}/{quote(entity_name)}/{quote(project_name)}/{quote(artifact_name)}/{quote(birth_artifact_id)}/{md5_hex}/{entry.path.name}"
+
+            return f"{base_url}/artifactsV2/{region}/{entity_name}/{quote(birth_artifact_id)}/{md5_hex}"
+
+        raise ValueError(f"unrecognized storage layout: {layout!r}")
 
     def s3_multipart_file_upload(
         self,
