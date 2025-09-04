@@ -212,6 +212,49 @@ func (c *EpochLineChart) Draw() {
 	c.Clear()
 	c.DrawXYAxisAndLabel()
 
+	c.Clear()
+	c.DrawXYAxisAndLabel()
+
+	// Allow single point display - just show a dot
+	if len(c.data) == 1 {
+		// For a single point, place a marker at the position
+		viewMinX := int(c.ViewMinX())
+		if viewMinX <= 0 && c.ViewMaxX() >= 0 {
+			xScale := float64(c.GraphWidth()) / (c.ViewMaxX() - c.ViewMinX())
+			yScale := float64(c.GraphHeight()) / (c.ViewMaxY() - c.ViewMinY())
+
+			x := (0 - c.ViewMinX()) * xScale
+			y := (c.data[0] - c.ViewMinY()) * yScale
+
+			if x >= 0 && x <= float64(c.GraphWidth()) && y >= 0 && y <= float64(c.GraphHeight()) {
+				// Create a single-point braille pattern
+				bGrid := graph.NewBrailleGrid(
+					c.GraphWidth(),
+					c.GraphHeight(),
+					0, float64(c.GraphWidth()),
+					0, float64(c.GraphHeight()),
+				)
+
+				point := canvas.Float64Point{X: x, Y: y}
+				gp := bGrid.GridPoint(point)
+				bGrid.Set(gp)
+
+				startX := 0
+				if c.YStep() > 0 {
+					startX = c.Origin().X + 1
+				}
+
+				patterns := bGrid.BraillePatterns()
+				graph.DrawBraillePatterns(&c.Canvas,
+					canvas.Point{X: startX, Y: 0},
+					patterns,
+					c.graphStyle)
+			}
+		}
+		c.dirty = false
+		return
+	}
+
 	if len(c.data) < 2 {
 		c.dirty = false
 		return
