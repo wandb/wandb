@@ -54,7 +54,6 @@ class HTTPHandler(StorageHandler):
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
         )
-        response.raise_for_status()
 
         digest: ETag | FilePathStr | URIStr | None
         digest, size, extra = self._entry_from_headers(response.headers)
@@ -87,7 +86,6 @@ class HTTPHandler(StorageHandler):
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
         ) as response:
-            response.raise_for_status()
             digest: ETag | FilePathStr | URIStr | None
             digest, size, extra = self._entry_from_headers(response.headers)
             digest = digest or path
