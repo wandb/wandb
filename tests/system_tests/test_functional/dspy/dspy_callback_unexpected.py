@@ -29,7 +29,9 @@ def main() -> None:
         class NotAnEvaluationResult:
             pass
 
-        cb.on_evaluate_end(call_id="c1", outputs=NotAnEvaluationResult(), exception=None)
+        cb.on_evaluate_end(
+            call_id="c1", outputs=NotAnEvaluationResult(), exception=None
+        )
 
 
 if __name__ == "__main__":
