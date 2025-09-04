@@ -4,6 +4,7 @@ package leet
 
 import (
 	"fmt"
+	"sort"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wandb/wandb/core/internal/runenvironment"
@@ -144,9 +145,14 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 		previouslyFocusedTitle = m.charts[m.focusState.Row][m.focusState.Col].Title()
 	}
 
+	// Track new charts for adding to filtered list
+	var newCharts []*EpochLineChart
+
 	// Add data points to existing charts or create new ones
 	for metricName, value := range msg.Metrics {
+		m.logger.Debug(fmt.Sprintf("processing %v, %v", metricName, value))
 		chart, exists := m.chartsByName[metricName]
+		m.logger.Debug(fmt.Sprintf("it exists: %v", exists))
 		if !exists {
 			availableWidth := m.width - m.sidebar.Width() - m.rightSidebar.Width() - 4
 			dims := CalculateChartDimensions(availableWidth, m.height-StatusBarHeight)
@@ -155,6 +161,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 			m.allCharts = append(m.allCharts, chart)
 			m.chartsByName[metricName] = chart
+			newCharts = append(newCharts, chart)
 			needsSort = true
 
 			// Log when we're creating many charts
@@ -168,12 +175,32 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	// Sort if we added new charts (this will also assign/reassign colors)
 	if needsSort {
 		m.sortChartsNoLock()
-		// Apply current filter to new charts
-		if m.activeFilter != "" {
+
+		// If no filter is active, add new charts to filteredCharts
+		if m.activeFilter == "" {
+			// Add new charts to filtered list and re-sort
+			for _, newChart := range newCharts {
+				// Check if it's not already in filteredCharts (shouldn't be, but safe check)
+				found := false
+				for _, fc := range m.filteredCharts {
+					if fc == newChart {
+						found = true
+						break
+					}
+				}
+				if !found {
+					m.filteredCharts = append(m.filteredCharts, newChart)
+				}
+			}
+			// Re-sort filteredCharts to maintain alphabetical order
+			sort.Slice(m.filteredCharts, func(i, j int) bool {
+				return m.filteredCharts[i].Title() < m.filteredCharts[j].Title()
+			})
+		} else {
+			// Apply current filter to new charts
 			m.applyFilter(m.activeFilter)
-		} else if len(m.filteredCharts) == 0 {
-			m.filteredCharts = m.allCharts
 		}
+
 		m.totalPages = (len(m.filteredCharts) + ChartsPerPage - 1) / ChartsPerPage
 	}
 
