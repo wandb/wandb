@@ -42,6 +42,43 @@ def test_invalid_field_type():
         Settings(api_key=271828)  # must be a string
 
 
+@pytest.mark.parametrize(
+    "tags,expected_error",
+    [
+        ([""], "Tags must be between 1 and 64 characters"),
+        (["a" * 65], "Tags must be between 1 and 64 characters"),
+        (
+            ["valid", "a" * 65, "another_valid"],
+            "Tags must be between 1 and 64 characters",
+        ),
+    ],
+)
+def test_run_tags_validation_errors(tags, expected_error):
+    """Test that invalid run tags raise appropriate errors."""
+    with pytest.raises(ValueError, match=expected_error):
+        Settings(run_tags=tags)
+
+
+@pytest.mark.parametrize(
+    "tags,expected",
+    [
+        (["valid", "tag2"], ("valid", "tag2")),
+        (["a" * 64], ("a" * 64,)),
+        ("single_tag", ("single_tag",)),
+        (None, None),
+    ],
+)
+def test_run_tags_validation_success(tags, expected):
+    """Test that valid run tags are accepted and converted appropriately."""
+    settings = Settings(run_tags=tags)
+    if expected is None:
+        assert settings.run_tags is None
+    else:
+        assert settings.run_tags == expected
+        if tags == ["a" * 64]:
+            assert len(settings.run_tags[0]) == 64
+
+
 def test_program_python_m():
     with tempfile.TemporaryDirectory() as tmpdir:
         path_module = os.path.join(tmpdir, "module")

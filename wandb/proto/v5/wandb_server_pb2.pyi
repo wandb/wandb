@@ -10,6 +10,7 @@ import typing
 import wandb.proto.wandb_base_pb2
 import wandb.proto.wandb_internal_pb2
 import wandb.proto.wandb_settings_pb2
+import wandb.proto.wandb_sync_pb2
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
@@ -324,6 +325,9 @@ class ServerRequest(google.protobuf.message.Message):
     INFORM_TEARDOWN_FIELD_NUMBER: builtins.int
     INFORM_START_FIELD_NUMBER: builtins.int
     AUTHENTICATE_FIELD_NUMBER: builtins.int
+    INIT_SYNC_FIELD_NUMBER: builtins.int
+    SYNC_FIELD_NUMBER: builtins.int
+    SYNC_STATUS_FIELD_NUMBER: builtins.int
     request_id: builtins.str
     """An ID for the request, if a response is expected.
 
@@ -351,6 +355,12 @@ class ServerRequest(google.protobuf.message.Message):
     def inform_start(self) -> global___ServerInformStartRequest: ...
     @property
     def authenticate(self) -> global___ServerAuthenticateRequest: ...
+    @property
+    def init_sync(self) -> wandb.proto.wandb_sync_pb2.ServerInitSyncRequest: ...
+    @property
+    def sync(self) -> wandb.proto.wandb_sync_pb2.ServerSyncRequest: ...
+    @property
+    def sync_status(self) -> wandb.proto.wandb_sync_pb2.ServerSyncStatusRequest: ...
     def __init__(
         self,
         *,
@@ -364,10 +374,13 @@ class ServerRequest(google.protobuf.message.Message):
         inform_teardown: global___ServerInformTeardownRequest | None = ...,
         inform_start: global___ServerInformStartRequest | None = ...,
         authenticate: global___ServerAuthenticateRequest | None = ...,
+        init_sync: wandb.proto.wandb_sync_pb2.ServerInitSyncRequest | None = ...,
+        sync: wandb.proto.wandb_sync_pb2.ServerSyncRequest | None = ...,
+        sync_status: wandb.proto.wandb_sync_pb2.ServerSyncStatusRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["authenticate", b"authenticate", "inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_teardown", b"inform_teardown", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["authenticate", b"authenticate", "inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_teardown", b"inform_teardown", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "request_id", b"request_id", "server_request_type", b"server_request_type"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["server_request_type", b"server_request_type"]) -> typing.Literal["record_publish", "record_communicate", "inform_init", "inform_finish", "inform_attach", "inform_detach", "inform_teardown", "inform_start", "authenticate"] | None: ...
+    def HasField(self, field_name: typing.Literal["authenticate", b"authenticate", "inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_teardown", b"inform_teardown", "init_sync", b"init_sync", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "server_request_type", b"server_request_type", "sync", b"sync", "sync_status", b"sync_status"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["authenticate", b"authenticate", "inform_attach", b"inform_attach", "inform_detach", b"inform_detach", "inform_finish", b"inform_finish", "inform_init", b"inform_init", "inform_start", b"inform_start", "inform_teardown", b"inform_teardown", "init_sync", b"init_sync", "record_communicate", b"record_communicate", "record_publish", b"record_publish", "request_id", b"request_id", "server_request_type", b"server_request_type", "sync", b"sync", "sync_status", b"sync_status"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["server_request_type", b"server_request_type"]) -> typing.Literal["record_publish", "record_communicate", "inform_init", "inform_finish", "inform_attach", "inform_detach", "inform_teardown", "inform_start", "authenticate", "init_sync", "sync", "sync_status"] | None: ...
 
 global___ServerRequest = ServerRequest
 
@@ -384,6 +397,9 @@ class ServerResponse(google.protobuf.message.Message):
     INFORM_TEARDOWN_RESPONSE_FIELD_NUMBER: builtins.int
     INFORM_START_RESPONSE_FIELD_NUMBER: builtins.int
     AUTHENTICATE_RESPONSE_FIELD_NUMBER: builtins.int
+    INIT_SYNC_RESPONSE_FIELD_NUMBER: builtins.int
+    SYNC_RESPONSE_FIELD_NUMBER: builtins.int
+    SYNC_STATUS_RESPONSE_FIELD_NUMBER: builtins.int
     request_id: builtins.str
     """The ID of the request this is a response to.
 
@@ -406,6 +422,12 @@ class ServerResponse(google.protobuf.message.Message):
     def inform_start_response(self) -> global___ServerInformStartResponse: ...
     @property
     def authenticate_response(self) -> global___ServerAuthenticateResponse: ...
+    @property
+    def init_sync_response(self) -> wandb.proto.wandb_sync_pb2.ServerInitSyncResponse: ...
+    @property
+    def sync_response(self) -> wandb.proto.wandb_sync_pb2.ServerSyncResponse: ...
+    @property
+    def sync_status_response(self) -> wandb.proto.wandb_sync_pb2.ServerSyncStatusResponse: ...
     def __init__(
         self,
         *,
@@ -418,9 +440,12 @@ class ServerResponse(google.protobuf.message.Message):
         inform_teardown_response: global___ServerInformTeardownResponse | None = ...,
         inform_start_response: global___ServerInformStartResponse | None = ...,
         authenticate_response: global___ServerAuthenticateResponse | None = ...,
+        init_sync_response: wandb.proto.wandb_sync_pb2.ServerInitSyncResponse | None = ...,
+        sync_response: wandb.proto.wandb_sync_pb2.ServerSyncResponse | None = ...,
+        sync_status_response: wandb.proto.wandb_sync_pb2.ServerSyncStatusResponse | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["authenticate_response", b"authenticate_response", "inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_teardown_response", b"inform_teardown_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["authenticate_response", b"authenticate_response", "inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_teardown_response", b"inform_teardown_response", "request_id", b"request_id", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["server_response_type", b"server_response_type"]) -> typing.Literal["result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "inform_start_response", "authenticate_response"] | None: ...
+    def HasField(self, field_name: typing.Literal["authenticate_response", b"authenticate_response", "inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_teardown_response", b"inform_teardown_response", "init_sync_response", b"init_sync_response", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type", "sync_response", b"sync_response", "sync_status_response", b"sync_status_response"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["authenticate_response", b"authenticate_response", "inform_attach_response", b"inform_attach_response", "inform_detach_response", b"inform_detach_response", "inform_finish_response", b"inform_finish_response", "inform_init_response", b"inform_init_response", "inform_start_response", b"inform_start_response", "inform_teardown_response", b"inform_teardown_response", "init_sync_response", b"init_sync_response", "request_id", b"request_id", "result_communicate", b"result_communicate", "server_response_type", b"server_response_type", "sync_response", b"sync_response", "sync_status_response", b"sync_status_response"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["server_response_type", b"server_response_type"]) -> typing.Literal["result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "inform_start_response", "authenticate_response", "init_sync_response", "sync_response", "sync_status_response"] | None: ...
 
 global___ServerResponse = ServerResponse
