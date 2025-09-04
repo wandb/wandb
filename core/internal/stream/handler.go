@@ -167,7 +167,7 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 	for work := range allWork {
 		h.logger.Debug(
 			"handler: got work",
-			"work", work,
+			"work", work.DebugInfo(),
 			"stream_id", h.settings.GetRunID(),
 		)
 

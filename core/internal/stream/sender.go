@@ -282,7 +282,7 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 
 		s.logger.Debug(
 			"sender: got work",
-			"work", work,
+			"work", work.DebugInfo(),
 			"stream_id", s.settings.GetRunID(),
 		)
 

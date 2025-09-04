@@ -66,7 +66,7 @@ func (w *Writer) Do(allWork <-chan runwork.Work) {
 	for work := range allWork {
 		w.logger.Debug(
 			"writer: got work",
-			"work", work,
+			"work", work.DebugInfo(),
 			"stream_id", w.settings.GetRunID(),
 		)
 
