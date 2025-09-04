@@ -528,13 +528,12 @@ class MockOpener:
 
 
 def test_artifact_multipart_download_network_error():
-    policy = WandbStoragePolicy()
     # Disable retries and backoff to avoid timeout in test
     session = requests.Session()
     adapter = requests.adapters.HTTPAdapter(max_retries=0)
     session.mount("http://", adapter)
     session.mount("https://", adapter)
-    policy._session = session
+    policy = WandbStoragePolicy(session=session)
 
     class CountOnlyFile(IO):
         def __init__(self):
@@ -561,8 +560,6 @@ def test_artifact_multipart_download_network_error():
 
 
 def test_artifact_multipart_download_disk_error():
-    policy = WandbStoragePolicy()
-
     class ThrowFile(IO):
         def seek(self, offset: int, whence: int = 0) -> int:
             raise ValueError("I/O operation on closed file")
@@ -583,7 +580,7 @@ def test_artifact_multipart_download_disk_error():
             return MockResponse()
 
     session = MockSession()
-    policy._session = session
+    policy = WandbStoragePolicy(session=session)
 
     file = ThrowFile()
     opener = MockOpener(file)
