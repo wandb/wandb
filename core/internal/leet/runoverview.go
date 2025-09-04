@@ -175,6 +175,12 @@ func processEnvironment(data map[string]any) []KeyValuePair {
 
 // updateSections updates section data from run overview.
 func (s *Sidebar) updateSections() {
+	// Preserve current selection state
+	var currentKey, currentValue string
+	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
+		currentKey, currentValue = s.GetSelectedItem()
+	}
+
 	// Update Environment section (index 0)
 	envItems := processEnvironment(s.runOverview.Environment)
 	s.sections[0].Items = envItems
@@ -196,13 +202,118 @@ func (s *Sidebar) updateSections() {
 		// Use original items as filtered items
 		for i := range s.sections {
 			s.sections[i].FilteredItems = s.sections[i].Items
-			s.sections[i].CurrentPage = 0
-			s.sections[i].CursorPos = 0
 		}
 	}
 
 	// Calculate section heights
 	s.calculateSectionHeights()
+
+	// Restore selection or select first available if nothing was selected
+	if currentKey == "" {
+		// Only select first item if nothing was previously selected
+		s.selectFirstAvailableItem()
+	} else {
+		// Try to restore previous selection
+		s.restoreSelection(currentKey, currentValue)
+	}
+}
+
+// restoreSelection attempts to restore the previously selected item
+func (s *Sidebar) restoreSelection(previousKey, previousValue string) {
+	// First try to find the exact same item in the current section
+	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
+		section := &s.sections[s.activeSection]
+		for i, item := range section.FilteredItems {
+			if item.Key == previousKey && item.Value == previousValue {
+				// Calculate which page this item is on
+				page := i / section.ItemsPerPage
+				posInPage := i % section.ItemsPerPage
+
+				section.CurrentPage = page
+				section.CursorPos = posInPage
+				return
+			}
+		}
+
+		// If exact item not found in current section, just try to find by key
+		for i, item := range section.FilteredItems {
+			if item.Key == previousKey {
+				page := i / section.ItemsPerPage
+				posInPage := i % section.ItemsPerPage
+
+				section.CurrentPage = page
+				section.CursorPos = posInPage
+				return
+			}
+		}
+	}
+
+	// If we couldn't restore in the current section, try to find it in any section
+	for sectionIdx, section := range s.sections {
+		for i, item := range section.FilteredItems {
+			if item.Key == previousKey {
+				// Switch to this section
+				s.sections[s.activeSection].Active = false
+				s.activeSection = sectionIdx
+				s.sections[sectionIdx].Active = true
+
+				// Set position
+				if section.ItemsPerPage > 0 {
+					page := i / section.ItemsPerPage
+					posInPage := i % section.ItemsPerPage
+
+					section.CurrentPage = page
+					section.CursorPos = posInPage
+				}
+				return
+			}
+		}
+	}
+
+	// If we still couldn't find it, keep current section/position if valid
+	// or select first available item
+	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
+		section := &s.sections[s.activeSection]
+		if len(section.FilteredItems) == 0 || section.ItemsPerPage == 0 {
+			// Current section is now empty, find first non-empty
+			s.selectFirstAvailableItem()
+		}
+		// else keep current position (it's still valid)
+	} else {
+		s.selectFirstAvailableItem()
+	}
+}
+
+// selectFirstAvailableItem selects the first item in the first non-empty section
+// This should only be called when there's no previous selection to preserve
+func (s *Sidebar) selectFirstAvailableItem() {
+	// Find first non-empty section
+	foundSection := false
+	for i := range s.sections {
+		if len(s.sections[i].FilteredItems) > 0 && s.sections[i].ItemsPerPage > 0 {
+			// Deactivate all sections first
+			for j := range s.sections {
+				s.sections[j].Active = false
+			}
+			// Activate this section
+			s.activeSection = i
+			s.sections[i].Active = true
+			s.sections[i].CurrentPage = 0
+			s.sections[i].CursorPos = 0
+			foundSection = true
+			break
+		}
+	}
+
+	// If no sections have items, set safe defaults
+	if !foundSection {
+		s.activeSection = 0
+		for i := range s.sections {
+			s.sections[i].Active = i == 0
+			s.sections[i].CurrentPage = 0
+			s.sections[i].CursorPos = 0
+		}
+	}
 }
 
 // applyFilter filters items based on current filter query.
@@ -479,6 +590,8 @@ func (s *Sidebar) Toggle() {
 		s.targetWidth = s.expandedWidth
 		s.animationStep = 0
 		s.animationTimer = time.Now()
+		// Ensure first available item is selected when opening
+		s.selectFirstAvailableItem()
 	case SidebarExpanded:
 		s.state = SidebarCollapsing
 		s.targetWidth = 0
@@ -526,7 +639,10 @@ func (s *Sidebar) navigateDown() {
 // navigateSection jumps between sections.
 func (s *Sidebar) navigateSection(direction int) {
 	// Find next non-empty section
-	for i := 0; i < len(s.sections); i++ {
+	startSection := s.activeSection
+	attempts := 0
+
+	for attempts < len(s.sections) {
 		newSection := s.activeSection + direction
 		if newSection < 0 {
 			newSection = len(s.sections) - 1
@@ -538,8 +654,24 @@ func (s *Sidebar) navigateSection(direction int) {
 			s.sections[s.activeSection].Active = false
 			s.activeSection = newSection
 			s.sections[s.activeSection].Active = true
+			// Reset cursor to first item when switching sections
+			s.sections[s.activeSection].CursorPos = 0
 			break
 		}
+
+		// Update activeSection for next iteration
+		s.activeSection = newSection
+		attempts++
+
+		// If we've cycled through all sections and found nothing, break
+		if s.activeSection == startSection {
+			break
+		}
+	}
+
+	// If no non-empty sections found, stay on current
+	if attempts == len(s.sections) {
+		s.activeSection = startSection
 	}
 }
 
