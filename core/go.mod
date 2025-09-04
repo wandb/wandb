@@ -20,7 +20,7 @@ require (
 	github.com/prometheus/client_golang v1.23.0
 	github.com/prometheus/common v0.65.0
 	github.com/radovskyb/watcher v1.0.7
-	github.com/shirou/gopsutil/v4 v4.25.7
+	github.com/shirou/gopsutil/v4 v4.25.8
 	github.com/spf13/afero v1.14.0
 	github.com/stretchr/testify v1.11.1
 	github.com/wandb/simplejsonext v0.0.0-20241203202201-90635f1d8677
