@@ -7,7 +7,7 @@ class MinimalProgram(dspy.Module):
     """Minimal DSPy module exposing a `Predict` param for signature extraction.
 
     Examples:
-        >>> mod = MinimalProgram()  # doctest: +SKIP
+        >>> mod = MinimalProgram()
     """
 
     def __init__(self) -> None:
@@ -49,7 +49,7 @@ def main() -> None:
 
     Examples:
         >>> if __name__ == "__main__":
-        ...     main()  # doctest: +SKIP
+        ...     main()
     """
     from wandb.integration.dspy import WandbDSPyCallback
 
