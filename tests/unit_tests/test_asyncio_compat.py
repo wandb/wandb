@@ -218,3 +218,10 @@ async def test_task_group_cancels_on_subtask_error():
     await tester.assert_exits()
     await cd1.assert_cancelled()
     await cd2.assert_cancelled()
+
+
+@pytest.mark.asyncio
+async def test_task_group_exit_timeout():
+    with pytest.raises(TimeoutError):
+        async with asyncio_compat.open_task_group(exit_timeout=0):
+            pass

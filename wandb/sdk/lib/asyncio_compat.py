@@ -170,7 +170,10 @@ class TaskGroup:
 
 
 @contextlib.asynccontextmanager
-async def open_task_group() -> AsyncIterator[TaskGroup]:
+async def open_task_group(
+    *,
+    exit_timeout: float | None = None,
+) -> AsyncIterator[TaskGroup]:
     """Create a task group.
 
     `asyncio` gained task groups in Python 3.11.
@@ -184,12 +187,23 @@ async def open_task_group() -> AsyncIterator[TaskGroup]:
     NOTE: Subtask exceptions do not propagate until the context manager exits.
     This means that the task group cannot cancel code running inside the
     `async with` block .
+
+    Args:
+        exit_timeout: An optional timeout in seconds. When exiting the
+            context manager, if tasks don't complete in this time,
+            they are cancelled and a TimeoutError is raised.
+
+    Raises:
+        TimeoutError: if exit_timeout is specified and tasks don't finish
+            in time.
     """
     task_group = TaskGroup()
 
     try:
         yield task_group
-        await task_group._wait_all()
+        await asyncio.wait_for(task_group._wait_all(), exit_timeout)
+    except asyncio.TimeoutError as e:
+        raise TimeoutError from e  # Wrap in a standard TimeoutError.
     finally:
         task_group._cancel_all()
 
