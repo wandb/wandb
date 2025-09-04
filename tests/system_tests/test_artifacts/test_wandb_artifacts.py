@@ -1670,7 +1670,7 @@ def test_change_artifact_collection_type_to_internal_type(user):
         artifact = Artifact("image_data", "data")
         run.log_artifact(artifact).wait()
 
-    internal_type = RESERVED_ARTIFACT_TYPE_PREFIX + "invalid"
+    internal_type = f"{RESERVED_ARTIFACT_TYPE_PREFIX}invalid"
     collection = artifact.collection
     with wandb.init() as run:
         # test deprecated change_type errors for changing to internal type
@@ -1684,7 +1684,7 @@ def test_change_artifact_collection_type_to_internal_type(user):
 
 
 def test_change_type_of_internal_artifact_collection(user):
-    internal_type = RESERVED_ARTIFACT_TYPE_PREFIX + "invalid"
+    internal_type = f"{RESERVED_ARTIFACT_TYPE_PREFIX}invalid"
     with wandb.init() as run:
         artifact = InternalArtifact("test-internal", internal_type)
         run.log_artifact(artifact).wait()
