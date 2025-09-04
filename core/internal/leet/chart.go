@@ -208,6 +208,8 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 }
 
 // Draw renders the line chart using Braille patterns
+//
+//gocyclo:ignore
 func (c *EpochLineChart) Draw() {
 	c.Clear()
 	c.DrawXYAxisAndLabel()
