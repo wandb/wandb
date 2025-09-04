@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import ParseResult
 
-from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
+from wandb.sdk.artifacts.artifact_file_cache import (
+    ArtifactFileCache,
+    get_artifact_file_cache,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -21,10 +24,14 @@ if TYPE_CHECKING:
 
 
 class HTTPHandler(StorageHandler):
-    def __init__(self, session: requests.Session, scheme: str | None = None) -> None:
-        self._scheme = scheme or "http"
-        self._cache = get_artifact_file_cache()
+    _session: requests.Session
+    _scheme: str
+    _cache: ArtifactFileCache
+
+    def __init__(self, session: requests.Session, scheme: str = "http") -> None:
         self._session = session
+        self._scheme = scheme
+        self._cache = get_artifact_file_cache()
 
     def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
@@ -56,7 +63,7 @@ class HTTPHandler(StorageHandler):
         )
 
         digest: ETag | FilePathStr | URIStr | None
-        digest, size, extra = self._entry_from_headers(response.headers)
+        digest, *_ = self._entry_from_headers(response.headers)
         digest = digest or manifest_entry.ref
         if manifest_entry.digest != digest:
             raise ValueError(
@@ -75,7 +82,7 @@ class HTTPHandler(StorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         name = name or os.path.basename(path)
         if not checksum:
             return [ArtifactManifestEntry(path=name, ref=path, digest=path)]
@@ -98,15 +105,15 @@ class HTTPHandler(StorageHandler):
     def _entry_from_headers(
         self, headers: CaseInsensitiveDict
     ) -> tuple[ETag | None, int | None, dict[str, str]]:
-        response_headers = {k.lower(): v for k, v in headers.items()}
-        size = None
-        if response_headers.get("content-length", None):
-            size = int(response_headers["content-length"])
+        lower_headers = {k.lower(): v for k, v in headers.items()}
 
-        digest = response_headers.get("etag", None)
-        extra = {}
-        if digest:
-            extra["etag"] = digest
-        if digest and digest[:1] == '"' and digest[-1:] == '"':
-            digest = digest[1:-1]  # trim leading and trailing quotes around etag
+        size = int(len_) if (len_ := lower_headers.get("content-length")) else None
+
+        if etag := lower_headers.get("etag"):
+            extra = {"etag": etag}
+            digest = etag.strip('"')
+        else:
+            extra = {}
+            digest = etag
+
         return digest, size, extra
