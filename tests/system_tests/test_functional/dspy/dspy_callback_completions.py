@@ -30,25 +30,23 @@ def _build_results_stub():
 def main() -> None:
     from wandb.integration.dspy import WandbDSPyCallback
 
-    wandb_run = wandb.init(project="dspy-system-test-completions")
-    cb = WandbDSPyCallback(log_results=True, wandb_run=wandb_run)
+    with wandb.init(project="dspy-system-test-completions") as run:
+        cb = WandbDSPyCallback(log_results=True, run=run)
 
-    class FakeEvaluate:
-        def __init__(self) -> None:
-            self.devset = []
-            self.num_threads = 1
-            self.auto = "light"
+        class FakeEvaluate:
+            def __init__(self) -> None:
+                self.devset = []
+                self.num_threads = 1
+                self.auto = "light"
 
-    program = MinimalProgram()
-    cb.on_evaluate_start(
-        call_id="c1", instance=FakeEvaluate(), inputs={"program": program}
-    )
+        program = MinimalProgram()
+        cb.on_evaluate_start(
+            call_id="c1", instance=FakeEvaluate(), inputs={"program": program}
+        )
 
-    results = _build_results_stub()
-    out = EvaluationResult(score=0.8, results=results)
-    cb.on_evaluate_end(call_id="c1", outputs=out, exception=None)
-
-    wandb.finish()
+        results = _build_results_stub()
+        out = EvaluationResult(score=0.8, results=results)
+        cb.on_evaluate_end(call_id="c1", outputs=out, exception=None)
 
 
 if __name__ == "__main__":

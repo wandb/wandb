@@ -69,37 +69,37 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         import wandb
         from wandb.integration.dspy import WandbDSPyCallback
 
-        wandb.init(project="dspy-optimization")
-        dspy.settings.callbacks.append(WandbDSPyCallback())
-        # Run your DSPy optimization/evaluation
+        with wandb.init(project="dspy-optimization") as run:
+            dspy.settings.callbacks.append(WandbDSPyCallback(run=run))
+            # Run your DSPy optimization/evaluation
         ```
     """
 
-    def __init__(self, log_results: bool = True, wandb_run: Run | None = None) -> None:
+    def __init__(self, log_results: bool = True, run: Run | None = None) -> None:
         """Initialize the callback.
 
         Args:
             log_results (bool): Whether to log per-evaluation prediction tables.
-            wandb_run (Run | None): Optional W&B run to use. Defaults to the
+            run (Run | None): Optional W&B run to use. Defaults to the
                 current global run if available.
 
         Raises:
             wandb.Error: If no active run is provided or found.
         """
         # If no run is provided, use the current global run if available.
-        if wandb_run is None:
-            wandb_run = wandb.run
-            if wandb_run is None:
+        if run is None:
+            if wandb.run is None:
                 raise wandb.Error(
                     "You must call `wandb.init()` before instantiating WandbDSPyCallback()."
                 )
+            run = wandb.run
 
         self.log_results = log_results
 
-        with wandb.wandb_lib.telemetry.context(run=wandb_run) as tel:
+        with wandb.wandb_lib.telemetry.context(run=run) as tel:
             tel.feature.dspy_callback = True
 
-        self._run = wandb_run
+        self._run = run
         self._did_log_config: bool = False
         self._program_info: dict[str, Any] = {}
         self._program_table: wandb.Table | None = None
@@ -223,7 +223,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
                 # we don't want to log the devset in the config
                 del serializable["devset"]
 
-            wandb.run.config.update(serializable)
+            self._run.config.update(serializable)
             self._did_log_config = True
 
         # 2) Build/append program signature tables from the 'program' inputs
@@ -291,7 +291,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
                 self._row_idx,
                 *values,
             )
-            wandb.run.log(
+            self._run.log(
                 {"program_signature": self._program_table}, step=self._row_idx
             )
 
@@ -338,7 +338,7 @@ class WandbDSPyCallback(dspy.utils.BaseCallback):
         data: list[list[Any]] = [list(row.values()) for row in rows]
 
         preds_table = wandb.Table(columns=columns, data=data, log_mode="IMMUTABLE")
-        wandb.run.log({f"predictions_{self._row_idx}": preds_table}, step=self._row_idx)
+        self._run.log({f"predictions_{self._row_idx}": preds_table}, step=self._row_idx)
 
     def log_best_model(
         self,

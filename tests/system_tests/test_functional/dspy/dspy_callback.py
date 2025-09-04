@@ -54,34 +54,31 @@ def main() -> None:
     from wandb.integration.dspy import WandbDSPyCallback
 
     # Init W&B
-    wandb_run = wandb.init(project="dspy-system-test")
+    with wandb.init(project="dspy-system-test") as run:
+        # Build callback
+        cb = WandbDSPyCallback(log_results=True, run=run)
 
-    # Build callback
-    cb = WandbDSPyCallback(log_results=True, wandb_run=wandb_run)
+        # Simulate dspy.Evaluate instance and lifecycle
+        class FakeEvaluate:
+            def __init__(self) -> None:
+                self.devset = [1, 2, 3]  # should be excluded from config
+                self.num_threads = 2
+                self.auto = "light"
 
-    # Simulate dspy.Evaluate instance and lifecycle
-    class FakeEvaluate:
-        def __init__(self) -> None:
-            self.devset = [1, 2, 3]  # should be excluded from config
-            self.num_threads = 2
-            self.auto = "light"
+        program = MinimalProgram()
+        cb.on_evaluate_start(
+            call_id="c1", instance=FakeEvaluate(), inputs={"program": program}
+        )
 
-    program = MinimalProgram()
-    cb.on_evaluate_start(
-        call_id="c1", instance=FakeEvaluate(), inputs={"program": program}
-    )
+        # Emit an evaluation result with prediction rows
+        results = _build_results_stub()
+        out = EvaluationResult(score=0.8, results=results)
+        cb.on_evaluate_end(call_id="c1", outputs=out, exception=None)
 
-    # Emit an evaluation result with prediction rows
-    results = _build_results_stub()
-    out = EvaluationResult(score=0.8, results=results)
-    cb.on_evaluate_end(call_id="c1", outputs=out, exception=None)
-
-    # Exercise model artifact saving in different modes using the real Module API
-    cb.log_best_model(program, save_program=True)
-    cb.log_best_model(program, save_program=False, filetype="json")
-    cb.log_best_model(program, save_program=False, filetype="pkl")
-
-    wandb.finish()
+        # Exercise model artifact saving in different modes using the real Module API
+        cb.log_best_model(program, save_program=True)
+        cb.log_best_model(program, save_program=False, filetype="json")
+        cb.log_best_model(program, save_program=False, filetype="pkl")
 
 
 if __name__ == "__main__":
