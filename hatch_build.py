@@ -14,7 +14,6 @@ from typing_extensions import override
 # A small hack to allow importing build scripts from the source tree.
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from core import hatch as hatch_core
-from core import hatch_leet
 from gpu_stats import hatch as hatch_gpu_stats
 
 # Necessary inputs for releases.
@@ -26,7 +25,6 @@ _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 
 # Other build options.
 _WANDB_BUILD_SKIP_GPU_STATS = "WANDB_BUILD_SKIP_GPU_STATS"
-_WANDB_BUILD_SKIP_WANDB_LEET = "WANDB_BUILD_SKIP_WANDB_LEET"
 _WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
 
 
@@ -43,8 +41,6 @@ class CustomBuildHook(BuildHookInterface):
         artifacts.extend(self._build_wandb_core())
         if self._include_gpu_stats():
             artifacts.extend(self._build_gpu_stats())
-        if self._include_wandb_leet():
-            artifacts.extend(self._build_wandb_leet())
 
     def _get_platform_tag(self) -> str:
         """Returns the platform tag for the current platform."""
@@ -77,10 +73,6 @@ class CustomBuildHook(BuildHookInterface):
     def _include_gpu_stats(self) -> bool:
         """Returns whether we should produce a wheel with gpu_stats."""
         return not _get_env_bool(_WANDB_BUILD_SKIP_GPU_STATS, default=False)
-
-    def _include_wandb_leet(self) -> bool:
-        """Returns whether we should produce a wheel with wandb-leet."""
-        return not _get_env_bool(_WANDB_BUILD_SKIP_WANDB_LEET, default=False)
 
     def _get_and_require_cargo_binary(self) -> pathlib.Path:
         cargo = shutil.which("cargo")
@@ -136,27 +128,6 @@ class CustomBuildHook(BuildHookInterface):
             output_path=output,
             with_code_coverage=with_coverage,
             with_race_detection=with_race_detection,
-            with_cgo=with_cgo,
-            wandb_commit_sha=os.getenv(_WANDB_RELEASE_COMMIT) or self._git_commit_sha(),
-            target_system=plat.goos,
-            target_arch=plat.goarch,
-        )
-
-        # NOTE: as_posix() is used intentionally. Hatch expects forward slashes
-        # even on Windows.
-        return [output.as_posix()]
-
-    def _build_wandb_leet(self) -> List[str]:
-        output = pathlib.Path("wandb", "bin", "wandb-leet")
-
-        with_cgo = _get_env_bool(_WANDB_ENABLE_CGO, default=False)
-
-        plat = self._target_platform()
-
-        self.app.display_waiting("Building wandb-leet Go binary...")
-        hatch_leet.build_wandb_leet(
-            go_binary=self._get_and_require_go_binary(),
-            output_path=output,
             with_cgo=with_cgo,
             wandb_commit_sha=os.getenv(_WANDB_RELEASE_COMMIT) or self._git_commit_sha(),
             target_system=plat.goos,

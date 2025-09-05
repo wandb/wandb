@@ -24,7 +24,6 @@ type WandbReader struct {
 
 // NewWandbReader creates a new wandb file reader.
 func NewWandbReader(runPath string) (*WandbReader, error) {
-	// Check if file exists
 	_, err := os.Stat(runPath)
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("reader: wandb file not found: %s", runPath)

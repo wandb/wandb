@@ -7,14 +7,13 @@ from __future__ import annotations
 
 import os
 import pathlib
-import platform
 import sys
 
 import click
 
 import wandb
 from wandb import _sentry
-from wandb.errors import WandbCoreNotAvailableError, WandbLeetNotAvailableError
+from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk.wandb_sync import _sync
 from wandb.util import get_core_path
 
@@ -60,27 +59,15 @@ def leet(ctx, wandb_dir: str = None):
     _sentry.configure_scope(process_context="leet")
 
     try:
-        leet_path = get_leet_path()
+        core_path = get_core_path()
 
-        args = [leet_path]
+        args = [core_path, "leet"]
         if wandb_dir:
             args.append(wandb_dir)
 
-        os.execvp(leet_path, args)
+        os.execvp(core_path, args)
     except Exception as e:
         _sentry.reraise(e)
-
-
-def get_leet_path() -> str:
-    """Returns the path to the wandb-leet binary."""
-    bin_path = pathlib.Path(__file__).parent.parent / "bin" / "wandb-leet"
-    if not bin_path.exists():
-        raise WandbLeetNotAvailableError(
-            f"File not found: {bin_path}."
-            " Please contact support at support@wandb.com."
-            f" Your platform is: {platform.platform()}."
-        )
-    return str(bin_path)
 
 
 @beta.command(

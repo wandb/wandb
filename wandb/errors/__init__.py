@@ -5,7 +5,6 @@ __all__ = (
     "UsageError",
     "UnsupportedError",
     "WandbCoreNotAvailableError",
-    "WandbLeetNotAvailableError",
 )
 
 from .errors import (
@@ -15,5 +14,4 @@ from .errors import (
     UnsupportedError,
     UsageError,
     WandbCoreNotAvailableError,
-    WandbLeetNotAvailableError,
 )

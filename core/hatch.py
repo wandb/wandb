@@ -43,9 +43,6 @@ def build_wandb_core(
     coverage_flags = ["-cover"] if with_code_coverage else []
     race_detect_flags = ["-race"] if with_race_detection else []
     output_flags = ["-o", str(".." / output_path)]
-    # The `wandb_core` tag is used to exclude certain files,
-    # for example those needed for `wandb-leet`.
-    build_tags = ["-tags", "disable_grpc_modules"]
 
     ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha=wandb_commit_sha)}"]
 
