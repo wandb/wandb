@@ -33,7 +33,7 @@ def beta():
 
 
 @beta.command()
-@click.argument("path", type=click.Path(exists=True))
+@click.argument("paths", type=click.Path(exists=True), nargs=-1)
 @click.option(
     "--skip-synced/--no-skip-synced",
     is_flag=True,
@@ -47,15 +47,14 @@ def beta():
     help="Print what would happen without uploading anything.",
 )
 def sync(
-    path: str,
+    paths: tuple[str, ...],
     skip_synced: bool,
     dry_run: bool,
 ) -> None:
-    """Upload .wandb files in PATH.
+    """Upload .wandb files specified by PATHS.
 
-    PATH can be a path to a .wandb file, a path to a run's directory containing
-    its .wandb file, or a path to a "wandb" directory containing run
-    directories.
+    PATHS can include .wandb files, run directories containing .wandb files,
+    and "wandb" directories containing run directories.
 
     For example, to sync all runs in a directory:
 
@@ -72,7 +71,7 @@ def sync(
     from . import beta_sync
 
     beta_sync.sync(
-        pathlib.Path(path),
+        [pathlib.Path(path) for path in paths],
         dry_run=dry_run,
         skip_synced=skip_synced,
     )
