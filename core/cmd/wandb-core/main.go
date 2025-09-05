@@ -257,7 +257,7 @@ func leetMain(args []string) int {
 	defer sentryClient.Flush(2)
 
 	// Debug logging controlled by WANDB_DEBUG.
-	var writer io.Writer = io.Discard
+	writer := io.Discard
 	if os.Getenv("WANDB_DEBUG") != "" {
 		loggerFile, err := os.OpenFile("wandb-leet.debug.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
