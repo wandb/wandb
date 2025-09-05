@@ -17,8 +17,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
+
+	"github.com/grafana/regexp"
 )
 
 // Matcher describes a matches the value of a given label.
