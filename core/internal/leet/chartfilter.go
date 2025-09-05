@@ -1,5 +1,3 @@
-//go:build !wandb_core
-
 package leet
 
 import "strings"
