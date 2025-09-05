@@ -143,17 +143,6 @@ class ServiceConnection:
         else:
             return response.inform_attach_response.settings
 
-    def inform_start(
-        self,
-        settings: wandb_settings_pb2.Settings,
-        run_id: str,
-    ) -> None:
-        """Send a start request to the service."""
-        request = spb.ServerInformStartRequest()
-        request.settings.CopyFrom(settings)
-        request._info.stream_id = run_id
-        self._client.publish(spb.ServerRequest(inform_start=request))
-
     def teardown(self, exit_code: int) -> int | None:
         """Close the connection.
 
