@@ -332,12 +332,12 @@ func leetMain(args []string) int {
 
 // findLatestRun looks for the latest-run symlink in wandb or .wandb directories.
 func findLatestRun() (string, error) {
-	wandbDirs := []string{"wandb", ".wandb"}
+	wandbDirs := []string{".wandb", "wandb"}
 
 	if wandbDir := os.Getenv("WANDB_DIR"); wandbDir != "" {
 		wandbDirs = []string{
-			filepath.Join(wandbDir, "wandb"),
 			filepath.Join(wandbDir, ".wandb"),
+			filepath.Join(wandbDir, "wandb"),
 		}
 	}
 
