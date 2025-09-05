@@ -157,22 +157,9 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 	s.dispatcher.AddResponders(entries...)
 }
 
-// UpdateSettings updates the stream's settings with the given settings.
-func (s *Stream) UpdateSettings(newSettings *settings.Settings) {
-	s.settings = newSettings
-}
-
 // GetSettings returns the stream's settings.
 func (s *Stream) GetSettings() *settings.Settings {
 	return s.settings
-}
-
-// UpdateRunURLTag updates the run URL tag in the stream's logger.
-// TODO: this should be removed when we remove informStart.
-func (s *Stream) UpdateRunURLTag() {
-	s.logger.SetGlobalTags(observability.Tags{
-		"run_url": s.settings.GetRunURL(),
-	})
 }
 
 // Start starts the stream's handler, writer, sender, and dispatcher.

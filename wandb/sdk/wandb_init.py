@@ -1009,14 +1009,6 @@ class _WandbInit:
         run._set_run_obj(result.run_result.run)
 
         self._logger.info("starting run threads in backend")
-        # initiate run (stats and metadata probing)
-
-        if service:
-            assert settings.run_id
-            service.inform_start(
-                settings=settings.to_proto(),
-                run_id=settings.run_id,
-            )
 
         assert backend.interface
 

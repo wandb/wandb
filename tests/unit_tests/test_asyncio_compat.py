@@ -117,7 +117,7 @@ def test_compat_run_in_asyncio_context():
 async def test_cancel_on_exit_normal():
     cd = _CancellationDetector()
 
-    with asyncio_compat.cancel_on_exit(cd.expect_cancelled()):
+    async with asyncio_compat.cancel_on_exit(cd.expect_cancelled()):
         await _yield()
 
     await cd.assert_cancelled()
@@ -128,7 +128,7 @@ async def test_cancel_on_exit_error_in_body():
     cd = _CancellationDetector()
 
     with pytest.raises(_TestError):
-        with asyncio_compat.cancel_on_exit(cd.expect_cancelled()):
+        async with asyncio_compat.cancel_on_exit(cd.expect_cancelled()):
             await _yield()
             raise _TestError()
 
@@ -142,7 +142,7 @@ async def test_cancel_on_exit_error_in_task():
         raise _TestError()
 
     with pytest.raises(_TestError):
-        with asyncio_compat.cancel_on_exit(fail()):
+        async with asyncio_compat.cancel_on_exit(fail()):
             await _yield()
             await _yield()
 
@@ -153,7 +153,7 @@ async def test_cancel_on_exit_errors_everywhere():
         raise _TestError(msg)
 
     with pytest.raises(_TestError, match="inner") as exc:
-        with asyncio_compat.cancel_on_exit(fail("outer")):
+        async with asyncio_compat.cancel_on_exit(fail("outer")):
             # Ensure the outer task has already failed before raising
             # an error. We want to make sure that the inner error still
             # takes priority.
@@ -218,3 +218,105 @@ async def test_task_group_cancels_on_subtask_error():
     await tester.assert_exits()
     await cd1.assert_cancelled()
     await cd2.assert_cancelled()
+
+
+@pytest.mark.asyncio
+async def test_task_group_exit_timeout():
+    with pytest.raises(TimeoutError):
+        async with asyncio_compat.open_task_group(exit_timeout=0) as group:
+            group.start_soon(asyncio.sleep(5))
+
+
+@pytest.mark.asyncio
+async def test_task_group_empty_ok():
+    async with asyncio_compat.open_task_group():
+        pass
+
+
+@pytest.mark.asyncio
+async def test_race_cancels_unfinished_tasks():
+    completion_order = []
+    event = asyncio.Event()
+
+    async def wait_for_event():
+        await event.wait()
+        completion_order.append("finished first")
+
+    async def set_event_then_wait_forever():
+        event.set()
+
+        try:
+            await asyncio.sleep(99)
+        except asyncio.CancelledError:
+            completion_order.append("cancelled second")
+            raise
+
+    await asyncio_compat.race(
+        wait_for_event(),
+        set_event_then_wait_forever(),
+    )
+
+    assert completion_order == ["finished first", "cancelled second"]
+
+
+@pytest.mark.asyncio
+async def test_race_raises_first_error():
+    event = asyncio.Event()
+
+    async def raise_first():
+        event.set()
+        raise _TestError("first")
+
+    async def return_first():
+        pass
+
+    async def raise_second():
+        await event.wait()
+        return _TestError("second")
+
+    with pytest.raises(_TestError, match="first"):
+        await asyncio_compat.race(
+            return_first(),  # The error always takes precedence.
+            raise_first(),
+            raise_second(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_race_raises_error_during_cancellation():
+    async def return_normally():
+        pass
+
+    async def raise_if_cancelled():
+        try:
+            await asyncio.sleep(99)
+        except asyncio.CancelledError:
+            raise _TestError
+
+    with pytest.raises(_TestError):
+        await asyncio_compat.race(return_normally(), raise_if_cancelled())
+
+
+@pytest.mark.asyncio
+async def test_race_cancels_subtasks_if_cancelled():
+    started = asyncio.Event()
+    cancelled = False
+
+    async def detect_cancelled():
+        nonlocal cancelled
+        try:
+            started.set()
+            await asyncio.sleep(99)
+        except asyncio.CancelledError:
+            cancelled = True
+            raise
+
+    async def do_race():
+        await asyncio_compat.race(detect_cancelled())
+
+    task = asyncio.create_task(do_race())
+    await started.wait()
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert cancelled

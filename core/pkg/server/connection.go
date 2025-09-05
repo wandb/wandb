@@ -303,8 +303,6 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleAuthenticate(x.Authenticate)
 		case *spb.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
-		case *spb.ServerRequest_InformStart:
-			nc.handleInformStart(x.InformStart)
 		case *spb.ServerRequest_InformAttach:
 			nc.handleInformAttach(msg.RequestId, x.InformAttach)
 		case *spb.ServerRequest_RecordPublish:
@@ -315,6 +313,27 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleInformFinish(x.InformFinish)
 		case *spb.ServerRequest_InformTeardown:
 			nc.handleInformTeardown(x.InformTeardown)
+		case *spb.ServerRequest_InitSync:
+			nc.Respond(&spb.ServerResponse{
+				RequestId: msg.RequestId,
+				ServerResponseType: &spb.ServerResponse_InitSyncResponse{
+					InitSyncResponse: &spb.ServerInitSyncResponse{Id: "todo"},
+				},
+			})
+		case *spb.ServerRequest_Sync:
+			nc.Respond(&spb.ServerResponse{
+				RequestId: msg.RequestId,
+				ServerResponseType: &spb.ServerResponse_SyncResponse{
+					SyncResponse: &spb.ServerSyncResponse{
+						Errors: []string{"Internal error: not implemented"},
+					},
+				},
+			})
+		case *spb.ServerRequest_SyncStatus:
+			nc.Respond(&spb.ServerResponse{
+				RequestId:          msg.RequestId,
+				ServerResponseType: &spb.ServerResponse_SyncStatusResponse{},
+			})
 		case nil:
 			slog.Error("handleIncomingRequests: ServerRequestType is nil", "id", nc.id)
 			panic("ServerRequestType is nil")
@@ -370,28 +389,6 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
 		// TODO: should we Close the stream?
 		return
-	}
-}
-
-// handleInformStart handles the start message from the client.
-//
-// This function is invoked when the server receives an `InformStart` message
-// from the client. It updates the stream settings with the provided settings
-// from the client.
-//
-// TODO: should probably remove this message and use a different mechanism
-// to update stream settings
-func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
-	slog.Debug("handleInformStart: received", "id", nc.id)
-
-	strm, err := nc.streamMux.GetStream(msg.GetXInfo().GetStreamId())
-	if err != nil {
-		slog.Error(
-			"handleInformStart: error getting stream",
-			"err", err, "id", nc.id)
-	} else {
-		strm.UpdateSettings(settings.From(msg.GetSettings()))
-		strm.UpdateRunURLTag()
 	}
 }
 

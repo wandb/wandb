@@ -7,7 +7,7 @@ import concurrent
 import concurrent.futures
 import contextlib
 import threading
-from typing import Any, AsyncIterator, Callable, Coroutine, Iterator, TypeVar
+from typing import Any, AsyncIterator, Callable, Coroutine, TypeVar
 
 _T = TypeVar("_T")
 
@@ -143,34 +143,71 @@ class TaskGroup:
         """
         self._tasks.append(asyncio.create_task(coro))
 
-    async def _wait_all(self) -> None:
-        """Block until all tasks complete.
+    async def _wait_all(self, *, race: bool, timeout: float | None) -> None:
+        """Block until tasks complete.
+
+        Args:
+            race: If true, blocks until the first task completes and then
+                cancels the rest. Otherwise, waits for all tasks or until
+                the first exception.
+            timeout: How long to wait.
 
         Raises:
+            TimeoutError: If the timeout expires.
             Exception: If one or more tasks raises an exception, one of these
                 is raised arbitrarily.
         """
-        done, _ = await asyncio.wait(
+        if not self._tasks:
+            return
+
+        if race:
+            return_when = asyncio.FIRST_COMPLETED
+        else:
+            return_when = asyncio.FIRST_EXCEPTION
+
+        done, pending = await asyncio.wait(
             self._tasks,
-            # NOTE: Cancelling a task counts as a normal exit,
-            #   not an exception.
-            return_when=concurrent.futures.FIRST_EXCEPTION,
+            timeout=timeout,
+            return_when=return_when,
         )
 
-        for task in done:
-            with contextlib.suppress(asyncio.CancelledError):
-                if exc := task.exception():
-                    raise exc
+        if not done:
+            raise TimeoutError(f"Timed out after {timeout} seconds.")
 
-    def _cancel_all(self) -> None:
-        """Cancel all tasks."""
+        # If any of the finished tasks raised an exception, pick the first one.
+        for task in done:
+            if exc := task.exception():
+                raise exc
+
+        # Wait for remaining tasks to clean up, then re-raise any exceptions
+        # that arise. Note that pending is only non-empty when race=True.
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        for task in pending:
+            if task.cancelled():
+                continue
+            if exc := task.exception():
+                raise exc
+
+    async def _cancel_all(self) -> None:
+        """Cancel all tasks.
+
+        Blocks until cancelled tasks complete to allow them to clean up.
+        Ignores exceptions.
+        """
         for task in self._tasks:
             # NOTE: It is safe to cancel tasks that have already completed.
             task.cancel()
+        await asyncio.gather(*self._tasks, return_exceptions=True)
 
 
 @contextlib.asynccontextmanager
-async def open_task_group() -> AsyncIterator[TaskGroup]:
+async def open_task_group(
+    *,
+    exit_timeout: float | None = None,
+    race: bool = False,
+) -> AsyncIterator[TaskGroup]:
     """Create a task group.
 
     `asyncio` gained task groups in Python 3.11.
@@ -184,30 +221,58 @@ async def open_task_group() -> AsyncIterator[TaskGroup]:
     NOTE: Subtask exceptions do not propagate until the context manager exits.
     This means that the task group cannot cancel code running inside the
     `async with` block .
+
+    Args:
+        exit_timeout: An optional timeout in seconds. When exiting the
+            context manager, if tasks don't complete in this time,
+            they are cancelled and a TimeoutError is raised.
+        race: If true, all pending tasks are cancelled once any task
+            in the group completes. Prefer to use the race() function instead.
+
+    Raises:
+        TimeoutError: if exit_timeout is specified and tasks don't finish
+            in time.
     """
     task_group = TaskGroup()
 
     try:
         yield task_group
-        await task_group._wait_all()
+        await task_group._wait_all(race=race, timeout=exit_timeout)
     finally:
-        task_group._cancel_all()
+        await task_group._cancel_all()
 
 
-@contextlib.contextmanager
-def cancel_on_exit(coro: Coroutine[Any, Any, Any]) -> Iterator[None]:
+@contextlib.asynccontextmanager
+async def cancel_on_exit(coro: Coroutine[Any, Any, Any]) -> AsyncIterator[None]:
     """Schedule a task, cancelling it when exiting the context manager.
 
     If the context manager exits successfully but the given coroutine raises
     an exception, that exception is reraised. The exception is suppressed
     if the context manager raises an exception.
     """
-    task = asyncio.create_task(coro)
 
-    try:
+    async def stop_immediately():
+        pass
+
+    async with open_task_group(race=True) as group:
+        group.start_soon(stop_immediately())
+        group.start_soon(coro)
         yield
 
-        if task.done() and (exception := task.exception()):
-            raise exception
-    finally:
-        task.cancel()
+
+async def race(*coros: Coroutine[Any, Any, Any]) -> None:
+    """Wait until the first completed task.
+
+    After any coroutine completes, all others are cancelled.
+    If the current task is cancelled, all coroutines are cancelled too.
+
+    If coroutines complete simultaneously and any one of them raises
+    an exception, an arbitrary one is propagated. Similarly, if any coroutines
+    raise exceptions during cancellation, one of them propagates.
+
+    Args:
+        coros: Coroutines to race.
+    """
+    async with open_task_group(race=True) as tg:
+        for coro in coros:
+            tg.start_soon(coro)

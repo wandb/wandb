@@ -4,6 +4,7 @@ from enum import Enum
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence
 
+from wandb._strutils import ensureprefix
 from wandb.sdk.artifacts._validators import (
     REGISTRY_PREFIX,
     validate_artifact_types_list,
@@ -81,7 +82,7 @@ def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
     """
     if isinstance((txt := query), str):
         if in_name:
-            return txt if txt.startswith(REGISTRY_PREFIX) else f"{REGISTRY_PREFIX}{txt}"
+            return ensureprefix(txt, REGISTRY_PREFIX)
         return txt
     if isinstance((dct := query), Mapping):
         new_dict = {}
