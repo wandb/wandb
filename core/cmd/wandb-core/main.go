@@ -367,7 +367,11 @@ func findLatestRun() (string, error) {
 		}
 		return absTarget, nil
 	}
-	return "", fmt.Errorf("no latest-run symlink found in ./wandb or ./.wandb")
+
+	if wandbDir := os.Getenv("WANDB_DIR"); wandbDir != "" {
+		return "", fmt.Errorf("no latest-run symlink found in %s/.wandb or %s/wandb", wandbDir, wandbDir)
+	}
+	return "", fmt.Errorf("no latest-run symlink found in ./.wandb or ./wandb")
 }
 
 // findWandbFile searches for a .wandb file in the given directory.
