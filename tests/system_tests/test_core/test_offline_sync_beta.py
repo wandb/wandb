@@ -171,6 +171,24 @@ def test_skip_synced(tmp_path, runner: CliRunner, skip_synced):
         assert "run-2.wandb" in result.output
 
 
+def test_merges_symlinks(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runner: CliRunner,
+):
+    (tmp_path / "actual-run").mkdir()
+    (tmp_path / "actual-run/run.wandb").touch()
+    (tmp_path / "latest-run").symlink_to(tmp_path / "actual-run")
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(cli.beta, "sync --dry-run .")
+
+    assert result.output.splitlines() == [
+        "Would sync 1 file(s):",
+        "  actual-run/run.wandb",
+    ]
+
+
 def test_sync_wandb_file(tmp_path, runner: CliRunner):
     file = tmp_path / "run.wandb"
     file.touch()
@@ -230,6 +248,33 @@ def test_truncates_printed_paths(
     for line in lines[1:6]:
         assert re.fullmatch(r"  .+/run-\d+\.wandb", line)
     assert lines[6] == "  +15 more"
+
+
+def test_prints_relative_paths(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runner: CliRunner,
+):
+    dir1_cwd = tmp_path / "cwd"
+    dir2_not = tmp_path / "not"
+    dir1_cwd.mkdir()
+    dir2_not.mkdir()
+    monkeypatch.chdir(dir1_cwd)
+
+    (dir1_cwd / "run-relative.wandb").touch()
+    (dir2_not / "run-absolute.wandb").touch()
+
+    result = runner.invoke(cli.beta, f"sync --dry-run {tmp_path}")
+
+    assert result.output.splitlines() == [
+        "Would sync 2 file(s):",
+        *sorted(
+            [
+                "  run-relative.wandb",
+                f"  {dir2_not / 'run-absolute.wandb'}",
+            ]
+        ),
+    ]
 
 
 def test_prints_status_updates(skip_asyncio_sleep, tmp_path, emulated_terminal):
