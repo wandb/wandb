@@ -10,7 +10,7 @@ import (
 	"github.com/rivo/uniseg"
 )
 
-// nbsp is a non-breaking space
+// nbsp is a non-breaking space.
 const nbsp = 0xA0
 
 // Hardwrap wraps a string or a block of text to a given line length, breaking
@@ -55,7 +55,7 @@ func hardwrap(m Method, s string, limit int, preserveSpace bool) string {
 	i := 0
 	for i < len(b) {
 		state, action := parser.Table.Transition(pstate, b[i])
-		if state == parser.Utf8State {
+		if state == parser.Utf8State { //nolint:nestif
 			var width int
 			cluster, _, width, _ = uniseg.FirstGraphemeCluster(b[i:], -1)
 			if m == WcWidth {
@@ -190,7 +190,7 @@ func wordwrap(m Method, s string, limit int, breakpoints string) string {
 	i := 0
 	for i < len(b) {
 		state, action := parser.Table.Transition(pstate, b[i])
-		if state == parser.Utf8State {
+		if state == parser.Utf8State { //nolint:nestif
 			var width int
 			cluster, _, width, _ = uniseg.FirstGraphemeCluster(b[i:], -1)
 			if m == WcWidth {
@@ -343,7 +343,7 @@ func wrap(m Method, s string, limit int, breakpoints string) string {
 	i := 0
 	for i < len(b) {
 		state, action := parser.Table.Transition(pstate, b[i])
-		if state == parser.Utf8State {
+		if state == parser.Utf8State { //nolint:nestif
 			var width int
 			cluster, _, width, _ = uniseg.FirstGraphemeCluster(b[i:], -1)
 			if m == WcWidth {

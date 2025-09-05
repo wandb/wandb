@@ -591,7 +591,7 @@ const ReverseIndex = "\x1bM"
 //
 // Default is 1.
 //
-//	CSI n `
+//	CSI n \`
 //
 // See: https://vt100.net/docs/vt510-rm/HPA.html
 func HorizontalPositionAbsolute(col int) string {

@@ -63,7 +63,7 @@ func (t TransitionTable) Transition(state State, code byte) (State, Action) {
 	return value & TransitionStateMask, value >> TransitionActionShift
 }
 
-// byte range macro
+// byte range macro.
 func r(start, end byte) []byte {
 	var a []byte
 	for i := int(start); i <= int(end); i++ {

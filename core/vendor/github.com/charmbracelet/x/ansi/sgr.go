@@ -1,6 +1,6 @@
 package ansi
 
-// Select Graphic Rendition (SGR) is a command that sets display attributes.
+// SelectGraphicRendition (SGR) is a command that sets display attributes.
 //
 // Default is 0.
 //

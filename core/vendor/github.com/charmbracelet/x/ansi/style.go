@@ -594,7 +594,7 @@ func ReadStyleColor(params Params, co *color.Color) (n int) {
 			B: uint8(b), //nolint:gosec
 			A: 0xff,
 		}
-		return
+		return //nolint:nakedret
 
 	case 3: // CMY direct color
 		if len(params) < 5 {
@@ -612,7 +612,7 @@ func ReadStyleColor(params Params, co *color.Color) (n int) {
 			Y: uint8(y), //nolint:gosec
 			K: 0,
 		}
-		return
+		return //nolint:nakedret
 
 	case 4: // CMYK direct color
 		if len(params) < 6 {
@@ -630,7 +630,7 @@ func ReadStyleColor(params Params, co *color.Color) (n int) {
 			Y: uint8(y), //nolint:gosec
 			K: uint8(k), //nolint:gosec
 		}
-		return
+		return //nolint:nakedret
 
 	case 5: // indexed color
 		if len(params) < 3 {
@@ -665,7 +665,7 @@ func ReadStyleColor(params Params, co *color.Color) (n int) {
 			B: uint8(b), //nolint:gosec
 			A: uint8(a), //nolint:gosec
 		}
-		return
+		return //nolint:nakedret
 
 	default:
 		return 0
