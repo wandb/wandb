@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import atexit
+import pathlib
 from typing import Callable
 
 from wandb.proto import wandb_server_pb2 as spb
-from wandb.proto import wandb_settings_pb2
+from wandb.proto import wandb_settings_pb2, wandb_sync_pb2
 from wandb.sdk import wandb_settings
 from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_sock import InterfaceSock
@@ -12,6 +13,7 @@ from wandb.sdk.lib import asyncio_manager
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.service.service_client import ServiceClient
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxClosedError
+from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 from . import service_process, service_token
 
@@ -95,6 +97,40 @@ class ServiceConnection:
     def make_interface(self, stream_id: str) -> InterfaceBase:
         """Returns an interface for communicating with the service."""
         return InterfaceSock(self._client, stream_id=stream_id)
+
+    def init_sync(
+        self,
+        paths: set[pathlib.Path],
+        settings: wandb_settings.Settings,
+    ) -> MailboxHandle[wandb_sync_pb2.ServerInitSyncResponse]:
+        """Send a ServerInitSyncRequest."""
+        init_sync = wandb_sync_pb2.ServerInitSyncRequest(
+            path=(str(path) for path in paths),
+            settings=settings.to_proto(),
+        )
+        request = spb.ServerRequest(init_sync=init_sync)
+
+        handle = self._client.deliver(request)
+        return handle.map(lambda r: r.init_sync_response)
+
+    def sync(self, id: str) -> MailboxHandle[wandb_sync_pb2.ServerSyncResponse]:
+        """Send a ServerSyncRequest."""
+        sync = wandb_sync_pb2.ServerSyncRequest(id=id)
+        request = spb.ServerRequest(sync=sync)
+
+        handle = self._client.deliver(request)
+        return handle.map(lambda r: r.sync_response)
+
+    def sync_status(
+        self,
+        id: str,
+    ) -> MailboxHandle[wandb_sync_pb2.ServerSyncStatusResponse]:
+        """Send a ServerSyncStatusRequest."""
+        sync_status = wandb_sync_pb2.ServerSyncStatusRequest(id=id)
+        request = spb.ServerRequest(sync_status=sync_status)
+
+        handle = self._client.deliver(request)
+        return handle.map(lambda r: r.sync_status_response)
 
     def inform_init(
         self,

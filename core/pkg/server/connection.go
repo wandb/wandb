@@ -313,6 +313,27 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleInformFinish(x.InformFinish)
 		case *spb.ServerRequest_InformTeardown:
 			nc.handleInformTeardown(x.InformTeardown)
+		case *spb.ServerRequest_InitSync:
+			nc.Respond(&spb.ServerResponse{
+				RequestId: msg.RequestId,
+				ServerResponseType: &spb.ServerResponse_InitSyncResponse{
+					InitSyncResponse: &spb.ServerInitSyncResponse{Id: "todo"},
+				},
+			})
+		case *spb.ServerRequest_Sync:
+			nc.Respond(&spb.ServerResponse{
+				RequestId: msg.RequestId,
+				ServerResponseType: &spb.ServerResponse_SyncResponse{
+					SyncResponse: &spb.ServerSyncResponse{
+						Errors: []string{"Internal error: not implemented"},
+					},
+				},
+			})
+		case *spb.ServerRequest_SyncStatus:
+			nc.Respond(&spb.ServerResponse{
+				RequestId:          msg.RequestId,
+				ServerResponseType: &spb.ServerResponse_SyncStatusResponse{},
+			})
 		case nil:
 			slog.Error("handleIncomingRequests: ServerRequestType is nil", "id", nc.id)
 			panic("ServerRequestType is nil")
