@@ -11,7 +11,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-var writerProviders = wire.NewSet(
+var WriterProviders = wire.NewSet(
 	wire.Struct(new(WriterFactory), "*"),
 )
 
