@@ -171,16 +171,14 @@ class Image(BatchableMedia):
                 unless `normalize` is set to False.
             - pytorch tensor should be in the format (channel, height, width)
             - NumPy array should be in the format (height, width, channel)
-            mode: The PIL mode for an image. Most common are "L", "RGB",
-                "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
+            mode: The PIL mode for an image. Most common are "L", "RGB", "RGBA".
+                Full Pillow docs for more information https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
             caption: Label for display of image.
             grouping: The grouping number for the image.
             classes: A list of class information for the image,
                 used for labeling bounding boxes, and image masks.
             boxes: A dictionary containing bounding box information for the image.
-                see: https://docs.wandb.ai/ref/python/data-types/boundingboxes2d/
             masks: A dictionary containing mask information for the image.
-                see: https://docs.wandb.ai/ref/python/data-types/imagemask/
             file_type: The file type to save the image as.
                 This parameter has no effect if data_or_path is a path to an image file.
             normalize: If True, normalize the image pixel values to fall within the range of [0, 255].
