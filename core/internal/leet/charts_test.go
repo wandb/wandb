@@ -74,7 +74,7 @@ func TestModelView_ChartsAreSortedAlphabetically(t *testing.T) {
 	if a < 0 || b < 0 || z < 0 {
 		t.Fatalf("expected all titles in view; got positions: alpha=%d beta=%d zeta=%d\n%s", a, b, z, out)
 	}
-	if !(a < b && b < z) {
+	if (a >= b) || (b >= z) {
 		t.Fatalf("expected alphabetical order alpha < beta < zeta; got positions: a=%d b=%d z=%d", a, b, z)
 	}
 }
