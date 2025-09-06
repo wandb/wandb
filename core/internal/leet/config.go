@@ -237,3 +237,12 @@ func (m *ConfigManager) SetRightSidebarVisible(visible bool) error {
 	m.config.RightSidebarVisible = visible
 	return m.save()
 }
+
+// SetPathForTests overrides the on-disk path used to load/save the config.
+// Call this in tests before Load or any Set* method. Production code should
+// not call this.
+func (m *ConfigManager) SetPathForTests(path string) {
+	m.mu.Lock()
+	m.configPath = path
+	m.mu.Unlock()
+}
