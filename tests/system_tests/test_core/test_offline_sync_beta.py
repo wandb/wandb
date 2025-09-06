@@ -247,7 +247,7 @@ def test_truncates_printed_paths(
     assert lines[0] == "Would sync 20 file(s):"
     for line in lines[1:6]:
         assert re.fullmatch(r"  .+/run-\d+\.wandb", line)
-    assert lines[6] == "  +15 more"
+    assert lines[6] == "  +15 more (pass --verbose to see all)"
 
 
 def test_prints_relative_paths(
