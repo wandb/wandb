@@ -408,3 +408,56 @@ func TestFilterEdgeCases(t *testing.T) {
 		})
 	}
 }
+
+// TestFilterModeInterruption tests interrupting filter mode with other operations
+func TestFilterModeInterruption(t *testing.T) {
+	t.Parallel()
+
+	logger := observability.NewNoOpLogger()
+	var m tea.Model = leet.NewModel("dummy", logger)
+
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
+	m, _ = m.Update(leet.HistoryMsg{
+		Metrics: map[string]float64{
+			"loss": 1.0,
+			"acc":  0.5,
+		},
+	})
+
+	// Start typing a filter
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("lo")})
+
+	// Interrupt with ESC
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+	// View should show all charts (filter not applied)
+	view := m.View()
+	if !strings.Contains(view, "loss") || !strings.Contains(view, "acc") {
+		t.Fatal("All charts should be visible after canceling filter")
+	}
+
+	// Start another filter
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("acc")})
+
+	// Add new data while in filter mode
+	m, _ = m.Update(leet.HistoryMsg{
+		Metrics: map[string]float64{
+			"val/acc":  0.6,
+			"val/loss": 1.1,
+		},
+	})
+
+	// Complete the filter
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	view = m.View()
+	// Should show only "acc" charts
+	if !strings.Contains(view, "acc") || !strings.Contains(view, "val/acc") {
+		t.Fatal("Accuracy charts should be visible")
+	}
+	if strings.Contains(view, "loss") || strings.Contains(view, "val/loss") {
+		t.Fatal("Loss charts should be hidden")
+	}
+}
