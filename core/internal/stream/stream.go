@@ -72,6 +72,9 @@ type Stream struct {
 	// writer is the writer for the stream
 	writer *Writer
 
+	// flowControlFactory is used to create the FlowControl component
+	flowControlFactory *FlowControlFactory
+
 	// sender is the sender for the stream
 	sender *Sender
 
@@ -93,6 +96,7 @@ func NewStream(
 	clientID sharedmode.ClientID,
 	debugCorePath DebugCorePath,
 	featureProvider *featurechecker.ServerFeaturesCache,
+	flowControlFactory *FlowControlFactory,
 	graphqlClientOrNil graphql.Client,
 	handlerFactory *HandlerFactory,
 	loggerFile streamLoggerFile,
@@ -126,6 +130,7 @@ func NewStream(
 		settings:           settings,
 		recordParser:       recordParser,
 		handler:            handlerFactory.New(runWork),
+		flowControlFactory: flowControlFactory,
 		sender:             senderFactory.New(runWork),
 		sentryClient:       sentry,
 		clientID:           clientID,
@@ -139,7 +144,7 @@ func NewStream(
 			RunWork:  runWork,
 		})
 	case !s.settings.IsSkipTransactionLog():
-		s.writer = writerFactory.New(make(chan runwork.Work, BufferSize))
+		s.writer = writerFactory.New()
 	default:
 		logger.Info("stream: not syncing, skipping transaction log",
 			"id", s.settings.GetRunID(),
@@ -184,6 +189,7 @@ func (s *Stream) Start() {
 			s.sender.Do(s.handler.OutChan())
 			s.wg.Done()
 		}()
+
 	case s.settings.IsSync():
 		// if we are syncing, we need to read the data from the transaction log
 		// and forward it to the handler, that will forward it to the sender
@@ -199,11 +205,16 @@ func (s *Stream) Start() {
 			s.sender.Do(s.handler.OutChan())
 			s.wg.Done()
 		}()
+
 	default:
-		// This is the default case, where we are not skipping the transaction log
-		// and we are not syncing. We only get the data from the client and the
-		// handler handles it passing it to the writer (storing in the transaction log),
-		// that will forward it to the sender
+		// The default case: we write all records to the transaction log
+		// and forward them to the sender.
+		flowControl := s.flowControlFactory.New(
+			s.settings.GetTransactionLogPath(),
+			s.writer.Flush,
+			s.recordParser,
+		)
+
 		s.wg.Add(1)
 		go func() {
 			s.writer.Do(s.handler.OutChan())
@@ -212,7 +223,13 @@ func (s *Stream) Start() {
 
 		s.wg.Add(1)
 		go func() {
-			s.sender.Do(s.writer.fwdChan)
+			flowControl.Do(s.writer.Chan())
+			s.wg.Done()
+		}()
+
+		s.wg.Add(1)
+		go func() {
+			s.sender.Do(flowControl.Chan())
 			s.wg.Done()
 		}()
 	}

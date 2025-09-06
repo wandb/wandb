@@ -104,6 +104,25 @@ func (sr *Store) Write(msg *spb.Record) error {
 	return nil
 }
 
+// Flush flushes the in-memory store to disk.
+func (sr *Store) Flush() error {
+	return sr.writer.Flush()
+}
+
+// SeekRecord seeks the underlying file to a specific offset.
+//
+// The offset should have come from LastRecordOffset().
+func (sr *Store) SeekRecord(offset int64) error {
+	return sr.reader.SeekRecord(offset)
+}
+
+// LastRecordOffset returns the offset where the last record was written.
+//
+// Can be passed to Seek().
+func (sr *Store) LastRecordOffset() (int64, error) {
+	return sr.writer.LastRecordOffset()
+}
+
 // Reads the next record from the database.
 //
 // Returns nil and an error on failure. On EOF, error is [io.EOF].
