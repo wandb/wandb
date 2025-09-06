@@ -11,7 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-func TestTUI_LoadingAndQuit_Teatest(t *testing.T) {
+func TestTUI_LoadingHelpAndQuit_Teatest(t *testing.T) {
 	t.Parallel()
 
 	logger := observability.NewNoOpLogger()
@@ -29,6 +29,10 @@ func TestTUI_LoadingAndQuit_Teatest(t *testing.T) {
 		func(b []byte) bool { return bytes.Contains(b, want) },
 		teatest.WithDuration(2*time.Second),
 	)
+
+	// Toggle help
+	tm.Type("h")
+	tm.Type("h")
 
 	// Quit
 	tm.Type("q")

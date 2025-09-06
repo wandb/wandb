@@ -697,8 +697,8 @@ func (s *Sidebar) navigatePage(direction int) {
 	section.CursorPos = 0
 }
 
-// startFilter activates filter mode.
-func (s *Sidebar) startFilter() {
+// StartFilter activates filter mode.
+func (s *Sidebar) StartFilter() {
 	s.filterActive = true
 	// If we have an applied filter, start with that value
 	if s.filterApplied && s.appliedQuery != "" {
@@ -708,15 +708,15 @@ func (s *Sidebar) startFilter() {
 	}
 }
 
-// updateFilter updates the filter query (for live preview).
-func (s *Sidebar) updateFilter(query string) {
+// UpdateFilter updates the filter query (for live preview).
+func (s *Sidebar) UpdateFilter(query string) {
 	s.filterQuery = query
 	s.applyFilter()
 	s.calculateSectionHeights()
 }
 
-// confirmFilter applies the filter (on Enter).
-func (s *Sidebar) confirmFilter() {
+// ConfirmFilter applies the filter (on Enter).
+func (s *Sidebar) ConfirmFilter() {
 	s.filterApplied = true
 	s.appliedQuery = s.filterQuery
 	s.filterActive = false

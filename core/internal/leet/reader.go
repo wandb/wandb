@@ -141,11 +141,11 @@ func recordToMsg(record *spb.Record) tea.Msg {
 		}
 	case *spb.Record_History:
 		if rec.History != nil {
-			return parseHistory(rec.History)
+			return ParseHistory(rec.History)
 		}
 	case *spb.Record_Stats:
 		if rec.Stats != nil {
-			return parseStats(rec.Stats)
+			return ParseStats(rec.Stats)
 		}
 	case *spb.Record_Summary:
 		if rec.Summary != nil {
@@ -163,8 +163,8 @@ func recordToMsg(record *spb.Record) tea.Msg {
 	return nil
 }
 
-// parseHistory extracts metrics from a history record.
-func parseHistory(history *spb.HistoryRecord) tea.Msg {
+// ParseHistory extracts metrics from a history record.
+func ParseHistory(history *spb.HistoryRecord) tea.Msg {
 	if history == nil {
 		return nil
 	}
@@ -200,8 +200,8 @@ func parseHistory(history *spb.HistoryRecord) tea.Msg {
 	return nil
 }
 
-// parseStats extracts metrics from a stats record.
-func parseStats(stats *spb.StatsRecord) tea.Msg {
+// ParseStats extracts metrics from a stats record.
+func ParseStats(stats *spb.StatsRecord) tea.Msg {
 	if stats == nil {
 		return nil
 	}

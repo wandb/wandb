@@ -52,11 +52,15 @@ func matchPattern(pattern, str string) bool {
 	return pi == len(pattern)
 }
 
-// applyFilter applies the current filter pattern to charts
+// applyFilter applies the current filter pattern to charts.
 func (m *Model) applyFilter(pattern string) {
 	m.chartMu.Lock()
 	defer m.chartMu.Unlock()
+	m.applyFilterNoLock(pattern)
+}
 
+// applyFilterNoLock applies the filter assuming the caller holds chartMu.
+func (m *Model) applyFilterNoLock(pattern string) {
 	if pattern == "" {
 		// No filter, use all charts
 		m.filteredCharts = m.allCharts

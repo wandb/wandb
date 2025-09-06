@@ -132,7 +132,6 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 	// Lock for write when modifying charts
 	m.chartMu.Lock()
-	defer m.chartMu.Unlock()
 
 	// Save the currently focused chart's title if any
 	var previouslyFocusedTitle string
@@ -196,7 +195,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 			})
 		} else {
 			// Apply current filter to new charts
-			m.applyFilter(m.activeFilter)
+			m.applyFilterNoLock(m.activeFilter)
 		}
 
 		m.totalPages = (len(m.filteredCharts) + ChartsPerPage - 1) / ChartsPerPage
@@ -207,25 +206,40 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 		m.isLoading = false
 	}
 
-	// Reload page and draw
-	if len(msg.Metrics) > 0 {
+	// Reload page while holding the lock (mutates grid)
+	shouldDraw := len(msg.Metrics) > 0
+	if shouldDraw {
 		m.loadCurrentPageNoLock()
+	}
 
-		// Restore focus if the previously focused chart is still visible
-		if previouslyFocusedTitle != "" && m.focusState.Type == FocusMainChart {
+	// Capture before unlocking
+	prevTitle := previouslyFocusedTitle
+	m.chartMu.Unlock()
+
+	// Restore focus and draw OUTSIDE the critical section
+	if shouldDraw {
+		if prevTitle != "" && m.focusState.Type == FocusMainChart {
+			// Use a read lock while scanning the grid
+			m.chartMu.RLock()
+			foundRow, foundCol := -1, -1
 			for row := 0; row < GridRows; row++ {
 				for col := 0; col < GridCols; col++ {
 					if row < len(m.charts) && col < len(m.charts[row]) &&
 						m.charts[row][col] != nil &&
-						m.charts[row][col].Title() == previouslyFocusedTitle {
-						// Restore focus to this chart
-						m.setMainChartFocus(row, col)
+						m.charts[row][col].Title() == prevTitle {
+						foundRow, foundCol = row, col
 						break
 					}
 				}
+				if foundRow != -1 {
+					break
+				}
+			}
+			m.chartMu.RUnlock()
+			if foundRow != -1 {
+				m.setMainChartFocus(foundRow, foundCol)
 			}
 		}
-
 		m.drawVisibleCharts()
 	}
 
@@ -491,27 +505,27 @@ func (m *Model) handleOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		// Apply filter
 		m.overviewFilterMode = false
 		m.sidebar.filterQuery = m.overviewFilterInput // Ensure query is set
-		m.sidebar.confirmFilter()
+		m.sidebar.ConfirmFilter()
 		return m, nil
 
 	case tea.KeyBackspace:
 		// Remove last character
 		if len(m.overviewFilterInput) > 0 {
 			m.overviewFilterInput = m.overviewFilterInput[:len(m.overviewFilterInput)-1]
-			m.sidebar.updateFilter(m.overviewFilterInput)
+			m.sidebar.UpdateFilter(m.overviewFilterInput)
 		}
 		return m, nil
 
 	case tea.KeyRunes:
 		// Add typed characters
 		m.overviewFilterInput += string(msg.Runes)
-		m.sidebar.updateFilter(m.overviewFilterInput)
+		m.sidebar.UpdateFilter(m.overviewFilterInput)
 		return m, nil
 
 	case tea.KeySpace:
 		// Add space
 		m.overviewFilterInput += " "
-		m.sidebar.updateFilter(m.overviewFilterInput)
+		m.sidebar.UpdateFilter(m.overviewFilterInput)
 		return m, nil
 	}
 
@@ -692,7 +706,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		} else {
 			m.overviewFilterInput = ""
 		}
-		m.sidebar.startFilter()
+		m.sidebar.StartFilter()
 		return m, nil
 
 	case "r":
