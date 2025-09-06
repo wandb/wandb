@@ -29,6 +29,7 @@ def sync(
     *,
     dry_run: bool,
     skip_synced: bool,
+    verbose: bool,
 ) -> None:
     """Replay one or more .wandb files.
 
@@ -38,6 +39,7 @@ def sync(
         dry_run: If true, just prints what it would do and exits.
         skip_synced: If true, skips files that have already been synced
             as indicated by a .wandb.synced marker file in the same directory.
+        verbose: Verbose mode for printing more info.
     """
     wandb_files: set[pathlib.Path] = set()
     for path in paths:
@@ -50,11 +52,11 @@ def sync(
 
     if dry_run:
         click.echo(f"Would sync {len(wandb_files)} file(s):")
-        _print_sorted_paths(wandb_files)
+        _print_sorted_paths(wandb_files, verbose=verbose)
         return
 
     click.echo(f"Syncing {len(wandb_files)} file(s):")
-    _print_sorted_paths(wandb_files)
+    _print_sorted_paths(wandb_files, verbose=verbose)
 
     singleton = wandb_setup.singleton()
     service = singleton.ensure_service()
@@ -192,11 +194,12 @@ def _is_synced(path: pathlib.Path) -> bool:
     return path.with_suffix(".wandb.synced").exists()
 
 
-def _print_sorted_paths(paths: Iterable[pathlib.Path]) -> None:
+def _print_sorted_paths(paths: Iterable[pathlib.Path], verbose: bool) -> None:
     """Print file paths, sorting them and truncating the list if needed.
 
     Args:
         paths: Paths to print. Must be absolute with symlinks resolved.
+        verbose: If true, doesn't truncate paths.
     """
     # Prefer to print paths relative to the current working directory.
     cwd = pathlib.Path(".").resolve()
@@ -209,10 +212,11 @@ def _print_sorted_paths(paths: Iterable[pathlib.Path]) -> None:
         formatted_paths.append(formatted_path)
 
     sorted_paths = sorted(formatted_paths)
+    max_lines = len(sorted_paths) if verbose else _MAX_LIST_LINES
 
-    for i in range(min(len(sorted_paths), _MAX_LIST_LINES)):
+    for i in range(min(len(sorted_paths), max_lines)):
         click.echo(f"  {sorted_paths[i]}")
 
-    if len(sorted_paths) > _MAX_LIST_LINES:
-        remaining = len(sorted_paths) - _MAX_LIST_LINES
-        click.echo(f"  +{remaining:,d} more")
+    if len(sorted_paths) > max_lines:
+        remaining = len(sorted_paths) - max_lines
+        click.echo(f"  +{remaining:,d} more (pass --verbose to see all)")

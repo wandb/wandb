@@ -46,10 +46,18 @@ def beta():
     default=False,
     help="Print what would happen without uploading anything.",
 )
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    default=False,
+    help="Print more information.",
+)
 def sync(
     paths: tuple[str, ...],
     skip_synced: bool,
     dry_run: bool,
+    verbose: bool,
 ) -> None:
     """Upload .wandb files specified by PATHS.
 
@@ -74,4 +82,5 @@ def sync(
         [pathlib.Path(path) for path in paths],
         dry_run=dry_run,
         skip_synced=skip_synced,
+        verbose=verbose,
     )
