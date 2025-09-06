@@ -150,7 +150,7 @@ func TestLiveStore_CloseIdempotent(t *testing.T) {
 
 	// Create valid file
 	store := stream.NewStore(tmpFile.Name())
-	store.Open(os.O_WRONLY)
+	_ = store.Open(os.O_WRONLY)
 	store.Close()
 
 	ls, err := leet.NewLiveStore(tmpFile.Name())
@@ -183,8 +183,8 @@ func TestLiveStore_ReadAfterClose(t *testing.T) {
 
 	// Create valid file with a record
 	store := stream.NewStore(tmpFile.Name())
-	store.Open(os.O_WRONLY)
-	store.Write(&spb.Record{Num: 1, Uuid: "test"})
+	_ = store.Open(os.O_WRONLY)
+	_ = store.Write(&spb.Record{Num: 1, Uuid: "test"})
 	store.Close()
 
 	ls, err := leet.NewLiveStore(tmpFile.Name())
@@ -446,7 +446,7 @@ func TestLiveStore_PartialWrite(t *testing.T) {
 		t.Fatalf("Failed to open for append: %v", err)
 	}
 	// Write incomplete record header
-	f.Write([]byte{0x00, 0x00}) // Partial record that will cause read error
+	_, _ = f.Write([]byte{0x00, 0x00}) // Partial record that will cause read error
 	f.Close()
 
 	// Try to read
