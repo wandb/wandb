@@ -59,7 +59,7 @@ class GraphQLSession(HTTPTransport):
             headers.update(func_info.to_headers())
 
         post_args = {
-            "headers": headers,
+            "headers": headers or None,
             "cookies": self.cookies,
             "timeout": timeout or self.default_timeout,
             data_key: payload,

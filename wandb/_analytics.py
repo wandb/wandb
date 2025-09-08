@@ -60,6 +60,6 @@ def tracked(func: Callable[P, R]) -> Callable[P, R]:
     return wrapper
 
 
-def tracked_func() -> str | None:
-    """Returns the fully qualified namespace of the current tracked function."""
+def tracked_func() -> TrackedFuncInfo | None:
+    """Returns info on the current tracked function, if any, otherwise None."""
     return _current_func.get(None)
