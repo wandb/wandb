@@ -52,14 +52,14 @@ class GraphQLSession(HTTPTransport):
 
         data_key = "json" if self.use_json else "data"
 
-        # Track the original calling python function
-        if (func_info := tracked_func()) is not None:
-            extra_hdrs = func_info.to_headers()
-        else:
-            extra_hdrs = None
+        headers = self.headers.copy() if self.headers else {}
+
+        # If we're tracking a calling python function, include it in the headers
+        if func_info := tracked_func():
+            headers.update(func_info.to_headers())
 
         post_args = {
-            "headers": {**(self.headers or {}), **(extra_hdrs or {})} or None,
+            "headers": headers,
             "cookies": self.cookies,
             "timeout": timeout or self.default_timeout,
             data_key: payload,
