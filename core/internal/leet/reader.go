@@ -261,9 +261,13 @@ func ReadAvailableRecords(reader *WandbReader) tea.Cmd {
 	return func() tea.Msg {
 		var msgs []tea.Msg
 		recordCount := 0
-		const maxRecordsPerBatch = 100
 
-		for recordCount < maxRecordsPerBatch {
+		// Read more per batch, but keep a small time budget to stay responsive.
+		const maxRecordsPerBatch = 2000
+		const maxBatchTime = 50 * time.Millisecond
+		start := time.Now()
+
+		for recordCount < maxRecordsPerBatch && time.Since(start) < maxBatchTime {
 			msg, err := reader.ReadNext()
 			if err == io.EOF {
 				// No more records available right now.

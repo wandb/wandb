@@ -217,7 +217,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	m.chartMu.Unlock()
 
 	// Restore focus and draw OUTSIDE the critical section
-	if shouldDraw {
+	if shouldDraw && !m.suppressDraw {
 		if prevTitle != "" && m.focusState.Type == FocusMainChart {
 			// Use a read lock while scanning the grid
 			m.chartMu.RLock()

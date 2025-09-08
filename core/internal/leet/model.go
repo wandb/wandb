@@ -107,6 +107,9 @@ type Model struct {
 	heartbeatTimer    *time.Timer
 	heartbeatInterval time.Duration
 	heartbeatMu       sync.Mutex
+
+	// Coalesce expensive redraws during batch processing.
+	suppressDraw bool
 }
 
 func NewModel(runPath string, logger *observability.CoreLogger) *Model {
@@ -414,7 +417,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case BatchedRecordsMsg:
 		m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
 
-		// Process all messages
+		// Process the whole batch with redraws suppressed; draw once at the end.
+		m.suppressDraw = true
 		for _, subMsg := range msg.Msgs {
 			var cmd tea.Cmd
 			m, cmd = m.processRecordMsg(subMsg)
@@ -422,6 +426,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, cmd)
 			}
 		}
+		m.suppressDraw = false
+		m.drawVisibleCharts()
 
 		// Only exit loading state if we have actual metric data (charts)
 		m.chartMu.RLock()
@@ -442,6 +448,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.startHeartbeat()
 			}
 		}
+		// Keep draining while data is available.
+		cmds = append(cmds, ReadAvailableRecords(m.reader))
+
 		return m, tea.Batch(cmds...)
 
 	case ReloadMsg:
@@ -497,37 +506,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case FileChangedMsg:
-		// Reset heartbeat when we get a real file change
+		// Immediate live read; we coalesce internally with larger batches.
 		m.resetHeartbeat()
-
-		// Debounce file changes
-		m.debounceMu.Lock()
-		now := time.Now()
-		timeSinceLastChange := now.Sub(m.lastFileChange)
-		m.lastFileChange = now
-
-		// If we have a pending timer, stop it
-		if m.debounceTimer != nil {
-			m.debounceTimer.Stop()
-		}
-
-		// Only process if enough time has passed since last change (100ms debounce)
-		if timeSinceLastChange > 100*time.Millisecond {
-			m.logger.Debug("model: processing FileChangedMsg after debounce")
-			m.debounceMu.Unlock()
-			cmds = append(cmds, ReadAvailableRecords(m.reader))
-		} else {
-			// Set a timer to process after debounce period
-			m.debounceTimer = time.AfterFunc(100*time.Millisecond, func() {
-				select {
-				case m.msgChan <- FileChangedMsg{}:
-				default:
-					m.logger.Warn("model: msgChan full during debounce timer")
-				}
-			})
-			m.debounceMu.Unlock()
-		}
-		// Always continue waiting for more changes
+		cmds = append(cmds, ReadAvailableRecords(m.reader))
 		cmds = append(cmds, m.waitForWatcherMsg())
 		return m, tea.Batch(cmds...)
 
