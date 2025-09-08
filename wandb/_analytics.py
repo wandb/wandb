@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import wraps
 from typing import Callable, Final, TypeVar
 from uuid import UUID, uuid4
@@ -23,7 +23,7 @@ class TrackedFuncInfo:
     func: str
     """The fully qualified namespace of the tracked function."""
 
-    call_id: UUID
+    call_id: UUID = field(default_factory=uuid4)
     """A unique identifier assigned to each invocation."""
 
     def to_headers(self) -> dict[str, str]:
@@ -48,10 +48,10 @@ def tracked(func: Callable[P, R]) -> Callable[P, R]:
     @wraps(func)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
         # Don't override the current tracked function if it's already set
-        if tracked_func() is not None:
+        if tracked_func():
             return func(*args, **kwargs)
 
-        token = _current_func.set(TrackedFuncInfo(call_id=uuid4(), func=func_namespace))
+        token = _current_func.set(TrackedFuncInfo(func=func_namespace))
         try:
             return func(*args, **kwargs)
         finally:
