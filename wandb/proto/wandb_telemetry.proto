@@ -128,6 +128,7 @@ message Imports {
   bool curated_transformers = 104;  // curated-transformers
   bool orjson = 105;
   bool lightning = 106;  // lightning, formerly pytorch-lightning
+  bool dspy = 107;
 }
 
 message Feature {
@@ -203,6 +204,7 @@ message Feature {
   bool dcgm_profiling_enabled = 70;       // DCGM profiling was enabled
   bool fork_mode = 71;                    // User created a forked run
   bool rewind_mode = 72;                  // User created a rewound run
+  bool dspy_callback = 73;                // User using WandbDSPyCallback
 }
 
 message Env {
