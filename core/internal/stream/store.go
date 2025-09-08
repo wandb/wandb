@@ -33,13 +33,15 @@ func NewStore(fileName string) *Store {
 	return &Store{name: fileName}
 }
 
-// Open opens the store
+// Open opens the store.
+//
+// OS errors from open() are wrapped and can be examined using errors.Is()
 func (sr *Store) Open(flag int) error {
 	switch flag {
 	case os.O_RDONLY:
 		f, err := os.Open(sr.name)
 		if err != nil {
-			return fmt.Errorf("store: failed to open file: %v", err)
+			return fmt.Errorf("store: failed to open file: %w", err)
 		}
 		sr.db = f
 		sr.reader = leveldb.NewReaderExt(f, leveldb.CRCAlgoIEEE)
@@ -52,7 +54,7 @@ func (sr *Store) Open(flag int) error {
 	case os.O_WRONLY:
 		f, err := os.Create(sr.name)
 		if err != nil {
-			return fmt.Errorf("store: failed to open file: %v", err)
+			return fmt.Errorf("store: failed to open file: %w", err)
 		}
 		sr.db = f
 		sr.writer = leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, wandbStoreVersion)
