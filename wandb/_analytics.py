@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
+from dataclasses import dataclass
 from functools import wraps
 from typing import Callable, Final, TypeVar
 from uuid import UUID, uuid4
 
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import ParamSpec
 
 from wandb._strutils import nameof
@@ -13,25 +13,28 @@ from wandb._strutils import nameof
 P = ParamSpec("P")
 R = TypeVar("R")
 
+# Header keys for tracking the calling function
+X_WANDB_PYTHON_FUNC: Final[str] = "X-Wandb-Python-Func"
+X_WANDB_PYTHON_CALL_ID: Final[str] = "X-Wandb-Python-Call-Id"
 
-@pydantic_dataclass(frozen=True, slots=True)
+
+@dataclass(frozen=True)
 class TrackedFuncInfo:
-    id_: UUID  #: A unique identifier individual to each call to the tracked function.
-    name: str  #: The fully qualified namespace of the tracked function.
+    func: str
+    """The fully qualified namespace of the tracked function."""
+
+    call_id: UUID
+    """A unique identifier assigned to each invocation."""
 
     def to_headers(self) -> dict[str, str]:
         return {
-            X_WANDB_PYTHON_CALL_ID: str(self.id_),
-            X_WANDB_PYTHON_FUNC: self.name,
+            X_WANDB_PYTHON_FUNC: self.func,
+            X_WANDB_PYTHON_CALL_ID: str(self.call_id),
         }
 
 
 _current_func: ContextVar[TrackedFuncInfo] = ContextVar("_current_func")
-
-
-# Header keys for tracking the calling function
-X_WANDB_PYTHON_FUNC: Final[str] = "X-Wandb-Python-Func"
-X_WANDB_PYTHON_CALL_ID: Final[str] = "X-Wandb-Python-Call-Id"
+"""An internal, threadsafe context variable to hold the current function being tracked."""
 
 
 def tracked(func: Callable[P, R]) -> Callable[P, R]:
@@ -48,7 +51,7 @@ def tracked(func: Callable[P, R]) -> Callable[P, R]:
         if tracked_func() is not None:
             return func(*args, **kwargs)
 
-        token = _current_func.set(TrackedFuncInfo(id_=uuid4(), name=func_namespace))
+        token = _current_func.set(TrackedFuncInfo(call_id=uuid4(), func=func_namespace))
         try:
             return func(*args, **kwargs)
         finally:
