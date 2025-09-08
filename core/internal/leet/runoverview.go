@@ -634,43 +634,42 @@ func (s *Sidebar) navigateDown() {
 	}
 }
 
-// navigateSection jumps between sections.
+// navigateSection jumps between sections, skipping empty ones.
 func (s *Sidebar) navigateSection(direction int) {
-	// Find next non-empty section
-	startSection := s.activeSection
-	attempts := 0
+	if len(s.sections) == 0 {
+		return
+	}
 
-	for attempts < len(s.sections) {
-		newSection := s.activeSection + direction
-		if newSection < 0 {
-			newSection = len(s.sections) - 1
-		} else if newSection >= len(s.sections) {
-			newSection = 0
+	prev := s.activeSection
+	idx := prev
+
+	// Scan forward/backward without mutating state.
+	for i := 0; i < len(s.sections); i++ {
+		idx += direction
+		if idx < 0 {
+			idx = len(s.sections) - 1
+		} else if idx >= len(s.sections) {
+			idx = 0
 		}
 
-		if len(s.sections[newSection].FilteredItems) > 0 {
-			s.sections[s.activeSection].Active = false
-			s.activeSection = newSection
-			s.sections[s.activeSection].Active = true
-			// Reset cursor to first item when switching sections
-			s.sections[s.activeSection].CursorPos = 0
-			break
+		if len(s.sections[idx].FilteredItems) > 0 {
+			// Deactivate previous, activate the found section.
+			s.sections[prev].Active = false
+			s.activeSection = idx
+			s.sections[idx].Active = true
+			// Reset position in the newly focused section.
+			s.sections[idx].CurrentPage = 0
+			s.sections[idx].CursorPos = 0
+			return
 		}
 
-		// Update activeSection for next iteration
-		s.activeSection = newSection
-		attempts++
-
-		// If we've cycled through all sections and found nothing, break
-		if s.activeSection == startSection {
+		// Full loop, nothing to switch to.
+		if idx == prev {
 			break
 		}
 	}
-
-	// If no non-empty sections found, stay on current
-	if attempts == len(s.sections) {
-		s.activeSection = startSection
-	}
+	// Keep the current section active if no non-empty target exists.
+	s.sections[prev].Active = true
 }
 
 // navigatePage changes page within active section.
