@@ -16,3 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - Add DSPy integration: track evaluation metrics over time, log predictions and program signature evolution to W&B Tables, and save DSPy programs as W&B Artifacts (complete program or state as JSON/PKL) (@ayulockin in https://github.com/wandb/wandb/pull/10327)
+
+### Fixed
+
+- Resuming a run with a different active run now returns the correct run id for the resumed run, rather than the last active run. (@jacobromero in https://github.com/wandb/wandb/pull/10468)
