@@ -113,9 +113,14 @@ class ServiceConnection:
         handle = self._client.deliver(request)
         return handle.map(lambda r: r.init_sync_response)
 
-    def sync(self, id: str) -> MailboxHandle[wandb_sync_pb2.ServerSyncResponse]:
+    def sync(
+        self,
+        id: str,
+        *,
+        parallelism: int,
+    ) -> MailboxHandle[wandb_sync_pb2.ServerSyncResponse]:
         """Send a ServerSyncRequest."""
-        sync = wandb_sync_pb2.ServerSyncRequest(id=id)
+        sync = wandb_sync_pb2.ServerSyncRequest(id=id, parallelism=parallelism)
         request = spb.ServerRequest(sync=sync)
 
         handle = self._client.deliver(request)

@@ -65,7 +65,7 @@ func (m *RunSyncManager) DoSync(
 		}}
 	}
 
-	op.Do()
+	op.Do(int(request.GetParallelism()))
 
 	m.mu.Lock()
 	delete(m.ongoingSyncOps, request.Id)

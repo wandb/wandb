@@ -30,6 +30,7 @@ def sync(
     dry_run: bool,
     skip_synced: bool,
     verbose: bool,
+    parallelism: int,
 ) -> None:
     """Replay one or more .wandb files.
 
@@ -40,6 +41,7 @@ def sync(
         skip_synced: If true, skips files that have already been synced
             as indicated by a .wandb.synced marker file in the same directory.
         verbose: Verbose mode for printing more info.
+        parallelism: Max number of runs to sync at a time.
     """
     wandb_files: set[pathlib.Path] = set()
     for path in paths:
@@ -67,6 +69,7 @@ def sync(
             service=service,
             settings=singleton.settings,
             printer=printer,
+            parallelism=parallelism,
         )
     )
 
@@ -77,6 +80,7 @@ async def _do_sync(
     service: ServiceConnection,
     settings: wandb.Settings,
     printer: Printer,
+    parallelism: int,
 ) -> None:
     """Sync the specified files.
 
@@ -87,7 +91,7 @@ async def _do_sync(
         settings,
     ).wait_async(timeout=5)
 
-    sync_handle = service.sync(init_result.id)
+    sync_handle = service.sync(init_result.id, parallelism=parallelism)
 
     await _SyncStatusLoop(
         init_result.id,
