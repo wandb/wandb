@@ -166,7 +166,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 				m.logger.Info(fmt.Sprintf("model: created %d charts", len(m.allCharts)))
 			}
 		}
-		chart.AddDataPoint(value)
+		chart.AddPoint(float64(msg.Step), value)
 	}
 
 	// Sort if we added new charts (this will also assign/reassign colors)
