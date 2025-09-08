@@ -7,10 +7,15 @@ import (
 	"os"
 	"sync"
 
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+)
+
+var runReaderProviders = wire.NewSet(
+	wire.Struct(new(RunReaderFactory), "*"),
 )
 
 // RunReaderFactory constructs RunReader.

@@ -131,16 +131,25 @@ def skip_asyncio_sleep(monkeypatch):
     monkeypatch.setattr(beta_sync, "_SLEEP", do_nothing)
 
 
-def test_makes_sync_request(runner: CliRunner):
+def test_syncs_run(wandb_backend_spy, runner: CliRunner):
     with wandb.init(mode="offline") as run:
         run.log({"test_sync": 321})
+        run.summary["test_sync_summary"] = "test summary"
 
     result = runner.invoke(cli.beta, f"sync {run.settings.sync_dir}")
 
     lines = result.output.splitlines()
     assert lines[0] == "Syncing 1 file(s):"
     assert lines[1].endswith(f"run-{run.id}.wandb")
-    assert lines[2] == "wandb: ERROR Internal error: not implemented"
+    # More lines possible depending on status updates. Not deterministic.
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+        assert len(history) == 1
+        assert history[0]["test_sync"] == 321
+
+        summary = snapshot.summary(run_id=run.id)
+        assert summary["test_sync_summary"] == "test summary"
 
 
 @pytest.mark.parametrize("skip_synced", (True, False))

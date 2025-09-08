@@ -1,6 +1,6 @@
 //go:build wireinject
 
-package stream
+package runsync
 
 import (
 	"log/slog"
@@ -11,55 +11,51 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
-	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
+	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
-// InjectStream returns a new Stream.
-func InjectStream(
-	commit GitCommitHash,
-	gpuResourceManager *monitor.GPUResourceManager,
-	debugCorePath DebugCorePath,
-	logLevel slog.Level,
-	sentry *sentry_ext.Client,
+func InjectRunSyncerFactory(
+	operations *wboperation.WandbOperations,
 	settings *settings.Settings,
-) *Stream {
-	wire.Build(streamProviders)
-	return &Stream{}
+) *RunSyncerFactory {
+	wire.Build(runSyncerFactoryBindings)
+	return &RunSyncerFactory{}
 }
 
-var streamProviders = wire.NewSet(
-	NewStream,
+var runSyncerFactoryBindings = wire.NewSet(
 	wire.Bind(new(api.Peeker), new(*observability.Peeker)),
 	wire.Struct(new(observability.Peeker)),
 	featurechecker.NewServerFeaturesCache,
 	filestream.FileStreamProviders,
 	filetransfer.NewFileTransferStats,
-	handlerProviders,
 	mailbox.New,
-	monitor.SystemMonitorProviders,
-	NewBackend,
-	NewFileTransferManager,
-	NewGraphQLClient,
-	NewStreamRun,
 	observability.NewPrinter,
 	provideFileWatcher,
-	RecordParserProviders,
 	runfiles.UploaderProviders,
-	SenderProviders,
+	runReaderProviders,
+	runSyncerProviders,
 	sharedmode.RandomClientID,
-	streamLoggerProviders,
+	stream.NewBackend,
+	stream.NewFileTransferManager,
+	stream.NewGraphQLClient,
+	stream.NewStreamRun,
+	stream.RecordParserProviders,
+	stream.SenderProviders,
 	tensorboard.TBHandlerProviders,
-	wboperation.NewOperations,
-	WriterProviders,
+	todoLogger,
 )
+
+func todoLogger() *observability.CoreLogger {
+	// TODO: Wire this to the proper place.
+	return observability.NewCoreLogger(slog.Default(), nil)
+}
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})
