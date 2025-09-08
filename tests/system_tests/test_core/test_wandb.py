@@ -270,6 +270,21 @@ def test_run_resumed(user):
         assert run.config.fruit == "banana"
 
 
+def test_run_resumed__with_different_active_run(user):
+    run_1 = wandb.init()
+    run_1.config.update({"fruit": "banana"})
+    run_1.finish()
+    run_2 = wandb.init()
+    run_2.config.update({"fruit": "apple"})
+    run_3 = wandb.init(id=run_1.id, resume="must")
+    run_2.finish()
+    run_3.finish()
+
+    assert run_1.id == run_3.id
+    assert run_3.resumed is True
+    assert run_3.config.fruit == "banana"
+
+
 def test_run_sweepid(user):
     run = wandb.init()
     run.finish()

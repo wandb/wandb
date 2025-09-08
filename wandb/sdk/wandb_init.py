@@ -820,7 +820,8 @@ class _WandbInit:
             f"\nconfig: {config.base_no_artifacts}"
         )
 
-        if previous_run := self._wl.most_recent_active_run:
+        previous_run = self._wl.most_recent_active_run
+        if previous_run and (settings.resume is None or settings.resume != "must"):
             if (
                 settings.reinit in (True, "finish_previous")
                 # calling wandb.init() in notebooks finishes previous runs
