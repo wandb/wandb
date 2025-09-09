@@ -35,7 +35,6 @@ def beta():
 
 @beta.command(
     name="leet",
-    context_settings={"default_map": {}},
     help=(
         "Lightweight Experiment Exploration Tool.\n\n"
         "A terminal UI for viewing your W&B runs locally.\n\n"
