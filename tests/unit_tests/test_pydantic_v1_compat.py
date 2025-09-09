@@ -26,6 +26,8 @@ from wandb._pydantic import (
     IS_PYDANTIC_V2,
     AliasChoices,
     CompatBaseModel,
+    GQLInput,
+    GQLResult,
     computed_field,
     field_validator,
     model_validator,
@@ -299,3 +301,65 @@ def test_generated_pydantic_fragment_validates_response_data():
         validated.project.artifact_type.artifact.files.edges[0].node.name
         == "random_image.png"
     )
+
+
+# ------------------------------------------------------------------------------
+class NestedInput(GQLInput):
+    inner_str: Optional[str] = None
+    inner_int: Optional[int] = None
+
+
+class CreateThingInput(GQLInput):
+    required_value: int
+    optional_str: Optional[str] = None
+    optional_int: Optional[int] = None
+    nested: Optional[NestedInput] = None
+
+
+NestedInput.model_rebuild()
+CreateThingInput.model_rebuild()
+
+
+def test_gql_input_dump_excludes_none_by_default():
+    """Check that GQLInput classes omit None-valued fields by default but allow for overrides."""
+    obj = CreateThingInput(
+        required_value=1,
+        optional_str=None,
+        nested={"inner_str": "inside"},
+    )
+
+    # By default, None-valued fields are excluded
+    expected_with_default = {"required_value": 1, "nested": {"inner_str": "inside"}}
+    assert obj.model_dump() == expected_with_default
+    assert json.loads(obj.model_dump_json()) == expected_with_default
+
+    # Overrides are respected
+    expected_with_nones = {
+        "required_value": 1,
+        "optional_str": None,
+        "optional_int": None,
+        "nested": {
+            "inner_str": "inside",
+            "inner_int": None,
+        },
+    }
+    assert obj.model_dump(exclude_none=False) == expected_with_nones
+    assert json.loads(obj.model_dump_json(exclude_none=False)) == expected_with_nones
+
+
+class ThingResult(GQLResult):
+    foo_bar: int
+    hello_world: str = Field(alias="helloWORLD")
+
+
+def test_gql_result_is_frozen_and_uses_camelcase_aliases_by_default():
+    """Check that GQLResult classes are frozen and use camelCase aliases by default."""
+    result = ThingResult.model_validate({"fooBar": 7, "helloWORLD": "good morning"})
+
+    # camelCase aliasing is applied by default for dumps
+    assert result.model_dump() == {"fooBar": 7, "helloWORLD": "good morning"}
+
+    # Instances are frozen/immutable
+    expectation = raises(ValidationError if IS_PYDANTIC_V2 else TypeError)
+    with expectation:
+        result.foo_bar = 9  # type: ignore[misc]

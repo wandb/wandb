@@ -7,12 +7,12 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import TypeInfoFragment
 
 
-class TypeInfo(GQLBase):
+class TypeInfo(GQLResult):
     type: Optional[TypeInfoFragment] = Field(alias="__type")
 
 

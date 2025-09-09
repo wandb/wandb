@@ -5,6 +5,8 @@ __all__ = [
     "CompatBaseModel",
     "JsonableModel",
     "GQLBase",
+    "GQLInput",
+    "GQLResult",
     "Typename",
     "GQLId",
     "AliasChoices",
@@ -18,7 +20,7 @@ __all__ = [
     "gql_typename",
 ]
 
-from .base import CompatBaseModel, GQLBase, JsonableModel
+from .base import CompatBaseModel, GQLBase, GQLInput, GQLResult, JsonableModel
 from .field_types import GQLId, Typename
 from .utils import IS_PYDANTIC_V2, from_json, gql_typename, pydantic_isinstance, to_json
 from .v1_compat import (

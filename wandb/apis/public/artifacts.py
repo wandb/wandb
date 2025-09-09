@@ -45,7 +45,10 @@ from wandb.sdk.artifacts._generated import (
     ArtifactTypeFragment,
     ArtifactTypesFragment,
     ArtifactVersionFiles,
+    CreateArtifactCollectionTagAssignmentsInput,
+    DeleteArtifactCollectionTagAssignmentsInput,
     FilesFragment,
+    MoveArtifactSequenceInput,
     ProjectArtifactCollection,
     ProjectArtifactCollections,
     ProjectArtifacts,
@@ -53,6 +56,8 @@ from wandb.sdk.artifacts._generated import (
     ProjectArtifactTypes,
     RunInputArtifactConnectionFragment,
     RunOutputArtifactConnectionFragment,
+    UpdateArtifactPortfolioInput,
+    UpdateArtifactSequenceInput,
 )
 from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 from wandb.sdk.artifacts._validators import (
@@ -505,12 +510,13 @@ class ArtifactCollection:
         termlog(
             f"Changing artifact collection type of {self._saved_type} to {new_type}"
         )
+        gql_input = MoveArtifactSequenceInput(
+            artifact_sequence_id=self.id,
+            destination_artifact_type_name=new_type,
+        )
         self.client.execute(
             gql(MOVE_ARTIFACT_COLLECTION_GQL),
-            variable_values={
-                "artifactSequenceID": self.id,
-                "destinationArtifactTypeName": new_type,
-            },
+            variable_values={"input": gql_input.model_dump()},
         )
         self._saved_type = new_type
         self._type = new_type
@@ -580,51 +586,51 @@ class ArtifactCollection:
         self._type = type
 
     def _update_collection(self) -> None:
-        self.client.execute(
-            gql(
-                UPDATE_ARTIFACT_SEQUENCE_GQL
-                if self.is_sequence()
-                else UPDATE_ARTIFACT_PORTFOLIO_GQL
-            ),
-            variable_values={
-                "id": self.id,
-                "name": self.name,
-                "description": self.description,
-            },
-        )
+        if self.is_sequence():
+            gql_op = gql(UPDATE_ARTIFACT_SEQUENCE_GQL)
+            gql_input = UpdateArtifactSequenceInput(
+                artifact_sequence_id=self.id,
+                name=self.name,
+                description=self.description,
+            )
+        else:
+            gql_op = gql(UPDATE_ARTIFACT_PORTFOLIO_GQL)
+            gql_input = UpdateArtifactPortfolioInput(
+                artifact_portfolio_id=self.id,
+                name=self.name,
+                description=self.description,
+            )
+        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
         self._saved_name = self._name
 
     def _update_collection_type(self) -> None:
-        self.client.execute(
-            gql(MOVE_ARTIFACT_COLLECTION_GQL),
-            variable_values={
-                "artifactSequenceID": self.id,
-                "destinationArtifactTypeName": self.type,
-            },
+        gql_op = gql(MOVE_ARTIFACT_COLLECTION_GQL)
+        gql_input = MoveArtifactSequenceInput(
+            artifact_sequence_id=self.id,
+            destination_artifact_type_name=self.type,
         )
+        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
         self._saved_type = self._type
 
     def _add_tags(self, tags_to_add: Iterable[str]) -> None:
-        self.client.execute(
-            gql(CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL),
-            variable_values={
-                "entityName": self.entity,
-                "projectName": self.project,
-                "artifactCollectionName": self._saved_name,
-                "tags": [{"tagName": tag} for tag in tags_to_add],
-            },
+        gql_op = gql(CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL)
+        gql_input = CreateArtifactCollectionTagAssignmentsInput(
+            entity_name=self.entity,
+            project_name=self.project,
+            artifact_collection_name=self._saved_name,
+            tags=[{"tagName": tag} for tag in tags_to_add],
         )
+        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
 
     def _delete_tags(self, tags_to_delete: Iterable[str]) -> None:
-        self.client.execute(
-            gql(DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL),
-            variable_values={
-                "entityName": self.entity,
-                "projectName": self.project,
-                "artifactCollectionName": self._saved_name,
-                "tags": [{"tagName": tag} for tag in tags_to_delete],
-            },
+        gql_op = gql(DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL)
+        gql_input = DeleteArtifactCollectionTagAssignmentsInput(
+            entity_name=self.entity,
+            project_name=self.project,
+            artifact_collection_name=self._saved_name,
+            tags=[{"tagName": tag} for tag in tags_to_delete],
         )
+        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
 
     @normalize_exceptions
     def save(self) -> None:

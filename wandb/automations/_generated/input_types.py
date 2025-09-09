@@ -7,7 +7,7 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLId, GQLInput
 
 from .enums import (
     AlertSeverity,
@@ -17,7 +17,7 @@ from .enums import (
 )
 
 
-class CreateGenericWebhookIntegrationInput(GQLBase):
+class CreateGenericWebhookIntegrationInput(GQLInput):
     entity_name: str = Field(alias="entityName")
     url_endpoint: str = Field(alias="urlEndpoint")
     name: str
@@ -26,28 +26,28 @@ class CreateGenericWebhookIntegrationInput(GQLBase):
     client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
 
 
-class QueueJobActionInput(GQLBase):
+class QueueJobActionInput(GQLInput):
     queue_id: GQLId = Field(alias="queueID")
     template: str
 
 
-class NotificationActionInput(GQLBase):
+class NotificationActionInput(GQLInput):
     integration_id: GQLId = Field(alias="integrationID")
     title: Optional[str] = None
     message: Optional[str] = None
     severity: Optional[AlertSeverity] = None
 
 
-class GenericWebhookActionInput(GQLBase):
+class GenericWebhookActionInput(GQLInput):
     integration_id: GQLId = Field(alias="integrationID")
     request_payload: Optional[str] = Field(alias="requestPayload", default=None)
 
 
-class NoOpTriggeredActionInput(GQLBase):
+class NoOpTriggeredActionInput(GQLInput):
     no_op: Optional[bool] = Field(alias="noOp", default=None)
 
 
-class TriggeredActionConfig(GQLBase):
+class TriggeredActionConfig(GQLInput):
     queue_job_action_input: Optional[QueueJobActionInput] = Field(
         alias="queueJobActionInput", default=None
     )
@@ -62,7 +62,7 @@ class TriggeredActionConfig(GQLBase):
     )
 
 
-class CreateFilterTriggerInput(GQLBase):
+class CreateFilterTriggerInput(GQLInput):
     name: str
     description: Optional[str] = None
     triggering_event_type: EventTriggeringConditionType = Field(
@@ -79,7 +79,7 @@ class CreateFilterTriggerInput(GQLBase):
     client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
 
 
-class UpdateFilterTriggerInput(GQLBase):
+class UpdateFilterTriggerInput(GQLInput):
     id: GQLId
     name: Optional[str] = None
     description: Optional[str] = None

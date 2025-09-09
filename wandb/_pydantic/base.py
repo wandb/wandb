@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, ClassVar, Literal
 from pydantic import BaseModel, ConfigDict
 from typing_extensions import TypedDict, Unpack, override
 
-from .v1_compat import PydanticCompatMixin
+from .v1_compat import PydanticCompatMixin, to_camel
 
 if TYPE_CHECKING:
     from pydantic.main import IncEx
@@ -80,29 +80,51 @@ class JsonableModel(CompatBaseModel, ABC):
 
     @override
     def model_dump(
-        self,
-        *,
-        mode: Literal["json", "python"] | str = "json",  # NOTE: changed default
-        **kwargs: Unpack[ModelDumpKwargs],
+        self, *, mode: str = "json", **kwargs: Unpack[ModelDumpKwargs]
     ) -> dict[str, Any]:
         kwargs = {**self.__DUMP_DEFAULTS, **kwargs}  # allows overrides, if needed
         return super().model_dump(mode=mode, **kwargs)
 
     @override
     def model_dump_json(
-        self,
-        *,
-        indent: int | None = None,
-        **kwargs: Unpack[ModelDumpKwargs],
+        self, *, indent: int | None = None, **kwargs: Unpack[ModelDumpKwargs]
     ) -> str:
         kwargs = {**self.__DUMP_DEFAULTS, **kwargs}  # allows overrides, if needed
         return super().model_dump_json(indent=indent, **kwargs)
 
 
-# Base class for all GraphQL-generated types.
+# Base class for all GraphQL-derived types.
 class GQLBase(JsonableModel, ABC):
     model_config = ConfigDict(
         validate_default=True,
         revalidate_instances="always",
         protected_namespaces=(),  # Some GraphQL fields may begin with "model_"
     )
+
+
+# Base class for GraphQL result types, i.e. parsed GraphQL response data.
+class GQLResult(GQLBase, ABC):
+    model_config = ConfigDict(
+        alias_generator=to_camel,  # Assume JSON names are camelCase, by default
+        frozen=True,  # Keep the actual response data immutable
+    )
+
+
+# Base class for GraphQL input types, i.e. prepared GraphQL variables or input objects for queries and mutations.
+class GQLInput(GQLBase, ABC):
+    # For GraphQL input types, exclude null input values when preparing the JSON-able request data.
+    __DUMP_DEFAULTS: ClassVar[ModelDumpKwargs] = ModelDumpKwargs(exclude_none=True)
+
+    @override
+    def model_dump(
+        self, *, mode: str = "json", **kwargs: Unpack[ModelDumpKwargs]
+    ) -> dict[str, Any]:
+        kwargs = {**self.__DUMP_DEFAULTS, **kwargs}  # allows overrides, if needed
+        return super().model_dump(mode=mode, **kwargs)
+
+    @override
+    def model_dump_json(
+        self, *, indent: int | None = None, **kwargs: Unpack[ModelDumpKwargs]
+    ) -> str:
+        kwargs = {**self.__DUMP_DEFAULTS, **kwargs}  # allows overrides, if needed
+        return super().model_dump_json(indent=indent, **kwargs)
