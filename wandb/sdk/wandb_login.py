@@ -47,7 +47,7 @@ def login(
     timeout: Optional[int] = None,
     verify: bool = False,
     referrer: Optional[str] = None,
-) -> str:
+) -> (bool, str):
     """Set up W&B login credentials.
 
     By default, this will only store credentials locally without
@@ -277,11 +277,11 @@ def _login(
     update_api_key: bool = True,
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
-) -> str:
+) -> (bool, str):
     if wandb.run is not None:
         if not _disable_warning:
             wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
-        return True
+        return True, None
 
     wlogin = _WandbLogin(
         anonymous=anonymous,
@@ -293,19 +293,19 @@ def _login(
     )
 
     if wlogin._settings._noop:
-        return True
+        return True, None
 
     if wlogin._settings._offline and not wlogin._settings.x_cli_only_mode:
         wandb.termwarn("Unable to verify login in offline mode.")
-        return False
+        return False, None
     elif wandb.util._is_kaggle() and not wandb.util._has_internet():
         wandb.termerror(
             "To use W&B in kaggle you must enable internet in the settings panel on the right."
         )
-        return False
+        return False, None
 
     if wlogin._settings.identity_token_file:
-        return True
+        return True, None
 
     key_is_pre_configured = False
     key_status = None
@@ -329,4 +329,4 @@ def _login(
     if key and not _silent:
         wlogin._print_logged_in_message()
 
-    return key
+    return key is not None, key
