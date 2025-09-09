@@ -75,7 +75,7 @@ def mock_tty(monkeypatch):
 
 def test_login_timeout(mock_tty):
     mock_tty("junk\nmore\n")
-    logged_in, _ = wandb.login(timeout=4)
+    logged_in = wandb.login(timeout=4)
     assert logged_in is False
     assert wandb.api.api_key is None
     assert wandb.setup().settings.mode == "disabled"
@@ -87,7 +87,7 @@ def test_login_timeout(mock_tty):
 )
 def test_login_timeout_choose(mock_tty):
     mock_tty("3\n")
-    logged_in, _ = wandb.login(timeout=8)
+    logged_in = wandb.login(timeout=8)
     assert logged_in is False
     assert wandb.api.api_key is None
     assert wandb.setup().settings.mode == "offline"
@@ -96,7 +96,7 @@ def test_login_timeout_choose(mock_tty):
 def test_login_timeout_env_blank(mock_tty):
     mock_tty("\n\n\n")
     with mock.patch.dict(os.environ, {"WANDB_LOGIN_TIMEOUT": "4"}):
-        logged_in, _ = wandb.login()
+        logged_in = wandb.login()
         assert logged_in is False
         assert wandb.api.api_key is None
         assert wandb.setup().settings.mode == "disabled"
@@ -110,9 +110,9 @@ def test_login_timeout_env_invalid(mock_tty):
 
 
 def test_relogin_timeout(dummy_api_key):
-    logged_in, _ = wandb.login(relogin=True, key=dummy_api_key)
+    logged_in = wandb.login(relogin=True, key=dummy_api_key)
     assert logged_in is not None
-    logged_in, _ = wandb.login()
+    logged_in = wandb.login()
     assert logged_in is not None
 
 

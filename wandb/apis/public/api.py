@@ -309,7 +309,7 @@ class Api:
         if _thread_local_api_settings.cookies is None:
             # re-assign the api key
             # in the event that the user is prompted for a key
-            _, self._api_key = wandb_login._login(
+            logged_in, self._api_key = wandb_login._login(
                 host=self.settings["base_url"],
                 key=self.api_key,
                 verify=True,
@@ -320,6 +320,12 @@ class Api:
                 update_api_key=False,
                 _disable_warning=True,
             )
+
+            if not logged_in:
+                raise wandb.Error(
+                    "Unable to login with the provided API key. "
+                    "Please verify the API key and try again."
+                )
 
         self._viewer = None
         self._projects = {}

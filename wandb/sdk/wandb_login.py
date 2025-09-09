@@ -47,7 +47,7 @@ def login(
     timeout: Optional[int] = None,
     verify: bool = False,
     referrer: Optional[str] = None,
-) -> (bool, str):
+) -> bool:
     """Set up W&B login credentials.
 
     By default, this will only store credentials locally without
@@ -77,7 +77,7 @@ def login(
         UsageError: If `api_key` cannot be configured and no tty.
     """
     _handle_host_wandb_setting(host)
-    return _login(
+    logged_in, _ = _login(
         anonymous=anonymous,
         key=key,
         relogin=relogin,
@@ -87,6 +87,7 @@ def login(
         verify=verify,
         referrer=referrer,
     )
+    return logged_in
 
 
 class ApiKeyStatus(enum.Enum):
@@ -278,6 +279,23 @@ def _login(
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
 ) -> (bool, str):
+    """Logs in to W&B.
+
+    This is the internal implementation of wandb.login(),
+    with many of the same arguments as wandb.login().
+    Additional arguments are documented below.
+
+    Args:
+        update_api_key: If true, the api key will be saved or updated
+            in the users .netrc file.
+        _silent: If true, will not print any messages to the console.
+        _disable_warning: If true, no warning will be displayed
+            when calling wandb.login() after wandb.init().
+
+    Returns:
+        bool: If the login was successful.
+        str: The API key used to log in.
+    """
     if wandb.run is not None:
         if not _disable_warning:
             wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
