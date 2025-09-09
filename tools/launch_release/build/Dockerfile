@@ -2,7 +2,7 @@ FROM python:3.11-slim-bookworm AS builder
 
 RUN apt-get update && apt-get install -y \
     git gcc python3-dev curl
-RUN curl -L https://go.dev/dl/go1.24.4.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+RUN curl -L https://go.dev/dl/go1.25.1.linux-amd64.tar.gz | tar -C /usr/local -xzf -
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV WANDB_BUILD_SKIP_GPU_STATS=true
 

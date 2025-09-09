@@ -36,7 +36,9 @@ from wandb_gql.client import RetryError
 
 import wandb
 from wandb import env, util
+from wandb._analytics import tracked
 from wandb._iterutils import one
+from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
@@ -51,6 +53,7 @@ from wandb.apis.public.utils import (
 )
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.sdk import wandb_login
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -303,8 +306,18 @@ class Api:
             self.settings["entity"] = _overrides["username"]
 
         self._api_key = api_key
-        if self.api_key is None and _thread_local_api_settings.cookies is None:
-            wandb.login(host=_overrides.get("base_url"))
+        if _thread_local_api_settings.cookies is None:
+            wandb_login._login(
+                host=self.settings["base_url"],
+                key=self.api_key,
+                verify=True,
+                _silent=(
+                    self.settings.get("silent", False)
+                    or self.settings.get("quiet", False)
+                ),
+                update_api_key=False,
+                _disable_warning=True,
+            )
 
         self._viewer = None
         self._projects = {}
@@ -337,6 +350,25 @@ class Api:
             )
         )
         self._client = RetryingClient(self._base_client)
+        self._sentry = wandb.analytics.sentry.Sentry()
+        self._configure_sentry()
+
+    def _configure_sentry(self) -> None:
+        try:
+            viewer = self.viewer
+        except (ValueError, requests.RequestException):
+            # we need the viewer to configure the entity, and user email
+            return
+
+        email = viewer.email if viewer else None
+        entity = self.default_entity
+
+        self._sentry.configure_scope(
+            tags={
+                "entity": entity,
+                "email": email,
+            },
+        )
 
     def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
@@ -740,11 +772,22 @@ class Api:
 
     @property
     def viewer(self) -> "public.User":
-        """Returns the viewer object."""
+        """Returns the viewer object.
+
+        Raises:
+            ValueError: If viewer data is not able to be fetched from W&B.
+            requests.RequestException: If an error occurs while making the graphql request.
+        """
         if self._viewer is None:
-            self._viewer = public.User(
-                self._client, self._client.execute(self.VIEWER_QUERY).get("viewer")
-            )
+            viewer = self._client.execute(self.VIEWER_QUERY).get("viewer")
+
+            if viewer is None:
+                raise ValueError(
+                    "Unable to fetch user data from W&B,"
+                    " please verify your API key is valid."
+                )
+
+            self._viewer = public.User(self._client, viewer)
             self._default_entity = self._viewer.entity
         return self._viewer
 
@@ -948,7 +991,7 @@ class Api:
         future releases.
 
         Args:
-            path: The path to project the report resides in. Specify the
+            path: The path to the project the report resides in. Specify the
                 entity that created the project as a prefix followed by a
                 forward slash.
             name: Name of the report requested.
@@ -966,7 +1009,6 @@ class Api:
 
         wandb.Api.reports("entity/project")
         ```
-
         """
         entity, project, _ = self._parse_path(path + "/fake_run")
 
@@ -1059,7 +1101,7 @@ class Api:
         per_page: int = 50,
         include_sweeps: bool = True,
     ):
-        """Return a set of runs from a project that match the filters provided.
+        """Returns a `Runs` object, which lazily iterates over `Run` objects.
 
         Fields you can filter by include:
         - `createdAt`: The timestamp when the run was created. (in ISO 8601 format, e.g. "2023-01-01T12:00:00Z")
@@ -1102,8 +1144,8 @@ class Api:
                 For example: `{"config.experiment_name": "foo"}` would find runs with a config entry
                     of experiment name set to "foo"
             order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
-                If you prepend order with a + order is ascending.
-                If you prepend order with a - order is descending (default).
+                If you prepend order with a + order is ascending (default).
+                If you prepend order with a - order is descending.
                 The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
             include_sweeps: (bool) Whether to include the sweep runs in the results.
@@ -1690,12 +1732,13 @@ class Api:
 
         return True
 
+    @tracked
     def registries(
         self,
         organization: Optional[str] = None,
         filter: Optional[Dict[str, Any]] = None,
     ) -> Registries:
-        """Returns a Registry iterator.
+        """Returns a lazy iterator of `Registry` objects.
 
         Use the iterator to search and filter registries, collections,
         or artifact versions across your organization's registry.
@@ -1703,8 +1746,8 @@ class Api:
         Args:
             organization: (str, optional) The organization of the registry to fetch.
                 If not specified, use the organization specified in the user's settings.
-            filter: (dict, optional) MongoDB-style filter to apply to each object in the registry iterator.
-                Fields available to filter for collections are
+            filter: (dict, optional) MongoDB-style filter to apply to each object in the lazy registry iterator.
+                Fields available to filter for registries are
                     `name`, `description`, `created_at`, `updated_at`.
                 Fields available to filter for collections are
                     `name`, `tag`, `description`, `created_at`, `updated_at`
@@ -1712,7 +1755,7 @@ class Api:
                     `tag`, `alias`, `created_at`, `updated_at`, `metadata`
 
         Returns:
-            A registry iterator.
+            A lazy iterator of `Registry` objects.
 
         Examples:
         Find all registries with the names that contain "model"
@@ -1757,6 +1800,7 @@ class Api:
         )
         return Registries(self.client, organization, filter)
 
+    @tracked
     def registry(self, name: str, organization: Optional[str] = None) -> Registry:
         """Return a registry given a registry name.
 
@@ -1796,6 +1840,7 @@ class Api:
         registry.load()
         return registry
 
+    @tracked
     def create_registry(
         self,
         name: str,
@@ -1870,6 +1915,7 @@ class Api:
             artifact_types,
         )
 
+    @tracked
     def integrations(
         self,
         entity: Optional[str] = None,
@@ -1893,6 +1939,7 @@ class Api:
         params = {"entityName": entity or self.default_entity}
         return Integrations(client=self.client, variables=params, per_page=per_page)
 
+    @tracked
     def webhook_integrations(
         self, entity: Optional[str] = None, *, per_page: int = 50
     ) -> Iterator["WebhookIntegration"]:
@@ -1936,6 +1983,7 @@ class Api:
             client=self.client, variables=params, per_page=per_page
         )
 
+    @tracked
     def slack_integrations(
         self, *, entity: Optional[str] = None, per_page: int = 50
     ) -> Iterator["SlackIntegration"]:
@@ -2039,10 +2087,10 @@ class Api:
         # Note: we can't currently define this as a constant outside the method
         # and still keep it nearby in this module, because it relies on pydantic v2-only imports
         fragment_names: dict[ActionType, str] = {
-            ActionType.NO_OP: NoOpActionFields.__name__,
-            ActionType.QUEUE_JOB: QueueJobActionFields.__name__,
-            ActionType.NOTIFICATION: NotificationActionFields.__name__,
-            ActionType.GENERIC_WEBHOOK: GenericWebhookActionFields.__name__,
+            ActionType.NO_OP: nameof(NoOpActionFields),
+            ActionType.QUEUE_JOB: nameof(QueueJobActionFields),
+            ActionType.NOTIFICATION: nameof(NotificationActionFields),
+            ActionType.GENERIC_WEBHOOK: nameof(GenericWebhookActionFields),
         }
 
         return set(
@@ -2052,6 +2100,7 @@ class Api:
             and (name := fragment_names.get(action))
         )
 
+    @tracked
     def automation(
         self,
         name: str,
@@ -2089,6 +2138,7 @@ class Api:
             too_long=ValueError("Multiple automations found"),
         )
 
+    @tracked
     def automations(
         self,
         entity: Optional[str] = None,
@@ -2146,6 +2196,7 @@ class Api:
         yield from iterator
 
     @normalize_exceptions
+    @tracked
     def create_automation(
         self,
         obj: "NewAutomation",
@@ -2253,6 +2304,7 @@ class Api:
         return Automation.model_validate(result.trigger)
 
     @normalize_exceptions
+    @tracked
     def update_automation(
         self,
         obj: "Automation",
@@ -2375,6 +2427,7 @@ class Api:
         return Automation.model_validate(result.trigger)
 
     @normalize_exceptions
+    @tracked
     def delete_automation(self, obj: Union["Automation", str]) -> Literal[True]:
         """Delete an automation.
 

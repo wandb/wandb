@@ -1,5 +1,17 @@
 # Release History
 
+## 1.19.0 (2025-08-21)
+
+### Features Added
+
+* Added `runtime.APIVersionLocationPath` to be set by clients that set the API version in the path.
+
+## 1.18.2 (2025-07-31)
+
+### Bugs Fixed
+
+* Fixed a case in which `BearerTokenPolicy` didn't ensure an authentication error is non-retriable
+
 ## 1.18.1 (2025-07-10)
 
 ### Bugs Fixed

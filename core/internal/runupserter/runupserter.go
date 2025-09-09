@@ -129,6 +129,7 @@ func InitRun(
 	// Initialize the run metrics.
 	enableServerExpandedMetrics := params.Settings.IsEnableServerSideExpandGlobMetrics()
 	if enableServerExpandedMetrics && !params.FeatureProvider.GetFeature(
+		params.BeforeRunEndCtx,
 		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
 	).Enabled {
 		params.Logger.Warn(

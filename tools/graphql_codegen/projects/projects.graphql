@@ -1,33 +1,37 @@
 fragment RegistryFragment on Project {
-    id
-    allowAllArtifactTypesInRegistry
-    artifactTypes(includeAll: true) {
-        edges {
-            node {
-                name
-            }
-        }
+  id
+  allowAllArtifactTypesInRegistry
+  artifactTypes(includeAll: true) {
+    edges {
+      node {
+        name
+      }
     }
-    name
-    description
-    createdAt
-    updatedAt
-    access
+  }
+  name
+  description
+  createdAt
+  updatedAt
+  access
 }
 
 query FetchRegistry($name: String, $entityName: String) {
-    entity(name: $entityName) {
-        project(name: $name) {
-            ...RegistryFragment
-        }
+  entity(name: $entityName) {
+    project(name: $name) {
+      ...RegistryFragment
     }
+  }
 }
 
 # ------------------ Mutations ------------------
 
 mutation renameProject($entityName: String!, $oldProjectName: String!, $newProjectName: String!) {
   renameProject(
-    input: {entityName: $entityName, oldProjectName: $oldProjectName, newProjectName: $newProjectName}
+    input: {
+      entityName: $entityName
+      oldProjectName: $oldProjectName
+      newProjectName: $newProjectName
+    }
   ) {
     project {
       name
@@ -37,33 +41,33 @@ mutation renameProject($entityName: String!, $oldProjectName: String!, $newProje
 }
 
 mutation UpsertRegistryProject(
-    $description: String,
-    $entityName: String,
-    $name: String,
-    $access: String,
-    $allowAllArtifactTypesInRegistry: Boolean,
-    $artifactTypes: [ArtifactTypeInput!]
+  $description: String
+  $entityName: String
+  $name: String
+  $access: String
+  $allowAllArtifactTypesInRegistry: Boolean
+  $artifactTypes: [ArtifactTypeInput!]
 ) {
-    upsertModel(
-        input: {
-            description: $description,
-            entityName: $entityName,
-            name: $name,
-            access: $access,
-            allowAllArtifactTypesInRegistry: $allowAllArtifactTypesInRegistry,
-            artifactTypes: $artifactTypes
-        }
-    ) {
-        project {
-            ...RegistryFragment
-        }
-        inserted
+  upsertModel(
+    input: {
+      description: $description
+      entityName: $entityName
+      name: $name
+      access: $access
+      allowAllArtifactTypesInRegistry: $allowAllArtifactTypesInRegistry
+      artifactTypes: $artifactTypes
     }
+  ) {
+    project {
+      ...RegistryFragment
+    }
+    inserted
+  }
 }
 
 mutation deleteProject($id: String!) {
-    deleteModel(input: {id: $id}) {
-        success
-        __typename
-    }
+  deleteModel(input: { id: $id }) {
+    success
+    __typename
+  }
 }

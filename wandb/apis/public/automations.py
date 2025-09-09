@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from typing_extensions import override
 from wandb_graphql.language.ast import Document
 
+from wandb._strutils import nameof
 from wandb.apis.paginator import Paginator, _Client
 
 if TYPE_CHECKING:
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 
 
 class Automations(Paginator["Automation"]):
-    """An iterable collection of `Automation` objects.
+    """An lazy iterator of `Automation` objects.
 
     <!-- lazydoc-ignore-init: internal -->
     """
@@ -34,7 +35,7 @@ class Automations(Paginator["Automation"]):
     ):
         super().__init__(client, variables, per_page=per_page)
         if _query is None:
-            raise RuntimeError(f"Query required for {type(self).__qualname__}")
+            raise RuntimeError(f"Query required for {nameof(type(self))}")
         self._query = _query
 
     @property

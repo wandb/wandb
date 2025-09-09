@@ -215,7 +215,7 @@ class MlflowImporter:
         settings_override = {
             "api_key": self.dst_api_key,
             "base_url": self.dst_base_url,
-            "resume": "true",
+            "resume": "allow",
             "resumed": True,
         }
 

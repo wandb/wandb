@@ -7,7 +7,6 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -21,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/internal/watchertest"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -110,19 +110,21 @@ func TestUploader(t *testing.T) {
 
 		fakeFileWatcher = watchertest.NewFakeWatcher()
 
-		uploader = NewUploader(runfilestest.WithTestDefaults(UploaderParams{
-			GraphQL:      mockGQLClient,
-			FileStream:   fakeFileStream,
-			FileTransfer: fakeFileTransfer,
-			FileWatcher:  fakeFileWatcher,
-			BatchDelay:   batchDelay,
-			Settings: settings.From(&spb.Settings{
-				FilesDir:    &wrapperspb.StringValue{Value: filesDir},
-				IgnoreGlobs: &spb.ListStringValue{Value: ignoreGlobs},
-				XOffline:    &wrapperspb.BoolValue{Value: isOffline},
-				XSync:       &wrapperspb.BoolValue{Value: isSync},
-			}),
-		}))
+		uploader = runfilestest.WithTestDefaults(
+			runfilestest.Params{
+				GraphQL:      mockGQLClient,
+				FileStream:   fakeFileStream,
+				FileTransfer: fakeFileTransfer,
+				FileWatcher:  fakeFileWatcher,
+				Settings: settings.From(&spb.Settings{
+					FilesDir:    &wrapperspb.StringValue{Value: filesDir},
+					IgnoreGlobs: &spb.ListStringValue{Value: ignoreGlobs},
+					XOffline:    &wrapperspb.BoolValue{Value: isOffline},
+					XSync:       &wrapperspb.BoolValue{Value: isSync},
+				}),
+				BatchDelay: batchDelay,
+			},
+		)
 
 		t.Run(name, test)
 	}

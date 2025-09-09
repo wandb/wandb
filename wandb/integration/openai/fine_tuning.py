@@ -14,7 +14,6 @@ import wandb
 from wandb import util
 from wandb.data_types import Table
 from wandb.sdk.lib import telemetry
-from wandb.sdk.wandb_run import Run
 
 openai = util.get_module(
     name="openai",
@@ -54,7 +53,7 @@ class WandbLogger:
     _wandb_api: Optional[wandb.Api] = None
     _logged_in: bool = False
     openai_client: Optional[OpenAI] = None
-    _run: Optional[Run] = None
+    _run: Optional[wandb.Run] = None
 
     @classmethod
     def sync(

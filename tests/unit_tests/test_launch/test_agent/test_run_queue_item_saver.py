@@ -1,8 +1,8 @@
 import os
 from unittest.mock import MagicMock
 
+import wandb
 from wandb.sdk.launch.agent.run_queue_item_file_saver import RunQueueItemFileSaver
-from wandb.sdk.wandb_run import Run
 
 
 def test_no_run():
@@ -14,7 +14,7 @@ def test_run():
     rqi_id = "test_run_queue_item_id"
     settings = MagicMock()
     settings.files_dir = "blah"
-    run = MagicMock(spec=Run)
+    run = MagicMock(spec=wandb.Run)
     run._settings = settings
     run.project = "test-project"
     run.entity = "test-entity"

@@ -107,7 +107,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.21.1.dev1"
+__version__: str = "0.21.4.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -147,7 +147,7 @@ def init(
     allow_val_change: bool | None = None,
     group: str | None = None,
     job_type: str | None = None,
-    mode: Literal["online", "offline", "disabled"] | None = None,
+    mode: Literal["online", "offline", "disabled", "shared"] | None = None,
     force: bool | None = None,
     anonymous: Literal["never", "allow", "must"] | None = None,
     reinit: (

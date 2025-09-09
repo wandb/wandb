@@ -32,9 +32,10 @@ Note:
     and other artifacts.
 """
 
+from __future__ import annotations
+
 import io
 import os
-from typing import Optional
 
 import requests
 from wandb_gql import gql
@@ -46,12 +47,13 @@ from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
-from wandb.apis.public.api import Api
+from wandb.apis.public.api import Api, RetryingClient
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.apis.public.runs import Run
 from wandb.sdk.lib import retry
 
 FILE_FRAGMENT = """fragment RunFilesFragment on Run {
-    files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
+    files(names: $fileNames, after: $fileCursor, first: $fileLimit, pattern: $pattern) {
         edges {
             node {
                 id
@@ -74,7 +76,7 @@ FILE_FRAGMENT = """fragment RunFilesFragment on Run {
 
 
 class Files(SizedPaginator["File"]):
-    """An iterable collection of `File` objects.
+    """A lazy iterator over a collection of `File` objects.
 
     Access and manage files uploaded to W&B during a run. Handles pagination
     automatically when iterating through large collections of files.
@@ -104,7 +106,7 @@ class Files(SizedPaginator["File"]):
     QUERY = gql(
         """
         query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
-            $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {{
+            $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false, $pattern: String) {{
             project(name: $project, entityName: $entity) {{
                 internalId
                 run(name: $name) {{
@@ -117,8 +119,18 @@ class Files(SizedPaginator["File"]):
         """.format(FILE_FRAGMENT)
     )
 
-    def __init__(self, client, run, names=None, per_page=50, upload=False):
-        """An iterable collection of `File` objects for a specific run.
+    def __init__(
+        self,
+        client: RetryingClient,
+        run: Run,
+        names: list[str] | None = None,
+        per_page: int = 50,
+        upload: bool = False,
+        pattern: str | None = None,
+    ):
+        """Initialize a lazy iterator over a collection of `File` objects.
+
+        Files are retrieved in pages from the W&B server as needed.
 
         Args:
         client: The run object that contains the files
@@ -126,8 +138,17 @@ class Files(SizedPaginator["File"]):
         names (list, optional): A list of file names to filter the files
         per_page (int, optional): The number of files to fetch per page
         upload (bool, optional): If `True`, fetch the upload URL for each file
-
+        pattern (str, optional): Pattern to match when returning files from W&B
+            This pattern uses mySQL's LIKE syntax,
+            so matching all files that end with .json would be "%.json".
+            If both names and pattern are provided, a ValueError will be raised.
         """
+        if names and pattern:
+            raise ValueError(
+                "Querying for files by both names and pattern is not supported."
+                " Please provide either a list of names or a pattern to match.",
+            )
+
         self.run = run
         variables = {
             "project": run.project,
@@ -135,6 +156,7 @@ class Files(SizedPaginator["File"]):
             "name": run.id,
             "fileNames": names or [],
             "upload": upload,
+            "pattern": pattern,
         }
         super().__init__(client, variables, per_page)
 
@@ -215,7 +237,7 @@ class File(Attrs):
     - md5 (str): md5 of file
     - mimetype (str): mimetype of file
     - updated_at (str): timestamp of last update
-    - path_uri (str): path to file in the bucket, currently only available for files stored in S3
+    - path_uri (str): path to file in the bucket, currently only available for S3 objects and reference files
 
     Args:
         client: The run object that contains the file
@@ -229,7 +251,7 @@ class File(Attrs):
         self.client = client
         self._attrs = attrs
         self.run = run
-        self.server_supports_delete_file_with_project_id: Optional[bool] = None
+        self.server_supports_delete_file_with_project_id: bool | None = None
         super().__init__(dict(attrs))
 
     @property
@@ -242,17 +264,25 @@ class File(Attrs):
 
     @property
     def path_uri(self) -> str:
+        """Returns the URI path to the file in the storage bucket.
+
+        Returns:
+            str: The S3 URI (e.g., 's3://bucket/path/to/file') if the file is stored in S3,
+                 the direct URL if it's a reference file, or an empty string if unavailable.
         """
-        Returns the URI path to the file in the storage bucket.
-        """
-        path_uri = ""
+        if not (direct_url := self._attrs.get("directUrl")):
+            wandb.termwarn("Unable to find direct_url of file")
+            return ""
+
+        # For reference files, both the directUrl and the url are just the path to the file in the bucket
+        if direct_url == self._attrs.get("url"):
+            return direct_url
+
         try:
-            path_uri = utils.parse_s3_url_to_s3_uri(self._attrs["directUrl"])
+            return utils.parse_s3_url_to_s3_uri(direct_url)
         except ValueError:
             wandb.termwarn("path_uri is only available for files stored in S3")
-        except LookupError:
-            wandb.termwarn("Unable to find direct_url of file")
-        return path_uri
+            return ""
 
     @normalize_exceptions
     @retry.retriable(
@@ -265,7 +295,7 @@ class File(Attrs):
         root: str = ".",
         replace: bool = False,
         exist_ok: bool = False,
-        api: Optional[Api] = None,
+        api: Api | None = None,
     ) -> io.TextIOWrapper:
         """Downloads a file previously saved by a run from the wandb server.
 

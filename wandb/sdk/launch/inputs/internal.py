@@ -17,7 +17,6 @@ import wandb
 import wandb.data_types
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.inputs.schema import META_SCHEMA
-from wandb.sdk.wandb_run import Run
 from wandb.util import get_module
 
 from .files import config_path_is_valid, override_file
@@ -93,7 +92,7 @@ class StagedLaunchInputs:
     ):
         self._staged_inputs.append(input_arguments)
 
-    def apply(self, run: Run):
+    def apply(self, run: wandb.Run):
         """Apply the staged inputs to the given run."""
         for input in self._staged_inputs:
             _publish_job_input(input, run)
@@ -101,13 +100,13 @@ class StagedLaunchInputs:
 
 def _publish_job_input(
     input: JobInputArguments,
-    run: Run,
+    run: wandb.Run,
 ) -> None:
     """Publish a job input to the backend interface of the given run.
 
     Arguments:
         input (JobInputArguments): The arguments for the job input.
-        run (Run): The run to publish the job input to.
+        run (wandb.Run): The run to publish the job input to.
     """
     assert run._backend is not None
     assert run._backend.interface is not None
@@ -172,6 +171,29 @@ def _replace_refs_and_allofs(schema: dict, defs: Optional[dict]) -> dict:
     return ret
 
 
+def _prepare_schema(schema: Any) -> dict:
+    """Prepare a schema for validation.
+
+    This function prepares a schema for validation by:
+    1. Converting a Pydantic model instance or class to a dict
+    2. Replacing $ref with their associated definition in defs
+    3. Removing any "allOf" lists that only have one item, "lifting" the item up
+
+    We support both an instance of a pydantic BaseModel class (e.g. schema=MySchema(...))
+    or the BaseModel class itself (e.g. schema=MySchema)
+    """
+    if hasattr(schema, "model_json_schema") and callable(
+        schema.model_json_schema  # type: ignore
+    ):
+        schema = schema.model_json_schema()
+    if not isinstance(schema, dict):
+        raise LaunchError(
+            "schema must be a dict, Pydantic model instance, or Pydantic model class."
+        )
+    defs = schema.pop("$defs", None)
+    return _replace_refs_and_allofs(schema, defs)
+
+
 def _validate_schema(schema: dict) -> None:
     jsonschema = get_module(
         "jsonschema",
@@ -211,18 +233,7 @@ def handle_config_file_input(
         dest,
     )
     if schema:
-        # This supports both an instance of a pydantic BaseModel class (e.g. schema=MySchema(...))
-        # or the BaseModel class itself (e.g. schema=MySchema)
-        if hasattr(schema, "model_json_schema") and callable(
-            schema.model_json_schema  # type: ignore
-        ):
-            schema = schema.model_json_schema()
-        if not isinstance(schema, dict):
-            raise LaunchError(
-                "schema must be a dict, Pydantic model instance, or Pydantic model class."
-            )
-        defs = schema.pop("$defs", None)
-        schema = _replace_refs_and_allofs(schema, defs)
+        schema = _prepare_schema(schema)
         _validate_schema(schema)
     arguments = JobInputArguments(
         include=include,
@@ -252,18 +263,7 @@ def handle_run_config_input(
     when a run is created.
     """
     if schema:
-        # This supports both an instance of a pydantic BaseModel class (e.g. schema=MySchema(...))
-        # or the BaseModel class itself (e.g. schema=MySchema)
-        if hasattr(schema, "model_json_schema") and callable(
-            schema.model_json_schema  # type: ignore
-        ):
-            schema = schema.model_json_schema()
-        if not isinstance(schema, dict):
-            raise LaunchError(
-                "schema must be a dict, Pydantic model instance, or Pydantic model class."
-            )
-        defs = schema.pop("$defs", None)
-        schema = _replace_refs_and_allofs(schema, defs)
+        schema = _prepare_schema(schema)
         _validate_schema(schema)
     arguments = JobInputArguments(
         include=include,
