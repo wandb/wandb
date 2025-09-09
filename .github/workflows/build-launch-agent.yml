@@ -1,5 +1,9 @@
 name: Build Launch Agent
 
+permissions:
+  contents: read
+  id-token: write # This is required for OIDC authentication
+
 on:
   workflow_dispatch:
     inputs:
