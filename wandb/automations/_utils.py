@@ -205,7 +205,7 @@ def prepare_to_create(
     # "unset" value.  If this proves insufficient, revisit in the future,
     # as it should be reasonably easy to implement a custom sentinel
     # type later on.
-    obj_dict = {**obj.model_dump(exclude_none=True), **kwargs} if obj else kwargs
+    obj_dict = {**obj.model_dump(), **kwargs} if obj else kwargs
     validated = ValidatedCreateInput(**obj_dict)
     return CreateFilterTriggerInput.model_validate(validated)
 

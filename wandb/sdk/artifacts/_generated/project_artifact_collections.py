@@ -7,22 +7,22 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import ArtifactCollectionsFragment
 
 
-class ProjectArtifactCollections(GQLBase):
+class ProjectArtifactCollections(GQLResult):
     project: Optional[ProjectArtifactCollectionsProject]
 
 
-class ProjectArtifactCollectionsProject(GQLBase):
+class ProjectArtifactCollectionsProject(GQLResult):
     artifact_type: Optional[ProjectArtifactCollectionsProjectArtifactType] = Field(
         alias="artifactType"
     )
 
 
-class ProjectArtifactCollectionsProjectArtifactType(GQLBase):
+class ProjectArtifactCollectionsProjectArtifactType(GQLResult):
     artifact_collections: Optional[ArtifactCollectionsFragment] = Field(
         alias="artifactCollections"
     )

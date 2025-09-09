@@ -7,26 +7,26 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import ArtifactFragment
 
 
-class RunOutputArtifacts(GQLBase):
+class RunOutputArtifacts(GQLResult):
     project: Optional[RunOutputArtifactsProject]
 
 
-class RunOutputArtifactsProject(GQLBase):
+class RunOutputArtifactsProject(GQLResult):
     run: Optional[RunOutputArtifactsProjectRun]
 
 
-class RunOutputArtifactsProjectRun(GQLBase):
+class RunOutputArtifactsProjectRun(GQLResult):
     output_artifacts: Optional[RunOutputArtifactsProjectRunOutputArtifacts] = Field(
         alias="outputArtifacts"
     )
 
 
-class RunOutputArtifactsProjectRunOutputArtifacts(GQLBase):
+class RunOutputArtifactsProjectRunOutputArtifacts(GQLResult):
     total_count: int = Field(alias="totalCount")
     edges: List[RunOutputArtifactsProjectRunOutputArtifactsEdges]
     page_info: RunOutputArtifactsProjectRunOutputArtifactsPageInfo = Field(
@@ -34,12 +34,12 @@ class RunOutputArtifactsProjectRunOutputArtifacts(GQLBase):
     )
 
 
-class RunOutputArtifactsProjectRunOutputArtifactsEdges(GQLBase):
+class RunOutputArtifactsProjectRunOutputArtifactsEdges(GQLResult):
     node: Optional[ArtifactFragment]
     cursor: str
 
 
-class RunOutputArtifactsProjectRunOutputArtifactsPageInfo(GQLBase):
+class RunOutputArtifactsProjectRunOutputArtifactsPageInfo(GQLResult):
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 

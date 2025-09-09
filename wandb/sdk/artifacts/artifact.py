@@ -2447,7 +2447,7 @@ class Artifact:
             project_name=target.project,
             aliases=alias_inputs,
         )
-        gql_vars = {"input": gql_input.model_dump(exclude_none=True)}
+        gql_vars = {"input": gql_input.model_dump()}
 
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.

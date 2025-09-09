@@ -36,6 +36,10 @@ DEFAULT_BASE_MODEL_NAME = "BaseModel"  #: The name of the default pydantic base 
 
 # Names of custom-defined types
 CUSTOM_GQL_BASE_MODEL_NAME = "GQLBase"  #: Custom base class for GraphQL types
+CUSTOM_GQL_INPUT_MODEL_NAME = "GQLInput"  #: Custom base class for GraphQL input types
+CUSTOM_GQL_RESULT_MODEL_NAME = (
+    "GQLResult"  #: Custom base class for GraphQL result types
+)
 CUSTOM_BASE_MODEL_NAME = "Base"  #: Custom base class for other pydantic types
 TYPENAME_TYPE = "Typename"  #: Custom Typename type for field annotations
 GQLID_TYPE = "GQLId"  #: Custom GraphQL ID type for field annotations
@@ -43,6 +47,8 @@ GQLID_TYPE = "GQLId"  #: Custom GraphQL ID type for field annotations
 CUSTOM_BASE_IMPORT_NAMES = [
     CUSTOM_BASE_MODEL_NAME,
     CUSTOM_GQL_BASE_MODEL_NAME,
+    CUSTOM_GQL_INPUT_MODEL_NAME,
+    CUSTOM_GQL_RESULT_MODEL_NAME,
     TYPENAME_TYPE,
 ]
 
@@ -212,8 +218,26 @@ class GraphQLCodegenPlugin(Plugin):
     def generate_enums_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
 
+    def generate_input_class(self, class_def: ast.ClassDef, *_, **__) -> ast.ClassDef:
+        class_def.bases = [
+            ast.Name(id=CUSTOM_GQL_INPUT_MODEL_NAME)
+            if base.id == DEFAULT_BASE_MODEL_NAME
+            else base
+            for base in class_def.bases
+        ]
+        return class_def
+
     def generate_inputs_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
+
+    def generate_result_class(self, class_def: ast.ClassDef, *_, **__) -> ast.ClassDef:
+        class_def.bases = [
+            ast.Name(id=CUSTOM_GQL_RESULT_MODEL_NAME)
+            if base.id == DEFAULT_BASE_MODEL_NAME
+            else base
+            for base in class_def.bases
+        ]
+        return class_def
 
     def generate_result_types_module(self, module: ast.Module, *_, **__) -> ast.Module:
         return self._rewrite_generated_module(module)

@@ -7,18 +7,18 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 
-class ServerFeaturesQuery(GQLBase):
+class ServerFeaturesQuery(GQLResult):
     server_info: Optional[ServerFeaturesQueryServerInfo] = Field(alias="serverInfo")
 
 
-class ServerFeaturesQueryServerInfo(GQLBase):
+class ServerFeaturesQueryServerInfo(GQLResult):
     features: List[Optional[ServerFeaturesQueryServerInfoFeatures]]
 
 
-class ServerFeaturesQueryServerInfoFeatures(GQLBase):
+class ServerFeaturesQueryServerInfoFeatures(GQLResult):
     name: str
     is_enabled: bool = Field(alias="isEnabled")
 

@@ -92,7 +92,7 @@ class SavedWebhookAction(GenericWebhookActionFields):
     ] = None  # type: ignore[assignment]
 
 
-class SavedNoOpAction(NoOpActionFields, frozen=True):
+class SavedNoOpAction(NoOpActionFields):
     action_type: Literal[ActionType.NO_OP] = ActionType.NO_OP
 
     no_op: Annotated[bool, BeforeValidator(default_if_none)] = True
