@@ -5,7 +5,7 @@ from typing import Any, Collection, Final, Optional, Protocol, TypedDict
 from pydantic import Field
 from typing_extensions import Annotated, Self, Unpack
 
-from wandb._pydantic import GQLBase, GQLId, computed_field, model_validator, to_json
+from wandb._pydantic import GQLId, GQLInput, computed_field, model_validator, to_json
 
 from ._filters import MongoLikeFilter
 from ._generated import (
@@ -132,7 +132,7 @@ class WriteAutomationsKwargs(TypedDict, total=False):
     action: InputAction
 
 
-class ValidatedCreateInput(GQLBase, extra="forbid", frozen=True):
+class ValidatedCreateInput(GQLInput, extra="forbid", frozen=True):
     """Validated automation parameters, prepared for creating a new automation.
 
     Note: Users should never need to instantiate this class directly.
@@ -205,7 +205,7 @@ def prepare_to_create(
     # "unset" value.  If this proves insufficient, revisit in the future,
     # as it should be reasonably easy to implement a custom sentinel
     # type later on.
-    obj_dict = {**obj.model_dump(exclude_none=True), **kwargs} if obj else kwargs
+    obj_dict = {**obj.model_dump(), **kwargs} if obj else kwargs
     validated = ValidatedCreateInput(**obj_dict)
     return CreateFilterTriggerInput.model_validate(validated)
 

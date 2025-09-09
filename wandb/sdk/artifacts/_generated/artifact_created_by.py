@@ -8,14 +8,14 @@ from typing import Literal, Optional, Union
 from pydantic import Field
 from typing_extensions import Annotated
 
-from wandb._pydantic import GQLBase, Typename
+from wandb._pydantic import GQLResult, Typename
 
 
-class ArtifactCreatedBy(GQLBase):
+class ArtifactCreatedBy(GQLResult):
     artifact: Optional[ArtifactCreatedByArtifact]
 
 
-class ArtifactCreatedByArtifact(GQLBase):
+class ArtifactCreatedByArtifact(GQLResult):
     created_by: Optional[
         Annotated[
             Union[
@@ -27,18 +27,18 @@ class ArtifactCreatedByArtifact(GQLBase):
     ] = Field(alias="createdBy")
 
 
-class ArtifactCreatedByArtifactCreatedByRun(GQLBase):
+class ArtifactCreatedByArtifactCreatedByRun(GQLResult):
     typename__: Typename[Literal["Run"]]
     name: str
     project: Optional[ArtifactCreatedByArtifactCreatedByRunProject]
 
 
-class ArtifactCreatedByArtifactCreatedByRunProject(GQLBase):
+class ArtifactCreatedByArtifactCreatedByRunProject(GQLResult):
     name: str
     entity_name: str = Field(alias="entityName")
 
 
-class ArtifactCreatedByArtifactCreatedByUser(GQLBase):
+class ArtifactCreatedByArtifactCreatedByUser(GQLResult):
     typename__: Typename[Literal["User"]]
 
 
