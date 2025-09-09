@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, TypeVar
 
 from wandb import errors
+from wandb._strutils import nameof
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -39,7 +40,7 @@ class ArtifactNotLoggedError(ArtifactStatusError):
         *_, name = fullname.split(".")
         msg = (
             f"{fullname!r} used prior to logging artifact or while in offline mode. "
-            f"Call {type(obj).wait.__qualname__}() before accessing logged artifact properties."
+            f"Call {nameof(obj.wait)}() before accessing logged artifact properties."
         )
         super().__init__(msg=msg, name=name, obj=obj)
 

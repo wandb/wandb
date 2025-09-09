@@ -47,6 +47,11 @@
 # GitHub configuration
 /.github @wandb/sdk-team
 
+# Internal helpers: used by multiple teams, any here can approve
+/wandb/_iterutils.py @wandb/sdk-team @wandb/art-reg-team
+/wandb/_strutils.py @wandb/sdk-team @wandb/art-reg-team
+/wandb/_pydantic/ @wandb/sdk-team @wandb/art-reg-team
+
 
 # Artifacts, Registries, Automations
 /core/pkg/artifacts/                  @wandb/art-reg-team @wandb/sdk-team

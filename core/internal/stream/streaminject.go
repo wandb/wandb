@@ -53,12 +53,12 @@ var streamProviders = wire.NewSet(
 	provideFileWatcher,
 	RecordParserProviders,
 	runfiles.UploaderProviders,
-	senderProviders,
+	SenderProviders,
 	sharedmode.RandomClientID,
 	streamLoggerProviders,
 	tensorboard.TBHandlerProviders,
 	wboperation.NewOperations,
-	writerProviders,
+	WriterProviders,
 )
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {

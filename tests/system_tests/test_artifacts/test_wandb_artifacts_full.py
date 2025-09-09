@@ -782,7 +782,7 @@ def test_used_artifacts_preserve_original_project(user, api, logged_artifact):
 
 
 def test_internal_artifacts(user):
-    internal_type = RESERVED_ARTIFACT_TYPE_PREFIX + "invalid"
+    internal_type = f"{RESERVED_ARTIFACT_TYPE_PREFIX}invalid"
     with wandb.init() as run:
         with pytest.raises(ValueError, match="is reserved for internal use"):
             artifact = wandb.Artifact(name="test-artifact", type=internal_type)
