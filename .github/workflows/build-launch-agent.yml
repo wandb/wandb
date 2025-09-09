@@ -2,7 +2,7 @@ name: Build Launch Agent
 
 permissions:
   contents: read
-  id-token: write # This is required for OIDC authentication
+  id-token: write # required for OIDC authentication
 
 on:
   workflow_dispatch:
@@ -45,6 +45,11 @@ jobs:
           project_id: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_REGISTRY_SA }}
+
+      - id: configure-docker-context
+        name: Configure Docker for Google Artifact Registry
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev
 
       - id: build
         name: Build launch agent
