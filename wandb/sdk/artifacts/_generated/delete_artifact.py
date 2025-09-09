@@ -7,20 +7,20 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLId, GQLResult
 
 
-class DeleteArtifact(GQLBase):
+class DeleteArtifact(GQLResult):
     delete_artifact: Optional[DeleteArtifactDeleteArtifact] = Field(
         alias="deleteArtifact"
     )
 
 
-class DeleteArtifactDeleteArtifact(GQLBase):
+class DeleteArtifactDeleteArtifact(GQLResult):
     artifact: DeleteArtifactDeleteArtifactArtifact
 
 
-class DeleteArtifactDeleteArtifactArtifact(GQLBase):
+class DeleteArtifactDeleteArtifactArtifact(GQLResult):
     id: GQLId
 
 

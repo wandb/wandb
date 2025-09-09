@@ -99,10 +99,37 @@ class JsonableModel(CompatBaseModel, ABC):
         return super().model_dump_json(indent=indent, **kwargs)
 
 
-# Base class for all GraphQL-generated types.
+# Base class for all GraphQL-derived types.
 class GQLBase(JsonableModel, ABC):
     model_config = ConfigDict(
         validate_default=True,
         revalidate_instances="always",
         protected_namespaces=(),  # Some GraphQL fields may begin with "model_"
     )
+
+
+# Base class for GraphQL result types, i.e. parsed GraphQL response data.
+class GQLResult(GQLBase, ABC):
+    model_config = ConfigDict(
+        frozen=True,  # Treat the response data itself as immutable
+    )
+
+
+# Base class for GraphQL input types, i.e. prepared GraphQL variables or input objects for queries and mutations.
+class GQLInput(GQLBase, ABC):
+    # For GraphQL input types, exclude null input values when preparing the JSON-able request data.
+    __DUMP_DEFAULTS: ClassVar[ModelDumpKwargs] = ModelDumpKwargs(exclude_none=True)
+
+    @override
+    def model_dump(
+        self, *, mode: str = "json", **kwargs: Unpack[ModelDumpKwargs]
+    ) -> dict[str, Any]:
+        kwargs = {**self.__DUMP_DEFAULTS, **kwargs}  # allows overrides, if needed
+        return super().model_dump(mode=mode, **kwargs)
+
+    @override
+    def model_dump_json(
+        self, *, indent: int | None = None, **kwargs: Unpack[ModelDumpKwargs]
+    ) -> str:
+        kwargs = {**self.__DUMP_DEFAULTS, **kwargs}  # allows overrides, if needed
+        return super().model_dump_json(indent=indent, **kwargs)

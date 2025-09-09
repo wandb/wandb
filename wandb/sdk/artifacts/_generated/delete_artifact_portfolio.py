@@ -7,24 +7,24 @@ from typing import Literal, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, Typename
+from wandb._pydantic import GQLResult, Typename
 
 from .enums import ArtifactCollectionState
 
 
-class DeleteArtifactPortfolio(GQLBase):
+class DeleteArtifactPortfolio(GQLResult):
     delete_artifact_portfolio: Optional[
         DeleteArtifactPortfolioDeleteArtifactPortfolio
     ] = Field(alias="deleteArtifactPortfolio")
 
 
-class DeleteArtifactPortfolioDeleteArtifactPortfolio(GQLBase):
+class DeleteArtifactPortfolioDeleteArtifactPortfolio(GQLResult):
     artifact_collection: DeleteArtifactPortfolioDeleteArtifactPortfolioArtifactCollection = Field(
         alias="artifactCollection"
     )
 
 
-class DeleteArtifactPortfolioDeleteArtifactPortfolioArtifactCollection(GQLBase):
+class DeleteArtifactPortfolioDeleteArtifactPortfolioArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
