@@ -5,11 +5,31 @@ from functools import singledispatch
 from itertools import chain
 from typing import Any, TypeVar
 
+from pydantic import BeforeValidator, Json, PlainSerializer
 from pydantic_core import PydanticUseDefault
+from typing_extensions import Annotated
+
+from wandb._pydantic import to_json
 
 from ._filters import And, FilterExpr, In, Nor, Not, NotIn, Op, Or
 
 T = TypeVar("T")
+
+
+def ensure_json(v: Any) -> Any:
+    """In case the incoming value isn't serialized JSON, reserialize it.
+
+    This lets us use `Json[...]` fields with values that are already deserialized.
+    """
+    # NOTE: Assumes that the deserialized type is not itself a string.
+    # Revisit this if we need to support deserialized types that are str/bytes.
+    return v if isinstance(v, (str, bytes)) else to_json(v)
+
+
+# Allow lenient instantiation/validation: incoming data may already be deserialized.
+SerializedToJson = Annotated[
+    Json[T], BeforeValidator(ensure_json), PlainSerializer(to_json)
+]
 
 
 class LenientStrEnum(str, Enum):

@@ -1,11 +1,10 @@
 package runsync
 
 import (
-	"sync"
-
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"golang.org/x/sync/errgroup"
 )
 
 // RunSyncOperationFactory creates RunSyncOperations.
@@ -37,17 +36,18 @@ func (f *RunSyncOperationFactory) New(
 }
 
 // Do starts syncing and blocks until all sync work completes.
-func (op *RunSyncOperation) Do() {
-	wg := &sync.WaitGroup{}
+func (op *RunSyncOperation) Do(parallelism int) {
+	group := &errgroup.Group{}
+	group.SetLimit(parallelism)
+
 	for _, syncer := range op.syncers {
-		wg.Add(1)
-		go func() {
-			// TODO: Capture and log panics.
-			defer wg.Done()
+		group.Go(func() error {
 			syncer.Sync()
-		}()
+			return nil
+		})
 	}
-	wg.Wait()
+
+	_ = group.Wait()
 }
 
 // Status returns the operation's status.
