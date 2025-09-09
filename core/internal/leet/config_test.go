@@ -50,3 +50,32 @@ func TestConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 		t.Fatalf("MetricsGridCols=%d; want 3", leet.MetricsGridCols)
 	}
 }
+
+func TestConfig_SetLeftSidebarVisible_TogglesAndPersists(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+
+	cfg := leet.GetConfig()
+	cfg.SetPathForTests(path)
+	if err := cfg.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	// Toggle on
+	if err := cfg.SetLeftSidebarVisible(true); err != nil {
+		t.Fatalf("SetLeftSidebarVisible(true): %v", err)
+	}
+	if !cfg.GetLeftSidebarVisible() {
+		t.Fatalf("GetLeftSidebarVisible() = false; want true")
+	}
+
+	// Toggle off
+	if err := cfg.SetLeftSidebarVisible(false); err != nil {
+		t.Fatalf("SetLeftSidebarVisible(false): %v", err)
+	}
+	if cfg.GetLeftSidebarVisible() {
+		t.Fatalf("GetLeftSidebarVisible() = true; want false")
+	}
+}
