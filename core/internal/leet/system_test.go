@@ -1,10 +1,12 @@
-package leet
+package leet_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -13,7 +15,7 @@ func useTestConfig(t *testing.T, rows, cols int) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
 
-	cfg := GetConfig()
+	cfg := leet.GetConfig()
 	cfg.SetPathForTests(path)
 	// Load to ensure the directory/file exists (save creates the dir).
 	if err := cfg.Load(); err != nil {
@@ -26,7 +28,7 @@ func useTestConfig(t *testing.T, rows, cols int) {
 		t.Fatalf("SetSystemCols: %v", err)
 	}
 	// Propagate into MetricsGridRows/MetricsGridCols, etc.
-	UpdateGridDimensions()
+	leet.UpdateGridDimensions()
 }
 
 func TestRightSidebar_ProcessStatsMsg_GroupsSeriesByBaseKey(t *testing.T) {
@@ -34,10 +36,17 @@ func TestRightSidebar_ProcessStatsMsg_GroupsSeriesByBaseKey(t *testing.T) {
 	useTestConfig(t, 2, 2)
 
 	logger := observability.NewNoOpLogger()
-	rs := NewRightSidebar(logger)
+	rs := leet.NewRightSidebar(logger)
+
+	// Give the sidebar real dimensions and expand it so View() renders charts.
+	rs.UpdateDimensions(200, false)
+	rs.Toggle()
+	time.Sleep(leet.AnimationDuration + 20*time.Millisecond)
+	// Finish animation.
+	rs.Update(leet.RightSidebarAnimationMsg{})
 
 	ts := time.Now().Unix()
-	rs.ProcessStatsMsg(StatsMsg{
+	rs.ProcessStatsMsg(leet.StatsMsg{
 		Timestamp: ts,
 		Metrics: map[string]float64{
 			"gpu.0.temp":        40,
@@ -46,38 +55,33 @@ func TestRightSidebar_ProcessStatsMsg_GroupsSeriesByBaseKey(t *testing.T) {
 		},
 	})
 
-	if rs.metricsGrid == nil {
-		t.Fatal("metricsGrid not created")
+	// Expect two charts total; "GPU Temp (°C)" shows two series.
+	out := rs.View(30)
+	if !strings.Contains(out, "GPU Temp (°C) [2]") {
+		t.Fatalf("expected GPU Temp with [2] series; got:\n%s", out)
 	}
-	if got, want := rs.metricsGrid.GetChartCount(), 2; got != want {
-		t.Fatalf("GetChartCount()=%d; want %d", got, want)
-	}
-
-	// gpu.* temps should share one chart with multiple series.
-	gpuChart := rs.metricsGrid.chartsByMetric["gpu.temp"]
-	if gpuChart == nil {
-		t.Fatalf("gpu.temp chart missing")
-	}
-	if got, want := len(gpuChart.series), 2; got != want {
-		t.Fatalf("gpu.temp series=%d; want %d", got, want)
+	if !strings.Contains(out, "of 2]") { // nav info shows total chart count
+		t.Fatalf("expected nav info 'of 2' in view; got:\n%s", out)
 	}
 
-	// Add a third GPU series; should not create a new chart, only new series.
-	rs.ProcessStatsMsg(StatsMsg{
+	// Add a third GPU series; should increase series count, not create a new chart.
+	rs.ProcessStatsMsg(leet.StatsMsg{
 		Timestamp: ts + 1,
 		Metrics:   map[string]float64{"gpu.2.temp": 43},
 	})
-	if got, want := len(gpuChart.series), 3; got != want {
-		t.Fatalf("gpu.temp series=%d; want %d", got, want)
+	out = rs.View(30)
+	if !strings.Contains(out, "GPU Temp (°C) [3]") {
+		t.Fatalf("expected GPU Temp with [3] series; got:\n%s", out)
 	}
 
-	// Unknown metrics are ignored (no chart created).
-	rs.ProcessStatsMsg(StatsMsg{
+	// Unknown metrics are ignored (no extra chart).
+	rs.ProcessStatsMsg(leet.StatsMsg{
 		Timestamp: ts + 2,
 		Metrics:   map[string]float64{"unknown.metric": 1},
 	})
-	if _, ok := rs.metricsGrid.chartsByMetric["unknown.metric"]; ok {
-		t.Fatalf("unexpected chart created for unknown.metric")
+	out = rs.View(30)
+	if !strings.Contains(out, "of 2]") {
+		t.Fatalf("unexpected chart count change after unknown metric; got:\n%s", out)
 	}
 }
 
@@ -87,7 +91,7 @@ func TestSystemMetricsGrid_Reset(t *testing.T) {
 
 	logger := observability.NewNoOpLogger()
 	// Give the grid enough space (any positive multiples will do).
-	grid := NewSystemMetricsGrid(2*MinMetricChartWidth, 2*MinMetricChartHeight, logger)
+	grid := leet.NewSystemMetricsGrid(2*leet.MinMetricChartWidth, 2*leet.MinMetricChartHeight, logger)
 
 	ts := time.Now().Unix()
 	grid.AddDataPoint("gpu.0.temp", ts, 50)

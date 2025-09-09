@@ -425,11 +425,6 @@ func (c *EpochLineChart) Title() string {
 	return c.title
 }
 
-// IsFocused returns whether the chart is focused
-func (c *EpochLineChart) IsFocused() bool {
-	return c.focused
-}
-
 // SetFocused sets the focused state
 func (c *EpochLineChart) SetFocused(focused bool) {
 	c.focused = focused
