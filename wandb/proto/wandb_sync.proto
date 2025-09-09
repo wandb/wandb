@@ -33,6 +33,12 @@ message ServerInitSyncResponse {
 message ServerSyncRequest {
   // The operation's ID, as returned by ServerInitSyncResponse.
   string id = 1;
+
+  // How many runs to sync at once, if syncing multiple.
+  //
+  // Syncing is generally IO bound, and the ideal parallelism depends
+  // on factors like server performance and network speed.
+  uint32 parallelism = 2;
 }
 
 // Indicates a sync operation completed, either successfully or with errors.

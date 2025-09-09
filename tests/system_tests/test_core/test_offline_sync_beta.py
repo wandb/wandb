@@ -90,7 +90,11 @@ class _Tester:
             lambda r: r.init_sync_response,
         )
 
-    def sync(self, id: str) -> MailboxHandle[wandb_sync_pb2.ServerSyncResponse]:
+    def sync(
+        self,
+        id: str,
+        parallelism: int,
+    ) -> MailboxHandle[wandb_sync_pb2.ServerSyncResponse]:
         return self._make_handle(
             self._sync_addrs,
             lambda r: r.sync_response,
@@ -308,6 +312,7 @@ def test_prints_status_updates(skip_asyncio_sleep, tmp_path, emulated_terminal):
                     service=tester,  # type: ignore (we only mock used methods)
                     settings=wandb.Settings(),
                     printer=new_printer(),
+                    parallelism=1,
                 )
             )
 

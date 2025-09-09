@@ -53,11 +53,17 @@ def beta():
     default=False,
     help="Print more information.",
 )
+@click.option(
+    "-n",
+    default=5,
+    help="Max number of runs to sync at a time.",
+)
 def sync(
     paths: tuple[str, ...],
     skip_synced: bool,
     dry_run: bool,
     verbose: bool,
+    n: int,
 ) -> None:
     """Upload .wandb files specified by PATHS.
 
@@ -83,4 +89,5 @@ def sync(
         dry_run=dry_run,
         skip_synced=skip_synced,
         verbose=verbose,
+        parallelism=n,
     )
