@@ -38,7 +38,6 @@ DEFAULT_BASE_MODEL_NAME = "BaseModel"  #: The name of the default pydantic base 
 CUSTOM_GQL_BASE_MODEL_NAME = "GQLBase"  #: Custom base class for GraphQL types
 CUSTOM_BASE_MODEL_NAME = "Base"  #: Custom base class for other pydantic types
 TYPENAME_TYPE = "Typename"  #: Custom Typename type for field annotations
-JSON_TYPE = "SerializedToJson"  #: Custom SerializedToJson type for field annotations
 GQLID_TYPE = "GQLId"  #: Custom GraphQL ID type for field annotations
 
 CUSTOM_BASE_IMPORT_NAMES = [
