@@ -463,29 +463,34 @@ func ShouldCaptureSamplingError(err error) bool {
 	if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
 		return false
 	}
-	msg := err.Error()
-	if strings.Contains(msg, "connection refused") {
-		return false
-	}
-	// Platforms without netstat (gopsutil may shell out on some OSes).
-	if errors.Is(err, exec.ErrNotFound) ||
-		(strings.Contains(msg, "executable file not found") && strings.Contains(msg, "netstat")) {
-		return false
-	}
-	// Windows sporadic low-level API failure wording.
-	if strings.Contains(msg, "Incorrect function.") {
-		return false
-	}
-	// Container/lean Linux builds without /proc/diskstats.
-	if strings.Contains(msg, "/proc/diskstats") && (strings.Contains(msg, "no such file") || strings.Contains(msg, "no such file or directory")) {
-		return false
-	}
-	// Some gopsutil APIs report "not implemented yet" for certain platforms.
-	if strings.Contains(msg, "not implemented yet") {
-		return false
-	}
 
-	return true
+	msg := err.Error()
+	switch {
+	// Error connecting to a Prometheus server.
+	case strings.Contains(msg, "connection refused"):
+		return false
+
+	// Platforms without netstat (gopsutil may shell out on some OSes).
+	case errors.Is(err, exec.ErrNotFound):
+		return false
+	case strings.Contains(msg, "executable file not found") && strings.Contains(msg, "netstat"):
+		return false
+
+	// Container/lean Linux builds without /proc/diskstats.
+	case strings.Contains(msg, "/proc/diskstats") && (strings.Contains(msg, "no such file") || strings.Contains(msg, "no such file or directory")):
+		return false
+
+	// Windows sporadic low-level API failure wording.
+	case strings.Contains(msg, "Incorrect function."):
+		return false
+
+	// Some gopsutil APIs report "not implemented yet" for certain platforms.
+	case strings.Contains(msg, "not implemented yet"):
+		return false
+
+	default:
+		return true
+	}
 }
 
 // GetBuffer returns the current buffer of collected metrics.
