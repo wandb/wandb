@@ -841,9 +841,9 @@ class _WandbInit:
 
             elif settings.resume == "must" and previous_run:
                 raise wandb.Error(
-                    "wandb.init() called while a run is active and resume is"
-                    f" set to {settings.resume!r}, so returning the previous"
-                    " run."
+                    "wandb.init() called while a run is active."
+                    " You must either finish it using run.finish(),"
+                    " or use reinit='create_new' when calling wandb.init()."
                 )
 
             else:

@@ -19,4 +19,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- Resuming a run with a different active run now returns the correct run id for the resumed run, rather than the last active run. (@jacobromero in https://github.com/wandb/wandb/pull/10468)
+- Resuming a run with a different active run will now raise an error unless you call `run.finish()` first, or call `wandb.init()` with the parameter `reinit='create_new'` (@jacobromero in https://github.com/wandb/wandb/pull/10468)
