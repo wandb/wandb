@@ -107,6 +107,8 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 	if !strings.Contains(view, "Config [5 items]") || !strings.Contains(view, "Summary [2 items]") {
 		t.Fatalf("expected non-paginated headers with item counts; got:\n%s", view)
 	}
+
+	s.Toggle()
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
