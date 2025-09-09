@@ -1,8 +1,16 @@
 FROM python:3.11-slim-bookworm AS builder
 
+ARG TARGETARCH
+
 RUN apt-get update && apt-get install -y \
     git gcc python3-dev curl
-RUN curl -L https://go.dev/dl/go1.25.1.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        curl -L https://go.dev/dl/go1.25.1.linux-amd64.tar.gz | tar -C /usr/local -xzf -; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+        curl -L https://go.dev/dl/go1.25.1.linux-arm64.tar.gz | tar -C /usr/local -xzf -; \
+    else \
+        echo "Unsupported architecture: $TARGETARCH" && exit 1; \
+    fi
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV WANDB_BUILD_SKIP_GPU_STATS=true
 
