@@ -83,11 +83,6 @@ type Model struct {
 	// Increased buffer size for large files
 	msgChan chan tea.Msg
 
-	// File change debouncing
-	lastFileChange time.Time
-	debounceTimer  *time.Timer
-	debounceMu     sync.Mutex
-
 	// Animation synchronization
 	animationMu sync.Mutex
 	animating   bool

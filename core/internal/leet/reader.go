@@ -90,7 +90,7 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Cmd {
 
 // ReadNext reads the next record for live monitoring.
 func (r *WandbReader) ReadNext() (tea.Msg, error) {
-	if r.store == nil {
+	if r == nil || r.store == nil {
 		return nil, io.EOF
 	}
 
@@ -258,6 +258,11 @@ func ReadAllRecordsChunked(reader *WandbReader) tea.Cmd {
 
 // ReadAvailableRecords reads new records for live monitoring.
 func ReadAvailableRecords(reader *WandbReader) tea.Cmd {
+	// No reader? Nothing to do.
+	if reader == nil {
+		return func() tea.Msg { return nil }
+	}
+
 	return func() tea.Msg {
 		var msgs []tea.Msg
 		recordCount := 0

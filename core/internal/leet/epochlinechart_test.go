@@ -54,27 +54,42 @@ func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {
 	oldMin, oldMax := c.ViewMinX(), c.ViewMaxX()
 	oldRange := oldMax - oldMin
 
-	// Zoom in around the middle of the graph.
+	// Zoom in around the middle of the graph - should NOT snap to tail
 	mouseX := c.GraphWidth() / 2
 	c.HandleZoom("in", mouseX)
 
 	newMin, newMax := c.ViewMinX(), c.ViewMaxX()
 	newRange := newMax - newMin
+
+	// Verify zoom reduced range
 	if !(newRange < oldRange) {
 		t.Fatalf("expected zoom-in to reduce range, old=%v new=%v", oldRange, newRange)
 	}
 
-	// Zoom out should expand range but never exceed maxSteps.
-	c.HandleZoom("out", mouseX)
-	outMin, outMax := c.ViewMinX(), c.ViewMaxX()
-	if !(outMax-outMin >= newRange) {
-		t.Fatalf("expected zoom-out to increase range, got [%v,%v] vs newRange=%v", outMin, outMax, newRange)
+	// Verify we're still centered around the middle (not snapped to tail)
+	midPoint := (newMin + newMax) / 2
+	expectedMid := (oldMin + oldMax) / 2
+	tolerance := oldRange * 0.2 // Allow some movement but not a full snap
+	if math.Abs(midPoint-expectedMid) > tolerance {
+		t.Fatalf("zoom incorrectly snapped away from center: mid=%v expected=%v", midPoint, expectedMid)
+	}
+
+	// Test zoom at right edge - should maintain tail visibility
+	c.SetViewXRange(30, 40)              // Position at tail
+	c.HandleZoom("in", c.GraphWidth()-1) // Mouse at far right
+
+	_, tailMax := c.ViewMinX(), c.ViewMaxX()
+	// Should still see the last data point (39)
+	if tailMax < 39 {
+		t.Fatalf("zoom lost tail visibility: max=%v, expected >= 39", tailMax)
 	}
 }
 
 // When zooming away from the right edge (and not already at the tail),
 // the view should NOT jump to the tail.
 func TestEpochLineChart_ZoomDoesNotSnapToTailAwayFromRight(t *testing.T) {
+	t.Parallel()
+
 	c := leet.NewEpochLineChart(120, 12, 0, "loss")
 	for i := range 40 {
 		c.AddPoint(float64(i), float64(i))
@@ -92,6 +107,8 @@ func TestEpochLineChart_ZoomDoesNotSnapToTailAwayFromRight(t *testing.T) {
 
 // When zooming near the right edge, we still anchor to the tail.
 func TestEpochLineChart_ZoomNearRightAnchorsToTail(t *testing.T) {
+	t.Parallel()
+
 	c := leet.NewEpochLineChart(120, 12, 0, "loss")
 	for i := range 40 {
 		c.AddPoint(float64(i), 0.5)
