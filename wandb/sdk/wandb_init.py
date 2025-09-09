@@ -820,8 +820,7 @@ class _WandbInit:
             f"\nconfig: {config.base_no_artifacts}"
         )
 
-        previous_run = self._wl.most_recent_active_run
-        if previous_run and (settings.resume is None or settings.resume != "must"):
+        if previous_run := self._wl.most_recent_active_run:
             if (
                 settings.reinit in (True, "finish_previous")
                 # calling wandb.init() in notebooks finishes previous runs
@@ -838,6 +837,13 @@ class _WandbInit:
                 self._logger.info(
                     "wandb.init() called while a run is active,"
                     " and reinit is set to 'create_new', so continuing"
+                )
+
+            elif settings.resume == "must" and previous_run:
+                raise wandb.Error(
+                    "wandb.init() called while a run is active and resume is"
+                    f" set to {settings.resume!r}, so returning the previous"
+                    " run."
                 )
 
             else:
