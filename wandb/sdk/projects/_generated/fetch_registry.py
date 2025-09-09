@@ -5,16 +5,16 @@ from __future__ import annotations
 
 from typing import Optional
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import RegistryFragment
 
 
-class FetchRegistry(GQLBase):
+class FetchRegistry(GQLResult):
     entity: Optional[FetchRegistryEntity]
 
 
-class FetchRegistryEntity(GQLBase):
+class FetchRegistryEntity(GQLResult):
     project: Optional[RegistryFragment]
 
 

@@ -7,14 +7,14 @@ from typing import Literal, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, Typename
+from wandb._pydantic import GQLResult, Typename
 
 
-class DeleteProject(GQLBase):
+class DeleteProject(GQLResult):
     delete_model: Optional[DeleteProjectDeleteModel] = Field(alias="deleteModel")
 
 
-class DeleteProjectDeleteModel(GQLBase):
+class DeleteProjectDeleteModel(GQLResult):
     success: Optional[bool]
     typename__: Typename[Literal["DeleteModelPayload"]]
 

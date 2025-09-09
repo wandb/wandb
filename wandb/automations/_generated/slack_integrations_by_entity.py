@@ -5,16 +5,16 @@ from __future__ import annotations
 
 from typing import Optional
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import SlackIntegrationConnectionFields
 
 
-class SlackIntegrationsByEntity(GQLBase):
+class SlackIntegrationsByEntity(GQLResult):
     entity: Optional[SlackIntegrationsByEntityEntity]
 
 
-class SlackIntegrationsByEntityEntity(GQLBase):
+class SlackIntegrationsByEntityEntity(GQLResult):
     integrations: Optional[SlackIntegrationConnectionFields]
 
 

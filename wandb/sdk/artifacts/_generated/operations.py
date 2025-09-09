@@ -63,10 +63,8 @@ mutation DeleteArtifactPortfolio($id: ID!) {
 """
 
 UPDATE_ARTIFACT_SEQUENCE_GQL = """
-mutation UpdateArtifactSequence($id: ID!, $name: String, $description: String) {
-  updateArtifactSequence(
-    input: {artifactSequenceID: $id, name: $name, description: $description}
-  ) {
+mutation UpdateArtifactSequence($input: UpdateArtifactSequenceInput!) {
+  updateArtifactSequence(input: $input) {
     artifactCollection {
       __typename
       id
@@ -78,10 +76,8 @@ mutation UpdateArtifactSequence($id: ID!, $name: String, $description: String) {
 """
 
 UPDATE_ARTIFACT_PORTFOLIO_GQL = """
-mutation UpdateArtifactPortfolio($id: ID!, $name: String, $description: String) {
-  updateArtifactPortfolio(
-    input: {artifactPortfolioID: $id, name: $name, description: $description}
-  ) {
+mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
+  updateArtifactPortfolio(input: $input) {
     artifactCollection {
       __typename
       id
@@ -93,10 +89,8 @@ mutation UpdateArtifactPortfolio($id: ID!, $name: String, $description: String) 
 """
 
 MOVE_ARTIFACT_COLLECTION_GQL = """
-mutation MoveArtifactCollection($artifactSequenceID: ID!, $destinationArtifactTypeName: String!) {
-  moveArtifactSequence(
-    input: {artifactSequenceID: $artifactSequenceID, destinationArtifactTypeName: $destinationArtifactTypeName}
-  ) {
+mutation MoveArtifactCollection($input: MoveArtifactSequenceInput!) {
+  moveArtifactSequence(input: $input) {
     artifactCollection {
       __typename
       id
@@ -108,10 +102,8 @@ mutation MoveArtifactCollection($artifactSequenceID: ID!, $destinationArtifactTy
 """
 
 CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL = """
-mutation CreateArtifactCollectionTagAssignments($entityName: String!, $projectName: String!, $artifactCollectionName: String!, $tags: [TagInput!]!) {
-  createArtifactCollectionTagAssignments(
-    input: {entityName: $entityName, projectName: $projectName, artifactCollectionName: $artifactCollectionName, tags: $tags}
-  ) {
+mutation CreateArtifactCollectionTagAssignments($input: CreateArtifactCollectionTagAssignmentsInput!) {
+  createArtifactCollectionTagAssignments(input: $input) {
     tags {
       id
       name
@@ -122,10 +114,8 @@ mutation CreateArtifactCollectionTagAssignments($entityName: String!, $projectNa
 """
 
 DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL = """
-mutation DeleteArtifactCollectionTagAssignments($entityName: String!, $projectName: String!, $artifactCollectionName: String!, $tags: [TagInput!]!) {
-  deleteArtifactCollectionTagAssignments(
-    input: {entityName: $entityName, projectName: $projectName, artifactCollectionName: $artifactCollectionName, tags: $tags}
-  ) {
+mutation DeleteArtifactCollectionTagAssignments($input: DeleteArtifactCollectionTagAssignmentsInput!) {
+  deleteArtifactCollectionTagAssignments(input: $input) {
     success
   }
 }
@@ -876,26 +866,24 @@ query ArtifactType($entityName: String, $projectName: String, $name: String!) {
 """
 
 ADD_ALIASES_GQL = """
-mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
-  addAliases(input: {artifactID: $artifactID, aliases: $aliases}) {
+mutation AddAliases($input: AddAliasesInput!) {
+  addAliases(input: $input) {
     success
   }
 }
 """
 
 DELETE_ALIASES_GQL = """
-mutation DeleteAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
-  deleteAliases(input: {artifactID: $artifactID, aliases: $aliases}) {
+mutation DeleteAliases($input: DeleteAliasesInput!) {
+  deleteAliases(input: $input) {
     success
   }
 }
 """
 
 UPDATE_ARTIFACT_GQL = """
-mutation UpdateArtifact($artifactID: ID!, $description: String, $metadata: JSONString, $ttlDurationSeconds: Int64, $tagsToAdd: [TagInput!], $tagsToDelete: [TagInput!], $aliases: [ArtifactAliasInput!]) {
-  updateArtifact(
-    input: {artifactID: $artifactID, description: $description, metadata: $metadata, ttlDurationSeconds: $ttlDurationSeconds, tagsToAdd: $tagsToAdd, tagsToDelete: $tagsToDelete, aliases: $aliases}
-  ) {
+mutation UpdateArtifact($input: UpdateArtifactInput!) {
+  updateArtifact(input: $input) {
     artifact {
       ...ArtifactFragment
     }
@@ -952,8 +940,8 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
 """
 
 DELETE_ARTIFACT_GQL = """
-mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
-  deleteArtifact(input: {artifactID: $artifactID, deleteAliases: $deleteAliases}) {
+mutation DeleteArtifact($input: DeleteArtifactInput!) {
+  deleteArtifact(input: $input) {
     artifact {
       id
     }
@@ -1038,13 +1026,10 @@ fragment MembershipWithArtifact on ArtifactCollectionMembership {
 """
 
 UNLINK_ARTIFACT_GQL = """
-mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
-  unlinkArtifact(
-    input: {artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID}
-  ) {
+mutation UnlinkArtifact($input: UnlinkArtifactInput!) {
+  unlinkArtifact(input: $input) {
     artifactID
     success
-    clientMutationId
   }
 }
 """

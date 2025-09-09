@@ -125,7 +125,7 @@ class TestPrepareToCreate:
         # If we were to actually send this new Automation to the server,
         # these the input variables for the GraphQL mutation.
         prepared = prepare_to_create(input_event >> input_action, **input_kwargs)
-        return prepared.model_dump(exclude_none=True)
+        return prepared.model_dump()
 
     def test_prepared_dict_values(
         self,
