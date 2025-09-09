@@ -47,7 +47,7 @@ def login(
     timeout: Optional[int] = None,
     verify: bool = False,
     referrer: Optional[str] = None,
-) -> bool:
+) -> str:
     """Set up W&B login credentials.
 
     By default, this will only store credentials locally without
@@ -277,7 +277,7 @@ def _login(
     update_api_key: bool = True,
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
-) -> bool:
+) -> str:
     if wandb.run is not None:
         if not _disable_warning:
             wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
@@ -329,4 +329,4 @@ def _login(
     if key and not _silent:
         wlogin._print_logged_in_message()
 
-    return key is not None
+    return key

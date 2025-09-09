@@ -307,7 +307,9 @@ class Api:
 
         self._api_key = api_key
         if _thread_local_api_settings.cookies is None:
-            wandb_login._login(
+            # re-assign the api key
+            # in the event that the user is prompted for a key
+            self._api_key = wandb_login._login(
                 host=self.settings["base_url"],
                 key=self.api_key,
                 verify=True,
