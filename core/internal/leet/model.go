@@ -45,21 +45,21 @@ type Model struct {
 	// charts contains the current page of charts arranged in a 2D grid.
 	charts [][]*EpochLineChart
 
-	// Filter state
+	// Charts filter state.
 	filterMode     bool              // Whether we're currently typing a filter
 	filterInput    string            // The current filter being typed
 	activeFilter   string            // The confirmed filter in use
 	filteredCharts []*EpochLineChart // Filtered subset of charts
 
-	// Overview filter state
+	// Overview filter state.
 	overviewFilterMode  bool   // Whether we're typing an overview filter
 	overviewFilterInput string // The current overview filter being typed
 
 	// Chart focus state.
 	focusState   FocusState
-	focusedTitle string // For backward compatibility and status bar display
-	focusedRow   int    // For backward compatibility with existing code
-	focusedCol   int    // For backward compatibility with existing code
+	focusedTitle string // For status bar display
+	focusedRow   int
+	focusedCol   int
 
 	width          int
 	height         int
@@ -80,25 +80,24 @@ type Model struct {
 	runSummary     *runsummary.RunSummary
 
 	// msgChan is the channel to receive watcher callbacks.
-	// Increased buffer size for large files
 	msgChan chan tea.Msg
 
-	// Animation synchronization
+	// Sidebar animation synchronization.
 	animationMu sync.Mutex
 	animating   bool
 
-	// Loading progress
+	// Loading progress.
 	recordsLoaded int
 	loadStartTime time.Time
 
 	// logger is the debug logger for the application.
 	logger *observability.CoreLogger
 
-	// Config key handling state
+	// Config key handling state to set the grid size of the (system) charts section.
 	waitingForConfigKey bool
 	configKeyType       string // "c", "r", "C", "R"
 
-	// Heartbeat for live runs
+	// Heartbeat for live runs.
 	heartbeatTimer    *time.Timer
 	heartbeatInterval time.Duration
 	heartbeatMu       sync.Mutex
