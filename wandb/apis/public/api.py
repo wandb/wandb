@@ -2274,7 +2274,7 @@ class Api:
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         omit_fragments = self._omitted_automation_fragments()
         mutation = gql_compat(CREATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
-        variables = {"params": gql_input.model_dump(exclude_none=True)}
+        variables = {"params": gql_input.model_dump()}
 
         name = gql_input.name
         try:
@@ -2394,7 +2394,7 @@ class Api:
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         omit_fragments = self._omitted_automation_fragments()
         mutation = gql_compat(UPDATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
-        variables = {"params": gql_input.model_dump(exclude_none=True)}
+        variables = {"params": gql_input.model_dump()}
 
         name = gql_input.name
         try:

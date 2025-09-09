@@ -5,12 +5,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import CreateAutomationResult
 
 
-class CreateAutomation(GQLBase):
+class CreateAutomation(GQLResult):
     result: Optional[CreateAutomationResult]
 
 

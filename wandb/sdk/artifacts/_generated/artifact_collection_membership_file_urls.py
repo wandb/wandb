@@ -7,22 +7,22 @@ from typing import Literal, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, Typename
+from wandb._pydantic import GQLResult, Typename
 
 from .fragments import FileUrlsFragment
 
 
-class ArtifactCollectionMembershipFileUrls(GQLBase):
+class ArtifactCollectionMembershipFileUrls(GQLResult):
     project: Optional[ArtifactCollectionMembershipFileUrlsProject]
 
 
-class ArtifactCollectionMembershipFileUrlsProject(GQLBase):
+class ArtifactCollectionMembershipFileUrlsProject(GQLResult):
     artifact_collection: Optional[
         ArtifactCollectionMembershipFileUrlsProjectArtifactCollection
     ] = Field(alias="artifactCollection")
 
 
-class ArtifactCollectionMembershipFileUrlsProjectArtifactCollection(GQLBase):
+class ArtifactCollectionMembershipFileUrlsProjectArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
@@ -32,7 +32,7 @@ class ArtifactCollectionMembershipFileUrlsProjectArtifactCollection(GQLBase):
 
 
 class ArtifactCollectionMembershipFileUrlsProjectArtifactCollectionArtifactMembership(
-    GQLBase
+    GQLResult
 ):
     files: Optional[FileUrlsFragment]
 

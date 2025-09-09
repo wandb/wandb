@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from abc import ABC
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -87,10 +88,37 @@ class JsonableModel(CompatBaseModel):
         return super().model_dump_json(indent=indent, **kwargs)
 
 
-# Base class for all GraphQL-generated types.
-class GQLBase(JsonableModel):
+# Base class for all GraphQL-derived types.
+class GQLBase(JsonableModel, ABC):
     model_config = ConfigDict(
         validate_default=True,
         revalidate_instances="always",
         protected_namespaces=(),  # Some GraphQL fields may begin with "model_"
     )
+
+
+# Base class for all GraphQL-generated result types.
+class GQLResult(GQLBase, ABC):
+    model_config = ConfigDict(
+        frozen=True,
+    )
+
+
+# Base class for all generated GraphQL input types.
+class GQLInput(GQLBase, ABC):
+    # For GraphQL input types, exclude null variable values when preparing the JSON-able request data.
+    __DUMP_DEFAULTS: ClassVar[DumpKwargs] = DumpKwargs(exclude_none=True)
+
+    @override
+    def model_dump(
+        self, *, mode: str = "json", **kwargs: Unpack[DumpKwargs]
+    ) -> dict[str, Any]:
+        kwargs = {**self.__DUMP_DEFAULTS, **kwargs}  # allows overrides, if needed
+        return super().model_dump(mode=mode, **kwargs)
+
+    @override
+    def model_dump_json(
+        self, *, indent: int | None = None, **kwargs: Unpack[DumpKwargs]
+    ) -> str:
+        kwargs = {**self.__DUMP_DEFAULTS, **kwargs}  # allows overrides, if needed
+        return super().model_dump_json(indent=indent, **kwargs)

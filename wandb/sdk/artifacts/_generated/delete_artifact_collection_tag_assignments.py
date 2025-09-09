@@ -7,17 +7,17 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 
-class DeleteArtifactCollectionTagAssignments(GQLBase):
+class DeleteArtifactCollectionTagAssignments(GQLResult):
     delete_artifact_collection_tag_assignments: Optional[
         DeleteArtifactCollectionTagAssignmentsDeleteArtifactCollectionTagAssignments
     ] = Field(alias="deleteArtifactCollectionTagAssignments")
 
 
 class DeleteArtifactCollectionTagAssignmentsDeleteArtifactCollectionTagAssignments(
-    GQLBase
+    GQLResult
 ):
     success: bool
 

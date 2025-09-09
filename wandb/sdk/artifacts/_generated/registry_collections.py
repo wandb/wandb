@@ -7,22 +7,22 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import RegistryCollectionsPage
 
 
-class RegistryCollections(GQLBase):
+class RegistryCollections(GQLResult):
     organization: Optional[RegistryCollectionsOrganization]
 
 
-class RegistryCollectionsOrganization(GQLBase):
+class RegistryCollectionsOrganization(GQLResult):
     org_entity: Optional[RegistryCollectionsOrganizationOrgEntity] = Field(
         alias="orgEntity"
     )
 
 
-class RegistryCollectionsOrganizationOrgEntity(GQLBase):
+class RegistryCollectionsOrganizationOrgEntity(GQLResult):
     name: str
     artifact_collections: Optional[RegistryCollectionsPage] = Field(
         alias="artifactCollections"
