@@ -418,7 +418,7 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 
 			metrics, err := resource.Sample()
 			if err != nil {
-				if shouldCaptureSamplingError(err) {
+				if ShouldCaptureSamplingError(err) {
 					sm.logger.CaptureError(fmt.Errorf("monitor: error sampling metrics: %v", err))
 				} else {
 					sm.logger.Debug(fmt.Sprintf("monitor: benign sampling error: %v", err))
@@ -455,10 +455,10 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 
 }
 
-// shouldCaptureSamplingError checks if a resource sampling error should be sent to Sentry.
+// ShouldCaptureSamplingError checks if a resource sampling error should be sent to Sentry.
 //
 // Use to filter out expected/transient failures. Keep this intentionally small and specific.
-func shouldCaptureSamplingError(err error) bool {
+func ShouldCaptureSamplingError(err error) bool {
 	// Transient gRPC connectivity to the gpu_stats sidecar.
 	if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
 		return false
