@@ -30,6 +30,18 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - id: set-up-gcloud-sdk
+        name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - id: set-up-gcp-credentials
+        name: Set up GCP credentials
+        uses: "google-github-actions/auth@v2"
+        with:
+          project_id: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_REGISTRY_SA }}
+
       - id: build
         name: Build launch agent
         run: |
