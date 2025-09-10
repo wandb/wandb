@@ -17,14 +17,15 @@ import threading
 import wandb
 
 _weave_init_lock = threading.Lock()
+_already_suggested_weave_installation = False
 
 _DISABLE_WEAVE = "WANDB_DISABLE_WEAVE"
 _WEAVE_PACKAGE_NAME = "weave"
-TARGET_LIBS = [
-    "trl",
-    "verl",
+TARGET_RL_FINETUNING_LIBS = [
     "art",
+    "trl",
     "verifiers",
+    "verl",
 ]
 
 
@@ -49,14 +50,7 @@ def setup(entity: str | None, project: str | None) -> None:
     # If weave is not yet imported, we can't init it from here.  Instead, we'll
     # rely on the weave library itself to detect a run and init itself.
     if _WEAVE_PACKAGE_NAME not in sys.modules:
-        # Check if any target library is imported and suggest Weave installation
-        imported_libs = [lib for lib in TARGET_LIBS if lib in sys.modules]
-        if imported_libs:
-            wandb.termlog(
-                f"Detected [{', '.join(imported_libs)}] in use.\n"
-                "To get improved LLM call tracking, `pip install weave` then add `import weave` to the top of your script.\n"
-                "For more information, check out the docs at: https://weave-docs.wandb.ai/"
-            )
+        _maybe_suggest_weave_installation()
         return
 
     # If weave has already been imported, initialize immediately
@@ -75,3 +69,22 @@ def setup(entity: str | None, project: str | None) -> None:
             weave.init(project_path)
         except Exception as e:
             wandb.termwarn(f"Failed to automatically initialize Weave: {e}")
+
+
+def _maybe_suggest_weave_installation() -> None:
+    """Suggest Weave installation if any target library is imported."""
+    global _already_suggested_weave_installation
+    if _already_suggested_weave_installation:
+        return
+
+    _already_suggested_weave_installation = True
+    imported_libs = [lib for lib in TARGET_RL_FINETUNING_LIBS if lib in sys.modules]
+    if imported_libs:
+        wandb.termlog(f"Detected [{', '.join(imported_libs)}] in use.")
+        wandb.termlog(
+            "To get improved LLM call tracking, `pip install weave` then add "
+            "`import weave` to the top of your script."
+        )
+        wandb.termlog(
+            "For more information, check out the docs at: https://weave-docs.wandb.ai/"
+        )
