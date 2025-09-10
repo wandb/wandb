@@ -43,7 +43,12 @@ class AgentProcess:
             if platform.system() == "Windows":
                 kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
             else:
-                kwargs = dict(preexec_fn=os.setpgrp)
+                if sys.version_info >= (3, 11):
+                    # preexec_fn is not thread-safe; process_group was introduced in 3.11 to
+                    # replace os.setpgrp
+                    kwargs = dict(process_group=0)
+                else:
+                    kwargs = dict(preexec_fn=os.setpgrp)
             if env.get(wandb.env.SERVICE):
                 env.pop(wandb.env.SERVICE)
             self._popen = subprocess.Popen(command, env=env, **kwargs)
