@@ -5,16 +5,16 @@ from __future__ import annotations
 
 from typing import Optional
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import FileUrlsFragment
 
 
-class ArtifactFileUrls(GQLBase):
+class ArtifactFileUrls(GQLResult):
     artifact: Optional[ArtifactFileUrlsArtifact]
 
 
-class ArtifactFileUrlsArtifact(GQLBase):
+class ArtifactFileUrlsArtifact(GQLResult):
     files: Optional[FileUrlsFragment]
 
 

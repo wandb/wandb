@@ -7,23 +7,23 @@ from typing import Any, List, Literal, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId, Typename
+from wandb._pydantic import GQLId, GQLResult, Typename
 
 from .enums import ArtifactState
 
 
-class ArtifactCollectionsFragment(GQLBase):
+class ArtifactCollectionsFragment(GQLResult):
     page_info: ArtifactCollectionsFragmentPageInfo = Field(alias="pageInfo")
     total_count: int = Field(alias="totalCount")
     edges: List[ArtifactCollectionsFragmentEdges]
 
 
-class ArtifactCollectionsFragmentEdges(GQLBase):
+class ArtifactCollectionsFragmentEdges(GQLResult):
     node: Optional[ArtifactCollectionsFragmentEdgesNode]
     cursor: str
 
 
-class ArtifactCollectionsFragmentEdgesNode(GQLBase):
+class ArtifactCollectionsFragmentEdgesNode(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
@@ -33,19 +33,19 @@ class ArtifactCollectionsFragmentEdgesNode(GQLBase):
     created_at: str = Field(alias="createdAt")
 
 
-class ArtifactCollectionsFragmentPageInfo(GQLBase):
+class ArtifactCollectionsFragmentPageInfo(GQLResult):
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class ArtifactFragmentAliases(GQLBase):
+class ArtifactFragmentAliases(GQLResult):
     artifact_collection: Optional[ArtifactFragmentAliasesArtifactCollection] = Field(
         alias="artifactCollection"
     )
     alias: str
 
 
-class ArtifactFragmentAliasesArtifactCollection(GQLBase):
+class ArtifactFragmentAliasesArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
@@ -53,12 +53,12 @@ class ArtifactFragmentAliasesArtifactCollection(GQLBase):
     name: str
 
 
-class ArtifactFragmentAliasesArtifactCollectionProject(GQLBase):
+class ArtifactFragmentAliasesArtifactCollectionProject(GQLResult):
     entity_name: str = Field(alias="entityName")
     name: str
 
 
-class ArtifactFragmentWithoutAliases(GQLBase):
+class ArtifactFragmentWithoutAliases(GQLResult):
     id: GQLId
     artifact_sequence: ArtifactFragmentWithoutAliasesArtifactSequence = Field(
         alias="artifactSequence"
@@ -85,45 +85,45 @@ class ArtifactFragmentWithoutAliases(GQLBase):
     updated_at: Optional[str] = Field(alias="updatedAt")
 
 
-class ArtifactFragmentWithoutAliasesArtifactSequence(GQLBase):
+class ArtifactFragmentWithoutAliasesArtifactSequence(GQLResult):
     project: Optional[ArtifactFragmentWithoutAliasesArtifactSequenceProject]
     name: str
 
 
-class ArtifactFragmentWithoutAliasesArtifactSequenceProject(GQLBase):
+class ArtifactFragmentWithoutAliasesArtifactSequenceProject(GQLResult):
     entity_name: str = Field(alias="entityName")
     name: str
 
 
-class ArtifactFragmentWithoutAliasesArtifactType(GQLBase):
+class ArtifactFragmentWithoutAliasesArtifactType(GQLResult):
     name: str
 
 
-class ArtifactFragmentWithoutAliasesCurrentManifest(GQLBase):
+class ArtifactFragmentWithoutAliasesCurrentManifest(GQLResult):
     file: ArtifactFragmentWithoutAliasesCurrentManifestFile
 
 
-class ArtifactFragmentWithoutAliasesCurrentManifestFile(GQLBase):
+class ArtifactFragmentWithoutAliasesCurrentManifestFile(GQLResult):
     direct_url: str = Field(alias="directUrl")
 
 
-class ArtifactFragmentWithoutAliasesTags(GQLBase):
+class ArtifactFragmentWithoutAliasesTags(GQLResult):
     name: str
 
 
-class ArtifactPortfolioTypeFields(GQLBase):
+class ArtifactPortfolioTypeFields(GQLResult):
     typename__: Typename[Literal["ArtifactPortfolio"]] = "ArtifactPortfolio"
     id: GQLId
     name: str
 
 
-class ArtifactSequenceTypeFields(GQLBase):
+class ArtifactSequenceTypeFields(GQLResult):
     typename__: Typename[Literal["ArtifactSequence"]] = "ArtifactSequence"
     id: GQLId
     name: str
 
 
-class ArtifactTypeFragment(GQLBase):
+class ArtifactTypeFragment(GQLResult):
     typename__: Typename[Literal["ArtifactType"]] = "ArtifactType"
     id: GQLId
     name: str
@@ -131,68 +131,68 @@ class ArtifactTypeFragment(GQLBase):
     created_at: str = Field(alias="createdAt")
 
 
-class ArtifactTypesFragment(GQLBase):
+class ArtifactTypesFragment(GQLResult):
     edges: List[ArtifactTypesFragmentEdges]
     page_info: ArtifactTypesFragmentPageInfo = Field(alias="pageInfo")
 
 
-class ArtifactTypesFragmentEdges(GQLBase):
+class ArtifactTypesFragmentEdges(GQLResult):
     node: Optional[ArtifactTypeFragment]
     cursor: str
 
 
-class ArtifactTypesFragmentPageInfo(GQLBase):
+class ArtifactTypesFragmentPageInfo(GQLResult):
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class ArtifactsFragment(GQLBase):
+class ArtifactsFragment(GQLResult):
     total_count: int = Field(alias="totalCount")
     edges: List[ArtifactsFragmentEdges]
     page_info: ArtifactsFragmentPageInfo = Field(alias="pageInfo")
 
 
-class ArtifactsFragmentEdges(GQLBase):
+class ArtifactsFragmentEdges(GQLResult):
     node: ArtifactFragment
     version: str
     cursor: str
 
 
-class ArtifactsFragmentPageInfo(GQLBase):
+class ArtifactsFragmentPageInfo(GQLResult):
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class FileUrlsFragment(GQLBase):
+class FileUrlsFragment(GQLResult):
     page_info: FileUrlsFragmentPageInfo = Field(alias="pageInfo")
     edges: List[FileUrlsFragmentEdges]
 
 
-class FileUrlsFragmentEdges(GQLBase):
+class FileUrlsFragmentEdges(GQLResult):
     node: Optional[FileUrlsFragmentEdgesNode]
 
 
-class FileUrlsFragmentEdgesNode(GQLBase):
+class FileUrlsFragmentEdgesNode(GQLResult):
     name: str
     direct_url: str = Field(alias="directUrl")
 
 
-class FileUrlsFragmentPageInfo(GQLBase):
+class FileUrlsFragmentPageInfo(GQLResult):
     has_next_page: bool = Field(alias="hasNextPage")
     end_cursor: Optional[str] = Field(alias="endCursor")
 
 
-class FilesFragment(GQLBase):
+class FilesFragment(GQLResult):
     edges: List[FilesFragmentEdges]
     page_info: FilesFragmentPageInfo = Field(alias="pageInfo")
 
 
-class FilesFragmentEdges(GQLBase):
+class FilesFragmentEdges(GQLResult):
     node: Optional[FilesFragmentEdgesNode]
     cursor: str
 
 
-class FilesFragmentEdgesNode(GQLBase):
+class FilesFragmentEdgesNode(GQLResult):
     id: GQLId
     name: str
     url: Optional[str]
@@ -205,12 +205,12 @@ class FilesFragmentEdgesNode(GQLBase):
     direct_url: str = Field(alias="directUrl")
 
 
-class FilesFragmentPageInfo(GQLBase):
+class FilesFragmentPageInfo(GQLResult):
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class MembershipWithArtifact(GQLBase):
+class MembershipWithArtifact(GQLResult):
     id: GQLId
     artifact_collection: Optional[MembershipWithArtifactArtifactCollection] = Field(
         alias="artifactCollection"
@@ -218,7 +218,7 @@ class MembershipWithArtifact(GQLBase):
     artifact: Optional[ArtifactFragment]
 
 
-class MembershipWithArtifactArtifactCollection(GQLBase):
+class MembershipWithArtifactArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
@@ -227,38 +227,38 @@ class MembershipWithArtifactArtifactCollection(GQLBase):
     project: Optional[MembershipWithArtifactArtifactCollectionProject]
 
 
-class MembershipWithArtifactArtifactCollectionProject(GQLBase):
+class MembershipWithArtifactArtifactCollectionProject(GQLResult):
     id: GQLId
     entity_name: str = Field(alias="entityName")
     name: str
 
 
-class RegistriesPage(GQLBase):
+class RegistriesPage(GQLResult):
     page_info: RegistriesPagePageInfo = Field(alias="pageInfo")
     edges: List[RegistriesPageEdges]
 
 
-class RegistriesPageEdges(GQLBase):
+class RegistriesPageEdges(GQLResult):
     node: Optional[RegistryFragment]
 
 
-class RegistriesPagePageInfo(GQLBase):
+class RegistriesPagePageInfo(GQLResult):
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class RegistryCollectionsPage(GQLBase):
+class RegistryCollectionsPage(GQLResult):
     total_count: int = Field(alias="totalCount")
     page_info: RegistryCollectionsPagePageInfo = Field(alias="pageInfo")
     edges: List[RegistryCollectionsPageEdges]
 
 
-class RegistryCollectionsPageEdges(GQLBase):
+class RegistryCollectionsPageEdges(GQLResult):
     cursor: str
     node: Optional[RegistryCollectionsPageEdgesNode]
 
 
-class RegistryCollectionsPageEdgesNode(GQLBase):
+class RegistryCollectionsPageEdgesNode(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
@@ -274,49 +274,49 @@ class RegistryCollectionsPageEdgesNode(GQLBase):
     aliases: RegistryCollectionsPageEdgesNodeAliases
 
 
-class RegistryCollectionsPageEdgesNodeAliases(GQLBase):
+class RegistryCollectionsPageEdgesNodeAliases(GQLResult):
     edges: List[RegistryCollectionsPageEdgesNodeAliasesEdges]
 
 
-class RegistryCollectionsPageEdgesNodeAliasesEdges(GQLBase):
+class RegistryCollectionsPageEdgesNodeAliasesEdges(GQLResult):
     node: Optional[RegistryCollectionsPageEdgesNodeAliasesEdgesNode]
 
 
-class RegistryCollectionsPageEdgesNodeAliasesEdgesNode(GQLBase):
+class RegistryCollectionsPageEdgesNodeAliasesEdgesNode(GQLResult):
     alias: str
 
 
-class RegistryCollectionsPageEdgesNodeDefaultArtifactType(GQLBase):
+class RegistryCollectionsPageEdgesNodeDefaultArtifactType(GQLResult):
     name: str
 
 
-class RegistryCollectionsPageEdgesNodeProject(GQLBase):
+class RegistryCollectionsPageEdgesNodeProject(GQLResult):
     name: str
     entity: RegistryCollectionsPageEdgesNodeProjectEntity
 
 
-class RegistryCollectionsPageEdgesNodeProjectEntity(GQLBase):
+class RegistryCollectionsPageEdgesNodeProjectEntity(GQLResult):
     name: str
 
 
-class RegistryCollectionsPageEdgesNodeTags(GQLBase):
+class RegistryCollectionsPageEdgesNodeTags(GQLResult):
     edges: List[RegistryCollectionsPageEdgesNodeTagsEdges]
 
 
-class RegistryCollectionsPageEdgesNodeTagsEdges(GQLBase):
+class RegistryCollectionsPageEdgesNodeTagsEdges(GQLResult):
     node: RegistryCollectionsPageEdgesNodeTagsEdgesNode
 
 
-class RegistryCollectionsPageEdgesNodeTagsEdgesNode(GQLBase):
+class RegistryCollectionsPageEdgesNodeTagsEdgesNode(GQLResult):
     name: str
 
 
-class RegistryCollectionsPagePageInfo(GQLBase):
+class RegistryCollectionsPagePageInfo(GQLResult):
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class RegistryFragment(GQLBase):
+class RegistryFragment(GQLResult):
     id: GQLId
     allow_all_artifact_types_in_registry: bool = Field(
         alias="allowAllArtifactTypesInRegistry"
@@ -329,28 +329,28 @@ class RegistryFragment(GQLBase):
     access: Optional[str]
 
 
-class RegistryFragmentArtifactTypes(GQLBase):
+class RegistryFragmentArtifactTypes(GQLResult):
     edges: List[RegistryFragmentArtifactTypesEdges]
 
 
-class RegistryFragmentArtifactTypesEdges(GQLBase):
+class RegistryFragmentArtifactTypesEdges(GQLResult):
     node: Optional[RegistryFragmentArtifactTypesEdgesNode]
 
 
-class RegistryFragmentArtifactTypesEdgesNode(GQLBase):
+class RegistryFragmentArtifactTypesEdgesNode(GQLResult):
     name: str
 
 
-class RegistryVersionsPage(GQLBase):
+class RegistryVersionsPage(GQLResult):
     page_info: RegistryVersionsPagePageInfo = Field(alias="pageInfo")
     edges: List[RegistryVersionsPageEdges]
 
 
-class RegistryVersionsPageEdges(GQLBase):
+class RegistryVersionsPageEdges(GQLResult):
     node: Optional[RegistryVersionsPageEdgesNode]
 
 
-class RegistryVersionsPageEdgesNode(GQLBase):
+class RegistryVersionsPageEdgesNode(GQLResult):
     artifact_collection: Optional[RegistryVersionsPageEdgesNodeArtifactCollection] = (
         Field(alias="artifactCollection")
     )
@@ -359,11 +359,11 @@ class RegistryVersionsPageEdgesNode(GQLBase):
     aliases: List[RegistryVersionsPageEdgesNodeAliases]
 
 
-class RegistryVersionsPageEdgesNodeAliases(GQLBase):
+class RegistryVersionsPageEdgesNodeAliases(GQLResult):
     alias: str
 
 
-class RegistryVersionsPageEdgesNodeArtifactCollection(GQLBase):
+class RegistryVersionsPageEdgesNodeArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
@@ -371,16 +371,16 @@ class RegistryVersionsPageEdgesNodeArtifactCollection(GQLBase):
     name: str
 
 
-class RegistryVersionsPageEdgesNodeArtifactCollectionProject(GQLBase):
+class RegistryVersionsPageEdgesNodeArtifactCollectionProject(GQLResult):
     name: str
     entity: RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity
 
 
-class RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity(GQLBase):
+class RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity(GQLResult):
     name: str
 
 
-class RegistryVersionsPagePageInfo(GQLBase):
+class RegistryVersionsPagePageInfo(GQLResult):
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
