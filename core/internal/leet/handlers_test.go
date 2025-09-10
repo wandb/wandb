@@ -102,7 +102,7 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 	// Enter filter mode again, type something, then Esc
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'['}})
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("tmp")})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
 	// Should keep the previously applied "acc" state
 	if !model.TestSidebarIsFiltering() || model.TestSidebarFilterQuery() != "acc" {
@@ -152,5 +152,5 @@ func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
 	// Clear overview filter
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlK})
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlK})
 }
