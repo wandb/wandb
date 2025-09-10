@@ -21,8 +21,30 @@ _weave_init_lock = threading.Lock()
 
 _DISABLE_WEAVE = "WANDB_DISABLE_WEAVE"
 _WEAVE_PACKAGE_NAME = "weave"
-_TARGET_RL_FINETUNING_LIBS = [
+
+# This list is adapted from https://github.com/wandb/weave/blob/master/weave/integrations/__init__.py
+_AVAILABLE_WEAVE_INTEGRATIONS = [
+    "anthropic",
+    "autogen",
+    "cohere",
+    "crewai",
+    "dspy",
+    "google.genai",
+    "groq",
+    "huggingface_hub.inference",
+    "instructor",
+    "langchain",
+    "litellm",
+    "llama_index",
+    "mcp",
+    "mistral",
+    "notdiamond",
+    "openai",
+    "agents",
+    "smolagents",
+    "verdict",
     "verifiers",
+    "vertexai",
 ]
 
 
@@ -70,7 +92,7 @@ def setup(entity: str | None, project: str | None) -> None:
 
 def _maybe_suggest_weave_installation() -> None:
     """Suggest Weave installation or import if any target library is imported."""
-    imported_libs = [lib for lib in _TARGET_RL_FINETUNING_LIBS if lib in sys.modules]
+    imported_libs = [lib for lib in _AVAILABLE_WEAVE_INTEGRATIONS if lib in sys.modules]
     if not imported_libs:
         return
 
