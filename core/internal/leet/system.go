@@ -202,7 +202,7 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 
 		// Recalculate pages
 		g.totalPages = (len(g.orderedCharts) + MetricsPerPage - 1) / MetricsPerPage
-		g.loadCurrentPage()
+		g.LoadCurrentPage()
 
 		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.AddDataPoint: chart created, total charts=%d, pages=%d", len(g.orderedCharts), g.totalPages))
 	}
@@ -365,8 +365,8 @@ func (g *SystemMetricsGrid) calculateChartDimensions() MetricChartDimensions {
 	}
 }
 
-// loadCurrentPage loads charts for the current page
-func (g *SystemMetricsGrid) loadCurrentPage() {
+// LoadCurrentPage loads charts for the current page
+func (g *SystemMetricsGrid) LoadCurrentPage() {
 	// Clear current grid
 	for row := 0; row < MetricsGridRows; row++ {
 		for col := 0; col < MetricsGridCols; col++ {
@@ -407,7 +407,7 @@ func (g *SystemMetricsGrid) Navigate(direction int) {
 		g.currentPage = 0
 	}
 
-	g.loadCurrentPage()
+	g.LoadCurrentPage()
 }
 
 // HandleMouseClick handles mouse clicks for chart selection
@@ -513,7 +513,7 @@ func (g *SystemMetricsGrid) Resize(width, height int) {
 		}
 	}
 
-	g.loadCurrentPage()
+	g.LoadCurrentPage()
 }
 
 // Reset clears all metrics data
@@ -637,7 +637,7 @@ func (g *SystemMetricsGrid) RebuildGrid() {
 	g.clearFocus()
 
 	// Reload current page
-	g.loadCurrentPage()
+	g.LoadCurrentPage()
 
 	// Resize all charts
 	dims := g.calculateChartDimensions()
@@ -649,6 +649,10 @@ func (g *SystemMetricsGrid) RebuildGrid() {
 			metricChart.chart.DrawBraille()
 		}
 	}
+}
+
+func (g *SystemMetricsGrid) GetCharts() [][]*SystemMetricChart {
+	return g.charts
 }
 
 // GetChartCount returns the number of charts with data

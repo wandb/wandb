@@ -26,9 +26,8 @@ func TestTUI_LoadingHelpAndQuit_Teatest(t *testing.T) {
 	// Send a window size to trigger first render
 	tm.Send(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	// Load the tiny golden substring and wait until it appears
+	// Wait for loading screen
 	want := []byte("Loading data...")
-
 	teatest.WaitFor(t, tm.Output(),
 		func(b []byte) bool { return bytes.Contains(b, want) },
 		teatest.WithDuration(2*time.Second),
@@ -44,9 +43,7 @@ func TestTUI_LoadingHelpAndQuit_Teatest(t *testing.T) {
 }
 
 func TestTUI_SystemMetrics_ToggleAndRender_Teatest(t *testing.T) {
-	// Not parallel: we mutate the singleton config path below.
-
-	// --- Hermetic config (2x2 system grid) ---
+	// Setup config with 2x2 system grid
 	tmpDir := t.TempDir()
 	cfg := leet.GetConfig()
 	cfg.SetPathForTests(filepath.Join(tmpDir, "config.json"))
@@ -59,25 +56,30 @@ func TestTUI_SystemMetrics_ToggleAndRender_Teatest(t *testing.T) {
 	if err := cfg.SetSystemCols(2); err != nil {
 		t.Fatalf("config SetSystemCols: %v", err)
 	}
+	leet.UpdateGridDimensions()
 
-	// --- Model + test terminal ---
+	// Create model and test terminal
 	logger := observability.NewNoOpLogger()
 	m := leet.NewModel("no/such/file.wandb", logger)
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(240, 80))
 
-	// Set a size large enough for the right sidebar grid to meet min dimensions.
+	// Set window size
 	tm.Send(tea.WindowSizeMsg{Width: 240, Height: 80})
 
-	// Exit loading screen by delivering a small batch with one history point.
-	// (isLoading becomes false only when processing a batch with charts.)
+	// Exit loading screen by providing some metric data
 	tm.Send(leet.BatchedRecordsMsg{
 		Msgs: []tea.Msg{
 			leet.HistoryMsg{Metrics: map[string]float64{"loss": 1.0}, Step: 1},
 		},
 	})
 
-	// Provide synthetic system stats: two GPUs (same base key => one chart with 2 series)
-	// + one CPU core.
+	// Wait for the metrics grid to appear (loss chart should be visible)
+	teatest.WaitFor(t, tm.Output(),
+		func(b []byte) bool { return bytes.Contains(b, []byte("loss")) },
+		teatest.WithDuration(2*time.Second),
+	)
+
+	// Provide system stats
 	ts := time.Now().Unix()
 	tm.Send(leet.StatsMsg{
 		Timestamp: ts,
@@ -88,37 +90,39 @@ func TestTUI_SystemMetrics_ToggleAndRender_Teatest(t *testing.T) {
 		},
 	})
 
-	// Toggle right sidebar open (system metrics).
+	// Toggle right sidebar open
 	tm.Send(tea.KeyMsg{Type: tea.KeyCtrlN})
 
-	// Wait for the right sidebar header to appear.
+	// Wait for System Metrics header
 	teatest.WaitFor(t, tm.Output(),
 		func(b []byte) bool { return bytes.Contains(b, []byte("System Metrics")) },
 		teatest.WithDuration(3*time.Second),
 	)
 
-	// GPU Temp chart title should appear; with two GPU series "[2]" should be visible.
-	// CPU Core chart title should also be present.
+	// Check for GPU Temp chart with 2 series (should show [2])
 	teatest.WaitFor(t, tm.Output(),
 		func(b []byte) bool {
-			return (bytes.Contains(b, []byte("GPU Temp")) &&
-				bytes.Contains(b, []byte(" [2]")) &&
-				bytes.Contains(b, []byte("CPU Core")))
+			hasGPUTemp := bytes.Contains(b, []byte("GPU Temp"))
+			hasSeriesCount := bytes.Contains(b, []byte("[2]"))
+			hasCPUCore := bytes.Contains(b, []byte("CPU Core"))
+			return hasGPUTemp && hasSeriesCount && hasCPUCore
 		},
 		teatest.WithDuration(3*time.Second),
 	)
 
-	// Add a third GPU series; the series count should update to [3].
+	// Add third GPU
 	tm.Send(leet.StatsMsg{
 		Timestamp: ts + 1,
 		Metrics:   map[string]float64{"gpu.2.temp": 44},
 	})
+
+	// Wait for [3] to appear
 	teatest.WaitFor(t, tm.Output(),
-		func(b []byte) bool { return bytes.Contains(b, []byte(" [3]")) },
+		func(b []byte) bool { return bytes.Contains(b, []byte("[3]")) },
 		teatest.WithDuration(3*time.Second),
 	)
 
-	// Quit cleanly.
+	// Quit
 	tm.Type("q")
 	tm.WaitFinished(t, teatest.WithFinalTimeout(2*time.Second))
 }

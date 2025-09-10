@@ -79,3 +79,25 @@ func TestConfig_SetLeftSidebarVisible_TogglesAndPersists(t *testing.T) {
 		t.Fatalf("GetLeftSidebarVisible() = true; want false")
 	}
 }
+
+func TestConfig_SetLeftSidebarVisible_AffectsModelOnStartup(t *testing.T) {
+	cfg := leet.GetConfig()
+	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
+	if err := cfg.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := cfg.SetLeftSidebarVisible(true); err != nil {
+		t.Fatalf("SetLeftSidebarVisible: %v", err)
+	}
+	leet.UpdateGridDimensions()
+
+	logger := observability.NewNoOpLogger()
+	m := leet.NewModel("dummy", logger)
+	var tm tea.Model = m
+	tm, _ = tm.Update(tea.WindowSizeMsg{Width: 160, Height: 60})
+
+	model := tm.(*leet.Model)
+	if !model.TestLeftSidebarVisible() {
+		t.Fatalf("left sidebar should be visible when config flag is true")
+	}
+}
