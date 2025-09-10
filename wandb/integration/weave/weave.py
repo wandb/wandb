@@ -100,13 +100,13 @@ def _maybe_suggest_weave_installation() -> None:
     if weave_spec is None:
         # Weave is not installed
         msg = (
-            "Use W&B Weave for improved LLM call tracing.  Install Weave with "
+            "Use W&B Weave for improved LLM call tracing. Install Weave with "
             "`pip install weave` then add `import weave` to the top of your script."
         )
     else:
         # Weave is installed but not imported
         msg = (
-            "Use W&B Weave for improved LLM call tracing.  Weave is installed "
+            "Use W&B Weave for improved LLM call tracing. Weave is installed "
             "but not imported. Add `import weave` to the top of your script."
         )
 
