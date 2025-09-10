@@ -22,6 +22,9 @@ _DISABLE_WEAVE = "WANDB_DISABLE_WEAVE"
 _WEAVE_PACKAGE_NAME = "weave"
 TARGET_LIBS = [
     "trl",
+    "verl",
+    "art",
+    "verifiers",
 ]
 
 
