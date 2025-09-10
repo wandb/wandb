@@ -53,8 +53,8 @@ def setup(entity: str | None, project: str | None) -> None:
         imported_libs = [lib for lib in TARGET_LIBS if lib in sys.modules]
         if imported_libs:
             wandb.termlog(
-                f"Detected {', '.join(imported_libs)} in use. "
-                "To get improved LLM call tracking, `pip install weave`."
+                f"Detected [{', '.join(imported_libs)}] in use. "
+                "To get improved LLM call tracking, `pip install weave` then add `import weave` to the top of your script."
             )
         return
 
