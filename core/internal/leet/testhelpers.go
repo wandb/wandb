@@ -1,3 +1,5 @@
+// TestAPI provides a controlled interface for testing internal model state.
+// These methods are only exposed for tests in the leet_test package.
 package leet
 
 import (
@@ -5,9 +7,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 )
-
-// TestAPI provides a controlled interface for testing internal model state.
-// These methods are only exposed for tests in the leet_test package.
 
 // TestFocusState returns the current focus state
 func (m *Model) TestFocusState() FocusState {
@@ -69,8 +68,6 @@ func (m *Model) TestClearAllFocus() {
 	m.clearAllFocus()
 }
 
-// Sidebar test methods
-
 // TestForceExpand forces the sidebar to expanded state without animation
 func (s *Sidebar) TestForceExpand() {
 	s.state = SidebarExpanded
@@ -94,8 +91,6 @@ func (rs *RightSidebar) TestMetricsChart(baseKey string) *SystemMetricChart {
 	}
 	return rs.metricsGrid.chartsByMetric[baseKey]
 }
-
-// SystemMetricChart test methods
 
 // TestSeriesCount returns the number of series in the chart
 func (c *SystemMetricChart) TestSeriesCount() int {
