@@ -293,8 +293,10 @@ def _login(
             when calling wandb.login() after wandb.init().
 
     Returns:
-        bool: If the login was successful.
-        str: The API key used to log in.
+        bool: If the login was successful
+            or the user is assumed to be already be logged in.
+        str: The API key used to log in,
+            or None if the api key was not verified during the login process.
     """
     if wandb.run is not None:
         if not _disable_warning:

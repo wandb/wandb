@@ -291,6 +291,8 @@ class Api:
                 specified, the default timeout will be used.
             api_key: API key to use for authentication. If not provided,
                 the API key from the current environment or configuration will be used.
+                If no api key is setup for the current environment,
+                the user will be prompted for an api key.
         """
         self.settings = InternalApi().settings()
 
@@ -307,9 +309,7 @@ class Api:
 
         self._api_key = api_key
         if _thread_local_api_settings.cookies is None:
-            # re-assign the api key
-            # in the event that the user is prompted for a key
-            logged_in, self._api_key = wandb_login._login(
+            logged_in, login_key = wandb_login._login(
                 host=self.settings["base_url"],
                 key=self.api_key,
                 verify=True,
@@ -326,6 +326,10 @@ class Api:
                     "Unable to login with the provided API key. "
                     "Please verify the API key and try again."
                 )
+
+            # update api key from login
+            # in the event that the user is prompted for a key
+            self._api_key = login_key if login_key is not None else api_key
 
         self._viewer = None
         self._projects = {}
