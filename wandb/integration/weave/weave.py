@@ -20,9 +20,9 @@ _weave_init_lock = threading.Lock()
 
 _DISABLE_WEAVE = "WANDB_DISABLE_WEAVE"
 _WEAVE_PACKAGE_NAME = "weave"
-TARGET_LIBS = {
+TARGET_LIBS = [
     "trl",
-}
+]
 
 
 def setup(entity: str | None, project: str | None) -> None:
@@ -47,7 +47,8 @@ def setup(entity: str | None, project: str | None) -> None:
     # rely on the weave library itself to detect a run and init itself.
     if _WEAVE_PACKAGE_NAME not in sys.modules:
         # Check if any target library is imported and suggest Weave installation
-        if imported_libs := (TARGET_LIBS & sys.modules.keys()):
+        imported_libs = [lib for lib in TARGET_LIBS if lib in sys.modules]
+        if imported_libs:
             wandb.termlog(
                 "To get improved LLM call tracking, `pip install weave`. "
                 f"Detected {', '.join(imported_libs)} in use."
