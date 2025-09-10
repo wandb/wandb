@@ -1,6 +1,7 @@
 package monitor_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,6 +10,8 @@ import (
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func newTestSystemMonitor() *monitor.SystemMonitor {
@@ -130,4 +133,26 @@ func TestSystemMonitor_FullCycle(t *testing.T) {
 
 	sm.Finish()
 	assert.Equal(t, monitor.StateStopped, sm.GetState())
+}
+
+func TestShouldCaptureSamplingErr(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"NetstatMissing", errors.New(`exec: "netstat": executable file not found in $PATH`), false},
+		{"GrpcUnavailable", status.Error(codes.Unavailable, "connection error"), false},
+		{"ConnRefused", errors.New(`transport: Error while dialing: dial unix /tmp/x.sock: connect: connection refused`), false},
+		{"WinIncorrectFunction", errors.New("Incorrect function."), false},
+		{"MissingProcDiskstats", errors.New("open /proc/diskstats: no such file or directory"), false},
+		{"OtherError", errors.New("some other error"), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := monitor.ShouldCaptureSamplingError(tt.err); got != tt.want {
+				t.Fatalf("ShouldCaptureSamplingError() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
