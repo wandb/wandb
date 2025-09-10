@@ -22,10 +22,7 @@ _weave_init_lock = threading.Lock()
 _DISABLE_WEAVE = "WANDB_DISABLE_WEAVE"
 _WEAVE_PACKAGE_NAME = "weave"
 _TARGET_RL_FINETUNING_LIBS = [
-    "art",
-    "trl",
     "verifiers",
-    "verl",
 ]
 
 
