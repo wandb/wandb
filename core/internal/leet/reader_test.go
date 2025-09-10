@@ -105,6 +105,7 @@ func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
 	}
 }
 
+//gocyclo:ignore
 func TestReadNext_MultipleRecordTypes(t *testing.T) {
 	tmp, err := os.CreateTemp(t.TempDir(), "readnext-*.wandb")
 	if err != nil {
