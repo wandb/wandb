@@ -76,8 +76,8 @@ def _maybe_suggest_weave_installation() -> None:
     if imported_libs:
         wandb.termlog(f"Detected [{', '.join(imported_libs)}] in use.", repeat=False)
         wandb.termlog(
-            "To get improved LLM call tracking, `pip install weave` then add "
-            "`import weave` to the top of your script.",
+            "Use W&B Weave for improved LLM call tracing.  Install Weave with "
+            "`pip install weave` then add `import weave` to the top of your script.",
             repeat=False,
         )
         wandb.termlog(
