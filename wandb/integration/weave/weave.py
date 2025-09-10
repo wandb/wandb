@@ -20,7 +20,7 @@ _weave_init_lock = threading.Lock()
 
 _DISABLE_WEAVE = "WANDB_DISABLE_WEAVE"
 _WEAVE_PACKAGE_NAME = "weave"
-TARGET_RL_FINETUNING_LIBS = [
+_TARGET_RL_FINETUNING_LIBS = [
     "art",
     "trl",
     "verifiers",
@@ -72,7 +72,7 @@ def setup(entity: str | None, project: str | None) -> None:
 
 def _maybe_suggest_weave_installation() -> None:
     """Suggest Weave installation if any target library is imported."""
-    imported_libs = [lib for lib in TARGET_RL_FINETUNING_LIBS if lib in sys.modules]
+    imported_libs = [lib for lib in _TARGET_RL_FINETUNING_LIBS if lib in sys.modules]
     if imported_libs:
         wandb.termlog(f"Detected [{', '.join(imported_libs)}] in use.", repeat=False)
         wandb.termlog(
