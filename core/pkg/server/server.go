@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/monitor"
+	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/pkg/server/listeners"
@@ -38,6 +39,9 @@ type Server struct {
 
 	// streamMux maps stream IDs to streams.
 	streamMux *stream.StreamMux
+
+	// runSyncManager implements `wandb sync` operations.
+	runSyncManager *runsync.RunSyncManager
 
 	// gpuResourceManager manages costly resources for GPU system metrics.
 	gpuResourceManager *monitor.GPUResourceManager
@@ -87,6 +91,7 @@ func NewServer(params ServerParams) *Server {
 		serverLifetimeCtx:  serverLifetimeCtx,
 		stopServer:         stopServer,
 		streamMux:          stream.NewStreamMux(),
+		runSyncManager:     runsync.NewRunSyncManager(),
 		gpuResourceManager: monitor.NewGPUResourceManager(params.EnableDCGMProfiling),
 		sentryClient:       params.SentryClient,
 		wg:                 sync.WaitGroup{},
@@ -224,6 +229,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			ID:                 id,
 			Conn:               conn,
 			StreamMux:          s.streamMux,
+			RunSyncManager:     s.runSyncManager,
 			GPUResourceManager: s.gpuResourceManager,
 			SentryClient:       s.sentryClient,
 			Commit:             s.commit,

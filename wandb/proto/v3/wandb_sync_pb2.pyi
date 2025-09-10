@@ -75,14 +75,22 @@ class ServerSyncRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     ID_FIELD_NUMBER: builtins.int
+    PARALLELISM_FIELD_NUMBER: builtins.int
     id: builtins.str
     """The operation's ID, as returned by ServerInitSyncResponse."""
+    parallelism: builtins.int
+    """How many runs to sync at once, if syncing multiple.
+
+    Syncing is generally IO bound, and the ideal parallelism depends
+    on factors like server performance and network speed.
+    """
     def __init__(
         self,
         *,
         id: builtins.str = ...,
+        parallelism: builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["id", b"id"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["id", b"id", "parallelism", b"parallelism"]) -> None: ...
 
 global___ServerSyncRequest = ServerSyncRequest
 
