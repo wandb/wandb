@@ -10,6 +10,7 @@ The integration can be disabled by setting the WANDB_DISABLE_WEAVE environment v
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
 import threading
@@ -71,16 +72,28 @@ def setup(entity: str | None, project: str | None) -> None:
 
 
 def _maybe_suggest_weave_installation() -> None:
-    """Suggest Weave installation if any target library is imported."""
+    """Suggest Weave installation or import if any target library is imported."""
     imported_libs = [lib for lib in _TARGET_RL_FINETUNING_LIBS if lib in sys.modules]
-    if imported_libs:
-        wandb.termlog(f"Detected [{', '.join(imported_libs)}] in use.", repeat=False)
-        wandb.termlog(
+    if not imported_libs:
+        return
+
+    weave_spec = importlib.util.find_spec(_WEAVE_PACKAGE_NAME)
+    if weave_spec is None:
+        # Weave is not installed
+        msg = (
             "Use W&B Weave for improved LLM call tracing.  Install Weave with "
-            "`pip install weave` then add `import weave` to the top of your script.",
-            repeat=False,
+            "`pip install weave` then add `import weave` to the top of your script."
         )
-        wandb.termlog(
-            "For more information, check out the docs at: https://weave-docs.wandb.ai/",
-            repeat=False,
+    else:
+        # Weave is installed but not imported
+        msg = (
+            "Use W&B Weave for improved LLM call tracing.  Weave is installed "
+            "but not imported. Add `import weave` to the top of your script."
         )
+
+    wandb.termlog(f"Detected [{', '.join(imported_libs)}] in use.", repeat=False)
+    wandb.termlog(msg, repeat=False)
+    wandb.termlog(
+        "For more information, check out the docs at: https://weave-docs.wandb.ai/",
+        repeat=False,
+    )
