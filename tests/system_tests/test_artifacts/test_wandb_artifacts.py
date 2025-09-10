@@ -1854,8 +1854,8 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     etag = "some etag"
 
     cache = artifact_file_cache.ArtifactFileCache(tmp_path)
-    path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
-    with opener() as f:
+    checked_path = cache.check_etag_obj_path(uri, etag, 123)
+    with checked_path.open() as f:
         f.write(123 * "a")
 
     handler = S3Handler()
@@ -1870,7 +1870,7 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
         ),
         local=True,
     )
-    assert local_path == path
+    assert local_path == checked_path.path
 
 
 def test_tracking_storage_handler(artifact):
@@ -1938,11 +1938,11 @@ def test_cache_cleanup_allows_upload(user, tmp_path, monkeypatch, artifact):
         artifact.wait()
 
     manifest_entry = artifact.manifest.entries["test-file"]
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, 2**20)
+    checked = cache.check_md5_obj_path(manifest_entry.digest, 2**20)
 
     # Now the file should be in the cache.
     # Even though this works in production, the test often fails. I don't know why :(.
-    assert found
+    assert checked.hit
     assert cache.cleanup(0) == 2**20
 
 

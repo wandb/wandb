@@ -49,12 +49,12 @@ class LocalFileHandler(StorageHandler):
                 f"Local file reference: Failed to find file at path {local_path}"
             )
 
-        path, hit, cache_open = self._cache.check_md5_obj_path(
+        checked_path = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
-        if hit:
-            return path
+        if checked_path.hit:
+            return checked_path.path
 
         md5 = md5_file_b64(local_path)
         if md5 != manifest_entry.digest:
@@ -62,11 +62,11 @@ class LocalFileHandler(StorageHandler):
                 f"Local file reference: Digest mismatch for path {local_path}: expected {manifest_entry.digest} but found {md5}"
             )
 
-        filesystem.mkdir_exists_ok(os.path.dirname(path))
+        filesystem.mkdir_exists_ok(os.path.dirname(checked_path.path))
 
-        with cache_open() as f:
+        with checked_path.open() as f:
             shutil.copy(local_path, f.name)
-        return path
+        return checked_path.path
 
     def store_path(
         self,
