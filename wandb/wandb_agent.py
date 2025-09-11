@@ -69,7 +69,7 @@ class AgentProcess:
     def _subprocess_with_pty_stdin(self, command, env, **kwargs):
         """Create subprocess with PTY stdin to avoid readline deadlocks."""
         # Without this, if child process tries to import readline, the child process group won't
-        # have access to stdin and may freeze. We give stdin a dummy pty to avoid that, since we
+        # have access to stdin and may deadlock. We give stdin a dummy pty to avoid that, since we
         # don't support having Sweeps training scripts actually read from stdin anyway.
         #
         # Notably, starting in Python 3.13, torch has an indirect import of readline.
