@@ -385,16 +385,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.HasMore {
 			// Chunked read for boot load.
 			cmds = append(cmds, m.reader.ReadAllRecordsChunked())
-		} else {
+		} else if !m.fileComplete && !m.watcherStarted {
 			// Boot load done; start watcher + heartbeat once
-			if !m.fileComplete && !m.watcherStarted {
-				if err := m.startWatcher(); err != nil {
-					m.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
-				} else {
-					m.logger.Info("model: watcher started successfully")
-					m.startHeartbeat()
-				}
+			if err := m.startWatcher(); err != nil {
+				m.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
+			} else {
+				m.logger.Info("model: watcher started successfully")
+				m.startHeartbeat()
 			}
+
 		}
 		return m, tea.Batch(cmds...)
 
