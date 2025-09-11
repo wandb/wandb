@@ -253,6 +253,10 @@ func InitializeReader(runPath string) tea.Cmd {
 
 // ReadAllRecordsChunked returns a command to read records in chunks for progressive loading.
 func ReadAllRecordsChunked(reader *WandbReader) tea.Cmd {
+	if reader == nil {
+		// No reader available; no-op to keep Bubble Tea flow consistent.
+		return func() tea.Msg { return nil }
+	}
 	return reader.ReadAllRecordsChunked()
 }
 

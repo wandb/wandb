@@ -515,3 +515,65 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 		t.Fatal("model not in running state after data receipt")
 	}
 }
+
+func TestReload_WhileLoading_DoesNotCrash(t *testing.T) {
+	t.Parallel()
+
+	// Isolate config to a temp file to avoid cross-test interference.
+	cfg := leet.GetConfig()
+	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
+	if err := cfg.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	logger := observability.NewNoOpLogger()
+	var m tea.Model = leet.NewModel("dummy", logger)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	// Trigger a reload (Alt+r).
+	var cmd tea.Cmd
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}, Alt: true})
+	if cmd == nil {
+		t.Fatal("expected reload command")
+	}
+
+	// Execute the reload message; this sets m.reader = nil internally.
+	m, _ = m.Update(cmd())
+
+	// A late chunk with HasMore=true should NOT panic.
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Update panicked handling late chunk during reload: %v", r)
+		}
+	}()
+	_, _ = m.Update(leet.ChunkedBatchMsg{Msgs: nil, HasMore: true, Progress: 1})
+}
+
+func TestReload_DropsInFlightChunk(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	var m tea.Model = leet.NewModel("dummy", logger)
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	// Trigger reload (Alt+r) — this sets reloadInProgress immediately now.
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}, Alt: true})
+	if cmd == nil {
+		t.Fatal("expected a reload command")
+	}
+
+	// Late chunk (as if a previously scheduled read just completed).
+	// It must be dropped and not create/draw charts.
+	m, _ = m.Update(leet.ChunkedBatchMsg{
+		Msgs: []tea.Msg{
+			leet.HistoryMsg{Metrics: map[string]float64{"loss": 1.0}, Step: 1},
+		},
+		HasMore:  false,
+		Progress: 1,
+	})
+
+	// Clicking where the first chart would normally appear should not set focus.
+	concrete := m.(*leet.Model)
+	concrete.TestHandleChartGridClick(0, 0)
+	if concrete.TestFocusState().Type != leet.FocusNone {
+		t.Fatalf("stale chunk should be ignored during reload")
+	}
+}

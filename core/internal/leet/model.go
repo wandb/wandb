@@ -365,106 +365,59 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, ReadAllRecordsChunked(m.reader)
 
 	case ChunkedBatchMsg:
+		// Drop any late chunks while a reload is in progress.
+		m.reloadMu.Lock()
+		reloading := m.reloadInProgress
+		m.reloadMu.Unlock()
+		if reloading {
+			m.logger.Debug("model: dropping ChunkedBatchMsg during reload")
+			return m, nil
+		}
+
 		m.logger.Debug(fmt.Sprintf("model: ChunkedBatchMsg received with %d messages, hasMore=%v",
 			len(msg.Msgs), msg.HasMore))
 
-		// Update progress
+		// Track progress
 		m.recordsLoaded += msg.Progress
 
-		// Process all messages in this chunk
-		processedCount := 0
-		for _, subMsg := range msg.Msgs {
-			var cmd tea.Cmd
-			m, cmd = m.processRecordMsg(subMsg)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			processedCount++
-		}
+		cmds = append(cmds, m.handleRecordsBatch(msg.Msgs /*suppressRedraw=*/, false)...)
 
-		m.logger.Debug(fmt.Sprintf("model: processed %d messages from chunk", processedCount))
-
-		// Exit loading state once we have some data to show
-		m.chartMu.RLock()
-		hasCharts := len(m.allCharts) > 0
-		m.chartMu.RUnlock()
-
-		if m.isLoading && hasCharts {
-			m.isLoading = false
-			m.logger.Info(fmt.Sprintf("model: initial data loaded, showing UI after %v",
-				time.Since(m.loadStartTime)))
-		}
-
-		// Continue reading if there's more data
 		if msg.HasMore {
-			m.logger.Debug("model: requesting next chunk")
+			// Chunked read for boot load.
 			cmds = append(cmds, m.reader.ReadAllRecordsChunked())
 		} else {
-			// All initial data loaded
-			m.logger.Info(fmt.Sprintf("model: finished loading %d records in %v",
-				m.recordsLoaded, time.Since(m.loadStartTime)))
-
-			// Start watcher and heartbeat if file isn't complete
+			// Boot load done; start watcher + heartbeat once
 			if !m.fileComplete && !m.watcherStarted {
 				if err := m.startWatcher(); err != nil {
 					m.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
 				} else {
 					m.logger.Info("model: watcher started successfully")
-					// Start heartbeat for live runs
 					m.startHeartbeat()
 				}
 			}
 		}
-
 		return m, tea.Batch(cmds...)
 
 	case BatchedRecordsMsg:
+		// Drop any late batches while a reload is in progress.
+		m.reloadMu.Lock()
+		reloading := m.reloadInProgress
+		m.reloadMu.Unlock()
+		if reloading {
+			m.logger.Debug("model: dropping BatchedRecordsMsg during reload")
+			return m, nil
+		}
+
 		m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
+		cmds = append(cmds, m.handleRecordsBatch(msg.Msgs /*suppressRedraw=*/, true)...)
 
-		// Process the whole batch with redraws suppressed; draw once at the end.
-		m.suppressDraw = true
-		for _, subMsg := range msg.Msgs {
-			var cmd tea.Cmd
-			m, cmd = m.processRecordMsg(subMsg)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		}
-		m.suppressDraw = false
-		m.drawVisibleCharts()
-
-		// Only exit loading state if we have actual metric data (charts)
-		m.chartMu.RLock()
-		hasCharts := len(m.allCharts) > 0
-		m.chartMu.RUnlock()
-
-		if m.isLoading && hasCharts {
-			m.isLoading = false
-		}
-
-		// Start watcher and heartbeat after initial load if file isn't complete
-		if !m.fileComplete && !m.watcherStarted {
-			if err := m.startWatcher(); err != nil {
-				m.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
-			} else {
-				m.logger.Info("model: watcher started successfully")
-				// Start heartbeat for live runs
-				m.startHeartbeat()
-			}
-		}
-		// Keep draining while data is available.
+		// Live drain: keep pulling while available
 		cmds = append(cmds, ReadAvailableRecords(m.reader))
-
 		return m, tea.Batch(cmds...)
 
 	case ReloadMsg:
-		// Prevent concurrent reloads
+		// Keep reloadInProgress=true and proceed with the reload steps.
 		m.reloadMu.Lock()
-		if m.reloadInProgress {
-			m.reloadMu.Unlock()
-			m.logger.Debug("model: reload already in progress, ignoring")
-			return m, nil
-		}
 		m.reloadInProgress = true
 		m.reloadMu.Unlock()
 
@@ -890,13 +843,14 @@ func (m *Model) startWatcher() error {
 
 // reloadCharts resets all charts and reloads data
 func (m *Model) reloadCharts() tea.Cmd {
-	// Check if reload is already in progress
+	// Check and mark reload as in progress immediately.
 	m.reloadMu.Lock()
 	if m.reloadInProgress {
 		m.reloadMu.Unlock()
 		m.logger.Debug("model: reload already in progress, ignoring")
 		return nil
 	}
+	m.reloadInProgress = true
 	m.reloadMu.Unlock()
 
 	// Save current filter
@@ -916,18 +870,6 @@ func (m *Model) reloadCharts() tea.Cmd {
 
 	// Clear focus state
 	m.clearFocus()
-
-	// Hide sidebars
-	if m.sidebar.IsVisible() {
-		m.sidebar.state = SidebarCollapsed
-		m.sidebar.currentWidth = 0
-		m.sidebar.targetWidth = 0
-	}
-	if m.rightSidebar.IsVisible() {
-		m.rightSidebar.state = SidebarCollapsed
-		m.rightSidebar.currentWidth = 0
-		m.rightSidebar.targetWidth = 0
-	}
 
 	// Reset system metrics
 	m.rightSidebar.Reset()
@@ -994,4 +936,33 @@ func (m *Model) rebuildGrids() {
 
 	// Clear focus state when resizing
 	m.clearAllFocus()
+}
+
+// handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
+func (m *Model) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	// Coalesce redraws if desired
+	prev := m.suppressDraw
+	m.suppressDraw = suppressRedraw
+	for _, subMsg := range subMsgs {
+		var cmd tea.Cmd
+		m, cmd = m.processRecordMsg(subMsg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	m.suppressDraw = prev
+	if !m.suppressDraw {
+		m.drawVisibleCharts()
+	}
+
+	// Exit loading state once we have some charts
+	m.chartMu.RLock()
+	hasCharts := len(m.allCharts) > 0
+	m.chartMu.RUnlock()
+	if m.isLoading && hasCharts {
+		m.isLoading = false
+	}
+	return cmds
 }
