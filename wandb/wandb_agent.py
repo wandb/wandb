@@ -89,7 +89,7 @@ class AgentProcess:
             # dont' expect it to.
             os.close(pty_stdin_parent)
         except OSError as e:
-            wandb.termerror(
+            wandb.termwarn(
                 "Error opening pty for stdin. Falling back to regular subprocess.Popen, "
                 "which may deadlock if child process directly or indirectly imports readline.\n"
                 f"Error: {e}"
