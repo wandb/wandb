@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/wandb/wandb/core/internal/monitor/tpuproto"
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/local"
@@ -45,6 +46,7 @@ type TPUChip struct {
 
 type RuntimeMetricServiceClient interface {
 	GetRuntimeMetric(ctx context.Context, in *tpuproto.MetricRequest, opts ...grpc.CallOption) (*tpuproto.MetricResponse, error)
+	ListSupportedMetrics(ctx context.Context, in *tpuproto.ListSupportedMetricsRequest, opts ...grpc.CallOption) (*tpuproto.ListSupportedMetricsResponse, error)
 }
 
 // TPU represents a TPU resource with gRPC connection and client.
@@ -63,11 +65,14 @@ type TPU struct {
 
 	// Total number of TPU devices detected.
 	count int
+
+	// logger is the debug logger.
+	logger *observability.CoreLogger
 }
 
 // NewTPU creates a new TPU instance by detecting local TPU chips and initializing the gRPC connection.
-func NewTPU() *TPU {
-	t := &TPU{}
+func NewTPU(logger *observability.CoreLogger) *TPU {
+	t := &TPU{logger: logger}
 
 	chip, count := getLocalTPUChips()
 	if count == 0 {
@@ -287,6 +292,17 @@ func (t *TPU) getMetrics(metricName TPUMetricName) ([]*tpuproto.Metric, error) {
 func (t *TPU) Probe(_ context.Context) *spb.EnvironmentRecord {
 	if t.count == 0 {
 		return nil
+	}
+
+	// Log available metric names.
+	req := &tpuproto.ListSupportedMetricsRequest{}
+	resp, err := t.client.ListSupportedMetrics(context.Background(), req)
+	if err == nil {
+		supportedMetrics := []string{}
+		for _, sm := range resp.SupportedMetric {
+			supportedMetrics = append(supportedMetrics, sm.MetricName)
+		}
+		t.logger.Info("monitor: tpu: supported metrics", "metrics", supportedMetrics)
 	}
 
 	return &spb.EnvironmentRecord{
