@@ -40,8 +40,8 @@ class AgentProcess:
         self._proc = None
         self._finished_q = multiprocessing.Queue()
         self._proc_killed = False
-        self._parent_fd = None
-        self._child_fd = None
+        self._stdout_parent_fd = None
+        self._stderr_parent_fd = None
         self._output_thread = None
 
         if command:
@@ -52,16 +52,18 @@ class AgentProcess:
                 self._popen = subprocess.Popen(command, env=env, **kwargs)
             else:
                 if sys.version_info >= (3, 11):
-                    wandb.termlog("****** KELU process_group=0")
-                    # preexec_fn is not thread-safe; process_group was introduced in 3.11 to
-                    # replace os.setpgrp
+                    # preexec_fn=os.setpgrp is not thread-safe; process_group was introduced in
+                    # python 3.11 to replace it, so use that when possible
                     kwargs = dict(process_group=0)
                 else:
-                    wandb.termlog("****** KELU preexec_fn=os.setpgrp")
                     kwargs = dict(preexec_fn=os.setpgrp)
                 if env.get(wandb.env.SERVICE):
                     env.pop(wandb.env.SERVICE)
-                self._popen = self._create_pty_process(command, env, **kwargs)
+                # Pass through parent's TERM setting
+                env = dict(env) if env else {}
+                if "TERM" in os.environ:
+                    env["TERM"] = os.environ["TERM"]
+                self._popen = self._subprocess_with_pty(command, env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(
                 target=self._start,
@@ -71,38 +73,49 @@ class AgentProcess:
         else:
             raise AgentError("Agent Process requires command or function")
 
-    def _create_pty_process(self, command, env, **kwargs):
-        """Create a subprocess with pty to avoid readline deadlocks."""
+    def _subprocess_with_pty(self, command, env, **kwargs):
+        """Create a subprocess with pty stdin and separate stdout/stderr."""
         try:
-            self._parent_fd, self._child_fd = pty.openpty()
+            # Create separate PTYs for stdin, stdout, stderr so child sees TTYs
+            stdin_parent, stdin_child = pty.openpty()
+            stdout_parent, stdout_child = pty.openpty()
+            stderr_parent, stderr_child = pty.openpty()
 
-            # Create subprocess with pty as stdin/stdout/stderr
             popen = subprocess.Popen(
                 command,
                 env=env,
-                stdin=self._child_fd,
-                stdout=self._child_fd,
-                stderr=self._child_fd,
+                stdin=stdin_child,
+                stdout=stdout_child,
+                stderr=stderr_child,
                 **kwargs,
             )
 
-            # Close child fd in parent process
-            os.close(self._child_fd)
-            self._child_fd = None
+            # Parent process doesn't need child fds - close them immediately
+            os.close(stdin_child)
+            os.close(stdout_child)
+            os.close(stderr_child)
 
-            # Start thread to pipe output from child to parent stdout/stderr
+            # Start single thread to pipe both streams in chronological order
             self._output_thread = threading.Thread(
-                target=self._pipe_output, daemon=True
+                target=self._pipe_pty_streams,
+                args=(stdout_parent, stderr_parent),
+                daemon=True,
             )
             self._output_thread.start()
+
+            # Store parent fds for cleanup (we don't need stdin_parent since it's not used)
+            self._stdout_parent_fd = stdout_parent
+            self._stderr_parent_fd = stderr_parent
+            # Close stdin_parent since we don't need it
+            os.close(stdin_parent)
         except (OSError, ValueError):
-            # Fallback to regular subprocess if pty fails
-            if self._parent_fd is not None:
-                os.close(self._parent_fd)
-                self._parent_fd = None
-            if self._child_fd is not None:
-                os.close(self._child_fd)
-                self._child_fd = None
+            # Fallback to regular subprocess if pty fails - close any open fds
+            for fd in [stdin_parent, stdout_parent, stderr_parent]:
+                try:
+                    os.close(fd)
+                except (OSError, NameError):
+                    pass
+            self._stdout_parent_fd = self._stderr_parent_fd = None
             return subprocess.Popen(command, env=env, **kwargs)
         else:
             return popen
@@ -180,52 +193,40 @@ class AgentProcess:
             return ret
         return self._proc.terminate()
 
-    def _cleanup_pty(self):
-        """Clean up pty file descriptors and output thread."""
-        # Stop the output thread if it's running
-        if self._output_thread is not None and self._output_thread.is_alive():
-            # Closing parent_fd will cause the read() in _pipe_output to fail and thread to exit
+    def _pipe_pty_streams(self, stdout_fd, stderr_fd):
+        """Pipe stdout and stderr in chronological order using select()."""
+        import select
+
+        try:
+            streams = {stdout_fd: sys.stdout.buffer, stderr_fd: sys.stderr.buffer}
+            fds = list(streams.keys())
+
+            while fds:
+                ready, _, _ = select.select(fds, [], [])
+                for fd in ready:
+                    data = os.read(fd, 1024)
+                    if not data:
+                        fds.remove(fd)
+                        continue
+                    streams[fd].write(data)
+                    streams[fd].flush()
+        except (OSError, Exception):
             pass
 
-        if self._parent_fd is not None:
-            try:
-                os.close(self._parent_fd)
-            except OSError:
-                pass
-            self._parent_fd = None
-        if self._child_fd is not None:
-            try:
-                os.close(self._child_fd)
-            except OSError:
-                pass
-            self._child_fd = None
+    def _cleanup_pty(self):
+        """Clean up pty file descriptors and output threads."""
+        for fd_name in ("_stdout_parent_fd", "_stderr_parent_fd"):
+            fd = getattr(self, fd_name)
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+                setattr(self, fd_name, None)
 
-        # Wait for output thread to finish
         if self._output_thread is not None and self._output_thread.is_alive():
             self._output_thread.join(timeout=1.0)
             self._output_thread = None
-
-    def _pipe_output(self):
-        """Continuously read from PTY master and write to stdout/stderr."""
-        if self._parent_fd is None:
-            return
-
-        try:
-            while True:
-                try:
-                    # Read from PTY master (this will block until data is available)
-                    data = os.read(self._parent_fd, 1024)
-                    if not data:
-                        break
-                    # Write to parent's stdout (both stdout and stderr from child come through PTY)
-                    sys.stdout.buffer.write(data)
-                    sys.stdout.buffer.flush()
-                except OSError:
-                    # PTY closed or other error - thread should exit
-                    break
-        except Exception:
-            # Silently handle any other exceptions to avoid breaking the agent
-            pass
 
 
 class Agent:

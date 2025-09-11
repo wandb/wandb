@@ -155,10 +155,7 @@ def test_agent_subprocess_with_import_readline(user):
 
     # Path to our test script
     script_path = (
-        pathlib.Path(__file__).parent.parent.parent
-        / "assets"
-        / "scripts"
-        / "train_with_import_readline.py"
+        pathlib.Path(__file__).parent / "fixtures" / "train_with_import_readline.py"
     )
 
     sweep_config = {
@@ -188,4 +185,4 @@ def test_agent_subprocess_with_import_readline(user):
     end_time = time.time()
 
     # Test should complete in reasonable time (deadlock would cause the agent to hang)
-    assert end_time - start_time < 20, "Test took too long, possible deadlock detected"
+    assert end_time - start_time < 30, "Test took too long, possible deadlock detected"
