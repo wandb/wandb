@@ -269,7 +269,7 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 					{NestedKey: []string{"loss"}, ValueJson: fmt.Sprintf("%f", float64(i)*0.1)},
 				},
 			}
-			st.Write(&spb.Record{RecordType: &spb.Record_History{History: h}})
+			_ = st.Write(&spb.Record{RecordType: &spb.Record_History{History: h}})
 			time.Sleep(200 * time.Millisecond)
 		}
 	}()
@@ -353,7 +353,7 @@ func TestReload_PreservesFilter(t *testing.T) {
 			{NestedKey: []string{"val/accuracy"}, ValueJson: "0.75"},
 		},
 	}
-	st.Write(&spb.Record{RecordType: &spb.Record_History{History: h}})
+	_ = st.Write(&spb.Record{RecordType: &spb.Record_History{History: h}})
 	st.Close()
 
 	// Create model
@@ -444,8 +444,8 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	// Setup config with short heartbeat
 	cfg := leet.GetConfig()
 	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
-	cfg.Load()
-	cfg.SetHeartbeatInterval(1) // 1 second minimum
+	_ = cfg.Load()
+	_ = cfg.SetHeartbeatInterval(1) // 1 second minimum
 
 	// Create wandb file
 	tmp, err := os.CreateTemp(t.TempDir(), "reset-*.wandb")
@@ -456,8 +456,8 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	tmp.Close()
 
 	st := stream.NewStore(tmpPath)
-	st.Open(os.O_WRONLY)
-	st.Write(&spb.Record{
+	_ = st.Open(os.O_WRONLY)
+	_ = st.Write(&spb.Record{
 		RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{RunId: "test"},
 		},
