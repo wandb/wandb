@@ -254,6 +254,5 @@ service RuntimeMetricService {
 
   // ListSupportedMetrics lists the supported metrics for
   // ListSupportedMetricsRequest.
-  rpc ListSupportedMetrics(ListSupportedMetricsRequest)
-      returns (ListSupportedMetricsResponse);
+  rpc ListSupportedMetrics(ListSupportedMetricsRequest) returns (ListSupportedMetricsResponse);
 }
