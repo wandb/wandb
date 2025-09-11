@@ -15,6 +15,7 @@ from typing import IO, ContextManager, Iterator, Protocol
 
 import wandb
 from wandb import env, util
+from wandb.sdk.artifacts.artifact_manifest_entry import artifacts_cache_dir
 from wandb.sdk.lib.filesystem import files_in
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -241,7 +242,7 @@ _artifact_file_cache: ArtifactFileCache | None = None
 
 def get_artifact_file_cache() -> ArtifactFileCache:
     global _artifact_file_cache
-    cache_dir = env.get_cache_dir() / "artifacts"
+    cache_dir = artifacts_cache_dir()
     if _artifact_file_cache is None or _artifact_file_cache._cache_dir != cache_dir:
         _artifact_file_cache = ArtifactFileCache(cache_dir)
     return _artifact_file_cache

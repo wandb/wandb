@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import concurrent.futures
+import hashlib
 import json
 import logging
 import os
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+from wandb import env
 from wandb.proto.wandb_deprecated import Deprecated
-from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.deprecate import deprecate
+from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,
@@ -41,6 +44,52 @@ if TYPE_CHECKING:
 
 
 _WB_ARTIFACT_SCHEME = "wandb-artifact"
+
+
+def artifacts_cache_dir() -> Path:
+    """Get the artifacts cache directory."""
+    return env.get_cache_dir() / "artifacts"
+
+
+def _checksum_cache_path(file_path: str) -> str:
+    """Get path for checksum in central cache directory."""
+    # Create a unique cache key based on the file's absolute path
+    abs_path = os.path.abspath(file_path)
+    path_hash = hashlib.sha256(abs_path.encode()).hexdigest()
+    
+    # Store in wandb cache directory under checksums subdirectory
+    cache_dir = artifacts_cache_dir() / "checksums"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    
+    return str(cache_dir / f"{path_hash}.checksum")
+
+
+def _read_cached_checksum(file_path: str) -> str | None:
+    """Read checksum from cache if it exists and is valid."""
+    checksum_path = _checksum_cache_path(file_path)
+
+    try:
+        with open(file_path) as f, open(checksum_path) as f_checksum:
+            if os.path.getmtime(f_checksum.name) < os.path.getmtime(f.name):
+                # File was modified after checksum was written
+                # Consider defining a custom exception in the future
+                return None
+            # Read and return the cached checksum
+            return f_checksum.read().strip()
+    except OSError:
+        # File doesn't exist or couldn't be opened
+        return None
+
+
+def _write_cached_checksum(file_path: str, checksum: str) -> None:
+    """Write checksum to cache directory."""
+    checksum_path = _checksum_cache_path(file_path)
+    try:
+        with open(checksum_path, "w") as f:
+            f.write(checksum)
+    except OSError:
+        # Non-critical failure, just log it
+        logger.debug(f"Failed to write checksum cache for {file_path!r}")
 
 
 class ArtifactManifestEntry:
@@ -165,24 +214,20 @@ class ArtifactManifestEntry:
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
 
-        # Fast integrity check using cached checksum from sidecar file
-        if os.path.exists(dest_path):
-            # Try to read cached checksum first (avoids expensive MD5 computation)
-            cached_checksum = self._read_cached_checksum(dest_path)
-
-            if cached_checksum is not None:
-                if self.digest == cached_checksum:
-                    return FilePathStr(dest_path)
-            else:
-                # Fallback to computing MD5 (and cache it for next time)
-                try:
-                    computed_checksum = md5_file_b64(dest_path)
-                    if self.digest == computed_checksum:
-                        # Cache the checksum for future use
-                        self._write_checksum_cache(dest_path, computed_checksum)
-                        return FilePathStr(dest_path)
-                except (FileNotFoundError, IsADirectoryError):
-                    logger.debug(f"unable to find {dest_path}, skip searching for file")
+        # Fast integrity check using cached checksum from persistent cache
+        with suppress(OSError):
+            if self.digest == _read_cached_checksum(dest_path):
+                return FilePathStr(dest_path)
+        
+        # Fallback to computing/caching the checksum hash
+        try:
+            md5_hash = md5_file_b64(dest_path)
+        except (FileNotFoundError, IsADirectoryError):
+            logger.debug(f"unable to find {dest_path!r}, skip searching for file")
+        else:
+            _write_cached_checksum(dest_path, md5_hash)
+            if self.digest == md5_hash:
+                return FilePathStr(dest_path)
 
         if self.ref is not None:
             cache_path = self._parent_artifact.manifest.storage_policy.load_reference(
@@ -199,14 +244,14 @@ class ArtifactManifestEntry:
 
         if skip_cache:
             # Cache the checksum for future downloads
-            self._write_checksum_cache(dest_path, self.digest)
+            _write_cached_checksum(dest_path, self.digest)
             return FilePathStr(dest_path)
         else:
             final_path = str(
-                filesystem.copy_or_overwrite_changed(cache_path, dest_path)
+                copy_or_overwrite_changed(cache_path, dest_path)
             )
             # Cache the checksum for future downloads
-            self._write_checksum_cache(final_path, self.digest)
+            _write_cached_checksum(final_path, self.digest)
             return FilePathStr(final_path)
 
     def ref_target(self) -> FilePathStr | URIStr:
@@ -266,55 +311,6 @@ class ArtifactManifestEntry:
             contents["extra"] = self.extra
         return contents
 
-    def _get_checksum_cache_path(self, file_path: str) -> str:
-        """Get path for checksum in central cache directory."""
-        import hashlib
-        from wandb import env
-        from pathlib import Path
-        
-        # Create a unique cache key based on the file's absolute path
-        abs_path = os.path.abspath(file_path)
-        path_hash = hashlib.sha256(abs_path.encode()).hexdigest()
-        
-        # Store in wandb cache directory under checksums subdirectory
-        cache_dir = Path(env.get_cache_dir()) / "artifacts" / "checksums"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        
-        return str(cache_dir / f"{path_hash}.checksum")
-
-    def _read_cached_checksum(self, file_path: str) -> str | None:
-        """Read checksum from cache if it exists and is valid."""
-        checksum_path = self._get_checksum_cache_path(file_path)
-
-        try:
-            # Check if both files exist
-            if not (os.path.exists(file_path) and os.path.exists(checksum_path)):
-                return None
-
-            # Verify checksum file is newer than or equal to the actual file
-            file_mtime = os.path.getmtime(file_path)
-            checksum_mtime = os.path.getmtime(checksum_path)
-
-            if checksum_mtime < file_mtime:
-                # File was modified after checksum was written
-                return None
-
-            # Read and return the cached checksum
-            with open(checksum_path) as f:
-                return f.read().strip()
-
-        except OSError:
-            return None
-
-    def _write_checksum_cache(self, file_path: str, checksum: str) -> None:
-        """Write checksum to cache directory."""
-        checksum_path = self._get_checksum_cache_path(file_path)
-        try:
-            with open(checksum_path, "w") as f:
-                f.write(checksum)
-        except OSError:
-            # Non-critical failure, just log it
-            logger.debug(f"Failed to write checksum cache for {file_path}")
 
     def _is_artifact_reference(self) -> bool:
         return self.ref is not None and urlparse(self.ref).scheme == _WB_ARTIFACT_SCHEME
