@@ -505,6 +505,10 @@ func (m *Model) View() string {
 	// Attempt to recover from any panics in View.
 	defer m.recoverPanic("View")
 
+	// Hold a read lock while rendering to avoid races with UpdateGridDimensions.
+	layoutMu.RLock()
+	defer layoutMu.RUnlock()
+
 	if m.width == 0 || m.height == 0 {
 		return "Loading..."
 	}

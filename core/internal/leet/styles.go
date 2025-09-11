@@ -1,10 +1,16 @@
 package leet
 
 import (
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
+
+// layoutMu guards all global layout/grid variables (e.g., GridRows, GridCols,
+// SystemGridRows, SystemGridCols, ChartsPerPage, and any style derived from them).
+// Writers: UpdateGridDimensions. Readers: View render path.
+var layoutMu sync.RWMutex
 
 // Default layout constants.
 var (
@@ -119,6 +125,9 @@ func GetGraphColors() []string {
 
 // UpdateGridDimensions updates the grid dimensions from config.
 func UpdateGridDimensions() {
+	layoutMu.Lock()
+	defer layoutMu.Unlock()
+
 	cfg := GetConfig()
 
 	rows, cols := cfg.GetMetricsGrid()
