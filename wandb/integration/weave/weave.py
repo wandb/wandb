@@ -11,11 +11,19 @@ The integration can be disabled by setting the WANDB_DISABLE_WEAVE environment v
 from __future__ import annotations
 
 import importlib.util
+import logging
 import os
 import sys
 import threading
+from json import JSONDecodeError
+
+import requests
+from requests import RequestException
 
 import wandb
+from wandb.sdk.lib.retry import Retry
+
+logger = logging.getLogger(__name__)
 
 _weave_init_lock = threading.Lock()
 
@@ -48,7 +56,29 @@ _AVAILABLE_WEAVE_INTEGRATIONS = [
 ]
 
 
-def setup(entity: str | None, project: str | None) -> None:
+def _weave_is_available_on_server(base_url: str) -> bool:
+    retryable_exceptions = (RequestException, JSONDecodeError)
+
+    def _get_server_info_internal():
+        resp = requests.get(f"{base_url}/traces/server_info/")
+        return resp.json()
+
+    _get_server_info = Retry(
+        _get_server_info_internal,
+        num_retries=3,
+        retryable_exceptions=retryable_exceptions,
+        error_prefix="Failed to confirm Weave server availability",
+    )
+
+    try:
+        _get_server_info()
+    except retryable_exceptions:
+        # Server is not available
+        return False
+    return True
+
+
+def setup(entity: str | None, project: str | None, base_url: str) -> None:
     """Set up automatic Weave initialization for the current W&B run.
 
     Args:
@@ -58,6 +88,11 @@ def setup(entity: str | None, project: str | None) -> None:
     if os.getenv(_DISABLE_WEAVE):
         return
     if not project:
+        return
+
+    # Check if weave is available on the server
+    if not _weave_is_available_on_server(base_url):
+        wandb.termwarn("Weave is not available on the server.  Please contact support.")
         return
 
     # Use entity/project when available; otherwise fall back to project only
