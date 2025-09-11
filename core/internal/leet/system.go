@@ -1062,18 +1062,6 @@ func (rs *RightSidebar) IsVisible() bool {
 	return rs.state != SidebarCollapsed
 }
 
-// WillBeVisible returns true if the sidebar will be visible after current operation
-func (rs *RightSidebar) WillBeVisible() bool {
-	switch rs.state {
-	case SidebarExpanded, SidebarExpanding:
-		return true
-	case SidebarCollapsed, SidebarCollapsing:
-		return false
-	default:
-		return false
-	}
-}
-
 // IsAnimating returns true if the sidebar is currently animating
 func (rs *RightSidebar) IsAnimating() bool {
 	return rs.state == SidebarExpanding || rs.state == SidebarCollapsing

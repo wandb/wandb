@@ -96,3 +96,8 @@ func (rs *RightSidebar) TestMetricsChart(baseKey string) *SystemMetricChart {
 func (c *SystemMetricChart) TestSeriesCount() int {
 	return len(c.series)
 }
+
+// Add test helper to Model for getting active filter
+func (m *Model) TestGetActiveFilter() string {
+	return m.activeFilter
+}

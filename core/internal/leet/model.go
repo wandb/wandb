@@ -86,6 +86,10 @@ type Model struct {
 	animationMu sync.Mutex
 	animating   bool
 
+	// Reload state management.
+	reloadInProgress bool
+	reloadMu         sync.Mutex
+
 	// Loading progress.
 	recordsLoaded int
 	loadStartTime time.Time
@@ -147,7 +151,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		runPath:             runPath,
 		sidebar:             NewSidebar(),
 		rightSidebar:        NewRightSidebar(logger),
-		watcher:             watcher.New(watcher.Params{}),
+		watcher:             watcher.New(watcher.Params{Logger: logger}),
 		watcherStarted:      false,
 		runConfig:           runconfig.New(),
 		runSummary:          runsummary.New(),
@@ -351,6 +355,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logger.Debug("model: InitMsg received, reader initialized")
 		m.reader = msg.Reader
 		m.loadStartTime = time.Now()
+
+		// Reset reload flag now that new reader is initialized
+		m.reloadMu.Lock()
+		m.reloadInProgress = false
+		m.reloadMu.Unlock()
+
 		// Start chunked reading
 		return m, ReadAllRecordsChunked(m.reader)
 
@@ -448,6 +458,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case ReloadMsg:
+		// Prevent concurrent reloads
+		m.reloadMu.Lock()
+		if m.reloadInProgress {
+			m.reloadMu.Unlock()
+			m.logger.Debug("model: reload already in progress, ignoring")
+			return m, nil
+		}
+		m.reloadInProgress = true
+		m.reloadMu.Unlock()
+
 		m.runState = RunStateRunning
 		m.fileComplete = false
 
@@ -469,15 +489,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Create a new watcher instance
-		m.watcher = watcher.New(watcher.Params{})
+		m.watcher = watcher.New(watcher.Params{Logger: m.logger})
 
-		// Drain the message channel.
-		close(m.msgChan)
-		for range m.msgChan {
-			// Drain the channel
-		}
-		// Create a new channel
+		// Safely close and recreate the message channel
+		oldChan := m.msgChan
 		m.msgChan = make(chan tea.Msg, 1000)
+
+		// Close old channel in a goroutine to avoid blocking
+		go func() {
+			close(oldChan)
+			// Drain the old channel
+			for range oldChan {
+			}
+		}()
 
 		// Reset loading state
 		m.recordsLoaded = 0
@@ -535,11 +559,6 @@ func (m *Model) View() string {
 
 	if m.width == 0 || m.height == 0 {
 		return "Loading..."
-	}
-
-	// Check if we're in a crashed state
-	if m.runState == RunStateCrashed {
-		return m.renderCrashedScreen()
 	}
 
 	// Show loading screen if still loading
@@ -644,34 +663,6 @@ func (m *Model) View() string {
 
 	// Place the view to ensure it fills the terminal exactly
 	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, fullView)
-}
-
-// renderCrashedScreen shows an error screen when the app has crashed
-func (m *Model) renderCrashedScreen() string {
-	errorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("196")).
-		Bold(true)
-
-	errorContent := lipgloss.JoinVertical(
-		lipgloss.Center,
-		errorStyle.Render("Application Error"),
-		"",
-		"The application encountered an error and recovered.",
-		"Please check the debug log for details.",
-		"",
-		"Press 'q' to quit or 'alt+r' to reload.",
-	)
-
-	centered := lipgloss.Place(
-		m.width,
-		m.height-StatusBarHeight,
-		lipgloss.Center,
-		lipgloss.Center,
-		errorContent,
-	)
-
-	statusBar := m.renderStatusBar()
-	return lipgloss.JoinVertical(lipgloss.Left, centered, statusBar)
 }
 
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen
@@ -899,6 +890,15 @@ func (m *Model) startWatcher() error {
 
 // reloadCharts resets all charts and reloads data
 func (m *Model) reloadCharts() tea.Cmd {
+	// Check if reload is already in progress
+	m.reloadMu.Lock()
+	if m.reloadInProgress {
+		m.reloadMu.Unlock()
+		m.logger.Debug("model: reload already in progress, ignoring")
+		return nil
+	}
+	m.reloadMu.Unlock()
+
 	// Save current filter
 	savedFilter := m.activeFilter
 

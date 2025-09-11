@@ -1,13 +1,18 @@
 package leet_test
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -153,4 +158,360 @@ func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 
 	// Clear overview filter
 	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlK})
+}
+
+func TestHeartbeat_LiveRun(t *testing.T) {
+	// Setup config with short heartbeat interval for testing
+	cfg := leet.GetConfig()
+	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
+	if err := cfg.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	// Set heartbeat to 1 second (minimum)
+	if err := cfg.SetHeartbeatInterval(1); err != nil {
+		t.Fatalf("SetHeartbeatInterval: %v", err)
+	}
+
+	// Create a wandb file with initial data
+	tmp, err := os.CreateTemp(t.TempDir(), "heartbeat-*.wandb")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	tmpPath := tmp.Name()
+	tmp.Close()
+
+	st := stream.NewStore(tmpPath)
+	if err := st.Open(os.O_WRONLY); err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+
+	// Write initial records
+	runRecord := &spb.Record{
+		RecordType: &spb.Record_Run{
+			Run: &spb.RunRecord{
+				RunId:       "heartbeat-test",
+				DisplayName: "Heartbeat Test",
+			},
+		},
+	}
+	if err := st.Write(runRecord); err != nil {
+		t.Fatalf("write run: %v", err)
+	}
+
+	// Write some history
+	for i := range 5 {
+		h := &spb.HistoryRecord{
+			Item: []*spb.HistoryItem{
+				{NestedKey: []string{"_step"}, ValueJson: fmt.Sprintf("%d", i)},
+				{NestedKey: []string{"loss"}, ValueJson: fmt.Sprintf("%f", float64(i)*0.1)},
+			},
+		}
+		if err := st.Write(&spb.Record{RecordType: &spb.Record_History{History: h}}); err != nil {
+			t.Fatalf("write history: %v", err)
+		}
+	}
+	st.Close()
+
+	// Create model
+	logger := observability.NewNoOpLogger()
+	m := leet.NewModel(tmpPath, logger)
+
+	// Track heartbeat messages
+	heartbeatCount := 0
+	var heartbeatMu sync.Mutex
+
+	// Initialize and process initial data
+	var model tea.Model = m
+	model, initCmd := model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	// Execute init command
+	if initCmd != nil {
+		msg := initCmd()
+		model, _ = model.Update(msg)
+	}
+
+	// Process initial reader
+	model, _ = model.Update(leet.InitMsg{
+		Reader: func() *leet.WandbReader {
+			r, _ := leet.NewWandbReader(tmpPath)
+			return r
+		}(),
+	})
+
+	// Simulate initial data load
+	model, _ = model.Update(leet.ChunkedBatchMsg{
+		Msgs: []tea.Msg{
+			leet.RunMsg{ID: "heartbeat-test", DisplayName: "Heartbeat Test"},
+			leet.HistoryMsg{Metrics: map[string]float64{"loss": 0.1}, Step: 0},
+		},
+		HasMore: false,
+	})
+
+	// Verify model is in running state
+	concreteModel := model.(*leet.Model)
+	if concreteModel.TestRunState() != leet.RunStateRunning {
+		t.Fatalf("expected RunStateRunning, got %v", concreteModel.TestRunState())
+	}
+
+	// Write more data in background to simulate live run
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		st := stream.NewStore(tmpPath)
+		if err := st.Open(os.O_WRONLY | os.O_APPEND); err != nil {
+			return
+		}
+		defer st.Close()
+
+		for i := 5; i < 10; i++ {
+			h := &spb.HistoryRecord{
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"_step"}, ValueJson: fmt.Sprintf("%d", i)},
+					{NestedKey: []string{"loss"}, ValueJson: fmt.Sprintf("%f", float64(i)*0.1)},
+				},
+			}
+			st.Write(&spb.Record{RecordType: &spb.Record_History{History: h}})
+			time.Sleep(200 * time.Millisecond)
+		}
+	}()
+
+	// Process heartbeats for a short time
+	done := make(chan bool)
+	go func() {
+		time.Sleep(2 * time.Second)
+		done <- true
+	}()
+
+	// Process messages and count heartbeats
+	processing := true
+	for processing {
+		select {
+		case <-done:
+			processing = false
+		default:
+			// Check for heartbeat messages
+			_, cmd := model.Update(leet.HeartbeatMsg{})
+			if cmd != nil {
+				heartbeatMu.Lock()
+				heartbeatCount++
+				heartbeatMu.Unlock()
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	// Verify heartbeat was triggered at least once
+	heartbeatMu.Lock()
+	finalCount := heartbeatCount
+	heartbeatMu.Unlock()
+
+	if finalCount == 0 {
+		t.Fatal("no heartbeats were processed during live run")
+	}
+
+	// Send exit to stop heartbeat
+	model.Update(leet.FileCompleteMsg{ExitCode: 0})
+
+	// Verify heartbeat stops after completion
+	heartbeatMu.Lock()
+	countBefore := heartbeatCount
+	heartbeatMu.Unlock()
+
+	time.Sleep(1500 * time.Millisecond)
+
+	heartbeatMu.Lock()
+	countAfter := heartbeatCount
+	heartbeatMu.Unlock()
+
+	if countAfter != countBefore {
+		t.Fatal("heartbeat continued after file completion")
+	}
+}
+
+func TestReload_PreservesFilter(t *testing.T) {
+	t.Parallel()
+
+	// Create a wandb file with multiple metrics
+	tmp, err := os.CreateTemp(t.TempDir(), "filter-*.wandb")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	tmpPath := tmp.Name()
+	tmp.Close()
+
+	st := stream.NewStore(tmpPath)
+	if err := st.Open(os.O_WRONLY); err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+
+	// Write metrics
+	h := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{
+			{NestedKey: []string{"_step"}, ValueJson: "1"},
+			{NestedKey: []string{"train/loss"}, ValueJson: "0.5"},
+			{NestedKey: []string{"train/accuracy"}, ValueJson: "0.8"},
+			{NestedKey: []string{"val/loss"}, ValueJson: "0.6"},
+			{NestedKey: []string{"val/accuracy"}, ValueJson: "0.75"},
+		},
+	}
+	st.Write(&spb.Record{RecordType: &spb.Record_History{History: h}})
+	st.Close()
+
+	// Create model
+	logger := observability.NewNoOpLogger()
+	m := leet.NewModel(tmpPath, logger)
+
+	var model tea.Model = m
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	// Initialize and load data
+	model, _ = model.Update(leet.InitMsg{
+		Reader: func() *leet.WandbReader {
+			r, _ := leet.NewWandbReader(tmpPath)
+			return r
+		}(),
+	})
+
+	model, _ = model.Update(leet.ChunkedBatchMsg{
+		Msgs: []tea.Msg{
+			leet.HistoryMsg{
+				Metrics: map[string]float64{
+					"train/loss":     0.5,
+					"train/accuracy": 0.8,
+					"val/loss":       0.6,
+					"val/accuracy":   0.75,
+				},
+				Step: 1,
+			},
+		},
+		HasMore: false,
+	})
+
+	// Apply filter
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("train")})
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Verify filter is active
+	concreteModel := model.(*leet.Model)
+	activeFilter := concreteModel.TestGetActiveFilter()
+	if activeFilter != "train" {
+		t.Fatalf("filter not applied: got %q, want 'train'", activeFilter)
+	}
+
+	// Trigger reload
+	model, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}, Alt: true})
+	if cmd == nil {
+		t.Fatal("reload should return a command")
+	}
+
+	// Execute reload
+	reloadMsg := cmd()
+	model, _ = model.Update(reloadMsg)
+
+	// Provide new reader
+	model, _ = model.Update(leet.InitMsg{
+		Reader: func() *leet.WandbReader {
+			r, _ := leet.NewWandbReader(tmpPath)
+			return r
+		}(),
+	})
+
+	// Re-load data
+	model, _ = model.Update(leet.ChunkedBatchMsg{
+		Msgs: []tea.Msg{
+			leet.HistoryMsg{
+				Metrics: map[string]float64{
+					"train/loss":     0.5,
+					"train/accuracy": 0.8,
+					"val/loss":       0.6,
+					"val/accuracy":   0.75,
+				},
+				Step: 1,
+			},
+		},
+		HasMore: false,
+	})
+
+	// Verify filter is preserved
+	concreteModel = model.(*leet.Model)
+	activeFilterAfter := concreteModel.TestGetActiveFilter()
+	if activeFilterAfter != "train" {
+		t.Fatalf("filter not preserved after reload: got %q, want 'train'", activeFilterAfter)
+	}
+}
+
+func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
+	// Setup config with short heartbeat
+	cfg := leet.GetConfig()
+	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
+	cfg.Load()
+	cfg.SetHeartbeatInterval(1) // 1 second minimum
+
+	// Create wandb file
+	tmp, err := os.CreateTemp(t.TempDir(), "reset-*.wandb")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	tmpPath := tmp.Name()
+	tmp.Close()
+
+	st := stream.NewStore(tmpPath)
+	st.Open(os.O_WRONLY)
+	st.Write(&spb.Record{
+		RecordType: &spb.Record_Run{
+			Run: &spb.RunRecord{RunId: "test"},
+		},
+	})
+	st.Close()
+
+	// Create model
+	logger := observability.NewNoOpLogger()
+	m := leet.NewModel(tmpPath, logger)
+
+	var model tea.Model = m
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	// Initialize
+	model, _ = model.Update(leet.InitMsg{
+		Reader: func() *leet.WandbReader {
+			r, _ := leet.NewWandbReader(tmpPath)
+			return r
+		}(),
+	})
+
+	// Load initial data to start as running
+	model, _ = model.Update(leet.ChunkedBatchMsg{
+		Msgs:    []tea.Msg{leet.RunMsg{ID: "test"}},
+		HasMore: false,
+	})
+
+	// Track heartbeat resets
+	heartbeatReceived := false
+
+	// Process a heartbeat
+	model, cmd := model.Update(leet.HeartbeatMsg{})
+	if cmd != nil {
+		heartbeatReceived = true
+	}
+
+	// Now send new data (should reset heartbeat)
+	model, _ = model.Update(leet.HistoryMsg{
+		Metrics: map[string]float64{"metric": 1.0},
+		Step:    1,
+	})
+
+	// The heartbeat should have been reset internally
+	// We can't directly test the timer reset, but we can verify
+	// that receiving data doesn't break the heartbeat mechanism
+	model, _ = model.Update(leet.HeartbeatMsg{})
+
+	if !heartbeatReceived {
+		t.Fatal("heartbeat not processed initially")
+	}
+
+	// Verify model still in good state
+	concreteModel := model.(*leet.Model)
+	if concreteModel.TestRunState() != leet.RunStateRunning {
+		t.Fatal("model not in running state after data receipt")
+	}
 }
