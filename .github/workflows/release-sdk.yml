@@ -525,8 +525,11 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
-  # this job exists so that there's some traceability between SDK releases and
-  # potential build failures in core.
+  # This job exists so that there's some traceability between SDK releases and
+  # potential issues in wandb/core. core contains references to this released
+  # artifact, so we want to update those as close to the release as possible.
+  # In the event of a failure building wandb/core, the actor that ran this
+  # release will be notified.
   notify-core:
     name: notify wandb/core of release
     runs-on: ubuntu-latest
