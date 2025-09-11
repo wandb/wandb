@@ -11,7 +11,6 @@ The integration can be disabled by setting the WANDB_DISABLE_WEAVE environment v
 from __future__ import annotations
 
 import importlib.util
-import logging
 import os
 import sys
 import threading
@@ -22,8 +21,6 @@ from requests import RequestException
 
 import wandb
 from wandb.sdk.lib.retry import Retry
-
-logger = logging.getLogger(__name__)
 
 _weave_init_lock = threading.Lock()
 
