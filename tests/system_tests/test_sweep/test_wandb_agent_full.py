@@ -3,6 +3,7 @@
 import contextlib
 import io
 import os
+import time
 import unittest.mock
 
 import wandb
@@ -142,4 +143,33 @@ def test_agent_exception(user):
     # Verify all patterns were found in order
     assert current_pattern == len(patterns), (
         f"Not found in stderr: '{patterns[current_pattern]}'"
+    )
+
+
+def test_agent_subprocess_with_import_readline(user):
+    """Test that wandb.agent works safely when subprocess imports readline."""
+    import pathlib
+
+    script_path = (
+        pathlib.Path(__file__).parent / "fixtures" / "train_with_import_readline.py"
+    )
+
+    sweep_config = {
+        "name": "Train with import readline Test",
+        "method": "grid",
+        "parameters": {"test_param": {"values": [1]}},
+        "command": ["python", str(script_path)],
+    }
+
+    sweep_id = wandb.sweep(sweep_config)
+
+    agent_start_time = time.time()
+    with unittest.mock.patch.dict(
+        os.environ, {"WANDB_AGENT_MAX_INITIAL_FAILURES": "1"}
+    ):
+        wandb.agent(sweep_id, count=1)
+    agent_end_time = time.time()
+
+    assert agent_end_time - agent_start_time < 30, (
+        "Test took too long, possible deadlock detected"
     )

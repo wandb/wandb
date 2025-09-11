@@ -2,6 +2,7 @@ import logging
 import multiprocessing
 import os
 import platform
+import pty
 import queue
 import re
 import signal
@@ -38,15 +39,24 @@ class AgentProcess:
         self._proc = None
         self._finished_q = multiprocessing.Queue()
         self._proc_killed = False
+        pass
 
         if command:
             if platform.system() == "Windows":
                 kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+                if env.get(wandb.env.SERVICE):
+                    env.pop(wandb.env.SERVICE)
+                self._popen = subprocess.Popen(command, env=env, **kwargs)
             else:
-                kwargs = dict(preexec_fn=os.setpgrp)
-            if env.get(wandb.env.SERVICE):
-                env.pop(wandb.env.SERVICE)
-            self._popen = subprocess.Popen(command, env=env, **kwargs)
+                if sys.version_info >= (3, 11):
+                    # preexec_fn=os.setpgrp is not thread-safe; process_group was introduced in
+                    # python 3.11 to replace it, so use that when possible
+                    kwargs = dict(process_group=0)
+                else:
+                    kwargs = dict(preexec_fn=os.setpgrp)
+                if env.get(wandb.env.SERVICE):
+                    env.pop(wandb.env.SERVICE)
+                self._popen = self._subprocess_with_pty_stdin(command, env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(
                 target=self._start,
@@ -55,6 +65,43 @@ class AgentProcess:
             self._proc.start()
         else:
             raise AgentError("Agent Process requires command or function")
+
+    def _subprocess_with_pty_stdin(self, command, env, **kwargs):
+        """Create subprocess with PTY stdin to avoid readline deadlocks."""
+        # Without this, if child process tries to import readline, the child process group won't
+        # have access to stdin and may deadlock. We give stdin a dummy pty to avoid that, since we
+        # don't support having Sweeps training scripts actually read from stdin anyway.
+        #
+        # Notably, starting in Python 3.13, torch has an indirect import of readline.
+        try:
+            pty_stdin_parent, pty_stdin_child = pty.openpty()
+
+            popen = subprocess.Popen(
+                command,
+                env=env,
+                stdin=pty_stdin_child,
+                **kwargs,
+            )
+
+            # Parent should always close child pty
+            os.close(pty_stdin_child)
+            # Close parent pty; child will get EOF if it actually tries to read from stdin, but we
+            # dont' expect it to.
+            os.close(pty_stdin_parent)
+        except OSError as e:
+            wandb.termwarn(
+                "Error opening pty for stdin. Falling back to regular subprocess.Popen, "
+                "which may deadlock if child process directly or indirectly imports readline.\n"
+                f"Error: {e}"
+            )
+            try:
+                os.close(pty_stdin_parent)
+                os.close(pty_stdin_child)
+            except (OSError, NameError):
+                pass
+            return subprocess.Popen(command, env=env, **kwargs)
+        else:
+            return popen
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
         if env:
