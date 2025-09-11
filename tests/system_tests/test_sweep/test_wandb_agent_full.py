@@ -3,6 +3,10 @@
 import contextlib
 import io
 import os
+import subprocess
+import sys
+import threading
+import time
 import unittest.mock
 
 import wandb
@@ -143,3 +147,45 @@ def test_agent_exception(user):
     assert current_pattern == len(patterns), (
         f"Not found in stderr: '{patterns[current_pattern]}'"
     )
+
+
+def test_agent_subprocess_with_import_readline(user):
+    """Test that wandb.agent works safely when subprocess imports readline."""
+    import pathlib
+
+    # Path to our test script
+    script_path = (
+        pathlib.Path(__file__).parent.parent.parent
+        / "assets"
+        / "scripts"
+        / "train_with_import_readline.py"
+    )
+
+    sweep_config = {
+        "name": "Train with import readline Test",
+        "method": "grid",
+        "parameters": {"test_param": {"values": [1]}},
+        "command": ["python", str(script_path)],
+    }
+
+    start_time = time.time()
+
+    # Create sweep and run agent in command mode (not function mode)
+    # This will trigger the AgentProcess subprocess creation with preexec_fn/process_group
+    sweep_id = wandb.sweep(sweep_config)
+
+    # Use a try-except to handle potential hanging and add timeout behavior
+    try:
+        with unittest.mock.patch.dict(
+            os.environ, {"WANDB_AGENT_MAX_INITIAL_FAILURES": "1"}
+        ):
+            wandb.agent(
+                sweep_id, count=1
+            )  # No function parameter - uses command from config
+    except KeyboardInterrupt:
+        pass  # Handle Ctrl-C gracefully
+
+    end_time = time.time()
+
+    # Test should complete in reasonable time (deadlock would cause the agent to hang)
+    assert end_time - start_time < 20, "Test took too long, possible deadlock detected"

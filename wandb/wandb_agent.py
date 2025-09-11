@@ -2,12 +2,14 @@ import logging
 import multiprocessing
 import os
 import platform
+import pty
 import queue
 import re
 import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 import traceback
 from typing import Any, Callable, Dict, List, Optional
@@ -38,20 +40,28 @@ class AgentProcess:
         self._proc = None
         self._finished_q = multiprocessing.Queue()
         self._proc_killed = False
+        self._parent_fd = None
+        self._child_fd = None
+        self._output_thread = None
 
         if command:
             if platform.system() == "Windows":
                 kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+                if env.get(wandb.env.SERVICE):
+                    env.pop(wandb.env.SERVICE)
+                self._popen = subprocess.Popen(command, env=env, **kwargs)
             else:
                 if sys.version_info >= (3, 11):
+                    wandb.termlog("****** KELU process_group=0")
                     # preexec_fn is not thread-safe; process_group was introduced in 3.11 to
                     # replace os.setpgrp
                     kwargs = dict(process_group=0)
                 else:
+                    wandb.termlog("****** KELU preexec_fn=os.setpgrp")
                     kwargs = dict(preexec_fn=os.setpgrp)
-            if env.get(wandb.env.SERVICE):
-                env.pop(wandb.env.SERVICE)
-            self._popen = subprocess.Popen(command, env=env, **kwargs)
+                if env.get(wandb.env.SERVICE):
+                    env.pop(wandb.env.SERVICE)
+                self._popen = self._create_pty_process(command, env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(
                 target=self._start,
@@ -60,6 +70,42 @@ class AgentProcess:
             self._proc.start()
         else:
             raise AgentError("Agent Process requires command or function")
+
+    def _create_pty_process(self, command, env, **kwargs):
+        """Create a subprocess with pty to avoid readline deadlocks."""
+        try:
+            self._parent_fd, self._child_fd = pty.openpty()
+
+            # Create subprocess with pty as stdin/stdout/stderr
+            popen = subprocess.Popen(
+                command,
+                env=env,
+                stdin=self._child_fd,
+                stdout=self._child_fd,
+                stderr=self._child_fd,
+                **kwargs,
+            )
+
+            # Close child fd in parent process
+            os.close(self._child_fd)
+            self._child_fd = None
+
+            # Start thread to pipe output from child to parent stdout/stderr
+            self._output_thread = threading.Thread(
+                target=self._pipe_output, daemon=True
+            )
+            self._output_thread.start()
+        except (OSError, ValueError):
+            # Fallback to regular subprocess if pty fails
+            if self._parent_fd is not None:
+                os.close(self._parent_fd)
+                self._parent_fd = None
+            if self._child_fd is not None:
+                os.close(self._child_fd)
+                self._child_fd = None
+            return subprocess.Popen(command, env=env, **kwargs)
+        else:
+            return popen
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
         if env:
@@ -102,14 +148,19 @@ class AgentProcess:
                 while True:
                     p = self._popen.poll()
                     if p is not None:
+                        self._cleanup_pty()
                         return p
                     time.sleep(1)
-            return self._popen.wait()
+            result = self._popen.wait()
+            self._cleanup_pty()
+            return result
         return self._proc.join()
 
     def kill(self):
         if self._popen:
-            return self._popen.kill()
+            ret = self._popen.kill()
+            self._cleanup_pty()
+            return ret
         pid = self._proc.pid
         if pid:
             ret = os.kill(pid, signal.SIGKILL)
@@ -121,9 +172,60 @@ class AgentProcess:
         if self._popen:
             # windows terminate is too strong, send Ctrl-C instead
             if platform.system() == "Windows":
-                return self._popen.send_signal(signal.CTRL_C_EVENT)
-            return self._popen.terminate()
+                ret = self._popen.send_signal(signal.CTRL_C_EVENT)
+                self._cleanup_pty()
+                return ret
+            ret = self._popen.terminate()
+            self._cleanup_pty()
+            return ret
         return self._proc.terminate()
+
+    def _cleanup_pty(self):
+        """Clean up pty file descriptors and output thread."""
+        # Stop the output thread if it's running
+        if self._output_thread is not None and self._output_thread.is_alive():
+            # Closing parent_fd will cause the read() in _pipe_output to fail and thread to exit
+            pass
+
+        if self._parent_fd is not None:
+            try:
+                os.close(self._parent_fd)
+            except OSError:
+                pass
+            self._parent_fd = None
+        if self._child_fd is not None:
+            try:
+                os.close(self._child_fd)
+            except OSError:
+                pass
+            self._child_fd = None
+
+        # Wait for output thread to finish
+        if self._output_thread is not None and self._output_thread.is_alive():
+            self._output_thread.join(timeout=1.0)
+            self._output_thread = None
+
+    def _pipe_output(self):
+        """Continuously read from PTY master and write to stdout/stderr."""
+        if self._parent_fd is None:
+            return
+
+        try:
+            while True:
+                try:
+                    # Read from PTY master (this will block until data is available)
+                    data = os.read(self._parent_fd, 1024)
+                    if not data:
+                        break
+                    # Write to parent's stdout (both stdout and stderr from child come through PTY)
+                    sys.stdout.buffer.write(data)
+                    sys.stdout.buffer.flush()
+                except OSError:
+                    # PTY closed or other error - thread should exit
+                    break
+        except Exception:
+            # Silently handle any other exceptions to avoid breaking the agent
+            pass
 
 
 class Agent:
