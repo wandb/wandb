@@ -20,6 +20,23 @@ from .internal.internal_api import Api
 from .lib import apikey
 
 
+def _verify_login(key: str) -> None:
+    api = InternalApi(api_key=key)
+
+    try:
+        is_api_key_valid = api.validate_api_key()
+    except ConnectionError:
+        raise AuthenticationError("Unable to connect to server to verify API token.")
+    except Exception:
+        raise AuthenticationError("An error occurred while verifying the API key.")
+
+    if not is_api_key_valid:
+        raise AuthenticationError(
+            f"API key verification failed for host {self._settings.base_url}."
+            " Make sure your API key is valid."
+        )
+
+
 def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None:
     """Write the host parameter to the global settings file.
 
@@ -246,23 +263,6 @@ class _WandbLogin:
 
         return key, status
 
-    def _verify_login(self, key: str) -> None:
-        api = InternalApi(api_key=key)
-
-        try:
-            is_api_key_valid = api.validate_api_key()
-        except ConnectionError:
-            raise AuthenticationError(
-                "Unable to connect to server to verify API token."
-            )
-        except Exception:
-            raise AuthenticationError("An error occurred while verifying the API key.")
-
-        if not is_api_key_valid:
-            raise AuthenticationError(
-                f"API key verification failed for host {self._settings.base_url}."
-                " Make sure your API key is valid."
-            )
 
 
 def _login(
@@ -338,7 +338,7 @@ def _login(
             key, key_status = wlogin.prompt_api_key(referrer=referrer)
 
     if verify:
-        wlogin._verify_login(key)
+        _verify_login(key)
 
     if not key_is_pre_configured:
         if update_api_key:

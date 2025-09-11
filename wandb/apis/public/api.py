@@ -291,8 +291,8 @@ class Api:
                 specified, the default timeout will be used.
             api_key: API key to use for authentication. If not provided,
                 the API key from the current environment or configuration will be used.
-                If no api key is setup for the current environment,
-                the user will be prompted for an api key.
+                Prompts for an API key if none is provided
+                or configured in the environment.
         """
         self.settings = InternalApi().settings()
 

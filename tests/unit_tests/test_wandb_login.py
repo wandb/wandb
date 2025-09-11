@@ -111,9 +111,9 @@ def test_login_timeout_env_invalid(mock_tty):
 
 def test_relogin_timeout(dummy_api_key):
     logged_in = wandb.login(relogin=True, key=dummy_api_key)
-    assert logged_in is not None
+    assert logged_in is True
     logged_in = wandb.login()
-    assert logged_in is not None
+    assert logged_in is True
 
 
 def test_login_key(capsys):
