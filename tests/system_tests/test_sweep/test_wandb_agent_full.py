@@ -150,7 +150,6 @@ def test_agent_subprocess_with_import_readline(user):
     """Test that wandb.agent works safely when subprocess imports readline."""
     import pathlib
 
-    # Path to our test script
     script_path = (
         pathlib.Path(__file__).parent / "fixtures" / "train_with_import_readline.py"
     )
@@ -162,26 +161,15 @@ def test_agent_subprocess_with_import_readline(user):
         "command": ["python", str(script_path)],
     }
 
-    # Create sweep and run agent in command mode (not function mode)
-    # This will trigger the AgentProcess subprocess creation with preexec_fn/process_group
     sweep_id = wandb.sweep(sweep_config)
 
     agent_start_time = time.time()
-
-    # Use a try-except to handle potential hanging and add timeout behavior
-    try:
-        with unittest.mock.patch.dict(
-            os.environ, {"WANDB_AGENT_MAX_INITIAL_FAILURES": "1"}
-        ):
-            wandb.agent(
-                sweep_id, count=1
-            )  # No function parameter - uses command from config
-    except KeyboardInterrupt:
-        pass  # Handle Ctrl-C gracefully
-
+    with unittest.mock.patch.dict(
+        os.environ, {"WANDB_AGENT_MAX_INITIAL_FAILURES": "1"}
+    ):
+        wandb.agent(sweep_id, count=1)
     agent_end_time = time.time()
 
-    # Test should complete in reasonable time (deadlock would cause the agent to hang)
     assert agent_end_time - agent_start_time < 30, (
         "Test took too long, possible deadlock detected"
     )
