@@ -59,10 +59,6 @@ class AgentProcess:
                     kwargs = dict(preexec_fn=os.setpgrp)
                 if env.get(wandb.env.SERVICE):
                     env.pop(wandb.env.SERVICE)
-                # Pass through parent's TERM setting
-                env = dict(env) if env else {}
-                if "TERM" in os.environ:
-                    env["TERM"] = os.environ["TERM"]
                 self._popen = self._subprocess_with_pty(command, env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(
@@ -74,9 +70,8 @@ class AgentProcess:
             raise AgentError("Agent Process requires command or function")
 
     def _subprocess_with_pty(self, command, env, **kwargs):
-        """Create a subprocess with pty stdin and separate stdout/stderr."""
+        """Create subprocess with PTYs so child sees TTY for all streams."""
         try:
-            # Create separate PTYs for stdin, stdout, stderr so child sees TTYs
             stdin_parent, stdin_child = pty.openpty()
             stdout_parent, stdout_child = pty.openpty()
             stderr_parent, stderr_child = pty.openpty()
@@ -90,27 +85,33 @@ class AgentProcess:
                 **kwargs,
             )
 
-            # Parent process doesn't need child fds - close them immediately
-            os.close(stdin_child)
-            os.close(stdout_child)
-            os.close(stderr_child)
+            # Close child fds and unused stdin parent
+            for child_fd in [stdin_child, stdout_child, stderr_child]:
+                os.close(child_fd)
+            os.close(stdin_parent)
 
-            # Start single thread to pipe both streams in chronological order
+            # Store output fds and start piping thread
+            self._stdout_parent_fd = stdout_parent
+            self._stderr_parent_fd = stderr_parent
             self._output_thread = threading.Thread(
                 target=self._pipe_pty_streams,
                 args=(stdout_parent, stderr_parent),
                 daemon=True,
             )
             self._output_thread.start()
-
-            # Store parent fds for cleanup (we don't need stdin_parent since it's not used)
-            self._stdout_parent_fd = stdout_parent
-            self._stderr_parent_fd = stderr_parent
-            # Close stdin_parent since we don't need it
-            os.close(stdin_parent)
         except (OSError, ValueError):
-            # Fallback to regular subprocess if pty fails - close any open fds
-            for fd in [stdin_parent, stdout_parent, stderr_parent]:
+            wandb.termerror(
+                "Error opening pty. Falling back to regular subprocess.Popen, "
+                "which may deadlock if child process directly or indirectly imports readline."
+            )
+            for fd in [
+                stdin_parent,
+                stdout_parent,
+                stderr_parent,
+                stdin_child,
+                stdout_child,
+                stderr_child,
+            ]:
                 try:
                     os.close(fd)
                 except (OSError, NameError):
@@ -194,16 +195,14 @@ class AgentProcess:
         return self._proc.terminate()
 
     def _pipe_pty_streams(self, stdout_fd, stderr_fd):
-        """Pipe stdout and stderr in chronological order using select()."""
         import select
 
-        try:
-            streams = {stdout_fd: sys.stdout.buffer, stderr_fd: sys.stderr.buffer}
-            fds = list(streams.keys())
+        streams = {stdout_fd: sys.stdout.buffer, stderr_fd: sys.stderr.buffer}
+        fds = list(streams.keys())
 
+        try:
             while fds:
-                ready, _, _ = select.select(fds, [], [])
-                for fd in ready:
+                for fd in select.select(fds, [], [])[0]:
                     data = os.read(fd, 1024)
                     if not data:
                         fds.remove(fd)
@@ -214,7 +213,6 @@ class AgentProcess:
             pass
 
     def _cleanup_pty(self):
-        """Clean up pty file descriptors and output threads."""
         for fd_name in ("_stdout_parent_fd", "_stderr_parent_fd"):
             fd = getattr(self, fd_name)
             if fd is not None:
@@ -224,7 +222,7 @@ class AgentProcess:
                     pass
                 setattr(self, fd_name, None)
 
-        if self._output_thread is not None and self._output_thread.is_alive():
+        if self._output_thread and self._output_thread.is_alive():
             self._output_thread.join(timeout=1.0)
             self._output_thread = None
 

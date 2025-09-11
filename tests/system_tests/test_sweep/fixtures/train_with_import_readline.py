@@ -1,4 +1,3 @@
-# import readline to trigger setpgid concurrency issue
 import wandb
 
 # For use with system_tests/test_sweep/test_wandb_agent_full.py
@@ -14,6 +13,8 @@ def main(
     print("run_id:", run.id)
 
     print("Importing readline...")
+    # `import readline` causes deadlock if parent launches subprocess using progress_group=0
+    # without a pty
     import readline  # noqa: F401
     print("Imported readline.")
 
