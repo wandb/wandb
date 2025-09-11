@@ -2,6 +2,7 @@ import wandb
 
 # For use with system_tests/test_sweep/test_wandb_agent_full.py
 
+
 def main(
     project: str = "train-with-import-readline",
 ):
@@ -16,12 +17,14 @@ def main(
     # `import readline` causes deadlock if parent launches subprocess using progress_group=0
     # without a pty
     import readline  # noqa: F401
+
     print("Imported readline.")
 
     run.log(
-          {
+        {
             "test_param": test_param,
-          })
+        }
+    )
 
     run.finish()
 
