@@ -88,7 +88,7 @@ class AgentProcess:
             # Close parent pty; child will get EOF if it actually tries to read from stdin, but we
             # dont' expect it to.
             os.close(pty_stdin_parent)
-        except (OSError, ValueError) as e:
+        except OSError as e:
             wandb.termerror(
                 "Error opening pty for stdin. Falling back to regular subprocess.Popen, "
                 "which may deadlock if child process directly or indirectly imports readline.\n"
