@@ -841,7 +841,7 @@ class _WandbInit:
 
             elif settings.resume == "must":
                 raise wandb.Error(
-                    "Attempting to resume a run while another run is active."
+                    "Cannot resume a run while another run is active."
                     " You must either finish it using run.finish(),"
                     " or use reinit='create_new' when calling wandb.init()."
                 )
