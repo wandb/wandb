@@ -17,11 +17,16 @@ type ChartDimensions struct {
 
 // CalculateChartDimensions computes the chart dimensions based on window size
 func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
-	// Protect reads of global grid dimensions
-	layoutMu.RLock()
-	gridRows := GridRows
-	gridCols := GridCols
-	layoutMu.RUnlock()
+	// Read current layout from config (no global vars).
+	cfg := GetConfig()
+	gridRows, gridCols := cfg.GetMetricsGrid()
+	// TODO: should this be in getmetricsgrid?
+	if gridRows <= 0 {
+		gridRows = 1
+	}
+	if gridCols <= 0 {
+		gridCols = 1
+	}
 
 	// windowHeight here should already have StatusBarHeight subtracted by the caller
 	// Reserve space for header (1 line + 1 margin top)
@@ -86,9 +91,12 @@ func (m *Model) loadCurrentPage() {
 
 // loadCurrentPageNoLock loads the current page without acquiring the mutex
 func (m *Model) loadCurrentPageNoLock() {
-	m.charts = make([][]*EpochLineChart, GridRows)
-	for row := 0; row < GridRows; row++ {
-		m.charts[row] = make([]*EpochLineChart, GridCols)
+	gridRows, gridCols := m.config.GetMetricsGrid()
+	chartsPerPage := gridRows * gridCols
+
+	m.charts = make([][]*EpochLineChart, gridRows)
+	for row := 0; row < gridRows; row++ {
+		m.charts[row] = make([]*EpochLineChart, gridCols)
 	}
 
 	// Use filtered charts if filter is active, otherwise use all charts
@@ -97,15 +105,15 @@ func (m *Model) loadCurrentPageNoLock() {
 		chartsToShow = m.allCharts
 	}
 
-	startIdx := m.currentPage * ChartsPerPage
-	endIdx := startIdx + ChartsPerPage
+	startIdx := m.currentPage * chartsPerPage
+	endIdx := startIdx + chartsPerPage
 	if endIdx > len(chartsToShow) {
 		endIdx = len(chartsToShow)
 	}
 
 	idx := startIdx
-	for row := 0; row < GridRows && idx < endIdx; row++ {
-		for col := 0; col < GridCols && idx < endIdx; col++ {
+	for row := 0; row < gridRows && idx < endIdx; row++ {
+		for col := 0; col < gridCols && idx < endIdx; col++ {
 			m.charts[row][col] = chartsToShow[idx]
 			idx++
 		}
@@ -114,7 +122,6 @@ func (m *Model) loadCurrentPageNoLock() {
 
 // updateChartSizes updates all chart sizes when window is resized or sidebar toggled
 func (m *Model) updateChartSizes() {
-	// Prevent concurrent updates
 	defer func() {
 		if r := recover(); r != nil {
 			m.logger.Error(fmt.Sprintf("panic in updateChartSizes: %v", r))
@@ -137,8 +144,9 @@ func (m *Model) updateChartSizes() {
 	availableWidth := m.width - leftWidth - rightWidth - 2
 
 	// Ensure minimum width
-	if availableWidth < MinChartWidth*GridCols {
-		availableWidth = MinChartWidth * GridCols
+	_, gridCols := m.config.GetMetricsGrid()
+	if availableWidth < MinChartWidth*gridCols {
+		availableWidth = MinChartWidth * gridCols
 	}
 
 	availableHeight := m.height - StatusBarHeight
@@ -174,9 +182,12 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 	totalCount := len(m.allCharts)
 	m.chartMu.RUnlock()
 
+	gridRows, gridCols := m.config.GetMetricsGrid()
+	chartsPerPage := gridRows * gridCols
+
 	if m.totalPages > 0 && chartCount > 0 {
-		startIdx := m.currentPage*ChartsPerPage + 1
-		endIdx := startIdx + ChartsPerPage - 1
+		startIdx := m.currentPage*chartsPerPage + 1
+		endIdx := startIdx + chartsPerPage - 1
 		if endIdx > chartCount {
 			endIdx = chartCount
 		}
@@ -200,9 +211,9 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 
 	// Render grid
 	var rows []string
-	for row := 0; row < GridRows; row++ {
+	for row := 0; row < gridRows; row++ {
 		var cols []string
-		for col := 0; col < GridCols; col++ {
+		for col := 0; col < gridCols; col++ {
 			cellContent := m.renderGridCell(row, col, dims)
 			cols = append(cols, cellContent)
 		}

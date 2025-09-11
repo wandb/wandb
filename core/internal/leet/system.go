@@ -14,6 +14,7 @@ import (
 
 // RightSidebar represents a collapsible right sidebar panel.
 type RightSidebar struct {
+	config         *ConfigManager
 	state          SidebarState
 	currentWidth   int
 	targetWidth    int
@@ -45,6 +46,8 @@ type SystemMetricChart struct {
 
 // SystemMetricsGrid manages the grid of system metric charts
 type SystemMetricsGrid struct {
+	config *ConfigManager
+
 	// Dynamic chart management
 	chartsByMetric map[string]*SystemMetricChart // base metric key -> chart
 	orderedCharts  []*SystemMetricChart          // alphabetically ordered list
@@ -67,11 +70,14 @@ type SystemMetricsGrid struct {
 }
 
 // NewSystemMetricsGrid creates a new system metrics grid
-func NewSystemMetricsGrid(width, height int, logger *observability.CoreLogger) *SystemMetricsGrid {
+func NewSystemMetricsGrid(width, height int, config *ConfigManager, logger *observability.CoreLogger) *SystemMetricsGrid {
+	gridRows, gridCols := config.GetSystemGrid()
+
 	grid := &SystemMetricsGrid{
+		config:         config,
 		chartsByMetric: make(map[string]*SystemMetricChart),
 		orderedCharts:  make([]*SystemMetricChart, 0),
-		charts:         make([][]*SystemMetricChart, MetricsGridRows),
+		charts:         make([][]*SystemMetricChart, gridRows),
 		currentPage:    0,
 		focusedRow:     -1,
 		focusedCol:     -1,
@@ -82,8 +88,8 @@ func NewSystemMetricsGrid(width, height int, logger *observability.CoreLogger) *
 	}
 
 	// Initialize grid rows
-	for row := 0; row < MetricsGridRows; row++ {
-		grid.charts[row] = make([]*SystemMetricChart, MetricsGridCols)
+	for row := 0; row < gridRows; row++ {
+		grid.charts[row] = make([]*SystemMetricChart, gridCols)
 	}
 
 	logger.Debug(fmt.Sprintf("SystemMetricsGrid: created with dimensions %dx%d", width, height))
@@ -185,6 +191,9 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 
 	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.AddDataPoint: baseKey=%s, seriesName=%s, hasDef=%v", baseKey, seriesName, def != nil))
 
+	gridRows, gridCols := g.config.GetSystemGrid()
+	metricsPerPage := gridRows * gridCols
+
 	// Get or create chart
 	chart, exists := g.chartsByMetric[baseKey]
 	if !exists {
@@ -201,7 +210,7 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 		})
 
 		// Recalculate pages
-		g.totalPages = (len(g.orderedCharts) + MetricsPerPage - 1) / MetricsPerPage
+		g.totalPages = (len(g.orderedCharts) + metricsPerPage - 1) / metricsPerPage
 		g.LoadCurrentPage()
 
 		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.AddDataPoint: chart created, total charts=%d, pages=%d", len(g.orderedCharts), g.totalPages))
@@ -320,17 +329,19 @@ type MetricChartDimensions struct {
 
 // calculateChartDimensions computes dimensions for metric charts
 func (g *SystemMetricsGrid) calculateChartDimensions() MetricChartDimensions {
+	gridRows, gridCols := g.config.GetSystemGrid()
+
 	availableHeight := g.height - 2
 	if availableHeight < 0 {
 		availableHeight = 0
 	}
 
-	chartHeightWithPadding := availableHeight / MetricsGridRows
+	chartHeightWithPadding := availableHeight / gridRows
 	if chartHeightWithPadding < 0 {
 		chartHeightWithPadding = 0
 	}
 
-	chartWidthWithPadding := g.width / MetricsGridCols
+	chartWidthWithPadding := g.width / gridCols
 	if chartWidthWithPadding < 0 {
 		chartWidthWithPadding = 0
 	}
@@ -367,22 +378,25 @@ func (g *SystemMetricsGrid) calculateChartDimensions() MetricChartDimensions {
 
 // LoadCurrentPage loads charts for the current page
 func (g *SystemMetricsGrid) LoadCurrentPage() {
+	gridRows, gridCols := g.config.GetSystemGrid()
+	metricsPerPage := gridRows * gridCols
+
 	// Clear current grid
-	for row := 0; row < MetricsGridRows; row++ {
-		for col := 0; col < MetricsGridCols; col++ {
+	for row := 0; row < gridRows; row++ {
+		for col := 0; col < gridCols; col++ {
 			g.charts[row][col] = nil
 		}
 	}
 
-	startIdx := g.currentPage * MetricsPerPage
-	endIdx := startIdx + MetricsPerPage
+	startIdx := g.currentPage * metricsPerPage
+	endIdx := startIdx + metricsPerPage
 	if endIdx > len(g.orderedCharts) {
 		endIdx = len(g.orderedCharts)
 	}
 
 	idx := startIdx
-	for row := 0; row < MetricsGridRows && idx < endIdx; row++ {
-		for col := 0; col < MetricsGridCols && idx < endIdx; col++ {
+	for row := 0; row < gridRows && idx < endIdx; row++ {
+		for col := 0; col < gridCols && idx < endIdx; col++ {
 			if g.orderedCharts[idx].hasData {
 				g.charts[row][col] = g.orderedCharts[idx]
 			}
@@ -430,8 +444,10 @@ func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
 	g.logger.Debug("SystemMetricsGrid.HandleMouseClick: clearing previous focus")
 	g.clearFocus()
 
+	gridRows, gridCols := g.config.GetSystemGrid()
+
 	// Set new focus
-	if row >= 0 && row < MetricsGridRows && col >= 0 && col < MetricsGridCols &&
+	if row >= 0 && row < gridRows && col >= 0 && col < gridCols &&
 		row < len(g.charts) && col < len(g.charts[row]) && g.charts[row][col] != nil {
 		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: FOCUSING chart at row=%d, col=%d", row, col))
 		g.focusedRow = row
@@ -525,9 +541,11 @@ func (g *SystemMetricsGrid) Reset() {
 	g.nextColorIdx = 0
 	g.clearFocus()
 
+	gridRows, gridCols := g.config.GetSystemGrid()
+
 	// Clear the grid
-	for row := 0; row < MetricsGridRows; row++ {
-		for col := 0; col < MetricsGridCols; col++ {
+	for row := 0; row < gridRows; row++ {
+		for col := 0; col < gridCols; col++ {
 			g.charts[row][col] = nil
 		}
 	}
@@ -538,12 +556,14 @@ func (g *SystemMetricsGrid) Reset() {
 // View renders the metrics grid
 func (g *SystemMetricsGrid) View() string {
 	dims := g.calculateChartDimensions()
+	gridRows, gridCols := g.config.GetSystemGrid()
+	metricsPerPage := gridRows * gridCols
 
 	var rows []string
-	for row := 0; row < MetricsGridRows; row++ {
+	for row := 0; row < gridRows; row++ {
 		var cols []string
-		for col := 0; col < MetricsGridCols; col++ {
-			cellIdx := g.currentPage*MetricsPerPage + row*MetricsGridCols + col
+		for col := 0; col < gridCols; col++ {
+			cellIdx := g.currentPage*metricsPerPage + row*gridCols + col
 
 			if row < len(g.charts) && col < len(g.charts[row]) && g.charts[row][col] != nil && cellIdx < len(g.orderedCharts) {
 				metricChart := g.charts[row][col]
@@ -615,18 +635,17 @@ func (g *SystemMetricsGrid) View() string {
 
 // RebuildGrid rebuilds the grid structure with new dimensions
 func (g *SystemMetricsGrid) RebuildGrid() {
-	// Update grid dimensions from config
-	UpdateGridDimensions()
+	gridRows, gridCols := g.config.GetSystemGrid()
+	metricsPerPage := gridRows * gridCols
 
 	// Rebuild grid structure
-	g.charts = make([][]*SystemMetricChart, MetricsGridRows)
-	for row := 0; row < MetricsGridRows; row++ {
-		g.charts[row] = make([]*SystemMetricChart, MetricsGridCols)
+	g.charts = make([][]*SystemMetricChart, gridRows)
+	for row := 0; row < gridRows; row++ {
+		g.charts[row] = make([]*SystemMetricChart, gridCols)
 	}
 
 	// Recalculate pages
-	MetricsPerPage = MetricsGridRows * MetricsGridCols
-	g.totalPages = (len(g.orderedCharts) + MetricsPerPage - 1) / MetricsPerPage
+	g.totalPages = (len(g.orderedCharts) + metricsPerPage - 1) / metricsPerPage
 
 	// Ensure current page is valid
 	if g.currentPage >= g.totalPages && g.totalPages > 0 {
@@ -667,18 +686,15 @@ func (g *SystemMetricsGrid) GetChartCount() int {
 }
 
 // NewRightSidebar creates a new right sidebar instance
-func NewRightSidebar(logger *observability.CoreLogger) *RightSidebar {
+func NewRightSidebar(config *ConfigManager, logger *observability.CoreLogger) *RightSidebar {
 	rs := &RightSidebar{
+		config:        config,
 		state:         SidebarCollapsed,
 		currentWidth:  0,
 		targetWidth:   0,
 		expandedWidth: SidebarMinWidth,
 		logger:        logger,
 	}
-
-	// Don't create metricsGrid yet - it will be created when we have proper dimensions
-	// This prevents the panic from invalid initial dimensions
-
 	return rs
 }
 
@@ -730,8 +746,9 @@ func (rs *RightSidebar) UpdateDimensions(terminalWidth int, leftSidebarVisible b
 		gridHeight := 40
 
 		// Ensure minimum viable dimensions
-		minViableWidth := MinMetricChartWidth * MetricsGridCols
-		minViableHeight := MinMetricChartHeight * MetricsGridRows
+		gridRows, gridCols := rs.config.GetSystemGrid()
+		minViableWidth := MinMetricChartWidth * gridCols
+		minViableHeight := MinMetricChartHeight * gridRows
 
 		if gridWidth >= minViableWidth && gridHeight >= minViableHeight {
 			rs.metricsGrid.Resize(gridWidth, gridHeight)
@@ -753,9 +770,10 @@ func (rs *RightSidebar) Toggle() {
 
 		// Ensure we have a metrics grid ready when opening
 		if rs.metricsGrid == nil {
-			initialWidth := MinMetricChartWidth * MetricsGridCols
-			initialHeight := MinMetricChartHeight * MetricsGridRows
-			rs.metricsGrid = NewSystemMetricsGrid(initialWidth, initialHeight, rs.logger)
+			gridRows, gridCols := rs.config.GetSystemGrid()
+			initialWidth := MinMetricChartWidth * gridCols
+			initialHeight := MinMetricChartHeight * gridRows
+			rs.metricsGrid = NewSystemMetricsGrid(initialWidth, initialHeight, rs.config, rs.logger)
 			rs.logger.Debug("RightSidebar.Toggle: created grid on expansion")
 		}
 
@@ -884,6 +902,9 @@ func (rs *RightSidebar) View(height int) string {
 		return ""
 	}
 
+	gridRows, gridCols := rs.config.GetSystemGrid()
+	metricsPerPage := gridRows * gridCols
+
 	// During animation, don't try to resize - just show what we have or a placeholder
 	if rs.IsAnimating() {
 		// If we have a grid and it was previously drawn, show it without resizing
@@ -895,8 +916,8 @@ func (rs *RightSidebar) View(height int) string {
 			navInfo := ""
 			chartCount := rs.metricsGrid.GetChartCount()
 			if rs.metricsGrid.totalPages > 0 && chartCount > 0 {
-				startIdx := rs.metricsGrid.currentPage*MetricsPerPage + 1
-				endIdx := startIdx + MetricsPerPage - 1
+				startIdx := rs.metricsGrid.currentPage*metricsPerPage + 1
+				endIdx := startIdx + metricsPerPage - 1
 				if endIdx > chartCount {
 					endIdx = chartCount
 				}
@@ -969,8 +990,8 @@ func (rs *RightSidebar) View(height int) string {
 	}
 
 	// Ensure minimum viable dimensions
-	minViableWidth := MinMetricChartWidth * MetricsGridCols
-	minViableHeight := MinMetricChartHeight * MetricsGridRows
+	minViableWidth := MinMetricChartWidth * gridCols
+	minViableHeight := MinMetricChartHeight * gridRows
 
 	// Check if we have enough space
 	if gridWidth < minViableWidth || gridHeight < minViableHeight {
@@ -1002,7 +1023,7 @@ func (rs *RightSidebar) View(height int) string {
 	// We have sufficient space - create or resize grid
 	if rs.metricsGrid == nil {
 		// Create new grid
-		rs.metricsGrid = NewSystemMetricsGrid(gridWidth, gridHeight, rs.logger)
+		rs.metricsGrid = NewSystemMetricsGrid(gridWidth, gridHeight, rs.config, rs.logger)
 	} else {
 		// Resize existing grid
 		rs.metricsGrid.Resize(gridWidth, gridHeight)
@@ -1015,8 +1036,8 @@ func (rs *RightSidebar) View(height int) string {
 	navInfo := ""
 	chartCount := rs.metricsGrid.GetChartCount()
 	if rs.metricsGrid.totalPages > 0 && chartCount > 0 {
-		startIdx := rs.metricsGrid.currentPage*MetricsPerPage + 1
-		endIdx := startIdx + MetricsPerPage - 1
+		startIdx := rs.metricsGrid.currentPage*metricsPerPage + 1
+		endIdx := startIdx + metricsPerPage - 1
 		if endIdx > chartCount {
 			endIdx = chartCount
 		}
@@ -1089,10 +1110,10 @@ func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 	if rs.metricsGrid == nil {
 		// Use a reasonable initial size for storing data
 		// The actual display size will be set when the sidebar opens
-		initialWidth := MinMetricChartWidth * MetricsGridCols
-		initialHeight := MinMetricChartHeight * MetricsGridRows
-
-		rs.metricsGrid = NewSystemMetricsGrid(initialWidth, initialHeight, rs.logger)
+		gridRows, gridCols := rs.config.GetSystemGrid()
+		initialWidth := MinMetricChartWidth * gridCols
+		initialHeight := MinMetricChartHeight * gridRows
+		rs.metricsGrid = NewSystemMetricsGrid(initialWidth, initialHeight, rs.config, rs.logger)
 		rs.logger.Debug(fmt.Sprintf("RightSidebar.ProcessStatsMsg: created grid with initial dimensions %dx%d",
 			initialWidth, initialHeight))
 	}

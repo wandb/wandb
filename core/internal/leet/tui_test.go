@@ -72,7 +72,6 @@ func TestTUI_SystemMetrics_ToggleAndRender_Teatest(t *testing.T) {
 	if err := cfg.SetSystemCols(2); err != nil {
 		t.Fatalf("config SetSystemCols: %v", err)
 	}
-	leet.UpdateGridDimensions()
 
 	// Create model and test terminal
 	logger := observability.NewNoOpLogger()

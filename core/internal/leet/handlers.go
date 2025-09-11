@@ -127,6 +127,9 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 //
 //gocyclo:ignore
 func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
+	gridRows, gridCols := m.config.GetMetricsGrid()
+	chartsPerPage := gridRows * gridCols
+
 	// Track if we need to sort
 	needsSort := false
 
@@ -198,7 +201,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 			m.applyFilterNoLock(m.activeFilter)
 		}
 
-		m.totalPages = (len(m.filteredCharts) + ChartsPerPage - 1) / ChartsPerPage
+		m.totalPages = (len(m.filteredCharts) + chartsPerPage - 1) / chartsPerPage
 	}
 
 	// Exit loading state only when we have actual charts with data
@@ -222,8 +225,8 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 			// Use a read lock while scanning the grid
 			m.chartMu.RLock()
 			foundRow, foundCol := -1, -1
-			for row := 0; row < GridRows; row++ {
-				for col := 0; col < GridCols; col++ {
+			for row := 0; row < gridRows; row++ {
+				for col := 0; col < gridCols; col++ {
 					if row < len(m.charts) && col < len(m.charts[row]) &&
 						m.charts[row][col] != nil &&
 						m.charts[row][col].Title() == prevTitle {
@@ -254,9 +257,11 @@ func (m *Model) drawVisibleCharts() {
 		}
 	}()
 
+	gridRows, gridCols := m.config.GetMetricsGrid()
+
 	// Force redraw all visible charts
-	for row := 0; row < GridRows; row++ {
-		for col := 0; col < GridCols; col++ {
+	for row := 0; row < gridRows; row++ {
+		for col := 0; col < gridCols; col++ {
 			if row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
 				chart := m.charts[row][col]
 				// Always force a redraw when this is called
@@ -276,12 +281,13 @@ func (m *Model) handleChartGridClick(row, col int) {
 		m.clearAllFocus()
 		return
 	}
+	gridRows, gridCols := m.config.GetMetricsGrid()
 
 	// Set new focus
 	m.chartMu.RLock()
 	defer m.chartMu.RUnlock()
 
-	if row >= 0 && row < GridRows && col >= 0 && col < GridCols &&
+	if row >= 0 && row < gridRows && col >= 0 && col < gridCols &&
 		row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
 		// Clear system chart focus if any
 		if m.rightSidebar.metricsGrid != nil {
@@ -425,10 +431,12 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 	row := adjustedY / dims.ChartHeightWithPadding
 	col := adjustedX / dims.ChartWidthWithPadding
 
+	gridRows, gridCols := m.config.GetMetricsGrid()
+
 	// Handle left click for focus
 	if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
 		tea.MouseEvent(msg).Action == tea.MouseActionPress {
-		if row >= 0 && row < GridRows && col >= 0 && col < GridCols {
+		if row >= 0 && row < gridRows && col >= 0 && col < gridCols {
 			m.handleChartGridClick(row, col)
 		}
 		return m, nil
@@ -443,7 +451,7 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 	m.chartMu.RLock()
 	defer m.chartMu.RUnlock()
 
-	if row >= 0 && row < GridRows && col >= 0 && col < GridCols &&
+	if row >= 0 && row < gridRows && col >= 0 && col < gridCols &&
 		row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
 		chart := m.charts[row][col]
 
@@ -817,7 +825,6 @@ func (m *Model) handleConfigNumberKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	}
 
 	// Update grid dimensions and rebuild the UI
-	UpdateGridDimensions()
 	m.rebuildGrids()
 	m.updateChartSizes()
 

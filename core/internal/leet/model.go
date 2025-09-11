@@ -33,6 +33,9 @@ const (
 //   - Update handles incoming events and updates the model accordingly.
 //   - View renders the UI based on the data in the model.
 type Model struct {
+	// Configuration.
+	config *ConfigManager
+
 	// Help screen.
 	help *HelpModel
 
@@ -121,18 +124,18 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		logger.CaptureError(fmt.Errorf("model: failed to load config: %v", err))
 	}
 
-	// Update grid dimensions from config
-	UpdateGridDimensions()
-
 	// Get heartbeat interval from config
 	heartbeatInterval := cfg.GetHeartbeatInterval()
 	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
 
+	gridRows, gridCols := cfg.GetMetricsGrid()
+
 	m := &Model{
+		config:              cfg,
 		help:                NewHelp(),
 		allCharts:           make([]*EpochLineChart, 0),
 		chartsByName:        make(map[string]*EpochLineChart),
-		charts:              make([][]*EpochLineChart, GridRows),
+		charts:              make([][]*EpochLineChart, gridRows),
 		filteredCharts:      make([]*EpochLineChart, 0),
 		filterMode:          false,
 		filterInput:         "",
@@ -149,7 +152,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		isLoading:           true,
 		runPath:             runPath,
 		sidebar:             NewSidebar(),
-		rightSidebar:        NewRightSidebar(logger),
+		rightSidebar:        NewRightSidebar(cfg, logger),
 		watcher:             watcher.New(watcher.Params{Logger: logger}),
 		watcherStarted:      false,
 		runConfig:           runconfig.New(),
@@ -159,8 +162,8 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		heartbeatInterval:   heartbeatInterval,
 	}
 
-	for row := range GridRows {
-		m.charts[row] = make([]*EpochLineChart, GridCols)
+	for row := range gridRows {
+		m.charts[row] = make([]*EpochLineChart, gridCols)
 	}
 
 	m.sidebar.SetRunOverview(RunOverview{
@@ -411,10 +414,6 @@ func (m *Model) View() string {
 	defer m.recoverPanic("View")
 	m.stateMu.RLock()
 	defer m.stateMu.RUnlock()
-
-	// Hold a read lock while rendering to avoid races with UpdateGridDimensions.
-	layoutMu.RLock()
-	defer layoutMu.RUnlock()
 
 	if m.width == 0 || m.height == 0 {
 		return "Loading..."
@@ -885,22 +884,23 @@ func (m *Model) navigatePage(direction int) {
 	m.drawVisibleCharts()
 }
 
-// rebuildGrids rebuilds the chart grids with new dimensions
+// rebuildGrids rebuilds the chart grids with new dimensions.
 func (m *Model) rebuildGrids() {
-	// Rebuild metrics grid
-	m.charts = make([][]*EpochLineChart, GridRows)
-	for row := 0; row < GridRows; row++ {
-		m.charts[row] = make([]*EpochLineChart, GridCols)
+	gridRows, gridCols := m.config.GetMetricsGrid()
+
+	m.charts = make([][]*EpochLineChart, gridRows)
+	for row := 0; row < gridRows; row++ {
+		m.charts[row] = make([]*EpochLineChart, gridCols)
 	}
 
 	// Recalculate total pages
-	ChartsPerPage = GridRows * GridCols
+	chartsPerPage := gridRows * gridCols
 
 	m.chartMu.RLock()
 	chartCount := len(m.allCharts)
 	m.chartMu.RUnlock()
 
-	m.totalPages = (chartCount + ChartsPerPage - 1) / ChartsPerPage
+	m.totalPages = (chartCount + chartsPerPage - 1) / chartsPerPage
 
 	// Ensure current page is valid
 	if m.currentPage >= m.totalPages && m.totalPages > 0 {

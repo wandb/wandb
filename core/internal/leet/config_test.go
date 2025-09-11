@@ -25,29 +25,33 @@ func TestConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 	// metrics rows: 'r' then '5'
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'5'}})
-	if leet.GridRows != 5 {
-		t.Fatalf("GridRows=%d; want 5", leet.GridRows)
+	gridRows, _ := cfg.GetMetricsGrid()
+	if gridRows != 5 {
+		t.Fatalf("GridRows=%d; want 5", gridRows)
 	}
 
 	// metrics cols: 'c' then '4'
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'4'}})
-	if leet.GridCols != 4 {
-		t.Fatalf("GridCols=%d; want 4", leet.GridCols)
+	_, gridCols := cfg.GetMetricsGrid()
+	if gridCols != 4 {
+		t.Fatalf("GridCols=%d; want 4", gridCols)
 	}
 
 	// system rows: 'R' then '2'
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'R'}})
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
-	if leet.MetricsGridRows != 2 {
-		t.Fatalf("MetricsGridRows=%d; want 2", leet.MetricsGridRows)
+	gridRows, _ = cfg.GetSystemGrid()
+	if gridRows != 2 {
+		t.Fatalf("MetricsGridRows=%d; want 2", gridRows)
 	}
 
 	// system cols: 'C' then '3'
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
 	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
-	if leet.MetricsGridCols != 3 {
-		t.Fatalf("MetricsGridCols=%d; want 3", leet.MetricsGridCols)
+	_, gridCols = cfg.GetSystemGrid()
+	if gridCols != 3 {
+		t.Fatalf("MetricsGridCols=%d; want 3", gridCols)
 	}
 }
 
@@ -89,7 +93,6 @@ func TestConfig_SetLeftSidebarVisible_AffectsModelOnStartup(t *testing.T) {
 	if err := cfg.SetLeftSidebarVisible(true); err != nil {
 		t.Fatalf("SetLeftSidebarVisible: %v", err)
 	}
-	leet.UpdateGridDimensions()
 
 	logger := observability.NewNoOpLogger()
 	m := leet.NewModel("dummy", logger)

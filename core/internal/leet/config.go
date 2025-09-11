@@ -58,8 +58,8 @@ func GetConfig() *ConfigManager {
 		configManager = &ConfigManager{
 			configPath: configPath,
 			config: Config{
-				MetricsGrid:       GridConfig{Rows: 4, Cols: 3},
-				SystemGrid:        GridConfig{Rows: 6, Cols: 2},
+				MetricsGrid:       GridConfig{Rows: DefaultMetricsGridRows, Cols: DefaultMetricsGridCols},
+				SystemGrid:        GridConfig{Rows: DefaultSystemGridRows, Cols: DefaultSystemGridCols},
 				ColorScheme:       "sunset-glow",
 				HeartbeatInterval: DefaultHeartbeatInterval,
 			},

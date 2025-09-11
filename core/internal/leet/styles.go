@@ -1,34 +1,26 @@
 package leet
 
 import (
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
 
-// layoutMu guards all global layout/grid variables (e.g., GridRows, GridCols,
-// SystemGridRows, SystemGridCols, ChartsPerPage, and any style derived from them).
-// Writers: UpdateGridDimensions. Readers: View render path.
-var layoutMu sync.RWMutex
-
-// Default layout constants.
-var (
-	GridRows        = 3
-	GridCols        = 5
-	ChartsPerPage   = GridRows * GridCols
-	StatusBarHeight = 1
-	MinChartWidth   = 20
-	MinChartHeight  = 5
-)
-
-// Default system metrics grid configuration.
-var (
-	MetricsGridRows      = 3
-	MetricsGridCols      = 2
-	MetricsPerPage       = MetricsGridRows * MetricsGridCols
+// Immutable UI constants.
+const (
+	StatusBarHeight      = 1
+	MinChartWidth        = 20
+	MinChartHeight       = 5
 	MinMetricChartWidth  = 18
 	MinMetricChartHeight = 4
+)
+
+// Default grid sizes
+const (
+	DefaultMetricsGridRows = 4
+	DefaultMetricsGridCols = 3
+	DefaultSystemGridRows  = 6
+	DefaultSystemGridCols  = 2
 )
 
 // Sidebar constants.
@@ -121,24 +113,6 @@ var colorSchemes = map[string][]string{
 // GetGraphColors returns the colors for the current color scheme.
 func GetGraphColors() []string {
 	return colorSchemes["sunset-glow"]
-}
-
-// UpdateGridDimensions updates the grid dimensions from config.
-func UpdateGridDimensions() {
-	layoutMu.Lock()
-	defer layoutMu.Unlock()
-
-	cfg := GetConfig()
-
-	rows, cols := cfg.GetMetricsGrid()
-	GridRows = rows
-	GridCols = cols
-	ChartsPerPage = GridRows * GridCols
-
-	sysRows, sysCols := cfg.GetSystemGrid()
-	MetricsGridRows = sysRows
-	MetricsGridCols = sysCols
-	MetricsPerPage = MetricsGridRows * MetricsGridCols
 }
 
 // Metrics grid styles.

@@ -18,11 +18,10 @@ func TestSystemMetricsGrid_Reset(t *testing.T) {
 	}
 	_ = cfg.SetSystemRows(2)
 	_ = cfg.SetSystemCols(2)
-	leet.UpdateGridDimensions()
 
 	logger := observability.NewNoOpLogger()
 	// Give the grid enough space (any positive multiples will do).
-	grid := leet.NewSystemMetricsGrid(2*leet.MinMetricChartWidth, 2*leet.MinMetricChartHeight, logger)
+	grid := leet.NewSystemMetricsGrid(2*leet.MinMetricChartWidth, 2*leet.MinMetricChartHeight, cfg, logger)
 
 	ts := time.Now().Unix()
 	grid.AddDataPoint("gpu.0.temp", ts, 50)
@@ -46,10 +45,9 @@ func TestRightSidebar_ProcessStatsMsg_GroupsSeriesByBaseKey(t *testing.T) {
 	}
 	_ = cfg.SetSystemRows(2)
 	_ = cfg.SetSystemCols(2)
-	leet.UpdateGridDimensions()
 
 	logger := observability.NewNoOpLogger()
-	rs := leet.NewRightSidebar(logger)
+	rs := leet.NewRightSidebar(cfg, logger)
 
 	ts := time.Now().Unix()
 	rs.ProcessStatsMsg(leet.StatsMsg{
@@ -102,13 +100,13 @@ func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
 	}
 	_ = cfg.SetSystemRows(2)
 	_ = cfg.SetSystemCols(2)
-	leet.UpdateGridDimensions()
+	gridRows, gridCols := cfg.GetSystemGrid()
 
 	logger := observability.NewNoOpLogger()
 	// Create grid with sufficient size
-	gridWidth := leet.MinMetricChartWidth * leet.MetricsGridCols * 2
-	gridHeight := leet.MinMetricChartHeight * leet.MetricsGridRows * 2
-	grid := leet.NewSystemMetricsGrid(gridWidth, gridHeight, logger)
+	gridWidth := leet.MinMetricChartWidth * gridCols * 2
+	gridHeight := leet.MinMetricChartHeight * gridRows * 2
+	grid := leet.NewSystemMetricsGrid(gridWidth, gridHeight, cfg, logger)
 
 	ts := time.Now().Unix()
 	// Add multiple data points to ensure chart is properly created and visible
@@ -162,12 +160,13 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 	if err := cfg.SetSystemCols(1); err != nil {
 		t.Fatalf("SetSystemCols: %v", err)
 	}
-	leet.UpdateGridDimensions()
+
+	gridRows, gridCols := cfg.GetSystemGrid()
 
 	logger := observability.NewNoOpLogger()
-	gridWidth := leet.MinMetricChartWidth * leet.MetricsGridCols * 2
-	gridHeight := leet.MinMetricChartHeight * leet.MetricsGridRows * 2
-	grid := leet.NewSystemMetricsGrid(gridWidth, gridHeight, logger)
+	gridWidth := leet.MinMetricChartWidth * gridCols * 2
+	gridHeight := leet.MinMetricChartHeight * gridRows * 2
+	grid := leet.NewSystemMetricsGrid(gridWidth, gridHeight, cfg, logger)
 
 	ts := time.Now().Unix()
 

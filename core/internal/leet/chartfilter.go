@@ -90,7 +90,9 @@ func (m *Model) applyFilterNoLock(pattern string) {
 	}
 
 	// Recalculate pages based on filtered charts
-	m.totalPages = (len(m.filteredCharts) + ChartsPerPage - 1) / ChartsPerPage
+	gridRows, gridCols := m.config.GetMetricsGrid()
+	chartsPerPage := gridRows * gridCols
+	m.totalPages = (len(m.filteredCharts) + chartsPerPage - 1) / chartsPerPage
 	if m.currentPage >= m.totalPages && m.totalPages > 0 {
 		m.currentPage = 0
 	}
