@@ -30,6 +30,7 @@ from typing import (
     Literal,
     Sequence,
     Type,
+    cast,
     final,
 )
 from urllib.parse import quote, urljoin, urlparse
@@ -38,7 +39,8 @@ import requests
 
 import wandb
 from wandb import data_types, env
-from wandb._iterutils import one
+from wandb._iterutils import one, unique_list
+from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
 from wandb.apis.public.utils import gql_compat
@@ -53,8 +55,9 @@ from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
-from wandb.sdk.lib import filesystem, retry, runid, telemetry
+from wandb.sdk.lib import retry, runid, telemetry
 from wandb.sdk.lib.deprecate import deprecate
+from wandb.sdk.lib.filesystem import check_exists, system_preferred_path
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
@@ -68,6 +71,7 @@ from wandb.util import (
     vendor_setup,
 )
 
+from ._factories import make_storage_policy
 from ._generated import (
     ADD_ALIASES_GQL,
     ARTIFACT_BY_ID_GQL,
@@ -101,6 +105,7 @@ from ._generated import (
     FileUrlsFragment,
     LinkArtifact,
     LinkArtifactInput,
+    MembershipWithArtifact,
     TagInput,
     UpdateArtifact,
 )
@@ -135,9 +140,6 @@ from .exceptions import (
 )
 from .staging import get_staging_dir
 from .storage_handlers.gcs_handler import _GCSIsADirectoryError
-from .storage_layout import StorageLayout
-from .storage_policies import WANDB_STORAGE_POLICY
-from .storage_policy import StoragePolicy
 
 reset_path = vendor_setup()
 
@@ -223,11 +225,6 @@ class Artifact:
         # Internal.
         self._client: RetryingClient | None = None
 
-        storage_policy_cls = StoragePolicy.lookup_by_name(WANDB_STORAGE_POLICY)
-        layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
-        policy_config = {"storageLayout": layout}
-        self._storage_policy = storage_policy_cls.from_config(config=policy_config)
-
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
         self._added_local_paths: dict[str, ArtifactManifestEntry] = {}
@@ -271,7 +268,7 @@ class Artifact:
         self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
         self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
-            ArtifactManifestV1(self._storage_policy)
+            ArtifactManifestV1(storage_policy=make_storage_policy())
         )
         self._commit_hash: str | None = None
         self._file_count: int | None = None
@@ -344,29 +341,8 @@ class Artifact:
                 f"artifact membership {name!r} not found in {entity_project!r}"
             )
 
-        if not (ac_attrs := acm_attrs.artifact_collection):
-            raise ValueError("artifact collection not found")
-
-        if not ((ac_name := ac_attrs.name) and (ac_project_attrs := ac_attrs.project)):
-            raise ValueError("artifact collection project not found")
-
-        ac_project = ac_project_attrs.name
-        ac_entity = ac_project_attrs.entity_name
-
-        if is_artifact_registry_project(ac_project) and project == "model-registry":
-            wandb.termwarn(
-                "This model registry has been migrated and will be discontinued. "
-                f"Your request was redirected to the corresponding artifact `{ac_name}` in the new registry. "
-                f"Please update your paths to point to the migrated registry directly, `{ac_project}/{ac_name}`."
-            )
-            entity = ac_entity
-            project = ac_project
-
-        if not (attrs := acm_attrs.artifact):
-            entity_project = f"{entity}/{project}"
-            raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
-
-        return cls._from_attrs(entity, project, name, attrs.model_dump(), client)
+        target_path = ArtifactPath(prefix=entity, project=project, name=name)
+        return cls._from_membership(acm_attrs, target=target_path, client=client)
 
     @classmethod
     def _from_name(
@@ -411,6 +387,38 @@ class Artifact:
             raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
 
         return cls._from_attrs(entity, project, name, art_attrs, client)
+
+    @classmethod
+    def _from_membership(
+        cls,
+        membership: MembershipWithArtifact,
+        target: ArtifactPath,
+        client: RetryingClient,
+    ) -> Artifact:
+        if not (
+            (collection := membership.artifact_collection)
+            and (name := collection.name)
+            and (proj := collection.project)
+        ):
+            raise ValueError("Missing artifact collection project in GraphQL response")
+
+        if is_artifact_registry_project(proj.name) and (
+            target.project == "model-registry"
+        ):
+            wandb.termwarn(
+                "This model registry has been migrated and will be discontinued. "
+                f"Your request was redirected to the corresponding artifact {name!r} in the new registry. "
+                f"Please update your paths to point to the migrated registry directly, '{proj.name}/{name}'."
+            )
+            new_entity, new_project = proj.entity_name, proj.name
+        else:
+            new_entity = cast(str, target.prefix)
+            new_project = cast(str, target.project)
+
+        if not (artifact := membership.artifact):
+            raise ValueError(f"Artifact {target.to_str()!r} not found in response")
+
+        return cls._from_attrs(new_entity, new_project, target.name, artifact, client)
 
     @classmethod
     def _from_attrs(
@@ -905,7 +913,7 @@ class Artifact:
             artifact has not been logged or saved.
         """
         if self._ttl_is_inherited and (self.is_draft() or self._ttl_changed):
-            raise ArtifactNotLoggedError(f"{type(self).__name__}.ttl", self)
+            raise ArtifactNotLoggedError(f"{nameof(type(self))}.ttl", self)
         if self._ttl_duration_seconds is None:
             return None
         return timedelta(seconds=self._ttl_duration_seconds)
@@ -1208,7 +1216,7 @@ class Artifact:
         """
         if self.is_draft():
             if self._save_handle is None:
-                raise ArtifactNotLoggedError(type(self).wait.__qualname__, self)
+                raise ArtifactNotLoggedError(nameof(self.wait), self)
 
             try:
                 result = self._save_handle.wait_or(timeout=timeout)
@@ -1438,7 +1446,7 @@ class Artifact:
             raise ValueError(f"File with name {name!r} already exists at {path!r}")
         except UnicodeEncodeError as e:
             termerror(
-                f"Failed to open the provided file ({type(e).__name__}: {e}). Please "
+                f"Failed to open the provided file ({nameof(type(e))}: {e}). Please "
                 f"provide the proper encoding."
             )
             raise
@@ -1645,7 +1653,7 @@ class Artifact:
                 "References must be URIs. To reference a local file, use file://"
             )
 
-        manifest_entries = self._storage_policy.store_reference(
+        manifest_entries = self.manifest.storage_policy.store_reference(
             self,
             URIStr(uri_str),
             name=name,
@@ -1961,7 +1969,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        root = FilePathStr(str(root or self._default_root()))
+        root = FilePathStr(root or self._default_root())
         self._add_download_root(root)
 
         # TODO: download artifacts using core when implemented
@@ -2318,8 +2326,7 @@ class Artifact:
         # In case we're on a system where the artifact dir has a name corresponding to
         # an unexpected filesystem, we'll check for alternate roots. If one exists we'll
         # use that, otherwise we'll fall back to the system-preferred path.
-        path = filesystem.check_exists(root) or filesystem.system_preferred_path(root)
-        return FilePathStr(str(path))
+        return FilePathStr(check_exists(root) or system_preferred_path(root))
 
     def _add_download_root(self, dir_path: str) -> None:
         self._download_roots.add(os.path.abspath(dir_path))
@@ -2411,10 +2418,11 @@ class Artifact:
             # Wait until the artifact is committed before trying to link it.
             self.wait()
 
-        api = Api(overrides={"entity": self.source_entity})
+        api = InternalApi()
+        settings = api.settings()
 
         target = ArtifactPath.from_str(target_path).with_defaults(
-            project=api.settings.get("project") or "uncategorized",
+            project=settings.get("project") or "uncategorized",
         )
 
         # Parse the entity (first part of the path) appropriately,
@@ -2422,11 +2430,8 @@ class Artifact:
         if target.project and is_artifact_registry_project(target.project):
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
-            organization = target.prefix or api.settings.get("organization") or ""
-
-            target.prefix = InternalApi()._resolve_org_entity_name(
-                self.source_entity, organization
-            )
+            org = target.prefix or settings.get("organization") or ""
+            target.prefix = api._resolve_org_entity_name(self.source_entity, org)
         else:
             target = target.with_defaults(prefix=self.source_entity)
 
@@ -2443,16 +2448,35 @@ class Artifact:
             aliases=alias_inputs,
         )
         gql_vars = {"input": gql_input.model_dump(exclude_none=True)}
-        gql_op = gql(LINK_ARTIFACT_GQL)
-        data = self._client.execute(gql_op, variable_values=gql_vars)
 
+        # Newer server versions can return `artifactMembership` directly in the response,
+        # avoiding the need to re-fetch the linked artifact at the end.
+        if api._server_supports(
+            pb.ServerFeature.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
+        ):
+            omit_fragments = set()
+        else:
+            # FIXME: Make `gql_compat` omit nested fragment definitions recursively (but safely)
+            omit_fragments = {
+                "MembershipWithArtifact",
+                "ArtifactFragment",
+                "ArtifactFragmentWithoutAliases",
+            }
+
+        gql_op = gql_compat(LINK_ARTIFACT_GQL, omit_fragments=omit_fragments)
+        data = self._client.execute(gql_op, variable_values=gql_vars)
         result = LinkArtifact.model_validate(data).link_artifact
+
+        # Newer server versions can return artifactMembership directly in the response
+        if result and (membership := result.artifact_membership):
+            return self._from_membership(membership, target=target, client=self._client)
+
+        # Fallback to old behavior, which requires re-fetching the linked artifact to return it
         if not (result and (version_idx := result.version_index) is not None):
             raise ValueError("Unable to parse linked artifact version from response")
 
-        # Fetch the linked artifact to return it
-        linked_path = f"{target.to_str()}:v{version_idx}"
-        return api._artifact(linked_path)
+        link_name = f"{target.to_str()}:v{version_idx}"
+        return Api(overrides={"entity": self.source_entity})._artifact(link_name)
 
     @ensure_logged
     def unlink(self) -> None:
@@ -2467,7 +2491,7 @@ class Artifact:
         if not self.is_link:
             raise ValueError(
                 f"Artifact {self.qualified_name!r} is not a linked artifact and cannot be unlinked.  "
-                f"To delete it, use {self.delete.__qualname__!r} instead."
+                f"To delete it, use {nameof(self.delete)!r} instead."
             )
 
         self._unlink()
@@ -2626,8 +2650,7 @@ class Artifact:
             )
         )
         for node in linked_nodes:
-            # Trick for O(1) membership check that maintains order
-            alias_names = dict.fromkeys(a.alias for a in node.aliases)
+            alias_names = unique_list(a.alias for a in node.aliases)
             version = f"v{node.version_index}"
             aliases = (
                 [*alias_names, version]

@@ -241,18 +241,18 @@ class ArtifactManifestEntry:
                 executor=executor,
                 multipart=multipart,
             )
-
-        if skip_cache:
-            # Cache the checksum for future downloads
-            _write_cached_checksum(dest_path, self.digest)
-            return FilePathStr(dest_path)
-        else:
-            final_path = str(
-                copy_or_overwrite_changed(cache_path, dest_path)
-            )
-            # Cache the checksum for future downloads
-            _write_cached_checksum(final_path, self.digest)
-            return FilePathStr(final_path)
+        
+        # Determine the final path
+        final_path = (
+            dest_path
+            if skip_cache
+            else copy_or_overwrite_changed(cache_path, dest_path)
+        )
+        
+        # Cache the checksum for future downloads
+        _write_cached_checksum(final_path, self.digest)
+        
+        return FilePathStr(final_path)
 
     def ref_target(self) -> FilePathStr | URIStr:
         """Get the reference URL that is targeted by this artifact entry.

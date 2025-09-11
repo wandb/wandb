@@ -45,7 +45,7 @@ const (
 	ConsoleFileName           = "output.log"
 )
 
-var senderProviders = wire.NewSet(
+var SenderProviders = wire.NewSet(
 	wire.Struct(new(SenderFactory), "*"),
 )
 
@@ -389,7 +389,8 @@ func (s *Sender) respondResponse(record *spb.Record, response *spb.Response) {
 
 // respondExit responds to an exit record
 func (s *Sender) respondExit(record *spb.Record, exit *spb.RunExitResult) {
-	if !s.exitRecord.Control.ReqResp && s.exitRecord.Control.MailboxSlot == "" {
+	if !s.exitRecord.GetControl().GetReqResp() &&
+		s.exitRecord.GetControl().GetMailboxSlot() == "" {
 		return
 	}
 	result := &spb.Result{

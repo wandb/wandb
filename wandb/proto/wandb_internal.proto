@@ -1489,6 +1489,10 @@ enum ServerFeature {
 
   // Indicates that the server supports querying for a artifact collection membership on the project.
   PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP = 13;
+
+  // Indicates that the server supports returning an artifact collection membership in the response of a linkArtifact
+  // mutation.
+  ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE = 14;
 }
 
 /**

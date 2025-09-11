@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
+from functools import lru_cache
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import IO, ContextManager, Iterator, Protocol
@@ -87,7 +88,7 @@ class ArtifactFileCache:
     ) -> tuple[FilePathStr, bool, Opener]:
         opener = self._opener(path, size, skip_cache=skip_cache)
         hit = path.is_file() and path.stat().st_size == size
-        return FilePathStr(str(path)), hit, opener
+        return FilePathStr(path), hit, opener
 
     def cleanup(
         self,
@@ -237,12 +238,15 @@ class ArtifactFileCache:
             ) from e
 
 
-_artifact_file_cache: ArtifactFileCache | None = None
+# Memo `ArtifactFileCache` instances while avoiding reliance on global
+# variable(s).  Notes:
+# - @lru_cache should be thread-safe.
+# - We don't memoize `get_artifact_file_cache` directly, as the cache_dir
+#   may change at runtime.  This is likely rare in practice, though.
+@lru_cache(maxsize=1)
+def _build_artifact_file_cache(cache_dir: StrPath) -> ArtifactFileCache:
+    return ArtifactFileCache(cache_dir)
 
 
 def get_artifact_file_cache() -> ArtifactFileCache:
-    global _artifact_file_cache
-    cache_dir = artifacts_cache_dir()
-    if _artifact_file_cache is None or _artifact_file_cache._cache_dir != cache_dir:
-        _artifact_file_cache = ArtifactFileCache(cache_dir)
-    return _artifact_file_cache
+    return _build_artifact_file_cache(artifacts_cache_dir())

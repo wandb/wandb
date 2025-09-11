@@ -256,6 +256,8 @@ pub struct Imports {
     /// lightning, formerly pytorch-lightning
     #[prost(bool, tag = "106")]
     pub lightning: bool,
+    #[prost(bool, tag = "107")]
+    pub dspy: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Feature {
@@ -468,6 +470,9 @@ pub struct Feature {
     /// User created a rewound run
     #[prost(bool, tag = "72")]
     pub rewind_mode: bool,
+    /// User using WandbDSPyCallback
+    #[prost(bool, tag = "73")]
+    pub dspy_callback: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
@@ -2921,6 +2926,9 @@ pub enum ServerFeature {
     IncludeArtifactTypesInRegistryCreation = 12,
     /// Indicates that the server supports querying for a artifact collection membership on the project.
     ProjectArtifactCollectionMembership = 13,
+    /// Indicates that the server supports returning an artifact collection membership in the response of a linkArtifact
+    /// mutation.
+    ArtifactMembershipInLinkArtifactResponse = 14,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2953,6 +2961,9 @@ impl ServerFeature {
             Self::ProjectArtifactCollectionMembership => {
                 "PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP"
             }
+            Self::ArtifactMembershipInLinkArtifactResponse => {
+                "ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2983,6 +2994,9 @@ impl ServerFeature {
             }
             "PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP" => {
                 Some(Self::ProjectArtifactCollectionMembership)
+            }
+            "ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE" => {
+                Some(Self::ArtifactMembershipInLinkArtifactResponse)
             }
             _ => None,
         }
