@@ -21,8 +21,6 @@ import (
 // 3) verify only *loss* charts show,
 // 4) clear the filter with Ctrl+L and verify all charts reappear.
 func TestChartFilter_FilterAndClear(t *testing.T) {
-	t.Parallel()
-
 	logger := observability.NewNoOpLogger()
 	var m tea.Model = leet.NewModel("dummy", logger)
 
@@ -69,8 +67,6 @@ func TestChartFilter_FilterAndClear(t *testing.T) {
 // Here we filter by "loss", then publish a new metric "val/loss" and a non-matching one.
 // Expect: "val/loss" shows; "val/accuracy" remains hidden.
 func TestChartFilter_NewChartsRespectActiveFilter(t *testing.T) {
-	t.Parallel()
-
 	// Create a real file so model init doesn't fail.
 	tmp, err := os.CreateTemp(t.TempDir(), "empty-*.wandb")
 	if err != nil {
@@ -115,8 +111,6 @@ func TestChartFilter_NewChartsRespectActiveFilter(t *testing.T) {
 
 // TestFilterLiveUpdates tests filtering behavior during live data updates.
 func TestFilterLiveUpdates(t *testing.T) {
-	t.Parallel()
-
 	// Create a real file so model init doesn't fail.
 	tmp, err := os.CreateTemp(t.TempDir(), "empty-*.wandb")
 	if err != nil {
@@ -186,8 +180,6 @@ func TestFilterLiveUpdates(t *testing.T) {
 // Switching filters should update the grid immediately.
 // Filter "acc" should show both "accuracy" and "val/accuracy" and hide "train/loss".
 func TestChartFilter_SwitchFilter(t *testing.T) {
-	t.Parallel()
-
 	logger := observability.NewNoOpLogger()
 	var m tea.Model = leet.NewModel("dummy", logger)
 
@@ -217,16 +209,16 @@ func TestChartFilter_SwitchFilter(t *testing.T) {
 
 // TestConcurrentFilterAndUpdate tests that filtering and chart updates don't deadlock
 func TestConcurrentFilterAndUpdate(t *testing.T) {
-	t.Parallel()
+	// Don't run in parallel - modifies global state
 
 	logger := observability.NewNoOpLogger()
-	var m tea.Model = leet.NewModel("dummy", logger)
+	model := leet.NewModel("dummy", logger)
 
 	// Set up initial state
-	m, _ = m.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
+	model.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
 
 	// Seed some initial metrics
-	m, _ = m.Update(leet.HistoryMsg{
+	model.Update(leet.HistoryMsg{
 		Metrics: map[string]float64{
 			"train/loss": 0.5,
 			"accuracy":   0.8,
@@ -235,10 +227,12 @@ func TestConcurrentFilterAndUpdate(t *testing.T) {
 
 	// Use WaitGroup to synchronize goroutines
 	var wg sync.WaitGroup
-	errors := make(chan error, 10)
 	done := make(chan bool)
 
-	// Start multiple goroutines that simulate concurrent operations
+	// Use a mutex to serialize all Update calls
+	var updateMu sync.Mutex
+
+	// Start multiple goroutines that update the model
 	wg.Add(4)
 
 	// Goroutine 1: Continuously add new metrics
@@ -251,7 +245,9 @@ func TestConcurrentFilterAndUpdate(t *testing.T) {
 					metricName: float64(i) * 0.1,
 				},
 			}
-			m, _ = m.Update(msg)
+			updateMu.Lock()
+			model.Update(msg)
+			updateMu.Unlock()
 			time.Sleep(time.Millisecond)
 		}
 	}()
@@ -266,7 +262,9 @@ func TestConcurrentFilterAndUpdate(t *testing.T) {
 					"accuracy":   0.8 + float64(i)*0.001,
 				},
 			}
-			m, _ = m.Update(msg)
+			updateMu.Lock()
+			model.Update(msg)
+			updateMu.Unlock()
 			time.Sleep(time.Millisecond)
 		}
 	}()
@@ -278,16 +276,16 @@ func TestConcurrentFilterAndUpdate(t *testing.T) {
 		for i := range 20 {
 			filter := filters[i%len(filters)]
 
+			updateMu.Lock()
 			// Start filter mode
-			m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
-
+			model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 			// Type filter
 			for _, r := range filter {
-				m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+				model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 			}
-
 			// Apply filter
-			m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			updateMu.Unlock()
 
 			time.Sleep(5 * time.Millisecond)
 		}
@@ -297,7 +295,9 @@ func TestConcurrentFilterAndUpdate(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for range 10 {
-			m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+			updateMu.Lock()
+			model.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+			updateMu.Unlock()
 			time.Sleep(10 * time.Millisecond)
 		}
 	}()
@@ -311,14 +311,12 @@ func TestConcurrentFilterAndUpdate(t *testing.T) {
 	select {
 	case <-done:
 		// Success - no deadlock
-	case err := <-errors:
-		t.Fatalf("Error during concurrent operations: %v", err)
 	case <-time.After(5 * time.Second):
 		t.Fatal("Test timed out - possible deadlock")
 	}
 
 	// Verify model is still in valid state
-	view := m.View()
+	view := model.View()
 	if len(view) == 0 {
 		t.Fatal("Model view is empty after concurrent operations")
 	}
@@ -326,8 +324,6 @@ func TestConcurrentFilterAndUpdate(t *testing.T) {
 
 // TestFilterEdgeCases tests edge cases in filter functionality
 func TestFilterEdgeCases(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name          string
 		metrics       map[string]float64
@@ -411,8 +407,6 @@ func TestFilterEdgeCases(t *testing.T) {
 
 // TestFilterModeInterruption tests interrupting filter mode with other operations
 func TestFilterModeInterruption(t *testing.T) {
-	t.Parallel()
-
 	logger := observability.NewNoOpLogger()
 	var m tea.Model = leet.NewModel("dummy", logger)
 

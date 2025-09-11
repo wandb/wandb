@@ -17,12 +17,18 @@ type ChartDimensions struct {
 
 // CalculateChartDimensions computes the chart dimensions based on window size
 func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
+	// Protect reads of global grid dimensions
+	layoutMu.RLock()
+	gridRows := GridRows
+	gridCols := GridCols
+	layoutMu.RUnlock()
+
 	// windowHeight here should already have StatusBarHeight subtracted by the caller
 	// Reserve space for header (1 line + 1 margin top)
 	headerHeight := 2
 	availableHeight := windowHeight - headerHeight
-	chartHeightWithPadding := availableHeight / GridRows
-	chartWidthWithPadding := windowWidth / GridCols
+	chartHeightWithPadding := availableHeight / gridRows
+	chartWidthWithPadding := windowWidth / gridCols
 
 	borderChars := 2
 	titleLines := 1

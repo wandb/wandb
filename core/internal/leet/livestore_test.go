@@ -19,8 +19,6 @@ import (
 
 // TestNewLiveStore_ValidFile tests creating a LiveStore with a valid file
 func TestNewLiveStore_ValidFile(t *testing.T) {
-	t.Parallel()
-
 	// Create a valid .wandb file using the regular Store
 	tmpFile, err := os.CreateTemp(t.TempDir(), "valid-*.wandb")
 	if err != nil {
@@ -51,8 +49,6 @@ func TestNewLiveStore_ValidFile(t *testing.T) {
 
 // TestNewLiveStore_NonExistentFile tests error handling for missing files
 func TestNewLiveStore_NonExistentFile(t *testing.T) {
-	t.Parallel()
-
 	_, err := leet.NewLiveStore("/nonexistent/path/file.wandb")
 	if err == nil {
 		t.Fatal("Expected error for non-existent file")
@@ -61,8 +57,6 @@ func TestNewLiveStore_NonExistentFile(t *testing.T) {
 
 // TestNewLiveStore_InvalidHeader tests handling of files with invalid headers
 func TestNewLiveStore_InvalidHeader(t *testing.T) {
-	t.Parallel()
-
 	tmpFile, err := os.CreateTemp(t.TempDir(), "invalid-header-*.wandb")
 	if err != nil {
 		t.Fatalf("CreateTemp: %v", err)
@@ -83,8 +77,6 @@ func TestNewLiveStore_InvalidHeader(t *testing.T) {
 
 // TestLiveStore_ReadValidRecords tests reading valid records
 func TestLiveStore_ReadValidRecords(t *testing.T) {
-	t.Parallel()
-
 	tmpFile, err := os.CreateTemp(t.TempDir(), "records-*.wandb")
 	if err != nil {
 		t.Fatalf("CreateTemp: %v", err)
@@ -139,8 +131,6 @@ func TestLiveStore_ReadValidRecords(t *testing.T) {
 
 // TestLiveStore_CloseIdempotent tests that Close can be called multiple times
 func TestLiveStore_CloseIdempotent(t *testing.T) {
-	t.Parallel()
-
 	tmpFile, err := os.CreateTemp(t.TempDir(), "close-*.wandb")
 	if err != nil {
 		t.Fatalf("CreateTemp: %v", err)
@@ -172,8 +162,6 @@ func TestLiveStore_CloseIdempotent(t *testing.T) {
 
 // TestLiveStore_ReadAfterClose tests that reading after close returns an error
 func TestLiveStore_ReadAfterClose(t *testing.T) {
-	t.Parallel()
-
 	tmpFile, err := os.CreateTemp(t.TempDir(), "read-after-close-*.wandb")
 	if err != nil {
 		t.Fatalf("CreateTemp: %v", err)
@@ -372,8 +360,6 @@ func TestLiveStore_LiveRead_OpenedBeforeWriter(t *testing.T) {
 
 // TestLiveStore_LargeRecord tests handling of large records
 func TestLiveStore_LargeRecord(t *testing.T) {
-	t.Parallel()
-
 	tmpFile, err := os.CreateTemp(t.TempDir(), "large-*.wandb")
 	if err != nil {
 		t.Fatalf("CreateTemp: %v", err)
@@ -420,8 +406,6 @@ func TestLiveStore_LargeRecord(t *testing.T) {
 
 // TestLiveStore_PartialWrite tests handling of partial writes
 func TestLiveStore_PartialWrite(t *testing.T) {
-	t.Parallel()
-
 	tmpFile, err := os.CreateTemp(t.TempDir(), "partial-*.wandb")
 	if err != nil {
 		t.Fatalf("CreateTemp: %v", err)

@@ -108,6 +108,9 @@ type Model struct {
 
 	// Coalesce expensive redraws during batch processing.
 	suppressDraw bool
+
+	// Serialize access to Update / broad model state.
+	stateMu sync.RWMutex
 }
 
 func NewModel(runPath string, logger *observability.CoreLogger) *Model {
@@ -179,107 +182,6 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	return m
 }
 
-// recoverPanic recovers from panics and logs them
-func (m *Model) recoverPanic(context string) {
-	if r := recover(); r != nil {
-		stackTrace := string(debug.Stack())
-		m.logger.CaptureError(fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace))
-
-		// Set the run state to crashed
-		m.runState = RunStateCrashed
-
-		// Try to clean up
-		if m.watcherStarted {
-			m.watcher.Finish()
-			m.watcherStarted = false
-		}
-		if m.reader != nil {
-			m.reader.Close()
-		}
-		// Stop heartbeat
-		m.stopHeartbeat()
-	}
-}
-
-// startHeartbeat starts the heartbeat timer for live runs
-func (m *Model) startHeartbeat() {
-	m.heartbeatMu.Lock()
-	defer m.heartbeatMu.Unlock()
-
-	// Stop any existing timer
-	if m.heartbeatTimer != nil {
-		m.heartbeatTimer.Stop()
-	}
-
-	// Only start heartbeat for live runs
-	if m.runState != RunStateRunning || m.fileComplete {
-		m.logger.Debug("model: not starting heartbeat - run not active")
-		return
-	}
-
-	m.logger.Debug(fmt.Sprintf("model: starting heartbeat with interval %v", m.heartbeatInterval))
-
-	// Create a new timer
-	m.heartbeatTimer = time.AfterFunc(m.heartbeatInterval, func() {
-		// This runs in a separate goroutine
-		defer m.recoverPanic("heartbeat callback")
-
-		// Only send heartbeat if run is still active
-		if m.runState == RunStateRunning && !m.fileComplete {
-			select {
-			case m.msgChan <- HeartbeatMsg{}:
-				m.logger.Debug("model: heartbeat triggered")
-			default:
-				m.logger.Warn("model: msgChan full, dropping heartbeat")
-			}
-		}
-	})
-}
-
-// resetHeartbeat resets the heartbeat timer
-func (m *Model) resetHeartbeat() {
-	m.heartbeatMu.Lock()
-	defer m.heartbeatMu.Unlock()
-
-	// Stop existing timer
-	if m.heartbeatTimer != nil {
-		m.heartbeatTimer.Stop()
-	}
-
-	// Only restart if run is still active
-	if m.runState != RunStateRunning || m.fileComplete {
-		return
-	}
-
-	m.logger.Debug("model: resetting heartbeat timer")
-
-	// Start a new timer
-	m.heartbeatTimer = time.AfterFunc(m.heartbeatInterval, func() {
-		defer m.recoverPanic("heartbeat callback")
-
-		if m.runState == RunStateRunning && !m.fileComplete {
-			select {
-			case m.msgChan <- HeartbeatMsg{}:
-				m.logger.Debug("model: heartbeat triggered after reset")
-			default:
-				m.logger.Warn("model: msgChan full, dropping heartbeat after reset")
-			}
-		}
-	})
-}
-
-// stopHeartbeat stops the heartbeat timer
-func (m *Model) stopHeartbeat() {
-	m.heartbeatMu.Lock()
-	defer m.heartbeatMu.Unlock()
-
-	if m.heartbeatTimer != nil {
-		m.heartbeatTimer.Stop()
-		m.heartbeatTimer = nil
-		m.logger.Debug("model: heartbeat stopped")
-	}
-}
-
 // Init initializes the app model and returns the initial command for the application to run.
 //
 // Required to implement tea.Model.
@@ -299,7 +201,10 @@ func (m *Model) Init() tea.Cmd {
 //gocyclo:ignore
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Attempt to recover from any panics in Update.
+	// Ensure we always release the state lock on panic.
 	defer m.recoverPanic("Update")
+	m.stateMu.Lock()
+	defer m.stateMu.Unlock()
 
 	var cmds []tea.Cmd
 
@@ -504,6 +409,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) View() string {
 	// Attempt to recover from any panics in View.
 	defer m.recoverPanic("View")
+	m.stateMu.RLock()
+	defer m.stateMu.RUnlock()
 
 	// Hold a read lock while rendering to avoid races with UpdateGridDimensions.
 	layoutMu.RLock()
@@ -615,6 +522,107 @@ func (m *Model) View() string {
 
 	// Place the view to ensure it fills the terminal exactly
 	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, fullView)
+}
+
+// recoverPanic recovers from panics and logs them
+func (m *Model) recoverPanic(context string) {
+	if r := recover(); r != nil {
+		stackTrace := string(debug.Stack())
+		m.logger.CaptureError(fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", context, r, stackTrace))
+
+		// Set the run state to crashed
+		m.runState = RunStateCrashed
+
+		// Try to clean up
+		if m.watcherStarted {
+			m.watcher.Finish()
+			m.watcherStarted = false
+		}
+		if m.reader != nil {
+			m.reader.Close()
+		}
+		// Stop heartbeat
+		m.stopHeartbeat()
+	}
+}
+
+// startHeartbeat starts the heartbeat timer for live runs
+func (m *Model) startHeartbeat() {
+	m.heartbeatMu.Lock()
+	defer m.heartbeatMu.Unlock()
+
+	// Stop any existing timer
+	if m.heartbeatTimer != nil {
+		m.heartbeatTimer.Stop()
+	}
+
+	// Only start heartbeat for live runs
+	if m.runState != RunStateRunning || m.fileComplete {
+		m.logger.Debug("model: not starting heartbeat - run not active")
+		return
+	}
+
+	m.logger.Debug(fmt.Sprintf("model: starting heartbeat with interval %v", m.heartbeatInterval))
+
+	// Create a new timer
+	m.heartbeatTimer = time.AfterFunc(m.heartbeatInterval, func() {
+		// This runs in a separate goroutine
+		defer m.recoverPanic("heartbeat callback")
+
+		// Only send heartbeat if run is still active
+		if m.runState == RunStateRunning && !m.fileComplete {
+			select {
+			case m.msgChan <- HeartbeatMsg{}:
+				m.logger.Debug("model: heartbeat triggered")
+			default:
+				m.logger.Warn("model: msgChan full, dropping heartbeat")
+			}
+		}
+	})
+}
+
+// resetHeartbeat resets the heartbeat timer
+func (m *Model) resetHeartbeat() {
+	m.heartbeatMu.Lock()
+	defer m.heartbeatMu.Unlock()
+
+	// Stop existing timer
+	if m.heartbeatTimer != nil {
+		m.heartbeatTimer.Stop()
+	}
+
+	// Only restart if run is still active
+	if m.runState != RunStateRunning || m.fileComplete {
+		return
+	}
+
+	m.logger.Debug("model: resetting heartbeat timer")
+
+	// Start a new timer
+	m.heartbeatTimer = time.AfterFunc(m.heartbeatInterval, func() {
+		defer m.recoverPanic("heartbeat callback")
+
+		if m.runState == RunStateRunning && !m.fileComplete {
+			select {
+			case m.msgChan <- HeartbeatMsg{}:
+				m.logger.Debug("model: heartbeat triggered after reset")
+			default:
+				m.logger.Warn("model: msgChan full, dropping heartbeat after reset")
+			}
+		}
+	})
+}
+
+// stopHeartbeat stops the heartbeat timer
+func (m *Model) stopHeartbeat() {
+	m.heartbeatMu.Lock()
+	defer m.heartbeatMu.Unlock()
+
+	if m.heartbeatTimer != nil {
+		m.heartbeatTimer.Stop()
+		m.heartbeatTimer = nil
+		m.logger.Debug("model: heartbeat stopped")
+	}
 }
 
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen

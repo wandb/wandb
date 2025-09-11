@@ -2,7 +2,7 @@ package leet_test
 
 import (
 	"bytes"
-	"path/filepath"
+	"os"
 	"testing"
 	"time"
 
@@ -12,12 +12,33 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-func TestTUI_LoadingHelpAndQuit_Teatest(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfg := leet.GetConfig()
-	cfg.SetPathForTests(filepath.Join(tmpDir, "config.json"))
-	_ = cfg.Load()
+// setupTestConfig creates an isolated config file for testing.
+// This prevents race conditions when tests run in parallel.
+func setupTestConfig(t *testing.T) *leet.ConfigManager {
+	t.Helper()
 
+	tmp, err := os.CreateTemp(t.TempDir(), "config-*.json")
+	if err != nil {
+		t.Fatalf("failed to create temp config file: %v", err)
+	}
+	// Write empty JSON object to the file
+	if _, err := tmp.Write([]byte("{}")); err != nil {
+		tmp.Close()
+		t.Fatalf("failed to write config file: %v", err)
+	}
+	tmp.Close()
+
+	cfg := leet.GetConfig()
+	cfg.SetPathForTests(tmp.Name())
+	if err := cfg.Load(); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	return cfg
+}
+
+func TestTUI_LoadingHelpAndQuit_Teatest(t *testing.T) {
+	_ = setupTestConfig(t)
 	logger := observability.NewNoOpLogger()
 	m := leet.NewModel("no/such/file.wandb", logger)
 
@@ -44,12 +65,7 @@ func TestTUI_LoadingHelpAndQuit_Teatest(t *testing.T) {
 
 func TestTUI_SystemMetrics_ToggleAndRender_Teatest(t *testing.T) {
 	// Setup config with 2x2 system grid
-	tmpDir := t.TempDir()
-	cfg := leet.GetConfig()
-	cfg.SetPathForTests(filepath.Join(tmpDir, "config.json"))
-	if err := cfg.Load(); err != nil {
-		t.Fatalf("config Load: %v", err)
-	}
+	cfg := setupTestConfig(t)
 	if err := cfg.SetSystemRows(2); err != nil {
 		t.Fatalf("config SetSystemRows: %v", err)
 	}

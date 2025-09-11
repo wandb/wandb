@@ -3,7 +3,6 @@ package leet_test
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -117,13 +116,7 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 }
 
 func TestHandleKeyMsg_VariousPaths(t *testing.T) {
-	cfgPath := filepath.Join(t.TempDir(), "config.json")
-	cfg := leet.GetConfig()
-	cfg.SetPathForTests(cfgPath)
-	if err := cfg.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-
+	_ = setupTestConfig(t)
 	logger := observability.NewNoOpLogger()
 	var m tea.Model = leet.NewModel("dummy", logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 50})
@@ -162,11 +155,7 @@ func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 
 func TestHeartbeat_LiveRun(t *testing.T) {
 	// Setup config with short heartbeat interval for testing
-	cfg := leet.GetConfig()
-	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
-	if err := cfg.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
+	cfg := setupTestConfig(t)
 	// Set heartbeat to 1 second (minimum)
 	if err := cfg.SetHeartbeatInterval(1); err != nil {
 		t.Fatalf("SetHeartbeatInterval: %v", err)
@@ -328,8 +317,6 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 }
 
 func TestReload_PreservesFilter(t *testing.T) {
-	t.Parallel()
-
 	// Create a wandb file with multiple metrics
 	tmp, err := os.CreateTemp(t.TempDir(), "filter-*.wandb")
 	if err != nil {
@@ -442,9 +429,7 @@ func TestReload_PreservesFilter(t *testing.T) {
 
 func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	// Setup config with short heartbeat
-	cfg := leet.GetConfig()
-	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
-	_ = cfg.Load()
+	cfg := setupTestConfig(t)
 	_ = cfg.SetHeartbeatInterval(1) // 1 second minimum
 
 	// Create wandb file
@@ -517,14 +502,7 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 }
 
 func TestReload_WhileLoading_DoesNotCrash(t *testing.T) {
-	t.Parallel()
-
-	// Isolate config to a temp file to avoid cross-test interference.
-	cfg := leet.GetConfig()
-	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
-	if err := cfg.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
+	_ = setupTestConfig(t)
 
 	logger := observability.NewNoOpLogger()
 	var m tea.Model = leet.NewModel("dummy", logger)

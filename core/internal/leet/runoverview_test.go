@@ -10,7 +10,6 @@ import (
 )
 
 func TestSidebarFilter_WithPrefixes(t *testing.T) {
-	t.Parallel()
 	s := leet.NewSidebar()
 	s.SetRunOverview(leet.RunOverview{
 		Config:      map[string]any{"trainer": map[string]any{"epochs": 10}},
@@ -26,8 +25,6 @@ func TestSidebarFilter_WithPrefixes(t *testing.T) {
 }
 
 func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
-	t.Parallel()
-
 	s := leet.NewSidebar()
 	s.SetRunOverview(leet.RunOverview{
 		// Only config is non-empty.
@@ -43,8 +40,6 @@ func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
 }
 
 func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
-	t.Parallel()
-
 	s := leet.NewSidebar()
 	s.SetRunOverview(leet.RunOverview{
 		Config: map[string]any{"trainer": map[string]any{"epochs": 10}},
@@ -75,8 +70,6 @@ func expandSidebar(t *testing.T, s *leet.Sidebar, termWidth int, rightVisible bo
 }
 
 func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
-	t.Parallel()
-
 	s := leet.NewSidebar()
 	expandSidebar(t, s, 120, false)
 
@@ -112,8 +105,6 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
-	t.Parallel()
-
 	s := leet.NewSidebar()
 	expandSidebar(t, s, 120, false)
 	s.SetRunOverview(leet.RunOverview{
@@ -158,8 +149,6 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 }
 
 func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
-	t.Parallel()
-
 	s := leet.NewSidebar()
 	expandSidebar(t, s, 120, false)
 	s.SetRunOverview(leet.RunOverview{
@@ -189,8 +178,6 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 }
 
 func TestSidebar_TruncateValue(t *testing.T) {
-	t.Parallel()
-
 	s := leet.NewSidebar()
 	expandSidebar(t, s, 40, false) // clamps to SidebarMinWidth
 
