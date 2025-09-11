@@ -1558,6 +1558,7 @@ def init(  # noqa: C901
                 run_settings.entity,
                 run_settings.project,
                 run_settings.base_url,
+                run_settings._offline,
             )
 
             return run

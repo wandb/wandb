@@ -87,11 +87,16 @@ def _weave_is_available_on_server(base_url: str) -> bool:
     return True
 
 
-def setup(entity: str | None, project: str | None, base_url: str) -> None:
+def setup(
+    entity: str | None, project: str | None, base_url: str, offline: bool = False
+) -> None:
     """Set up automatic Weave initialization for the current W&B run.
 
     Args:
+        entity: The W&B entity name.
         project: The W&B project name to use for Weave initialization.
+        base_url: The W&B base URL.
+        offline: Whether the run is in offline mode.
     """
     # We can't or shouldn't init weave; return
     if os.getenv(_DISABLE_WEAVE):
@@ -100,7 +105,7 @@ def setup(entity: str | None, project: str | None, base_url: str) -> None:
         return
 
     # Check if weave is available on the server
-    if not _weave_is_available_on_server(base_url):
+    if not offline and not _weave_is_available_on_server(base_url):
         wandb.termwarn("Weave is not available on the server.  Please contact support.")
         return
 
