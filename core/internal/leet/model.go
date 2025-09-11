@@ -125,10 +125,6 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	heartbeatInterval := cfg.GetHeartbeatInterval()
 	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
 
-	// Calculate initial buffer size based on expected metrics
-	// Start with 1000, will grow dynamically if needed
-	initialBufferSize := 1000
-
 	m := &Model{
 		help:                NewHelp(),
 		allCharts:           make([]*EpochLineChart, 0),
@@ -155,7 +151,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		watcherStarted:      false,
 		runConfig:           runconfig.New(),
 		runSummary:          runsummary.New(),
-		msgChan:             make(chan tea.Msg, initialBufferSize),
+		msgChan:             make(chan tea.Msg, 4096),
 		logger:              logger,
 		heartbeatInterval:   heartbeatInterval,
 	}
@@ -792,41 +788,12 @@ func (m *Model) startWatcher() error {
 
 		m.logger.Debug(fmt.Sprintf("model: watcher callback triggered! File changed: %s", m.runPath))
 
-		// Try to send the message, but don't block
+		// Try to send the message, but don't block.
 		select {
 		case m.msgChan <- FileChangedMsg{}:
 			m.logger.Debug("model: FileChangedMsg sent to channel")
 		default:
-			// Channel is full, check if we need to grow it
-			currentCap := cap(m.msgChan)
-			if currentCap < 10000 { // Max buffer size
-				m.logger.Warn(fmt.Sprintf("model: msgChan full (cap=%d), growing buffer", currentCap))
-				// Create a new larger channel
-				newCap := currentCap * 2
-				if newCap > 10000 {
-					newCap = 10000
-				}
-				newChan := make(chan tea.Msg, newCap)
-				// Transfer existing messages
-				close(m.msgChan)
-				for msg := range m.msgChan {
-					select {
-					case newChan <- msg:
-					default:
-						m.logger.CaptureError(fmt.Errorf("model: failed to transfer message to new channel"))
-					}
-				}
-				m.msgChan = newChan
-				// Try to send the current message
-				select {
-				case m.msgChan <- FileChangedMsg{}:
-					m.logger.Debug("model: FileChangedMsg sent to new channel")
-				default:
-					m.logger.CaptureError(fmt.Errorf("model: still cannot send FileChangedMsg after growing buffer"))
-				}
-			} else {
-				m.logger.CaptureWarn("model: msgChan is at max capacity, dropping FileChangedMsg")
-			}
+			m.logger.CaptureWarn("model: msgChan is full, dropping FileChangedMsg")
 		}
 	})
 
