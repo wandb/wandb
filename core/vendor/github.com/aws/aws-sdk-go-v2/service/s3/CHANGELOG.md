@@ -1,3 +1,12 @@
+# v1.88.1 (2025-09-10)
+
+* No change notes available for this release.
+
+# v1.88.0 (2025-09-08)
+
+* **Feature**: This release includes backward compatibility work on the "Expires" parameter.
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.87.3 (2025-08-29)
 
 * **Dependency Update**: Updated to the latest SDK module versions
