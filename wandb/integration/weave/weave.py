@@ -56,11 +56,20 @@ _AVAILABLE_WEAVE_INTEGRATIONS = [
 ]
 
 
+def _weave_trace_server_url(base_url: str) -> str:
+    # Adapted from https://github.com/wandb/weave/blame/master/weave/trace/env.py#L58
+    default = "https://trace.wandb.ai"
+    if base_url != "https://api.wandb.ai":
+        default = f"{base_url}/traces"
+    return os.getenv("WF_TRACE_SERVER_URL", default)
+
+
 def _weave_is_available_on_server(base_url: str) -> bool:
     retryable_exceptions = (RequestException, JSONDecodeError)
+    url = _weave_trace_server_url(base_url)
 
     def _get_server_info_internal():
-        resp = requests.get(f"{base_url}/traces/server_info/")
+        resp = requests.get(f"{url}/server_info")
         return resp.json()
 
     _get_server_info = Retry(
