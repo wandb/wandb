@@ -56,11 +56,11 @@ def _checksum_cache_path(file_path: str) -> str:
     # Create a unique cache key based on the file's absolute path
     abs_path = os.path.abspath(file_path)
     path_hash = hashlib.sha256(abs_path.encode()).hexdigest()
-    
+
     # Store in wandb cache directory under checksums subdirectory
     cache_dir = artifacts_cache_dir() / "checksums"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    
+
     return str(cache_dir / f"{path_hash}.checksum")
 
 
@@ -218,7 +218,7 @@ class ArtifactManifestEntry:
         with suppress(OSError):
             if self.digest == _read_cached_checksum(dest_path):
                 return FilePathStr(dest_path)
-        
+
         # Fallback to computing/caching the checksum hash
         try:
             md5_hash = md5_file_b64(dest_path)
@@ -241,17 +241,17 @@ class ArtifactManifestEntry:
                 executor=executor,
                 multipart=multipart,
             )
-        
+
         # Determine the final path
         final_path = (
             dest_path
             if skip_cache
             else copy_or_overwrite_changed(cache_path, dest_path)
         )
-        
+
         # Cache the checksum for future downloads
-        _write_cached_checksum(final_path, self.digest)
-        
+        _write_cached_checksum(str(final_path), self.digest)
+
         return FilePathStr(final_path)
 
     def ref_target(self) -> FilePathStr | URIStr:
@@ -310,7 +310,6 @@ class ArtifactManifestEntry:
         if self.extra:
             contents["extra"] = self.extra
         return contents
-
 
     def _is_artifact_reference(self) -> bool:
         return self.ref is not None and urlparse(self.ref).scheme == _WB_ARTIFACT_SCHEME

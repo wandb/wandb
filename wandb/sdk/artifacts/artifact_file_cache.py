@@ -15,7 +15,7 @@ from tempfile import NamedTemporaryFile
 from typing import IO, ContextManager, Iterator, Protocol
 
 import wandb
-from wandb import env, util
+from wandb import util
 from wandb.sdk.artifacts.artifact_manifest_entry import artifacts_cache_dir
 from wandb.sdk.lib.filesystem import files_in
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
