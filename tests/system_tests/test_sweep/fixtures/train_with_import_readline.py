@@ -1,6 +1,6 @@
 import wandb
 
-# For use with system_tests/test_sweep/test_wandb_agent_full.py
+# For use with ../test_wandb_agent_full.py::test_agent_subprocess_with_import_readline
 
 
 def main(
@@ -28,12 +28,7 @@ def main(
     except Exception as e:
         print(f"Unexpected error: {e}")
 
-    run.log(
-        {
-            "test_param": test_param,
-        }
-    )
-
+    run.log({"test_param": test_param})
     run.finish()
 
 
