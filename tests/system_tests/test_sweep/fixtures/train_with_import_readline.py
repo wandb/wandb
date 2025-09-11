@@ -20,6 +20,14 @@ def main(
 
     print("Imported readline.")
 
+    try:
+        user_input = input("Enter something: ")
+        print(f"Got unexpected input (expected EOFError): {user_input}")
+    except EOFError:
+        print("Got EOFError as expected (parent stdin closed)")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
     run.log(
         {
             "test_param": test_param,

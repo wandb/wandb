@@ -9,7 +9,6 @@ import signal
 import socket
 import subprocess
 import sys
-import threading
 import time
 import traceback
 from typing import Any, Callable, Dict, List, Optional
@@ -40,9 +39,7 @@ class AgentProcess:
         self._proc = None
         self._finished_q = multiprocessing.Queue()
         self._proc_killed = False
-        self._stdout_parent_fd = None
-        self._stderr_parent_fd = None
-        self._output_thread = None
+        pass
 
         if command:
             if platform.system() == "Windows":
@@ -59,7 +56,7 @@ class AgentProcess:
                     kwargs = dict(preexec_fn=os.setpgrp)
                 if env.get(wandb.env.SERVICE):
                     env.pop(wandb.env.SERVICE)
-                self._popen = self._subprocess_with_pty(command, env, **kwargs)
+                self._popen = self._subprocess_with_pty_stdin(command, env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(
                 target=self._start,
@@ -69,54 +66,39 @@ class AgentProcess:
         else:
             raise AgentError("Agent Process requires command or function")
 
-    def _subprocess_with_pty(self, command, env, **kwargs):
-        """Create subprocess with PTYs so child sees TTY for all streams."""
+    def _subprocess_with_pty_stdin(self, command, env, **kwargs):
+        """Create subprocess with PTY stdin to avoid readline deadlocks."""
+        # Without this, if child process tries to import readline, the child process group won't
+        # have access to stdin and may freeze. We give it a fake stdin to avoid that, since we
+        # don't support having Sweeps training scripts actually read from stdin anyway.
+        #
+        # Notably, starting in Python 3.13, torch has an indirect import of readline.
         try:
-            stdin_parent, stdin_child = pty.openpty()
-            stdout_parent, stdout_child = pty.openpty()
-            stderr_parent, stderr_child = pty.openpty()
+            pty_stdin_parent, pty_stdin_child = pty.openpty()
 
             popen = subprocess.Popen(
                 command,
                 env=env,
-                stdin=stdin_child,
-                stdout=stdout_child,
-                stderr=stderr_child,
+                stdin=pty_stdin_child,
                 **kwargs,
             )
 
-            # Close child fds and unused stdin parent
-            for child_fd in [stdin_child, stdout_child, stderr_child]:
-                os.close(child_fd)
-            os.close(stdin_parent)
-
-            # Store output fds and start piping thread
-            self._stdout_parent_fd = stdout_parent
-            self._stderr_parent_fd = stderr_parent
-            self._output_thread = threading.Thread(
-                target=self._pipe_pty_streams,
-                args=(stdout_parent, stderr_parent),
-                daemon=True,
-            )
-            self._output_thread.start()
-        except (OSError, ValueError):
+            # Parent should always close child pty
+            os.close(pty_stdin_child)
+            # Close parent pty; child will get EOF if it actually tries to read from stdin, but we
+            # dont' expect it to.
+            os.close(pty_stdin_parent)
+        except (OSError, ValueError) as e:
             wandb.termerror(
-                "Error opening pty. Falling back to regular subprocess.Popen, "
-                "which may deadlock if child process directly or indirectly imports readline."
+                "Error opening pty for stdin. Falling back to regular subprocess.Popen, "
+                "which may deadlock if child process directly or indirectly imports readline.\n"
+                f"Error: {e}"
             )
-            for fd in [
-                stdin_parent,
-                stdout_parent,
-                stderr_parent,
-                stdin_child,
-                stdout_child,
-                stderr_child,
-            ]:
-                try:
-                    os.close(fd)
-                except (OSError, NameError):
-                    pass
-            self._stdout_parent_fd = self._stderr_parent_fd = None
+            try:
+                os.close(pty_stdin_parent)
+                os.close(pty_stdin_child)
+            except (OSError, NameError):
+                pass
             return subprocess.Popen(command, env=env, **kwargs)
         else:
             return popen
@@ -162,19 +144,14 @@ class AgentProcess:
                 while True:
                     p = self._popen.poll()
                     if p is not None:
-                        self._cleanup_pty()
                         return p
                     time.sleep(1)
-            result = self._popen.wait()
-            self._cleanup_pty()
-            return result
+            return self._popen.wait()
         return self._proc.join()
 
     def kill(self):
         if self._popen:
-            ret = self._popen.kill()
-            self._cleanup_pty()
-            return ret
+            return self._popen.kill()
         pid = self._proc.pid
         if pid:
             ret = os.kill(pid, signal.SIGKILL)
@@ -186,45 +163,10 @@ class AgentProcess:
         if self._popen:
             # windows terminate is too strong, send Ctrl-C instead
             if platform.system() == "Windows":
-                ret = self._popen.send_signal(signal.CTRL_C_EVENT)
-                self._cleanup_pty()
-                return ret
-            ret = self._popen.terminate()
-            self._cleanup_pty()
-            return ret
+                return self._popen.send_signal(signal.CTRL_C_EVENT)
+            return self._popen.terminate()
         return self._proc.terminate()
 
-    def _pipe_pty_streams(self, stdout_fd, stderr_fd):
-        import select
-
-        streams = {stdout_fd: sys.stdout.buffer, stderr_fd: sys.stderr.buffer}
-        fds = list(streams.keys())
-
-        try:
-            while fds:
-                for fd in select.select(fds, [], [])[0]:
-                    data = os.read(fd, 1024)
-                    if not data:
-                        fds.remove(fd)
-                        continue
-                    streams[fd].write(data)
-                    streams[fd].flush()
-        except (OSError, Exception):
-            pass
-
-    def _cleanup_pty(self):
-        for fd_name in ("_stdout_parent_fd", "_stderr_parent_fd"):
-            fd = getattr(self, fd_name)
-            if fd is not None:
-                try:
-                    os.close(fd)
-                except OSError:
-                    pass
-                setattr(self, fd_name, None)
-
-        if self._output_thread and self._output_thread.is_alive():
-            self._output_thread.join(timeout=1.0)
-            self._output_thread = None
 
 
 class Agent:

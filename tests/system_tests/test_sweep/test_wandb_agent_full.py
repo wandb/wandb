@@ -162,11 +162,11 @@ def test_agent_subprocess_with_import_readline(user):
         "command": ["python", str(script_path)],
     }
 
-    start_time = time.time()
-
     # Create sweep and run agent in command mode (not function mode)
     # This will trigger the AgentProcess subprocess creation with preexec_fn/process_group
     sweep_id = wandb.sweep(sweep_config)
+
+    agent_start_time = time.time()
 
     # Use a try-except to handle potential hanging and add timeout behavior
     try:
@@ -179,7 +179,9 @@ def test_agent_subprocess_with_import_readline(user):
     except KeyboardInterrupt:
         pass  # Handle Ctrl-C gracefully
 
-    end_time = time.time()
+    agent_end_time = time.time()
 
     # Test should complete in reasonable time (deadlock would cause the agent to hang)
-    assert end_time - start_time < 30, "Test took too long, possible deadlock detected"
+    assert agent_end_time - agent_start_time < 30, (
+        "Test took too long, possible deadlock detected"
+    )
