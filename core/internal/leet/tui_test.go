@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -23,32 +21,6 @@ const (
 	shortWait = 2 * time.Second
 	longWait  = 3 * time.Second
 )
-
-// containsTTY normalizes control codes, box drawing glyphs, and whitespace
-// so that assertions focus on semantic content rather than terminal layout.
-func containsTTY(b []byte, want string) bool {
-	normalize := func(s string) string {
-		// Strip CSI (e.g. \x1b[2J, \x1b[H, \x1b[?25l), OSC (\x1b]... \x07), and single ESC sequences.
-		csi := regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
-		osc := regexp.MustCompile(`\x1b\].*?\x07`)
-		esc := regexp.MustCompile(`\x1b.`) // fallback for ESC+X
-		s = csi.ReplaceAllString(s, "")
-		s = osc.ReplaceAllString(s, "")
-		s = esc.ReplaceAllString(s, "")
-
-		// Remove box drawing chars and borders that may interleave with text.
-		s = strings.NewReplacer(
-			"│", "", "─", "", "╭", "", "╮", "", "╰", "", "╯", "",
-			"┌", "", "┐", "", "└", "", "┘", "",
-		).Replace(s)
-
-		// Drop all whitespace (space, tabs, newlines).
-		ws := regexp.MustCompile(`\s+`)
-		s = ws.ReplaceAllString(s, "")
-		return strings.ToLower(s)
-	}
-	return strings.Contains(normalize(string(b)), normalize(want))
-}
 
 // newTestModel creates a test model and sends an initial WindowSizeMsg to force the first render.
 // The model's View returns "Loading..." until width/height are non-zero, so we always size first.
@@ -159,7 +131,7 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 
 	// Wait for the main grid to show (loss chart).
 	teatest.WaitFor(t, tm.Output(),
-		func(b []byte) bool { return containsTTY(b, "loss") },
+		func(b []byte) bool { return bytes.Contains(b, []byte("loss")) },
 		teatest.WithDuration(longWait),
 	)
 
@@ -168,13 +140,13 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 	// Why: teatest.WaitFor reads and consumes tm.Output(). The "loss" wait above
 	// may have already consumed the bytes that contained the "System Metrics"
 	// header. We must trigger a new render so the next WaitFor can observe it.
-	// WindowSizeMsg goes through the model's Update → handleOther(WindowSizeMsg) path,
-	// which updates widths/heights and re-computes layout, causing a redraw. :contentReference[oaicite:4]{index=4} :contentReference[oaicite:5]{index=5}
+	// WindowSizeMsg goes through the model's Update -> handleOther(WindowSizeMsg) path,
+	// which updates widths/heights and re-computes layout, causing a redraw.
 	forceRepaint(tm, W, H)
 
-	// Assert the right sidebar header renders (it can be empty if width ≤ 3). :contentReference[oaicite:6]{index=6}
+	// Assert the right sidebar header renders (it can be empty if width <= 3).
 	teatest.WaitFor(t, tm.Output(),
-		func(b []byte) bool { return containsTTY(b, "System Metrics") },
+		func(b []byte) bool { return bytes.Contains(b, []byte("System Metrics")) },
 		teatest.WithDuration(longWait),
 	)
 
@@ -194,14 +166,16 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 	if err := writer.Flush(); err != nil {
 		t.Fatalf("flush writer: %v", err)
 	}
-	tm.Send(leet.FileChangedMsg{}) // triggers ReadAvailableRecords + redraw in Update. :contentReference[oaicite:7]{index=7} :contentReference[oaicite:8]{index=8}
+	tm.Send(leet.FileChangedMsg{}) // triggers ReadAvailableRecords + redraw in Update.
 
 	forceRepaint(tm, 241, 80)
 
 	// Expect the GPU Temp chart with series count [2] and the CPU Core chart.
 	teatest.WaitFor(t, tm.Output(),
 		func(b []byte) bool {
-			return containsTTY(b, "GPU Temp") && containsTTY(b, "[2]") && containsTTY(b, "CPU Core")
+			return bytes.Contains(b, []byte("GPU Temp")) &&
+				bytes.Contains(b, []byte("[2]")) &&
+				bytes.Contains(b, []byte("CPU Core"))
 		},
 		teatest.WithDuration(longWait),
 	)
@@ -228,19 +202,20 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 	if err := writer.Close(); err != nil {
 		t.Fatalf("close writer: %v", err)
 	}
-	tm.Send(leet.FileChangedMsg{}) // live read + redraw. :contentReference[oaicite:9]{index=9} :contentReference[oaicite:10]{index=10}
+	tm.Send(leet.FileChangedMsg{}) // live read + redraw.
 
 	// Wait for the series count [3].
 	teatest.WaitFor(t, tm.Output(),
-		func(b []byte) bool { return containsTTY(b, "[3]") },
+		func(b []byte) bool { return bytes.Contains(b, []byte("[3]")) },
 		teatest.WithDuration(longWait),
 	)
 
 	// Toggle help on, then assert the banner appears, then toggle it off.
+	// Why? To get some free coverage, of course!
 	tm.Type("h")
 	forceRepaint(tm, 240, 80)
 	teatest.WaitFor(t, tm.Output(),
-		func(b []byte) bool { return containsTTY(b, "LEET") },
+		func(b []byte) bool { return bytes.Contains(b, []byte("LEET")) },
 		teatest.WithDuration(shortWait),
 	)
 	tm.Type("h")
