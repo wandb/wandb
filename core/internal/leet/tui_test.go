@@ -2,7 +2,6 @@ package leet_test
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,109 +19,113 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// containsTTY is tolerant of ANSI/OSC/cursor codes and box-drawing glyphs.
-// It normalizes both the output stream and the wanted string and performs a substring check.
+const (
+	shortWait = 2 * time.Second
+	longWait  = 3 * time.Second
+)
+
+// containsTTY normalizes control codes, box drawing glyphs, and whitespace
+// so that assertions focus on semantic content rather than terminal layout.
 func containsTTY(b []byte, want string) bool {
 	normalize := func(s string) string {
 		// Strip CSI (e.g. \x1b[2J, \x1b[H, \x1b[?25l), OSC (\x1b]... \x07), and single ESC sequences.
 		csi := regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
 		osc := regexp.MustCompile(`\x1b\].*?\x07`)
-		esc := regexp.MustCompile(`\x1b.`) // fallback for any stray ESC+X
+		esc := regexp.MustCompile(`\x1b.`) // fallback for ESC+X
 		s = csi.ReplaceAllString(s, "")
 		s = osc.ReplaceAllString(s, "")
 		s = esc.ReplaceAllString(s, "")
 
-		// Remove box drawing chars and borders that can get interleaved.
-		replacer := strings.NewReplacer(
+		// Remove box drawing chars and borders that may interleave with text.
+		s = strings.NewReplacer(
 			"│", "", "─", "", "╭", "", "╮", "", "╰", "", "╯", "",
 			"┌", "", "┐", "", "└", "", "┘", "",
-		)
-		s = replacer.Replace(s)
+		).Replace(s)
 
-		// Remove all whitespace characters; tests compare semantic content not layout.
-		// Using a regex with \s is more robust than replacing just spaces and newlines.
+		// Drop all whitespace (space, tabs, newlines).
 		ws := regexp.MustCompile(`\s+`)
 		s = ws.ReplaceAllString(s, "")
-
 		return strings.ToLower(s)
 	}
-	out := normalize(string(b))
-	needle := normalize(want)
-	return strings.Contains(out, needle)
+	return strings.Contains(normalize(string(b)), normalize(want))
 }
 
-func TestTUI_LoadingAndQuit_Teatest(t *testing.T) {
+// newTestModel creates a test model and sends an initial WindowSizeMsg to force the first render.
+// The model's View returns "Loading..." until width/height are non-zero, so we always size first.
+// (See Model.View early return.)
+func newTestModel(t *testing.T, runPath string, w, h int) (*teatest.TestModel, *leet.Model) {
+	t.Helper()
 	logger := observability.NewNoOpLogger()
-	m := leet.NewModel("no/such/file.wandb", logger)
+	m := leet.NewModel(runPath, logger)
+	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(w, h))
+	tm.Send(tea.WindowSizeMsg{Width: w, Height: h})
+	return tm, m
+}
 
-	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(100, 30))
+// writeRecord marshals and writes a single protobuf record to the leveldb writer.
+func writeRecord(t *testing.T, w *leveldb.Writer, rec *spb.Record) {
+	t.Helper()
+	data, err := proto.Marshal(rec)
+	if err != nil {
+		t.Fatalf("marshal record: %v", err)
+	}
+	dst, err := w.Next()
+	if err != nil {
+		t.Fatalf("writer.Next: %v", err)
+	}
+	if _, err := dst.Write(data); err != nil {
+		t.Fatalf("writer.Write: %v", err)
+	}
+}
 
-	// Send a window size to trigger first render
-	tm.Send(tea.WindowSizeMsg{Width: 100, Height: 30})
+// forceRepaint nudges Bubble Tea to produce a fresh frame.
+// Why needed: teatest.WaitFor consumes tm.Output(). Without a new render, a second
+// WaitFor may time out even if the content is already on-screen. Sending a slightly
+// different WindowSizeMsg ensures Update runs and View emits new bytes.
+func forceRepaint(tm *teatest.TestModel, w, h int) {
+	tm.Send(tea.WindowSizeMsg{Width: w + 1, Height: h})
+}
 
-	// Wait for loading screen
-	want := []byte("Loading data...")
+func TestLoadingScreenAndQuit(t *testing.T) {
+	tm, _ := newTestModel(t, "no/such/file.wandb", 100, 30)
+
+	// Wait for loading screen text.
 	teatest.WaitFor(t, tm.Output(),
-		func(b []byte) bool { return bytes.Contains(b, want) },
-		teatest.WithDuration(2*time.Second),
+		func(b []byte) bool { return bytes.Contains(b, []byte("Loading data...")) },
+		teatest.WithDuration(shortWait),
 	)
 
-	// Quit
+	// Quit.
 	tm.Type("q")
-	tm.WaitFinished(t, teatest.WithFinalTimeout(2*time.Second))
+	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
 }
 
-func TestTUI_SystemMetrics_ToggleAndRender_Teatest(t *testing.T) {
-	// Setup config with 2x2 system grid visible by default
+func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
+	// Configure a visible 2x2 system metrics grid.
 	cfg := leet.GetConfig()
 	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
 	if err := cfg.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
+		t.Fatalf("Load config: %v", err)
 	}
 	_ = cfg.SetSystemRows(2)
 	_ = cfg.SetSystemCols(2)
 	_ = cfg.SetRightSidebarVisible(true)
 
-	// Create a valid wandb file
+	// Create a writable .wandb file and keep it open to simulate a live run.
 	tmp, err := os.CreateTemp(t.TempDir(), "test-*.wandb")
 	if err != nil {
 		t.Fatalf("CreateTemp: %v", err)
 	}
-	tmpPath := tmp.Name()
-
-	// Use leveldb Writer to write records
+	defer tmp.Close()
 	writer := leveldb.NewWriterExt(tmp, leveldb.CRCAlgoIEEE, 0)
 
-	// Helper to write a protobuf record
-	writeRecord := func(record *spb.Record) error {
-		data, err := proto.Marshal(record)
-		if err != nil {
-			return err
-		}
-		w, err := writer.Next()
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(data)
-		return err
-	}
-
-	// Write run record
-	runRecord := &spb.Record{
+	// Seed minimal run + metrics so both the main grid and system grid can render.
+	writeRecord(t, writer, &spb.Record{
 		RecordType: &spb.Record_Run{
-			Run: &spb.RunRecord{
-				RunId:       "test-run",
-				DisplayName: "Test Run",
-				Project:     "test-project",
-			},
+			Run: &spb.RunRecord{RunId: "test-run", DisplayName: "Test Run", Project: "test-project"},
 		},
-	}
-	if err := writeRecord(runRecord); err != nil {
-		t.Fatalf("write run record: %v", err)
-	}
-
-	// Write initial history record
-	histRecord := &spb.Record{
+	})
+	writeRecord(t, writer, &spb.Record{
 		RecordType: &spb.Record_History{
 			History: &spb.HistoryRecord{
 				Item: []*spb.HistoryItem{
@@ -131,14 +134,10 @@ func TestTUI_SystemMetrics_ToggleAndRender_Teatest(t *testing.T) {
 				},
 			},
 		},
-	}
-	if err := writeRecord(histRecord); err != nil {
-		t.Fatalf("write history record: %v", err)
-	}
+	})
 
-	// Write initial stats with GPU metrics
 	ts := time.Now().Unix()
-	statsRecord := &spb.Record{
+	writeRecord(t, writer, &spb.Record{
 		RecordType: &spb.Record_Stats{
 			Stats: &spb.StatsRecord{
 				Timestamp: &timestamppb.Timestamp{Seconds: ts},
@@ -149,48 +148,38 @@ func TestTUI_SystemMetrics_ToggleAndRender_Teatest(t *testing.T) {
 				},
 			},
 		},
-	}
-	if err := writeRecord(statsRecord); err != nil {
-		t.Fatalf("write stats record: %v", err)
-	}
-
-	// Flush to ensure data is written
+	})
 	if err := writer.Flush(); err != nil {
 		t.Fatalf("flush writer: %v", err)
 	}
 
-	// Keep file open to simulate live writing
-	// Don't close tmp yet
+	// Spin up the TUI against the live file.
+	const W, H = 240, 80
+	tm, _ := newTestModel(t, tmp.Name(), W, H)
 
-	// Create model and test terminal
-	logger := observability.NewNoOpLogger()
-	m := leet.NewModel(tmpPath, logger)
-	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(240, 80))
-
-	// Set window size
-	tm.Send(tea.WindowSizeMsg{Width: 240, Height: 80})
-
-	// Wait for the metrics grid to appear (loss chart should be visible)
+	// Wait for the main grid to show (loss chart).
 	teatest.WaitFor(t, tm.Output(),
-		func(b []byte) bool {
-			return containsTTY(b, "loss")
-		},
-		teatest.WithDuration(3*time.Second),
+		func(b []byte) bool { return containsTTY(b, "loss") },
+		teatest.WithDuration(longWait),
 	)
 
-	tm.Send(tea.WindowSizeMsg{Width: 241, Height: 80})
+	// Force a fresh frame for the next assertion.
+	//
+	// Why: teatest.WaitFor reads and consumes tm.Output(). The "loss" wait above
+	// may have already consumed the bytes that contained the "System Metrics"
+	// header. We must trigger a new render so the next WaitFor can observe it.
+	// WindowSizeMsg goes through the model's Update → handleOther(WindowSizeMsg) path,
+	// which updates widths/heights and re-computes layout, causing a redraw. :contentReference[oaicite:4]{index=4} :contentReference[oaicite:5]{index=5}
+	forceRepaint(tm, W, H)
 
-	// Wait for System Metrics header (should already be visible due to config)
-	// t.Log(m.View())
+	// Assert the right sidebar header renders (it can be empty if width ≤ 3). :contentReference[oaicite:6]{index=6}
 	teatest.WaitFor(t, tm.Output(),
-		func(b []byte) bool {
-			return containsTTY(b, "System Metrics")
-		},
-		teatest.WithDuration(3*time.Second),
+		func(b []byte) bool { return containsTTY(b, "System Metrics") },
+		teatest.WithDuration(longWait),
 	)
 
-	// Write more stats
-	statsRecord2 := &spb.Record{
+	// Append more stats (2 GPUs → series count [2]) and notify the app.
+	writeRecord(t, writer, &spb.Record{
 		RecordType: &spb.Record_Stats{
 			Stats: &spb.StatsRecord{
 				Timestamp: &timestamppb.Timestamp{Seconds: ts + 1},
@@ -201,48 +190,24 @@ func TestTUI_SystemMetrics_ToggleAndRender_Teatest(t *testing.T) {
 				},
 			},
 		},
-	}
-	if err := writeRecord(statsRecord2); err != nil {
-		t.Fatalf("write second stats record: %v", err)
-	}
+	})
 	if err := writer.Flush(); err != nil {
 		t.Fatalf("flush writer: %v", err)
 	}
+	tm.Send(leet.FileChangedMsg{}) // triggers ReadAvailableRecords + redraw in Update. :contentReference[oaicite:7]{index=7} :contentReference[oaicite:8]{index=8}
 
-	// Trigger file change notification
-	tm.Send(leet.FileChangedMsg{})
-	time.Sleep(300 * time.Millisecond)
+	forceRepaint(tm, 241, 80)
 
-	tm.Send(tea.WindowSizeMsg{Width: 240, Height: 80})
-
-	// Check for GPU Temp chart with 2 series (should show [2])
+	// Expect the GPU Temp chart with series count [2] and the CPU Core chart.
 	teatest.WaitFor(t, tm.Output(),
 		func(b []byte) bool {
-			hasGPUTemp := containsTTY(b, "GPU Temp")
-			hasSeriesCount := containsTTY(b, "[2]")
-			hasCPUCore := containsTTY(b, "CPU Core")
-
-			if !hasGPUTemp || !hasSeriesCount || !hasCPUCore {
-				output := string(b)
-				if strings.Contains(output, "GPU Temp") && !strings.Contains(output, "[2]") {
-					t.Log("GPU Temp found but no [2] - checking for series count rendering")
-					// Look for any bracket numbers
-					for i := 1; i <= 5; i++ {
-						marker := fmt.Sprintf("[%d]", i)
-						if strings.Contains(output, marker) {
-							t.Logf("Found series marker: %s", marker)
-						}
-					}
-				}
-			}
-
-			return hasGPUTemp && hasSeriesCount && hasCPUCore
+			return containsTTY(b, "GPU Temp") && containsTTY(b, "[2]") && containsTTY(b, "CPU Core")
 		},
-		teatest.WithDuration(3*time.Second),
+		teatest.WithDuration(longWait),
 	)
 
-	// Add third GPU
-	statsRecord3 := &spb.Record{
+	// Add a 3rd GPU and then a RunExit, close the writer, and notify again.
+	writeRecord(t, writer, &spb.Record{
 		RecordType: &spb.Record_Stats{
 			Stats: &spb.StatsRecord{
 				Timestamp: &timestamppb.Timestamp{Seconds: ts + 2},
@@ -254,52 +219,33 @@ func TestTUI_SystemMetrics_ToggleAndRender_Teatest(t *testing.T) {
 				},
 			},
 		},
-	}
-	if err := writeRecord(statsRecord3); err != nil {
-		t.Fatalf("write third stats record: %v", err)
-	}
-
-	// Write exit record to signal completion
-	exitRecord := &spb.Record{
+	})
+	writeRecord(t, writer, &spb.Record{
 		RecordType: &spb.Record_Exit{
-			Exit: &spb.RunExitRecord{
-				ExitCode: 0,
-			},
+			Exit: &spb.RunExitRecord{ExitCode: 0},
 		},
-	}
-	if err := writeRecord(exitRecord); err != nil {
-		t.Fatalf("write exit record: %v", err)
-	}
-
-	// Close the writer and file
+	})
 	if err := writer.Close(); err != nil {
 		t.Fatalf("close writer: %v", err)
 	}
-	tmp.Close()
+	tm.Send(leet.FileChangedMsg{}) // live read + redraw. :contentReference[oaicite:9]{index=9} :contentReference[oaicite:10]{index=10}
 
-	// Trigger file change
-	tm.Send(leet.FileChangedMsg{})
-	time.Sleep(300 * time.Millisecond)
-
-	// Wait for [3] to appear
+	// Wait for the series count [3].
 	teatest.WaitFor(t, tm.Output(),
-		func(b []byte) bool {
-			return containsTTY(b, "[3]")
-		},
-		teatest.WithDuration(3*time.Second),
+		func(b []byte) bool { return containsTTY(b, "[3]") },
+		teatest.WithDuration(longWait),
 	)
 
-	// Toggle help
+	// Toggle help on, then assert the banner appears, then toggle it off.
 	tm.Type("h")
-	tm.Send(tea.WindowSizeMsg{Width: 240, Height: 80})
-	want := []byte("LEET")
+	forceRepaint(tm, 240, 80)
 	teatest.WaitFor(t, tm.Output(),
-		func(b []byte) bool { return bytes.Contains(b, want) },
-		teatest.WithDuration(3*time.Second),
+		func(b []byte) bool { return containsTTY(b, "LEET") },
+		teatest.WithDuration(shortWait),
 	)
 	tm.Type("h")
 
-	// Quit
+	// Quit.
 	tm.Type("q")
-	tm.WaitFinished(t, teatest.WithFinalTimeout(2*time.Second))
+	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
 }
