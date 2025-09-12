@@ -95,7 +95,16 @@ func (fs *fileStream) startProcessingFeedback(
 	go func() {
 		defer wg.Done()
 
-		for range feedback {
+		for res := range feedback {
+			// Update cached stopped state if present in backend response.
+			if v, ok := res["stopped"]; ok {
+				if b, ok := v.(bool); ok {
+					fs.stoppedMu.Lock()
+					fs.stopped = b
+					fs.stoppedKnown = true
+					fs.stoppedMu.Unlock()
+				}
+			}
 		}
 	}()
 }

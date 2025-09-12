@@ -3,6 +3,7 @@ package stream_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
@@ -13,10 +14,13 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watchertest"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"go.uber.org/mock/gomock"
@@ -27,7 +31,7 @@ const validLinkArtifactResponse = `{
 	"linkArtifact": { "versionIndex": 0 }
 }`
 
-func makeSender(client graphql.Client) *stream.Sender {
+func makeSender(client graphql.Client) (*stream.Sender, *stream.StreamRun, *wbsettings.Settings, *observability.CoreLogger) {
 	runWork := runworktest.New()
 	logger := observability.NewNoOpLogger()
 	settings := wbsettings.From(&spb.Settings{
@@ -53,6 +57,7 @@ func makeSender(client graphql.Client) *stream.Sender {
 		Logger:       logger,
 		Settings:     settings,
 	}
+	streamRun := stream.NewStreamRun()
 
 	senderFactory := stream.SenderFactory{
 		Logger:                  logger,
@@ -64,14 +69,63 @@ func makeSender(client graphql.Client) *stream.Sender {
 		Mailbox:                 mailbox.New(),
 		GraphqlClient:           client,
 		FeatureProvider:         featurechecker.NewServerFeaturesCache(nil, logger),
+		StreamRun:               streamRun,
 	}
-	return senderFactory.New(runWork)
+	return senderFactory.New(runWork), streamRun, settings, logger
+}
+
+// Seed a minimal RunUpserter so Sender can resolve entity/project/run for GraphQL fallback.
+func seedRunUpserter(t *testing.T, sr *stream.StreamRun, settings *wbsettings.Settings, logger *observability.CoreLogger) {
+	t.Helper()
+	rec := &spb.Record{RecordType: &spb.Record_Run{Run: &spb.RunRecord{Entity: "entity", Project: "project", RunId: "run"}}}
+	upserter, err := runupserter.InitRun(rec, runupserter.RunUpserterParams{
+		DebounceDelay:      waiting.NewDelay(1 * time.Millisecond),
+		ClientID:           "test-client",
+		Settings:           settings,
+		BeforeRunEndCtx:    context.Background(),
+		Operations:         wboperation.NewOperations(),
+		FeatureProvider:    featurechecker.NewServerFeaturesCache(nil, logger),
+		GraphqlClientOrNil: nil,
+		Logger:             logger,
+	})
+	assert.NoError(t, err)
+	assert.NoError(t, sr.SetRunUpserter(upserter))
+}
+
+func TestSendRequestStopStatus_FallsBackToGraphQL(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	sender, sr, settings, logger := makeSender(mockGQL)
+
+	// Ensure Sender has a RunUpserter so it can construct gql vars.
+	seedRunUpserter(t, sr, settings, logger)
+
+	rec := &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_StopStatus{
+					StopStatus: &spb.StopStatusRequest{},
+				},
+			},
+		},
+		Control: &spb.Control{MailboxSlot: "slot"},
+	}
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunStoppedStatus"),
+		`{"project": {"run": {"stopped": true}}}`,
+	)
+
+	sender.SendRecord(rec)
+	res := <-sender.ResponseChan()
+	resp := res.GetResponse().GetStopStatusResponse()
+	assert.NotNil(t, resp)
+	assert.Equal(t, true, resp.GetRunShouldStop())
 }
 
 // Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	sender := makeSender(mockGQL)
+	sender, _, _, _ := makeSender(mockGQL)
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	linkArtifact := &spb.Record{
@@ -181,7 +235,7 @@ func TestSendLinkArtifact(t *testing.T) {
 
 func TestSendUseArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	sender := makeSender(mockGQL)
+	sender, _, _, _ := makeSender(mockGQL)
 
 	useArtifact := &spb.Record{
 		RecordType: &spb.Record_UseArtifact{

@@ -75,6 +75,13 @@ type FileStream interface {
 
 	// StreamUpdate uploads information through the filestream API.
 	StreamUpdate(update Update)
+
+	// Stopped returns the last-known stopped status as reported by the
+	// filestream backend responses.
+	Stopped() bool
+
+	// StoppedKnown reports whether the backend has provided a stopped flag yet.
+	StoppedKnown() bool
 }
 
 // fileStream is a stream of data to the server
@@ -115,6 +122,12 @@ type fileStream struct {
 	// A channel that is closed if there is a fatal error.
 	deadChan     chan struct{}
 	deadChanOnce *sync.Once
+
+	// stopped indicates whether the backend has reported that this run should stop.
+	stoppedMu sync.RWMutex
+	stopped   bool
+	// stoppedKnown indicates whether a stopped flag has been observed in feedback.
+	stoppedKnown bool
 }
 
 // FileStreamProviders binds FileStreamFactory.
@@ -222,6 +235,20 @@ func (fs *fileStream) FinishWithoutExit() {
 	close(fs.processChan)
 	fs.feedbackWait.Wait()
 	fs.logger.Debug("filestream: closed")
+}
+
+// Stopped returns the last-known stopped status as reported by the backend.
+func (fs *fileStream) Stopped() bool {
+	fs.stoppedMu.RLock()
+	defer fs.stoppedMu.RUnlock()
+	return fs.stopped
+}
+
+// StoppedKnown returns true if a stopped flag has been received from backend.
+func (fs *fileStream) StoppedKnown() bool {
+	fs.stoppedMu.RLock()
+	defer fs.stoppedMu.RUnlock()
+	return fs.stoppedKnown
 }
 
 // logFatalAndStopWorking logs a fatal error and kills the filestream.
