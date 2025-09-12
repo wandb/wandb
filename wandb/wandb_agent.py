@@ -39,7 +39,6 @@ class AgentProcess:
         self._proc = None
         self._finished_q = multiprocessing.Queue()
         self._proc_killed = False
-        pass
 
         if command:
             if platform.system() == "Windows":
@@ -75,7 +74,19 @@ class AgentProcess:
         # Notably, starting in Python 3.13, torch has an indirect import of readline.
         try:
             pty_stdin_parent, pty_stdin_child = pty.openpty()
-
+        except OSError as e:
+            wandb.termwarn(
+                "Error opening pty for stdin. Falling back to regular subprocess.Popen, "
+                "which may deadlock if child process directly or indirectly imports readline.\n"
+                f"Error: {e}"
+            )
+            try:
+                os.close(pty_stdin_child)
+                os.close(pty_stdin_parent)
+            except (OSError, NameError):
+                pass
+            return subprocess.Popen(command, env=env, **kwargs)
+        else:
             popen = subprocess.Popen(
                 command,
                 env=env,
@@ -88,19 +99,6 @@ class AgentProcess:
             # Close parent pty; child will get EOF if it actually tries to read from stdin, but we
             # dont' expect it to.
             os.close(pty_stdin_parent)
-        except OSError as e:
-            wandb.termwarn(
-                "Error opening pty for stdin. Falling back to regular subprocess.Popen, "
-                "which may deadlock if child process directly or indirectly imports readline.\n"
-                f"Error: {e}"
-            )
-            try:
-                os.close(pty_stdin_parent)
-                os.close(pty_stdin_child)
-            except (OSError, NameError):
-                pass
-            return subprocess.Popen(command, env=env, **kwargs)
-        else:
             return popen
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):

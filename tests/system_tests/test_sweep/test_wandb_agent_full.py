@@ -155,7 +155,7 @@ def test_agent_subprocess_with_import_readline(user):
     )
 
     sweep_config = {
-        "name": "Train with import readline Test",
+        "name": "Train with import readline",
         "method": "grid",
         "parameters": {"test_param": {"values": [1]}},
         "command": ["python", str(script_path)],
@@ -173,3 +173,31 @@ def test_agent_subprocess_with_import_readline(user):
     assert agent_end_time - agent_start_time < 30, (
         "Test took too long, possible deadlock detected"
     )
+
+def test_agent_subprocess_with_pty_error(user):
+    """Test that wandb.agent falls back to no pty if pty throws error."""
+    import pathlib
+
+    script_path = pathlib.Path(__file__).parent / "fixtures" / "train_basic.py"
+
+    sweep_config = {
+        "name": "Train basic",
+        "method": "grid",
+        "parameters": {"test_param": {"values": [1]}},
+        "command": ["python", str(script_path)],
+    }
+
+    sweep_id = wandb.sweep(sweep_config)
+
+    with unittest.mock.patch.dict(
+        os.environ, {"WANDB_AGENT_MAX_INITIAL_FAILURES": "1"}
+    ):
+        with unittest.mock.patch("pty.openpty", side_effect=OSError(1, "Mock OSError")):
+            with unittest.mock.patch(
+                "wandb.termwarn", wraps=wandb.termwarn
+            ) as mock_warn:
+                wandb.agent(sweep_id, count=1)
+                mock_warn.assert_called_once()
+                call_args = mock_warn.call_args[0][0]
+                assert "Falling back to regular subprocess.Popen" in call_args
+                assert "Mock OSError" in call_args
