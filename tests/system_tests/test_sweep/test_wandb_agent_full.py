@@ -174,6 +174,7 @@ def test_agent_subprocess_with_import_readline(user):
         "Test took too long, possible deadlock detected"
     )
 
+
 def test_agent_subprocess_with_pty_error(user):
     """Test that wandb.agent falls back to no pty if pty throws error."""
     import pathlib

@@ -2,6 +2,7 @@ import wandb
 
 # For use with ../test_wandb_agent_full.py::test_agent_subprocess_with_pty_error
 
+
 def main(
     project: str = "train-basic",
 ):
@@ -14,6 +15,7 @@ def main(
 
     run.log({"test_param": test_param})
     run.finish()
+
 
 if __name__ == "__main__":
     main()
