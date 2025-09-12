@@ -86,7 +86,7 @@ def api(user: str) -> wandb.Api:
     with unittest.mock.patch.object(
         wandb.sdk.wandb_login,
         "_login",
-        return_value=True,
+        return_value=(True, None),
     ):
         yield wandb.Api()
 
