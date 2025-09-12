@@ -296,7 +296,7 @@ def skip_verify_login(monkeypatch):
     This method is called whenever wandb.login is called.
     """
     monkeypatch.setattr(
-        wandb.sdk.wandb_login._WandbLogin,
+        wandb.sdk.wandb_login,
         "_verify_login",
         unittest.mock.MagicMock(),
     )
@@ -361,8 +361,8 @@ def clean_up():
 def api() -> Api:
     with unittest.mock.patch.object(
         wandb.sdk.wandb_login,
-        "_login",
-        return_value=(True, None),
+        "_verify_login",
+        return_value=True,
     ):
         return Api()
 

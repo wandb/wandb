@@ -53,7 +53,7 @@ def test_base_url_sanitization():
         "user/proj/runs/run",  # path_url
     ],
 )
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")
 def test_parse_path(path):
     with mock.patch.object(
         wandb_login, "_login", mock.MagicMock(return_value=(True, None))
@@ -146,6 +146,7 @@ def test_report_to_html():
     assert "<button" in report_html
 
 
+@pytest.mark.usefixtures("skip_verify_login")
 def test_override_base_url_passed_to_login():
     base_url = "https://wandb.space"
     with mock.patch.object(
@@ -225,53 +226,56 @@ def test_create_custom_chart(monkeypatch):
 
 def test_initialize_api_prompts_for_api_key():
     with mock.patch.object(
+        wandb_login, "_verify_login", mock.MagicMock(return_value=True)
+    ) as mock_verify_login, mock.patch.object(
         wandb_login, "_login", mock.MagicMock(return_value=(True, None))
-    ) as mock_login:
+    ):
         Api()
 
-        assert mock_login.call_count == 1
-        assert "key" in mock_login.call_args[1]
-        assert mock_login.call_args[1]["key"] is None
+        assert mock_verify_login.call_count == 1
+        assert "key" in mock_verify_login.call_args[1]
+        assert mock_verify_login.call_args[1]["key"] is None
 
 
 def test_initialize_api_does_not_prompt_for_api_key__when_api_key_is_provided():
     api_key = "X" * 40
     with mock.patch.object(
-        wandb_login, "_login", mock.MagicMock(return_value=(True, api_key))
-    ) as mock_login:
+        wandb_login, "_verify_login", mock.MagicMock(return_value=True)
+    ) as mock_verify_login:
         api = Api(api_key=api_key)
 
-        assert mock_login.call_count == 1
-        assert "key" in mock_login.call_args[1]
-        assert mock_login.call_args[1]["key"] == api_key
+        assert mock_verify_login.call_count == 1
+        assert "key" in mock_verify_login.call_args[1]
+        assert mock_verify_login.call_args[1]["key"] == api_key
         assert api.api_key == api_key
 
 
+@pytest.mark.usefixtures("skip_verify_login")
 def test_initialize_api_does_not_prompt_for_api_key__when_using_thread_local_settings():
     with mock.patch.object(
-        wandb_login, "_login", mock.MagicMock(return_value=(True, None))
-    ) as mock_login:
+        wandb_login, "_verify_login", mock.MagicMock(return_value=True)
+    ) as mock_verify_login:
         _thread_local_api_settings.api_key = "X" * 40
 
         api = Api()
 
-        assert mock_login.call_count == 1
-        assert "key" in mock_login.call_args[1]
-        assert mock_login.call_args[1]["key"] == "X" * 40
+        assert mock_verify_login.call_count == 1
+        assert "key" in mock_verify_login.call_args[1]
+        assert mock_verify_login.call_args[1]["key"] == "X" * 40
         assert api.api_key == "X" * 40
 
 
 def test_initialize_api_does_not_prompt_for_api_key__when_using_env_var(monkeypatch):
     api_key = "X" * 40
-    mock_login = mock.MagicMock(return_value=(True, api_key))
-    monkeypatch.setattr(wandb_login, "_login", mock_login)
+    mock_verify_login = mock.MagicMock(return_value=True)
+    monkeypatch.setattr(wandb_login, "_verify_login", mock_verify_login)
     monkeypatch.setattr("os.environ", {"WANDB_API_KEY": api_key})
 
     api = Api(overrides={"api_key": api_key})
 
-    assert mock_login.call_count == 1
-    assert "key" in mock_login.call_args[1]
-    assert mock_login.call_args[1]["key"] == api_key
+    assert mock_verify_login.call_count == 1
+    assert "key" in mock_verify_login.call_args[1]
+    assert mock_verify_login.call_args[1]["key"] == api_key
     assert api.api_key == api_key
 
 

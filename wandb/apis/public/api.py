@@ -307,29 +307,15 @@ class Api:
             )
             self.settings["entity"] = _overrides["username"]
 
-        self._api_key = api_key
         if _thread_local_api_settings.cookies is None:
-            logged_in, login_key = wandb_login._login(
-                host=self.settings["base_url"],
-                key=self.api_key,
-                verify=True,
-                _silent=(
-                    self.settings.get("silent", False)
-                    or self.settings.get("quiet", False)
-                ),
-                update_api_key=False,
-                _disable_warning=True,
+            self.api_key = self._load_api_key(
+                base_url=self.settings["base_url"],
+                init_api_key=api_key,
             )
-
-            if not logged_in:
-                raise wandb.Error(
-                    "Unable to login with the provided API key. "
-                    "Please verify the API key and try again."
-                )
-
-            # update api key from login
-            # in the event that the user is prompted for a key
-            self._api_key = login_key if login_key is not None else api_key
+            wandb_login._verify_login(
+                key=self.api_key,
+                base_url=self.settings["base_url"],
+            )
 
         self._viewer = None
         self._projects = {}
@@ -364,6 +350,45 @@ class Api:
         self._client = RetryingClient(self._base_client)
         self._sentry = wandb.analytics.sentry.Sentry()
         self._configure_sentry()
+
+    def _load_api_key(
+        self,
+        base_url: str,
+        init_api_key: Optional[str] = None,
+    ) -> None:
+        """Attempts to load a configured API key or prompt if one is not found.
+
+        The API key is loaded in the following order:
+            1. Thread local api key
+            2. User explicitly provided api key
+            3. Environment variable
+            4. Netrc file
+            5. Prompt for api key using wandb.login
+        """
+        # just use thread local api key if it's set
+        if _thread_local_api_settings.api_key:
+            return _thread_local_api_settings.api_key
+        if init_api_key is not None:
+            return init_api_key
+        if os.getenv("WANDB_API_KEY"):
+            return os.environ["WANDB_API_KEY"]
+
+        auth = requests.utils.get_netrc_auth(base_url)
+        if auth:
+            return auth[-1]
+
+        _, prompted_key = wandb_login._login(
+            host=base_url,
+            key=None,
+            # We will explicitly verify the key later
+            verify=False,
+            _silent=(
+                self.settings.get("silent", False) or self.settings.get("quiet", False)
+            ),
+            update_api_key=False,
+            _disable_warning=True,
+        )
+        return prompted_key
 
     def _configure_sentry(self) -> None:
         try:
@@ -756,23 +781,23 @@ class Api:
         """Returns W&B public user agent."""
         return "W&B Public Client {}".format(wandb.__version__)
 
-    @property
-    def api_key(self) -> Optional[str]:
-        """Returns W&B API key."""
-        # just use thread local api key if it's set
-        if _thread_local_api_settings.api_key:
-            return _thread_local_api_settings.api_key
-        if self._api_key is not None:
-            return self._api_key
-        auth = requests.utils.get_netrc_auth(self.settings["base_url"])
-        key = None
-        if auth:
-            key = auth[-1]
-        # Environment should take precedence
-        if os.getenv("WANDB_API_KEY"):
-            key = os.environ["WANDB_API_KEY"]
-        self._api_key = key  # memoize key
-        return key
+    # @property
+    # def api_key(self) -> Optional[str]:
+    #     """Returns W&B API key."""
+    #     # just use thread local api key if it's set
+    #     if _thread_local_api_settings.api_key:
+    #         return _thread_local_api_settings.api_key
+    #     if self._api_key is not None:
+    #         return self._api_key
+    #     auth = requests.utils.get_netrc_auth(self.settings["base_url"])
+    #     key = None
+    #     if auth:
+    #         key = auth[-1]
+    #     # Environment should take precedence
+    #     if os.getenv("WANDB_API_KEY"):
+    #         key = os.environ["WANDB_API_KEY"]
+    #     self._api_key = key  # memoize key
+    #     return key
 
     @property
     def default_entity(self) -> Optional[str]:
