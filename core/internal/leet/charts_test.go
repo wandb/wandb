@@ -10,8 +10,6 @@ import (
 )
 
 func TestCalculateChartDimensions_RespectsMinimums(t *testing.T) {
-	t.Parallel()
-
 	d := leet.CalculateChartDimensions(30, 10) // small on purpose
 	if d.ChartWidth < leet.MinChartWidth {
 		t.Fatalf("ChartWidth=%d < MinChartWidth=%d", d.ChartWidth, leet.MinChartWidth)
@@ -22,8 +20,6 @@ func TestCalculateChartDimensions_RespectsMinimums(t *testing.T) {
 }
 
 func TestModelView_TruncatesLongTitles(t *testing.T) {
-	t.Parallel()
-
 	logger := observability.NewNoOpLogger()
 	m := leet.NewModel("dummy", logger)
 
@@ -45,8 +41,6 @@ func TestModelView_TruncatesLongTitles(t *testing.T) {
 }
 
 func TestModelView_ChartsAreSortedAlphabetically(t *testing.T) {
-	t.Parallel()
-
 	logger := observability.NewNoOpLogger()
 	m := leet.NewModel("dummy", logger)
 

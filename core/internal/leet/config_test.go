@@ -56,8 +56,6 @@ func TestConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 }
 
 func TestConfig_SetLeftSidebarVisible_TogglesAndPersists(t *testing.T) {
-	t.Parallel()
-
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
 

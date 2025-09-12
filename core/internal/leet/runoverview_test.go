@@ -10,7 +10,7 @@ import (
 )
 
 func TestSidebarFilter_WithPrefixes(t *testing.T) {
-	s := leet.NewSidebar()
+	s := leet.NewSidebar(leet.GetConfig())
 	s.SetRunOverview(leet.RunOverview{
 		Config:      map[string]any{"trainer": map[string]any{"epochs": 10}},
 		Summary:     map[string]any{"acc": 0.9},
@@ -25,7 +25,7 @@ func TestSidebarFilter_WithPrefixes(t *testing.T) {
 }
 
 func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
-	s := leet.NewSidebar()
+	s := leet.NewSidebar(leet.GetConfig())
 	s.SetRunOverview(leet.RunOverview{
 		// Only config is non-empty.
 		Config:      map[string]any{"trainer": map[string]any{"epochs": 10}},
@@ -40,7 +40,7 @@ func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
 }
 
 func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
-	s := leet.NewSidebar()
+	s := leet.NewSidebar(leet.GetConfig())
 	s.SetRunOverview(leet.RunOverview{
 		Config: map[string]any{"trainer": map[string]any{"epochs": 10}},
 		Summary: map[string]any{
@@ -70,7 +70,7 @@ func expandSidebar(t *testing.T, s *leet.Sidebar, termWidth int, rightVisible bo
 }
 
 func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
-	s := leet.NewSidebar()
+	s := leet.NewSidebar(leet.GetConfig())
 	expandSidebar(t, s, 120, false)
 
 	ro := leet.RunOverview{
@@ -105,7 +105,7 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
-	s := leet.NewSidebar()
+	s := leet.NewSidebar(leet.GetConfig())
 	expandSidebar(t, s, 120, false)
 	s.SetRunOverview(leet.RunOverview{
 		Config: map[string]any{
@@ -149,7 +149,7 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 }
 
 func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
-	s := leet.NewSidebar()
+	s := leet.NewSidebar(leet.GetConfig())
 	expandSidebar(t, s, 120, false)
 	s.SetRunOverview(leet.RunOverview{
 		Config:      map[string]any{"alpha": map[string]any{"a": 1, "b": 2}},
@@ -178,7 +178,7 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 }
 
 func TestSidebar_TruncateValue(t *testing.T) {
-	s := leet.NewSidebar()
+	s := leet.NewSidebar(leet.GetConfig())
 	expandSidebar(t, s, 40, false) // clamps to SidebarMinWidth
 
 	long := strings.Repeat("x", 200)

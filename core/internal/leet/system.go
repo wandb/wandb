@@ -687,11 +687,18 @@ func (g *SystemMetricsGrid) GetChartCount() int {
 
 // NewRightSidebar creates a new right sidebar instance
 func NewRightSidebar(config *ConfigManager, logger *observability.CoreLogger) *RightSidebar {
+	state := SidebarCollapsed
+	currentWidth, targetWidth := 0, 0
+	if config.GetRightSidebarVisible() {
+		state = SidebarExpanded
+		currentWidth = SidebarMinWidth
+		targetWidth = SidebarMinWidth
+	}
 	rs := &RightSidebar{
 		config:        config,
-		state:         SidebarCollapsed,
-		currentWidth:  0,
-		targetWidth:   0,
+		state:         state,
+		currentWidth:  currentWidth,
+		targetWidth:   targetWidth,
 		expandedWidth: SidebarMinWidth,
 		logger:        logger,
 	}

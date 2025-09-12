@@ -3,6 +3,7 @@ package leet_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -116,7 +117,6 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 }
 
 func TestHandleKeyMsg_VariousPaths(t *testing.T) {
-	_ = setupTestConfig(t)
 	logger := observability.NewNoOpLogger()
 	var m tea.Model = leet.NewModel("dummy", logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 50})
@@ -155,11 +155,12 @@ func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 
 func TestHeartbeat_LiveRun(t *testing.T) {
 	// Setup config with short heartbeat interval for testing
-	cfg := setupTestConfig(t)
-	// Set heartbeat to 1 second (minimum)
-	if err := cfg.SetHeartbeatInterval(1); err != nil {
-		t.Fatalf("SetHeartbeatInterval: %v", err)
+	cfg := leet.GetConfig()
+	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
+	if err := cfg.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
 	}
+	_ = cfg.SetHeartbeatInterval(1)
 
 	// Create a wandb file with initial data
 	tmp, err := os.CreateTemp(t.TempDir(), "heartbeat-*.wandb")
@@ -429,7 +430,11 @@ func TestReload_PreservesFilter(t *testing.T) {
 
 func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	// Setup config with short heartbeat
-	cfg := setupTestConfig(t)
+	cfg := leet.GetConfig()
+	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
+	if err := cfg.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
 	_ = cfg.SetHeartbeatInterval(1) // 1 second minimum
 
 	// Create wandb file
@@ -502,8 +507,6 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 }
 
 func TestReload_WhileLoading_DoesNotCrash(t *testing.T) {
-	_ = setupTestConfig(t)
-
 	logger := observability.NewNoOpLogger()
 	var m tea.Model = leet.NewModel("dummy", logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})

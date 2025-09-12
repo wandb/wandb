@@ -79,11 +79,19 @@ type Sidebar struct {
 	runState RunState
 }
 
-func NewSidebar() *Sidebar {
+func NewSidebar(config *ConfigManager) *Sidebar {
+	state := SidebarCollapsed
+	currentWidth, targetWidth := 0, 0
+	if config.GetLeftSidebarVisible() {
+		state = SidebarExpanded
+		currentWidth = SidebarMinWidth
+		targetWidth = SidebarMinWidth
+	}
+
 	return &Sidebar{
-		state:         SidebarCollapsed,
-		currentWidth:  0,
-		targetWidth:   0,
+		state:         state,
+		currentWidth:  currentWidth,
+		targetWidth:   targetWidth,
 		expandedWidth: SidebarMinWidth,
 		sections: []SectionView{
 			{Title: "Environment", ItemsPerPage: 10, Active: true}, // First now

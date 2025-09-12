@@ -151,7 +151,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		fileComplete:        false,
 		isLoading:           true,
 		runPath:             runPath,
-		sidebar:             NewSidebar(),
+		sidebar:             NewSidebar(cfg),
 		rightSidebar:        NewRightSidebar(cfg, logger),
 		watcher:             watcher.New(watcher.Params{Logger: logger}),
 		watcherStarted:      false,
@@ -170,18 +170,6 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		RunPath: runPath,
 	})
 
-	if cfg.GetLeftSidebarVisible() {
-		m.sidebar.state = SidebarExpanded
-		m.sidebar.currentWidth = m.sidebar.expandedWidth
-		m.sidebar.targetWidth = m.sidebar.expandedWidth
-	}
-
-	if cfg.GetRightSidebarVisible() {
-		m.rightSidebar.state = SidebarExpanded
-		m.rightSidebar.currentWidth = m.rightSidebar.expandedWidth
-		m.rightSidebar.targetWidth = m.rightSidebar.expandedWidth
-	}
-
 	return m
 }
 
@@ -191,7 +179,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 func (m *Model) Init() tea.Cmd {
 	m.logger.Debug("model: Init called")
 	return tea.Batch(
-		tea.SetWindowTitle("wandb leet"),
+		windowTitleCmd(), // build-tagged shim (no-op under -race)
 		InitializeReader(m.runPath),
 		m.waitForWatcherMsg(),
 	)

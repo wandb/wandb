@@ -10,7 +10,6 @@ import (
 )
 
 func TestSystemMetricsGrid_Reset(t *testing.T) {
-	// Avoid t.Parallel(): global config + package-level grid dims are mutated.
 	cfg := leet.GetConfig()
 	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
 	if err := cfg.Load(); err != nil {
