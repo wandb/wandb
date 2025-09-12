@@ -95,7 +95,16 @@ func (fs *fileStream) startProcessingFeedback(
 	go func() {
 		defer wg.Done()
 
-		for range feedback {
+		for res := range feedback {
+			if v, ok := res["stopped"]; ok {
+				if b, ok := v.(bool); ok {
+					fs.stoppedMu.Lock()
+					// Monotonic: once true, never revert to false
+					fs.stopped = fs.stopped || b
+					fs.stoppedKnown = true
+					fs.stoppedMu.Unlock()
+				}
+			}
 		}
 	}()
 }
