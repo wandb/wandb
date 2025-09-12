@@ -287,7 +287,8 @@ func leetMain(args []string) int {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			fmt.Fprintf(os.Stderr, "\nTry specifying a run directory explicitly:\n")
-			fmt.Fprintf(os.Stderr, "  wandb-core leet <run-directory>\n")
+			fmt.Fprintf(os.Stderr, "  `wandb beta leet <run-directory>`\n")
+			fmt.Fprintf(os.Stderr, "  or set WANDB_DIR\n")
 			return 1
 		}
 		runDir = dir
