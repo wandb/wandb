@@ -387,8 +387,8 @@ github.com/cespare/xxhash/v2
 ## explicit; go 1.23.0
 github.com/charmbracelet/bubbles/key
 github.com/charmbracelet/bubbles/viewport
-# github.com/charmbracelet/bubbletea v1.3.6
-## explicit; go 1.23.0
+# github.com/charmbracelet/bubbletea v1.3.9
+## explicit; go 1.24.0
 github.com/charmbracelet/bubbletea
 # github.com/charmbracelet/colorprofile v0.3.2
 ## explicit; go 1.23.0
@@ -963,8 +963,8 @@ golang.org/x/oauth2/jwt
 ## explicit; go 1.24.0
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.35.0
-## explicit; go 1.23.0
+# golang.org/x/sys v0.36.0
+## explicit; go 1.24.0
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
 golang.org/x/sys/unix
