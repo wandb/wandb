@@ -169,7 +169,7 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 			fmt.Errorf("monitor: failed to initialize GPU resource: %v", err))
 	}
 
-	if tpu := NewTPU(); tpu != nil {
+	if tpu := NewTPU(sm.logger); tpu != nil {
 		sm.resources = append(sm.resources, tpu)
 	}
 
