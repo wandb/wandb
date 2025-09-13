@@ -3,7 +3,6 @@
 import contextlib
 import io
 import pathlib
-import time
 
 import pytest
 import wandb
@@ -145,9 +144,11 @@ def test_agent_exception(user):
         f"Not found in stderr: '{patterns[current_pattern]}'"
     )
 
+
 @pytest.fixture()
 def agent_max_one_failure(monkeypatch):
     monkeypatch.setenv("WANDB_AGENT_MAX_INITIAL_FAILURES", "1")
+
 
 def test_agent_subprocess_with_import_readline(user, agent_max_one_failure):
     """Test that wandb.agent works safely when subprocess imports readline."""
