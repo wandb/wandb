@@ -47,33 +47,10 @@ class AgentProcess:
                 # TODO: Apply and test same stdin workaround as Unix case below if needed.
                 self._popen = subprocess.Popen(command, env=env, **kwargs)
             else:
-                if sys.version_info >= (3, 11):
-                    # preexec_fn=os.setpgrp is not thread-safe; process_group was introduced in
-                    # python 3.11 to replace it, so use that when possible
-                    kwargs = dict(process_group=0)
-                else:
-                    kwargs = dict(preexec_fn=os.setpgrp)
+                kwargs = dict(start_new_session=True)
                 if env.get(wandb.env.SERVICE):
                     env.pop(wandb.env.SERVICE, None)
-                # Upon spawning the subprocess in a new process group, the child's process group is
-                # not connected to the controlling terminal's stdin. If it tries to access stdin,
-                # it gets a SIGTTIN and blocks until we give it the terminal, which we don't want
-                # to do.
-                #
-                # By using subprocess.PIPE, we give it an independent stdin. However, it will still
-                # block if it tries to read from stdin, because we're not writing anything to it.
-                # We immediately close the subprocess's stdin here so it can fail fast and get an
-                # EOF.
-                #
-                # (One situation that makes this relevant is that importing `readline` even
-                # indirectly can cause the child to attempt to access stdin, which can trigger the
-                # deadlock. In Python 3.13, `import torch` indirectly imports `readline` via `pdb`,
-                # meaning `import torch` in a run script can deadlock unless we override stdin.
-                # See https://github.com/wandb/wandb/pull/10489 description for more details.)
-                self._popen = subprocess.Popen(
-                    command, env=env, stdin=subprocess.PIPE, **kwargs
-                )
-                self._popen.stdin.close()
+                self._popen = subprocess.Popen(command, env=env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(
                 target=self._start,

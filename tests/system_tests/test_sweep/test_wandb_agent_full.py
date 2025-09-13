@@ -169,5 +169,4 @@ def test_agent_subprocess_with_import_readline(user, agent_max_one_failure):
     runs = Api().runs(project, {"sweep": sweep_id})
     assert len(runs) == 1
     history = runs[0].history(pandas=False)
-    assert history[0]["got_eof"]
     assert history[0]["test_param"] == 1
