@@ -19,4 +19,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- Sweeps: `command` run scripts that `import torch` should no longer freeze on Python 3.13. (@kelu-wandb in https://github.com/wandb/wandb/pull/10489)
+- Sweeps: `command` run scripts that `import readline` whether directly or indirectly (e.g. `import torch` on Python 3.13) should no longer deadlock. (@kelu-wandb in https://github.com/wandb/wandb/pull/10489)
