@@ -2,7 +2,6 @@ import logging
 import multiprocessing
 import os
 import platform
-import pty
 import queue
 import re
 import signal
@@ -45,6 +44,7 @@ class AgentProcess:
                 kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
                 if env.get(wandb.env.SERVICE):
                     env.pop(wandb.env.SERVICE, None)
+                # TODO: Apply and test same stdin workaround as Unix case below if needed.
                 self._popen = subprocess.Popen(command, env=env, **kwargs)
             else:
                 if sys.version_info >= (3, 11):
@@ -55,7 +55,25 @@ class AgentProcess:
                     kwargs = dict(preexec_fn=os.setpgrp)
                 if env.get(wandb.env.SERVICE):
                     env.pop(wandb.env.SERVICE, None)
-                self._popen = self._subprocess_with_pty_stdin(command, env, **kwargs)
+                # Upon spawning the subprocess in a new process group, the child's process group is
+                # not connected to the controlling terminal's stdin. If it tries to access stdin,
+                # it gets a SIGTTIN and blocks until we give it the terminal, which we don't want
+                # to do.
+                #
+                # By using subprocess.PIPE, we give it an independent stdin. However, it will still
+                # block if it tries to read from stdin, because we're not writing anything to it.
+                # We immediately close the subprocess's stdin here so it can fail fast and get an
+                # EOF.
+                #
+                # (One situation that makes this relevant is that importing `readline` even
+                # indirectly can cause the child to attempt to access stdin, which can trigger the
+                # deadlock. In Python 3.13, `import torch` indirectly imports `readline` via `pdb`,
+                # meaning `import torch` in a run script can deadlock unless we override stdin.
+                # See https://github.com/wandb/wandb/pull/10489 description for more details.)
+                self._popen = subprocess.Popen(
+                    command, env=env, stdin=subprocess.PIPE, **kwargs
+                )
+                self._popen.stdin.close()
         elif function:
             self._proc = multiprocessing.Process(
                 target=self._start,
@@ -64,41 +82,6 @@ class AgentProcess:
             self._proc.start()
         else:
             raise AgentError("Agent Process requires command or function")
-
-    def _subprocess_with_pty_stdin(
-        self, command: List[str], env: Dict[str, str], **kwargs: Any
-    ) -> subprocess.Popen[bytes]:
-        """Create subprocess with PTY stdin to avoid readline deadlocks."""
-        # Starting in Python 3.13,
-        # attempts to use stdin. If we were to just call subprocess.Popen normally:
-        # parent (this process): linked to stdin
-
-        # Without this, if child process tries to import readline, the child process group won't
-        # have access to stdin and may deadlock. We give stdin a dummy pty to avoid that, since we
-        # don't support having Sweeps training scripts actually read from stdin anyway.
-        #
-        try:
-            pty_stdin_parent, pty_stdin_child = pty.openpty()
-        except OSError as e:
-            wandb.termwarn(
-                "Error opening pty for stdin. Falling back to regular subprocess.Popen, "
-                "which may deadlock if child process directly or indirectly imports readline.\n"
-                f"Error: {e}"
-            )
-            return subprocess.Popen(command, env=env, **kwargs)
-
-        popen = subprocess.Popen(
-            command,
-            env=env,
-            stdin=pty_stdin_child,
-            **kwargs,
-        )
-
-        # This is the sequence of o
-
-        os.close(pty_stdin_child)
-        os.close(pty_stdin_parent)
-        return popen
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
         if env:

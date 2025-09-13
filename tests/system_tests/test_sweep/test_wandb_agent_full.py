@@ -151,9 +151,7 @@ def agent_max_one_failure(monkeypatch):
 
 def test_agent_subprocess_with_import_readline(user, agent_max_one_failure):
     """Test that wandb.agent works safely when subprocess imports readline."""
-    script_path = (
-        pathlib.Path(__file__).parent / "fixtures" / "train_with_import_readline.py"
-    )
+    script_path = pathlib.Path(__file__).parent / "train_with_import_readline.py"
 
     project = "train-with-import-readline"
     sweep_config = {
@@ -171,31 +169,4 @@ def test_agent_subprocess_with_import_readline(user, agent_max_one_failure):
     assert len(runs) == 1
     history = runs[0].history(pandas=False)
     assert history[0]["got_eof"]
-    assert history[0]["test_param"] == 1
-
-
-def test_agent_subprocess_with_pty_error(user, agent_max_one_failure, mocker):
-    """Test that wandb.agent falls back to no pty if pty throws error."""
-    script_path = pathlib.Path(__file__).parent / "fixtures" / "train_basic.py"
-
-    project = "train-basic"
-    sweep_config = {
-        "name": "Train basic",
-        "method": "grid",
-        "parameters": {"test_param": {"values": [1]}},
-        "command": ["python", str(script_path)],
-    }
-    sweep_id = wandb.sweep(sweep_config, project=project)
-
-    mocker.patch("pty.openpty", side_effect=OSError(1, "Mock OSError"))
-    mock_warn = mocker.patch("wandb.termwarn", wraps=wandb.termwarn)
-    wandb.agent(sweep_id, count=1)
-    mock_warn.assert_called_once()
-    call_args = mock_warn.call_args[0][0]
-    assert "Falling back to regular subprocess.Popen" in call_args
-    assert "Mock OSError" in call_args
-
-    runs = Api().runs(project, {"sweep": sweep_id})
-    assert len(runs) == 1
-    history = runs[0].history(pandas=False)
     assert history[0]["test_param"] == 1
