@@ -17,7 +17,7 @@ import time
 from collections import deque
 from copy import copy
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from functools import partial
 from itertools import filterfalse
 from pathlib import Path, PurePosixPath
@@ -1942,6 +1942,7 @@ class Artifact:
         skip_cache: bool | None = None,
         path_prefix: StrPath | None = None,
         multipart: bool | None = None,
+        core: bool = False,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
@@ -1962,6 +1963,8 @@ class Artifact:
                 in parallel using multipart download if individual file size is greater than
                 2GB. If set to `True` or `False`, the artifact will be downloaded in
                 parallel or serially regardless of the file size.
+            core: If set to `True`, the artifact will be downloaded using (go) core.
+                NOTE: right now reference artifacts are still downloaded in python.
 
         Returns:
             The path to the downloaded contents.
@@ -1972,21 +1975,22 @@ class Artifact:
         root = FilePathStr(root or self._default_root())
         self._add_download_root(root)
 
-        # TODO: download artifacts using core when implemented
-        # if is_require_core():
-        #     return self._download_using_core(
-        #         root=root,
-        #         allow_missing_references=allow_missing_references,
-        #         skip_cache=bool(skip_cache),
-        #         path_prefix=path_prefix,
-        #     )
-        return self._download(
-            root=root,
-            allow_missing_references=allow_missing_references,
-            skip_cache=skip_cache,
-            path_prefix=path_prefix,
-            multipart=multipart,
-        )
+        if core:
+            return self._download_using_core(
+                root=root,
+                allow_missing_references=allow_missing_references,
+                skip_cache=bool(skip_cache),
+                path_prefix=path_prefix,
+            )
+        else:
+            return self._download(
+                root=root,
+                allow_missing_references=allow_missing_references,
+                skip_cache=skip_cache,
+                path_prefix=path_prefix,
+                multipart=multipart,
+                core=False,
+            )
 
     def _download_using_core(
         self,
@@ -1995,37 +1999,48 @@ class Artifact:
         skip_cache: bool = False,
         path_prefix: StrPath | None = None,
     ) -> FilePathStr:
-        import pathlib
-
         from wandb.sdk.backend.backend import Backend
 
-        # TODO: Create a special stream instead of relying on an existing run.
         if wandb.run is None:
+            # TODO: Currently we always create a new stream when there is no existing run.
+            # We could always create a new stream regardless of existing run, but that leads to
+            # logging download artifact into a new log file instead of the active run.
+            # The stream setup logic will be replaced when public api on core is implemented.
             wl = wandb_setup.singleton()
 
             stream_id = generate_id()
 
             settings = wl.settings.to_proto()
-            # TODO: remove this
-            tmp_dir = pathlib.Path(tempfile.mkdtemp())
+            # Create the folder for logs following the run directory naming pattern
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            sync_dir = (
+                Path(settings.wandb_dir.value) / f"stream-{timestamp}-{stream_id}"
+            )
+            # FIXME: remove before PR
+            print(f"sync_dir: {sync_dir}")
 
-            settings.sync_dir.value = str(tmp_dir)
-            settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
-            settings.files_dir.value = str(tmp_dir / "files")
+            settings.sync_dir.value = str(sync_dir)
+            settings.sync_file.value = str(sync_dir / f"stream-{stream_id}.wandb")
+            settings.files_dir.value = str(sync_dir / "files")
+            settings.log_dir.value = str(sync_dir / "logs")
+            settings.log_internal.value = str(sync_dir / "logs" / "debug-internal.log")
             settings.run_id.value = stream_id
+            # Create the sync and logs dir if not exists
+            os.makedirs(sync_dir / "logs", exist_ok=True)
 
             service = wl.ensure_service()
             service.inform_init(settings=settings, run_id=stream_id)
+            # TODO: Do we need to call service.inform_finish?
 
-            backend = Backend(settings=wl.settings, service=service)
+            backend = Backend(settings=settings, service=service)
             backend.ensure_launched()
-
             assert backend.interface
             backend.interface._stream_id = stream_id  # type: ignore
         else:
             assert wandb.run._backend
             backend = wandb.run._backend
 
+        # Start download in core
         assert backend.interface
         handle = backend.interface.deliver_download_artifact(
             self.id,  # type: ignore
@@ -2034,12 +2049,14 @@ class Artifact:
             skip_cache,
             path_prefix,  # type: ignore
         )
-        # TODO: Start the download process in the user process too, to handle reference downloads
+        # TODO: once we enable reference artifact download in core, we can remove this.
+        # reference artifact is disabled in ArtifactDownloader.addEntriesToBatch
         self._download(
             root=root,
             allow_missing_references=allow_missing_references,
             skip_cache=skip_cache,
             path_prefix=path_prefix,
+            core=True,
         )
         result = handle.wait_or(timeout=None)
 
@@ -2049,6 +2066,8 @@ class Artifact:
 
         return FilePathStr(root)
 
+    # Download normal and reference artifacts in python.
+    # If core is True, then only download reference artifacts.
     def _download(
         self,
         root: str,
@@ -2056,6 +2075,7 @@ class Artifact:
         skip_cache: bool | None = None,
         path_prefix: StrPath | None = None,
         multipart: bool | None = None,
+        core: bool = False,
     ) -> FilePathStr:
         nfiles = len(self.manifest.entries)
         size_mb = self.size / _MB
@@ -2119,10 +2139,9 @@ class Artifact:
                 file_nodes = (e.node for e in files_page.edges if e.node)
                 for node in file_nodes:
                     entry = self.get_entry(node.name)
-                    # TODO: uncomment once artifact downloads are supported in core
-                    # if require_core and entry.ref is None:
-                    #     # Handled by core
-                    #     continue
+                    # Normal artifact files are handled by core already
+                    if core and entry.ref is None:
+                        continue
                     entry._download_url = node.direct_url
                     if (not path_prefix) or entry.path.startswith(str(path_prefix)):
                         active_futures.add(executor.submit(download_entry, entry))

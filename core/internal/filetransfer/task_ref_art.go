@@ -93,9 +93,10 @@ func (t *ReferenceArtifactDownloadTask) VersionIDString() (string, bool) {
 
 func getStorageProvider(ref string, fts *FileTransfers) (ArtifactFileTransfer, error) {
 	uriParts, err := url.Parse(ref)
-	switch {
-	case err != nil:
+	if err != nil {
 		return nil, err
+	}
+	switch {
 	case uriParts.Scheme == "gs":
 		return fts.GCS, nil
 	case uriParts.Scheme == "s3":
@@ -104,6 +105,7 @@ func getStorageProvider(ref string, fts *FileTransfers) (ArtifactFileTransfer, e
 	// https://<storage-account-name>.blob.core.windows.net/<container-name>/<blob-name>
 	case uriParts.Scheme == "https" && strings.HasSuffix(uriParts.Host, ".blob.core.windows.net"):
 		return fts.Azure, nil
+	// TODO: we should handle plain http(s) as well.
 	default:
 		return nil, fmt.Errorf("reference artifact task: unknown reference type: %s", ref)
 	}

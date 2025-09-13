@@ -13,6 +13,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 const (
@@ -23,6 +24,7 @@ const (
 type ArtifactDownloader struct {
 	// Resources
 	Ctx             context.Context
+	logger          *observability.CoreLogger
 	GraphqlClient   graphql.Client
 	DownloadManager filetransfer.FileTransferManager
 	FileCache       Cache
@@ -36,6 +38,7 @@ type ArtifactDownloader struct {
 
 func NewArtifactDownloader(
 	ctx context.Context,
+	logger *observability.CoreLogger,
 	graphQLClient graphql.Client,
 	downloadManager filetransfer.FileTransferManager,
 	artifactID string,
@@ -53,6 +56,7 @@ func NewArtifactDownloader(
 	}
 	return &ArtifactDownloader{
 		Ctx:                    ctx,
+		logger:                 logger,
 		GraphqlClient:          graphQLClient,
 		DownloadManager:        downloadManager,
 		ArtifactID:             artifactID,
@@ -298,6 +302,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			// Schedule downloads
 			if len(manifestEntriesBatch) > 0 {
 				for _, entry := range manifestEntriesBatch {
+					// ad.logger.Info("Downloading artifact", entry.)
 					// Add function that returns download path?
 					downloadLocalPath := filepath.Join(ad.DownloadRoot, *entry.LocalPath)
 					// If we're skipping the cache, the HashOnlyCache still checks the destination
@@ -306,6 +311,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						numDone++
 						continue
 					}
+					// TODO: It is NOT triggered until we update addEntriesToBatch to stop skipping reference entries.
 					if entry.Ref != nil {
 						task := &filetransfer.ReferenceArtifactDownloadTask{
 							FileKind:     filetransfer.RunFileKindArtifact,
@@ -327,6 +333,8 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						}
 						ad.DownloadManager.AddTask(task)
 					} else {
+						// TODO: Change to Debug or add some more useful logging such as how long the download took within go core.
+						ad.logger.Info("Downloading artifact", "path", downloadLocalPath, "url", *entry.DownloadURL, "digest", entry.Digest, "size", entry.Size)
 						task := &filetransfer.DefaultDownloadTask{
 							FileKind: filetransfer.RunFileKindArtifact,
 							Path:     downloadLocalPath,

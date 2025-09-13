@@ -9,6 +9,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/filetransfertest"
 	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 var fakeArtifactID = "fake artifact ID"
@@ -123,6 +124,7 @@ func getFakeArtifactDownloader(
 ) *ArtifactDownloader {
 	downloader := NewArtifactDownloader(
 		context.Background(),
+		observability.NewNoOpLogger(),
 		gqlClient,
 		ftm,
 		fakeArtifactID,
