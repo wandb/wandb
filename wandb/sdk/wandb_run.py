@@ -489,7 +489,7 @@ class Run:
 
     You can log data to a run with `wandb.Run.log()`. Anything you log using
     `wandb.Run.log()` is sent to that run. See
-    [Create an experiment](https://docs.wandb.ai/guides/track/launch) or
+    [Create an experiment](https://docs.wandb.ai/guides/track/create-an-experiment/) or
     [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page
     or more information.
 
