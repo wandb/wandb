@@ -45,7 +45,7 @@ class AgentProcess:
             else:
                 kwargs = dict(start_new_session=True)
             if env.get(wandb.env.SERVICE):
-                env.pop(wandb.env.SERVICE, None)
+                env.pop(wandb.env.SERVICE)
             self._popen = subprocess.Popen(command, env=env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(
