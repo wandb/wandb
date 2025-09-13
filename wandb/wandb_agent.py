@@ -42,15 +42,11 @@ class AgentProcess:
         if command:
             if platform.system() == "Windows":
                 kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
-                if env.get(wandb.env.SERVICE):
-                    env.pop(wandb.env.SERVICE, None)
-                # TODO: Apply and test same stdin workaround as Unix case below if needed.
-                self._popen = subprocess.Popen(command, env=env, **kwargs)
             else:
                 kwargs = dict(start_new_session=True)
-                if env.get(wandb.env.SERVICE):
-                    env.pop(wandb.env.SERVICE, None)
-                self._popen = subprocess.Popen(command, env=env, **kwargs)
+            if env.get(wandb.env.SERVICE):
+                env.pop(wandb.env.SERVICE, None)
+            self._popen = subprocess.Popen(command, env=env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(
                 target=self._start,
