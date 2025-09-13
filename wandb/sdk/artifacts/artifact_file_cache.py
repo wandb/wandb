@@ -15,7 +15,8 @@ from tempfile import NamedTemporaryFile
 from typing import IO, ContextManager, Iterator, Protocol
 
 import wandb
-from wandb import env, util
+from wandb import util
+from wandb.sdk.artifacts.artifact_manifest_entry import artifacts_cache_dir
 from wandb.sdk.lib.filesystem import files_in
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -248,4 +249,4 @@ def _build_artifact_file_cache(cache_dir: StrPath) -> ArtifactFileCache:
 
 
 def get_artifact_file_cache() -> ArtifactFileCache:
-    return _build_artifact_file_cache(env.get_cache_dir() / "artifacts")
+    return _build_artifact_file_cache(artifacts_cache_dir())
