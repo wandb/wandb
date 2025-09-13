@@ -4,7 +4,6 @@ import contextlib
 import io
 import pathlib
 
-import pytest
 import wandb
 from wandb.apis.public import Api
 
