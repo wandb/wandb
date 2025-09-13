@@ -4,7 +4,6 @@ import contextlib
 import io
 import pathlib
 
-import pytest
 import wandb
 from wandb.apis.public import Api
 
@@ -143,6 +142,7 @@ def test_agent_exception(user):
     assert current_pattern == len(patterns), (
         f"Not found in stderr: '{patterns[current_pattern]}'"
     )
+
 
 def test_agent_subprocess_with_import_readline(user, monkeypatch):
     """Test that wandb.agent works safely when subprocess imports readline."""
