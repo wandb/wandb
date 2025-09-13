@@ -3,7 +3,7 @@ package ast
 type QueryDocument struct {
 	Operations OperationList
 	Fragments  FragmentDefinitionList
-	Position   *Position `dump:"-" json:"-"`
+	Position   *Position `dump:"-"`
 	Comment    *CommentGroup
 }
 
@@ -13,7 +13,7 @@ type SchemaDocument struct {
 	Directives      DirectiveDefinitionList
 	Definitions     DefinitionList
 	Extensions      DefinitionList
-	Position        *Position `dump:"-" json:"-"`
+	Position        *Position `dump:"-"`
 	Comment         *CommentGroup
 }
 
@@ -74,7 +74,7 @@ type SchemaDefinition struct {
 	Description    string
 	Directives     DirectiveList
 	OperationTypes OperationTypeDefinitionList
-	Position       *Position `dump:"-" json:"-"`
+	Position       *Position `dump:"-"`
 
 	BeforeDescriptionComment *CommentGroup
 	AfterDescriptionComment  *CommentGroup
@@ -84,6 +84,6 @@ type SchemaDefinition struct {
 type OperationTypeDefinition struct {
 	Operation Operation
 	Type      string
-	Position  *Position `dump:"-" json:"-"`
+	Position  *Position `dump:"-"`
 	Comment   *CommentGroup
 }

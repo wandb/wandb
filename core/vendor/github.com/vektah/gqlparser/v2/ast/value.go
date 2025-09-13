@@ -25,7 +25,7 @@ type Value struct {
 	Raw      string
 	Children ChildValueList
 	Kind     ValueKind
-	Position *Position `dump:"-" json:"-"`
+	Position *Position `dump:"-"`
 	Comment  *CommentGroup
 
 	// Require validation
@@ -37,7 +37,7 @@ type Value struct {
 type ChildValue struct {
 	Name     string
 	Value    *Value
-	Position *Position `dump:"-" json:"-"`
+	Position *Position `dump:"-"`
 	Comment  *CommentGroup
 }
 

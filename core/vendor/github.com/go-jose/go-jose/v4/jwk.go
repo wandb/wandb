@@ -175,8 +175,6 @@ func (k JSONWebKey) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON reads a key from its JSON representation.
-//
-// Returns ErrUnsupportedKeyType for unrecognized or unsupported "kty" header values.
 func (k *JSONWebKey) UnmarshalJSON(data []byte) (err error) {
 	var raw rawJSONWebKey
 	err = json.Unmarshal(data, &raw)
@@ -230,7 +228,7 @@ func (k *JSONWebKey) UnmarshalJSON(data []byte) (err error) {
 		}
 		key, err = raw.symmetricKey()
 	case "OKP":
-		if raw.Crv == "Ed25519" {
+		if raw.Crv == "Ed25519" && raw.X != nil {
 			if raw.D != nil {
 				key, err = raw.edPrivateKey()
 				if err == nil {
@@ -240,25 +238,15 @@ func (k *JSONWebKey) UnmarshalJSON(data []byte) (err error) {
 				key, err = raw.edPublicKey()
 				keyPub = key
 			}
+		} else {
+			return fmt.Errorf("go-jose/go-jose: unknown curve '%s'", raw.Crv)
 		}
-	case "":
-		// kty MUST be present
-		err = fmt.Errorf("go-jose/go-jose: missing json web key type")
+	default:
+		return fmt.Errorf("go-jose/go-jose: unknown json web key type '%s'", raw.Kty)
 	}
 
 	if err != nil {
 		return
-	}
-
-	if key == nil {
-		// RFC 7517:
-		// 5.  JWK Set Format
-		// ...
-		//     Implementations SHOULD ignore JWKs within a JWK Set that use "kty"
-		//     (key type) values that are not understood by them, that are missing
-		//     required members, or for which values are out of the supported
-		//     ranges.
-		return ErrUnsupportedKeyType
 	}
 
 	if certPub != nil && keyPub != nil {
@@ -593,10 +581,10 @@ func fromEcPublicKey(pub *ecdsa.PublicKey) (*rawJSONWebKey, error) {
 
 func (key rawJSONWebKey) edPrivateKey() (ed25519.PrivateKey, error) {
 	var missing []string
-	if key.D == nil {
+	switch {
+	case key.D == nil:
 		missing = append(missing, "D")
-	}
-	if key.X == nil {
+	case key.X == nil:
 		missing = append(missing, "X")
 	}
 
@@ -623,21 +611,19 @@ func (key rawJSONWebKey) edPublicKey() (ed25519.PublicKey, error) {
 
 func (key rawJSONWebKey) rsaPrivateKey() (*rsa.PrivateKey, error) {
 	var missing []string
-	if key.N == nil {
+	switch {
+	case key.N == nil:
 		missing = append(missing, "N")
-	}
-	if key.E == nil {
+	case key.E == nil:
 		missing = append(missing, "E")
-	}
-	if key.D == nil {
+	case key.D == nil:
 		missing = append(missing, "D")
-	}
-	if key.P == nil {
+	case key.P == nil:
 		missing = append(missing, "P")
-	}
-	if key.Q == nil {
+	case key.Q == nil:
 		missing = append(missing, "Q")
 	}
+
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("go-jose/go-jose: invalid RSA private key, missing %s value(s)", strings.Join(missing, ", "))
 	}
@@ -712,19 +698,8 @@ func (key rawJSONWebKey) ecPrivateKey() (*ecdsa.PrivateKey, error) {
 		return nil, fmt.Errorf("go-jose/go-jose: unsupported elliptic curve '%s'", key.Crv)
 	}
 
-	var missing []string
-	if key.X == nil {
-		missing = append(missing, "X")
-	}
-	if key.Y == nil {
-		missing = append(missing, "Y")
-	}
-	if key.D == nil {
-		missing = append(missing, "D")
-	}
-
-	if len(missing) > 0 {
-		return nil, fmt.Errorf("go-jose/go-jose: invalid EC private key, missing %s value(s)", strings.Join(missing, ", "))
+	if key.X == nil || key.Y == nil || key.D == nil {
+		return nil, fmt.Errorf("go-jose/go-jose: invalid EC private key, missing x/y/d values")
 	}
 
 	// The length of this octet string MUST be the full size of a coordinate for
