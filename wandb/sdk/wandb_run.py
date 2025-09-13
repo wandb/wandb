@@ -1106,7 +1106,8 @@ class Run:
                 many runs to share the same artifact. Specifying name allows you to achieve that.
             include_fn: A callable that accepts a file path and (optionally) root path and
                 returns True when it should be included and False otherwise. This
-                defaults to `lambda path, root: path.endswith(".py")`.
+                defaults to a function that includes files ending with ".py", files starting
+                with "Dockerfile", and files named "requirements.txt".
             exclude_fn: A callable that accepts a file path and (optionally) root path and
                 returns `True` when it should be excluded and `False` otherwise. This
                 defaults to a function that excludes all files within `<root>/.wandb/`
@@ -1874,7 +1875,12 @@ class Run:
                 auto-incrementing step is used. See the notes in
                 the description.
             commit: If true, finalize and upload the step. If false, then
-                accumulate data for the step. See the notes in the description.
+                accumulate data for the step. When `commit=False`, data for
+                different metrics is accumulated across multiple log calls,
+                but if the same metric is logged multiple times with
+                `commit=False`, only the last value will be written to history
+                (previous values for that metric will be overwritten).
+                See the notes in the description.
                 If `step` is `None`, then the default is `commit=True`;
                 otherwise, the default is `commit=False`.
 
