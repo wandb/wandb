@@ -57,19 +57,11 @@ def _warn_on_invalid_data_range(
 
 
 def _guess_and_rescale_to_0_255(data: "np.ndarray") -> "np.ndarray":
-    """Guess the image's format and rescale its values to the range [0, 255].
+    """Rescale image data to [0, 255] range based on detected format.
 
-    This is an unfortunate design flaw carried forward for backward
-    compatibility. A better design would have been to document the expected
-    data format and not mangle the data provided by the user.
-
-    If given data in the range [0, 1], we multiply all values by 255
-    and round down to get integers.
-
-    If given data in the range [-1, 1], we rescale it by mapping -1 to 0 and
-    1 to 255, then round down to get integers.
-
-    We clip and round all other data.
+    If data is in [0, 1] range, multiply by 255.
+    If data is in [-1, 1] range, rescale to [0, 255].
+    Otherwise, clip to [0, 255].
     """
     try:
         import numpy as np
@@ -169,8 +161,10 @@ class Image(BatchableMedia):
                 If the values are not in the range [0, 255] or all values are in the range [0, 1],
                 the image pixel values will be normalized to the range [0, 255]
                 unless `normalize` is set to False.
-            - pytorch tensor should be in the format (channel, height, width)
-            - NumPy array should be in the format (height, width, channel)
+
+                **Data format requirements:**
+                - PyTorch tensor should be in the format (channel, height, width)
+                - NumPy array should be in the format (height, width, channel)
             mode: The PIL mode for an image. Most common are "L", "RGB",
                 "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
             caption: Label for display of image.
@@ -237,6 +231,24 @@ class Image(BatchableMedia):
                 examples.append(image)
             run.log({"examples": examples})
         ```
+
+        Normalization example
+        ```python
+        import torch
+        import wandb
+
+        # Values in [0, 1] range will be multiplied by 255
+        tensor_0_1 = torch.rand(3, 64, 64)  # Values in [0, 1]
+        image = wandb.Image(tensor_0_1, caption="Normalized from [0,1] range")
+
+        # Values in [-1, 1] range will be rescaled to [0, 255]
+        tensor_neg1_1 = torch.rand(3, 64, 64) * 2 - 1  # Values in [-1, 1]
+        image = wandb.Image(tensor_neg1_1, caption="Normalized from [-1,1] range")
+
+        # Disable normalization
+        image = wandb.Image(tensor_0_1, normalize=False, caption="No normalization")
+        ```
+
         """
         super().__init__(caption=caption)
         # TODO: We should remove grouping, it's a terrible name and I don't
