@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/monitor"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
 func randomInRange(vmin, vmax float64) float64 {
@@ -71,7 +71,7 @@ func TestDCGMNotAvailable(t *testing.T) {
 			}))
 			defer server.Close()
 
-			logger := observability.NewNoOpLogger()
+			logger := observabilitytest.NewTestLogger(t)
 			retryClient := newRetryableHTTPClient()
 			_ = monitor.NewOpenMetrics(logger, "test", server.URL, nil /* filters */, nil /* headers */, retryClient)
 		})
@@ -86,7 +86,7 @@ func TestDCGM(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 	om := monitor.NewOpenMetrics(logger, "dcgm", server.URL, nil /* filters */, nil /* headers */, nil /* client */)
 
 	result, err := om.Sample()
@@ -203,7 +203,7 @@ func TestMetricFilters(t *testing.T) {
 		},
 	}
 
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("Case %d", i), func(t *testing.T) {
 			om := monitor.NewOpenMetrics(logger, tc.endpointName, "http://localhost:9400", nil /* filters */, nil /* headers */, nil /* client */)
@@ -230,7 +230,7 @@ func TestIntermittentFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 	retryClient := newRetryableHTTPClient()
 	retryClient.RetryMax = 1
 	om := monitor.NewOpenMetrics(logger, "intermittent", server.URL, nil /* filters */, nil /* headers */, retryClient)
@@ -251,7 +251,7 @@ func TestIntermittentFailure(t *testing.T) {
 }
 
 func TestCache(t *testing.T) {
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 	om := monitor.NewOpenMetrics(logger, "dcgm", "http://localhost:9400", nil /* filters */, nil /* headers */, nil /* client */)
 
 	filters := []monitor.Filter{
@@ -291,7 +291,7 @@ func TestOpenMetricsHeaders(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 	headers := map[string]string{
 		"Authorization": "Bearer test-token-123",
 	}

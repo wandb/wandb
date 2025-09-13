@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/monitor"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -72,7 +72,7 @@ func TestParsePromQLURL(t *testing.T) {
 }
 
 func TestNewDCGMExporter(t *testing.T) {
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 
 	tests := []struct {
 		name        string
@@ -147,7 +147,7 @@ func TestSample(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 	client := retryablehttp.NewClient()
 	client.HTTPClient.Timeout = time.Second * 5
 
@@ -214,7 +214,7 @@ func TestProbe(t *testing.T) {
 	defer server.Close()
 
 	// Create exporter with test configuration
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 	client := retryablehttp.NewClient()
 	client.HTTPClient.Timeout = time.Second * 5
 
@@ -329,7 +329,7 @@ func TestDCGMExporterAuth(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 	headers := map[string]string{
 		"Authorization": "Bearer test-token-123",
 	}

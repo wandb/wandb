@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
@@ -39,7 +39,7 @@ func setup(t *testing.T) testFixtures {
 	mockRecordParser := streamtest.NewMockRecordParser(mockCtrl)
 
 	factory := runsync.RunReaderFactory{
-		Logger: observability.NewNoOpLogger(),
+		Logger: observabilitytest.NewTestLogger(t),
 	}
 
 	return testFixtures{
