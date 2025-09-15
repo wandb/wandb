@@ -1445,6 +1445,8 @@ class Settings(BaseModel, validate_assignment=True):
         - Converts single string values to tuple format
         - Preserves None values
 
+        <!-- lazydoc-ignore-classmethod: internal -->
+
         Args:
             value: A string, list, tuple, or None representing tags
 
@@ -1453,8 +1455,6 @@ class Settings(BaseModel, validate_assignment=True):
 
         Raises:
             ValueError: If any tag is empty or exceeds 64 characters
-
-        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if value is None:
             return None
