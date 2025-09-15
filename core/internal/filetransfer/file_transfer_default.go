@@ -1,6 +1,7 @@
 package filetransfer
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -24,6 +25,9 @@ type DefaultFileTransfer struct {
 
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
+
+	// extraHeaders are the extra headers to send on the upload/download request
+	extraHeaders map[string]string
 }
 
 // NewDefaultFileTransfer creates a new fileTransfer
@@ -32,10 +36,20 @@ func NewDefaultFileTransfer(
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
 ) *DefaultFileTransfer {
+	extraHeaders := make(map[string]string)
+	extraHeadersEnv := os.Getenv("WANDB_STORAGE_HTTP_HEADERS")
+	if extraHeadersEnv != "" {
+		err := json.Unmarshal([]byte(extraHeadersEnv), &extraHeaders)
+		if err != nil {
+			clear(extraHeaders)
+			logger.Error("file transfer: default: error unmarshalling extra headers", "error", err)
+		}
+	}
 	fileTransfer := &DefaultFileTransfer{
 		logger:            logger,
 		client:            client,
 		fileTransferStats: fileTransferStats,
+		extraHeaders:      extraHeaders,
 	}
 	return fileTransfer
 }
@@ -78,6 +92,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		}
 		req.Header.Set(parts[0], parts[1])
 	}
+	ft.addHeaders(req) // extra headers
 	if task.Context != nil {
 		req = req.WithContext(task.Context)
 	}
@@ -111,7 +126,12 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	}
 
 	// TODO: redo it to use the progress writer, to track the download progress
-	resp, err := ft.client.Get(task.Url)
+	req, err := retryablehttp.NewRequest(http.MethodGet, task.Url, nil)
+	if err != nil {
+		return err
+	}
+	ft.addHeaders(req) // extra headers
+	resp, err := ft.client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -148,6 +168,12 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 		return err
 	}
 	return nil
+}
+
+func (ft *DefaultFileTransfer) addHeaders(req *retryablehttp.Request) {
+	for key, value := range ft.extraHeaders {
+		req.Header.Set(key, value)
+	}
 }
 
 func getUploadRequestBody(
