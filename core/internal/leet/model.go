@@ -153,47 +153,68 @@ func (m *Model) Init() tea.Cmd {
 //
 // Required to implement tea.Model.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Safety + serialization.
 	defer m.recoverPanic("Update")
 	m.stateMu.Lock()
 	defer m.stateMu.Unlock()
 
-	m.logger.Debug(fmt.Sprintf("model: Update received message: %T", msg))
-
-	// Keep help sized correctly on resize.
-	if ws, ok := msg.(tea.WindowSizeMsg); ok {
-		m.help.SetSize(ws.Width, ws.Height)
-	}
-
-	// Handle help toggle and help-active routing first.
-	if newM, cmd, handled := m.handleHelp(msg); handled {
-		return newM, cmd
+	// 1) Help short-circuit (only thing allowed to consume the message)
+	if handled, cmd := m.handleHelp(msg); handled {
+		return m, cmd
 	}
 
 	var cmds []tea.Cmd
 
-	// Route only UI/animation messages to child models.
+	// 2) Forward *UI/animation only* to children (never data/control)
 	if isUIMsg(msg) {
-		if updatedSidebar, cmd := m.updateLeftSidebar(msg); cmd != nil {
-			m.sidebar = updatedSidebar
-			cmds = append(cmds, cmd)
+		if s, c := m.sidebar.Update(msg); c != nil {
+			m.sidebar = s
+			cmds = append(cmds, c)
 		}
-		if updatedRightSidebar, cmd := m.updateRightSidebar(msg); cmd != nil {
-			m.rightSidebar = updatedRightSidebar
-			cmds = append(cmds, cmd)
+		if rs, c := m.rightSidebar.Update(msg); c != nil {
+			m.rightSidebar = rs
+			cmds = append(cmds, c)
 		}
 	}
 
-	// Dispatch all messages (UI + data/control) through a single, testable router.
-	cmds = append(cmds, m.dispatch(msg)...)
+	// 3) Typed routing still runs for the same message
+	switch t := msg.(type) {
+	case tea.KeyMsg:
+		newM, c := m.handleKeyMsg(t)
+		if c != nil {
+			cmds = append(cmds, c)
+		}
+		return newM, tea.Batch(cmds...)
 
-	return m, tea.Batch(cmds...)
+	case tea.MouseMsg:
+		newM, c := m.handleMouseMsg(t)
+		if c != nil {
+			cmds = append(cmds, c)
+		}
+		return newM, tea.Batch(cmds...)
+
+	case tea.WindowSizeMsg:
+		// Single source of truth for sizing
+		m.width, m.height = t.Width, t.Height
+		m.help.SetSize(t.Width, t.Height)
+
+		m.sidebar.UpdateDimensions(t.Width, m.rightSidebar.IsVisible())
+		m.rightSidebar.UpdateDimensions(t.Width, m.sidebar.IsVisible())
+
+		m.updateChartSizes()
+		return m, tea.Batch(cmds...)
+
+	default:
+		// Includes InitMsg/ChunkedBatchMsg/BatchedRecordsMsg/ReloadMsg/Heartbeat/FileChanged
+		cmds = append(cmds, m.dispatch(msg)...)
+		return m, tea.Batch(cmds...)
+	}
 }
 
 // isUIMsg returns true for messages that should flow to child view models.
 func isUIMsg(msg tea.Msg) bool {
 	switch msg.(type) {
-	case tea.KeyMsg, tea.MouseMsg, tea.WindowSizeMsg, SidebarAnimationMsg, RightSidebarAnimationMsg:
+	case tea.KeyMsg, tea.MouseMsg, tea.WindowSizeMsg,
+		SidebarAnimationMsg, RightSidebarAnimationMsg:
 		return true
 	default:
 		return false
@@ -201,28 +222,26 @@ func isUIMsg(msg tea.Msg) bool {
 }
 
 // handleHelp centralizes help toggle and routing while active.
-// Returns (model, cmd, handled).
-func (m *Model) handleHelp(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
-	// Toggle help early for h/?
+func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
+	// Toggle on 'h' / '?'
 	if km, ok := msg.(tea.KeyMsg); ok {
 		switch km.String() {
 		case "h", "?":
 			m.help.Toggle()
-			return m, nil, true
+			return true, nil
 		}
 	}
 
-	// When help is active, let it fully handle key/mouse, then short-circuit.
+	// When help is visible, it owns key/mouse
 	if m.help.IsActive() {
 		switch msg.(type) {
 		case tea.KeyMsg, tea.MouseMsg:
-			var cmd tea.Cmd
-			m.help, cmd = m.help.Update(msg)
-			return m, cmd, true
+			updated, cmd := m.help.Update(msg)
+			m.help = updated
+			return true, cmd
 		}
 	}
-
-	return m, nil, false
+	return false, nil
 }
 
 // updateLeftSidebar updates the left sidebar only for UI/animation messages.
