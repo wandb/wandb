@@ -42,9 +42,8 @@ class AgentProcess:
         if command:
             if platform.system() == "Windows":
                 kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
-                if env.get(wandb.env.SERVICE):
-                    env.pop(wandb.env.SERVICE, None)
-                # TODO: Apply and test same stdin workaround as Unix case below if needed.
+                env.pop(wandb.env.SERVICE, None)
+                # TODO: Determine if we need the same stdin workaround as POSIX case below.
                 self._popen = subprocess.Popen(command, env=env, **kwargs)
             else:
                 if sys.version_info >= (3, 11):
@@ -53,8 +52,7 @@ class AgentProcess:
                     kwargs = dict(process_group=0)
                 else:
                     kwargs = dict(preexec_fn=os.setpgrp)
-                if env.get(wandb.env.SERVICE):
-                    env.pop(wandb.env.SERVICE, None)
+                env.pop(wandb.env.SERVICE, None)
                 # Upon spawning the subprocess in a new process group, the child's process group is
                 # not connected to the controlling terminal's stdin. If it tries to access stdin,
                 # it gets a SIGTTIN and blocks until we give it the terminal, which we don't want
@@ -74,7 +72,10 @@ class AgentProcess:
                 # Also, we avoid spawning a new session because that breaks preempted child process
                 # handling.
                 self._popen = subprocess.Popen(
-                    command, env=env, stdin=subprocess.PIPE, **kwargs
+                    command,
+                    env=env,
+                    stdin=subprocess.PIPE,
+                    **kwargs,
                 )
                 self._popen.stdin.close()
         elif function:
