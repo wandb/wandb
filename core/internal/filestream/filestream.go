@@ -4,6 +4,7 @@ package filestream
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/wire"
@@ -76,13 +77,17 @@ type FileStream interface {
 	// StreamUpdate uploads information through the filestream API.
 	StreamUpdate(update Update)
 
-	// Stopped returns the last-known stopped status as reported by the
-	// filestream backend responses.
-	Stopped() bool
-
-	// StoppedKnown reports whether the backend has provided a stopped flag yet.
-	StoppedKnown() bool
+	// StopState returns the last-known stop decision (unknown/false/true).
+	StopState() StopState
 }
+
+type StopState uint32
+
+const (
+	StopUnknown StopState = iota
+	StopFalse
+	StopTrue
+)
 
 // fileStream is a stream of data to the server
 type fileStream struct {
@@ -123,11 +128,8 @@ type fileStream struct {
 	deadChan     chan struct{}
 	deadChanOnce *sync.Once
 
-	// stopped indicates whether the backend has reported that this run should stop.
-	stoppedMu sync.RWMutex
-	stopped   bool
-	// stoppedKnown indicates whether a stopped flag has been observed in feedback.
-	stoppedKnown bool
+	// state is the last-known stopped status as reported by the backend.
+	state atomic.Uint32
 }
 
 // FileStreamProviders binds FileStreamFactory.
@@ -237,19 +239,8 @@ func (fs *fileStream) FinishWithoutExit() {
 	fs.logger.Debug("filestream: closed")
 }
 
-// Stopped returns the last-known stopped status as reported by the backend.
-func (fs *fileStream) Stopped() bool {
-	fs.stoppedMu.RLock()
-	defer fs.stoppedMu.RUnlock()
-	return fs.stopped
-}
-
-// StoppedKnown returns true if a stopped flag has been received from backend.
-func (fs *fileStream) StoppedKnown() bool {
-	fs.stoppedMu.RLock()
-	defer fs.stoppedMu.RUnlock()
-	return fs.stoppedKnown
-}
+// StopState returns the last-known stop decision (unknown/false/true).
+func (fs *fileStream) StopState() StopState { return StopState(fs.state.Load()) }
 
 // logFatalAndStopWorking logs a fatal error and kills the filestream.
 //

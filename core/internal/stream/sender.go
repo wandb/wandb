@@ -1261,8 +1261,8 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 	}
 
 	// Prefer filestream feedback if available.
-	if s.fileStream != nil && s.fileStream.StoppedKnown() {
-		respondShouldStop(s.fileStream.Stopped())
+	if s.fileStream != nil && s.fileStream.StopState() != fs.StopUnknown {
+		respondShouldStop(s.fileStream.StopState() == fs.StopTrue)
 		return
 	}
 

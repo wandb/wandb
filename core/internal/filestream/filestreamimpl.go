@@ -98,11 +98,12 @@ func (fs *fileStream) startProcessingFeedback(
 		for res := range feedback {
 			if v, ok := res["stopped"]; ok {
 				if b, ok := v.(bool); ok {
-					fs.stoppedMu.Lock()
-					// Monotonic: once true, never revert to false
-					fs.stopped = fs.stopped || b
-					fs.stoppedKnown = true
-					fs.stoppedMu.Unlock()
+					if b {
+						fs.state.Store(uint32(StopTrue))
+					} else if StopState(fs.state.Load()) == StopUnknown {
+						// Only set false if we haven't observed any value yet.
+						fs.state.Store(uint32(StopFalse))
+					}
 				}
 			}
 		}
