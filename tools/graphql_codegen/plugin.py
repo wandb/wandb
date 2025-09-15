@@ -16,6 +16,7 @@ from itertools import groupby
 from pathlib import Path
 from typing import Any, ClassVar
 
+import libcst as cst
 from ariadne_codegen import Plugin
 from ariadne_codegen.client_generators.constants import ANNOTATED, BASE_MODEL_CLASS_NAME
 from ariadne_codegen.codegen import generate_ann_assign
@@ -315,31 +316,89 @@ class GraphQLCodegenPlugin(Plugin):
     def _rewrite_generated_module(self, module: ast.Module) -> ast.Module:
         """Apply common transformations to the generated module, excluding `__init__`."""
         # Prepend shared import statements to the module
-        module.body = [
-            make_import_from("__future__", "annotations"),
-            make_import_from(
-                "wandb._pydantic",
-                [
-                    GQL_INPUT_CLASS_NAME,
-                    GQL_RESULT_CLASS_NAME,
-                    TYPENAME_TYPE,
-                ],
-            ),
-            make_import_from("typing_extensions", [ANNOTATED]),
-            *module.body,
-        ]
-        module = self._replace_redundant_classes(module)
+        try:
+            unparsed = ast.unparse(ast.fix_missing_locations(module))
+            cst_module: cst.Module = cst.parse_module(unparsed)
+        except Exception:
+            print("=" * 100)
+            print(unparsed)
+            print("=" * 100)
+            raise
+
+        cst_module = cst_module.with_changes(
+            body=[
+                cst.ImportFrom(
+                    module=cst.Name("__future__"),
+                    names=[cst.ImportAlias(cst.Name("annotations"))],
+                ),
+                cst.Newline(),
+                cst.ImportFrom(
+                    module=cst.Attribute(
+                        value=cst.Name("wandb"),
+                        attr=cst.Name("_pydantic"),
+                    ),
+                    names=[
+                        cst.ImportAlias(cst.Name(GQL_INPUT_CLASS_NAME)),
+                        cst.ImportAlias(cst.Name(GQL_RESULT_CLASS_NAME)),
+                        cst.ImportAlias(cst.Name(TYPENAME_TYPE)),
+                    ],
+                ),
+                cst.Newline(),
+                cst.ImportFrom(
+                    module=cst.Name("typing_extensions"),
+                    names=[cst.ImportAlias(cst.Name(ANNOTATED))],
+                ),
+                cst.Newline(),
+                *cst_module.body,
+            ],
+        )
+
+        # Prepend shared import statements to the module
+        # module.body = [
+        #     make_import_from("__future__", "annotations"),
+        #     make_import_from(
+        #         "wandb._pydantic",
+        #         [
+        #             GQL_INPUT_CLASS_NAME,
+        #             GQL_RESULT_CLASS_NAME,
+        #             TYPENAME_TYPE,
+        #         ],
+        #     ),
+        #     make_import_from("typing_extensions", [ANNOTATED]),
+        #     *module.body,
+        # ]
+
+        # module = ast.parse(cst_module.code)
+
+        module = self._replace_redundant_classes(cst_module)
+
         module = self._fix_typing_imports(module)
         return ast.fix_missing_locations(module)
 
-    def _replace_redundant_classes(self, module: ast.Module) -> ast.Module:
+    # def _replace_redundant_classes(self, module: ast.Module) -> ast.Module:
+    def _replace_redundant_classes(self, module: cst.Module) -> ast.Module:
         # Identify redundant classes and build replacement mapping
-        redundant_class_defs = filter(is_redundant_subclass_def, module.body)
+
+        # cst_module: cst.Module = cst.parse_module(
+        #     ast.unparse(ast.fix_missing_locations(module)),
+        #     config=cst.PartialParserConfig(python_version="3.8"),
+        # )
+        # redundant_class_defs = filter(
+        #     is_redundant_subclass_def, cst_module.body
+        # )  # NEW: With libcst
+
+        redundant_class_defs = filter(
+            is_redundant_subclass_def, module.body
+        )  # OLD: With ast
 
         class_name_replacements = {
             # maps names of: redundant subclass -> parent class
-            class_def.name: base_class_names(class_def)[0]
+            class_def.name.value: class_def.bases[0].value
             for class_def in redundant_class_defs
+            if len(class_def.bases) == 1
+            # # maps names of: redundant subclass -> parent class
+            # class_def.name: base_class_names(class_def)[0]
+            # for class_def in redundant_class_defs
         }
 
         # Record removed classes for later cleanup
@@ -347,7 +406,9 @@ class GraphQLCodegenPlugin(Plugin):
 
         # Update any references to redundant classes in the remaining class definitions
         # Replace the module body with the cleaned-up statements
-        return RedundantClassReplacer(class_name_replacements).visit(module)
+        # raise ValueError(f"{type(module)=}")
+        ast_module = ast.parse(module.code)
+        return RedundantClassReplacer(class_name_replacements).visit(ast_module)
 
     def _cleanup_init_module(self, module: ast.Module) -> ast.Module:
         """Remove dropped imports and rewrite `__all__` exports in `__init__`."""
