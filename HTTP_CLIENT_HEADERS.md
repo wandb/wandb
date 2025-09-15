@@ -33,7 +33,20 @@ Artifact
 
 RunFiles
 
-- [ ] log run, upload and TBH I haven't changed that part of code (yet.)
+- [x] log run, upload and TBH I haven't changed that part of code (yet.), `config.yam`, `wandb-summary.json` etc. are uploaded using go core and working (thanks to file transfer?)
+
+Media, table etc. https://docs.wandb.ai/guides/track/log/ are they using file stream? Seems to be using run files.
+
+- [ ] media
+- [ ] table
+
+Util and cli?
+
+- [ ] `download_file_from_url` and `download_file_into_memory` are using thread local https://github.com/wandb/wandb/blob/99f01f9cf18283b027fb15116cf715b5f64d2d5b/wandb/util.py#L1394-L1435
+
+Public API, should be all using python right now.
+
+- [ ] https://docs.wandb.ai/ref/python/public-api/files/
 
 ## Artifact
 
@@ -146,4 +159,57 @@ class Api:
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
         self._extra_http_headers.update(_thread_local_api_settings.headers or {})
+```
+
+## Media
+
+From claude, it is uploading using go core just like run files.
+
+```
+
+⏺ Media Upload Flow Summary
+
+  Here's what happens when you log media (images, videos, etc.) in
+  W&B:
+
+  Python SDK Side:
+
+  1. Media Object Creation (wandb/sdk/data_types/image.py:150-439):
+    - When you create a wandb.Image, it processes the data (numpy
+  array, PIL image, or file path)
+    - Saves the media to a temporary file in the MEDIA_TMP directory
+    - Calculates SHA256 hash for the file
+  2. Binding to Run
+  (wandb/sdk/data_types/base_types/media.py:108-157):
+    - When logged, the media object is bound to the run
+    - File is moved/copied to the run's media directory (e.g.,
+  media/images/)
+    - Calls run._publish_file() to mark the file for upload
+  3. Publishing Files (wandb/sdk/wandb_run.py:1471-1484):
+    - _publish_file() sends a FilesRecord to the Go core via the
+  interface
+    - This marks the file to be uploaded with policy "NOW"
+
+  Go Core Side:
+
+  4. File Processing (core/internal/runfiles/uploader.go:105-150):
+    - FilesRecord is received and processed
+    - Files marked as "NOW" are queued for immediate upload
+    - Files marked as "LIVE" are watched for changes
+  5. Upload Preparation (core/internal/runfiles/uploader.go:287-359):
+    - Calls GraphQL CreateRunFiles to get signed upload URLs from the
+   server
+    - Server returns upload URLs and headers for each file
+  6. Actual Upload
+  (core/internal/filetransfer/file_transfer_default.go:58-108):
+    - Creates HTTP PUT request to the signed URL
+    - Adds headers from the server (including authentication headers)
+    - Adds extra headers configured in DefaultFileTransfer (line
+  174-176)
+    - Uploads the file content
+
+  The key place where custom HTTP headers would be added is in the
+  DefaultFileTransfer.addHeaders() method at
+  core/internal/filetransfer/file_transfer_default.go:173-177, which
+  adds any extra headers configured in the file transfer manager.
 ```
