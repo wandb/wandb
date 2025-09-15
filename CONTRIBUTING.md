@@ -212,7 +212,7 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Install Go version `1.25.0` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.25.1` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 
 ```shell
 brew install go@1.25
