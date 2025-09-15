@@ -3,9 +3,11 @@ package leet
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wandb/wandb/core/internal/runenvironment"
+	"github.com/wandb/wandb/core/internal/watcher"
 )
 
 // FocusState represents what is currently focused in the UI
@@ -892,4 +894,158 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
+func (m *Model) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	// Coalesce redraws if desired
+	prev := m.suppressDraw
+	m.suppressDraw = suppressRedraw
+	for _, subMsg := range subMsgs {
+		var cmd tea.Cmd
+		m, cmd = m.processRecordMsg(subMsg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	m.suppressDraw = prev
+	if !m.suppressDraw {
+		m.drawVisibleCharts()
+	}
+
+	// Exit loading state once we have some charts
+	m.chartMu.RLock()
+	hasCharts := len(m.allCharts) > 0
+	m.chartMu.RUnlock()
+	if m.isLoading && hasCharts {
+		m.isLoading = false
+	}
+	return cmds
+}
+
+// onInit handles InitMsg (reader ready).
+func (m *Model) onInit(msg InitMsg) []tea.Cmd {
+	m.logger.Debug("model: InitMsg received, reader initialized")
+	m.reader = msg.Reader
+	m.loadStartTime = time.Now()
+
+	m.reloadMu.Lock()
+	m.reloadInProgress = false
+	m.reloadMu.Unlock()
+
+	return []tea.Cmd{ReadAllRecordsChunked(m.reader)}
+}
+
+// onChunkedBatch handles boot-load chunked batches.
+func (m *Model) onChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
+	if m.isReloading() {
+		m.logger.Debug("model: dropping ChunkedBatchMsg during reload")
+		return nil
+	}
+
+	m.logger.Debug(fmt.Sprintf("model: ChunkedBatchMsg received with %d messages, hasMore=%v",
+		len(msg.Msgs), msg.HasMore))
+	m.recordsLoaded += msg.Progress
+
+	cmds := m.handleRecordsBatch(msg.Msgs, false)
+
+	if msg.HasMore {
+		cmds = append(cmds, m.reader.ReadAllRecordsChunked())
+		return cmds
+	}
+
+	// Boot load complete -> begin live mode once.
+	if !m.fileComplete && !m.watcherStarted {
+		if err := m.startWatcher(); err != nil {
+			m.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
+		} else {
+			m.logger.Info("model: watcher started successfully")
+			m.startHeartbeat()
+		}
+	}
+	return cmds
+}
+
+// onBatched handles live drain batches.
+func (m *Model) onBatched(msg BatchedRecordsMsg) []tea.Cmd {
+	if m.isReloading() {
+		m.logger.Debug("model: dropping BatchedRecordsMsg during reload")
+		return nil
+	}
+
+	m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
+	cmds := m.handleRecordsBatch(msg.Msgs, true)
+	cmds = append(cmds, ReadAvailableRecords(m.reader))
+	return cmds
+}
+
+// onReload resets live state and restarts reading.
+func (m *Model) onReload() []tea.Cmd {
+	m.reloadMu.Lock()
+	if m.reloadInProgress {
+		m.reloadMu.Unlock()
+		m.logger.Debug("model: reload already in progress, ignoring")
+		return nil
+	}
+	m.reloadInProgress = true
+	m.reloadMu.Unlock()
+
+	m.runState = RunStateRunning
+	m.fileComplete = false
+
+	// Stop heartbeat and close reader.
+	m.stopHeartbeat()
+	if m.reader != nil {
+		if err := m.reader.Close(); err != nil {
+			m.logger.CaptureError(fmt.Errorf("model: error closing reader: %v", err))
+		}
+		m.reader = nil
+	}
+
+	// Stop watcher.
+	if m.watcherStarted {
+		m.logger.Debug("model: finishing watcher for reload")
+		m.watcher.Finish()
+		m.watcherStarted = false
+	}
+	m.watcher = watcher.New(watcher.Params{Logger: m.logger})
+
+	// Swap channels safely.
+	oldChan := m.msgChan
+	m.msgChan = make(chan tea.Msg, 1000)
+	go func() {
+		close(oldChan)
+		for range oldChan {
+		}
+	}()
+
+	// Reset loading counters.
+	m.recordsLoaded = 0
+	m.loadStartTime = time.Now()
+
+	return []tea.Cmd{
+		InitializeReader(m.runPath),
+		m.waitForWatcherMsg(),
+	}
+}
+
+// onHeartbeat triggers a live read and re-arms the heartbeat.
+func (m *Model) onHeartbeat() []tea.Cmd {
+	m.logger.Debug("model: processing HeartbeatMsg")
+	m.resetHeartbeat()
+	return []tea.Cmd{
+		ReadAvailableRecords(m.reader),
+		m.waitForWatcherMsg(),
+	}
+}
+
+// onFileChange coalesces change notifications into a read.
+func (m *Model) onFileChange() []tea.Cmd {
+	m.resetHeartbeat()
+	return []tea.Cmd{
+		ReadAvailableRecords(m.reader),
+		m.waitForWatcherMsg(),
+	}
 }

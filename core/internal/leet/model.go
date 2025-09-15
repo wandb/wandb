@@ -188,210 +188,142 @@ func (m *Model) Init() tea.Cmd {
 // Update handles incoming events and updates the model accordingly.
 //
 // Required to implement tea.Model.
-//
-//gocyclo:ignore
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Attempt to recover from any panics in Update.
-	// Ensure we always release the state lock on panic.
+	// Safety + serialization.
 	defer m.recoverPanic("Update")
 	m.stateMu.Lock()
 	defer m.stateMu.Unlock()
 
-	var cmds []tea.Cmd
-
 	m.logger.Debug(fmt.Sprintf("model: Update received message: %T", msg))
 
-	// Handle window resize for help
-	if msg, ok := msg.(tea.WindowSizeMsg); ok {
-		m.help.SetSize(msg.Width, msg.Height)
+	// Keep help sized correctly on resize.
+	if ws, ok := msg.(tea.WindowSizeMsg); ok {
+		m.help.SetSize(ws.Width, ws.Height)
 	}
 
-	// Check for help toggle key first
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		switch keyMsg.String() {
-		case "h", "?":
-			m.help.Toggle()
-			return m, nil
-		}
+	// Handle help toggle and help-active routing first.
+	if newM, cmd, handled := m.handleHelp(msg); handled {
+		return newM, cmd
 	}
 
-	// Handle help screen UI updates if active
-	if m.help.IsActive() {
-		switch msg.(type) {
-		case tea.KeyMsg, tea.MouseMsg:
-			updatedHelp, helpCmd := m.help.Update(msg)
-			m.help = updatedHelp
-			if helpCmd != nil {
-				cmds = append(cmds, helpCmd)
-			}
-			return m, tea.Batch(cmds...)
+	var cmds []tea.Cmd
+
+	// Route only UI/animation messages to child models.
+	if isUIMsg(msg) {
+		if updatedSidebar, cmd := m.updateLeftSidebar(msg); cmd != nil {
+			m.sidebar = updatedSidebar
+			cmds = append(cmds, cmd)
 		}
-	}
-
-	// Update sidebars
-	updatedSidebar, sidebarCmd := m.sidebar.Update(msg)
-	m.sidebar = updatedSidebar
-	if sidebarCmd != nil {
-		cmds = append(cmds, sidebarCmd)
-	}
-
-	updatedRightSidebar, rightSidebarCmd := m.rightSidebar.Update(msg)
-	m.rightSidebar = updatedRightSidebar
-	if rightSidebarCmd != nil {
-		cmds = append(cmds, rightSidebarCmd)
-	}
-
-	// Handle specific message types
-	switch msg := msg.(type) {
-	case InitMsg:
-		m.logger.Debug("model: InitMsg received, reader initialized")
-		m.reader = msg.Reader
-		m.loadStartTime = time.Now()
-
-		// Reset reload flag now that new reader is initialized
-		m.reloadMu.Lock()
-		m.reloadInProgress = false
-		m.reloadMu.Unlock()
-
-		// Start chunked reading
-		return m, ReadAllRecordsChunked(m.reader)
-
-	case ChunkedBatchMsg:
-		// Drop any late chunks while a reload is in progress.
-		m.reloadMu.Lock()
-		reloading := m.reloadInProgress
-		m.reloadMu.Unlock()
-		if reloading {
-			m.logger.Debug("model: dropping ChunkedBatchMsg during reload")
-			return m, nil
-		}
-
-		m.logger.Debug(fmt.Sprintf("model: ChunkedBatchMsg received with %d messages, hasMore=%v",
-			len(msg.Msgs), msg.HasMore))
-
-		// Track progress
-		m.recordsLoaded += msg.Progress
-
-		cmds = append(cmds, m.handleRecordsBatch(msg.Msgs /*suppressRedraw=*/, false)...)
-
-		if msg.HasMore {
-			// Chunked read for boot load.
-			cmds = append(cmds, m.reader.ReadAllRecordsChunked())
-		} else if !m.fileComplete && !m.watcherStarted {
-			// Boot load done; start watcher + heartbeat once
-			if err := m.startWatcher(); err != nil {
-				m.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
-			} else {
-				m.logger.Info("model: watcher started successfully")
-				m.startHeartbeat()
-			}
-
-		}
-		return m, tea.Batch(cmds...)
-
-	case BatchedRecordsMsg:
-		// Drop any late batches while a reload is in progress.
-		m.reloadMu.Lock()
-		reloading := m.reloadInProgress
-		m.reloadMu.Unlock()
-		if reloading {
-			m.logger.Debug("model: dropping BatchedRecordsMsg during reload")
-			return m, nil
-		}
-
-		m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
-		cmds = append(cmds, m.handleRecordsBatch(msg.Msgs /*suppressRedraw=*/, true)...)
-
-		// Live drain: keep pulling while available
-		cmds = append(cmds, ReadAvailableRecords(m.reader))
-		return m, tea.Batch(cmds...)
-
-	case ReloadMsg:
-		// Keep reloadInProgress=true and proceed with the reload steps.
-		m.reloadMu.Lock()
-		m.reloadInProgress = true
-		m.reloadMu.Unlock()
-
-		m.runState = RunStateRunning
-		m.fileComplete = false
-
-		// Stop heartbeat
-		m.stopHeartbeat()
-
-		// Close the old reader creating a new one.
-		if m.reader != nil {
-			if err := m.reader.Close(); err != nil {
-				m.logger.CaptureError(fmt.Errorf("model: error closing reader: %v", err))
-			}
-			m.reader = nil
-		}
-
-		if m.watcherStarted {
-			m.logger.Debug("model: finishing watcher for reload")
-			m.watcher.Finish()
-			m.watcherStarted = false
-		}
-
-		// Create a new watcher instance
-		m.watcher = watcher.New(watcher.Params{Logger: m.logger})
-
-		// Safely close and recreate the message channel
-		oldChan := m.msgChan
-		m.msgChan = make(chan tea.Msg, 1000)
-
-		// Close old channel in a goroutine to avoid blocking
-		go func() {
-			close(oldChan)
-			// Drain the old channel
-			for range oldChan {
-			}
-		}()
-
-		// Reset loading state
-		m.recordsLoaded = 0
-		m.loadStartTime = time.Now()
-
-		return m, tea.Batch(
-			InitializeReader(m.runPath),
-			m.waitForWatcherMsg(),
-		)
-
-	case HeartbeatMsg:
-		m.logger.Debug("model: processing HeartbeatMsg")
-		// Treat heartbeat like a file change event
-		// This will trigger a read and reset the heartbeat timer
-		cmds = append(cmds, ReadAvailableRecords(m.reader))
-		// Reset heartbeat for next interval
-		m.resetHeartbeat()
-		// Continue waiting for watcher messages
-		cmds = append(cmds, m.waitForWatcherMsg())
-		return m, tea.Batch(cmds...)
-
-	case FileChangedMsg:
-		// Immediate live read; we coalesce internally with larger batches.
-		m.resetHeartbeat()
-		cmds = append(cmds, ReadAvailableRecords(m.reader))
-		cmds = append(cmds, m.waitForWatcherMsg())
-		return m, tea.Batch(cmds...)
-
-	case tea.KeyMsg:
-		newModel, cmd := m.handleKeyMsg(msg)
-		return newModel, cmd
-
-	case tea.MouseMsg, tea.WindowSizeMsg, SidebarAnimationMsg, RightSidebarAnimationMsg:
-		newModel, cmd := m.handleOther(msg)
-		return newModel, cmd
-
-	default:
-		// Process other record messages
-		var cmd tea.Cmd
-		m, cmd = m.processRecordMsg(msg)
-		if cmd != nil {
+		if updatedRightSidebar, cmd := m.updateRightSidebar(msg); cmd != nil {
+			m.rightSidebar = updatedRightSidebar
 			cmds = append(cmds, cmd)
 		}
 	}
 
+	// Dispatch all messages (UI + data/control) through a single, testable router.
+	cmds = append(cmds, m.dispatch(msg)...)
+
 	return m, tea.Batch(cmds...)
+}
+
+// isUIMsg returns true for messages that should flow to child view models.
+func isUIMsg(msg tea.Msg) bool {
+	switch msg.(type) {
+	case tea.KeyMsg, tea.MouseMsg, tea.WindowSizeMsg, SidebarAnimationMsg, RightSidebarAnimationMsg:
+		return true
+	default:
+		return false
+	}
+}
+
+// handleHelp centralizes help toggle and routing while active.
+// Returns (model, cmd, handled).
+func (m *Model) handleHelp(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
+	// Toggle help early for h/?
+	if km, ok := msg.(tea.KeyMsg); ok {
+		switch km.String() {
+		case "h", "?":
+			m.help.Toggle()
+			return m, nil, true
+		}
+	}
+
+	// When help is active, let it fully handle key/mouse, then short-circuit.
+	if m.help.IsActive() {
+		switch msg.(type) {
+		case tea.KeyMsg, tea.MouseMsg:
+			var cmd tea.Cmd
+			m.help, cmd = m.help.Update(msg)
+			return m, cmd, true
+		}
+	}
+
+	return m, nil, false
+}
+
+// updateLeftSidebar updates the left sidebar only for UI/animation messages.
+func (m *Model) updateLeftSidebar(msg tea.Msg) (*Sidebar, tea.Cmd) {
+	updated, cmd := m.sidebar.Update(msg)
+	return updated, cmd
+}
+
+// updateRightSidebar updates the right sidebar only for UI/animation messages.
+func (m *Model) updateRightSidebar(msg tea.Msg) (*RightSidebar, tea.Cmd) {
+	updated, cmd := m.rightSidebar.Update(msg)
+	return updated, cmd
+}
+
+// isReloading is a convenience guard for dropping late chunks/batches.
+func (m *Model) isReloading() bool {
+	m.reloadMu.Lock()
+	defer m.reloadMu.Unlock()
+	return m.reloadInProgress
+}
+
+// dispatch routes all message types after UI children had a chance to update.
+func (m *Model) dispatch(msg tea.Msg) []tea.Cmd {
+	switch t := msg.(type) {
+	case InitMsg:
+		return m.onInit(t)
+
+	case ChunkedBatchMsg:
+		return m.onChunkedBatch(t)
+
+	case BatchedRecordsMsg:
+		return m.onBatched(t)
+
+	case ReloadMsg:
+		return m.onReload()
+
+	case HeartbeatMsg:
+		return m.onHeartbeat()
+
+	case FileChangedMsg:
+		return m.onFileChange()
+
+	case tea.KeyMsg:
+		_, cmd := m.handleKeyMsg(t) // model-level key handling (filters, toggles, etc.)
+		if cmd != nil {
+			return []tea.Cmd{cmd}
+		}
+		return nil
+
+	case tea.MouseMsg, tea.WindowSizeMsg, SidebarAnimationMsg, RightSidebarAnimationMsg:
+		_, cmd := m.handleOther(msg) // window size, animations, mouse -> model-level sizing/redraw
+		if cmd != nil {
+			return []tea.Cmd{cmd}
+		}
+		return nil
+
+	default:
+		// History/Run/Summary/Stats/SystemInfo/FileComplete/Error -> data handlers.
+		var cmd tea.Cmd
+		_, cmd = m.processRecordMsg(msg)
+		if cmd != nil {
+			return []tea.Cmd{cmd}
+		}
+		return nil
+	}
 }
 
 // View renders the UI based on the data in the model.
@@ -902,33 +834,4 @@ func (m *Model) rebuildGrids() {
 
 	// Clear focus state when resizing
 	m.clearAllFocus()
-}
-
-// handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
-func (m *Model) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	// Coalesce redraws if desired
-	prev := m.suppressDraw
-	m.suppressDraw = suppressRedraw
-	for _, subMsg := range subMsgs {
-		var cmd tea.Cmd
-		m, cmd = m.processRecordMsg(subMsg)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-	m.suppressDraw = prev
-	if !m.suppressDraw {
-		m.drawVisibleCharts()
-	}
-
-	// Exit loading state once we have some charts
-	m.chartMu.RLock()
-	hasCharts := len(m.allCharts) > 0
-	m.chartMu.RUnlock()
-	if m.isLoading && hasCharts {
-		m.isLoading = false
-	}
-	return cmds
 }
