@@ -5,12 +5,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 )
 
 func TestInfer_FewerThan2Directories_Fails(t *testing.T) {
-	guesser := tensorboard.NewRootDirGuesser(observability.NewNoOpLogger())
+	guesser := tensorboard.NewRootDirGuesser(observabilitytest.NewTestLogger(t))
 	path, err := tensorboard.ParseTBPath("/log/dir")
 	require.NoError(t, err)
 
@@ -21,7 +21,7 @@ func TestInfer_FewerThan2Directories_Fails(t *testing.T) {
 }
 
 func TestInfer(t *testing.T) {
-	guesser := tensorboard.NewRootDirGuesser(observability.NewNoOpLogger())
+	guesser := tensorboard.NewRootDirGuesser(observabilitytest.NewTestLogger(t))
 
 	localPath1, err := tensorboard.ParseTBPath("/tblogs/train")
 	require.NoError(t, err)

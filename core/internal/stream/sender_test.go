@@ -12,6 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
@@ -27,9 +28,10 @@ const validLinkArtifactResponse = `{
 	"linkArtifact": { "versionIndex": 0 }
 }`
 
-func makeSender(client graphql.Client) *stream.Sender {
+func makeSender(t *testing.T, client graphql.Client) *stream.Sender {
+	t.Helper()
 	runWork := runworktest.New()
-	logger := observability.NewNoOpLogger()
+	logger := observabilitytest.NewTestLogger(t)
 	settings := wbsettings.From(&spb.Settings{
 		RunId:   &wrapperspb.StringValue{Value: "run1"},
 		Console: &wrapperspb.StringValue{Value: "off"},
@@ -71,7 +73,7 @@ func makeSender(client graphql.Client) *stream.Sender {
 // Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	sender := makeSender(mockGQL)
+	sender := makeSender(t, mockGQL)
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	linkArtifact := &spb.Record{
@@ -181,7 +183,7 @@ func TestSendLinkArtifact(t *testing.T) {
 
 func TestSendUseArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	sender := makeSender(mockGQL)
+	sender := makeSender(t, mockGQL)
 
 	useArtifact := &spb.Record{
 		RecordType: &spb.Record_UseArtifact{
