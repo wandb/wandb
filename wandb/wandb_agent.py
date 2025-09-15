@@ -70,6 +70,9 @@ class AgentProcess:
                 # deadlock. In Python 3.13, `import torch` indirectly imports `readline` via `pdb`,
                 # meaning `import torch` in a run script can deadlock unless we override stdin.
                 # See https://github.com/wandb/wandb/pull/10489 description for more details.)
+                #
+                # Also, we avoid spawning a new session because that breaks preempted child process
+                # handling.
                 self._popen = subprocess.Popen(
                     command, env=env, stdin=subprocess.PIPE, **kwargs
                 )
