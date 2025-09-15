@@ -39,35 +39,17 @@ type Model struct {
 	// Help screen.
 	help *HelpModel
 
-	// chartMu is the mutex to protect chart data.
-	chartMu sync.RWMutex
-	// allCharts contains charts of all metrics of an experiment.
-	allCharts []*EpochLineChart
-	// chartsByName maps metric name to its chart.
-	chartsByName map[string]*EpochLineChart
-	// charts contains the current page of charts arranged in a 2D grid.
-	charts [][]*EpochLineChart
-
-	// Charts filter state.
-	filterMode     bool              // Whether we're currently typing a filter
-	filterInput    string            // The current filter being typed
-	activeFilter   string            // The confirmed filter in use
-	filteredCharts []*EpochLineChart // Filtered subset of charts
+	// Main charts grid (embedded to keep call sites stable).
+	*metricsGrid
 
 	// Overview filter state.
 	overviewFilterMode  bool   // Whether we're typing an overview filter
 	overviewFilterInput string // The current overview filter being typed
 
-	// Chart focus state.
-	focusState   FocusState
-	focusedTitle string // For status bar display
-	focusedRow   int
-	focusedCol   int
+	// Main view size.
+	width  int
+	height int
 
-	width          int
-	height         int
-	currentPage    int
-	totalPages     int
 	fileComplete   bool
 	isLoading      bool
 	runState       RunState
@@ -133,21 +115,9 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	m := &Model{
 		config:              cfg,
 		help:                NewHelp(),
-		allCharts:           make([]*EpochLineChart, 0),
-		chartsByName:        make(map[string]*EpochLineChart),
-		charts:              make([][]*EpochLineChart, gridRows),
-		filteredCharts:      make([]*EpochLineChart, 0),
-		filterMode:          false,
-		filterInput:         "",
-		activeFilter:        "",
+		metricsGrid:         newMetricsGrid(gridRows, gridCols),
 		overviewFilterMode:  false,
 		overviewFilterInput: "",
-		focusState:          FocusState{Type: FocusNone},
-		focusedTitle:        "",
-		focusedRow:          -1,
-		focusedCol:          -1,
-		currentPage:         0,
-		totalPages:          0,
 		fileComplete:        false,
 		isLoading:           true,
 		runPath:             runPath,

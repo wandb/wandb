@@ -3,9 +3,57 @@ package leet
 import (
 	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/charmbracelet/lipgloss"
 )
+
+// metricsGrid holds all state for the main run metrics charts (not system metrics).
+type metricsGrid struct {
+	// Protects all chart collections and derived state below.
+	chartMu sync.RWMutex
+
+	// All charts keyed and arranged for display.
+	allCharts []*EpochLineChart
+	// chartsByName maps metric name to its chart.
+	chartsByName map[string]*EpochLineChart
+	// charts contains the current page of charts arranged in a 2D grid.
+	charts [][]*EpochLineChart
+
+	// Charts filter state.
+	filterMode     bool              // Whether we're currently typing a filter
+	filterInput    string            // The current filter being typed
+	activeFilter   string            // The confirmed filter in use
+	filteredCharts []*EpochLineChart // Filtered subset of charts
+
+	// Paging for the main grid.
+	currentPage int
+	totalPages  int
+
+	// Chart focus state.
+	focusState   FocusState
+	focusedTitle string // For status bar display
+	focusedRow   int
+	focusedCol   int
+}
+
+// newMetricsGrid allocates the grid structure with the desired rows/cols.
+func newMetricsGrid(rows, cols int) *metricsGrid {
+	mg := &metricsGrid{
+		allCharts:      make([]*EpochLineChart, 0),
+		chartsByName:   make(map[string]*EpochLineChart),
+		filteredCharts: make([]*EpochLineChart, 0),
+		charts:         make([][]*EpochLineChart, rows),
+		focusState:     FocusState{Type: FocusNone},
+		focusedTitle:   "",
+		focusedRow:     -1,
+		focusedCol:     -1,
+	}
+	for r := range rows {
+		mg.charts[r] = make([]*EpochLineChart, cols)
+	}
+	return mg
+}
 
 // ChartDimensions represents chart dimensions for the given window size.
 type ChartDimensions struct {
