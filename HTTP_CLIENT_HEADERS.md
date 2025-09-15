@@ -22,11 +22,11 @@ We can start with python and then do go. Download is simple, we start on downloa
 Artifact
 
 - [ ] download
-  - [ ] download python
-  - [ ] download go (not really used ...)
+  - [x] download python
+  - [ ] download go, not enabled (yet)
 - [ ] upload
-  - [ ] upload python
   - [ ] upload go
+  - [ ] upload python, no longer used
 
 RunFiles
 
@@ -40,3 +40,36 @@ For artifact
 
 - Upload is no longer using python, but the python code is still there...
 - Download is in `wandb_storage_policy.py`
+
+Following code works
+
+```python
+HTTP_HEADERS_ENV_VAR = "WANDB_STORAGE_HTTP_HEADERS"
+
+
+class EnvHeaderAdapter(HTTPAdapter):
+    """Adapter that adds headers from the environment variable to all the request."""
+
+    _headers: dict[str, str] = {}
+
+    def __init__(self):
+        super().__init__(
+            max_retries=_REQUEST_RETRY_STRATEGY,
+            pool_connections=_REQUEST_POOL_CONNECTIONS,
+            pool_maxsize=_REQUEST_POOL_MAXSIZE,
+        )
+        # Parse the headers from the env var (if present)
+        if os.environ.get(HTTP_HEADERS_ENV_VAR):
+            self._headers = json.loads(os.environ.get(HTTP_HEADERS_ENV_VAR))
+
+    def add_headers(self, request, **kwargs):
+        # Skip calling super because it does nothing by default
+        request.headers.update(self._headers)
+```
+
+### Artifact Upload in Go
+
+The logic is in `filestransfer`
+
+- Upload is already setting `headers` from `task.Headers`
+- Download does not set anything

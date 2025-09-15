@@ -5,6 +5,7 @@ from __future__ import annotations
 import concurrent.futures
 import functools
 import hashlib
+import json
 import logging
 import math
 import os
@@ -17,6 +18,7 @@ from urllib.parse import quote
 
 import requests
 import urllib3
+from requests.adapters import HTTPAdapter
 
 from wandb import env
 from wandb.errors.term import termwarn
@@ -89,6 +91,30 @@ class _ChunkContent(NamedTuple):
     data: bytes
 
 
+HTTP_HEADERS_ENV_VAR = "WANDB_STORAGE_HTTP_HEADERS"
+
+
+class EnvHeaderAdapter(HTTPAdapter):
+    """Adapter that adds headers from the environment variable to all the request."""
+
+    _headers: dict[str, str] = {}
+
+    def __init__(self):
+        super().__init__(
+            max_retries=_REQUEST_RETRY_STRATEGY,
+            pool_connections=_REQUEST_POOL_CONNECTIONS,
+            pool_maxsize=_REQUEST_POOL_MAXSIZE,
+        )
+        # Parse the headers from the env var (if present)
+        extra_headers = os.environ.get(HTTP_HEADERS_ENV_VAR)
+        if extra_headers:
+            self._headers = json.loads(extra_headers)
+
+    def add_headers(self, request, **kwargs):
+        # Skip calling super because it does nothing by default
+        request.headers.update(self._headers)
+
+
 class WandbStoragePolicy(StoragePolicy):
     @classmethod
     def name(cls) -> str:
@@ -109,11 +135,7 @@ class WandbStoragePolicy(StoragePolicy):
         self._cache = cache or get_artifact_file_cache()
         self._config = config or {}
         self._session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(
-            max_retries=_REQUEST_RETRY_STRATEGY,
-            pool_connections=_REQUEST_POOL_CONNECTIONS,
-            pool_maxsize=_REQUEST_POOL_MAXSIZE,
-        )
+        adapter = EnvHeaderAdapter()
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
 
