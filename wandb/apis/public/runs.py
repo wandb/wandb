@@ -88,10 +88,7 @@ RUN_FRAGMENT = """fragment RunFragment on Run {
 
 @normalize_exceptions
 def _server_provides_internal_id_for_project(client) -> bool:
-    """Returns True if the server allows us to query the internalId field for a project.
-
-    This check is done by utilizing GraphQL introspection in the available fields on the project type.
-    """
+    """Returns True if the server allows us to query the internalId field for a project."""
     query_string = """
        query ProbeProjectInput {
             ProjectType: __type(name:"Project") {
@@ -112,10 +109,7 @@ def _server_provides_internal_id_for_project(client) -> bool:
 
 @normalize_exceptions
 def _server_provides_project_id_for_run(client) -> bool:
-    """Returns True if the server allows us to query the projectId field for a run.
-
-    This check is done by utilizing GraphQL introspection in the available fields on the run type.
-    """
+    """Returns True if the server allows us to query the projectId field for a run."""
     query_string = """
        query ProbeRunInput {
             RunType: __type(name:"Run") {
