@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from typing_extensions import override
 from wandb_gql import gql
 
+from wandb._analytics import tracked
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.utils import gql_compat
 from wandb.sdk.artifacts._generated import (
@@ -69,6 +70,7 @@ class Registries(Paginator):
                 raise StopIteration
         return self.objects[self.index]
 
+    @tracked
     def collections(self, filter: dict[str, Any] | None = None) -> Collections:
         return Collections(
             client=self.client,
@@ -77,6 +79,7 @@ class Registries(Paginator):
             collection_filter=filter,
         )
 
+    @tracked
     def versions(self, filter: dict[str, Any] | None = None) -> Versions:
         return Versions(
             client=self.client,
@@ -177,6 +180,7 @@ class Collections(Paginator["ArtifactCollection"]):
                 raise StopIteration
         return self.objects[self.index]
 
+    @tracked
     def versions(self, filter: dict[str, Any] | None = None) -> Versions:
         return Versions(
             client=self.client,

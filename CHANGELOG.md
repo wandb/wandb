@@ -11,6 +11,12 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.21.4] - 2025-09-11
+
+### Added
+
+- Add DSPy integration: track evaluation metrics over time, log predictions and program signature evolution to W&B Tables, and save DSPy programs as W&B Artifacts (complete program or state as JSON/PKL) (@ayulockin in https://github.com/wandb/wandb/pull/10327)
+
 ## [0.21.3] - 2025-08-30
 
 ### Changed

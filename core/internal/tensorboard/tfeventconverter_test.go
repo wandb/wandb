@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
@@ -245,7 +246,7 @@ func TestConvertStepAndTimestamp(t *testing.T) {
 		summaryEvent(
 			123, 0.345,
 			scalarValue("epoch_loss", "scalars", 0.5)),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	assert.Equal(t,
@@ -269,19 +270,19 @@ func TestConvertScalar(t *testing.T) {
 		emitter,
 		summaryEvent(123, 0.345,
 			scalarValue("epoch_loss", "scalars", 0.5)),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 	converter.ConvertNext(
 		emitter,
 		summaryEvent(123, 0.345,
 			scalarValue("epoch_loss", "scalars", float32(math.Inf(1)))),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 	converter.ConvertNext(
 		emitter,
 		summaryEvent(123, 0.345,
 			tensorValue("epoch_loss", "scalars", []int{0}, 2.5)),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 	converter.ConvertNext(
 		emitter,
@@ -291,7 +292,7 @@ func TestConvertScalar(t *testing.T) {
 				"scalars",
 				tbproto.DataType_DT_DOUBLE,
 				doubleTenPointFiveBytes.Bytes())),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	assert.Equal(t,
@@ -324,7 +325,7 @@ func TestConvertHistogram(t *testing.T) {
 				1.0, 1.5, 10,
 				1.5, 2.0, 11,
 				2.0, 2.5, 4)),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	assert.Equal(t,
@@ -359,7 +360,7 @@ func TestConvertHistogramProto(t *testing.T) {
 					},
 				},
 			}),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	assert.Equal(t,
@@ -390,7 +391,7 @@ func TestConvertHistogramRebin(t *testing.T) {
 		summaryEvent(123, 0.345,
 			tensorValue("my_hist", "histograms",
 				[]int{1000, 3}, inputTensor...)),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	var result map[string]any
@@ -416,7 +417,7 @@ func TestConvertImageNoPluginName(t *testing.T) {
 		summaryEvent(123, 0.345,
 			tensorValueImage("my_img", "",
 				2, 4, testPNG2x4)),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	assert.Equal(t,
@@ -443,7 +444,7 @@ func TestConvertImage(t *testing.T) {
 		summaryEvent(123, 0.345,
 			tensorValueStrings("my_img", "images",
 				"2", "4", testPNG2x4)),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	assert.Equal(t,
@@ -477,7 +478,7 @@ func TestConvertBatchImages(t *testing.T) {
 		summaryEvent(123, 0.345,
 			tensorValueStrings("my_img", "images",
 				"2", "4", testPNG2x4, testPNG2x4)),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	assert.Equal(t,
@@ -502,7 +503,7 @@ func TestConvertGif(t *testing.T) {
 		summaryEvent(123, 0.345,
 			tensorValueStrings("test_gif", "images",
 				"1", "1", testGif1x1)),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	assert.Equal(t,
@@ -584,7 +585,7 @@ func TestConvertPRCurve(t *testing.T) {
 				[]int{2, 3},
 				1, 2, 3, // precision
 				4, 5, 6)), // recall
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	assert.Equal(t,

@@ -1,19 +1,23 @@
 package monitor_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/monitor"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-func newTestSystemMonitor() *monitor.SystemMonitor {
+func newTestSystemMonitor(t *testing.T) *monitor.SystemMonitor {
+	t.Helper()
 	factory := &monitor.SystemMonitorFactory{
-		Logger:             observability.NewNoOpLogger(),
+		Logger:             observabilitytest.NewTestLogger(t),
 		Settings:           settings.From(&spb.Settings{}),
 		GpuResourceManager: monitor.NewGPUResourceManager(false),
 	}
@@ -21,7 +25,7 @@ func newTestSystemMonitor() *monitor.SystemMonitor {
 }
 
 func TestSystemMonitor_BasicStateTransitions(t *testing.T) {
-	sm := newTestSystemMonitor()
+	sm := newTestSystemMonitor(t)
 
 	assert.Equal(t, monitor.StateStopped, sm.GetState())
 
@@ -39,7 +43,7 @@ func TestSystemMonitor_BasicStateTransitions(t *testing.T) {
 }
 
 func TestSystemMonitor_RepeatedCalls(t *testing.T) {
-	sm := newTestSystemMonitor()
+	sm := newTestSystemMonitor(t)
 
 	// Multiple starts
 	sm.Start(nil)
@@ -63,7 +67,7 @@ func TestSystemMonitor_RepeatedCalls(t *testing.T) {
 }
 
 func TestSystemMonitor_UnexpectedTransitions(t *testing.T) {
-	sm := newTestSystemMonitor()
+	sm := newTestSystemMonitor(t)
 
 	// Resume when stopped
 	sm.Resume()
@@ -103,7 +107,7 @@ func TestSystemMonitor_UnexpectedTransitions(t *testing.T) {
 }
 
 func TestSystemMonitor_FullCycle(t *testing.T) {
-	sm := newTestSystemMonitor()
+	sm := newTestSystemMonitor(t)
 
 	// Full cycle of operations
 	sm.Start(nil)
@@ -130,4 +134,26 @@ func TestSystemMonitor_FullCycle(t *testing.T) {
 
 	sm.Finish()
 	assert.Equal(t, monitor.StateStopped, sm.GetState())
+}
+
+func TestShouldCaptureSamplingErr(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"NetstatMissing", errors.New(`exec: "netstat": executable file not found in $PATH`), false},
+		{"GrpcUnavailable", status.Error(codes.Unavailable, "connection error"), false},
+		{"ConnRefused", errors.New(`transport: Error while dialing: dial unix /tmp/x.sock: connect: connection refused`), false},
+		{"WinIncorrectFunction", errors.New("Incorrect function."), false},
+		{"MissingProcDiskstats", errors.New("open /proc/diskstats: no such file or directory"), false},
+		{"OtherError", errors.New("some other error"), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := monitor.ShouldCaptureSamplingError(tt.err); got != tt.want {
+				t.Fatalf("ShouldCaptureSamplingError() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

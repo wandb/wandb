@@ -3,7 +3,10 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os/exec"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -11,6 +14,8 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/wire"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/simplejsonext"
@@ -413,8 +418,11 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 
 			metrics, err := resource.Sample()
 			if err != nil {
-				sm.logger.CaptureError(fmt.Errorf("monitor: error sampling metrics: %v", err))
-				continue
+				if ShouldCaptureSamplingError(err) {
+					sm.logger.CaptureError(fmt.Errorf("monitor: error sampling metrics: %v", err))
+				} else {
+					sm.logger.Debug(fmt.Sprintf("monitor: benign sampling error: %v", err))
+				}
 			}
 
 			if metrics == nil || len(metrics.Item) == 0 {
@@ -445,6 +453,44 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 		}
 	}
 
+}
+
+// ShouldCaptureSamplingError checks if a resource sampling error should be sent to Sentry.
+//
+// Use to filter out expected/transient failures. Keep this intentionally small and specific.
+func ShouldCaptureSamplingError(err error) bool {
+	// Transient gRPC connectivity to the gpu_stats sidecar.
+	if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
+		return false
+	}
+
+	msg := err.Error()
+	switch {
+	// Error connecting to a Prometheus server.
+	case strings.Contains(msg, "connection refused"):
+		return false
+
+	// Platforms without netstat (gopsutil may shell out on some OSes).
+	case errors.Is(err, exec.ErrNotFound):
+		return false
+	case strings.Contains(msg, "executable file not found") && strings.Contains(msg, "netstat"):
+		return false
+
+	// Container/lean Linux builds without /proc/diskstats.
+	case strings.Contains(msg, "/proc/diskstats") && (strings.Contains(msg, "no such file") || strings.Contains(msg, "no such file or directory")):
+		return false
+
+	// Windows sporadic low-level API failure wording.
+	case strings.Contains(msg, "Incorrect function."):
+		return false
+
+	// Some gopsutil APIs report "not implemented yet" for certain platforms.
+	case strings.Contains(msg, "not implemented yet"):
+		return false
+
+	default:
+		return true
+	}
 }
 
 // GetBuffer returns the current buffer of collected metrics.

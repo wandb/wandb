@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -16,15 +17,18 @@ import (
 )
 
 func makeHandler(
+	t *testing.T,
 	inChan chan runwork.Work,
 	commit string,
 	skipDerivedSummary bool,
 ) *stream.Handler {
+	t.Helper()
+
 	s := settings.New()
 	s.UpdateServerSideDerivedSummary(skipDerivedSummary)
 
 	handlerFactory := stream.HandlerFactory{
-		Logger:          observability.NewNoOpLogger(),
+		Logger:          observabilitytest.NewTestLogger(t),
 		Settings:        s,
 		TerminalPrinter: observability.NewPrinter(),
 		Commit:          stream.GitCommitHash(commit),
@@ -713,7 +717,7 @@ func TestHandlePartialHistory(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			inChan := make(chan runwork.Work, stream.BufferSize)
 
-			handler := makeHandler(inChan, "" /*commit*/, true /*skipDerivedSummary*/)
+			handler := makeHandler(t, inChan, "" /*commit*/, true /*skipDerivedSummary*/)
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
@@ -811,7 +815,7 @@ func TestHandleHistory(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			inChan := make(chan runwork.Work, stream.BufferSize)
 
-			handler := makeHandler(inChan, "" /*commit*/, true /*skipDerivedSummary*/)
+			handler := makeHandler(t, inChan, "" /*commit*/, true /*skipDerivedSummary*/)
 
 			for _, d := range tc.input {
 				record := makeHistoryRecord(d)
@@ -845,7 +849,7 @@ func TestHandleHeader(t *testing.T) {
 
 	sha := "2a7314df06ab73a741dcb7bc5ecb50cda150b077"
 
-	handler := makeHandler(inChan, sha, true /*skipDerivedSummary*/)
+	handler := makeHandler(t, inChan, sha, true /*skipDerivedSummary*/)
 
 	record := &spb.Record{
 		RecordType: &spb.Record_Header{
@@ -946,7 +950,7 @@ func TestHandleDerivedSummary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			inChan := make(chan runwork.Work, 1)
 
-			handler := makeHandler(inChan, "" /*commit*/, tc.skipDerivedSummary)
+			handler := makeHandler(t, inChan, "" /*commit*/, tc.skipDerivedSummary)
 
 			for _, record := range tc.records {
 				inChan <- runwork.WorkRecord{Record: record}

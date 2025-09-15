@@ -60,9 +60,6 @@ type Stream struct {
 	// settings is the settings for the stream
 	settings *settings.Settings
 
-	// reader is the reader for the stream
-	reader *Reader
-
 	// RecordParser turns Records into Work.
 	recordParser RecordParser
 
@@ -132,12 +129,6 @@ func NewStream(
 	}
 
 	switch {
-	case s.settings.IsSync():
-		s.reader = NewReader(ReaderParams{
-			Logger:   logger,
-			Settings: s.settings,
-			RunWork:  runWork,
-		})
 	case !s.settings.IsSkipTransactionLog():
 		s.writer = writerFactory.New(make(chan runwork.Work, BufferSize))
 	default:
@@ -179,21 +170,6 @@ func (s *Stream) Start() {
 	case s.settings.IsSkipTransactionLog():
 		// if we are skipping the transaction log, we just forward the data from
 		// the handler to the sender directly
-		s.wg.Add(1)
-		go func() {
-			s.sender.Do(s.handler.OutChan())
-			s.wg.Done()
-		}()
-	case s.settings.IsSync():
-		// if we are syncing, we need to read the data from the transaction log
-		// and forward it to the handler, that will forward it to the sender
-		// without going through the writer
-		s.wg.Add(1)
-		go func() {
-			s.reader.Do()
-			s.wg.Done()
-		}()
-
 		s.wg.Add(1)
 		go func() {
 			s.sender.Do(s.handler.OutChan())
@@ -257,15 +233,13 @@ func (s *Stream) Close() {
 // FinishAndClose emits an exit record, waits for all run messages
 // to be fully processed, and prints the run footer to the terminal.
 func (s *Stream) FinishAndClose(exitCode int32) {
-	if !s.settings.IsSync() {
-		s.HandleRecord(&spb.Record{
-			RecordType: &spb.Record_Exit{
-				Exit: &spb.RunExitRecord{
-					ExitCode: exitCode,
-				}},
-			Control: &spb.Control{AlwaysSend: true},
-		})
-	}
+	s.HandleRecord(&spb.Record{
+		RecordType: &spb.Record_Exit{
+			Exit: &spb.RunExitRecord{
+				ExitCode: exitCode,
+			}},
+		Control: &spb.Control{AlwaysSend: true},
+	})
 
 	s.Close()
 

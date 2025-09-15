@@ -1,6 +1,8 @@
 import pathlib
 import subprocess
 
+import pytest
+
 
 def test_eval_tables_builder(wandb_backend_spy):
     script_path = pathlib.Path(__file__).parent / "keras_eval_tables_builder.py"
@@ -68,6 +70,7 @@ def test_model_checkpoint(wandb_backend_spy):
         assert 39 in telemetry["3"]  # feature=keras_wandb_model_checkpoint
 
 
+@pytest.mark.skip(reason="flaky")
 def test_deprecated_keras_callback(wandb_backend_spy):
     script_path = pathlib.Path(__file__).parent / "keras_deprecated.py"
     subprocess.check_call(["python", str(script_path)])

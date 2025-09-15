@@ -6,10 +6,9 @@ import asyncio
 import pathlib
 import time
 from itertools import filterfalse
-from typing import Iterable
+from typing import Iterable, Iterator
 
 import click
-from typing_extensions import Generator
 
 import wandb
 from wandb.proto.wandb_sync_pb2 import ServerSyncResponse
@@ -26,21 +25,28 @@ _SLEEP = asyncio.sleep  # patched in tests
 
 
 def sync(
-    path: pathlib.Path,
+    paths: list[pathlib.Path],
     *,
     dry_run: bool,
     skip_synced: bool,
+    verbose: bool,
+    parallelism: int,
 ) -> None:
     """Replay one or more .wandb files.
 
     Args:
-        path: A .wandb file, a run directory containing a .wandb file, or
-            a wandb directory containing run directories.
+        paths: One or more .wandb files, run directories containing
+            .wandb files, and wandb directories containing run directories.
         dry_run: If true, just prints what it would do and exits.
         skip_synced: If true, skips files that have already been synced
             as indicated by a .wandb.synced marker file in the same directory.
+        verbose: Verbose mode for printing more info.
+        parallelism: Max number of runs to sync at a time.
     """
-    wandb_files = _find_wandb_files(path, skip_synced=skip_synced)
+    wandb_files: set[pathlib.Path] = set()
+    for path in paths:
+        for wandb_file in _find_wandb_files(path, skip_synced=skip_synced):
+            wandb_files.add(wandb_file.resolve())
 
     if not wandb_files:
         click.echo("No files to sync.")
@@ -48,11 +54,11 @@ def sync(
 
     if dry_run:
         click.echo(f"Would sync {len(wandb_files)} file(s):")
-        _print_sorted_paths(wandb_files)
+        _print_sorted_paths(wandb_files, verbose=verbose)
         return
 
     click.echo(f"Syncing {len(wandb_files)} file(s):")
-    _print_sorted_paths(wandb_files)
+    _print_sorted_paths(wandb_files, verbose=verbose)
 
     singleton = wandb_setup.singleton()
     service = singleton.ensure_service()
@@ -63,6 +69,7 @@ def sync(
             service=service,
             settings=singleton.settings,
             printer=printer,
+            parallelism=parallelism,
         )
     )
 
@@ -73,6 +80,7 @@ async def _do_sync(
     service: ServiceConnection,
     settings: wandb.Settings,
     printer: Printer,
+    parallelism: int,
 ) -> None:
     """Sync the specified files.
 
@@ -83,7 +91,7 @@ async def _do_sync(
         settings,
     ).wait_async(timeout=5)
 
-    sync_handle = service.sync(init_result.id)
+    sync_handle = service.sync(init_result.id, parallelism=parallelism)
 
     await _SyncStatusLoop(
         init_result.id,
@@ -156,17 +164,17 @@ def _find_wandb_files(
     path: pathlib.Path,
     *,
     skip_synced: bool,
-) -> set[pathlib.Path]:
+) -> Iterator[pathlib.Path]:
     """Returns paths to the .wandb files to sync."""
     if skip_synced:
-        return set(filterfalse(_is_synced, _expand_wandb_files(path)))
+        yield from filterfalse(_is_synced, _expand_wandb_files(path))
     else:
-        return set(_expand_wandb_files(path))
+        yield from _expand_wandb_files(path)
 
 
 def _expand_wandb_files(
     path: pathlib.Path,
-) -> Generator[pathlib.Path, None, None]:
+) -> Iterator[pathlib.Path]:
     """Iterate over .wandb files selected by the path."""
     if path.suffix == ".wandb":
         yield path
@@ -190,17 +198,29 @@ def _is_synced(path: pathlib.Path) -> bool:
     return path.with_suffix(".wandb.synced").exists()
 
 
-def _print_sorted_paths(paths: Iterable[pathlib.Path]) -> None:
+def _print_sorted_paths(paths: Iterable[pathlib.Path], verbose: bool) -> None:
     """Print file paths, sorting them and truncating the list if needed.
 
     Args:
-        paths: Paths to print.
+        paths: Paths to print. Must be absolute with symlinks resolved.
+        verbose: If true, doesn't truncate paths.
     """
-    sorted_paths = sorted(str(path) for path in paths)
+    # Prefer to print paths relative to the current working directory.
+    cwd = pathlib.Path(".").resolve()
+    formatted_paths: list[str] = []
+    for path in paths:
+        try:
+            formatted_path = str(path.relative_to(cwd))
+        except ValueError:
+            formatted_path = str(path)
+        formatted_paths.append(formatted_path)
 
-    for i in range(min(len(sorted_paths), _MAX_LIST_LINES)):
+    sorted_paths = sorted(formatted_paths)
+    max_lines = len(sorted_paths) if verbose else _MAX_LIST_LINES
+
+    for i in range(min(len(sorted_paths), max_lines)):
         click.echo(f"  {sorted_paths[i]}")
 
-    if len(sorted_paths) > _MAX_LIST_LINES:
-        remaining = len(sorted_paths) - _MAX_LIST_LINES
-        click.echo(f"  +{remaining:,d} more")
+    if len(sorted_paths) > max_lines:
+        remaining = len(sorted_paths) - max_lines
+        click.echo(f"  +{remaining:,d} more (pass --verbose to see all)")

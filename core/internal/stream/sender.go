@@ -45,7 +45,7 @@ const (
 	ConsoleFileName           = "output.log"
 )
 
-var senderProviders = wire.NewSet(
+var SenderProviders = wire.NewSet(
 	wire.Struct(new(SenderFactory), "*"),
 )
 
