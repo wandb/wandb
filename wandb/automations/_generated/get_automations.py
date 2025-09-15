@@ -17,7 +17,11 @@ class GetAutomations(GQLResult):
 
 
 class GetAutomationsSearchScope(GQLResult):
-    projects: Optional[ProjectConnectionFields]
+    projects: Optional[GetAutomationsSearchScopeProjects]
+
+
+class GetAutomationsSearchScopeProjects(ProjectConnectionFields):
+    pass
 
 
 GetAutomations.model_rebuild()
