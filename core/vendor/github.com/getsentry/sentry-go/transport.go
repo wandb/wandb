@@ -441,11 +441,9 @@ func (t *HTTPTransport) SendEventWithContext(ctx context.Context, event *Event) 
 // have the SDK send events over the network synchronously, configure it to use
 // the HTTPSyncTransport in the call to Init.
 func (t *HTTPTransport) Flush(timeout time.Duration) bool {
-	timeoutCh := make(chan struct{})
-	time.AfterFunc(timeout, func() {
-		close(timeoutCh)
-	})
-	return t.flushInternal(timeoutCh)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return t.FlushWithContext(ctx)
 }
 
 // FlushWithContext works like Flush, but it accepts a context.Context instead of a timeout.
