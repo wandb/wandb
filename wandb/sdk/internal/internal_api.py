@@ -205,6 +205,21 @@ def _match_org_with_fetched_org_entities(
     )
 
 
+# TODO: move to util?
+class EnvHeaderAdapter(requests.adapters.HTTPAdapter):
+    """Adapter that adds headers from the environment variable to all the request."""
+
+    _headers: dict[str, str] = {}
+
+    def __init__(self):
+        super().__init__()
+        self._headers = env.get_storage_headers()
+
+    def add_headers(self, request, **kwargs):
+        # Skip calling super because it does nothing by default
+        request.headers.update(self._headers)
+
+
 class Api:
     """W&B Internal Api wrapper.
 
@@ -325,7 +340,19 @@ class Api:
         )
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
+
+        # Inject headers for upload file
+        inject_storage_headers_adapter = EnvHeaderAdapter()
+
+        # download file
+        self._download_file_session = requests.Session()
+        self._download_file_session.mount("http://", inject_storage_headers_adapter)
+        self._download_file_session.mount("https://", inject_storage_headers_adapter)
+
+        # upload file
         self._upload_file_session = requests.Session()
+        self._upload_file_session.mount("http://", inject_storage_headers_adapter)
+        self._upload_file_session.mount("https://", inject_storage_headers_adapter)
         if self.FILE_PUSHER_TIMEOUT:
             self._upload_file_session.put = functools.partial(  # type: ignore
                 self._upload_file_session.put,
@@ -2883,7 +2910,7 @@ class Api:
         elif _thread_local_api_settings.cookies is None:
             auth = ("api", self.api_key or "")
 
-        response = requests.get(
+        response = self._download_file_session.get(
             url,
             auth=auth,
             cookies=_thread_local_api_settings.cookies or {},

@@ -54,6 +54,7 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.internal.internal_api import EnvHeaderAdapter
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import retry, runid, telemetry
 from wandb.sdk.lib.deprecate import deprecate
@@ -277,6 +278,12 @@ class Artifact:
         self._final: bool = False
         self._history_step: int | None = None
         self._linked_artifacts: list[Artifact] = []
+        self._manifest_download_session = requests.Session()
+        inject_storage_headers_adapter = EnvHeaderAdapter()
+        self._manifest_download_session.mount("http://", inject_storage_headers_adapter)
+        self._manifest_download_session.mount(
+            "https://", inject_storage_headers_adapter
+        )
 
         # Cache.
         artifact_instance_cache[self._client_id] = self
@@ -2601,7 +2608,8 @@ class Artifact:
         return None
 
     def _load_manifest(self, url: str) -> ArtifactManifest:
-        with requests.get(url) as response:
+        # TODO: Why can't we use internal api's download_file method and uses requests directly?
+        with self._manifest_download_session.get(url) as response:
             response.raise_for_status()
             return ArtifactManifest.from_manifest_json(response.json())
 

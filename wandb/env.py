@@ -91,6 +91,8 @@ ENABLE_DCGM_PROFILING = "WANDB_ENABLE_DCGM_PROFILING"
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
 
+STORAGE_HEADERS = "WANDB_STORAGE_HTTP_HEADERS"
+
 
 def immutable_keys() -> list[str]:
     """These are env keys that shouldn't change within a single process.
@@ -533,3 +535,12 @@ def strtobool(val: str) -> bool:
         return False
     else:
         raise ValueError(f"invalid truth value {val!r}")
+
+
+def get_storage_headers(env: MutableMapping | None = None) -> dict[str, str]:
+    if env is None:
+        env = os.environ
+    val = env.get(STORAGE_HEADERS, None)
+    if val is None:
+        return {}
+    return json.loads(val)

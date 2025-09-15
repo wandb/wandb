@@ -5,7 +5,6 @@ from __future__ import annotations
 import concurrent.futures
 import functools
 import hashlib
-import json
 import logging
 import math
 import os
@@ -91,10 +90,7 @@ class _ChunkContent(NamedTuple):
     data: bytes
 
 
-HTTP_HEADERS_ENV_VAR = "WANDB_STORAGE_HTTP_HEADERS"
-
-
-class EnvHeaderAdapter(HTTPAdapter):
+class _EnvHeaderAdapter(HTTPAdapter):
     """Adapter that adds headers from the environment variable to all the request."""
 
     _headers: dict[str, str] = {}
@@ -106,9 +102,7 @@ class EnvHeaderAdapter(HTTPAdapter):
             pool_maxsize=_REQUEST_POOL_MAXSIZE,
         )
         # Parse the headers from the env var (if present)
-        extra_headers = os.environ.get(HTTP_HEADERS_ENV_VAR)
-        if extra_headers:
-            self._headers = json.loads(extra_headers)
+        self._headers = env.get_storage_headers()
 
     def add_headers(self, request, **kwargs):
         # Skip calling super because it does nothing by default
@@ -135,7 +129,7 @@ class WandbStoragePolicy(StoragePolicy):
         self._cache = cache or get_artifact_file_cache()
         self._config = config or {}
         self._session = requests.Session()
-        adapter = EnvHeaderAdapter()
+        adapter = _EnvHeaderAdapter()
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
 
