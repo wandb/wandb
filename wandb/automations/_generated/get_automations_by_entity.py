@@ -18,8 +18,12 @@ class GetAutomationsByEntity(GQLBase):
     )
 
 
-class GetAutomationsByEntitySearchScope(GQLBase):
-    projects: Optional[ProjectConnectionFields]
+class GetAutomationsByEntitySearchScope(GQLResult):
+    projects: Optional[GetAutomationsByEntitySearchScopeProjects]
+
+
+class GetAutomationsByEntitySearchScopeProjects(ProjectConnectionFields):
+    pass
 
 
 GetAutomationsByEntity.model_rebuild()

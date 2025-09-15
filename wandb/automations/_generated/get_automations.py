@@ -16,8 +16,12 @@ class GetAutomations(GQLBase):
     search_scope: Optional[GetAutomationsSearchScope] = Field(alias="searchScope")
 
 
-class GetAutomationsSearchScope(GQLBase):
-    projects: Optional[ProjectConnectionFields]
+class GetAutomationsSearchScope(GQLResult):
+    projects: Optional[GetAutomationsSearchScopeProjects]
+
+
+class GetAutomationsSearchScopeProjects(ProjectConnectionFields):
+    pass
 
 
 GetAutomations.model_rebuild()
