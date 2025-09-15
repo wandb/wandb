@@ -39,8 +39,8 @@ type Model struct {
 	// Help screen.
 	help *HelpModel
 
-	// Main charts grid (embedded to keep call sites stable).
-	*metricsGrid
+	// Main metrics charts grid.
+	*metrics
 
 	// Overview filter state.
 	overviewFilterMode  bool   // Whether we're typing an overview filter
@@ -110,12 +110,10 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	heartbeatInterval := cfg.GetHeartbeatInterval()
 	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
 
-	gridRows, gridCols := cfg.GetMetricsGrid()
-
 	m := &Model{
 		config:              cfg,
 		help:                NewHelp(),
-		metricsGrid:         newMetricsGrid(gridRows, gridCols),
+		metrics:             newMetrics(cfg),
 		overviewFilterMode:  false,
 		overviewFilterInput: "",
 		fileComplete:        false,
@@ -130,10 +128,6 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 		msgChan:             make(chan tea.Msg, 4096),
 		logger:              logger,
 		heartbeatInterval:   heartbeatInterval,
-	}
-
-	for row := range gridRows {
-		m.charts[row] = make([]*EpochLineChart, gridCols)
 	}
 
 	m.sidebar.SetRunOverview(RunOverview{

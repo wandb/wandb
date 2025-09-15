@@ -8,8 +8,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// metricsGrid holds all state for the main run metrics charts (not system metrics).
-type metricsGrid struct {
+// metrics holds state for the main run metrics charts (not system metrics).
+type metrics struct {
+	config *ConfigManager
+
 	// Protects all chart collections and derived state below.
 	chartMu sync.RWMutex
 
@@ -37,20 +39,21 @@ type metricsGrid struct {
 	focusedCol   int
 }
 
-// newMetricsGrid allocates the grid structure with the desired rows/cols.
-func newMetricsGrid(rows, cols int) *metricsGrid {
-	mg := &metricsGrid{
+func newMetrics(config *ConfigManager) *metrics {
+	gridRows, gridCols := config.GetMetricsGrid()
+
+	mg := &metrics{
 		allCharts:      make([]*EpochLineChart, 0),
 		chartsByName:   make(map[string]*EpochLineChart),
 		filteredCharts: make([]*EpochLineChart, 0),
-		charts:         make([][]*EpochLineChart, rows),
+		charts:         make([][]*EpochLineChart, gridRows),
 		focusState:     FocusState{Type: FocusNone},
 		focusedTitle:   "",
 		focusedRow:     -1,
 		focusedCol:     -1,
 	}
-	for r := range rows {
-		mg.charts[r] = make([]*EpochLineChart, cols)
+	for r := range gridRows {
+		mg.charts[r] = make([]*EpochLineChart, gridCols)
 	}
 	return mg
 }
@@ -106,7 +109,7 @@ func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
 }
 
 // sortChartsNoLock sorts charts without acquiring the mutex (caller must hold the lock)
-func (m *Model) sortChartsNoLock() {
+func (m *metrics) sortChartsNoLock() {
 	sort.Slice(m.allCharts, func(i, j int) bool {
 		return m.allCharts[i].Title() < m.allCharts[j].Title()
 	})
