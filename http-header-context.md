@@ -31,7 +31,9 @@ Go side need to pass the headers via proto when starting a run/stream/calling AP
 - [ ] figure out how to regenerate the proto
 
 ```bash
-nox -s proto-go
+# Thanks Tony, without this, grpc is building cpp code from source and failed...
+export GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1
+nox -s proto-python
 nox -s proto-go
 ```
 

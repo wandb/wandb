@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1cwandb/proto/wandb_base.proto\x12\x0ewandb_internal\"6\n\x0b_RecordInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\x12\x14\n\x0c_tracelog_id\x18\x64 \x01(\t\"!\n\x0c_RequestInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\"#\n\x0b_ResultInfo\x12\x14\n\x0c_tracelog_id\x18\x64 \x01(\tB\x1bZ\x19\x63ore/pkg/service_go_protob\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1cwandb/proto/wandb_base.proto\x12\x0ewandb_internal\"\xa1\x01\n\x0b_RecordInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\x12\x14\n\x0c_tracelog_id\x18\x64 \x01(\t\x12\x39\n\x07headers\x18\x65 \x03(\x0b\x32(.wandb_internal._RecordInfo.HeadersEntry\x1a.\n\x0cHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"!\n\x0c_RequestInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\"#\n\x0b_ResultInfo\x12\x14\n\x0c_tracelog_id\x18\x64 \x01(\tB\x1bZ\x19\x63ore/pkg/service_go_protob\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -22,10 +22,14 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'wandb.proto.wandb_base_pb2'
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z\031core/pkg/service_go_proto'
-  _globals['__RECORDINFO']._serialized_start=48
-  _globals['__RECORDINFO']._serialized_end=102
-  _globals['__REQUESTINFO']._serialized_start=104
-  _globals['__REQUESTINFO']._serialized_end=137
-  _globals['__RESULTINFO']._serialized_start=139
-  _globals['__RESULTINFO']._serialized_end=174
+  _globals['__RECORDINFO_HEADERSENTRY']._loaded_options = None
+  _globals['__RECORDINFO_HEADERSENTRY']._serialized_options = b'8\001'
+  _globals['__RECORDINFO']._serialized_start=49
+  _globals['__RECORDINFO']._serialized_end=210
+  _globals['__RECORDINFO_HEADERSENTRY']._serialized_start=164
+  _globals['__RECORDINFO_HEADERSENTRY']._serialized_end=210
+  _globals['__REQUESTINFO']._serialized_start=212
+  _globals['__REQUESTINFO']._serialized_end=245
+  _globals['__RESULTINFO']._serialized_start=247
+  _globals['__RESULTINFO']._serialized_end=282
 # @@protoc_insertion_point(module_scope)

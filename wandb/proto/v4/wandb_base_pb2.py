@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1cwandb/proto/wandb_base.proto\x12\x0ewandb_internal\"6\n\x0b_RecordInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\x12\x14\n\x0c_tracelog_id\x18\x64 \x01(\t\"!\n\x0c_RequestInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\"#\n\x0b_ResultInfo\x12\x14\n\x0c_tracelog_id\x18\x64 \x01(\tB\x1bZ\x19\x63ore/pkg/service_go_protob\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1cwandb/proto/wandb_base.proto\x12\x0ewandb_internal\"\xa1\x01\n\x0b_RecordInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\x12\x14\n\x0c_tracelog_id\x18\x64 \x01(\t\x12\x39\n\x07headers\x18\x65 \x03(\x0b\x32(.wandb_internal._RecordInfo.HeadersEntry\x1a.\n\x0cHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"!\n\x0c_RequestInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\"#\n\x0b_ResultInfo\x12\x14\n\x0c_tracelog_id\x18\x64 \x01(\tB\x1bZ\x19\x63ore/pkg/service_go_protob\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'wandb.proto.wandb_base_pb2', globals())
@@ -21,10 +21,14 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'Z\031core/pkg/service_go_proto'
-  __RECORDINFO._serialized_start=48
-  __RECORDINFO._serialized_end=102
-  __REQUESTINFO._serialized_start=104
-  __REQUESTINFO._serialized_end=137
-  __RESULTINFO._serialized_start=139
-  __RESULTINFO._serialized_end=174
+  __RECORDINFO_HEADERSENTRY._options = None
+  __RECORDINFO_HEADERSENTRY._serialized_options = b'8\001'
+  __RECORDINFO._serialized_start=49
+  __RECORDINFO._serialized_end=210
+  __RECORDINFO_HEADERSENTRY._serialized_start=164
+  __RECORDINFO_HEADERSENTRY._serialized_end=210
+  __REQUESTINFO._serialized_start=212
+  __REQUESTINFO._serialized_end=245
+  __RESULTINFO._serialized_start=247
+  __RESULTINFO._serialized_end=282
 # @@protoc_insertion_point(module_scope)
