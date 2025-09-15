@@ -65,7 +65,7 @@ class GCSHandler(StorageHandler):
         path, hit, cache_open = self._cache.check_etag_obj_path(
             url=URIStr(manifest_entry.ref),
             etag=ETag(manifest_entry.digest),
-            size=manifest_entry.size if manifest_entry.size is not None else 0,
+            size=manifest_entry.size or 0,
         )
         if hit:
             return path
