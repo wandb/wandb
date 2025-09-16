@@ -85,9 +85,9 @@ def main():
             raise ValueError("API key file not found")
 
     # Use the local proxy server for API
-    # wandb.login(host="http://localhost:8181", key=api_key)
+    wandb.login(host="http://localhost:8181", key=api_key)
     # Switch back to prod API to see urls before replacement by proxy
-    wandb.login(host="https://api.wandb.ai", key=api_key)
+    # wandb.login(host="https://api.wandb.ai", key=api_key)
     with with_object_storage_headers(
         {"X-My-Header-A": "valueA", "X-My-Header-B": "valueB"}
     ):

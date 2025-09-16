@@ -21,6 +21,7 @@ const (
 
 var (
 	s3URLPattern = regexp.MustCompile(`https?://[^/]*\.s3\.[^/]*\.amazonaws\.com[^"\s']*`)
+	gcsURLPattern = regexp.MustCompile(`https?://storage\.googleapis\.com/[^"\s']*`)
 	apiFilesURLPattern = regexp.MustCompile(`https://api\.wandb\.ai/files/[^"\s']*`)
 	allURLPattern = regexp.MustCompile(`https?://[^\s"']+`)
 )
@@ -233,7 +234,25 @@ func (p *APIProxy) replaceURLs(content string) string {
 			truncate(match, 80), truncate(newURL, 80))
 		return newURL
 	})
-	
+
+	// Replace GCS URLs
+	content = gcsURLPattern.ReplaceAllStringFunc(content, func(match string) string {
+		parsedURL, err := url.Parse(match)
+		if err != nil {
+			log.Printf("Error parsing GCS URL %s: %v", truncate(match, 80), err)
+			return match
+		}
+
+		newURL := FileProxyBase + parsedURL.Path
+		if parsedURL.RawQuery != "" {
+			newURL += "?" + parsedURL.RawQuery
+		}
+
+		log.Printf("Replacing GCS URL: %s... -> %s...",
+			truncate(match, 80), truncate(newURL, 80))
+		return newURL
+	})
+
 	// Then replace api.wandb.ai/files URLs
 	content = apiFilesURLPattern.ReplaceAllStringFunc(content, func(match string) string {
 		parsedURL, err := url.Parse(match)
@@ -252,7 +271,7 @@ func (p *APIProxy) replaceURLs(content string) string {
 			truncate(match, 80), truncate(newURL, 80))
 		return newURL
 	})
-	
+
 	return content
 }
 

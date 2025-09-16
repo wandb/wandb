@@ -14,9 +14,21 @@ const FileProxyPort = 8182
 type FileProxy struct {
 	client *http.Client
 	missingHeaderLogger *log.Logger
+	storagePrefix string
 }
 
 func NewFileProxy() *FileProxy {
+	// Check for required environment variable
+	storagePrefix := os.Getenv("WANDB_OBJECT_STORAGE_PREFIX")
+	if storagePrefix == "" {
+		log.Fatal("WANDB_OBJECT_STORAGE_PREFIX environment variable is not set.\n" +
+			"For S3: Set to full bucket URL (e.g., https://bucket-name.s3.region.amazonaws.com)\n" +
+			"For GCS: Set to domain only (e.g., https://storage.googleapis.com)")
+	}
+
+	// Remove trailing slash if present
+	storagePrefix = strings.TrimRight(storagePrefix, "/")
+
 	// Create logs directory if it doesn't exist
 	os.MkdirAll("logs", 0755)
 
@@ -34,6 +46,7 @@ func NewFileProxy() *FileProxy {
 			},
 		},
 		missingHeaderLogger: missingHeaderLogger,
+		storagePrefix: storagePrefix,
 	}
 }
 
@@ -178,9 +191,11 @@ func (p *FileProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *FileProxy) reconstructS3URL(path string, rawQuery string) string {
-	baseURL := "https://pinglei-byob-us-west-2.s3.us-west-2.amazonaws.com"
+	// For GCS, the storage prefix should just be the domain (https://storage.googleapis.com)
+	// and the path already includes the bucket name
+	// For S3, the storage prefix includes the bucket in the domain (https://bucket.s3.region.amazonaws.com)
 
-	s3URL := baseURL + path
+	s3URL := p.storagePrefix + path
 	if rawQuery != "" {
 		s3URL += "?" + rawQuery
 	}
@@ -194,7 +209,7 @@ func main() {
 
 	log.Printf("Starting S3 file proxy server on http://%s", addr)
 	log.Printf("Will print all HTTP headers received")
-	log.Printf("Proxying to S3 with original presigned URLs")
+	log.Printf("Proxying to: %s", proxy.storagePrefix)
 
 	if err := http.ListenAndServe(addr, proxy); err != nil {
 		log.Fatalf("Server failed: %v", err)

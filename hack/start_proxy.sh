@@ -1,5 +1,21 @@
 #!/bin/bash
 
+# Check if WANDB_OBJECT_STORAGE_PREFIX is set
+if [ -z "$WANDB_OBJECT_STORAGE_PREFIX" ]; then
+    echo "Error: WANDB_OBJECT_STORAGE_PREFIX environment variable is not set."
+    echo ""
+    echo "Please set it to the object storage URL prefix:"
+    echo "  For S3 (includes bucket in domain):"
+    echo "    export WANDB_OBJECT_STORAGE_PREFIX=https://pinglei-byob-us-west-2.s3.us-west-2.amazonaws.com"
+    echo "  For GCS (domain only, bucket is in path):"
+    echo "    export WANDB_OBJECT_STORAGE_PREFIX=https://storage.googleapis.com"
+    echo ""
+    echo "Then run this script again."
+    exit 1
+fi
+
+echo "Using object storage prefix: $WANDB_OBJECT_STORAGE_PREFIX"
+
 # Kill any existing proxy servers
 echo "Killing any existing proxy servers..."
 ./kill_proxy.sh
@@ -14,9 +30,9 @@ API_PID=$!
 echo "API proxy started with PID: $API_PID"
 echo "Logs: logs/api_proxy.log"
 
-# Start file proxy with logging  
+# Start file proxy with logging
 echo "Starting file proxy on port 8182..."
-go run cmd/ws3proxy/main.go > logs/file_proxy.log 2>&1 &
+WANDB_OBJECT_STORAGE_PREFIX="$WANDB_OBJECT_STORAGE_PREFIX" go run cmd/ws3proxy/main.go > logs/file_proxy.log 2>&1 &
 FILE_PID=$!
 echo "File proxy started with PID: $FILE_PID"
 echo "Logs: logs/file_proxy.log"

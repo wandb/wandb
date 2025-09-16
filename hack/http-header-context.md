@@ -17,6 +17,7 @@ Start the proxy servers and check the logs.
 File proxy would print all requests missing the `X-My-Header-*` headers into `logs/file_proxy_missing_header.log`.
 
 ```bash
+export WANDB_OBJECT_STORAGE_PREFIX=https://storage.googleapis.com/wandb-artifacts-prod
 ./start_proxy.sh
 
 uv pip install -e ~/go/src/github.com/wandb/wandb
@@ -194,6 +195,8 @@ Two proxy servers
 
 In API proxy, it replaces s3/gcs url to the `http://localhost:8182/` url.
 In file proxy, it replace the url back to the original s3/gcs url.
+
+For claude:
 
 Update the proxy servers so they supports configuring the object storage url.
 Right now it is hard coded to `https://pinglei-byob-us-west-2.s3.us-west-2.amazonaws.com` but I want to make it configurable in the file proxy server so `https://storage.googleapis.com/wandb-artifacts-prod` can also be used.
