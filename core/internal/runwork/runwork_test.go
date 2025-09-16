@@ -87,7 +87,9 @@ func TestCloseAfterClose(t *testing.T) {
 
 func TestRaceAddWorkClose(t *testing.T) {
 	for range 50 {
-		rw := runwork.New(0, observabilitytest.NewTestLogger(t))
+		// Don't use a test logger since AddWork() can emit a warning
+		// and this test doesn't wait for goroutines to exit.
+		rw := runwork.New(0, observability.NewNoOpLogger())
 
 		go func() {
 			rw.SetDone()
