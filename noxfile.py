@@ -761,7 +761,7 @@ def importer_tests(session: nox.Session, importer: str):
     )
 
 
-@nox.session(name="wandb-core-size-check", python="3.10")
+@nox.session(name="wandb-core-size-check", python="3.12")
 def wandb_core_size_check(session: nox.Session) -> None:
     """Compare wandb-core binary size against main branch."""
     # Build and install main branch version
