@@ -623,6 +623,10 @@ message Request {
     // Requests information about tasks the service is performing.
     OperationStatsRequest operations = 82;
 
+    // Requests the system monitor to attempt capturing metadata about the compute environment
+	  // for jobs running on CoreWeave infrastructure.
+    ProbeCoreWeaveMetadataRequest coreweave_metadata = 83;
+
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -1304,6 +1308,8 @@ message CoreWeaveInfo {
   string org_id = 2;
   string region = 3;
 }
+
+message ProbeCoreWeaveMetadataRequest {}
 
 // EnvironmentRecord stores a snapshot of the system, hardware, software,
 // and execution parameters captured at a run writer initialization.

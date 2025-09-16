@@ -535,6 +535,19 @@ func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
 
 	s.updateSettings()
 
+	// Send internal request to probe CoreWeave metadata, which requires the correct entity.
+	s.runWork.AddWork(runwork.WorkRecord{
+		Record: &spb.Record{
+			RecordType: &spb.Record_Request{
+				Request: &spb.Request{
+					RequestType: &spb.Request_CoreweaveMetadata{
+						CoreweaveMetadata: &spb.ProbeCoreWeaveMetadataRequest{},
+					},
+				},
+			},
+		},
+	})
+
 	runPath := upserter.RunPath()
 
 	if s.fileStream != nil {

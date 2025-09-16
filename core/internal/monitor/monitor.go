@@ -65,6 +65,13 @@ type SystemMonitor struct {
 	// The list of resources to monitor.
 	resources []Resource
 
+	// CoreWeave metadata resource for capturing metadata about the compute environment
+	// for jobs running on CoreWeave infrastructure.
+	//
+	// It is stored separately from the other resources as it is only probed after
+	// the entity is updated upon a run start with the information from the server.
+	coreWeaveMetadata *CoreWeaveMetadata
+
 	// extraWork accepts outgoing messages for the run.
 	extraWork runwork.ExtraWork
 
@@ -182,12 +189,11 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 		CoreWeaveMetadataParams{
 			GraphqlClient: sm.graphqlClient,
 			Logger:        sm.logger,
-			Entity:        sm.settings.GetEntity(),
 			BaseURL:       sm.settings.GetStatsCoreWeaveMetadataBaseURL(),
 			Endpoint:      sm.settings.GetStatsCoreWeaveMetadataEndpoint(),
 		},
 	); cwm != nil {
-		sm.resources = append(sm.resources, cwm)
+		sm.coreWeaveMetadata = cwm
 	} else if err != nil {
 		sm.logger.CaptureError(
 			fmt.Errorf("monitor: failed to initialize CoreWeave metadata resource: %v", err))
@@ -320,6 +326,28 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 	}
 
 	return &spb.Record{RecordType: &spb.Record_Environment{Environment: e}}
+}
+
+// ProbeCoreWeave collects metadata about the CoreWeave compute environment.
+//
+// Tiggered internally after the entity is (potentially) updated
+// with the information from the W&B server.
+func (sm *SystemMonitor) ProbeCoreWeave() {
+	if sm.coreWeaveMetadata == nil || sm.graphqlClient == nil {
+		return
+	}
+	sm.coreWeaveMetadata.entity = sm.settings.GetEntity()
+
+	// Probe and send the environment record
+	if rec := sm.coreWeaveMetadata.Probe(context.Background()); rec != nil {
+		record := &spb.Record{
+			RecordType: &spb.Record_Environment{Environment: rec},
+		}
+		sm.extraWork.AddWorkOrCancel(
+			sm.ctx.Done(),
+			runwork.WorkFromRecord(record),
+		)
+	}
 }
 
 // Start begins the monitoring process for all resources and probes system information.

@@ -341,6 +341,8 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestRunFinishWithoutExit(record)
 	case *spb.Request_Operations:
 		h.handleRequestOperations(record)
+	case *spb.Request_CoreweaveMetadata:
+		h.handleRequestProbeCoreWeave()
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
@@ -507,6 +509,10 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	}
 
 	h.respond(record, &spb.Response{})
+}
+
+func (h *Handler) handleRequestProbeCoreWeave() {
+	h.systemMonitor.ProbeCoreWeave()
 }
 
 func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.PythonPackagesRequest) {
