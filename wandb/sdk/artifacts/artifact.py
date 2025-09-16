@@ -66,6 +66,7 @@ from wandb.util import (
     alias_is_version_index,
     artifact_to_json,
     fsync_open,
+    get_object_storage_headers,
     json_dumps_safer,
     uri_from_path,
     vendor_setup,
@@ -2601,7 +2602,7 @@ class Artifact:
         return None
 
     def _load_manifest(self, url: str) -> ArtifactManifest:
-        with requests.get(url) as response:
+        with requests.get(url, headers=get_object_storage_headers()) as response:
             response.raise_for_status()
             return ArtifactManifest.from_manifest_json(response.json())
 

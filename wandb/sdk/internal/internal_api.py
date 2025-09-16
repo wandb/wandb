@@ -49,6 +49,7 @@ from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeatu
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+from wandb.util import get_object_storage_headers
 
 from ..lib import credentials, retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -325,7 +326,11 @@ class Api:
         )
         self._current_run_id: Optional[str] = None
         self._file_stream_api = None
+        self._download_file_session = requests.Session()
         self._upload_file_session = requests.Session()
+        # Inject headers for object storage
+        self._download_file_session.headers.update(get_object_storage_headers())
+        self._upload_file_session.headers.update(get_object_storage_headers())
         if self.FILE_PUSHER_TIMEOUT:
             self._upload_file_session.put = functools.partial(  # type: ignore
                 self._upload_file_session.put,
@@ -1300,7 +1305,7 @@ class Api:
                 for file_edge in run_obj["files"]["edges"]:
                     name = file_edge["node"]["name"]
                     url = file_edge["node"]["directUrl"]
-                    res = requests.get(url)
+                    res = self._download_file_session.get(url)
                     res.raise_for_status()
                     if name == METADATA_FNAME:
                         metadata = res.json()
@@ -2883,7 +2888,7 @@ class Api:
         elif _thread_local_api_settings.cookies is None:
             auth = ("api", self.api_key or "")
 
-        response = requests.get(
+        response = self._download_file_session.get(
             url,
             auth=auth,
             cookies=_thread_local_api_settings.cookies or {},

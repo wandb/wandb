@@ -1,11 +1,11 @@
 # HTTP Header Context
 
-Use python context manager to set headers and pass to go core.
+Use Python context manager to set headers and pass them to Go core.
 
 ## Background
 
-Instead of using environment variable like https://github.com/wandb/wandb/pull/10510/files
-We want use context manager to set headers so it looks like this:
+Instead of using environment variables like https://github.com/wandb/wandb/pull/10510/files,
+we want to use a context manager to set headers so it looks like this:
 
 ```python
 # We can pass other things if we want to
@@ -22,21 +22,21 @@ with wandb.object_storage_context(headers={"foo": "bar"}):
 ```
 
 Related python PR https://github.com/wandb/wandb/pull/10417/files for graphql client.
-We need to do similar thing for downloading/uploading file
+We need to do something similar for downloading/uploading files.
 
-Go side need to pass the headers via proto when starting a run/stream/calling API directly.
+The Go side needs to pass the headers via proto when starting a run/stream/calling API directly.
 
 ## Proto
 
 - [x] figure out how to regenerate the proto
 - [x] where do we send the proto message?
-  - For now I just update `ServiceConnection.inform_init` to pass the headers when creating a new stream, it will inject into file transfer manager and goes to all the file transfers.
-- [x] Actually might just set it in settings, otherwise we need to modify the stream injection logic and pass a new parameter all around.
+  - For now, I just update `ServiceConnection.inform_init` to pass the headers when creating a new stream. It will inject them into the file transfer manager and apply them to all file transfers.
+- [x] Actually, we might just set it in settings; otherwise, we need to modify the stream injection logic and pass a new parameter throughout.
 
 ### Generate proto
 
 ```bash
-# Thanks Tony, without this, grpc is building cpp code from source and failed...
+# Thanks Tony, without this, grpc builds cpp code from source and fails...
 export GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1
 nox -s proto-python
 nox -s proto-go
@@ -59,14 +59,14 @@ message _RecordInfo {
 
 ### x_extra_http_headers
 
-There is actually a `x_extra_http_headers` in settings, not sure if it is every used ...
+There is actually an `x_extra_http_headers` in settings, not sure if it is ever used...
 
 ```proto
   // Additional headers to add to all outgoing HTTP requests.
   MapStringKeyStringValue x_extra_http_headers = 14;
 ```
 
-Seems it is used for graphql, filestream
+It seems to be used for GraphQL and filestream
 
 https://github.com/wandb/wandb/blob/be8c808bd8ce7d6db6a5e2c703ae82018a5cf5c0/core/internal/stream/stream_init.go#L107-L123
 
@@ -94,10 +94,10 @@ if settings.IsEnableServerSideDerivedSummary() {
 ```
 
 Updated file transfer logic to use the headers from settings.
-It works but the main issue is it is mixed for both wandb api and object storage.
-We might consider split them in the proto. Though all these proto
-should be internal and does not impact the public API interface.
-Unless we allow user to configure the settings via a python settings class.
+It works, but the main issue is that headers are mixed for both W&B API and object storage.
+We might consider splitting them in the proto. Though all these proto definitions
+should be internal and do not impact the public API interface,
+unless we allow users to configure the settings via a Python settings class.
 
 ## Python
 
