@@ -163,7 +163,6 @@ class ArtifactManifestEntry(ArtifactsBase):
         root: str | None = None,
         skip_cache: bool | None = None,
         executor: concurrent.futures.Executor | None = None,
-        multipart: bool | None = None,
     ) -> FilePathStr:
         """Download this artifact entry to the specified root path.
 
@@ -205,11 +204,7 @@ class ArtifactManifestEntry(ArtifactsBase):
             )
         else:
             cache_path = artifact.manifest.storage_policy.load_file(
-                artifact,
-                self,
-                dest_path=override_cache_path,
-                executor=executor,
-                multipart=multipart,
+                artifact, self, dest_path=override_cache_path, executor=executor
             )
 
         # Determine the final path

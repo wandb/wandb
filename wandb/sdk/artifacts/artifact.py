@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import atexit
-import concurrent.futures
 import contextlib
 import json
 import logging
@@ -15,10 +14,10 @@ import stat
 import tempfile
 import time
 from collections import deque
+from concurrent.futures import Executor, ThreadPoolExecutor, as_completed
 from copy import copy
 from dataclasses import asdict, dataclass, replace
 from datetime import timedelta
-from functools import partial
 from itertools import filterfalse
 from pathlib import Path, PurePosixPath
 from typing import (
@@ -50,6 +49,7 @@ from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk import wandb_setup
+from wandb.sdk.artifacts.storage_policies._multipart import should_multipart_download
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -2045,24 +2045,14 @@ class Artifact:
 
         download_logger = ArtifactDownloadLogger(nfiles=nfiles)
 
-        def _download_entry(
-            entry: ArtifactManifestEntry,
-            executor: concurrent.futures.Executor,
-            api_key: str | None,
-            cookies: dict | None,
-            headers: dict | None,
-        ) -> None:
-            _thread_local_api_settings.api_key = api_key
-            _thread_local_api_settings.cookies = cookies
-            _thread_local_api_settings.headers = headers
-
+        def _download_entry(entry: ArtifactManifestEntry, executor: Executor) -> None:
+            multipart_executor = (
+                executor
+                if should_multipart_download(entry.size, override=multipart)
+                else None
+            )
             try:
-                entry.download(
-                    root,
-                    skip_cache=skip_cache,
-                    executor=executor,
-                    multipart=multipart,
-                )
+                entry.download(root, skip_cache=skip_cache, executor=multipart_executor)
             except FileNotFoundError as e:
                 if allow_missing_references:
                     wandb.termwarn(str(e))
@@ -2073,15 +2063,23 @@ class Artifact:
                 return
             download_logger.notify_downloaded()
 
-        with concurrent.futures.ThreadPoolExecutor(64) as executor:
-            download_entry = partial(
-                _download_entry,
-                executor=executor,
-                api_key=_thread_local_api_settings.api_key,
-                cookies=_thread_local_api_settings.cookies,
-                headers=_thread_local_api_settings.headers,
-            )
+        def _init_thread(
+            api_key: str | None, cookies: dict | None, headers: dict | None
+        ) -> None:
+            """Initialize the thread-local API settings in the CURRENT thread."""
+            _thread_local_api_settings.api_key = api_key
+            _thread_local_api_settings.cookies = cookies
+            _thread_local_api_settings.headers = headers
 
+        with ThreadPoolExecutor(
+            max_workers=64,
+            initializer=_init_thread,
+            initargs=(
+                _thread_local_api_settings.api_key,
+                _thread_local_api_settings.cookies,
+                _thread_local_api_settings.headers,
+            ),
+        ) as executor:
             batch_size = env.get_artifact_fetch_file_url_batch_size()
 
             active_futures = set()
@@ -2102,7 +2100,9 @@ class Artifact:
                     #     continue
                     entry._download_url = node.direct_url
                     if (not path_prefix) or entry.path.startswith(str(path_prefix)):
-                        active_futures.add(executor.submit(download_entry, entry))
+                        active_futures.add(
+                            executor.submit(_download_entry, entry, executor=executor)
+                        )
 
                 # Wait for download threads to catch up.
                 #
@@ -2117,14 +2117,14 @@ class Artifact:
                 #   Consider this for a future change, or (depending on risk and risk tolerance)
                 #   managing this logic via asyncio instead, if viable.
                 if len(active_futures) > batch_size:
-                    for future in concurrent.futures.as_completed(active_futures):
+                    for future in as_completed(active_futures):
                         future.result()  # check for errors
                         active_futures.remove(future)
                         if len(active_futures) <= batch_size:
                             break
 
             # Check for errors.
-            for future in concurrent.futures.as_completed(active_futures):
+            for future in as_completed(active_futures):
                 future.result()
 
         if log:
