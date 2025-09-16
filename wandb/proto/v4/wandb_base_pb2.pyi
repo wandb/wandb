@@ -3,9 +3,7 @@
 isort:skip_file
 """
 import builtins
-import collections.abc
 import google.protobuf.descriptor
-import google.protobuf.internal.containers
 import google.protobuf.message
 import sys
 
@@ -24,37 +22,17 @@ class _RecordInfo(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    @typing_extensions.final
-    class HeadersEntry(google.protobuf.message.Message):
-        DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-        KEY_FIELD_NUMBER: builtins.int
-        VALUE_FIELD_NUMBER: builtins.int
-        key: builtins.str
-        value: builtins.str
-        def __init__(
-            self,
-            *,
-            key: builtins.str = ...,
-            value: builtins.str = ...,
-        ) -> None: ...
-        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
-
     STREAM_ID_FIELD_NUMBER: builtins.int
     _TRACELOG_ID_FIELD_NUMBER: builtins.int
-    HEADERS_FIELD_NUMBER: builtins.int
     stream_id: builtins.str
     _tracelog_id: builtins.str
-    @property
-    def headers(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]: ...
     def __init__(
         self,
         *,
         stream_id: builtins.str = ...,
         _tracelog_id: builtins.str = ...,
-        headers: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_tracelog_id", b"_tracelog_id", "headers", b"headers", "stream_id", b"stream_id"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_tracelog_id", b"_tracelog_id", "stream_id", b"stream_id"]) -> None: ...
 
 global____RecordInfo = _RecordInfo
 

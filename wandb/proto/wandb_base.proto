@@ -10,8 +10,6 @@ option go_package = "core/pkg/service_go_proto";
 message _RecordInfo {
   string stream_id = 1;
   string _tracelog_id = 100;
-  // FIXME: remove it, we already have x_extra_http_headers in Settings
-  map<string, string> headers = 101;
 }
 
 message _RequestInfo {

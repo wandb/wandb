@@ -33,12 +33,31 @@ Go side need to pass the headers via proto when starting a run/stream/calling AP
   - For now I just update `ServiceConnection.inform_init` to pass the headers when creating a new stream, it will inject into file transfer manager and goes to all the file transfers.
 - [x] Actually might just set it in settings, otherwise we need to modify the stream injection logic and pass a new parameter all around.
 
+### Generate proto
+
 ```bash
 # Thanks Tony, without this, grpc is building cpp code from source and failed...
 export GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1
 nox -s proto-python
 nox -s proto-go
 ```
+
+### RecordInfo
+
+```proto
+
+/*
+ * _RecordInfo, _RequestInfo: extra info for all records and requests
+ */
+message _RecordInfo {
+  string stream_id = 1;
+  string _tracelog_id = 100;
+  // FIXME: remove it, we already have x_extra_http_headers in Settings
+  // map<string, string> headers = 101;
+}
+```
+
+### x_extra_http_headers
 
 There is actually a `x_extra_http_headers` in settings, not sure if it is every used ...
 
@@ -74,8 +93,8 @@ if settings.IsEnableServerSideDerivedSummary() {
 
 ```
 
-Using headers from `x_extra_http_headers` in settings works.
-The main issue is it is mixed for both wandb api and object storage.
+Updated file transfer logic to use the headers from settings.
+It works but the main issue is it is mixed for both wandb api and object storage.
 We might consider split them in the proto. Though all these proto
 should be internal and does not impact the public API interface.
 Unless we allow user to configure the settings via a python settings class.
