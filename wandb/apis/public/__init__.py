@@ -1,4 +1,4 @@
-__all__ = [
+__all__ = (
     "Api",
     "RetryingClient",  # doc:exclude
     "requests",  # doc:exclude
@@ -37,7 +37,7 @@ __all__ = [
     "Member",
     "Team",
     "User",
-]
+)
 
 
 from wandb.apis.public.api import Api, RetryingClient, requests
