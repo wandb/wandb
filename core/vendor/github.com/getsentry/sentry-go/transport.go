@@ -262,17 +262,6 @@ func getRequestFromEvent(ctx context.Context, event *Event, dsn *Dsn) (r *http.R
 	)
 }
 
-func categoryFor(eventType string) ratelimit.Category {
-	switch eventType {
-	case "":
-		return ratelimit.CategoryError
-	case transactionType:
-		return ratelimit.CategoryTransaction
-	default:
-		return ratelimit.Category(eventType)
-	}
-}
-
 // ================================
 // HTTPTransport
 // ================================
@@ -381,7 +370,7 @@ func (t *HTTPTransport) SendEventWithContext(ctx context.Context, event *Event) 
 		return
 	}
 
-	category := categoryFor(event.Type)
+	category := event.toCategory()
 
 	if t.disabled(category) {
 		return
@@ -653,7 +642,7 @@ func (t *HTTPSyncTransport) SendEventWithContext(ctx context.Context, event *Eve
 		return
 	}
 
-	if t.disabled(categoryFor(event.Type)) {
+	if t.disabled(event.toCategory()) {
 		return
 	}
 

@@ -458,7 +458,7 @@ github.com/envoyproxy/protoc-gen-validate/validate
 # github.com/felixge/httpsnoop v1.0.4
 ## explicit; go 1.13
 github.com/felixge/httpsnoop
-# github.com/getsentry/sentry-go v0.35.2
+# github.com/getsentry/sentry-go v0.35.3
 ## explicit; go 1.22
 github.com/getsentry/sentry-go
 github.com/getsentry/sentry-go/attribute
