@@ -24,6 +24,8 @@ type DefaultFileTransfer struct {
 
 	// fileTransferStats is used to track upload/download progress
 	fileTransferStats FileTransferStats
+
+	extraHeaders map[string]string
 }
 
 // NewDefaultFileTransfer creates a new fileTransfer
@@ -31,11 +33,13 @@ func NewDefaultFileTransfer(
 	client *retryablehttp.Client,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
+	extraHeaders map[string]string,
 ) *DefaultFileTransfer {
 	fileTransfer := &DefaultFileTransfer{
 		logger:            logger,
 		client:            client,
 		fileTransferStats: fileTransferStats,
+		extraHeaders:      extraHeaders,
 	}
 	return fileTransfer
 }
@@ -81,6 +85,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	if task.Context != nil {
 		req = req.WithContext(task.Context)
 	}
+	ft.addHeaders(req)
 	resp, err := ft.client.Do(req)
 	if err != nil {
 		return err
@@ -111,7 +116,12 @@ func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	}
 
 	// TODO: redo it to use the progress writer, to track the download progress
-	resp, err := ft.client.Get(task.Url)
+	req, err := retryablehttp.NewRequest(http.MethodGet, task.Url, nil)
+	if err != nil {
+		return err
+	}
+	ft.addHeaders(req)
+	resp, err := ft.client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -222,6 +232,13 @@ func getUploadRequestBody(
 		)
 	}
 	return requestBody, nil
+}
+
+func (ft *DefaultFileTransfer) addHeaders(req *retryablehttp.Request) {
+	ft.logger.Info("file transfer: adding headers", "headers", ft.extraHeaders)
+	for key, value := range ft.extraHeaders {
+		req.Header.Set(key, value)
+	}
 }
 
 type ProgressReader struct {

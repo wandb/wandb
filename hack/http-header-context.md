@@ -29,7 +29,9 @@ Go side need to pass the headers via proto when starting a run/stream/calling AP
 ## Proto
 
 - [x] figure out how to regenerate the proto
-- [ ] where do we send the proto message?
+- [x] where do we send the proto message?
+  - For now I just update `ServiceConnection.inform_init` to pass the headers when creating a new stream, it will inject into file transfer manager and goes to all the file transfers.
+- [x] Actually might just set it in settings, otherwise we need to modify the stream injection logic and pass a new parameter all around.
 
 ```bash
 # Thanks Tony, without this, grpc is building cpp code from source and failed...
@@ -37,6 +39,46 @@ export GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1
 nox -s proto-python
 nox -s proto-go
 ```
+
+There is actually a `x_extra_http_headers` in settings, not sure if it is every used ...
+
+```proto
+  // Additional headers to add to all outgoing HTTP requests.
+  MapStringKeyStringValue x_extra_http_headers = 14;
+```
+
+Seems it is used for graphql, filestream
+
+https://github.com/wandb/wandb/blob/be8c808bd8ce7d6db6a5e2c703ae82018a5cf5c0/core/internal/stream/stream_init.go#L107-L123
+
+```go
+// stream_init.go
+
+// func NewGraphQLClient
+graphqlHeaders := map[string]string{
+    "X-WANDB-USERNAME":   settings.GetUserName(),
+    "X-WANDB-USER-EMAIL": settings.GetEmail(),
+}
+maps.Copy(graphqlHeaders, settings.GetExtraHTTPHeaders())
+
+// func NewFileStream
+fileStreamHeaders := map[string]string{}
+maps.Copy(fileStreamHeaders, settings.GetExtraHTTPHeaders())
+if settings.IsSharedMode() {
+    fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+    fileStreamHeaders["X-WANDB-ASYNC-CLIENT-ID"] = string(clientID)
+}
+if settings.IsEnableServerSideDerivedSummary() {
+    fileStreamHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
+}
+
+```
+
+Using headers from `x_extra_http_headers` in settings works.
+The main issue is it is mixed for both wandb api and object storage.
+We might consider split them in the proto. Though all these proto
+should be internal and does not impact the public API interface.
+Unless we allow user to configure the settings via a python settings class.
 
 ## Python
 

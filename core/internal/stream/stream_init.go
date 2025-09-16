@@ -228,10 +228,16 @@ func NewFileTransferManager(
 	fileTransferRetryClient.RetryWaitMax = filetransfer.DefaultRetryWaitMax
 	fileTransferRetryClient.HTTPClient.Timeout = filetransfer.DefaultNonRetryTimeout
 	fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
+	// For now, copy all headers
+	// TODO: we should consider add a different field in settings
+	// to distinguish headers applied to wandb backend and storage backend.
+	// TODO: there is also Proxy-Authorization header ... can we consider using that?
+	extraHeaders := settings.GetExtraHTTPHeaders()
 	fileTransfers := filetransfer.NewFileTransfers(
 		fileTransferRetryClient,
 		logger,
 		fileTransferStats,
+		extraHeaders,
 	)
 
 	// Set the Proxy function on the HTTP client.

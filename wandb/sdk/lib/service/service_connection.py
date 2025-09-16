@@ -148,7 +148,10 @@ class ServiceConnection:
         request.settings.CopyFrom(settings)
         request._info.stream_id = run_id
         print("inform_init object storage headers", get_object_storage_headers())
-        request._info.headers.update(get_object_storage_headers())
+        # Update the map field properly - x_extra_http_headers.value is the actual map
+        headers = get_object_storage_headers()
+        if headers:
+            request.settings.x_extra_http_headers.value.update(headers)
         self._client.publish(spb.ServerRequest(inform_init=request))
 
     def inform_finish(self, run_id: str) -> None:

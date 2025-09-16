@@ -356,8 +356,9 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	settings := settings.From(msg.GetSettings())
 
 	streamId := msg.GetXInfo().GetStreamId()
-	headers := msg.GetXInfo().GetHeaders()
-	slog.Info("handleInformInit: received", "streamId", streamId, "id", nc.id, "headers", headers)
+	// headers := msg.GetXInfo().GetHeaders()
+	// NOTE: we changed to use existing headers from settings instead of creating new one.
+	slog.Info("handleInformInit: received", "streamId", streamId, "id", nc.id, "headers", settings.GetExtraHTTPHeaders())
 
 	// if we are in offline mode, we don't want to send any data to sentry
 	var sentryClient *sentry_ext.Client
