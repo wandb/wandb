@@ -32,7 +32,7 @@ func New() *Settings {
 
 // Parses the Settings proto into a Settings object.
 func From(proto *spb.Settings) *Settings {
-	return &Settings{Proto: proto}
+	return &Settings{mu: &sync.Mutex{}, Proto: proto}
 }
 
 // Ensures the APIKey is set if it needs to be.
