@@ -146,17 +146,28 @@ func (cwm *CoreWeaveMetadata) Probe(ctx context.Context) *spb.EnvironmentRecord 
 }
 
 // Get fetches and parses metadata from the CoreWeave instance metadata endpoint.
-//
-//gocyclo:ignore
 func (cwm *CoreWeaveMetadata) Get() (*CoreWeaveInstanceData, error) {
-	baseURL, err := url.Parse(cwm.settings.GetStatsCoreWeaveMetadataBaseURL())
+	resp, err := cwm.fetchMetadata()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse coreweave metadata baseurl: %w", err)
+		return nil, err
 	}
-	endpoint := cwm.settings.GetStatsCoreWeaveMetadataEndpoint()
+	defer cwm.closeResponse(resp)
 
-	fullURL := baseURL.JoinPath(endpoint).String()
-	req, err := retryablehttp.NewRequest("GET", fullURL, nil) // Use fullURL here
+	if err := cwm.validateResponse(resp); err != nil {
+		return nil, err
+	}
+
+	return cwm.parseResponse(resp.Body)
+}
+
+// fetchMetadata makes the HTTP request to the CoreWeave metadata endpoint.
+func (cwm *CoreWeaveMetadata) fetchMetadata() (*http.Response, error) {
+	fullURL, err := cwm.buildURL()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build URL: %w", err)
+	}
+
+	req, err := retryablehttp.NewRequest("GET", fullURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -167,89 +178,121 @@ func (cwm *CoreWeaveMetadata) Get() (*CoreWeaveInstanceData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("request to %s failed: %w", fullURL, err)
 	}
-	defer func() {
-		if resp != nil && resp.Body != nil {
-			_, err := io.Copy(io.Discard, resp.Body) // Read and discard remaining body
-			if err != nil {
-				cwm.logger.Error("coreweave metadata: error discarding response body", "error", err)
-			}
-			err = resp.Body.Close()
-			if err != nil {
-				cwm.logger.Error("coreweave metadata: error closing response body", "error", err)
-			}
-		}
-	}()
 
-	if resp == nil { // Should not happen if err is nil, but good for defensive programming.
+	if resp == nil {
 		return nil, fmt.Errorf("could not fetch metadata from endpoint %s (nil response)", fullURL)
 	}
 
 	cwm.logger.Debug("coreweave metadata: received response", "url", fullURL, "status_code", resp.StatusCode)
+	return resp, nil
+}
 
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body) // Attempt to read body for error context
-		errMsg := fmt.Sprintf("unexpected status code %d from %s. Body: %s", resp.StatusCode, fullURL, string(bodyBytes))
-		return nil, fmt.Errorf("%s", errMsg)
+// buildURL constructs the full URL for the metadata endpoint.
+func (cwm *CoreWeaveMetadata) buildURL() (string, error) {
+	baseURL, err := url.Parse(cwm.settings.GetStatsCoreWeaveMetadataBaseURL())
+	if err != nil {
+		return "", fmt.Errorf("failed to parse coreweave metadata baseurl: %w", err)
 	}
 
-	data := &CoreWeaveInstanceData{}
-	val := reflect.ValueOf(data).Elem()
-	typeOfT := val.Type()
+	endpoint := cwm.settings.GetStatsCoreWeaveMetadataEndpoint()
+	return baseURL.JoinPath(endpoint).String(), nil
+}
 
-	// Create a map for faster field lookup by meta tag
-	fieldMap := make(map[string]reflect.Value)
-	for i := range val.NumField() {
-		field := typeOfT.Field(i)
-		tag := field.Tag.Get("meta")
-		if tag != "" {
-			fieldMap[tag] = val.Field(i)
+// validateResponse checks if the HTTP response is valid.
+func (cwm *CoreWeaveMetadata) validateResponse(resp *http.Response) error {
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status code %d. Body: %s", resp.StatusCode, string(bodyBytes))
+	}
+	return nil
+}
+
+// closeResponse properly closes the response body.
+func (cwm *CoreWeaveMetadata) closeResponse(resp *http.Response) {
+	if resp != nil && resp.Body != nil {
+		_, err := io.Copy(io.Discard, resp.Body)
+		if err != nil {
+			cwm.logger.Error("coreweave metadata: error discarding response body", "error", err)
+		}
+		if err := resp.Body.Close(); err != nil {
+			cwm.logger.Error("coreweave metadata: error closing response body", "error", err)
 		}
 	}
+}
 
-	scanner := bufio.NewScanner(resp.Body)
+// parseResponse parses the metadata from the response body.
+func (cwm *CoreWeaveMetadata) parseResponse(body io.Reader) (*CoreWeaveInstanceData, error) {
+	data := &CoreWeaveInstanceData{}
+	fieldMap := cwm.buildFieldMap(data)
+
+	scanner := bufio.NewScanner(body)
 	lineNumber := 0
+
 	for scanner.Scan() {
 		lineNumber++
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue // Skip empty lines
-		}
-
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) != 2 {
-			cwm.logger.Debug("coreweave metadata: malformed line", "line_number", lineNumber, "line_content", line)
-			continue // Skip malformed lines
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		if field, ok := fieldMap[key]; ok && field.CanSet() {
-			switch field.Kind() {
-			case reflect.String:
-				field.SetString(value)
-			case reflect.Bool:
-				bVal, err := strconv.ParseBool(value)
-				if err == nil {
-					field.SetBool(bVal)
-				} else {
-					cwm.logger.Debug("coreweave metadata: could not parse bool", "key", key, "value", value, "error", err)
-				}
-			default:
-				cwm.logger.Debug("coreweave metadata: unhandled field type", "key", key, "type", field.Kind())
-			}
-		} else {
-			cwm.logger.Debug("coreweave metadata: unknown or unsettable field", "key", key, "value", value)
-		}
+		cwm.parseLine(scanner.Text(), lineNumber, fieldMap)
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading response body from %s: %w", fullURL, err)
+		return nil, fmt.Errorf("error reading response body: %w", err)
 	}
 
-	if cwm.logger != nil {
-		cwm.logger.Debug("coreweave metadata: successfully parsed metadata", "data", data)
-	}
-
+	cwm.logger.Debug("coreweave metadata: successfully parsed metadata", "data", data)
 	return data, nil
+}
+
+// buildFieldMap creates a map of field names to reflection values for faster lookup.
+func (cwm *CoreWeaveMetadata) buildFieldMap(data *CoreWeaveInstanceData) map[string]reflect.Value {
+	fieldMap := make(map[string]reflect.Value)
+	val := reflect.ValueOf(data).Elem()
+	typeOfT := val.Type()
+
+	for i := range val.NumField() {
+		field := typeOfT.Field(i)
+		if tag := field.Tag.Get("meta"); tag != "" {
+			fieldMap[tag] = val.Field(i)
+		}
+	}
+	return fieldMap
+}
+
+// parseLine parses a single line of metadata and updates the corresponding field.
+func (cwm *CoreWeaveMetadata) parseLine(line string, lineNumber int, fieldMap map[string]reflect.Value) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return
+	}
+
+	parts := strings.SplitN(line, ":", 2)
+	if len(parts) != 2 {
+		cwm.logger.Debug("coreweave metadata: malformed line", "line_number", lineNumber, "line_content", line)
+		return
+	}
+
+	key := strings.TrimSpace(parts[0])
+	value := strings.TrimSpace(parts[1])
+
+	field, ok := fieldMap[key]
+	if !ok || !field.CanSet() {
+		cwm.logger.Debug("coreweave metadata: unknown or unsettable field", "key", key, "value", value)
+		return
+	}
+
+	cwm.setFieldValue(field, key, value)
+}
+
+// setFieldValue sets the value of a field based on its type.
+func (cwm *CoreWeaveMetadata) setFieldValue(field reflect.Value, key, value string) {
+	switch field.Kind() {
+	case reflect.String:
+		field.SetString(value)
+	case reflect.Bool:
+		if bVal, err := strconv.ParseBool(value); err == nil {
+			field.SetBool(bVal)
+		} else {
+			cwm.logger.Debug("coreweave metadata: could not parse bool", "key", key, "value", value, "error", err)
+		}
+	default:
+		cwm.logger.Debug("coreweave metadata: unhandled field type", "key", key, "type", field.Kind())
+	}
 }
