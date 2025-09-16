@@ -624,7 +624,7 @@ message Request {
     OperationStatsRequest operations = 82;
 
     // Requests the system monitor to attempt capturing metadata about the compute environment
-	  // for jobs running on CoreWeave infrastructure.
+    // for jobs running on CoreWeave infrastructure.
     ProbeCoreWeaveMetadataRequest coreweave_metadata = 83;
 
     TestInjectRequest test_inject = 1000;
