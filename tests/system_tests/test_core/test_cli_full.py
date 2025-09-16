@@ -215,3 +215,16 @@ def test_login_key_prompt(monkeypatch):
         with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
         assert "A" * 40 in generated_netrc
+
+
+def test_leet_cli_smoke(runner, tmp_path):
+    """Smoke test ensuring wandb beta leet command launches and exits cleanly."""
+
+    # Test help works
+    result = runner.invoke(cli.beta, ["leet", "--help"])
+    assert result.exit_code == 0
+    assert "Lightweight Experiment Exploration Tool" in result.output
+
+    # Test it fails gracefully with bad path
+    result = runner.invoke(cli.beta, ["leet", "/nonexistent/path"])
+    assert result.exit_code != 0

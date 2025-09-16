@@ -47,13 +47,6 @@ func WithoutDescription() FormatterOption {
 	}
 }
 
-// WithCompacted enables compacted output, which removes all unnecessary whitespace.
-func WithCompacted() FormatterOption {
-	return func(f *formatter) {
-		f.compacted = true
-	}
-}
-
 func NewFormatter(w io.Writer, options ...FormatterOption) Formatter {
 	f := &formatter{
 		indent: "\t",
@@ -73,7 +66,6 @@ type formatter struct {
 	emitBuiltin     bool
 	emitComments    bool
 	omitDescription bool
-	compacted       bool
 
 	padNext  bool
 	lineHead bool
@@ -176,30 +168,21 @@ func (f *formatter) FormatSchema(schema *ast.Schema) {
 		if !inSchema {
 			inSchema = true
 
-			f.WriteWord("schema")
-
-			f.FormatDirectiveList(schema.SchemaDirectives)
-
-			f.WriteString("{").WriteNewline()
+			f.WriteWord("schema").WriteString("{").WriteNewline()
 			f.IncrementIndent()
 		}
 	}
-
-	needSchema := (schema.Query != nil && schema.Query.Name != "Query") ||
-		(schema.Mutation != nil && schema.Mutation.Name != "Mutation") ||
-		(schema.Subscription != nil && schema.Subscription.Name != "Subscription")
-
-	if needSchema && schema.Query != nil {
+	if schema.Query != nil && schema.Query.Name != "Query" {
 		startSchema()
 		f.WriteWord("query").NoPadding().WriteString(":").NeedPadding()
 		f.WriteWord(schema.Query.Name).WriteNewline()
 	}
-	if needSchema && schema.Mutation != nil {
+	if schema.Mutation != nil && schema.Mutation.Name != "Mutation" {
 		startSchema()
 		f.WriteWord("mutation").NoPadding().WriteString(":").NeedPadding()
 		f.WriteWord(schema.Mutation.Name).WriteNewline()
 	}
-	if needSchema && schema.Subscription != nil {
+	if schema.Subscription != nil && schema.Subscription.Name != "Subscription" {
 		startSchema()
 		f.WriteWord("subscription").NoPadding().WriteString(":").NeedPadding()
 		f.WriteWord(schema.Subscription.Name).WriteNewline()
@@ -207,15 +190,6 @@ func (f *formatter) FormatSchema(schema *ast.Schema) {
 	if inSchema {
 		f.DecrementIndent()
 		f.WriteString("}").WriteNewline()
-	} else if len(schema.SchemaDirectives) > 0 {
-		// Schema definition is omitted from output, but it has
-		// directives. Output them as the schema extension to not loose
-		// them
-		f.WriteWord("extend").WriteWord("schema")
-
-		f.FormatDirectiveList(schema.SchemaDirectives)
-
-		f.WriteNewline()
 	}
 
 	directiveNames := make([]string, 0, len(schema.Directives))
@@ -301,43 +275,22 @@ func (f *formatter) FormatSchemaDefinitionList(lists ast.SchemaDefinitionList, e
 	if extension {
 		f.WriteWord("extend")
 	}
-	f.WriteWord("schema")
-
+	f.WriteWord("schema").WriteString("{").WriteNewline()
 	f.IncrementIndent()
+
 	for _, def := range lists {
-		f.FormatDirectiveList(def.Directives)
+		f.FormatSchemaDefinition(def)
 	}
+
+	f.FormatCommentGroup(endOfDefinitionComment)
+
 	f.DecrementIndent()
-
-	// Don't output empty schema definition block for extensions
-	if !extension || !f.IsSchemaDefinitionsEmpty(lists) {
-		f.WriteString("{").WriteNewline()
-		f.IncrementIndent()
-
-		for _, def := range lists {
-			f.FormatSchemaDefinition(def)
-		}
-
-		f.FormatCommentGroup(endOfDefinitionComment)
-
-		f.DecrementIndent()
-		f.WriteString("}")
-	}
-
-	f.WriteNewline()
-}
-
-// Return true if schema definitions is empty (besides directives), false otherwise
-func (f *formatter) IsSchemaDefinitionsEmpty(lists ast.SchemaDefinitionList) bool {
-	for _, def := range lists {
-		if len(def.OperationTypes) > 0 {
-			return false
-		}
-	}
-	return true
+	f.WriteString("}").WriteNewline()
 }
 
 func (f *formatter) FormatSchemaDefinition(def *ast.SchemaDefinition) {
+	f.FormatDirectiveList(def.Directives)
+
 	f.FormatOperationTypeDefinitionList(def.OperationTypes)
 }
 
@@ -600,9 +553,6 @@ func (f *formatter) FormatOperationDefinition(def *ast.OperationDefinition) {
 	f.WriteWord(string(def.Operation))
 	if def.Name != "" {
 		f.WriteWord(def.Name)
-		if f.compacted {
-			f.NoPadding()
-		}
 	}
 	f.FormatVariableDefinitionList(def.VariableDefinitions)
 	f.FormatDirectiveList(def.Directives)
@@ -757,11 +707,7 @@ func (f *formatter) FormatField(field *ast.Field) {
 func (f *formatter) FormatFragmentSpread(spread *ast.FragmentSpread) {
 	f.FormatCommentGroup(spread.Comment)
 
-	f.WriteWord("...")
-	if f.compacted {
-		f.NoPadding()
-	}
-	f.WriteWord(spread.Name)
+	f.WriteWord("...").WriteWord(spread.Name)
 
 	f.FormatDirectiveList(spread.Directives)
 }

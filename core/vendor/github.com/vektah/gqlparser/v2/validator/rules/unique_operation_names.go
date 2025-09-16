@@ -3,8 +3,8 @@ package rules
 import (
 	"github.com/vektah/gqlparser/v2/ast"
 
-	//nolint:staticcheck // Validator rules each use dot imports for convenience.
-	. "github.com/vektah/gqlparser/v2/validator/core"
+	//nolint:revive // Validator rules each use dot imports for convenience.
+	. "github.com/vektah/gqlparser/v2/validator"
 )
 
 var UniqueOperationNamesRule = Rule{
@@ -22,4 +22,8 @@ var UniqueOperationNamesRule = Rule{
 			seen[operation.Name] = true
 		})
 	},
+}
+
+func init() {
+	AddRule(UniqueOperationNamesRule.Name, UniqueOperationNamesRule.RuleFunc)
 }

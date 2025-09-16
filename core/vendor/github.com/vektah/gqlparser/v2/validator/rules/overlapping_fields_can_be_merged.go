@@ -7,8 +7,8 @@ import (
 
 	"github.com/vektah/gqlparser/v2/ast"
 
-	//nolint:staticcheck // Validator rules each use dot imports for convenience.
-	. "github.com/vektah/gqlparser/v2/validator/core"
+	//nolint:revive // Validator rules each use dot imports for convenience.
+	. "github.com/vektah/gqlparser/v2/validator"
 )
 
 var OverlappingFieldsCanBeMergedRule = Rule{
@@ -106,6 +106,10 @@ var OverlappingFieldsCanBeMergedRule = Rule{
 			}
 		})
 	},
+}
+
+func init() {
+	AddRule(OverlappingFieldsCanBeMergedRule.Name, OverlappingFieldsCanBeMergedRule.RuleFunc)
 }
 
 type pairSet struct {

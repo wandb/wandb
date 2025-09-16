@@ -870,11 +870,6 @@ type InputFieldsResponse struct {
 func (v *InputFieldsResponse) GetTypeInfo() *InputFieldsTypeInfoType { return v.TypeInfo }
 
 // InputFieldsTypeInfoType includes the requested fields of the GraphQL type __Type.
-// The GraphQL type's documentation follows.
-//
-// The fundamental unit of any GraphQL Schema is the type. There are many kinds of types in GraphQL as represented by the `__TypeKind` enum.
-//
-// Depending on the kind of a type, certain fields describe information about that type. Scalar types provide no information beyond a name, description and optional `specifiedByURL`, while Enum types provide their values. Object and Interface types provide the fields they describe. Abstract types, Union and Interface, provide the Object types possible at runtime. List and NonNull types compose other types.
 type InputFieldsTypeInfoType struct {
 	InputFields []InputFieldsTypeInfoTypeInputFieldsInputValue `json:"inputFields"`
 }
@@ -885,9 +880,6 @@ func (v *InputFieldsTypeInfoType) GetInputFields() []InputFieldsTypeInfoTypeInpu
 }
 
 // InputFieldsTypeInfoTypeInputFieldsInputValue includes the requested fields of the GraphQL type __InputValue.
-// The GraphQL type's documentation follows.
-//
-// Arguments provided to Fields or Directives and the input fields of an InputObject are represented as Input Values which describe their type and optionally a default value.
 type InputFieldsTypeInfoTypeInputFieldsInputValue struct {
 	Name string `json:"name"`
 }
@@ -1271,11 +1263,6 @@ type TypeFieldsResponse struct {
 func (v *TypeFieldsResponse) GetTypeInfo() *TypeFieldsTypeInfoType { return v.TypeInfo }
 
 // TypeFieldsTypeInfoType includes the requested fields of the GraphQL type __Type.
-// The GraphQL type's documentation follows.
-//
-// The fundamental unit of any GraphQL Schema is the type. There are many kinds of types in GraphQL as represented by the `__TypeKind` enum.
-//
-// Depending on the kind of a type, certain fields describe information about that type. Scalar types provide no information beyond a name, description and optional `specifiedByURL`, while Enum types provide their values. Object and Interface types provide the fields they describe. Abstract types, Union and Interface, provide the Object types possible at runtime. List and NonNull types compose other types.
 type TypeFieldsTypeInfoType struct {
 	Fields []TypeFieldsTypeInfoTypeFieldsField `json:"fields"`
 }
@@ -1284,9 +1271,6 @@ type TypeFieldsTypeInfoType struct {
 func (v *TypeFieldsTypeInfoType) GetFields() []TypeFieldsTypeInfoTypeFieldsField { return v.Fields }
 
 // TypeFieldsTypeInfoTypeFieldsField includes the requested fields of the GraphQL type __Field.
-// The GraphQL type's documentation follows.
-//
-// Object and Interface types are described by a list of Fields, each of which has a name, potentially a list of arguments, and a return type.
 type TypeFieldsTypeInfoTypeFieldsField struct {
 	Name string `json:"name"`
 }

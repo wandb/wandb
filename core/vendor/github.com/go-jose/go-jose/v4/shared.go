@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+
 	"github.com/go-jose/go-jose/v4/json"
 )
 

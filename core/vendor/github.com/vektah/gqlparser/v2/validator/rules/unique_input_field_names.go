@@ -3,8 +3,8 @@ package rules
 import (
 	"github.com/vektah/gqlparser/v2/ast"
 
-	//nolint:staticcheck // Validator rules each use dot imports for convenience.
-	. "github.com/vektah/gqlparser/v2/validator/core"
+	//nolint:revive // Validator rules each use dot imports for convenience.
+	. "github.com/vektah/gqlparser/v2/validator"
 )
 
 var UniqueInputFieldNamesRule = Rule{
@@ -27,4 +27,8 @@ var UniqueInputFieldNamesRule = Rule{
 			}
 		})
 	},
+}
+
+func init() {
+	AddRule(UniqueInputFieldNamesRule.Name, UniqueInputFieldNamesRule.RuleFunc)
 }
