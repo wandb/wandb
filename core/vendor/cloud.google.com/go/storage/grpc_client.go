@@ -2028,6 +2028,10 @@ func (r *gRPCReader) Read(p []byte) (int, error) {
 			n, found := r.currMsg.readAndUpdateCRC(p, 1, func(b []byte) {
 				r.updateCRC(b)
 			})
+			// If we are done reading the current msg, free buffers.
+			if r.currMsg.done {
+				r.currMsg.databufs.Free()
+			}
 
 			// If data for our readID was found, we can update `seen` and return.
 			if found {
@@ -2080,6 +2084,8 @@ func (r *gRPCReader) WriteTo(w io.Writer) (int64, error) {
 				r.updateCRC(b)
 			})
 			r.seen += written
+			// We have processed the message, so free the buffer
+			r.currMsg.databufs.Free()
 			if err != nil {
 				return r.seen - alreadySeen, err
 			}

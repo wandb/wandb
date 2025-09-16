@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
@@ -32,7 +32,8 @@ func runRecord(run *spb.RunRecord) *spb.Record {
 }
 
 // testParams returns upserter parameters with default values for testing.
-func testParams() runupserter.RunUpserterParams {
+func testParams(t *testing.T) runupserter.RunUpserterParams {
+	t.Helper()
 	return runupserter.RunUpserterParams{
 		DebounceDelay:   waiting.NoDelay(),
 		Settings:        settings.New(),
@@ -42,7 +43,7 @@ func testParams() runupserter.RunUpserterParams {
 			map[spb.ServerFeature]featurechecker.Feature{},
 		),
 		GraphqlClientOrNil: nil,
-		Logger:             observability.NewNoOpLogger(),
+		Logger:             observabilitytest.NewTestLogger(t),
 		ClientID:           "test",
 	}
 }
@@ -67,7 +68,7 @@ func fakeUpsertBucketResponseJSON() string {
 
 func TestInitRun_MakesCorrectRequest(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
-	params := testParams()
+	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{
 		Program: wrapperspb.String("program"),
@@ -143,7 +144,7 @@ func TestInitRun_MakesCorrectRequest(t *testing.T) {
 
 func TestInitRun_ReadsResponse(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
-	params := testParams()
+	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
 	mockClient.StubMatchOnce(
 		gqlmock.WithOpName("UpsertBucket"),
@@ -179,7 +180,7 @@ func TestInitRun_ReadsResponse(t *testing.T) {
 
 func TestInitRun_UpsertError(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
-	params := testParams()
+	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
 	mockClient.StubMatchWithError(
 		gqlmock.WithOpName("UpsertBucket"),
@@ -193,7 +194,7 @@ func TestInitRun_UpsertError(t *testing.T) {
 }
 
 func TestInitRun_Offline(t *testing.T) {
-	params := testParams()
+	params := testParams(t)
 	params.GraphqlClientOrNil = nil
 
 	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
@@ -211,7 +212,7 @@ func TestResume(t *testing.T) {
 		fakeUpsertBucketResponseJSON(),
 	)
 
-	params := testParams()
+	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
 
@@ -223,7 +224,7 @@ func TestResume(t *testing.T) {
 }
 
 func TestResume_Offline_Succeeds(t *testing.T) {
-	params := testParams()
+	params := testParams(t)
 	params.GraphqlClientOrNil = nil
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
 
@@ -245,7 +246,7 @@ func TestRewind(t *testing.T) {
 			},
 		})
 
-	upserter, err := runupserter.InitRun(runInitRecord, testParams())
+	upserter, err := runupserter.InitRun(runInitRecord, testParams(t))
 	defer upserter.Finish()
 
 	assert.NoError(t, err)
@@ -267,7 +268,7 @@ func TestFork(t *testing.T) {
 		},
 	)
 
-	upserter, err := runupserter.InitRun(runInitRecord, testParams())
+	upserter, err := runupserter.InitRun(runInitRecord, testParams(t))
 	defer upserter.Finish()
 
 	assert.NoError(t, err)
@@ -287,7 +288,7 @@ type variablesForUpdateTest struct {
 func setupUpdateTest(t *testing.T) variablesForUpdateTest {
 	t.Helper()
 
-	params := testParams()
+	params := testParams(t)
 	fakeDebounceDelay := waitingtest.NewFakeDelay()
 	mockClient := gqlmock.NewMockClient()
 	params.DebounceDelay = fakeDebounceDelay
