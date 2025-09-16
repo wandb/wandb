@@ -11,7 +11,7 @@ Use Python context manager to set headers and pass them to Go core.
 - [x] artifact upload and download
 - [x] proxy servers, see [cmd/wapiproxy/](cmd/wapiproxy/) and [cmd/ws3proxy/](cmd/ws3proxy/)
 
-## Usag
+## Usage
 
 Start the proxy servers and check the logs.
 File proxy would print all requests missing the `X-My-Header-*` headers into `logs/file_proxy_missing_header.log`.
@@ -174,3 +174,28 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+
+## Go
+
+GO side is straightforawd, all the file operations are attached to a stream (run).
+Pass the headers via settings `x_extra_http_headers` and apply them to file transfer manager into default file transfer.
+Previously they were only applied to graphql and file stream clients.
+
+Now both run file and artifact upload/download has the headers.
+
+- [ ] Artifact download for downloading manifest is not using the headers...
+
+## Proxy
+
+Two proxy servers
+
+- [cmd/wapiproxy/](cmd/wapiproxy/) hijack response from wandb api to replace s3 url with file proxy url
+- [cmd/ws3proxy/](cmd/ws3proxy/) make actual call to s3 and print all the request headers, log requests missing custom headers
+
+In API proxy, it replaces s3/gcs url to the `http://localhost:8182/` url.
+In file proxy, it replace the url back to the original s3/gcs url.
+
+Update the proxy servers so they supports configuring the object storage url.
+Right now it is hard coded to `https://pinglei-byob-us-west-2.s3.us-west-2.amazonaws.com` but I want to make it configurable in the file proxy server so `https://storage.googleapis.com/wandb-artifacts-prod` can also be used.
+It can be set via environment variable `WANDB_OBJECT_STORAGE_PREFIX` in `start_proxy.sh`.
+Servers should bail out if the environment variable is not set.
