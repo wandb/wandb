@@ -1,6 +1,8 @@
 import os
 import shutil
 
+import requests
+
 import wandb
 from wandb.util import get_object_storage_headers, with_object_storage_headers
 
@@ -10,14 +12,26 @@ ENTITY = "reg-team-2"
 PROJECT = "presigned-url-header"
 
 
-# TODO: log media
 def upload_artifacts():
     # Upload run files (config, code) and artifacts
     with wandb.init(entity=ENTITY, project=PROJECT) as run:
+        # Artifact
         artifact = wandb.Artifact("my-artifact", type="dataset")
         artifact.add_file("http-header-context.md")
         artifact.add_file("test_headers.py")
         run.log_artifact(artifact)
+
+        # Media
+        # https://docs.wandb.ai/guides/track/log/media/
+        run.log({"image": wandb.Image("log_images.png")})
+        # Download the video if not exists
+        if not os.path.exists("butterfly.mp4"):
+            response = requests.get(
+                "https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4"
+            )
+            with open("butterfly.mp4", "wb") as f:
+                f.write(response.content)
+        run.log({"video": wandb.Video("butterfly.mp4")})
 
 
 def download_artifacts():
@@ -35,17 +49,20 @@ def download_run_files():
         shutil.rmtree("runfiles")
 
     api = wandb.Api()
-    # FIXME: replace it with your run id
-    run = api.run(f"{ENTITY}/{PROJECT}/ubf0qbn9")
-    files = run.files()
-    for file in files:
-        print("downloading run file", file.name)
-        # NOTE: util.download_file_from_url uses https://api.wandb.ai/files/foo/bar instead of bucket url directly
-        # https://api.wandb.ai/files/foo/bar redirects to https://mybucket.s3.us-west-2.amazonaws.com/foo/bar
-        # API proxy need to
-        # 1. replace https://api.wandb.ai/files/foo/bar with http://localhost:8181/files/foo/bar
-        # 2. handle 302 redirect and replace the location header with the s3 proxy http://localhost:8182/foo/bar
-        file.download(root="runfiles")
+    runs = api.runs(f"{ENTITY}/{PROJECT}")
+    for run in runs:
+        files = run.files()
+        print(f"run {run.id} has {len(files)} files")
+        for file in files:
+            print("downloading run file", file.name)
+            # NOTE: util.download_file_from_url uses https://api.wandb.ai/files/foo/bar instead of bucket url directly
+            # https://api.wandb.ai/files/foo/bar redirects to https://mybucket.s3.us-west-2.amazonaws.com/foo/bar
+            # API proxy need to
+            # 1. replace https://api.wandb.ai/files/foo/bar with http://localhost:8181/files/foo/bar
+            # 2. handle 302 redirect and replace the location header with the s3 proxy http://localhost:8182/foo/bar
+            file.download(root=f"runfiles/{run.id}")
+        # Stop after first run
+        # break
 
 
 def print_url():
@@ -94,9 +111,9 @@ def main():
         print(get_object_storage_headers())
 
         # upload_artifacts()
-        print_url()
+        # print_url()
         # download_artifacts()
-        # download_run_files()
+        download_run_files()
 
 
 # uv pip install -e ~/go/src/github.com/wandb/wandb

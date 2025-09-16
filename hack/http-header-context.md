@@ -17,7 +17,9 @@ Start the proxy servers and check the logs.
 File proxy would print all requests missing the `X-My-Header-*` headers into `logs/file_proxy_missing_header.log`.
 
 ```bash
+# Pick either GCS or S3
 export WANDB_OBJECT_STORAGE_PREFIX=https://storage.googleapis.com/wandb-artifacts-prod
+# export WANDB_OBJECT_STORAGE_PREFIX=https://pinglei-byob-us-west-2.s3.us-west-2.amazonaws.com
 ./start_proxy.sh
 
 uv pip install -e ~/go/src/github.com/wandb/wandb
