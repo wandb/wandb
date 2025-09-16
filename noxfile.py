@@ -479,10 +479,10 @@ def proto_python(session: nox.Session, pb: int) -> None:
 
 def _generate_proto_python(session: nox.Session, pb: int) -> None:
     if pb == 3:
-        session.install("protobuf~=3.20.3")
-        session.install("mypy-protobuf~=3.3.0")
-        session.install("grpcio")
-        session.install("grpcio-tools")
+        session.install("protobuf==3.20.3")
+        session.install("mypy-protobuf==3.4.0")
+        session.install("grpcio==1.47.5")
+        session.install("grpcio-tools==1.47.5")
     elif pb == 4:
         session.install("protobuf~=4.23.4")
         session.install("mypy-protobuf~=3.5.0")
@@ -775,7 +775,6 @@ def wandb_core_size_check(session: nox.Session) -> None:
     main_size = main_binary.stat().st_size
 
     # Build and install current branch version
-    session.run("git", "stash", external=True)
     session.run("git", "checkout", "-", external=True)
     install_wandb(session, dev=False)
 

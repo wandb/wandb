@@ -18,6 +18,7 @@ else:
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
+@typing_extensions.final
 class ServerInitSyncRequest(google.protobuf.message.Message):
     """Prepares a sync operation to replay one or more .wandb files.
 
@@ -49,6 +50,7 @@ class ServerInitSyncRequest(google.protobuf.message.Message):
 
 global___ServerInitSyncRequest = ServerInitSyncRequest
 
+@typing_extensions.final
 class ServerInitSyncResponse(google.protobuf.message.Message):
     """Indicates a sync operation is ready."""
 
@@ -66,6 +68,7 @@ class ServerInitSyncResponse(google.protobuf.message.Message):
 
 global___ServerInitSyncResponse = ServerInitSyncResponse
 
+@typing_extensions.final
 class ServerSyncRequest(google.protobuf.message.Message):
     """Begins a sync operation created by ServerInitSyncRequest.
 
@@ -94,6 +97,7 @@ class ServerSyncRequest(google.protobuf.message.Message):
 
 global___ServerSyncRequest = ServerSyncRequest
 
+@typing_extensions.final
 class ServerSyncResponse(google.protobuf.message.Message):
     """Indicates a sync operation completed, either successfully or with errors."""
 
@@ -112,6 +116,7 @@ class ServerSyncResponse(google.protobuf.message.Message):
 
 global___ServerSyncResponse = ServerSyncResponse
 
+@typing_extensions.final
 class ServerSyncStatusRequest(google.protobuf.message.Message):
     """Checks the status of an ongoing sync operation."""
 
@@ -129,6 +134,7 @@ class ServerSyncStatusRequest(google.protobuf.message.Message):
 
 global___ServerSyncStatusRequest = ServerSyncStatusRequest
 
+@typing_extensions.final
 class ServerSyncStatusResponse(google.protobuf.message.Message):
     """The status of a sync operation."""
 
