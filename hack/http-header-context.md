@@ -2,6 +2,27 @@
 
 Use Python context manager to set headers and pass them to Go core.
 
+## TODO
+
+- [ ] finalize where to set the headers
+  - [ ] wandb cli might still need to use parameter/envrionment variable
+  - [ ] there is existing thread local settings for headers, using contextvars seems be more pythonic...
+  - [ ] `x_extra_http_headers` in settings is for graphql and file stream, we are reusing it for object storage, but do we want to split them?
+- [x] artifact upload and download
+- [x] proxy servers, see [cmd/wapiproxy/](cmd/wapiproxy/) and [cmd/ws3proxy/](cmd/ws3proxy/)
+
+## Usag
+
+Start the proxy servers and check the logs.
+File proxy would print all requests missing the `X-My-Header-*` headers into `logs/file_proxy_missing_header.log`.
+
+```bash
+./start_proxy.sh
+
+uv pip install -e ~/go/src/github.com/wandb/wandb
+python3 test_headers.py
+```
+
 ## Background
 
 Instead of using environment variables like https://github.com/wandb/wandb/pull/10510/files,
@@ -27,6 +48,8 @@ We need to do something similar for downloading/uploading files.
 The Go side needs to pass the headers via proto when starting a run/stream/calling API directly.
 
 ## Proto
+
+TL;DR existing `x_extra_http_headers` in settings works. But we may want to introduce some new fields.
 
 - [x] figure out how to regenerate the proto
 - [x] where do we send the proto message?
@@ -101,7 +124,23 @@ unless we allow users to configure the settings via a Python settings class.
 
 ## Python
 
-Context
+There are 3 places we modified
+
+- Artifact
+  - `Artifact._load_manifest` for downloading `wandb_manfiest.json`
+  - `WandbStoragePolicy` for downloading files (will migrate to go later)
+- RunFiles
+  - Upload is using go core, set the headers in `InformInit` via `x_extra_http_headers` in settings works
+  - Download is using API (see below)
+- API
+  - `util.download_file_from_url` usings `/files` url, updated the methods to get headers from context.
+
+Though wandb cli still have issue ... might still need to support environment variable, at least for cli.
+
+### Context
+
+We are using contextvars for passing the headers.
+It is different from current used of `_thread_local_api_settings.headers`.
 
 ```python
 from contextlib import contextmanager

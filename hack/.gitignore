@@ -1,2 +1,5 @@
 apikey.txt
 wandb/
+logs/
+artifacts/
+runfiles/

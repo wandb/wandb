@@ -1401,7 +1401,8 @@ def _get_download_response(
         auth = ("api", api_key or "")
     headers = {}
     headers.update(get_object_storage_headers())
-    headers.update(_thread_local_api_settings.headers)
+    if _thread_local_api_settings.headers:
+        headers.update(_thread_local_api_settings.headers)
     response = requests.get(
         source_url,
         auth=auth,
