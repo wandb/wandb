@@ -146,6 +146,8 @@ func (cwm *CoreWeaveMetadata) Probe(ctx context.Context) *spb.EnvironmentRecord 
 }
 
 // Get fetches and parses metadata from the CoreWeave instance metadata endpoint.
+//
+//gocyclo:ignore
 func (cwm *CoreWeaveMetadata) Get() (*CoreWeaveInstanceData, error) {
 	baseURL, err := url.Parse(cwm.settings.GetStatsCoreWeaveMetadataBaseURL())
 	if err != nil {
