@@ -4,6 +4,7 @@ package settings
 import (
 	"fmt"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/auth"
@@ -15,6 +16,8 @@ import (
 //
 // This is derived from the Settings proto and adapted for use in Go.
 type Settings struct {
+	// Mutex to protect access to fields that may be updated.
+	mu *sync.Mutex
 
 	// The source proto.
 	//
@@ -24,7 +27,7 @@ type Settings struct {
 
 // Creates a new Settings object.
 func New() *Settings {
-	return &Settings{Proto: &spb.Settings{}}
+	return &Settings{mu: &sync.Mutex{}, Proto: &spb.Settings{}}
 }
 
 // Parses the Settings proto into a Settings object.
@@ -114,6 +117,8 @@ func (s *Settings) IsSharedMode() bool {
 
 // The ID of the run.
 func (s *Settings) GetRunID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.Proto.RunId.GetValue()
 }
 
@@ -124,16 +129,22 @@ func (s *Settings) GetRunURL() string {
 
 // The W&B project ID.
 func (s *Settings) GetProject() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.Proto.Project.GetValue()
 }
 
 // The W&B entity, like a user or a team.
 func (s *Settings) GetEntity() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.Proto.Entity.GetValue()
 }
 
 // The name of the run.
 func (s *Settings) GetDisplayName() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.Proto.RunName.GetValue()
 }
 
@@ -519,11 +530,15 @@ func (s *Settings) GetStatsOpenMetricsHeaders() map[string]string {
 
 // The scheme and hostname for contacting the CoreWeave metadata server.
 func (s *Settings) GetStatsCoreWeaveMetadataBaseURL() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.Proto.XStatsCoreweaveMetadataBaseUrl.GetValue()
 }
 
 // The relative path on the CoreWeave metadata server to which to make requests.
 func (s *Settings) GetStatsCoreWeaveMetadataEndpoint() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.Proto.XStatsCoreweaveMetadataEndpoint.GetValue()
 }
 
@@ -570,35 +585,49 @@ func (s *Settings) UpdateStartTime(startTime time.Time) {
 
 // Updates the run's entity name.
 func (s *Settings) UpdateEntity(entity string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Proto.Entity = &wrapperspb.StringValue{Value: entity}
 }
 
 // Updates the run's project name.
 func (s *Settings) UpdateProject(project string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Proto.Project = &wrapperspb.StringValue{Value: project}
 }
 
 // Updates the run's display name.
 func (s *Settings) UpdateDisplayName(displayName string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Proto.RunName = &wrapperspb.StringValue{Value: displayName}
 }
 
 // Updates the run ID.
 func (s *Settings) UpdateRunID(runID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Proto.RunId = &wrapperspb.StringValue{Value: runID}
 }
 
 // Update server-side derived summary computation setting.
 func (s *Settings) UpdateServerSideDerivedSummary(enable bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Proto.XServerSideDerivedSummary = &wrapperspb.BoolValue{Value: enable}
 }
 
 // Updates the scheme and hostname for contacting the CoreWeave metadata server.
 func (s *Settings) UpdateStatsCoreWeaveMetadataBaseURL(baseURL string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Proto.XStatsCoreweaveMetadataBaseUrl = &wrapperspb.StringValue{Value: baseURL}
 }
 
 // Updates the relative path on the CoreWeave metadata server to which to make requests.
 func (s *Settings) UpdateStatsCoreWeaveMetadataEndpoint(endpoint string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Proto.XStatsCoreweaveMetadataEndpoint = &wrapperspb.StringValue{Value: endpoint}
 }
