@@ -871,7 +871,6 @@ class _WandbInit:
         backend.ensure_launched()
         self._logger.info("backend started and connected")
 
-        # resuming needs access to the server, check server_status()?
         run = Run(
             config=config.base_no_artifacts,
             settings=settings,
@@ -1025,6 +1024,8 @@ class _WandbInit:
             run_start_handle.wait_or(timeout=30)
         except TimeoutError:
             pass
+
+        backend.interface.deliver_probe_system_info()
 
         assert self._wl is not None
         self.run = run

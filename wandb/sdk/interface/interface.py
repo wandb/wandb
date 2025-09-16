@@ -1054,3 +1054,13 @@ class InterfaceBase:
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
+
+    def deliver_probe_system_info(self) -> MailboxHandle[pb.Result]:
+        probe_system_info = pb.ProbeSystemInfoRequest()
+        return self._deliver_probe_system_info(probe_system_info)
+
+    @abstractmethod
+    def _deliver_probe_system_info(
+        self, probe_system_info: pb.ProbeSystemInfoRequest
+    ) -> MailboxHandle[pb.Result]:
+        raise NotImplementedError

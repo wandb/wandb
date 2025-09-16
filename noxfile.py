@@ -481,8 +481,8 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
     if pb == 3:
         session.install("protobuf~=3.20.3")
         session.install("mypy-protobuf~=3.3.0")
-        session.install("grpcio~=1.48.0")
-        session.install("grpcio-tools~=1.48.0")
+        session.install("grpcio")
+        session.install("grpcio-tools")
     elif pb == 4:
         session.install("protobuf~=4.23.4")
         session.install("mypy-protobuf~=3.5.0")

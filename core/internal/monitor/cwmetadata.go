@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -42,9 +43,7 @@ type CoreWeaveMetadataParams struct {
 	Client        *retryablehttp.Client
 	Logger        *observability.CoreLogger
 	GraphqlClient graphql.Client
-	Entity        string
-	BaseURL       string
-	Endpoint      string
+	Settings      *settings.Settings
 }
 
 // CoreWeaveMetadata is used to capture the metadata about the compute environment
@@ -56,20 +55,20 @@ type CoreWeaveMetadata struct {
 	// GraphQL client to communicate with the W&B backend.
 	graphqlClient graphql.Client
 
-	// W&B entity to use with the gql.OrganizationCoreWeaveOrganizationID query.
-	entity string
-
 	// Internal debug logger.
 	logger *observability.CoreLogger
 
-	// The scheme and hostname for contacting the metadata server,
-	// not including a final slash. For example, "http://localhost:8080".
-	baseURL *url.URL
-
-	// The relative path on the server to which to make requests.
+	// settings contain the info needed to probe the CoreWeave metadata.
 	//
-	// This must not include the schema and hostname prefix.
-	endpoint string
+	// Specifically:
+	//  - Entity is W&B entity to use with the gql.OrganizationCoreWeaveOrganizationID query.
+	//    May be updated upon a run start with the information from the server, which is
+	//    the main reason we keep a pointer to a Settings struct.
+	//  - The scheme and hostname for contacting the metadata server,
+	//    not including a final slash. For example, "http://localhost:8080".
+	//  - The relative path on the server to which to make requests, not
+	//    including the schema and hostname prefix.
+	settings *settings.Settings
 }
 
 func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, error) {
@@ -88,19 +87,11 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 		params.Client.Backoff = clients.ExponentialBackoffWithJitter
 	}
 
-	baseURL, err := url.Parse(params.BaseURL)
-	if err != nil {
-		return nil, err
-	}
-	endpoint := params.Endpoint
-
 	cwm := &CoreWeaveMetadata{
 		client:        params.Client,
 		graphqlClient: params.GraphqlClient,
 		logger:        params.Logger,
-		entity:        params.Entity,
-		baseURL:       baseURL,
-		endpoint:      endpoint,
+		settings:      params.Settings,
 	}
 
 	return cwm, nil
@@ -129,7 +120,7 @@ func (cwm *CoreWeaveMetadata) Probe(ctx context.Context) *spb.EnvironmentRecord 
 	data, err := gql.OrganizationCoreWeaveOrganizationID(
 		ctx,
 		cwm.graphqlClient,
-		cwm.entity,
+		cwm.settings.GetEntity(),
 	)
 	if err != nil || data == nil || data.GetEntity() == nil || data.GetEntity().GetOrganization() == nil {
 		return nil
@@ -156,7 +147,13 @@ func (cwm *CoreWeaveMetadata) Probe(ctx context.Context) *spb.EnvironmentRecord 
 
 // Get fetches and parses metadata from the CoreWeave instance metadata endpoint.
 func (cwm *CoreWeaveMetadata) Get() (*CoreWeaveInstanceData, error) {
-	fullURL := cwm.baseURL.JoinPath(cwm.endpoint).String()
+	baseURL, err := url.Parse(cwm.settings.GetStatsCoreWeaveMetadataBaseURL())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse coreweave metadata baseurl: %w", err)
+	}
+	endpoint := cwm.settings.GetStatsCoreWeaveMetadataEndpoint()
+
+	fullURL := baseURL.JoinPath(endpoint).String()
 	req, err := retryablehttp.NewRequest("GET", fullURL, nil) // Use fullURL here
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
