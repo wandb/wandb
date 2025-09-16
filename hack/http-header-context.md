@@ -28,7 +28,8 @@ Go side need to pass the headers via proto when starting a run/stream/calling AP
 
 ## Proto
 
-- [ ] figure out how to regenerate the proto
+- [x] figure out how to regenerate the proto
+- [ ] where do we send the proto message?
 
 ```bash
 # Thanks Tony, without this, grpc is building cpp code from source and failed...

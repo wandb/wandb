@@ -8,6 +8,7 @@ from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.lib import asyncio_manager
 from wandb.sdk.mailbox.mailbox import Mailbox
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
+from wandb.util import get_object_storage_headers
 
 _logger = logging.getLogger(__name__)
 
@@ -56,6 +57,8 @@ class ServiceClient:
         return handle
 
     async def _send_server_request(self, request: spb.ServerRequest) -> None:
+        # TODO: I think it might be running in a different thread? I got tons of empty headers log
+        # print("_send_server_request headers", get_object_storage_headers())
         header = struct.pack(_HEADER_BYTE_INT_FMT, ord("W"), request.ByteSize())
         self._writer.write(header)
 

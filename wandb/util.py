@@ -28,6 +28,8 @@ import threading
 import time
 import types
 import urllib
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from importlib import import_module
@@ -2038,3 +2040,28 @@ class NonOctalStringDumper(yaml.Dumper):
         if tag == "tag:yaml.org,2002:str" and value.startswith("0") and len(value) > 1:
             return super().represent_scalar(tag, value, style="'")
         return super().represent_scalar(tag, value, style)
+
+
+_object_storage_headers: ContextVar[dict[str, str]] = ContextVar(
+    "object_storage_headers", default=None
+)
+
+
+@contextmanager
+def with_object_storage_headers(headers: dict[str, str]):
+    """Set the object storage headers for the current context (thread).
+
+    Attach additional headers when making requests to object storage
+    for uploading/downloading files such as code, artifacts, media etc.
+
+    NOTE: When using thread pool, need to copy the context.
+    """
+    old = _object_storage_headers.set(headers)
+    try:
+        yield
+    finally:
+        _object_storage_headers.reset(old)
+
+
+def get_object_storage_headers() -> dict[str, str]:
+    return _object_storage_headers.get() or {}

@@ -356,7 +356,8 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	settings := settings.From(msg.GetSettings())
 
 	streamId := msg.GetXInfo().GetStreamId()
-	slog.Info("handleInformInit: received", "streamId", streamId, "id", nc.id)
+	headers := msg.GetXInfo().GetHeaders()
+	slog.Info("handleInformInit: received", "streamId", streamId, "id", nc.id, "headers", headers)
 
 	// if we are in offline mode, we don't want to send any data to sentry
 	var sentryClient *sentry_ext.Client

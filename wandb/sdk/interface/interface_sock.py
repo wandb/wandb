@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 from typing_extensions import override
 
 from wandb.proto import wandb_server_pb2 as spb
+from wandb.util import get_object_storage_headers
 
 from .interface_shared import InterfaceShared
 
@@ -31,6 +32,10 @@ class InterfaceSock(InterfaceShared):
     def _assign(self, record: Any) -> None:
         assert self._stream_id
         record._info.stream_id = self._stream_id
+        # TODO: somtimes it logs empty headers, i.e. likely running in a different thread.
+        # For now we just pass the header using inform init since every run will use it.
+        # print("InterfaceSock _assign headers", get_object_storage_headers())
+        # record._info.headers.update(get_object_storage_headers())
 
     @override
     def _publish(self, record: pb.Record, local: bool | None = None) -> None:

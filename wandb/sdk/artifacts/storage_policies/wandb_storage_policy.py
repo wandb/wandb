@@ -45,6 +45,7 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, URIStr
+from wandb.util import get_object_storage_headers
 
 if TYPE_CHECKING:
     from wandb.filesync.step_prepare import StepPrepare
@@ -114,6 +115,8 @@ class WandbStoragePolicy(StoragePolicy):
             pool_connections=_REQUEST_POOL_CONNECTIONS,
             pool_maxsize=_REQUEST_POOL_MAXSIZE,
         )
+        # Inject header at session level because we also download using thread pool
+        self._session.headers.update(get_object_storage_headers())
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
 

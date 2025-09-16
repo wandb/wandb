@@ -14,6 +14,7 @@ from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.service.service_client import ServiceClient
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxClosedError
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
+from wandb.util import get_object_storage_headers
 
 from . import service_process, service_token
 
@@ -146,6 +147,8 @@ class ServiceConnection:
         request = spb.ServerInformInitRequest()
         request.settings.CopyFrom(settings)
         request._info.stream_id = run_id
+        print("inform_init object storage headers", get_object_storage_headers())
+        request._info.headers.update(get_object_storage_headers())
         self._client.publish(spb.ServerRequest(inform_init=request))
 
     def inform_finish(self, run_id: str) -> None:
