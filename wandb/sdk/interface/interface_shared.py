@@ -333,6 +333,12 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(use_artifact=use_artifact)
         self._publish(rec)
 
+    def _publish_probe_system_info(
+        self, probe_system_info: pb.ProbeSystemInfoRequest
+    ) -> None:
+        record = self._make_request(probe_system_info=probe_system_info)
+        self._publish(record)
+
     def _deliver_artifact(
         self,
         log_artifact: pb.LogArtifactRequest,
@@ -471,10 +477,4 @@ class InterfaceShared(InterfaceBase):
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(run_status=run_status)
-        return self._deliver(record)
-
-    def _deliver_probe_system_info(
-        self, probe_system_info: pb.ProbeSystemInfoRequest
-    ) -> MailboxHandle[pb.Result]:
-        record = self._make_request(probe_system_info=probe_system_info)
         return self._deliver(record)

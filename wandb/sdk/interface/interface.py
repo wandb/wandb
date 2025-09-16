@@ -883,6 +883,16 @@ class InterfaceBase:
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
+    def publish_probe_system_info(self) -> None:
+        probe_system_info = pb.ProbeSystemInfoRequest()
+        return self._publish_probe_system_info(probe_system_info)
+
+    @abstractmethod
+    def _publish_probe_system_info(
+        self, probe_system_info: pb.ProbeSystemInfoRequest
+    ) -> None:
+        raise NotImplementedError
+
     def join(self) -> None:
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
@@ -1052,15 +1062,5 @@ class InterfaceBase:
     @abstractmethod
     def _deliver_request_run_status(
         self, run_status: pb.RunStatusRequest
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
-    def deliver_probe_system_info(self) -> MailboxHandle[pb.Result]:
-        probe_system_info = pb.ProbeSystemInfoRequest()
-        return self._deliver_probe_system_info(probe_system_info)
-
-    @abstractmethod
-    def _deliver_probe_system_info(
-        self, probe_system_info: pb.ProbeSystemInfoRequest
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError

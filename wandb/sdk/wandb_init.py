@@ -1025,7 +1025,7 @@ class _WandbInit:
         except TimeoutError:
             pass
 
-        backend.interface.deliver_probe_system_info()
+        backend.interface.publish_probe_system_info()
 
         assert self._wl is not None
         self.run = run
