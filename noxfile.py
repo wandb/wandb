@@ -775,6 +775,7 @@ def wandb_core_size_check(session: nox.Session) -> None:
     main_size = main_binary.stat().st_size
 
     # Build and install current branch version
+    session.run("git", "stash", external=True)
     session.run("git", "checkout", "-", external=True)
     install_wandb(session, dev=False)
 
