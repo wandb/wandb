@@ -212,6 +212,7 @@ func (as *ArtifactSaver) createArtifact() (
 		DistributedID:             nullify.NilIfZero(as.artifact.DistributedId),
 		ClientID:                  as.artifact.ClientId,
 		SequenceClientID:          as.artifact.SequenceClientId,
+		StorageLocation:           nullify.NilIfZero(as.artifact.StorageLocation),
 	}
 
 	response, err := gql.CreateArtifact(as.ctx, as.graphqlClient, input)

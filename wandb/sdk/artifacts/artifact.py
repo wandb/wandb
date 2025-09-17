@@ -210,6 +210,7 @@ class Artifact:
         metadata: dict[str, Any] | None = None,
         incremental: bool = False,
         use_as: str | None = None,
+        storage_location: Literal["caios"] | None = None,
     ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -277,6 +278,10 @@ class Artifact:
         self._final: bool = False
         self._history_step: int | None = None
         self._linked_artifacts: list[Artifact] = []
+        # TODO: move to _validators.py
+        if storage_location is not None and storage_location not in ["caios"]:
+            raise ValueError(f"Invalid storage location: {storage_location}")
+        self._storage_location: str | None = storage_location
 
         # Cache.
         artifact_instance_cache[self._client_id] = self

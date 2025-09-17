@@ -374,6 +374,8 @@ class InterfaceBase:
         if ttl_duration_input:
             proto_artifact.ttl_duration_seconds = ttl_duration_input
         proto_artifact.incremental_beta1 = artifact.incremental
+        # TODO: what happens in proto if storage_location is None?
+        proto_artifact.storage_location = artifact._storage_location
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
 
