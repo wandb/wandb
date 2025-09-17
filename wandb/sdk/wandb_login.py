@@ -260,7 +260,7 @@ def _login(
     update_api_key: bool = True,
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
-) -> (bool, str):
+) -> (bool, Optional[str]):
     """Logs in to W&B.
 
     This is the internal implementation of wandb.login(),
@@ -343,9 +343,13 @@ def _verify_login(key: str, base_url: str) -> None:
     try:
         is_api_key_valid = api.validate_api_key()
     except ConnectionError:
-        raise AuthenticationError("Unable to connect to server to verify API token.")
-    except Exception:
-        raise AuthenticationError("An error occurred while verifying the API key.")
+        raise AuthenticationError(
+            "Unable to connect to server to verify API token."
+        ) from None
+    except Exception as e:
+        raise AuthenticationError(
+            "An error occurred while verifying the API key."
+        ) from e
 
     if not is_api_key_valid:
         raise AuthenticationError(

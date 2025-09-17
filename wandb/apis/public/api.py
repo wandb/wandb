@@ -355,7 +355,7 @@ class Api:
         self,
         base_url: str,
         init_api_key: Optional[str] = None,
-    ) -> None:
+    ) -> str:
         """Attempts to load a configured API key or prompt if one is not found.
 
         The API key is loaded in the following order:
@@ -780,24 +780,6 @@ class Api:
     def user_agent(self) -> str:
         """Returns W&B public user agent."""
         return "W&B Public Client {}".format(wandb.__version__)
-
-    # @property
-    # def api_key(self) -> Optional[str]:
-    #     """Returns W&B API key."""
-    #     # just use thread local api key if it's set
-    #     if _thread_local_api_settings.api_key:
-    #         return _thread_local_api_settings.api_key
-    #     if self._api_key is not None:
-    #         return self._api_key
-    #     auth = requests.utils.get_netrc_auth(self.settings["base_url"])
-    #     key = None
-    #     if auth:
-    #         key = auth[-1]
-    #     # Environment should take precedence
-    #     if os.getenv("WANDB_API_KEY"):
-    #         key = os.environ["WANDB_API_KEY"]
-    #     self._api_key = key  # memoize key
-    #     return key
 
     @property
     def default_entity(self) -> Optional[str]:
