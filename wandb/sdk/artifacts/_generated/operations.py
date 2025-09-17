@@ -67,11 +67,17 @@ mutation UpdateArtifactSequence($input: UpdateArtifactSequenceInput!) {
   updateArtifactSequence(input: $input) {
     artifactCollection {
       __typename
-      id
-      name
-      description
+      ...MinimalArtifactCollectionFragment
     }
   }
+}
+
+fragment MinimalArtifactCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
 }
 """
 
@@ -80,11 +86,17 @@ mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
   updateArtifactPortfolio(input: $input) {
     artifactCollection {
       __typename
-      id
-      name
-      description
+      ...MinimalArtifactCollectionFragment
     }
   }
+}
+
+fragment MinimalArtifactCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
 }
 """
 
@@ -93,11 +105,17 @@ mutation MoveArtifactCollection($input: MoveArtifactSequenceInput!) {
   moveArtifactSequence(input: $input) {
     artifactCollection {
       __typename
-      id
-      name
-      description
+      ...MinimalArtifactCollectionFragment
     }
   }
+}
+
+fragment MinimalArtifactCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
 }
 """
 
@@ -126,70 +144,11 @@ mutation DeleteArtifactCollectionTagAssignments($input: DeleteArtifactCollection
 """
 
 PROJECT_ARTIFACT_COLLECTIONS_GQL = """
-query ProjectArtifactCollections($entityName: String!, $projectName: String!, $artifactTypeName: String!, $cursor: String) {
+query ProjectArtifactCollections($entityName: String!, $projectName: String!, $artifactTypeName: String!, $cursor: String, $aliasesCursor: String, $aliasesPerPage: Int = 0, $includeAliases: Boolean = false) {
   project(name: $projectName, entityName: $entityName) {
     artifactType(name: $artifactTypeName) {
       artifactCollections: artifactCollections(after: $cursor) {
         ...ArtifactCollectionConnectionFragment
-      }
-    }
-  }
-}
-
-fragment ArtifactCollectionConnectionFragment on ArtifactCollectionConnection {
-  pageInfo {
-    ...PageInfoFragment
-  }
-  totalCount
-  edges {
-    node {
-      __typename
-      id
-      name
-      description
-      createdAt
-    }
-  }
-}
-
-fragment PageInfoFragment on PageInfo {
-  __typename
-  endCursor
-  hasNextPage
-}
-"""
-
-PROJECT_ARTIFACT_COLLECTION_GQL = """
-query ProjectArtifactCollection($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactCollectionName: String!, $cursor: String, $perPage: Int = 1000) {
-  project(name: $projectName, entityName: $entityName) {
-    artifactType(name: $artifactTypeName) {
-      artifactCollection: artifactCollection(name: $artifactCollectionName) {
-        __typename
-        id
-        name
-        description
-        createdAt
-        tags {
-          edges {
-            node {
-              ...TagFragment
-            }
-          }
-        }
-        aliases(after: $cursor, first: $perPage) {
-          edges {
-            node {
-              ...ArtifactAliasFragment
-            }
-            cursor
-          }
-          pageInfo {
-            ...PageInfoFragment
-          }
-        }
-      }
-      artifactSequence(name: $artifactCollectionName) {
-        __typename
       }
     }
   }
@@ -201,10 +160,91 @@ fragment ArtifactAliasFragment on ArtifactAlias {
   alias
 }
 
+fragment ArtifactCollectionConnectionFragment on ArtifactCollectionConnection {
+  pageInfo {
+    ...PageInfoFragment
+  }
+  totalCount
+  edges {
+    node {
+      ...ArtifactCollectionFragment
+    }
+  }
+}
+
+fragment ArtifactCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+  aliases(after: $aliasesCursor, first: $aliasesPerPage) @include(if: $includeAliases) {
+    edges {
+      node {
+        ...ArtifactAliasFragment
+      }
+    }
+  }
+}
+
 fragment PageInfoFragment on PageInfo {
   __typename
   endCursor
   hasNextPage
+}
+
+fragment TagFragment on Tag {
+  __typename
+  id
+  name
+}
+"""
+
+PROJECT_ARTIFACT_COLLECTION_GQL = """
+query ProjectArtifactCollection($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactCollectionName: String!, $aliasesCursor: String, $aliasesPerPage: Int = 1000, $includeAliases: Boolean = true) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactType(name: $artifactTypeName) {
+      artifactCollection: artifactCollection(name: $artifactCollectionName) {
+        __typename
+        ...ArtifactCollectionFragment
+      }
+    }
+  }
+}
+
+fragment ArtifactAliasFragment on ArtifactAlias {
+  __typename
+  id
+  alias
+}
+
+fragment ArtifactCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+  aliases(after: $aliasesCursor, first: $aliasesPerPage) @include(if: $includeAliases) {
+    edges {
+      node {
+        ...ArtifactAliasFragment
+      }
+    }
+  }
 }
 
 fragment TagFragment on Tag {
