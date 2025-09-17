@@ -19,8 +19,8 @@ from wandb.sdk.artifacts._generated import (
     ArtifactCollectionType,
     FetchRegistries,
     RegistriesPage,
+    RegistryCollectionConnectionFragment,
     RegistryCollections,
-    RegistryCollectionsPage,
     RegistryVersions,
     RegistryVersionsPage,
 )
@@ -147,7 +147,7 @@ class Collections(Paginator["ArtifactCollection"]):
 
     QUERY = gql(REGISTRY_COLLECTIONS_GQL)
 
-    last_response: RegistryCollectionsPage | None
+    last_response: RegistryCollectionConnectionFragment | None
 
     def __init__(
         self,
@@ -222,7 +222,9 @@ class Collections(Paginator["ArtifactCollection"]):
 
         try:
             page_data = org_entity_data.artifact_collections
-            self.last_response = RegistryCollectionsPage.model_validate(page_data)
+            self.last_response = RegistryCollectionConnectionFragment.model_validate(
+                page_data
+            )
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
@@ -236,12 +238,12 @@ class Collections(Paginator["ArtifactCollection"]):
         return [
             ArtifactCollection(
                 client=self.client,
-                entity=project.entity.name,
+                entity=project.entity_name,
                 project=project.name,
                 name=node.name,
                 type=node.default_artifact_type.name,
                 organization=self.organization,
-                attrs=node.model_dump(),
+                attrs=node,
                 is_sequence=False,
             )
             for node in nodes
@@ -335,7 +337,7 @@ class Versions(Paginator["Artifact"]):
         nodes = (e.node for e in self.last_response.edges)
         return [
             Artifact._from_attrs(
-                entity=project.entity.name,
+                entity=project.entity_name,
                 project=project.name,
                 name=f"{collection.name}:v{node.version_index}",
                 attrs=artifact,

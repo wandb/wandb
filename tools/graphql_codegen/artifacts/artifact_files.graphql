@@ -12,11 +12,10 @@ fragment FilesFragment on FileConnection {
       md5
       directUrl
     }
-    cursor
+    # cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
 }
 
@@ -62,8 +61,7 @@ query ArtifactCollectionMembershipFiles(
 
 fragment FileUrlsFragment on FileConnection {
   pageInfo {
-    hasNextPage
-    endCursor
+    ...PageInfoFragment
   }
   edges {
     node {
