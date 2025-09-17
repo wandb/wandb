@@ -6,12 +6,11 @@ fragment ArtifactTypeFragment on ArtifactType {
   createdAt
 }
 
-fragment ArtifactTypesFragment on ArtifactTypeConnection {
+fragment ArtifactTypeConnectionFragment on ArtifactTypeConnection {
   edges {
     node {
       ...ArtifactTypeFragment
     }
-    cursor
   }
   pageInfo {
     ...PageInfoFragment
@@ -21,7 +20,7 @@ fragment ArtifactTypesFragment on ArtifactTypeConnection {
 query ProjectArtifactTypes($entityName: String!, $projectName: String!, $cursor: String) {
   project(name: $projectName, entityName: $entityName) {
     artifactTypes(after: $cursor) {
-      ...ArtifactTypesFragment
+      ...ArtifactTypeConnectionFragment
     }
   }
 }

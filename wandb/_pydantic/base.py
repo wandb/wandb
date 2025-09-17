@@ -111,7 +111,7 @@ class GQLBase(JsonableModel, ABC):
 # Base class for GraphQL result types, i.e. parsed GraphQL response data.
 class GQLResult(GQLBase, ABC):
     model_config = ConfigDict(
-        frozen=True,  # Treat the response data itself as immutable
+        # frozen=True,  # Treat the response data itself as immutable
     )
 
 

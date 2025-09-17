@@ -12,7 +12,7 @@ fragment FilesFragment on FileConnection {
       md5
       directUrl
     }
-    cursor
+    # cursor
   }
   pageInfo {
     ...PageInfoFragment

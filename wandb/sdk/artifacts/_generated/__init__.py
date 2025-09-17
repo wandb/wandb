@@ -14,10 +14,9 @@ __all__ = [
     "ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL",
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ALIASES_GQL",
+    "DELETE_ARTIFACT_COLLECTION_GQL",
     "DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ARTIFACT_GQL",
-    "DELETE_ARTIFACT_PORTFOLIO_GQL",
-    "DELETE_ARTIFACT_SEQUENCE_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
     "FETCH_REGISTRIES_GQL",
@@ -34,13 +33,10 @@ __all__ = [
     "RUN_OUTPUT_ARTIFACTS_GQL",
     "TYPE_INFO_GQL",
     "UNLINK_ARTIFACT_GQL",
+    "UPDATE_ARTIFACT_COLLECTION_GQL",
     "UPDATE_ARTIFACT_GQL",
-    "UPDATE_ARTIFACT_PORTFOLIO_GQL",
-    "UPDATE_ARTIFACT_SEQUENCE_GQL",
-    "DeleteArtifactSequence",
-    "DeleteArtifactPortfolio",
-    "UpdateArtifactSequence",
-    "UpdateArtifactPortfolio",
+    "DeleteArtifactCollection",
+    "UpdateArtifactCollection",
     "MoveArtifactCollection",
     "CreateArtifactCollectionTagAssignments",
     "DeleteArtifactCollectionTagAssignments",
@@ -77,24 +73,29 @@ __all__ = [
     "ArtifactCollectionAliasInput",
     "LinkArtifactInput",
     "TagInput",
-    "ArtifactCollectionsFragment",
+    "ArtifactAliasFragment",
+    "ArtifactCollectionConnectionFragment",
+    "ArtifactCollectionFragment",
+    "ArtifactCollectionProjectFragment",
     "ArtifactFragment",
     "ArtifactFragmentWithoutAliases",
     "ArtifactPortfolioTypeFields",
     "ArtifactSequenceTypeFields",
+    "ArtifactTypeConnectionFragment",
     "ArtifactTypeFragment",
-    "ArtifactTypesFragment",
     "ArtifactsFragment",
     "FileUrlsFragment",
     "FilesFragment",
     "MembershipWithArtifact",
     "PageInfoFragment",
     "RegistriesPage",
-    "RegistryCollectionsPage",
+    "RegistryCollectionConnectionFragment",
+    "RegistryCollectionFragment",
     "RegistryFragment",
     "RegistryVersionsPage",
     "RunInputArtifactConnectionFragment",
     "RunOutputArtifactConnectionFragment",
+    "TagFragment",
     "TypeInfoFragment",
     "ArtifactCollectionState",
     "ArtifactCollectionType",
@@ -118,34 +119,38 @@ from .create_artifact_collection_tag_assignments import (
 )
 from .delete_aliases import DeleteAliases
 from .delete_artifact import DeleteArtifact
+from .delete_artifact_collection import DeleteArtifactCollection
 from .delete_artifact_collection_tag_assignments import (
     DeleteArtifactCollectionTagAssignments,
 )
-from .delete_artifact_portfolio import DeleteArtifactPortfolio
-from .delete_artifact_sequence import DeleteArtifactSequence
 from .enums import ArtifactCollectionState, ArtifactCollectionType, ArtifactState
 from .fetch_artifact_manifest import FetchArtifactManifest
 from .fetch_linked_artifacts import FetchLinkedArtifacts
 from .fetch_registries import FetchRegistries
 from .fragments import (
-    ArtifactCollectionsFragment,
+    ArtifactAliasFragment,
+    ArtifactCollectionConnectionFragment,
+    ArtifactCollectionFragment,
+    ArtifactCollectionProjectFragment,
     ArtifactFragment,
     ArtifactFragmentWithoutAliases,
     ArtifactPortfolioTypeFields,
     ArtifactSequenceTypeFields,
     ArtifactsFragment,
+    ArtifactTypeConnectionFragment,
     ArtifactTypeFragment,
-    ArtifactTypesFragment,
     FilesFragment,
     FileUrlsFragment,
     MembershipWithArtifact,
     PageInfoFragment,
     RegistriesPage,
-    RegistryCollectionsPage,
+    RegistryCollectionConnectionFragment,
+    RegistryCollectionFragment,
     RegistryFragment,
     RegistryVersionsPage,
     RunInputArtifactConnectionFragment,
     RunOutputArtifactConnectionFragment,
+    TagFragment,
     TypeInfoFragment,
 )
 from .input_types import (
@@ -170,10 +175,9 @@ from .operations import (
     ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
     CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
     DELETE_ALIASES_GQL,
+    DELETE_ARTIFACT_COLLECTION_GQL,
     DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
     DELETE_ARTIFACT_GQL,
-    DELETE_ARTIFACT_PORTFOLIO_GQL,
-    DELETE_ARTIFACT_SEQUENCE_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
     FETCH_REGISTRIES_GQL,
@@ -190,9 +194,8 @@ from .operations import (
     RUN_OUTPUT_ARTIFACTS_GQL,
     TYPE_INFO_GQL,
     UNLINK_ARTIFACT_GQL,
+    UPDATE_ARTIFACT_COLLECTION_GQL,
     UPDATE_ARTIFACT_GQL,
-    UPDATE_ARTIFACT_PORTFOLIO_GQL,
-    UPDATE_ARTIFACT_SEQUENCE_GQL,
 )
 from .project_artifact_collection import ProjectArtifactCollection
 from .project_artifact_collections import ProjectArtifactCollections
@@ -206,5 +209,4 @@ from .run_output_artifacts import RunOutputArtifacts
 from .type_info import TypeInfo
 from .unlink_artifact import UnlinkArtifact
 from .update_artifact import UpdateArtifact
-from .update_artifact_portfolio import UpdateArtifactPortfolio
-from .update_artifact_sequence import UpdateArtifactSequence
+from .update_artifact_collection import UpdateArtifactCollection
