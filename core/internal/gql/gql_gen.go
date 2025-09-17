@@ -601,6 +601,7 @@ type CreateArtifactInput struct {
 	ClientID                  string                  `json:"clientID"`
 	SequenceClientID          string                  `json:"sequenceClientID"`
 	ClientMutationId          *string                 `json:"clientMutationId"`
+	StorageLocation           *string                 `json:"storageLocation"`
 }
 
 // GetEntityName returns CreateArtifactInput.EntityName, and is useful for accessing the field via an interface.
@@ -662,6 +663,9 @@ func (v *CreateArtifactInput) GetSequenceClientID() string { return v.SequenceCl
 
 // GetClientMutationId returns CreateArtifactInput.ClientMutationId, and is useful for accessing the field via an interface.
 func (v *CreateArtifactInput) GetClientMutationId() *string { return v.ClientMutationId }
+
+// GetStorageLocation returns CreateArtifactInput.StorageLocation, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetStorageLocation() *string { return v.StorageLocation }
 
 // CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayload includes the requested fields of the GraphQL type CreateArtifactManifestPayload.
 type CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayload struct {

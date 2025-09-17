@@ -16,7 +16,7 @@ rm -rf core
 
 echo "[INFO] Downloading latest schema for commit hash: $COMMIT_HASH"
 # download the latest schema
-git clone -n --depth=1 --filter=tree:0 https://github.com/wandb/core
+git clone -n --depth=1 --filter=tree:0 git@github.com:wandb/core.git
 cd core
 git checkout $COMMIT_HASH services/gorilla/schema.graphql
 mv services/gorilla/schema.graphql $BASE/api/graphql/schemas/schema-latest.graphql
