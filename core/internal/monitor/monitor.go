@@ -342,7 +342,10 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 		sm.logger.Debug("monitor: starting")
 		for _, resource := range sm.resources {
 			sm.wg.Add(1)
-			go sm.monitorResource(resource)
+			go func() {
+				sm.monitorResource(resource)
+				sm.wg.Done()
+			}()
 		}
 	}
 }
@@ -398,13 +401,11 @@ func (sm *SystemMonitor) Resume() {
 // and is meant to run in its own goroutine.
 func (sm *SystemMonitor) monitorResource(resource Resource) {
 	if resource == nil {
-		sm.wg.Done()
 		return
 	}
 
 	// recover from panic and log the error
 	defer func() {
-		sm.wg.Done()
 		if err := recover(); err != nil {
 			if resource != nil {
 				sm.logger.CaptureError(fmt.Errorf("monitor: panic: %v", err))
