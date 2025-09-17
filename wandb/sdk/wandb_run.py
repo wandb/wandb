@@ -33,6 +33,7 @@ from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
@@ -2698,7 +2699,9 @@ class Run:
             assert self._backend and self._backend.interface
 
             while True:
-                handle = self._backend.interface.deliver_poll_exit()
+                handle = await self._backend.interface.deliver_async(
+                    pb.Record(request=pb.Request(poll_exit=pb.PollExitRequest()))
+                )
 
                 time_start = time.monotonic()
                 last_result = await handle.wait_async(timeout=None)

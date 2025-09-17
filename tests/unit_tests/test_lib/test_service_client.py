@@ -151,13 +151,17 @@ def client(
     return ServiceClient(asyncer, reader, writer)
 
 
-def test_publish_sends_request(client: ServiceClient, fake_server: _FakeServer):
+def test_publish_sends_request(
+    asyncer: asyncio_manager.AsyncioManager,
+    client: ServiceClient,
+    fake_server: _FakeServer,
+):
     try:
         request = spb.ServerRequest()
         request.record_publish.exit.exit_code = 123
-        client.publish(request)
+        asyncer.run(lambda: client.publish(request))
     finally:
-        client.close()
+        asyncer.run(lambda: client.close())
 
     assert fake_server.requests() == [request]
 
@@ -172,12 +176,12 @@ def test_deliver_reads_response(
 
     try:
         request = spb.ServerRequest()
-        handle = client.deliver(request)
+        handle = asyncer.run(lambda: client.deliver(request))
         asyncer.run(lambda: fake_server.respond(expected_response))
 
         response = handle.wait_or(timeout=5)
     finally:
-        client.close()
+        asyncer.run(client.close)
 
     expected_response.request_id = request.request_id
     assert response == expected_response
@@ -189,13 +193,13 @@ def test_closes_mailbox_on_read_error(
     fake_server: _FakeServer,
 ):
     try:
-        handle = client.deliver(spb.ServerRequest())
+        handle = asyncer.run(lambda: client.deliver(spb.ServerRequest()))
         asyncer.run(lambda: fake_server.respond(b"invalid response"))
 
         with pytest.raises(mailbox.HandleAbandonedError):
             handle.wait_or(timeout=5)
     finally:
-        client.close()
+        asyncer.run(client.close)
 
 
 def test_closes_mailbox_on_eof(
@@ -204,10 +208,10 @@ def test_closes_mailbox_on_eof(
     fake_server: _FakeServer,
 ):
     try:
-        handle = client.deliver(spb.ServerRequest())
+        handle = asyncer.run(lambda: client.deliver(spb.ServerRequest()))
         asyncer.run(fake_server.close_connection)
 
         with pytest.raises(mailbox.HandleAbandonedError):
             handle.wait_or(timeout=5)
     finally:
-        client.close()
+        asyncer.run(client.close)
