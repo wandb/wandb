@@ -19,7 +19,7 @@ This version removes support of MacOS 10.
 
 ### Removed
 
-- Remove a build targeting MacOS 10.x due to multiple security and supply chain considerations (@dmitryduev in https://github.com/wandb/wandb/pull/10468)
+- Remove a build targeting MacOS 10.x due to multiple security and supply chain considerations (@dmitryduev in https://github.com/wandb/wandb/pull/10529)
 
 ### Fixed
 
