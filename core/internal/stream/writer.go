@@ -2,12 +2,12 @@ package stream
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -31,8 +31,8 @@ type Writer struct {
 	// fwdChan is a channel to which to pass work after saving it.
 	fwdChan chan runwork.Work
 
-	// store manages the underlying file.
-	store *Store
+	// writer writes to the underlying file.
+	writer *transactionlog.Writer
 
 	// recordNum the number of records we've attempted to save.
 	recordNum int64
@@ -48,12 +48,14 @@ func (f *WriterFactory) New(fwdChan chan runwork.Work) *Writer {
 }
 
 func (w *Writer) startStore() {
-	w.store = NewStore(w.settings.GetTransactionLogPath())
-	err := w.store.Open(os.O_WRONLY)
+	writer, err := transactionlog.OpenWriter(w.settings.GetTransactionLogPath())
+
 	if err != nil {
 		w.logger.CaptureFatalAndPanic(
 			fmt.Errorf("writer: error creating store: %v", err))
 	}
+
+	w.writer = writer
 }
 
 // Do processes all records on the input channel.
@@ -83,9 +85,8 @@ func (w *Writer) Do(allWork <-chan runwork.Work) {
 		w.fwdChan <- work
 	}
 
-	if err := w.store.Close(); err != nil {
-		w.logger.CaptureError(
-			fmt.Errorf("writer: failed closing store: %v", err))
+	if err := w.writer.Close(); err != nil {
+		w.logger.Error(fmt.Sprintf("writer: error closing: %v", err))
 	}
 
 	close(w.fwdChan)
@@ -109,7 +110,7 @@ func (w *Writer) setNumber(record *spb.Record) {
 //
 // Errors are captured and logged.
 func (w *Writer) tryWrite(record *spb.Record) {
-	if err := w.store.Write(record); err != nil {
+	if err := w.writer.Write(record); err != nil {
 		w.logger.CaptureError(
 			fmt.Errorf("writer: failed to write record: %v", err))
 	}
