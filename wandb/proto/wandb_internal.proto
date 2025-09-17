@@ -463,6 +463,8 @@ message ArtifactRecord {
   string base_id = 17;
   int64 ttl_duration_seconds = 18;
   repeated string tags = 19;
+  // specify a non default storage bucket
+  string storage_location = 20;
   bool incremental_beta1 = 100;
   _RecordInfo _info = 200;
 }

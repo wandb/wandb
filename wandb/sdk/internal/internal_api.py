@@ -4078,6 +4078,8 @@ class Api:
         is_user_created: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
+        # TODO: no longer used when using core
+        print("calling internal_api.create_artifact")
         fields = self.server_create_artifact_introspection()
         artifact_fields = self.server_artifact_introspection()
         if ("ttlIsInherited" not in artifact_fields) and ttl_duration_seconds:
