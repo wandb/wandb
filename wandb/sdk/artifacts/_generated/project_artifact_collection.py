@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLId, GQLResult, Typename
+from wandb._pydantic import GQLResult
 
-from .fragments import ArtifactAliasFragment, PageInfoFragment, TagFragment
+from .fragments import ArtifactCollectionFragment
 
 
 class ProjectArtifactCollection(GQLResult):
@@ -23,59 +23,11 @@ class ProjectArtifactCollectionProject(GQLResult):
 
 
 class ProjectArtifactCollectionProjectArtifactType(GQLResult):
-    artifact_collection: Optional[
-        ProjectArtifactCollectionProjectArtifactTypeArtifactCollection
-    ] = Field(alias="artifactCollection")
-    artifact_sequence: Optional[
-        ProjectArtifactCollectionProjectArtifactTypeArtifactSequence
-    ] = Field(alias="artifactSequence")
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollection(GQLResult):
-    typename__: Typename[
-        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
-    ]
-    id: GQLId
-    name: str
-    description: Optional[str]
-    created_at: str = Field(alias="createdAt")
-    tags: ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTags
-    aliases: ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliases
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTags(GQLResult):
-    edges: List[ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTagsEdges]
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTagsEdges(
-    GQLResult
-):
-    node: TagFragment
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliases(GQLResult):
-    edges: List[
-        ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdges
-    ]
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdges(
-    GQLResult
-):
-    node: Optional[ArtifactAliasFragment]
-    cursor: str
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactSequence(GQLResult):
-    typename__: Typename[Literal["ArtifactSequence"]]
+    artifact_collection: Optional[ArtifactCollectionFragment] = Field(
+        alias="artifactCollection"
+    )
 
 
 ProjectArtifactCollection.model_rebuild()
 ProjectArtifactCollectionProject.model_rebuild()
 ProjectArtifactCollectionProjectArtifactType.model_rebuild()
-ProjectArtifactCollectionProjectArtifactTypeArtifactCollection.model_rebuild()
-ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTags.model_rebuild()
-ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTagsEdges.model_rebuild()
-ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliases.model_rebuild()
-ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdges.model_rebuild()

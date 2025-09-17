@@ -7,11 +7,10 @@ collections.
 from __future__ import annotations
 
 import json
-import re
 from copy import copy
 from typing import TYPE_CHECKING, Any, Iterable, List, Literal, Mapping, Sequence
 
-from typing_extensions import override
+from typing_extensions import deprecated, override
 from wandb_gql import Client, gql
 
 import wandb
@@ -41,7 +40,7 @@ from wandb.sdk.artifacts._generated import (
     RUN_OUTPUT_ARTIFACTS_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
     UPDATE_ARTIFACT_SEQUENCE_GQL,
-    ArtifactCollectionConnectionFragment,
+    ArtifactCollectionFragment,
     ArtifactCollectionMembershipFiles,
     ArtifactFragment,
     ArtifactTypeFragment,
@@ -64,6 +63,7 @@ from wandb.sdk.artifacts._validators import (
     FullArtifactPath,
     validate_artifact_name,
     validate_artifact_type,
+    validate_tags,
 )
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
@@ -255,6 +255,9 @@ class ArtifactType:
         return f"<ArtifactType {self.type}>"
 
 
+_ArtifactCollectionConnection = ConnectionWithTotal[ArtifactCollectionFragment]
+
+
 class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
     """Artifact collections of a specific type in a project.
 
@@ -268,7 +271,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    last_response: ArtifactCollectionConnectionFragment | None
+    last_response: _ArtifactCollectionConnection | None
 
     def __init__(
         self,
@@ -313,7 +316,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
         ):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
-        self.last_response = ArtifactCollectionConnectionFragment.model_validate(conn)
+        self.last_response = _ArtifactCollectionConnection.model_validate(conn)
 
     @property
     def _length(self) -> int:
@@ -331,9 +334,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response is None:
-            return True
-        return self.last_response.page_info.has_next_page
+        return (conn := self.last_response) is None or conn.has_next
 
     @property
     def cursor(self) -> str | None:
@@ -341,9 +342,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response is None:
-            return None
-        return self.last_response.edges[-1].cursor
+        return conn.next_cursor if (conn := self.last_response) else None
 
     def update_variables(self) -> None:
         """Update the cursor variable for pagination.
@@ -366,9 +365,9 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
                 project=self.project,
                 name=node.name,
                 type=self.type_name,
+                attrs=node,
             )
-            for edge in self.last_response.edges
-            if (node := edge.node)
+            for node in self.last_response.nodes()
         ]
 
 
@@ -389,6 +388,9 @@ class ArtifactCollection:
     <!-- lazydoc-ignore-init: internal -->
     """
 
+    _attrs: ArtifactCollectionFragment
+    """The saved artifact collection data, as of the last time the data was fetched from server."""
+
     def __init__(
         self,
         client: Client,
@@ -397,32 +399,35 @@ class ArtifactCollection:
         name: str,
         type: str,
         organization: str | None = None,
-        attrs: Mapping[str, Any] | None = None,
-        is_sequence: bool | None = None,
+        attrs: ArtifactCollectionFragment | None = None,
     ):
+        name = validate_artifact_name(name)
+
         self.client = client
         self.entity = entity
         self.project = project
-        self._name = validate_artifact_name(name)
+        self._name = name
         self._saved_name = name
         self._type = type
         self._saved_type = type
-        self._attrs = attrs
-        if is_sequence is not None:
-            self._is_sequence = is_sequence
-        if (attrs is None) or (is_sequence is None):
-            self.load()
-        self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
-        self._description = self._attrs["description"]
-        self._created_at = self._attrs["createdAt"]
-        self._tags = [a["node"]["name"] for a in self._attrs["tags"]["edges"]]
+
+        # FIXME: Make this lazy, so we don't (re-)fetch the attributes until they are needed
+        if attrs is None:
+            self._attrs = self._fetch()
+        else:
+            self._attrs = ArtifactCollectionFragment.model_validate(attrs)
+
+        self._description = self._attrs.description
+        self._tags = (
+            [a.node.name for a in conn.edges] if (conn := self._attrs.tags) else []
+        )
         self._saved_tags = copy(self._tags)
         self.organization = organization
 
     @property
     def id(self) -> str:
         """The unique identifier of the artifact collection."""
-        return self._attrs["id"]
+        return self._attrs.id
 
     @normalize_exceptions
     def artifacts(self, per_page: int = 50) -> Artifacts:
@@ -439,18 +444,17 @@ class ArtifactCollection:
     @property
     def aliases(self) -> list[str]:
         """Artifact Collection Aliases."""
-        return self._aliases
+        if conn := self._attrs.aliases:
+            return [a.node.alias for a in conn.edges]
+        return []
 
     @property
     def created_at(self) -> str:
         """The creation date of the artifact collection."""
-        return self._created_at
+        return self._attrs.created_at
 
-    def load(self):
-        """Load the artifact collection attributes from W&B.
-
-        <!-- lazydoc-ignore: internal -->
-        """
+    def _fetch(self) -> ArtifactCollectionFragment:
+        """Returns the validated data for this artifact collection from the W&B server."""
         if server_supports_artifact_collections_gql_edges(self.client):
             rename_fields = None
         else:
@@ -476,14 +480,23 @@ class ArtifactCollection:
         ):
             raise ValueError(f"Could not find artifact type {self._saved_type}")
 
-        sequence = type_.artifact_sequence
-        self._is_sequence = (
-            sequence is not None
-        ) and sequence.typename__ == SOURCE_ARTIFACT_COLLECTION_TYPE
+        return collection
 
-        if self._attrs is None:
-            self._attrs = collection.model_dump(exclude_unset=True)
-        return self._attrs
+    @deprecated(
+        "ArtifactCollection.load() is deprecated and will be removed in a future release."
+    )
+    def load(self) -> dict[str, Any]:
+        """Load the artifact collection attributes from W&B.
+
+        Warning:
+            Avoid using this method going forward. It's retained for continuity, since it's
+            formally a public method, but it has been replaced by the private `_fetch` method.
+
+        <!-- lazydoc-ignore: internal -->
+        """
+        # NOTE: Kept for continuity since it's formally a public method, but avoid using this.
+        self._attrs = self._fetch()
+        return self._attrs.model_dump(exclude_unset=True)
 
     @normalize_exceptions
     def change_type(self, new_type: str) -> None:
@@ -493,12 +506,12 @@ class ArtifactCollection:
             warning_message="ArtifactCollection.change_type(type) is deprecated, use ArtifactCollection.save() instead.",
         )
 
-        if self._saved_type != new_type:
+        if (saved_type := self._saved_type) != new_type:
             try:
-                validate_artifact_type(self._saved_type, self.name)
+                validate_artifact_type(saved_type, self.name)
             except ValueError as e:
                 raise ValueError(
-                    f"The current type '{self._saved_type!r}' is an internal type and cannot be changed."
+                    f"The current type {saved_type!r} is an internal type and cannot be changed."
                 ) from e
 
         # Check that the new type is not going to conflict with internal types
@@ -506,9 +519,7 @@ class ArtifactCollection:
 
         if not self.is_sequence():
             raise ValueError("Artifact collection needs to be a sequence")
-        termlog(
-            f"Changing artifact collection type of {self._saved_type} to {new_type}"
-        )
+        termlog(f"Changing artifact collection type of {saved_type!r} to {new_type!r}")
         gql_input = MoveArtifactSequenceInput(
             artifact_sequence_id=self.id,
             destination_artifact_type_name=new_type,
@@ -522,7 +533,7 @@ class ArtifactCollection:
 
     def is_sequence(self) -> bool:
         """Return whether the artifact collection is a sequence."""
-        return self._is_sequence
+        return self._attrs.typename__ == SOURCE_ARTIFACT_COLLECTION_TYPE
 
     @normalize_exceptions
     def delete(self) -> None:
@@ -554,11 +565,7 @@ class ArtifactCollection:
     @tags.setter
     def tags(self, tags: list[str]) -> None:
         """Set the tags associated with the artifact collection."""
-        if any(not re.match(r"^[-\w]+([ ]+[-\w]+)*$", tag) for tag in tags):
-            raise ValueError(
-                "Tags must only contain alphanumeric characters or underscores separated by spaces or hyphens"
-            )
-        self._tags = tags
+        self._tags = validate_tags(tags)
 
     @property
     def name(self) -> str:
@@ -634,22 +641,25 @@ class ArtifactCollection:
     @normalize_exceptions
     def save(self) -> None:
         """Persist any changes made to the artifact collection."""
-        if self._saved_type != self.type:
+        if (saved_type := self._saved_type) != (new_type := self.type):
             try:
-                validate_artifact_type(self.type, self._name)
+                validate_artifact_type(new_type, self.name)
             except ValueError as e:
-                raise ValueError(f"Failed to save artifact collection: {e}") from e
-            try:
-                validate_artifact_type(self._saved_type, self._name)
-            except ValueError as e:
+                reason = str(e)
                 raise ValueError(
-                    f"Failed to save artifact collection '{self._name}': "
-                    f"The current type '{self._saved_type!r}' is an internal type and cannot be changed."
+                    f"Failed to save artifact collection {self.name!r}: {reason}"
+                ) from e
+            try:
+                validate_artifact_type(saved_type, self.name)
+            except ValueError as e:
+                reason = f"The current type {saved_type!r} is an internal type and cannot be changed."
+                raise ValueError(
+                    f"Failed to save artifact collection {self.name!r}: {reason}"
                 ) from e
 
         self._update_collection()
 
-        if self.is_sequence() and (self._saved_type != self._type):
+        if self.is_sequence() and (saved_type != new_type):
             self._update_collection_type()
 
         current_tags = set(self._tags)
