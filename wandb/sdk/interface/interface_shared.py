@@ -112,6 +112,7 @@ class InterfaceShared(InterfaceBase):
         python_packages: Optional[pb.PythonPackagesRequest] = None,
         job_input: Optional[pb.JobInputRequest] = None,
         run_finish_without_exit: Optional[pb.RunFinishWithoutExitRequest] = None,
+        probe_system_info: Optional[pb.ProbeSystemInfoRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if get_summary:
@@ -178,6 +179,8 @@ class InterfaceShared(InterfaceBase):
             request.job_input.CopyFrom(job_input)
         elif run_finish_without_exit:
             request.run_finish_without_exit.CopyFrom(run_finish_without_exit)
+        elif probe_system_info:
+            request.probe_system_info.CopyFrom(probe_system_info)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -329,6 +332,12 @@ class InterfaceShared(InterfaceBase):
     def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> Any:
         rec = self._make_record(use_artifact=use_artifact)
         self._publish(rec)
+
+    def _publish_probe_system_info(
+        self, probe_system_info: pb.ProbeSystemInfoRequest
+    ) -> None:
+        record = self._make_request(probe_system_info=probe_system_info)
+        self._publish(record)
 
     def _deliver_artifact(
         self,
