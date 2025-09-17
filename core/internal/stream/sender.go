@@ -1260,6 +1260,12 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 		})
 	}
 
+	// Prefer filestream feedback if available.
+	if s.fileStream != nil && s.fileStream.StopState() != fs.StopUnknown {
+		respondShouldStop(s.fileStream.StopState() == fs.StopTrue)
+		return
+	}
+
 	upserter, err := s.streamRun.GetRunUpserter()
 	if err != nil {
 		s.logger.CaptureError(
@@ -1281,6 +1287,7 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 		return
 	}
 
+	// Fallback: consult GraphQL when filestream status is unknown.
 	response, err := gql.RunStoppedStatus(
 		s.runWork.BeforeEndCtx(),
 		s.graphqlClient,
