@@ -17,7 +17,7 @@ import (
 // This is derived from the Settings proto and adapted for use in Go.
 type Settings struct {
 	// Mutex to protect access to fields that may be updated.
-	*sync.Mutex
+	sync.Mutex
 
 	// The source proto.
 	//
