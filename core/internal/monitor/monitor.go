@@ -351,7 +351,7 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 //
 // This operation may take some time, so we perform it on a best-effort basis.
 func (sm *SystemMonitor) Probe() {
-	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() {
+	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() && sm.settings.IsPrimary() {
 		go func() {
 			sm.logger.Debug("monitor: collecting the environment and resource information")
 
