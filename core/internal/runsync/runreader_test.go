@@ -12,8 +12,8 @@ import (
 	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
-	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/streamtest"
+	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"go.uber.org/mock/gomock"
 )
@@ -63,9 +63,7 @@ func wandbFileWithRecords(
 ) {
 	t.Helper()
 
-	store := stream.NewStore(path)
-
-	err := store.Open(os.O_WRONLY)
+	store, err := transactionlog.OpenWriter(path)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, store.Close()) }()
 
@@ -250,5 +248,5 @@ func Test_CorruptFileError(t *testing.T) {
 
 	err = x.RunReader.ProcessTransactionLog()
 
-	assert.ErrorContains(t, err, "failed to get next record")
+	assert.ErrorContains(t, err, "error getting next record")
 }
