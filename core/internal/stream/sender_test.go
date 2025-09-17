@@ -32,7 +32,14 @@ const validLinkArtifactResponse = `{
 	"linkArtifact": { "versionIndex": 0 }
 }`
 
-func makeSender(t *testing.T, client graphql.Client) (*stream.Sender, *stream.StreamRun, *wbsettings.Settings, *observability.CoreLogger) {
+type testFixtures struct {
+	Sender    *stream.Sender
+	StreamRun *stream.StreamRun
+	Settings  *wbsettings.Settings
+	Logger    *observability.CoreLogger
+}
+
+func makeSender(t *testing.T, client graphql.Client) testFixtures {
 	t.Helper()
 	runWork := runworktest.New()
 	logger := observabilitytest.NewTestLogger(t)
@@ -73,13 +80,27 @@ func makeSender(t *testing.T, client graphql.Client) (*stream.Sender, *stream.St
 		FeatureProvider:         featurechecker.NewServerFeaturesCache(nil, logger),
 		StreamRun:               streamRun,
 	}
-	return senderFactory.New(runWork), streamRun, settings, logger
+	return testFixtures{
+		Sender:    senderFactory.New(runWork),
+		StreamRun: streamRun,
+		Settings:  settings,
+		Logger:    logger,
+	}
 }
 
 // Seed a minimal RunUpserter so Sender can resolve entity/project/run for GraphQL fallback.
-func seedRunUpserter(t *testing.T, sr *stream.StreamRun, settings *wbsettings.Settings, logger *observability.CoreLogger) {
+func seedRunUpserter(
+	t *testing.T,
+	sr *stream.StreamRun,
+	settings *wbsettings.Settings,
+	logger *observability.CoreLogger,
+) {
 	t.Helper()
-	rec := &spb.Record{RecordType: &spb.Record_Run{Run: &spb.RunRecord{Entity: "entity", Project: "project", RunId: "run"}}}
+	rec := &spb.Record{RecordType: &spb.Record_Run{
+		Run: &spb.RunRecord{
+			Entity: "entity", Project: "project", RunId: "run",
+		},
+	}}
 	upserter, err := runupserter.InitRun(rec, runupserter.RunUpserterParams{
 		DebounceDelay:      waiting.NewDelay(1 * time.Millisecond),
 		ClientID:           "test-client",
@@ -96,10 +117,10 @@ func seedRunUpserter(t *testing.T, sr *stream.StreamRun, settings *wbsettings.Se
 
 func TestSendRequestStopStatus_FallsBackToGraphQL(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	sender, sr, settings, logger := makeSender(t, mockGQL)
+	x := makeSender(t, mockGQL)
 
 	// Ensure Sender has a RunUpserter so it can construct gql vars.
-	seedRunUpserter(t, sr, settings, logger)
+	seedRunUpserter(t, x.StreamRun, x.Settings, x.Logger)
 
 	rec := &spb.Record{
 		RecordType: &spb.Record_Request{
@@ -117,8 +138,8 @@ func TestSendRequestStopStatus_FallsBackToGraphQL(t *testing.T) {
 		`{"project": {"run": {"stopped": true}}}`,
 	)
 
-	sender.SendRecord(rec)
-	res := <-sender.ResponseChan()
+	x.Sender.SendRecord(rec)
+	res := <-x.Sender.ResponseChan()
 	resp := res.GetResponse().GetStopStatusResponse()
 	assert.NotNil(t, resp)
 	assert.Equal(t, true, resp.GetRunShouldStop())
@@ -127,7 +148,7 @@ func TestSendRequestStopStatus_FallsBackToGraphQL(t *testing.T) {
 // Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	sender, _, _, _ := makeSender(t, mockGQL)
+	x := makeSender(t, mockGQL)
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	linkArtifact := &spb.Record{
@@ -153,8 +174,8 @@ func TestSendLinkArtifact(t *testing.T) {
 		gqlmock.WithOpName("LinkArtifact"),
 		validLinkArtifactResponse,
 	)
-	sender.SendRecord(linkArtifact)
-	<-sender.ResponseChan()
+	x.Sender.SendRecord(linkArtifact)
+	<-x.Sender.ResponseChan()
 
 	requests := mockGQL.AllRequests()
 	assert.Len(t, requests, 1)
@@ -187,8 +208,8 @@ func TestSendLinkArtifact(t *testing.T) {
 		gqlmock.WithOpName("LinkArtifact"),
 		validLinkArtifactResponse,
 	)
-	sender.SendRecord(linkArtifact)
-	<-sender.ResponseChan()
+	x.Sender.SendRecord(linkArtifact)
+	<-x.Sender.ResponseChan()
 
 	requests = mockGQL.AllRequests()
 	assert.Len(t, requests, 2)
@@ -221,8 +242,8 @@ func TestSendLinkArtifact(t *testing.T) {
 		gqlmock.WithOpName("LinkArtifact"),
 		validLinkArtifactResponse,
 	)
-	sender.SendRecord(linkArtifact)
-	<-sender.ResponseChan()
+	x.Sender.SendRecord(linkArtifact)
+	<-x.Sender.ResponseChan()
 
 	requests = mockGQL.AllRequests()
 	assert.Len(t, requests, 3)
@@ -237,7 +258,7 @@ func TestSendLinkArtifact(t *testing.T) {
 
 func TestSendUseArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	sender, _, _, _ := makeSender(t, mockGQL)
+	x := makeSender(t, mockGQL)
 
 	useArtifact := &spb.Record{
 		RecordType: &spb.Record_UseArtifact{
@@ -250,7 +271,7 @@ func TestSendUseArtifact(t *testing.T) {
 		},
 	}
 	// verify doesn't panic if used job artifact
-	sender.SendRecord(useArtifact)
+	x.Sender.SendRecord(useArtifact)
 
 	// verify doesn't panic if partial job is broken
 	useArtifact = &spb.Record{
@@ -276,7 +297,7 @@ func TestSendUseArtifact(t *testing.T) {
 			},
 		},
 	}
-	sender.SendRecord(useArtifact)
+	x.Sender.SendRecord(useArtifact)
 }
 
 var validFetchOrgEntityFromEntityResponse = `{
