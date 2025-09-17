@@ -18,6 +18,7 @@ else:
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
+@typing_extensions.final
 class ServerAuthenticateRequest(google.protobuf.message.Message):
     """Authentication messages.
 
@@ -49,6 +50,7 @@ class ServerAuthenticateRequest(google.protobuf.message.Message):
 
 global___ServerAuthenticateRequest = ServerAuthenticateRequest
 
+@typing_extensions.final
 class ServerAuthenticateResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -71,6 +73,7 @@ class ServerAuthenticateResponse(google.protobuf.message.Message):
 
 global___ServerAuthenticateResponse = ServerAuthenticateResponse
 
+@typing_extensions.final
 class ServerShutdownRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -87,6 +90,7 @@ class ServerShutdownRequest(google.protobuf.message.Message):
 
 global___ServerShutdownRequest = ServerShutdownRequest
 
+@typing_extensions.final
 class ServerShutdownResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -96,6 +100,7 @@ class ServerShutdownResponse(google.protobuf.message.Message):
 
 global___ServerShutdownResponse = ServerShutdownResponse
 
+@typing_extensions.final
 class ServerStatusRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -112,6 +117,7 @@ class ServerStatusRequest(google.protobuf.message.Message):
 
 global___ServerStatusRequest = ServerStatusRequest
 
+@typing_extensions.final
 class ServerStatusResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -121,6 +127,7 @@ class ServerStatusResponse(google.protobuf.message.Message):
 
 global___ServerStatusResponse = ServerStatusResponse
 
+@typing_extensions.final
 class ServerInformInitRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -141,6 +148,7 @@ class ServerInformInitRequest(google.protobuf.message.Message):
 
 global___ServerInformInitRequest = ServerInformInitRequest
 
+@typing_extensions.final
 class ServerInformInitResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -150,6 +158,7 @@ class ServerInformInitResponse(google.protobuf.message.Message):
 
 global___ServerInformInitResponse = ServerInformInitResponse
 
+@typing_extensions.final
 class ServerInformFinishRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -166,6 +175,7 @@ class ServerInformFinishRequest(google.protobuf.message.Message):
 
 global___ServerInformFinishRequest = ServerInformFinishRequest
 
+@typing_extensions.final
 class ServerInformFinishResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -175,6 +185,7 @@ class ServerInformFinishResponse(google.protobuf.message.Message):
 
 global___ServerInformFinishResponse = ServerInformFinishResponse
 
+@typing_extensions.final
 class ServerInformAttachRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -191,6 +202,7 @@ class ServerInformAttachRequest(google.protobuf.message.Message):
 
 global___ServerInformAttachRequest = ServerInformAttachRequest
 
+@typing_extensions.final
 class ServerInformAttachResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -211,6 +223,7 @@ class ServerInformAttachResponse(google.protobuf.message.Message):
 
 global___ServerInformAttachResponse = ServerInformAttachResponse
 
+@typing_extensions.final
 class ServerInformDetachRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -227,6 +240,7 @@ class ServerInformDetachRequest(google.protobuf.message.Message):
 
 global___ServerInformDetachRequest = ServerInformDetachRequest
 
+@typing_extensions.final
 class ServerInformDetachResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -236,6 +250,7 @@ class ServerInformDetachResponse(google.protobuf.message.Message):
 
 global___ServerInformDetachResponse = ServerInformDetachResponse
 
+@typing_extensions.final
 class ServerInformTeardownRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -255,6 +270,7 @@ class ServerInformTeardownRequest(google.protobuf.message.Message):
 
 global___ServerInformTeardownRequest = ServerInformTeardownRequest
 
+@typing_extensions.final
 class ServerInformTeardownResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -264,6 +280,7 @@ class ServerInformTeardownResponse(google.protobuf.message.Message):
 
 global___ServerInformTeardownResponse = ServerInformTeardownResponse
 
+@typing_extensions.final
 class ServerRequest(google.protobuf.message.Message):
     """
     ServerRequest, ServerResponse: used in sock server
@@ -336,6 +353,7 @@ class ServerRequest(google.protobuf.message.Message):
 
 global___ServerRequest = ServerRequest
 
+@typing_extensions.final
 class ServerResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
