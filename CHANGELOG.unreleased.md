@@ -13,6 +13,14 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Notable Changes
+
+This version removes support of MacOS 10.
+
+### Removed
+
+- Remove a build targeting MacOS 10.x due to multiple security and supply chain considerations (@dmitryduev in https://github.com/wandb/wandb/pull/10529)
+
 ### Fixed
 
 - Resuming a run with a different active run will now raise an error unless you call `run.finish()` first, or call `wandb.init()` with the parameter `reinit='create_new'` (@jacobromero in https://github.com/wandb/wandb/pull/10468)
