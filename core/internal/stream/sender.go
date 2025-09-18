@@ -1199,6 +1199,8 @@ func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifact
 
 		if result.Err != nil {
 			response.ErrorMessage = result.Err.Error()
+			// TODO: it will send error to sentry, do we want it?
+			s.logger.CaptureError(fmt.Errorf("sender: failed to log artifact: %v", result.Err), "artifactID", result.ArtifactID)
 		} else {
 			response.ArtifactId = result.ArtifactID
 		}

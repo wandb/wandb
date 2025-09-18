@@ -562,3 +562,15 @@ def test_invalid_upload_policy():
         artifact.add_file(local_path=path, name="file.json", policy="tmp")
     with pytest.raises(ValueError):
         artifact.add_dir(local_path=path, policy="tmp")
+
+
+def test_storage_policy_storage_region():
+    wandb.Artifact("test", type="dataset", storage_region="coreweave-us")
+    # local verification does not query from server to know the actual supported regions
+    wandb.Artifact("test", type="dataset", storage_region="coreweave-404")
+    with pytest.raises(TypeError):
+        wandb.Artifact("test", type="dataset", storage_region=123)
+    with pytest.raises(ValueError):
+        wandb.Artifact("test", type="dataset", storage_region="")
+    with pytest.raises(ValueError):
+        wandb.Artifact("test", type="dataset", storage_region=" ")

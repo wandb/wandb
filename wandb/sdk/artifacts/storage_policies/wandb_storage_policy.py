@@ -91,6 +91,8 @@ class WandbStoragePolicy(StoragePolicy):
         session: requests.Session | None = None,
     ) -> None:
         self._config = config or {}
+        if (storage_region := self._config.get("storageRegion")) is not None:
+            self._validate_storage_region(storage_region)
         self._cache = cache or get_artifact_file_cache()
         self._session = session or make_http_session()
         self._api = api or InternalApi()
@@ -98,6 +100,14 @@ class WandbStoragePolicy(StoragePolicy):
             handlers=make_storage_handlers(self._session),
             default_handler=TrackingHandler(),
         )
+
+    def _validate_storage_region(self, storage_region: Any) -> None:
+        if not isinstance(storage_region, str):
+            raise TypeError(
+                f"storageRegion must be a string, got {type(storage_region).__name__}: {storage_region!r}"
+            )
+        if not storage_region.strip():
+            raise ValueError("storageRegion must be a non-empty string")
 
     def config(self) -> dict:
         return self._config
