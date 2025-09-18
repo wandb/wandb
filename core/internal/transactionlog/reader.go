@@ -62,6 +62,13 @@ func NewReader(
 	return &Reader{reader: reader, source: source}, nil
 }
 
+// SeekRecord seeks the underlying file to a specific offset.
+//
+// The offset should have come from a writer's LastRecordOffset().
+func (r *Reader) SeekRecord(offset int64) error {
+	return r.reader.SeekRecord(offset)
+}
+
 // Read returns the next record from the transaction log.
 //
 // Returns nil and an error on failure.

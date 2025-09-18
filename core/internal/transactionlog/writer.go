@@ -77,6 +77,16 @@ func (w *Writer) Write(msg *spb.Record) error {
 	return nil
 }
 
+// Flush flushes the in-memory store to disk.
+func (w *Writer) Flush() error {
+	return w.writer.Flush()
+}
+
+// LastRecordOffset returns the offset where the last record was written.
+func (w *Writer) LastRecordOffset() (int64, error) {
+	return w.writer.LastRecordOffset()
+}
+
 // Close closes the file.
 //
 // The writer may not be used after.
