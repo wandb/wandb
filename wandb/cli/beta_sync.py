@@ -14,7 +14,7 @@ import wandb
 from wandb.proto.wandb_sync_pb2 import ServerSyncResponse
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import asyncio_compat
-from wandb.sdk.lib.printer import ERROR, Printer, new_printer
+from wandb.sdk.lib.printer import Printer, new_printer
 from wandb.sdk.lib.progress import progress_printer
 from wandb.sdk.lib.service.service_connection import ServiceConnection
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
@@ -128,8 +128,8 @@ class _SyncStatusLoop:
         handle: MailboxHandle[ServerSyncResponse],
     ) -> None:
         response = await handle.wait_async(timeout=None)
-        if messages := list(response.errors):
-            self._printer.display(messages, level=ERROR)
+        for msg in response.messages:
+            self._printer.display(msg.content, level=msg.severity)
         self._done.set()
 
     async def _show_progress_until_done(self) -> None:
@@ -139,8 +139,8 @@ class _SyncStatusLoop:
                 handle = await self._service.sync_status(self._id)
                 response = await handle.wait_async(timeout=None)
 
-                if messages := list(response.new_errors):
-                    self._printer.display(messages, level=ERROR)
+                for msg in response.new_messages:
+                    self._printer.display(msg.content, level=msg.severity)
                 progress.update(response.stats)
 
     async def _rate_limit_check_done(self) -> bool:

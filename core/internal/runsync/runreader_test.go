@@ -132,6 +132,41 @@ func isExitRecord(code int32) gomock.Matcher {
 	)
 }
 
+func Test_Extract_FindsRunRecord(t *testing.T) {
+	x := setup(t)
+	wandbFileWithRecords(t,
+		x.TransactionLog,
+		&spb.Record{RecordType: &spb.Record_Run{
+			Run: &spb.RunRecord{
+				RunId: "test run ID",
+			},
+		}})
+
+	runInfo, err := x.RunReader.ExtractRunInfo()
+	require.NoError(t, err)
+
+	assert.Equal(t, &runsync.RunInfo{RunID: "test run ID"}, runInfo)
+}
+
+func Test_Extract_ErrorIfNoRunRecord(t *testing.T) {
+	x := setup(t)
+	wandbFileWithRecords(t, x.TransactionLog)
+
+	runInfo, err := x.RunReader.ExtractRunInfo()
+
+	assert.Nil(t, runInfo)
+	assert.ErrorContains(t, err, "didn't find run info")
+}
+
+func Test_Extract_ErrorIfNoFile(t *testing.T) {
+	x := setup(t)
+
+	runInfo, err := x.RunReader.ExtractRunInfo()
+
+	assert.Nil(t, runInfo)
+	assert.ErrorContains(t, err, "failed to open store")
+}
+
 func Test_TurnsAllRecordsIntoWork(t *testing.T) {
 	x := setup(t)
 	wandbFileWithRecords(t,
