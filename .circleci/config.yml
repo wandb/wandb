@@ -496,7 +496,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.12"]
+              python: ["3.8", "3.13"]
 
       - nox-tests-linux:
           name: unit-tests-pydantic-v1-linux-<<matrix.python>>
@@ -506,7 +506,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.12"]
+              python: ["3.8", "3.13"]
 
       #
       # Unit tests with pytest on macOS
@@ -519,7 +519,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.12"]
+              python: ["3.9", "3.13"]
 
       #
       # Unit tests with pytest on Windows
@@ -539,7 +539,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.12"]
+              python: ["3.9", "3.13"]
 
       #
       # System tests on Linux
@@ -558,7 +558,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.12"]
+              python: ["3.8", "3.13"]
 
       - nox-tests-linux:
           name: system-tests-min-server-version-linux-<<matrix.python>>
@@ -574,7 +574,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.12"]
+              python: ["3.13"]
               server_image:
                 [
                   "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer",
@@ -590,7 +590,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.12"]
+              python: ["3.8", "3.13"]
 
       #
       # Functional tests with pytest on Linux
@@ -609,7 +609,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.12"]
+              python: ["3.13"]
 
       #
       # Functional tests of experimental clients with pytest on Linux
@@ -629,7 +629,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.12"]
+              python: ["3.13"]
 
       #
       # W&B Importer tests on Linux, using 2 real wandb servers
