@@ -3,6 +3,7 @@ package filestream
 import (
 	"time"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"golang.org/x/time/rate"
 )
 
@@ -11,6 +12,7 @@ import (
 // This batches all incoming requests while waiting for transmissions
 // to go through.
 type CollectLoop struct {
+	Logger              *observability.CoreLogger
 	TransmitRateLimit   *rate.Limiter
 	MaxRequestSizeBytes int
 }
@@ -90,15 +92,24 @@ func (cl CollectLoop) transmit(
 	transmissions chan<- *FileStreamRequestReader,
 ) (*FileStreamRequest, bool) {
 	for {
-		reader, _ := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
+		reader, isTruncated := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
 
+		// If we're at max size, stop adding to the buffer.
+		if isTruncated {
+			cl.Logger.Info("filestream: waiting to send request of max size")
+			transmissions <- reader
+			return reader.Next()
+		}
+
+		// Otherwise, either send the buffer or add to it.
 		select {
 		case transmissions <- reader:
 			return reader.Next()
 
 		case request, ok := <-requests:
 			if !ok {
-				return buffer, false
+				transmissions <- reader
+				return reader.Next()
 			}
 
 			buffer.Merge(request)
