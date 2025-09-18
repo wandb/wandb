@@ -2421,13 +2421,16 @@ class Artifact:
 
         # Parse the entity (first part of the path) appropriately,
         # depending on whether we're linking to a registry
-        if target.project and is_artifact_registry_project(target.project):
+        if target.is_registry_path():
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
             org = target.prefix or settings.get("organization") or ""
             target.prefix = api._resolve_org_entity_name(self.source_entity, org)
         else:
             target = target.with_defaults(prefix=self.source_entity)
+
+        # Explicitly convert to FullArtifactPath to ensure all fields are present
+        target = FullArtifactPath(**asdict(target))
 
         # Prepare the validated GQL input, send it
         alias_inputs = [
@@ -2463,7 +2466,6 @@ class Artifact:
 
         # Newer server versions can return artifactMembership directly in the response
         if result and (membership := result.artifact_membership):
-            target = FullArtifactPath(**asdict(target))
             return self._from_membership(membership, target=target, client=self._client)
 
         # Fallback to old behavior, which requires re-fetching the linked artifact to return it

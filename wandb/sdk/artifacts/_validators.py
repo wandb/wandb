@@ -280,9 +280,9 @@ class ArtifactPath:
     name: str
     """The collection name."""
     project: Optional[str] = None  # noqa: UP045
-    """The project name, which can also be a registry name."""
+    """The project name."""
     prefix: Optional[str] = None  # noqa: UP045
-    """Prefix is often an org or entity name."""
+    """Prefix is typically an entity or org name."""
 
     @classmethod
     def from_str(cls, path: str) -> Self:
@@ -315,6 +315,10 @@ class ArtifactPath:
             prefix=self.prefix or prefix,
             project=self.project or project,
         )
+
+    def is_registry_path(self) -> bool:
+        """Returns True if this path appears to be a registry path."""
+        return bool(self.project and is_artifact_registry_project(self.project))
 
 
 @pydantic_dataclass

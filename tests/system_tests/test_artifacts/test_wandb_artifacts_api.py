@@ -7,6 +7,7 @@ import pytest
 import wandb
 from wandb import Api
 from wandb.errors import CommError
+from wandb.sdk.artifacts._validators import FullArtifactPath
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.lib.hashutil import md5_file_hex
 
@@ -452,6 +453,9 @@ def test_artifact_enable_tracking_flag(user, api, mocker):
     artifact_name = "test-artifact"
     artifact_type = "test-type"
 
+    artifact_path_str = f"{entity}/{project}/{artifact_name}:v0"
+    artifact_path_obj = FullArtifactPath.from_str(artifact_path_str)
+
     with wandb.init(entity=entity, project=project) as run:
         art = wandb.Artifact(artifact_name, artifact_type)
         with art.new_file("test.txt", "w") as f:
@@ -459,28 +463,22 @@ def test_artifact_enable_tracking_flag(user, api, mocker):
         run.log_artifact(art)
 
     from_name_spy = mocker.spy(Artifact, "_from_name")
+
     # Test that api.artifact() calls Artifact._from_name() with enable_tracking=True
-    api.artifact(
-        name=f"{entity}/{project}/{artifact_name}:v0",
-    )
+    api.artifact(name=artifact_path_str)
+
     from_name_spy.assert_called_once_with(
-        entity=entity,
-        project=project,
-        name=f"{artifact_name}:v0",
+        path=artifact_path_obj,
         client=api.client,
         enable_tracking=True,
     )
 
     # Test that internal methods, like api.artifact_exists(), call Artifact._from_name() with enable_tracking=False
     from_name_spy.reset_mock()
-    api.artifact_exists(
-        name=f"{entity}/{project}/{artifact_name}:v0",
-    )
+    api.artifact_exists(name=artifact_path_str)
 
     from_name_spy.assert_called_once_with(
-        entity=entity,
-        project=project,
-        name=f"{artifact_name}:v0",
+        path=artifact_path_obj,
         client=api.client,
         enable_tracking=False,
     )
