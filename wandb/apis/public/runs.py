@@ -88,10 +88,28 @@ RUN_FRAGMENT = """fragment RunFragment on Run {
 
 @normalize_exceptions
 def _server_provides_internal_id_for_project(client) -> bool:
-    """Returns True if the server allows us to query the internalId field for a project.
-
-    This check is done by utilizing GraphQL introspection in the available fields on the Project type.
+    """Returns True if the server allows us to query the internalId field for a project."""
+    query_string = """
+       query ProbeProjectInput {
+            ProjectType: __type(name:"Project") {
+                fields {
+                    name
+                }
+            }
+        }
     """
+
+    # Only perform the query once to avoid extra network calls
+    query = gql(query_string)
+    res = client.execute(query)
+    return "internalId" in [
+        x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
+    ]
+
+
+@normalize_exceptions
+def _server_provides_project_id_for_run(client) -> bool:
+    """Returns True if the server allows us to query the projectId field for a run."""
     query_string = """
        query ProbeRunInput {
             RunType: __type(name:"Run") {
@@ -209,13 +227,13 @@ class Runs(SizedPaginator["Run"]):
             f"""#graphql
             query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
                 project(name: $project, entityName: $entity) {{
-                    internalId
+                    {"internalId" if _server_provides_internal_id_for_project(client) else ""}
                     runCount(filters: $filters)
                     readOnly
                     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
                         edges {{
                             node {{
-                                {"projectId" if _server_provides_internal_id_for_project(client) else ""}
+                                {"projectId" if _server_provides_project_id_for_run(client) else ""}
                                 ...RunFragment
                             }}
                             cursor
@@ -603,7 +621,7 @@ class Run(Attrs):
             query Run($project: String!, $entity: String!, $name: String!) {{
                 project(name: $project, entityName: $entity) {{
                     run(name: $name) {{
-                        {"projectId" if _server_provides_internal_id_for_project(self.client) else ""}
+                        {"projectId" if _server_provides_project_id_for_run(self.client) else ""}
                         ...RunFragment
                     }}
                 }}

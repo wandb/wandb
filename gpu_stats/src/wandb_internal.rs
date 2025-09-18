@@ -1614,7 +1614,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1695,6 +1695,9 @@ pub mod request {
         /// Requests information about tasks the service is performing.
         #[prost(message, tag = "82")]
         Operations(super::OperationStatsRequest),
+        /// Requests collecting information about the system environment and resources.
+        #[prost(message, tag = "83")]
+        ProbeSystemInfo(super::ProbeSystemInfoRequest),
         #[prost(message, tag = "1000")]
         TestInject(super::TestInjectRequest),
     }
@@ -2563,6 +2566,8 @@ pub struct CancelRequest {
 pub struct CancelResponse {}
 ///
 /// Run environment including system, hardware, software, and execution parameters.
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct ProbeSystemInfoRequest {}
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct DiskInfo {
     #[prost(uint64, tag = "1")]

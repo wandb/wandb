@@ -80,36 +80,36 @@ class _Tester:
 
         await self._mailbox.deliver(server_response)
 
-    def init_sync(
+    async def init_sync(
         self,
         paths: set[pathlib.Path],
         settings: wandb.Settings,
     ) -> MailboxHandle[wandb_sync_pb2.ServerInitSyncResponse]:
-        return self._make_handle(
+        return await self._make_handle(
             self._init_sync_addrs,
             lambda r: r.init_sync_response,
         )
 
-    def sync(
+    async def sync(
         self,
         id: str,
         parallelism: int,
     ) -> MailboxHandle[wandb_sync_pb2.ServerSyncResponse]:
-        return self._make_handle(
+        return await self._make_handle(
             self._sync_addrs,
             lambda r: r.sync_response,
         )
 
-    def sync_status(
+    async def sync_status(
         self,
         id: str,
     ) -> MailboxHandle[wandb_sync_pb2.ServerSyncStatusResponse]:
-        return self._make_handle(
+        return await self._make_handle(
             self._sync_status_addrs,
             lambda r: r.sync_status_response,
         )
 
-    def _make_handle(
+    async def _make_handle(
         self,
         addrs: list[str],
         to_response: Callable[[spb.ServerResponse], _T],
@@ -117,12 +117,9 @@ class _Tester:
         req = spb.ServerRequest()
         handle = self._mailbox.require_response(req)
 
-        async def update_addrs():
-            async with self._cond:
-                addrs.append(req.request_id)
-                self._cond.notify_all()
-
-        _ = asyncio.create_task(update_addrs())
+        async with self._cond:
+            addrs.append(req.request_id)
+            self._cond.notify_all()
 
         return handle.map(to_response)
 

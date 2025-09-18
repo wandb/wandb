@@ -206,9 +206,7 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 				Client:        newTestRetryableHTTPClient(logger),
 				Logger:        logger,
 				GraphqlClient: mockGQLClient,
-				Entity:        s.GetEntity(),
-				BaseURL:       s.GetStatsCoreWeaveMetadataBaseURL(),
-				Endpoint:      s.GetStatsCoreWeaveMetadataEndpoint(),
+				Settings:      s,
 			}
 
 			cwm, err := monitor.NewCoreWeaveMetadata(cwmParams)

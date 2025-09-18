@@ -623,6 +623,9 @@ message Request {
     // Requests information about tasks the service is performing.
     OperationStatsRequest operations = 82;
 
+    // Requests collecting information about the system environment and resources.
+    ProbeSystemInfoRequest probe_system_info = 83;
+
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -1236,6 +1239,8 @@ message CancelResponse {}
 /*
  * Run environment including system, hardware, software, and execution parameters.
  */
+message ProbeSystemInfoRequest {}
+
 message DiskInfo {
   uint64 total = 1;
   uint64 used = 2;
