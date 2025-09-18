@@ -3,6 +3,7 @@ import os
 import cloudpickle
 import pytest
 import torch
+
 import wandb
 from wandb.sdk.artifacts._generated import ArtifactFragment
 from wandb.sdk.artifacts.artifact import Artifact
@@ -149,12 +150,10 @@ def make_local_artifact_public(art: Artifact):
         project="FAKE_PROJECT",
         name="FAKE_NAME",
     )
-    data = {
-        "id": "FAKE_ID",
-        "artifactType": {
-            "name": "FAKE_TYPE_NAME",
-        },
-        "aliases": [
+    fragment = ArtifactFragment(
+        id="FAKE_ID",
+        artifactType={"name": "FAKE_TYPE_NAME"},
+        aliases=[
             {
                 "artifactCollection": {
                     "__typename": "ArtifactSequence",
@@ -164,21 +163,21 @@ def make_local_artifact_public(art: Artifact):
                 "alias": "v0",
             }
         ],
-        "artifactSequence": {
+        artifactSequence={
             "name": "FAKE_SEQUENCE_NAME",
             "project": {"entityName": path.prefix, "name": path.project},
         },
-        "versionIndex": 0,
-        "description": None,
-        "metadata": None,
-        "state": "COMMITTED",
-        "currentManifest": {"file": {"directUrl": "FAKE_URL"}},
-        "commitHash": "FAKE_HASH",
-        "fileCount": 0,
-        "createdAt": "FAKE_CREATED_AT",
-        "updatedAt": None,
-    }
-    pub = ArtifactPatch._from_attrs(path, ArtifactFragment(**data), client=None)
+        versionIndex=0,
+        description=None,
+        metadata=None,
+        state="COMMITTED",
+        currentManifest={"file": {"directUrl": "FAKE_URL"}},
+        commitHash="FAKE_HASH",
+        fileCount=0,
+        createdAt="FAKE_CREATED_AT",
+        updatedAt=None,
+    )
+    pub = ArtifactPatch._from_attrs(path, fragment, client=None)
     pub._manifest = art._manifest
     return pub
 

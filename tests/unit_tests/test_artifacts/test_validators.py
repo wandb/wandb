@@ -1,4 +1,4 @@
-from pytest import mark, raises
+import pytest
 from wandb.sdk.artifacts._validators import (
     REGISTRY_PREFIX,
     RESERVED_ARTIFACT_TYPE_PREFIX,
@@ -8,7 +8,7 @@ from wandb.sdk.artifacts._validators import (
 )
 
 
-@mark.parametrize(
+@pytest.mark.parametrize(
     "project_name, expected_output",
     [
         ("my-project-?", "cannot contain characters: '?'"),
@@ -21,11 +21,11 @@ from wandb.sdk.artifacts._validators import (
     ],
 )
 def test_validate_project_name_invalid(project_name, expected_output):
-    with raises(ValueError, match=expected_output):
+    with pytest.raises(ValueError, match=expected_output):
         validate_project_name(project_name)
 
 
-@mark.parametrize(
+@pytest.mark.parametrize(
     "project_name",
     [
         "my-project",
@@ -38,7 +38,7 @@ def test_validate_project_name_valid(project_name):
     validate_project_name(project_name)
 
 
-@mark.parametrize(
+@pytest.mark.parametrize(
     "artifact_type, name",
     [
         (RESERVED_ARTIFACT_TYPE_PREFIX + "invalid", "name"),
@@ -48,11 +48,11 @@ def test_validate_project_name_valid(project_name):
     ],
 )
 def test_validate_artifact_type_invalid(artifact_type, name):
-    with raises(ValueError, match="is reserved for internal use"):
+    with pytest.raises(ValueError, match="is reserved for internal use"):
         validate_artifact_type(artifact_type, name)
 
 
-@mark.parametrize(
+@pytest.mark.parametrize(
     "artifact_type, name",
     [
         ("dataset", "name"),
@@ -65,32 +65,73 @@ def test_validate_artifact_type_valid(artifact_type, name):
     assert validate_artifact_type(artifact_type, name) == artifact_type
 
 
-def test_artifact_path_from_str():
-    entity, project, name = "entity", "project", "name"
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        (
+            "name",
+            ArtifactPath(prefix=None, project=None, name="name"),
+        ),
+        (
+            "project/name",
+            ArtifactPath(prefix=None, project="project", name="name"),
+        ),
+        (
+            "entity/project/name",
+            ArtifactPath(prefix="entity", project="project", name="name"),
+        ),
+        (
+            "entity/project/name:v0",
+            ArtifactPath(prefix="entity", project="project", name="name:v0"),
+        ),
+        (
+            "project/name:v0",
+            ArtifactPath(prefix=None, project="project", name="name:v0"),
+        ),
+        (
+            "name:alias/with/slashes",
+            ArtifactPath(prefix=None, project=None, name="name:alias/with/slashes"),
+        ),
+    ],
+)
+def test_artifact_path_from_valid_str(path: str, expected: ArtifactPath):
+    """Check that the ArtifactPath.from_str() method correctly parses valid artifact paths."""
+    assert ArtifactPath.from_str(path) == expected
 
-    path_from_name = ArtifactPath.from_str(name)
-    assert path_from_name.name == name
-    assert path_from_name.project is None
-    assert path_from_name.prefix is None
 
-    path_from_project_name = ArtifactPath.from_str(f"{project}/{name}")
-    assert path_from_project_name.name == name
-    assert path_from_project_name.project == project
-    assert path_from_project_name.prefix is None
-
-    path_from_entity_project_name = ArtifactPath.from_str(f"{entity}/{project}/{name}")
-    assert path_from_entity_project_name.name == name
-    assert path_from_entity_project_name.project == project
-    assert path_from_entity_project_name.prefix == entity
+def test_artifact_path_from_invalid_str():
+    """Check that the ArtifactPath.from_str() method correctly raises an error for invalid artifact paths."""
+    with pytest.raises(ValueError):
+        ArtifactPath.from_str("path/with/too/many/parts")
 
 
-@mark.parametrize(
-    "path",
+@pytest.mark.parametrize(
+    "path_str",
     [
         "name",
         "project/name",
         "entity/project/name",
+        "entity/project/name:v0",
+        "project/name:v0",
+        "name:alias/with/slashes",
     ],
 )
-def test_artifact_path_roundtrip_str(path: str):
-    assert ArtifactPath.from_str(path).to_str() == path
+def test_artifact_path_roundtrip_from_str(path_str: str):
+    """Check that the roundtrip conversion str -> ArtifactPath -> str preserves the original."""
+    assert ArtifactPath.from_str(path_str).to_str() == path_str
+
+
+@pytest.mark.parametrize(
+    "path_obj",
+    [
+        ArtifactPath(prefix=None, project=None, name="name"),
+        ArtifactPath(prefix=None, project="project", name="name"),
+        ArtifactPath(prefix="entity", project="project", name="name"),
+        ArtifactPath(prefix="entity", project="project", name="name:v0"),
+        ArtifactPath(prefix=None, project="project", name="name:v0"),
+        ArtifactPath(prefix=None, project=None, name="name:alias/with/slashes"),
+    ],
+)
+def test_artifact_path_roundtrip_from_instance(path_obj: ArtifactPath):
+    """Check that the roundtrip conversion ArtifactPath -> str -> ArtifactPath preserves the original."""
+    assert ArtifactPath.from_str(path_obj.to_str()) == path_obj

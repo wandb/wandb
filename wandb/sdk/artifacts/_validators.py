@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import astuple, dataclass, field, fields, replace
+from dataclasses import dataclass, field, replace
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVar, cast
 
@@ -278,30 +278,38 @@ def remove_registry_prefix(project: str) -> str:
 @pydantic_dataclass
 class ArtifactPath:
     name: str
-    """The collection name."""
+    """The collection or artifact version name."""
     project: Optional[str] = None  # noqa: UP045
-    """The project name, which can also be a registry name."""
+    """The project name."""
     prefix: Optional[str] = None  # noqa: UP045
-    """Prefix is often an org or entity name."""
+    """Typically the entity or org name."""
 
     @classmethod
     def from_str(cls, path: str) -> Self:
-        """Instantiate by parsing an artifact path."""
-        if len(parts := path.split("/")) <= 3:
-            # Reverse the parts to line up the field names and values, e.g.
-            # - "proj/name" -> name, proj
-            # - "entity/proj/name" -> name, proj, entity
-            vals = parts[::-1]
-            return cls(**{f.name: v for f, v in zip(fields(cls), vals)})
-        raise ValueError(
-            f"Expected a valid path like `name`, `project/name`, or `prefix/project/name`.  Got: {path!r}"
-        )
+        """Instantiate by parsing a string artifact path.
+
+        Raises:
+            ValueError: If the string is not a valid artifact path.
+        """
+        # Separate the alias first, which may itself contain slashes.
+        # If there's no alias, note that both sep and alias will be empty.
+        collection_path, sep, alias = path.partition(":")
+
+        prefix, project = None, None  # defaults, if missing
+        if len(parts := collection_path.split("/")) == 1:
+            name = parts[0]
+        elif len(parts) == 2:
+            project, name = parts
+        elif len(parts) == 3:
+            prefix, project, name = parts
+        else:
+            raise ValueError(f"Invalid artifact path: {path!r}")
+        return cls(prefix=prefix, project=project, name=f"{name}{sep}{alias}")
 
     def to_str(self) -> str:
         """Returns the slash-separated string representation of the path."""
-        # Reverse the field values so the parts are joined in the correct order
-        parts = astuple(self)[::-1]
-        return "/".join(filter(bool, parts))
+        ordered_parts = (self.prefix, self.project, self.name)
+        return "/".join(part for part in ordered_parts if part)
 
     def with_defaults(
         self,
@@ -316,11 +324,15 @@ class ArtifactPath:
             project=self.project or project,
         )
 
+    def is_registry_path(self) -> bool:
+        """Returns True if this path appears to be a registry path."""
+        return bool((p := self.project) and is_artifact_registry_project(p))
+
 
 @pydantic_dataclass
 class FullArtifactPath(ArtifactPath):
     """Same as ArtifactPath, but with all parts required."""
 
-    prefix: str
-    project: str
     name: str
+    project: str
+    prefix: str
