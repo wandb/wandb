@@ -24,7 +24,8 @@ type Manifest struct {
 }
 
 type StoragePolicyConfig struct {
-	StorageLayout string `json:"storageLayout"`
+	StorageLayout string  `json:"storageLayout"`
+	StorageRegion *string `json:"storageRegion,omitempty"`
 }
 
 type ManifestEntry struct {
@@ -50,6 +51,16 @@ func NewManifestFromProto(proto *spb.ArtifactManifest) (Manifest, error) {
 		StoragePolicy:       proto.StoragePolicy,
 		StoragePolicyConfig: StoragePolicyConfig{StorageLayout: "V2"},
 		Contents:            make(map[string]ManifestEntry),
+	}
+	// TODO: why are we doing `json.dumps` on python side when sending the config?
+	for _, cfg := range proto.StoragePolicyConfig {
+		if cfg.Key == "storageRegion" {
+			var s string
+			if err := json.Unmarshal([]byte(cfg.ValueJson), &s); err != nil {
+				return Manifest{}, fmt.Errorf("error unmarshalling storageRegion: %w", err)
+			}
+			manifest.StoragePolicyConfig.StorageRegion = &s
+		}
 	}
 
 	if proto.ManifestFilePath != "" {

@@ -600,6 +600,7 @@ type CreateArtifactInput struct {
 	DistributedID             *string                 `json:"distributedID"`
 	ClientID                  string                  `json:"clientID"`
 	SequenceClientID          string                  `json:"sequenceClientID"`
+	StorageRegion             *string                 `json:"storageRegion"`
 	ClientMutationId          *string                 `json:"clientMutationId"`
 }
 
@@ -659,6 +660,9 @@ func (v *CreateArtifactInput) GetClientID() string { return v.ClientID }
 
 // GetSequenceClientID returns CreateArtifactInput.SequenceClientID, and is useful for accessing the field via an interface.
 func (v *CreateArtifactInput) GetSequenceClientID() string { return v.SequenceClientID }
+
+// GetStorageRegion returns CreateArtifactInput.StorageRegion, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetStorageRegion() *string { return v.StorageRegion }
 
 // GetClientMutationId returns CreateArtifactInput.ClientMutationId, and is useful for accessing the field via an interface.
 func (v *CreateArtifactInput) GetClientMutationId() *string { return v.ClientMutationId }
