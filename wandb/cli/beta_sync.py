@@ -86,12 +86,10 @@ async def _do_sync(
 
     This is factored out to make the progress animation testable.
     """
-    init_result = await service.init_sync(
-        wandb_files,
-        settings,
-    ).wait_async(timeout=5)
+    init_handle = await service.init_sync(wandb_files, settings)
+    init_result = await init_handle.wait_async(timeout=5)
 
-    sync_handle = service.sync(init_result.id, parallelism=parallelism)
+    sync_handle = await service.sync(init_result.id, parallelism=parallelism)
 
     await _SyncStatusLoop(
         init_result.id,
@@ -138,7 +136,7 @@ class _SyncStatusLoop:
         """Show rate-limited status updates until _done is set."""
         with progress_printer(self._printer, "Syncing...") as progress:
             while not await self._rate_limit_check_done():
-                handle = self._service.sync_status(self._id)
+                handle = await self._service.sync_status(self._id)
                 response = await handle.wait_async(timeout=None)
 
                 if messages := list(response.new_errors):

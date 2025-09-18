@@ -45,7 +45,11 @@ async def loop_printing_operation_stats(
         while True:
             start_time = time.monotonic()
 
-            handle = interface.deliver_operation_stats()
+            handle = await interface.deliver_async(
+                pb.Record(
+                    request=pb.Request(operations=pb.OperationStatsRequest()),
+                )
+            )
             result = await handle.wait_async(timeout=None)
             stats = result.response.operations_response.operation_stats
 

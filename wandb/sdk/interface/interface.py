@@ -87,10 +87,37 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
 
 
 class InterfaceBase:
+    """Methods for sending different types of Records to the service.
+
+    None of the methods may be called from an asyncio context other than
+    deliver_async().
+    """
+
     _drop: bool
 
     def __init__(self) -> None:
         self._drop = False
+
+    @abstractmethod
+    async def deliver_async(
+        self,
+        record: pb.Record,
+    ) -> MailboxHandle[pb.Result]:
+        """Send a record and create a handle to wait for the response.
+
+        The synchronous publish and deliver methods on this class cannot be
+        called in the asyncio thread because they block. Instead of having
+        an async copy of every method, this is a general method for sending
+        any kind of record in the asyncio thread.
+
+        Args:
+            record: The record to send. This method takes ownership of the
+                record and it must not be used afterward.
+
+        Returns:
+            A handle to wait for a response to the record.
+        """
+        raise NotImplementedError
 
     def publish_header(self) -> None:
         header = pb.HeaderRecord()
@@ -1018,10 +1045,6 @@ class InterfaceBase:
         self,
         exit_data: pb.RunExitRecord,
     ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def deliver_operation_stats(self) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
     def deliver_poll_exit(self) -> MailboxHandle[pb.Result]:
