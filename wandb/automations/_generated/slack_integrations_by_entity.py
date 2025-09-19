@@ -15,7 +15,11 @@ class SlackIntegrationsByEntity(GQLResult):
 
 
 class SlackIntegrationsByEntityEntity(GQLResult):
-    integrations: Optional[SlackIntegrationConnectionFields]
+    integrations: Optional[SlackIntegrationsByEntityEntityIntegrations]
+
+
+class SlackIntegrationsByEntityEntityIntegrations(SlackIntegrationConnectionFields):
+    pass
 
 
 SlackIntegrationsByEntity.model_rebuild()
