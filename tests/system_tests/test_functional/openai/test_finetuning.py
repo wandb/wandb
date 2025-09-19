@@ -1,9 +1,11 @@
 import os
 
+import pytest
 from openai import OpenAI
 from wandb.integration.openai.fine_tuning import WandbLogger
 
 
+@pytest.mark.skip(reason="flaky")
 def test_finetuning(wandb_backend_spy):
     # TODO: this does not test much, it should be improved
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])

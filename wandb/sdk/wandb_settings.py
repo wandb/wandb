@@ -160,6 +160,7 @@ CLIENT_ONLY_SETTINGS = (
     "reinit",
     "max_end_of_run_history_metrics",
     "max_end_of_run_summary_metrics",
+    "x_sync_dir_suffix",
 )
 """Python-only keys that are not fields on the settings proto."""
 
@@ -941,6 +942,13 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
+    x_sync_dir_suffix: str = ""
+    """Suffix to add to the run's directory name (sync_dir).
+
+    This is set in wandb.init() to avoid naming conflicts.
+    If set, it is joined to the default name with a dash.
+    """
+
     x_update_finish_state: bool = True
     """Flag to indicate whether this process can update the run's final state on the server.
 
@@ -1435,6 +1443,61 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Sweep ID cannot contain only whitespace")
         return value
 
+    @field_validator("run_tags", mode="before")
+    @classmethod
+    def validate_run_tags(cls, value):
+        """Validate run tags.
+
+        Validates that each tag:
+        - Is between 1 and 64 characters in length (inclusive)
+        - Converts single string values to tuple format
+        - Preserves None values
+
+        Args:
+            value: A string, list, tuple, or None representing tags
+
+        Returns:
+            tuple: A tuple of validated tags, or None
+
+        Raises:
+            ValueError: If any tag is empty or exceeds 64 characters
+
+        <!-- lazydoc-ignore-classmethod: internal -->
+        """
+        if value is None:
+            return None
+
+        # Convert to tuple if needed
+        if isinstance(value, str):
+            tags = (value,)
+        else:
+            tags = tuple(value)
+
+        # Validate each tag and accumulate errors
+        errors = []
+        for i, tag in enumerate(tags):
+            tag_str = str(tag)
+            if len(tag_str) == 0:
+                errors.append(
+                    f"Tag at index {i} is empty. Tags must be between 1 and 64 characters"
+                )
+            elif len(tag_str) > 64:
+                # Truncate long tags for display
+                display_tag = (
+                    f"{tag_str[:20]}...{tag_str[-20:]}"
+                    if len(tag_str) > 43
+                    else tag_str
+                )
+                errors.append(
+                    f"Tag '{display_tag}' is {len(tag_str)} characters. Tags must be between 1 and 64 characters"
+                )
+
+        # Raise combined error if any validation issues were found
+        if errors:
+            raise ValueError("; ".join(errors))
+
+        return tags
+
     @field_validator("sweep_param_path", mode="before")
     @classmethod
     def validate_sweep_param_path(cls, value):
@@ -1678,10 +1741,12 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def sync_dir(self) -> str:
         """The directory for storing the run's files."""
-        return _path_convert(
-            self.wandb_dir,
-            f"{self.run_mode}-{self.timespec}-{self.run_id}",
-        )
+        name = f"{self.run_mode}-{self.timespec}-{self.run_id}"
+
+        if self.x_sync_dir_suffix:
+            name += f"-{self.x_sync_dir_suffix}"
+
+        return _path_convert(self.wandb_dir, name)
 
     @computed_field  # type: ignore[prop-decorator]
     @property

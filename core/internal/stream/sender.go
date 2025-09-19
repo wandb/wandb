@@ -45,7 +45,7 @@ const (
 	ConsoleFileName           = "output.log"
 )
 
-var senderProviders = wire.NewSet(
+var SenderProviders = wire.NewSet(
 	wire.Struct(new(SenderFactory), "*"),
 )
 
@@ -389,7 +389,8 @@ func (s *Sender) respondResponse(record *spb.Record, response *spb.Response) {
 
 // respondExit responds to an exit record
 func (s *Sender) respondExit(record *spb.Record, exit *spb.RunExitResult) {
-	if !s.exitRecord.Control.ReqResp && s.exitRecord.Control.MailboxSlot == "" {
+	if !s.exitRecord.GetControl().GetReqResp() &&
+		s.exitRecord.GetControl().GetMailboxSlot() == "" {
 		return
 	}
 	result := &spb.Result{
@@ -1259,6 +1260,12 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 		})
 	}
 
+	// Prefer filestream feedback if available.
+	if s.fileStream != nil && s.fileStream.StopState() != fs.StopUnknown {
+		respondShouldStop(s.fileStream.StopState() == fs.StopTrue)
+		return
+	}
+
 	upserter, err := s.streamRun.GetRunUpserter()
 	if err != nil {
 		s.logger.CaptureError(
@@ -1280,6 +1287,7 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 		return
 	}
 
+	// Fallback: consult GraphQL when filestream status is unknown.
 	response, err := gql.RunStoppedStatus(
 		s.runWork.BeforeEndCtx(),
 		s.graphqlClient,

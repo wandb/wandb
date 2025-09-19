@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Sequence
 from urllib.parse import parse_qsl, urlparse
 
 from wandb import util
+from wandb._strutils import ensureprefix
 from wandb.errors import CommError
 from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
@@ -95,7 +96,7 @@ class S3Handler(StorageHandler):
         path, hit, cache_open = self._cache.check_etag_obj_path(
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),
-            manifest_entry.size if manifest_entry.size is not None else 0,
+            manifest_entry.size or 0,
         )
         if hit:
             return path
@@ -328,7 +329,7 @@ class S3Handler(StorageHandler):
             return True
 
         # Enforce HTTPS otherwise
-        https_url = url if url.startswith("https://") else f"https://{url}"
+        https_url = ensureprefix(url, "https://")
         netloc = urlparse(https_url).netloc
         return bool(
             # Match for https://cwobject.com

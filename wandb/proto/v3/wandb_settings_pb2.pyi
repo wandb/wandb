@@ -17,6 +17,7 @@ else:
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
+@typing_extensions.final
 class ListStringValue(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -32,6 +33,7 @@ class ListStringValue(google.protobuf.message.Message):
 
 global___ListStringValue = ListStringValue
 
+@typing_extensions.final
 class ListIntValue(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -47,9 +49,11 @@ class ListIntValue(google.protobuf.message.Message):
 
 global___ListIntValue = ListIntValue
 
+@typing_extensions.final
 class MapStringKeyStringValue(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    @typing_extensions.final
     class ValueEntry(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -77,9 +81,11 @@ class MapStringKeyStringValue(google.protobuf.message.Message):
 
 global___MapStringKeyStringValue = MapStringKeyStringValue
 
+@typing_extensions.final
 class MapStringKeyMapStringKeyStringValue(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    @typing_extensions.final
     class ValueEntry(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -109,6 +115,7 @@ class MapStringKeyMapStringKeyStringValue(google.protobuf.message.Message):
 
 global___MapStringKeyMapStringKeyStringValue = MapStringKeyMapStringKeyStringValue
 
+@typing_extensions.final
 class OpenMetricsFilters(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -130,6 +137,7 @@ class OpenMetricsFilters(google.protobuf.message.Message):
 
 global___OpenMetricsFilters = OpenMetricsFilters
 
+@typing_extensions.final
 class RunMoment(google.protobuf.message.Message):
     """A point in a run from which another run can be branched."""
 
@@ -155,6 +163,7 @@ class RunMoment(google.protobuf.message.Message):
 
 global___RunMoment = RunMoment
 
+@typing_extensions.final
 class Settings(google.protobuf.message.Message):
     """Settings for the SDK.
 

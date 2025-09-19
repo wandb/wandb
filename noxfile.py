@@ -118,12 +118,6 @@ def run_pytest(
     # Print 20 slowest tests.
     pytest_opts.append(f"--durations={opts.get('durations', 20)}")
 
-    if platform.system() != "Windows":  # memray is not supported on Windows.
-        # Track and report memory usage with memray.
-        pytest_opts.append("--memray")
-        # Show the 5 tests that allocate most memory.
-        pytest_opts.append("--most-allocations=5")
-
     # Output test results for tooling.
     junitxml = _NOX_PYTEST_RESULTS_DIR / session_file_name / "junit.xml"
     pytest_opts.append(f"--junitxml={junitxml}")
@@ -485,10 +479,10 @@ def proto_python(session: nox.Session, pb: int) -> None:
 
 def _generate_proto_python(session: nox.Session, pb: int) -> None:
     if pb == 3:
-        session.install("protobuf~=3.20.3")
-        session.install("mypy-protobuf~=3.3.0")
-        session.install("grpcio~=1.48.0")
-        session.install("grpcio-tools~=1.48.0")
+        session.install("protobuf==3.20.3")
+        session.install("mypy-protobuf==3.4.0")
+        session.install("grpcio==1.47.5")
+        session.install("grpcio-tools==1.47.5")
     elif pb == 4:
         session.install("protobuf~=4.23.4")
         session.install("mypy-protobuf~=3.5.0")
@@ -500,10 +494,10 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
         session.install("grpcio~=1.64.1")
         session.install("grpcio-tools~=1.64.1")
     elif pb == 6:
-        session.install("protobuf~=6.30.2")
+        session.install("protobuf~=6.32.1")
         session.install("mypy-protobuf~=3.6.0")
-        session.install("grpcio~=1.72.1")
-        session.install("grpcio-tools~=1.72.1")
+        session.install("grpcio~=1.75.0")
+        session.install("grpcio-tools~=1.75.0")
     else:
         session.error("Invalid protobuf version given. `pb` must be 3, 4, 5, or 6.")
 
@@ -767,7 +761,7 @@ def importer_tests(session: nox.Session, importer: str):
     )
 
 
-@nox.session(name="wandb-core-size-check", python="3.10")
+@nox.session(name="wandb-core-size-check", python="3.12")
 def wandb_core_size_check(session: nox.Session) -> None:
     """Compare wandb-core binary size against main branch."""
     # Build and install main branch version

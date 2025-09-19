@@ -40,7 +40,6 @@ def test_opener_works_across_filesystem_boundaries(
     tmp_path,
     artifact_file_cache,
     fs: FakeFilesystem,
-    disable_memray,  # FakeFilesystem breaks memray
 ):
     # This isn't ideal, we'd rather test e.g. `Artifact.download` directly.
     #

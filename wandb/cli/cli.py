@@ -1985,7 +1985,7 @@ def create(
         base_image=base_image,
         dockerfile=dockerfile,
         services=services,
-        schema=schema_dict,
+        schema=schema_dict if schema else None,
     )
     if not artifact:
         wandb.termerror("Job creation failed")
@@ -2553,7 +2553,8 @@ def pull(run, project, entity):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Restore code, config and docker state for a run"
+    context_settings=CONTEXT,
+    help="Restore code, config and docker state for a run. Retrieves code from latest commit if code was not saved with `wandb.save()` or `wandb.init(save_code=True)`.",
 )
 @click.pass_context
 @click.argument("run", envvar=env.RUN_ID)

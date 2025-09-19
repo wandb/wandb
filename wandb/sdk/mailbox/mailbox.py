@@ -7,6 +7,7 @@ import threading
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
+from wandb.sdk.lib import asyncio_manager
 
 from .mailbox_handle import MailboxHandle
 from .response_handle import MailboxResponseHandle
@@ -27,7 +28,8 @@ class Mailbox:
     service process becomes unreachable.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, asyncer: asyncio_manager.AsyncioManager) -> None:
+        self._asyncer = asyncer
         self._handles: dict[str, MailboxResponseHandle] = {}
         self._handles_lock = threading.Lock()
         self._closed = False
@@ -51,11 +53,17 @@ class Mailbox:
                 cannot be created.
         """
         if isinstance(request, spb.ServerRequest):
-            if address := request.request_id:
+            if (address := request.request_id) or (
+                address := request.record_publish.control.mailbox_slot
+            ):
                 raise ValueError(f"Request already has an address ({address})")
 
             address = self._new_address()
             request.request_id = address
+            if request.HasField("record_publish"):
+                request.record_publish.control.mailbox_slot = address
+            if request.HasField("record_communicate"):
+                request.record_communicate.control.mailbox_slot = address
         else:
             if address := request.control.mailbox_slot:
                 raise ValueError(f"Request already has an address ({address})")
@@ -67,7 +75,7 @@ class Mailbox:
             if self._closed:
                 raise MailboxClosedError()
 
-            handle = MailboxResponseHandle(address)
+            handle = MailboxResponseHandle(address, asyncer=self._asyncer)
             self._handles[address] = handle
 
         return handle
@@ -92,7 +100,7 @@ class Mailbox:
 
         return address
 
-    def deliver(self, response: spb.ServerResponse) -> None:
+    async def deliver(self, response: spb.ServerResponse) -> None:
         """Deliver a response from the service.
 
         If the response address is invalid, this does nothing.
@@ -116,7 +124,7 @@ class Mailbox:
         # It is not an error if there is no handle for the address:
         # handles can be abandoned if the result is no longer needed.
         if handle:
-            handle.deliver(response)
+            await handle.deliver(response)
 
     def close(self) -> None:
         """Indicate no further responses will be delivered.

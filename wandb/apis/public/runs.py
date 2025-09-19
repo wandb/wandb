@@ -147,10 +147,28 @@ def _create_runs_query(*, lazy: bool, with_internal_id: bool) -> gql:
 
 @normalize_exceptions
 def _server_provides_internal_id_for_project(client) -> bool:
-    """Returns True if the server allows us to query the internalId field for a project.
-
-    This check is done by utilizing GraphQL introspection in the available fields on the Project type.
+    """Returns True if the server allows us to query the internalId field for a project."""
+    query_string = """
+       query ProbeProjectInput {
+            ProjectType: __type(name:"Project") {
+                fields {
+                    name
+                }
+            }
+        }
     """
+
+    # Only perform the query once to avoid extra network calls
+    query = gql(query_string)
+    res = client.execute(query)
+    return "internalId" in [
+        x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
+    ]
+
+
+@normalize_exceptions
+def _server_provides_project_id_for_run(client) -> bool:
+    """Returns True if the server allows us to query the projectId field for a run."""
     query_string = """
        query ProbeRunInput {
             RunType: __type(name:"Run") {
@@ -681,7 +699,7 @@ class Run(Attrs):
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
                 run(name: $name) {{
-                    {"projectId" if _server_provides_internal_id_for_project(self.client) else ""}
+                    {"projectId" if _server_provides_project_id_for_run(self.client) else ""}
                     ...{fragment_name}
                 }}
             }}
@@ -716,7 +734,11 @@ class Run(Attrs):
                 )
 
         if not self._is_loaded:
-            self._load_from_attrs()
+            # Only call _load_from_attrs when using the full fragment or when the fields are actually present
+            if fragment_name == RUN_FRAGMENT_NAME or (
+                "config" in self._attrs or "summaryMetrics" in self._attrs or "systemMetrics" in self._attrs
+            ):
+                self._load_from_attrs()
             self._is_loaded = True
 
         return self._attrs
