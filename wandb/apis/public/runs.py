@@ -736,7 +736,9 @@ class Run(Attrs):
         if not self._is_loaded:
             # Only call _load_from_attrs when using the full fragment or when the fields are actually present
             if fragment_name == RUN_FRAGMENT_NAME or (
-                "config" in self._attrs or "summaryMetrics" in self._attrs or "systemMetrics" in self._attrs
+                "config" in self._attrs
+                or "summaryMetrics" in self._attrs
+                or "systemMetrics" in self._attrs
             ):
                 self._load_from_attrs()
             self._is_loaded = True
