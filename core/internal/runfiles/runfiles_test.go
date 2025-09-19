@@ -110,7 +110,7 @@ func TestUploader(t *testing.T) {
 
 		fakeFileWatcher = watchertest.NewFakeWatcher()
 
-		uploader = runfilestest.WithTestDefaults(
+		uploader = runfilestest.WithTestDefaults(t,
 			runfilestest.Params{
 				GraphQL:      mockGQLClient,
 				FileStream:   fakeFileStream,
