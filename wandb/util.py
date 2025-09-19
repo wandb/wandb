@@ -28,6 +28,8 @@ import threading
 import time
 import types
 import urllib
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from importlib import import_module
@@ -40,6 +42,7 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Literal,
     Mapping,
     Optional,
     Sequence,
@@ -2038,3 +2041,28 @@ class NonOctalStringDumper(yaml.Dumper):
         if tag == "tag:yaml.org,2002:str" and value.startswith("0") and len(value) > 1:
             return super().represent_scalar(tag, value, style="'")
         return super().represent_scalar(tag, value, style)
+
+
+_artifact_storage_region: ContextVar[str | None] = ContextVar(
+    "artifact_storage_region", default=None
+)
+
+
+@contextmanager
+def artifact_storage_region(region: Literal["coreweave-us"]):
+    """Set the storage region for the current context (thread).
+
+    The only supported region is "coreweave-us" to use caios instead of gcs for wandb.ai.
+    NOTE: When using thread pool, need to copy the context.
+    """
+    if region not in ["coreweave-us"]:
+        raise ValueError(f"Invalid region: {region}")
+    old = _artifact_storage_region.set(region)
+    try:
+        yield
+    finally:
+        _artifact_storage_region.reset(old)
+
+
+def get_artifact_storage_region() -> str | None:
+    return _artifact_storage_region.get()

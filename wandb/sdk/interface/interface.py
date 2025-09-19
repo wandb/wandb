@@ -419,9 +419,14 @@ class InterfaceBase:
             proto_manifest.manifest_file_path = path
             return proto_manifest
 
+        print(
+            "make_artifact_manifest: artifact_manifest.storage_policy.config()",
+            artifact_manifest.storage_policy.config(),
+        )
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
             cfg = proto_manifest.storage_policy_config.add()
             cfg.key = k
+            # TODO: why json.dumps? we want to send more than just string but do want to define the proto?
             cfg.value_json = json.dumps(v)
 
         for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):
