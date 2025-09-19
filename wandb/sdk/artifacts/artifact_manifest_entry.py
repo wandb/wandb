@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-from wandb import env
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
@@ -49,7 +48,7 @@ _WB_ARTIFACT_SCHEME = "wandb-artifact"
 def _checksum_cache_path(file_path: str) -> str:
     """Get path for checksum in central cache directory."""
     from wandb.sdk.artifacts.artifact_file_cache import artifacts_cache_dir
-    
+
     # Create a unique cache key based on the file's absolute path
     abs_path = os.path.abspath(file_path)
     path_hash = hashlib.sha256(abs_path.encode()).hexdigest()
