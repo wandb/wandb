@@ -87,7 +87,6 @@ class InterfaceShared(InterfaceBase):
         stop_status: Optional[pb.StopStatusRequest] = None,
         internal_messages: Optional[pb.InternalMessagesRequest] = None,
         network_status: Optional[pb.NetworkStatusRequest] = None,
-        operation_stats: Optional[pb.OperationStatsRequest] = None,
         poll_exit: Optional[pb.PollExitRequest] = None,
         partial_history: Optional[pb.PartialHistoryRequest] = None,
         sampled_history: Optional[pb.SampledHistoryRequest] = None,
@@ -129,8 +128,6 @@ class InterfaceShared(InterfaceBase):
             request.internal_messages.CopyFrom(internal_messages)
         elif network_status:
             request.network_status.CopyFrom(network_status)
-        elif operation_stats:
-            request.operations.CopyFrom(operation_stats)
         elif poll_exit:
             request.poll_exit.CopyFrom(poll_exit)
         elif partial_history:
@@ -422,10 +419,6 @@ class InterfaceShared(InterfaceBase):
         exit_data: pb.RunExitRecord,
     ) -> MailboxHandle[pb.Result]:
         record = self._make_record(exit=exit_data)
-        return self._deliver(record)
-
-    def deliver_operation_stats(self):
-        record = self._make_request(operation_stats=pb.OperationStatsRequest())
         return self._deliver(record)
 
     def _deliver_poll_exit(
