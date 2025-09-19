@@ -26,6 +26,11 @@ class Opener(Protocol):
         pass
 
 
+def artifacts_cache_dir() -> Path:
+    """Get the artifacts cache directory."""
+    return env.get_cache_dir() / "artifacts"
+
+
 def _get_sys_umask_threadsafe() -> int:
     # Workaround to get the current system umask, since
     # - `os.umask()` isn't thread-safe
@@ -248,4 +253,4 @@ def _build_artifact_file_cache(cache_dir: StrPath) -> ArtifactFileCache:
 
 
 def get_artifact_file_cache() -> ArtifactFileCache:
-    return _build_artifact_file_cache(env.get_cache_dir() / "artifacts")
+    return _build_artifact_file_cache(artifacts_cache_dir())
