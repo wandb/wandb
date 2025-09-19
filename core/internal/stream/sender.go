@@ -623,7 +623,10 @@ func (s *Sender) sendJobFlush() {
 func (s *Sender) startFinishRun() {
 	go func() {
 		defer s.logger.Reraise()
+
+		start := time.Now()
 		s.finishRunSync()
+		s.logger.Info("sender: finishRunSync took", "time", time.Since(start))
 	}()
 }
 
@@ -636,6 +639,15 @@ func (s *Sender) startFinishRun() {
 // This starts after an Exit record is received, after which no more
 // run-modifying records can be generated. Requests may still be processed.
 func (s *Sender) finishRunSync() {
+	// Download artifacts use stream without creating actual run, skip all the sync logic.
+	// TODO: We should probably skip the watcher etc. when creating the sender.
+	// TODO: toggle this back after we measure the time spent on finishRunSync
+	// if s.settings.GetProject() == "" {
+	// 	s.logger.Info("sender: finishRunSync: project is empty, skipping")
+	// 	s.runWork.SetDone()
+	// 	return
+	// }
+
 	// Finish uploading captured console logs.
 	s.consoleLogsSender.Finish()
 
@@ -1221,12 +1233,15 @@ func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifact
 func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.DownloadArtifactRequest) {
 	var response spb.DownloadArtifactResponse
 
+	s.logger.Info("sender: sendRequestDownloadArtifact", "artifactId", msg.ArtifactId, "downloadRoot", msg.DownloadRoot, "allowMissingReferences", msg.AllowMissingReferences, "skipCache", msg.SkipCache, "pathPrefix", msg.PathPrefix)
+	start := time.Now()
 	if s.graphqlClient == nil {
 		// Offline mode handling:
 		s.logger.Error("sender: sendRequestDownloadArtifact: cannot download artifact in offline mode")
 		response.ErrorMessage = "Artifact downloads are not supported in offline mode."
-	} else if err := artifacts.NewArtifactDownloader(
+	} else if err := artifacts.NewArtifactDownloader( // TODO: Why are we creating a new downloader fore each request?
 		s.runWork.BeforeEndCtx(),
+		s.logger,
 		s.graphqlClient,
 		s.fileTransferManager,
 		msg.ArtifactId,
@@ -1240,6 +1255,7 @@ func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.Downlo
 			fmt.Errorf("sender: failed to download artifact: %v", err))
 		response.ErrorMessage = err.Error()
 	}
+	s.logger.Info("sender: sendRequestDownloadArtifact took", "time", time.Since(start))
 
 	s.respond(record,
 		&spb.Response{
