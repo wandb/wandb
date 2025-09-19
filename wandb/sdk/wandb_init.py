@@ -406,6 +406,25 @@ class _WandbInit:
                 run_id=settings.run_id,
             )
 
+    def set_sync_dir_suffix(self, settings: Settings) -> None:
+        """Add a suffix to sync_dir if it already exists.
+
+        The sync_dir uses a timestamp with second-level precision which can
+        result in conflicts if a run with the same ID is initialized within the
+        same second. This is most likely to happen in tests.
+
+        This can't prevent conflicts from multiple processes attempting
+        to create a wandb run simultaneously.
+
+        Args:
+            settings: Fully initialized settings other than the
+                x_sync_dir_suffix setting which will be modified.
+        """
+        index = 1
+        while pathlib.Path(settings.sync_dir).exists():
+            settings.x_sync_dir_suffix = f"{index}"
+            index += 1
+
     def make_run_config(
         self,
         settings: Settings,
@@ -1524,6 +1543,7 @@ def init(  # noqa: C901
             init_telemetry.feature.rewind_mode = True
 
         wi.set_run_id(run_settings)
+        wi.set_sync_dir_suffix(run_settings)
         run_printer = printer.new_printer(run_settings)
         show_warnings(run_printer)
 

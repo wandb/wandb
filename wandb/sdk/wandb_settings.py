@@ -160,6 +160,7 @@ CLIENT_ONLY_SETTINGS = (
     "reinit",
     "max_end_of_run_history_metrics",
     "max_end_of_run_summary_metrics",
+    "x_sync_dir_suffix",
 )
 """Python-only keys that are not fields on the settings proto."""
 
@@ -941,6 +942,13 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore-class-attributes -->
     """
 
+    x_sync_dir_suffix: str = ""
+    """Suffix to add to the run's directory name (sync_dir).
+
+    This is set in wandb.init() to avoid naming conflicts.
+    If set, it is joined to the default name with a dash.
+    """
+
     x_update_finish_state: bool = True
     """Flag to indicate whether this process can update the run's final state on the server.
 
@@ -1445,6 +1453,8 @@ class Settings(BaseModel, validate_assignment=True):
         - Converts single string values to tuple format
         - Preserves None values
 
+        <!-- lazydoc-ignore-classmethod: internal -->
+
         Args:
             value: A string, list, tuple, or None representing tags
 
@@ -1453,8 +1463,6 @@ class Settings(BaseModel, validate_assignment=True):
 
         Raises:
             ValueError: If any tag is empty or exceeds 64 characters
-
-        <!-- lazydoc-ignore-classmethod: internal -->
         """
         if value is None:
             return None
@@ -1733,10 +1741,12 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def sync_dir(self) -> str:
         """The directory for storing the run's files."""
-        return _path_convert(
-            self.wandb_dir,
-            f"{self.run_mode}-{self.timespec}-{self.run_id}",
-        )
+        name = f"{self.run_mode}-{self.timespec}-{self.run_id}"
+
+        if self.x_sync_dir_suffix:
+            name += f"-{self.x_sync_dir_suffix}"
+
+        return _path_convert(self.wandb_dir, name)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
