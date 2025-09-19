@@ -42,7 +42,6 @@ class StoragePolicy:
         manifest_entry: ArtifactManifestEntry,
         dest_path: str | None = None,
         executor: concurrent.futures.Executor | None = None,
-        multipart: bool | None = None,
     ) -> FilePathStr:
         raise NotImplementedError
 
