@@ -24,18 +24,14 @@ query RegistryVersions(
 
 fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   edges {
     node {
       artifactCollection {
         __typename
         project {
-          name
-          entity {
-            name
-          }
+          ...ArtifactCollectionProjectFragment
         }
         name
       }
@@ -44,7 +40,7 @@ fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
         ...ArtifactFragmentWithoutAliases
       }
       aliases {
-        alias
+        ...ArtifactAliasFragment
       }
     }
   }
@@ -68,48 +64,47 @@ query RegistryCollections(
         after: $cursor
         first: $perPage
       ) {
-        ...RegistryCollectionsPage
+        ...RegistryCollectionConnectionFragment
       }
     }
   }
 }
 
-fragment RegistryCollectionsPage on ArtifactCollectionConnection {
+fragment RegistryCollectionConnectionFragment on ArtifactCollectionConnection {
   totalCount
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   edges {
-    cursor
     node {
-      __typename
-      id
-      name
-      description
-      createdAt
-      tags {
-        edges {
-          node {
-            name
-          }
-        }
+      ...RegistryCollectionFragment
+    }
+  }
+}
+
+fragment RegistryCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  tags {
+    edges {
+      node {
+        ...TagFragment
       }
-      project {
-        name
-        entity {
-          name
-        }
-      }
-      defaultArtifactType {
-        name
-      }
-      aliases {
-        edges {
-          node {
-            alias
-          }
-        }
+    }
+  }
+  project {
+    ...ArtifactCollectionProjectFragment
+  }
+  defaultArtifactType {
+    name
+  }
+  aliases {
+    edges {
+      node {
+        ...ArtifactAliasFragment
       }
     }
   }
@@ -133,8 +128,7 @@ query FetchRegistries(
 
 fragment RegistriesPage on ProjectConnection {
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   edges {
     node {

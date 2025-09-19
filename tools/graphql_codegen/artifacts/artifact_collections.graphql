@@ -1,23 +1,61 @@
-mutation DeleteArtifactSequence($id: ID!) {
-  deleteArtifactSequence(input: { artifactSequenceID: $id }) {
+fragment ArtifactCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+  aliases(after: $aliasesCursor, first: $aliasesPerPage) @include(if: $includeAliases) {
+    edges {
+      node {
+        ...ArtifactAliasFragment
+      }
+    }
+  }
+}
+
+fragment ArtifactCollectionConnectionFragment on ArtifactCollectionConnection {
+  pageInfo {
+    ...PageInfoFragment
+  }
+  totalCount
+  edges {
+    node {
+      ...ArtifactCollectionFragment
+    }
+  }
+}
+
+mutation DeleteArtifactCollection($id: ID!, $isSequence: Boolean!) {
+  deleteArtifactSequence(input: { artifactSequenceID: $id }) @include(if: $isSequence) {
     artifactCollection {
+      __typename
+      state
+    }
+  }
+  deleteArtifactPortfolio(input: { artifactPortfolioID: $id }) @skip(if: $isSequence) {
+    artifactCollection {
+      __typename
       state
     }
   }
 }
 
-mutation DeleteArtifactPortfolio($id: ID!) {
-  deleteArtifactPortfolio(input: { artifactPortfolioID: $id }) {
-    artifactCollection {
-      state
-    }
-  }
-}
-
-mutation UpdateArtifactSequence($id: ID!, $name: String, $description: String) {
+mutation UpdateArtifactCollection(
+  $id: ID!
+  $name: String
+  $description: String
+  $isSequence: Boolean!
+) {
   updateArtifactSequence(
     input: { artifactSequenceID: $id, name: $name, description: $description }
-  ) {
+  ) @include(if: $isSequence) {
     artifactCollection {
       __typename
       id
@@ -25,12 +63,9 @@ mutation UpdateArtifactSequence($id: ID!, $name: String, $description: String) {
       description
     }
   }
-}
-
-mutation UpdateArtifactPortfolio($id: ID!, $name: String, $description: String) {
   updateArtifactPortfolio(
     input: { artifactPortfolioID: $id, name: $name, description: $description }
-  ) {
+  ) @skip(if: $isSequence) {
     artifactCollection {
       __typename
       id
@@ -71,9 +106,7 @@ mutation CreateArtifactCollectionTagAssignments(
     }
   ) {
     tags {
-      id
-      name
-      tagCategoryName
+      ...TagFragment
     }
   }
 }
@@ -96,29 +129,14 @@ mutation DeleteArtifactCollectionTagAssignments(
   }
 }
 
-fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
-  pageInfo {
-    endCursor
-    hasNextPage
-  }
-  totalCount
-  edges {
-    node {
-      __typename
-      id
-      name
-      description
-      createdAt
-    }
-    cursor
-  }
-}
-
 query ProjectArtifactCollections(
   $entityName: String!
   $projectName: String!
   $artifactTypeName: String!
   $cursor: String
+  $aliasesCursor: String
+  $aliasesPerPage: Int = 0
+  $includeAliases: Boolean = false
 ) {
   project(name: $projectName, entityName: $entityName) {
     artifactType(name: $artifactTypeName) {
@@ -126,7 +144,7 @@ query ProjectArtifactCollections(
       # - `artifactCollections` for new servers
       # - `artifactSequences` for old servers
       artifactCollections: artifactCollections(after: $cursor) {
-        ...ArtifactCollectionsFragment
+        ...ArtifactCollectionConnectionFragment
       }
     }
   }
@@ -137,8 +155,9 @@ query ProjectArtifactCollection(
   $projectName: String!
   $artifactTypeName: String!
   $artifactCollectionName: String!
-  $cursor: String
-  $perPage: Int = 1000
+  $aliasesCursor: String
+  $aliasesPerPage: Int = 1000
+  $includeAliases: Boolean = true
 ) {
   project(name: $projectName, entityName: $entityName) {
     artifactType(name: $artifactTypeName) {
@@ -146,34 +165,12 @@ query ProjectArtifactCollection(
       # - `artifactCollection` for new servers
       # - `artifactSequence` for old servers
       artifactCollection: artifactCollection(name: $artifactCollectionName) {
-        id
-        name
-        description
-        createdAt
-        tags {
-          edges {
-            node {
-              id
-              name
-            }
-          }
-        }
-        aliases(after: $cursor, first: $perPage) {
-          edges {
-            node {
-              alias
-            }
-            cursor
-          }
-          pageInfo {
-            endCursor
-            hasNextPage
-          }
-        }
+        ...ArtifactCollectionFragment
       }
-      artifactSequence(name: $artifactCollectionName) {
-        __typename
-      }
+      # TODO(tonyyli): Do we need this?  Delete if not.
+      # artifactSequence(name: $artifactCollectionName) {
+      #   __typename
+      # }
     }
   }
 }

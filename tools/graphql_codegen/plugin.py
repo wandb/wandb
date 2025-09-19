@@ -17,7 +17,7 @@ from typing import Any, ClassVar, Iterable, Iterator
 from ariadne_codegen import Plugin
 from ariadne_codegen.client_generators.constants import BASE_MODEL_CLASS_NAME
 from graphlib import TopologicalSorter  # Run this only with python 3.9+
-from graphql import FragmentDefinitionNode, GraphQLSchema
+from graphql import FragmentDefinitionNode, GraphQLInterfaceType, GraphQLSchema
 
 from .plugin_utils import (
     apply_ruff,
@@ -164,6 +164,8 @@ class GraphQLCodegenPlugin(Plugin):
     package_dir: Path
     #: Generated classes that we don't need in the final code
     classes_to_drop: set[str]
+    #: Maps GraphQL interface type names to the concrete GraphQL object type names that implement them
+    interface2typenames: dict[str, list[str]]
 
     #: A NodeTransformer to replace `pydantic.BaseModel` with `GQLInput/GQLResult`
     _pydantic_model_rewriter: PydanticClassRewriter
@@ -191,6 +193,7 @@ class GraphQLCodegenPlugin(Plugin):
         self.package_dir = Path(package_path) / package_name
 
         self.classes_to_drop = set()
+        self.interface2typenames = {}
 
         # HACK: Override the default python type that ariadne-codegen uses for GraphQL's `ID` type.
         # See: https://github.com/mirumee/ariadne-codegen/issues/316
@@ -219,6 +222,21 @@ class GraphQLCodegenPlugin(Plugin):
 
     def generate_inputs_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
+
+    def process_schema(self, schema: GraphQLSchema) -> GraphQLSchema:
+        # Get the concrete object types for any GraphQL interfaces
+        # E.g. ArtifactCollection -> ArtifactPortfolio, ArtifactSequence
+        # This is important for accurately generating the allowed `typename__`
+        # values on generated fragment classes
+        interface2typenames: dict[str, list[str]] = {}
+        for type_name, gql_type in schema.type_map.items():
+            if isinstance(gql_type, GraphQLInterfaceType):
+                implementations = schema.get_implementations(gql_type)
+                impl_type_names = [i.name for i in implementations.objects]
+                interface2typenames[type_name] = impl_type_names
+
+        self.interface2typenames = interface2typenames
+        return schema
 
     def generate_result_class(self, class_def: ast.ClassDef, *_, **__) -> ast.ClassDef:
         base_names = base_class_names(class_def)
@@ -252,11 +270,21 @@ class GraphQLCodegenPlugin(Plugin):
                     and (stmt.target.id == "typename__")
                     and (typename := fragment2typename.get(class_def.name))
                 ):
-                    stmt.annotation = ast.Subscript(
-                        value=ast.Name(id="Literal"),
-                        slice=ast.Constant(value=typename),
-                    )
-                    stmt.value = ast.Constant(value=typename)
+                    if all_names := self.interface2typenames.get(typename):
+                        # `typename` is actually the name of a GraphQL interface,
+                        # and we want the names of its concrete implementations.
+                        stmt.annotation = ast.Subscript(
+                            value=ast.Name("Literal"),
+                            slice=ast.Tuple([ast.Constant(name) for name in all_names]),
+                        )
+                        stmt.value = None
+                    else:
+                        # `typename` is actually the name of a concrete GraphQL object type
+                        stmt.annotation = ast.Subscript(
+                            value=ast.Name("Literal"),
+                            slice=ast.Constant(typename),
+                        )
+                        stmt.value = ast.Constant(typename)
 
         module = self._rewrite_generated_module(module)
         return ast.fix_missing_locations(module)

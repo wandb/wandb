@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import ArtifactFragment
+from .fragments import ArtifactFragment, PageInfoFragment
 
 
 class RunOutputArtifacts(GQLResult):
@@ -29,19 +29,11 @@ class RunOutputArtifactsProjectRun(GQLResult):
 class RunOutputArtifactsProjectRunOutputArtifacts(GQLResult):
     total_count: int = Field(alias="totalCount")
     edges: List[RunOutputArtifactsProjectRunOutputArtifactsEdges]
-    page_info: RunOutputArtifactsProjectRunOutputArtifactsPageInfo = Field(
-        alias="pageInfo"
-    )
+    page_info: PageInfoFragment = Field(alias="pageInfo")
 
 
 class RunOutputArtifactsProjectRunOutputArtifactsEdges(GQLResult):
     node: Optional[ArtifactFragment]
-    cursor: str
-
-
-class RunOutputArtifactsProjectRunOutputArtifactsPageInfo(GQLResult):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
 
 
 RunOutputArtifacts.model_rebuild()

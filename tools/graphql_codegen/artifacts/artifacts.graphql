@@ -1,14 +1,29 @@
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
+fragment TagFragment on Tag {
+  __typename
+  name # We currently only use the tag name
+}
+
+fragment ArtifactAliasFragment on ArtifactAlias {
+  __typename
+  alias # The actual string name of the alias
+}
+
 # Base artifact fragment that excludes the `aliases` field.  Necessary for compatibility with both:
 # - the pre-existing `ArtifactFragment` fragment
 # - the `RegistryVersionsPage` fragment, which omits `Artifact.aliases` but includes `ArtifactCollectionMembership.aliases`
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ArtifactCollectionProjectFragment
+    }
   }
   versionIndex
   artifactType {
@@ -20,7 +35,7 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   ttlIsInherited @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
   tags @include(if: true) {
     # Workaround: ensures generated pydantic field defaults to `None`
-    name
+    ...TagFragment
   }
   historyStep @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
   state
@@ -35,6 +50,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   updatedAt
 }
 
+fragment ArtifactCollectionProjectFragment on Project {
+  __typename
+  name
+  entityName
+}
+
 fragment ArtifactFragment on Artifact {
   ...ArtifactFragmentWithoutAliases
   aliases @include(if: true) {
@@ -42,12 +63,11 @@ fragment ArtifactFragment on Artifact {
     artifactCollection {
       __typename
       project {
-        entityName
-        name
+        ...ArtifactCollectionProjectFragment
       }
       name
     }
-    alias
+    ...ArtifactAliasFragment
   }
 }
 
@@ -58,9 +78,7 @@ fragment MembershipWithArtifact on ArtifactCollectionMembership {
     id
     name
     project {
-      id
-      entityName
-      name
+      ...ArtifactCollectionProjectFragment
     }
   }
   artifact {
@@ -75,11 +93,10 @@ fragment ArtifactsFragment on VersionedArtifactConnection {
       ...ArtifactFragment
     }
     version
-    cursor
+    # cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
 }
 
@@ -123,11 +140,10 @@ query RunOutputArtifacts(
           node {
             ...ArtifactFragment
           }
-          cursor
+          # cursor
         }
         pageInfo {
-          endCursor
-          hasNextPage
+          ...PageInfoFragment
         }
       }
     }
@@ -149,11 +165,10 @@ query RunInputArtifacts(
           node {
             ...ArtifactFragment
           }
-          cursor
+          # cursor
         }
         pageInfo {
-          endCursor
-          hasNextPage
+          ...PageInfoFragment
         }
       }
     }
@@ -170,12 +185,11 @@ query FetchLinkedArtifacts($artifactID: ID!) {
           }
           versionIndex
           artifactCollection {
-            project {
-              entityName
-              name
-            }
-            name
             __typename
+            name
+            project {
+              ...ArtifactCollectionProjectFragment
+            }
           }
         }
       }
