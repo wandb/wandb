@@ -11,6 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -34,8 +35,8 @@ type Stream struct {
 	// runWork is a channel of records to process.
 	runWork runwork.RunWork
 
-	// run is the state of the run controlled by this stream.
-	run *StreamRun
+	// runHandle is run info initialized after the first RunRecord.
+	runHandle *runhandle.RunHandle
 
 	// operations tracks the status of asynchronous work.
 	operations *wboperation.WandbOperations
@@ -99,7 +100,7 @@ func NewStream(
 	senderFactory *SenderFactory,
 	sentry *sentry_ext.Client,
 	settings *settings.Settings,
-	streamRun *StreamRun,
+	runHandle *runhandle.RunHandle,
 	tbHandlerFactory *tensorboard.TBHandlerFactory,
 	writerFactory *WriterFactory,
 ) *Stream {
@@ -114,7 +115,7 @@ func NewStream(
 
 	s := &Stream{
 		runWork:            runWork,
-		run:                streamRun,
+		runHandle:          runHandle,
 		operations:         operations,
 		featureProvider:    featureProvider,
 		graphqlClientOrNil: graphqlClientOrNil,

@@ -7,6 +7,7 @@ import (
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -36,7 +37,7 @@ type RecordParserFactory struct {
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
 	Operations         *wboperation.WandbOperations
-	Run                *StreamRun
+	RunHandle          *runhandle.RunHandle
 
 	ClientID sharedmode.ClientID
 	Settings *settings.Settings
@@ -68,7 +69,7 @@ func (p *recordParser) Parse(record *spb.Record) runwork.Work {
 		return &runupserter.RunUpdateWork{
 			Record: record,
 
-			StreamRunUpserter: p.Run,
+			RunHandle: p.RunHandle,
 
 			Settings:           p.Settings,
 			BeforeRunEndCtx:    p.beforeRunEndCtx,

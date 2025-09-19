@@ -21,17 +21,19 @@ const (
 	runUpsertDebounceSeconds = 5
 )
 
-type StreamRunUpserter interface {
-	// SetRunUpserter is called when a new run is created successfully.
+// RunHandle is the same as runhandle.RunHandle, created to avoid
+// a reference cycle.
+type RunHandle interface {
+	// Init is called when a new run is created successfully.
 	//
 	// It is called from the Sender goroutine and only if GetRunUpserter returns
 	// nil.
-	SetRunUpserter(upserter *RunUpserter) error
+	Init(upserter *RunUpserter) error
 
-	// GetRunUpserter returns the run set by a previous call to SetRunUpserter.
+	// Upserter returns the run set by a previous call to SetRunUpserter.
 	//
 	// It is called from the Sender goroutine.
-	GetRunUpserter() (*RunUpserter, error)
+	Upserter() (*RunUpserter, error)
 }
 
 // RunUpdateWork implements Work to initialize or update a run.
@@ -41,8 +43,8 @@ type RunUpdateWork struct {
 	// Record contains the RunRecord that triggered this work.
 	Record *spb.Record
 
-	// StreamRunUpserter is used to update the stream's run information.
-	StreamRunUpserter StreamRunUpserter
+	// RunHandle is used to update the stream's run information.
+	RunHandle RunHandle
 
 	ClientID           string
 	Settings           *settings.Settings
@@ -68,7 +70,7 @@ func (w *RunUpdateWork) Process(
 	_ func(*spb.Record),
 	results chan<- *spb.Result,
 ) {
-	if upserter, _ := w.StreamRunUpserter.GetRunUpserter(); upserter != nil {
+	if upserter, _ := w.RunHandle.Upserter(); upserter != nil {
 		w.updateRun(upserter)
 	} else {
 		w.initRun(results)
@@ -105,7 +107,7 @@ func (w *RunUpdateWork) initRun(results chan<- *spb.Result) {
 		return
 	}
 
-	err = w.StreamRunUpserter.SetRunUpserter(upserter)
+	err = w.RunHandle.Init(upserter)
 	if err != nil {
 		w.Logger.CaptureError(
 			fmt.Errorf(
