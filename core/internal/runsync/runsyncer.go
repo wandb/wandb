@@ -1,6 +1,8 @@
 package runsync
 
 import (
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/wire"
@@ -9,6 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/waiting"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -19,6 +22,7 @@ var runSyncerProviders = wire.NewSet(
 // RunSyncerFactory creates RunSyncer.
 type RunSyncerFactory struct {
 	Logger              *observability.CoreLogger
+	Printer             *observability.Printer
 	RecordParserFactory *stream.RecordParserFactory
 	RunReaderFactory    *RunReaderFactory
 	SenderFactory       *stream.SenderFactory
@@ -27,9 +31,13 @@ type RunSyncerFactory struct {
 
 // RunSyncer is a sync operation for one .wandb file.
 type RunSyncer struct {
+	mu      sync.Mutex
+	runInfo *RunInfo
+
 	path string
 
 	logger    *observability.CoreLogger
+	printer   *observability.Printer
 	runReader *RunReader
 	runWork   runwork.RunWork
 	sender    *stream.Sender
@@ -54,6 +62,7 @@ func (f *RunSyncerFactory) New(path string) *RunSyncer {
 		path: path,
 
 		logger:    f.Logger,
+		printer:   f.Printer,
 		runReader: runReader,
 		runWork:   runWork,
 		sender:    sender,
@@ -62,6 +71,16 @@ func (f *RunSyncerFactory) New(path string) *RunSyncer {
 
 // Sync uploads the .wandb file.
 func (rs *RunSyncer) Sync() {
+	runInfo, err := rs.runReader.ExtractRunInfo()
+	if err != nil {
+		// TODO: Emit error.
+		logSyncFailure(rs.logger, err)
+		return
+	}
+	rs.mu.Lock()
+	rs.runInfo = runInfo
+	rs.mu.Unlock()
+
 	g := &errgroup.Group{}
 
 	// Process the transaction log and close RunWork at the end.
@@ -76,10 +95,32 @@ func (rs *RunSyncer) Sync() {
 		return nil
 	})
 
-	err := g.Wait()
+	err = g.Wait()
 	if err != nil {
-		logSyncFailure(rs.logger, err)
-
 		// TODO: Emit error.
+		logSyncFailure(rs.logger, err)
+	} else {
+		rs.printer.Write("Finished syncing run.")
 	}
+}
+
+// PopMessages returns any new messages for the sync operation.
+func (rs *RunSyncer) PopMessages() []*spb.ServerSyncMessage {
+	rs.mu.Lock()
+	runInfo := rs.runInfo
+	rs.mu.Unlock()
+	if runInfo == nil {
+		return nil
+	}
+
+	var messages []*spb.ServerSyncMessage
+	for _, msg := range rs.printer.Read() {
+		messages = append(messages,
+			&spb.ServerSyncMessage{
+				// TODO: Existing code assumes printer messages are warnings.
+				Severity: spb.ServerSyncMessage_SEVERITY_INFO,
+				Content:  fmt.Sprintf("[%s] %s", runInfo.RunID, msg),
+			})
+	}
+	return messages
 }

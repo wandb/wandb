@@ -57,21 +57,22 @@ func (m *RunSyncManager) DoSync(
 	m.mu.Unlock()
 
 	if !exists {
-		return &spb.ServerSyncResponse{Errors: []string{
-			fmt.Sprintf(
+		return &spb.ServerSyncResponse{Messages: []*spb.ServerSyncMessage{{
+			Severity: spb.ServerSyncMessage_SEVERITY_ERROR,
+			Content: fmt.Sprintf(
 				"Internal error: operation unknown or already started: %s",
 				request.Id,
 			),
-		}}
+		}}}
 	}
 
-	op.Do(int(request.GetParallelism()))
+	response := op.Do(int(request.GetParallelism()))
 
 	m.mu.Lock()
 	delete(m.ongoingSyncOps, request.Id)
 	m.mu.Unlock()
 
-	return &spb.ServerSyncResponse{}
+	return response
 }
 
 // SyncStatus returns the status of an ongoing sync operation.
