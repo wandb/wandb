@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
 import wandb
 from wandb import util
 from wandb.apis import PublicApi
-from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
+from wandb.sdk.artifacts.artifact_file_cache import (
+    ArtifactFileCache,
+    get_artifact_file_cache,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
@@ -24,6 +27,8 @@ if TYPE_CHECKING:
 class WBArtifactHandler(StorageHandler):
     """Handles loading and storing Artifact reference-type files."""
 
+    _scheme: Literal["wandb-artifact"]
+    _cache: ArtifactFileCache
     _client: PublicApi | None
 
     def __init__(self) -> None:
@@ -84,7 +89,7 @@ class WBArtifactHandler(StorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         """Store the file or directory at the given path into the specified artifact.
 
         Recursively resolves the reference until the result is a concrete asset.
