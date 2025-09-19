@@ -7,18 +7,18 @@ from typing import Literal, Optional, Union
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, Typename
+from wandb._pydantic import GQLResult, Typename
 
 from .fragments import GenericWebhookIntegrationFields
 
 
-class CreateGenericWebhookIntegration(GQLBase):
+class CreateGenericWebhookIntegration(GQLResult):
     create_generic_webhook_integration: Optional[
         CreateGenericWebhookIntegrationCreateGenericWebhookIntegration
     ] = Field(alias="createGenericWebhookIntegration")
 
 
-class CreateGenericWebhookIntegrationCreateGenericWebhookIntegration(GQLBase):
+class CreateGenericWebhookIntegrationCreateGenericWebhookIntegration(GQLResult):
     integration: Union[
         CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationIntegration,
         CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationGenericWebhookIntegration,
@@ -26,7 +26,7 @@ class CreateGenericWebhookIntegrationCreateGenericWebhookIntegration(GQLBase):
 
 
 class CreateGenericWebhookIntegrationCreateGenericWebhookIntegrationIntegrationIntegration(
-    GQLBase
+    GQLResult
 ):
     typename__: Typename[
         Literal["GitHubOAuthIntegration", "Integration", "SlackIntegration"]

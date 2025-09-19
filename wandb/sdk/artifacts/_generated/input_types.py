@@ -7,15 +7,15 @@ from typing import Any, List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLId, GQLInput
 
 
-class ArtifactAliasInput(GQLBase):
+class ArtifactAliasInput(GQLInput):
     artifact_collection_name: str = Field(alias="artifactCollectionName")
     alias: str
 
 
-class LinkArtifactInput(GQLBase):
+class LinkArtifactInput(GQLInput):
     artifact_id: Optional[GQLId] = Field(alias="artifactID", default=None)
     artifact_portfolio_id: Optional[GQLId] = Field(
         alias="artifactPortfolioID", default=None
@@ -30,14 +30,14 @@ class LinkArtifactInput(GQLBase):
     client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
 
 
-class ArtifactCollectionAliasInput(GQLBase):
+class ArtifactCollectionAliasInput(GQLInput):
     alias: str
     entity_name: str = Field(alias="entityName")
     project_name: str = Field(alias="projectName")
     artifact_collection_name: str = Field(alias="artifactCollectionName")
 
 
-class TagInput(GQLBase):
+class TagInput(GQLInput):
     tag_category_name: Optional[str] = Field(alias="tagCategoryName", default=None)
     tag_name: str = Field(alias="tagName")
     attributes: Optional[Any] = None

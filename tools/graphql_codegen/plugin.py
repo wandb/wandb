@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Iterable, Iterator
 
 from ariadne_codegen import Plugin
+from ariadne_codegen.client_generators.constants import BASE_MODEL_CLASS_NAME
 from graphlib import TopologicalSorter  # Run this only with python 3.9+
 from graphql import FragmentDefinitionNode, GraphQLSchema
 
@@ -35,14 +36,14 @@ from .plugin_utils import (
 DEFAULT_BASE_MODEL_NAME = "BaseModel"  #: The name of the default pydantic base class
 
 # Names of custom-defined types
-CUSTOM_GQL_BASE_MODEL_NAME = "GQLBase"  #: Custom base class for GraphQL types
-CUSTOM_BASE_MODEL_NAME = "Base"  #: Custom base class for other pydantic types
+GQL_INPUT_CLASS_NAME = "GQLInput"  #: Custom base class for GraphQL input types
+GQL_RESULT_CLASS_NAME = "GQLResult"  #: Custom base class for GraphQL result types
 TYPENAME_TYPE = "Typename"  #: Custom Typename type for field annotations
 GQLID_TYPE = "GQLId"  #: Custom GraphQL ID type for field annotations
 
 CUSTOM_BASE_IMPORT_NAMES = [
-    CUSTOM_BASE_MODEL_NAME,
-    CUSTOM_GQL_BASE_MODEL_NAME,
+    GQL_INPUT_CLASS_NAME,
+    GQL_RESULT_CLASS_NAME,
     TYPENAME_TYPE,
 ]
 
@@ -164,7 +165,7 @@ class GraphQLCodegenPlugin(Plugin):
     #: Generated classes that we don't need in the final code
     classes_to_drop: set[str]
 
-    #: A NodeTransformer to replace `pydantic.BaseModel` with `GQLBase`
+    #: A NodeTransformer to replace `pydantic.BaseModel` with `GQLInput/GQLResult`
     _pydantic_model_rewriter: PydanticClassRewriter
 
     # From ariadne-codegen, we don't currently need the generated httpx client,
@@ -212,8 +213,20 @@ class GraphQLCodegenPlugin(Plugin):
     def generate_enums_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
 
+    def generate_input_class(self, class_def: ast.ClassDef, *_, **__) -> ast.ClassDef:
+        class_def.bases = [ast.Name(GQL_INPUT_CLASS_NAME)]
+        return class_def
+
     def generate_inputs_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
+
+    def generate_result_class(self, class_def: ast.ClassDef, *_, **__) -> ast.ClassDef:
+        base_names = base_class_names(class_def)
+        class_def.bases = [
+            ast.Name(GQL_RESULT_CLASS_NAME if (name == BASE_MODEL_CLASS_NAME) else name)
+            for name in base_names
+        ]
+        return class_def
 
     def generate_result_types_module(self, module: ast.Module, *_, **__) -> ast.Module:
         return self._rewrite_generated_module(module)
@@ -341,16 +354,7 @@ def _filter_and_fix_typing_imports(stmts: Iterable[ast.stmt]) -> Iterator[ast.st
 
 
 class PydanticClassRewriter(ast.NodeTransformer):
-    """Replaces all `pydantic.BaseModel` base classes with `GQLBase`."""
-
-    def visit_ImportFrom(self, node: ast.ImportFrom) -> ast.ImportFrom | None:
-        # Drop imports of the pydantic.BaseModel class
-        # Note: import of the custom base class `GQLBase` is added elsewhere
-        if node.module == "pydantic":
-            node.names = [
-                alias for alias in node.names if alias.name != DEFAULT_BASE_MODEL_NAME
-            ]
-        return node if node.names else None
+    """Performs some rewrite operations on the generated pydantic classes."""
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> ast.AnnAssign:
         if node.target.id == "typename__":
@@ -383,13 +387,6 @@ class PydanticClassRewriter(ast.NodeTransformer):
             node.annotation = annotation.slice.elts[0]  # Union[T,] -> T
             node.value = None  # drop `= Field(discriminator=...)`, if present
 
-        return self.generic_visit(node)
-
-    def visit_Name(self, node: ast.Name) -> ast.Name:
-        """Visit the name of a base class in a class definition."""
-        # Replace the default pydantic.BaseModel with our custom base class
-        if node.id == DEFAULT_BASE_MODEL_NAME:
-            node.id = CUSTOM_GQL_BASE_MODEL_NAME
         return self.generic_visit(node)
 
 

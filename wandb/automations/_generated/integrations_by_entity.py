@@ -5,16 +5,16 @@ from __future__ import annotations
 
 from typing import Optional
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import IntegrationConnectionFields
 
 
-class IntegrationsByEntity(GQLBase):
+class IntegrationsByEntity(GQLResult):
     entity: Optional[IntegrationsByEntityEntity]
 
 
-class IntegrationsByEntityEntity(GQLBase):
+class IntegrationsByEntityEntity(GQLResult):
     integrations: Optional[IntegrationConnectionFields]
 
 
