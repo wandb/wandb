@@ -15,8 +15,7 @@ from tempfile import NamedTemporaryFile
 from typing import IO, ContextManager, Iterator, Protocol
 
 import wandb
-from wandb import util
-from wandb.sdk.artifacts.artifact_manifest_entry import artifacts_cache_dir
+from wandb import env, util
 from wandb.sdk.lib.filesystem import files_in
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -25,6 +24,11 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 class Opener(Protocol):
     def __call__(self, mode: str = ...) -> ContextManager[IO]:
         pass
+
+
+def artifacts_cache_dir() -> Path:
+    """Get the artifacts cache directory."""
+    return env.get_cache_dir() / "artifacts"
 
 
 def _get_sys_umask_threadsafe() -> int:

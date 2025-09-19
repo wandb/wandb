@@ -46,13 +46,10 @@ if TYPE_CHECKING:
 _WB_ARTIFACT_SCHEME = "wandb-artifact"
 
 
-def artifacts_cache_dir() -> Path:
-    """Get the artifacts cache directory."""
-    return env.get_cache_dir() / "artifacts"
-
-
 def _checksum_cache_path(file_path: str) -> str:
     """Get path for checksum in central cache directory."""
+    from wandb.sdk.artifacts.artifact_file_cache import artifacts_cache_dir
+    
     # Create a unique cache key based on the file's absolute path
     abs_path = os.path.abspath(file_path)
     path_hash = hashlib.sha256(abs_path.encode()).hexdigest()

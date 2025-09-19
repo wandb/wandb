@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from wandb import env
@@ -9,6 +10,11 @@ from .storage_policies import WandbStoragePolicy
 
 if TYPE_CHECKING:
     from .storage_policy import StoragePolicy
+
+
+def artifacts_cache_dir() -> Path:
+    """Get the artifacts cache directory."""
+    return env.get_cache_dir() / "artifacts"
 
 
 def make_storage_policy() -> StoragePolicy:
