@@ -1,15 +1,22 @@
 """Artifact manifest entry."""
 
+# Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
+# ruff: noqa: UP006, UP007, UP045
+
 from __future__ import annotations
 
 import concurrent.futures
-import json
 import logging
 import os
-from pathlib import Path
-from typing import TYPE_CHECKING
+from os.path import getsize
+from typing import TYPE_CHECKING, Any, Dict, Final, Optional, Union
 from urllib.parse import urlparse
 
+from pydantic import Field, NonNegativeInt
+from typing_extensions import Annotated, Self
+
+from wandb._pydantic import field_validator, model_validator
+from wandb._strutils import nameof
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.lib.deprecate import deprecate
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
@@ -20,14 +27,14 @@ from wandb.sdk.lib.hashutil import (
     hex_to_b64_id,
     md5_file_b64,
 )
-from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, URIStr
 
-logger = logging.getLogger(__name__)
+from ._base_model import ArtifactsBase
 
 if TYPE_CHECKING:
     from typing_extensions import TypedDict
 
-    from wandb.sdk.artifacts.artifact import Artifact
+    from .artifact import Artifact
 
     class ArtifactManifestEntryDict(TypedDict, total=False):
         path: str
@@ -40,79 +47,53 @@ if TYPE_CHECKING:
         local_path: str
 
 
-_WB_ARTIFACT_SCHEME = "wandb-artifact"
+logger = logging.getLogger(__name__)
 
 
-class ArtifactManifestEntry:
+_WB_ARTIFACT_SCHEME: Final[str] = "wandb-artifact"
+
+
+class ArtifactManifestEntry(ArtifactsBase):
     """A single entry in an artifact manifest."""
 
     path: LogicalPath
-    digest: B64MD5 | URIStr | FilePathStr | ETag
-    skip_cache: bool
-    ref: FilePathStr | URIStr | None
-    birth_artifact_id: str | None
-    size: int | None
-    extra: dict
-    local_path: str | None
 
-    _parent_artifact: Artifact | None = None
-    _download_url: str | None = None
+    digest: Union[B64MD5, ETag, URIStr, FilePathStr]
+    ref: Union[URIStr, FilePathStr, None] = None
+    birth_artifact_id: Annotated[Optional[str], Field(alias="birthArtifactID")] = None
+    size: Optional[NonNegativeInt] = None
+    extra: Dict[str, Any] = Field(default_factory=dict)
+    local_path: Optional[str] = None
 
-    def __init__(
-        self,
-        path: StrPath,
-        digest: B64MD5 | URIStr | FilePathStr | ETag,
-        skip_cache: bool | None = False,
-        ref: FilePathStr | URIStr | None = None,
-        birth_artifact_id: str | None = None,
-        size: int | None = None,
-        extra: dict | None = None,
-        local_path: StrPath | None = None,
-    ) -> None:
-        self.path = LogicalPath(path)
-        self.digest = digest
-        self.ref = ref
-        self.birth_artifact_id = birth_artifact_id
-        self.size = size
-        self.extra = extra or {}
-        self.local_path = str(local_path) if local_path else None
-        if self.local_path and self.size is None:
-            self.size = Path(self.local_path).stat().st_size
-        self.skip_cache = skip_cache or False
+    skip_cache: bool = False
+
+    # Note: Pydantic considers these private attributes, omitting them from validation and comparison logic.
+    _parent_artifact: Optional[Artifact] = None
+    _download_url: Optional[str] = None
+
+    @field_validator("path", mode="before")
+    def _validate_path(cls, v: Any) -> LogicalPath:
+        # For prior behavior: required to coerce to LogicalPath (which doesn't yet implement its own pydantic validator)
+        return LogicalPath(v)
+
+    @field_validator("local_path", mode="before")
+    def _validate_local_path(cls, v: Any) -> str | None:
+        # For prior behavior: required to coerce PosixPath to str
+        return str(v) if v else None
+
+    @model_validator(mode="after")
+    def _infer_size_from_local_path(self) -> Self:
+        # If size isn't set, infer it from local_path if available
+        if (self.size is None) and self.local_path:
+            self.size = getsize(self.local_path)
+        return self
 
     def __repr__(self) -> str:
-        cls = self.__class__.__name__
-        ref = f", ref={self.ref!r}" if self.ref is not None else ""
-        birth_artifact_id = (
-            f", birth_artifact_id={self.birth_artifact_id!r}"
-            if self.birth_artifact_id is not None
-            else ""
-        )
-        size = f", size={self.size}" if self.size is not None else ""
-        extra = f", extra={json.dumps(self.extra)}" if self.extra else ""
-        local_path = f", local_path={self.local_path!r}" if self.local_path else ""
-        skip_cache = f", skip_cache={self.skip_cache}"
-        others = ref + birth_artifact_id + size + extra + local_path + skip_cache
-        return f"{cls}(path={self.path!r}, digest={self.digest!r}{others})"
-
-    def __eq__(self, other: object) -> bool:
-        """Strict equality, comparing all public fields.
-
-        ArtifactManifestEntries for the same file may not compare equal if they were
-        added in different ways or created for different parent artifacts.
-        """
-        if not isinstance(other, ArtifactManifestEntry):
-            return False
-        return (
-            self.path == other.path
-            and self.digest == other.digest
-            and self.ref == other.ref
-            and self.birth_artifact_id == other.birth_artifact_id
-            and self.size == other.size
-            and self.extra == other.extra
-            and self.local_path == other.local_path
-            and self.skip_cache == other.skip_cache
-        )
+        # For compatibility with prior behavior, don't display `extra` if it's empty
+        repr_dict = self.model_dump(by_alias=False, exclude_none=True)
+        if not repr_dict.get("extra"):
+            repr_dict.pop("extra")
+        return f"{nameof(type(self))}({', '.join(f'{k}={v!r}' for k, v in repr_dict.items())})"
 
     @property
     def name(self) -> LogicalPath:
@@ -149,18 +130,9 @@ class ArtifactManifestEntry:
         Returns:
             (str): The path of the downloaded artifact entry.
         """
-        if self._parent_artifact is None:
-            raise NotImplementedError
-
-        root = root or self._parent_artifact._default_root()
-        self._parent_artifact._add_download_root(root)
-        path = str(Path(self.path))
-        dest_path = os.path.join(root, path)
-
-        if skip_cache:
-            override_cache_path = dest_path
-        else:
-            override_cache_path = None
+        artifact = self.parent_artifact()
+        rootdir = artifact._add_download_root(root)
+        dest_path = os.path.join(rootdir, self.path)
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
@@ -172,22 +144,23 @@ class ArtifactManifestEntry:
             if self.digest == md5_hash:
                 return FilePathStr(dest_path)
 
+        # Override the target cache path IF we're skipping the cache.
+        # Note that `override_cache_path is None` <=> `skip_cache is False`.
+        override_cache_path = FilePathStr(dest_path) if skip_cache else None
         if self.ref is not None:
-            cache_path = self._parent_artifact.manifest.storage_policy.load_reference(
+            cache_path = artifact.manifest.storage_policy.load_reference(
                 self, local=True, dest_path=override_cache_path
             )
         else:
-            cache_path = self._parent_artifact.manifest.storage_policy.load_file(
-                self._parent_artifact,
+            cache_path = artifact.manifest.storage_policy.load_file(
+                artifact,
                 self,
                 dest_path=override_cache_path,
                 executor=executor,
                 multipart=multipart,
             )
         return FilePathStr(
-            dest_path
-            if skip_cache
-            else copy_or_overwrite_changed(cache_path, dest_path)
+            override_cache_path or copy_or_overwrite_changed(cache_path, dest_path)
         )
 
     def ref_target(self) -> FilePathStr | URIStr:
@@ -201,11 +174,9 @@ class ArtifactManifestEntry:
         """
         if self.ref is None:
             raise ValueError("Only reference entries support ref_target().")
-        if self._parent_artifact is None:
+        if (parent_artifact := self._parent_artifact) is None:
             return self.ref
-        return self._parent_artifact.manifest.storage_policy.load_reference(
-            self._parent_artifact.manifest.entries[self.path], local=False
-        )
+        return parent_artifact.manifest.storage_policy.load_reference(self, local=False)
 
     def ref_url(self) -> str:
         """Get a URL to this artifact entry.
@@ -229,23 +200,11 @@ class ArtifactManifestEntry:
         return f"{_WB_ARTIFACT_SCHEME}://{b64_to_hex_id(B64MD5(parent_id))}/{self.path}"
 
     def to_json(self) -> ArtifactManifestEntryDict:
-        contents: ArtifactManifestEntryDict = {
-            "path": self.path,
-            "digest": self.digest,
-        }
-        if self.size is not None:
-            contents["size"] = self.size
-        if self.ref:
-            contents["ref"] = self.ref
-        if self.birth_artifact_id:
-            contents["birthArtifactID"] = self.birth_artifact_id
-        if self.local_path:
-            contents["local_path"] = self.local_path
-        if self.skip_cache:
-            contents["skip_cache"] = self.skip_cache
-        if self.extra:
-            contents["extra"] = self.extra
-        return contents
+        # FIXME: This method's name is misleading, as it returns a dict, not a
+        # serialized JSON string. The original name is kept for continuity, but
+        # consider deprecating this in favor of `BaseModel.model_dump()` or a
+        # more accurately named method like `.to_dict()`.
+        return self.model_dump(exclude_none=True)  # type: ignore[return-value]
 
     def _is_artifact_reference(self) -> bool:
         return self.ref is not None and urlparse(self.ref).scheme == _WB_ARTIFACT_SCHEME
