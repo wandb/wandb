@@ -747,13 +747,18 @@ class Run(Attrs):
 
     def _load_from_attrs(self):
         self._state = self._attrs.get("state", None)
-        self._attrs["config"] = _convert_to_dict(self._attrs.get("config"))
-        self._attrs["summaryMetrics"] = _convert_to_dict(
-            self._attrs.get("summaryMetrics")
-        )
-        self._attrs["systemMetrics"] = _convert_to_dict(
-            self._attrs.get("systemMetrics")
-        )
+        
+        # Only convert fields if they exist in _attrs
+        if "config" in self._attrs:
+            self._attrs["config"] = _convert_to_dict(self._attrs.get("config"))
+        if "summaryMetrics" in self._attrs:
+            self._attrs["summaryMetrics"] = _convert_to_dict(
+                self._attrs.get("summaryMetrics")
+            )
+        if "systemMetrics" in self._attrs:
+            self._attrs["systemMetrics"] = _convert_to_dict(
+                self._attrs.get("systemMetrics")
+            )
 
         if "projectId" in self._attrs:
             self._project_internal_id = int(self._attrs["projectId"])
@@ -771,46 +776,19 @@ class Run(Attrs):
                 withRuns=False,
             )
 
-        # Load metrics only if we have them (avoid KeyError for lazy loading)
-        if self._attrs.get("summaryMetrics"):
-            try:
-                self._attrs["summaryMetrics"] = (
-                    json.loads(self._attrs["summaryMetrics"])
-                    if self._attrs.get("summaryMetrics")
-                    else {}
-                )
-            except json.JSONDecodeError:
-                # ignore invalid utf-8 or control characters
-                self._attrs["summaryMetrics"] = json.loads(
-                    self._attrs["summaryMetrics"],
-                    strict=False,
-                )
-
-        if self._attrs.get("systemMetrics"):
-            try:
-                self._attrs["systemMetrics"] = (
-                    json.loads(self._attrs["systemMetrics"])
-                    if self._attrs.get("systemMetrics")
-                    else {}
-                )
-            except json.JSONDecodeError:
-                # ignore invalid utf-8 or control characters
-                self._attrs["systemMetrics"] = json.loads(
-                    self._attrs["systemMetrics"],
-                    strict=False,
-                )
 
         config_user, config_raw = {}, {}
         if self._attrs.get("config"):
             try:
-                for key, value in json.loads(self._attrs.get("config") or "{}").items():
+                # config is already converted to dict by _convert_to_dict
+                for key, value in self._attrs.get("config", {}).items():
                     config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
                     if isinstance(value, dict) and "value" in value:
                         config[key] = value["value"]
                     else:
                         config[key] = value
-            except json.JSONDecodeError:
-                # Handle case where config is malformed
+            except (TypeError, AttributeError):
+                # Handle case where config is malformed or not a dict
                 pass
 
         config_raw.update(config_user)
