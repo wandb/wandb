@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.35.3
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.35.3.
+
+### Bug Fixes
+
+- Add missing rate limit categories ([#1082](https://github.com/getsentry/sentry-go/pull/1082))
+
+## 0.35.2
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.35.2.
+
+### Bug Fixes
+
+- Fix OpenTelemetry spans being created as transactions instead of child spans ([#1073](https://github.com/getsentry/sentry-go/pull/1073))
+
+### Misc
+
+- Add `MockTransport` to test clients for improved testing ([#1071](https://github.com/getsentry/sentry-go/pull/1071))
+
 ## 0.35.1
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.35.1.
