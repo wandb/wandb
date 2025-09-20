@@ -385,45 +385,47 @@ class Registry:
 
     def user_members(self) -> list[User]:
         """Returns the current users belonging to the registry."""
-        data = self.client.execute(
-            gql(REGISTRY_USER_MEMBERS_GQL),
-            variable_values={"projectName": self.full_name, "entityName": self.entity},
-        )
+        gql_op = gql(REGISTRY_USER_MEMBERS_GQL)
+        gql_vars = {"projectName": self.full_name, "entityName": self.entity}
+
+        data = self.client.execute(gql_op, variable_values=gql_vars)
         result = RegistryUserMembers.model_validate(data)
 
         if not (project := result.project):
             raise ValueError(f"Failed to fetch user members for registry {self.name!r}")
 
         # The `User` class requires an unstructured attribute dictionary
+        # To conform to the existing User class, repalce `user.role` with `user.admin` e.g.
+        #   `user.role: "admin"` -> `user.admin: True`
         attr_dicts = (
             {
-                # Replace e.g. `role: "admin"` with `admin: True`
-                **member.model_dump(exclude_none=True, exclude={"role"}),
-                "admin": is_admin_role(member.role),
+                **m.model_dump(exclude_none=True, exclude={"role"}),
+                "admin": is_admin_role(m.role),
             }
-            for member in project.members
+            for m in project.members
         )
         return [User(self.client, attrs) for attrs in attr_dicts]
 
     def team_members(self) -> list[Team]:
         """Returns the current teams belonging to the registry."""
-        data = self.client.execute(
-            gql(REGISTRY_TEAM_MEMBERS_GQL),
-            variable_values={"projectName": self.full_name, "entityName": self.entity},
-        )
+        gql_op = gql(REGISTRY_TEAM_MEMBERS_GQL)
+        gql_vars = {"projectName": self.full_name, "entityName": self.entity}
+
+        data = self.client.execute(gql_op, variable_values=gql_vars)
         result = RegistryTeamMembers.model_validate(data)
 
         if not (project := result.project):
             raise ValueError(f"Failed to fetch team members for registry {self.name!r}")
 
         # The `Team` class requires an unstructured attribute dictionary
+        # To conform to the existing Team class, assign `member.team.admin` from `member.role` e.g.
+        #   `member.role: "admin"` -> `member.team.admin: True`
         attr_dicts = (
             {
-                # Include e.g. `role: "admin"` with `admin: True`
-                **member.team.model_dump(exclude_none=True),
-                "admin": is_admin_role(member.role),
+                **m.team.model_dump(exclude_none=True),
+                "admin": is_admin_role(m.role),
             }
-            for member in project.team_members
+            for m in project.team_members
         )
         return [Team(self.client, attrs) for attrs in attr_dicts]
 
@@ -431,33 +433,27 @@ class Registry:
         """Adds the users or teams to this registry and returns self for further chaining if needed."""
         user_ids, team_ids = _parse_user_and_team_ids(members)
 
-        data = self.client.execute(
-            gql(CREATE_REGISTRY_MEMBERS_GQL),
-            variable_values={
-                "userIds": list(user_ids),
-                "teamIds": list(team_ids),
-                "projectId": self._id,
-            },
-        )
-        result = CreateRegistryMembers.model_validate(data)
-        if not result.create_project_members.success:
+        gql_op = gql(CREATE_REGISTRY_MEMBERS_GQL)
+        gql_vars = {"userIds": user_ids, "teamIds": team_ids, "projectId": self._id}
+
+        data = self.client.execute(gql_op, variable_values=gql_vars)
+        r = CreateRegistryMembers.model_validate(data)
+
+        if not (r := r.create_project_members) and r.success:
             raise RuntimeError(f"Failed to add members to registry {self.name!r}")
         return self
 
     def remove_members(self, *members: User | Team | str) -> Self:
-        """Adds the users or teams to this registry and returns self for further chaining if needed."""
+        """Removes the users or teams from this registry and returns self for further chaining if needed."""
         user_ids, team_ids = _parse_user_and_team_ids(members)
 
-        data = self.client.execute(
-            gql(DELETE_REGISTRY_MEMBERS_GQL),
-            variable_values={
-                "userIds": list(user_ids),
-                "teamIds": list(team_ids),
-                "projectId": self._id,
-            },
-        )
-        result = DeleteRegistryMembers.model_validate(data)
-        if not result.create_project_members.success:
+        gql_op = gql(DELETE_REGISTRY_MEMBERS_GQL)
+        gql_vars = {"userIds": user_ids, "teamIds": team_ids, "projectId": self._id}
+
+        data = self.client.execute(gql_op, variable_values=gql_vars)
+        r = DeleteRegistryMembers.model_validate(data)
+
+        if not (r := r.delete_project_members) and r.success:
             raise RuntimeError(f"Failed to remove members from registry {self.name!r}")
         return self
 
@@ -477,7 +473,7 @@ class Registry:
             and result.success
         ):
             raise RuntimeError(
-                f"Failed to update role for member {member!r} in registry {self.name!r}"
+                f"Failed to update member {member!r} role to {role!r} in registry {self.name!r}"
             )
         return self
 
