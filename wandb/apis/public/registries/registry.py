@@ -1,23 +1,39 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from base64 import b64decode
+from dataclasses import astuple, dataclass
+from enum import Enum
+from functools import singledispatchmethod
+from typing import TYPE_CHECKING, Any, Iterable, Literal
 
 from pydantic import PositiveInt
+from typing_extensions import Self, assert_never
 from wandb_gql import gql
 
 import wandb
 from wandb._analytics import tracked
+from wandb._strutils import nameof
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._generated import (
+    CREATE_REGISTRY_MEMBERS_GQL,
     DELETE_REGISTRY_GQL,
+    DELETE_REGISTRY_MEMBERS_GQL,
     FETCH_REGISTRY_GQL,
+    REGISTRY_TEAM_MEMBERS_GQL,
+    REGISTRY_USER_MEMBERS_GQL,
     RENAME_REGISTRY_GQL,
+    UPDATE_REGISTRY_ROLE_GQL,
     UPSERT_REGISTRY_GQL,
+    CreateRegistryMembers,
     DeleteRegistry,
+    DeleteRegistryMembers,
     FetchRegistry,
     RegistryFragment,
+    RegistryTeamMembers,
+    RegistryUserMembers,
     RenameProjectInput,
     RenameRegistry,
+    UpdateRegistryRole,
     UpsertModelInput,
     UpsertRegistry,
 )
@@ -25,10 +41,13 @@ from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts._models import RegistryData
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
 
+from ..teams import Team
+from ..users import User
 from ._freezable_list import AddOnlyArtifactTypesList
 from ._utils import (
     Visibility,
     fetch_org_entity_from_organization,
+    is_admin_role,
     prepare_artifact_types_input,
 )
 from .registries_search import Collections, Versions
@@ -385,3 +404,166 @@ class Registry:
     def _no_updating_registry_types(self) -> bool:
         # artifact types draft means user assigned types to add that are not yet saved
         return len(self.artifact_types.draft) > 0 and self.allow_all_artifact_types
+
+    def user_members(self) -> list[User]:
+        """Returns the current users belonging to the registry."""
+        data = self.client.execute(
+            gql(REGISTRY_USER_MEMBERS_GQL),
+            variable_values={"projectName": self.full_name, "entityName": self.entity},
+        )
+        result = RegistryUserMembers.model_validate(data)
+
+        if not (project := result.project):
+            raise ValueError(f"Failed to fetch user members for registry {self.name!r}")
+
+        # The `User` class requires an unstructured attribute dictionary
+        attr_dicts = (
+            {
+                # Replace e.g. `role: "admin"` with `admin: True`
+                **member.model_dump(exclude_none=True, exclude={"role"}),
+                "admin": is_admin_role(member.role),
+            }
+            for member in project.members
+        )
+        return [User(self.client, attrs) for attrs in attr_dicts]
+
+    def team_members(self) -> list[Team]:
+        """Returns the current teams belonging to the registry."""
+        data = self.client.execute(
+            gql(REGISTRY_TEAM_MEMBERS_GQL),
+            variable_values={"projectName": self.full_name, "entityName": self.entity},
+        )
+        result = RegistryTeamMembers.model_validate(data)
+
+        if not (project := result.project):
+            raise ValueError(f"Failed to fetch team members for registry {self.name!r}")
+
+        # The `Team` class requires an unstructured attribute dictionary
+        attr_dicts = (
+            {
+                # Include e.g. `role: "admin"` with `admin: True`
+                **member.team.model_dump(exclude_none=True),
+                "admin": is_admin_role(member.role),
+            }
+            for member in project.team_members
+        )
+        return [Team(self.client, attrs) for attrs in attr_dicts]
+
+    def add_members(self, *members: User | Team | str) -> Self:
+        """Adds the users or teams to this registry and returns self for further chaining if needed."""
+        user_ids, team_ids = _parse_user_and_team_ids(members)
+
+        data = self.client.execute(
+            gql(CREATE_REGISTRY_MEMBERS_GQL),
+            variable_values={
+                "userIds": list(user_ids),
+                "teamIds": list(team_ids),
+                "projectId": self._id,
+            },
+        )
+        result = CreateRegistryMembers.model_validate(data)
+        if not result.create_project_members.success:
+            raise RuntimeError(f"Failed to add members to registry {self.name!r}")
+        return self
+
+    def remove_members(self, *members: User | Team | str) -> Self:
+        """Adds the users or teams to this registry and returns self for further chaining if needed."""
+        user_ids, team_ids = _parse_user_and_team_ids(members)
+
+        data = self.client.execute(
+            gql(DELETE_REGISTRY_MEMBERS_GQL),
+            variable_values={
+                "userIds": list(user_ids),
+                "teamIds": list(team_ids),
+                "projectId": self._id,
+            },
+        )
+        result = DeleteRegistryMembers.model_validate(data)
+        if not result.create_project_members.success:
+            raise RuntimeError(f"Failed to remove members from registry {self.name!r}")
+        return self
+
+    def update_member_role(self, member: User | Team | str, role: str) -> Self:
+        """Updates the role of a team or user member within this registry."""
+        id_, kind = _MemberIdAndKind.from_obj(member)
+        is_team = kind is _MemberKind.ENTITY
+
+        gql_op = gql(UPDATE_REGISTRY_ROLE_GQL)
+        gql_vars = {"id": id_, "projectId": self._id, "role": role, "isTeam": is_team}
+
+        data = self.client.execute(gql_op, variable_values=gql_vars)
+        r = UpdateRegistryRole.model_validate(data)
+
+        if not (
+            (result := (r.update_project_team_member or r.update_project_member))
+            and result.success
+        ):
+            raise RuntimeError(
+                f"Failed to update role for member {member!r} in registry {self.name!r}"
+            )
+        return self
+
+
+def _parse_user_and_team_ids(
+    members: Iterable[User | Team | str],
+) -> tuple[list[str], list[str]]:
+    """Returns a tuple of (user_ids, team_ids) from parsing the given objects."""
+    user_ids, team_ids = set(), set()
+
+    for id_and_kind in map(_MemberIdAndKind.from_obj, members):
+        id_, kind = astuple(id_and_kind)
+
+        if kind is _MemberKind.ENTITY:
+            team_ids.add(id_)
+        elif kind is _MemberKind.USER:
+            user_ids.add(id_)
+        else:
+            assert_never(kind)
+
+    return list(user_ids), list(team_ids)
+
+
+class _MemberKind(str, Enum):
+    """Identifies what kind of object a registry member is."""
+
+    USER = "user"
+    ENTITY = "entity"
+
+
+@dataclass
+class _MemberIdAndKind:
+    id_: str
+    kind: _MemberKind
+
+    @singledispatchmethod
+    @classmethod
+    def from_obj(cls, obj: User | Team | str) -> _MemberIdAndKind:
+        """Parses `User` or `Team` ID from the argument."""
+        # Fallback for unexpected types
+        raise TypeError(
+            f"Member arg must be a {nameof(User)!r}, {nameof(Team)!r}, or a user/team ID"
+        )
+
+    @from_obj.register(User)
+    @classmethod
+    def _(cls, user: User, /) -> _MemberIdAndKind:
+        # Use the user's ID
+        return cls(user.id, _MemberKind.USER)
+
+    @from_obj.register(Team)
+    @classmethod
+    def _(cls, team: Team, /) -> _MemberIdAndKind:
+        # Use the team's entity ID
+        return cls(team.id, _MemberKind.ENTITY)
+
+    @from_obj.register(str)
+    @classmethod
+    def _(cls, id_: str, /) -> _MemberIdAndKind:
+        # Parse the ID to figure out if it's a team or user ID
+        id_prefix, *_ = b64decode(id_).decode().split(":")
+        try:
+            member_kind = _MemberKind(id_prefix.lower())
+        except ValueError:
+            raise ValueError(f"{id_!r} is not a W&B team or user ID") from None
+        else:
+            return cls(id_, kind=member_kind)

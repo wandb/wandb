@@ -5,6 +5,7 @@ from functools import lru_cache, partial
 from typing import TYPE_CHECKING, Any, Collection
 
 from wandb._strutils import ensureprefix
+from wandb.sdk.artifacts._generated import RegistryRoleFragment
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_artifact_types
 
 if TYPE_CHECKING:
@@ -123,3 +124,7 @@ def fetch_org_entity_from_organization(client: Client, organization: str) -> str
         raise ValueError(f"Organization entity for {organization!r} not found.")
 
     return org_name
+
+
+def is_admin_role(role: RegistryRoleFragment) -> bool:
+    return role.name.casefold() == "admin"
