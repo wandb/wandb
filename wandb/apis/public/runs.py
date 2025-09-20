@@ -145,9 +145,17 @@ def _create_runs_query(*, lazy: bool, with_internal_id: bool) -> gql:
     )
 
 
+# Cache for server capability checks to avoid repeated network calls
+_SERVER_CAPABILITIES_CACHE = {}
+
+
 @normalize_exceptions
 def _server_provides_internal_id_for_project(client) -> bool:
     """Returns True if the server allows us to query the internalId field for a project."""
+    cache_key = f"internal_id_for_project_{id(client)}"
+    if cache_key in _SERVER_CAPABILITIES_CACHE:
+        return _SERVER_CAPABILITIES_CACHE[cache_key]
+    
     query_string = """
        query ProbeProjectInput {
             ProjectType: __type(name:"Project") {
@@ -161,14 +169,20 @@ def _server_provides_internal_id_for_project(client) -> bool:
     # Only perform the query once to avoid extra network calls
     query = gql(query_string)
     res = client.execute(query)
-    return "internalId" in [
+    result = "internalId" in [
         x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
     ]
+    _SERVER_CAPABILITIES_CACHE[cache_key] = result
+    return result
 
 
 @normalize_exceptions
 def _server_provides_project_id_for_run(client) -> bool:
     """Returns True if the server allows us to query the projectId field for a run."""
+    cache_key = f"project_id_for_run_{id(client)}"
+    if cache_key in _SERVER_CAPABILITIES_CACHE:
+        return _SERVER_CAPABILITIES_CACHE[cache_key]
+    
     query_string = """
        query ProbeRunInput {
             RunType: __type(name:"Run") {
@@ -182,9 +196,11 @@ def _server_provides_project_id_for_run(client) -> bool:
     # Only perform the query once to avoid extra network calls
     query = gql(query_string)
     res = client.execute(query)
-    return "projectId" in [
+    result = "projectId" in [
         x["name"] for x in (res.get("RunType", {}).get("fields", [{}]))
     ]
+    _SERVER_CAPABILITIES_CACHE[cache_key] = result
+    return result
 
 
 @normalize_exceptions
@@ -583,6 +599,7 @@ class Run(Attrs):
         self._metadata: dict[str, Any] | None = None
         self._state = _attrs.get("state", "not found")
         self.server_provides_internal_id_field: bool | None = None
+        self._server_provides_project_id_field: bool | None = None
         self._is_loaded: bool = False
 
         self.load(force=not _attrs)
@@ -694,12 +711,16 @@ class Run(Attrs):
         self, fragment: str, fragment_name: str, force: bool = False
     ):
         """Load run data using specified GraphQL fragment."""
+        # Cache the server capability check to avoid repeated network calls
+        if self._server_provides_project_id_field is None:
+            self._server_provides_project_id_field = _server_provides_project_id_for_run(self.client)
+        
         query = gql(
             f"""
         query Run($project: String!, $entity: String!, $name: String!) {{
             project(name: $project, entityName: $entity) {{
                 run(name: $name) {{
-                    {"projectId" if _server_provides_project_id_for_run(self.client) else ""}
+                    {"projectId" if self._server_provides_project_id_field else ""}
                     ...{fragment_name}
                 }}
             }}
