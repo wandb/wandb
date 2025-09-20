@@ -63,6 +63,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 		GraphQL:      client,
 		Logger:       coreLogger,
 		Operations:   operations,
+		RunHandle:    runHandle,
 		Settings:     settings2,
 	}
 	mailboxMailbox := mailbox.New()

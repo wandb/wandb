@@ -82,6 +82,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		GraphQL:      client,
 		Logger:       coreLogger,
 		Operations:   wandbOperations,
+		RunHandle:    runHandle,
 		Settings:     settings2,
 	}
 	senderFactory := &SenderFactory{
