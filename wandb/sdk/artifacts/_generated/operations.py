@@ -14,22 +14,14 @@ __all__ = [
     "ARTIFACT_TYPE_GQL",
     "ARTIFACT_USED_BY_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
-<<<<<<< HEAD
-=======
-    "ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL",
-    "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "CREATE_REGISTRY_MEMBERS_GQL",
->>>>>>> d4b12b3951 (feat(registries): support registry member and role management via SDK)
     "DELETE_ALIASES_GQL",
     "DELETE_ARTIFACT_COLLECTION_TAGS_GQL",
     "DELETE_ARTIFACT_GQL",
     "DELETE_ARTIFACT_PORTFOLIO_GQL",
     "DELETE_ARTIFACT_SEQUENCE_GQL",
-<<<<<<< HEAD
     "DELETE_REGISTRY_GQL",
-=======
     "DELETE_REGISTRY_MEMBERS_GQL",
->>>>>>> d4b12b3951 (feat(registries): support registry member and role management via SDK)
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
     "FETCH_ORG_INFO_FROM_ENTITY_GQL",
@@ -54,11 +46,9 @@ __all__ = [
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
     "UPDATE_ARTIFACT_SEQUENCE_GQL",
-<<<<<<< HEAD
+    "UPDATE_TEAM_REGISTRY_ROLE_GQL",
+    "UPDATE_USER_REGISTRY_ROLE_GQL",
     "UPSERT_REGISTRY_GQL",
-=======
-    "UPDATE_REGISTRY_ROLE_GQL",
->>>>>>> d4b12b3951 (feat(registries): support registry member and role management via SDK)
 ]
 
 DELETE_ARTIFACT_SEQUENCE_GQL = """
@@ -1774,8 +1764,8 @@ mutation DeleteRegistry($id: String!) {
 """
 
 REGISTRY_USER_MEMBERS_GQL = """
-query RegistryUserMembers($projectName: String!, $entityName: String!) {
-  project(name: $projectName, entityName: $entityName) {
+query RegistryUserMembers($project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
     members {
       ...UserRegistryMemberFragment
     }
@@ -1783,7 +1773,6 @@ query RegistryUserMembers($projectName: String!, $entityName: String!) {
 }
 
 fragment RegistryRoleFragment on Role {
-  ID
   name
 }
 
@@ -1799,8 +1788,8 @@ fragment UserRegistryMemberFragment on ProjectMember {
 """
 
 REGISTRY_TEAM_MEMBERS_GQL = """
-query RegistryTeamMembers($projectName: String!, $entityName: String!) {
-  project(name: $projectName, entityName: $entityName) {
+query RegistryTeamMembers($project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
     teamMembers {
       ...TeamRegistryMemberFragment
     }
@@ -1808,11 +1797,11 @@ query RegistryTeamMembers($projectName: String!, $entityName: String!) {
 }
 
 fragment RegistryRoleFragment on Role {
-  ID
   name
 }
 
-fragment TeamEntityFragment on Entity {
+fragment TeamFragment on Entity {
+  __typename
   id
   name
   available
@@ -1826,11 +1815,12 @@ fragment TeamEntityFragment on Entity {
   defaultAccess
   isPaid
   members {
-    ...TeamEntityMemberFragment
+    ...TeamMemberFragment
   }
 }
 
-fragment TeamEntityMemberFragment on Member {
+fragment TeamMemberFragment on Member {
+  __typename
   id
   role
   pending
@@ -1843,45 +1833,42 @@ fragment TeamEntityMemberFragment on Member {
 }
 
 fragment TeamRegistryMemberFragment on ProjectTeamMember {
+  team {
+    ...TeamFragment
+  }
   role {
     ...RegistryRoleFragment
-  }
-  team {
-    ...TeamEntityFragment
   }
 }
 """
 
 CREATE_REGISTRY_MEMBERS_GQL = """
-mutation CreateRegistryMembers($userIds: [ID!], $teamIds: [ID!], $projectId: ID!) {
-  createProjectMembers(
-    input: {userIds: $userIds, teamIds: $teamIds, projectId: $projectId}
-  ) {
+mutation CreateRegistryMembers($input: CreateProjectMembersInput!) {
+  result: createProjectMembers(input: $input) {
     success
   }
 }
 """
 
 DELETE_REGISTRY_MEMBERS_GQL = """
-mutation DeleteRegistryMembers($userIds: [ID!], $teamIds: [ID!], $projectId: ID!) {
-  deleteProjectMembers(
-    input: {userIds: $userIds, teamIds: $teamIds, projectId: $projectId}
-  ) {
+mutation DeleteRegistryMembers($input: DeleteProjectMembersInput!) {
+  result: deleteProjectMembers(input: $input) {
     success
   }
 }
 """
 
-UPDATE_REGISTRY_ROLE_GQL = """
-mutation UpdateRegistryRole($id: ID!, $projectId: ID!, $role: String!, $isTeam: Boolean!) {
-  updateProjectMember(
-    input: {userId: $id, projectId: $projectId, userProjectRole: $role}
-  ) @skip(if: $isTeam) {
+UPDATE_USER_REGISTRY_ROLE_GQL = """
+mutation UpdateUserRegistryRole($input: UpdateProjectMemberInput!) {
+  result: updateProjectMember(input: $input) {
     success
   }
-  updateProjectTeamMember(
-    input: {teamId: $id, projectId: $projectId, teamProjectRole: $role}
-  ) @include(if: $isTeam) {
+}
+"""
+
+UPDATE_TEAM_REGISTRY_ROLE_GQL = """
+mutation UpdateTeamRegistryRole($input: UpdateProjectTeamMemberInput!) {
+  result: updateProjectTeamMember(input: $input) {
     success
   }
 }

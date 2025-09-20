@@ -7,16 +7,16 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import TeamRegistryMemberFragment
 
 
-class RegistryTeamMembers(GQLBase):
+class RegistryTeamMembers(GQLResult):
     project: Optional[RegistryTeamMembersProject]
 
 
-class RegistryTeamMembersProject(GQLBase):
+class RegistryTeamMembersProject(GQLResult):
     team_members: List[TeamRegistryMemberFragment] = Field(alias="teamMembers")
 
 

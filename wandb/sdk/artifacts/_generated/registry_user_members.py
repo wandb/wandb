@@ -5,16 +5,16 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import UserRegistryMemberFragment
 
 
-class RegistryUserMembers(GQLBase):
+class RegistryUserMembers(GQLResult):
     project: Optional[RegistryUserMembersProject]
 
 
-class RegistryUserMembersProject(GQLBase):
+class RegistryUserMembersProject(GQLResult):
     members: List[UserRegistryMemberFragment]
 
 

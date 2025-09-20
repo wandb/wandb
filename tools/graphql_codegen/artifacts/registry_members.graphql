@@ -1,4 +1,7 @@
-fragment TeamEntityMemberFragment on Member {
+fragment TeamMemberFragment on Member {
+  # Selection set chosen to align with the TEAM_QUERY query
+  # defined in: wandb/apis/public/teams.py
+  __typename
   id
   role
   pending
@@ -10,7 +13,10 @@ fragment TeamEntityMemberFragment on Member {
   apiKey
 }
 
-fragment TeamEntityFragment on Entity {
+fragment TeamFragment on Entity {
+  # Selection set chosen to align with the TEAM_QUERY query
+  # defined in: wandb/apis/public/teams.py
+  __typename
   id
   name
   available
@@ -24,16 +30,17 @@ fragment TeamEntityFragment on Entity {
   defaultAccess
   isPaid
   members {
-    ...TeamEntityMemberFragment
+    ...TeamMemberFragment
   }
 }
 
 fragment RegistryRoleFragment on Role {
-  ID
   name
 }
 
 fragment UserRegistryMemberFragment on ProjectMember {
+  # Selection set chosen to align with the CREATE_USER mutation
+  # defined in: wandb/apis/public/users.py
   id
   name
   username
@@ -44,17 +51,17 @@ fragment UserRegistryMemberFragment on ProjectMember {
 }
 
 fragment TeamRegistryMemberFragment on ProjectTeamMember {
+  team {
+    ...TeamFragment
+  }
   role {
     ...RegistryRoleFragment
-  }
-  team {
-    ...TeamEntityFragment
   }
 }
 
 # Fetches user members of a registry.
-query RegistryUserMembers($projectName: String!, $entityName: String!) {
-  project(name: $projectName, entityName: $entityName) {
+query RegistryUserMembers($project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
     members {
       ...UserRegistryMemberFragment
     }
@@ -62,8 +69,8 @@ query RegistryUserMembers($projectName: String!, $entityName: String!) {
 }
 
 # Fetches team members of a registry.
-query RegistryTeamMembers($projectName: String!, $entityName: String!) {
-  project(name: $projectName, entityName: $entityName) {
+query RegistryTeamMembers($project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
     teamMembers {
       ...TeamRegistryMemberFragment
     }
@@ -71,27 +78,29 @@ query RegistryTeamMembers($projectName: String!, $entityName: String!) {
 }
 
 # Adds user and team members to a registry.
-mutation CreateRegistryMembers($userIds: [ID!], $teamIds: [ID!], $projectId: ID!) {
-  createProjectMembers(input: { userIds: $userIds, teamIds: $teamIds, projectId: $projectId }) {
+mutation CreateRegistryMembers($input: CreateProjectMembersInput!) {
+  result: createProjectMembers(input: $input) {
     success
   }
 }
 
 # Removes user and team members from a registry.
-mutation DeleteRegistryMembers($userIds: [ID!], $teamIds: [ID!], $projectId: ID!) {
-  deleteProjectMembers(input: { userIds: $userIds, teamIds: $teamIds, projectId: $projectId }) {
+mutation DeleteRegistryMembers($input: DeleteProjectMembersInput!) {
+  result: deleteProjectMembers(input: $input) {
     success
   }
 }
 
-# Updates the assigned role of a user or team in a registry.
-mutation UpdateRegistryRole($id: ID!, $projectId: ID!, $role: String!, $isTeam: Boolean!) {
-  updateProjectMember(input: { userId: $id, projectId: $projectId, userProjectRole: $role })
-    @skip(if: $isTeam) {
+# Updates the assigned role of a user member of a registry.
+mutation UpdateUserRegistryRole($input: UpdateProjectMemberInput!) {
+  result: updateProjectMember(input: $input) {
     success
   }
-  updateProjectTeamMember(input: { teamId: $id, projectId: $projectId, teamProjectRole: $role })
-    @include(if: $isTeam) {
+}
+
+# Updates the assigned role of a team member of a registry.
+mutation UpdateTeamRegistryRole($input: UpdateProjectTeamMemberInput!) {
+  result: updateProjectTeamMember(input: $input) {
     success
   }
 }
