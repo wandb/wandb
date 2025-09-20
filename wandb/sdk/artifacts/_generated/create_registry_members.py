@@ -5,18 +5,14 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
 from wandb._pydantic import GQLBase
 
 
 class CreateRegistryMembers(GQLBase):
-    create_project_members: Optional[CreateRegistryMembersCreateProjectMembers] = Field(
-        alias="createProjectMembers"
-    )
+    result: Optional[CreateRegistryMembersResult]
 
 
-class CreateRegistryMembersCreateProjectMembers(GQLBase):
+class CreateRegistryMembersResult(GQLBase):
     success: bool
 
 

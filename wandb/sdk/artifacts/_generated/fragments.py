@@ -342,6 +342,7 @@ class RegistryFragmentArtifactTypesEdgesNode(GQLBase):
 
 
 class RegistryRoleFragment(GQLBase):
+    typename__: Typename[Literal["Role"]] = "Role"
     id: GQLId = Field(alias="ID")
     name: str
 
@@ -390,7 +391,40 @@ class RegistryVersionsPagePageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class TeamEntityFragment(GQLBase):
+class RunInputArtifactConnectionFragment(GQLBase):
+    total_count: int = Field(alias="totalCount")
+    edges: List[RunInputArtifactConnectionFragmentEdges]
+    page_info: RunInputArtifactConnectionFragmentPageInfo = Field(alias="pageInfo")
+
+
+class RunInputArtifactConnectionFragmentEdges(GQLBase):
+    node: Optional[ArtifactFragment]
+    cursor: str
+
+
+class RunInputArtifactConnectionFragmentPageInfo(GQLBase):
+    end_cursor: Optional[str] = Field(alias="endCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
+
+
+class RunOutputArtifactConnectionFragment(GQLBase):
+    total_count: int = Field(alias="totalCount")
+    edges: List[RunOutputArtifactConnectionFragmentEdges]
+    page_info: RunOutputArtifactConnectionFragmentPageInfo = Field(alias="pageInfo")
+
+
+class RunOutputArtifactConnectionFragmentEdges(GQLBase):
+    node: Optional[ArtifactFragment]
+    cursor: str
+
+
+class RunOutputArtifactConnectionFragmentPageInfo(GQLBase):
+    end_cursor: Optional[str] = Field(alias="endCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
+
+
+class TeamFragment(GQLBase):
+    typename__: Typename[Literal["Entity"]] = "Entity"
     id: GQLId
     name: str
     available: Optional[bool]
@@ -403,10 +437,11 @@ class TeamEntityFragment(GQLBase):
     code_saving_enabled: bool = Field(alias="codeSavingEnabled")
     default_access: str = Field(alias="defaultAccess")
     is_paid: Optional[bool] = Field(alias="isPaid")
-    members: List[TeamEntityMemberFragment]
+    members: List[TeamMemberFragment]
 
 
-class TeamEntityMemberFragment(GQLBase):
+class TeamMemberFragment(GQLBase):
+    typename__: Typename[Literal["Member"]] = "Member"
     id: Optional[str]
     role: Optional[str]
     pending: Optional[bool]
@@ -419,11 +454,34 @@ class TeamEntityMemberFragment(GQLBase):
 
 
 class TeamRegistryMemberFragment(GQLBase):
+    typename__: Typename[Literal["ProjectTeamMember"]] = "ProjectTeamMember"
+    team: TeamFragment
     role: RegistryRoleFragment
-    team: TeamEntityFragment
+
+
+class TypeInfoFragment(GQLBase):
+    name: Optional[str]
+    fields: Optional[List[TypeInfoFragmentFields]]
+    input_fields: Optional[List[TypeInfoFragmentInputFields]] = Field(
+        alias="inputFields"
+    )
+
+
+class TypeInfoFragmentFields(GQLBase):
+    name: str
+    args: List[TypeInfoFragmentFieldsArgs]
+
+
+class TypeInfoFragmentFieldsArgs(GQLBase):
+    name: str
+
+
+class TypeInfoFragmentInputFields(GQLBase):
+    name: str
 
 
 class UserRegistryMemberFragment(GQLBase):
+    typename__: Typename[Literal["ProjectMember"]] = "ProjectMember"
     id: GQLId
     name: Optional[str]
     username: Optional[str]
@@ -498,21 +556,29 @@ RegistryVersionsPageEdgesNodeArtifactCollection.model_rebuild()
 RegistryVersionsPageEdgesNodeArtifactCollectionProject.model_rebuild()
 RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity.model_rebuild()
 RegistryVersionsPagePageInfo.model_rebuild()
-TeamEntityFragment.model_rebuild()
-TeamEntityMemberFragment.model_rebuild()
+RunInputArtifactConnectionFragment.model_rebuild()
+RunInputArtifactConnectionFragmentEdges.model_rebuild()
+RunInputArtifactConnectionFragmentPageInfo.model_rebuild()
+RunOutputArtifactConnectionFragment.model_rebuild()
+RunOutputArtifactConnectionFragmentEdges.model_rebuild()
+RunOutputArtifactConnectionFragmentPageInfo.model_rebuild()
+TeamFragment.model_rebuild()
+TeamMemberFragment.model_rebuild()
 TeamRegistryMemberFragment.model_rebuild()
-UserRegistryMemberFragment.model_rebuild()
 TypeInfoFragment.model_rebuild()
 TypeInfoFragmentFields.model_rebuild()
 TypeInfoFragmentFieldsArgs.model_rebuild()
 TypeInfoFragmentInputFields.model_rebuild()
+UserRegistryMemberFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactFragmentWithoutAliases.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
 RegistryFragment.model_rebuild()
 RegistryRoleFragment.model_rebuild()
 RegistryRoleFragment.model_rebuild()
-TeamEntityFragment.model_rebuild()
-TeamEntityMemberFragment.model_rebuild()
+TeamFragment.model_rebuild()
+TeamMemberFragment.model_rebuild()
+ArtifactFragment.model_rebuild()
+ArtifactFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactFragment.model_rebuild()

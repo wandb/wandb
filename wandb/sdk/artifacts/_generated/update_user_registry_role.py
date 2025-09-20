@@ -8,12 +8,12 @@ from typing import Optional
 from wandb._pydantic import GQLBase
 
 
-class DeleteRegistryMembers(GQLBase):
-    result: Optional[DeleteRegistryMembersResult]
+class UpdateUserRegistryRole(GQLBase):
+    result: Optional[UpdateUserRegistryRoleResult]
 
 
-class DeleteRegistryMembersResult(GQLBase):
+class UpdateUserRegistryRoleResult(GQLBase):
     success: bool
 
 
-DeleteRegistryMembers.model_rebuild()
+UpdateUserRegistryRole.model_rebuild()
