@@ -1,0 +1,97 @@
+fragment TeamEntityMemberFragment on Member {
+  id
+  role
+  pending
+  email
+  username
+  name
+  photoUrl
+  accountType
+  apiKey
+}
+
+fragment TeamEntityFragment on Entity {
+  id
+  name
+  available
+  photoUrl
+  readOnly
+  readOnlyAdmin
+  isTeam
+  privateOnly
+  storageBytes
+  codeSavingEnabled
+  defaultAccess
+  isPaid
+  members {
+    ...TeamEntityMemberFragment
+  }
+}
+
+fragment RegistryRoleFragment on Role {
+  ID
+  name
+}
+
+fragment UserRegistryMemberFragment on ProjectMember {
+  id
+  name
+  username
+  email
+  role {
+    ...RegistryRoleFragment
+  }
+}
+
+fragment TeamRegistryMemberFragment on ProjectTeamMember {
+  role {
+    ...RegistryRoleFragment
+  }
+  team {
+    ...TeamEntityFragment
+  }
+}
+
+# Fetches user members of a registry.
+query RegistryUserMembers($projectName: String!, $entityName: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    members {
+      ...UserRegistryMemberFragment
+    }
+  }
+}
+
+# Fetches team members of a registry.
+query RegistryTeamMembers($projectName: String!, $entityName: String!) {
+  project(name: $projectName, entityName: $entityName) {
+    teamMembers {
+      ...TeamRegistryMemberFragment
+    }
+  }
+}
+
+# Adds user and team members to a registry.
+mutation CreateRegistryMembers($userIds: [ID!], $teamIds: [ID!], $projectId: ID!) {
+  createProjectMembers(input: { userIds: $userIds, teamIds: $teamIds, projectId: $projectId }) {
+    success
+  }
+}
+
+# Removes user and team members from a registry.
+mutation DeleteRegistryMembers($userIds: [ID!], $teamIds: [ID!], $projectId: ID!) {
+  deleteProjectMembers(input: { userIds: $userIds, teamIds: $teamIds, projectId: $projectId }) {
+    success
+  }
+}
+
+# Updates the assigned role of a user or team in a registry.
+mutation UpdateRegistryRole($id: ID!, $projectId: ID!, $role: String!, $isTeam: Boolean!) {
+  updateProjectMember(input: { userId: $id, projectId: $projectId, userProjectRole: $role })
+    @skip(if: $isTeam) {
+    success
+  }
+  updateProjectTeamMember(input: { teamId: $id, projectId: $projectId, teamProjectRole: $role })
+    @include(if: $isTeam) {
+    success
+  }
+}
