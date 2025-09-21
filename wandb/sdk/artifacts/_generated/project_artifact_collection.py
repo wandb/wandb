@@ -9,6 +9,8 @@ from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
+from .fragments import PageInfoFragment
+
 
 class ProjectArtifactCollection(GQLResult):
     project: Optional[ProjectArtifactCollectionProject]
@@ -62,9 +64,7 @@ class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliases(GQLR
     edges: List[
         ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdges
     ]
-    page_info: ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesPageInfo = Field(
-        alias="pageInfo"
-    )
+    page_info: PageInfoFragment = Field(alias="pageInfo")
 
 
 class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdges(
@@ -80,13 +80,6 @@ class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdges
     GQLResult
 ):
     alias: str
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesPageInfo(
-    GQLResult
-):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
 
 
 class ProjectArtifactCollectionProjectArtifactTypeArtifactSequence(GQLResult):

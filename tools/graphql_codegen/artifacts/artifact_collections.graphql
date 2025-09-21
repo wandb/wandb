@@ -98,8 +98,7 @@ mutation DeleteArtifactCollectionTagAssignments(
 
 fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   totalCount
   edges {
@@ -166,8 +165,7 @@ query ProjectArtifactCollection(
             cursor
           }
           pageInfo {
-            endCursor
-            hasNextPage
+            ...PageInfoFragment
           }
         }
       }
