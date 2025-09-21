@@ -15,8 +15,7 @@ fragment FilesFragment on FileConnection {
     cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
 }
 
@@ -62,8 +61,7 @@ query ArtifactCollectionMembershipFiles(
 
 fragment FileUrlsFragment on FileConnection {
   pageInfo {
-    hasNextPage
-    endCursor
+    ...PageInfoFragment
   }
   edges {
     node {
