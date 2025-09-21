@@ -18,10 +18,12 @@ from ariadne_codegen import Plugin
 from graphlib import TopologicalSorter  # Run this only with python 3.9+
 from graphql import (
     ExecutableDefinitionNode,
+    FieldNode,
     FragmentDefinitionNode,
     GraphQLInterfaceType,
     GraphQLSchema,
     SelectionSetNode,
+    TypeMetaFieldDef,
 )
 
 from .plugin_utils import (
@@ -187,6 +189,12 @@ class GraphQLCodegenPlugin(Plugin):
             codegen_constants.SIMPLE_TYPE_MAP.pop(ID, None)
             codegen_constants.INPUT_SCALARS_MAP.pop(ID, None)
 
+        # Ensure standard introspection meta fields exist on `Query`.
+        # `ariadne-codegen` doesn't automatically recognize meta fields
+        # like `__type`, `__schema`, etc.  Inject them here so codegen can proceed.
+        if query_type := self.schema.query_type:
+            query_type.fields["__type"] = TypeMetaFieldDef
+
     def generate_init_code(self, generated_code: str) -> str:
         # This should be the last hook in the codegen process, after all modules have been generated.
         # So at this step, perform cleanup like ...
@@ -220,6 +228,16 @@ class GraphQLCodegenPlugin(Plugin):
         }
 
         return schema
+
+    def generate_result_field(
+        self,
+        field_implementation: ast.AnnAssign,
+        operation_definition: ExecutableDefinitionNode,
+        field: FieldNode,
+    ) -> ast.AnnAssign:
+        return super().generate_result_field(
+            field_implementation, operation_definition, field
+        )
 
     def generate_result_class(
         self,

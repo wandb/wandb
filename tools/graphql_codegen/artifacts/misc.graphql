@@ -1,0 +1,12 @@
+# Query for info on a GraphQL type to check for server compatibility
+query TypeInfo($name: String!) {
+  __type(name: $name) {
+    name
+    fields {
+      name
+    }
+    inputFields {
+      name
+    }
+  }
+}

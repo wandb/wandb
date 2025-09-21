@@ -33,6 +33,7 @@ __all__ = [
     "REGISTRY_VERSIONS_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
+    "TYPE_INFO_GQL",
     "UNLINK_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
@@ -1044,6 +1045,20 @@ mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
     artifactID
     success
     clientMutationId
+  }
+}
+"""
+
+TYPE_INFO_GQL = """
+query TypeInfo($name: String!) {
+  __type(name: $name) {
+    name
+    fields {
+      name
+    }
+    inputFields {
+      name
+    }
   }
 }
 """

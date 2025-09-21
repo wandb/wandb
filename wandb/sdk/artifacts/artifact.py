@@ -86,6 +86,7 @@ from ._generated import (
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
     LINK_ARTIFACT_GQL,
+    TYPE_INFO_GQL,
     UNLINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
     ArtifactAliasInput,
@@ -289,7 +290,7 @@ class Artifact:
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
-        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields())
+        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client))
 
         data = client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
@@ -312,7 +313,7 @@ class Artifact:
     def _membership_from_name(
         cls, *, path: FullArtifactPath, client: RetryingClient
     ) -> Artifact:
-        if not (api := InternalApi())._server_supports(
+        if not InternalApi()._server_supports(
             pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
         ):
             raise UnsupportedError(
@@ -322,7 +323,7 @@ class Artifact:
 
         query = gql_compat(
             ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
-            omit_fields=omit_artifact_fields(api=api),
+            omit_fields=omit_artifact_fields(client),
         )
         gql_vars = {
             "entityName": path.prefix,
@@ -368,7 +369,7 @@ class Artifact:
         query = gql_compat(
             ARTIFACT_BY_NAME_GQL,
             omit_variables=omit_vars,
-            omit_fields=omit_artifact_fields(api=api),
+            omit_fields=omit_artifact_fields(client),
         )
         data = client.execute(query, variable_values=gql_vars)
         result = ArtifactByName.model_validate(data)
@@ -1224,7 +1225,9 @@ class Artifact:
     def _populate_after_save(self, artifact_id: str) -> None:
         assert self._client is not None
 
-        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields())
+        query = gql_compat(
+            ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(self._client)
+        )
         data = self._client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
@@ -1247,20 +1250,10 @@ class Artifact:
         collection = self.name.split(":")[0]
 
         aliases = None
-        introspect_query = gql(
-            """
-            query ProbeServerAddAliasesInput {
-               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
-                   name
-                   inputFields {
-                       name
-                   }
-                }
-            }
-            """
-        )
 
-        data = self._client.execute(introspect_query)
+        data = self._client.execute(
+            gql(TYPE_INFO_GQL), variable_values={"name": "AddAliasesInput"}
+        )
         if data.get("AddAliasesInputInfoType"):  # wandb backend version >= 0.13.0
             alias_props = {
                 "entity_name": entity,
@@ -1319,7 +1312,7 @@ class Artifact:
                 for alias in self.aliases
             ]
 
-        omit_fields = omit_artifact_fields()
+        omit_fields = omit_artifact_fields(self._client)
         omit_variables = set()
 
         if {"ttlIsInherited", "ttlDurationSeconds"} & omit_fields:
