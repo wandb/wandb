@@ -456,17 +456,7 @@ query RunOutputArtifacts($entity: String!, $project: String!, $runName: String!,
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
       outputArtifacts(after: $cursor, first: $perPage) {
-        totalCount
-        edges {
-          node {
-            ...ArtifactFragment
-          }
-          cursor
-        }
-        pageInfo {
-          endCursor
-          hasNextPage
-        }
+        ...RunOutputArtifactConnectionFragment
       }
     }
   }
@@ -518,6 +508,20 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+
+fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
+  totalCount
+  edges {
+    node {
+      ...ArtifactFragment
+    }
+    cursor
+  }
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
 }
 """
 
@@ -526,17 +530,7 @@ query RunInputArtifacts($entity: String!, $project: String!, $runName: String!, 
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
       inputArtifacts(after: $cursor, first: $perPage) {
-        totalCount
-        edges {
-          node {
-            ...ArtifactFragment
-          }
-          cursor
-        }
-        pageInfo {
-          endCursor
-          hasNextPage
-        }
+        ...RunInputArtifactConnectionFragment
       }
     }
   }
@@ -588,6 +582,20 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+
+fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
+  totalCount
+  edges {
+    node {
+      ...ArtifactFragment
+    }
+    cursor
+  }
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
 }
 """
 
