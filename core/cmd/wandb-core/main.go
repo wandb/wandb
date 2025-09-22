@@ -322,11 +322,23 @@ func leetMain(args []string) int {
 		return 1
 	}
 
-	model := leet.NewModel(wandbFile, logger)
-	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
-	if _, err := p.Run(); err != nil {
-		logger.CaptureError(fmt.Errorf("wandb-leet: %v", err))
-		return 1
+	// Run the TUI; allow in-process restarts (Alt+R) without re-parsing flags.
+	for {
+		model := leet.NewModel(wandbFile, logger)
+		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+
+		finalModel, err := p.Run()
+		if err != nil {
+			logger.CaptureError(fmt.Errorf("wandb-leet: %v", err))
+			return 1
+		}
+
+		// If the model requests a restart, loop again.
+		type restartable interface{ ShouldRestart() bool }
+		if m, ok := finalModel.(restartable); ok && m.ShouldRestart() {
+			continue
+		}
+		break
 	}
 	return 0
 }

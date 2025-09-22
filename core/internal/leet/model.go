@@ -71,10 +71,6 @@ type Model struct {
 	animationMu sync.Mutex
 	animating   bool
 
-	// Reload state management.
-	reloadInProgress bool
-	reloadMu         sync.Mutex
-
 	// Loading progress.
 	recordsLoaded int
 	loadStartTime time.Time
@@ -93,6 +89,9 @@ type Model struct {
 
 	// Coalesce expensive redraws during batch processing.
 	suppressDraw bool
+
+	// shouldRestart is set when the user requests a full restart (Alt+R).
+	shouldRestart bool
 
 	// Serialize access to Update / broad model state.
 	stateMu sync.RWMutex
@@ -204,7 +203,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	default:
-		// Includes InitMsg/ChunkedBatchMsg/BatchedRecordsMsg/ReloadMsg/Heartbeat/FileChanged
+		// Includes InitMsg/ChunkedBatchMsg/BatchedRecordsMsg/Heartbeat/FileChanged
 		cmds = append(cmds, m.dispatch(msg)...)
 		return m, tea.Batch(cmds...)
 	}
@@ -244,25 +243,6 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	return false, nil
 }
 
-// updateLeftSidebar updates the left sidebar only for UI/animation messages.
-func (m *Model) updateLeftSidebar(msg tea.Msg) (*Sidebar, tea.Cmd) {
-	updated, cmd := m.sidebar.Update(msg)
-	return updated, cmd
-}
-
-// updateRightSidebar updates the right sidebar only for UI/animation messages.
-func (m *Model) updateRightSidebar(msg tea.Msg) (*RightSidebar, tea.Cmd) {
-	updated, cmd := m.rightSidebar.Update(msg)
-	return updated, cmd
-}
-
-// isReloading is a convenience guard for dropping late chunks/batches.
-func (m *Model) isReloading() bool {
-	m.reloadMu.Lock()
-	defer m.reloadMu.Unlock()
-	return m.reloadInProgress
-}
-
 // dispatch routes all message types after UI children had a chance to update.
 func (m *Model) dispatch(msg tea.Msg) []tea.Cmd {
 	switch t := msg.(type) {
@@ -274,9 +254,6 @@ func (m *Model) dispatch(msg tea.Msg) []tea.Cmd {
 
 	case BatchedRecordsMsg:
 		return m.onBatched(t)
-
-	case ReloadMsg:
-		return m.onReload()
 
 	case HeartbeatMsg:
 		return m.onHeartbeat()
@@ -424,6 +401,11 @@ func (m *Model) View() string {
 
 	// Place the view to ensure it fills the terminal exactly
 	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, fullView)
+}
+
+// ShouldRestart reports whether the user requested a full restart.
+func (m *Model) ShouldRestart() bool {
+	return m.shouldRestart
 }
 
 // recoverPanic recovers from panics and logs them
@@ -719,56 +701,6 @@ func (m *Model) startWatcher() error {
 
 	m.logger.Debug("model: watcher registered successfully")
 	return nil
-}
-
-// reloadCharts resets all charts and reloads data
-func (m *Model) reloadCharts() tea.Cmd {
-	// Check and mark reload as in progress immediately.
-	m.reloadMu.Lock()
-	if m.reloadInProgress {
-		m.reloadMu.Unlock()
-		m.logger.Debug("model: reload already in progress, ignoring")
-		return nil
-	}
-	m.reloadInProgress = true
-	m.reloadMu.Unlock()
-
-	// Save current filter
-	savedFilter := m.activeFilter
-
-	m.isLoading = true
-	m.runState = RunStateRunning // Reset from crashed state if applicable
-
-	m.chartMu.Lock()
-	m.allCharts = make([]*EpochLineChart, 0)
-	m.chartsByName = make(map[string]*EpochLineChart)
-	m.filteredCharts = make([]*EpochLineChart, 0)
-	m.chartMu.Unlock()
-
-	m.totalPages = 0
-	m.currentPage = 0
-
-	// Clear focus state
-	m.clearFocus()
-
-	// Reset system metrics
-	m.rightSidebar.Reset()
-
-	// Restore filter after reset
-	m.activeFilter = savedFilter
-
-	// Update chart sizes
-	m.updateChartSizes()
-	m.loadCurrentPage()
-
-	return func() tea.Msg {
-		return ReloadMsg{}
-	}
-}
-
-// clearFocus removes focus from all charts (backward compatibility wrapper)
-func (m *Model) clearFocus() {
-	m.clearAllFocus()
 }
 
 // navigatePage changes the current page

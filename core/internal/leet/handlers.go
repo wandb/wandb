@@ -7,7 +7,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wandb/wandb/core/internal/runenvironment"
-	"github.com/wandb/wandb/core/internal/watcher"
 )
 
 // FocusState represents what is currently focused in the UI
@@ -744,8 +743,21 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m, nil
 
 	case "alt+r":
-		// Alt+r for reload
-		return m, m.reloadCharts()
+		// Alt+R: request a full restart of the TUI process.
+		m.shouldRestart = true
+		m.logger.Debug("model: restart requested")
+		if m.reader != nil {
+			_ = m.reader.Close()
+		}
+		// Stop heartbeat and watcher before closing the channel.
+		m.stopHeartbeat()
+		if m.watcherStarted {
+			m.logger.Debug("model: finishing watcher on restart")
+			m.watcher.Finish()
+			m.watcherStarted = false
+		}
+		close(m.msgChan)
+		return m, tea.Quit
 
 	}
 
@@ -931,20 +943,11 @@ func (m *Model) onInit(msg InitMsg) []tea.Cmd {
 	m.reader = msg.Reader
 	m.loadStartTime = time.Now()
 
-	m.reloadMu.Lock()
-	m.reloadInProgress = false
-	m.reloadMu.Unlock()
-
 	return []tea.Cmd{ReadAllRecordsChunked(m.reader)}
 }
 
 // onChunkedBatch handles boot-load chunked batches.
 func (m *Model) onChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
-	if m.isReloading() {
-		m.logger.Debug("model: dropping ChunkedBatchMsg during reload")
-		return nil
-	}
-
 	m.logger.Debug(fmt.Sprintf("model: ChunkedBatchMsg received with %d messages, hasMore=%v",
 		len(msg.Msgs), msg.HasMore))
 	m.recordsLoaded += msg.Progress
@@ -952,7 +955,7 @@ func (m *Model) onChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	cmds := m.handleRecordsBatch(msg.Msgs, false)
 
 	if msg.HasMore {
-		cmds = append(cmds, m.reader.ReadAllRecordsChunked())
+		cmds = append(cmds, ReadAllRecordsChunked(m.reader))
 		return cmds
 	}
 
@@ -970,65 +973,10 @@ func (m *Model) onChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 
 // onBatched handles live drain batches.
 func (m *Model) onBatched(msg BatchedRecordsMsg) []tea.Cmd {
-	if m.isReloading() {
-		m.logger.Debug("model: dropping BatchedRecordsMsg during reload")
-		return nil
-	}
-
 	m.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
 	cmds := m.handleRecordsBatch(msg.Msgs, true)
 	cmds = append(cmds, ReadAvailableRecords(m.reader))
 	return cmds
-}
-
-// onReload resets live state and restarts reading.
-func (m *Model) onReload() []tea.Cmd {
-	m.reloadMu.Lock()
-	if m.reloadInProgress {
-		m.reloadMu.Unlock()
-		m.logger.Debug("model: reload already in progress, ignoring")
-		return nil
-	}
-	m.reloadInProgress = true
-	m.reloadMu.Unlock()
-
-	m.runState = RunStateRunning
-	m.fileComplete = false
-
-	// Stop heartbeat and close reader.
-	m.stopHeartbeat()
-	if m.reader != nil {
-		if err := m.reader.Close(); err != nil {
-			m.logger.CaptureError(fmt.Errorf("model: error closing reader: %v", err))
-		}
-		m.reader = nil
-	}
-
-	// Stop watcher.
-	if m.watcherStarted {
-		m.logger.Debug("model: finishing watcher for reload")
-		m.watcher.Finish()
-		m.watcherStarted = false
-	}
-	m.watcher = watcher.New(watcher.Params{Logger: m.logger})
-
-	// Swap channels safely.
-	oldChan := m.msgChan
-	m.msgChan = make(chan tea.Msg, 1000)
-	go func() {
-		close(oldChan)
-		for range oldChan {
-		}
-	}()
-
-	// Reset loading counters.
-	m.recordsLoaded = 0
-	m.loadStartTime = time.Now()
-
-	return []tea.Cmd{
-		InitializeReader(m.runPath),
-		m.waitForWatcherMsg(),
-	}
 }
 
 // onHeartbeat triggers a live read and re-arms the heartbeat.

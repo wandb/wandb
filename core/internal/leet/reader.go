@@ -59,20 +59,21 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Cmd {
 				break
 			}
 
-			if record != nil {
-				if msg := recordToMsg(record); msg != nil {
-					msgs = append(msgs, msg)
-					recordCount++
-				}
-
-				// Check for exit record
-				if exit, ok := record.RecordType.(*spb.Record_Exit); ok {
-					r.exitSeen = true
-					r.exitCode = exit.Exit.ExitCode
-					msgs = append(msgs, FileCompleteMsg{ExitCode: r.exitCode})
-					hitEOF = true // Treat as EOF
-					break
-				}
+			if record == nil {
+				continue
+			}
+			// Handle exit record first to avoid double FileComplete
+			if exit, ok := record.RecordType.(*spb.Record_Exit); ok && exit.Exit != nil {
+				r.exitSeen = true
+				r.exitCode = exit.Exit.ExitCode
+				msgs = append(msgs, FileCompleteMsg{ExitCode: r.exitCode})
+				hitEOF = true // Treat as EOF
+				break
+			}
+			// Non-exit record: convert and append
+			if msg := recordToMsg(record); msg != nil {
+				msgs = append(msgs, msg)
+				recordCount++
 			}
 		}
 
