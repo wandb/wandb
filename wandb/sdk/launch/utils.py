@@ -10,6 +10,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple, cast
 
 import click
+
 import wandb
 import wandb.docker as docker
 from wandb import util
