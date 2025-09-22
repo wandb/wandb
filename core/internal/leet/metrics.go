@@ -10,8 +10,6 @@ import (
 
 // metrics holds state for the main run metrics charts (not system metrics).
 type metrics struct {
-	config *ConfigManager
-
 	// Protects all chart collections and derived state below.
 	chartMu sync.RWMutex
 
