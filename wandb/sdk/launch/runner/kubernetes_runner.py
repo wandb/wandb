@@ -9,9 +9,8 @@ import os
 import time
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-import yaml
-
 import wandb
+import yaml
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -39,8 +38,8 @@ from ..utils import (
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
-    make_name_dns_safe,
     make_k8s_label_safe,
+    make_name_dns_safe,
 )
 from .abstract import AbstractRun, AbstractRunner
 
