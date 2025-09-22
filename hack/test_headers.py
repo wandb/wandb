@@ -8,7 +8,7 @@ from wandb.util import get_object_storage_headers, with_object_storage_headers
 
 # Swith the team to use default/byob
 # ENTITY = "pinglei-byob-s3"
-ENTITY = "reg-team-2"
+ENTITY = "byob-test"
 PROJECT = "presigned-url-header"
 
 
@@ -33,6 +33,24 @@ def upload_artifacts():
                 f.write(response.content)
         run.log({"video": wandb.Video("butterfly.mp4")})
 
+        ## create and log table
+        run.log({"table": wandb.Table(columns=["x", "y"], data=[[1, 2], [3, 4]])})
+
+        # log metrics
+        for i in range(10):
+            run.log({"metric": i})
+
+def add_reference_artifacts():
+    with wandb.init(entity=ENTITY, project=PROJECT) as run:
+        artifact = wandb.Artifact("my-reference-artifact", type="image-reference")
+        artifact.add_reference(uri="s3://uma-bucket-testing/images/apple.jpeg") # replace this with your own s3 bucket object
+        run.log_artifact(artifact)
+
+def download_reference_artifacts():
+    api = wandb.Api()
+    artifact = api.artifact(f"{ENTITY}/{PROJECT}/my-reference-artifact:latest")
+    artifact.download(skip_cache=True)
+
 
 def download_artifacts():
     # remove existing local artifacts file
@@ -42,6 +60,18 @@ def download_artifacts():
     api = wandb.Api()
     artifact = api.artifact(f"{ENTITY}/{PROJECT}/my-artifact:latest")
     artifact.download(skip_cache=True)
+
+    api = wandb.Api()
+    runs = api.runs(f"{ENTITY}/{PROJECT}")
+    for run in runs:
+        run_id = run.id
+        # downloading tables if they exist for the run
+        try:
+            table = api.artifact(f"{ENTITY}/{PROJECT}/run-{run_id}-table:latest")
+            table.download(skip_cache=True)
+            print(f"Downloaded table for run {run_id}")
+        except Exception as e:
+            print(f"no run table at {run_id}: {e}")
 
 
 def download_run_files():
@@ -61,9 +91,18 @@ def download_run_files():
             # 1. replace https://api.wandb.ai/files/foo/bar with http://localhost:8181/files/foo/bar
             # 2. handle 302 redirect and replace the location header with the s3 proxy http://localhost:8182/foo/bar
             file.download(root=f"runfiles/{run.id}")
+
+            # downloading parquet files if it exists for the run
+            # note: parquet files are not guaranteed to exist for all runs immediately after the run is completed
+            # it takes some time for the parquet files to be created and uploaded
+            try: 
+                artifact = api.artifact(f"{ENTITY}/{PROJECT}/run-{run.id}-history:latest")
+                artifact.download(skip_cache=True)
+                print(f"Downloaded parquet file for run {run.id}")
+            except Exception as e:
+                print(f"no parquet files at {run.id}: {e}")
         # Stop after first run
         # break
-
 
 def print_url():
     api = wandb.Api()
@@ -110,11 +149,12 @@ def main():
     ):
         print(get_object_storage_headers())
 
-        # upload_artifacts()
-        # print_url()
-        # download_artifacts()
+        upload_artifacts()
+        add_reference_artifacts()
+        print_url()
+        download_artifacts()
+        download_reference_artifacts()
         download_run_files()
-
 
 # uv pip install -e ~/go/src/github.com/wandb/wandb
 if __name__ == "__main__":
