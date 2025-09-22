@@ -17,3 +17,23 @@ query TypeInfo($name: String!) {
     ...TypeInfoFragment
   }
 }
+
+fragment OrgWithEntityFragment on Organization {
+  name
+  orgEntity {
+    name
+  }
+}
+
+query FetchOrgEntityFromEntity($entityName: String!) {
+  entity(name: $entityName) {
+    organization {
+      ...OrgWithEntityFragment
+    }
+    user {
+      organizations {
+        ...OrgWithEntityFragment
+      }
+    }
+  }
+}
