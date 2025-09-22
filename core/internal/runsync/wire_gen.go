@@ -28,6 +28,7 @@ import (
 
 func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *settings.Settings) *RunSyncerFactory {
 	coreLogger := todoLogger()
+	printer := observability.NewPrinter()
 	backend := stream.NewBackend(coreLogger, settings2)
 	peeker := &observability.Peeker{}
 	clientID := sharedmode.RandomClientID()
@@ -46,7 +47,6 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 	runReaderFactory := &RunReaderFactory{
 		Logger: coreLogger,
 	}
-	printer := observability.NewPrinter()
 	fileStreamFactory := &filestream.FileStreamFactory{
 		Logger:     coreLogger,
 		Operations: operations,
@@ -88,6 +88,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 	}
 	runSyncerFactory := &RunSyncerFactory{
 		Logger:              coreLogger,
+		Printer:             printer,
 		RecordParserFactory: recordParserFactory,
 		RunReaderFactory:    runReaderFactory,
 		SenderFactory:       senderFactory,
