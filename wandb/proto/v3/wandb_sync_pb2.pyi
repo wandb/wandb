@@ -6,12 +6,14 @@ import builtins
 import collections.abc
 import google.protobuf.descriptor
 import google.protobuf.internal.containers
+import google.protobuf.internal.enum_type_wrapper
 import google.protobuf.message
 import sys
+import typing
 import wandb.proto.wandb_internal_pb2
 import wandb.proto.wandb_settings_pb2
 
-if sys.version_info >= (3, 8):
+if sys.version_info >= (3, 10):
     import typing as typing_extensions
 else:
     import typing_extensions
@@ -103,16 +105,16 @@ class ServerSyncResponse(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    ERRORS_FIELD_NUMBER: builtins.int
+    MESSAGES_FIELD_NUMBER: builtins.int
     @property
-    def errors(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
-        """Any error messages that were not returned via a status response."""
+    def messages(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ServerSyncMessage]:
+        """Any messages that were not returned via a status response."""
     def __init__(
         self,
         *,
-        errors: collections.abc.Iterable[builtins.str] | None = ...,
+        messages: collections.abc.Iterable[global___ServerSyncMessage] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["errors", b"errors"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["messages", b"messages"]) -> None: ...
 
 global___ServerSyncResponse = ServerSyncResponse
 
@@ -141,20 +143,57 @@ class ServerSyncStatusResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     STATS_FIELD_NUMBER: builtins.int
-    NEW_ERRORS_FIELD_NUMBER: builtins.int
+    NEW_MESSAGES_FIELD_NUMBER: builtins.int
     @property
     def stats(self) -> wandb.proto.wandb_internal_pb2.OperationStats:
         """The status of any ongoing work (such as network requests)."""
     @property
-    def new_errors(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
-        """New error messages since the last status request."""
+    def new_messages(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ServerSyncMessage]:
+        """New messages since the last status request."""
     def __init__(
         self,
         *,
         stats: wandb.proto.wandb_internal_pb2.OperationStats | None = ...,
-        new_errors: collections.abc.Iterable[builtins.str] | None = ...,
+        new_messages: collections.abc.Iterable[global___ServerSyncMessage] | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["stats", b"stats"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["new_errors", b"new_errors", "stats", b"stats"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["new_messages", b"new_messages", "stats", b"stats"]) -> None: ...
 
 global___ServerSyncStatusResponse = ServerSyncStatusResponse
+
+@typing_extensions.final
+class ServerSyncMessage(google.protobuf.message.Message):
+    """ServerSyncMessage is a console message generated during a sync operation."""
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    class _Severity:
+        ValueType = typing.NewType("ValueType", builtins.int)
+        V: typing_extensions.TypeAlias = ValueType
+
+    class _SeverityEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ServerSyncMessage._Severity.ValueType], builtins.type):  # noqa: F821
+        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+        SEVERITY_NOTSET: ServerSyncMessage._Severity.ValueType  # 0
+        SEVERITY_INFO: ServerSyncMessage._Severity.ValueType  # 20
+        SEVERITY_ERROR: ServerSyncMessage._Severity.ValueType  # 40
+
+    class Severity(_Severity, metaclass=_SeverityEnumTypeWrapper):
+        """Severity values match Python's logging module for convenience."""
+
+    SEVERITY_NOTSET: ServerSyncMessage.Severity.ValueType  # 0
+    SEVERITY_INFO: ServerSyncMessage.Severity.ValueType  # 20
+    SEVERITY_ERROR: ServerSyncMessage.Severity.ValueType  # 40
+
+    SEVERITY_FIELD_NUMBER: builtins.int
+    CONTENT_FIELD_NUMBER: builtins.int
+    severity: global___ServerSyncMessage.Severity.ValueType
+    content: builtins.str
+    def __init__(
+        self,
+        *,
+        severity: global___ServerSyncMessage.Severity.ValueType = ...,
+        content: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["content", b"content", "severity", b"severity"]) -> None: ...
+
+global___ServerSyncMessage = ServerSyncMessage

@@ -23,7 +23,7 @@ type RunReaderFactory struct {
 	Logger *observability.CoreLogger
 }
 
-// RunReader turns .wandb files into Work.
+// RunReader gets information out of .wandb files.
 type RunReader struct {
 	path string // transaction log path
 
@@ -45,6 +45,28 @@ func (f *RunReaderFactory) New(
 		logger:       f.Logger,
 		recordParser: recordParser,
 		runWork:      runWork,
+	}
+}
+
+// ExtractRunInfo quickly reads and returns basic run information.
+func (r *RunReader) ExtractRunInfo() (*RunInfo, error) {
+	r.logger.Info("runsync: getting info", "path", r.path)
+
+	store, err := r.open()
+	if err != nil {
+		return nil, err
+	}
+	defer store.Close()
+
+	for {
+		record, err := store.Read()
+		if err != nil {
+			return nil, fmt.Errorf("runsync: didn't find run info: %v", err)
+		}
+
+		if run := record.GetRun(); run != nil {
+			return &RunInfo{RunID: run.RunId}, nil
+		}
 	}
 }
 

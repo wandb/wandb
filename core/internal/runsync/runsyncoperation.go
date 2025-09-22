@@ -27,8 +27,9 @@ func (f *RunSyncOperationFactory) New(
 
 	op.operations = wboperation.NewOperations()
 
-	factory := InjectRunSyncerFactory(op.operations, settings)
+	// TODO: Since settings are mutable, we need to create copies!
 	for _, path := range paths {
+		factory := InjectRunSyncerFactory(op.operations, settings)
 		op.syncers = append(op.syncers, factory.New(path))
 	}
 
@@ -36,7 +37,7 @@ func (f *RunSyncOperationFactory) New(
 }
 
 // Do starts syncing and blocks until all sync work completes.
-func (op *RunSyncOperation) Do(parallelism int) {
+func (op *RunSyncOperation) Do(parallelism int) *spb.ServerSyncResponse {
 	group := &errgroup.Group{}
 	group.SetLimit(parallelism)
 
@@ -48,11 +49,24 @@ func (op *RunSyncOperation) Do(parallelism int) {
 	}
 
 	_ = group.Wait()
+
+	return &spb.ServerSyncResponse{
+		Messages: op.popMessages(),
+	}
 }
 
 // Status returns the operation's status.
 func (op *RunSyncOperation) Status() *spb.ServerSyncStatusResponse {
 	return &spb.ServerSyncStatusResponse{
-		Stats: op.operations.ToProto(),
+		Stats:       op.operations.ToProto(),
+		NewMessages: op.popMessages(),
 	}
+}
+
+func (op *RunSyncOperation) popMessages() []*spb.ServerSyncMessage {
+	var messages []*spb.ServerSyncMessage
+	for _, syncer := range op.syncers {
+		messages = append(messages, syncer.PopMessages()...)
+	}
+	return messages
 }
