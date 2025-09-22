@@ -21,6 +21,7 @@ __all__ = [
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
+    "FETCH_ORG_ENTITY_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
     "LINK_ARTIFACT_GQL",
     "MOVE_ARTIFACT_COLLECTION_GQL",
@@ -1136,6 +1137,28 @@ fragment TypeInfoFragment on __Type {
     }
   }
   inputFields {
+    name
+  }
+}
+"""
+
+FETCH_ORG_ENTITY_FROM_ENTITY_GQL = """
+query FetchOrgEntityFromEntity($entityName: String!) {
+  entity(name: $entityName) {
+    organization {
+      ...OrgWithEntityFragment
+    }
+    user {
+      organizations {
+        ...OrgWithEntityFragment
+      }
+    }
+  }
+}
+
+fragment OrgWithEntityFragment on Organization {
+  name
+  orgEntity {
     name
   }
 }

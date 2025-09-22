@@ -151,8 +151,31 @@ class MembershipWithArtifactArtifactCollection(GQLResult):
     project: Optional[ProjectInfoFragment]
 
 
-class PageInfoFragment(GQLResult):
-    typename__: Typename[Literal["PageInfo"]] = "PageInfo"
+class MembershipWithArtifactArtifactCollectionProject(GQLBase):
+    id: GQLId
+    entity_name: str = Field(alias="entityName")
+    name: str
+
+
+class OrgWithEntityFragment(GQLBase):
+    name: str
+    org_entity: Optional[OrgWithEntityFragmentOrgEntity] = Field(alias="orgEntity")
+
+
+class OrgWithEntityFragmentOrgEntity(GQLBase):
+    name: str
+
+
+class RegistriesPage(GQLBase):
+    page_info: RegistriesPagePageInfo = Field(alias="pageInfo")
+    edges: List[RegistriesPageEdges]
+
+
+class RegistriesPageEdges(GQLBase):
+    node: Optional[RegistryFragment]
+
+
+class RegistriesPagePageInfo(GQLBase):
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
@@ -361,20 +384,25 @@ FileFragment.model_rebuild()
 FileWithUrlFragment.model_rebuild()
 MembershipWithArtifact.model_rebuild()
 MembershipWithArtifactArtifactCollection.model_rebuild()
-PageInfoFragment.model_rebuild()
-ProjectInfoFragment.model_rebuild()
-RegistryCollectionConnectionFragment.model_rebuild()
-RegistryCollectionConnectionFragmentEdges.model_rebuild()
-RegistryCollectionFragment.model_rebuild()
-RegistryCollectionFragmentAliases.model_rebuild()
-RegistryCollectionFragmentAliasesEdges.model_rebuild()
-RegistryCollectionFragmentAliasesEdgesNode.model_rebuild()
-RegistryCollectionFragmentDefaultArtifactType.model_rebuild()
-RegistryCollectionFragmentTags.model_rebuild()
-RegistryCollectionFragmentTagsEdges.model_rebuild()
-RegistryCollectionFragmentTagsEdgesNode.model_rebuild()
-RegistryConnectionFragment.model_rebuild()
-RegistryConnectionFragmentEdges.model_rebuild()
+MembershipWithArtifactArtifactCollectionProject.model_rebuild()
+OrgWithEntityFragment.model_rebuild()
+OrgWithEntityFragmentOrgEntity.model_rebuild()
+RegistriesPage.model_rebuild()
+RegistriesPageEdges.model_rebuild()
+RegistriesPagePageInfo.model_rebuild()
+RegistryCollectionsPage.model_rebuild()
+RegistryCollectionsPageEdges.model_rebuild()
+RegistryCollectionsPageEdgesNode.model_rebuild()
+RegistryCollectionsPageEdgesNodeAliases.model_rebuild()
+RegistryCollectionsPageEdgesNodeAliasesEdges.model_rebuild()
+RegistryCollectionsPageEdgesNodeAliasesEdgesNode.model_rebuild()
+RegistryCollectionsPageEdgesNodeDefaultArtifactType.model_rebuild()
+RegistryCollectionsPageEdgesNodeProject.model_rebuild()
+RegistryCollectionsPageEdgesNodeProjectEntity.model_rebuild()
+RegistryCollectionsPageEdgesNodeTags.model_rebuild()
+RegistryCollectionsPageEdgesNodeTagsEdges.model_rebuild()
+RegistryCollectionsPageEdgesNodeTagsEdgesNode.model_rebuild()
+RegistryCollectionsPagePageInfo.model_rebuild()
 RegistryFragment.model_rebuild()
 RegistryFragmentArtifactTypes.model_rebuild()
 RegistryFragmentArtifactTypesEdges.model_rebuild()

@@ -20,6 +20,7 @@ __all__ = [
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
+    "FETCH_ORG_ENTITY_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
     "LINK_ARTIFACT_GQL",
     "MOVE_ARTIFACT_COLLECTION_GQL",
@@ -70,6 +71,7 @@ __all__ = [
     "LinkArtifact",
     "UnlinkArtifact",
     "TypeInfo",
+    "FetchOrgEntityFromEntity",
     "RegistryVersions",
     "RegistryCollections",
     "FetchRegistries",
@@ -97,6 +99,7 @@ __all__ = [
     "FileFragment",
     "FileWithUrlFragment",
     "MembershipWithArtifact",
+    "OrgWithEntityFragment",
     "PageInfoFragment",
     "ProjectInfoFragment",
     "RegistryCollectionConnectionFragment",
@@ -139,6 +142,7 @@ from .delete_artifact_sequence import DeleteArtifactSequence
 from .enums import ArtifactCollectionState, ArtifactCollectionType, ArtifactState
 from .fetch_artifact_manifest import FetchArtifactManifest
 from .fetch_linked_artifacts import FetchLinkedArtifacts
+from .fetch_org_entity_from_entity import FetchOrgEntityFromEntity
 from .fetch_registries import FetchRegistries
 from .fragments import (
     ArtifactCollectionConnectionFragment,
@@ -151,6 +155,7 @@ from .fragments import (
     FileFragment,
     FileWithUrlFragment,
     MembershipWithArtifact,
+    OrgWithEntityFragment,
     PageInfoFragment,
     ProjectInfoFragment,
     RegistryCollectionConnectionFragment,
@@ -202,6 +207,7 @@ from .operations import (
     DELETE_ARTIFACT_SEQUENCE_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
+    FETCH_ORG_ENTITY_FROM_ENTITY_GQL,
     FETCH_REGISTRIES_GQL,
     LINK_ARTIFACT_GQL,
     MOVE_ARTIFACT_COLLECTION_GQL,
