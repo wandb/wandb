@@ -8,10 +8,13 @@ from wandb.sdk.launch.utils import (
     diff_pip_requirements,
     load_wandb_config,
     macro_sub,
+    make_k8s_label_safe,
     parse_wandb_uri,
     pull_docker_image,
     recursive_macro_sub,
+    sanitize_identifiers_for_k8s,
     validate_launch_spec_source,
+    yield_containers,
 )
 
 
@@ -201,3 +204,148 @@ def test_validate_launch_spec_source(spec, valid):
     else:
         with pytest.raises(LaunchError):
             validate_launch_spec_source(spec)
+
+
+@pytest.mark.parametrize(
+    "manifest, expected",
+    [
+        # Test containers key in manifest
+        (
+            {"containers": [{"name": "container-1"}, {"name": "container-2"}]},
+            [{"name": "container-1"}, {"name": "container-2"}],
+        ),
+        # Test no containers key in manifest
+        (
+            {
+                "config": {
+                    "apiVersion": "networking.k8s.io/v1",
+                    "kind": "NetworkPolicy",
+                    "metadata": {
+                        "labels": {
+                            "wandb.ai/label-1": "launch-agent",
+                        },
+                        "name": "resource-policy-${entity_name}-${project_name}-${run_id}",
+                    },
+                    "spec": {
+                        "egress": [],
+                        "podSelector": {},
+                    },
+                }
+            },
+            [],
+        ),
+        # Test containers key nested in spec
+        (
+            {
+                "config": {
+                    "keyShouldBeIgnored": "apps/v1",
+                    "spec": {
+                        "keyShouldBeIgnored": 1,
+                        "template": {
+                            "metadata": {
+                                "labels": {
+                                    "wandw.ai/label-1": "launch-agent",
+                                    "wandb.ai/label-2": "${run_id}",
+                                }
+                            },
+                            "spec": {
+                                "containers": [
+                                    {
+                                        "image": "nicholaspun/wandb-vllm-server:v16",
+                                        "ports": [{"containerPort": 8000}],
+                                        "resources": {
+                                            "limits": {
+                                                "cpu": "10",
+                                                "memory": "20G",
+                                                "nvidia.com/gpu": "1",
+                                            },
+                                        },
+                                    }
+                                ],
+                                "nodeSelector": {
+                                    "compute.coreweave.com/node-pool": "l40"
+                                },
+                            },
+                        },
+                    },
+                },
+                "name": "deployment",
+            },
+            [
+                {
+                    "image": "nicholaspun/wandb-vllm-server:v16",
+                    "ports": [{"containerPort": 8000}],
+                    "resources": {
+                        "limits": {
+                            "cpu": "10",
+                            "memory": "20G",
+                            "nvidia.com/gpu": "1",
+                        },
+                    },
+                },
+            ],
+        ),
+    ],
+)
+def test_yield_containers(manifest, expected):
+    assert list(yield_containers(manifest)) == expected
+
+
+def test_make_k8s_label_safe():
+    assert make_k8s_label_safe("container-1") == "container-1"  # no change needed
+    assert make_k8s_label_safe("container_1") == "container-1"  # underscores to dashes
+    assert (
+        make_k8s_label_safe("_container_1_") == "container-1"
+    )  # leading and trailing underscores removed
+    assert make_k8s_label_safe("container.1") == "container1"  # dots removed
+    assert make_k8s_label_safe("./*?<>:|a") == "a"  # invalid symbols removed
+    assert make_k8s_label_safe("ABC123") == "abc123"  # uppercase to lowercase
+    assert make_k8s_label_safe("a" * 65) == "a" * 63  # max length
+
+    # Error cases
+    with pytest.raises(LaunchError):
+        make_k8s_label_safe("")  # empty string raises error
+
+    with pytest.raises(LaunchError):
+        make_k8s_label_safe("--" * 64)  # only dashes raises error
+
+
+@pytest.mark.parametrize(
+    "manifest, expected",
+    [
+        # Test name in root
+        ({"name": "container_1"}, {"name": "container-1"}),
+        # Test name in metadata
+        ({"metadata": {"name": "container_1"}}, {"metadata": {"name": "container-1"}}),
+        # Test name in container
+        (
+            {"containers": [{"name": "container_1"}]},
+            {"containers": [{"name": "container-1"}]},
+        ),
+        # Test name in nested container
+        (
+            {"nested": {"containers": [{"name": "container_1"}]}},
+            {"nested": {"containers": [{"name": "container-1"}]}},
+        ),
+        # Test name in nested dict
+        ({"nested": {"name": "container_1"}}, {"nested": {"name": "container-1"}}),
+        # Test name in nested list
+        (
+            {"nested": [{"name": "container_1"}]},
+            {"nested": [{"name": "container-1"}]},
+        ),
+        # Test multiple names
+        (
+            {"name": "container_1", "nested": {"name": "container_2"}},
+            {"name": "container-1", "nested": {"name": "container-2"}},
+        ),
+        # Test root is list
+        (
+            [{"name": "container_1"}, {"name": "container_2"}],
+            [{"name": "container-1"}, {"name": "container-2"}],
+        ),
+    ],
+)
+def test_sanitize_identifiers_for_k8s(manifest, expected):
+    sanitize_identifiers_for_k8s(manifest)
+    assert manifest == expected

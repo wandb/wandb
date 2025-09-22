@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple, cast
 
 import click
 import wandb
@@ -618,13 +618,8 @@ def make_k8s_label_safe(value: str) -> str:
     # Trim to 63 and strip leading/trailing '-'
     safe = safe[:63].strip("-")
 
-    # If trimming removed start/end alnum, pad with 'x'
-    if not re.match(r"^[a-z0-9].*[a-z0-9]$|^[a-z0-9]$", safe):
-        if not re.match(r"^[a-z0-9]", safe):
-            safe = "x" + safe
-        if not re.match(r".*[a-z0-9]$", safe):
-            safe = safe + "x"
-        safe = safe[:63]
+    if len(safe) == 0:
+        raise LaunchError(f"Invalid value for Kubernetes label: {value}")
 
     return safe
 
@@ -774,3 +769,47 @@ def get_current_python_version() -> Tuple[str, str]:
     major = full_version[0]
     version = ".".join(full_version[:2]) if len(full_version) >= 2 else major + ".0"
     return version, major
+
+
+def yield_containers(root: Any) -> Iterator[dict]:
+    """Yield all container specs in a manifest.
+
+    Recursively traverses the manifest and yields all container specs. Container
+    specs are identified by the presence of a "containers" key in the value.
+    """
+    if isinstance(root, dict):
+        for k, v in root.items():
+            if k == "containers":
+                if isinstance(v, list):
+                    yield from v
+            elif isinstance(v, (dict, list)):
+                yield from yield_containers(v)
+    elif isinstance(root, list):
+        for item in root:
+            yield from yield_containers(item)
+
+
+def sanitize_identifiers_for_k8s(root: Any) -> None:
+    if isinstance(root, list):
+        for item in root:
+            sanitize_identifiers_for_k8s(item)
+        return
+
+    if not isinstance(root, dict):
+        return
+
+    metadata = root.get("metadata")
+    if isinstance(metadata, dict):
+        if metadata.get("name"):
+            metadata["name"] = make_k8s_label_safe(str(metadata["name"]))
+
+    for container in yield_containers(root):
+        if container.get("name"):
+            container["name"] = make_k8s_label_safe(str(container["name"]))
+
+    # nested names
+    for key, value in root.items():
+        if isinstance(value, (dict, list)):
+            sanitize_identifiers_for_k8s(value)
+        elif key == "name" and isinstance(value, str):
+            root[key] = make_k8s_label_safe(value)

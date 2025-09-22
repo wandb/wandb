@@ -9,8 +9,9 @@ import os
 import time
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-import wandb
 import yaml
+
+import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
@@ -26,7 +27,11 @@ from wandb.sdk.launch.runner.kubernetes_monitor import (
     CustomResource,
     LaunchKubernetesMonitor,
 )
-from wandb.sdk.launch.utils import recursive_macro_sub
+from wandb.sdk.launch.utils import (
+    recursive_macro_sub,
+    sanitize_identifiers_for_k8s,
+    yield_containers,
+)
 from wandb.sdk.lib.retry import ExponentialBackoff, retry_async
 from wandb.util import get_module
 
@@ -763,6 +768,8 @@ class KubernetesRunner(AbstractRunner):
                 cont["env"] = env
 
         try:
+            sanitize_identifiers_for_k8s(config)
+
             await kubernetes_asyncio.utils.create_from_dict(
                 api_client, config, namespace=namespace
             )
@@ -924,18 +931,13 @@ class KubernetesRunner(AbstractRunner):
             resource_args, launch_project, image_uri, namespace, core_api
         )
 
-        safe_project_name = make_k8s_label_safe(launch_project.target_project)
-        safe_entity_name = make_k8s_label_safe(launch_project.target_entity)
-        safe_run_name = make_k8s_label_safe(launch_project.name)
-        safe_run_id = make_k8s_label_safe(launch_project.run_id)
-        safe_author = make_k8s_label_safe(launch_project.author)
         update_dict = {
-            "project_name": safe_project_name,
-            "entity_name": safe_entity_name,
-            "run_id": safe_run_id,
-            "run_name": safe_run_name,
+            "project_name": launch_project.target_project,
+            "entity_name": launch_project.target_entity,
+            "run_id": launch_project.run_id,
+            "run_name": launch_project.name,
             "image_uri": image_uri,
-            "author": safe_author,
+            "author": launch_project.author,
         }
         update_dict.update(os.environ)
         additional_services: List[Dict[str, Any]] = recursive_macro_sub(
@@ -960,7 +962,9 @@ class KubernetesRunner(AbstractRunner):
                         secret,
                         wait_for_ready,
                         wait_timeout,
-                        f"aux-{safe_entity_name}-{safe_project_name}-{safe_run_id}",
+                        make_k8s_label_safe(
+                            f"aux-{launch_project.target_entity}-{launch_project.target_project}-{launch_project.run_id}"
+                        ),
                     )
                     for resource in additional_services
                     if resource.get("config", {})
@@ -998,7 +1002,9 @@ class KubernetesRunner(AbstractRunner):
             job_name,
             namespace,
             secret,
-            f"aux-{safe_entity_name}-{safe_project_name}-{safe_run_id}",
+            make_k8s_label_safe(
+                f"aux-{launch_project.target_entity}-{launch_project.target_project}-{launch_project.run_id}"
+            ),
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             await submitted_job.wait()
@@ -1147,24 +1153,6 @@ async def maybe_create_imagepull_secret(
             raise
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
-
-
-def yield_containers(root: Any) -> Iterator[dict]:
-    """Yield all container specs in a manifest.
-
-    Recursively traverses the manifest and yields all container specs. Container
-    specs are identified by the presence of a "containers" key in the value.
-    """
-    if isinstance(root, dict):
-        for k, v in root.items():
-            if k == "containers":
-                if isinstance(v, list):
-                    yield from v
-            elif isinstance(v, (dict, list)):
-                yield from yield_containers(v)
-    elif isinstance(root, list):
-        for item in root:
-            yield from yield_containers(item)
 
 
 def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
