@@ -28,9 +28,6 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			def := leet.MatchMetricDef(tc.metric)
-			if def == nil {
-				t.Fatalf("MatchMetricDef(%q) = nil", tc.metric)
-			}
 			if def.Title != tc.wantTitle || def.Unit != tc.wantUnit {
 				t.Fatalf("MatchMetricDef(%q) => {%q,%q}; want {%q,%q}",
 					tc.metric, def.Title, def.Unit, tc.wantTitle, tc.wantUnit)
