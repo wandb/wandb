@@ -127,14 +127,17 @@ class Registry:
             Previously saved artifact types cannot be removed.
 
         Example:
-            ```python
-            registry.artifact_types.append("model")
-            registry.save()  # once saved, the artifact type `model` cannot be removed
-            registry.artifact_types.append("accidentally_added")
-            registry.artifact_types.remove(
-                "accidentally_added"
-            )  # Types can only be removed if it has not been saved yet
-            ```
+        ```python
+        import wandb
+
+        registry = wandb.Api().create_registry()
+        registry.artifact_types.append("model")
+        registry.save()  # once saved, the artifact type `model` cannot be removed
+        registry.artifact_types.append("accidentally_added")
+        registry.artifact_types.remove(
+            "accidentally_added"
+        )  # Types can only be removed if it has not been saved yet
+        ```
         """
         return self._artifact_types
 

@@ -56,15 +56,51 @@ class _Tester:
         resp = wandb_sync_pb2.ServerInitSyncResponse(id=id)
         await self._respond(self._init_sync_addrs, "init_sync_response", resp)
 
-    async def respond_sync(self, errors: list[str]) -> None:
+    async def respond_sync(
+        self,
+        infos: list[str],
+        errors: list[str],
+    ) -> None:
         """Respond to a sync request."""
-        resp = wandb_sync_pb2.ServerSyncResponse(errors=errors)
+        resp = wandb_sync_pb2.ServerSyncResponse(
+            messages=self._to_messages(infos=infos, errors=errors),
+        )
         await self._respond(self._sync_addrs, "sync_response", resp)
 
-    async def respond_sync_status(self, new_errors: list[str]) -> None:
+    async def respond_sync_status(
+        self,
+        new_infos: list[str],
+        new_errors: list[str],
+    ) -> None:
         """Respond to a sync_status request."""
-        resp = wandb_sync_pb2.ServerSyncStatusResponse(new_errors=new_errors)
+        resp = wandb_sync_pb2.ServerSyncStatusResponse(
+            new_messages=self._to_messages(infos=new_infos, errors=new_errors),
+        )
         await self._respond(self._sync_status_addrs, "sync_status_response", resp)
+
+    def _to_messages(
+        self,
+        infos: list[str],
+        errors: list[str],
+    ) -> list[wandb_sync_pb2.ServerSyncMessage]:
+        messages: list[wandb_sync_pb2.ServerSyncMessage] = []
+
+        for info in infos:
+            messages.append(
+                wandb_sync_pb2.ServerSyncMessage(
+                    severity=wandb_sync_pb2.ServerSyncMessage.SEVERITY_INFO,
+                    content=info,
+                )
+            )
+        for error in errors:
+            messages.append(
+                wandb_sync_pb2.ServerSyncMessage(
+                    severity=wandb_sync_pb2.ServerSyncMessage.SEVERITY_ERROR,
+                    content=error,
+                )
+            )
+
+        return messages
 
     async def _respond(self, addrs: list[str], field: str, resp: Any) -> None:
         async with self._cond:
@@ -143,6 +179,7 @@ def test_syncs_run(wandb_backend_spy, runner: CliRunner):
     assert lines[0] == "Syncing 1 file(s):"
     assert lines[1].endswith(f"run-{run.id}.wandb")
     # More lines possible depending on status updates. Not deterministic.
+    assert lines[-1] == f"wandb: [{run.id}] Finished syncing run."
 
     with wandb_backend_spy.freeze() as snapshot:
         history = snapshot.history(run_id=run.id)
@@ -286,17 +323,25 @@ def test_prints_status_updates(skip_asyncio_sleep, tmp_path, emulated_terminal):
 
     async def simulate_service(tester: _Tester):
         await tester.respond_init_sync(id="sync-test")
-        await tester.respond_sync_status(new_errors=["Err 1.", "Err 2."])
+        await tester.respond_sync_status(
+            new_infos=["Msg 1.", "Msg 2."],
+            new_errors=["Err 1.", "Err 2."],
+        )
         await tester.receive_sync_status()
 
         assert emulated_terminal.read_stderr() == [
+            "wandb: Msg 1.",
+            "wandb: Msg 2.",
             "wandb: ERROR Err 1.",
             "wandb: ERROR Err 2.",
             "wandb: ⢿ Syncing...",
         ]
 
-        await tester.respond_sync(errors=["Final error."])
-        await tester.respond_sync_status(new_errors=[])
+        await tester.respond_sync(
+            infos=["Final message."],
+            errors=["Final error."],
+        )
+        await tester.respond_sync_status(new_infos=[], new_errors=[])
 
     async def do_test():
         tester = _Tester(mailbox=mailbox)
@@ -314,8 +359,11 @@ def test_prints_status_updates(skip_asyncio_sleep, tmp_path, emulated_terminal):
             )
 
         assert emulated_terminal.read_stderr() == [
+            "wandb: Msg 1.",
+            "wandb: Msg 2.",
             "wandb: ERROR Err 1.",
             "wandb: ERROR Err 2.",
+            "wandb: Final message.",
             "wandb: ERROR Final error.",
         ]
 
