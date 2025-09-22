@@ -599,6 +599,37 @@ def make_name_dns_safe(name: str) -> str:
     return resp
 
 
+def make_k8s_label_safe(value: str) -> str:
+    """Return a Kubernetes label/identifier safe string (DNS-1123 label).
+
+    See:
+    https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names
+
+    Rules:
+    - lowercase alphanumeric and '-'
+    - must start and end with an alphanumeric
+    - max length 63
+    """
+    # Normalize common separators first
+    safe = value.replace("_", "-").lower()
+    # Remove any invalid characters
+    safe = re.sub(r"[^a-z0-9\-]", "", safe)
+    # Collapse consecutive '-'
+    safe = re.sub(r"-+", "-", safe)
+    # Trim to 63 and strip leading/trailing '-'
+    safe = safe[:63].strip("-")
+
+    # If trimming removed start/end alnum, pad with 'x'
+    if not re.match(r"^[a-z0-9].*[a-z0-9]$|^[a-z0-9]$", safe):
+        if not re.match(r"^[a-z0-9]", safe):
+            safe = "x" + safe
+        if not re.match(r".*[a-z0-9]$", safe):
+            safe = safe + "x"
+        safe = safe[:63]
+
+    return safe
+
+
 def warn_failed_packages_from_build_logs(
     log: str, image_uri: str, api: Api, job_tracker: Optional["JobAndRunStatusTracker"]
 ) -> None:

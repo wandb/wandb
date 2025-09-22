@@ -40,6 +40,7 @@ from ..utils import (
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
     make_name_dns_safe,
+    make_k8s_label_safe,
 )
 from .abstract import AbstractRun, AbstractRunner
 
@@ -708,6 +709,7 @@ class KubernetesRunner(AbstractRunner):
         api_key_secret: Optional["V1Secret"] = None,
         wait_for_ready: bool = True,
         wait_timeout: int = 300,
+        auxiliary_resource_label_value: Optional[str] = None,
     ) -> None:
         """Prepare a service for launch.
 
@@ -725,6 +727,10 @@ class KubernetesRunner(AbstractRunner):
         config["metadata"].setdefault("labels", {})
         config["metadata"]["labels"][WANDB_K8S_RUN_ID] = run_id
         config["metadata"]["labels"]["wandb.ai/created-by"] = "launch-agent"
+        if auxiliary_resource_label_value:
+            config["metadata"]["labels"][WANDB_K8S_LABEL_AUXILIARY_RESOURCE] = (
+                auxiliary_resource_label_value
+            )
 
         env_vars = launch_project.get_env_vars_dict(
             self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
@@ -733,6 +739,13 @@ class KubernetesRunner(AbstractRunner):
             "WANDB_CONFIG": env_vars.get("WANDB_CONFIG", "{}"),
         }
         add_wandb_env(config, wandb_config_env)
+
+        if auxiliary_resource_label_value:
+            add_label_to_pods(
+                config,
+                WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
+                auxiliary_resource_label_value,
+            )
 
         if api_key_secret:
             for cont in yield_containers(config):
@@ -912,13 +925,18 @@ class KubernetesRunner(AbstractRunner):
             resource_args, launch_project, image_uri, namespace, core_api
         )
 
+        safe_project_name = make_k8s_label_safe(launch_project.target_project)
+        safe_entity_name = make_k8s_label_safe(launch_project.target_entity)
+        safe_run_name = make_k8s_label_safe(launch_project.name)
+        safe_run_id = make_k8s_label_safe(launch_project.run_id)
+        safe_author = make_k8s_label_safe(launch_project.author)
         update_dict = {
-            "project_name": launch_project.target_project,
-            "entity_name": launch_project.target_entity,
-            "run_id": launch_project.run_id,
-            "run_name": launch_project.name,
+            "project_name": safe_project_name,
+            "entity_name": safe_entity_name,
+            "run_id": safe_run_id,
+            "run_name": safe_run_name,
             "image_uri": image_uri,
-            "author": launch_project.author,
+            "author": safe_author,
         }
         update_dict.update(os.environ)
         additional_services: List[Dict[str, Any]] = recursive_macro_sub(
@@ -943,6 +961,7 @@ class KubernetesRunner(AbstractRunner):
                         secret,
                         wait_for_ready,
                         wait_timeout,
+                        f"aux-{safe_entity_name}-{safe_project_name}-{safe_run_id}",
                     )
                     for resource in additional_services
                     if resource.get("config", {})
@@ -980,7 +999,7 @@ class KubernetesRunner(AbstractRunner):
             job_name,
             namespace,
             secret,
-            f"aux-{launch_project.target_entity}-{launch_project.target_project}-{launch_project.run_id}",
+            f"aux-{safe_entity_name}-{safe_project_name}-{safe_run_id}",
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             await submitted_job.wait()
