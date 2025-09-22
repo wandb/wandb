@@ -114,44 +114,53 @@ func (p *APIProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Check if response is gzipped
-	contentEncoding := resp.Header.Get("Content-Encoding")
-	
-	// Read response body
-	var body []byte
-	
-	if strings.Contains(contentEncoding, "gzip") {
-		// Decompress gzipped response
-		reader, err := gzip.NewReader(resp.Body)
-		if err != nil {
-			log.Printf("Error creating gzip reader: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer reader.Close()
-		body, err = io.ReadAll(reader)
-		if err != nil {
-			log.Printf("Error reading gzipped response: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	} else {
-		body, err = io.ReadAll(resp.Body)
-		if err != nil {
-			log.Printf("Error reading response body: %v", err)
-			return
-		}
-	}
+    // Check if response is encoded
+    contentEncoding := resp.Header.Get("Content-Encoding")
+    // Track whether we decompressed the body
+    decompressed := false
 
-	// Copy headers except for encoding-related ones (we're decompressing)
-	for header, values := range resp.Header {
-		headerLower := strings.ToLower(header)
-		if headerLower != "connection" && headerLower != "transfer-encoding" && headerLower != "content-encoding" && headerLower != "content-length" {
-			for _, value := range values {
-				w.Header().Add(header, value)
-			}
-		}
-	}
+    // Read response body
+    var body []byte
+
+    if strings.Contains(contentEncoding, "gzip") {
+        // Decompress gzipped response
+        reader, err := gzip.NewReader(resp.Body)
+        if err != nil {
+            log.Printf("Error creating gzip reader: %v", err)
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+        defer reader.Close()
+        body, err = io.ReadAll(reader)
+        if err != nil {
+            log.Printf("Error reading gzipped response: %v", err)
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+        decompressed = true
+    } else {
+        // Read raw body (may still be compressed with encodings like br)
+        body, err = io.ReadAll(resp.Body)
+        if err != nil {
+            log.Printf("Error reading response body: %v", err)
+            return
+        }
+    }
+
+    // Copy headers; only strip Content-Encoding if we actually decompressed
+    for header, values := range resp.Header {
+        headerLower := strings.ToLower(header)
+        if headerLower == "connection" || headerLower == "transfer-encoding" || headerLower == "content-length" {
+            continue
+        }
+        if headerLower == "content-encoding" && decompressed {
+            // Skip forwarding encoding if we decompressed
+            continue
+        }
+        for _, value := range values {
+            w.Header().Add(header, value)
+        }
+    }
 
 	contentType := resp.Header.Get("Content-Type")
 	
@@ -163,29 +172,33 @@ func (p *APIProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Response body (first 500 chars): %s...", string(body[:500]))
 	}
 
-	// Process the response based on content type
-	if strings.Contains(contentType, "application/json") || strings.Contains(contentType, "text/") {
-		// Extract and log URLs from response before modification
-		p.logExtractedURLs(userAgent, "RESPONSE", string(body))
-		
-		modifiedBody := p.replaceURLs(string(body))
-		if modifiedBody != string(body) {
-			log.Printf("Modified URLs in response body")
-		}
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(modifiedBody)))
-		w.WriteHeader(resp.StatusCode)
-		_, err = w.Write([]byte(modifiedBody))
-		if err != nil {
-			log.Printf("Error writing response: %v", err)
-		}
-	} else {
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
-		w.WriteHeader(resp.StatusCode)
-		_, err = w.Write(body)
-		if err != nil {
-			log.Printf("Error writing response: %v", err)
-		}
-	}
+    // Only attempt body modification if body is plain (no encoding) or we decompressed it
+    canProcessBody := decompressed || contentEncoding == ""
+
+    // Process the response based on content type
+    if canProcessBody && (strings.Contains(contentType, "application/json") || strings.Contains(contentType, "text/")) {
+        // Extract and log URLs from response before modification
+        p.logExtractedURLs(userAgent, "RESPONSE", string(body))
+
+        modifiedBody := p.replaceURLs(string(body))
+        if modifiedBody != string(body) {
+            log.Printf("Modified URLs in response body")
+        }
+        w.Header().Set("Content-Length", fmt.Sprintf("%d", len(modifiedBody)))
+        w.WriteHeader(resp.StatusCode)
+        _, err = w.Write([]byte(modifiedBody))
+        if err != nil {
+            log.Printf("Error writing response: %v", err)
+        }
+    } else {
+        // Pass through raw bytes and preserve Content-Encoding if present
+        w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+        w.WriteHeader(resp.StatusCode)
+        _, err = w.Write(body)
+        if err != nil {
+            log.Printf("Error writing response: %v", err)
+        }
+    }
 }
 
 func (p *APIProxy) logExtractedURLs(userAgent, direction, content string) {
