@@ -20,7 +20,8 @@ query TypeInfo($name: String!) {
 
 fragment OrgWithEntityFragment on Organization {
   name
-  orgEntity {
+  orgEntity @include(if: true) {
+    # Workaround: ensures generated pydantic field defaults to `None` in case the server doesn't support it
     name
   }
 }
