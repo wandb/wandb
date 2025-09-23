@@ -148,17 +148,9 @@ def _create_runs_query(*, lazy: bool, with_internal_id: bool, client) -> gql:
     )
 
 
-# Cache for server capability checks to avoid repeated network calls
-_SERVER_CAPABILITIES_CACHE = {}
-
-
 @normalize_exceptions
 def _server_provides_internal_id_for_project(client) -> bool:
     """Returns True if the server allows us to query the internalId field for a project."""
-    cache_key = f"internal_id_for_project_{id(client)}"
-    if cache_key in _SERVER_CAPABILITIES_CACHE:
-        return _SERVER_CAPABILITIES_CACHE[cache_key]
-
     query_string = """
        query ProbeProjectInput {
             ProjectType: __type(name:"Project") {
@@ -172,20 +164,14 @@ def _server_provides_internal_id_for_project(client) -> bool:
     # Only perform the query once to avoid extra network calls
     query = gql(query_string)
     res = client.execute(query)
-    result = "internalId" in [
+    return "internalId" in [
         x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
     ]
-    _SERVER_CAPABILITIES_CACHE[cache_key] = result
-    return result
 
 
 @normalize_exceptions
 def _server_provides_project_id_for_run(client) -> bool:
     """Returns True if the server allows us to query the projectId field for a run."""
-    cache_key = f"project_id_for_run_{id(client)}"
-    if cache_key in _SERVER_CAPABILITIES_CACHE:
-        return _SERVER_CAPABILITIES_CACHE[cache_key]
-
     query_string = """
        query ProbeRunInput {
             RunType: __type(name:"Run") {
@@ -199,11 +185,9 @@ def _server_provides_project_id_for_run(client) -> bool:
     # Only perform the query once to avoid extra network calls
     query = gql(query_string)
     res = client.execute(query)
-    result = "projectId" in [
+    return "projectId" in [
         x["name"] for x in (res.get("RunType", {}).get("fields", [{}]))
     ]
-    _SERVER_CAPABILITIES_CACHE[cache_key] = result
-    return result
 
 
 @normalize_exceptions
