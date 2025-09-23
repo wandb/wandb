@@ -49,7 +49,9 @@ func (p *ParquetPartitionReader) Value() KVMapList {
 
 // Release releases the resources used by the reader.
 func (p *ParquetPartitionReader) Release() {
-	p.it.Release()
+	if p.it != nil {
+		p.it.Release()
+	}
 }
 
 // ValueIterator returns a function that can be used to iterate over the values of the parquet partition

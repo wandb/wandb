@@ -138,6 +138,9 @@ type IteratorConfig struct {
 
 func (c *IteratorConfig) Apply(opts ...RowIteratorOption) {
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		opt(c)
 	}
 }
