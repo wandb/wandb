@@ -928,6 +928,9 @@ github.com/vektah/gqlparser/v2/parser
 github.com/vektah/gqlparser/v2/validator
 github.com/vektah/gqlparser/v2/validator/core
 github.com/vektah/gqlparser/v2/validator/rules
+# github.com/wandb/parallel v0.2.3
+## explicit; go 1.21.0
+github.com/wandb/parallel
 # github.com/wandb/simplejsonext v0.0.0-20241203202201-90635f1d8677
 ## explicit; go 1.22.5
 github.com/wandb/simplejsonext
