@@ -1,4 +1,4 @@
-package historyparquet
+package parquet
 
 import (
 	"context"
@@ -44,7 +44,7 @@ func getRowIteratorForFile(
 
 func TestSelectRowGroups(t *testing.T) {
 	allocator := memory.NewCheckedAllocator(memory.DefaultAllocator)
-	filePath := "../../../../tests/files/history.parquet"
+	filePath := "../../../tests/files/history.parquet"
 	f, err := os.Open(filePath)
 	if err != nil {
 		t.Fatal(err)
@@ -395,7 +395,7 @@ func TestRowGroupIteratorMemoryLeak(t *testing.T) {
 	allocator := memory.NewCheckedAllocator(memory.DefaultAllocator)
 	defer allocator.AssertSize(t, 0)
 
-	filePath := "../../../../tests/files/history.parquet"
+	filePath := "../../../tests/files/history.parquet"
 	it, cleanup := getRowIteratorForFile(
 		t,
 		filePath,
@@ -571,7 +571,7 @@ func TestRowGroupIteratorWithListOfNestedStructs(t *testing.T) {
 
 func TestEmptyFile(t *testing.T) {
 	allocator := memory.NewCheckedAllocator(memory.DefaultAllocator)
-	filePath := "../../../../tests/files/empty.parquet"
+	filePath := "../../../tests/files/empty.parquet"
 	f, err := os.Open(filePath)
 	if err != nil {
 		t.Fatal(err)
