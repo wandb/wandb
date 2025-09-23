@@ -152,10 +152,10 @@ def box3d(
 
     Example:
     The following example creates a point cloud with 60 boxes rotating
-    around the X, Y and Z axes. 
+    around the X, Y and Z axes.
 
     ```python
-    import wandb    
+    import wandb
 
     import math
     import numpy as np
@@ -163,39 +163,49 @@ def box3d(
 
 
     with wandb.init() as run:
-        run.log({
-            "points": wandb.Object3D.from_point_cloud(
-                points=np.random.uniform(-5, 5, size=(100, 3)),
-                boxes=[
-                    wandb.box3d(
-                        center=(0.3*t - 3, 0, 0),
-                        size=(0.1, 0.1, 0.1),
-                        orientation=Rotation.from_euler('xyz', [t*math.pi/10, 0, 0]).as_quat(),
-                        color=(0.5 + t/40, 0.5, 0.5),
-                        label=f"box {t}",
-                    )
-                    for t in range(20)
-                ]+[
-                    wandb.box3d(
-                        center=(0, 0.3*t - 3, 0.3),
-                        size=(0.1, 0.1, 0.1),
-                        orientation=Rotation.from_euler('xyz', [0, t*math.pi/10, 0]).as_quat(),
-                        color=(0.5, 0.5 + t/40, 0.5),
-                        label=f"box {t}",
-                    )
-                    for t in range(20)
-                ]+[
-                    wandb.box3d(
-                        center=(0.3, 0.3, 0.3*t - 3),
-                        size=(0.1, 0.1, 0.1),
-                        orientation=Rotation.from_euler('xyz', [0, 0, t*math.pi/10]).as_quat(),
-                        color=(0.5, 0.5, 0.5 + t/40),
-                        label=f"box {t}",
-                    )
-                    for t in range(20)
-                ],
-            ),
-        })
+        run.log(
+            {
+                "points": wandb.Object3D.from_point_cloud(
+                    points=np.random.uniform(-5, 5, size=(100, 3)),
+                    boxes=[
+                        wandb.box3d(
+                            center=(0.3 * t - 3, 0, 0),
+                            size=(0.1, 0.1, 0.1),
+                            orientation=Rotation.from_euler(
+                                "xyz", [t * math.pi / 10, 0, 0]
+                            ).as_quat(),
+                            color=(0.5 + t / 40, 0.5, 0.5),
+                            label=f"box {t}",
+                        )
+                        for t in range(20)
+                    ]
+                    + [
+                        wandb.box3d(
+                            center=(0, 0.3 * t - 3, 0.3),
+                            size=(0.1, 0.1, 0.1),
+                            orientation=Rotation.from_euler(
+                                "xyz", [0, t * math.pi / 10, 0]
+                            ).as_quat(),
+                            color=(0.5, 0.5 + t / 40, 0.5),
+                            label=f"box {t}",
+                        )
+                        for t in range(20)
+                    ]
+                    + [
+                        wandb.box3d(
+                            center=(0.3, 0.3, 0.3 * t - 3),
+                            size=(0.1, 0.1, 0.1),
+                            orientation=Rotation.from_euler(
+                                "xyz", [0, 0, t * math.pi / 10]
+                            ).as_quat(),
+                            color=(0.5, 0.5, 0.5 + t / 40),
+                            label=f"box {t}",
+                        )
+                        for t in range(20)
+                    ],
+                ),
+            }
+        )
     ```
     """
     try:
