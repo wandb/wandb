@@ -1,4 +1,4 @@
-package runhistory
+package runhistoryreader
 
 import "fmt"
 
@@ -22,8 +22,8 @@ func New(
 	}
 }
 
-// Gets all history rows for the given keys
-// which fall between minStep and maxStep.
+// GetHistorySteps gets all history rows for the given keys
+// that fall between minStep and maxStep.
 func (h *HistoryReader) GetHistorySteps(
 	keys []string,
 	minStep int64,
