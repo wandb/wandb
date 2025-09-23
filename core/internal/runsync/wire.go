@@ -25,6 +25,7 @@ import (
 func InjectRunSyncerFactory(
 	operations *wboperation.WandbOperations,
 	settings *settings.Settings,
+	syncDir settings.SyncDir,
 ) *RunSyncerFactory {
 	wire.Build(runSyncerFactoryBindings)
 	return &RunSyncerFactory{}
@@ -43,6 +44,7 @@ var runSyncerFactoryBindings = wire.NewSet(
 	runhandle.New,
 	runReaderProviders,
 	runSyncerProviders,
+	settings.DerivedSettingsProviders,
 	sharedmode.RandomClientID,
 	stream.NewBackend,
 	stream.NewFileTransferManager,

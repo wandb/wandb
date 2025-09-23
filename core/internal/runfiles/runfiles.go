@@ -62,6 +62,7 @@ type UploaderTesting interface {
 
 // UploaderFactory constructs Uploader instances.
 type UploaderFactory struct {
+	FilesDir     settings.FilesDir
 	FileTransfer filetransfer.FileTransferManager
 	FileWatcher  watcher.Watcher
 	GraphQL      graphql.Client

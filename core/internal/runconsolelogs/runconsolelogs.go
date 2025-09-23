@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -53,9 +54,8 @@ type Params struct {
 	// console messages.
 	ConsoleOutputFile paths.RelativePath
 
-	// FilesDir is the directory in which to write the console output file.
-	// Note this is actually the root directory for all run files.
-	FilesDir string
+	// FilesDir is the directory in which to store the run's files.
+	FilesDir settings.FilesDir
 
 	// EnableCapture indicates whether to capture console output.
 	EnableCapture bool
@@ -101,7 +101,7 @@ func New(params Params) *Sender {
 		var err error
 		fileWriter, err = NewOutputFileWriter(
 			filepath.Join(
-				params.FilesDir,
+				string(params.FilesDir),
 				string(params.ConsoleOutputFile),
 			),
 			params.Logger,

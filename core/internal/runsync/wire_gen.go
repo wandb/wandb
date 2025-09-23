@@ -27,7 +27,7 @@ import (
 
 // Injectors from wire.go:
 
-func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *settings.Settings) *RunSyncerFactory {
+func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *settings.Settings, syncDir settings.SyncDir) *RunSyncerFactory {
 	coreLogger := todoLogger()
 	printer := observability.NewPrinter()
 	backend := stream.NewBackend(coreLogger, settings2)
@@ -48,6 +48,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 	runReaderFactory := &RunReaderFactory{
 		Logger: coreLogger,
 	}
+	filesDir := settings.InferFilesDir(syncDir)
 	fileStreamFactory := &filestream.FileStreamFactory{
 		Logger:     coreLogger,
 		Operations: operations,
@@ -58,6 +59,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 	fileTransferManager := stream.NewFileTransferManager(fileTransferStats, coreLogger, settings2)
 	watcher := provideFileWatcher(coreLogger)
 	uploaderFactory := &runfiles.UploaderFactory{
+		FilesDir:     filesDir,
 		FileTransfer: fileTransferManager,
 		FileWatcher:  watcher,
 		GraphQL:      client,
@@ -72,6 +74,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 		Logger:                  coreLogger,
 		Operations:              operations,
 		Settings:                settings2,
+		FilesDir:                filesDir,
 		Backend:                 backend,
 		FeatureProvider:         serverFeaturesCache,
 		FileStreamFactory:       fileStreamFactory,
@@ -86,6 +89,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
 		Logger:   coreLogger,
+		FilesDir: filesDir,
 		Settings: settings2,
 	}
 	runSyncerFactory := &RunSyncerFactory{
@@ -102,7 +106,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 // wire.go:
 
 var runSyncerFactoryBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, observability.NewPrinter, provideFileWatcher, runfiles.UploaderProviders, runhandle.New, runReaderProviders,
-	runSyncerProviders, sharedmode.RandomClientID, stream.NewBackend, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, todoLogger,
+	runSyncerProviders, settings.DerivedSettingsProviders, sharedmode.RandomClientID, stream.NewBackend, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, todoLogger,
 )
 
 func todoLogger() *observability.CoreLogger {

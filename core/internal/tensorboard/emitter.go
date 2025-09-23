@@ -60,11 +60,11 @@ type tfEmitter struct {
 	hasWallTime bool
 	tfWallTime  float64
 
-	settings *settings.Settings
+	filesDir settings.FilesDir
 }
 
-func NewTFEmitter(settings *settings.Settings) *tfEmitter {
-	return &tfEmitter{settings: settings}
+func NewTFEmitter(filesDir settings.FilesDir) *tfEmitter {
+	return &tfEmitter{filesDir: filesDir}
 }
 
 // Emit sends accumulated data to the run.
@@ -230,7 +230,7 @@ func (e *tfEmitter) EmitTable(
 		return err
 	}
 	runRelativePath := *maybeRunFilePath
-	fsPath := filepath.Join(e.settings.GetFilesDir(), string(runRelativePath))
+	fsPath := filepath.Join(string(e.filesDir), string(runRelativePath))
 
 	if err := e.writeDataToPath(fsPath, content); err != nil {
 		return err
@@ -274,7 +274,7 @@ func (e *tfEmitter) EmitImages(
 		}
 
 		runRelativePath := *maybeRunFilePath
-		fsPath := filepath.Join(e.settings.GetFilesDir(), string(runRelativePath))
+		fsPath := filepath.Join(string(e.filesDir), string(runRelativePath))
 
 		if err := e.writeDataToPath(fsPath, img.EncodedData); err != nil {
 			return err

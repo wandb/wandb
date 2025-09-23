@@ -113,11 +113,11 @@ func TestUploader(t *testing.T) {
 		uploader = runfilestest.WithTestDefaults(t,
 			runfilestest.Params{
 				GraphQL:      mockGQLClient,
+				FilesDir:     settings.FilesDir(filesDir),
 				FileStream:   fakeFileStream,
 				FileTransfer: fakeFileTransfer,
 				FileWatcher:  fakeFileWatcher,
 				Settings: settings.From(&spb.Settings{
-					FilesDir:    &wrapperspb.StringValue{Value: filesDir},
 					IgnoreGlobs: &spb.ListStringValue{Value: ignoreGlobs},
 					XOffline:    &wrapperspb.BoolValue{Value: isOffline},
 					XSync:       &wrapperspb.BoolValue{Value: isSync},

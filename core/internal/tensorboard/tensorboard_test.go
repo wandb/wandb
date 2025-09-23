@@ -14,7 +14,6 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // testOptions is data used to configure a test.
@@ -46,15 +45,15 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 		return filepath.Join(tmpdir, filepath.FromSlash(slashPath))
 	}
 
-	settingsProto := &spb.Settings{}
+	var filesDir settings.FilesDir
 	if opts.SlashFilesDir != "" {
-		settingsProto.FilesDir = wrapperspb.String(toPath(opts.SlashFilesDir))
+		filesDir = settings.FilesDir(toPath(opts.SlashFilesDir))
 	}
-	settings := settings.From(settingsProto)
 
 	factory := tensorboard.TBHandlerFactory{
+		FilesDir: filesDir,
 		Logger:   observabilitytest.NewTestLogger(t),
-		Settings: settings,
+		Settings: settings.New(),
 	}
 	handler := factory.New(runWork, fileReadDelay)
 

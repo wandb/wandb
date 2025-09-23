@@ -13,7 +13,6 @@ import (
 	"github.com/wandb/wandb/core/internal/wbvalue"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func localFlushPartialHistory(items []*spb.HistoryItem) *spb.Record {
@@ -52,7 +51,7 @@ func assertProtoEqual(t *testing.T, expected proto.Message, actual proto.Message
 }
 
 func TestAccumulatesHistory(t *testing.T) {
-	emitter := tensorboard.NewTFEmitter(settings.From(&spb.Settings{}))
+	emitter := tensorboard.NewTFEmitter(settings.FilesDir(""))
 
 	emitter.EmitHistory(pathtree.PathOf("x", "y"), "0.5")
 	emitter.EmitHistory(pathtree.PathOf("z"), `"abc"`)
@@ -70,7 +69,7 @@ func TestAccumulatesHistory(t *testing.T) {
 }
 
 func TestStepAndWallTime(t *testing.T) {
-	emitter := tensorboard.NewTFEmitter(settings.From(&spb.Settings{}))
+	emitter := tensorboard.NewTFEmitter(settings.FilesDir(""))
 
 	emitter.SetTFStep(pathtree.PathOf("train", "global_step"), 9)
 	emitter.SetTFWallTime(2.5)
@@ -90,7 +89,7 @@ func TestStepAndWallTime(t *testing.T) {
 }
 
 func TestChartModifiesConfig(t *testing.T) {
-	emitter := tensorboard.NewTFEmitter(settings.From(&spb.Settings{}))
+	emitter := tensorboard.NewTFEmitter(settings.FilesDir(""))
 	chart := wbvalue.Chart{Title: "test-title"}
 	expectedConfigJSON, err := chart.ConfigValueJSON()
 	require.NoError(t, err)
@@ -113,11 +112,7 @@ func TestChartModifiesConfig(t *testing.T) {
 
 func TestTableWritesToFile(t *testing.T) {
 	tmpdir := t.TempDir()
-	emitter := tensorboard.NewTFEmitter(
-		settings.From(&spb.Settings{
-			FilesDir: wrapperspb.String(tmpdir),
-		}),
-	)
+	emitter := tensorboard.NewTFEmitter(settings.FilesDir(tmpdir))
 	table := wbvalue.Table{
 		ColumnLabels: []string{"a", "b"},
 		Rows:         [][]any{{1, 2}, {3, 4}},
@@ -140,11 +135,7 @@ func TestTableWritesToFile(t *testing.T) {
 }
 
 func TestTableUpdatesHistory(t *testing.T) {
-	emitter := tensorboard.NewTFEmitter(
-		settings.From(&spb.Settings{
-			FilesDir: wrapperspb.String(t.TempDir()),
-		}),
-	)
+	emitter := tensorboard.NewTFEmitter(settings.FilesDir(t.TempDir()))
 	table := wbvalue.Table{
 		ColumnLabels: []string{"a", "b"},
 		Rows:         [][]any{{1, 2}, {3, 4}},
@@ -165,11 +156,7 @@ func TestTableUpdatesHistory(t *testing.T) {
 
 func TestEmitImages(t *testing.T) {
 	tmpdir := t.TempDir()
-	emitter := tensorboard.NewTFEmitter(
-		settings.From(&spb.Settings{
-			FilesDir: wrapperspb.String(tmpdir),
-		}),
-	)
+	emitter := tensorboard.NewTFEmitter(settings.FilesDir(tmpdir))
 	require.NoError(t,
 		emitter.EmitImages(
 			pathtree.PathOf("my", "image"),
