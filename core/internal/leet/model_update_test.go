@@ -89,7 +89,7 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
 
 	// Enter overview filter mode
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'['}})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
 
 	// Type "acc", add space, backspace, then Enter
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("ac")})
@@ -105,7 +105,7 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 	}
 
 	// Enter filter mode again, type something, then Esc
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'['}})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("tmp")})
 	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
