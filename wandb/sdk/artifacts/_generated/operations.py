@@ -21,7 +21,7 @@ __all__ = [
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
-    "FETCH_ORG_ENTITY_FROM_ENTITY_GQL",
+    "FETCH_ORG_INFO_FROM_ENTITY_GQL",
     "FETCH_REGISTRIES_GQL",
     "LINK_ARTIFACT_GQL",
     "MOVE_ARTIFACT_COLLECTION_GQL",
@@ -1142,23 +1142,23 @@ fragment TypeInfoFragment on __Type {
 }
 """
 
-FETCH_ORG_ENTITY_FROM_ENTITY_GQL = """
-query FetchOrgEntityFromEntity($entityName: String!) {
-  entity(name: $entityName) {
+FETCH_ORG_INFO_FROM_ENTITY_GQL = """
+query FetchOrgInfoFromEntity($entity: String!) {
+  entity(name: $entity) {
     organization {
-      ...OrgWithEntityFragment
+      ...OrgInfoFragment
     }
     user {
       organizations {
-        ...OrgWithEntityFragment
+        ...OrgInfoFragment
       }
     }
   }
 }
 
-fragment OrgWithEntityFragment on Organization {
+fragment OrgInfoFragment on Organization {
   name
-  orgEntity {
+  orgEntity @include(if: true) {
     name
   }
 }
