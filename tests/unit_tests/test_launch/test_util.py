@@ -300,7 +300,12 @@ def test_make_k8s_label_safe():
     assert make_k8s_label_safe("container.1") == "container1"  # dots removed
     assert make_k8s_label_safe("./*?<>:|a") == "a"  # invalid symbols removed
     assert make_k8s_label_safe("ABC123") == "abc123"  # uppercase to lowercase
-    assert make_k8s_label_safe("a" * 65) == "a" * 63  # max length
+
+    # max length & edge cases
+    assert make_k8s_label_safe("a" * 65) == "a" * 63
+    assert (
+        make_k8s_label_safe("_" + "a" * 61 + "_" + "a") == "a" * 61
+    )  # trim underscores
 
     # Error cases
     with pytest.raises(LaunchError):
