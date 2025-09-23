@@ -1,4 +1,4 @@
-package historyparquet
+package parquet
 
 // This file copies most of its logic from how history parquet files
 // are read on the backend.
