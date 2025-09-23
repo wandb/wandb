@@ -3,10 +3,10 @@ package stream_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -15,13 +15,12 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/runupserter"
+	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
-	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watchertest"
-	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"go.uber.org/mock/gomock"
@@ -34,7 +33,7 @@ const validLinkArtifactResponse = `{
 
 type testFixtures struct {
 	Sender    *stream.Sender
-	StreamRun *stream.StreamRun
+	RunHandle *runhandle.RunHandle
 	Settings  *wbsettings.Settings
 	Logger    *observability.CoreLogger
 }
@@ -66,7 +65,7 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Logger:       logger,
 		Settings:     settings,
 	}
-	streamRun := stream.NewStreamRun()
+	runHandle := runhandle.New()
 
 	senderFactory := stream.SenderFactory{
 		Logger:                  logger,
@@ -78,41 +77,14 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Mailbox:                 mailbox.New(),
 		GraphqlClient:           client,
 		FeatureProvider:         featurechecker.NewServerFeaturesCache(nil, logger),
-		StreamRun:               streamRun,
+		RunHandle:               runHandle,
 	}
 	return testFixtures{
 		Sender:    senderFactory.New(runWork),
-		StreamRun: streamRun,
+		RunHandle: runHandle,
 		Settings:  settings,
 		Logger:    logger,
 	}
-}
-
-// Seed a minimal RunUpserter so Sender can resolve entity/project/run for GraphQL fallback.
-func seedRunUpserter(
-	t *testing.T,
-	sr *stream.StreamRun,
-	settings *wbsettings.Settings,
-	logger *observability.CoreLogger,
-) {
-	t.Helper()
-	rec := &spb.Record{RecordType: &spb.Record_Run{
-		Run: &spb.RunRecord{
-			Entity: "entity", Project: "project", RunId: "run",
-		},
-	}}
-	upserter, err := runupserter.InitRun(rec, runupserter.RunUpserterParams{
-		DebounceDelay:      waiting.NewDelay(1 * time.Millisecond),
-		ClientID:           "test-client",
-		Settings:           settings,
-		BeforeRunEndCtx:    context.Background(),
-		Operations:         wboperation.NewOperations(),
-		FeatureProvider:    featurechecker.NewServerFeaturesCache(nil, logger),
-		GraphqlClientOrNil: nil,
-		Logger:             logger,
-	})
-	assert.NoError(t, err)
-	assert.NoError(t, sr.SetRunUpserter(upserter))
 }
 
 func TestSendRequestStopStatus_FallsBackToGraphQL(t *testing.T) {
@@ -120,7 +92,8 @@ func TestSendRequestStopStatus_FallsBackToGraphQL(t *testing.T) {
 	x := makeSender(t, mockGQL)
 
 	// Ensure Sender has a RunUpserter so it can construct gql vars.
-	seedRunUpserter(t, x.StreamRun, x.Settings, x.Logger)
+	upserter := runupsertertest.NewOfflineUpserter(t)
+	require.NoError(t, x.RunHandle.Init(upserter))
 
 	rec := &spb.Record{
 		RecordType: &spb.Record_Request{

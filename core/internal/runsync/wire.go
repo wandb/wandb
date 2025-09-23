@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -39,13 +40,13 @@ var runSyncerFactoryBindings = wire.NewSet(
 	observability.NewPrinter,
 	provideFileWatcher,
 	runfiles.UploaderProviders,
+	runhandle.New,
 	runReaderProviders,
 	runSyncerProviders,
 	sharedmode.RandomClientID,
 	stream.NewBackend,
 	stream.NewFileTransferManager,
 	stream.NewGraphQLClient,
-	stream.NewStreamRun,
 	stream.RecordParserProviders,
 	stream.SenderProviders,
 	tensorboard.TBHandlerProviders,
