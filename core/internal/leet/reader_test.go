@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -446,4 +448,378 @@ func (e *testError) Error() string {
 		return fmt.Sprintf(e.msg, e.args...)
 	}
 	return e.msg
+}
+
+func TestFindWandbFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T) string // Returns test directory
+		wantErr  string
+		wantFile string // Expected filename (not full path)
+	}{
+		{
+			name: "single_wandb_file",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				f, err := os.Create(filepath.Join(dir, "run-123.wandb"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				f.Close()
+				return dir
+			},
+			wantFile: "run-123.wandb",
+		},
+		{
+			name: "multiple_wandb_files",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				for _, name := range []string{"run-123.wandb", "run-456.wandb"} {
+					f, err := os.Create(filepath.Join(dir, name))
+					if err != nil {
+						t.Fatal(err)
+					}
+					f.Close()
+				}
+				return dir
+			},
+			wantErr: "multiple .wandb files found",
+		},
+		{
+			name: "no_wandb_files",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				// Create some other files
+				f, err := os.Create(filepath.Join(dir, "config.yaml"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				f.Close()
+				return dir
+			},
+			wantErr: "no .wandb file found",
+		},
+		{
+			name: "wandb_file_with_other_files",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				// Create wandb file and other files
+				for _, name := range []string{"run-abc.wandb", "config.yaml", "requirements.txt"} {
+					f, err := os.Create(filepath.Join(dir, name))
+					if err != nil {
+						t.Fatal(err)
+					}
+					f.Close()
+				}
+				return dir
+			},
+			wantFile: "run-abc.wandb",
+		},
+		{
+			name: "directory_not_exist",
+			setup: func(t *testing.T) string {
+				return "/nonexistent/directory/path"
+			},
+			wantErr: "cannot access directory",
+		},
+		{
+			name: "path_is_file_not_directory",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				file := filepath.Join(dir, "notadir")
+				f, err := os.Create(file)
+				if err != nil {
+					t.Fatal(err)
+				}
+				f.Close()
+				return file
+			},
+			wantErr: "path is not a directory",
+		},
+		{
+			name: "wandb_directory_ignored",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				// Create a directory named something.wandb (should be ignored)
+				err := os.Mkdir(filepath.Join(dir, "something.wandb"), 0755)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return dir
+			},
+			wantErr: "no .wandb file found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := tt.setup(t)
+			got, err := leet.FindWandbFile(dir)
+
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("expected error containing %q, got %q", tt.wantErr, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Check the filename matches
+			if filepath.Base(got) != tt.wantFile {
+				t.Fatalf("got file %q, want %q", filepath.Base(got), tt.wantFile)
+			}
+
+			// Verify the full path is correct
+			expectedPath := filepath.Join(dir, tt.wantFile)
+			if got != expectedPath {
+				t.Fatalf("got path %q, want %q", got, expectedPath)
+			}
+		})
+	}
+}
+
+func TestResolveRunDirectory(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T) (runPath string, cleanup func())
+		wantErr string
+		check   func(t *testing.T, got string)
+	}{
+		{
+			name: "empty_path_finds_latest_run_in_dot_wandb",
+			setup: func(t *testing.T) (string, func()) {
+				origDir, _ := os.Getwd()
+				tmpDir := t.TempDir()
+				os.Chdir(tmpDir)
+
+				// Create .wandb directory structure
+				wandbDir := filepath.Join(tmpDir, ".wandb")
+				runDir := filepath.Join(wandbDir, "run-20250101_120000-abc123")
+				os.MkdirAll(runDir, 0755)
+
+				// Create latest-run symlink
+				latestPath := filepath.Join(wandbDir, "latest-run")
+				os.Symlink(runDir, latestPath)
+
+				return "", func() { os.Chdir(origDir) }
+			},
+			check: func(t *testing.T, got string) {
+				if !strings.Contains(got, "run-20250101_120000-abc123") {
+					t.Fatalf("expected path to contain run directory, got %q", got)
+				}
+			},
+		},
+		{
+			name: "empty_path_finds_latest_run_in_wandb",
+			setup: func(t *testing.T) (string, func()) {
+				origDir, _ := os.Getwd()
+				tmpDir := t.TempDir()
+				os.Chdir(tmpDir)
+
+				// Create wandb directory structure (no dot prefix)
+				wandbDir := filepath.Join(tmpDir, "wandb")
+				runDir := filepath.Join(wandbDir, "run-20250102_130000-def456")
+				os.MkdirAll(runDir, 0755)
+
+				// Create latest-run symlink
+				latestPath := filepath.Join(wandbDir, "latest-run")
+				os.Symlink(runDir, latestPath)
+
+				return "", func() { os.Chdir(origDir) }
+			},
+			check: func(t *testing.T, got string) {
+				if !strings.Contains(got, "run-20250102_130000-def456") {
+					t.Fatalf("expected path to contain run directory, got %q", got)
+				}
+			},
+		},
+		{
+			name: "empty_path_prefers_dot_wandb_over_wandb",
+			setup: func(t *testing.T) (string, func()) {
+				origDir, _ := os.Getwd()
+				tmpDir := t.TempDir()
+				os.Chdir(tmpDir)
+
+				// Create both .wandb and wandb directories
+				dotWandbDir := filepath.Join(tmpDir, ".wandb")
+				dotRunDir := filepath.Join(dotWandbDir, "run-dot-wandb")
+				os.MkdirAll(dotRunDir, 0755)
+				os.Symlink(dotRunDir, filepath.Join(dotWandbDir, "latest-run"))
+
+				wandbDir := filepath.Join(tmpDir, "wandb")
+				runDir := filepath.Join(wandbDir, "run-regular-wandb")
+				os.MkdirAll(runDir, 0755)
+				os.Symlink(runDir, filepath.Join(wandbDir, "latest-run"))
+
+				return "", func() { os.Chdir(origDir) }
+			},
+			check: func(t *testing.T, got string) {
+				if !strings.Contains(got, "run-dot-wandb") {
+					t.Fatalf("expected .wandb to be preferred, got %q", got)
+				}
+			},
+		},
+		{
+			name: "empty_path_respects_WANDB_DIR_env",
+			setup: func(t *testing.T) (string, func()) {
+				tmpDir := t.TempDir()
+				customDir := filepath.Join(tmpDir, "custom")
+				os.MkdirAll(customDir, 0755)
+
+				// Create wandb structure in custom dir
+				wandbDir := filepath.Join(customDir, ".wandb")
+				runDir := filepath.Join(wandbDir, "run-from-env")
+				os.MkdirAll(runDir, 0755)
+				os.Symlink(runDir, filepath.Join(wandbDir, "latest-run"))
+
+				// Set WANDB_DIR
+				os.Setenv("WANDB_DIR", customDir)
+
+				return "", func() { os.Unsetenv("WANDB_DIR") }
+			},
+			check: func(t *testing.T, got string) {
+				if !strings.Contains(got, "run-from-env") {
+					t.Fatalf("expected run from WANDB_DIR, got %q", got)
+				}
+			},
+		},
+		{
+			name: "empty_path_no_latest_run_symlink",
+			setup: func(t *testing.T) (string, func()) {
+				origDir, _ := os.Getwd()
+				tmpDir := t.TempDir()
+				os.Chdir(tmpDir)
+
+				// Create .wandb directory but no latest-run
+				os.MkdirAll(filepath.Join(tmpDir, ".wandb"), 0755)
+
+				return "", func() { os.Chdir(origDir) }
+			},
+			wantErr: "no latest-run symlink found",
+		},
+		{
+			name: "empty_path_latest_run_points_to_file",
+			setup: func(t *testing.T) (string, func()) {
+				origDir, _ := os.Getwd()
+				tmpDir := t.TempDir()
+				os.Chdir(tmpDir)
+
+				wandbDir := filepath.Join(tmpDir, ".wandb")
+				os.MkdirAll(wandbDir, 0755)
+
+				// Create a file and symlink to it
+				file := filepath.Join(wandbDir, "somefile")
+				f, _ := os.Create(file)
+				f.Close()
+
+				latestPath := filepath.Join(wandbDir, "latest-run")
+				os.Symlink(file, latestPath)
+
+				return "", func() { os.Chdir(origDir) }
+			},
+			wantErr: "latest-run symlink does not point to a directory",
+		},
+		{
+			name: "provided_path_regular_directory",
+			setup: func(t *testing.T) (string, func()) {
+				tmpDir := t.TempDir()
+				runDir := filepath.Join(tmpDir, "my-run")
+				os.MkdirAll(runDir, 0755)
+				return runDir, func() {}
+			},
+			check: func(t *testing.T, got string) {
+				if !strings.HasSuffix(got, "my-run") {
+					t.Fatalf("expected path to end with my-run, got %q", got)
+				}
+				if !filepath.IsAbs(got) {
+					t.Fatalf("expected absolute path, got %q", got)
+				}
+			},
+		},
+		{
+			name: "provided_path_relative_directory",
+			setup: func(t *testing.T) (string, func()) {
+				origDir, _ := os.Getwd()
+				tmpDir := t.TempDir()
+				os.Chdir(tmpDir)
+
+				runDir := "relative/path/to/run"
+				os.MkdirAll(runDir, 0755)
+
+				return runDir, func() { os.Chdir(origDir) }
+			},
+			check: func(t *testing.T, got string) {
+				if !filepath.IsAbs(got) {
+					t.Fatalf("expected absolute path, got %q", got)
+				}
+				if !strings.HasSuffix(got, filepath.Join("relative", "path", "to", "run")) {
+					t.Fatalf("unexpected path resolution: %q", got)
+				}
+			},
+		},
+		{
+			name: "provided_path_symlink_to_directory",
+			setup: func(t *testing.T) (string, func()) {
+				tmpDir := t.TempDir()
+				actualDir := filepath.Join(tmpDir, "actual-run-dir")
+				os.MkdirAll(actualDir, 0755)
+
+				symlink := filepath.Join(tmpDir, "link-to-run")
+				os.Symlink(actualDir, symlink)
+
+				return symlink, func() {}
+			},
+			check: func(t *testing.T, got string) {
+				if !strings.Contains(got, "actual-run-dir") {
+					t.Fatalf("expected symlink to be resolved, got %q", got)
+				}
+				if !filepath.IsAbs(got) {
+					t.Fatalf("expected absolute path, got %q", got)
+				}
+			},
+		},
+		{
+			name: "provided_path_broken_symlink",
+			setup: func(t *testing.T) (string, func()) {
+				tmpDir := t.TempDir()
+				symlink := filepath.Join(tmpDir, "broken-link")
+				os.Symlink("/nonexistent/target", symlink)
+				return symlink, func() {}
+			},
+			wantErr: "cannot resolve symlink",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runPath, cleanup := tt.setup(t)
+			defer cleanup()
+
+			got, err := leet.ResolveRunDirectory(runPath)
+
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("expected error containing %q, got %q", tt.wantErr, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tt.check != nil {
+				tt.check(t, got)
+			}
+		})
+	}
 }

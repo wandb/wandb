@@ -19,9 +19,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -280,43 +278,30 @@ func leetMain(args []string) int {
 	)
 
 	// Determine the run directory.
-	var runDir string
+	var runPath string
 	switch fs.NArg() {
 	case 0:
-		dir, err := findLatestRun()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			fmt.Fprintf(os.Stderr, "\nTry specifying a run directory explicitly:\n")
-			fmt.Fprintf(os.Stderr, "  `wandb beta leet <run-directory>`\n")
-			fmt.Fprintf(os.Stderr, "  or set WANDB_DIR\n")
-			return 1
-		}
-		runDir = dir
+		// ResolveRunDirectory will look for the latest run when runPath is empty
 	case 1:
-		providedPath := fs.Arg(0)
-		if info, err := os.Lstat(providedPath); err == nil && info.Mode()&os.ModeSymlink != 0 {
-			resolved, err := filepath.EvalSymlinks(providedPath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: cannot resolve symlink %s: %v\n", providedPath, err)
-				return 1
-			}
-			runDir = resolved
-		} else {
-			runDir = providedPath
-		}
-		absRunDir, err := filepath.Abs(runDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: cannot get absolute path for %s: %v\n", runDir, err)
-			return 1
-		}
-		runDir = absRunDir
+		runPath = fs.Arg(0)
 	default:
 		fmt.Fprintf(os.Stderr, "Error: too many arguments\n\n")
 		fs.Usage()
 		return 1
 	}
 
-	wandbFile, err := findWandbFile(runDir)
+	runDir, err := leet.ResolveRunDirectory(runPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		if runPath == "" {
+			fmt.Fprintf(os.Stderr, "\nTry specifying a run directory explicitly:\n")
+			fmt.Fprintf(os.Stderr, "  `wandb beta leet <run-directory>`\n")
+			fmt.Fprintf(os.Stderr, "  or set WANDB_DIR\n")
+		}
+		return 1
+	}
+
+	wandbFile, err := leet.FindWandbFile(runDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
@@ -341,76 +326,4 @@ func leetMain(args []string) int {
 		break
 	}
 	return 0
-}
-
-// findLatestRun looks for the latest-run symlink in wandb or .wandb directories.
-func findLatestRun() (string, error) {
-	wandbDirs := []string{".wandb", "wandb"}
-
-	if wandbDir := os.Getenv("WANDB_DIR"); wandbDir != "" {
-		wandbDirs = []string{
-			filepath.Join(wandbDir, ".wandb"),
-			filepath.Join(wandbDir, "wandb"),
-		}
-	}
-
-	for _, dir := range wandbDirs {
-		if _, err := os.Stat(dir); err != nil {
-			continue
-		}
-		latestRunPath := filepath.Join(dir, "latest-run")
-		info, err := os.Lstat(latestRunPath)
-		if err != nil || info.Mode()&os.ModeSymlink == 0 {
-			continue
-		}
-		target, err := filepath.EvalSymlinks(latestRunPath)
-		if err != nil {
-			return "", fmt.Errorf("cannot resolve latest-run symlink in %s: %w", dir, err)
-		}
-		absTarget, err := filepath.Abs(target)
-		if err != nil {
-			return "", fmt.Errorf("cannot get absolute path for %s: %w", target, err)
-		}
-		targetInfo, err := os.Stat(absTarget)
-		if err != nil {
-			return "", fmt.Errorf("latest-run symlink target does not exist: %w", err)
-		}
-		if !targetInfo.IsDir() {
-			return "", fmt.Errorf("latest-run symlink does not point to a directory")
-		}
-		return absTarget, nil
-	}
-
-	if wandbDir := os.Getenv("WANDB_DIR"); wandbDir != "" {
-		return "", fmt.Errorf("no latest-run symlink found in %s/.wandb or %s/wandb", wandbDir, wandbDir)
-	}
-	return "", fmt.Errorf("no latest-run symlink found in ./.wandb or ./wandb")
-}
-
-// findWandbFile searches for a .wandb file in the given directory.
-func findWandbFile(dir string) (string, error) {
-	info, err := os.Stat(dir)
-	if err != nil {
-		return "", fmt.Errorf("cannot access directory: %w", err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("path is not a directory: %s", dir)
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return "", fmt.Errorf("cannot read directory: %w", err)
-	}
-	var wandbFiles []string
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".wandb") {
-			wandbFiles = append(wandbFiles, e.Name())
-		}
-	}
-	if len(wandbFiles) == 0 {
-		return "", fmt.Errorf("no .wandb file found in directory: %s", dir)
-	}
-	if len(wandbFiles) > 1 {
-		return "", fmt.Errorf("multiple .wandb files found in directory: %s", dir)
-	}
-	return filepath.Join(dir, wandbFiles[0]), nil
 }
