@@ -54,7 +54,7 @@ from wandb.sdk.artifacts._generated import (
     RunInputArtifactConnectionFragment,
     RunOutputArtifactConnectionFragment,
 )
-from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 from wandb.sdk.artifacts._validators import (
     SOURCE_ARTIFACT_COLLECTION_TYPE,
     validate_artifact_name,
