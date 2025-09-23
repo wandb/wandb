@@ -109,7 +109,7 @@ from ._generated import (
     TagInput,
     UpdateArtifact,
 )
-from ._graphql_fragments import omit_artifact_fields
+from ._gqlutils import omit_artifact_fields
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
     ArtifactPath,

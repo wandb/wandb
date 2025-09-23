@@ -24,7 +24,7 @@ from wandb.sdk.artifacts._generated import (
     RegistryVersions,
     RegistryVersionsPage,
 )
-from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 from wandb.sdk.artifacts._validators import remove_registry_prefix
 
 from ._utils import ensure_registry_prefix_on_names
