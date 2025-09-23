@@ -20,13 +20,13 @@ func TestLocalParquetFile_Reader_NoError(t *testing.T) {
 		},
 		nil,
 	)
-	arrays := []arrow.Array{
-		test.BuildArray(t, []int64{1, 2, 3}, nil),
-		test.BuildArray(t, []float64{1.0, 2.0, 3.0}, nil),
+	data := []map[string]any{
+		{"_step": 1, "test_metric": 1.0},
+		{"_step": 2, "test_metric": 2.0},
+		{"_step": 3, "test_metric": 3.0},
 	}
-
 	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFile(t, historyFilePath, schema, arrays)
+	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
 
 	pf, err := LocalParquetFile(historyFilePath, true /* parallel */)
 	assert.NoError(t, err)
@@ -49,13 +49,13 @@ func TestLocalParquetFile_MetaData(t *testing.T) {
 		},
 		nil,
 	)
-	arrays := []arrow.Array{
-		test.BuildArray(t, []int64{1, 2, 3}, nil),
-		test.BuildArray(t, []float64{1.0, 2.0, 3.0}, nil),
+	data := []map[string]any{
+		{"_step": 1, "test_metric": 1.0},
+		{"_step": 2, "test_metric": 2.0},
+		{"_step": 3, "test_metric": 3.0},
 	}
-
 	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFile(t, historyFilePath, schema, arrays)
+	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
 
 	reader, err := LocalParquetFile(historyFilePath, true /* parallel */)
 	assert.NoError(t, err)
