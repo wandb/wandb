@@ -42,6 +42,7 @@ class S3Handler(StorageHandler):
         self._scheme = scheme or "s3"
         self._s3 = None
         self._cache = get_artifact_file_cache()
+        self._headers = util.get_object_storage_headers()
 
     def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
@@ -63,7 +64,17 @@ class S3Handler(StorageHandler):
             if s3_endpoint and self._is_coreweave_endpoint(s3_endpoint)
             else None
         )
-        self._s3 = boto.session.Session().resource(
+        session = boto.session.Session()
+
+        # Inject headers for every S3 call
+        # TODO: Need to pass them to go core when we switch reference artifact download to go core
+        def _add_headers(request, **kwargs):
+            for k, v in (self._headers or {}).items():
+                if v is not None:  # skip Nones just in case
+                    request.headers[str(k)] = str(v)
+
+        session.events.register("before-send.s3", _add_headers)
+        self._s3 = session.resource(
             "s3",
             endpoint_url=s3_endpoint,
             region_name=os.getenv("AWS_REGION"),

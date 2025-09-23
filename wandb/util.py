@@ -2048,7 +2048,7 @@ _object_storage_headers: ContextVar[dict[str, str]] = ContextVar(
 
 
 @contextmanager
-def with_object_storage_headers(headers: dict[str, str]):
+def set_object_storage_headers(headers: dict[str, str]):
     """Set the object storage headers for the current context (thread).
 
     Attach additional headers when making requests to object storage

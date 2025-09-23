@@ -4,7 +4,7 @@ import shutil
 import requests
 
 import wandb
-from wandb.util import get_object_storage_headers, with_object_storage_headers
+from wandb.util import get_object_storage_headers, set_object_storage_headers
 
 # Swith the team to use default/byob
 # ENTITY = "pinglei-byob-s3"
@@ -40,11 +40,15 @@ def upload_artifacts():
         for i in range(10):
             run.log({"metric": i})
 
+
 def add_reference_artifacts():
     with wandb.init(entity=ENTITY, project=PROJECT) as run:
         artifact = wandb.Artifact("my-reference-artifact", type="image-reference")
-        artifact.add_reference(uri="s3://uma-bucket-testing/images/apple.jpeg") # replace this with your own s3 bucket object
+        artifact.add_reference(
+            uri="s3://uma-bucket-testing/images/apple.jpeg"
+        )  # replace this with your own s3 bucket object
         run.log_artifact(artifact)
+
 
 def download_reference_artifacts():
     api = wandb.Api()
@@ -95,14 +99,17 @@ def download_run_files():
             # downloading parquet files if it exists for the run
             # note: parquet files are not guaranteed to exist for all runs immediately after the run is completed
             # it takes some time for the parquet files to be created and uploaded
-            try: 
-                artifact = api.artifact(f"{ENTITY}/{PROJECT}/run-{run.id}-history:latest")
+            try:
+                artifact = api.artifact(
+                    f"{ENTITY}/{PROJECT}/run-{run.id}-history:latest"
+                )
                 artifact.download(skip_cache=True)
                 print(f"Downloaded parquet file for run {run.id}")
             except Exception as e:
                 print(f"no parquet files at {run.id}: {e}")
         # Stop after first run
         # break
+
 
 def print_url():
     api = wandb.Api()
@@ -144,7 +151,7 @@ def main():
     wandb.login(host="http://localhost:8181", key=api_key)
     # Switch back to prod API to see urls before replacement by proxy
     # wandb.login(host="https://api.wandb.ai", key=api_key)
-    with with_object_storage_headers(
+    with set_object_storage_headers(
         {"X-My-Header-A": "valueA", "X-My-Header-B": "valueB"}
     ):
         print(get_object_storage_headers())
@@ -155,6 +162,7 @@ def main():
         download_artifacts()
         download_reference_artifacts()
         download_run_files()
+
 
 # uv pip install -e ~/go/src/github.com/wandb/wandb
 if __name__ == "__main__":
