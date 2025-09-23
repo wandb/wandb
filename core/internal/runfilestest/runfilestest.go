@@ -26,6 +26,7 @@ import (
 
 // Params for constructing a runfiles.Uploader for testing.
 type Params struct {
+	FilesDir     settings.FilesDir
 	FileTransfer filetransfer.FileTransferManager
 	FileWatcher  watcher.Watcher
 	GraphQL      graphql.Client
@@ -51,6 +52,10 @@ func WithTestDefaults(t *testing.T, params Params) runfiles.Uploader {
 
 	if params.Logger == nil {
 		params.Logger = observability.NewNoOpLogger()
+	}
+
+	if params.FilesDir == "" {
+		params.FilesDir = settings.FilesDir(t.TempDir())
 	}
 
 	if params.Settings == nil {
@@ -80,6 +85,7 @@ func WithTestDefaults(t *testing.T, params Params) runfiles.Uploader {
 	}
 
 	factory := &runfiles.UploaderFactory{
+		FilesDir:     params.FilesDir,
 		FileTransfer: params.FileTransfer,
 		FileWatcher:  params.FileWatcher,
 		GraphQL:      params.GraphQL,

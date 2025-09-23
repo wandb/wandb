@@ -60,6 +60,7 @@ type Stream struct {
 
 	// settings is the settings for the stream
 	settings *settings.Settings
+	syncDir  settings.SyncDir
 
 	// RecordParser turns Records into Work.
 	recordParser RecordParser
@@ -100,6 +101,7 @@ func NewStream(
 	senderFactory *SenderFactory,
 	sentry *sentry_ext.Client,
 	settings *settings.Settings,
+	syncDir settings.SyncDir,
 	runHandle *runhandle.RunHandle,
 	tbHandlerFactory *tensorboard.TBHandlerFactory,
 	writerFactory *WriterFactory,
@@ -122,6 +124,7 @@ func NewStream(
 		logger:             logger,
 		loggerFile:         loggerFile,
 		settings:           settings,
+		syncDir:            syncDir,
 		recordParser:       recordParser,
 		handler:            handlerFactory.New(runWork),
 		sender:             senderFactory.New(runWork),
@@ -244,10 +247,13 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 
 	s.Close()
 
-	printFooter(s.settings)
+	printFooter(s.settings, s.syncDir)
 }
 
-func printFooter(settings *settings.Settings) {
+func printFooter(
+	settings *settings.Settings,
+	syncDir settings.SyncDir,
+) {
 	// Silent mode disables any footer output
 	if settings.IsSilent() {
 		return
@@ -262,7 +268,7 @@ func printFooter(settings *settings.Settings) {
 		formatter.Println("You can sync this run to the cloud by running:")
 		formatter.Println(
 			pfxout.WithStyle(
-				fmt.Sprintf("wandb sync %v", settings.GetSyncDir()),
+				fmt.Sprintf("wandb sync %v", string(syncDir)),
 				pfxout.Bold,
 			),
 		)

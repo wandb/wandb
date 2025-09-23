@@ -29,7 +29,7 @@ import (
 // Injectors from streaminject.go:
 
 // InjectStream returns a new Stream.
-func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, sentry *sentry_ext.Client, settings2 *settings.Settings) *Stream {
+func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, sentry *sentry_ext.Client, settings2 *settings.Settings, syncDir settings.SyncDir) *Stream {
 	clientID := sharedmode.RandomClientID()
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	coreLogger := streamLogger(streamStreamLoggerFile, settings2, sentry, logLevel)
@@ -37,6 +37,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	peeker := &observability.Peeker{}
 	client := NewGraphQLClient(backend, settings2, peeker, clientID)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(client, coreLogger)
+	filesDir := settings.InferFilesDir(syncDir)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	mailboxMailbox := mailbox.New()
 	wandbOperations := wboperation.NewOperations()
@@ -52,6 +53,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	printer := observability.NewPrinter()
 	handlerFactory := &HandlerFactory{
 		Commit:               commit,
+		FilesDir:             filesDir,
 		FileTransferStats:    fileTransferStats,
 		Logger:               coreLogger,
 		Mailbox:              mailboxMailbox,
@@ -78,6 +80,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	fileTransferManager := NewFileTransferManager(fileTransferStats, coreLogger, settings2)
 	watcher := provideFileWatcher(coreLogger)
 	uploaderFactory := &runfiles.UploaderFactory{
+		FilesDir:     filesDir,
 		FileTransfer: fileTransferManager,
 		FileWatcher:  watcher,
 		GraphQL:      client,
@@ -91,6 +94,7 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Logger:                  coreLogger,
 		Operations:              wandbOperations,
 		Settings:                settings2,
+		FilesDir:                filesDir,
 		Backend:                 backend,
 		FeatureProvider:         serverFeaturesCache,
 		FileStreamFactory:       fileStreamFactory,
@@ -105,13 +109,14 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
 		Logger:   coreLogger,
+		FilesDir: filesDir,
 		Settings: settings2,
 	}
 	writerFactory := &WriterFactory{
 		Logger:   coreLogger,
 		Settings: settings2,
 	}
-	stream := NewStream(clientID, debugCorePath, serverFeaturesCache, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, recordParserFactory, senderFactory, sentry, settings2, runHandle, tbHandlerFactory, writerFactory)
+	stream := NewStream(clientID, debugCorePath, serverFeaturesCache, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, recordParserFactory, senderFactory, sentry, settings2, syncDir, runHandle, tbHandlerFactory, writerFactory)
 	return stream
 }
 
@@ -121,7 +126,7 @@ var streamProviders = wire.NewSet(
 	NewStream, wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewBackend,
 	NewFileTransferManager,
 	NewGraphQLClient, observability.NewPrinter, provideFileWatcher,
-	RecordParserProviders, runfiles.UploaderProviders, runhandle.New, SenderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, WriterProviders,
+	RecordParserProviders, runfiles.UploaderProviders, runhandle.New, SenderProviders, settings.DerivedSettingsProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, WriterProviders,
 )
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {

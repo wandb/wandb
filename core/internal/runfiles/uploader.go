@@ -27,6 +27,7 @@ import (
 // uploader is the implementation of the Uploader interface.
 type uploader struct {
 	extraWork  runwork.ExtraWork
+	filesDir   settings.FilesDir
 	fs         filestream.FileStream
 	ftm        filetransfer.FileTransferManager
 	graphQL    graphql.Client
@@ -81,6 +82,7 @@ func newUploader(
 
 	uploader := &uploader{
 		extraWork:  extraWork,
+		filesDir:   f.FilesDir,
 		fs:         fileStream,
 		ftm:        f.FileTransfer,
 		graphQL:    f.GraphQL,
@@ -177,7 +179,7 @@ func (u *uploader) toRealPath(path string) string {
 		return path
 	}
 
-	return filepath.Join(u.settings.GetFilesDir(), path)
+	return filepath.Join(string(u.filesDir), path)
 }
 
 func (u *uploader) UploadNow(

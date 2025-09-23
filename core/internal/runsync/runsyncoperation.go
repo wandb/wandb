@@ -1,6 +1,8 @@
 package runsync
 
 import (
+	"path/filepath"
+
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -21,7 +23,7 @@ type RunSyncOperation struct {
 
 func (f *RunSyncOperationFactory) New(
 	paths []string,
-	settings *settings.Settings,
+	wandbSettings *settings.Settings,
 ) *RunSyncOperation {
 	op := &RunSyncOperation{}
 
@@ -29,7 +31,11 @@ func (f *RunSyncOperationFactory) New(
 
 	// TODO: Since settings are mutable, we need to create copies!
 	for _, path := range paths {
-		factory := InjectRunSyncerFactory(op.operations, settings)
+		factory := InjectRunSyncerFactory(
+			op.operations,
+			wandbSettings,
+			settings.SyncDir(filepath.Dir(path)),
+		)
 		op.syncers = append(op.syncers, factory.New(path))
 	}
 

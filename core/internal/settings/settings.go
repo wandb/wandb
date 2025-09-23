@@ -177,19 +177,9 @@ func (s *Settings) GetInternalLogFile() string {
 	return s.Proto.LogInternal.GetValue()
 }
 
-// Absolute path to the local directory where this run's files are stored.
-func (s *Settings) GetFilesDir() string {
-	return s.Proto.FilesDir.GetValue()
-}
-
 // Unix glob patterns relative to `files_dir` to not upload.
 func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()
-}
-
-// The directory for syncing the run from the transaction log.
-func (s *Settings) GetSyncDir() string {
-	return s.Proto.SyncDir.GetValue()
 }
 
 // The URL for the W&B backend.

@@ -51,6 +51,7 @@ type TBHandler struct {
 	rootDirGuesser *RootDirGuesser
 	extraWork      runwork.ExtraWork
 	logger         *observability.CoreLogger
+	filesDir       settings.FilesDir
 	settings       *settings.Settings
 	fileReadDelay  waiting.Delay
 
@@ -61,6 +62,7 @@ type TBHandler struct {
 // TBHandlerFactory constructs a TBHandler.
 type TBHandlerFactory struct {
 	Logger   *observability.CoreLogger
+	FilesDir settings.FilesDir
 	Settings *settings.Settings
 }
 
@@ -72,6 +74,7 @@ func (f *TBHandlerFactory) New(
 		rootDirGuesser: NewRootDirGuesser(f.Logger),
 		extraWork:      extraWork,
 		logger:         f.Logger,
+		filesDir:       f.FilesDir,
 		settings:       f.Settings,
 		fileReadDelay:  fileReadDelay,
 
@@ -231,7 +234,7 @@ func (tb *TBHandler) convertToRunHistory(
 			"namespace", namespace,
 		)
 
-		emitter := NewTFEmitter(tb.settings)
+		emitter := NewTFEmitter(tb.filesDir)
 		converter.ConvertNext(emitter, event, tb.logger)
 		emitter.Emit(tb.extraWork)
 	}
@@ -296,7 +299,7 @@ func (tb *TBHandler) saveFile(
 	}
 
 	// Symlink the file.
-	targetPath := filepath.Join(tb.settings.GetFilesDir(), runPath)
+	targetPath := filepath.Join(string(tb.filesDir), runPath)
 	if err := os.MkdirAll(filepath.Dir(targetPath), os.ModePerm); err != nil {
 		tb.logger.Error("tensorboard: error creating directory",
 			"directory", filepath.Dir(targetPath),

@@ -48,6 +48,7 @@ type GitCommitHash string
 type HandlerFactory struct {
 	// Commit is the W&B Git commit hash
 	Commit               GitCommitHash
+	FilesDir             settings.FilesDir
 	FileTransferStats    filetransfer.FileTransferStats
 	Logger               *observability.CoreLogger
 	Mailbox              *mailbox.Mailbox
@@ -61,6 +62,9 @@ type HandlerFactory struct {
 type Handler struct {
 	// commit is the W&B Git commit hash
 	commit GitCommitHash
+
+	// filesDir is where to store the run's files.
+	filesDir string
 
 	// fileTransferStats reports file upload/download statistics
 	fileTransferStats filetransfer.FileTransferStats
@@ -131,6 +135,7 @@ func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
 
 	return &Handler{
 		commit:               f.Commit,
+		filesDir:             string(f.FilesDir),
 		fileTransferStats:    f.FileTransferStats,
 		fwdChan:              make(chan runwork.Work, BufferSize),
 		logger:               f.Logger,
@@ -517,9 +522,10 @@ func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.Python
 	if !h.settings.IsPrimary() {
 		return
 	}
+
 	// write all requirements to a file
 	// send the file as a Files record
-	filename := filepath.Join(h.settings.GetFilesDir(), RequirementsFileName)
+	filename := filepath.Join(h.filesDir, RequirementsFileName)
 	file, err := os.Create(filename)
 	if err != nil {
 		h.logger.Error("error creating requirements file", "error", err)
@@ -572,7 +578,7 @@ func (h *Handler) handleCodeSave() {
 		return
 	}
 
-	codeDir := filepath.Join(h.settings.GetFilesDir(), "code")
+	codeDir := filepath.Join(h.filesDir, "code")
 	if err := os.MkdirAll(filepath.Join(codeDir, filepath.Dir(programRelative)), os.ModePerm); err != nil {
 		return
 	}
@@ -610,23 +616,28 @@ func (h *Handler) handlePatchSave() {
 
 	var files []*spb.FilesItem
 
-	filesDirPath := h.settings.GetFilesDir()
-	file := filepath.Join(filesDirPath, DiffFileName)
+	file := filepath.Join(h.filesDir, DiffFileName)
 	if err := git.SavePatch("HEAD", file); err != nil {
 		h.logger.Error("error generating diff", "error", err)
 	} else {
-		files = append(files, &spb.FilesItem{Path: DiffFileName, Type: spb.FilesItem_WANDB})
+		files = append(files, &spb.FilesItem{
+			Path: DiffFileName,
+			Type: spb.FilesItem_WANDB,
+		})
 	}
 
 	if output, err := git.LatestCommit("@{u}"); err != nil {
 		h.logger.Error("error getting latest commit", "error", err)
 	} else {
 		diffFileName := fmt.Sprintf("diff_%s.patch", output)
-		file = filepath.Join(filesDirPath, diffFileName)
+		file = filepath.Join(h.filesDir, diffFileName)
 		if err := git.SavePatch("@{u}", file); err != nil {
 			h.logger.Error("error generating diff", "error", err)
 		} else {
-			files = append(files, &spb.FilesItem{Path: diffFileName, Type: spb.FilesItem_WANDB})
+			files = append(files, &spb.FilesItem{
+				Path: diffFileName,
+				Type: spb.FilesItem_WANDB,
+			})
 		}
 	}
 

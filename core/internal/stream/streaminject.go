@@ -31,6 +31,7 @@ func InjectStream(
 	logLevel slog.Level,
 	sentry *sentry_ext.Client,
 	settings *settings.Settings,
+	syncDir settings.SyncDir,
 ) *Stream {
 	wire.Build(streamProviders)
 	return &Stream{}
@@ -55,6 +56,7 @@ var streamProviders = wire.NewSet(
 	runfiles.UploaderProviders,
 	runhandle.New,
 	SenderProviders,
+	settings.DerivedSettingsProviders,
 	sharedmode.RandomClientID,
 	streamLoggerProviders,
 	tensorboard.TBHandlerProviders,

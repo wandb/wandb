@@ -56,6 +56,7 @@ type SenderFactory struct {
 	Logger                  *observability.CoreLogger
 	Operations              *wboperation.WandbOperations
 	Settings                *settings.Settings
+	FilesDir                settings.FilesDir
 	Backend                 *api.Backend
 	FeatureProvider         *featurechecker.ServerFeaturesCache
 	FileStreamFactory       *fs.FileStreamFactory
@@ -87,6 +88,9 @@ type Sender struct {
 
 	// settings is the settings for the sender
 	settings *settings.Settings
+
+	// filesDir is the run's files directory
+	filesDir string
 
 	// outChan is the channel for dispatcher messages
 	outChan chan *spb.Result
@@ -211,7 +215,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 
 	consoleLogsSenderParams := runconsolelogs.Params{
 		ConsoleOutputFile:     outputFileName,
-		FilesDir:              f.Settings.GetFilesDir(),
+		FilesDir:              f.FilesDir,
 		EnableCapture:         f.Settings.IsConsoleCaptureEnabled(),
 		Logger:                f.Logger,
 		FileStreamOrNil:       fileStream,
@@ -228,6 +232,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		logger:              f.Logger,
 		operations:          f.Operations,
 		settings:            f.Settings,
+		filesDir:            string(f.FilesDir),
 		fileStream:          fileStream,
 		fileTransferManager: f.FileTransferManager,
 		fileTransferStats:   f.FileTransferStats,
@@ -977,24 +982,20 @@ func (s *Sender) scheduleFileUpload(
 		return errors.New("runfilesUploader is nil")
 	}
 
-	maybeRunPath, err := paths.Relative(runPathStr)
+	runPath, err := paths.Relative(runPathStr)
 	if err != nil {
 		return err
 	}
-	runPath := *maybeRunPath
 
 	if err = os.WriteFile(
-		filepath.Join(
-			s.settings.GetFilesDir(),
-			string(runPath),
-		),
+		filepath.Join(s.filesDir, string(*runPath)),
 		content,
 		0644,
 	); err != nil {
 		return err
 	}
 
-	s.runfilesUploader.UploadNow(runPath, fileKind)
+	s.runfilesUploader.UploadNow(*runPath, fileKind)
 	return nil
 }
 

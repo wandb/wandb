@@ -353,6 +353,7 @@ func (nc *Connection) handleIncomingRequests() {
 // from the client. It creates a new stream, associates it with the connection.
 // Also starts the stream and adds the connection as a responder to the stream.
 func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
+	syncDir := settings.SyncDir(msg.GetSettings().GetSyncDir().GetValue())
 	settings := settings.From(msg.GetSettings())
 
 	streamId := msg.GetXInfo().GetStreamId()
@@ -373,6 +374,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		nc.logLevel,
 		nc.sentryClient,
 		settings,
+		syncDir,
 	)
 	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	strm.Start()
