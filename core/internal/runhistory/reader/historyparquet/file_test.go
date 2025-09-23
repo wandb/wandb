@@ -1,6 +1,7 @@
 package historyparquet
 
 import (
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"testing"
@@ -88,4 +89,48 @@ func TestLocalParquetFile_MetaData(t *testing.T) {
 		2,
 		pf.reader.ParquetReader().MetaData().Schema.NumColumns(),
 	)
+}
+
+func TestLocalParquetFile_EmptyFile(t *testing.T) {
+	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
+	_, err := os.Create(historyFilePath)
+	require.NoError(t, err)
+
+	_, err = LocalParquetFile(historyFilePath, true /* parallel */)
+	assert.Error(t, err)
+}
+
+func TestLocalParquetFile_CorruptedFile(t *testing.T) {
+	// This tests writes garbage metadata
+	// causing the pyarrow reader to raise an error.
+	// see https://parquet.apache.org/docs/file-format/
+	historyFilePath := filepath.Join(t.TempDir(), "corrupted.parquet")
+	file, err := os.Create(historyFilePath)
+	require.NoError(t, err)
+	defer file.Close()
+
+	// Header magic bytes
+	_, err = file.Write([]byte("PAR1"))
+	require.NoError(t, err)
+
+	// Garbage metadata
+	corruptedData := make([]byte, 1000)
+	for i := range corruptedData {
+		corruptedData[i] = byte(i % 256)
+	}
+	_, err = file.Write(corruptedData)
+	require.NoError(t, err)
+
+	// Footer data
+	metadataLength := int32(100)
+	err = binary.Write(file, binary.LittleEndian, metadataLength)
+	require.NoError(t, err)
+	_, err = file.Write([]byte("PAR1"))
+	require.NoError(t, err)
+	file.Close()
+
+	// Try to open this corrupted file
+	pf, err := LocalParquetFile(historyFilePath, true)
+	assert.Error(t, err)
+	assert.Nil(t, pf)
 }
