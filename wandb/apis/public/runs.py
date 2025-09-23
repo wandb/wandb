@@ -122,7 +122,7 @@ def _create_runs_query(*, lazy: bool, with_internal_id: bool) -> gql:
         f"""#graphql
         query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
             project(name: $project, entityName: $entity) {{
-                internalId
+                {"internalId" if with_internal_id else ""}
                 runCount(filters: $filters)
                 readOnly
                 runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
@@ -155,7 +155,7 @@ def _server_provides_internal_id_for_project(client) -> bool:
     cache_key = f"internal_id_for_project_{id(client)}"
     if cache_key in _SERVER_CAPABILITIES_CACHE:
         return _SERVER_CAPABILITIES_CACHE[cache_key]
-    
+
     query_string = """
        query ProbeProjectInput {
             ProjectType: __type(name:"Project") {
@@ -182,7 +182,7 @@ def _server_provides_project_id_for_run(client) -> bool:
     cache_key = f"project_id_for_run_{id(client)}"
     if cache_key in _SERVER_CAPABILITIES_CACHE:
         return _SERVER_CAPABILITIES_CACHE[cache_key]
-    
+
     query_string = """
        query ProbeRunInput {
             RunType: __type(name:"Run") {
@@ -713,8 +713,10 @@ class Run(Attrs):
         """Load run data using specified GraphQL fragment."""
         # Cache the server capability check to avoid repeated network calls
         if self._server_provides_project_id_field is None:
-            self._server_provides_project_id_field = _server_provides_project_id_for_run(self.client)
-        
+            self._server_provides_project_id_field = (
+                _server_provides_project_id_for_run(self.client)
+            )
+
         query = gql(
             f"""
         query Run($project: String!, $entity: String!, $name: String!) {{
@@ -755,6 +757,12 @@ class Run(Attrs):
                 )
 
         if not self._is_loaded:
+            # Always set _project_internal_id if projectId is available, regardless of fragment type
+            if "projectId" in self._attrs:
+                self._project_internal_id = int(self._attrs["projectId"])
+            else:
+                self._project_internal_id = None
+
             # Only call _load_from_attrs when using the full fragment or when the fields are actually present
             if fragment_name == RUN_FRAGMENT_NAME or (
                 "config" in self._attrs
@@ -768,7 +776,7 @@ class Run(Attrs):
 
     def _load_from_attrs(self):
         self._state = self._attrs.get("state", None)
-        
+
         # Only convert fields if they exist in _attrs
         if "config" in self._attrs:
             self._attrs["config"] = _convert_to_dict(self._attrs.get("config"))
@@ -781,11 +789,6 @@ class Run(Attrs):
                 self._attrs.get("systemMetrics")
             )
 
-        if "projectId" in self._attrs:
-            self._project_internal_id = int(self._attrs["projectId"])
-        else:
-            self._project_internal_id = None
-
         # Only check for sweeps if sweep_name is available (not in lazy mode or if it exists)
         if self._include_sweeps and self._attrs.get("sweepName") and not self.sweep:
             # There may be a lot of runs. Don't bother pulling them all
@@ -796,7 +799,6 @@ class Run(Attrs):
                 self._attrs["sweepName"],
                 withRuns=False,
             )
-
 
         config_user, config_raw = {}, {}
         if self._attrs.get("config"):
