@@ -596,7 +596,43 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	}
 
 	switch msg.Type {
-	case tea.KeyCtrlB:
+	case tea.KeyCtrlL:
+		// Clear filter with Ctrl+L for charts
+		if m.activeFilter != "" {
+			m.clearFilter()
+			return m, nil
+		}
+
+	case tea.KeyCtrlK:
+		// Clear overview filter with Ctrl+K
+		if m.sidebar.IsFiltering() {
+			m.sidebar.clearFilter()
+			return m, nil
+		}
+
+	}
+
+	switch msg.String() {
+	case "h", "?":
+		m.help.Toggle()
+		return m, nil
+
+	case "q", "ctrl+c":
+		m.logger.Debug("model: quit requested")
+		if m.reader != nil {
+			m.reader.Close()
+		}
+		// Stop heartbeat
+		m.stopHeartbeat()
+		if m.watcherStarted {
+			m.logger.Debug("model: finishing watcher on quit")
+			m.watcher.Finish()
+			m.watcherStarted = false
+		}
+		close(m.msgChan)
+		return m, tea.Quit
+
+	case "[":
 		// Prevent concurrent animations
 		m.animationMu.Lock()
 		if m.animating {
@@ -628,7 +664,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 		return m, m.sidebar.animationCmd()
 
-	case tea.KeyCtrlN:
+	case "]":
 		// Prevent concurrent animations
 		m.animationMu.Lock()
 		if m.animating {
@@ -660,53 +696,18 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 		return m, m.rightSidebar.animationCmd()
 
-	case tea.KeyCtrlL:
-		// Clear filter with Ctrl+L for charts
-		if m.activeFilter != "" {
-			m.clearFilter()
-			return m, nil
-		}
-
-	case tea.KeyCtrlK:
-		// Clear overview filter with Ctrl+K
-		if m.sidebar.IsFiltering() {
-			m.sidebar.clearFilter()
-			return m, nil
-		}
-
-	case tea.KeyPgUp, tea.KeyShiftUp:
+	case "N", "pgup":
 		m.navigatePage(-1)
 
-	case tea.KeyPgDown, tea.KeyShiftDown:
+	case "n", "pgdown":
 		m.navigatePage(1)
-	}
-
-	switch msg.String() {
-	case "h", "?":
-		m.help.Toggle()
-		return m, nil
-
-	case "q", "ctrl+c":
-		m.logger.Debug("model: quit requested")
-		if m.reader != nil {
-			m.reader.Close()
-		}
-		// Stop heartbeat
-		m.stopHeartbeat()
-		if m.watcherStarted {
-			m.logger.Debug("model: finishing watcher on quit")
-			m.watcher.Finish()
-			m.watcherStarted = false
-		}
-		close(m.msgChan)
-		return m, tea.Quit
 
 	case "/":
 		// Enter filter mode for charts
 		m.enterFilterMode()
 		return m, nil
 
-	case "[":
+	case "o":
 		// Enter filter mode for overview - using [ as it's simple
 		m.overviewFilterMode = true
 		// Start with existing filter if any

@@ -860,10 +860,10 @@ func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if rs.state == SidebarExpanded && rs.metricsGrid != nil {
-			switch msg.Type {
-			case tea.KeyCtrlPgUp, tea.KeyCtrlShiftUp:
+			switch msg.String() {
+			case "alt+N", "alt+pgup":
 				rs.metricsGrid.Navigate(-1)
-			case tea.KeyCtrlPgDown, tea.KeyCtrlShiftDown:
+			case "alt+n", "alt+pgdown":
 				rs.metricsGrid.Navigate(1)
 			}
 		}

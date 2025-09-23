@@ -546,7 +546,7 @@ func (m *Model) renderStatusBar() string {
 		if filterInfo == "" {
 			filterInfo = "no matches"
 		}
-		statusText = fmt.Sprintf(" Overview filter: [%s_ [%s] (@e/@c/@s for sections • Enter to apply)",
+		statusText = fmt.Sprintf(" Overview filter: %s_ [%s] (@e/@c/@s for sections • Enter to apply)",
 			m.overviewFilterInput, filterInfo)
 	case m.filterMode:
 		// Show chart filter input with cursor
@@ -554,7 +554,7 @@ func (m *Model) renderStatusBar() string {
 		m.chartMu.RLock()
 		totalCount := len(m.allCharts)
 		m.chartMu.RUnlock()
-		statusText = fmt.Sprintf(" Filter: /%s_ [%d/%d matches] (Enter to apply)",
+		statusText = fmt.Sprintf(" Filter: %s_ [%d/%d matches] (Enter to apply)",
 			m.filterInput, matchCount, totalCount)
 	case m.waitingForConfigKey:
 		// Show config hint
@@ -597,7 +597,7 @@ func (m *Model) renderStatusBar() string {
 			if statusText != "" {
 				statusText += " •"
 			}
-			statusText += fmt.Sprintf(" Overview: \"%s\" [%s] ([ to change, Ctrl+K to clear)",
+			statusText += fmt.Sprintf(" Overview: \"%s\" [%s] (o to change, Ctrl+K to clear)",
 				m.sidebar.GetFilterQuery(), filterInfo)
 		}
 

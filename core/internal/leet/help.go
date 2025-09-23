@@ -36,8 +36,16 @@ func NewHelp() *HelpModel {
 
 		// Panels
 		{Key: "Panels", Description: ""},
-		{Key: "ctrl+b", Description: "Toggle run overview sidebar"},
-		{Key: "ctrl+n", Description: "Toggle system metrics sidebar"},
+		{Key: "[", Description: "Toggle left sidebar with run overview"},
+		{Key: "]", Description: "Toggle right sidebar with system metrics"},
+		{Key: "", Description: ""},
+
+		// Navigation
+		{Key: "Navigation", Description: ""},
+		{Key: "n/N, pgup/pgdn", Description: "Navigate between chart pages"},
+		{Key: "alt+n/N, alt+pgup/pgdn", Description: "Navigate between system metrics pages"},
+		{Key: "mouse wheel", Description: "Zoom in/out on focused chart"},
+		{Key: "shift+mouse select", Description: "Select text"},
 		{Key: "", Description: ""},
 
 		// Charts
@@ -48,7 +56,7 @@ func NewHelp() *HelpModel {
 
 		// Run Overview Navigation (when sidebar open)
 		{Key: "Run Overview", Description: ""},
-		{Key: "[", Description: "Filter overview items"},
+		{Key: "o", Description: "Filter overview items"},
 		{Key: "ctrl+k", Description: "Clear overview filter"},
 		{Key: "up/down", Description: "Navigate items in section"},
 		{Key: "tab/shift+tab", Description: "Switch between sections"},
@@ -62,14 +70,6 @@ func NewHelp() *HelpModel {
 		{Key: "r + [1-9]", Description: "Set metrics grid rows"},
 		{Key: "C + [1-9]", Description: "Set system grid columns (Shift+c)"},
 		{Key: "R + [1-9]", Description: "Set system grid rows (Shift+r)"},
-		{Key: "", Description: ""},
-
-		// Navigation
-		{Key: "Navigation", Description: ""},
-		{Key: "pgup/pgdn, shift+up/down", Description: "Navigate between chart pages"},
-		{Key: "ctrl+pgup/pgdn, ctrl+shift+up/down", Description: "Navigate between system metrics pages"},
-		{Key: "mouse wheel", Description: "Zoom in/out on focused chart"},
-		{Key: "shift+mouse select", Description: "Select text"},
 	}
 
 	vp := viewport.New(80, 20) // Initial size, will be updated

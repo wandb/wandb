@@ -122,7 +122,7 @@ func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 50})
 
 	// Toggle left sidebar
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlB})
+	m, _ = m.Update(tea.KeyMsg{Runes: []rune{'['}, Type: tea.KeyRunes})
 	model := m.(*leet.Model)
 
 	// Force complete the animation
