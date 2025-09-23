@@ -7,17 +7,12 @@ import (
 	"testing"
 
 	"github.com/apache/arrow-go/v18/arrow"
-	"github.com/apache/arrow-go/v18/arrow/array"
-	"github.com/apache/arrow-go/v18/arrow/memory"
-	"github.com/apache/arrow-go/v18/parquet"
-	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	test "github.com/wandb/wandb/core/tests/parquet"
 )
 
-// createTestParquetFile creates a simple parquet file for testing
-func createTestParquetFile(t *testing.T, filepath string) {
-	// Create a simple Arrow schema
+func TestLocalParquetFile_Reader_NoError(t *testing.T) {
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
@@ -25,53 +20,42 @@ func createTestParquetFile(t *testing.T, filepath string) {
 		},
 		nil,
 	)
+	arrays := []arrow.Array{
+		test.BuildArray(t, []int64{1, 2, 3}, nil),
+		test.BuildArray(t, []float64{1.0, 2.0, 3.0}, nil),
+	}
 
-	// Create arrays directly
-	alloc := memory.DefaultAllocator
+	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
+	test.CreateTestParquetFile(t, historyFilePath, schema, arrays)
 
-	// Create int64 array for _step column
-	stepBuilder := array.NewInt64Builder(alloc)
-	defer stepBuilder.Release()
-	stepBuilder.AppendValues([]int64{1, 2, 3}, nil)
-	stepArray := stepBuilder.NewArray()
-	defer stepArray.Release()
+	pf, err := LocalParquetFile(historyFilePath, true /* parallel */)
+	assert.NoError(t, err)
+	defer pf.Close()
+	assert.NotNil(t, pf)
+	assert.NotNil(t, pf.reader)
+}
 
-	// Create float64 array for test_metric column
-	metricBuilder := array.NewFloat64Builder(alloc)
-	defer metricBuilder.Release()
-	metricBuilder.AppendValues([]float64{1.0, 2.0, 3.0}, nil)
-	metricArray := metricBuilder.NewArray()
-	defer metricArray.Release()
-
-	// Create record batch from arrays
-	record := array.NewRecordBatch(
-		schema,
-		[]arrow.Array{stepArray, metricArray},
-		3,
-	)
-	defer record.Release()
-
-	// Write to parquet file
-	outFile, err := os.Create(filepath)
-	require.NoError(t, err)
-	defer outFile.Close()
-
-	writer, err := pqarrow.NewFileWriter(
-		schema,
-		outFile,
-		parquet.NewWriterProperties(),
-		pqarrow.DefaultWriterProps(),
-	)
-	require.NoError(t, err)
-	defer writer.Close()
-
-	err = writer.Write(record)
-	require.NoError(t, err)
+func TestLocalParquetFile_Reader_Error(t *testing.T) {
+	pf, err := LocalParquetFile("nonexistent.parquet", true /* parallel */)
+	assert.Error(t, err)
+	assert.Nil(t, pf)
 }
 
 func TestLocalParquetFile_MetaData(t *testing.T) {
+	schema := arrow.NewSchema(
+		[]arrow.Field{
+			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
+			{Name: "test_metric", Type: arrow.PrimitiveTypes.Float64},
+		},
+		nil,
+	)
+	arrays := []arrow.Array{
+		test.BuildArray(t, []int64{1, 2, 3}, nil),
+		test.BuildArray(t, []float64{1.0, 2.0, 3.0}, nil),
+	}
+
 	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
-	createTestParquetFile(t, historyFilePath)
+	test.CreateTestParquetFile(t, historyFilePath, schema, arrays)
 
 	reader, err := LocalParquetFile(historyFilePath, true /* parallel */)
 	assert.NoError(t, err)
