@@ -1,4 +1,4 @@
-package historyparquet
+package parquet
 
 import (
 	"bytes"
