@@ -596,18 +596,18 @@ func TestResolveRunDirectory(t *testing.T) {
 			setup: func(t *testing.T) (string, func()) {
 				origDir, _ := os.Getwd()
 				tmpDir := t.TempDir()
-				os.Chdir(tmpDir)
+				_ = os.Chdir(tmpDir)
 
 				// Create .wandb directory structure
 				wandbDir := filepath.Join(tmpDir, ".wandb")
 				runDir := filepath.Join(wandbDir, "run-20250101_120000-abc123")
-				os.MkdirAll(runDir, 0755)
+				_ = os.MkdirAll(runDir, 0755)
 
 				// Create latest-run symlink
 				latestPath := filepath.Join(wandbDir, "latest-run")
-				os.Symlink(runDir, latestPath)
+				_ = os.Symlink(runDir, latestPath)
 
-				return "", func() { os.Chdir(origDir) }
+				return "", func() { _ = os.Chdir(origDir) }
 			},
 			check: func(t *testing.T, got string) {
 				if !strings.Contains(got, "run-20250101_120000-abc123") {
@@ -620,18 +620,18 @@ func TestResolveRunDirectory(t *testing.T) {
 			setup: func(t *testing.T) (string, func()) {
 				origDir, _ := os.Getwd()
 				tmpDir := t.TempDir()
-				os.Chdir(tmpDir)
+				_ = os.Chdir(tmpDir)
 
 				// Create wandb directory structure (no dot prefix)
 				wandbDir := filepath.Join(tmpDir, "wandb")
 				runDir := filepath.Join(wandbDir, "run-20250102_130000-def456")
-				os.MkdirAll(runDir, 0755)
+				_ = os.MkdirAll(runDir, 0755)
 
 				// Create latest-run symlink
 				latestPath := filepath.Join(wandbDir, "latest-run")
-				os.Symlink(runDir, latestPath)
+				_ = os.Symlink(runDir, latestPath)
 
-				return "", func() { os.Chdir(origDir) }
+				return "", func() { _ = os.Chdir(origDir) }
 			},
 			check: func(t *testing.T, got string) {
 				if !strings.Contains(got, "run-20250102_130000-def456") {
@@ -644,20 +644,20 @@ func TestResolveRunDirectory(t *testing.T) {
 			setup: func(t *testing.T) (string, func()) {
 				origDir, _ := os.Getwd()
 				tmpDir := t.TempDir()
-				os.Chdir(tmpDir)
+				_ = os.Chdir(tmpDir)
 
 				// Create both .wandb and wandb directories
 				dotWandbDir := filepath.Join(tmpDir, ".wandb")
 				dotRunDir := filepath.Join(dotWandbDir, "run-dot-wandb")
-				os.MkdirAll(dotRunDir, 0755)
-				os.Symlink(dotRunDir, filepath.Join(dotWandbDir, "latest-run"))
+				_ = os.MkdirAll(dotRunDir, 0755)
+				_ = os.Symlink(dotRunDir, filepath.Join(dotWandbDir, "latest-run"))
 
 				wandbDir := filepath.Join(tmpDir, "wandb")
 				runDir := filepath.Join(wandbDir, "run-regular-wandb")
-				os.MkdirAll(runDir, 0755)
-				os.Symlink(runDir, filepath.Join(wandbDir, "latest-run"))
+				_ = os.MkdirAll(runDir, 0755)
+				_ = os.Symlink(runDir, filepath.Join(wandbDir, "latest-run"))
 
-				return "", func() { os.Chdir(origDir) }
+				return "", func() { _ = os.Chdir(origDir) }
 			},
 			check: func(t *testing.T, got string) {
 				if !strings.Contains(got, "run-dot-wandb") {
@@ -670,18 +670,18 @@ func TestResolveRunDirectory(t *testing.T) {
 			setup: func(t *testing.T) (string, func()) {
 				tmpDir := t.TempDir()
 				customDir := filepath.Join(tmpDir, "custom")
-				os.MkdirAll(customDir, 0755)
+				_ = os.MkdirAll(customDir, 0755)
 
 				// Create wandb structure in custom dir
 				wandbDir := filepath.Join(customDir, ".wandb")
 				runDir := filepath.Join(wandbDir, "run-from-env")
-				os.MkdirAll(runDir, 0755)
-				os.Symlink(runDir, filepath.Join(wandbDir, "latest-run"))
+				_ = os.MkdirAll(runDir, 0755)
+				_ = os.Symlink(runDir, filepath.Join(wandbDir, "latest-run"))
 
 				// Set WANDB_DIR
-				os.Setenv("WANDB_DIR", customDir)
+				_ = os.Setenv("WANDB_DIR", customDir)
 
-				return "", func() { os.Unsetenv("WANDB_DIR") }
+				return "", func() { _ = os.Unsetenv("WANDB_DIR") }
 			},
 			check: func(t *testing.T, got string) {
 				if !strings.Contains(got, "run-from-env") {
@@ -694,10 +694,10 @@ func TestResolveRunDirectory(t *testing.T) {
 			setup: func(t *testing.T) (string, func()) {
 				origDir, _ := os.Getwd()
 				tmpDir := t.TempDir()
-				os.Chdir(tmpDir)
+				_ = os.Chdir(tmpDir)
 
 				// Create .wandb directory but no latest-run
-				os.MkdirAll(filepath.Join(tmpDir, ".wandb"), 0755)
+				_ = os.MkdirAll(filepath.Join(tmpDir, ".wandb"), 0755)
 
 				return "", func() { os.Chdir(origDir) }
 			},
@@ -708,20 +708,20 @@ func TestResolveRunDirectory(t *testing.T) {
 			setup: func(t *testing.T) (string, func()) {
 				origDir, _ := os.Getwd()
 				tmpDir := t.TempDir()
-				os.Chdir(tmpDir)
+				_ = os.Chdir(tmpDir)
 
 				wandbDir := filepath.Join(tmpDir, ".wandb")
-				os.MkdirAll(wandbDir, 0755)
+				_ = os.MkdirAll(wandbDir, 0755)
 
 				// Create a file and symlink to it
 				file := filepath.Join(wandbDir, "somefile")
 				f, _ := os.Create(file)
-				f.Close()
+				_ = f.Close()
 
 				latestPath := filepath.Join(wandbDir, "latest-run")
-				os.Symlink(file, latestPath)
+				_ = os.Symlink(file, latestPath)
 
-				return "", func() { os.Chdir(origDir) }
+				return "", func() { _ = os.Chdir(origDir) }
 			},
 			wantErr: "latest-run symlink does not point to a directory",
 		},
@@ -730,7 +730,7 @@ func TestResolveRunDirectory(t *testing.T) {
 			setup: func(t *testing.T) (string, func()) {
 				tmpDir := t.TempDir()
 				runDir := filepath.Join(tmpDir, "my-run")
-				os.MkdirAll(runDir, 0755)
+				_ = os.MkdirAll(runDir, 0755)
 				return runDir, func() {}
 			},
 			check: func(t *testing.T, got string) {
@@ -747,12 +747,12 @@ func TestResolveRunDirectory(t *testing.T) {
 			setup: func(t *testing.T) (string, func()) {
 				origDir, _ := os.Getwd()
 				tmpDir := t.TempDir()
-				os.Chdir(tmpDir)
+				_ = os.Chdir(tmpDir)
 
 				runDir := "relative/path/to/run"
-				os.MkdirAll(runDir, 0755)
+				_ = os.MkdirAll(runDir, 0755)
 
-				return runDir, func() { os.Chdir(origDir) }
+				return runDir, func() { _ = os.Chdir(origDir) }
 			},
 			check: func(t *testing.T, got string) {
 				if !filepath.IsAbs(got) {
