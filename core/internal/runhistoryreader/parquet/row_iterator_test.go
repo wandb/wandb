@@ -43,7 +43,6 @@ func getRowIteratorForFile(
 }
 
 func TestSelectRowGroups(t *testing.T) {
-	t.Parallel()
 	allocator := memory.NewCheckedAllocator(memory.DefaultAllocator)
 	filePath := "../../../../tests/files/history.parquet"
 	f, err := os.Open(filePath)
@@ -87,14 +86,12 @@ func TestSelectRowGroups(t *testing.T) {
 }
 
 func TestRowIteratorWithPage(t *testing.T) {
-	t.Parallel()
-
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
 			{Name: "loss", Type: arrow.PrimitiveTypes.Int64},
 		},
-		nil /* metadata */,
+		nil, /* metadata */
 	)
 	data := []map[string]any{
 		{"_step": 1, "loss": 1},
@@ -128,15 +125,13 @@ func TestRowIteratorWithPage(t *testing.T) {
 }
 
 func TestRowIteratorUserMetricsWithTimestamp(t *testing.T) {
-	t.Parallel()
-
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "_step", Type: arrow.PrimitiveTypes.Float64},
 			{Name: "loss", Type: arrow.PrimitiveTypes.Int64},
 			{Name: "_timestamp", Type: arrow.PrimitiveTypes.Float64},
 		},
-		nil /* metadata */,
+		nil, /* metadata */
 	)
 
 	data := []map[string]any{
@@ -178,15 +173,13 @@ func TestRowIteratorUserMetricsWithTimestamp(t *testing.T) {
 }
 
 func TestRowIteratorUserMetricsWithTimestampReordered(t *testing.T) {
-	t.Parallel()
-
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "_timestamp", Type: arrow.PrimitiveTypes.Float64},
 			{Name: "loss", Type: arrow.PrimitiveTypes.Int64},
 			{Name: "_step", Type: arrow.PrimitiveTypes.Float64},
 		},
-		nil /* metadata */,
+		nil, /* metadata */
 	)
 	data := []map[string]any{
 		{"_timestamp": 1.0, "loss": 1, "_step": 1.0},
@@ -227,15 +220,13 @@ func TestRowIteratorUserMetricsWithTimestampReordered(t *testing.T) {
 }
 
 func TestRowIteratorSystemMetrics(t *testing.T) {
-	t.Parallel()
-
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "_timestamp", Type: arrow.PrimitiveTypes.Float64},
 			{Name: "loss", Type: arrow.PrimitiveTypes.Int64},
 			{Name: "_step", Type: arrow.PrimitiveTypes.Float64},
 		},
-		nil /* metadata */,
+		nil, /* metadata */
 	)
 	data := []map[string]any{
 		{"_timestamp": 1.0, "loss": 1, "_step": 1.0},
@@ -280,9 +271,7 @@ func TestRowIteratorSystemMetrics(t *testing.T) {
 	assert.False(t, next, "Expected no more data returned")
 }
 
-
 func TestTableIteratorFiltersRowsWithEmptyColumns(t *testing.T) {
-	t.Parallel()
 	schema := arrow.NewSchema([]arrow.Field{
 		{
 			Name: "_step",
@@ -329,7 +318,6 @@ func TestTableIteratorFiltersRowsWithEmptyColumns(t *testing.T) {
 }
 
 func TestTableIteratorFiltersRowsWithStepOutOfRange(t *testing.T) {
-	t.Parallel()
 	schema := arrow.NewSchema([]arrow.Field{
 		{
 			Name: "_step",
@@ -368,7 +356,6 @@ func TestTableIteratorFiltersRowsWithStepOutOfRange(t *testing.T) {
 }
 
 func TestTableIteratorMemoryLeak(t *testing.T) {
-	t.Parallel()
 	allocator := memory.NewCheckedAllocator(memory.DefaultAllocator)
 	schema := arrow.NewSchema([]arrow.Field{
 		{
@@ -405,7 +392,6 @@ func TestTableIteratorMemoryLeak(t *testing.T) {
 }
 
 func TestRowGroupIteratorMemoryLeak(t *testing.T) {
-	t.Parallel()
 	allocator := memory.NewCheckedAllocator(memory.DefaultAllocator)
 	defer allocator.AssertSize(t, 0)
 
@@ -439,7 +425,6 @@ func TestRowGroupIteratorMemoryLeak(t *testing.T) {
 }
 
 func TestRowGroupIteratorWithListOfStructs(t *testing.T) {
-	t.Parallel()
 	schema := arrow.NewSchema([]arrow.Field{
 		{
 			Nullable: true,
@@ -504,7 +489,6 @@ func TestRowGroupIteratorWithListOfStructs(t *testing.T) {
 }
 
 func TestRowGroupIteratorWithListOfNestedStructs(t *testing.T) {
-	t.Parallel()
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{
@@ -586,7 +570,6 @@ func TestRowGroupIteratorWithListOfNestedStructs(t *testing.T) {
 }
 
 func TestEmptyFile(t *testing.T) {
-	t.Parallel()
 	allocator := memory.NewCheckedAllocator(memory.DefaultAllocator)
 	filePath := "../../../../tests/files/empty.parquet"
 	f, err := os.Open(filePath)
@@ -629,7 +612,6 @@ func TestEmptyFile(t *testing.T) {
 }
 
 func TestRowIteratorWithMissingColumns(t *testing.T) {
-	t.Parallel()
 	schema := arrow.NewSchema([]arrow.Field{
 		{Name: "_step", Type: arrow.PrimitiveTypes.Float64},
 		{Name: "loss", Type: arrow.PrimitiveTypes.Int64},
@@ -655,8 +637,6 @@ func TestRowIteratorWithMissingColumns(t *testing.T) {
 }
 
 func TestRowIteratorWithComplexColumns(t *testing.T) {
-	t.Parallel()
-
 	schema := arrow.NewSchema([]arrow.Field{
 		{Name: "_step", Type: arrow.PrimitiveTypes.Float64},
 		{Name: "loss", Type: arrow.PrimitiveTypes.Int64},
@@ -667,18 +647,18 @@ func TestRowIteratorWithComplexColumns(t *testing.T) {
 	}, nil)
 	data := []map[string]any{
 		{
-			"_step": 1.0,
-			"loss": int64(1),
+			"_step":  1.0,
+			"loss":   int64(1),
 			"nested": map[string]any{"nested_a": 1.0, "nested_b": 2.0},
 		},
 		{
-			"_step": 2.0,
-			"loss": int64(2),
+			"_step":  2.0,
+			"loss":   int64(2),
 			"nested": map[string]any{"nested_a": 2.0, "nested_b": 4.0},
 		},
 		{
-			"_step": 3.0,
-			"loss": int64(3),
+			"_step":  3.0,
+			"loss":   int64(3),
 			"nested": map[string]any{"nested_a": 4.0, "nested_b": 6.0},
 		},
 	}
@@ -694,7 +674,6 @@ func TestRowIteratorWithComplexColumns(t *testing.T) {
 		}),
 	)
 	defer cleanup()
-
 
 	// Verify all rows match the input data
 	for i, row := range data {
