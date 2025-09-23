@@ -51,8 +51,8 @@ from wandb.sdk.artifacts._generated import (
     ProjectArtifacts,
     ProjectArtifactType,
     ProjectArtifactTypes,
-    RunInputArtifactsProjectRunInputArtifacts,
-    RunOutputArtifactsProjectRunOutputArtifacts,
+    RunInputArtifactConnectionFragment,
+    RunOutputArtifactConnectionFragment,
 )
 from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
 from wandb.sdk.artifacts._validators import (
@@ -797,14 +797,12 @@ class RunArtifacts(SizedPaginator["Artifact"]):
     """
 
     last_response: (
-        RunOutputArtifactsProjectRunOutputArtifacts
-        | RunInputArtifactsProjectRunInputArtifacts
+        RunOutputArtifactConnectionFragment | RunInputArtifactConnectionFragment
     )
 
     #: The pydantic model used to parse the (inner part of the) raw response.
     _response_cls: type[
-        RunOutputArtifactsProjectRunOutputArtifacts
-        | RunInputArtifactsProjectRunInputArtifacts
+        RunOutputArtifactConnectionFragment | RunInputArtifactConnectionFragment
     ]
 
     def __init__(
@@ -821,13 +819,13 @@ class RunArtifacts(SizedPaginator["Artifact"]):
             self.QUERY = gql_compat(
                 RUN_OUTPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields()
             )
-            self._response_cls = RunOutputArtifactsProjectRunOutputArtifacts
+            self._response_cls = RunOutputArtifactConnectionFragment
         elif mode == "used":
             self.run_key = "inputArtifacts"
             self.QUERY = gql_compat(
                 RUN_INPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields()
             )
-            self._response_cls = RunInputArtifactsProjectRunInputArtifacts
+            self._response_cls = RunInputArtifactConnectionFragment
         else:
             raise ValueError("mode must be logged or used")
 
