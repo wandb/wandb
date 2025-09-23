@@ -699,7 +699,7 @@ func TestResolveRunDirectory(t *testing.T) {
 				// Create .wandb directory but no latest-run
 				_ = os.MkdirAll(filepath.Join(tmpDir, ".wandb"), 0755)
 
-				return "", func() { os.Chdir(origDir) }
+				return "", func() { _ = os.Chdir(origDir) }
 			},
 			wantErr: "no latest-run symlink found",
 		},
@@ -768,10 +768,10 @@ func TestResolveRunDirectory(t *testing.T) {
 			setup: func(t *testing.T) (string, func()) {
 				tmpDir := t.TempDir()
 				actualDir := filepath.Join(tmpDir, "actual-run-dir")
-				os.MkdirAll(actualDir, 0755)
+				_ = os.MkdirAll(actualDir, 0755)
 
 				symlink := filepath.Join(tmpDir, "link-to-run")
-				os.Symlink(actualDir, symlink)
+				_ = os.Symlink(actualDir, symlink)
 
 				return symlink, func() {}
 			},
@@ -789,7 +789,7 @@ func TestResolveRunDirectory(t *testing.T) {
 			setup: func(t *testing.T) (string, func()) {
 				tmpDir := t.TempDir()
 				symlink := filepath.Join(tmpDir, "broken-link")
-				os.Symlink("/nonexistent/target", symlink)
+				_ = os.Symlink("/nonexistent/target", symlink)
 				return symlink, func() {}
 			},
 			wantErr: "cannot resolve symlink",
