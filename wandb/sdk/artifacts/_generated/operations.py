@@ -1072,22 +1072,22 @@ fragment TypeInfoFragment on __Type {
 """
 
 FETCH_ORG_ENTITY_FROM_ENTITY_GQL = """
-query FetchOrgEntityFromEntity($entityName: String!) {
-  entity(name: $entityName) {
+query FetchOrgEntityFromEntity($entity: String!) {
+  entity(name: $entity) {
     organization {
-      ...OrgWithEntityFragment
+      ...OrgInfoFragment
     }
     user {
       organizations {
-        ...OrgWithEntityFragment
+        ...OrgInfoFragment
       }
     }
   }
 }
 
-fragment OrgWithEntityFragment on Organization {
+fragment OrgInfoFragment on Organization {
   name
-  orgEntity {
+  orgEntity @include(if: true) {
     name
   }
 }

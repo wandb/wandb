@@ -233,12 +233,14 @@ class MembershipWithArtifactArtifactCollectionProject(GQLBase):
     name: str
 
 
-class OrgWithEntityFragment(GQLBase):
+class OrgInfoFragment(GQLBase):
     name: str
-    org_entity: Optional[OrgWithEntityFragmentOrgEntity] = Field(alias="orgEntity")
+    org_entity: Optional[OrgInfoFragmentOrgEntity] = Field(
+        alias="orgEntity", default=None
+    )
 
 
-class OrgWithEntityFragmentOrgEntity(GQLBase):
+class OrgInfoFragmentOrgEntity(GQLBase):
     name: str
 
 
@@ -485,8 +487,8 @@ FilesFragmentPageInfo.model_rebuild()
 MembershipWithArtifact.model_rebuild()
 MembershipWithArtifactArtifactCollection.model_rebuild()
 MembershipWithArtifactArtifactCollectionProject.model_rebuild()
-OrgWithEntityFragment.model_rebuild()
-OrgWithEntityFragmentOrgEntity.model_rebuild()
+OrgInfoFragment.model_rebuild()
+OrgInfoFragmentOrgEntity.model_rebuild()
 RegistriesPage.model_rebuild()
 RegistriesPageEdges.model_rebuild()
 RegistriesPagePageInfo.model_rebuild()
