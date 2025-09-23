@@ -11,6 +11,7 @@ import (
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gitops"
@@ -23,7 +24,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -39,26 +39,28 @@ const (
 	ConfigFileName       = "config.yaml"
 )
 
-type HandlerParams struct {
+var handlerProviders = wire.NewSet(
+	wire.Struct(new(HandlerFactory), "*"),
+)
+
+type GitCommitHash string
+
+type HandlerFactory struct {
 	// Commit is the W&B Git commit hash
-	Commit            string
-	FileTransferStats filetransfer.FileTransferStats
-	FwdChan           chan runwork.Work
-	Logger            *observability.CoreLogger
-	Mailbox           *mailbox.Mailbox
-	Operations        *wboperation.WandbOperations
-	OutChan           chan *spb.Result
-	Settings          *settings.Settings
-	SystemMonitor     *monitor.SystemMonitor
-	TBHandler         *tensorboard.TBHandler
-	TerminalPrinter   *observability.Printer
+	Commit               GitCommitHash
+	FileTransferStats    filetransfer.FileTransferStats
+	Logger               *observability.CoreLogger
+	Mailbox              *mailbox.Mailbox
+	Operations           *wboperation.WandbOperations
+	Settings             *settings.Settings
+	SystemMonitorFactory *monitor.SystemMonitorFactory
+	TerminalPrinter      *observability.Printer
 }
 
-// Handler handles the incoming messages, processes them, and passes them to the writer.
+// Handler performs non-blocking operations to preprocess incoming Work.
 type Handler struct {
-
 	// commit is the W&B Git commit hash
-	commit string
+	commit GitCommitHash
 
 	// fileTransferStats reports file upload/download statistics
 	fileTransferStats filetransfer.FileTransferStats
@@ -116,35 +118,44 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
-	// tbHandler is the tensorboard handler
-	tbHandler *tensorboard.TBHandler
-
 	// terminalPrinter gathers terminal messages to send back to the user process
 	terminalPrinter *observability.Printer
 }
 
-// NewHandler creates a new handler
-func NewHandler(
-	params HandlerParams,
-) *Handler {
+// New returns a new Handler.
+func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
+	var systemMonitor *monitor.SystemMonitor
+	if f.SystemMonitorFactory != nil { // nil in tests only
+		systemMonitor = f.SystemMonitorFactory.New(extraWork)
+	}
+
 	return &Handler{
-		commit:               params.Commit,
-		fileTransferStats:    params.FileTransferStats,
-		fwdChan:              params.FwdChan,
-		logger:               params.Logger,
-		mailbox:              params.Mailbox,
+		commit:               f.Commit,
+		fileTransferStats:    f.FileTransferStats,
+		fwdChan:              make(chan runwork.Work, BufferSize),
+		logger:               f.Logger,
+		mailbox:              f.Mailbox,
 		metricHandler:        runmetric.New(),
-		operations:           params.Operations,
-		outChan:              params.OutChan,
+		operations:           f.Operations,
+		outChan:              make(chan *spb.Result, BufferSize),
 		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
 		runHistorySampler:    runhistory.NewRunHistorySampler(),
 		runSummary:           runsummary.New(),
 		runTimer:             timer.New(0),
-		settings:             params.Settings,
-		systemMonitor:        params.SystemMonitor,
-		tbHandler:            params.TBHandler,
-		terminalPrinter:      params.TerminalPrinter,
+		settings:             f.Settings,
+		systemMonitor:        systemMonitor,
+		terminalPrinter:      f.TerminalPrinter,
 	}
+}
+
+// ResponseChan contains responses for the client.
+func (h *Handler) ResponseChan() <-chan *spb.Result {
+	return h.outChan
+}
+
+// OutChan contains work to pass to the next stream component.
+func (h *Handler) OutChan() <-chan runwork.Work {
+	return h.fwdChan
 }
 
 // Do processes all work on the input channel.
@@ -246,8 +257,6 @@ func (h *Handler) handleRecord(record *spb.Record) {
 		h.handleRequest(record)
 	case *spb.Record_Summary:
 		h.handleSummary(x.Summary)
-	case *spb.Record_Tbrecord:
-		h.handleTBrecord(x.Tbrecord)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRecord: record type is nil"))
@@ -332,6 +341,8 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestRunFinishWithoutExit(record)
 	case *spb.Request_Operations:
 		h.handleRequestOperations(record)
+	case *spb.Request_ProbeSystemInfo:
+		h.handleRequestProbeSystemInfo(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
@@ -476,8 +487,6 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 			errors.New("handleRunStart: failed to clone run"))
 	}
 	h.fwdRecord(record)
-	// NOTE: once this request arrives in the sender,
-	// the latter will start its filestream and uploader
 
 	// TODO: Move computation of git state to wandb-core.
 	var git *spb.GitRepoRecord
@@ -498,6 +507,10 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 	}
 
 	h.respond(record, &spb.Response{})
+}
+
+func (h *Handler) handleRequestProbeSystemInfo(record *spb.Record) {
+	h.systemMonitor.Probe()
 }
 
 func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.PythonPackagesRequest) {
@@ -813,13 +826,6 @@ func (h *Handler) updateRunTiming() {
 
 	h.handleSummary(record.GetSummary())
 	h.fwdRecord(record)
-}
-
-func (h *Handler) handleTBrecord(record *spb.TBRecord) {
-	if err := h.tbHandler.Handle(record); err != nil {
-		h.logger.CaptureError(
-			fmt.Errorf("handler: failed to handle TB record: %v", err))
-	}
 }
 
 func (h *Handler) handleRequestNetworkStatus(record *spb.Record) {

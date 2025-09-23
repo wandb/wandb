@@ -11,6 +11,7 @@ from wandb.apis.internal import Api
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.git_reference import GitReference
+from wandb.sdk.launch.inputs.internal import _validate_schema
 from wandb.sdk.launch.utils import (
     _is_git_uri,
     get_current_python_version,
@@ -115,6 +116,8 @@ def _create_job(
     build_context: Optional[str] = None,
     dockerfile: Optional[str] = None,
     base_image: Optional[str] = None,
+    services: Optional[Dict[str, str]] = None,
+    schema: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Optional[Artifact], str, List[str]]:
     wandb.termlog(f"Creating launch job of type: {job_type}...")
 
@@ -169,6 +172,7 @@ def _create_job(
 
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
     job_builder._settings.job_name = name
+    job_builder._services = services or {}
     if job_type == "code":
         assert entrypoint is not None
         job_name = _make_code_artifact(
@@ -204,6 +208,15 @@ def _create_job(
     if "latest" not in aliases:
         aliases += ["latest"]
 
+    metadata = {"_partial": True}
+    if schema:
+        _validate_schema(schema)
+        metadata = {
+            "input_schemas": {
+                "@wandb.config": schema,
+            }
+        }
+
     res, _ = api.create_artifact(
         artifact_type_name="job",
         artifact_collection_name=name,
@@ -214,7 +227,7 @@ def _create_job(
         project_name=project,
         run_name=run.id,  # type: ignore # run will be deleted after creation
         description=description,
-        metadata={"_partial": True},
+        metadata=metadata,
         is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )

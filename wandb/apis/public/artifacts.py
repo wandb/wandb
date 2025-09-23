@@ -15,6 +15,7 @@ from typing_extensions import override
 from wandb_gql import Client, gql
 
 import wandb
+from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator, SizedPaginator
@@ -50,8 +51,8 @@ from wandb.sdk.artifacts._generated import (
     ProjectArtifacts,
     ProjectArtifactType,
     ProjectArtifactTypes,
-    RunInputArtifactsProjectRunInputArtifacts,
-    RunOutputArtifactsProjectRunOutputArtifacts,
+    RunInputArtifactConnectionFragment,
+    RunOutputArtifactConnectionFragment,
 )
 from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
 from wandb.sdk.artifacts._validators import (
@@ -71,7 +72,7 @@ if TYPE_CHECKING:
 
 
 class ArtifactTypes(Paginator["ArtifactType"]):
-    """An iterable collection of artifact types for a specific project.
+    """An lazy iterator of `ArtifactType` objects for a specific project.
 
     <!-- lazydoc-ignore-init: internal -->
     """
@@ -104,7 +105,7 @@ class ArtifactTypes(Paginator["ArtifactType"]):
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not ((proj := result.project) and (conn := proj.artifact_types)):
-            raise ValueError(f"Unable to parse {type(self).__name__!r} response data")
+            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = ArtifactTypesFragment.model_validate(conn)
 
@@ -305,7 +306,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
             and (type_ := proj.artifact_type)
             and (conn := type_.artifact_collections)
         ):
-            raise ValueError(f"Unable to parse {type(self).__name__!r} response data")
+            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = ArtifactCollectionsFragment.model_validate(conn)
 
@@ -714,7 +715,7 @@ class Artifacts(SizedPaginator["Artifact"]):
 
         self.QUERY = gql_compat(
             PROJECT_ARTIFACTS_GQL,
-            omit_fields=omit_artifact_fields(api=InternalApi()),
+            omit_fields=omit_artifact_fields(),
             rename_fields=rename_fields,
         )
 
@@ -732,7 +733,7 @@ class Artifacts(SizedPaginator["Artifact"]):
             and (collection := type_.artifact_collection)
             and (conn := collection.artifacts)
         ):
-            raise ValueError(f"Unable to parse {type(self).__name__!r} response data")
+            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = ArtifactsFragment.model_validate(conn)
 
@@ -796,14 +797,12 @@ class RunArtifacts(SizedPaginator["Artifact"]):
     """
 
     last_response: (
-        RunOutputArtifactsProjectRunOutputArtifacts
-        | RunInputArtifactsProjectRunInputArtifacts
+        RunOutputArtifactConnectionFragment | RunInputArtifactConnectionFragment
     )
 
     #: The pydantic model used to parse the (inner part of the) raw response.
     _response_cls: type[
-        RunOutputArtifactsProjectRunOutputArtifacts
-        | RunInputArtifactsProjectRunInputArtifacts
+        RunOutputArtifactConnectionFragment | RunInputArtifactConnectionFragment
     ]
 
     def __init__(
@@ -818,17 +817,15 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         if mode == "logged":
             self.run_key = "outputArtifacts"
             self.QUERY = gql_compat(
-                RUN_OUTPUT_ARTIFACTS_GQL,
-                omit_fields=omit_artifact_fields(api=InternalApi()),
+                RUN_OUTPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields()
             )
-            self._response_cls = RunOutputArtifactsProjectRunOutputArtifacts
+            self._response_cls = RunOutputArtifactConnectionFragment
         elif mode == "used":
             self.run_key = "inputArtifacts"
             self.QUERY = gql_compat(
-                RUN_INPUT_ARTIFACTS_GQL,
-                omit_fields=omit_artifact_fields(api=InternalApi()),
+                RUN_INPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields()
             )
-            self._response_cls = RunInputArtifactsProjectRunInputArtifacts
+            self._response_cls = RunInputArtifactConnectionFragment
         else:
             raise ValueError("mode must be logged or used")
 
@@ -961,7 +958,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
             conn = result.project.artifact_type.artifact.files
 
         if conn is None:
-            raise ValueError(f"Unable to parse {type(self).__name__!r} response data")
+            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = FilesFragment.model_validate(conn)
 

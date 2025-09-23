@@ -265,6 +265,14 @@ def test_run_summary(wandb_backend_spy):
         assert snapshot.summary(run_id=run.storage_id)["cool"] == 1000
 
 
+def test_run_load_multiple_times(user):
+    run = Api().create_run()
+    run.summary.update({"cool": 1000})
+
+    run.load()
+    run.load()
+
+
 def test_run_create(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
     upsert_bucket_spy = gql.Capture()
@@ -488,17 +496,22 @@ def test_projects(user, wandb_backend_spy):
 
 
 def test_project_get_id(user, wandb_backend_spy):
-    body = {
-        "data": {
-            "project": {
-                "id": "123",
-            },
-        },
-    }
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ProjectID"),
-        gql.Constant(content=body),
+        gql.Matcher(operation="Project"),
+        gql.once(
+            content={
+                "data": {
+                    "project": {
+                        "id": "123",
+                        "name": "test",
+                        "entityName": "test-entity",
+                        "createdAt": "2021-01-01T00:00:00Z",
+                        "isBenchmark": False,
+                    },
+                },
+            }
+        ),
     )
 
     project = Api().project(user, "test")
@@ -507,15 +520,21 @@ def test_project_get_id(user, wandb_backend_spy):
 
 
 def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend_spy):
-    body = {
-        "data": {
-            "project": None,
-        },
-    }
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ProjectID"),
-        gql.Constant(content=body),
+        gql.Matcher(operation="Project"),
+        gql.once(
+            content={
+                "data": {
+                    "project": {
+                        "name": "test",
+                        "entityName": "test-entity",
+                        "createdAt": "2021-01-01T00:00:00Z",
+                        "isBenchmark": False,
+                    },
+                },
+            }
+        ),
     )
 
     with pytest.raises(ValueError):
@@ -1047,7 +1066,13 @@ def test_delete_api_key_failure(wandb_backend_spy, stub_search_users):
     assert not user.delete_api_key(api_key["name"])
 
 
-def test_generate_api_key_success(wandb_backend_spy, stub_search_users):
+def test_generate_api_key_success(
+    wandb_backend_spy,
+    stub_search_users,
+    api,
+    skip_verify_login,
+):
+    _ = skip_verify_login  # Don't verify user API keys.
     email = "test@test.com"
     api_key_1 = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
     api_key_2 = {"name": "Y" * 40, "id": "QXBpS2V5OjE4MzE="}
@@ -1058,7 +1083,7 @@ def test_generate_api_key_success(wandb_backend_spy, stub_search_users):
         gql.once(content={"data": {"generateApiKey": {"apiKey": api_key_2}}}),
     )
 
-    user = Api().user(email)
+    user = api.user(email)
     old_key = user.api_keys[0]
     new_key = user.generate_api_key("good")
 
@@ -1067,7 +1092,13 @@ def test_generate_api_key_success(wandb_backend_spy, stub_search_users):
     assert user.api_keys[-1] == new_key
 
 
-def test_generate_api_key_failure(wandb_backend_spy, stub_search_users):
+def test_generate_api_key_failure(
+    wandb_backend_spy,
+    stub_search_users,
+    api,
+    skip_verify_login,
+):
+    _ = skip_verify_login  # Don't verify user API keys.
     email = "test@test.com"
     api_key = {"name": "X" * 40, "id": "QXBpS2V5OjE4MzA="}
     stub_search_users(email=email, api_keys=[api_key], teams=[])
@@ -1077,7 +1108,7 @@ def test_generate_api_key_failure(wandb_backend_spy, stub_search_users):
         gql.once(content={"error": "resource already exists"}, status=409),
     )
 
-    user = Api().user(email)
+    user = api.user(email)
 
     assert user.generate_api_key("conflict") is None
 
@@ -1207,3 +1238,52 @@ def test_runs_histories_empty(wandb_backend_spy):
     assert not runs.histories(format="default")  # empty list
     for format in ("pandas", "polars"):
         assert runs.histories(samples=2, format=format).shape == (0, 0)
+
+
+def test_run_upload_file_with_directory_traversal(
+    wandb_backend_spy,
+    stub_run_gql_once,
+    tmp_path,
+    monkeypatch,
+):
+    stub_run_gql_once()
+    runs_files_gql_body = {
+        "data": {
+            "project": {
+                "run": {
+                    "files": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "RmlsZToxODMw",
+                                    "name": "__/test.txt",
+                                    "state": "finished",
+                                    "user": {
+                                        "name": "test",
+                                        "username": "test",
+                                    },
+                                }
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+    }
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="RunFiles"),
+        gql.Constant(content=runs_files_gql_body),
+    )
+    mock_push = mock.MagicMock()
+    monkeypatch.setattr(wandb.sdk.internal.internal_api.Api, "push", mock_push)
+    tmp_path.joinpath("root").mkdir()
+    root = tmp_path.joinpath("root")
+    tmp_path.joinpath("test.txt").write_text("test")
+    api = Api()
+    run = api.run("test/test/test")
+
+    run.upload_file("../test.txt", root=str(root))
+
+    mock_push.assert_called_once()
+    assert "__/test.txt" in mock_push.call_args[0][0]

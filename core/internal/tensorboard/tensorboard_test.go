@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
@@ -39,7 +39,7 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 	t.Helper()
 
 	runWork := runworktest.New()
-	fileReadDleay := waitingtest.NewFakeDelay()
+	fileReadDelay := waitingtest.NewFakeDelay()
 
 	tmpdir := t.TempDir()
 	toPath := func(slashPath string) string {
@@ -52,12 +52,11 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 	}
 	settings := settings.From(settingsProto)
 
-	handler := tensorboard.NewTBHandler(tensorboard.Params{
-		ExtraWork:     runWork,
-		Logger:        observability.NewNoOpLogger(),
-		Settings:      settings,
-		FileReadDelay: fileReadDleay,
-	})
+	factory := tensorboard.TBHandlerFactory{
+		Logger:   observabilitytest.NewTestLogger(t),
+		Settings: settings,
+	}
+	handler := factory.New(runWork, fileReadDelay)
 
 	return testContext{
 		Handler: handler,

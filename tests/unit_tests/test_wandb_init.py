@@ -49,3 +49,18 @@ def test_makedirs_raises_oserror__uses_temp_dir(tmp_path, monkeypatch):
         run.log({"test": 1})
 
     assert run.settings.root_dir == tempfile.gettempdir()
+
+
+def test_avoids_sync_dir_conflict(mocker):
+    # Make the run start time the same for all runs.
+    mocker.patch("time.time", return_value=123)
+
+    with wandb.init(mode="offline", id="sync-dir-test") as run1:
+        pass
+    with wandb.init(mode="offline", id="sync-dir-test") as run2:
+        pass
+    with wandb.init(mode="offline", id="sync-dir-test") as run3:
+        pass
+
+    assert run2.settings.sync_dir == run1.settings.sync_dir + "-1"
+    assert run3.settings.sync_dir == run1.settings.sync_dir + "-2"

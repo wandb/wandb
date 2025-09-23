@@ -35,6 +35,11 @@ def build_wandb_core(
         target_arch: The target architecture (GOARCH) or an empty string
             to use the current architecture.
     """
+    # The `disable_grpc_modules` build tag reduces binary size by ~12MB.
+    # Without it, cloud.google.com/go/storage transitively includes test
+    # dependencies (grpc/stats/opentelemetry.test) that pull in the entire
+    # envoyproxy/go-control-plane package.
+    build_tags = ["-tags", "disable_grpc_modules"]
     coverage_flags = ["-cover"] if with_code_coverage else []
     race_detect_flags = ["-race"] if with_race_detection else []
     output_flags = ["-o", str(".." / output_path)]
@@ -49,6 +54,7 @@ def build_wandb_core(
         [
             str(go_binary),
             "build",
+            *build_tags,
             *coverage_flags,
             *race_detect_flags,
             *ld_flags,
@@ -101,15 +107,6 @@ def _go_env(
         # to stderr and continue.
         env["GORACE"] = "halt_on_error=1"
         # -race requires cgo.
-        env["CGO_ENABLED"] = "1"
-
-    if target_system == "darwin" and target_arch == "amd64":
-        # When CGO is disabled, the Go compiler's internal linker does not respect
-        # the MACOSX_DEPLOYMENT_TARGET value to lower the minimum OS version, which we rely on
-        # for building wheels for MacOS 10.x in CI. Instead, it embeds a minimum target
-        # based on the SDK in the CI runner, which as of 2025-02-20 is 11.0.
-        # To work around this, we enable CGO and force the Go compiler to use
-        # the system linker, which respects MACOSX_DEPLOYMENT_TARGET.
         env["CGO_ENABLED"] = "1"
 
     return env

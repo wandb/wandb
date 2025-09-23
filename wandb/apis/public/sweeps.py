@@ -57,7 +57,7 @@ SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
 
 
 class Sweeps(SizedPaginator["Sweep"]):
-    """An iterable collection of `Sweep` objects.
+    """A lazy iterator over a collection of `Sweep` objects.
 
     Examples:
     ```python
@@ -360,15 +360,28 @@ class Sweep(Attrs):
     @classmethod
     def get(
         cls,
-        client,
-        entity=None,
-        project=None,
-        sid=None,
-        order=None,
-        query=None,
+        client: "RetryingClient",
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+        sid: Optional[str] = None,
+        order: Optional[str] = None,
+        query: Optional[str] = None,
         **kwargs,
     ):
-        """Execute a query against the cloud backend."""
+        """Execute a query against the cloud backend.
+
+        Args:
+            client: The client to use to execute the query.
+            entity: The entity (username or team) that owns the project.
+            project: The name of the project to fetch sweep from.
+            sid: The sweep ID to query.
+            order: The order in which the sweep's runs are returned.
+            query: The query to use to execute the query.
+            **kwargs: Additional keyword arguments to pass to the query.
+        """
+        if not order:
+            order = "+created_at"
+
         if query is None:
             query = cls.QUERY
 

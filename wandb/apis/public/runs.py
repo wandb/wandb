@@ -88,10 +88,28 @@ RUN_FRAGMENT = """fragment RunFragment on Run {
 
 @normalize_exceptions
 def _server_provides_internal_id_for_project(client) -> bool:
-    """Returns True if the server allows us to query the internalId field for a project.
-
-    This check is done by utilizing GraphQL introspection in the available fields on the Project type.
+    """Returns True if the server allows us to query the internalId field for a project."""
+    query_string = """
+       query ProbeProjectInput {
+            ProjectType: __type(name:"Project") {
+                fields {
+                    name
+                }
+            }
+        }
     """
+
+    # Only perform the query once to avoid extra network calls
+    query = gql(query_string)
+    res = client.execute(query)
+    return "internalId" in [
+        x["name"] for x in (res.get("ProjectType", {}).get("fields", [{}]))
+    ]
+
+
+@normalize_exceptions
+def _server_provides_project_id_for_run(client) -> bool:
+    """Returns True if the server allows us to query the projectId field for a run."""
     query_string = """
        query ProbeRunInput {
             RunType: __type(name:"Run") {
@@ -110,8 +128,34 @@ def _server_provides_internal_id_for_project(client) -> bool:
     ]
 
 
+@normalize_exceptions
+def _convert_to_dict(value: Any) -> dict[str, Any]:
+    """Converts a value to a dictionary.
+
+    If the value is already a dictionary, the value is returned unchanged.
+    If the value is a string, bytes, or bytearray, it is parsed as JSON.
+    For any other type, a TypeError is raised.
+    """
+    if value is None:
+        return {}
+
+    if isinstance(value, dict):
+        return value
+
+    if isinstance(value, (str, bytes, bytearray)):
+        try:
+            return json.loads(value)
+        except json.decoder.JSONDecodeError:
+            # ignore invalid utf-8 or control characters
+            return json.loads(value, strict=False)
+
+    raise TypeError(f"Unable to convert {value} to a dict")
+
+
 class Runs(SizedPaginator["Run"]):
-    """An iterable collection of runs associated with a project and optional filter.
+    """A lazy iterator of `Run` objects associated with a project and optional filter.
+
+    Runs are retrieved in pages from the W&B server as needed.
 
     This is generally used indirectly using the `Api.runs` namespace.
 
@@ -122,8 +166,10 @@ class Runs(SizedPaginator["Run"]):
         project: (str) The name of the project to fetch runs from.
         filters: (Optional[Dict[str, Any]]) A dictionary of filters to apply
             to the runs query.
-        order: (Optional[str]) The order of the runs, can be "asc" or "desc"
-            Defaults to "desc".
+        order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
+            If you prepend order with a + order is ascending (default).
+            If you prepend order with a - order is descending.
+            The default order is run.created_at from oldest to newest.
         per_page: (int) The number of runs to fetch per request (default is 50).
         include_sweeps: (bool) Whether to include sweep information in the
             runs. Defaults to True.
@@ -170,21 +216,24 @@ class Runs(SizedPaginator["Run"]):
         entity: str,
         project: str,
         filters: dict[str, Any] | None = None,
-        order: str | None = None,
+        order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
     ):
+        if not order:
+            order = "+created_at"
+
         self.QUERY = gql(
             f"""#graphql
             query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
                 project(name: $project, entityName: $entity) {{
-                    internalId
+                    {"internalId" if _server_provides_internal_id_for_project(client) else ""}
                     runCount(filters: $filters)
                     readOnly
                     runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
                         edges {{
                             node {{
-                                {"projectId" if _server_provides_internal_id_for_project(client) else ""}
+                                {"projectId" if _server_provides_project_id_for_run(client) else ""}
                                 ...RunFragment
                             }}
                             cursor
@@ -459,6 +508,7 @@ class Run(Attrs):
         self._metadata: dict[str, Any] | None = None
         self._state = _attrs.get("state", "not found")
         self.server_provides_internal_id_field: bool | None = None
+        self._is_loaded: bool = False
 
         self.load(force=not _attrs)
 
@@ -566,11 +616,12 @@ class Run(Attrs):
 
     def load(self, force=False):
         if force or not self._attrs:
+            self._is_loaded = False
             query = gql(f"""#graphql
             query Run($project: String!, $entity: String!, $name: String!) {{
                 project(name: $project, entityName: $entity) {{
                     run(name: $name) {{
-                        {"projectId" if _server_provides_internal_id_for_project(self.client) else ""}
+                        {"projectId" if _server_provides_project_id_for_run(self.client) else ""}
                         ...RunFragment
                     }}
                 }}
@@ -586,7 +637,6 @@ class Run(Attrs):
             ):
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
-            self._state = self._attrs["state"]
 
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
@@ -599,32 +649,31 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
+        if not self._is_loaded:
+            self._load_from_attrs()
+            self._is_loaded = True
+
+        return self._attrs
+
+    def _load_from_attrs(self):
+        self._state = self._attrs.get("state", None)
+        self._attrs["config"] = _convert_to_dict(self._attrs.get("config"))
+        self._attrs["summaryMetrics"] = _convert_to_dict(
+            self._attrs.get("summaryMetrics")
+        )
+        self._attrs["systemMetrics"] = _convert_to_dict(
+            self._attrs.get("systemMetrics")
+        )
+
         if "projectId" in self._attrs:
             self._project_internal_id = int(self._attrs["projectId"])
         else:
             self._project_internal_id = None
 
-        try:
-            self._attrs["summaryMetrics"] = (
-                json.loads(self._attrs["summaryMetrics"])
-                if self._attrs.get("summaryMetrics")
-                else {}
-            )
-        except json.decoder.JSONDecodeError:
-            # ignore invalid utf-8 or control characters
-            self._attrs["summaryMetrics"] = json.loads(
-                self._attrs["summaryMetrics"],
-                strict=False,
-            )
-        self._attrs["systemMetrics"] = (
-            json.loads(self._attrs["systemMetrics"])
-            if self._attrs.get("systemMetrics")
-            else {}
-        )
         if self._attrs.get("user"):
             self.user = public.User(self.client, self._attrs["user"])
         config_user, config_raw = {}, {}
-        for key, value in json.loads(self._attrs.get("config") or "{}").items():
+        for key, value in self._attrs.get("config").items():
             config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
             if isinstance(value, dict) and "value" in value:
                 config[key] = value["value"]
@@ -633,7 +682,6 @@ class Run(Attrs):
         config_raw.update(config_user)
         self._attrs["config"] = config_user
         self._attrs["rawconfig"] = config_raw
-        return self._attrs
 
     @normalize_exceptions
     def wait_until_finished(self):
@@ -839,8 +887,9 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
         root = os.path.abspath(root)
         name = os.path.relpath(path, root)
+        upload_path = util.make_file_path_upload_safe(name)
         with open(os.path.join(root, name), "rb") as f:
-            api.push({LogicalPath(name): f})
+            api.push({LogicalPath(upload_path): f})
         return public.Files(self.client, self, [name])[0]
 
     @normalize_exceptions

@@ -2,18 +2,31 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import mmap
 import sys
-from typing import TYPE_CHECKING, NewType
+import time
+from typing import TYPE_CHECKING
+
+from typing_extensions import TypeAlias
 
 from wandb.sdk.lib.paths import StrPath
 
 if TYPE_CHECKING:
     import _hashlib  # type: ignore[import-not-found]
 
-ETag = NewType("ETag", str)
-HexMD5 = NewType("HexMD5", str)
-B64MD5 = NewType("B64MD5", str)
+
+logger = logging.getLogger(__name__)
+
+# In the future, consider relying on pydantic to validate these types via e.g.
+# - Base64Str: https://docs.pydantic.dev/latest/api/types/#pydantic.types.Base64Str
+# - a custom EncodedStr + Encoder impl: https://docs.pydantic.dev/latest/api/types/#pydantic.types.EncodedStr
+#
+# Note that so long as we continue to support Pydantic v1, the options above will require a compatible shim/backport
+# implementation, since those types are not in Pydantic v1.
+ETag: TypeAlias = str
+HexMD5: TypeAlias = str
+B64MD5: TypeAlias = str
 
 
 def _md5(data: bytes = b"") -> _hashlib.HASH:
@@ -44,7 +57,16 @@ def hex_to_b64_id(encoded_string: str | bytes) -> B64MD5:
 
 
 def md5_file_b64(*paths: StrPath) -> B64MD5:
-    return _b64_from_hasher(_md5_file_hasher(*paths))
+    start_time = time.monotonic()
+    digest = _b64_from_hasher(_md5_file_hasher(*paths))
+    hash_time_seconds = time.monotonic() - start_time
+    if hash_time_seconds > 1.0:
+        logger.debug(
+            "Computed MD5 hash for file. paths=%s, hashTimeMs=%d",
+            paths,
+            int(hash_time_seconds * 1000),
+        )
+    return digest
 
 
 def md5_file_hex(*paths: StrPath) -> HexMD5:

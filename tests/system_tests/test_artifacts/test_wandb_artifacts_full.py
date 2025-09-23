@@ -20,8 +20,6 @@ from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutEr
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import md5_string
 
-sm = wandb.wandb_sdk.internal.sender.SendManager
-
 
 def test_add_table_from_dataframe(user):
     import pandas as pd
@@ -784,7 +782,7 @@ def test_used_artifacts_preserve_original_project(user, api, logged_artifact):
 
 
 def test_internal_artifacts(user):
-    internal_type = RESERVED_ARTIFACT_TYPE_PREFIX + "invalid"
+    internal_type = f"{RESERVED_ARTIFACT_TYPE_PREFIX}invalid"
     with wandb.init() as run:
         with pytest.raises(ValueError, match="is reserved for internal use"):
             artifact = wandb.Artifact(name="test-artifact", type=internal_type)

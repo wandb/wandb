@@ -49,8 +49,6 @@ jax[cpu]
 lightning
 ray[air,tune]
 
-# Latest version of plum-dispatch tested is 2.5.7
-plum-dispatch>=2.0.0,<3.0.0
 pyarrow
 metaflow~=2.15.21
 xgboost
@@ -62,6 +60,7 @@ catboost
 openai
 gymnasium < 1.0.0
 stable_baselines3
+dspy
 
 requests~=2.23
 responses

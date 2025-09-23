@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/gqlmock"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	. "github.com/wandb/wandb/core/pkg/launch"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -100,7 +100,7 @@ func TestJobBuilderRepo(t *testing.T) {
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com__path_to_train.py", artifact.Name)
@@ -167,7 +167,7 @@ func TestJobBuilderRepo(t *testing.T) {
 			XJupyter:     toWrapperPb(true).(*wrapperspb.BoolValue),
 			XJupyterRoot: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com_Untitled.ipynb", artifact.Name)
@@ -220,7 +220,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		artifactRecord := &spb.ArtifactRecord{
 			Name: "testArtifact",
 			Type: "code",
@@ -288,7 +288,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			XJupyter:     toWrapperPb(true).(*wrapperspb.BoolValue),
 			XJupyterRoot: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		artifactRecord := &spb.ArtifactRecord{
 			Name: "testArtifact",
 			Type: "code",
@@ -346,7 +346,7 @@ func TestJobBuilderImage(t *testing.T) {
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testImage", artifact.Name)
@@ -386,7 +386,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 				Value: true,
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, err)
 		assert.Nil(t, artifact)
@@ -399,7 +399,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		settings := &spb.Settings{
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
@@ -417,7 +417,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, artifact)
 		assert.NotNil(t, err)
@@ -441,7 +441,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		settings := &spb.Settings{
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		artifact, err := jobBuilder.Build(ctx, gql, nil, nil)
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
@@ -482,7 +482,7 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 			},
 		}
 
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
 		assert.Equal(t, "testID", *jobBuilder.PartialJobID)
 	})
@@ -499,7 +499,7 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 				},
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
 		assert.True(t, jobBuilder.Disable)
 
@@ -528,7 +528,7 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 				},
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
 		assert.True(t, jobBuilder.Disable)
 	})
@@ -567,7 +567,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 				expectedError:      &noRepoIngredientsError,
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		for _, testCase := range testCases {
 			res, err := jobBuilder.GetSourceType(testCase.metadata)
 			if testCase.expectedSourceType != nil {
@@ -611,7 +611,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 		}
 
 		for index, testCase := range testCases {
-			jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+			jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 			if index == 0 {
 				jobBuilder.SetRunCodeArtifact("testID", "testName")
 			}
@@ -658,7 +658,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 				expectedError:      &noImageIngredientsError,
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		for _, testCase := range testCases {
 
 			res, err := jobBuilder.GetSourceType(testCase.metadata)
@@ -688,7 +688,7 @@ func TestUtilFunctions(t *testing.T) {
 		settings := &spb.Settings{
 			XJupyterRoot: toWrapperPb("/path/to/jupyterRoot").(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		path, err := jobBuilder.HandlePathsAboveRoot("gitRoot/a/notebook.ipynb", "/path/to/jupyterRoot/gitRoot")
 		assert.Nil(t, err)
 		assert.Equal(t, "a/notebook.ipynb", path)
@@ -697,7 +697,7 @@ func TestUtilFunctions(t *testing.T) {
 		settings := &spb.Settings{
 			XJupyterRoot: toWrapperPb("/path/to/gitRoot/jupyterRoot").(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		path, err := jobBuilder.HandlePathsAboveRoot("a/notebook.ipynb", "/path/to/gitRoot")
 		assert.Nil(t, err)
 		assert.Equal(t, "jupyterRoot/a/notebook.ipynb", path)
@@ -707,7 +707,7 @@ func TestUtilFunctions(t *testing.T) {
 		settings := &spb.Settings{
 			XJupyterRoot: toWrapperPb("/path/to/gitRoot").(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 		path, err := jobBuilder.HandlePathsAboveRoot("a/notebook.ipynb", "/path/to/gitRoot")
 		assert.Nil(t, err)
 		assert.Equal(t, "a/notebook.ipynb", path)
@@ -746,7 +746,7 @@ func TestWandbConfigParameters(t *testing.T) {
 		RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 	}
-	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+	jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 	runConfig := map[string]interface{}{
 		"key1": "value1",
 		"key2": "value2",
@@ -833,7 +833,7 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 		RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 	}
-	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+	jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 	runConfig := map[string]interface{}{
 		"key1": "value1",
 		"key2": "value2",
@@ -930,7 +930,7 @@ func TestConfigFileParameters(t *testing.T) {
 		RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 	}
-	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+	jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 
 	jobBuilder.HandleJobInputRequest(&spb.JobInputRequest{
 		InputSource: &spb.JobInputSource{
@@ -1009,7 +1009,7 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 		RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 	}
-	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+	jobBuilder := NewJobBuilder(settings, observabilitytest.NewTestLogger(t), true)
 
 	inputSchema, _ := json.Marshal(map[string]interface{}{
 		"type": "object",

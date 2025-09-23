@@ -1,8 +1,12 @@
+import asyncio
 import json
 import os
 from unittest import mock
 
+import pytest
 import wandb
+from wandb.sdk import wandb_setup
+from wandb.sdk.lib import asyncio_manager
 
 
 def test_service_logging_level_debug():
@@ -57,3 +61,11 @@ def test_setup_uses_config_dir_env_var(tmp_path, monkeypatch):
     with mock.patch.dict(os.environ, {"WANDB_CONFIG_DIR": str(tmp_path)}):
         setup = wandb.setup()
         assert setup.settings.settings_system == str(tmp_path / "settings")
+
+
+def test_teardown_joins_asyncer():
+    asyncer = wandb_setup.singleton().asyncer
+    wandb.teardown()
+
+    with pytest.raises(asyncio_manager.AlreadyJoinedError):
+        asyncer.run(lambda: asyncio.sleep(0))

@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
@@ -61,7 +61,7 @@ func TestReadsSequenceOfFiles(t *testing.T) {
 	reader := tensorboard.NewTFEventReader(
 		tmpdirAsPath,
 		tensorboard.TFEventsFileFilter{},
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 	backgroundCtx := context.Background()
 	noopOnFile := func(path *tensorboard.LocalOrCloudPath) {}

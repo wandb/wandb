@@ -14,7 +14,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import click
 import yaml
@@ -93,6 +93,39 @@ class ClickWandbException(ClickException):
                 " traceback.\n"
                 f"{orig_type}: {self.message}"
             )
+
+
+def parse_service_config(
+    ctx: Optional[click.Context],
+    param: Optional[click.Parameter],
+    value: Optional[Tuple[str, ...]],
+) -> Dict[str, str]:
+    """Parse service configurations in format serviceName=policy."""
+    if not value:
+        return {}
+
+    result = {}
+    for config in value:
+        if "=" not in config:
+            raise click.BadParameter(
+                f"Service must be in format 'serviceName=policy', got '{config}'"
+            )
+
+        service_name, policy = config.split("=", 1)
+        service_name = service_name.strip()
+        policy = policy.strip()
+        if not service_name:
+            raise click.BadParameter("Service name cannot be empty")
+
+        # Simple validation for two policies
+        if policy not in ["always", "never"]:
+            raise click.BadParameter(
+                f"Policy must be 'always' or 'never', got '{policy}'"
+            )
+
+        result[service_name] = policy
+
+    return result
 
 
 def display_error(func):
@@ -454,6 +487,10 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--show", default=5, help="Number of runs to show")
 @click.option("--append", is_flag=True, default=False, help="Append run")
 @click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
+@click.option(
+    "--replace-tags",
+    help="Replace tags in the format 'old_tag1=new_tag1,old_tag2=new_tag2'",
+)
 @display_error
 def sync(
     ctx,
@@ -479,6 +516,7 @@ def sync(
     clean_force=None,
     append=None,
     skip_console=None,
+    replace_tags=None,
 ):
     api = _get_cling_api()
     if not api.is_authenticated:
@@ -492,6 +530,10 @@ def sync(
         include_globs = include_globs.split(",")
     if exclude_globs:
         exclude_globs = exclude_globs.split(",")
+
+    replace_tags_dict = _parse_sync_replace_tags(replace_tags)
+    if replace_tags and replace_tags_dict is None:
+        return  # Error already printed by helper function
 
     def _summary():
         all_items = get_runs(
@@ -548,6 +590,7 @@ def sync(
             log_path=_wandb_log_path,
             append=append,
             skip_console=skip_console,
+            replace_tags=replace_tags_dict,
         )
         for p in _path:
             sm.add(p)
@@ -631,6 +674,31 @@ def sync(
         _sync_path(path, sync_tb)
     else:
         _summary()
+
+
+def _parse_sync_replace_tags(replace_tags: str) -> Optional[Dict[str, str]]:
+    """Parse replace_tags string into a dictionary.
+
+    Args:
+        replace_tags: String in format 'old_tag1=new_tag1,old_tag2=new_tag2'
+
+    Returns:
+        Mapping of old tags to new tags, or None if format is invalid
+    """
+    if not replace_tags:
+        return {}
+
+    replace_tags_dict = {}
+    for pair in replace_tags.split(","):
+        if "=" not in pair:
+            wandb.termerror(
+                f"Invalid replace-tags format: {pair}. Use 'old_tag=new_tag' format."
+            )
+            return None
+        old_tag, new_tag = pair.split("=", 1)
+        replace_tags_dict[old_tag.strip()] = new_tag.strip()
+
+    return replace_tags_dict
 
 
 @cli.command(
@@ -1829,6 +1897,21 @@ def describe(job):
     "job_type",
     type=click.Choice(("git", "code", "image")),
 )
+@click.option(
+    "--service",
+    "-s",
+    "services",
+    multiple=True,
+    callback=parse_service_config,
+    help="Service configurations in format serviceName=policy. Valid policies: always, never",
+    hidden=True,
+)
+@click.option(
+    "--schema",
+    type=str,
+    help="Path to the schema file for the job.",
+    hidden=True,
+)
 @click.argument("path")
 def create(
     path,
@@ -1844,6 +1927,8 @@ def create(
     build_context,
     base_image,
     dockerfile,
+    services,
+    schema,
 ):
     """Create a job from a source, without a wandb run.
 
@@ -1878,6 +1963,12 @@ def create(
         wandb.termerror("Cannot provide --base-image/-B for an `image` job")
         return
 
+    if schema:
+        schema_dict = util.load_json_yaml_dict(schema)
+        if schema_dict is None:
+            wandb.termerror(f"Invalid format for schema file: {schema}")
+            return
+
     artifact, action, aliases = _create_job(
         api=api,
         path=path,
@@ -1893,6 +1984,8 @@ def create(
         build_context=build_context,
         base_image=base_image,
         dockerfile=dockerfile,
+        services=services,
+        schema=schema_dict if schema else None,
     )
     if not artifact:
         wandb.termerror("Job creation failed")
@@ -2460,7 +2553,8 @@ def pull(run, project, entity):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Restore code, config and docker state for a run"
+    context_settings=CONTEXT,
+    help="Restore code, config and docker state for a run. Retrieves code from latest commit if code was not saved with `wandb.save()` or `wandb.init(save_code=True)`.",
 )
 @click.pass_context
 @click.argument("run", envvar=env.RUN_ID)
@@ -2700,7 +2794,37 @@ def enabled(service):
         )
 
 
-@cli.command(context_settings=CONTEXT, help="Verify your local instance")
+@cli.command(
+    context_settings=CONTEXT,
+    help="""Checks and verifies local instance of W&B. W&B checks for:
+
+    Checks that the host is not `api.wandb.ai` (host check).
+
+    Verifies if the user is logged in correctly using the provided API key (login check).
+
+    Checks that requests are made over HTTPS (secure requests).
+
+    Validates the CORS (Cross-Origin Resource Sharing) configuration of the
+    object store (CORS configuration).
+
+    Logs metrics, saves, and downloads files to check if runs are correctly
+    recorded and accessible (run check).
+
+    Saves and downloads artifacts to verify that the artifact storage and
+    retrieval system is working as expected (artifact check).
+
+    Tests the GraphQL endpoint by uploading a file to ensure it can handle
+    signed URL uploads (GraphQL PUT check).
+
+    Checks the ability to send large payloads through the proxy (large payload check).
+
+    Verifies that the installed version of the W&B package is up-to-date and
+    compatible with the server (W&B version check).
+
+    Creates and executes a sweep to ensure that sweep functionality is
+    working correctly (sweeps check).
+""",
+)
 @click.option("--host", default=None, help="Test a specific instance of W&B")
 def verify(host):
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.

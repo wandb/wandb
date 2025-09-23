@@ -128,6 +128,7 @@ message Imports {
   bool curated_transformers = 104;  // curated-transformers
   bool orjson = 105;
   bool lightning = 106;  // lightning, formerly pytorch-lightning
+  bool dspy = 107;
 }
 
 message Feature {
@@ -203,6 +204,7 @@ message Feature {
   bool dcgm_profiling_enabled = 70;       // DCGM profiling was enabled
   bool fork_mode = 71;                    // User created a forked run
   bool rewind_mode = 72;                  // User created a rewound run
+  bool dspy_callback = 73;                // User using WandbDSPyCallback
 }
 
 message Env {
@@ -255,14 +257,17 @@ message Deprecated {
 
   bool run__finish_quiet = 19;  // wandb.run.finish(quiet=...) called
 
-  bool run__reinit_bool = 20;          // reinit setting set to a boolean value
-  bool run__get_url = 21;              // wandb.run.get_url() called
-  bool run__project_name = 22;         // wandb.run.project_name() called
-  bool run__get_project_url = 23;      // wandb.run.get_project_url() called
-  bool run__get_sweep_url = 24;        // wandb.run.get_sweep_url() called
-  bool run__use_artifact_use_as = 25;  // wandb.run.use_artifact(use_as=...) called
-  bool artifact__use_as = 26;          // wandb.sdk.artifacts.artifact.Artifact.use_as() called
-  bool artifact__init_use_as = 27;     // wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
+  bool run__reinit_bool = 20;             // reinit setting set to a boolean value
+  bool run__get_url = 21;                 // wandb.run.get_url() called
+  bool run__project_name = 22;            // wandb.run.project_name() called
+  bool run__get_project_url = 23;         // wandb.run.get_project_url() called
+  bool run__get_sweep_url = 24;           // wandb.run.get_sweep_url() called
+  bool run__use_artifact_use_as = 25;     // wandb.run.use_artifact(use_as=...) called
+  bool artifact__use_as = 26;             // wandb.sdk.artifacts.artifact.Artifact.use_as() called
+  bool artifact__init_use_as = 27;        // wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
+  bool beta__workflows__log_model = 28;   // wandb.beta.workflows.log_model() called
+  bool beta__workflows__use_model = 29;   // wandb.beta.workflows.use_model() called
+  bool beta__workflows__link_model = 30;  // wandb.beta.workflows.link_model() called
 }
 
 message Issues {

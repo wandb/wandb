@@ -129,6 +129,7 @@ func InitRun(
 	// Initialize the run metrics.
 	enableServerExpandedMetrics := params.Settings.IsEnableServerSideExpandGlobMetrics()
 	if enableServerExpandedMetrics && !params.FeatureProvider.GetFeature(
+		params.BeforeRunEndCtx,
 		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
 	).Enabled {
 		params.Logger.Warn(
@@ -161,7 +162,8 @@ func InitRun(
 		environment: environment,
 	}
 
-	operation := upserter.operations.New("creating run")
+	operation := upserter.operations.New(
+		fmt.Sprintf("setting up run %s", runParams.RunID))
 	defer operation.Finish()
 	ctx := operation.Context(upserter.beforeRunEndCtx)
 

@@ -17,6 +17,7 @@ type FakeRunWork struct {
 
 	wg         sync.WaitGroup
 	mu         sync.Mutex
+	allWork    []runwork.Work
 	allRecords []*spb.Record
 }
 
@@ -27,6 +28,10 @@ func New() *FakeRunWork {
 
 	go func() {
 		for x := range fake.rw.Chan() {
+			fake.mu.Lock()
+			fake.allWork = append(fake.allWork, x)
+			fake.mu.Unlock()
+
 			if rec, ok := x.(runwork.WorkRecord); ok {
 				fake.mu.Lock()
 				fake.allRecords = append(fake.allRecords, rec.Record)
@@ -37,6 +42,15 @@ func New() *FakeRunWork {
 	}()
 
 	return fake
+}
+
+// AllWork returns all work added via AddWork.
+func (w *FakeRunWork) AllWork() []runwork.Work {
+	w.wg.Wait()
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.allWork
 }
 
 // AllRecords returns all records added via AddWork.
