@@ -304,7 +304,7 @@ type keyIteratorPair struct {
 
 // recordIterator iterates over the rows in the given arrow.Table
 type recordIterator struct {
-	record           arrow.Record
+	record           arrow.RecordBatch
 	columns          []keyIteratorPair
 	resultCols       []keyIteratorPair
 	resultsWhitelist map[string]struct{}
@@ -598,7 +598,7 @@ func (c *listIterator) Next() bool {
 	return c.offset < c.data.Len()
 }
 
-func (c *listIterator) Value() interface{} {
+func (c *listIterator) Value() any {
 	if c.data.IsNull(c.offset) {
 		return nil
 	}
@@ -606,7 +606,7 @@ func (c *listIterator) Value() interface{} {
 	beg := int(c.data.Offsets()[offset])
 	end := int(c.data.Offsets()[offset+1])
 	if end <= beg {
-		return []interface{}{}
+		return []any{}
 	}
 	s := array.NewSlice(c.data.ListValues(), int64(beg), int64(end))
 	defer s.Release()
@@ -616,14 +616,14 @@ func (c *listIterator) Value() interface{} {
 		// so there should not be any errors...
 		panic(err)
 	}
-	values := make([]interface{}, 0, end-beg)
+	values := make([]any, 0, end-beg)
 	for it.Next() {
 		values = append(values, it.Value())
 	}
 	return values
 }
 
-type accessorFunc func(arrow.Array, int) interface{}
+type accessorFunc func(arrow.Array, int) any
 
 type scalarIterator struct {
 	data   arrow.Array
@@ -662,65 +662,68 @@ func (c *scalarIterator) Value() (value any) {
 	return c.accessor(c.data, c.offset)
 }
 
-func int32Accessor(data arrow.Array, offset int) interface{} {
+func int32Accessor(data arrow.Array, offset int) any {
 	return data.(*array.Int32).Value(offset)
 }
 
-func uint32Accessor(data arrow.Array, offset int) interface{} {
+func uint32Accessor(data arrow.Array, offset int) any {
 	return data.(*array.Uint32).Value(offset)
 }
 
-func int64Accessor(data arrow.Array, offset int) interface{} {
+func int64Accessor(data arrow.Array, offset int) any {
 	return data.(*array.Int64).Value(offset)
 }
 
-func uint64Accessor(data arrow.Array, offset int) interface{} {
+func uint64Accessor(data arrow.Array, offset int) any {
 	return data.(*array.Uint64).Value(offset)
 }
 
-func float32Accessor(data arrow.Array, offset int) interface{} {
+func float32Accessor(data arrow.Array, offset int) any {
 	return data.(*array.Float32).Value(offset)
 }
 
-func float64Accessor(data arrow.Array, offset int) interface{} {
+func float64Accessor(data arrow.Array, offset int) any {
 	value := data.(*array.Float64).Value(offset)
+	// Check for special float values - can't use switch due to NaN comparison
 	if math.IsNaN(value) {
 		return "NaN"
-	} else if math.IsInf(value, -1) {
+	}
+	if math.IsInf(value, -1) {
 		return "-Infinity"
-	} else if math.IsInf(value, +1) {
+	}
+	if math.IsInf(value, +1) {
 		return "Infinity"
 	}
 	return value
 }
 
-func stringAccessor(data arrow.Array, offset int) interface{} {
+func stringAccessor(data arrow.Array, offset int) any {
 	return data.(*array.String).Value(offset)
 }
 
-func binaryAccessor(data arrow.Array, offset int) interface{} {
+func binaryAccessor(data arrow.Array, offset int) any {
 	raw := data.(*array.Binary).Value(offset)
-	var value interface{}
+	var value []byte
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return raw
 	}
 	return value
 }
 
-func rawBinaryAccessor(data arrow.Array, offset int) interface{} {
+func rawBinaryAccessor(data arrow.Array, offset int) any {
 	return data.(*array.Binary).Value(offset)
 }
 
-func fixedBinaryAccessor(data arrow.Array, offset int) interface{} {
+func fixedBinaryAccessor(data arrow.Array, offset int) any {
 	return data.(*array.FixedSizeBinary).Value(offset)
 }
 
-func time64Accessor(data arrow.Array, offset int) interface{} {
+func time64Accessor(data arrow.Array, offset int) any {
 	ts := int64(data.(*array.Time64).Value(offset))
 	return time.Unix(ts/1e9, ts%1e9)
 }
 
-func booleanAccessor(data arrow.Array, offset int) interface{} {
+func booleanAccessor(data arrow.Array, offset int) any {
 	return data.(*array.Boolean).Value(offset)
 }
 

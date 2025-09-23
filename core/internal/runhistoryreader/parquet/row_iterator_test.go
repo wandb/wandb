@@ -321,7 +321,7 @@ func TestTableIteratorWithNoColumnFilter(t *testing.T) {
 		[]float64{1, math.NaN()},
 		[]bool{true, false},
 	)
-	record := builder.NewRecord()
+	record := builder.NewRecordBatch()
 	defer record.Release()
 
 	reader, err := NewRecordIterator(record)
@@ -390,7 +390,7 @@ func TestTableIteratorFiltersRowsWithStepOutOfRange(t *testing.T) {
 	builder := array.NewRecordBuilder(memory.DefaultAllocator, schema)
 	defer builder.Release()
 	builder.Field(0).(*array.Int64Builder).AppendValues([]int64{0, 1, 2}, nil)
-	record := builder.NewRecord()
+	record := builder.NewRecordBatch()
 	defer record.Release()
 
 	reader, err := NewRecordIterator(
@@ -431,7 +431,7 @@ func TestTableIteratorMemoryLeak(t *testing.T) {
 	builder := array.NewRecordBuilder(allocator, schema)
 	defer builder.Release()
 	builder.Field(0).(*array.Int64Builder).AppendValues([]int64{0, 1, 2}, nil)
-	record := builder.NewRecord()
+	record := builder.NewRecordBatch()
 	defer record.Release()
 
 	reader, err := NewRecordIterator(record)
