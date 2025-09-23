@@ -12,6 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
@@ -66,6 +67,7 @@ type UploaderFactory struct {
 	GraphQL      graphql.Client
 	Logger       *observability.CoreLogger
 	Operations   *wboperation.WandbOperations
+	RunHandle    *runhandle.RunHandle
 	Settings     *settings.Settings
 }
 
