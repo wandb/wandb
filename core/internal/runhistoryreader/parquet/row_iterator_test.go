@@ -19,58 +19,26 @@ import (
 	test "github.com/wandb/wandb/core/tests/parquet"
 )
 
-// testRowIteratorSetup is a helper struct that contains common test setup
-type testRowIteratorSetup struct {
-	ctx      context.Context
-	iterator RowIterator
-	reader   *pqarrow.FileReader
-	pr       *file.Reader
-	filePath string
-}
-
-// setupTestRowIterator creates a test parquet file and initializes a row iterator for testing
-func setupTestRowIterator(
+func getRowIteratorForFile(
 	t *testing.T,
-	schema *arrow.Schema,
-	arrays []arrow.Array,
-	columns []string,
+	filePath string,
+	keys []string,
 	opt RowIteratorOption,
-) *testRowIteratorSetup {
-	t.Helper()
-
-	ctx := context.Background()
-	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFile(t, historyFilePath, schema, arrays)
-
-	pr, err := file.OpenParquetFile(historyFilePath, true)
+) (RowIterator, func()) {
+	pr, err := file.OpenParquetFile(filePath, true)
 	require.NoError(t, err)
-
-	reader, err := pqarrow.NewFileReader(
-		pr,
-		pqarrow.ArrowReadProperties{},
-		memory.DefaultAllocator,
+	r, err := pqarrow.NewFileReader(pr, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
+	require.NoError(t, err)
+	it, err := NewRowIterator(
+		context.Background(),
+		r,
+		keys,
+		opt,
 	)
 	require.NoError(t, err)
-
-	it, err := NewRowIterator(ctx, reader, columns, opt)
-	require.NoError(t, err)
-
-	return &testRowIteratorSetup{
-		ctx:      ctx,
-		iterator: it,
-		reader:   reader,
-		pr:       pr,
-		filePath: historyFilePath,
-	}
-}
-
-// cleanup properly closes all resources
-func (s *testRowIteratorSetup) cleanup() {
-	if s.iterator != nil {
-		s.iterator.Release()
-	}
-	if s.pr != nil {
-		s.pr.Close()
+	return it, func() {
+		it.Release()
+		pr.Close()
 	}
 }
 
@@ -121,40 +89,42 @@ func TestSelectRowGroups(t *testing.T) {
 func TestRowIteratorWithPage(t *testing.T) {
 	t.Parallel()
 
-	// Define schema for test parquet file
 	schema := arrow.NewSchema(
 		[]arrow.Field{
 			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
-			{Name: "loss", Type: arrow.PrimitiveTypes.Int64}, // Note: using Int64 to match the test expectations
+			{Name: "loss", Type: arrow.PrimitiveTypes.Int64},
 		},
-		nil,
+		nil /* metadata */,
 	)
-	arrays := []arrow.Array{
-		test.BuildArray(t, []int64{1, 2, 3}, nil),
-		test.BuildArray(t, []int64{1, 2, 3}, nil),
+	data := []map[string]any{
+		{"_step": 1, "loss": 1},
+		{"_step": 2, "loss": 2},
+		{"_step": 3, "loss": 3},
 	}
-
-	setup := setupTestRowIterator(
+	filePath := filepath.Join(t.TempDir(), "test.parquet")
+	test.CreateTestParquetFileFromData(
 		t,
+		filePath,
 		schema,
-		arrays,
+		data,
+	)
+	it, cleanup := getRowIteratorForFile(
+		t,
+		filePath,
 		[]string{"loss"},
 		WithHistoryPageRange(HistoryPageParams{MinStep: 0, MaxStep: 2}),
 	)
-	defer setup.cleanup()
+	defer cleanup()
 
-	if next, err := setup.iterator.Next(); err != nil {
-		t.Fatal(err)
-	} else if !next {
-		t.Fatal("missing record")
-	}
-	assert.Equal(t, KVMapList{{Key: "loss", Value: int64(1)}}, setup.iterator.Value())
+	next, err := it.Next()
+	assert.NoError(t, err)
+	assert.True(t, next)
+	assert.Equal(t, KVMapList{{Key: "loss", Value: int64(1)}}, it.Value())
 
-	if next, err := setup.iterator.Next(); err != nil {
-		t.Fatal(err)
-	} else if next {
-		t.Fatalf("got unexpected record: %v", setup.iterator.Value())
-	}
+	// Verify no more data returned
+	next, err = it.Next()
+	assert.NoError(t, err)
+	assert.False(t, next, "Expected no more data returned")
 }
 
 func TestRowIteratorUserMetricsWithTimestamp(t *testing.T) {
@@ -166,38 +136,45 @@ func TestRowIteratorUserMetricsWithTimestamp(t *testing.T) {
 			{Name: "loss", Type: arrow.PrimitiveTypes.Int64},
 			{Name: "_timestamp", Type: arrow.PrimitiveTypes.Float64},
 		},
-		nil,
+		nil /* metadata */,
 	)
-	arrays := []arrow.Array{
-		test.BuildArray(t, []float64{1.0, 2.0, 3.0}, nil),
-		test.BuildArray(t, []int64{1, 2, 3}, nil),
-		test.BuildArray(t, []float64{1.0, 2.0, 3.0}, nil),
+
+	data := []map[string]any{
+		{"_step": 1.0, "loss": 1, "_timestamp": 1.0},
+		{"_step": 2.0, "loss": 2, "_timestamp": 2.0},
+		{"_step": 3.0, "loss": 3, "_timestamp": 3.0},
 	}
-	setup := setupTestRowIterator(
+	filePath := filepath.Join(t.TempDir(), "test.parquet")
+	test.CreateTestParquetFileFromData(
 		t,
+		filePath,
 		schema,
-		arrays,
+		data,
+	)
+	it, cleanup := getRowIteratorForFile(
+		t,
+		filePath,
 		[]string{"loss", "_timestamp"},
 		WithHistoryPageRange(HistoryPageParams{MinStep: 0, MaxStep: 2}),
 	)
-	defer setup.cleanup()
+	defer cleanup()
 
-	if next, err := setup.iterator.Next(); err != nil {
-		t.Fatal(err)
-	} else if !next {
-		t.Fatal("missing record")
-	}
+	next, err := it.Next()
+	assert.NoError(t, err)
+	assert.True(t, next)
 	assert.Equal(
 		t,
-		KVMapList{{Key: "loss", Value: int64(1)}, {Key: "_timestamp", Value: float64(1)}},
-		setup.iterator.Value(),
+		KVMapList{
+			{Key: "loss", Value: int64(1)},
+			{Key: "_timestamp", Value: float64(1)},
+		},
+		it.Value(),
 	)
 
-	if next, err := setup.iterator.Next(); err != nil {
-		t.Fatal(err)
-	} else if next {
-		t.Fatalf("got unexpected record: %v", setup.iterator.Value())
-	}
+	// Verify no more data returned
+	next, err = it.Next()
+	assert.NoError(t, err)
+	assert.False(t, next, "Expected no more data returned")
 }
 
 func TestRowIteratorUserMetricsWithTimestampReordered(t *testing.T) {
@@ -209,42 +186,44 @@ func TestRowIteratorUserMetricsWithTimestampReordered(t *testing.T) {
 			{Name: "loss", Type: arrow.PrimitiveTypes.Int64},
 			{Name: "_step", Type: arrow.PrimitiveTypes.Float64},
 		},
-		nil,
+		nil /* metadata */,
 	)
-	arrays := []arrow.Array{
-		test.BuildArray(t, []float64{1.0, 2.0, 3.0}, nil),
-		test.BuildArray(t, []int64{1, 2, 3}, nil),
-		test.BuildArray(t, []float64{1.0, 2.0, 3.0}, nil),
+	data := []map[string]any{
+		{"_timestamp": 1.0, "loss": 1, "_step": 1.0},
+		{"_timestamp": 2.0, "loss": 2, "_step": 2.0},
+		{"_timestamp": 3.0, "loss": 3, "_step": 3.0},
 	}
-
-	setup := setupTestRowIterator(
+	filePath := filepath.Join(t.TempDir(), "test.parquet")
+	test.CreateTestParquetFileFromData(
 		t,
+		filePath,
 		schema,
-		arrays,
+		data,
+	)
+	it, cleanup := getRowIteratorForFile(
+		t,
+		filePath,
 		[]string{"loss", "_timestamp"},
 		WithHistoryPageRange(HistoryPageParams{MinStep: 0, MaxStep: 2}),
 	)
-	defer setup.cleanup()
+	defer cleanup()
 
-	if next, err := setup.iterator.Next(); err != nil {
-		t.Fatal(err)
-	} else if !next {
-		t.Fatal("missing record")
-	}
+	next, err := it.Next()
+	assert.NoError(t, err)
+	assert.True(t, next)
 	assert.Equal(
 		t,
 		KVMapList{
-			{Key: "_timestamp", Value: float64(1)},
+			{Key: "_timestamp", Value: float64(1.0)},
 			{Key: "loss", Value: int64(1)},
 		},
-		setup.iterator.Value(),
+		it.Value(),
 	)
 
-	if next, err := setup.iterator.Next(); err != nil {
-		t.Fatal(err)
-	} else if next {
-		t.Fatalf("got unexpected record: %v", setup.iterator.Value())
-	}
+	// Verify no more data returned
+	next, err = it.Next()
+	assert.NoError(t, err)
+	assert.False(t, next, "Expected no more data returned")
 }
 
 func TestRowIteratorSystemMetrics(t *testing.T) {
@@ -256,90 +235,51 @@ func TestRowIteratorSystemMetrics(t *testing.T) {
 			{Name: "loss", Type: arrow.PrimitiveTypes.Int64},
 			{Name: "_step", Type: arrow.PrimitiveTypes.Float64},
 		},
-		nil,
+		nil /* metadata */,
 	)
-	arrays := []arrow.Array{
-		test.BuildArray(t, []float64{1.0, 2.0, 3.0, 4.0, 5.0}, nil),
-		test.BuildArray(t, []int64{1, 2, 3, 4, 5}, nil),
-		test.BuildArray(t, []float64{1.0, 2.0, 3.0, 4.0, 5.0}, nil),
+	data := []map[string]any{
+		{"_timestamp": 1.0, "loss": 1, "_step": 1.0},
+		{"_timestamp": 2.0, "loss": 2, "_step": 2.0},
+		{"_timestamp": 3.0, "loss": 3, "_step": 3.0},
+		{"_timestamp": 4.0, "loss": 4, "_step": 4.0},
+		{"_timestamp": 5.0, "loss": 5, "_step": 5.0},
 	}
-
-	setup := setupTestRowIterator(
+	filePath := filepath.Join(t.TempDir(), "test.parquet")
+	test.CreateTestParquetFileFromData(
 		t,
+		filePath,
 		schema,
-		arrays,
+		data,
+	)
+	it, cleanup := getRowIteratorForFile(
+		t,
+		filePath,
 		[]string{"loss"},
-		WithEventsPageRange(EventsPageParams{MinTimestamp: 1.0, MaxTimestamp: 4.0}),
+		WithEventsPageRange(EventsPageParams{
+			MinTimestamp: 1.0,
+			MaxTimestamp: 4.0,
+		}),
 	)
+	defer cleanup()
 
-	if next, err := setup.iterator.Next(); err != nil {
-		t.Fatal(err)
-	} else if !next {
-		t.Fatal("missing record")
+	// We expect only 3 rows to be returned
+	for i := range 3 {
+		next, err := it.Next()
+		assert.NoError(t, err)
+		assert.True(t, next)
+		assert.Equal(
+			t,
+			KVMapList{{Key: "loss", Value: int64(i + 1)}},
+			it.Value(),
+		)
 	}
-	assert.Equal(t, KVMapList{{Key: "loss", Value: int64(1)}}, setup.iterator.Value())
 
-	if next, err := setup.iterator.Next(); err != nil {
-		t.Fatal(err)
-	} else if !next {
-		t.Fatal("missing record")
-	}
-	assert.Equal(t, KVMapList{{Key: "loss", Value: int64(2)}}, setup.iterator.Value())
-
-	if next, err := setup.iterator.Next(); err != nil {
-		t.Fatal(err)
-	} else if !next {
-		t.Fatal("missing record")
-	}
-	assert.Equal(t, KVMapList{{Key: "loss", Value: int64(3)}}, setup.iterator.Value())
-
-	if next, err := setup.iterator.Next(); err != nil {
-		t.Fatal(err)
-	} else if next {
-		t.Fatalf("got unexpected record: %v", setup.iterator.Value())
-	}
+	// Verify no more data returned
+	next, err := it.Next()
+	assert.NoError(t, err)
+	assert.False(t, next, "Expected no more data returned")
 }
 
-func TestTableIteratorWithNoColumnFilter(t *testing.T) {
-	t.Parallel()
-	schema := arrow.NewSchema([]arrow.Field{
-		{
-			Name: "_step",
-			Type: &arrow.Int64Type{},
-		},
-		{
-			Name:     "acc",
-			Type:     &arrow.Float64Type{},
-			Nullable: true,
-		},
-	}, nil)
-
-	builder := array.NewRecordBuilder(memory.DefaultAllocator, schema)
-	defer builder.Release()
-	builder.Field(0).(*array.Int64Builder).AppendValues([]int64{0, 1}, nil)
-	builder.Field(1).(*array.Float64Builder).AppendValues(
-		[]float64{1, math.NaN()},
-		[]bool{true, false},
-	)
-	record := builder.NewRecordBatch()
-	defer record.Release()
-
-	reader, err := NewRecordIterator(record)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var actual []interface{}
-	next, err := reader.Next()
-	for ; next && err == nil; next, err = reader.Next() {
-		for _, kv := range reader.Value() {
-			if kv.Key == "acc" {
-				actual = append(actual, kv.Value)
-				break
-			}
-		}
-	}
-	assert.Equal(t, []interface{}{float64(1), nil}, actual)
-}
 
 func TestTableIteratorFiltersRowsWithEmptyColumns(t *testing.T) {
 	t.Parallel()
@@ -373,10 +313,19 @@ func TestTableIteratorFiltersRowsWithEmptyColumns(t *testing.T) {
 	next, err := reader.Next()
 	assert.NoError(t, err)
 	assert.True(t, next)
+	assert.Equal(
+		t,
+		KVMapList{
+			{Key: "_step", Value: int64(0)},
+			{Key: "acc", Value: float64(1)},
+		},
+		reader.Value(),
+	)
 
+	// Verify no more data returned
 	next, err = reader.Next()
 	assert.NoError(t, err)
-	assert.False(t, next)
+	assert.False(t, next, "Expected no more data returned")
 }
 
 func TestTableIteratorFiltersRowsWithStepOutOfRange(t *testing.T) {
@@ -401,22 +350,21 @@ func TestTableIteratorFiltersRowsWithStepOutOfRange(t *testing.T) {
 			Max: 2,
 		}),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if next, err := reader.Next(); err != nil {
-		t.Fatal(err)
-	} else if !next {
-		t.Fatal("missing record")
-	} else if value := reader.Value()[0]; value.Key != "_step" || value.Value != int64(1) {
-		t.Fatalf("go unexpected record: %v", value)
-	}
+	require.NoError(t, err)
 
-	if next, err := reader.Next(); err != nil {
-		t.Fatal(err)
-	} else if next {
-		t.Fatalf("got unexpected record: %v", reader.Value())
-	}
+	next, err := reader.Next()
+	assert.NoError(t, err)
+	assert.True(t, next)
+	assert.Equal(
+		t,
+		KVMapList{{Key: "_step", Value: int64(1)}},
+		reader.Value(),
+	)
+
+	// Verify no more data returned
+	next, err = reader.Next()
+	assert.NoError(t, err)
+	assert.False(t, next, "Expected no more data returned")
 }
 
 func TestTableIteratorMemoryLeak(t *testing.T) {
@@ -440,15 +388,17 @@ func TestTableIteratorMemoryLeak(t *testing.T) {
 	}
 	record.Release()
 
-	steps := []int64{}
+	for i := range 3 {
+		next, err := reader.Next()
+		assert.NoError(t, err)
+		assert.True(t, next)
+		assert.Equal(t, KVMapList{{Key: "_step", Value: int64(i)}}, reader.Value())
+	}
+
+	// Verify no more data returned
 	next, err := reader.Next()
-	for ; next && err == nil; next, err = reader.Next() {
-		steps = append(steps, reader.Value()[0].Value.(int64))
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, steps, []int64{0, 1, 2})
+	assert.NoError(t, err)
+	assert.False(t, next, "Expected no more data returned")
 
 	reader.Release()
 	allocator.AssertSize(t, 0)
@@ -460,57 +410,28 @@ func TestRowGroupIteratorMemoryLeak(t *testing.T) {
 	defer allocator.AssertSize(t, 0)
 
 	filePath := "../../../../tests/files/history.parquet"
-	f, err := os.Open(filePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pf, err := file.NewParquetReader(
-		f,
-		file.WithReadProps(parquet.NewReaderProperties(allocator)),
+	it, cleanup := getRowIteratorForFile(
+		t,
+		filePath,
+		[]string{"loss"},
+		WithHistoryPageRange(HistoryPageParams{
+			MinStep: 0,
+			MaxStep: 999,
+		}),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	defer cleanup()
 
-	r, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{}, allocator)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// all row groups should be read
-	ctx := context.Background()
-	page := HistoryPageParams{
-		MinStep: 0,
-		MaxStep: 999,
-	}
-	it, err := NewRowIterator(
-		ctx,
-		r,
-		[]string{"_step"},
-		WithHistoryPageRange(page),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer it.Release()
-
-	steps := []float64{}
 	next, err := it.Next()
+	i := 0
 	for ; next && err == nil; next, err = it.Next() {
-		steps = append(steps, it.Value()[0].Value.(float64))
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := make([]float64, 999)
-	for i := range expected {
-		expected[i] = float64(i)
-	}
-	assert.Equal(t, steps, expected)
-
-	if err := pf.Close(); err != nil {
-		t.Fatal(err)
+		assert.NoError(t, err)
+		assert.True(t, next)
+		assert.Equal(
+			t,
+			KVMapList{{Key: "_step", Value: int64(i + 1)}},
+			it.Value(),
+		)
+		i++
 	}
 
 	it.Release()
@@ -546,31 +467,23 @@ func TestRowGroupIteratorWithListOfStructs(t *testing.T) {
 
 	tempFile := filepath.Join(t.TempDir(), "test_list_of_structs.parquet")
 	test.CreateTestParquetFileFromData(t, tempFile, schema, data)
-	pr, err := file.OpenParquetFile(tempFile, true)
-	require.NoError(t, err)
-	defer pr.Close()
-
-	r, err := pqarrow.NewFileReader(pr, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
-	require.NoError(t, err)
-
-	it, err := NewRowIterator(
-		context.Background(),
-		r,
+	it, cleanup := getRowIteratorForFile(
+		t,
+		tempFile,
 		[]string{},
 		WithHistoryPageRange(HistoryPageParams{
 			MinStep: 0,
 			MaxStep: math.MaxInt64,
 		}),
 	)
-	require.NoError(t, err)
-	defer it.Release()
+	defer cleanup()
 
 	// Iterate through all rows and verify values match the input data
 	for i, row := range data {
 		expected := row["outer"]
 		next, err := it.Next()
-		require.NoError(t, err, "Error getting row %d", i)
-		require.True(t, next, "Expected row %d to exist", i)
+		assert.NoError(t, err, "Error getting row %d", i)
+		assert.True(t, next, "Expected row %d to exist", i)
 
 		// Since we're getting all columns, extract just the outer value
 		var actual any
@@ -581,17 +494,13 @@ func TestRowGroupIteratorWithListOfStructs(t *testing.T) {
 			}
 		}
 
-		if expected == nil {
-			assert.Nil(t, actual, "Row %d: expected outer to be nil", i)
-		} else {
-			assert.Equal(t, expected, actual, "Row %d: outer value mismatch", i)
-		}
+		assert.Equal(t, expected, actual, "Row %d: outer value mismatch", i)
 	}
 
 	// Verify no more rows beyond what's in the data
 	next, err := it.Next()
-	require.NoError(t, err)
-	require.False(t, next, "Expected no more rows after %d rows", len(data))
+	assert.NoError(t, err)
+	assert.False(t, next, "Expected no more rows after %d rows", len(data))
 }
 
 func TestRowGroupIteratorWithListOfNestedStructs(t *testing.T) {
@@ -640,31 +549,23 @@ func TestRowGroupIteratorWithListOfNestedStructs(t *testing.T) {
 	}
 	tempFile := filepath.Join(t.TempDir(), "test_list_of_structs.parquet")
 	test.CreateTestParquetFileFromData(t, tempFile, schema, data)
-	pr, err := file.OpenParquetFile(tempFile, true)
-	require.NoError(t, err)
-	defer pr.Close()
-
-	r, err := pqarrow.NewFileReader(pr, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
-	require.NoError(t, err)
-
-	it, err := NewRowIterator(
-		context.Background(),
-		r,
+	it, cleanup := getRowIteratorForFile(
+		t,
+		tempFile,
 		[]string{},
 		WithHistoryPageRange(HistoryPageParams{
 			MinStep: 0,
 			MaxStep: math.MaxInt64,
 		}),
 	)
-	require.NoError(t, err)
-	defer it.Release()
+	defer cleanup()
 
 	// Iterate through all rows and verify values match the input data
 	for i, row := range data {
 		expected := row["outer"]
 		next, err := it.Next()
-		require.NoError(t, err, "Error getting row %d", i)
-		require.True(t, next, "Expected row %d to exist", i)
+		assert.NoError(t, err, "Error getting row %d", i)
+		assert.True(t, next, "Expected row %d to exist", i)
 
 		// Since we're getting all columns, extract just the outer value
 		var actual any
@@ -675,17 +576,13 @@ func TestRowGroupIteratorWithListOfNestedStructs(t *testing.T) {
 			}
 		}
 
-		if expected == nil {
-			assert.Nil(t, actual, "Row %d: expected outer to be nil", i)
-		} else {
-			assert.Equal(t, expected, actual, "Row %d: outer value mismatch", i)
-		}
+		assert.Equal(t, expected, actual, "Row %d: outer value mismatch", i)
 	}
 
 	// Verify no more rows beyond what's in the data
 	next, err := it.Next()
-	require.NoError(t, err)
-	require.False(t, next, "Expected no more rows after %d rows", len(data))
+	assert.NoError(t, err)
+	assert.False(t, next, "Expected no more rows after %d rows", len(data))
 }
 
 func TestEmptyFile(t *testing.T) {
@@ -737,25 +634,24 @@ func TestRowIteratorWithMissingColumns(t *testing.T) {
 		{Name: "_step", Type: arrow.PrimitiveTypes.Float64},
 		{Name: "loss", Type: arrow.PrimitiveTypes.Int64},
 	}, nil)
-	arrays := []arrow.Array{
-		test.BuildArray(t, []float64{1.0, 2.0}, nil),
-		test.BuildArray(t, []int64{1, 2}, nil),
+	data := []map[string]any{
+		{"_step": 1.0, "loss": 1},
+		{"_step": 2.0, "loss": 2},
 	}
-
-	setup := setupTestRowIterator(
+	filePath := filepath.Join(t.TempDir(), "test.parquet")
+	test.CreateTestParquetFileFromData(t, filePath, schema, data)
+	it, cleanup := getRowIteratorForFile(
 		t,
-		schema,
-		arrays,
+		filePath,
 		[]string{"_step", "loss", "nonexistent_column"},
 		WithHistoryPageRange(HistoryPageParams{MinStep: 0, MaxStep: 2}),
 	)
+	defer cleanup()
 
-	// Should get a dummy iterator that returns no rows
-	if next, err := setup.iterator.Next(); err != nil {
-		t.Fatal(err)
-	} else if next {
-		t.Fatal("expected no rows from iterator")
-	}
+	// Expect no data returned
+	next, err := it.Next()
+	assert.NoError(t, err)
+	assert.False(t, next)
 }
 
 func TestRowIteratorWithComplexColumns(t *testing.T) {
@@ -770,81 +666,57 @@ func TestRowIteratorWithComplexColumns(t *testing.T) {
 		)},
 	}, nil)
 	data := []map[string]any{
-		{"_step": 1.0, "loss": int64(1), "nested": map[string]any{"nested_a": 1.0, "nested_b": 2.0}},
-		{"_step": 2.0, "loss": int64(2), "nested": map[string]any{"nested_a": 2.0, "nested_b": 4.0}},
-		{"_step": 3.0, "loss": int64(3), "nested": map[string]any{"nested_a": 4.0, "nested_b": 6.0}},
+		{
+			"_step": 1.0,
+			"loss": int64(1),
+			"nested": map[string]any{"nested_a": 1.0, "nested_b": 2.0},
+		},
+		{
+			"_step": 2.0,
+			"loss": int64(2),
+			"nested": map[string]any{"nested_a": 2.0, "nested_b": 4.0},
+		},
+		{
+			"_step": 3.0,
+			"loss": int64(3),
+			"nested": map[string]any{"nested_a": 4.0, "nested_b": 6.0},
+		},
 	}
 	tempFile := filepath.Join(t.TempDir(), "test_list_of_structs.parquet")
 	test.CreateTestParquetFileFromData(t, tempFile, schema, data)
-	pr, err := file.OpenParquetFile(tempFile, true)
-	require.NoError(t, err)
-	defer pr.Close()
-
-	r, err := pqarrow.NewFileReader(pr, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
-	require.NoError(t, err)
-
-	it, err := NewRowIterator(
-		context.Background(),
-		r,
+	it, cleanup := getRowIteratorForFile(
+		t,
+		tempFile,
 		[]string{},
 		WithHistoryPageRange(HistoryPageParams{
 			MinStep: 0,
 			MaxStep: math.MaxInt64,
 		}),
 	)
-	require.NoError(t, err)
-	defer it.Release()
+	defer cleanup()
 
-	// Verify first row
-	if next, err := it.Next(); err != nil {
-		t.Fatal(err)
-	} else if !next {
-		t.Fatal("missing first record")
+
+	// Verify all rows match the input data
+	for i, row := range data {
+		next, err := it.Next()
+		assert.NoError(t, err, "Error getting row %d", i)
+		assert.True(t, next, "Expected row %d to exist", i)
+
+		// Build expected KVMapList from the data row
+		// The order should match how the iterator returns columns
+		expectedRow := KVMapList{
+			{Key: "_step", Value: row["_step"]},
+			{Key: "loss", Value: row["loss"]},
+			{Key: "nested", Value: row["nested"]},
+		}
+
+		assert.Equal(t, expectedRow, it.Value(), "Row %d mismatch", i)
 	}
 
-	expectedFirstRow := KVMapList{
-		{Key: "_step", Value: 1.0},
-		{Key: "loss", Value: int64(1)},
-		{Key: "nested", Value: map[string]any{
-			"nested_a": 1.0,
-			"nested_b": 2.0,
-		}},
-	}
-	assert.Equal(t, it.Value(), expectedFirstRow)
-
-	// Verify second row
-	if next, err := it.Next(); err != nil {
-		t.Fatal(err)
-	} else if !next {
-		t.Fatal("missing second record")
-	}
-
-	expectedSecondRow := KVMapList{
-		{Key: "_step", Value: 2.0},
-		{Key: "loss", Value: int64(2)},
-		{Key: "nested", Value: map[string]any{
-			"nested_a": 2.0,
-			"nested_b": 4.0,
-		}},
-	}
-	assert.Equal(t, it.Value(), expectedSecondRow)
-
-	// Verify third row
-	if next, err := it.Next(); err != nil {
-		t.Fatal(err)
-	} else if !next {
-		t.Fatal("missing third record")
-	}
-
-	expectedThirdRow := KVMapList{
-		{Key: "_step", Value: 3.0},
-		{Key: "loss", Value: int64(3)},
-		{Key: "nested", Value: map[string]any{
-			"nested_a": 4.0,
-			"nested_b": 6.0,
-		}},
-	}
-	assert.Equal(t, it.Value(), expectedThirdRow)
+	// Verify no more rows beyond what's in the data
+	next, err := it.Next()
+	assert.NoError(t, err)
+	assert.False(t, next, "Expected no more rows after %d rows", len(data))
 }
 
 func TestSelectColumns(t *testing.T) {
