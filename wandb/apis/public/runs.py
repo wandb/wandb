@@ -113,13 +113,10 @@ RUN_FRAGMENT_NAME = "RunFragment"
 LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
 
 
-def _create_runs_query(*, lazy: bool, with_internal_id: bool, client) -> gql:
+def _create_runs_query(*, lazy: bool, with_internal_id: bool, with_project_id: bool) -> gql:
     """Create GraphQL query for runs with appropriate fragment."""
     fragment = LIGHTWEIGHT_RUN_FRAGMENT if lazy else RUN_FRAGMENT
     fragment_name = LIGHTWEIGHT_RUN_FRAGMENT_NAME if lazy else RUN_FRAGMENT_NAME
-
-    # Check if server supports projectId on Run type
-    with_project_id = _server_provides_project_id_for_run(client)
 
     return gql(
         f"""#graphql
@@ -289,7 +286,7 @@ class Runs(SizedPaginator["Run"]):
         self.QUERY = _create_runs_query(
             lazy=lazy,
             with_internal_id=_server_provides_internal_id_for_project(client),
-            client=client,
+            with_project_id=_server_provides_project_id_for_run(client),
         )
 
         self.entity = entity
@@ -502,7 +499,7 @@ class Runs(SizedPaginator["Run"]):
         self.QUERY = _create_runs_query(
             lazy=False,
             with_internal_id=_server_provides_internal_id_for_project(self.client),
-            client=self.client,
+            with_project_id=_server_provides_project_id_for_run(self.client),
         )
 
         # Upgrade any existing runs that have been loaded - use parallel loading for performance
