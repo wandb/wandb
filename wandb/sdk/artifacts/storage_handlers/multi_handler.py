@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-from wandb.sdk.artifacts.storage_handler import StorageHandler
+from wandb.sdk.artifacts.storage_handler import StorageHandler, _BaseStorageHandler
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
@@ -13,8 +13,9 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
 
-class MultiHandler(StorageHandler):
+class MultiHandler(_BaseStorageHandler):
     _handlers: list[StorageHandler]
+    _default_handler: StorageHandler | None
 
     def __init__(
         self,
@@ -26,21 +27,22 @@ class MultiHandler(StorageHandler):
 
     def _get_handler(self, url: FilePathStr | URIStr) -> StorageHandler:
         parsed_url = urlparse(url)
-        for handler in self._handlers:
-            if handler.can_handle(parsed_url):
-                return handler
-        if self._default_handler is not None:
-            return self._default_handler
-        raise ValueError(f'No storage handler registered for url "{url!s}"')
+
+        valid_handlers = (h for h in self._handlers if h.can_handle(parsed_url))
+        if handler := next(valid_handlers, self._default_handler):
+            return handler
+        raise ValueError(f"No storage handler registered for url: {url!r}")
 
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> URIStr | FilePathStr:
-        assert manifest_entry.ref is not None
-        handler = self._get_handler(manifest_entry.ref)
-        return handler.load_path(manifest_entry, local=local)
+        if (ref_uri := manifest_entry.ref) is None:
+            raise ValueError(
+                f"Missing ref URI for manifest entry: {manifest_entry.path}"
+            )
+        return self._get_handler(ref_uri).load_path(manifest_entry, local=local)
 
     def store_path(
         self,
@@ -49,8 +51,7 @@ class MultiHandler(StorageHandler):
         name: str | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
-        handler = self._get_handler(path)
-        return handler.store_path(
+    ) -> list[ArtifactManifestEntry]:
+        return self._get_handler(path).store_path(
             artifact, path, name=name, checksum=checksum, max_objects=max_objects
         )
