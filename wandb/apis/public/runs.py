@@ -113,7 +113,9 @@ RUN_FRAGMENT_NAME = "RunFragment"
 LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
 
 
-def _create_runs_query(*, lazy: bool, with_internal_id: bool, with_project_id: bool) -> gql:
+def _create_runs_query(
+    *, lazy: bool, with_internal_id: bool, with_project_id: bool
+) -> gql:
     """Create GraphQL query for runs with appropriate fragment."""
     fragment = LIGHTWEIGHT_RUN_FRAGMENT if lazy else RUN_FRAGMENT
     fragment_name = LIGHTWEIGHT_RUN_FRAGMENT_NAME if lazy else RUN_FRAGMENT_NAME
