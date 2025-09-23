@@ -1,5 +1,8 @@
 package test
 
+// parquet_builder.go is a utility for creating parquet files used for testing
+// from data that looks similar to data logged by run.log().
+
 import (
 	"os"
 	"testing"
@@ -19,10 +22,6 @@ func CreateTestParquetFileFromData(
 	schema *arrow.Schema,
 	data []map[string]any,
 ) {
-	if len(data) == 0 {
-		t.Fatal("cannot create parquet file with no data")
-	}
-
 	builders := make([]array.Builder, schema.NumFields())
 	for i, field := range schema.Fields() {
 		builder := createBuilderForType(memory.DefaultAllocator, field.Type)
@@ -120,6 +119,68 @@ func createBuilderForType(alloc memory.Allocator, dataType arrow.DataType) array
 	}
 }
 
+// appendInt64Value handles conversion and appending of int64 values
+func appendInt64Value(t *testing.T, b *array.Int64Builder, value any) {
+	switch v := value.(type) {
+	case int64:
+		b.Append(v)
+	case int:
+		b.Append(int64(v))
+	case int32:
+		b.Append(int64(v))
+	case float64:
+		// Handle float64 to int64 conversion (useful for JSON deserialization)
+		b.Append(int64(v))
+	default:
+		t.Fatalf("cannot convert %T to int64", value)
+	}
+}
+
+// appendFloat64Value handles conversion and appending of float64 values
+func appendFloat64Value(t *testing.T, b *array.Float64Builder, value any) {
+	switch v := value.(type) {
+	case float64:
+		b.Append(v)
+	case float32:
+		b.Append(float64(v))
+	case int:
+		b.Append(float64(v))
+	default:
+		t.Fatalf("cannot convert %T to float64", value)
+	}
+}
+
+// appendListValue handles appending list values
+func appendListValue(t *testing.T, b *array.ListBuilder, value any, dataType arrow.DataType) {
+	listVal, ok := value.([]any)
+	if !ok {
+		t.Fatalf("expected []any for list builder, got %T", value)
+	}
+	b.Append(true)
+	elemType := dataType.(*arrow.ListType).Elem()
+	for _, elem := range listVal {
+		appendToBuilder(t, b.ValueBuilder(), elem, elemType)
+	}
+}
+
+// appendStructValue handles appending struct values
+func appendStructValue(t *testing.T, b *array.StructBuilder, value any, dataType arrow.DataType) {
+	structVal, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map[string]any for struct builder, got %T", value)
+	}
+	b.Append(true)
+	structType := dataType.(*arrow.StructType)
+	for i, field := range structType.Fields() {
+		fieldBuilder := b.FieldBuilder(i)
+		if fieldVal, exists := structVal[field.Name]; exists {
+			appendToBuilder(t, fieldBuilder, fieldVal, field.Type)
+		} else {
+			fieldBuilder.AppendNull()
+		}
+	}
+}
+
 func appendToBuilder(t *testing.T, builder array.Builder, value any, dataType arrow.DataType) {
 	if value == nil {
 		builder.AppendNull()
@@ -136,19 +197,7 @@ func appendToBuilder(t *testing.T, builder array.Builder, value any, dataType ar
 	case *array.Int32Builder:
 		b.Append(value.(int32))
 	case *array.Int64Builder:
-		switch v := value.(type) {
-		case int64:
-			b.Append(v)
-		case int:
-			b.Append(int64(v))
-		case int32:
-			b.Append(int64(v))
-		case float64:
-			// Handle float64 to int64 conversion (useful for JSON deserialization)
-			b.Append(int64(v))
-		default:
-			t.Fatalf("cannot convert %T to int64", value)
-		}
+		appendInt64Value(t, b, value)
 	case *array.Uint8Builder:
 		b.Append(value.(uint8))
 	case *array.Uint16Builder:
@@ -160,46 +209,15 @@ func appendToBuilder(t *testing.T, builder array.Builder, value any, dataType ar
 	case *array.Float32Builder:
 		b.Append(value.(float32))
 	case *array.Float64Builder:
-		switch v := value.(type) {
-		case float64:
-			b.Append(v)
-		case float32:
-			b.Append(float64(v))
-		case int:
-			b.Append(float64(v))
-		default:
-			t.Fatalf("cannot convert %T to float64", value)
-		}
+		appendFloat64Value(t, b, value)
 	case *array.StringBuilder:
 		b.Append(value.(string))
 	case *array.BinaryBuilder:
 		b.Append(value.([]byte))
 	case *array.ListBuilder:
-		listVal, ok := value.([]any)
-		if !ok {
-			// Handle empty list or other types
-			t.Fatalf("expected []any for list builder, got %T", value)
-		}
-		b.Append(true)
-		elemType := dataType.(*arrow.ListType).Elem()
-		for _, elem := range listVal {
-			appendToBuilder(t, b.ValueBuilder(), elem, elemType)
-		}
+		appendListValue(t, b, value, dataType)
 	case *array.StructBuilder:
-		structVal, ok := value.(map[string]any)
-		if !ok {
-			t.Fatalf("expected map[string]any for struct builder, got %T", value)
-		}
-		b.Append(true)
-		structType := dataType.(*arrow.StructType)
-		for i, field := range structType.Fields() {
-			fieldBuilder := b.FieldBuilder(i)
-			if fieldVal, exists := structVal[field.Name]; exists {
-				appendToBuilder(t, fieldBuilder, fieldVal, field.Type)
-			} else {
-				fieldBuilder.AppendNull()
-			}
-		}
+		appendStructValue(t, b, value, dataType)
 	default:
 		t.Fatalf("unsupported builder type %T", builder)
 	}
