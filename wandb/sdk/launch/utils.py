@@ -7,7 +7,17 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
 
 import click
 
@@ -619,7 +629,7 @@ def make_k8s_label_safe(value: str) -> str:
     # Trim to 63 and strip leading/trailing '-'
     safe = safe[:63].strip("-")
 
-    if len(safe) == 0:
+    if not safe:
         raise LaunchError(f"Invalid value for Kubernetes label: {value}")
 
     return safe
@@ -772,7 +782,7 @@ def get_current_python_version() -> Tuple[str, str]:
     return version, major
 
 
-def yield_containers(root: Any) -> Iterator[dict]:
+def yield_containers(root: Union[dict, list]) -> Iterator[dict]:
     """Yield all container specs in a manifest.
 
     Recursively traverses the manifest and yields all container specs. Container
@@ -790,23 +800,20 @@ def yield_containers(root: Any) -> Iterator[dict]:
             yield from yield_containers(item)
 
 
-def sanitize_identifiers_for_k8s(root: Any) -> None:
+def sanitize_identifiers_for_k8s(root: Union[dict, list]) -> None:
     if isinstance(root, list):
         for item in root:
             sanitize_identifiers_for_k8s(item)
         return
 
-    if not isinstance(root, dict):
-        return
-
     metadata = root.get("metadata")
     if isinstance(metadata, dict):
-        if metadata.get("name"):
-            metadata["name"] = make_k8s_label_safe(str(metadata["name"]))
+        if name := metadata.get("name"):
+            metadata["name"] = make_k8s_label_safe(str(name))
 
     for container in yield_containers(root):
-        if container.get("name"):
-            container["name"] = make_k8s_label_safe(str(container["name"]))
+        if name := container.get("name"):
+            container["name"] = make_k8s_label_safe(str(name))
 
     # nested names
     for key, value in root.items():

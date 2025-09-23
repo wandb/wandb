@@ -943,6 +943,9 @@ class KubernetesRunner(AbstractRunner):
         additional_services: List[Dict[str, Any]] = recursive_macro_sub(
             launch_project.launch_spec.get("additional_services", []), update_dict
         )
+        auxiliary_resource_label_value = make_k8s_label_safe(
+            f"aux-{launch_project.target_entity}-{launch_project.target_project}-{launch_project.run_id}"
+        )
         if additional_services:
             wandb.termlog(
                 f"{LOG_PREFIX}Creating additional services: {additional_services}"
@@ -962,9 +965,7 @@ class KubernetesRunner(AbstractRunner):
                         secret,
                         wait_for_ready,
                         wait_timeout,
-                        make_k8s_label_safe(
-                            f"aux-{launch_project.target_entity}-{launch_project.target_project}-{launch_project.run_id}"
-                        ),
+                        auxiliary_resource_label_value,
                     )
                     for resource in additional_services
                     if resource.get("config", {})
@@ -1002,9 +1003,7 @@ class KubernetesRunner(AbstractRunner):
             job_name,
             namespace,
             secret,
-            make_k8s_label_safe(
-                f"aux-{launch_project.target_entity}-{launch_project.target_project}-{launch_project.run_id}"
-            ),
+            auxiliary_resource_label_value,
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             await submitted_job.wait()
