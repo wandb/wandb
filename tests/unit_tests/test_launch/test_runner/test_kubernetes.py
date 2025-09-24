@@ -1734,6 +1734,7 @@ async def test_kubernetes_submitted_run_cleanup_job_api_key_secret_delete_fails(
     assert mock_termwarn.call_count == 1
     assert "Failed to cleanup API key secret" in str(mock_termwarn.call_args)
 
+
 @pytest.mark.asyncio
 async def test_launch_additional_services(
     monkeypatch,
