@@ -30,7 +30,7 @@ func TestFileStreamUpdates(t *testing.T) {
 		FilesDir:          settings.GetFilesDir(),
 		EnableCapture:     true,
 		Logger:            observabilitytest.NewTestLogger(t),
-		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(
+		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(t,
 			runfilestest.Params{},
 		),
 		FileStreamOrNil: fileStream,
@@ -69,7 +69,7 @@ func TestFileStreamUpdatesDisabled(t *testing.T) {
 		FilesDir:          settings.GetFilesDir(),
 		EnableCapture:     false,
 		Logger:            observabilitytest.NewTestLogger(t),
-		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(
+		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(t,
 			runfilestest.Params{},
 		),
 		FileStreamOrNil: fileStream,

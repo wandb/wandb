@@ -42,7 +42,6 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib import asyncio_compat, wb_logging
@@ -3007,7 +3006,7 @@ class Run:
         # the target entity to the run's entity.  Instead, delegate to
         # Artifact.link() to resolve the required org entity.
         target = ArtifactPath.from_str(target_path)
-        if not (target.project and is_artifact_registry_project(target.project)):
+        if not target.is_registry_path():
             target = target.with_defaults(prefix=self.entity, project=self.project)
 
         return artifact.link(target.to_str(), aliases)
