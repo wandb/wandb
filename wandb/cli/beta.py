@@ -5,18 +5,19 @@ These commands are experimental and may change or be removed in future versions.
 
 from __future__ import annotations
 
+import os
 import pathlib
 
 import click
 
+import wandb
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.util import get_core_path
 
 
 @click.group()
 def beta():
-    """Beta versions of wandb CLI commands. Requires wandb-core."""
-    # this is the future that requires wandb-core!
+    """Beta versions of wandb CLI commands."""
     import wandb.env
 
     wandb._sentry.configure_scope(process_context="wandb_beta")
@@ -30,6 +31,39 @@ def beta():
             fg="red",
             err=True,
         )
+
+
+@beta.command(
+    name="leet",
+    help=(
+        "Lightweight Experiment Exploration Tool.\n\n"
+        "A terminal UI for viewing your W&B runs locally.\n\n"
+        "If no directory is specified, wandb-leet will look for "
+        "the latest-run symlink in ./wandb or ./.wandb"
+    ),
+)
+@click.pass_context
+@click.argument("wandb_dir", nargs=1, type=click.Path(exists=True), required=False)
+def leet(ctx, wandb_dir: str = None):
+    """Launch the wandb-leet terminal UI.
+
+    Args:
+        ctx: Click context
+        wandb_dir: Optional path to a W&B run directory containing a .wandb file.
+                   If not provided, looks for latest-run symlink in ./wandb or ./.wandb
+    """
+    wandb._sentry.configure_scope(process_context="leet")
+
+    try:
+        core_path = get_core_path()
+
+        args = [core_path, "leet"]
+        if wandb_dir:
+            args.append(wandb_dir)
+
+        os.execvp(core_path, args)
+    except Exception as e:
+        wandb._sentry.reraise(e)
 
 
 @beta.command()

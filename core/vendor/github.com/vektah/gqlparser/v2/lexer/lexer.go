@@ -66,7 +66,7 @@ func (s *Lexer) makeError(format string, args ...interface{}) (Token, *gqlerror.
 			Column: column,
 			Src:    s.Source,
 		},
-	}, gqlerror.ErrorLocf(s.Name, s.line, column, format, args...)
+	}, gqlerror.ErrorLocf(s.Source.Name, s.line, column, format, args...)
 }
 
 // ReadToken gets the next token from the source starting at the given position.
@@ -421,29 +421,17 @@ func (s *Lexer) readBlockString() (Token, error) {
 		r := s.Input[s.end]
 
 		// Closing triple quote (""")
-		if r == '"' {
-			// Count consecutive quotes
-			quoteCount := 1
-			i := s.end + 1
-			for i < inputLen && s.Input[i] == '"' {
-				quoteCount++
-				i++
-			}
+		if r == '"' && s.end+3 <= inputLen && s.Input[s.end:s.end+3] == `"""` {
+			t, err := s.makeValueToken(BlockString, blockStringValue(buf.String()))
 
-			// If we have at least 3 quotes, use the last 3 as the closing quote
-			if quoteCount >= 3 {
-				// Add any extra quotes to the buffer (except the last 3)
-				for j := 0; j < quoteCount-3; j++ {
-					buf.WriteByte('"')
-				}
+			// the token should not include the quotes in its value, but should cover them in its position
+			t.Pos.Start -= 3
+			t.Pos.End += 3
 
-				t, err := s.makeValueToken(BlockString, blockStringValue(buf.String()))
-				t.Pos.Start -= 3
-				t.Pos.End += 3
-				s.end += quoteCount
-				s.endRunes += quoteCount
-				return t, err
-			}
+			// skip the close quote
+			s.end += 3
+			s.endRunes += 3
+			return t, err
 		}
 
 		// SourceCharacter
