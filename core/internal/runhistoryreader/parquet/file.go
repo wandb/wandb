@@ -1,7 +1,10 @@
 package parquet
 
 import (
+	"context"
+
 	"github.com/apache/arrow-go/v18/arrow/memory"
+	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/apache/arrow-go/v18/parquet/file"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 )
@@ -23,6 +26,27 @@ func LocalParquetFile(
 	return pqarrow.NewFileReader(
 		parquetReader,
 		pqarrow.ArrowReadProperties{Parallel: parallel},
+		memory.DefaultAllocator,
+	)
+}
+
+// RemoteParquetFile provides a pqarrow.FileReader for accessing a parquet file
+// that is stored in a remote remotely.
+func RemoteParquetFile(
+	ctx context.Context,
+	reader parquet.ReaderAtSeeker,
+) (*pqarrow.FileReader, error) {
+
+	fileReader, err := file.NewParquetReader(
+		reader,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return pqarrow.NewFileReader(
+		fileReader,
+		pqarrow.ArrowReadProperties{Parallel: false},
 		memory.DefaultAllocator,
 	)
 }
