@@ -7,8 +7,8 @@ import wandb
 from wandb.util import get_object_storage_headers, set_object_storage_headers
 
 # Swith the team to use default/byob
-# ENTITY = "pinglei-byob-s3"
-ENTITY = "byob-test"
+ENTITY = "pinglei-byob-s3"
+# ENTITY = "byob-test"
 PROJECT = "presigned-url-header"
 
 
@@ -42,11 +42,18 @@ def upload_artifacts():
 
 
 def add_reference_artifacts():
+    # NOTE: Set the s3 endpoint to the proxy
+    # export AWS_S3_ENDPOINT_URL=http://localhost:8182
     with wandb.init(entity=ENTITY, project=PROJECT) as run:
         artifact = wandb.Artifact("my-reference-artifact", type="image-reference")
         artifact.add_reference(
-            uri="s3://uma-bucket-testing/images/apple.jpeg"
-        )  # replace this with your own s3 bucket object
+            # NOTE: Replace this with your own s3 bucket object.
+            # To get it working with the s3 file proxy, you need to use same bucket of your BYOB
+            # because the proxy is hard coded to use one bucket name
+            # FIXME: proxy does not work due to how aws sdk signs the request ...
+            # uri="s3://uma-bucket-testing/images/apple.jpeg"
+            uri="s3://pinglei-byob-us-west-2/log_images.png"
+        )
         run.log_artifact(artifact)
 
 
@@ -156,12 +163,14 @@ def main():
     ):
         print(get_object_storage_headers())
 
-        upload_artifacts()
+        # upload_artifacts()
+        # print_url()
+        # download_artifacts()
+
         add_reference_artifacts()
-        print_url()
-        download_artifacts()
         download_reference_artifacts()
-        download_run_files()
+
+        # download_run_files()
 
 
 # uv pip install -e ~/go/src/github.com/wandb/wandb
