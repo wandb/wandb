@@ -270,7 +270,7 @@ class Versions(Paginator["Artifact"]):
         self.artifact_filter = artifact_filter or {}
 
         self.QUERY = gql_compat(
-            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields()
+            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields(client)
         )
 
         variables = {

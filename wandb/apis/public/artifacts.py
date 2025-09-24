@@ -716,7 +716,7 @@ class Artifacts(SizedPaginator["Artifact"]):
 
         self.QUERY = gql_compat(
             PROJECT_ARTIFACTS_GQL,
-            omit_fields=omit_artifact_fields(),
+            omit_fields=omit_artifact_fields(client),
             rename_fields=rename_fields,
         )
 
@@ -820,13 +820,13 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         if mode == "logged":
             self.run_key = "outputArtifacts"
             self.QUERY = gql_compat(
-                RUN_OUTPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields()
+                RUN_OUTPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields(client)
             )
             self._response_cls = RunOutputArtifactConnectionFragment
         elif mode == "used":
             self.run_key = "inputArtifacts"
             self.QUERY = gql_compat(
-                RUN_INPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields()
+                RUN_INPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields(client)
             )
             self._response_cls = RunInputArtifactConnectionFragment
         else:
