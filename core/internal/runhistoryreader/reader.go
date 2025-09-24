@@ -2,7 +2,7 @@ package runhistoryreader
 
 import "fmt"
 
-// HistoryReader handles reading run history for a given run.
+// HistoryReader downloads and reads an exisiting run's logged metrics.
 type HistoryReader struct {
 	entity  string
 	project string
