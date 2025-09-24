@@ -14,6 +14,8 @@ import (
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -187,7 +189,6 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 			}
 
 			s := settings.New()
-			s.UpdateEntity("test-entity") // Necessary for the GQL query
 
 			var server *httptest.Server
 			if tc.httpServerHandler != nil {
@@ -202,10 +203,14 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 				s.UpdateStatsCoreWeaveMetadataEndpoint(testEndpointPath)
 			}
 
+			runHandle := runhandle.New()
+			err := runHandle.Init(runupsertertest.NewOfflineUpserter(t))
+			require.NoError(t, err)
 			cwmParams := monitor.CoreWeaveMetadataParams{
 				Client:        newTestRetryableHTTPClient(logger),
 				Logger:        logger,
 				GraphqlClient: mockGQLClient,
+				RunHandle:     runHandle,
 				Settings:      s,
 			}
 
