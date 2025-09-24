@@ -73,21 +73,19 @@ func TestLocalParquetFile_MetaData(t *testing.T) {
 	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
 	createTestParquetFile(t, historyFilePath)
 
-	pf, err := LocalParquetFile(historyFilePath, true /* parallel */)
+	reader, err := LocalParquetFile(historyFilePath, true /* parallel */)
 	assert.NoError(t, err)
-	defer pf.Close()
 
-	assert.NotNil(t, pf)
-	assert.NotNil(t, pf.reader)
+	assert.NotNil(t, reader)
 	assert.Equal(
 		t,
 		int64(3),
-		pf.reader.ParquetReader().MetaData().NumRows,
+		reader.ParquetReader().MetaData().NumRows,
 	)
 	assert.Equal(
 		t,
 		2,
-		pf.reader.ParquetReader().MetaData().Schema.NumColumns(),
+		reader.ParquetReader().MetaData().Schema.NumColumns(),
 	)
 }
 
