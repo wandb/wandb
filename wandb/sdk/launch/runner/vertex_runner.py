@@ -71,6 +71,14 @@ class VertexSubmittedRun(AbstractRun):
     async def cancel(self) -> None:
         self._job.cancel()
 
+    async def get_job_api_key(self) -> Optional[str]:
+        """Vertex AI doesn't support job-specific API keys."""
+        return None
+
+    async def cleanup_job_api_key_secret(self) -> None:
+        """Vertex AI doesn't have secrets to cleanup."""
+        pass
+
 
 class VertexRunner(AbstractRunner):
     """Runner class, uses a project to create a VertexSubmittedRun."""
