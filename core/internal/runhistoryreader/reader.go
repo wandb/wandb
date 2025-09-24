@@ -1,6 +1,8 @@
 package runhistoryreader
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // HistoryReader downloads and reads an exisiting run's logged metrics.
 type HistoryReader struct {
