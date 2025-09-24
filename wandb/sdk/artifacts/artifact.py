@@ -286,27 +286,27 @@ class Artifact:
 
     @classmethod
     def _from_id(cls, artifact_id: str, client: RetryingClient) -> Artifact | None:
-        if (artifact := artifact_instance_cache.get(artifact_id)) is not None:
-            return artifact
+        if cached_artifact := artifact_instance_cache.get(artifact_id):
+            return cached_artifact
 
         query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields())
 
         data = client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
-        if (art := result.artifact) is None:
+        if (artifact := result.artifact) is None:
             return None
 
-        src_collection = art.artifact_sequence
+        src_collection = artifact.artifact_sequence
         src_project = src_collection.project
 
         entity_name = src_project.entity_name if src_project else ""
         project_name = src_project.name if src_project else ""
 
-        name = f"{src_collection.name}:v{art.version_index}"
+        name = f"{src_collection.name}:v{artifact.version_index}"
 
         path = FullArtifactPath(prefix=entity_name, project=project_name, name=name)
-        return cls._from_attrs(path, art, client)
+        return cls._from_attrs(path, artifact, client)
 
     @classmethod
     def _membership_from_name(
@@ -324,7 +324,6 @@ class Artifact:
             ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
             omit_fields=omit_artifact_fields(api=api),
         )
-
         gql_vars = {
             "entityName": path.prefix,
             "projectName": path.project,
@@ -333,18 +332,16 @@ class Artifact:
         data = client.execute(query, variable_values=gql_vars)
         result = ArtifactViaMembershipByName.model_validate(data)
 
-        if not (project_attrs := result.project):
+        if not (project := result.project):
             raise ValueError(
                 f"project {path.project!r} not found under entity {path.prefix!r}"
             )
-
-        if not (acm_attrs := project_attrs.artifact_collection_membership):
+        if not (membership := project.artifact_collection_membership):
             entity_project = f"{path.prefix}/{path.project}"
             raise ValueError(
                 f"artifact membership {path.name!r} not found in {entity_project!r}"
             )
-
-        return cls._from_membership(acm_attrs, target=path, client=client)
+        return cls._from_membership(membership, target=path, client=client)
 
     @classmethod
     def _from_name(
@@ -373,19 +370,18 @@ class Artifact:
             omit_variables=omit_vars,
             omit_fields=omit_artifact_fields(api=api),
         )
-
         data = client.execute(query, variable_values=gql_vars)
         result = ArtifactByName.model_validate(data)
 
-        if not (proj_attrs := result.project):
+        if not (project := result.project):
             raise ValueError(
                 f"project {path.project!r} not found under entity {path.prefix!r}"
             )
-        if not (art_attrs := proj_attrs.artifact):
+        if not (artifact := project.artifact):
             entity_project = f"{path.prefix}/{path.project}"
             raise ValueError(f"artifact {path.name!r} not found in {entity_project!r}")
 
-        return cls._from_attrs(path, art_attrs, client)
+        return cls._from_attrs(path, artifact, client)
 
     @classmethod
     def _from_membership(
@@ -1229,7 +1225,6 @@ class Artifact:
         assert self._client is not None
 
         query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields())
-
         data = self._client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
