@@ -3,7 +3,6 @@ import os
 import cloudpickle
 import pytest
 import torch
-
 import wandb
 from wandb.sdk.artifacts._generated import ArtifactFragment
 from wandb.sdk.artifacts.artifact import Artifact
