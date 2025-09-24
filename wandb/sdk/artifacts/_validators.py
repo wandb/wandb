@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import astuple, dataclass, field, replace
+from dataclasses import dataclass, field, replace
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, TypeVar, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from typing_extensions import Self
+from typing_extensions import Concatenate, ParamSpec, Self
 
-from wandb._iterutils import always_list
+from wandb._iterutils import always_list, unique_list
 from wandb._pydantic import from_json, gql_typename
+from wandb._strutils import nameof, removeprefix
 from wandb.util import json_friendly_val
 
 from ._generated import ArtifactPortfolioTypeFields, ArtifactSequenceTypeFields
@@ -23,9 +24,10 @@ if TYPE_CHECKING:
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-    ArtifactT = TypeVar("ArtifactT", bound=Artifact)
-    T = TypeVar("T")
-
+ArtifactT = TypeVar("ArtifactT", bound="Artifact")
+SelfT = TypeVar("SelfT")
+R = TypeVar("R")
+P = ParamSpec("P")
 
 REGISTRY_PREFIX: Final[str] = "wandb-registry-"
 MAX_ARTIFACT_METADATA_KEYS: Final[int] = 100
@@ -97,24 +99,17 @@ def validate_project_name(name: str) -> None:
     """
     max_len = 128
 
-    if len(name) == 0:
+    if not name:
         raise ValueError("Project name cannot be empty")
-
-    registry_name = ""
-    if name.startswith(REGISTRY_PREFIX):
-        registry_name = name[len(REGISTRY_PREFIX) :]
-        if len(registry_name) == 0:
-            raise ValueError("Registry name cannot be empty")
+    if not (registry_name := removeprefix(name, REGISTRY_PREFIX)):
+        raise ValueError("Registry name cannot be empty")
 
     if len(name) > max_len:
-        if registry_name:
-            raise ValueError(
-                f"Invalid registry name {registry_name!r}, must be {max_len - len(REGISTRY_PREFIX)} characters or less"
-            )
+        if registry_name != name:
+            msg = f"Invalid registry name {registry_name!r}, must be {max_len - len(REGISTRY_PREFIX)} characters or less"
         else:
-            raise ValueError(
-                f"Invalid project name {name!r}, must be {max_len} characters or less"
-            )
+            msg = f"Invalid project name {name!r}, must be {max_len} characters or less"
+        raise ValueError(msg)
 
     # Find the first occurrence of any invalid character
     if invalid_chars := set(INVALID_URL_CHARACTERS).intersection(name):
@@ -157,7 +152,8 @@ def validate_artifact_types_list(artifact_types: list[str]) -> list[str]:
     return artifact_types
 
 
-_VALID_TAG_PATTERN: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")
+TAG_REGEX: re.Pattern[str] = re.compile(r"^[-\w]+( +[-\w]+)*$")
+"""Regex pattern for valid tag names."""
 
 
 def validate_tags(tags: Collection[str] | str) -> list[str]:
@@ -168,34 +164,39 @@ def validate_tags(tags: Collection[str] | str) -> list[str]:
     Raises:
         ValueError: If any of the tags contain invalid characters.
     """
-    tags_list = always_list(tags)
-
-    if any(not _VALID_TAG_PATTERN.match(tag) for tag in tags_list):
+    tags_list = unique_list(always_list(tags))
+    if any(not TAG_REGEX.match(tag) for tag in tags_list):
         raise ValueError(
             "Invalid tag(s).  "
             "Tags must only contain alphanumeric characters separated by hyphens, underscores, and/or spaces."
         )
-    return list(dict.fromkeys(tags_list))
+    return tags_list
 
 
 RESERVED_ARTIFACT_TYPE_PREFIX: Final[str] = "wandb-"
-RESERVED_ARTIFACT_TYPES: Final[tuple[str, ...]] = ("job", "run_table", "code")
-RESERVED_ARTIFACT_NAME_PREFIXES: Final[dict[str, str]] = {
+"""Internal, reserved artifact type prefix."""
+
+RESERVED_ARTIFACT_NAME_PREFIX_BY_TYPE: Final[dict[str, str]] = {
+    "job": "",  # Empty prefix means ALL artifact names are reserved for this artifact type
     "run_table": "run-",
     "code": "source-",
 }
+"""Lookup of internal, reserved `Artifact.name` prefixes by `Artifact.type`."""
 
 
 def validate_artifact_type(typ: str, name: str) -> str:
     """Validate the artifact type and return it as a string."""
-    if typ in RESERVED_ARTIFACT_TYPES:
-        reserved_name_prefix = RESERVED_ARTIFACT_NAME_PREFIXES.get(typ)
-        if not reserved_name_prefix or name.startswith(reserved_name_prefix):
-            raise ValueError(
-                f"Artifact type {typ!r} is reserved for internal use. "
-                "Please use a different type."
-            )
-    elif typ.startswith(RESERVED_ARTIFACT_TYPE_PREFIX):
+    if (
+        # Check if the artifact name is disallowed, based on the artifact type
+        (
+            # This check MUST be against `None`, since "" disallows ALL artifact names
+            (bad_prefix := RESERVED_ARTIFACT_NAME_PREFIX_BY_TYPE.get(typ)) is not None
+            and name.startswith(bad_prefix)
+        )
+        or
+        # Check if the artifact type is disallowed
+        typ.startswith(RESERVED_ARTIFACT_TYPE_PREFIX)
+    ):
         raise ValueError(
             f"Artifact type {typ!r} is reserved for internal use. "
             "Please use a different type."
@@ -224,42 +225,42 @@ def validate_ttl_duration_seconds(gql_ttl_duration_seconds: int | None) -> int |
 
 
 # ----------------------------------------------------------------------------
-DecoratedF = TypeVar("DecoratedF", bound=Callable[..., Any])
-"""Type hint for a decorated function that'll preserve its signature (e.g. for arg autocompletion in IDEs)."""
+MethodT = Callable[Concatenate[SelfT, P], R]
+"""Generic type hint for an instance method, e.g. for use with decorators."""
 
 
-def ensure_logged(method: DecoratedF) -> DecoratedF:
+def ensure_logged(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT, P, R]:
     """Decorator to ensure that an Artifact method can only be called if the artifact has been logged.
 
     If the method is called on an artifact that's not logged, `ArtifactNotLoggedError` is raised.
     """
     # For clarity, use the qualified (full) name of the method
-    method_fullname = method.__qualname__
+    method_fullname = nameof(method)
 
     @wraps(method)
-    def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
+    def wrapper(self: ArtifactT, *args: P.args, **kwargs: P.kwargs) -> R:
         if self.is_draft():
             raise ArtifactNotLoggedError(fullname=method_fullname, obj=self)
         return method(self, *args, **kwargs)
 
-    return cast(DecoratedF, wrapper)
+    return wrapper
 
 
-def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
+def ensure_not_finalized(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT, P, R]:
     """Decorator to ensure that an `Artifact` method can only be called if the artifact isn't finalized.
 
     If the method is called on an artifact that's not logged, `ArtifactFinalizedError` is raised.
     """
     # For clarity, use the qualified (full) name of the method
-    method_fullname = method.__qualname__
+    method_fullname = nameof(method)
 
     @wraps(method)
-    def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
+    def wrapper(self: ArtifactT, *args: P.args, **kwargs: P.kwargs) -> R:
         if self._final:
             raise ArtifactFinalizedError(fullname=method_fullname, obj=self)
         return method(self, *args, **kwargs)
 
-    return cast(DecoratedF, wrapper)
+    return wrapper
 
 
 def is_artifact_registry_project(project: str) -> bool:
@@ -267,43 +268,71 @@ def is_artifact_registry_project(project: str) -> bool:
 
 
 def remove_registry_prefix(project: str) -> str:
-    if is_artifact_registry_project(project):
-        return project[len(REGISTRY_PREFIX) :]
-    raise ValueError(
-        f"Project {project!r} does not have the prefix {REGISTRY_PREFIX}. It is not a registry project"
-    )
+    if not is_artifact_registry_project(project):
+        raise ValueError(
+            f"Project {project!r} does not have the prefix {REGISTRY_PREFIX}. It is not a registry project"
+        )
+    return removeprefix(project, REGISTRY_PREFIX)
 
 
 @pydantic_dataclass
 class ArtifactPath:
-    #: The collection name.
     name: str
-    #: The project name, which can also be a registry name.
+    """The collection or artifact version name."""
     project: Optional[str] = None  # noqa: UP045
-    #: Prefix is often an org or entity name.
+    """The project name."""
     prefix: Optional[str] = None  # noqa: UP045
+    """Typically the entity or org name."""
 
     @classmethod
     def from_str(cls, path: str) -> Self:
-        """Instantiate by parsing an artifact path."""
-        if len(parts := path.split("/")) <= 3:
-            return cls(*reversed(parts))
-        raise ValueError(
-            f"Expected a valid path like `name`, `project/name`, or `prefix/project/name`.  Got: {path!r}"
-        )
+        """Instantiate by parsing a string artifact path.
+
+        Raises:
+            ValueError: If the string is not a valid artifact path.
+        """
+        # Separate the alias first, which may itself contain slashes.
+        # If there's no alias, note that both sep and alias will be empty.
+        collection_path, sep, alias = path.partition(":")
+
+        prefix, project = None, None  # defaults, if missing
+        if len(parts := collection_path.split("/")) == 1:
+            name = parts[0]
+        elif len(parts) == 2:
+            project, name = parts
+        elif len(parts) == 3:
+            prefix, project, name = parts
+        else:
+            raise ValueError(f"Invalid artifact path: {path!r}")
+        return cls(prefix=prefix, project=project, name=f"{name}{sep}{alias}")
 
     def to_str(self) -> str:
         """Returns the slash-separated string representation of the path."""
-        return "/".join(filter(bool, reversed(astuple(self))))
+        ordered_parts = (self.prefix, self.project, self.name)
+        return "/".join(part for part in ordered_parts if part)
 
     def with_defaults(
         self,
+        *,
         prefix: str | None = None,
         project: str | None = None,
     ) -> Self:
-        """Returns this path with missing values set to the given defaults."""
+        """Returns a copy of this path with missing values set to the given defaults."""
         return replace(
             self,
             prefix=self.prefix or prefix,
             project=self.project or project,
         )
+
+    def is_registry_path(self) -> bool:
+        """Returns True if this path appears to be a registry path."""
+        return bool((p := self.project) and is_artifact_registry_project(p))
+
+
+@pydantic_dataclass
+class FullArtifactPath(ArtifactPath):
+    """Same as ArtifactPath, but with all parts required."""
+
+    name: str
+    project: str
+    prefix: str

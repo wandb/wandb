@@ -33,6 +33,7 @@ from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
@@ -41,7 +42,6 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib import asyncio_compat, wb_logging
@@ -892,7 +892,19 @@ class Run:
     def tags(self, tags: Sequence) -> None:
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_tags = True
-        self._settings.run_tags = tuple(tags)
+
+        try:
+            self._settings.run_tags = tuple(tags)
+        except ValueError as e:
+            # For runtime tag setting, warn instead of crash
+            # Extract the core error message without the pydantic wrapper
+            error_msg = str(e)
+            if "Value error," in error_msg:
+                # Extract the actual error message after "Value error, "
+                error_msg = error_msg.split("Value error, ")[1].split(" [type=")[0]
+            wandb.termwarn(f"Invalid tag detected: {error_msg} Tags not updated.")
+            return
+
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
@@ -2610,7 +2622,7 @@ class Run:
     ) -> Artifact:
         job_artifact = InternalArtifact(name, job_builder.JOB_ARTIFACT_TYPE)
         if patch_path and os.path.exists(patch_path):
-            job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
+            job_artifact.add_file(FilePathStr(patch_path), "diff.patch")
         with job_artifact.new_file("requirements.frozen.txt") as f:
             f.write("\n".join(installed_packages_list))
         with job_artifact.new_file("wandb-job.json") as f:
@@ -2686,7 +2698,9 @@ class Run:
             assert self._backend and self._backend.interface
 
             while True:
-                handle = self._backend.interface.deliver_poll_exit()
+                handle = await self._backend.interface.deliver_async(
+                    pb.Record(request=pb.Request(poll_exit=pb.PollExitRequest()))
+                )
 
                 time_start = time.monotonic()
                 last_result = await handle.wait_async(timeout=None)
@@ -2723,7 +2737,6 @@ class Run:
             wait_with_progress(
                 exit_handle,
                 timeout=None,
-                progress_after=1,
                 display_progress=functools.partial(
                     self._display_finish_stats,
                     progress_printer,
@@ -2993,7 +3006,7 @@ class Run:
         # the target entity to the run's entity.  Instead, delegate to
         # Artifact.link() to resolve the required org entity.
         target = ArtifactPath.from_str(target_path)
-        if not (target.project and is_artifact_registry_project(target.project)):
+        if not target.is_registry_path():
             target = target.with_defaults(prefix=self.entity, project=self.project)
 
         return artifact.link(target.to_str(), aliases)
@@ -3888,64 +3901,101 @@ class Run:
         if settings.quiet or settings.silent:
             return
 
-        panel = []
+        panel: list[str] = []
 
-        # Render history if available
-        if history:
-            logger.info("rendering history")
+        if history and (
+            history_grid := Run._footer_history(history, printer, settings)
+        ):
+            panel.append(history_grid)
 
-            sampled_history = {
-                item.key: wandb.util.downsample(
-                    item.values_float or item.values_int, 40
-                )
-                for item in history.item
-                if not item.key.startswith("_")
-            }
-
-            history_rows = []
-            for key, values in sorted(sampled_history.items()):
-                if any(not isinstance(value, numbers.Number) for value in values):
-                    continue
-                sparkline = printer.sparklines(values)
-                if sparkline:
-                    history_rows.append([key, sparkline])
-            if history_rows:
-                history_grid = printer.grid(
-                    history_rows,
-                    "Run history:",
-                )
-                panel.append(history_grid)
-
-        # Render summary if available
-        if summary:
-            final_summary = {}
-            for item in summary.item:
-                if item.key.startswith("_") or len(item.nested_key) > 0:
-                    continue
-                final_summary[item.key] = json.loads(item.value_json)
-
-            logger.info("rendering summary")
-            summary_rows = []
-            for key, value in sorted(final_summary.items()):
-                # arrays etc. might be too large. for now, we just don't print them
-                if isinstance(value, str):
-                    value = value[:20] + "..." * (len(value) >= 20)
-                    summary_rows.append([key, value])
-                elif isinstance(value, numbers.Number):
-                    value = round(value, 5) if isinstance(value, float) else value
-                    summary_rows.append([key, str(value)])
-                else:
-                    continue
-
-            if summary_rows:
-                summary_grid = printer.grid(
-                    summary_rows,
-                    "Run summary:",
-                )
-                panel.append(summary_grid)
+        if summary and (
+            summary_grid := Run._footer_summary(summary, printer, settings)
+        ):
+            panel.append(summary_grid)
 
         if panel:
             printer.display(printer.panel(panel))
+
+    @staticmethod
+    def _footer_history(
+        history: SampledHistoryResponse,
+        printer: printer.Printer,
+        settings: Settings,
+    ) -> str | None:
+        """Returns the run history formatted for printing to the console."""
+        sorted_history_items = sorted(
+            (item for item in history.item if not item.key.startswith("_")),
+            key=lambda item: item.key,
+        )
+
+        history_rows: list[list[str]] = []
+        for item in sorted_history_items:
+            if len(history_rows) >= settings.max_end_of_run_history_metrics:
+                break
+
+            values = wandb.util.downsample(
+                item.values_float or item.values_int,
+                40,
+            )
+
+            if sparkline := printer.sparklines(values):
+                history_rows.append([item.key, sparkline])
+
+        if not history_rows:
+            return None
+
+        if len(history_rows) < len(sorted_history_items):
+            remaining = len(sorted_history_items) - len(history_rows)
+            history_rows.append([f"+{remaining:,d}", "..."])
+
+        return printer.grid(history_rows, "Run history:")
+
+    @staticmethod
+    def _footer_summary(
+        summary: GetSummaryResponse,
+        printer: printer.Printer,
+        settings: Settings,
+    ) -> str | None:
+        """Returns the run summary formatted for printing to the console."""
+        sorted_summary_items = sorted(
+            (
+                item
+                for item in summary.item
+                if not item.key.startswith("_") and not item.nested_key
+            ),
+            key=lambda item: item.key,
+        )
+
+        summary_rows: list[list[str]] = []
+        skipped = 0
+        for item in sorted_summary_items:
+            if len(summary_rows) >= settings.max_end_of_run_summary_metrics:
+                break
+
+            try:
+                value = json.loads(item.value_json)
+            except json.JSONDecodeError:
+                logger.exception(f"Error decoding summary[{item.key!r}]")
+                skipped += 1
+                continue
+
+            if isinstance(value, str):
+                value = value[:20] + "..." * (len(value) >= 20)
+                summary_rows.append([item.key, value])
+            elif isinstance(value, numbers.Number):
+                value = round(value, 5) if isinstance(value, float) else value
+                summary_rows.append([item.key, str(value)])
+            else:
+                skipped += 1
+
+        if not summary_rows:
+            return None
+
+        if len(summary_rows) < len(sorted_summary_items) - skipped:
+            remaining = len(sorted_summary_items) - len(summary_rows) - skipped
+            summary_rows.append([f"+{remaining:,d}", "..."])
+
+        return printer.grid(summary_rows, "Run summary:")
 
     @staticmethod
     def _footer_internal_messages(

@@ -256,6 +256,8 @@ pub struct Imports {
     /// lightning, formerly pytorch-lightning
     #[prost(bool, tag = "106")]
     pub lightning: bool,
+    #[prost(bool, tag = "107")]
+    pub dspy: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Feature {
@@ -468,6 +470,9 @@ pub struct Feature {
     /// User created a rewound run
     #[prost(bool, tag = "72")]
     pub rewind_mode: bool,
+    /// User using WandbDSPyCallback
+    #[prost(bool, tag = "73")]
+    pub dspy_callback: bool,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Env {
@@ -1609,7 +1614,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 79, 81, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1690,6 +1695,9 @@ pub mod request {
         /// Requests information about tasks the service is performing.
         #[prost(message, tag = "82")]
         Operations(super::OperationStatsRequest),
+        /// Requests collecting information about the system environment and resources.
+        #[prost(message, tag = "83")]
+        ProbeSystemInfo(super::ProbeSystemInfoRequest),
         #[prost(message, tag = "1000")]
         TestInject(super::TestInjectRequest),
     }
@@ -2559,6 +2567,8 @@ pub struct CancelResponse {}
 ///
 /// Run environment including system, hardware, software, and execution parameters.
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct ProbeSystemInfoRequest {}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct DiskInfo {
     #[prost(uint64, tag = "1")]
     pub total: u64,
@@ -2921,6 +2931,9 @@ pub enum ServerFeature {
     IncludeArtifactTypesInRegistryCreation = 12,
     /// Indicates that the server supports querying for a artifact collection membership on the project.
     ProjectArtifactCollectionMembership = 13,
+    /// Indicates that the server supports returning an artifact collection membership in the response of a linkArtifact
+    /// mutation.
+    ArtifactMembershipInLinkArtifactResponse = 14,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2953,6 +2966,9 @@ impl ServerFeature {
             Self::ProjectArtifactCollectionMembership => {
                 "PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP"
             }
+            Self::ArtifactMembershipInLinkArtifactResponse => {
+                "ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE"
+            }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2983,6 +2999,9 @@ impl ServerFeature {
             }
             "PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP" => {
                 Some(Self::ProjectArtifactCollectionMembership)
+            }
+            "ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE" => {
+                Some(Self::ArtifactMembershipInLinkArtifactResponse)
             }
             _ => None,
         }

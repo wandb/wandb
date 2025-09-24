@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filestreamtest"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/paths"
 	. "github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfilestest"
@@ -29,8 +29,8 @@ func TestFileStreamUpdates(t *testing.T) {
 		ConsoleOutputFile: *outputFile,
 		FilesDir:          settings.GetFilesDir(),
 		EnableCapture:     true,
-		Logger:            observability.NewNoOpLogger(),
-		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(
+		Logger:            observabilitytest.NewTestLogger(t),
+		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(t,
 			runfilestest.Params{},
 		),
 		FileStreamOrNil: fileStream,
@@ -68,8 +68,8 @@ func TestFileStreamUpdatesDisabled(t *testing.T) {
 		ConsoleOutputFile: *outputFile,
 		FilesDir:          settings.GetFilesDir(),
 		EnableCapture:     false,
-		Logger:            observability.NewNoOpLogger(),
-		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(
+		Logger:            observabilitytest.NewTestLogger(t),
+		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(t,
 			runfilestest.Params{},
 		),
 		FileStreamOrNil: fileStream,

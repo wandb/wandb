@@ -107,7 +107,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.21.2.dev1"
+__version__: str = "0.22.1.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -388,8 +388,8 @@ def init(
             enable on your settings page.
         tensorboard: Deprecated. Use `sync_tensorboard` instead.
         sync_tensorboard: Enables automatic syncing of W&B logs from TensorBoard
-            or TensorBoardX, saving relevant event files for viewing in the W&B UI.
-            saving relevant event files for viewing in the W&B UI. (Default: `False`)
+            or TensorBoardX, saving relevant event files for viewing in
+            the W&B UI.
         monitor_gym: Enables automatic logging of videos of the environment when
             using OpenAI Gym.
         settings: Specifies a dictionary or `wandb.Settings` object with advanced

@@ -11,6 +11,59 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.22.0] - 2025-09-18
+
+### Notable Changes
+
+This version removes support of MacOS 10.
+
+### Removed
+
+- Remove a build targeting MacOS 10.x due to multiple security and supply chain considerations (@dmitryduev in https://github.com/wandb/wandb/pull/10529)
+
+### Fixed
+
+- Resuming a run with a different active run will now raise an error unless you call `run.finish()` first, or call `wandb.init()` with the parameter `reinit='create_new'` (@jacobromero in https://github.com/wandb/wandb/pull/10468)
+- Fix `Api().runs()` for wandb server < 0.51.0 (when `project.internalId` was added to gql API) (@kelu-wandb in https://github.com/wandb/wandb/pull/10507)
+- Sweeps: `command` run scripts that `import readline` whether directly or indirectly (e.g. `import torch` on Python 3.13) should no longer deadlock (@kelu-wandb in https://github.com/wandb/wandb/pull/10489)
+
+## [0.21.4] - 2025-09-11
+
+### Added
+
+- Add DSPy integration: track evaluation metrics over time, log predictions and program signature evolution to W&B Tables, and save DSPy programs as W&B Artifacts (complete program or state as JSON/PKL) (@ayulockin in https://github.com/wandb/wandb/pull/10327)
+
+## [0.21.3] - 2025-08-30
+
+### Changed
+
+- Updated `click` dependency constraint from `>=7.1` to `>=8.0.1` (@willtryagain in https://github.com/wandb/wandb/pull/10418)
+
+### Fixed
+
+- The message "Changes to your wandb environment variables will be ignored" is no longer printed when nothing changed (@timoffex in https://github.com/wandb/wandb/pull/10420)
+
+## [0.21.2] - 2025-08-28
+
+### Notable Changes
+
+This version raises errors that would previously have been suppressed during calls to `Artifact.link()` or `Run.link_artifact()`. While this prevents undetected failures in those methods, it is also a breaking change.
+
+### Added
+
+- New settings for `max_end_of_run_history_metrics` and `max_end_of_run_summary_metrics` (@timoffex in https://github.com/wandb/wandb/pull/10351)
+- New `wandb.integration.weave` module for automatically initializing Weave when a W&B run is active and `weave` is imported (@andrewtruong in https://github.com/wandb/wandb/pull/10389)
+
+### Changed
+
+- Errors encountered while linking an artifact are no longer suppressed/silenced, and `Artifact.link()` and `Run.link_artifact()` no longer return `None` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/9968)
+- The "Run history" and "Run summary" printed at the end of a run are now limited to 10 metrics each (@timoffex in https://github.com/wandb/wandb/pull/10351)
+
+### Fixed
+
+- Dataclasses in a run's `config` no long raise `Object of type ... is not JSON serializable` when containing real classes as fields to the dataclass (@jacobromero in https://github.com/wandb/wandb/pull/10371)
+- `Artifact.link()` and `Run.link_artifact()` should be faster on server versions 0.74.0+, requiring 4-5 fewer unnecessary blocking GraphQL requests (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10393).
+
 ## [0.21.1] - 2025-08-07
 
 ### Notable Changes

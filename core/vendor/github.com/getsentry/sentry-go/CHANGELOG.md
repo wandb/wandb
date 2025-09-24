@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.35.3
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.35.3.
+
+### Bug Fixes
+
+- Add missing rate limit categories ([#1082](https://github.com/getsentry/sentry-go/pull/1082))
+
+## 0.35.2
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.35.2.
+
+### Bug Fixes
+
+- Fix OpenTelemetry spans being created as transactions instead of child spans ([#1073](https://github.com/getsentry/sentry-go/pull/1073))
+
+### Misc
+
+- Add `MockTransport` to test clients for improved testing ([#1071](https://github.com/getsentry/sentry-go/pull/1071))
+
+## 0.35.1
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.35.1.
+
+### Bug Fixes
+
+- Fix race conditions when accessing the scope during logging operations ([#1050](https://github.com/getsentry/sentry-go/pull/1050))
+- Fix nil pointer dereference with malformed URLs when tracing is enabled in `fasthttp` and `fiber` integrations ([#1055](https://github.com/getsentry/sentry-go/pull/1055))
+
+### Misc
+
+- Bump `github.com/gofiber/fiber/v2` from 2.52.5 to 2.52.9 in `/fiber` ([#1067](https://github.com/getsentry/sentry-go/pull/1067))
+
 ## 0.35.0
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.35.0.

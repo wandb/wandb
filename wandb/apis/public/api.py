@@ -36,7 +36,9 @@ from wandb_gql.client import RetryError
 
 import wandb
 from wandb import env, util
+from wandb._analytics import tracked
 from wandb._iterutils import one
+from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
@@ -52,7 +54,11 @@ from wandb.apis.public.utils import (
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_login
-from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.artifacts._validators import (
+    ArtifactPath,
+    FullArtifactPath,
+    is_artifact_registry_project,
+)
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
@@ -289,6 +295,8 @@ class Api:
                 specified, the default timeout will be used.
             api_key: API key to use for authentication. If not provided,
                 the API key from the current environment or configuration will be used.
+                Prompts for an API key if none is provided
+                or configured in the environment.
         """
         self.settings = InternalApi().settings()
 
@@ -303,18 +311,14 @@ class Api:
             )
             self.settings["entity"] = _overrides["username"]
 
-        self._api_key = api_key
         if _thread_local_api_settings.cookies is None:
-            wandb_login._login(
-                host=self.settings["base_url"],
+            self.api_key = self._load_api_key(
+                base_url=self.settings["base_url"],
+                init_api_key=api_key,
+            )
+            wandb_login._verify_login(
                 key=self.api_key,
-                verify=True,
-                _silent=(
-                    self.settings.get("silent", False)
-                    or self.settings.get("quiet", False)
-                ),
-                update_api_key=False,
-                _disable_warning=True,
+                base_url=self.settings["base_url"],
             )
 
         self._viewer = None
@@ -350,6 +354,45 @@ class Api:
         self._client = RetryingClient(self._base_client)
         self._sentry = wandb.analytics.sentry.Sentry()
         self._configure_sentry()
+
+    def _load_api_key(
+        self,
+        base_url: str,
+        init_api_key: Optional[str] = None,
+    ) -> str:
+        """Attempts to load a configured API key or prompt if one is not found.
+
+        The API key is loaded in the following order:
+            1. Thread local api key
+            2. User explicitly provided api key
+            3. Environment variable
+            4. Netrc file
+            5. Prompt for api key using wandb.login
+        """
+        # just use thread local api key if it's set
+        if _thread_local_api_settings.api_key:
+            return _thread_local_api_settings.api_key
+        if init_api_key is not None:
+            return init_api_key
+        if os.getenv("WANDB_API_KEY"):
+            return os.environ["WANDB_API_KEY"]
+
+        auth = requests.utils.get_netrc_auth(base_url)
+        if auth:
+            return auth[-1]
+
+        _, prompted_key = wandb_login._login(
+            host=base_url,
+            key=None,
+            # We will explicitly verify the key later
+            verify=False,
+            _silent=(
+                self.settings.get("silent", False) or self.settings.get("quiet", False)
+            ),
+            update_api_key=False,
+            _disable_warning=True,
+        )
+        return prompted_key
 
     def _configure_sentry(self) -> None:
         try:
@@ -743,24 +786,6 @@ class Api:
         return "W&B Public Client {}".format(wandb.__version__)
 
     @property
-    def api_key(self) -> Optional[str]:
-        """Returns W&B API key."""
-        # just use thread local api key if it's set
-        if _thread_local_api_settings.api_key:
-            return _thread_local_api_settings.api_key
-        if self._api_key is not None:
-            return self._api_key
-        auth = requests.utils.get_netrc_auth(self.settings["base_url"])
-        key = None
-        if auth:
-            key = auth[-1]
-        # Environment should take precedence
-        if os.getenv("WANDB_API_KEY"):
-            key = os.environ["WANDB_API_KEY"]
-        self._api_key = key  # memoize key
-        return key
-
-    @property
     def default_entity(self) -> Optional[str]:
         """Returns the default W&B entity."""
         if self._default_entity is None:
@@ -914,18 +939,9 @@ class Api:
         if path is None:
             return entity, project
 
-        path, colon, alias = path.partition(":")
-        full_alias = colon + alias
-
-        parts = path.split("/")
-        if len(parts) > 3:
-            raise ValueError("Invalid artifact path: {}".format(path))
-        elif len(parts) == 1:
-            return entity, project, path + full_alias
-        elif len(parts) == 2:
-            return entity, parts[0], parts[1] + full_alias
-        parts[-1] += full_alias
-        return parts
+        parsed = ArtifactPath.from_str(path)
+        parsed = parsed.with_defaults(prefix=entity, project=project)
+        return parsed.prefix, parsed.project, parsed.name
 
     def projects(
         self, entity: Optional[str] = None, per_page: int = 200
@@ -989,7 +1005,7 @@ class Api:
         future releases.
 
         Args:
-            path: The path to project the report resides in. Specify the
+            path: The path to the project the report resides in. Specify the
                 entity that created the project as a prefix followed by a
                 forward slash.
             name: Name of the report requested.
@@ -1007,7 +1023,6 @@ class Api:
 
         wandb.Api.reports("entity/project")
         ```
-
         """
         entity, project, _ = self._parse_path(path + "/fake_run")
 
@@ -1502,10 +1517,9 @@ class Api:
                 "Could not determine entity. Please include the entity as part of the artifact name path."
             )
 
+        path = FullArtifactPath(prefix=entity, project=project, name=artifact_name)
         artifact = wandb.Artifact._from_name(
-            entity=entity,
-            project=project,
-            name=artifact_name,
+            path=path,
             client=self.client,
             enable_tracking=enable_tracking,
         )
@@ -1731,6 +1745,7 @@ class Api:
 
         return True
 
+    @tracked
     def registries(
         self,
         organization: Optional[str] = None,
@@ -1798,6 +1813,7 @@ class Api:
         )
         return Registries(self.client, organization, filter)
 
+    @tracked
     def registry(self, name: str, organization: Optional[str] = None) -> Registry:
         """Return a registry given a registry name.
 
@@ -1837,6 +1853,7 @@ class Api:
         registry.load()
         return registry
 
+    @tracked
     def create_registry(
         self,
         name: str,
@@ -1911,6 +1928,7 @@ class Api:
             artifact_types,
         )
 
+    @tracked
     def integrations(
         self,
         entity: Optional[str] = None,
@@ -1934,6 +1952,7 @@ class Api:
         params = {"entityName": entity or self.default_entity}
         return Integrations(client=self.client, variables=params, per_page=per_page)
 
+    @tracked
     def webhook_integrations(
         self, entity: Optional[str] = None, *, per_page: int = 50
     ) -> Iterator["WebhookIntegration"]:
@@ -1977,6 +1996,7 @@ class Api:
             client=self.client, variables=params, per_page=per_page
         )
 
+    @tracked
     def slack_integrations(
         self, *, entity: Optional[str] = None, per_page: int = 50
     ) -> Iterator["SlackIntegration"]:
@@ -2080,10 +2100,10 @@ class Api:
         # Note: we can't currently define this as a constant outside the method
         # and still keep it nearby in this module, because it relies on pydantic v2-only imports
         fragment_names: dict[ActionType, str] = {
-            ActionType.NO_OP: NoOpActionFields.__name__,
-            ActionType.QUEUE_JOB: QueueJobActionFields.__name__,
-            ActionType.NOTIFICATION: NotificationActionFields.__name__,
-            ActionType.GENERIC_WEBHOOK: GenericWebhookActionFields.__name__,
+            ActionType.NO_OP: nameof(NoOpActionFields),
+            ActionType.QUEUE_JOB: nameof(QueueJobActionFields),
+            ActionType.NOTIFICATION: nameof(NotificationActionFields),
+            ActionType.GENERIC_WEBHOOK: nameof(GenericWebhookActionFields),
         }
 
         return set(
@@ -2093,6 +2113,7 @@ class Api:
             and (name := fragment_names.get(action))
         )
 
+    @tracked
     def automation(
         self,
         name: str,
@@ -2130,6 +2151,7 @@ class Api:
             too_long=ValueError("Multiple automations found"),
         )
 
+    @tracked
     def automations(
         self,
         entity: Optional[str] = None,
@@ -2187,6 +2209,7 @@ class Api:
         yield from iterator
 
     @normalize_exceptions
+    @tracked
     def create_automation(
         self,
         obj: "NewAutomation",
@@ -2294,6 +2317,7 @@ class Api:
         return Automation.model_validate(result.trigger)
 
     @normalize_exceptions
+    @tracked
     def update_automation(
         self,
         obj: "Automation",
@@ -2416,6 +2440,7 @@ class Api:
         return Automation.model_validate(result.trigger)
 
     @normalize_exceptions
+    @tracked
     def delete_automation(self, obj: Union["Automation", str]) -> Literal[True]:
         """Delete an automation.
 

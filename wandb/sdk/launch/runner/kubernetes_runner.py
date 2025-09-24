@@ -27,7 +27,11 @@ from wandb.sdk.launch.runner.kubernetes_monitor import (
     CustomResource,
     LaunchKubernetesMonitor,
 )
-from wandb.sdk.launch.utils import recursive_macro_sub
+from wandb.sdk.launch.utils import (
+    recursive_macro_sub,
+    sanitize_identifiers_for_k8s,
+    yield_containers,
+)
 from wandb.sdk.lib.retry import ExponentialBackoff, retry_async
 from wandb.util import get_module
 
@@ -39,6 +43,7 @@ from ..utils import (
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
+    make_k8s_label_safe,
     make_name_dns_safe,
 )
 from .abstract import AbstractRun, AbstractRunner
@@ -826,6 +831,7 @@ class KubernetesRunner(AbstractRunner):
         api_key_secret: Optional["V1Secret"] = None,
         wait_for_ready: bool = True,
         wait_timeout: int = 300,
+        auxiliary_resource_label_value: Optional[str] = None,
     ) -> None:
         """Prepare a service for launch.
 
@@ -843,6 +849,10 @@ class KubernetesRunner(AbstractRunner):
         config["metadata"].setdefault("labels", {})
         config["metadata"]["labels"][WANDB_K8S_RUN_ID] = run_id
         config["metadata"]["labels"]["wandb.ai/created-by"] = "launch-agent"
+        if auxiliary_resource_label_value:
+            config["metadata"]["labels"][WANDB_K8S_LABEL_AUXILIARY_RESOURCE] = (
+                auxiliary_resource_label_value
+            )
 
         env_vars = launch_project.get_env_vars_dict(
             self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
@@ -851,6 +861,13 @@ class KubernetesRunner(AbstractRunner):
             "WANDB_CONFIG": env_vars.get("WANDB_CONFIG", "{}"),
         }
         add_wandb_env(config, wandb_config_env)
+
+        if auxiliary_resource_label_value:
+            add_label_to_pods(
+                config,
+                WANDB_K8S_LABEL_AUXILIARY_RESOURCE,
+                auxiliary_resource_label_value,
+            )
 
         if api_key_secret:
             for cont in yield_containers(config):
@@ -869,6 +886,8 @@ class KubernetesRunner(AbstractRunner):
                 cont["env"] = env
 
         try:
+            sanitize_identifiers_for_k8s(config)
+
             await kubernetes_asyncio.utils.create_from_dict(
                 api_client, config, namespace=namespace
             )
@@ -1042,6 +1061,9 @@ class KubernetesRunner(AbstractRunner):
         additional_services: List[Dict[str, Any]] = recursive_macro_sub(
             launch_project.launch_spec.get("additional_services", []), update_dict
         )
+        auxiliary_resource_label_value = make_k8s_label_safe(
+            f"aux-{launch_project.target_entity}-{launch_project.target_project}-{launch_project.run_id}"
+        )
         if additional_services:
             wandb.termlog(
                 f"{LOG_PREFIX}Creating additional services: {additional_services}"
@@ -1061,6 +1083,7 @@ class KubernetesRunner(AbstractRunner):
                         secret,
                         wait_for_ready,
                         wait_timeout,
+                        auxiliary_resource_label_value,
                     )
                     for resource in additional_services
                     if resource.get("config", {})
@@ -1098,7 +1121,7 @@ class KubernetesRunner(AbstractRunner):
             job_name,
             namespace,
             secret,
-            f"aux-{launch_project.target_entity}-{launch_project.target_project}-{launch_project.run_id}",
+            auxiliary_resource_label_value,
             wandb_team_secrets_secret,
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
@@ -1317,24 +1340,6 @@ async def _create_secret_with_launch_agent_conflict_handling(
         raise LaunchError(
             f"Exception when ensuring Kubernetes {error_context} secret: {str(e)}\n"
         )
-
-
-def yield_containers(root: Any) -> Iterator[dict]:
-    """Yield all container specs in a manifest.
-
-    Recursively traverses the manifest and yields all container specs. Container
-    specs are identified by the presence of a "containers" key in the value.
-    """
-    if isinstance(root, dict):
-        for k, v in root.items():
-            if k == "containers":
-                if isinstance(v, list):
-                    yield from v
-            elif isinstance(v, (dict, list)):
-                yield from yield_containers(v)
-    elif isinstance(root, list):
-        for item in root:
-            yield from yield_containers(item)
 
 
 def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:

@@ -511,17 +511,9 @@ func (client *Client) RecoverWithContext(
 // call to Init.
 func (client *Client) Flush(timeout time.Duration) bool {
 	if client.batchLogger != nil {
-		start := time.Now()
-		timeoutCh := make(chan struct{})
-		time.AfterFunc(timeout, func() {
-			close(timeoutCh)
-		})
-		client.batchLogger.Flush(timeoutCh)
-		// update the timeout with the time passed
-		timeout -= time.Since(start)
-		if timeout <= 0 {
-			return false
-		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		return client.FlushWithContext(ctx)
 	}
 	return client.Transport.Flush(timeout)
 }

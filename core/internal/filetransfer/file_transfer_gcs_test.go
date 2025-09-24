@@ -5,7 +5,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
 type mockGCSClient struct {
@@ -63,7 +63,7 @@ func TestGCSFileTransfer_Download(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ft := filetransfer.NewGCSFileTransfer(
 				mockGCSClient,
-				observability.NewNoOpLogger(),
+				observabilitytest.NewTestLogger(t),
 				filetransfer.NewFileTransferStats(),
 			)
 			err := ft.Download(tt.task)

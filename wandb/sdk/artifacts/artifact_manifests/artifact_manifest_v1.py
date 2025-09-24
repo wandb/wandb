@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from operator import itemgetter
 from typing import Any, Mapping
 
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
@@ -64,7 +65,7 @@ class ArtifactManifestV1(ArtifactManifest):
         contents.
         """
         contents = {}
-        for entry in sorted(self.entries.values(), key=lambda k: k.path):
+        for name, entry in sorted(self.entries.items(), key=itemgetter(0)):
             json_entry: dict[str, Any] = {
                 "digest": entry.digest,
             }
@@ -76,7 +77,7 @@ class ArtifactManifestV1(ArtifactManifest):
                 json_entry["extra"] = entry.extra
             if entry.size is not None:
                 json_entry["size"] = entry.size
-            contents[entry.path] = json_entry
+            contents[name] = json_entry
         return {
             "version": self.__class__.version(),
             "storagePolicy": self.storage_policy.name(),
@@ -87,6 +88,7 @@ class ArtifactManifestV1(ArtifactManifest):
     def digest(self) -> HexMD5:
         hasher = _md5()
         hasher.update(b"wandb-artifact-manifest-v1\n")
-        for name, entry in sorted(self.entries.items(), key=lambda kv: kv[0]):
+        # sort by key (path)
+        for name, entry in sorted(self.entries.items(), key=itemgetter(0)):
             hasher.update(f"{name}:{entry.digest}\n".encode())
         return HexMD5(hasher.hexdigest())

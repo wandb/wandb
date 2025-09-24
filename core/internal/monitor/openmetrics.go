@@ -19,6 +19,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 )
 
 // Filter defines criteria for selecting metrics from an OpenMetrics endpoint.
@@ -244,7 +245,7 @@ func (o *OpenMetrics) Sample() (*spb.StatsRecord, error) {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
 	if err != nil {
 		return nil, err

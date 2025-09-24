@@ -14,6 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -30,6 +31,7 @@ const (
 
 type ConnectionParams struct {
 	StreamMux          *stream.StreamMux
+	RunSyncManager     *runsync.RunSyncManager
 	GPUResourceManager *monitor.GPUResourceManager
 
 	ID string
@@ -62,6 +64,9 @@ type Connection struct {
 	// A map that associates stream IDs with active streams (or runs). This helps
 	// track the streams associated with this connection.
 	streamMux *stream.StreamMux
+
+	// runSyncManager implements `wandb sync` operations.
+	runSyncManager *runsync.RunSyncManager
 
 	// gpuResourceManager is used by streams for system GPU metrics.
 	gpuResourceManager *monitor.GPUResourceManager
@@ -101,6 +106,7 @@ func NewConnection(
 		connLifetimeCtx:    serverLifetimeCtx,
 		stopServer:         stopServer,
 		streamMux:          params.StreamMux,
+		runSyncManager:     params.RunSyncManager,
 		gpuResourceManager: params.GPUResourceManager,
 		conn:               params.Conn,
 		commit:             params.Commit,
@@ -295,6 +301,8 @@ func (nc *Connection) processIncomingData() {
 func (nc *Connection) handleIncomingRequests() {
 	slog.Debug("handleIncomingRequests: started", "id", nc.id)
 
+	wg := &sync.WaitGroup{}
+
 	for msg := range nc.inChan {
 		slog.Debug("handleIncomingRequests: processing message", "msg", msg, "id", nc.id)
 
@@ -303,8 +311,6 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleAuthenticate(x.Authenticate)
 		case *spb.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
-		case *spb.ServerRequest_InformStart:
-			nc.handleInformStart(x.InformStart)
 		case *spb.ServerRequest_InformAttach:
 			nc.handleInformAttach(msg.RequestId, x.InformAttach)
 		case *spb.ServerRequest_RecordPublish:
@@ -315,6 +321,12 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleInformFinish(x.InformFinish)
 		case *spb.ServerRequest_InformTeardown:
 			nc.handleInformTeardown(x.InformTeardown)
+		case *spb.ServerRequest_InitSync:
+			nc.handleInitSync(msg.RequestId, x.InitSync)
+		case *spb.ServerRequest_Sync:
+			nc.handleSync(wg, msg.RequestId, x.Sync)
+		case *spb.ServerRequest_SyncStatus:
+			nc.handleSyncStatus(msg.RequestId, x.SyncStatus)
 		case nil:
 			slog.Error("handleIncomingRequests: ServerRequestType is nil", "id", nc.id)
 			panic("ServerRequestType is nil")
@@ -323,6 +335,9 @@ func (nc *Connection) handleIncomingRequests() {
 			panic(fmt.Sprintf("Unknown ServerRequestType: %T", x))
 		}
 	}
+
+	// Wait to complete any asynchronous requests.
+	wg.Wait()
 
 	// Ensure outChan is closed if connection isn't already marked as closed
 	if !nc.closed.Swap(true) {
@@ -370,28 +385,6 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		slog.Error("handleInformInit: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
 		// TODO: should we Close the stream?
 		return
-	}
-}
-
-// handleInformStart handles the start message from the client.
-//
-// This function is invoked when the server receives an `InformStart` message
-// from the client. It updates the stream settings with the provided settings
-// from the client.
-//
-// TODO: should probably remove this message and use a different mechanism
-// to update stream settings
-func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
-	slog.Debug("handleInformStart: received", "id", nc.id)
-
-	strm, err := nc.streamMux.GetStream(msg.GetXInfo().GetStreamId())
-	if err != nil {
-		slog.Error(
-			"handleInformStart: error getting stream",
-			"err", err, "id", nc.id)
-	} else {
-		strm.UpdateSettings(settings.From(msg.GetSettings()))
-		strm.UpdateRunURLTag()
 	}
 }
 
@@ -544,6 +537,54 @@ func (nc *Connection) handleInformTeardown(teardown *spb.ServerInformTeardownReq
 	nc.streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
 
 	slog.Info("handleInformTeardown: server shutdown complete", "id", nc.id)
+}
+
+// handleInitSync responds to a ServerInitSyncRequest.
+func (nc *Connection) handleInitSync(
+	id string,
+	request *spb.ServerInitSyncRequest,
+) {
+	response := nc.runSyncManager.InitSync(request)
+	nc.Respond(&spb.ServerResponse{
+		RequestId: id,
+		ServerResponseType: &spb.ServerResponse_InitSyncResponse{
+			InitSyncResponse: response,
+		},
+	})
+}
+
+// handleSync asynchronously responds to a ServerSyncRequest.
+func (nc *Connection) handleSync(
+	wg *sync.WaitGroup,
+	id string,
+	request *spb.ServerSyncRequest,
+) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		response := nc.runSyncManager.DoSync(request)
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_SyncResponse{
+				SyncResponse: response,
+			},
+		})
+	}()
+}
+
+// handleSyncStatus responds to a ServerSyncStatusRequest.
+func (nc *Connection) handleSyncStatus(
+	id string,
+	request *spb.ServerSyncStatusRequest,
+) {
+	response := nc.runSyncManager.SyncStatus(request)
+	nc.Respond(&spb.ServerResponse{
+		RequestId: id,
+		ServerResponseType: &spb.ServerResponse_SyncStatusResponse{
+			SyncStatusResponse: response,
+		},
+	})
 }
 
 // Close closes the underlying TCP connection.
