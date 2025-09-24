@@ -37,6 +37,13 @@ func makeHandler(
 
 	go h.Do(inChan)
 
+	// Wait for the Handler goroutine to finish at the end of each test.
+	t.Cleanup(func() {
+		close(inChan)
+		for range h.OutChan() {
+		}
+	})
+
 	return h
 }
 

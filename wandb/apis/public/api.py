@@ -54,7 +54,11 @@ from wandb.apis.public.utils import (
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_login
-from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.artifacts._validators import (
+    ArtifactPath,
+    FullArtifactPath,
+    is_artifact_registry_project,
+)
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
@@ -935,18 +939,9 @@ class Api:
         if path is None:
             return entity, project
 
-        path, colon, alias = path.partition(":")
-        full_alias = colon + alias
-
-        parts = path.split("/")
-        if len(parts) > 3:
-            raise ValueError("Invalid artifact path: {}".format(path))
-        elif len(parts) == 1:
-            return entity, project, path + full_alias
-        elif len(parts) == 2:
-            return entity, parts[0], parts[1] + full_alias
-        parts[-1] += full_alias
-        return parts
+        parsed = ArtifactPath.from_str(path)
+        parsed = parsed.with_defaults(prefix=entity, project=project)
+        return parsed.prefix, parsed.project, parsed.name
 
     def projects(
         self, entity: Optional[str] = None, per_page: int = 200
@@ -1540,10 +1535,9 @@ class Api:
                 "Could not determine entity. Please include the entity as part of the artifact name path."
             )
 
+        path = FullArtifactPath(prefix=entity, project=project, name=artifact_name)
         artifact = wandb.Artifact._from_name(
-            entity=entity,
-            project=project,
-            name=artifact_name,
+            path=path,
             client=self.client,
             enable_tracking=enable_tracking,
         )

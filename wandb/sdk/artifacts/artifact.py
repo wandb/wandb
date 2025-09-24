@@ -16,7 +16,7 @@ import tempfile
 import time
 from collections import deque
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import timedelta
 from functools import partial
 from itertools import filterfalse
@@ -30,7 +30,6 @@ from typing import (
     Literal,
     Sequence,
     Type,
-    cast,
     final,
 )
 from urllib.parse import quote, urljoin, urlparse
@@ -109,10 +108,11 @@ from ._generated import (
     TagInput,
     UpdateArtifact,
 )
-from ._graphql_fragments import omit_artifact_fields
+from ._gqlutils import omit_artifact_fields
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
     ArtifactPath,
+    FullArtifactPath,
     _LinkArtifactFields,
     ensure_logged,
     ensure_not_finalized,
@@ -286,34 +286,31 @@ class Artifact:
 
     @classmethod
     def _from_id(cls, artifact_id: str, client: RetryingClient) -> Artifact | None:
-        if (artifact := artifact_instance_cache.get(artifact_id)) is not None:
-            return artifact
+        if cached_artifact := artifact_instance_cache.get(artifact_id):
+            return cached_artifact
 
         query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields())
 
         data = client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
-        if (art := result.artifact) is None:
+        if (artifact := result.artifact) is None:
             return None
 
-        src_collection = art.artifact_sequence
+        src_collection = artifact.artifact_sequence
         src_project = src_collection.project
 
         entity_name = src_project.entity_name if src_project else ""
         project_name = src_project.name if src_project else ""
 
-        name = f"{src_collection.name}:v{art.version_index}"
-        return cls._from_attrs(entity_name, project_name, name, art, client)
+        name = f"{src_collection.name}:v{artifact.version_index}"
+
+        path = FullArtifactPath(prefix=entity_name, project=project_name, name=name)
+        return cls._from_attrs(path, artifact, client)
 
     @classmethod
     def _membership_from_name(
-        cls,
-        *,
-        entity: str,
-        project: str,
-        name: str,
-        client: RetryingClient,
+        cls, *, path: FullArtifactPath, client: RetryingClient
     ) -> Artifact:
         if not (api := InternalApi())._server_supports(
             pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
@@ -327,47 +324,45 @@ class Artifact:
             ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
             omit_fields=omit_artifact_fields(api=api),
         )
-
-        gql_vars = {"entityName": entity, "projectName": project, "name": name}
+        gql_vars = {
+            "entityName": path.prefix,
+            "projectName": path.project,
+            "name": path.name,
+        }
         data = client.execute(query, variable_values=gql_vars)
         result = ArtifactViaMembershipByName.model_validate(data)
 
-        if not (project_attrs := result.project):
-            raise ValueError(f"project {project!r} not found under entity {entity!r}")
-
-        if not (acm_attrs := project_attrs.artifact_collection_membership):
-            entity_project = f"{entity}/{project}"
+        if not (project := result.project):
             raise ValueError(
-                f"artifact membership {name!r} not found in {entity_project!r}"
+                f"project {path.project!r} not found under entity {path.prefix!r}"
             )
-
-        target_path = ArtifactPath(prefix=entity, project=project, name=name)
-        return cls._from_membership(acm_attrs, target=target_path, client=client)
+        if not (membership := project.artifact_collection_membership):
+            entity_project = f"{path.prefix}/{path.project}"
+            raise ValueError(
+                f"artifact membership {path.name!r} not found in {entity_project!r}"
+            )
+        return cls._from_membership(membership, target=path, client=client)
 
     @classmethod
     def _from_name(
         cls,
         *,
-        entity: str,
-        project: str,
-        name: str,
+        path: FullArtifactPath,
         client: RetryingClient,
         enable_tracking: bool = False,
     ) -> Artifact:
         if (api := InternalApi())._server_supports(
             pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
         ):
-            return cls._membership_from_name(
-                entity=entity, project=project, name=name, client=client
-            )
+            return cls._membership_from_name(path=path, client=client)
 
         supports_enable_tracking_gql_var = api.server_project_type_introspection()
         omit_vars = None if supports_enable_tracking_gql_var else {"enableTracking"}
 
         gql_vars = {
-            "entityName": entity,
-            "projectName": project,
-            "name": name,
+            "entityName": path.prefix,
+            "projectName": path.project,
+            "name": path.name,
             "enableTracking": enable_tracking,
         }
         query = gql_compat(
@@ -375,24 +370,24 @@ class Artifact:
             omit_variables=omit_vars,
             omit_fields=omit_artifact_fields(api=api),
         )
-
         data = client.execute(query, variable_values=gql_vars)
         result = ArtifactByName.model_validate(data)
 
-        if not (proj_attrs := result.project):
-            raise ValueError(f"project {project!r} not found under entity {entity!r}")
+        if not (project := result.project):
+            raise ValueError(
+                f"project {path.project!r} not found under entity {path.prefix!r}"
+            )
+        if not (artifact := project.artifact):
+            entity_project = f"{path.prefix}/{path.project}"
+            raise ValueError(f"artifact {path.name!r} not found in {entity_project!r}")
 
-        if not (art_attrs := proj_attrs.artifact):
-            entity_project = f"{entity}/{project}"
-            raise ValueError(f"artifact {name!r} not found in {entity_project!r}")
-
-        return cls._from_attrs(entity, project, name, art_attrs, client)
+        return cls._from_attrs(path, artifact, client)
 
     @classmethod
     def _from_membership(
         cls,
         membership: MembershipWithArtifact,
-        target: ArtifactPath,
+        target: FullArtifactPath,
         client: RetryingClient,
     ) -> Artifact:
         if not (
@@ -410,35 +405,31 @@ class Artifact:
                 f"Your request was redirected to the corresponding artifact {name!r} in the new registry. "
                 f"Please update your paths to point to the migrated registry directly, '{proj.name}/{name}'."
             )
-            new_entity, new_project = proj.entity_name, proj.name
+            new_target = replace(target, prefix=proj.entity_name, project=proj.name)
         else:
-            new_entity = cast(str, target.prefix)
-            new_project = cast(str, target.project)
+            new_target = copy(target)
 
         if not (artifact := membership.artifact):
             raise ValueError(f"Artifact {target.to_str()!r} not found in response")
 
-        return cls._from_attrs(new_entity, new_project, target.name, artifact, client)
+        return cls._from_attrs(new_target, artifact, client)
 
     @classmethod
     def _from_attrs(
         cls,
-        entity: str,
-        project: str,
-        name: str,
-        attrs: dict[str, Any] | ArtifactFragment,
+        path: FullArtifactPath,
+        attrs: ArtifactFragment,
         client: RetryingClient,
         aliases: list[str] | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
         artifact._client = client
-        artifact._entity = entity
-        artifact._project = project
-        artifact._name = name
+        artifact._entity = path.prefix
+        artifact._project = path.project
+        artifact._name = path.name
 
-        validated_attrs = ArtifactFragment.model_validate(attrs)
-        artifact._assign_attrs(validated_attrs, aliases)
+        artifact._assign_attrs(attrs, aliases)
 
         artifact.finalize()
 
@@ -743,13 +734,12 @@ class Artifact:
                 raise ValueError("Client is not initialized")
 
             try:
-                artifact = self._from_name(
-                    entity=self.source_entity,
+                path = FullArtifactPath(
+                    prefix=self.source_entity,
                     project=self.source_project,
                     name=self.source_name,
-                    client=self._client,
                 )
-                self._source_artifact = artifact
+                self._source_artifact = self._from_name(path=path, client=self._client)
             except Exception as e:
                 raise ValueError(
                     f"Unable to fetch source artifact for linked artifact {self.name}"
@@ -1235,7 +1225,6 @@ class Artifact:
         assert self._client is not None
 
         query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields())
-
         data = self._client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
@@ -2427,13 +2416,16 @@ class Artifact:
 
         # Parse the entity (first part of the path) appropriately,
         # depending on whether we're linking to a registry
-        if target.project and is_artifact_registry_project(target.project):
+        if target.is_registry_path():
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
             org = target.prefix or settings.get("organization") or ""
             target.prefix = api._resolve_org_entity_name(self.source_entity, org)
         else:
             target = target.with_defaults(prefix=self.source_entity)
+
+        # Explicitly convert to FullArtifactPath to ensure all fields are present
+        target = FullArtifactPath(**asdict(target))
 
         # Prepare the validated GQL input, send it
         alias_inputs = [
