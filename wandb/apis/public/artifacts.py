@@ -57,6 +57,7 @@ from wandb.sdk.artifacts._generated import (
 from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 from wandb.sdk.artifacts._validators import (
     SOURCE_ARTIFACT_COLLECTION_TYPE,
+    FullArtifactPath,
     validate_artifact_name,
     validate_artifact_type,
 )
@@ -778,10 +779,12 @@ class Artifacts(SizedPaginator["Artifact"]):
         artifact_edges = (edge for edge in self.last_response.edges if edge.node)
         artifacts = (
             wandb.Artifact._from_attrs(
-                entity=self.entity,
-                project=self.project,
-                name=f"{self.collection_name}:{edge.version}",
-                attrs=edge.node.model_dump(exclude_unset=True),
+                path=FullArtifactPath(
+                    prefix=self.entity,
+                    project=self.project,
+                    name=f"{self.collection_name}:{edge.version}",
+                ),
+                attrs=edge.node,
                 client=self.client,
             )
             for edge in artifact_edges
@@ -884,10 +887,12 @@ class RunArtifacts(SizedPaginator["Artifact"]):
 
         return [
             wandb.Artifact._from_attrs(
-                entity=proj.entity_name,
-                project=proj.name,
-                name=f"{artifact_seq.name}:v{node.version_index}",
-                attrs=node.model_dump(exclude_unset=True),
+                path=FullArtifactPath(
+                    prefix=proj.entity_name,
+                    project=proj.name,
+                    name=f"{artifact_seq.name}:v{node.version_index}",
+                ),
+                attrs=node,
                 client=self.client,
             )
             for edge in self.last_response.edges
