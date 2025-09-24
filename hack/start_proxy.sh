@@ -32,7 +32,7 @@ echo "Logs: logs/api_proxy.log"
 
 # Start file proxy with logging
 echo "Starting file proxy on port 8182..."
-WANDB_OBJECT_STORAGE_PREFIX="$WANDB_OBJECT_STORAGE_PREFIX" go run cmd/ws3proxy/main.go > logs/file_proxy.log 2>&1 &
+(cd cmd/ws3proxy && WANDB_OBJECT_STORAGE_PREFIX="$WANDB_OBJECT_STORAGE_PREFIX" go run main.go > ../../logs/file_proxy.log 2>&1) &
 FILE_PID=$!
 echo "File proxy started with PID: $FILE_PID"
 echo "Logs: logs/file_proxy.log"

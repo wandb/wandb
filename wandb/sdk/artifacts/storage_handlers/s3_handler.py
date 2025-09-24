@@ -64,11 +64,11 @@ class S3Handler(StorageHandler):
             if s3_endpoint and self._is_coreweave_endpoint(s3_endpoint)
             else None
         )
-        # FIXME: localhost proxy won't work because AWS SDK request sigining include host name in the signature.
-        # To use local host proxy, use the following config to force path-style instead of virtual-hosted–style
-        # It will fail on adding reference artifact because the proxy will return 403 on head object request.
-        # config = Config(s3={"addressing_style": "path"})
-        # print(f"config: {config}")
+        # NOTE: localhost proxy, need to force path-style instead of virtual-hosted–style
+        # inside the proxy, it need to make actual aws sdk calls instead of simply forwarding the request
+        # because the host does not match ...
+        if "localhost" in s3_endpoint:
+            config = Config(s3={"addressing_style": "path"})
         session = boto.session.Session()
 
         # Inject headers for every S3 call

@@ -1,6 +1,7 @@
 import os
 import shutil
 
+import boto3
 import requests
 
 import wandb
@@ -41,6 +42,18 @@ def upload_artifacts():
             run.log({"metric": i})
 
 
+def upload_reference_file():
+    # Using boto3 and pass the headers in sdk, nothing related with wandb
+    def _add_headers(request, **kwargs):
+        request.headers["X-My-Header-A"] = "valueA"
+        request.headers["X-My-Header-B"] = "valueB"
+
+    session = boto3.Session()
+    session.events.register("before-send.s3", _add_headers)
+    s3 = session.resource("s3", region_name="us-west-2")
+    s3.Bucket("pinglei-byob-us-west-2").upload_file("start_proxy.sh", "start_proxy.sh")
+
+
 def add_reference_artifacts():
     # NOTE: Set the s3 endpoint to the proxy
     # export AWS_S3_ENDPOINT_URL=http://localhost:8182
@@ -52,7 +65,7 @@ def add_reference_artifacts():
             # because the proxy is hard coded to use one bucket name
             # FIXME: proxy does not work due to how aws sdk signs the request ...
             # uri="s3://uma-bucket-testing/images/apple.jpeg"
-            uri="s3://pinglei-byob-us-west-2/log_images.png"
+            uri="s3://pinglei-byob-us-west-2/start_proxy.sh"
         )
         run.log_artifact(artifact)
 
@@ -167,6 +180,7 @@ def main():
         # print_url()
         # download_artifacts()
 
+        upload_reference_file()
         add_reference_artifacts()
         download_reference_artifacts()
 

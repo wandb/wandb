@@ -16,13 +16,30 @@ Use Python context manager to set headers and pass them to Go core.
 Start the proxy servers and check the logs.
 File proxy would print all requests missing the `X-My-Header-*` headers into `logs/file_proxy_missing_header.log`.
 
+First start two proxies:
+
 ```bash
 # Pick either GCS or S3
 export WANDB_OBJECT_STORAGE_PREFIX=https://storage.googleapis.com/wandb-artifacts-prod
 # export WANDB_OBJECT_STORAGE_PREFIX=https://pinglei-byob-us-west-2.s3.us-west-2.amazonaws.com
+# For reference artifacts, you need to copy the AWS credentials to env var
+# export AWS_ACCESS_KEY_ID=...
+# export AWS_SECRET_ACCESS_KEY=...
+# export AWS_REGION=us-west-2
 ./start_proxy.sh
+```
 
+Then run the test script:
+
+```bash
 uv pip install -e ~/go/src/github.com/wandb/wandb
+
+# For reference artifacts, point s3 to the proxy
+export AWS_S3_ENDPOINT_URL=http://localhost:8182
+# You ALSO need to copy the AWS credentials to env var to get reference artifact to work
+# export AWS_ACCESS_KEY_ID=...
+# export AWS_SECRET_ACCESS_KEY=...
+# export AWS_REGION=us-west-2
 python3 test_headers.py
 ```
 

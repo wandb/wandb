@@ -1,20 +1,30 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 const FileProxyPort = 8182
 
 type FileProxy struct {
-	client *http.Client
+	client              *http.Client
 	missingHeaderLogger *log.Logger
-	storagePrefix string
+	storagePrefix       string
+	s3Client            *s3.Client
+	bucketName          string
 }
 
 func NewFileProxy() *FileProxy {
@@ -28,6 +38,25 @@ func NewFileProxy() *FileProxy {
 
 	// Remove trailing slash if present
 	storagePrefix = strings.TrimRight(storagePrefix, "/")
+
+	// Initialize AWS S3 client
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		log.Fatalf("Failed to load AWS config: %v", err)
+	}
+
+	// Override region if AWS_REGION is set
+	if region := os.Getenv("AWS_REGION"); region != "" {
+		cfg.Region = region
+	}
+
+	// Extract bucket name from storage prefix
+	bucketName := extractBucketFromURL(storagePrefix)
+	if bucketName == "" {
+		log.Fatalf("Could not extract bucket name from storage prefix: %s", storagePrefix)
+	}
+
+	s3Client := s3.NewFromConfig(cfg)
 
 	// Create logs directory if it doesn't exist
 	os.MkdirAll("logs", 0755)
@@ -46,8 +75,36 @@ func NewFileProxy() *FileProxy {
 			},
 		},
 		missingHeaderLogger: missingHeaderLogger,
-		storagePrefix: storagePrefix,
+		storagePrefix:       storagePrefix,
+		s3Client:            s3Client,
+		bucketName:          bucketName,
 	}
+}
+
+// extractBucketFromURL extracts bucket name from S3 URL
+func extractBucketFromURL(storagePrefix string) string {
+	parsedURL, err := url.Parse(storagePrefix)
+	if err != nil {
+		return ""
+	}
+
+	// For URLs like https://bucket.s3.region.amazonaws.com
+	if strings.Contains(parsedURL.Host, ".s3.") {
+		parts := strings.Split(parsedURL.Host, ".")
+		if len(parts) > 0 {
+			return parts[0]
+		}
+	}
+
+	// For path-style URLs like https://s3.region.amazonaws.com/bucket
+	if strings.HasPrefix(parsedURL.Path, "/") {
+		pathParts := strings.Split(strings.TrimPrefix(parsedURL.Path, "/"), "/")
+		if len(pathParts) > 0 {
+			return pathParts[0]
+		}
+	}
+
+	return ""
 }
 
 func (p *FileProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +125,10 @@ func (p *FileProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log headers to main log
-	log.Printf("Headers received:")
+	// Check if this is an AWS SDK request (has Amz-Sdk-Invocation-Id header)
+	isAWSSDKRequest := r.Header.Get("Amz-Sdk-Invocation-Id") != ""
+
+	log.Printf("Headers received (AWS SDK: %v):", isAWSSDKRequest)
 	for header, values := range r.Header {
 		for _, value := range values {
 			// Redact Authorization header for security
@@ -82,6 +142,12 @@ func (p *FileProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				log.Printf("  %s: %s", header, value)
 			}
 		}
+	}
+
+	// Handle AWS SDK requests with Go SDK instead of proxying
+	if isAWSSDKRequest {
+		p.handleAWSSDKRequest(w, r)
+		return
 	}
 
 	// If custom headers are missing, also log to missing header file
@@ -201,6 +267,176 @@ func (p *FileProxy) reconstructS3URL(path string, rawQuery string) string {
 	}
 
 	return s3URL
+}
+
+// handleAWSSDKRequest handles AWS SDK requests using Go AWS SDK v2
+func (p *FileProxy) handleAWSSDKRequest(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	// Extract object key from path (remove leading slash and bucket name)
+	path := strings.TrimPrefix(r.URL.Path, "/")
+
+	// For virtual-hosted style, the bucket is in the hostname, object key is the full path
+	// For path-style, need to extract bucket from path
+	objectKey := path
+	bucketName := p.bucketName
+
+	// If the path starts with bucket name, extract the actual object key
+	if strings.HasPrefix(path, bucketName+"/") {
+		objectKey = strings.TrimPrefix(path, bucketName+"/")
+	}
+
+	log.Printf("Handling AWS SDK request: %s %s (bucket: %s, key: %s)", r.Method, r.URL.Path, bucketName, objectKey)
+
+	// Add custom headers from the original request
+	metadata := make(map[string]string)
+	for header, values := range r.Header {
+		if strings.HasPrefix(header, "X-My-Header-") {
+			// Convert to metadata key (remove prefix and lowercase)
+			metaKey := strings.ToLower(strings.TrimPrefix(header, "X-My-Header-"))
+			if len(values) > 0 {
+				metadata[metaKey] = values[0]
+			}
+		}
+	}
+
+	switch r.Method {
+	case "HEAD":
+		p.handleHeadObject(ctx, w, bucketName, objectKey)
+	case "GET":
+		p.handleGetObject(ctx, w, r, bucketName, objectKey)
+	case "PUT":
+		p.handlePutObject(ctx, w, r, bucketName, objectKey, metadata)
+	default:
+		log.Printf("Unsupported method for AWS SDK request: %s", r.Method)
+		http.Error(w, "Method not supported", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleHeadObject handles HEAD requests (metadata queries)
+func (p *FileProxy) handleHeadObject(ctx context.Context, w http.ResponseWriter, bucket, key string) {
+	input := &s3.HeadObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	}
+
+	result, err := p.s3Client.HeadObject(ctx, input)
+	if err != nil {
+		log.Printf("HeadObject error: %v", err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Set response headers from S3 metadata
+	if result.ETag != nil {
+		w.Header().Set("ETag", *result.ETag)
+	}
+	if result.ContentLength != nil {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", *result.ContentLength))
+	}
+	if result.ContentType != nil {
+		w.Header().Set("Content-Type", *result.ContentType)
+	}
+	if result.LastModified != nil {
+		w.Header().Set("Last-Modified", result.LastModified.Format(http.TimeFormat))
+	}
+
+	// Add any custom metadata headers
+	for key, value := range result.Metadata {
+		w.Header().Set("X-Amz-Meta-"+key, value)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	log.Printf("HeadObject succeeded for %s/%s", bucket, key)
+}
+
+// handleGetObject handles GET requests (downloads)
+func (p *FileProxy) handleGetObject(ctx context.Context, w http.ResponseWriter, r *http.Request, bucket, key string) {
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	}
+
+	result, err := p.s3Client.GetObject(ctx, input)
+	if err != nil {
+		log.Printf("GetObject error: %v", err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	defer result.Body.Close()
+
+	// Set response headers
+	if result.ETag != nil {
+		w.Header().Set("ETag", *result.ETag)
+	}
+	if result.ContentLength != nil {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", *result.ContentLength))
+	}
+	if result.ContentType != nil {
+		w.Header().Set("Content-Type", *result.ContentType)
+	}
+	if result.LastModified != nil {
+		w.Header().Set("Last-Modified", result.LastModified.Format(http.TimeFormat))
+	}
+
+	// Copy object content to response
+	written, err := io.Copy(w, result.Body)
+	if err != nil {
+		log.Printf("Error copying GetObject response: %v", err)
+		return
+	}
+
+	log.Printf("GetObject succeeded for %s/%s (%d bytes)", bucket, key, written)
+}
+
+// handlePutObject handles PUT requests (uploads)
+func (p *FileProxy) handlePutObject(ctx context.Context, w http.ResponseWriter, r *http.Request, bucket, key string, metadata map[string]string) {
+	// Read the request body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("Error reading PUT body: %v", err)
+		http.Error(w, "Error reading request body", http.StatusBadRequest)
+		return
+	}
+
+	input := &s3.PutObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+		Body:   bytes.NewReader(body),
+	}
+
+	// Add content type if specified
+	if contentType := r.Header.Get("Content-Type"); contentType != "" {
+		input.ContentType = aws.String(contentType)
+	}
+
+	// Add custom metadata
+	if len(metadata) > 0 {
+		input.Metadata = metadata
+	}
+
+	// Add server-side encryption if specified
+	if sse := r.Header.Get("X-Amz-Server-Side-Encryption"); sse != "" {
+		input.ServerSideEncryption = types.ServerSideEncryption(sse)
+	}
+	if kmsKeyId := r.Header.Get("X-Amz-Server-Side-Encryption-Aws-Kms-Key-Id"); kmsKeyId != "" {
+		input.SSEKMSKeyId = aws.String(kmsKeyId)
+	}
+
+	result, err := p.s3Client.PutObject(ctx, input)
+	if err != nil {
+		log.Printf("PutObject error: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Set response headers
+	if result.ETag != nil {
+		w.Header().Set("ETag", *result.ETag)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	log.Printf("PutObject succeeded for %s/%s", bucket, key)
 }
 
 func main() {
