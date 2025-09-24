@@ -86,7 +86,6 @@ from ._generated import (
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
     LINK_ARTIFACT_GQL,
-    TYPE_INFO_GQL,
     UNLINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
     ArtifactAliasInput,
@@ -109,7 +108,7 @@ from ._generated import (
     TagInput,
     UpdateArtifact,
 )
-from ._gqlutils import omit_artifact_fields
+from ._gqlutils import omit_artifact_fields, supports_enable_tracking_var, type_info
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
     ArtifactPath,
@@ -352,14 +351,12 @@ class Artifact:
         client: RetryingClient,
         enable_tracking: bool = False,
     ) -> Artifact:
-        if (api := InternalApi())._server_supports(
+        if InternalApi()._server_supports(
             pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
         ):
             return cls._membership_from_name(path=path, client=client)
 
-        supports_enable_tracking_gql_var = api.server_project_type_introspection()
-        omit_vars = None if supports_enable_tracking_gql_var else {"enableTracking"}
-
+        omit_vars = None if supports_enable_tracking_var(client) else {"enableTracking"}
         gql_vars = {
             "entityName": path.prefix,
             "projectName": path.project,
@@ -1251,10 +1248,8 @@ class Artifact:
 
         aliases = None
 
-        data = self._client.execute(
-            gql(TYPE_INFO_GQL), variable_values={"name": "AddAliasesInput"}
-        )
-        if data.get("AddAliasesInputInfoType"):  # wandb backend version >= 0.13.0
+        if type_info(self._client, "AddAliasesInput") is not None:
+            # wandb backend version >= 0.13.0
             alias_props = {
                 "entity_name": entity,
                 "project_name": project,

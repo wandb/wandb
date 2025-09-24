@@ -3,30 +3,17 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import Field
 
 from wandb._pydantic import GQLBase
 
+from .fragments import TypeInfoFragment
+
 
 class TypeInfo(GQLBase):
-    type: Optional[TypeInfoType] = Field(alias="__type")
-
-
-class TypeInfoType(GQLBase):
-    name: Optional[str]
-    fields: Optional[List[TypeInfoTypeFields]]
-    input_fields: Optional[List[TypeInfoTypeInputFields]] = Field(alias="inputFields")
-
-
-class TypeInfoTypeFields(GQLBase):
-    name: str
-
-
-class TypeInfoTypeInputFields(GQLBase):
-    name: str
+    type: Optional[TypeInfoFragment] = Field(alias="__type")
 
 
 TypeInfo.model_rebuild()
-TypeInfoType.model_rebuild()

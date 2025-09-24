@@ -1052,13 +1052,20 @@ mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
 TYPE_INFO_GQL = """
 query TypeInfo($name: String!) {
   __type(name: $name) {
+    ...TypeInfoFragment
+  }
+}
+
+fragment TypeInfoFragment on __Type {
+  name
+  fields {
     name
-    fields {
+    args {
       name
     }
-    inputFields {
-      name
-    }
+  }
+  inputFields {
+    name
   }
 }
 """

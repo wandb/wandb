@@ -18,9 +18,7 @@ from ariadne_codegen import Plugin
 from graphlib import TopologicalSorter  # Run this only with python 3.9+
 from graphql import (
     ExecutableDefinitionNode,
-    FieldNode,
     FragmentDefinitionNode,
-    GraphQLInterfaceType,
     GraphQLSchema,
     SelectionSetNode,
     TypeMetaFieldDef,
@@ -35,6 +33,7 @@ from .plugin_utils import (
     is_redundant_class_def,
     make_all_assignment,
     make_import_from,
+    make_literal,
     make_model_rebuild,
     remove_module_files,
 )
@@ -212,32 +211,23 @@ class GraphQLCodegenPlugin(Plugin):
         return self._rewrite_generated_module(module)
 
     def process_schema(self, schema: GraphQLSchema) -> GraphQLSchema:
-        # Get the concrete GQL type names that implement any GraphQL interfaces.
+        # Maps a GraphQL type OR interface name to the actual concrete GQL type names.
         # This is needed to accurately restrict the allowed `typename__`
         # strings on generated fragment classes.
         #
         # interface2typenames should look something like, e.g.:
         #   {
         #     "ArtifactCollection" -> ["ArtifactPortfolio", "ArtifactSequence"],
+        #     "ArtifactPortfolio" -> ["ArtifactPortfolio"],
+        #     "ArtifactSequence" -> ["ArtifactSequence"],
         #     ...
         #   }
         self.interface2typenames = {
-            name: [im.name for im in schema.get_implementations(interface_type).objects]
-            for name, named_type in schema.type_map.items()
-            if isinstance(interface_type := named_type, GraphQLInterfaceType)
+            name: [impl.name for impl in schema.get_possible_types(gql_type)]
+            for name, gql_type in schema.type_map.items()
         }
 
         return schema
-
-    def generate_result_field(
-        self,
-        field_implementation: ast.AnnAssign,
-        operation_definition: ExecutableDefinitionNode,
-        field: FieldNode,
-    ) -> ast.AnnAssign:
-        return super().generate_result_field(
-            field_implementation, operation_definition, field
-        )
 
     def generate_result_class(
         self,
@@ -260,10 +250,15 @@ class GraphQLCodegenPlugin(Plugin):
         module: ast.Module,
         fragments_definitions: dict[str, FragmentDefinitionNode],
     ) -> ast.Module:
-        # Maps {fragment names -> original schema type names}
-        fragment2typename = {
-            f.name.value: f.type_condition.name.value
-            for f in fragments_definitions.values()
+        # Maps {fragment name -> orig GQL object type names}
+        # If a fragment was defined on an interface type, `typename__` should
+        # only allow the names of the interface's implemented object types.
+        fragment2typenames: dict[str, list[str]] = {
+            frag.name.value: (
+                self.interface2typenames.get(typename := frag.type_condition.name.value)
+                or [typename]
+            )
+            for frag in fragments_definitions.values()
         }
 
         # Rewrite `typename__` fields:
@@ -274,23 +269,13 @@ class GraphQLCodegenPlugin(Plugin):
                 if (
                     isinstance(stmt, ast.AnnAssign)
                     and (stmt.target.id == "typename__")
-                    and (gql_name := fragment2typename.get(class_def.name))
+                    and (names := fragment2typenames.get(class_def.name))
                 ):
-                    if all_names := self.interface2typenames.get(gql_name):
-                        # `gql_name` is actually the name of a GraphQL interface,
-                        # and we want the names of its concrete implementations.
-                        stmt.annotation = ast.Subscript(
-                            value=ast.Name("Literal"),
-                            slice=ast.Tuple([ast.Constant(name) for name in all_names]),
-                        )
-                        stmt.value = None
-                    else:
-                        # `gql_name` is actually the name of a concrete GraphQL object type
-                        stmt.annotation = ast.Subscript(
-                            value=ast.Name("Literal"),
-                            slice=ast.Constant(gql_name),
-                        )
-                        stmt.value = ast.Constant(gql_name)
+                    stmt.annotation = make_literal(*names)
+                    # Determine if we prepopulate `typename__` with a default field value
+                    # - assign default: Fragment defined on a GQL object type OR interface with 1 impl.
+                    # - omit default: Fragment defined on a GQL interface with multiple impls.
+                    stmt.value = ast.Constant(names[0]) if len(names) == 1 else None
 
         module = self._rewrite_generated_module(module)
         return ast.fix_missing_locations(module)
@@ -387,16 +372,16 @@ class PydanticModuleRewriter(ast.NodeTransformer):
         if node.target.id == "typename__":
             # e.g. BEFORE: `typename__: Literal["MyType"] = Field(alias="__typename")`
             # e.g. AFTER:  `typename__: Typename[Literal["MyType"]]`
-            node.annotation = ast.Subscript(  # T -> Typename[T]
-                value=ast.Name(id=TYPENAME_TYPE),
-                slice=node.annotation,
-            )
+
+            # T -> Typename[T]
+            node.annotation = ast.Subscript(ast.Name(TYPENAME_TYPE), node.annotation)
+
             # Drop `= Field(alias="__typename")`, if present
             if (
-                isinstance(node.value, ast.Call)
-                and node.value.func.id == "Field"
-                and len(node.value.keywords) == 1
-                and node.value.keywords[0].arg == "alias"
+                isinstance(call := node.value, ast.Call)
+                and call.func.id == "Field"
+                and len(call.keywords) == 1
+                and call.keywords[0].arg == "alias"
             ):
                 node.value = None
 

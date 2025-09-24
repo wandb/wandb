@@ -94,6 +94,7 @@ __all__ = [
     "RegistryVersionsPage",
     "RunInputArtifactConnectionFragment",
     "RunOutputArtifactConnectionFragment",
+    "TypeInfoFragment",
     "ArtifactCollectionState",
     "ArtifactCollectionType",
     "ArtifactState",
@@ -143,6 +144,7 @@ from .fragments import (
     RegistryVersionsPage,
     RunInputArtifactConnectionFragment,
     RunOutputArtifactConnectionFragment,
+    TypeInfoFragment,
 )
 from .input_types import (
     ArtifactAliasInput,
