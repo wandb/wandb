@@ -61,7 +61,12 @@ _V1_CONFIG_KEYS = {
 
 def convert_v2_config(v2_config: dict[str, Any]) -> dict[str, Any]:
     """Internal helper: Return a copy of the v2 ConfigDict with renamed v1 keys."""
-    return {_V1_CONFIG_KEYS.get(k, k): v for k, v in v2_config.items()}
+    return {
+        # Convert v2 config keys to v1 keys
+        **{_V1_CONFIG_KEYS.get(k, k): v for k, v in v2_config.items()},
+        # This is a v1-only config key. In v2, it no longer exists and is effectively always True.
+        "underscore_attrs_are_private": True,
+    }
 
 
 @lru_cache(maxsize=None)  # Reduce repeat introspection via `signature()`
@@ -87,12 +92,10 @@ class V1MixinMetaclass(PydanticModelMetaclass):
         **kwargs: Any,
     ):
         # In the class definition, convert the model config, if any:
-        #     # BEFORE
-        #     class MyModel(BaseModel):  # v2 model with `ConfigDict`
+        #     class MyModel(BaseModel):  # BEFORE (v2)
         #         model_config = ConfigDict(populate_by_name=True)
         #
-        #     # AFTER
-        #     class MyModel(BaseModel):  # v1 model with inner `Config` class
+        #     class MyModel(BaseModel):  # AFTER (v1)
         #         class Config:
         #             allow_population_by_field_name = True
         if config_dict := namespace.pop("model_config", None):
@@ -197,24 +200,41 @@ PydanticCompatMixin: type = V2Mixin if IS_PYDANTIC_V2 else V1Mixin
 # Decorators and other pydantic helpers
 # ----------------------------------------------------------------------------
 if IS_PYDANTIC_V2:
+    from pydantic import alias_generators
+
+    # https://docs.pydantic.dev/latest/api/config/#pydantic.alias_generators.to_camel
+    to_camel = alias_generators.to_camel  # e.g. "foo_bar" -> "fooBar"
+
+    # https://docs.pydantic.dev/latest/api/functional_validators/#pydantic.functional_validators.field_validator
     field_validator = pydantic.field_validator
+
+    # https://docs.pydantic.dev/latest/api/functional_validators/#pydantic.functional_validators.model_validator
     model_validator = pydantic.model_validator
-    AliasChoices = pydantic.AliasChoices
+
+    # https://docs.pydantic.dev/latest/api/fields/#pydantic.fields.computed_field
     computed_field = pydantic.computed_field
 
+    # https://docs.pydantic.dev/latest/api/aliases/#pydantic.aliases.AliasChoices
+    AliasChoices = pydantic.AliasChoices
+
 else:
-    # Redefines `@field_validator` with a v2-like signature
-    # to call `@validator` from v1 instead.
+    from pydantic.utils import to_lower_camel
+
+    V2ValidatorMode = Literal["before", "after", "wrap", "plain"]
+
+    # NOTE:
+    # - `to_lower_camel` in v1 is the equivalent of `to_camel` in v2 (i.e. to lowerCamelCase)
+    # - `to_camel` in v1 is the equivalent of `to_pascal` in v2 (i.e. to UpperCamelCase)
+    to_camel = to_lower_camel
+
+    # Lets us use `@field_validator` from v2, while calling `@validator` from v1 if needed.
     def field_validator(
-        field: str,
-        /,
         *fields: str,
-        mode: Literal["before", "after", "wrap", "plain"] = "after",
+        mode: V2ValidatorMode = "after",
         check_fields: bool | None = None,
         **_: Any,
     ) -> Callable:
         return pydantic.validator(  # type: ignore[deprecated]
-            field,
             *fields,
             pre=(mode == "before"),
             always=True,
@@ -222,31 +242,28 @@ else:
             allow_reuse=True,
         )
 
-    # Redefines `@model_validator` with a v2-like signature
-    # to call `@root_validator` from v1 instead.
-    def model_validator(
-        *,
-        mode: Literal["before", "after", "wrap", "plain"],
-        **_: Any,
-    ) -> Callable:
+    # Lets us use `@model_validator` from v2, while calling `@root_validator` from v1 if needed.
+    def model_validator(*, mode: V2ValidatorMode, **_: Any) -> Callable:
         if mode == "after":
-            # Patch the behavior for `@model_validator(mode="after")` in v1.  This is
-            # necessarily complicated because:
-            # - `@model_validator(mode="after")` decorates an instance method in pydantic v2
-            # - `@root_validator(pre=False)` always decorates a classmethod in pydantic v1
+
             def _decorator(v2_method: Callable) -> Any:
+                # Patch the behavior for `@model_validator(mode="after")` in v1.
+                #
+                # This is necessarily complicated because:
+                # - `@model_validator(mode="after")` always decorates an instance method in v2,
+                #   i.e. the decorated function has `self` as the first arg.
+                # - `@root_validator(pre=False)` always decorates a classmethod in v1,
+                #   i.e. the decorated function has `cls` as the first arg.
+
                 def v1_method(
                     cls: type[V1Model], values: dict[str, Any]
                 ) -> dict[str, Any]:
-                    # Note: Since this is an "after" validator, the values should already be
-                    # validated, so `.construct()` in v1 (`.model_construct()` in v2)
-                    # should create a valid object to pass to the **original** decorated instance method.
-                    validated = v2_method(cls.construct(**values))
+                    # values should already be validated in an "after" validator, so use `construct()`
+                    # to instantiate without (re-)validating.
+                    v_self = v2_method(cls.construct(**values))
 
                     # Pydantic v1 expects the validator to return a dict of {field_name -> value}
-                    return {
-                        name: getattr(validated, name) for name in validated.__fields__
-                    }
+                    return {f: getattr(v_self, f) for f in v_self.__fields__}
 
                 return pydantic.root_validator(pre=False, allow_reuse=True)(  # type: ignore[call-overload]
                     classmethod(v1_method)

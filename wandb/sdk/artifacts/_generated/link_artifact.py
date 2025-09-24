@@ -9,6 +9,8 @@ from pydantic import Field
 
 from wandb._pydantic import GQLBase
 
+from .fragments import MembershipWithArtifact
+
 
 class LinkArtifact(GQLBase):
     link_artifact: Optional[LinkArtifactLinkArtifact] = Field(alias="linkArtifact")
@@ -16,6 +18,10 @@ class LinkArtifact(GQLBase):
 
 class LinkArtifactLinkArtifact(GQLBase):
     version_index: Optional[int] = Field(alias="versionIndex")
+    artifact_membership: Optional[MembershipWithArtifact] = Field(
+        alias="artifactMembership", default=None
+    )
 
 
 LinkArtifact.model_rebuild()
+LinkArtifactLinkArtifact.model_rebuild()

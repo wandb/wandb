@@ -1985,7 +1985,7 @@ def create(
         base_image=base_image,
         dockerfile=dockerfile,
         services=services,
-        schema=schema_dict,
+        schema=schema_dict if schema else None,
     )
     if not artifact:
         wandb.termerror("Job creation failed")
@@ -2553,7 +2553,8 @@ def pull(run, project, entity):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Restore code, config and docker state for a run"
+    context_settings=CONTEXT,
+    help="Restore code, config and docker state for a run. Retrieves code from latest commit if code was not saved with `wandb.save()` or `wandb.init(save_code=True)`.",
 )
 @click.pass_context
 @click.argument("run", envvar=env.RUN_ID)
@@ -2793,7 +2794,37 @@ def enabled(service):
         )
 
 
-@cli.command(context_settings=CONTEXT, help="Verify your local instance")
+@cli.command(
+    context_settings=CONTEXT,
+    help="""Checks and verifies local instance of W&B. W&B checks for:
+
+    Checks that the host is not `api.wandb.ai` (host check).
+
+    Verifies if the user is logged in correctly using the provided API key (login check).
+
+    Checks that requests are made over HTTPS (secure requests).
+
+    Validates the CORS (Cross-Origin Resource Sharing) configuration of the
+    object store (CORS configuration).
+
+    Logs metrics, saves, and downloads files to check if runs are correctly
+    recorded and accessible (run check).
+
+    Saves and downloads artifacts to verify that the artifact storage and
+    retrieval system is working as expected (artifact check).
+
+    Tests the GraphQL endpoint by uploading a file to ensure it can handle
+    signed URL uploads (GraphQL PUT check).
+
+    Checks the ability to send large payloads through the proxy (large payload check).
+
+    Verifies that the installed version of the W&B package is up-to-date and
+    compatible with the server (W&B version check).
+
+    Creates and executes a sweep to ensure that sweep functionality is
+    working correctly (sweeps check).
+""",
+)
 @click.option("--host", default=None, help="Test a specific instance of W&B")
 def verify(host):
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.

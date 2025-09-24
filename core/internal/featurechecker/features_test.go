@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -38,7 +38,7 @@ func TestServerFeaturesInitialization(t *testing.T) {
 	stubServerFeaturesQuery(mockGQL)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
 		mockGQL,
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	// Assert - features are not loaded until Get is called
@@ -60,7 +60,7 @@ func TestGetFeature(t *testing.T) {
 	stubServerFeaturesQuery(mockGQL)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
 		mockGQL,
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	// Act
@@ -85,7 +85,7 @@ func TestGetFeature_MissingWithDefaultValue(t *testing.T) {
 	stubServerFeaturesQuery(mockGQL)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
 		mockGQL,
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	// Act
@@ -103,7 +103,7 @@ func TestCreateFeaturesCache_WithNullGraphQLClient(t *testing.T) {
 	// Arrange
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
 		nil,
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	// Act
@@ -127,7 +127,7 @@ func TestGetFeature_GraphQLError(t *testing.T) {
 	// stubServerFeaturesQuery(mockGQL)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
 		mockGQL,
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	feature := serverFeaturesCache.GetFeature(

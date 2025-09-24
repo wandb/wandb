@@ -11,7 +11,7 @@ readme = "package_readme.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.8"
 dependencies = [
-    "Click>=7.1,!=8.0.0",
+    "Click>=8.0.1",
     "GitPython>=1.0.0,!=3.1.29",
     "requests>=2.0.0,<3",
     "sentry-sdk>=2.0.0",
@@ -288,7 +288,6 @@ ignore-decorators = [
 "wandb/sdk/launch/runner/kubernetes_runner.py" = ["TRY300"]
 "wandb/sdk/launch/sweeps/scheduler.py" = ["TRY300"]
 "wandb/sdk/launch/utils.py" = ["TRY300"]
-"wandb/sdk/lib/retry.py" = ["TRY300"]
 "wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
 "wandb/wandb_controller.py" = ["N806"]
 "wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]

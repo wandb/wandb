@@ -45,19 +45,6 @@ func (r *IRun) InformInit(settings *settings.Settings) {
 	})
 }
 
-// InformStart sends a start message to the server.
-func (r *IRun) InformStart(settings *settings.Settings) {
-	r.Conn.Send(&spb.ServerRequest{
-		ServerRequestType: &spb.ServerRequest_InformStart{
-			InformStart: &spb.ServerInformStartRequest{
-				XInfo: &spb.XRecordInfo{
-					StreamId: r.StreamID,
-				},
-			},
-		},
-	})
-}
-
 func (r *IRun) InformFinish(settings *settings.Settings) {
 	r.Conn.Send(&spb.ServerRequest{
 		ServerRequestType: &spb.ServerRequest_InformFinish{

@@ -11,7 +11,6 @@ For more on using `wandb.init()`, including code snippets, check out our
 from __future__ import annotations
 
 import contextlib
-import copy
 import dataclasses
 import json
 import logging
@@ -31,7 +30,7 @@ from wandb import env, trigger
 from wandb.errors import CommError, Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
-from wandb.integration import sagemaker
+from wandb.integration import sagemaker, weave
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
 from wandb.sdk.lib import progress, runid, wb_logging
@@ -202,23 +201,7 @@ class _WandbInit:
         Returns:
             A callback to print any generated warnings.
         """
-        exclude_env_vars = {"WANDB_SERVICE", "WANDB_KUBEFLOW_URL"}
-        # check if environment variables have changed
-        singleton_env = {
-            k: v
-            for k, v in wandb_setup.singleton()._environ.items()
-            if k.startswith("WANDB_") and k not in exclude_env_vars
-        }
-        os_env = {
-            k: v
-            for k, v in os.environ.items()
-            if k.startswith("WANDB_") and k not in exclude_env_vars
-        }
-
-        if (
-            set(singleton_env.keys()) == set(os_env.keys())  #
-            and set(singleton_env.values()) == set(os_env.values())
-        ):
+        if not self._wl.did_environment_change():
             return _noop_printer_callback()
 
         def print_warning(run_printer: printer.Printer) -> None:
@@ -423,6 +406,25 @@ class _WandbInit:
                 run_id=settings.run_id,
             )
 
+    def set_sync_dir_suffix(self, settings: Settings) -> None:
+        """Add a suffix to sync_dir if it already exists.
+
+        The sync_dir uses a timestamp with second-level precision which can
+        result in conflicts if a run with the same ID is initialized within the
+        same second. This is most likely to happen in tests.
+
+        This can't prevent conflicts from multiple processes attempting
+        to create a wandb run simultaneously.
+
+        Args:
+            settings: Fully initialized settings other than the
+                x_sync_dir_suffix setting which will be modified.
+        """
+        index = 1
+        while pathlib.Path(settings.sync_dir).exists():
+            settings.x_sync_dir_suffix = f"{index}"
+            index += 1
+
     def make_run_config(
         self,
         settings: Settings,
@@ -475,9 +477,9 @@ class _WandbInit:
             )
             self._telemetry.feature.sagemaker = True
 
-        if self._wl._config:
+        if self._wl.config:
             self._split_artifacts_from_config(
-                self._wl._config,
+                self._wl.config,
                 config_target=result.base_no_artifacts,
                 artifacts=result.artifacts,
             )
@@ -856,6 +858,13 @@ class _WandbInit:
                     " and reinit is set to 'create_new', so continuing"
                 )
 
+            elif settings.resume == "must":
+                raise wandb.Error(
+                    "Cannot resume a run while another run is active."
+                    " You must either finish it using run.finish(),"
+                    " or use reinit='create_new' when calling wandb.init()."
+                )
+
             else:
                 run_printer.display(
                     "wandb.init() called while a run is active and reinit is"
@@ -881,7 +890,6 @@ class _WandbInit:
         backend.ensure_launched()
         self._logger.info("backend started and connected")
 
-        # resuming needs access to the server, check server_status()?
         run = Run(
             config=config.base_no_artifacts,
             settings=settings,
@@ -996,7 +1004,6 @@ class _WandbInit:
             result = wait_with_progress(
                 run_init_handle,
                 timeout=timeout,
-                progress_after=1,
                 display_progress=display_init_message,
             )
 
@@ -1027,14 +1034,6 @@ class _WandbInit:
         run._set_run_obj(result.run_result.run)
 
         self._logger.info("starting run threads in backend")
-        # initiate run (stats and metadata probing)
-
-        if service:
-            assert settings.run_id
-            service.inform_start(
-                settings=settings.to_proto(),
-                run_id=settings.run_id,
-            )
 
         assert backend.interface
 
@@ -1044,6 +1043,8 @@ class _WandbInit:
             run_start_handle.wait_or(timeout=30)
         except TimeoutError:
             pass
+
+        backend.interface.publish_probe_system_info()
 
         assert self._wl is not None
         self.run = run
@@ -1112,8 +1113,7 @@ def _attach(
     except Exception as e:
         raise UsageError(f"Unable to attach to run {attach_id}") from e
 
-    settings: Settings = copy.copy(_wl._settings)
-
+    settings = _wl.settings.model_copy()
     settings.update_from_dict(
         {
             "run_id": attach_id,
@@ -1426,8 +1426,8 @@ def init(  # noqa: C901
             enable on your settings page.
         tensorboard: Deprecated. Use `sync_tensorboard` instead.
         sync_tensorboard: Enables automatic syncing of W&B logs from TensorBoard
-            or TensorBoardX, saving relevant event files for viewing in the W&B UI.
-            saving relevant event files for viewing in the W&B UI. (Default: `False`)
+            or TensorBoardX, saving relevant event files for viewing in
+            the W&B UI.
         monitor_gym: Enables automatic logging of videos of the environment when
             using OpenAI Gym.
         settings: Specifies a dictionary or `wandb.Settings` object with advanced
@@ -1543,6 +1543,7 @@ def init(  # noqa: C901
             init_telemetry.feature.rewind_mode = True
 
         wi.set_run_id(run_settings)
+        wi.set_sync_dir_suffix(run_settings)
         run_printer = printer.new_printer(run_settings)
         show_warnings(run_printer)
 
@@ -1578,7 +1579,12 @@ def init(  # noqa: C901
             if run_settings.x_server_side_derived_summary:
                 init_telemetry.feature.server_side_derived_summary = True
 
-            return wi.init(run_settings, run_config, run_printer)
+            run = wi.init(run_settings, run_config, run_printer)
+
+            # Set up automatic Weave integration if Weave is installed
+            weave.setup(run_settings.entity, run_settings.project)
+
+            return run
 
     except KeyboardInterrupt as e:
         if wl:

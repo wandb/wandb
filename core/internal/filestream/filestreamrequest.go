@@ -144,7 +144,6 @@ func NewRequestReader(
 	requestSizeLimitBytes int,
 ) (*FileStreamRequestReader, bool) {
 	requestSizeApprox := 0
-	isAtMaxSize := false
 
 	// Increases requestSizeApprox and returns the number of strings to
 	// send from the list.
@@ -152,21 +151,20 @@ func NewRequestReader(
 		for i, line := range data {
 			nextSize := requestSizeApprox + len(line)
 
-			if nextSize > requestSizeLimitBytes {
-				isAtMaxSize = true
+			switch {
+			case nextSize <= requestSizeLimitBytes:
+				requestSizeApprox = nextSize
 
-				// As a special case, if the first line is larger than the limit
-				// and we're not sending any other data, send the line and hope
-				// it goes through.
-				if requestSizeApprox == 0 && i == 0 {
-					requestSizeApprox = nextSize
-					return 1
-				} else {
-					return i
-				}
+			// As a special case, if the first line is larger than the limit
+			// and we're not sending any other data, send the line and hope
+			// it goes through.
+			case requestSizeApprox == 0:
+				requestSizeApprox = nextSize
+				return 1
+
+			default:
+				return i
 			}
-
-			requestSizeApprox = nextSize
 		}
 
 		return len(data)
@@ -210,6 +208,7 @@ func NewRequestReader(
 	// isAtMaxSize is different from isFullRequest: a request could be partial
 	// but still below the size limit if it contains nonconsecutive console
 	// lines.
+	isAtMaxSize := requestSizeApprox >= requestSizeLimitBytes
 	return reader, isAtMaxSize
 }
 

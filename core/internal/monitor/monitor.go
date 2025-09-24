@@ -3,7 +3,10 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os/exec"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -11,6 +14,8 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/wire"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/simplejsonext"
@@ -80,6 +85,9 @@ type SystemMonitor struct {
 
 	// Unique identifier of the writer to the run.
 	writerID sharedmode.ClientID
+
+	// Information about the Git repository, if applicable.
+	git *spb.GitRepoRecord
 }
 
 // SystemMonitorFactory constructs a SystemMonitor.
@@ -177,9 +185,7 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 		CoreWeaveMetadataParams{
 			GraphqlClient: sm.graphqlClient,
 			Logger:        sm.logger,
-			Entity:        sm.settings.GetEntity(),
-			BaseURL:       sm.settings.GetStatsCoreWeaveMetadataBaseURL(),
-			Endpoint:      sm.settings.GetStatsCoreWeaveMetadataEndpoint(),
+			Settings:      sm.settings,
 		},
 	); cwm != nil {
 		sm.resources = append(sm.resources, cwm)
@@ -243,7 +249,7 @@ func (sm *SystemMonitor) GetState() int32 {
 }
 
 // probeExecutionContext collects information about the compute environment.
-func (sm *SystemMonitor) probeExecutionContext(git *spb.GitRepoRecord) *spb.Record {
+func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
 	sm.logger.Debug("monitor: probing execution environment")
 
 	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &spb.EnvironmentRecord{
@@ -261,7 +267,7 @@ func (sm *SystemMonitor) probeExecutionContext(git *spb.GitRepoRecord) *spb.Reco
 		Args:          sm.settings.GetArgs(),
 		Colab:         sm.settings.GetColabURL(),
 		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
-		Git:           git,
+		Git:           sm.git,
 
 		WriterId: string(sm.writerID),
 	}}}
@@ -317,7 +323,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 	return &spb.Record{RecordType: &spb.Record_Environment{Environment: e}}
 }
 
-// Start begins the monitoring process for all resources and probes system information.
+// Start begins resource monitoring.
 //
 // It is safe to call Start multiple times; only a stopped monitor will initiate.
 func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
@@ -329,16 +335,36 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 		return // Already started or paused
 	}
 
-	// Probe the environment and resource metadata.
+	sm.git = git
+
+	// Start collecting metrics.
+	if !sm.settings.IsDisableStats() && !sm.settings.IsDisableMachineInfo() {
+		sm.logger.Debug("monitor: starting")
+		for _, resource := range sm.resources {
+			sm.wg.Add(1)
+			go func() {
+				sm.monitorResource(resource)
+				sm.wg.Done()
+			}()
+		}
+	}
+}
+
+// Probe collects environment and resource information.
+//
+// This operation may take some time, so we perform it on a best-effort basis.
+func (sm *SystemMonitor) Probe() {
 	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() && sm.settings.IsPrimary() {
-		sm.extraWork.AddWorkOrCancel(
-			sm.ctx.Done(),
-			runwork.WorkFromRecord(
-				sm.probeExecutionContext(git),
-			),
-		)
 		go func() {
-			// This operation may take some time, so we perform it on a best-effort basis.
+			sm.logger.Debug("monitor: collecting the environment and resource information")
+
+			sm.extraWork.AddWorkOrCancel(
+				sm.ctx.Done(),
+				runwork.WorkFromRecord(
+					sm.probeExecutionContext(),
+				),
+			)
+
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
 				runwork.WorkFromRecord(
@@ -346,15 +372,6 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 				),
 			)
 		}()
-	}
-
-	// Start collecting metrics.
-	if !sm.settings.IsDisableStats() && !sm.settings.IsDisableMachineInfo() {
-		sm.logger.Debug("monitor: starting")
-		for _, resource := range sm.resources {
-			sm.wg.Add(1)
-			go sm.monitorResource(resource)
-		}
 	}
 }
 
@@ -384,13 +401,11 @@ func (sm *SystemMonitor) Resume() {
 // and is meant to run in its own goroutine.
 func (sm *SystemMonitor) monitorResource(resource Resource) {
 	if resource == nil {
-		sm.wg.Done()
 		return
 	}
 
 	// recover from panic and log the error
 	defer func() {
-		sm.wg.Done()
 		if err := recover(); err != nil {
 			if resource != nil {
 				sm.logger.CaptureError(fmt.Errorf("monitor: panic: %v", err))
@@ -413,8 +428,11 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 
 			metrics, err := resource.Sample()
 			if err != nil {
-				sm.logger.CaptureError(fmt.Errorf("monitor: error sampling metrics: %v", err))
-				continue
+				if ShouldCaptureSamplingError(err) {
+					sm.logger.CaptureError(fmt.Errorf("monitor: error sampling metrics: %v", err))
+				} else {
+					sm.logger.Debug(fmt.Sprintf("monitor: benign sampling error: %v", err))
+				}
 			}
 
 			if metrics == nil || len(metrics.Item) == 0 {
@@ -445,6 +463,44 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 		}
 	}
 
+}
+
+// ShouldCaptureSamplingError checks if a resource sampling error should be sent to Sentry.
+//
+// Use to filter out expected/transient failures. Keep this intentionally small and specific.
+func ShouldCaptureSamplingError(err error) bool {
+	// Transient gRPC connectivity to the gpu_stats sidecar.
+	if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
+		return false
+	}
+
+	msg := err.Error()
+	switch {
+	// Error connecting to a Prometheus server.
+	case strings.Contains(msg, "connection refused"):
+		return false
+
+	// Platforms without netstat (gopsutil may shell out on some OSes).
+	case errors.Is(err, exec.ErrNotFound):
+		return false
+	case strings.Contains(msg, "executable file not found") && strings.Contains(msg, "netstat"):
+		return false
+
+	// Container/lean Linux builds without /proc/diskstats.
+	case strings.Contains(msg, "/proc/diskstats") && (strings.Contains(msg, "no such file") || strings.Contains(msg, "no such file or directory")):
+		return false
+
+	// Windows sporadic low-level API failure wording.
+	case strings.Contains(msg, "Incorrect function."):
+		return false
+
+	// Some gopsutil APIs report "not implemented yet" for certain platforms.
+	case strings.Contains(msg, "not implemented yet"):
+		return false
+
+	default:
+		return true
+	}
 }
 
 // GetBuffer returns the current buffer of collected metrics.

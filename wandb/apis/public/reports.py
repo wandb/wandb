@@ -141,18 +141,21 @@ class Reports(SizedPaginator["BetaReport"]):
 class BetaReport(Attrs):
     """BetaReport is a class associated with reports created in W&B.
 
-    WARNING: this API will likely change in a future release
+    Provides access to report attributes (name, description, user, spec,
+    timestamps) and methods for retrieving associated runs,
+    sections, and for rendering the report as HTML.
 
     Attributes:
-        id (string): unique identifier of the report
-        name (string): report name
-        display_name (string): display name of the report
-        description (string): report description
-        user (User): the user that created the report (contains username and email)
-        spec (dict): the spec of the report
-        url (string): the url of the report
-        updated_at (string): timestamp of last update
-        created_at (string): timestamp when the report was created
+        id (string): Unique identifier of the report.
+        display_name (string): Human-readable display name of the report.
+        name (string): The name of the report. Use `display_name` for a more user-friendly name.
+        description (string): Description of the report.
+        user (User): Dictionary containing user info (username, email) who
+            created the report.
+        spec (dict): The spec of the report.
+        url (string): The URL of the report.
+        updated_at (string): Timestamp of last update.
+        created_at (string): Timestamp when the report was created.
     """
 
     def __init__(self, client, attrs, entity=None, project=None):

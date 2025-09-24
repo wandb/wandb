@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filetransfertest"
 	"github.com/wandb/wandb/core/internal/gqlmock"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"go.uber.org/mock/gomock"
 )
@@ -48,7 +48,7 @@ func TestSaveGraphQLRequest(t *testing.T) {
 	ftm := filetransfertest.NewFakeFileTransferManager()
 	ftm.ShouldCompleteImmediately = true
 	saver := NewArtifactSaveManager(
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		mockGQL,
 		ftm,
 		true,

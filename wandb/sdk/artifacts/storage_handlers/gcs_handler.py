@@ -65,7 +65,7 @@ class GCSHandler(StorageHandler):
         path, hit, cache_open = self._cache.check_etag_obj_path(
             url=URIStr(manifest_entry.ref),
             etag=ETag(manifest_entry.digest),
-            size=manifest_entry.size if manifest_entry.size is not None else 0,
+            size=manifest_entry.size or 0,
         )
         if hit:
             return path
@@ -198,7 +198,7 @@ class GCSHandler(StorageHandler):
             posix_ref = posix_path / relpath
         return ArtifactManifestEntry(
             path=posix_name,
-            ref=URIStr(f"{self._scheme}://{str(posix_ref)}"),
+            ref=URIStr(f"{self._scheme}://{posix_ref}"),
             digest=obj.etag,
             size=obj.size,
             extra={"versionID": obj.generation},
