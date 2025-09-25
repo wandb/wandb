@@ -13,6 +13,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- Experimental `wandb beta leet` command - Lightweight Experiment Exploration Tool - a terminal UI for viewing W&B runs locally with real-time metrics visualization and system monitoring (@dmitryduev in https://github.com/wandb/wandb/pull/10496)
+
 ### Fixed
 
 - `wandb.Api(api_key=...)` now prioritizes the explicitly provided API key over thread-local cached credentials (@pingleiwandb in https://github.com/wandb/wandb/pull/10657)

@@ -117,8 +117,37 @@ func GetGraphColors() []string {
 	return colorSchemes["sunset-glow"]
 }
 
+// Metrics grid styles.
+var (
+	headerStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("230"))
+
+	navInfoStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240"))
+
+	headerContainerStyle = lipgloss.NewStyle().
+				MarginLeft(1).
+				MarginTop(1).
+				MarginBottom(0)
+
+	gridContainerStyle = lipgloss.NewStyle().
+				MarginLeft(1).
+				MarginRight(1)
+)
+
 // Chart styles.
 var (
+	borderStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("238")) // dark gray
+
+	titleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("250")). // light gray
+			Bold(true)
+
+	focusedBorderStyle = borderStyle.BorderForeground(lipgloss.Color("#E1F7FA"))
+
 	axisStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240")) // gray
 
@@ -134,6 +163,45 @@ var (
 			Light: "#10BFCC", // teal450 - W&B secondary color
 			Dark:  "#E1F7FA",
 		})
+)
+
+// Sidebar styles.
+var (
+	sidebarStyle        = lipgloss.NewStyle().Padding(0, 1)
+	sidebarBorderStyle  = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(lipgloss.Color("238"))
+	sidebarHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).MarginBottom(1)
+	sidebarSectionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Bold(true)
+	sidebarKeyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	sidebarValueStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+
+	RightBorder = lipgloss.Border{
+		Top:         " ",
+		Bottom:      " ",
+		Left:        "",
+		Right:       "│",
+		TopLeft:     " ",
+		TopRight:    "│",
+		BottomLeft:  " ",
+		BottomRight: "│",
+	}
+)
+
+// Right sidebar styles.
+var (
+	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
+	rightSidebarBorderStyle = lipgloss.NewStyle().Border(lipgloss.Border{Left: "│"}).BorderForeground(lipgloss.Color("238"))
+	rightSidebarHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).MarginLeft(1)
+
+	LeftBorder = lipgloss.Border{
+		Top:         " ",
+		Bottom:      " ",
+		Left:        "│",
+		Right:       "",
+		TopLeft:     "|",
+		TopRight:    " ",
+		BottomLeft:  "|",
+		BottomRight: " ",
+	}
 )
 
 // AnimationDuration is the duration for sidebar animations.
