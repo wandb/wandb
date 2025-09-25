@@ -179,9 +179,9 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 }
 
 func (h *Handler) Close() {
+	h.logger.Info("handler: closed", "stream_id", h.settings.GetRunID())
 	close(h.outChan)
 	close(h.fwdChan)
-	h.logger.Info("handler: closed", "stream_id", h.settings.GetRunID())
 }
 
 // respond sends a response to the client
