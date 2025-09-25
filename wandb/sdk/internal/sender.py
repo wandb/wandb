@@ -311,7 +311,10 @@ class SendManager:
         self._output_raw_file = None
 
         # job builder
-        self._job_builder = JobBuilder(settings)
+        self._job_builder = JobBuilder(
+            settings,
+            files_dir=settings.files_dir,
+        )
 
         time_now = time.monotonic()
         self._debounce_config_time = time_now
