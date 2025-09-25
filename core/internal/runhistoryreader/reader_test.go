@@ -1,119 +1,240 @@
 package runhistoryreader
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
+	"math"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/gqlmock"
+	test "github.com/wandb/wandb/core/tests/parquet"
 )
 
-// mockRoundTripper is a mock implementation of http.RoundTripper for testing
-type mockRoundTripper struct {
-	requestURL     string
-	responseBody   []byte
-	responseStatus int
-	capturedURL    string
+func respondWithParquetContent(
+	t *testing.T,
+	parquetContent []byte,
+) func(responseWriter http.ResponseWriter, request *http.Request) {
+	t.Helper()
+
+	return func(responseWriter http.ResponseWriter, request *http.Request) {
+		responseWriter.Header().Set("Accept-Ranges", "bytes")
+
+		// Handle range requests for remote reading
+		rangeHeader := request.Header.Get("Range")
+		if rangeHeader != "" {
+			var start, end int64
+			_, err := fmt.Sscanf(rangeHeader, "bytes=%d-%d", &start, &end)
+			require.NoError(t, err)
+			min := int64(math.Min(float64(end+1), float64(len(parquetContent))))
+			responseWriter.Header().Set(
+				"Content-Range",
+				fmt.Sprintf("bytes %d-%d/%d", start, end, len(parquetContent)),
+			)
+			responseWriter.WriteHeader(http.StatusPartialContent)
+			_, err = responseWriter.Write(parquetContent[start:min])
+			require.NoError(t, err)
+		} else {
+			_, err := responseWriter.Write(parquetContent)
+			require.NoError(t, err)
+		}
+	}
 }
 
-func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Capture the request URL for verification
-	m.capturedURL = req.URL.String()
+func createHttpServer(
+	t *testing.T,
+	writerFunc func(responseWriter http.ResponseWriter, request *http.Request),
+) *httptest.Server {
+	t.Helper()
 
-	// Return mock response
-	return &http.Response{
-		StatusCode: m.responseStatus,
-		Body:       io.NopCloser(bytes.NewReader(m.responseBody)),
-		Header:     make(http.Header),
-	}, nil
+	server := httptest.NewServer(http.HandlerFunc(writerFunc))
+	t.Cleanup(server.Close)
+
+	return server
 }
 
-func TestHistoryReader_GetHistorySteps(t *testing.T) {
-	reader := New(
-		"test-entity",
-		"test-project",
-		"test-run-id",
-		gqlmock.NewMockClient(),
-		http.DefaultClient,
-	)
-
-	err := reader.GetHistorySteps([]string{"metric1"}, 0, 10)
-	assert.Error(t, err)
-}
-
-func TestHistoryReader_GetSignedUrls(t *testing.T) {
-	expectedUrls := []string{"https://example.com/metric1.parquet"}
-	expectedUrlsJsonBytes, _ := json.Marshal(expectedUrls)
-	expectedUrlsJsonString := string(expectedUrlsJsonBytes)
-
-	fmt.Println(expectedUrlsJsonString)
+func mockGraphQLWithParquetUrls(urls []string) *gqlmock.MockClient {
 	mockGQL := gqlmock.NewMockClient()
+	urlsJsonBytes, _ := json.Marshal(urls)
+	urlsJsonString := string(urlsJsonBytes)
+
 	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("RunParquetHistory"),
 		`{
 			"project": {
 				"run": {
 					"parquetHistory": {
-						"parquetUrls": `+expectedUrlsJsonString+`
+						"parquetUrls": `+urlsJsonString+`
 					}
 				}
 			}
 		}`,
 	)
+
+	return mockGQL
+}
+
+func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
+	ctx := t.Context()
+	tempDir := t.TempDir()
+	schema := arrow.NewSchema(
+		[]arrow.Field{
+			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
+			{Name: "metric1", Type: arrow.PrimitiveTypes.Float64},
+		},
+		nil,
+	)
+	data := []map[string]any{
+		{"_step": int64(0), "metric1": 1.0},
+		{"_step": int64(1), "metric1": 2.0},
+		{"_step": int64(2), "metric1": 3.0},
+	}
+	parquetFilePath := filepath.Join(tempDir, "test.parquet")
+	test.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
+	parquetContent, err := os.ReadFile(parquetFilePath)
+	require.NoError(t, err)
+	server := createHttpServer(t, respondWithParquetContent(t, parquetContent))
+	mockGQL := mockGraphQLWithParquetUrls(
+		[]string{server.URL + "/test.parquet"},
+	)
 	reader := New(
+		ctx,
 		"test-entity",
 		"test-project",
 		"test-run-id",
 		mockGQL,
 		http.DefaultClient,
+		[]string{},
 	)
 
-	urls, err := reader.getRunHistoryFileUrls([]string{"metric1"})
+	results, err := reader.GetHistorySteps(0, 10)
 
 	assert.NoError(t, err)
-	assert.Len(t, urls, 1)
-	assert.Equal(t, urls[0], expectedUrls[0])
+	assert.Len(t, results, 3)
+	for i, row := range results {
+		metricMap := make(map[string]any)
+		for _, kv := range row {
+			metricMap[kv.Key] = kv.Value
+		}
+		assert.Equal(t, data[i], metricMap)
+	}
 }
 
-func TestHistoryReader_DownloadRunHistoryFile(t *testing.T) {
+func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
+	ctx := t.Context()
 	tempDir := t.TempDir()
-	downloadDir := filepath.Join(tempDir, "downloads")
-	expectedFileName := "test-run.parquet"
-	expectedURL := "https://example.com/" + expectedFileName
-	expectedContent := []byte("test parquet file content")
-	mockTransport := &mockRoundTripper{
-		requestURL:     expectedURL,
-		responseBody:   expectedContent,
-		responseStatus: http.StatusOK,
+	schema := arrow.NewSchema(
+		[]arrow.Field{
+			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
+			{Name: "metric1", Type: arrow.PrimitiveTypes.Float64},
+		},
+		nil,
+	)
+	data1 := []map[string]any{
+		{"_step": int64(0), "metric1": 0.0},
+		{"_step": int64(1), "metric1": 1.0},
 	}
-	mockHTTPClient := &http.Client{
-		Transport: mockTransport,
+	data2 := []map[string]any{
+		{"_step": int64(3), "metric1": 3.0},
+		{"_step": int64(4), "metric1": 4.0},
 	}
+	servers := make([]*httptest.Server, 2)
+	for i, data := range [][]map[string]any{data1, data2} {
+		parquetFilePath := filepath.Join(tempDir, fmt.Sprintf("test%d.parquet", i))
+		test.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
+		parquetContent, err := os.ReadFile(parquetFilePath)
+		require.NoError(t, err)
+		servers[i] = createHttpServer(
+			t,
+			respondWithParquetContent(t, parquetContent),
+		)
+	}
+	mockGQL := mockGraphQLWithParquetUrls([]string{
+		servers[0].URL + "/test1.parquet",
+		servers[1].URL + "/test2.parquet",
+	})
 	reader := New(
+		ctx,
 		"test-entity",
 		"test-project",
 		"test-run-id",
-		gqlmock.NewMockClient(),
-		mockHTTPClient,
+		mockGQL,
+		http.DefaultClient,
+		[]string{},
 	)
 
-	err := reader.downloadRunHistoryFile(
-		expectedURL,
-		downloadDir,
-		expectedFileName,
+	results, err := reader.GetHistorySteps(1, 4)
+
+	assert.NoError(t, err)
+	assert.Len(t, results, 2)
+	expectedResults := make([]map[string]any, 0)
+	expectedResults = append(expectedResults, data1[1], data2[0])
+	for i, row := range results {
+		metricMap := make(map[string]any)
+		for _, kv := range row {
+			metricMap[kv.Key] = kv.Value
+		}
+		assert.Equal(t, expectedResults[i], metricMap)
+	}
+}
+
+func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
+	ctx := t.Context()
+	tempDir := t.TempDir()
+	schema := arrow.NewSchema(
+		[]arrow.Field{
+			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
+			{Name: "metric1", Type: arrow.PrimitiveTypes.Float64},
+			{Name: "metric2", Type: arrow.PrimitiveTypes.Float64},
+		},
+		nil,
+	)
+	data := []map[string]any{
+		{"_step": int64(0), "metric1": 1.0, "metric2": 10.0},
+		{"_step": int64(1), "metric1": 2.0, "metric2": 20.0},
+		{"_step": int64(2), "metric1": 3.0, "metric2": 30.0},
+	}
+	parquetFilePath := filepath.Join(tempDir, "test.parquet")
+	test.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
+	parquetContent, err := os.ReadFile(parquetFilePath)
+	require.NoError(t, err)
+	server := createHttpServer(t, respondWithParquetContent(t, parquetContent))
+	mockGQL := mockGraphQLWithParquetUrls([]string{
+		server.URL + "/test.parquet",
+	})
+	reader := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		http.DefaultClient,
+		[]string{"metric1"},
 	)
 
-	assert.NoError(t, err)
-	downloadedFilePath := filepath.Join(downloadDir, expectedFileName)
-	assert.FileExists(t, downloadedFilePath)
+	results, err := reader.GetHistorySteps(0, 10)
 
-	content, err := os.ReadFile(downloadedFilePath)
 	assert.NoError(t, err)
-	assert.Equal(t, expectedContent, content)
+	assert.Len(t, results, 3)
+	for i, row := range results {
+		metricMap := make(map[string]float64)
+		for _, kv := range row {
+			if val, ok := kv.Value.(float64); ok {
+				metricMap[kv.Key] = val
+			}
+		}
+
+		assert.Equal(t, 1, len(metricMap))
+		assert.Equal(t, data[i]["metric1"], metricMap["metric1"])
+		_, hasMetric2 := metricMap["metric2"]
+		assert.False(t, hasMetric2)
+		_, hasStep := metricMap["_step"]
+		assert.False(t, hasStep)
+	}
 }
