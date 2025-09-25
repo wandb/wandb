@@ -468,9 +468,9 @@ class LaunchAgent:
                 logs = None
                 interval = 1
                 while True:
-                    api = await self._launch_api_provider.get_api(job_and_run_status)
+                    job_api = await self._launch_api_provider.get_api(job_and_run_status)
                     called_init = self._check_run_exists_and_inited(
-                        api,
+                        job_api,
                         job_and_run_status.entity or self._entity,
                         job_and_run_status.project,
                         job_and_run_status.run_id,
@@ -795,7 +795,8 @@ class LaunchAgent:
                     )
             if await self._check_run_finished(job_tracker, launch_spec):
                 return
-            if await job_tracker.check_wandb_run_stopped(self._api):
+            job_api = await self._launch_api_provider.get_api(job_tracker)
+            if await job_tracker.check_wandb_run_stopped(job_api):
                 if stopped_time is None:
                     stopped_time = time.time()
                 else:
@@ -896,7 +897,8 @@ class LaunchAgent:
                     if state == "failed":
                         # on fail, update sweep state. scheduler run_id should == sweep_id
                         try:
-                            self._api.set_sweep_state(
+                            job_api = await self._launch_api_provider.get_api(job_tracker)
+                            job_api.set_sweep_state(
                                 sweep=job_tracker.run_id,
                                 entity=job_tracker.entity,
                                 project=job_tracker.project,
