@@ -13,6 +13,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- Experimental `wandb beta leet` command - Lightweight Experiment Exploration Tool - a terminal UI for viewing W&B runs locally with real-time metrics visualization and system monitoring (@dmitryduev in https://github.com/wandb/wandb/pull/10496)
+
 ### Fixed
 
 - Possibly fixed some cases where the `output.log` file was not being uploaded (@timoffex in https://github.com/wandb/wandb/pull/10620)
