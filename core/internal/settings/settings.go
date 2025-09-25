@@ -4,6 +4,7 @@ package settings
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -179,7 +180,8 @@ func (s *Settings) GetInternalLogFile() string {
 
 // Absolute path to the local directory where this run's files are stored.
 func (s *Settings) GetFilesDir() string {
-	return s.Proto.FilesDir.GetValue()
+	// Must match the logic in the Python wandb.Settings.
+	return filepath.Join(s.GetSyncDir(), "files")
 }
 
 // Unix glob patterns relative to `files_dir` to not upload.
