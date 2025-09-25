@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/nullify"
@@ -43,7 +41,6 @@ import (
 const (
 	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
-	ConsoleFileName           = "output.log"
 )
 
 var SenderProviders = wire.NewSet(
@@ -149,46 +146,6 @@ type Sender struct {
 
 // New returns a new Sender.
 func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
-	// Guaranteed not to fail.
-	maybeOutputFileName, _ := paths.Relative(ConsoleFileName)
-	outputFileName := *maybeOutputFileName
-
-	if f.Settings.GetLabel() != "" {
-		sanitizedLabel := fileutil.SanitizeFilename(f.Settings.GetLabel())
-		// Guaranteed not to fail.
-		// split filename and extension
-		extension := filepath.Ext(string(outputFileName))
-		path, _ := paths.Relative(
-			fmt.Sprintf(
-				"%s_%s%s",
-				strings.TrimSuffix(string(outputFileName), extension),
-				sanitizedLabel,
-				extension,
-			),
-		)
-		outputFileName = *path
-	}
-
-	// If console capture is enabled, we need to create a multipart console log file.
-	if f.Settings.IsConsoleMultipart() {
-		// This is guaranteed not to fail.
-		timestamp := time.Now()
-		extension := filepath.Ext(string(outputFileName))
-		path, _ := paths.Relative(
-			filepath.Join(
-				"logs",
-				fmt.Sprintf(
-					"%s_%s_%09d%s",
-					strings.TrimSuffix(string(outputFileName), extension),
-					timestamp.Format("20060102_150405"),
-					timestamp.Nanosecond(),
-					extension,
-				),
-			),
-		)
-		outputFileName = *path
-	}
-
 	var fileStream fs.FileStream
 	if !f.Settings.IsOffline() {
 		fileStream = NewFileStream(
@@ -210,13 +167,15 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 	}
 
 	consoleLogsSenderParams := runconsolelogs.Params{
-		ConsoleOutputFile:     outputFileName,
 		FilesDir:              f.Settings.GetFilesDir(),
 		EnableCapture:         f.Settings.IsConsoleCaptureEnabled(),
 		Logger:                f.Logger,
 		FileStreamOrNil:       fileStream,
 		Label:                 f.Settings.GetLabel(),
 		RunfilesUploaderOrNil: runfilesUploader,
+		Multipart:             f.Settings.IsConsoleMultipart(),
+		ChunkMaxBytes:         f.Settings.GetConsoleChunkMaxBytes(),
+		ChunkMaxSeconds:       f.Settings.GetConsoleChunkMaxSeconds(),
 		Structured: f.FeatureProvider.GetFeature(
 			context.Background(),
 			spb.ServerFeature_STRUCTURED_CONSOLE_LOGS,

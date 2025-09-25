@@ -23,13 +23,11 @@ func TestFileStreamUpdates(t *testing.T) {
 		FilesDir: wrapperspb.String(t.TempDir()),
 	})
 	fileStream := filestreamtest.NewFakeFileStream()
-	outputFile, _ := paths.Relative("output.log")
 
 	sender := New(Params{
-		ConsoleOutputFile: *outputFile,
-		FilesDir:          settings.GetFilesDir(),
-		EnableCapture:     true,
-		Logger:            observabilitytest.NewTestLogger(t),
+		FilesDir:      settings.GetFilesDir(),
+		EnableCapture: true,
+		Logger:        observabilitytest.NewTestLogger(t),
 		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(t,
 			runfilestest.Params{},
 		),
@@ -65,10 +63,9 @@ func TestFileStreamUpdatesDisabled(t *testing.T) {
 	outputFile, _ := paths.Relative("output.log")
 
 	sender := New(Params{
-		ConsoleOutputFile: *outputFile,
-		FilesDir:          settings.GetFilesDir(),
-		EnableCapture:     false,
-		Logger:            observabilitytest.NewTestLogger(t),
+		FilesDir:      settings.GetFilesDir(),
+		EnableCapture: false,
+		Logger:        observabilitytest.NewTestLogger(t),
 		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(t,
 			runfilestest.Params{},
 		),
