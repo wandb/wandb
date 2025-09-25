@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"iter"
 
 	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/apache/arrow-go/v18/parquet/metadata"
@@ -55,8 +56,8 @@ func (p *ParquetPartitionReader) Release() {
 	}
 }
 
-// ValueIterator returns a function that can be used to iterate over the values of the parquet partition
-func (p *ParquetPartitionReader) ValueIterator() func(yield func(KVMapList, error) bool) {
+// All returns an iterator over the values of the parquet partition
+func (p *ParquetPartitionReader) All() iter.Seq2[KVMapList, error] {
 	return func(yield func(KVMapList, error) bool) {
 		for {
 			hasNext, err := p.Next()
