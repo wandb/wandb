@@ -71,7 +71,8 @@ func TestJobBuilderRepo(t *testing.T) {
 			"codePath": "/path/to/train.py",
 		}
 
-		fdir := filepath.Join(os.TempDir(), "test")
+		syncDir := filepath.Join(os.TempDir(), "test")
+		fdir := filepath.Join(syncDir, "files")
 		err := os.MkdirAll(fdir, 0777)
 		assert.Nil(t, err)
 		writeRequirements(t, fdir)
@@ -79,13 +80,13 @@ func TestJobBuilderRepo(t *testing.T) {
 		writeWandbMetadata(t, fdir, metadata)
 
 		defer func() {
-			_ = os.RemoveAll(fdir)
+			_ = os.RemoveAll(syncDir)
 		}()
 		settingsProto := &spb.Settings{
-			Project:  wrapperspb.String("testProject"),
-			Entity:   wrapperspb.String("testEntity"),
-			RunId:    wrapperspb.String("testRunId"),
-			FilesDir: wrapperspb.String(fdir),
+			Project: wrapperspb.String("testProject"),
+			Entity:  wrapperspb.String("testEntity"),
+			RunId:   wrapperspb.String("testRunId"),
+			SyncDir: wrapperspb.String(syncDir),
 		}
 		jobBuilder := NewJobBuilder(
 			settings.From(settingsProto),
@@ -123,7 +124,8 @@ func TestJobBuilderRepo(t *testing.T) {
 	t.Run("Build repo sourced notebook job", func(t *testing.T) {
 		ctx := context.Background()
 		gql := gqlmock.NewMockClient()
-		fdir := filepath.Join(os.TempDir(), "test")
+		syncDir := filepath.Join(os.TempDir(), "test")
+		fdir := filepath.Join(syncDir, "files")
 		err := os.MkdirAll(fdir, 0777)
 		assert.Nil(t, err)
 		_, err = os.Create(filepath.Join(fdir, "Untitled.ipynb"))
@@ -148,13 +150,13 @@ func TestJobBuilderRepo(t *testing.T) {
 		writeWandbMetadata(t, fdir, metadata)
 
 		defer func() {
-			_ = os.RemoveAll(fdir)
+			_ = os.RemoveAll(syncDir)
 		}()
 		settingsProto := &spb.Settings{
 			Project:      wrapperspb.String("testProject"),
 			Entity:       wrapperspb.String("testEntity"),
 			RunId:        wrapperspb.String("testRunId"),
-			FilesDir:     wrapperspb.String(fdir),
+			SyncDir:      wrapperspb.String(syncDir),
 			XJupyter:     wrapperspb.Bool(true),
 			XJupyterRoot: wrapperspb.String(fdir),
 		}
@@ -200,20 +202,21 @@ func TestJobBuilderArtifact(t *testing.T) {
 			"codePath": "/path/to/train.py",
 		}
 
-		fdir := filepath.Join(os.TempDir(), "test")
+		syncDir := filepath.Join(os.TempDir(), "test")
+		fdir := filepath.Join(syncDir, "files")
 		err := os.MkdirAll(fdir, 0777)
 		assert.Nil(t, err)
 		writeRequirements(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
 
 		defer func() {
-			_ = os.RemoveAll(fdir)
+			_ = os.RemoveAll(syncDir)
 		}()
 		settingsProto := &spb.Settings{
-			Project:  wrapperspb.String("testProject"),
-			Entity:   wrapperspb.String("testEntity"),
-			RunId:    wrapperspb.String("testRunId"),
-			FilesDir: wrapperspb.String(fdir),
+			Project: wrapperspb.String("testProject"),
+			Entity:  wrapperspb.String("testEntity"),
+			RunId:   wrapperspb.String("testRunId"),
+			SyncDir: wrapperspb.String(syncDir),
 		}
 		jobBuilder := NewJobBuilder(
 			settings.From(settingsProto),
@@ -256,7 +259,8 @@ func TestJobBuilderArtifact(t *testing.T) {
 	t.Run("Build artifact sourced notebook job", func(t *testing.T) {
 		ctx := context.Background()
 		gql := gqlmock.NewMockClient()
-		fdir := filepath.Join(os.TempDir(), "test")
+		syncDir := filepath.Join(os.TempDir(), "test")
+		fdir := filepath.Join(syncDir, "files")
 		err := os.MkdirAll(fdir, 0777)
 		assert.Nil(t, err)
 		_, err = os.Create(filepath.Join(fdir, "Untitled.ipynb"))
@@ -277,13 +281,13 @@ func TestJobBuilderArtifact(t *testing.T) {
 		writeWandbMetadata(t, fdir, metadata)
 
 		defer func() {
-			_ = os.RemoveAll(fdir)
+			_ = os.RemoveAll(syncDir)
 		}()
 		settingsProto := &spb.Settings{
 			Project:      wrapperspb.String("testProject"),
 			Entity:       wrapperspb.String("testEntity"),
 			RunId:        wrapperspb.String("testRunId"),
-			FilesDir:     wrapperspb.String(fdir),
+			SyncDir:      wrapperspb.String(syncDir),
 			XJupyter:     wrapperspb.Bool(true),
 			XJupyterRoot: wrapperspb.String(fdir),
 		}
@@ -333,21 +337,22 @@ func TestJobBuilderImage(t *testing.T) {
 			"python": "3.11.2",
 		}
 
-		fdir := filepath.Join(os.TempDir(), "test")
+		syncDir := filepath.Join(os.TempDir(), "test")
+		fdir := filepath.Join(syncDir, "files")
 		err := os.MkdirAll(fdir, 0777)
 		assert.Nil(t, err)
 		writeRequirements(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
 
 		defer func() {
-			_ = os.RemoveAll(fdir)
+			_ = os.RemoveAll(syncDir)
 		}()
 
 		settingsProto := &spb.Settings{
-			Project:  wrapperspb.String("testProject"),
-			Entity:   wrapperspb.String("testEntity"),
-			RunId:    wrapperspb.String("testRunId"),
-			FilesDir: wrapperspb.String(fdir),
+			Project: wrapperspb.String("testProject"),
+			Entity:  wrapperspb.String("testEntity"),
+			RunId:   wrapperspb.String("testRunId"),
+			SyncDir: wrapperspb.String(syncDir),
 		}
 		jobBuilder := NewJobBuilder(
 			settings.From(settingsProto),
@@ -406,9 +411,9 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 	t.Run("Missing requirements file", func(t *testing.T) {
 		ctx := context.Background()
 		gql := gqlmock.NewMockClient()
-		fdir := filepath.Join(os.TempDir(), "test")
+		syncDir := filepath.Join(os.TempDir(), "test")
 		settingsProto := &spb.Settings{
-			FilesDir: wrapperspb.String(fdir),
+			SyncDir: wrapperspb.String(syncDir),
 		}
 		jobBuilder := NewJobBuilder(
 			settings.From(settingsProto),
@@ -423,13 +428,14 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 	t.Run("Missing metadata file", func(t *testing.T) {
 		ctx := context.Background()
 		gql := gqlmock.NewMockClient()
-		fdir := filepath.Join(os.TempDir(), "test")
+		syncDir := filepath.Join(os.TempDir(), "test")
+		fdir := filepath.Join(syncDir, "files")
 		err := os.MkdirAll(fdir, 0777)
 		assert.Nil(t, err)
 		writeRequirements(t, fdir)
 
 		settingsProto := &spb.Settings{
-			FilesDir: wrapperspb.String(fdir),
+			SyncDir: wrapperspb.String(syncDir),
 		}
 
 		jobBuilder := NewJobBuilder(
@@ -447,18 +453,19 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		ctx := context.Background()
 		gql := gqlmock.NewMockClient()
 		metadata := map[string]interface{}{}
-		fdir := filepath.Join(os.TempDir(), "test")
+		syncDir := filepath.Join(os.TempDir(), "test")
+		fdir := filepath.Join(syncDir, "files")
 		err := os.MkdirAll(fdir, 0777)
 		assert.Nil(t, err)
 		writeRequirements(t, fdir)
 		writeWandbMetadata(t, fdir, metadata)
 
 		defer func() {
-			_ = os.RemoveAll(fdir)
+			_ = os.RemoveAll(syncDir)
 		}()
 
 		settingsProto := &spb.Settings{
-			FilesDir: wrapperspb.String(fdir),
+			SyncDir: wrapperspb.String(syncDir),
 		}
 		jobBuilder := NewJobBuilder(
 			settings.From(settingsProto),
@@ -789,7 +796,8 @@ func TestWandbConfigParameters(t *testing.T) {
 		"codePath": "/path/to/train.py",
 	}
 
-	fdir := filepath.Join(os.TempDir(), "test")
+	syncDir := filepath.Join(os.TempDir(), "test")
+	fdir := filepath.Join(syncDir, "files")
 	err := os.MkdirAll(fdir, 0777)
 	assert.Nil(t, err)
 	writeRequirements(t, fdir)
@@ -797,13 +805,13 @@ func TestWandbConfigParameters(t *testing.T) {
 	writeWandbMetadata(t, fdir, metadata)
 
 	defer func() {
-		_ = os.RemoveAll(fdir)
+		_ = os.RemoveAll(syncDir)
 	}()
 	settingsProto := &spb.Settings{
-		Project:  wrapperspb.String("testProject"),
-		Entity:   wrapperspb.String("testEntity"),
-		RunId:    wrapperspb.String("testRunId"),
-		FilesDir: wrapperspb.String(fdir),
+		Project: wrapperspb.String("testProject"),
+		Entity:  wrapperspb.String("testEntity"),
+		RunId:   wrapperspb.String("testRunId"),
+		SyncDir: wrapperspb.String(syncDir),
 	}
 	jobBuilder := NewJobBuilder(
 		settings.From(settingsProto),
@@ -880,7 +888,8 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 		"codePath": "/path/to/train.py",
 	}
 
-	fdir := filepath.Join(os.TempDir(), "test")
+	syncDir := filepath.Join(os.TempDir(), "test")
+	fdir := filepath.Join(syncDir, "files")
 	err := os.MkdirAll(fdir, 0777)
 	assert.Nil(t, err)
 	writeRequirements(t, fdir)
@@ -888,13 +897,13 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 	writeWandbMetadata(t, fdir, metadata)
 
 	defer func() {
-		_ = os.RemoveAll(fdir)
+		_ = os.RemoveAll(syncDir)
 	}()
 	settingsProto := &spb.Settings{
-		Project:  wrapperspb.String("testProject"),
-		Entity:   wrapperspb.String("testEntity"),
-		RunId:    wrapperspb.String("testRunId"),
-		FilesDir: wrapperspb.String(fdir),
+		Project: wrapperspb.String("testProject"),
+		Entity:  wrapperspb.String("testEntity"),
+		RunId:   wrapperspb.String("testRunId"),
+		SyncDir: wrapperspb.String(syncDir),
 	}
 	jobBuilder := NewJobBuilder(
 		settings.From(settingsProto),
@@ -977,7 +986,8 @@ func TestConfigFileParameters(t *testing.T) {
 		},
 		"codePath": "/path/to/train.py",
 	}
-	fdir := filepath.Join(os.TempDir(), "test")
+	syncDir := filepath.Join(os.TempDir(), "test")
+	fdir := filepath.Join(syncDir, "files")
 	err := os.MkdirAll(fdir, 0777)
 	assert.Nil(t, err)
 	writeRequirements(t, fdir)
@@ -989,13 +999,13 @@ func TestConfigFileParameters(t *testing.T) {
 	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
 	writeFile(t, configDir, "config.yaml", yamlContents)
 	defer func() {
-		_ = os.RemoveAll(fdir)
+		_ = os.RemoveAll(syncDir)
 	}()
 	settingsProto := &spb.Settings{
-		Project:  wrapperspb.String("testProject"),
-		Entity:   wrapperspb.String("testEntity"),
-		RunId:    wrapperspb.String("testRunId"),
-		FilesDir: wrapperspb.String(fdir),
+		Project: wrapperspb.String("testProject"),
+		Entity:  wrapperspb.String("testEntity"),
+		RunId:   wrapperspb.String("testRunId"),
+		SyncDir: wrapperspb.String(syncDir),
 	}
 	jobBuilder := NewJobBuilder(
 		settings.From(settingsProto),
@@ -1060,7 +1070,8 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 		},
 		"codePath": "/path/to/train.py",
 	}
-	fdir := filepath.Join(os.TempDir(), "test")
+	syncDir := filepath.Join(os.TempDir(), "test")
+	fdir := filepath.Join(syncDir, "files")
 	err := os.MkdirAll(fdir, 0777)
 	assert.Nil(t, err)
 	writeRequirements(t, fdir)
@@ -1072,13 +1083,13 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
 	writeFile(t, configDir, "config.yaml", yamlContents)
 	defer func() {
-		_ = os.RemoveAll(fdir)
+		_ = os.RemoveAll(syncDir)
 	}()
 	settingsProto := &spb.Settings{
-		Project:  wrapperspb.String("testProject"),
-		Entity:   wrapperspb.String("testEntity"),
-		RunId:    wrapperspb.String("testRunId"),
-		FilesDir: wrapperspb.String(fdir),
+		Project: wrapperspb.String("testProject"),
+		Entity:  wrapperspb.String("testEntity"),
+		RunId:   wrapperspb.String("testRunId"),
+		SyncDir: wrapperspb.String(syncDir),
 	}
 	jobBuilder := NewJobBuilder(
 		settings.From(settingsProto),
