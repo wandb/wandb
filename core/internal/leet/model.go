@@ -22,6 +22,9 @@ type Model struct {
 	// Serialize access to Update / broad model state.
 	stateMu sync.RWMutex
 
+	// Configuration.
+	config *ConfigManager
+
 	// runPath is the path to the .wandb file.
 	runPath string
 
@@ -33,6 +36,10 @@ type Model struct {
 	// shouldRestart is set when the user requests a full restart (Alt+R).
 	shouldRestart bool
 
+	// Config key handling state to set the grid size of the (system) charts section.
+	waitingForConfigKey bool
+	configKeyType       string // "c", "r", "C", "R"
+
 	// logger is the debug logger for the application.
 	logger *observability.CoreLogger
 }
@@ -40,7 +47,10 @@ type Model struct {
 func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
 
+	cfg := GetConfig()
+
 	m := &Model{
+		config:  cfg,
 		runPath: runPath,
 		logger:  logger,
 	}
