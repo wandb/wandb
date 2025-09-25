@@ -152,6 +152,12 @@ github.com/Microsoft/go-winio/internal/fs
 github.com/Microsoft/go-winio/internal/socket
 github.com/Microsoft/go-winio/internal/stringbuffer
 github.com/Microsoft/go-winio/pkg/guid
+# github.com/NimbleMarkets/ntcharts v0.3.1
+## explicit; go 1.22.0
+github.com/NimbleMarkets/ntcharts/canvas
+github.com/NimbleMarkets/ntcharts/canvas/graph
+github.com/NimbleMarkets/ntcharts/canvas/runes
+github.com/NimbleMarkets/ntcharts/linechart
 # github.com/ProtonMail/go-crypto v1.3.0
 ## explicit; go 1.22.0
 github.com/ProtonMail/go-crypto/bitcurves
@@ -371,6 +377,9 @@ github.com/bmatcuk/doublestar/v4
 # github.com/cespare/xxhash/v2 v2.3.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
+# github.com/charmbracelet/bubbles v0.20.0
+## explicit; go 1.18
+github.com/charmbracelet/bubbles/key
 # github.com/charmbracelet/bubbletea v1.3.10
 ## explicit; go 1.24.0
 github.com/charmbracelet/bubbletea
@@ -653,6 +662,9 @@ github.com/kevinburke/ssh_config
 ## explicit; go 1.11
 github.com/kylelemons/godebug/diff
 github.com/kylelemons/godebug/pretty
+# github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e
+## explicit; go 1.19
+github.com/lrstanley/bubblezone
 # github.com/lucasb-eyer/go-colorful v1.2.0
 ## explicit; go 1.12
 github.com/lucasb-eyer/go-colorful
