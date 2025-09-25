@@ -128,7 +128,7 @@ func TestParquetPartitionReader_ValueIterator(t *testing.T) {
 	// Verify data read
 	count := 0
 	var lastError error
-	for value, err := range reader.ValueIterator() {
+	for value, err := range reader.All() {
 		if err != nil {
 			lastError = err
 			break
@@ -338,7 +338,7 @@ func TestParquetPartitionReader_WithHistoryPageRange(t *testing.T) {
 
 	// Read all rows and verify they're within the range
 	values := make([]KVMapList, 0)
-	for value, err := range reader.ValueIterator() {
+	for value, err := range reader.All() {
 		assert.NoError(t, err)
 		values = append(values, value)
 	}
@@ -382,7 +382,7 @@ func TestParquetPartitionReader_EmptyFile(t *testing.T) {
 
 	// Verify no data is returned
 	values := make([]KVMapList, 0)
-	for value, err := range reader.ValueIterator() {
+	for value, err := range reader.All() {
 		assert.NoError(t, err)
 		values = append(values, value)
 	}
