@@ -24,7 +24,6 @@ func TestNewParquetPartitionReader(t *testing.T) {
 	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
 	pf, err := LocalParquetFile(historyFilePath, true)
 	require.NoError(t, err)
-	defer pf.Close()
 
 	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, nil)
 
@@ -52,7 +51,6 @@ func TestParquetPartitionReader_MetaData(t *testing.T) {
 
 	pf, err := LocalParquetFile(historyFilePath, true)
 	require.NoError(t, err)
-	defer pf.Close()
 
 	reader := NewParquetPartitionReader(t.Context(), pf, []string{"_step"}, nil)
 	defer reader.Release()
@@ -84,7 +82,6 @@ func TestParquetPartitionReader_Iteration(t *testing.T) {
 	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
 	pf, err := LocalParquetFile(historyFilePath, true)
 	require.NoError(t, err)
-	defer pf.Close()
 
 	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, nil)
 	defer reader.Release()
@@ -124,7 +121,6 @@ func TestParquetPartitionReader_ValueIterator(t *testing.T) {
 	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
 	pf, err := LocalParquetFile(historyFilePath, true)
 	require.NoError(t, err)
-	defer pf.Close()
 
 	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, nil)
 	defer reader.Release()
@@ -162,7 +158,6 @@ func TestParquetPartitionReader_Release(t *testing.T) {
 
 	pf, err := LocalParquetFile(historyFilePath, true)
 	require.NoError(t, err)
-	defer pf.Close()
 
 	ctx := context.Background()
 	reader := NewParquetPartitionReader(ctx, pf, []string{"_step"}, nil)
@@ -196,12 +191,10 @@ func TestGetColumnRangeFromStats(t *testing.T) {
 	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
 	pf, err := LocalParquetFile(historyFilePath, true)
 	require.NoError(t, err)
-	defer pf.Close()
 	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, nil)
 	defer reader.Release()
 
-	meta, err := pf.MetaData()
-	assert.NoError(t, err)
+	meta := pf.ParquetReader().MetaData()
 	assert.NotNil(t, meta)
 
 	minVal, maxVal, err := GetColumnRangeFromStats(meta, 0, "_step")
@@ -238,13 +231,11 @@ func TestGetColumnRangeFromStats_UnsupportedType(t *testing.T) {
 	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
 	pf, err := LocalParquetFile(historyFilePath, true)
 	require.NoError(t, err)
-	defer pf.Close()
 
 	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, nil)
 	defer reader.Release()
 
-	meta, err := pf.MetaData()
-	assert.NoError(t, err)
+	meta := pf.ParquetReader().MetaData()
 	assert.NotNil(t, meta)
 
 	_, _, err = GetColumnRangeFromStats(meta, 0, "text_column")
@@ -335,7 +326,6 @@ func TestParquetPartitionReader_WithHistoryPageRange(t *testing.T) {
 	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
 	pf, err := LocalParquetFile(historyFilePath, true)
 	require.NoError(t, err)
-	defer pf.Close()
 
 	pageOpt := WithHistoryPageRange(HistoryPageParams{
 		MinStep: 10,
@@ -382,7 +372,6 @@ func TestParquetPartitionReader_EmptyFile(t *testing.T) {
 	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
 	pf, err := LocalParquetFile(historyFilePath, true)
 	require.NoError(t, err)
-	defer pf.Close()
 
 	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, nil)
 
