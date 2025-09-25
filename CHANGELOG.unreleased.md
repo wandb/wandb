@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - Settings `console_chunk_max_seconds` and `console_chunk_max_bytes` for size- and time-based multipart console logs file chunking (@dmitryduev in https://github.com/wandb/wandb/pull/10162)
+- Experimental `wandb beta leet` command - Lightweight Experiment Exploration Tool - a terminal UI for viewing W&B runs locally with real-time metrics visualization and system monitoring (@dmitryduev in https://github.com/wandb/wandb/pull/10496)
 
 ### Changed
 
