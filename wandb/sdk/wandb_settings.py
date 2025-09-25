@@ -157,9 +157,11 @@ def _path_convert(*args: str) -> str:
 
 
 CLIENT_ONLY_SETTINGS = (
-    "reinit",
+    "files_dir",
     "max_end_of_run_history_metrics",
     "max_end_of_run_summary_metrics",
+    "reinit",
+    "x_files_dir",
     "x_sync_dir_suffix",
 )
 """Python-only keys that are not fields on the settings proto."""
@@ -660,6 +662,9 @@ class Settings(BaseModel, validate_assignment=True):
 
     x_files_dir: Optional[str] = None
     """Override setting for the computed files_dir.
+
+    DEPRECATED, DO NOT USE. This private setting is not respected by wandb-core
+    but will continue to work for some legacy Python code.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
@@ -1652,6 +1657,7 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def files_dir(self) -> str:
         """Absolute path to the local directory where the run's files are stored."""
+        # Must match the logic in settings.go in the service process.
         return self.x_files_dir or _path_convert(self.sync_dir, "files")
 
     @computed_field  # type: ignore[prop-decorator]

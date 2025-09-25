@@ -112,12 +112,10 @@ func TestChartModifiesConfig(t *testing.T) {
 }
 
 func TestTableWritesToFile(t *testing.T) {
-	tmpdir := t.TempDir()
-	emitter := tensorboard.NewTFEmitter(
-		settings.From(&spb.Settings{
-			FilesDir: wrapperspb.String(tmpdir),
-		}),
-	)
+	settings := settings.From(&spb.Settings{
+		SyncDir: wrapperspb.String(t.TempDir()),
+	})
+	emitter := tensorboard.NewTFEmitter(settings)
 	table := wbvalue.Table{
 		ColumnLabels: []string{"a", "b"},
 		Rows:         [][]any{{1, 2}, {3, 4}},
@@ -136,13 +134,14 @@ func TestTableWritesToFile(t *testing.T) {
 	assert.Regexp(t,
 		`media/table/[a-z0-9]{32}\.table\.json`,
 		filepath.ToSlash(filesRecord.Files[0].Path))
-	assert.FileExists(t, filepath.Join(tmpdir, filesRecord.Files[0].Path))
+	assert.FileExists(t,
+		filepath.Join(settings.GetFilesDir(), filesRecord.Files[0].Path))
 }
 
 func TestTableUpdatesHistory(t *testing.T) {
 	emitter := tensorboard.NewTFEmitter(
 		settings.From(&spb.Settings{
-			FilesDir: wrapperspb.String(t.TempDir()),
+			SyncDir: wrapperspb.String(t.TempDir()),
 		}),
 	)
 	table := wbvalue.Table{
@@ -164,12 +163,10 @@ func TestTableUpdatesHistory(t *testing.T) {
 }
 
 func TestEmitImages(t *testing.T) {
-	tmpdir := t.TempDir()
-	emitter := tensorboard.NewTFEmitter(
-		settings.From(&spb.Settings{
-			FilesDir: wrapperspb.String(tmpdir),
-		}),
-	)
+	settings := settings.From(&spb.Settings{
+		SyncDir: wrapperspb.String(t.TempDir()),
+	})
+	emitter := tensorboard.NewTFEmitter(settings)
 	require.NoError(t,
 		emitter.EmitImages(
 			pathtree.PathOf("my", "image"),
@@ -201,6 +198,6 @@ func TestEmitImages(t *testing.T) {
 		assert.Regexp(t,
 			`media/images/[a-z0-9]{32}\.png`,
 			filepath.ToSlash(file.Path))
-		assert.FileExists(t, filepath.Join(tmpdir, file.Path))
+		assert.FileExists(t, filepath.Join(settings.GetFilesDir(), file.Path))
 	}
 }
