@@ -12,6 +12,7 @@ import (
 
 	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/apache/arrow-go/v18/parquet/metadata"
+	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 	"github.com/wandb/parallel"
 )
 
@@ -21,7 +22,7 @@ type ParquetPartitionReader struct {
 	ctx       context.Context
 	ctxDone   <-chan struct{}
 	executor  parallel.Executor
-	file      *ParquetFile
+	file      *pqarrow.FileReader
 	dataReady chan struct{}
 	it        RowIterator
 	err       error
@@ -29,7 +30,7 @@ type ParquetPartitionReader struct {
 
 // Metadata returns the metadata of the underlying parquet partition file.
 func (p *ParquetPartitionReader) MetaData() (*metadata.FileMetaData, error) {
-	return p.file.MetaData()
+	return p.file.ParquetReader().MetaData(), nil
 }
 
 // Next advances the reader to the next row in the row iterator.
@@ -90,16 +91,12 @@ func (p *ParquetPartitionReader) iterator() (RowIterator, error) {
 // opt argument is used to filter out rows based on a key and range of values.
 func NewParquetPartitionReader(
 	ctx context.Context,
-	file *ParquetFile,
+	file *pqarrow.FileReader,
 	keys []string,
 	opt RowIteratorOption,
 ) *ParquetPartitionReader {
 	makeIterator := func(partition *ParquetPartitionReader) (RowIterator, error) {
-		reader, err := partition.file.Reader()
-		if err != nil {
-			return nil, err
-		}
-		return NewRowIterator(ctx, reader, keys, opt)
+		return NewRowIterator(ctx, file, keys, opt)
 	}
 
 	return newParquetPartitionReader(ctx, file, makeIterator)
@@ -107,7 +104,7 @@ func NewParquetPartitionReader(
 
 func newParquetPartitionReader(
 	ctx context.Context,
-	file *ParquetFile,
+	file *pqarrow.FileReader,
 	makeIterator func(*ParquetPartitionReader) (RowIterator, error),
 ) *ParquetPartitionReader {
 	partition := &ParquetPartitionReader{
