@@ -141,3 +141,22 @@ const AnimationDuration = 150 * time.Millisecond
 
 // AnimationSteps is the number of steps in sidebar animations.
 const AnimationSteps = 10
+
+// Help screen styles.
+var (
+	helpKeyStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("230")).
+			Width(20)
+
+	helpDescStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245"))
+
+	helpSectionStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(wandbColor)
+
+	helpContentStyle = lipgloss.NewStyle().
+				MarginLeft(2).
+				MarginTop(1)
+)
