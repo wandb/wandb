@@ -42,7 +42,7 @@ RUN git clone https://go.googlesource.com/go /usr/local/go-source && \
 ENV PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
 
 # Install Rust minimally and build wandb
-ARG REF="dom/agent-auth-issues"
+ARG REF="main"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --component cargo && \
     export PATH="/root/.cargo/bin:${PATH}" && \
     pip install --upgrade pip && \
