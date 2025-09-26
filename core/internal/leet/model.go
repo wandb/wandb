@@ -20,6 +20,9 @@ import (
 //   - Update handles incoming events and updates the model accordingly.
 //   - View renders the UI based on the data in the model.
 type Model struct {
+	// Help screen.
+	help *HelpModel
+
 	runPath string
 
 	// Main view size.
@@ -42,6 +45,7 @@ func NewModel(runPath string, logger *observability.CoreLogger) *Model {
 	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
 
 	m := &Model{
+		help:    NewHelp(),
 		runPath: runPath,
 		logger:  logger,
 	}
@@ -70,6 +74,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.stateMu.Lock()
 	defer m.stateMu.Unlock()
 
+	// 1) Help short-circuit (only thing allowed to consume the message)
+	if handled, cmd := m.handleHelp(msg); handled {
+		return m, cmd
+	}
+
 	var cmds []tea.Cmd
 
 	switch t := msg.(type) {
@@ -83,6 +92,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		// Single source of truth for sizing
 		m.width, m.height = t.Width, t.Height
+		m.help.SetSize(t.Width, t.Height)
 
 		return m, tea.Batch(cmds...)
 
@@ -108,6 +118,15 @@ func (m *Model) View() string {
 	// Show loading screen if still loading
 	if m.isLoading {
 		return m.renderLoadingScreen()
+	}
+
+	// Show help screen if active
+	if m.help.IsActive() {
+		helpView := m.help.View()
+		statusBar := m.renderStatusBar()
+		// Ensure we use exact height
+		content := lipgloss.JoinVertical(lipgloss.Left, helpView, statusBar)
+		return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, content)
 	}
 
 	var mainView string
@@ -166,7 +185,8 @@ func (m *Model) renderStatusBar() string {
 	// Left side content
 	statusText := ""
 
-	helpText := ""
+	// Right side content - simplified
+	helpText := "h: help "
 
 	// Calculate padding to fill the entire width
 	statusLen := lipgloss.Width(statusText)
@@ -185,4 +205,26 @@ func (m *Model) renderStatusBar() string {
 		Width(m.width).
 		MaxWidth(m.width).
 		Render(fullStatus)
+}
+
+// handleHelp centralizes help toggle and routing while active.
+func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
+	// Toggle on 'h' / '?'
+	if km, ok := msg.(tea.KeyMsg); ok {
+		switch km.String() {
+		case "h", "?":
+			m.help.Toggle()
+			return true, nil
+		}
+	}
+	// When help is visible, it owns key/mouse
+	if m.help.IsActive() {
+		switch msg.(type) {
+		case tea.KeyMsg, tea.MouseMsg:
+			updated, cmd := m.help.Update(msg)
+			m.help = updated
+			return true, cmd
+		}
+	}
+	return false, nil
 }
