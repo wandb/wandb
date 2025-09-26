@@ -4,6 +4,8 @@ This module provides classes for interacting with W&B reports and
 managing report-related data.
 """
 
+from __future__ import annotations
+
 import ast
 import json
 import re

@@ -27,6 +27,7 @@ __all__ = (
     "Sweeps",
     "QueryGenerator",  # doc:exclude
     "Registry",
+    "Registries",  # doc:exclude
     "BetaReport",
     "PanelMetricsHelper",  # doc:exclude
     "PythonMongoishQueryGenerator",  # doc:exclude
@@ -64,7 +65,7 @@ from wandb.apis.public.jobs import (
 )
 from wandb.apis.public.projects import PROJECT_FRAGMENT, Project, Projects, Sweeps
 from wandb.apis.public.query_generator import QueryGenerator
-from wandb.apis.public.registries.registry import Registry
+from wandb.apis.public.registries import Registries, Registry
 from wandb.apis.public.reports import (
     BetaReport,
     PanelMetricsHelper,

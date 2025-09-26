@@ -7,6 +7,8 @@ Note:
     users and their authentication. Some operations require admin privileges.
 """
 
+from __future__ import annotations
+
 import requests
 from wandb_gql import gql
 
