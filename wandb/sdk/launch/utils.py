@@ -800,10 +800,14 @@ def yield_containers(root: Union[dict, list]) -> Iterator[dict]:
             yield from yield_containers(item)
 
 
-def sanitize_identifiers_for_k8s(root: Union[dict, list]) -> None:
+def sanitize_identifiers_for_k8s(root: Any) -> None:
     if isinstance(root, list):
         for item in root:
             sanitize_identifiers_for_k8s(item)
+        return
+
+    # Only dicts have metadata and nested structures we need to sanitize.
+    if not isinstance(root, dict):
         return
 
     metadata = root.get("metadata")

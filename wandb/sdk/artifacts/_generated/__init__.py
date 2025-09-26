@@ -32,6 +32,7 @@ __all__ = [
     "REGISTRY_VERSIONS_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
+    "TYPE_INFO_GQL",
     "UNLINK_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
@@ -68,6 +69,7 @@ __all__ = [
     "DeleteArtifact",
     "LinkArtifact",
     "UnlinkArtifact",
+    "TypeInfo",
     "RegistryVersions",
     "RegistryCollections",
     "FetchRegistries",
@@ -92,6 +94,7 @@ __all__ = [
     "RegistryVersionsPage",
     "RunInputArtifactConnectionFragment",
     "RunOutputArtifactConnectionFragment",
+    "TypeInfoFragment",
     "ArtifactCollectionState",
     "ArtifactCollectionType",
     "ArtifactState",
@@ -141,6 +144,7 @@ from .fragments import (
     RegistryVersionsPage,
     RunInputArtifactConnectionFragment,
     RunOutputArtifactConnectionFragment,
+    TypeInfoFragment,
 )
 from .input_types import (
     ArtifactAliasInput,
@@ -182,6 +186,7 @@ from .operations import (
     REGISTRY_VERSIONS_GQL,
     RUN_INPUT_ARTIFACTS_GQL,
     RUN_OUTPUT_ARTIFACTS_GQL,
+    TYPE_INFO_GQL,
     UNLINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
@@ -196,6 +201,7 @@ from .registry_collections import RegistryCollections
 from .registry_versions import RegistryVersions
 from .run_input_artifacts import RunInputArtifacts
 from .run_output_artifacts import RunOutputArtifacts
+from .type_info import TypeInfo
 from .unlink_artifact import UnlinkArtifact
 from .update_artifact import UpdateArtifact
 from .update_artifact_portfolio import UpdateArtifactPortfolio

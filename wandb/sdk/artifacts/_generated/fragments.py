@@ -417,6 +417,27 @@ class RunOutputArtifactConnectionFragmentPageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+class TypeInfoFragment(GQLBase):
+    name: Optional[str]
+    fields: Optional[List[TypeInfoFragmentFields]]
+    input_fields: Optional[List[TypeInfoFragmentInputFields]] = Field(
+        alias="inputFields"
+    )
+
+
+class TypeInfoFragmentFields(GQLBase):
+    name: str
+    args: List[TypeInfoFragmentFieldsArgs]
+
+
+class TypeInfoFragmentFieldsArgs(GQLBase):
+    name: str
+
+
+class TypeInfoFragmentInputFields(GQLBase):
+    name: str
+
+
 class ArtifactFragment(ArtifactFragmentWithoutAliases):
     aliases: Optional[List[ArtifactFragmentAliases]] = None
 
@@ -489,6 +510,10 @@ RunInputArtifactConnectionFragmentPageInfo.model_rebuild()
 RunOutputArtifactConnectionFragment.model_rebuild()
 RunOutputArtifactConnectionFragmentEdges.model_rebuild()
 RunOutputArtifactConnectionFragmentPageInfo.model_rebuild()
+TypeInfoFragment.model_rebuild()
+TypeInfoFragmentFields.model_rebuild()
+TypeInfoFragmentFieldsArgs.model_rebuild()
+TypeInfoFragmentInputFields.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactFragmentWithoutAliases.model_rebuild()
 ArtifactTypeFragment.model_rebuild()

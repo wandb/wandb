@@ -1114,6 +1114,7 @@ class Api:
         order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
+        lazy: bool = True,
     ):
         """Returns a `Runs` object, which lazily iterates over `Run` objects.
 
@@ -1163,6 +1164,10 @@ class Api:
                 The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
             include_sweeps: (bool) Whether to include the sweep runs in the results.
+            lazy: (bool) Whether to use lazy loading for faster performance.
+                When True (default), only essential run metadata is loaded initially.
+                Heavy fields like config, summaryMetrics, and systemMetrics are loaded
+                on-demand when accessed. Set to False for full data upfront.
 
         Returns:
             A `Runs` object, which is an iterable collection of `Run` objects.
@@ -1211,16 +1216,26 @@ class Api:
         entity, project = self._parse_project_path(path)
         filters = filters or {}
         key = (path or "") + str(filters) + str(order)
-        if not self._runs.get(key):
-            self._runs[key] = public.Runs(
-                self.client,
-                entity,
-                project,
-                filters=filters,
-                order=order,
-                per_page=per_page,
-                include_sweeps=include_sweeps,
-            )
+
+        # Check if we have cached results
+        if self._runs.get(key):
+            cached_runs = self._runs[key]
+            # If requesting full data but cached data is lazy, upgrade it
+            if not lazy and cached_runs._lazy:
+                cached_runs.upgrade_to_full()
+            return cached_runs
+
+        # Create new Runs object
+        self._runs[key] = public.Runs(
+            self.client,
+            entity,
+            project,
+            filters=filters,
+            order=order,
+            per_page=per_page,
+            include_sweeps=include_sweeps,
+            lazy=lazy,
+        )
         return self._runs[key]
 
     @normalize_exceptions
@@ -1237,7 +1252,10 @@ class Api:
         """
         entity, project, run_id = self._parse_path(path)
         if not self._runs.get(path):
-            self._runs[path] = public.Run(self.client, entity, project, run_id)
+            # Individual runs should load full data by default
+            self._runs[path] = public.Run(
+                self.client, entity, project, run_id, lazy=False
+            )
         return self._runs[path]
 
     def queued_run(
