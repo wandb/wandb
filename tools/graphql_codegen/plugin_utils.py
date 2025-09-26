@@ -6,7 +6,7 @@ import ast
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
 
 if TYPE_CHECKING:
     from typing import TypeGuard
@@ -102,3 +102,9 @@ def make_import_from(
     """Generate the AST node for a `from {module} import {names}` statement."""
     names = [names] if isinstance(names, str) else names
     return ast.ImportFrom(module, names=[ast.alias(n) for n in names], level=level)
+
+
+def make_literal(*vals: Any) -> ast.Subscript:
+    inner_nodes = [ast.Constant(val) for val in vals]
+    inner_slice = ast.Tuple(inner_nodes) if len(inner_nodes) > 1 else inner_nodes[0]
+    return ast.Subscript(ast.Name("Literal"), slice=inner_slice)

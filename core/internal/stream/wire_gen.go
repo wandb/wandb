@@ -40,8 +40,10 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	mailboxMailbox := mailbox.New()
 	wandbOperations := wboperation.NewOperations()
+	runHandle := runhandle.New()
 	systemMonitorFactory := &monitor.SystemMonitorFactory{
 		Logger:             coreLogger,
+		RunHandle:          runHandle,
 		Settings:           settings2,
 		GpuResourceManager: gpuResourceManager,
 		GraphqlClient:      client,
@@ -58,7 +60,6 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		SystemMonitorFactory: systemMonitorFactory,
 		TerminalPrinter:      printer,
 	}
-	runHandle := runhandle.New()
 	recordParserFactory := &RecordParserFactory{
 		FeatureProvider:    serverFeaturesCache,
 		GraphqlClientOrNil: client,
