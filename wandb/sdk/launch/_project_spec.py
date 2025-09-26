@@ -449,7 +449,9 @@ class LaunchProject:
         env_vars = {}
         env_vars["WANDB_BASE_URL"] = api.settings("base_url")
         override_api_key = self.launch_spec.get("_wandb_api_key")
-        env_vars["WANDB_API_KEY"] = override_api_key or api.api_key
+        api_key = override_api_key or api.api_key
+        if api_key:
+            env_vars["WANDB_API_KEY"] = api_key
         if self.target_project:
             env_vars["WANDB_PROJECT"] = self.target_project
         env_vars["WANDB_ENTITY"] = self.target_entity

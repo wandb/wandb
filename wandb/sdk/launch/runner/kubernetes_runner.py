@@ -551,7 +551,9 @@ class KubernetesRunner(AbstractRunner):
                         }
                     )
                 else:
-                    env.append({"name": key, "value": value})
+                    # only append non-empty string values to avoid malformed env entries
+                    if isinstance(value, str) and value != "":
+                        env.append({"name": key, "value": value})
 
             cont["env"] = env
 
