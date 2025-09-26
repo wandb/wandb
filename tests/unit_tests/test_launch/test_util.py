@@ -349,6 +349,75 @@ def test_make_k8s_label_safe():
             [{"name": "container_1"}, {"name": "container_2"}],
             [{"name": "container-1"}, {"name": "container-2"}],
         ),
+        # Test case with lists of primitives
+        (
+            {
+                "apiVersion": "networking.k8s.io/v1",
+                "kind": "NetworkPolicy",
+                "metadata": {
+                    "name": "resource-policy_jobs_1234abc",
+                    "labels": {
+                        "wandb.ai/created-by": "launch-agent",
+                        "wandb.ai/auxiliary-resource": "aux-jobs-1234abc",
+                        "wandb.ai/run-id": "1234abc",
+                    },
+                },
+                "spec": {
+                    "policyTypes": ["Ingress"],
+                    "podSelector": {
+                        "matchLabels": {
+                            "wandb.ai/run-id": "1234abc",
+                            "wandb.ai/auxiliary-resource": "aux-jobs-1234abc",
+                        }
+                    },
+                    "ingress": [
+                        {
+                            "from": [
+                                {
+                                    "podSelector": {
+                                        "matchLabels": {"job-name": "jobs-1234abc"}
+                                    }
+                                }
+                            ],
+                            "ports": [{"port": 8000, "protocol": "TCP"}],
+                        }
+                    ],
+                },
+            },
+            {
+                "apiVersion": "networking.k8s.io/v1",
+                "kind": "NetworkPolicy",
+                "metadata": {
+                    "name": "resource-policy-jobs-1234abc",
+                    "labels": {
+                        "wandb.ai/created-by": "launch-agent",
+                        "wandb.ai/auxiliary-resource": "aux-jobs-1234abc",
+                        "wandb.ai/run-id": "1234abc",
+                    },
+                },
+                "spec": {
+                    "policyTypes": ["Ingress"],
+                    "podSelector": {
+                        "matchLabels": {
+                            "wandb.ai/run-id": "1234abc",
+                            "wandb.ai/auxiliary-resource": "aux-jobs-1234abc",
+                        }
+                    },
+                    "ingress": [
+                        {
+                            "from": [
+                                {
+                                    "podSelector": {
+                                        "matchLabels": {"job-name": "jobs-1234abc"}
+                                    }
+                                }
+                            ],
+                            "ports": [{"port": 8000, "protocol": "TCP"}],
+                        }
+                    ],
+                },
+            },
+        ),
     ],
 )
 def test_sanitize_identifiers_for_k8s(manifest, expected):
