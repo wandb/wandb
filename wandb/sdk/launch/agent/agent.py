@@ -302,7 +302,9 @@ class LaunchAgent:
         files: Optional[List[str]] = None,
     ) -> None:
         if self._gorilla_supports_fail_run_queue_items:
-            fail_rqi = event_loop_thread_exec(self._launch_api_provider.agent_api.fail_run_queue_item)
+            fail_rqi = event_loop_thread_exec(
+                self._launch_api_provider.agent_api.fail_run_queue_item
+            )
             await fail_rqi(run_queue_item_id, message, phase, files)
 
     def _init_agent_run(self) -> None:
@@ -352,7 +354,9 @@ class LaunchAgent:
             Exception: if there is an error popping from the queue.
         """
         try:
-            pop = event_loop_thread_exec(self._launch_api_provider.agent_api.pop_from_run_queue)
+            pop = event_loop_thread_exec(
+                self._launch_api_provider.agent_api.pop_from_run_queue
+            )
             ups = await pop(
                 queue,
                 entity=self._entity,
@@ -388,7 +392,9 @@ class LaunchAgent:
         Arguments:
             status: Status to update the agent to.
         """
-        _update_status = event_loop_thread_exec(self._launch_api_provider.agent_api.update_launch_agent_status)
+        _update_status = event_loop_thread_exec(
+            self._launch_api_provider.agent_api.update_launch_agent_status
+        )
         update_ret = await _update_status(
             self._id, status, self.gorilla_supports_agents
         )
@@ -467,7 +473,9 @@ class LaunchAgent:
                 logs = None
                 interval = 1
                 while True:
-                    job_api = await self._launch_api_provider.get_api(job_and_run_status)
+                    job_api = await self._launch_api_provider.get_api(
+                        job_and_run_status
+                    )
                     called_init = self._check_run_exists_and_inited(
                         job_api,
                         job_and_run_status.entity or self._entity,
@@ -899,7 +907,7 @@ class LaunchAgent:
                             # note: leaving the api used as the agent's api,
                             # because we don't support sweeps on launch in
                             # the public queue.
-                            self.launch_api_provider.agent_api.set_sweep_state(
+                            self._launch_api_provider.agent_api.set_sweep_state(
                                 sweep=job_tracker.run_id,
                                 entity=job_tracker.entity,
                                 project=job_tracker.project,
