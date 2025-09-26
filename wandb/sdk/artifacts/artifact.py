@@ -210,6 +210,7 @@ class Artifact:
         metadata: dict[str, Any] | None = None,
         incremental: bool = False,
         use_as: str | None = None,
+        storage_region: str | None = None,
     ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -268,7 +269,7 @@ class Artifact:
         self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
         self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
-            ArtifactManifestV1(storage_policy=make_storage_policy())
+            ArtifactManifestV1(storage_policy=make_storage_policy(storage_region))
         )
         self._commit_hash: str | None = None
         self._file_count: int | None = None
