@@ -14,6 +14,10 @@ class LaunchApiProvider:
         self._agent_entity = agent_entity
         self._job_api_cache: dict[str, Api] = {}  # Cache job APIs by run ID
 
+    @property
+    def agent_api(self) -> Api:
+        return self._agent_api
+
     async def get_api(self, job_tracker: JobAndRunStatusTracker) -> Api:
         """Get the appropriate API instance for the given job context.
 
