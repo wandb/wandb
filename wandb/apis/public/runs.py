@@ -85,6 +85,67 @@ RUN_FRAGMENT = """fragment RunFragment on Run {
     historyKeys
 }"""
 
+# Lightweight fragment for listing operations - excludes heavy fields
+LIGHTWEIGHT_RUN_FRAGMENT = """fragment LightweightRunFragment on Run {
+    id
+    tags
+    name
+    displayName
+    sweepName
+    state
+    group
+    jobType
+    commit
+    readOnly
+    createdAt
+    heartbeatAt
+    description
+    notes
+    historyLineCount
+    user {
+        name
+        username
+    }
+}"""
+
+# Fragment name constants to avoid string parsing
+RUN_FRAGMENT_NAME = "RunFragment"
+LIGHTWEIGHT_RUN_FRAGMENT_NAME = "LightweightRunFragment"
+
+
+def _create_runs_query(
+    *, lazy: bool, with_internal_id: bool, with_project_id: bool
+) -> gql:
+    """Create GraphQL query for runs with appropriate fragment."""
+    fragment = LIGHTWEIGHT_RUN_FRAGMENT if lazy else RUN_FRAGMENT
+    fragment_name = LIGHTWEIGHT_RUN_FRAGMENT_NAME if lazy else RUN_FRAGMENT_NAME
+
+    return gql(
+        f"""#graphql
+        query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
+            project(name: $project, entityName: $entity) {{
+                {"internalId" if with_internal_id else ""}
+                runCount(filters: $filters)
+                readOnly
+                runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
+                    edges {{
+                        node {{
+                            {"projectId" if with_project_id else ""}
+                            ...{fragment_name}
+                        }}
+                        cursor
+                    }}
+                    pageInfo {{
+                        endCursor
+                        hasNextPage
+                    }}
+                }}
+            }}
+        }}
+        {fragment}
+        """
+    )
+
 
 @normalize_exceptions
 def _server_provides_internal_id_for_project(client) -> bool:
@@ -219,34 +280,15 @@ class Runs(SizedPaginator["Run"]):
         order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
+        lazy: bool = True,
     ):
         if not order:
             order = "+created_at"
 
-        self.QUERY = gql(
-            f"""#graphql
-            query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
-                project(name: $project, entityName: $entity) {{
-                    {"internalId" if _server_provides_internal_id_for_project(client) else ""}
-                    runCount(filters: $filters)
-                    readOnly
-                    runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
-                        edges {{
-                            node {{
-                                {"projectId" if _server_provides_project_id_for_run(client) else ""}
-                                ...RunFragment
-                            }}
-                            cursor
-                        }}
-                        pageInfo {{
-                            endCursor
-                            hasNextPage
-                        }}
-                    }}
-                }}
-            }}
-            {RUN_FRAGMENT}
-            """
+        self.QUERY = _create_runs_query(
+            lazy=lazy,
+            with_internal_id=_server_provides_internal_id_for_project(client),
+            with_project_id=_server_provides_project_id_for_run(client),
         )
 
         self.entity = entity
@@ -256,6 +298,7 @@ class Runs(SizedPaginator["Run"]):
         self.order = order
         self._sweeps = {}
         self._include_sweeps = include_sweeps
+        self._lazy = lazy
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -314,6 +357,7 @@ class Runs(SizedPaginator["Run"]):
                 run_response["node"]["name"],
                 run_response["node"],
                 include_sweeps=self._include_sweeps,
+                lazy=self._lazy,
             )
             objs.append(run)
 
@@ -440,6 +484,39 @@ class Runs(SizedPaginator["Run"]):
     def __repr__(self):
         return f"<Runs {self.entity}/{self.project}>"
 
+    def upgrade_to_full(self):
+        """Upgrade this Runs collection from lazy to full mode.
+
+        This switches to fetching full run data and
+        upgrades any already-loaded Run objects to have full data.
+        Uses parallel loading for better performance when upgrading multiple runs.
+        """
+        if not self._lazy:
+            return  # Already in full mode
+
+        # Switch to full mode
+        self._lazy = False
+
+        # Regenerate query with full fragment
+        self.QUERY = _create_runs_query(
+            lazy=False,
+            with_internal_id=_server_provides_internal_id_for_project(self.client),
+            with_project_id=_server_provides_project_id_for_run(self.client),
+        )
+
+        # Upgrade any existing runs that have been loaded - use parallel loading for performance
+        lazy_runs = [run for run in self.objects if run._lazy]
+        if lazy_runs:
+            from concurrent.futures import ThreadPoolExecutor
+
+            # Limit workers to avoid overwhelming the server
+            max_workers = min(len(lazy_runs), 10)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [executor.submit(run.load_full_data) for run in lazy_runs]
+                # Wait for all to complete
+                for future in futures:
+                    future.result()
+
 
 class Run(Attrs):
     """A single run associated with an entity and project.
@@ -483,6 +560,7 @@ class Run(Attrs):
         run_id: str,
         attrs: Mapping | None = None,
         include_sweeps: bool = True,
+        lazy: bool = True,
     ):
         """Initialize a Run object.
 
@@ -499,6 +577,8 @@ class Run(Attrs):
         self.id = run_id
         self.sweep = None
         self._include_sweeps = include_sweeps
+        self._lazy = lazy
+        self._full_data_loaded = False  # Track if we've loaded full data
         self.dir = os.path.join(self._base_dir, *self.path)
         try:
             os.makedirs(self.dir)
@@ -508,6 +588,7 @@ class Run(Attrs):
         self._metadata: dict[str, Any] | None = None
         self._state = _attrs.get("state", "not found")
         self.server_provides_internal_id_field: bool | None = None
+        self._server_provides_project_id_field: bool | None = None
         self._is_loaded: bool = False
 
         self.load(force=not _attrs)
@@ -612,23 +693,34 @@ class Run(Attrs):
                 "notes": None,
                 "state": state,
             },
+            lazy=False,  # Created runs should have full data available immediately
         )
 
-    def load(self, force=False):
-        if force or not self._attrs:
-            self._is_loaded = False
-            query = gql(f"""#graphql
-            query Run($project: String!, $entity: String!, $name: String!) {{
-                project(name: $project, entityName: $entity) {{
-                    run(name: $name) {{
-                        {"projectId" if _server_provides_project_id_for_run(self.client) else ""}
-                        ...RunFragment
-                    }}
+    def _load_with_fragment(
+        self, fragment: str, fragment_name: str, force: bool = False
+    ):
+        """Load run data using specified GraphQL fragment."""
+        # Cache the server capability check to avoid repeated network calls
+        if self._server_provides_project_id_field is None:
+            self._server_provides_project_id_field = (
+                _server_provides_project_id_for_run(self.client)
+            )
+
+        query = gql(
+            f"""
+        query Run($project: String!, $entity: String!, $name: String!) {{
+            project(name: $project, entityName: $entity) {{
+                run(name: $name) {{
+                    {"projectId" if self._server_provides_project_id_field else ""}
+                    ...{fragment_name}
                 }}
             }}
-            {RUN_FRAGMENT}
-            """)
+        }}
+        {fragment}
+        """
+        )
 
+        if force or not self._attrs:
             response = self._exec(query)
             if (
                 response is None
@@ -637,6 +729,10 @@ class Run(Attrs):
             ):
                 raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
+
+            self._state = self._attrs["state"]
+            if self._attrs.get("user"):
+                self.user = public.User(self.client, self._attrs["user"])
 
             if self._include_sweeps and self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
@@ -650,38 +746,77 @@ class Run(Attrs):
                 )
 
         if not self._is_loaded:
-            self._load_from_attrs()
+            # Always set _project_internal_id if projectId is available, regardless of fragment type
+            if "projectId" in self._attrs:
+                self._project_internal_id = int(self._attrs["projectId"])
+            else:
+                self._project_internal_id = None
+
+            # Only call _load_from_attrs when using the full fragment or when the fields are actually present
+            if fragment_name == RUN_FRAGMENT_NAME or (
+                "config" in self._attrs
+                or "summaryMetrics" in self._attrs
+                or "systemMetrics" in self._attrs
+            ):
+                self._load_from_attrs()
             self._is_loaded = True
 
         return self._attrs
 
     def _load_from_attrs(self):
         self._state = self._attrs.get("state", None)
-        self._attrs["config"] = _convert_to_dict(self._attrs.get("config"))
-        self._attrs["summaryMetrics"] = _convert_to_dict(
-            self._attrs.get("summaryMetrics")
-        )
-        self._attrs["systemMetrics"] = _convert_to_dict(
-            self._attrs.get("systemMetrics")
-        )
 
-        if "projectId" in self._attrs:
-            self._project_internal_id = int(self._attrs["projectId"])
-        else:
-            self._project_internal_id = None
+        # Only convert fields if they exist in _attrs
+        if "config" in self._attrs:
+            self._attrs["config"] = _convert_to_dict(self._attrs.get("config"))
+        if "summaryMetrics" in self._attrs:
+            self._attrs["summaryMetrics"] = _convert_to_dict(
+                self._attrs.get("summaryMetrics")
+            )
+        if "systemMetrics" in self._attrs:
+            self._attrs["systemMetrics"] = _convert_to_dict(
+                self._attrs.get("systemMetrics")
+            )
 
-        if self._attrs.get("user"):
-            self.user = public.User(self.client, self._attrs["user"])
+        # Only check for sweeps if sweep_name is available (not in lazy mode or if it exists)
+        if self._include_sweeps and self._attrs.get("sweepName") and not self.sweep:
+            # There may be a lot of runs. Don't bother pulling them all
+            self.sweep = public.Sweep(
+                self.client,
+                self.entity,
+                self.project,
+                self._attrs["sweepName"],
+                withRuns=False,
+            )
+
         config_user, config_raw = {}, {}
-        for key, value in self._attrs.get("config").items():
-            config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
-            if isinstance(value, dict) and "value" in value:
-                config[key] = value["value"]
-            else:
-                config[key] = value
+        if self._attrs.get("config"):
+            try:
+                # config is already converted to dict by _convert_to_dict
+                for key, value in self._attrs.get("config", {}).items():
+                    config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
+                    if isinstance(value, dict) and "value" in value:
+                        config[key] = value["value"]
+                    else:
+                        config[key] = value
+            except (TypeError, AttributeError):
+                # Handle case where config is malformed or not a dict
+                pass
+
         config_raw.update(config_user)
         self._attrs["config"] = config_user
         self._attrs["rawconfig"] = config_raw
+
+        return self._attrs
+
+    def load(self, force=False):
+        """Load run data using appropriate fragment based on lazy mode."""
+        if self._lazy:
+            return self._load_with_fragment(
+                LIGHTWEIGHT_RUN_FRAGMENT, LIGHTWEIGHT_RUN_FRAGMENT_NAME, force
+            )
+        else:
+            return self._load_with_fragment(RUN_FRAGMENT, RUN_FRAGMENT_NAME, force)
 
     @normalize_exceptions
     def wait_until_finished(self):
@@ -1144,15 +1279,84 @@ class Run(Attrs):
         )
         return artifact
 
+    def load_full_data(self, force: bool = False) -> dict[str, Any]:
+        """Load full run data including heavy fields like config, systemMetrics, summaryMetrics.
+
+        This method is useful when you initially used lazy=True for listing runs,
+        but need access to the full data for specific runs.
+
+        Args:
+            force: Force reload even if data is already loaded
+
+        Returns:
+            The loaded run attributes
+        """
+        if not self._lazy and not force:
+            # Already in full mode, no need to reload
+            return self._attrs
+
+        # Load full data and mark as loaded
+        result = self._load_with_fragment(RUN_FRAGMENT, RUN_FRAGMENT_NAME, force=True)
+        self._full_data_loaded = True
+        return result
+
+    @property
+    def config(self):
+        """Get run config. Auto-loads full data if in lazy mode."""
+        if self._lazy and not self._full_data_loaded and "config" not in self._attrs:
+            self.load_full_data()
+        return self._attrs.get("config", {})
+
     @property
     def summary(self):
-        """A mutable dict-like property that holds summary values associated with the run."""
+        """Get run summary metrics. Auto-loads full data if in lazy mode."""
+        if (
+            self._lazy
+            and not self._full_data_loaded
+            and "summaryMetrics" not in self._attrs
+        ):
+            self.load_full_data()
         if self._summary is None:
             from wandb.old.summary import HTTPSummary
 
             # TODO: fix the outdir issue
             self._summary = HTTPSummary(self, self.client, summary=self.summary_metrics)
         return self._summary
+
+    @property
+    def system_metrics(self):
+        """Get run system metrics. Auto-loads full data if in lazy mode."""
+        if (
+            self._lazy
+            and not self._full_data_loaded
+            and "systemMetrics" not in self._attrs
+        ):
+            self.load_full_data()
+        return self._attrs.get("systemMetrics", {})
+
+    @property
+    def summary_metrics(self):
+        """Get run summary metrics. Auto-loads full data if in lazy mode."""
+        if (
+            self._lazy
+            and not self._full_data_loaded
+            and "summaryMetrics" not in self._attrs
+        ):
+            self.load_full_data()
+        return self._attrs.get("summaryMetrics", {})
+
+    @property
+    def rawconfig(self):
+        """Get raw run config including internal keys. Auto-loads full data if in lazy mode."""
+        if self._lazy and not self._full_data_loaded and "rawconfig" not in self._attrs:
+            self.load_full_data()
+        return self._attrs.get("rawconfig", {})
+
+    @property
+    def sweep_name(self):
+        """Get sweep name. Always available since sweepName is in lightweight fragment."""
+        # sweepName is included in lightweight fragment, so no need to load full data
+        return self._attrs.get("sweepName")
 
     @property
     def path(self):
