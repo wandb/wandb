@@ -899,7 +899,7 @@ class KubernetesRunner(AbstractRunner):
                     api_client, config, namespace, wait_timeout
                 )
         except Exception as e:
-            wandb.termerror(f"{LOG_PREFIX}Failed to create Kubernetes resource: {e}")
+            wandb.termerror(f"{LOG_PREFIX}Failed to create Kubernetes resource: {e} \n {config}")
             raise LaunchError(f"Failed to create Kubernetes resource: {e}")
 
     async def run(
