@@ -108,7 +108,7 @@ from ._generated import (
     TagInput,
     UpdateArtifact,
 )
-from ._gqlutils import omit_artifact_fields
+from ._gqlutils import omit_artifact_fields, supports_enable_tracking_var, type_info
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
     ArtifactPath,
@@ -289,7 +289,7 @@ class Artifact:
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
-        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields())
+        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client))
 
         data = client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
@@ -312,7 +312,7 @@ class Artifact:
     def _membership_from_name(
         cls, *, path: FullArtifactPath, client: RetryingClient
     ) -> Artifact:
-        if not (api := InternalApi())._server_supports(
+        if not InternalApi()._server_supports(
             pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
         ):
             raise UnsupportedError(
@@ -322,7 +322,7 @@ class Artifact:
 
         query = gql_compat(
             ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
-            omit_fields=omit_artifact_fields(api=api),
+            omit_fields=omit_artifact_fields(client),
         )
         gql_vars = {
             "entityName": path.prefix,
@@ -351,14 +351,12 @@ class Artifact:
         client: RetryingClient,
         enable_tracking: bool = False,
     ) -> Artifact:
-        if (api := InternalApi())._server_supports(
+        if InternalApi()._server_supports(
             pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
         ):
             return cls._membership_from_name(path=path, client=client)
 
-        supports_enable_tracking_gql_var = api.server_project_type_introspection()
-        omit_vars = None if supports_enable_tracking_gql_var else {"enableTracking"}
-
+        omit_vars = None if supports_enable_tracking_var(client) else {"enableTracking"}
         gql_vars = {
             "entityName": path.prefix,
             "projectName": path.project,
@@ -368,7 +366,7 @@ class Artifact:
         query = gql_compat(
             ARTIFACT_BY_NAME_GQL,
             omit_variables=omit_vars,
-            omit_fields=omit_artifact_fields(api=api),
+            omit_fields=omit_artifact_fields(client),
         )
         data = client.execute(query, variable_values=gql_vars)
         result = ArtifactByName.model_validate(data)
@@ -1224,7 +1222,9 @@ class Artifact:
     def _populate_after_save(self, artifact_id: str) -> None:
         assert self._client is not None
 
-        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields())
+        query = gql_compat(
+            ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(self._client)
+        )
         data = self._client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
@@ -1247,21 +1247,9 @@ class Artifact:
         collection = self.name.split(":")[0]
 
         aliases = None
-        introspect_query = gql(
-            """
-            query ProbeServerAddAliasesInput {
-               AddAliasesInputInfoType: __type(name: "AddAliasesInput") {
-                   name
-                   inputFields {
-                       name
-                   }
-                }
-            }
-            """
-        )
 
-        data = self._client.execute(introspect_query)
-        if data.get("AddAliasesInputInfoType"):  # wandb backend version >= 0.13.0
+        if type_info(self._client, "AddAliasesInput") is not None:
+            # wandb backend version >= 0.13.0
             alias_props = {
                 "entity_name": entity,
                 "project_name": project,
@@ -1319,7 +1307,7 @@ class Artifact:
                 for alias in self.aliases
             ]
 
-        omit_fields = omit_artifact_fields()
+        omit_fields = omit_artifact_fields(self._client)
         omit_variables = set()
 
         if {"ttlIsInherited", "ttlDurationSeconds"} & omit_fields:
