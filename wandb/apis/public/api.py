@@ -1725,9 +1725,10 @@ class Api:
         """
         try:
             self._artifact(name, type)
-        except wandb.errors.CommError:
+        except wandb.errors.CommError as e:
+            if isinstance(e.exc, requests.Timeout):
+                raise
             return False
-
         return True
 
     @normalize_exceptions
@@ -1758,9 +1759,10 @@ class Api:
         """
         try:
             self.artifact_collection(type, name)
-        except wandb.errors.CommError:
+        except wandb.errors.CommError as e:
+            if isinstance(e.exc, requests.Timeout):
+                raise
             return False
-
         return True
 
     @tracked

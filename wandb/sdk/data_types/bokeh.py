@@ -5,6 +5,7 @@ import pathlib
 from typing import TYPE_CHECKING, Union
 
 from wandb import util
+from wandb._strutils import nameof
 from wandb.sdk.lib import runid
 
 from . import _dtypes
@@ -34,7 +35,10 @@ class Bokeh(Media):
         ],
     ):
         super().__init__()
-        bokeh = util.get_module("bokeh", required=True)
+        bokeh = util.get_module(
+            "bokeh",
+            required=f"{nameof(Bokeh)!r} requires the bokeh package.  Please install it with `pip install bokeh`.",
+        )
         if isinstance(data_or_path, (str, pathlib.Path)) and os.path.exists(
             data_or_path
         ):
