@@ -18,3 +18,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Optimize artifacts downloads re-verification with checksum caching (@thanos-wandb in https://github.com/wandb/wandb/pull/10157)
 
 - Lazy loading support for `Api().runs()` to improve performance when listing runs. The new `lazy=True` parameter (default) loads only essential metadata initially, with automatic on-demand loading of heavy fields like config and summary when accessed (@thanos-wandb in https://github.com/wandb/wandb/pull/10034)
+
+- The registry API now supports programmatic management of user and team members of individual registries. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10542)

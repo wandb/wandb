@@ -43,4 +43,30 @@ class TagInput(GQLBase):
     attributes: Optional[Any] = None
 
 
+class CreateProjectMembersInput(GQLBase):
+    user_ids: Optional[List[GQLId]] = Field(alias="userIds", default=None)
+    team_ids: Optional[List[GQLId]] = Field(alias="teamIds", default=None)
+    project_id: GQLId = Field(alias="projectId")
+
+
+class DeleteProjectMembersInput(GQLBase):
+    user_ids: Optional[List[GQLId]] = Field(alias="userIds", default=None)
+    team_ids: Optional[List[GQLId]] = Field(alias="teamIds", default=None)
+    project_id: GQLId = Field(alias="projectId")
+
+
+class UpdateProjectMemberInput(GQLBase):
+    user_id: GQLId = Field(alias="userId")
+    project_id: GQLId = Field(alias="projectId")
+    user_project_role: str = Field(alias="userProjectRole")
+    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+
+
+class UpdateProjectTeamMemberInput(GQLBase):
+    team_id: GQLId = Field(alias="teamId")
+    project_id: GQLId = Field(alias="projectId")
+    team_project_role: str = Field(alias="teamProjectRole")
+    client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
+
+
 LinkArtifactInput.model_rebuild()

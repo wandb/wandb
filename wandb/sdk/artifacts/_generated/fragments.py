@@ -341,6 +341,12 @@ class RegistryFragmentArtifactTypesEdgesNode(GQLBase):
     name: str
 
 
+class RegistryRoleFragment(GQLBase):
+    typename__: Typename[Literal["Role"]] = "Role"
+    id: GQLId = Field(alias="ID")
+    name: str
+
+
 class RegistryVersionsPage(GQLBase):
     page_info: RegistryVersionsPagePageInfo = Field(alias="pageInfo")
     edges: List[RegistryVersionsPageEdges]
@@ -417,6 +423,42 @@ class RunOutputArtifactConnectionFragmentPageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+class TeamFragment(GQLBase):
+    typename__: Typename[Literal["Entity"]] = "Entity"
+    id: GQLId
+    name: str
+    available: Optional[bool]
+    photo_url: Optional[str] = Field(alias="photoUrl")
+    read_only: Optional[bool] = Field(alias="readOnly")
+    read_only_admin: bool = Field(alias="readOnlyAdmin")
+    is_team: bool = Field(alias="isTeam")
+    private_only: bool = Field(alias="privateOnly")
+    storage_bytes: Any = Field(alias="storageBytes")
+    code_saving_enabled: bool = Field(alias="codeSavingEnabled")
+    default_access: str = Field(alias="defaultAccess")
+    is_paid: Optional[bool] = Field(alias="isPaid")
+    members: List[TeamMemberFragment]
+
+
+class TeamMemberFragment(GQLBase):
+    typename__: Typename[Literal["Member"]] = "Member"
+    id: Optional[str]
+    role: Optional[str]
+    pending: Optional[bool]
+    email: Optional[str]
+    username: Optional[str]
+    name: str
+    photo_url: Optional[str] = Field(alias="photoUrl")
+    account_type: Optional[str] = Field(alias="accountType")
+    api_key: Optional[str] = Field(alias="apiKey")
+
+
+class TeamRegistryMemberFragment(GQLBase):
+    typename__: Typename[Literal["ProjectTeamMember"]] = "ProjectTeamMember"
+    team: TeamFragment
+    role: RegistryRoleFragment
+
+
 class TypeInfoFragment(GQLBase):
     name: Optional[str]
     fields: Optional[List[TypeInfoFragmentFields]]
@@ -436,6 +478,15 @@ class TypeInfoFragmentFieldsArgs(GQLBase):
 
 class TypeInfoFragmentInputFields(GQLBase):
     name: str
+
+
+class UserRegistryMemberFragment(GQLBase):
+    typename__: Typename[Literal["ProjectMember"]] = "ProjectMember"
+    id: GQLId
+    name: Optional[str]
+    username: Optional[str]
+    email: Optional[str]
+    role: RegistryRoleFragment
 
 
 class ArtifactFragment(ArtifactFragmentWithoutAliases):
@@ -496,6 +547,7 @@ RegistryFragment.model_rebuild()
 RegistryFragmentArtifactTypes.model_rebuild()
 RegistryFragmentArtifactTypesEdges.model_rebuild()
 RegistryFragmentArtifactTypesEdgesNode.model_rebuild()
+RegistryRoleFragment.model_rebuild()
 RegistryVersionsPage.model_rebuild()
 RegistryVersionsPageEdges.model_rebuild()
 RegistryVersionsPageEdgesNode.model_rebuild()
@@ -510,14 +562,22 @@ RunInputArtifactConnectionFragmentPageInfo.model_rebuild()
 RunOutputArtifactConnectionFragment.model_rebuild()
 RunOutputArtifactConnectionFragmentEdges.model_rebuild()
 RunOutputArtifactConnectionFragmentPageInfo.model_rebuild()
+TeamFragment.model_rebuild()
+TeamMemberFragment.model_rebuild()
+TeamRegistryMemberFragment.model_rebuild()
 TypeInfoFragment.model_rebuild()
 TypeInfoFragmentFields.model_rebuild()
 TypeInfoFragmentFieldsArgs.model_rebuild()
 TypeInfoFragmentInputFields.model_rebuild()
+UserRegistryMemberFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactFragmentWithoutAliases.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
 RegistryFragment.model_rebuild()
+RegistryRoleFragment.model_rebuild()
+RegistryRoleFragment.model_rebuild()
+TeamFragment.model_rebuild()
+TeamMemberFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactFragment.model_rebuild()

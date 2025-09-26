@@ -1,10 +1,31 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
+from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, Literal
+
+from typing_extensions import Self, assert_never
 from wandb_gql import gql
 
 import wandb
 from wandb._analytics import tracked
 from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.sdk.artifacts._generated import (
+    CREATE_REGISTRY_MEMBERS_GQL,
+    DELETE_REGISTRY_MEMBERS_GQL,
+    REGISTRY_TEAM_MEMBERS_GQL,
+    REGISTRY_USER_MEMBERS_GQL,
+    UPDATE_TEAM_REGISTRY_ROLE_GQL,
+    UPDATE_USER_REGISTRY_ROLE_GQL,
+    CreateProjectMembersInput,
+    CreateRegistryMembers,
+    DeleteRegistryMembers,
+    RegistryTeamMembers,
+    RegistryUserMembers,
+    UpdateProjectMemberInput,
+    UpdateProjectTeamMemberInput,
+    UpdateTeamRegistryRole,
+    UpdateUserRegistryRole,
+)
+from wandb.sdk.artifacts._generated.input_types import DeleteProjectMembersInput
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.projects._generated import (
@@ -17,7 +38,17 @@ from wandb.sdk.projects._generated import (
     UpsertRegistryProject,
 )
 
+from ..teams import Team
+from ..users import User
 from ._freezable_list import AddOnlyArtifactTypesList
+from ._members import (
+    MemberId,
+    MemberKind,
+    MemberRole,
+    TeamMember,
+    UserMember,
+    parse_member_ids,
+)
 from ._utils import (
     fetch_org_entity_from_organization,
     format_gql_artifact_types_input,
@@ -35,11 +66,11 @@ class Registry:
 
     def __init__(
         self,
-        client: "Client",
+        client: Client,
         organization: str,
         entity: str,
         name: str,
-        attrs: Optional[Dict[str, Any]] = None,
+        attrs: dict[str, Any] | None = None,
     ):
         self.client = client
         self._name = name
@@ -49,7 +80,7 @@ class Registry:
         if attrs is not None:
             self._update_attributes(attrs)
 
-    def _update_attributes(self, attrs: Dict[str, Any]) -> None:
+    def _update_attributes(self, attrs: dict[str, Any]) -> None:
         """Helper method to update instance attributes from a dictionary."""
         self._id = attrs.get("id", "")
         if self._id is None:
@@ -182,32 +213,28 @@ class Registry:
         self._visibility = value
 
     @tracked
-    def collections(self, filter: Optional[Dict[str, Any]] = None) -> Collections:
+    def collections(self, filter: dict[str, Any] | None = None) -> Collections:
         """Returns the collections belonging to the registry."""
-        registry_filter = {
-            "name": self.full_name,
-        }
+        registry_filter = {"name": self.full_name}
         return Collections(self.client, self.organization, registry_filter, filter)
 
     @tracked
-    def versions(self, filter: Optional[Dict[str, Any]] = None) -> Versions:
+    def versions(self, filter: dict[str, Any] | None = None) -> Versions:
         """Returns the versions belonging to the registry."""
-        registry_filter = {
-            "name": self.full_name,
-        }
+        registry_filter = {"name": self.full_name}
         return Versions(self.client, self.organization, registry_filter, None, filter)
 
     @classmethod
     @tracked
     def create(
         cls,
-        client: "Client",
+        client: Client,
         organization: str,
         name: str,
         visibility: Literal["organization", "restricted"],
-        description: Optional[str] = None,
-        artifact_types: Optional[List[str]] = None,
-    ):
+        description: str | None = None,
+        artifact_types: list[str] | None = None,
+    ) -> Self:
         """Create a new registry.
 
         The registry name must be unique within the organization.
@@ -255,7 +282,7 @@ class Registry:
         if not response["upsertModel"]["inserted"]:
             raise ValueError(registry_creation_error)
 
-        return Registry(
+        return cls(
             client,
             organization,
             org_entity,
@@ -290,10 +317,7 @@ class Registry:
         try:
             response = self.client.execute(
                 gql(FETCH_REGISTRY_GQL),
-                variable_values={
-                    "name": self.full_name,
-                    "entityName": self.entity,
-                },
+                variable_values={"name": self.full_name, "entityName": self.entity},
             )
         except Exception:
             raise ValueError(load_failure_message)
@@ -366,3 +390,125 @@ class Registry:
     def _no_updating_registry_types(self) -> bool:
         # artifact types draft means user assigned types to add that are not yet saved
         return len(self.artifact_types.draft) > 0 and self.allow_all_artifact_types
+
+    def user_members(self) -> list[UserMember]:
+        """Returns the current user members belonging to the registry."""
+        gql_op = gql(REGISTRY_USER_MEMBERS_GQL)
+        gql_vars = {"projectName": self.full_name, "entityName": self.entity}
+        data = self.client.execute(gql_op, variable_values=gql_vars)
+        result = RegistryUserMembers.model_validate(data)
+
+        if not (project := result.project):
+            raise ValueError(f"Failed to fetch user members for registry {self.name!r}")
+
+        return [
+            UserMember(
+                # The `User` class requires an unstructured attribute dict.
+                # To conform to the existing User class, exclude `user.role` from the dict,
+                # as it's specific to the User's membership in the registry, not the User itself.
+                user=User(
+                    client=self.client,
+                    attrs=m.model_dump(exclude_none=True, exclude={"role"}),
+                ),
+                role=m.role.name,
+            )
+            for m in project.members
+        ]
+
+    def team_members(self) -> list[TeamMember]:
+        """Returns the current teams belonging to the registry."""
+        gql_op = gql(REGISTRY_TEAM_MEMBERS_GQL)
+        gql_vars = {"projectName": self.full_name, "entityName": self.entity}
+        data = self.client.execute(gql_op, variable_values=gql_vars)
+        result = RegistryTeamMembers.model_validate(data)
+
+        if not (project := result.project):
+            raise ValueError(f"Failed to fetch team members for registry {self.name!r}")
+
+        return [
+            TeamMember(
+                # The `Team` class requires an unstructured attribute dict.
+                # To conform to the existing Team class, exclude `team.role` from the dict,
+                # as it's specific to the Team's membership in the registry, not the Team itself.
+                team=Team(
+                    client=self.client,
+                    name=m.team.name,
+                    attrs=m.team.model_dump(exclude_none=True),
+                ),
+                role=m.role.name,
+            )
+            for m in project.team_members
+        ]
+
+    def add_members(self, *members: User | Team | str) -> Self:
+        """Adds users or teams to this registry and returns self for further chaining if needed."""
+        user_ids, team_ids = parse_member_ids(members)
+
+        gql_op = gql(CREATE_REGISTRY_MEMBERS_GQL)
+        gql_input = CreateProjectMembersInput(
+            user_ids=user_ids,
+            team_ids=team_ids,
+            project_id=self._id,
+        )
+        gql_vars = {"input": gql_input.model_dump()}
+        data = self.client.execute(gql_op, variable_values=gql_vars)
+        result = CreateRegistryMembers.model_validate(data).result
+
+        if not (result and result.success):
+            raise ValueError(f"Failed to add members to registry {self.name!r}")
+        return self
+
+    def remove_members(self, *members: User | Team | str) -> Self:
+        """Removes the users or teams from this registry and returns self for further chaining if needed."""
+        user_ids, team_ids = parse_member_ids(members)
+
+        gql_op = gql(DELETE_REGISTRY_MEMBERS_GQL)
+        gql_input = DeleteProjectMembersInput(
+            user_ids=user_ids,
+            team_ids=team_ids,
+            project_id=self._id,
+        )
+        gql_vars = {"input": gql_input.model_dump()}
+        data = self.client.execute(gql_op, variable_values=gql_vars)
+        result = DeleteRegistryMembers.model_validate(data).result
+
+        if not (result and result.success):
+            raise ValueError(f"Failed to remove members from registry {self.name!r}")
+        return self
+
+    def update_member(
+        self,
+        member: User | Team | str,
+        role: MemberRole | str,
+    ) -> Self:
+        """Updates the role of a team or user member within this registry."""
+        parsed_id = MemberId.from_obj(member)
+
+        if parsed_id.kind is MemberKind.USER:
+            gql_op = gql(UPDATE_USER_REGISTRY_ROLE_GQL)
+            gql_input = UpdateProjectMemberInput(
+                user_id=parsed_id.encode(),
+                project_id=self._id,
+                user_project_role=role,
+            )
+            result_cls = UpdateUserRegistryRole
+        elif parsed_id.kind is MemberKind.ENTITY:
+            gql_op = gql(UPDATE_TEAM_REGISTRY_ROLE_GQL)
+            gql_input = UpdateProjectTeamMemberInput(
+                team_id=parsed_id.encode(),
+                project_id=self._id,
+                team_project_role=role,
+            )
+            result_cls = UpdateTeamRegistryRole
+        else:
+            assert_never(parsed_id.kind)
+
+        gql_vars = {"input": gql_input.model_dump()}
+        data = self.client.execute(gql_op, variable_values=gql_vars)
+        result = result_cls.model_validate(data).result
+
+        if not (result and result.success):
+            raise ValueError(
+                f"Failed to update member {member!r} role to {role!r} in registry {self.name!r}"
+            )
+        return self
