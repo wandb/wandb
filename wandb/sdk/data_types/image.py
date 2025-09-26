@@ -161,6 +161,17 @@ class Image(BatchableMedia):
     ) -> None:
         """Initialize a `wandb.Image` object.
 
+        This class handles various image data formats and automatically normalizes
+        pixel values to the range [0, 255] when needed, ensuring compatibility 
+        with the W&B backend.
+
+        * Data in range [0, 1]: Multiplied by 255 and converted to uint8
+        * Data in range [-1, 1]: Rescaled from [-1, 1] to [0, 255] by mapping 
+            -1 to 0 and 1 to 255, then converted to uint8
+        * Data outside [-1, 1] but not in [0, 255]: Clipped to [0, 255] and 
+            converted to uint8 (with a warning if values fall outside [0, 255])
+        * Data already in [0, 255]: Converted to uint8 without modification        
+
         Args:
             data_or_path: Accepts NumPy array/pytorch tensor of image data,
                 a PIL image object, or a path to an image file. If a NumPy
@@ -168,7 +179,7 @@ class Image(BatchableMedia):
                 the image data will be saved to the given file type.
                 If the values are not in the range [0, 255] or all values are in the range [0, 1],
                 the image pixel values will be normalized to the range [0, 255]
-                unless `normalize` is set to False.
+                unless `normalize` is set to `False`.
             - pytorch tensor should be in the format (channel, height, width)
             - NumPy array should be in the format (height, width, channel)
             mode: The PIL mode for an image. Most common are "L", "RGB",
@@ -178,13 +189,13 @@ class Image(BatchableMedia):
             classes: A list of class information for the image,
                 used for labeling bounding boxes, and image masks.
             boxes: A dictionary containing bounding box information for the image.
-                see: https://docs.wandb.ai/ref/python/data-types/boundingboxes2d/
+                see https://docs.wandb.ai/ref/python/data-types/boundingboxes2d/
             masks: A dictionary containing mask information for the image.
-                see: https://docs.wandb.ai/ref/python/data-types/imagemask/
+                see https://docs.wandb.ai/ref/python/data-types/imagemask/
             file_type: The file type to save the image as.
-                This parameter has no effect if data_or_path is a path to an image file.
-            normalize: If True, normalize the image pixel values to fall within the range of [0, 255].
-                Normalize is only applied if data_or_path is a numpy array or pytorch tensor.
+                This parameter has no effect if `data_or_path` is a path to an image file.
+            normalize: If `True`, normalize the image pixel values to fall within the range of [0, 255].
+                Normalize is only applied if `data_or_path` is a numpy array or pytorch tensor.
 
         Examples:
         Create a wandb.Image from a numpy array
