@@ -3,8 +3,10 @@ import platform
 from contextlib import nullcontext
 
 import pytest
+import requests
 import wandb
 from wandb._strutils import nameof
+from wandb.errors.errors import CommError
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.artifacts._generated import ArtifactByName, ArtifactViaMembershipByName
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
@@ -127,14 +129,58 @@ def test_artifact_download(user, api, sample_data):
 
 
 def test_artifact_exists(user, api, sample_data):
-    assert api.artifact_exists("mnist:v0")
-    assert not api.artifact_exists("mnist:v2")
-    assert not api.artifact_exists("mnist-fake:v0")
+    assert api.artifact_exists("mnist:v0") is True
+    assert api.artifact_exists("mnist:v2") is False
+    assert api.artifact_exists("mnist-fake:v0") is False
 
 
 def test_artifact_collection_exists(user, api, sample_data):
-    assert api.artifact_collection_exists("mnist", "dataset")
-    assert not api.artifact_collection_exists("mnist-fake", "dataset")
+    assert api.artifact_collection_exists("mnist", "dataset") is True
+    assert api.artifact_collection_exists("mnist-fake", "dataset") is False
+
+
+def test_artifact_exists_raises_on_timeout(mocker, user, api, sample_data):
+    # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
+    # actual python methods, but this is complicated by the fact that we need to instantiate
+    # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
+    #
+    # Mocking every single one of them makes test setup quite brittle and error prone.
+    # Moreover, the interaction between @normalize_exceptions and our home-grown retry
+    # logic isn't readily configurable, so this test can easily become flaky and/or timeout.
+    # The following will have to do for now.
+    mocker.patch.object(api, "_artifact", side_effect=requests.Timeout())
+
+    with pytest.raises(CommError) as exc_info:
+        api.artifact_exists("mnist:v0")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
+
+    with pytest.raises(CommError) as exc_info:
+        api.artifact_exists("mnist-fake:v0")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
+
+    with pytest.raises(CommError):
+        api.artifact_exists("mnist-fake:v0")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
+
+
+def test_artifact_collection_exists_raises_on_timeout(mocker, user, api, sample_data):
+    # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
+    # actual python methods, but this is complicated by the fact that we need to instantiate
+    # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
+    #
+    # Mocking every single one of them makes test setup quite brittle and error prone.
+    # Moreover, the interaction between @normalize_exceptions and our home-grown retry
+    # logic isn't readily configurable, so this test can easily become flaky and/or timeout.
+    # The following will have to do for now.
+    mocker.patch.object(api, "artifact_collection", side_effect=requests.Timeout())
+
+    with pytest.raises(CommError) as exc_info:
+        api.artifact_collection_exists("mnist", "dataset")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
+
+    with pytest.raises(CommError) as exc_info:
+        api.artifact_collection_exists("mnist-fake", "dataset")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
 
 
 def test_artifact_delete(user, api, sample_data):

@@ -229,7 +229,7 @@ def import_module_lazy(name: str) -> types.ModuleType:
 
 def get_module(
     name: str,
-    required: Optional[Union[str, bool]] = None,
+    required: Optional[str] = None,
     lazy: bool = True,
 ) -> Any:
     """Return module or None. Absolute import is required.
