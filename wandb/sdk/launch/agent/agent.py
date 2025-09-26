@@ -896,8 +896,10 @@ class LaunchAgent:
                     if state == "failed":
                         # on fail, update sweep state. scheduler run_id should == sweep_id
                         try:
-                            job_api = await self._launch_api_provider.get_api(job_tracker)
-                            job_api.set_sweep_state(
+                            # note: leaving the api used as the agent's api,
+                            # because we don't support sweeps on launch in
+                            # the public queue.
+                            self.launch_api_provider.agent_api.set_sweep_state(
                                 sweep=job_tracker.run_id,
                                 entity=job_tracker.entity,
                                 project=job_tracker.project,
