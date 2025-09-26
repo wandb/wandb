@@ -11,7 +11,7 @@ def test_handle_bigint(test_settings):
     result_q = queue.Queue()
     settings = test_settings({})
     hm = handler.HandleManager(
-        settings=settings_static.SettingsStatic(settings.to_proto()),
+        settings=settings_static.SettingsStatic(dict(settings)),
         record_q=MagicMock(),
         result_q=result_q,
         stopped=MagicMock(),
