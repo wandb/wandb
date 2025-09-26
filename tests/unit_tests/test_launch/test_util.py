@@ -373,7 +373,11 @@ def test_make_k8s_label_safe():
                     "ingress": [
                         {
                             "from": [
-                                {"podSelector": {"matchLabels": {"job-name": "jobs-1234abc"}}}
+                                {
+                                    "podSelector": {
+                                        "matchLabels": {"job-name": "jobs-1234abc"}
+                                    }
+                                }
                             ],
                             "ports": [{"port": 8000, "protocol": "TCP"}],
                         }
@@ -402,7 +406,11 @@ def test_make_k8s_label_safe():
                     "ingress": [
                         {
                             "from": [
-                                {"podSelector": {"matchLabels": {"job-name": "jobs-1234abc"}}}
+                                {
+                                    "podSelector": {
+                                        "matchLabels": {"job-name": "jobs-1234abc"}
+                                    }
+                                }
                             ],
                             "ports": [{"port": 8000, "protocol": "TCP"}],
                         }
