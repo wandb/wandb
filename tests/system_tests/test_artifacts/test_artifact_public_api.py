@@ -182,10 +182,6 @@ def test_artifact_collection_exists_raises_on_timeout(mocker, user, api, sample_
         api.artifact_collection_exists("mnist-fake", "dataset")
     assert isinstance(exc_info.value.exc, requests.Timeout)
 
-    with pytest.raises(CommError) as exc_info:
-        api.artifact_collection_exists("mnist-fake", "dataset")
-    assert isinstance(exc_info.value.exc, requests.Timeout)
-
 
 def test_artifact_delete(user, api, sample_data):
     art = api.artifact("mnist:v0", type="dataset")
