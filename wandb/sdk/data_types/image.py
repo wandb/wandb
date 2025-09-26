@@ -162,15 +162,15 @@ class Image(BatchableMedia):
         """Initialize a `wandb.Image` object.
 
         This class handles various image data formats and automatically normalizes
-        pixel values to the range [0, 255] when needed, ensuring compatibility 
+        pixel values to the range [0, 255] when needed, ensuring compatibility
         with the W&B backend.
 
-        * Data in range [0, 1]: Multiplied by 255 and converted to uint8
-        * Data in range [-1, 1]: Rescaled from [-1, 1] to [0, 255] by mapping 
+        * Data in range [0, 1] is multiplied by 255 and converted to uint8
+        * Data in range [-1, 1] is rescaled from [-1, 1] to [0, 255] by mapping
             -1 to 0 and 1 to 255, then converted to uint8
-        * Data outside [-1, 1] but not in [0, 255]: Clipped to [0, 255] and 
+        * Data outside [-1, 1] but not in [0, 255] is clipped to [0, 255] and
             converted to uint8 (with a warning if values fall outside [0, 255])
-        * Data already in [0, 255]: Converted to uint8 without modification        
+        * Data already in [0, 255] is converted to uint8 without modification
 
         Args:
             data_or_path: Accepts NumPy array/pytorch tensor of image data,
