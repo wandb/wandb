@@ -68,7 +68,6 @@ def _read_cached_checksum(file_path: str) -> str | None:
         with open(file_path) as f, open(checksum_path) as f_checksum:
             if os.path.getmtime(f_checksum.name) < os.path.getmtime(f.name):
                 # File was modified after checksum was written
-                # Consider defining a custom exception in the future
                 return None
             # Read and return the cached checksum
             return f_checksum.read().strip()
