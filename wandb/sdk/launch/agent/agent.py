@@ -203,6 +203,7 @@ class LaunchAgent:
         """
         self._entity = config["entity"]
         self._project = LAUNCH_DEFAULT_PROJECT
+        self._api = api
         self._launch_api_provider = LaunchApiProvider(api, self._entity)
         self._base_url = self._launch_api_provider.agent_api.settings().get("base_url")
         self._ticks = 0
@@ -558,7 +559,7 @@ class LaunchAgent:
                 launch_spec,
                 job,
                 self.default_config,
-                self._launch_api_provider.agent_api,
+                self._api,
                 job_tracker,
             )
         )
