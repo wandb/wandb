@@ -7,7 +7,7 @@ import (
 )
 
 func TestHistoryReader_GetHistorySteps(t *testing.T) {
-	reader := New("test-entity", "test-project", "test-run-id")
+	reader := New("test-entity", "test-project", "run-123")
 
 	err := reader.GetHistorySteps([]string{"metric1"}, 0, 10)
 	assert.Error(t, err)
