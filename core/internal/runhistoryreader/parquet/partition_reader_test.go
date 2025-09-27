@@ -1,16 +1,39 @@
 package parquet
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
 	"github.com/apache/arrow-go/v18/arrow"
+	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
 	test "github.com/wandb/wandb/core/tests/parquet"
 )
+
+func createParquetFileAndReturnReader(
+	t *testing.T,
+	schema *arrow.Schema,
+	data []map[string]any,
+) *pqarrow.FileReader {
+	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
+	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
+	pf, err := LocalParquetFile(historyFilePath, true)
+	require.NoError(t, err)
+	return pf
+}
+
+func setupParquetIteratorWithData(
+	t *testing.T,
+	schema *arrow.Schema,
+	data []map[string]any,
+	opt iterator.RowIteratorOption,
+) *ParquetPartitionReader {
+	pf := createParquetFileAndReturnReader(t, schema, data)
+	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, opt)
+	return reader
+}
 
 func TestNewParquetPartitionReader(t *testing.T) {
 	schema := arrow.NewSchema(
@@ -18,12 +41,8 @@ func TestNewParquetPartitionReader(t *testing.T) {
 		nil,
 	)
 	data := []map[string]any{{"_step": 0}}
-	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
-	pf, err := LocalParquetFile(historyFilePath, true)
-	require.NoError(t, err)
 
-	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, nil)
+	reader := setupParquetIteratorWithData(t, schema, data, nil)
 
 	assert.NotNil(t, reader)
 	assert.NotNil(t, reader.ctx)
@@ -44,14 +63,8 @@ func TestParquetPartitionReader_MetaData(t *testing.T) {
 		{"_step": 0, "metric": 1.0},
 		{"_step": 1, "metric": 2.0},
 	}
-	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
 
-	pf, err := LocalParquetFile(historyFilePath, true)
-	require.NoError(t, err)
-
-	reader := NewParquetPartitionReader(t.Context(), pf, []string{"_step"}, nil)
-	defer reader.Release()
+	reader := setupParquetIteratorWithData(t, schema, data, nil)
 
 	// Test metadata retrieval
 	meta, err := reader.MetaData()
@@ -76,13 +89,7 @@ func TestParquetPartitionReader_Iteration(t *testing.T) {
 		{"_step": 0, "loss": 0.5},
 		{"_step": 1, "loss": 0.4},
 	}
-	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
-	pf, err := LocalParquetFile(historyFilePath, true)
-	require.NoError(t, err)
-
-	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, nil)
-	defer reader.Release()
+	reader := setupParquetIteratorWithData(t, schema, data, nil)
 
 	// Verify data read
 	numRows := 0
@@ -115,13 +122,7 @@ func TestParquetPartitionReader_ValueIterator(t *testing.T) {
 		{"_step": 1, "value": 2.0},
 		{"_step": 2, "value": 3.0},
 	}
-	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
-	pf, err := LocalParquetFile(historyFilePath, true)
-	require.NoError(t, err)
-
-	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, nil)
-	defer reader.Release()
+	reader := setupParquetIteratorWithData(t, schema, data, nil)
 
 	// Verify data read
 	count := 0
@@ -151,14 +152,7 @@ func TestParquetPartitionReader_Release(t *testing.T) {
 	data := []map[string]any{
 		{"_step": 0},
 	}
-	historyFilePath := filepath.Join(t.TempDir(), "test_release.parquet")
-	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
-
-	pf, err := LocalParquetFile(historyFilePath, true)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	reader := NewParquetPartitionReader(ctx, pf, []string{"_step"}, nil)
+	reader := setupParquetIteratorWithData(t, schema, data, nil)
 
 	// Read first row successfully
 	hasNext, err := reader.Next()
@@ -186,18 +180,12 @@ func TestParquetPartitionReader_WithHistoryPageRange(t *testing.T) {
 		{"_step": 40, "value": 40.0},
 		{"_step": 50, "value": 50.0},
 	}
-	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
-	pf, err := LocalParquetFile(historyFilePath, true)
-	require.NoError(t, err)
 
 	pageOpt := iterator.WithHistoryPageRange(iterator.HistoryPageParams{
 		MinStep: 10,
 		MaxStep: 30,
 	})
-
-	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, pageOpt)
-	defer reader.Release()
+	reader := setupParquetIteratorWithData(t, schema, data, pageOpt)
 
 	// Read all rows and verify they're within the range
 	values := make([]iterator.KeyValueList, 0)
@@ -231,12 +219,7 @@ func TestParquetPartitionReader_EmptyFile(t *testing.T) {
 		nil,
 	)
 	data := []map[string]any{}
-	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
-	pf, err := LocalParquetFile(historyFilePath, true)
-	require.NoError(t, err)
-
-	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, nil)
+	reader := setupParquetIteratorWithData(t, schema, data, nil)
 
 	meta, err := reader.MetaData()
 	assert.NoError(t, err)
