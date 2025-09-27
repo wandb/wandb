@@ -444,3 +444,34 @@ jobs:
             - Release notes: https://github.com/${{ github.repository }}/releases/tag/v${{ github.event.inputs.version }}
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  # This job exists so that there's some traceability between SDK releases and
+  # potential issues in wandb/core. core contains references to this released
+  # artifact, so we want to update those as close to the release as possible.
+  # In the event of a failure building wandb/core, the actor that ran this
+  # release will be notified.
+  notify-core:
+    name: notify wandb/core of release
+    runs-on: ubuntu-latest
+    needs: [pypi-publish]
+
+    steps:
+      - name: Create GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.WANDBOT_3000_APP_ID }}
+          private-key: ${{ secrets.WANDBOT_3000_PRIVATE_KEY }}
+
+      - name: Repository dispatch
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: "${{ steps.app-token.outputs.token }}"
+          repository: wandb/core
+          event-type: wandb-sdk-released
+          client-payload: |-
+            {
+              "version": "${{ inputs.version }}",
+              "actor": "${{ github.actor }}",
+              "actor_id": "${{ github.actor_id }}"
+            }
