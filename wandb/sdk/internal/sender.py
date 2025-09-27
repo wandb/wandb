@@ -343,7 +343,7 @@ class SendManager:
         publish_interface = InterfaceQueue(record_q=record_q)
         context_keeper = context.ContextKeeper()
         return SendManager(
-            settings=SettingsStatic(settings.to_proto()),
+            settings=SettingsStatic(dict(settings)),
             record_q=record_q,
             result_q=result_q,
             interface=publish_interface,
