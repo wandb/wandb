@@ -8,6 +8,8 @@ Note:
     permissions.
 """
 
+from __future__ import annotations
+
 import requests
 from wandb_gql import gql
 

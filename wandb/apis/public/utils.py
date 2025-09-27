@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import re
 from enum import Enum
-from typing import Any, Dict, Iterable, Mapping, Optional, Set
+from typing import Any, Iterable, Mapping
 from urllib.parse import urlparse
 
 from wandb_gql import gql
@@ -75,7 +77,7 @@ def parse_org_from_registry_path(path: str, path_type: PathType) -> str:
 
 
 def fetch_org_from_settings_or_entity(
-    settings: dict, default_entity: Optional[str] = None
+    settings: dict, default_entity: str | None = None
 ) -> str:
     """Fetch the org from either the settings or deriving it from the entity.
 
@@ -110,17 +112,17 @@ def fetch_org_from_settings_or_entity(
 class _GQLCompatRewriter(visitor.Visitor):
     """GraphQL AST visitor to rewrite queries/mutations to be compatible with older server versions."""
 
-    omit_variables: Set[str]
-    omit_fragments: Set[str]
-    omit_fields: Set[str]
-    rename_fields: Dict[str, str]
+    omit_variables: set[str]
+    omit_fragments: set[str]
+    omit_fields: set[str]
+    rename_fields: dict[str, str]
 
     def __init__(
         self,
-        omit_variables: Optional[Iterable[str]] = None,
-        omit_fragments: Optional[Iterable[str]] = None,
-        omit_fields: Optional[Iterable[str]] = None,
-        rename_fields: Optional[Mapping[str, str]] = None,
+        omit_variables: Iterable[str] | None = None,
+        omit_fragments: Iterable[str] | None = None,
+        omit_fields: Iterable[str] | None = None,
+        rename_fields: Mapping[str, str] | None = None,
     ):
         self.omit_variables = set(omit_variables or ())
         self.omit_fragments = set(omit_fragments or ())
@@ -130,7 +132,6 @@ class _GQLCompatRewriter(visitor.Visitor):
     def enter_VariableDefinition(self, node: ast.VariableDefinition, *_, **__) -> Any:  # noqa: N802
         if node.variable.name.value in self.omit_variables:
             return visitor.REMOVE
-        # return node
 
     def enter_ObjectField(self, node: ast.ObjectField, *_, **__) -> Any:  # noqa: N802
         # For context, note that e.g.:
@@ -176,10 +177,10 @@ class _GQLCompatRewriter(visitor.Visitor):
 
 def gql_compat(
     request_string: str,
-    omit_variables: Optional[Iterable[str]] = None,
-    omit_fragments: Optional[Iterable[str]] = None,
-    omit_fields: Optional[Iterable[str]] = None,
-    rename_fields: Optional[Mapping[str, str]] = None,
+    omit_variables: Iterable[str] | None = None,
+    omit_fragments: Iterable[str] | None = None,
+    omit_fields: Iterable[str] | None = None,
+    rename_fields: Mapping[str, str] | None = None,
 ) -> ast.Document:
     """Rewrite a GraphQL request string to ensure compatibility with older server versions.
 
