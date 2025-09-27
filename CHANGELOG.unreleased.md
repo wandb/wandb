@@ -22,6 +22,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - API keys longer than 40 characters are now supported. (@jennwandb in https://github.com/wandb/wandb/pull/10688)
 
+- Some server-side GraphQL schema constraints are now enforced client-side as well, mainly for artifacts, registries, and automations mutations. This ensures certain errors for invalid arguments are raised earlier and are more informative (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10600).
+
 ### Fixed
 
 - `run.config` now properly returns a dict when calling `artifact.logged_by()` in v0.22.1 (@thanos-wandb in #10682)
