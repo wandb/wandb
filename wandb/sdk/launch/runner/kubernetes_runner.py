@@ -474,6 +474,9 @@ class KubernetesRunner(AbstractRunner):
             job_metadata["generateName"] = make_name_dns_safe(
                 f"launch-{launch_project.target_entity}-{launch_project.target_project}-"
             )
+        if "name" in job_metadata:
+            job_metadata["name"] = make_k8s_label_safe(job_metadata["name"])
+
         job_metadata["namespace"] = namespace
 
         for i, cont in enumerate(containers):
@@ -854,6 +857,8 @@ class KubernetesRunner(AbstractRunner):
                 auxiliary_resource_label_value
             )
 
+        sanitize_identifiers_for_k8s(config)
+
         env_vars = launch_project.get_env_vars_dict(
             self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
@@ -886,8 +891,6 @@ class KubernetesRunner(AbstractRunner):
                 cont["env"] = env
 
         try:
-            sanitize_identifiers_for_k8s(config)
-
             await kubernetes_asyncio.utils.create_from_dict(
                 api_client, config, namespace=namespace
             )
