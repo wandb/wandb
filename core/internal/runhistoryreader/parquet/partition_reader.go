@@ -5,16 +5,13 @@ package parquet
 // See: https://github.com/wandb/core/blob/master/services/gorilla/internal/parquet/partition_reader.go
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
-	"fmt"
 	"iter"
 
-	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/apache/arrow-go/v18/parquet/metadata"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 	"github.com/wandb/parallel"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
 )
 
 // ParquetPartitionReader is a reader for a single run history parquet file.
@@ -25,7 +22,7 @@ type ParquetPartitionReader struct {
 	executor  parallel.Executor
 	file      *pqarrow.FileReader
 	dataReady chan struct{}
-	it        RowIterator
+	it        iterator.RowIterator
 	err       error
 }
 
@@ -45,7 +42,7 @@ func (p *ParquetPartitionReader) Next() (bool, error) {
 }
 
 // Value returns the value of the current row in the row iterator.
-func (p *ParquetPartitionReader) Value() KVMapList {
+func (p *ParquetPartitionReader) Value() iterator.KeyValueList {
 	return p.it.Value()
 }
 
@@ -57,12 +54,12 @@ func (p *ParquetPartitionReader) Release() {
 }
 
 // All returns an iterator over the values of the parquet partition
-func (p *ParquetPartitionReader) All() iter.Seq2[KVMapList, error] {
-	return func(yield func(KVMapList, error) bool) {
+func (p *ParquetPartitionReader) All() iter.Seq2[iterator.KeyValueList, error] {
+	return func(yield func(iterator.KeyValueList, error) bool) {
 		for {
 			hasNext, err := p.Next()
 			if err != nil {
-				yield(KVMapList{}, err)
+				yield(iterator.KeyValueList{}, err)
 				return
 			}
 			if !hasNext {
@@ -77,7 +74,7 @@ func (p *ParquetPartitionReader) All() iter.Seq2[KVMapList, error] {
 	}
 }
 
-func (p *ParquetPartitionReader) iterator() (RowIterator, error) {
+func (p *ParquetPartitionReader) iterator() (iterator.RowIterator, error) {
 	select {
 	case <-p.ctxDone:
 		return nil, p.ctx.Err()
@@ -94,10 +91,10 @@ func NewParquetPartitionReader(
 	ctx context.Context,
 	file *pqarrow.FileReader,
 	keys []string,
-	opt RowIteratorOption,
+	opt iterator.RowIteratorOption,
 ) *ParquetPartitionReader {
-	makeIterator := func(partition *ParquetPartitionReader) (RowIterator, error) {
-		return NewRowIterator(ctx, file, keys, opt)
+	makeIterator := func(partition *ParquetPartitionReader) (iterator.RowIterator, error) {
+		return iterator.NewRowIterator(ctx, file, keys, opt)
 	}
 
 	return newParquetPartitionReader(ctx, file, makeIterator)
@@ -106,7 +103,7 @@ func NewParquetPartitionReader(
 func newParquetPartitionReader(
 	ctx context.Context,
 	file *pqarrow.FileReader,
-	makeIterator func(*ParquetPartitionReader) (RowIterator, error),
+	makeIterator func(*ParquetPartitionReader) (iterator.RowIterator, error),
 ) *ParquetPartitionReader {
 	partition := &ParquetPartitionReader{
 		ctx:       ctx,
@@ -122,64 +119,4 @@ func newParquetPartitionReader(
 	})
 
 	return partition
-}
-
-// GetColumnRangeFromStats returns the range of values
-// for the given column index in the given row group.
-func GetColumnRangeFromStats(
-	meta *metadata.FileMetaData,
-	rowGroupIndex int,
-	columnName string,
-) (minValue float64, maxValue float64, err error) {
-	minValue = -1
-	maxValue = -1
-	if rowGroupIndex < 0 || rowGroupIndex >= len(meta.RowGroups) {
-		err = fmt.Errorf("%s row group not found in parquet file", columnName)
-		return
-	}
-
-	// *parquet.RowGroup is an internal package to arrow, so we cannot reference it directly...
-	rowGroup := meta.RowGroups[rowGroupIndex]
-	colIndex := meta.Schema.ColumnIndexByName(columnName)
-	if colIndex < 0 || colIndex >= len(rowGroup.Columns) {
-		err = fmt.Errorf("%s column not found in parquet file", columnName)
-		return
-	}
-
-	statistics := rowGroup.Columns[colIndex].MetaData.Statistics
-	if statistics == nil {
-		err = fmt.Errorf("missing statistics for %s column chunk", columnName)
-		return
-	}
-
-	switch t := meta.Schema.Column(colIndex).PhysicalType(); t {
-	case parquet.Types.Int64:
-		imin, err := decodeValue[int64](statistics.MinValue)
-		if err != nil {
-			return -1, -1, fmt.Errorf("%w", err)
-		}
-		imax, err := decodeValue[int64](statistics.MaxValue)
-		if err != nil {
-			return -1, -1, fmt.Errorf("%w", err)
-		}
-		minValue, maxValue = float64(imin), float64(imax)
-	case parquet.Types.Double:
-		minValue, err = decodeValue[float64](statistics.MinValue)
-		if err != nil {
-			return -1, -1, fmt.Errorf("%w", err)
-		}
-		maxValue, err = decodeValue[float64](statistics.MaxValue)
-		if err != nil {
-			return -1, -1, fmt.Errorf("%w", err)
-		}
-	default:
-		return -1, -1, fmt.Errorf("unsupported type %v", t)
-	}
-	return
-}
-
-func decodeValue[T any](data []byte) (T, error) {
-	var v T
-	err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &v)
-	return v, err
 }
