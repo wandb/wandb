@@ -1,7 +1,7 @@
 package iterator
 
-// multiIterator handles reading rows from multiple run history partitions.
-// A parition referes to a single parquet file export of a run's history.
+// multiIterator is a RowIterator that iterates over multiple RowIterators.
+// It is made by concatenating multiple RowIterators.
 type multiIterator struct {
 	iterators []RowIterator
 	offset    int
@@ -13,21 +13,24 @@ func NewMultiIterator(iterators []RowIterator) RowIterator {
 	}
 }
 
+// Next implements the RowIterator.Next.
 func (m *multiIterator) Next() (bool, error) {
-	if next, err := m.iterators[m.offset].Next(); next || err != nil {
-		return next, err
+	for m.offset < len(m.iterators) {
+		next, err := m.iterators[m.offset].Next()
+		if next || err != nil {
+			return next, err
+		}
+		m.offset++
 	}
-	m.offset++
-	if m.offset >= len(m.iterators) {
-		return false, nil
-	}
-	return m.Next()
+	return false, nil
 }
 
+// Value implements the RowIterator.Value.
 func (m *multiIterator) Value() KeyValueList {
 	return m.iterators[m.offset].Value()
 }
 
+// Release implements the RowIterator.Release.
 func (m *multiIterator) Release() {
 	for _, it := range m.iterators {
 		it.Release()
