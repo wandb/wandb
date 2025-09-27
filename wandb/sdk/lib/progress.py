@@ -145,10 +145,9 @@ class ProgressPrinter:
             if extra_operations > 0:
                 line += f" (+ {extra_operations} more)"
 
-            if line != self._last_printed_line:
+            if line and line != self._last_printed_line:
                 self._printer.display(line)
-
-            self._last_printed_line = line
+                self._last_printed_line = line
 
     def _update_single_run(
         self,
