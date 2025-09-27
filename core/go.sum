@@ -357,8 +357,6 @@ github.com/tklauser/numcpus v0.10.0 h1:18njr6LDBk1zuna922MgdjQuJFjrdppsZG60sHGfj
 github.com/tklauser/numcpus v0.10.0/go.mod h1:BiTKazU708GQTYF4mB+cmlpT2Is1gLk7XVuEeem8LsQ=
 github.com/vektah/gqlparser/v2 v2.5.30 h1:EqLwGAFLIzt1wpx1IPpY67DwUujF1OfzgEyDsLrN6kE=
 github.com/vektah/gqlparser/v2 v2.5.30/go.mod h1:D1/VCZtV3LPnQrcPBeR/q5jkSQIPti0uYCP/RI0gIeo=
-github.com/wandb/parallel v0.2.3 h1:HR/gIED8VwdShkoGHjd1CH3VKjn1EsvnYkcJK/2lmMM=
-github.com/wandb/parallel v0.2.3/go.mod h1:ErekiJmB5+ZsOUAfPhhrSsusgDAVgJViXh2b4KE7QW0=
 github.com/wandb/simplejsonext v0.0.0-20241203202201-90635f1d8677 h1:v+v9ukIAyXGSEqH7sioi16iU29akxa3/BBkvyxlaIlk=
 github.com/wandb/simplejsonext v0.0.0-20241203202201-90635f1d8677/go.mod h1:hENOOKlrDZcDUR1un2x2EoOovnDWVIpqBvSjeKpVYbk=
 github.com/xanzy/ssh-agent v0.3.3 h1:+/15pJfg/RsTxqYcX6fHqOXZwwMP+2VyYWJeWM2qQFM=

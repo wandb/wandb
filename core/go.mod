@@ -26,7 +26,6 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.9
 	github.com/spf13/afero v1.15.0
 	github.com/stretchr/testify v1.11.1
-	github.com/wandb/parallel v0.2.3
 	github.com/wandb/simplejsonext v0.0.0-20241203202201-90635f1d8677
 	go.uber.org/mock v0.6.0
 	gocloud.dev v0.43.0
