@@ -112,17 +112,17 @@ func (h *HistoryReader) GetHistorySteps(
 			context.Background(),
 			parquetFile,
 			h.keys,
-			parquet.WithHistoryPageRange(parquet.HistoryPageParams{
+			iterator.WithHistoryPageRange(iterator.HistoryPageParams{
 				MinStep: minStep,
 				MaxStep: maxStep,
 			}),
 		)
 	}
 
-	multiIterator := parquet.NewMultiIterator(partitions)
+	multiIterator := iterator.NewMultiIterator(partitions)
 	defer multiIterator.Release()
 
-	results := []parquet.KVMapList{}
+	results := []iterator.KeyValueList{}
 	next, err := multiIterator.Next()
 	for ; next && err == nil; next, err = multiIterator.Next() {
 		select {
