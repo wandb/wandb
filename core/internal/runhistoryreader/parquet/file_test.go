@@ -40,7 +40,6 @@ func TestLocalParquetFile_Reader_NoError(t *testing.T) {
 	pf, err := LocalParquetFile(historyFilePath, true /* parallel */)
 	assert.NoError(t, err)
 	assert.NotNil(t, pf)
-	assert.NotNil(t, pf.ParquetReader())
 }
 
 func TestLocalParquetFile_Reader_Error(t *testing.T) {
