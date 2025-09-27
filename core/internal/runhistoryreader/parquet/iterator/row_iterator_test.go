@@ -67,7 +67,6 @@ func TestSelectRowGroups(t *testing.T) {
 	page := HistoryPageParams{
 		MinStep: 0,
 		MaxStep: 999,
-		Samples: 10,
 	}
 	it, err := NewRowIterator(ctx, r, []string{"_step"}, WithHistoryPageRange(page))
 	if err != nil {
@@ -225,7 +224,6 @@ func TestRowIterator_EmptyFile(t *testing.T) {
 	page := HistoryPageParams{
 		MinStep: 0,
 		MaxStep: 999,
-		Samples: 10,
 	}
 	it, err := NewRowIterator(ctx, r, []string{"_step"}, WithHistoryPageRange(page))
 	if err != nil {
