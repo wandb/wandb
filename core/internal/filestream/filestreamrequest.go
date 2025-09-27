@@ -144,25 +144,28 @@ func NewRequestReader(
 	requestSizeLimitBytes int,
 ) (*FileStreamRequestReader, bool) {
 	requestSizeApprox := 0
+	isTruncatedDueToSize := false
 
 	// Increases requestSizeApprox and returns the number of strings to
 	// send from the list.
-	addStringsToRequest := func(data []string) int {
+	addStringsToRequest := func(data ...string) int {
 		for i, line := range data {
 			nextSize := requestSizeApprox + len(line)
 
-			switch {
-			case nextSize <= requestSizeLimitBytes:
+			if nextSize <= requestSizeLimitBytes {
 				requestSizeApprox = nextSize
+				continue
+			}
+
+			isTruncatedDueToSize = true
 
 			// As a special case, if the first line is larger than the limit
 			// and we're not sending any other data, send the line and hope
 			// it goes through.
-			case requestSizeApprox == 0:
+			if requestSizeApprox == 0 {
 				requestSizeApprox = nextSize
 				return 1
-
-			default:
+			} else {
 				return i
 			}
 		}
@@ -170,16 +173,14 @@ func NewRequestReader(
 		return len(data)
 	}
 
-	// We always send the summary.
-	requestSizeApprox += len(request.LatestSummary)
-
-	historyLinesToSend := addStringsToRequest(request.HistoryLines)
-	eventsLinesToSend := addStringsToRequest(request.EventsLines)
+	addStringsToRequest(request.LatestSummary)
+	historyLinesToSend := addStringsToRequest(request.HistoryLines...)
+	eventsLinesToSend := addStringsToRequest(request.EventsLines...)
 
 	consoleLineRuns := request.ConsoleLines.ToRuns()
 	consoleLinesToSend := 0
 	if len(consoleLineRuns) > 0 {
-		consoleLinesToSend = addStringsToRequest(consoleLineRuns[0].Items)
+		consoleLinesToSend = addStringsToRequest(consoleLineRuns[0].Items...)
 	}
 
 	reader := &FileStreamRequestReader{
@@ -205,11 +206,9 @@ func NewRequestReader(
 		reader.isFullRequest = true
 	}
 
-	// isAtMaxSize is different from isFullRequest: a request could be partial
-	// but still below the size limit if it contains nonconsecutive console
-	// lines.
-	isAtMaxSize := requestSizeApprox >= requestSizeLimitBytes
-	return reader, isAtMaxSize
+	// isTruncatedDueToSize is different from isFullRequest: a request could be
+	// partial if it contains nonconsecutive console lines.
+	return reader, isTruncatedDueToSize
 }
 
 // FileStreamState is state necessary to turn a [FileStreamRequest]
