@@ -258,7 +258,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 
 	backendOrNil := f.Backend
 	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
-		s.jobBuilder = launch.NewJobBuilder(s.settings.Proto, s.logger, false)
+		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
 	}
 
 	return s
