@@ -5,16 +5,16 @@ from __future__ import annotations
 
 from typing import Optional
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import ArtifactFragment
 
 
-class ArtifactByName(GQLBase):
+class ArtifactByName(GQLResult):
     project: Optional[ArtifactByNameProject]
 
 
-class ArtifactByNameProject(GQLBase):
+class ArtifactByNameProject(GQLResult):
     artifact: Optional[ArtifactFragment]
 
 

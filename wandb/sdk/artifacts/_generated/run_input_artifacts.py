@@ -7,20 +7,20 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import RunInputArtifactConnectionFragment
 
 
-class RunInputArtifacts(GQLBase):
+class RunInputArtifacts(GQLResult):
     project: Optional[RunInputArtifactsProject]
 
 
-class RunInputArtifactsProject(GQLBase):
+class RunInputArtifactsProject(GQLResult):
     run: Optional[RunInputArtifactsProjectRun]
 
 
-class RunInputArtifactsProjectRun(GQLBase):
+class RunInputArtifactsProjectRun(GQLResult):
     input_artifacts: Optional[RunInputArtifactConnectionFragment] = Field(
         alias="inputArtifacts"
     )

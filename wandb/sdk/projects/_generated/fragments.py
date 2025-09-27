@@ -7,10 +7,10 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLId, GQLResult
 
 
-class RegistryFragment(GQLBase):
+class RegistryFragment(GQLResult):
     id: GQLId
     allow_all_artifact_types_in_registry: bool = Field(
         alias="allowAllArtifactTypesInRegistry"
@@ -23,15 +23,15 @@ class RegistryFragment(GQLBase):
     access: Optional[str]
 
 
-class RegistryFragmentArtifactTypes(GQLBase):
+class RegistryFragmentArtifactTypes(GQLResult):
     edges: List[RegistryFragmentArtifactTypesEdges]
 
 
-class RegistryFragmentArtifactTypesEdges(GQLBase):
+class RegistryFragmentArtifactTypesEdges(GQLResult):
     node: Optional[RegistryFragmentArtifactTypesEdgesNode]
 
 
-class RegistryFragmentArtifactTypesEdgesNode(GQLBase):
+class RegistryFragmentArtifactTypesEdgesNode(GQLResult):
     name: str
 
 

@@ -7,28 +7,28 @@ from typing import Literal, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, Typename
+from wandb._pydantic import GQLResult, Typename
 
 from .fragments import ArtifactsFragment
 
 
-class ProjectArtifacts(GQLBase):
+class ProjectArtifacts(GQLResult):
     project: Optional[ProjectArtifactsProject]
 
 
-class ProjectArtifactsProject(GQLBase):
+class ProjectArtifactsProject(GQLResult):
     artifact_type: Optional[ProjectArtifactsProjectArtifactType] = Field(
         alias="artifactType"
     )
 
 
-class ProjectArtifactsProjectArtifactType(GQLBase):
+class ProjectArtifactsProjectArtifactType(GQLResult):
     artifact_collection: Optional[
         ProjectArtifactsProjectArtifactTypeArtifactCollection
     ] = Field(alias="artifactCollection")
 
 
-class ProjectArtifactsProjectArtifactTypeArtifactCollection(GQLBase):
+class ProjectArtifactsProjectArtifactTypeArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
