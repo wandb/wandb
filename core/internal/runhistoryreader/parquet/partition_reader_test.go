@@ -29,7 +29,7 @@ func TestNewParquetPartitionReader(t *testing.T) {
 	assert.NotNil(t, reader.ctx)
 	assert.NotNil(t, reader.file)
 	assert.NotNil(t, reader.dataReady)
-	assert.NoError(t, reader.err)
+	assert.NoError(t, reader.iterCreationError)
 }
 
 func TestParquetPartitionReader_MetaData(t *testing.T) {
@@ -194,7 +194,6 @@ func TestParquetPartitionReader_WithHistoryPageRange(t *testing.T) {
 	pageOpt := iterator.WithHistoryPageRange(iterator.HistoryPageParams{
 		MinStep: 10,
 		MaxStep: 30,
-		Samples: 10,
 	})
 
 	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, pageOpt)

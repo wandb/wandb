@@ -10,20 +10,29 @@ import (
 
 	"github.com/apache/arrow-go/v18/parquet/metadata"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
-	"github.com/wandb/parallel"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
 )
 
 // ParquetPartitionReader is a reader for a single run history parquet file.
 // Run history may be partitioned into multiple parquet files.
+// It uses RowIterator's to iterate over the rows in the parquet file.
+// RowIterators are composed into various iterators types,
+// to handle reading parquet files by chunks.
 type ParquetPartitionReader struct {
-	ctx       context.Context
-	ctxDone   <-chan struct{}
-	executor  parallel.Executor
-	file      *pqarrow.FileReader
+	ctx context.Context
+
+	// file is the underlying parquet file reader.
+	file *pqarrow.FileReader
+
+	// dataReady is used to signal that the iterator is ready to be used.
 	dataReady chan struct{}
-	it        iterator.RowIterator
-	err       error
+
+	// iter is used to iterate over all rows in the parquet file.
+	iter iterator.RowIterator
+
+	// iterCreationError is the error that occurred while creating the iter.
+	// if no error occurred, it is nil.
+	iterCreationError error
 }
 
 // Metadata returns the metadata of the underlying parquet partition file.
@@ -37,19 +46,19 @@ func (p *ParquetPartitionReader) Next() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	p.it = it
-	return p.it.Next()
+	p.iter = it
+	return p.iter.Next()
 }
 
 // Value returns the value of the current row in the row iterator.
 func (p *ParquetPartitionReader) Value() iterator.KeyValueList {
-	return p.it.Value()
+	return p.iter.Value()
 }
 
 // Release releases the resources used by the reader.
 func (p *ParquetPartitionReader) Release() {
-	if p.it != nil {
-		p.it.Release()
+	if p.iter != nil {
+		p.iter.Release()
 	}
 }
 
@@ -76,11 +85,10 @@ func (p *ParquetPartitionReader) All() iter.Seq2[iterator.KeyValueList, error] {
 
 func (p *ParquetPartitionReader) iterator() (iterator.RowIterator, error) {
 	select {
-	case <-p.ctxDone:
+	case <-p.ctx.Done():
 		return nil, p.ctx.Err()
 	case <-p.dataReady:
-		p.executor.Wait()
-		return p.it, p.err
+		return p.iter, p.iterCreationError
 	}
 }
 
@@ -107,16 +115,14 @@ func newParquetPartitionReader(
 ) *ParquetPartitionReader {
 	partition := &ParquetPartitionReader{
 		ctx:       ctx,
-		ctxDone:   ctx.Done(),
-		executor:  parallel.Unlimited(ctx),
 		file:      file,
 		dataReady: make(chan struct{}),
 	}
 
-	partition.executor.Go(func(ctx context.Context) {
+	go func() {
 		defer close(partition.dataReady)
-		partition.it, partition.err = makeIterator(partition)
-	})
+		partition.iter, partition.iterCreationError = makeIterator(partition)
+	}()
 
 	return partition
 }
