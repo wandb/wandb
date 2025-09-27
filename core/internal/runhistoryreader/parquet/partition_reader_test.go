@@ -1,16 +1,14 @@
 package parquet
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
-	"math"
 	"path/filepath"
 	"testing"
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
 	test "github.com/wandb/wandb/core/tests/parquet"
 )
 
@@ -172,140 +170,6 @@ func TestParquetPartitionReader_Release(t *testing.T) {
 	})
 }
 
-func TestGetColumnRangeFromStats(t *testing.T) {
-	schema := arrow.NewSchema(
-		[]arrow.Field{
-			{Name: "_step", Type: arrow.PrimitiveTypes.Int64},
-			{Name: "float_metric", Type: arrow.PrimitiveTypes.Float64},
-		},
-		nil,
-	)
-	data := []map[string]any{
-		{"_step": 10, "float_metric": 1.5},
-		{"_step": 20, "float_metric": 2.5},
-		{"_step": 30, "float_metric": 3.5},
-		{"_step": 40, "float_metric": 4.5},
-		{"_step": 50, "float_metric": 5.5},
-	}
-	historyFilePath := filepath.Join(t.TempDir(), "test_stats.parquet")
-	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
-	pf, err := LocalParquetFile(historyFilePath, true)
-	require.NoError(t, err)
-	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, nil)
-	defer reader.Release()
-
-	meta := pf.ParquetReader().MetaData()
-	assert.NotNil(t, meta)
-
-	minVal, maxVal, err := GetColumnRangeFromStats(meta, 0, "_step")
-	assert.NoError(t, err)
-	assert.Equal(t, float64(10), minVal)
-	assert.Equal(t, float64(50), maxVal)
-
-	minVal, maxVal, err = GetColumnRangeFromStats(meta, 0, "float_metric")
-	require.NoError(t, err)
-	assert.InDelta(t, 1.5, minVal, 0.001)
-	assert.InDelta(t, 5.5, maxVal, 0.001)
-
-	_, _, err = GetColumnRangeFromStats(meta, 999, "_step")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "row group not found")
-
-	_, _, err = GetColumnRangeFromStats(meta, 0, "nonexistent_column")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "column not found")
-}
-
-func TestGetColumnRangeFromStats_UnsupportedType(t *testing.T) {
-	schema := arrow.NewSchema(
-		[]arrow.Field{
-			{Name: "text_column", Type: arrow.BinaryTypes.String},
-		},
-		nil,
-	)
-	data := []map[string]any{
-		{"text_column": "hello"},
-		{"text_column": "world"},
-	}
-	historyFilePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFileFromData(t, historyFilePath, schema, data)
-	pf, err := LocalParquetFile(historyFilePath, true)
-	require.NoError(t, err)
-
-	reader := NewParquetPartitionReader(t.Context(), pf, []string{}, nil)
-	defer reader.Release()
-
-	meta := pf.ParquetReader().MetaData()
-	assert.NotNil(t, meta)
-
-	_, _, err = GetColumnRangeFromStats(meta, 0, "text_column")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported type")
-}
-
-func TestDecodeValue(t *testing.T) {
-	t.Run("DecodeInt64", func(t *testing.T) {
-		expected := int64(42)
-		buf := new(bytes.Buffer)
-		err := binary.Write(buf, binary.LittleEndian, expected)
-		require.NoError(t, err)
-
-		result, err := decodeValue[int64](buf.Bytes())
-		require.NoError(t, err)
-		assert.Equal(t, expected, result)
-	})
-
-	t.Run("DecodeFloat64", func(t *testing.T) {
-		expected := 3.14159
-		buf := new(bytes.Buffer)
-		err := binary.Write(buf, binary.LittleEndian, expected)
-		require.NoError(t, err)
-
-		result, err := decodeValue[float64](buf.Bytes())
-		require.NoError(t, err)
-		assert.Equal(t, expected, result)
-	})
-
-	t.Run("DecodeNegativeInt64", func(t *testing.T) {
-		expected := int64(-100)
-		buf := new(bytes.Buffer)
-		err := binary.Write(buf, binary.LittleEndian, expected)
-		require.NoError(t, err)
-
-		result, err := decodeValue[int64](buf.Bytes())
-		require.NoError(t, err)
-		assert.Equal(t, expected, result)
-	})
-
-	t.Run("DecodeNaN", func(t *testing.T) {
-		expected := math.NaN()
-		buf := new(bytes.Buffer)
-		err := binary.Write(buf, binary.LittleEndian, expected)
-		require.NoError(t, err)
-
-		result, err := decodeValue[float64](buf.Bytes())
-		require.NoError(t, err)
-		assert.True(t, math.IsNaN(result))
-	})
-
-	t.Run("DecodeInfinity", func(t *testing.T) {
-		expected := math.Inf(1)
-		buf := new(bytes.Buffer)
-		err := binary.Write(buf, binary.LittleEndian, expected)
-		require.NoError(t, err)
-
-		result, err := decodeValue[float64](buf.Bytes())
-		require.NoError(t, err)
-		assert.Equal(t, expected, result)
-	})
-
-	t.Run("InvalidData", func(t *testing.T) {
-		// Try to decode insufficient bytes
-		_, err := decodeValue[int64]([]byte{1, 2, 3}) // int64 needs 8 bytes
-		assert.Error(t, err)
-	})
-}
-
 func TestParquetPartitionReader_WithHistoryPageRange(t *testing.T) {
 	schema := arrow.NewSchema(
 		[]arrow.Field{
@@ -327,7 +191,7 @@ func TestParquetPartitionReader_WithHistoryPageRange(t *testing.T) {
 	pf, err := LocalParquetFile(historyFilePath, true)
 	require.NoError(t, err)
 
-	pageOpt := WithHistoryPageRange(HistoryPageParams{
+	pageOpt := iterator.WithHistoryPageRange(iterator.HistoryPageParams{
 		MinStep: 10,
 		MaxStep: 30,
 		Samples: 10,
@@ -337,7 +201,7 @@ func TestParquetPartitionReader_WithHistoryPageRange(t *testing.T) {
 	defer reader.Release()
 
 	// Read all rows and verify they're within the range
-	values := make([]KVMapList, 0)
+	values := make([]iterator.KeyValueList, 0)
 	for value, err := range reader.All() {
 		assert.NoError(t, err)
 		values = append(values, value)
@@ -345,7 +209,7 @@ func TestParquetPartitionReader_WithHistoryPageRange(t *testing.T) {
 	assert.Equal(t, 2, len(values))
 	assert.Equal(
 		t,
-		[]KVMapList{
+		[]iterator.KeyValueList{
 			{
 				{Key: "_step", Value: int64(10)},
 				{Key: "value", Value: float64(10)},
@@ -381,7 +245,7 @@ func TestParquetPartitionReader_EmptyFile(t *testing.T) {
 	assert.Equal(t, int64(0), meta.NumRows)
 
 	// Verify no data is returned
-	values := make([]KVMapList, 0)
+	values := make([]iterator.KeyValueList, 0)
 	for value, err := range reader.All() {
 		assert.NoError(t, err)
 		values = append(values, value)
