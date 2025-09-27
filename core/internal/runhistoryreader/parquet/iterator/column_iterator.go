@@ -13,6 +13,7 @@ import (
 // columnIterator is the interface used to iterate over the values in a single
 // column. The values across columns should be merged together to form a single
 // row.
+// It handles columns which may not always have the same type.
 type columnIterator interface {
 	Next() bool
 	Value() any

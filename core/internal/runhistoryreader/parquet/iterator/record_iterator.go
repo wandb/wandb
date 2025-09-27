@@ -6,7 +6,8 @@ import (
 	"github.com/apache/arrow-go/v18/arrow"
 )
 
-// recordIterator iterates over the rows in the given arrow.Table
+// recordIterator iterates over columnIterators
+// to read columns in the given arrow.RecordBatch in chunks.
 type recordIterator struct {
 	record           arrow.RecordBatch
 	columns          []keyIteratorPair
@@ -125,6 +126,8 @@ func NewRecordIterator(record arrow.RecordBatch, options ...RecordIteratorOption
 	return t, nil
 }
 
+// Next implements the RowIterator interface.
+// Next advances the iterator to next column in the arrow.RecordBatch.
 func (t *recordIterator) Next() (bool, error) {
 	t.value = nil
 	for {
@@ -154,6 +157,8 @@ func (t *recordIterator) Next() (bool, error) {
 	}
 }
 
+// Value implements the RowIterator interface.
+// Value returns a KeyValueList of the current row in the arrow.RecordBatch.
 func (t *recordIterator) Value() KeyValueList {
 	if t.value != nil { // cache the value in case we're asked for it multiple times
 		return t.value
@@ -168,6 +173,10 @@ func (t *recordIterator) Value() KeyValueList {
 	return t.value
 }
 
+// Release implements the RowIterator interface.
+// Release frees the memory used to read the current arrow.RecordBatch.
+// Release should be called only once after the iterator is no longer needed.
+// Additional calls to Release are no-ops.
 func (t *recordIterator) Release() {
 	t.record.Release()
 }
