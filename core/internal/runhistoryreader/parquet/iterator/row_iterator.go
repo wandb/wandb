@@ -27,8 +27,6 @@ const (
 type HistoryPageParams struct {
 	MinStep int64 // Inclusive lower bound of _step
 	MaxStep int64 // Exclusive upper bound of _step
-	Samples int64 // Number of requested samples
-	MaxSize int64 // Maximum number of bytes we try to read (in some impls)
 }
 
 type EventsPageParams struct {
@@ -50,8 +48,11 @@ type KeyValueList []KeyValuePair
 // RowIterator is the primary interface to iterate over history rows
 // for a runs history parquet file.
 type RowIterator interface {
+	// Next advances the iterator to the next value.
 	Next() (bool, error)
+	// Value returns the current value of the iterator.
 	Value() KeyValueList
+	// Release releases the resources used by the iterator.
 	Release()
 }
 
@@ -106,8 +107,8 @@ func selectRowGroups(pf *file.Reader, config IteratorConfig) ([]int, error) {
 	return indices, nil
 }
 
-// Iterator uses recordIterator
-// to iterate over the records batches in the given parquet file
+// Iterator uses recordIterators
+// to iterate over arrow.RecordBatches in the given parquet file
 type Iterator struct {
 	ctx    context.Context
 	reader *pqarrow.FileReader
@@ -280,6 +281,10 @@ func (r *Iterator) Value() KeyValueList {
 	return r.current.Value()
 }
 
+// Release implements the RowIterator interface.
+// Releases the underlying resources used by the iterator.
+// It should be called only once after the iterator is no longer needed.
+// Additional calls to Release are no-ops.
 func (r *Iterator) Release() {
 	r.current.Release()
 	if r.recordReader != nil {
@@ -325,7 +330,6 @@ func getColumnRangeFromStats(
 		return
 	}
 
-	// *parquet.RowGroup is an internal package to arrow, so we cannot reference it directly...
 	rowGroup := meta.RowGroups[rowGroupIndex]
 	colIndex := meta.Schema.ColumnIndexByName(columnName)
 	if colIndex < 0 || colIndex >= len(rowGroup.Columns) {
@@ -343,24 +347,39 @@ func getColumnRangeFromStats(
 	case parquet.Types.Int64:
 		imin, err := decodeValue[int64](statistics.MinValue)
 		if err != nil {
-			return -1, -1, fmt.Errorf("%w", err)
+			return -1, -1, fmt.Errorf(
+				"getColumnRangeFromStats: Error decoding int64 min value: %v",
+				err,
+			)
 		}
 		imax, err := decodeValue[int64](statistics.MaxValue)
 		if err != nil {
-			return -1, -1, fmt.Errorf("%w", err)
+			return -1, -1, fmt.Errorf(
+				"getColumnRangeFromStats: Error decoding int64 max value: %v",
+				err,
+			)
 		}
 		minValue, maxValue = float64(imin), float64(imax)
 	case parquet.Types.Double:
 		minValue, err = decodeValue[float64](statistics.MinValue)
 		if err != nil {
-			return -1, -1, fmt.Errorf("%w", err)
+			return -1, -1, fmt.Errorf(
+				"getColumnRangeFromStats: Error decoding double min value: %v",
+				err,
+			)
 		}
 		maxValue, err = decodeValue[float64](statistics.MaxValue)
 		if err != nil {
-			return -1, -1, fmt.Errorf("%w", err)
+			return -1, -1, fmt.Errorf(
+				"getColumnRangeFromStats: Error decoding double max value: %v",
+				err,
+			)
 		}
 	default:
-		return -1, -1, fmt.Errorf("unsupported type %v", t)
+		return -1, -1, fmt.Errorf(
+			"getColumnRangeFromStats: Unsupported type %v",
+			t,
+		)
 	}
 	return
 }
