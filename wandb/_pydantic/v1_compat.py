@@ -70,6 +70,19 @@ def convert_v2_config(v2_config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# HACKS: In older python versions and/or pydantic v1, we have fewer
+# tools to help us resolve annotations reliably before the type is fully built.
+# String comparison is brittle, but it'll have to do.
+def _is_list_like_ann(ann_str: str) -> bool:
+    # Handle "Optional[List[T]]", "List[T]", "list[T]"
+    return ann_str.strip().lower().startswith(("list[", "optional[list["))
+
+
+def _is_str_like_ann(ann_str: str) -> bool:
+    # Handle "Optional[str]", "str"
+    return ann_str.strip().lower() in {"str", "optional[str]"}
+
+
 @lru_cache(maxsize=None)  # Reduce repeat introspection via `signature()`
 def allowed_arg_names(func: Callable) -> set[str]:
     """Internal helper: Return the names of args accepted by the given function."""
@@ -90,6 +103,15 @@ class V1MixinMetaclass(PydanticModelMetaclass):
         namespace: dict[str, Any],
         **kwargs: Any,
     ):
+        # Type checks run in a Pydantic v2 environment, so tell mypy to analyze
+        # certain types in here as if they were from v1.
+        # Note that this code should never even run unless Pydantic v1 is detected.
+        if TYPE_CHECKING:
+            from pydantic.v1.fields import FieldInfo
+        else:
+            from pydantic.fields import FieldInfo
+
+        # ------------------------------------------------------------------------------
         # Convert any inline model config, e.g.:
         #     class MyModel(BaseModel):  # BEFORE (v2)
         #         model_config = ConfigDict(populate_by_name=True)
@@ -99,6 +121,30 @@ class V1MixinMetaclass(PydanticModelMetaclass):
         #             allow_population_by_field_name = True
         if config_dict := namespace.pop("model_config", None):
             namespace["Config"] = type("Config", (), convert_v2_config(config_dict))
+
+        # ------------------------------------------------------------------------------
+        # Rename v2 Field() args to their v1 equivalents, if possible
+        if annotations := namespace.get("__annotations__"):
+            for field_name, obj in namespace.items():
+                if (
+                    # Process annotated `Field(...)` assignments
+                    isinstance(field := obj, FieldInfo)
+                    and (ann := annotations.get(field_name))
+                ):
+                    # For list-like fields, rename:
+                    # - `max_length (v2) -> max_items (v1)`
+                    # - `min_length (v2) -> min_items (v1)`
+                    # In v1: lists -> `{min,max}_items`; strings -> `{min,max}_length`.
+                    # In v2: lists OR strings -> `{min,max}_length`.
+                    if _is_list_like_ann(ann):
+                        field.max_items, field.max_length = field.max_length, None
+                        field.min_items, field.min_length = field.min_length, None
+
+                    # For str-like fields, rename:
+                    # - `pattern (v2) -> regex (v1)`
+                    elif _is_str_like_ann(ann):
+                        field.regex = field.extra.pop("pattern", None)
+
         return super().__new__(cls, name, bases, namespace, **kwargs)
 
     @property

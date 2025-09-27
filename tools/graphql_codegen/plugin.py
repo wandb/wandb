@@ -19,17 +19,33 @@ from typing import Any, ClassVar, Iterable, Iterator, Mapping
 from ariadne_codegen import Plugin
 from graphql import (
     ExecutableDefinitionNode,
+    FieldNode,
     FragmentDefinitionNode,
+    GraphQLField,
+    GraphQLInputField,
     GraphQLSchema,
     SchemaMetaFieldDef,
     SelectionSetNode,
+    TypeInfo,
     TypeMetaFieldDef,
+    Visitor,
+    get_directive_values,
+    get_named_type,
+    get_nullable_type,
+    is_list_type,
+    is_scalar_type,
+    visit,
 )
 
 from .plugin_utils import (
+    ListConstraints,
+    NumericConstraints,
+    ParsedConstraints,
+    StringConstraints,
     base_class_names,
     imported_names,
     is_class_def,
+    is_field_call,
     is_import_from,
     is_redundant_class,
     make_all_assignment,
@@ -167,16 +183,6 @@ class GraphQLCodegenPlugin(Plugin):
                 kept_names = sorted(set(imported_names(imp)) - omit_names)
                 yield make_import_from(imp.module, kept_names, level=imp.level)
 
-    def generate_enums_module(self, module: ast.Module) -> ast.Module:
-        return self._rewrite_generated_module(module)
-
-    def generate_input_class(self, class_def: ast.ClassDef, *_, **__) -> ast.ClassDef:
-        # Replace the default base class: `BaseModel` -> `GQLInput`
-        return ClassReplacer({BASE_MODEL: GQL_INPUT}).visit(class_def)
-
-    def generate_inputs_module(self, module: ast.Module) -> ast.Module:
-        return self._rewrite_generated_module(module)
-
     def process_schema(self, schema: GraphQLSchema) -> GraphQLSchema:
         # `ariadne-codegen` doesn't automatically recognize standard introspection fields
         # like `__type`, `__schema`, etc., so inject them here on `Query`.
@@ -188,6 +194,141 @@ class GraphQLCodegenPlugin(Plugin):
             schema.query_type.fields.update(meta_fields)
 
         return schema
+
+    def generate_enums_module(self, module: ast.Module) -> ast.Module:
+        return self._rewrite_generated_module(module)
+
+    def generate_input_field(
+        self,
+        field_implementation: ast.AnnAssign,
+        input_field: GraphQLInputField,
+        field_name: str,
+    ) -> ast.AnnAssign:
+        # Apply any `@constraints` from the GraphQL schema to this pydantic field.
+        if constraints := self._parse_constraints(input_field):
+            return self._apply_constraints(constraints, field_implementation)
+        return field_implementation
+
+    def generate_input_class(self, class_def: ast.ClassDef, *_, **__) -> ast.ClassDef:
+        # Replace the default base class: `BaseModel` -> `GQLInput`
+        return ClassReplacer({BASE_MODEL: GQL_INPUT}).visit(class_def)
+
+    def generate_inputs_module(self, module: ast.Module) -> ast.Module:
+        return self._rewrite_generated_module(module)
+
+    def generate_result_field(
+        self,
+        field_implementation: ast.AnnAssign,
+        operation_definition: ExecutableDefinitionNode,
+        field: FieldNode,
+    ) -> ast.AnnAssign:
+        # Apply any `@constraints` from the GraphQL schema to this pydantic field.
+        if (gql_field := self._get_field_def(field, operation_definition)) and (
+            constraints := self._parse_constraints(gql_field)
+        ):
+            return self._apply_constraints(constraints, field_implementation)
+        return field_implementation
+
+    def _get_field_def(
+        self, field: FieldNode, defn: ExecutableDefinitionNode
+    ) -> GraphQLField | None:
+        """Get the original GraphQL definition of a field from an operation definition."""
+        # NOTE:
+        # - The `field` node here is parsed from the GraphQL _operation_,
+        #   i.e. from inside the query/mutation/fragment/etc.
+        # - However, it doesn't yet know about the typed field _definition_
+        #   it maps to, i.e. from the original GraphQL schema.
+        #
+        # The `Visitor` logic below is needed to:
+        # - traverse the operation (query/mutation/etc.) to find the current field, and
+        # - map it back to the original `GraphQLField` definition from the source schema.
+        #
+        # It's a bit convoluted, but better this than implementing and maintaining
+        # the traversal logic from scratch.
+
+        class FieldDefFinder(Visitor):
+            def __init__(self, target: FieldNode, schema: GraphQLSchema) -> None:
+                super().__init__()
+                self.type_info = TypeInfo(schema)
+                self.target = target
+                self.field_def: GraphQLField | None = None
+
+            def enter_field(self, node: FieldNode, *_: Any) -> Any:
+                if node is self.target:
+                    # On reaching the field we're looking for, `TypeInfo.get_field_def()`
+                    # returns the original `GraphQLField` definition from the schema.
+                    # If this happens, we're done, so `BREAK` immediately.
+                    self.field_def = self.type_info.get_field_def()
+                    return self.BREAK
+
+        finder = FieldDefFinder(field, self.schema)
+        visit(defn, finder)
+        return finder.field_def
+
+    def _apply_constraints(
+        self,
+        constraints: ParsedConstraints,
+        ann: ast.AnnAssign,
+        # gql_field: GraphQLField | GraphQLInputField,
+    ) -> ast.AnnAssign:
+        """Apply any `@constraints(...)` from the GraphQL field definition to this pydantic `Field(...)`.
+
+        Should preserve any existing `Field(...)` calls, as well as any assigned default value.
+        """
+        field_kws = constraints.to_ast_keywords()
+
+        # Preserve existing `= Field(...)` calls in the annotated assignment.
+        if is_field_call(pydantic_field := ann.value):
+            pydantic_field.keywords = [*pydantic_field.keywords, *field_kws]
+            return ann
+
+        # Otherwise, if there's a default value assigned to the field, preserve it.
+        if (default_expr := ann.value) is not None:
+            field_kws = [ast.keyword("default", default_expr), *field_kws]
+
+        ann.value = ast.Call(ast.Name("Field"), args=[], keywords=field_kws)
+        return ann
+
+    def _parse_constraints(
+        self, gql_field: GraphQLField | GraphQLInputField
+    ) -> ParsedConstraints | None:
+        """Translate the @constraints directive, if present, to python AST keywords for a pydantic `Field`.
+
+        Explicit handling by GraphQL type:
+        - Lists: min/max -> min_length/max_length
+        - String: min/max/pattern -> min_length/max_length/pattern
+        - Int, Int64, Float: min/max -> ge/le
+
+        Raises:
+            TypeError: if the directive is present on an unsupported/unexpected GraphQL type.
+        """
+        # Don't bother unless there are actually any `@constraints(...)` on this field.
+        if not (
+            (directive_defn := self.schema.get_directive("constraints"))
+            and (field_defn := gql_field.ast_node)
+            and (argmap := get_directive_values(directive_defn, field_defn))
+        ):
+            return None
+
+        # Unwrap NonNull types, e.g. `Int! → Int`
+        gql_type = get_nullable_type(gql_field.type)
+
+        # However, DO NOT unwrap List, as this would miss `@constraints` on List types:
+        #   e.g. `tags: [TagInput!]! @constraints(max: 20)`
+        if is_list_type(gql_type):
+            return ListConstraints(**argmap)
+
+        # Otherwise handle scalar-like named types, e.g. `String`, `Int`, `Float`
+        named_type = get_named_type(gql_type)
+        if is_scalar_type(named_type):
+            if named_type.name in {"String"}:
+                return StringConstraints(**argmap)
+            if named_type.name in {"Int", "Int64", "Float"}:
+                return NumericConstraints(**argmap)
+
+        raise TypeError(
+            f"Unable to parse @constraints on field with GraphQL type: {named_type!r}"
+        )
 
     def _concrete_typenames(self, gql_name: str) -> list[str] | None:
         """Returns the actual concrete GQL type names from the given GQL type name.
