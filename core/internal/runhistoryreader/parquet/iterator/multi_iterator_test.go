@@ -10,49 +10,6 @@ import (
 	test "github.com/wandb/wandb/core/tests/parquet"
 )
 
-type testIterator struct {
-	value   KeyValueList
-	hasNext bool
-}
-
-func (t *testIterator) Next() (bool, error) {
-	if t.hasNext {
-		t.hasNext = false
-		return true, nil
-	}
-	return false, nil
-}
-
-func (t *testIterator) Value() KeyValueList {
-	return t.value
-}
-
-func (t *testIterator) Release() {}
-
-func TestMultiIterator(t *testing.T) {
-	iterValues := []KeyValueList{
-		{{Key: "a", Value: 1}},
-		{{Key: "b", Value: 2}},
-	}
-	iterators := []RowIterator{
-		&testIterator{value: iterValues[0], hasNext: true},
-		&testIterator{value: iterValues[1], hasNext: true},
-	}
-
-	mIter := NewMultiIterator(iterators)
-
-	for _, value := range iterValues {
-		hasNext, err := mIter.Next()
-		assert.NoError(t, err)
-		assert.True(t, hasNext)
-		assert.Equal(t, value, mIter.Value())
-	}
-
-	hasNext, err := mIter.Next()
-	assert.NoError(t, err)
-	assert.False(t, hasNext)
-}
-
 func TestMultiIterator_ReadsAllRows(t *testing.T) {
 	schema := arrow.NewSchema(
 		[]arrow.Field{
