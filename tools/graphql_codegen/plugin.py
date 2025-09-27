@@ -19,16 +19,30 @@ from graphlib import TopologicalSorter  # Run this only with python 3.9+
 from graphql import (
     ExecutableDefinitionNode,
     FragmentDefinitionNode,
+    GraphQLField,
+    GraphQLInputObjectType,
+    GraphQLNamedType,
+    GraphQLOutputType,
     GraphQLSchema,
     SelectionSetNode,
+    TypeInfo,
+    TypeInfoVisitor,
     TypeMetaFieldDef,
+    Visitor,
+    get_named_type,
+    is_input_object_type,
+    is_object_type,
+    visit,
 )
+from graphql.utilities.type_info import get_field_def
 
 from .plugin_utils import (
     apply_ruff,
     base_class_names,
+    constraint_kwargs,
     imported_names,
     is_class_def,
+    is_field_call,
     is_import_from,
     is_redundant_class_def,
     make_all_assignment,
@@ -36,6 +50,7 @@ from .plugin_utils import (
     make_literal,
     make_model_rebuild,
     remove_module_files,
+    upsert_field_call,
 )
 
 # Base class names
@@ -155,6 +170,8 @@ class GraphQLCodegenPlugin(Plugin):
     classes_to_drop: set[str]
     #: Maps GraphQL interface type names to the concrete GraphQL object type names that implement them
     interface2typenames: dict[str, list[str]]
+    #: Maps (InputTypeName, fieldName) -> Field(**kwargs) constraints
+    input_constraints: dict[tuple[str, str], dict[str, Any]]
 
     # From ariadne-codegen, we don't currently need the generated httpx client,
     # exceptions, etc., so drop these generated modules in favor of
@@ -180,6 +197,7 @@ class GraphQLCodegenPlugin(Plugin):
 
         self.classes_to_drop = set()
         self.interface2typenames = {}
+        self.input_constraints = defaultdict(dict)
 
         # HACK: Override the default python type that ariadne-codegen uses for GraphQL's `ID` type.
         # See: https://github.com/mirumee/ariadne-codegen/issues/316
@@ -217,6 +235,9 @@ class GraphQLCodegenPlugin(Plugin):
         return class_def
 
     def generate_inputs_module(self, module: ast.Module) -> ast.Module:
+        # Apply @constraints to input fields, then run generic rewrites
+        self._apply_input_constraints(module)
+        module = ast.fix_missing_locations(module)
         return self._rewrite_generated_module(module)
 
     def process_schema(self, schema: GraphQLSchema) -> GraphQLSchema:
@@ -235,6 +256,17 @@ class GraphQLCodegenPlugin(Plugin):
             name: [impl.name for impl in schema.get_possible_types(gql_type)]
             for name, gql_type in schema.type_map.items()
         }
+
+        # Pre-compute input constraints: (InputTypeName, fieldName) -> Field kwargs
+        for type_name, gql_type in schema.type_map.items():
+            if isinstance((input_type := gql_type), GraphQLInputObjectType):
+                for field_name, field in input_type.fields.items():
+                    if (
+                        (ast_node := field.ast_node)
+                        and (directives := ast_node.directives)
+                        and (kws := constraint_kwargs(field.type, directives))
+                    ):
+                        self.input_constraints[(type_name, field_name)] = kws
 
         return schema
 
@@ -255,6 +287,9 @@ class GraphQLCodegenPlugin(Plugin):
             ast.Name(GQL_RESULT if (name == BASE_MODEL) else name)
             for name in base_class_names(class_def)
         ]
+
+        # Apply @constraints to result fields present in this selection set
+        self._apply_result_constraints(class_def, operation_definition, selection_set)
         return class_def
 
     def generate_result_types_module(self, module: ast.Module, *_, **__) -> ast.Module:
@@ -300,6 +335,90 @@ class GraphQLCodegenPlugin(Plugin):
         module = PydanticModuleRewriter().visit(module)
         module = self._replace_redundant_classes(module)
         return ast.fix_missing_locations(module)
+
+    # ------------------------------------------------------------------
+    # Constraints: helpers and appliers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_alias(ann: ast.AnnAssign) -> str | None:
+        """If assignment uses Field(alias=...), return the alias string, else None."""
+        if is_field_call(call := ann.value) and (
+            alias_kw := next((kw for kw in call.keywords if kw.arg == "alias"), None)
+        ):
+            if isinstance((kw_val := alias_kw.value), ast.Constant) and isinstance(
+                (alias_str := kw_val.value), str
+            ):
+                return alias_str
+        return None
+
+    def _apply_input_constraints(self, module: ast.Module) -> None:
+        """Apply @constraints from the schema to generated input classes in this module."""
+        for class_def in filter(is_class_def, module.body):
+            # Look up the corresponding GraphQL input type by name
+            if is_input_object_type(gql_type := self.schema.type_map[class_def.name]):
+                # Map GraphQL field name -> kwargs
+                type_field_kwargs: dict[str, dict[str, Any]] = {
+                    field_name: self.input_constraints[(class_def.name, field_name)]
+                    for field_name in gql_type.fields.keys()
+                }
+
+                # Apply to matching Python fields using alias or fallback to the Python name
+                for ann in (n for n in class_def.body if isinstance(n, ast.AnnAssign)):
+                    py_name = ann.target.id  # type: ignore[attr-defined]
+                    gql_name = self._extract_alias(ann) or py_name
+                    if kwargs := type_field_kwargs.get(gql_name):
+                        upsert_field_call(ann, kwargs)
+
+    def _apply_result_constraints(
+        self,
+        class_def: ast.ClassDef,
+        operation_definition: ExecutableDefinitionNode,
+        selection_set: SelectionSetNode,
+    ) -> None:
+        """Apply @constraints to fields in a generated result class based on selection set."""
+        parent = self._parent_type_for_selection(operation_definition, selection_set)
+        if parent is None or not is_object_type(parent):
+            return
+
+        # Collect constraints for fields present in this selection set
+        field_constraints: dict[str, dict[str, Any]] = {}
+        for sel in selection_set.selections:
+            if getattr(sel, "kind", None) != "field":
+                continue
+
+            field_def: GraphQLField | None = get_field_def(self.schema, parent, sel)
+            if not field_def or not getattr(field_def, "ast_node", None):
+                continue
+
+            if kwargs := constraint_kwargs(
+                field_def.type, field_def.ast_node.directives
+            ):
+                field_constraints[sel.name.value] = kwargs
+
+        if not field_constraints:
+            return
+
+        # Map alias (GraphQL name) -> AnnAssign for the generated class
+        alias_to_ann: dict[str, ast.AnnAssign] = {}
+        for ann in (n for n in class_def.body if isinstance(n, ast.AnnAssign)):
+            alias = self._extract_alias(ann) or ann.target.id  # type: ignore[attr-defined]
+            alias_to_ann[alias] = ann
+
+        for gql_name, kwargs in field_constraints.items():
+            if (ann := alias_to_ann.get(gql_name)) is not None:
+                upsert_field_call(ann, kwargs)
+
+    def _parent_type_for_selection(
+        self,
+        operation_definition: ExecutableDefinitionNode,
+        selection_set: SelectionSetNode,
+    ) -> GraphQLNamedType | GraphQLOutputType | None:
+        """Derive the parent composite type for a given selection set."""
+        type_info = TypeInfo(self.schema)
+        locator = _ParentTypeLocator(selection_set, type_info)
+        visit(operation_definition, TypeInfoVisitor(type_info, locator))
+        return locator.parent_type
 
     def _get_classname_replacements(self, module: ast.Module) -> dict[str, str]:
         """Find redundant classes in the module and return a class name replacement mapping.
@@ -441,3 +560,21 @@ class RedundantClassReplacer(ast.NodeTransformer):
         with suppress(LookupError):
             node.id = self.replacement_names[unquoted_name]
         return self.generic_visit(node)
+
+
+class _ParentTypeLocator(Visitor):
+    """Visitor that captures the parent composite type for a specific selection set."""
+
+    def __init__(self, target: SelectionSetNode, type_info: TypeInfo) -> None:
+        super().__init__()
+        self._target = target
+        self._type_info = type_info
+        self.parent_type: GraphQLNamedType | GraphQLOutputType | None = None
+
+    # graphql-core calls these with snake_case kinds
+    def enter_selection_set(self, node: SelectionSetNode, *_: Any) -> bool | None:
+        if node is self._target:
+            # get_named_type ensures we unwrap NonNull/List wrappers
+            self.parent_type = get_named_type(self._type_info.get_parent_type())
+            return self.BREAK
+        return None
