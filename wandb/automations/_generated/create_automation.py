@@ -14,4 +14,8 @@ class CreateAutomation(GQLResult):
     result: Optional[CreateAutomationResult]
 
 
+class CreateAutomationResult(CreateAutomationResult):
+    pass
+
+
 CreateAutomation.model_rebuild()
