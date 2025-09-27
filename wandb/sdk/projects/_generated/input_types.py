@@ -5,9 +5,11 @@ from __future__ import annotations
 
 from typing import Optional
 
+from pydantic import Field
+
 from wandb._pydantic import GQLInput
 
 
 class ArtifactTypeInput(GQLInput):
-    name: str
+    name: str = Field(max_length=128, pattern="^[-\\w]+([ ]*[-.\\w]+)*$")
     description: Optional[str] = None

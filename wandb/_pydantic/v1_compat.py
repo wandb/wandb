@@ -91,6 +91,7 @@ class V1MixinMetaclass(PydanticModelMetaclass):
         namespace: dict[str, Any],
         **kwargs: Any,
     ):
+        # ------------------------------------------------------------------------------
         # In the class definition, convert the model config, if any:
         #     class MyModel(BaseModel):  # BEFORE (v2)
         #         model_config = ConfigDict(populate_by_name=True)
@@ -100,6 +101,41 @@ class V1MixinMetaclass(PydanticModelMetaclass):
         #             allow_population_by_field_name = True
         if config_dict := namespace.pop("model_config", None):
             namespace["Config"] = type("Config", (), convert_v2_config(config_dict))
+
+        # ------------------------------------------------------------------------------
+        # Rename v2 Field() args to their v1 equivalents, if possible
+        if TYPE_CHECKING:
+            # Type checks run in a Pydantic v2 environment, so tell mypy to analyze FieldInfo
+            # as if it were from Pydantic v1.
+            # Note that this code should never even run unless Pydantic v1 is detected.
+            from pydantic.v1.fields import FieldInfo
+        else:
+            from pydantic.fields import FieldInfo
+
+        def is_list_like(ann: str) -> bool:
+            # HACK: In older python versions and/or pydantic v1, we have fewer
+            # tools to help us resolve annotations reliably before the type is fully built,
+            # so string comparison will have to do.
+
+            # Handle "Optional[List[T]]", "List[T]", "list[T]"
+            return ann.strip().lower().startswith(("list[", "optional[list["))
+
+        if annotations := namespace.get("__annotations__"):
+            for field_name, obj in namespace.items():
+                if isinstance((field := obj), FieldInfo):
+                    ann = annotations.get(field_name)
+
+                    # For list-like fields, rename:
+                    # - `max_length (v2) -> max_items (v1)`
+                    # - `min_length (v2) -> min_items (v1)`
+                    # In v1: `min/max_items` constrains lists, `min/max_length` constrains strings.
+                    # In v2: `min/max_length` constrains both lists and strings.
+                    if ann and is_list_like(ann):
+                        if field.max_length is not None:
+                            field.max_items, field.max_length = field.max_length, None
+                        if field.min_length is not None:
+                            field.min_items, field.min_length = field.min_length, None
+
         return super().__new__(cls, name, bases, namespace, **kwargs)
 
     @property
