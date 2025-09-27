@@ -12,6 +12,7 @@ import (
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/remote"
 )
 
@@ -55,7 +56,7 @@ func New(
 func (h *HistoryReader) GetHistorySteps(
 	minStep int64,
 	maxStep int64,
-) ([]parquet.KVMapList, error) {
+) ([]iterator.KeyValueList, error) {
 	if len(h.parquetFiles) == 0 {
 		signedUrls, err := h.getRunHistoryFileUrls(h.keys)
 		if err != nil {
@@ -105,23 +106,23 @@ func (h *HistoryReader) GetHistorySteps(
 		}
 	}
 
-	partitions := make([]parquet.RowIterator, len(h.parquetFiles))
+	partitions := make([]iterator.RowIterator, len(h.parquetFiles))
 	for i, parquetFile := range h.parquetFiles {
 		partitions[i] = parquet.NewParquetPartitionReader(
 			context.Background(),
 			parquetFile,
 			h.keys,
-			parquet.WithHistoryPageRange(parquet.HistoryPageParams{
+			iterator.WithHistoryPageRange(iterator.HistoryPageParams{
 				MinStep: minStep,
 				MaxStep: maxStep,
 			}),
 		)
 	}
 
-	multiIterator := parquet.NewMultiIterator(partitions)
+	multiIterator := iterator.NewMultiIterator(partitions)
 	defer multiIterator.Release()
 
-	results := []parquet.KVMapList{}
+	results := []iterator.KeyValueList{}
 	next, err := multiIterator.Next()
 	for ; next && err == nil; next, err = multiIterator.Next() {
 		select {
