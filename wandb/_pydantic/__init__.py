@@ -7,6 +7,10 @@ __all__ = [
     "GQLBase",
     "GQLInput",
     "GQLResult",
+    "GQLConnection",
+    "GQLConnectionWithCount",
+    "GQLEdge",
+    "GQLPageInfo",
     "Typename",
     "GQLId",
     "AliasChoices",
@@ -22,6 +26,7 @@ __all__ = [
 
 from .base import CompatBaseModel, GQLBase, GQLInput, GQLResult, JsonableModel
 from .field_types import GQLId, Typename
+from .pagination import GQLConnection, GQLConnectionWithCount, GQLEdge, GQLPageInfo
 from .utils import IS_PYDANTIC_V2, from_json, gql_typename, pydantic_isinstance, to_json
 from .v1_compat import (
     AliasChoices,
