@@ -448,6 +448,12 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     session.log(f"Successfully copied image {target_image}")
 
 
+@nox.session(name="gql-codegen", tags=["graphql"], python="3.10")
+def gql_codegen(session: nox.Session) -> None:
+    """Generate Python bindings for graphql queries/mutations/fragments."""
+    session.run("tools/graphql_codegen/generate-graphql.sh", external=True)
+
+
 @nox.session(python=False, name="proto-rust", tags=["proto"])
 def proto_rust(session: nox.Session) -> None:
     """Generate Rust bindings for protobufs."""
