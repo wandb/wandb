@@ -145,7 +145,6 @@ fragment ArtifactCollectionConnectionFragment on ArtifactCollectionConnection {
       description
       createdAt
     }
-    cursor
   }
 }
 
@@ -218,7 +217,6 @@ fragment FileConnectionFragment on FileConnection {
     node {
       ...FileFragment
     }
-    cursor
   }
   pageInfo {
     ...PageInfoFragment
@@ -265,7 +263,6 @@ fragment FileConnectionFragment on FileConnection {
     node {
       ...FileFragment
     }
-    cursor
   }
   pageInfo {
     ...PageInfoFragment
@@ -368,7 +365,6 @@ fragment ArtifactTypeConnectionFragment on ArtifactTypeConnection {
     node {
       ...ArtifactTypeFragment
     }
-    cursor
   }
   pageInfo {
     ...PageInfoFragment
@@ -429,8 +425,7 @@ fragment ArtifactFragment on Artifact {
     artifactCollection {
       __typename
       project {
-        entityName
-        name
+        ...ProjectNames
       }
       name
     }
@@ -441,11 +436,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectNames
+    }
   }
   versionIndex
   artifactType {
@@ -477,6 +471,12 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
+}
+
 fragment VersionedArtifactConnectionFragment on VersionedArtifactConnection {
   totalCount
   edges {
@@ -484,7 +484,6 @@ fragment VersionedArtifactConnectionFragment on VersionedArtifactConnection {
       ...ArtifactFragment
     }
     version
-    cursor
   }
   pageInfo {
     ...PageInfoFragment
@@ -509,8 +508,7 @@ fragment ArtifactFragment on Artifact {
     artifactCollection {
       __typename
       project {
-        entityName
-        name
+        ...ProjectNames
       }
       name
     }
@@ -521,11 +519,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectNames
+    }
   }
   versionIndex
   artifactType {
@@ -557,13 +554,18 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
+}
+
 fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
   totalCount
   edges {
     node {
       ...ArtifactFragment
     }
-    cursor
   }
   pageInfo {
     ...PageInfoFragment
@@ -588,8 +590,7 @@ fragment ArtifactFragment on Artifact {
     artifactCollection {
       __typename
       project {
-        entityName
-        name
+        ...ProjectNames
       }
       name
     }
@@ -600,11 +601,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectNames
+    }
   }
   versionIndex
   artifactType {
@@ -636,13 +636,18 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
+}
+
 fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
   totalCount
   edges {
     node {
       ...ArtifactFragment
     }
-    cursor
   }
   pageInfo {
     ...PageInfoFragment
@@ -661,17 +666,22 @@ query FetchLinkedArtifacts($artifactID: ID!) {
           }
           versionIndex
           artifactCollection {
-            project {
-              entityName
-              name
-            }
-            name
             __typename
+            name
+            project {
+              ...ProjectNames
+            }
           }
         }
       }
     }
   }
+}
+
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
 }
 """
 
@@ -702,8 +712,7 @@ fragment ArtifactFragment on Artifact {
     artifactCollection {
       __typename
       project {
-        entityName
-        name
+        ...ProjectNames
       }
       name
     }
@@ -714,11 +723,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectNames
+    }
   }
   versionIndex
   artifactType {
@@ -742,6 +750,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
 }
 """
 
@@ -760,8 +774,7 @@ fragment ArtifactFragment on Artifact {
     artifactCollection {
       __typename
       project {
-        entityName
-        name
+        ...ProjectNames
       }
       name
     }
@@ -772,11 +785,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectNames
+    }
   }
   versionIndex
   artifactType {
@@ -801,6 +813,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   createdAt
   updatedAt
 }
+
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
+}
 """
 
 ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL = """
@@ -818,8 +836,7 @@ fragment ArtifactFragment on Artifact {
     artifactCollection {
       __typename
       project {
-        entityName
-        name
+        ...ProjectNames
       }
       name
     }
@@ -830,11 +847,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectNames
+    }
   }
   versionIndex
   artifactType {
@@ -867,14 +883,18 @@ fragment MembershipWithArtifact on ArtifactCollectionMembership {
     id
     name
     project {
-      id
-      entityName
-      name
+      ...ProjectNames
     }
   }
   artifact {
     ...ArtifactFragment
   }
+}
+
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
 }
 """
 
@@ -956,8 +976,7 @@ fragment ArtifactFragment on Artifact {
     artifactCollection {
       __typename
       project {
-        entityName
-        name
+        ...ProjectNames
       }
       name
     }
@@ -968,11 +987,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectNames
+    }
   }
   versionIndex
   artifactType {
@@ -996,6 +1014,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
 }
 """
 
@@ -1025,8 +1049,7 @@ fragment ArtifactFragment on Artifact {
     artifactCollection {
       __typename
       project {
-        entityName
-        name
+        ...ProjectNames
       }
       name
     }
@@ -1037,11 +1060,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectNames
+    }
   }
   versionIndex
   artifactType {
@@ -1074,14 +1096,18 @@ fragment MembershipWithArtifact on ArtifactCollectionMembership {
     id
     name
     project {
-      id
-      entityName
-      name
+      ...ProjectNames
     }
   }
   artifact {
     ...ArtifactFragment
   }
+}
+
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
 }
 """
 
@@ -1136,11 +1162,10 @@ query RegistryVersions($organization: String!, $registryFilter: JSONString, $col
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectNames
+    }
   }
   versionIndex
   artifactType {
@@ -1172,6 +1197,12 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
+}
+
 fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnection {
   pageInfo {
     ...PageInfoFragment
@@ -1181,10 +1212,7 @@ fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnec
       artifactCollection {
         __typename
         project {
-          name
-          entity {
-            name
-          }
+          ...ProjectNames
         }
         name
       }
@@ -1224,41 +1252,47 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
+}
+
 fragment RegistryCollectionConnectionFragment on ArtifactCollectionConnection {
   totalCount
   pageInfo {
     ...PageInfoFragment
   }
   edges {
-    cursor
     node {
-      __typename
-      id
-      name
-      description
-      createdAt
-      tags {
-        edges {
-          node {
-            name
-          }
-        }
-      }
-      project {
-        name
-        entity {
-          name
-        }
-      }
-      defaultArtifactType {
+      ...RegistryCollectionFragment
+    }
+  }
+}
+
+fragment RegistryCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  tags {
+    edges {
+      node {
         name
       }
-      aliases {
-        edges {
-          node {
-            alias
-          }
-        }
+    }
+  }
+  project {
+    ...ProjectNames
+  }
+  defaultArtifactType {
+    name
+  }
+  aliases {
+    edges {
+      node {
+        alias
       }
     }
   }

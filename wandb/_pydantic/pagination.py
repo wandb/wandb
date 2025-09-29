@@ -21,7 +21,6 @@ class PageInfo(GQLResult):
 
 class Edge(GQLResult, Generic[NodeT]):
     node: NodeT
-    cursor: Optional[str] = None
 
 
 class Connection(GQLResult, Generic[NodeT]):

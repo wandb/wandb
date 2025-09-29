@@ -17,7 +17,6 @@ fragment FileConnectionFragment on FileConnection {
     node {
       ...FileFragment
     }
-    cursor
   }
   pageInfo {
     ...PageInfoFragment
