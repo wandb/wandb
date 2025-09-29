@@ -102,7 +102,7 @@ from ._generated import (
     DeleteArtifactInput,
     FetchArtifactManifest,
     FetchLinkedArtifacts,
-    FileUrlsFragment,
+    FileUrlConnectionFragment,
     LinkArtifact,
     LinkArtifactInput,
     MembershipWithArtifact,
@@ -2143,7 +2143,7 @@ class Artifact:
     )
     def _fetch_file_urls(
         self, cursor: str | None, per_page: int = 5000
-    ) -> FileUrlsFragment:
+    ) -> FileUrlConnectionFragment:
         if self._client is None:
             raise RuntimeError("Client not initialized")
 

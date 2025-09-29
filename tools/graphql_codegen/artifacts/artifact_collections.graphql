@@ -67,7 +67,7 @@ mutation DeleteArtifactCollectionTagAssignments(
   }
 }
 
-fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
+fragment ArtifactCollectionConnectionFragment on ArtifactCollectionConnection {
   pageInfo {
     ...PageInfoFragment
   }
@@ -96,7 +96,7 @@ query ProjectArtifactCollections(
       # - `artifactCollections` for new servers
       # - `artifactSequences` for old servers
       artifactCollections: artifactCollections(after: $cursor) {
-        ...ArtifactCollectionsFragment
+        ...ArtifactCollectionConnectionFragment
       }
     }
   }

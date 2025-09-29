@@ -16,13 +16,13 @@ query RegistryVersions(
         after: $cursor
         first: $perPage
       ) {
-        ...RegistryVersionsPage
+        ...RegistryVersionConnectionFragment
       }
     }
   }
 }
 
-fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
+fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnection {
   pageInfo {
     ...PageInfoFragment
   }
@@ -67,13 +67,13 @@ query RegistryCollections(
         after: $cursor
         first: $perPage
       ) {
-        ...RegistryCollectionsPage
+        ...RegistryCollectionConnectionFragment
       }
     }
   }
 }
 
-fragment RegistryCollectionsPage on ArtifactCollectionConnection {
+fragment RegistryCollectionConnectionFragment on ArtifactCollectionConnection {
   totalCount
   pageInfo {
     ...PageInfoFragment
@@ -123,13 +123,13 @@ query FetchRegistries(
     orgEntity {
       name
       projects(filters: $filters, after: $cursor, first: $perPage) {
-        ...RegistriesPage
+        ...RegistryConnectionFragment
       }
     }
   }
 }
 
-fragment RegistriesPage on ProjectConnection {
+fragment RegistryConnectionFragment on ProjectConnection {
   pageInfo {
     ...PageInfoFragment
   }

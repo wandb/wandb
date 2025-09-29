@@ -126,13 +126,13 @@ query ProjectArtifactCollections($entityName: String!, $projectName: String!, $a
   project(name: $projectName, entityName: $entityName) {
     artifactType(name: $artifactTypeName) {
       artifactCollections: artifactCollections(after: $cursor) {
-        ...ArtifactCollectionsFragment
+        ...ArtifactCollectionConnectionFragment
       }
     }
   }
 }
 
-fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
+fragment ArtifactCollectionConnectionFragment on ArtifactCollectionConnection {
   pageInfo {
     ...PageInfoFragment
   }
@@ -206,32 +206,33 @@ query ArtifactVersionFiles($entityName: String!, $projectName: String!, $artifac
     artifactType(name: $artifactTypeName) {
       artifact(name: $artifactName) {
         files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
-          ...FilesFragment
+          edges {
+            node {
+              ...FileFragment
+            }
+            cursor
+          }
+          pageInfo {
+            ...PageInfoFragment
+          }
         }
       }
     }
   }
 }
 
-fragment FilesFragment on FileConnection {
-  edges {
-    node {
-      id
-      name: displayName
-      url
-      sizeBytes
-      storagePath @include(if: true)
-      mimetype
-      updatedAt
-      digest
-      md5
-      directUrl
-    }
-    cursor
-  }
-  pageInfo {
-    ...PageInfoFragment
-  }
+fragment FileFragment on File {
+  __typename
+  id
+  name: displayName
+  url
+  sizeBytes
+  storagePath @include(if: true)
+  mimetype
+  updatedAt
+  digest
+  md5
+  directUrl
 }
 
 fragment PageInfoFragment on PageInfo {
@@ -248,32 +249,33 @@ query ArtifactCollectionMembershipFiles($entityName: String!, $projectName: Stri
       __typename
       artifactMembership(aliasName: $artifactVersionIndex) {
         files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
-          ...FilesFragment
+          edges {
+            node {
+              ...FileFragment
+            }
+            cursor
+          }
+          pageInfo {
+            ...PageInfoFragment
+          }
         }
       }
     }
   }
 }
 
-fragment FilesFragment on FileConnection {
-  edges {
-    node {
-      id
-      name: displayName
-      url
-      sizeBytes
-      storagePath @include(if: true)
-      mimetype
-      updatedAt
-      digest
-      md5
-      directUrl
-    }
-    cursor
-  }
-  pageInfo {
-    ...PageInfoFragment
-  }
+fragment FileFragment on File {
+  __typename
+  id
+  name: displayName
+  url
+  sizeBytes
+  storagePath @include(if: true)
+  mimetype
+  updatedAt
+  digest
+  md5
+  directUrl
 }
 
 fragment PageInfoFragment on PageInfo {
@@ -290,14 +292,14 @@ query ArtifactCollectionMembershipFileUrls($entityName: String!, $projectName: S
       __typename
       artifactMembership(aliasName: $artifactVersionIndex) {
         files(after: $cursor, first: $perPage) {
-          ...FileUrlsFragment
+          ...FileUrlConnectionFragment
         }
       }
     }
   }
 }
 
-fragment FileUrlsFragment on FileConnection {
+fragment FileUrlConnectionFragment on FileConnection {
   pageInfo {
     ...PageInfoFragment
   }
@@ -320,12 +322,12 @@ ARTIFACT_FILE_URLS_GQL = """
 query ArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
   artifact(id: $id) {
     files(after: $cursor, first: $perPage) {
-      ...FileUrlsFragment
+      ...FileUrlConnectionFragment
     }
   }
 }
 
-fragment FileUrlsFragment on FileConnection {
+fragment FileUrlConnectionFragment on FileConnection {
   pageInfo {
     ...PageInfoFragment
   }
@@ -348,7 +350,15 @@ PROJECT_ARTIFACT_TYPES_GQL = """
 query ProjectArtifactTypes($entityName: String!, $projectName: String!, $cursor: String) {
   project(name: $projectName, entityName: $entityName) {
     artifactTypes(after: $cursor) {
-      ...ArtifactTypesFragment
+      edges {
+        node {
+          ...ArtifactTypeFragment
+        }
+        cursor
+      }
+      pageInfo {
+        ...PageInfoFragment
+      }
     }
   }
 }
@@ -359,18 +369,6 @@ fragment ArtifactTypeFragment on ArtifactType {
   name
   description
   createdAt
-}
-
-fragment ArtifactTypesFragment on ArtifactTypeConnection {
-  edges {
-    node {
-      ...ArtifactTypeFragment
-    }
-    cursor
-  }
-  pageInfo {
-    ...PageInfoFragment
-  }
 }
 
 fragment PageInfoFragment on PageInfo {
@@ -406,7 +404,7 @@ query ProjectArtifacts($project: String!, $entity: String!, $type: String!, $col
         __typename
         name
         artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
-          ...ArtifactsFragment
+          ...VersionedArtifactConnectionFragment
         }
       }
     }
@@ -461,7 +459,13 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   updatedAt
 }
 
-fragment ArtifactsFragment on VersionedArtifactConnection {
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
+fragment VersionedArtifactConnectionFragment on VersionedArtifactConnection {
   totalCount
   edges {
     node {
@@ -473,12 +477,6 @@ fragment ArtifactsFragment on VersionedArtifactConnection {
   pageInfo {
     ...PageInfoFragment
   }
-}
-
-fragment PageInfoFragment on PageInfo {
-  __typename
-  endCursor
-  hasNextPage
 }
 """
 
@@ -1117,7 +1115,7 @@ query RegistryVersions($organization: String!, $registryFilter: JSONString, $col
         after: $cursor
         first: $perPage
       ) {
-        ...RegistryVersionsPage
+        ...RegistryVersionConnectionFragment
       }
     }
   }
@@ -1162,7 +1160,7 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
-fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
+fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnection {
   pageInfo {
     ...PageInfoFragment
   }
@@ -1202,7 +1200,7 @@ query RegistryCollections($organization: String!, $registryFilter: JSONString, $
         after: $cursor
         first: $perPage
       ) {
-        ...RegistryCollectionsPage
+        ...RegistryCollectionConnectionFragment
       }
     }
   }
@@ -1214,7 +1212,7 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
-fragment RegistryCollectionsPage on ArtifactCollectionConnection {
+fragment RegistryCollectionConnectionFragment on ArtifactCollectionConnection {
   totalCount
   pageInfo {
     ...PageInfoFragment
@@ -1261,7 +1259,7 @@ query FetchRegistries($organization: String!, $filters: JSONString, $cursor: Str
     orgEntity {
       name
       projects(filters: $filters, after: $cursor, first: $perPage) {
-        ...RegistriesPage
+        ...RegistryConnectionFragment
       }
     }
   }
@@ -1273,7 +1271,7 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
-fragment RegistriesPage on ProjectConnection {
+fragment RegistryConnectionFragment on ProjectConnection {
   pageInfo {
     ...PageInfoFragment
   }
