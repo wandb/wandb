@@ -9,13 +9,22 @@ from __future__ import annotations
 import json
 import re
 from copy import copy
-from typing import TYPE_CHECKING, Any, Iterable, List, Literal, Mapping, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Iterable,
+    List,
+    Literal,
+    Mapping,
+    Sequence,
+)
 
 from typing_extensions import override
 from wandb_gql import Client, gql
 
 import wandb
-from wandb._pydantic import Connection, ConnectionWithTotal, Edge
+from wandb._pydantic import ConnectionWithTotal, Edge
 from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
@@ -43,11 +52,9 @@ from wandb.sdk.artifacts._generated import (
     ArtifactCollectionConnectionFragment,
     ArtifactCollectionMembershipFiles,
     ArtifactFragment,
-    ArtifactTypeFragment,
     ArtifactVersionFiles,
     CreateArtifactCollectionTagAssignmentsInput,
     DeleteArtifactCollectionTagAssignmentsInput,
-    FileFragment,
     MoveArtifactSequenceInput,
     ProjectArtifactCollection,
     ProjectArtifactCollections,
@@ -58,6 +65,11 @@ from wandb.sdk.artifacts._generated import (
     UpdateArtifactSequenceInput,
 )
 from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
+from wandb.sdk.artifacts._models.pagination import (
+    ArtifactFileConnection,
+    ArtifactTypeConnection,
+    RunArtifactConnection,
+)
 from wandb.sdk.artifacts._validators import (
     SOURCE_ARTIFACT_COLLECTION_TYPE,
     FullArtifactPath,
@@ -75,9 +87,6 @@ if TYPE_CHECKING:
     from . import RetryingClient, Run
 
 
-_ArtifactTypeConnection = Connection[ArtifactTypeFragment]
-
-
 class ArtifactTypes(Paginator["ArtifactType"]):
     """An lazy iterator of `ArtifactType` objects for a specific project.
 
@@ -86,7 +95,7 @@ class ArtifactTypes(Paginator["ArtifactType"]):
 
     QUERY = gql(PROJECT_ARTIFACT_TYPES_GQL)
 
-    last_response: _ArtifactTypeConnection | None
+    last_response: ArtifactTypeConnection | None
 
     def __init__(
         self,
@@ -114,7 +123,7 @@ class ArtifactTypes(Paginator["ArtifactType"]):
         if not ((proj := result.project) and (conn := proj.artifact_types)):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
-        self.last_response = _ArtifactTypeConnection.model_validate(conn)
+        self.last_response = ArtifactTypeConnection.model_validate(conn)
 
     @property
     def _length(self) -> None:
@@ -799,10 +808,6 @@ class Artifacts(SizedPaginator["Artifact"]):
         return [art for art in artifacts if required_tags.issubset(art.tags)]
 
 
-class RunArtifactConnection(ConnectionWithTotal[ArtifactFragment]):
-    pass
-
-
 class RunArtifacts(SizedPaginator["Artifact"]):
     """An iterable collection of artifacts associated with a specific run.
 
@@ -810,6 +815,12 @@ class RunArtifacts(SizedPaginator["Artifact"]):
     """
 
     last_response: RunArtifactConnection | None
+
+    _mode2gqlstr: ClassVar[dict[Literal["logged", "used"], str]] = {
+        "logged": RUN_OUTPUT_ARTIFACTS_GQL,
+        "used": RUN_INPUT_ARTIFACTS_GQL,
+    }
+    """Maps the mode ("logged" or "used") to the corresponding GraphQL query string."""
 
     def __init__(
         self,
@@ -820,18 +831,12 @@ class RunArtifacts(SizedPaginator["Artifact"]):
     ):
         self.run = run
 
-        if mode == "logged":
-            self.run_key = "outputArtifacts"
-            self.QUERY = gql_compat(
-                RUN_OUTPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields(client)
-            )
-        elif mode == "used":
-            self.run_key = "inputArtifacts"
-            self.QUERY = gql_compat(
-                RUN_INPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields(client)
-            )
-        else:
+        try:
+            query_str = self._mode2gqlstr[mode]
+        except LookupError:
             raise ValueError("mode must be logged or used")
+        else:
+            self.QUERY = gql_compat(query_str, omit_fields=omit_artifact_fields(client))
 
         variable_values = {
             "entity": run.entity,
@@ -845,7 +850,7 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         data = self.client.execute(self.QUERY, variable_values=self.variables)
 
         # Extract the inner `*Connection` result for faster/easier access.
-        inner_data = data["project"]["run"][self.run_key]
+        inner_data = data["project"]["run"]["artifacts"]
         self.last_response = RunArtifactConnection.model_validate(inner_data)
 
     @property
@@ -898,16 +903,13 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         ]
 
 
-_ArtifactFileConnection = Connection[FileFragment]
-
-
 class ArtifactFiles(SizedPaginator["public.File"]):
     """A paginator for files in an artifact.
 
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    last_response: _ArtifactFileConnection | None
+    last_response: ArtifactFileConnection | None
 
     def __init__(
         self,
@@ -964,7 +966,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         if conn is None:
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
-        self.last_response = _ArtifactFileConnection.model_validate(conn)
+        self.last_response = ArtifactFileConnection.model_validate(conn)
 
     @property
     def path(self) -> list[str]:
@@ -987,9 +989,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response is None:
-            return True
-        return self.last_response.page_info.has_next_page
+        return (conn := self.last_response) is None or conn.has_next
 
     @property
     def cursor(self) -> str | None:
@@ -997,16 +997,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response is None:
-            return None
-        return self.last_response.edges[-1].cursor
-
-    def update_variables(self) -> None:
-        """Update the variables dictionary with the cursor.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
+        return conn.next_cursor if (conn := self.last_response) else None
 
     def convert_objects(self) -> list[public.File]:
         """Convert the raw response data into a list of File objects.

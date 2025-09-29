@@ -102,7 +102,6 @@ from ._generated import (
     DeleteArtifactInput,
     FetchArtifactManifest,
     FetchLinkedArtifacts,
-    FileUrlConnectionFragment,
     LinkArtifact,
     LinkArtifactInput,
     MembershipWithArtifact,
@@ -111,6 +110,7 @@ from ._generated import (
     UpdateArtifactInput,
 )
 from ._gqlutils import omit_artifact_fields, supports_enable_tracking_var, type_info
+from ._models.pagination import FileWithUrlConnection
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
     ArtifactPath,
@@ -2143,7 +2143,7 @@ class Artifact:
     )
     def _fetch_file_urls(
         self, cursor: str | None, per_page: int = 5000
-    ) -> FileUrlConnectionFragment:
+    ) -> FileWithUrlConnection:
         if self._client is None:
             raise RuntimeError("Client not initialized")
 
@@ -2169,7 +2169,7 @@ class Artifact:
                 and (files := membership.files)
             ):
                 raise ValueError(f"Unable to fetch files for artifact: {self.name!r}")
-            return files
+            return FileWithUrlConnection.model_validate(files)
         else:
             query = gql(ARTIFACT_FILE_URLS_GQL)
             gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
@@ -2178,7 +2178,7 @@ class Artifact:
 
             if not ((artifact := result.artifact) and (files := artifact.files)):
                 raise ValueError(f"Unable to fetch files for artifact: {self.name!r}")
-            return files
+            return FileWithUrlConnection.model_validate(files)
 
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:
@@ -2441,6 +2441,7 @@ class Artifact:
                 "MembershipWithArtifact",
                 "ArtifactFragment",
                 "ArtifactFragmentWithoutAliases",
+                "ProjectInfoFragment",
             }
 
         gql_op = gql_compat(LINK_ARTIFACT_GQL, omit_fragments=omit_fragments)

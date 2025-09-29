@@ -42,17 +42,16 @@ class ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembersh
 class ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFiles(
     GQLResult
 ):
+    page_info: PageInfoFragment = Field(alias="pageInfo")
     edges: List[
         ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges
     ]
-    page_info: PageInfoFragment = Field(alias="pageInfo")
 
 
 class ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges(
     GQLResult
 ):
     node: Optional[FileFragment]
-    cursor: str
 
 
 ArtifactCollectionMembershipFiles.model_rebuild()

@@ -13,7 +13,6 @@ query ProjectArtifactTypes($entityName: String!, $projectName: String!, $cursor:
         node {
           ...ArtifactTypeFragment
         }
-        cursor
       }
       pageInfo {
         ...PageInfoFragment

@@ -31,13 +31,12 @@ class ArtifactVersionFilesProjectArtifactTypeArtifact(GQLResult):
 
 
 class ArtifactVersionFilesProjectArtifactTypeArtifactFiles(GQLResult):
-    edges: List[ArtifactVersionFilesProjectArtifactTypeArtifactFilesEdges]
     page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[ArtifactVersionFilesProjectArtifactTypeArtifactFilesEdges]
 
 
 class ArtifactVersionFilesProjectArtifactTypeArtifactFilesEdges(GQLResult):
     node: Optional[FileFragment]
-    cursor: str
 
 
 ArtifactVersionFiles.model_rebuild()

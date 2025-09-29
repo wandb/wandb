@@ -9,6 +9,8 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
+from .fragments import RunInfoFragment
+
 
 class ArtifactUsedBy(GQLResult):
     artifact: Optional[ArtifactUsedByArtifact]
@@ -23,21 +25,10 @@ class ArtifactUsedByArtifactUsedBy(GQLResult):
 
 
 class ArtifactUsedByArtifactUsedByEdges(GQLResult):
-    node: ArtifactUsedByArtifactUsedByEdgesNode
-
-
-class ArtifactUsedByArtifactUsedByEdgesNode(GQLResult):
-    name: str
-    project: Optional[ArtifactUsedByArtifactUsedByEdgesNodeProject]
-
-
-class ArtifactUsedByArtifactUsedByEdgesNodeProject(GQLResult):
-    name: str
-    entity_name: str = Field(alias="entityName")
+    node: RunInfoFragment
 
 
 ArtifactUsedBy.model_rebuild()
 ArtifactUsedByArtifact.model_rebuild()
 ArtifactUsedByArtifactUsedBy.model_rebuild()
 ArtifactUsedByArtifactUsedByEdges.model_rebuild()
-ArtifactUsedByArtifactUsedByEdgesNode.model_rebuild()

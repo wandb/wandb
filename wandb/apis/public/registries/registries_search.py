@@ -235,7 +235,7 @@ class Collections(Paginator["ArtifactCollection"]):
         return [
             ArtifactCollection(
                 client=self.client,
-                entity=project.entity.name,
+                entity=project.entity_name,
                 project=project.name,
                 name=node.name,
                 type=node.default_artifact_type.name,
@@ -332,7 +332,7 @@ class Versions(Paginator["Artifact"]):
         return [
             Artifact._from_attrs(
                 path=FullArtifactPath(
-                    prefix=project.entity.name,
+                    prefix=project.entity_name,
                     project=project.name,
                     name=f"{collection.name}:v{node.version_index}",
                 ),

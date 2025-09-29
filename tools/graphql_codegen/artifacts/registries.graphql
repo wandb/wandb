@@ -31,10 +31,7 @@ fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnec
       artifactCollection {
         __typename
         project {
-          name
-          entity {
-            name
-          }
+          ...ProjectInfoFragment
         }
         name
       }
@@ -79,35 +76,35 @@ fragment RegistryCollectionConnectionFragment on ArtifactCollectionConnection {
     ...PageInfoFragment
   }
   edges {
-    cursor
     node {
-      __typename
-      id
-      name
-      description
-      createdAt
-      tags {
-        edges {
-          node {
-            name
-          }
-        }
-      }
-      project {
-        name
-        entity {
-          name
-        }
-      }
-      defaultArtifactType {
+      ...RegistryCollectionFragment
+    }
+  }
+}
+
+fragment RegistryCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  tags {
+    edges {
+      node {
         name
       }
-      aliases {
-        edges {
-          node {
-            alias
-          }
-        }
+    }
+  }
+  project {
+    ...ProjectInfoFragment
+  }
+  defaultArtifactType {
+    name
+  }
+  aliases {
+    edges {
+      node {
+        alias
       }
     }
   }
