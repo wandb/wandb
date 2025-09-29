@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import RegistryCollectionsPage
+from .fragments import RegistryCollectionConnectionFragment
 
 
 class RegistryCollections(GQLResult):
@@ -24,7 +24,7 @@ class RegistryCollectionsOrganization(GQLResult):
 
 class RegistryCollectionsOrganizationOrgEntity(GQLResult):
     name: str
-    artifact_collections: Optional[RegistryCollectionsPage] = Field(
+    artifact_collections: Optional[RegistryCollectionConnectionFragment] = Field(
         alias="artifactCollections"
     )
 
