@@ -54,7 +54,11 @@ func newFileInputFromProto(
 func (j *JobBuilder) generateConfigFileSchema(
 	configFile *configFileParameter,
 ) data_types.TypeRepresentation {
-	path := filepath.Join(j.settings.FilesDir.GetValue(), LAUNCH_MANAGED_CONFIGS_DIR, configFile.relpath)
+	path := filepath.Join(
+		j.settings.GetFilesDir(),
+		LAUNCH_MANAGED_CONFIGS_DIR,
+		configFile.relpath,
+	)
 	config, err := deserializeConfig(path)
 	if err != nil {
 		j.logger.Error("jobBuilder: error creating runconfig from config file", "error", err)
