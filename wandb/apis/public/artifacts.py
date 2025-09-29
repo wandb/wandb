@@ -15,6 +15,7 @@ from typing_extensions import override
 from wandb_gql import Client, gql
 
 import wandb
+from wandb._iterutils import always_list
 from wandb._pydantic import Connection, ConnectionWithTotal, Edge
 from wandb._strutils import nameof
 from wandb.apis import public
@@ -162,7 +163,7 @@ class ArtifactTypes(Paginator["ArtifactType"]):
                 entity=self.entity,
                 project=self.project,
                 type_name=node.name,
-                attrs=node.model_dump(exclude_unset=True),
+                attrs=node,
             )
             for node in self.last_response.nodes()
         ]
@@ -182,28 +183,31 @@ class ArtifactType:
     <!-- lazydoc-ignore-init: internal -->
     """
 
+    _attrs: ArtifactTypeFragment
+
     def __init__(
         self,
         client: Client,
         entity: str,
         project: str,
         type_name: str,
-        attrs: Mapping[str, Any] | None = None,
+        attrs: ArtifactTypeFragment | None = None,
     ):
         self.client = client
         self.entity = entity
         self.project = project
         self.type = type_name
-        self._attrs = attrs
-        if self._attrs is None:
-            self.load()
+        if attrs:
+            self._attrs = ArtifactTypeFragment.model_validate(attrs)
+        else:
+            self._attrs = self.load()
 
-    def load(self) -> Mapping[str, Any]:
+    def load(self) -> ArtifactTypeFragment:
         """Load the artifact type attributes from W&B.
 
         <!-- lazydoc-ignore: internal -->
         """
-        data: Mapping[str, Any] | None = self.client.execute(
+        data = self.client.execute(
             gql(PROJECT_ARTIFACT_TYPE_GQL),
             variable_values={
                 "entityName": self.entity,
@@ -213,20 +217,19 @@ class ArtifactType:
         )
         result = ProjectArtifactType.model_validate(data)
         if not ((proj := result.project) and (artifact_type := proj.artifact_type)):
-            raise ValueError(f"Could not find artifact type {self.type}")
+            raise ValueError(f"Could not find artifact type {self.type!r}")
 
-        self._attrs = artifact_type.model_dump(exclude_unset=True)
-        return self._attrs
+        return ArtifactTypeFragment.model_validate(artifact_type)
 
     @property
     def id(self) -> str:
         """The unique identifier of the artifact type."""
-        return self._attrs["id"]
+        return self._attrs.id
 
     @property
     def name(self) -> str:
         """The name of the artifact type."""
-        return self._attrs["name"]
+        return self._attrs.name
 
     @normalize_exceptions
     def collections(self, per_page: int = 50) -> ArtifactCollections:
@@ -708,7 +711,7 @@ class Artifacts(SizedPaginator["Artifact"]):
         self.type = type
         self.project = project
         self.filters = {"state": "COMMITTED"} if filters is None else filters
-        self.tags = [tags] if isinstance(tags, str) else tags
+        self.tags = always_list(tags or [])
         self.order = order
         variables = {
             "project": self.project,
