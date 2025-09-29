@@ -3,6 +3,7 @@ package stream_test
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
@@ -109,20 +110,39 @@ func TestDiscardsAndRereadsWork(t *testing.T) {
 }
 
 func TestStopsDiscardingOnStoreError(t *testing.T) {
-	feedInputCountOutput := func(x fcTestFixtures, nInput int) int {
-		go func() {
-			for range nInput {
-				x.Input <- &runworktest.NoopWork{}
+	// Feeds values into Input until Output emits a given number of times.
+	//
+	// Closes Input and consumes Output.
+	feedInputUntilOutputCount := func(
+		t *testing.T,
+		x fcTestFixtures,
+		nOutputs int,
+	) {
+		timeout := time.NewTimer(5 * time.Second)
+		for nOutputs > 0 {
+			select {
+			case <-timeout.C:
+				t.Fatal("timed out after 5 seconds")
+			default:
 			}
-			close(x.Input)
-		}()
 
-		outputCount := 0
-		for range x.Output {
-			outputCount += 1
+			select {
+			case <-x.Output:
+				nOutputs--
+				continue
+			default:
+			}
+
+			select {
+			case x.Input <- &runworktest.NoopWork{}:
+			case <-x.Output:
+				nOutputs--
+			}
 		}
 
-		return outputCount
+		close(x.Input)
+		for range x.Output {
+		}
 	}
 
 	t.Run("broken Read", func(t *testing.T) {
@@ -136,10 +156,9 @@ func TestStopsDiscardingOnStoreError(t *testing.T) {
 			Parse(gomock.Any()).
 			Return(&runworktest.NoopWork{})
 
-		outputCount := feedInputCountOutput(x, 1000)
+		feedInputUntilOutputCount(t, x, 2)
 
 		assert.Contains(t, x.Logs.String(), "failed reading")
-		assert.Greater(t, outputCount, 1)
 	})
 
 	t.Run("broken SeekRecord", func(t *testing.T) {
@@ -150,10 +169,9 @@ func TestStopsDiscardingOnStoreError(t *testing.T) {
 			Limit:        1000,
 		})
 
-		outputCount := feedInputCountOutput(x, 1000)
+		feedInputUntilOutputCount(t, x, 1)
 
 		assert.Contains(t, x.Logs.String(), "failed to seek")
-		assert.Greater(t, outputCount, 0)
 	})
 
 	t.Run("invalid record number", func(t *testing.T) {
@@ -164,10 +182,9 @@ func TestStopsDiscardingOnStoreError(t *testing.T) {
 			Limit:        1000,
 		})
 
-		outputCount := feedInputCountOutput(x, 1000)
+		feedInputUntilOutputCount(t, x, 1)
 
 		assert.Contains(t, x.Logs.String(),
 			"record 0 in chunk had number 123, not 1")
-		assert.Greater(t, outputCount, 0)
 	})
 }
