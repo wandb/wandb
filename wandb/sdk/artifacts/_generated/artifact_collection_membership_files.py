@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult, Typename
 
-from .fragments import FilesFragment
+from .fragments import FileConnectionFragment
 
 
 class ArtifactCollectionMembershipFiles(GQLResult):
@@ -34,7 +34,7 @@ class ArtifactCollectionMembershipFilesProjectArtifactCollection(GQLResult):
 class ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembership(
     GQLResult
 ):
-    files: Optional[FilesFragment]
+    files: Optional[FileConnectionFragment]
 
 
 ArtifactCollectionMembershipFiles.model_rebuild()

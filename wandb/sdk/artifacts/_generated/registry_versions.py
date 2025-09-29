@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import RegistryVersionsPage
+from .fragments import RegistryVersionConnectionFragment
 
 
 class RegistryVersions(GQLResult):
@@ -24,7 +24,7 @@ class RegistryVersionsOrganization(GQLResult):
 
 class RegistryVersionsOrganizationOrgEntity(GQLResult):
     name: str
-    artifact_memberships: Optional[RegistryVersionsPage] = Field(
+    artifact_memberships: Optional[RegistryVersionConnectionFragment] = Field(
         alias="artifactMemberships"
     )
 
