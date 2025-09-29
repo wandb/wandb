@@ -24,6 +24,7 @@ from typing_extensions import override
 from wandb_gql import Client, gql
 
 import wandb
+from wandb._iterutils import always_list
 from wandb._pydantic import ConnectionWithTotal, Edge
 from wandb._strutils import nameof
 from wandb.apis import public
@@ -52,6 +53,7 @@ from wandb.sdk.artifacts._generated import (
     ArtifactCollectionConnectionFragment,
     ArtifactCollectionMembershipFiles,
     ArtifactFragment,
+    ArtifactTypeFragment,
     ArtifactVersionFiles,
     CreateArtifactCollectionTagAssignmentsInput,
     DeleteArtifactCollectionTagAssignmentsInput,
@@ -171,7 +173,7 @@ class ArtifactTypes(Paginator["ArtifactType"]):
                 entity=self.entity,
                 project=self.project,
                 type_name=node.name,
-                attrs=node.model_dump(exclude_unset=True),
+                attrs=node,
             )
             for node in self.last_response.nodes()
         ]
@@ -191,51 +193,50 @@ class ArtifactType:
     <!-- lazydoc-ignore-init: internal -->
     """
 
+    _attrs: ArtifactTypeFragment
+
     def __init__(
         self,
         client: Client,
         entity: str,
         project: str,
         type_name: str,
-        attrs: Mapping[str, Any] | None = None,
+        attrs: ArtifactTypeFragment | None = None,
     ):
         self.client = client
         self.entity = entity
         self.project = project
         self.type = type_name
-        self._attrs = attrs
-        if self._attrs is None:
-            self.load()
 
-    def load(self) -> Mapping[str, Any]:
+        # FIXME: Make this lazy, so we don't (re-)fetch the attributes until they are needed
+        self._attrs = ArtifactTypeFragment.model_validate(attrs or self.load())
+
+    def load(self) -> ArtifactTypeFragment:
         """Load the artifact type attributes from W&B.
 
         <!-- lazydoc-ignore: internal -->
         """
-        data: Mapping[str, Any] | None = self.client.execute(
-            gql(PROJECT_ARTIFACT_TYPE_GQL),
-            variable_values={
-                "entityName": self.entity,
-                "projectName": self.project,
-                "artifactTypeName": self.type,
-            },
-        )
+        gql_op = gql(PROJECT_ARTIFACT_TYPE_GQL)
+        gql_vars = {
+            "entityName": self.entity,
+            "projectName": self.project,
+            "artifactTypeName": self.type,
+        }
+        data = self.client.execute(gql_op, variable_values=gql_vars)
         result = ProjectArtifactType.model_validate(data)
         if not ((proj := result.project) and (artifact_type := proj.artifact_type)):
-            raise ValueError(f"Could not find artifact type {self.type}")
-
-        self._attrs = artifact_type.model_dump(exclude_unset=True)
-        return self._attrs
+            raise ValueError(f"Could not find artifact type {self.type!r}")
+        return ArtifactTypeFragment.model_validate(artifact_type)
 
     @property
     def id(self) -> str:
         """The unique identifier of the artifact type."""
-        return self._attrs["id"]
+        return self._attrs.id
 
     @property
     def name(self) -> str:
         """The name of the artifact type."""
-        return self._attrs["name"]
+        return self._attrs.name
 
     @normalize_exceptions
     def collections(self, per_page: int = 50) -> ArtifactCollections:
@@ -245,7 +246,12 @@ class ArtifactType:
             per_page (int): The number of artifact collections to fetch per page.
                 Default is 50.
         """
-        return ArtifactCollections(self.client, self.entity, self.project, self.type)
+        return ArtifactCollections(
+            self.client,
+            entity=self.entity,
+            project=self.project,
+            type_name=self.type,
+        )
 
     def collection(self, name: str) -> ArtifactCollection:
         """Get a specific artifact collection by name.
@@ -254,7 +260,11 @@ class ArtifactType:
             name (str): The name of the artifact collection to retrieve.
         """
         return ArtifactCollection(
-            self.client, self.entity, self.project, name, self.type
+            self.client,
+            entity=self.entity,
+            project=self.project,
+            name=name,
+            type=self.type,
         )
 
     def __repr__(self) -> str:
@@ -717,7 +727,7 @@ class Artifacts(SizedPaginator["Artifact"]):
         self.type = type
         self.project = project
         self.filters = {"state": "COMMITTED"} if filters is None else filters
-        self.tags = [tags] if isinstance(tags, str) else tags
+        self.tags = always_list(tags or [])
         self.order = order
         variables = {
             "project": self.project,
