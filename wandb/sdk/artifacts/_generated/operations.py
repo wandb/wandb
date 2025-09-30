@@ -477,7 +477,7 @@ fragment ArtifactTypeFragment on ArtifactType {
 """
 
 PROJECT_ARTIFACTS_GQL = """
-query ProjectArtifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
+query ProjectArtifacts($project: String!, $entity: String!, $type: String!, $collection: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString, $includeAliases: Boolean = true) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $type) {
       artifactCollection: artifactCollection(name: $collection) {
@@ -497,16 +497,7 @@ fragment ArtifactAliasFragment on ArtifactAlias {
 }
 
 fragment ArtifactFragment on Artifact {
-  ...ArtifactFragmentWithoutAliases
-  aliases @include(if: true) {
-    artifactCollection {
-      ...CollectionInfoFragment
-    }
-    ...ArtifactAliasFragment
-  }
-}
-
-fragment ArtifactFragmentWithoutAliases on Artifact {
+  __typename
   id
   artifactSequence {
     ...SourceCollectionInfoFragment
@@ -530,6 +521,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+  aliases @include(if: $includeAliases) {
+    artifactCollection {
+      ...CollectionInfoFragment
+    }
+    ...ArtifactAliasFragment
+  }
 }
 
 fragment CollectionInfoFragment on ArtifactCollection {
@@ -584,7 +581,7 @@ fragment VersionedArtifactConnectionFragment on VersionedArtifactConnection {
 """
 
 RUN_OUTPUT_ARTIFACTS_GQL = """
-query RunOutputArtifacts($entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int) {
+query RunOutputArtifacts($entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int, $includeAliases: Boolean = true) {
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
       artifacts: outputArtifacts(after: $cursor, first: $perPage) {
@@ -601,16 +598,7 @@ fragment ArtifactAliasFragment on ArtifactAlias {
 }
 
 fragment ArtifactFragment on Artifact {
-  ...ArtifactFragmentWithoutAliases
-  aliases @include(if: true) {
-    artifactCollection {
-      ...CollectionInfoFragment
-    }
-    ...ArtifactAliasFragment
-  }
-}
-
-fragment ArtifactFragmentWithoutAliases on Artifact {
+  __typename
   id
   artifactSequence {
     ...SourceCollectionInfoFragment
@@ -634,6 +622,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+  aliases @include(if: $includeAliases) {
+    artifactCollection {
+      ...CollectionInfoFragment
+    }
+    ...ArtifactAliasFragment
+  }
 }
 
 fragment CollectionInfoFragment on ArtifactCollection {
@@ -687,7 +681,7 @@ fragment TagFragment on Tag {
 """
 
 RUN_INPUT_ARTIFACTS_GQL = """
-query RunInputArtifacts($entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int) {
+query RunInputArtifacts($entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int, $includeAliases: Boolean = true) {
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
       artifacts: inputArtifacts(after: $cursor, first: $perPage) {
@@ -704,16 +698,7 @@ fragment ArtifactAliasFragment on ArtifactAlias {
 }
 
 fragment ArtifactFragment on Artifact {
-  ...ArtifactFragmentWithoutAliases
-  aliases @include(if: true) {
-    artifactCollection {
-      ...CollectionInfoFragment
-    }
-    ...ArtifactAliasFragment
-  }
-}
-
-fragment ArtifactFragmentWithoutAliases on Artifact {
+  __typename
   id
   artifactSequence {
     ...SourceCollectionInfoFragment
@@ -737,6 +722,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+  aliases @include(if: $includeAliases) {
+    artifactCollection {
+      ...CollectionInfoFragment
+    }
+    ...ArtifactAliasFragment
+  }
 }
 
 fragment CollectionInfoFragment on ArtifactCollection {
@@ -849,7 +840,7 @@ fragment DeferredManifestFragment on ArtifactManifest {
 """
 
 ARTIFACT_BY_ID_GQL = """
-query ArtifactByID($id: ID!) {
+query ArtifactByID($id: ID!, $includeAliases: Boolean = true) {
   artifact(id: $id) {
     ...ArtifactFragment
   }
@@ -862,16 +853,7 @@ fragment ArtifactAliasFragment on ArtifactAlias {
 }
 
 fragment ArtifactFragment on Artifact {
-  ...ArtifactFragmentWithoutAliases
-  aliases @include(if: true) {
-    artifactCollection {
-      ...CollectionInfoFragment
-    }
-    ...ArtifactAliasFragment
-  }
-}
-
-fragment ArtifactFragmentWithoutAliases on Artifact {
+  __typename
   id
   artifactSequence {
     ...SourceCollectionInfoFragment
@@ -895,6 +877,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+  aliases @include(if: $includeAliases) {
+    artifactCollection {
+      ...CollectionInfoFragment
+    }
+    ...ArtifactAliasFragment
+  }
 }
 
 fragment CollectionInfoFragment on ArtifactCollection {
@@ -930,7 +918,7 @@ fragment TagFragment on Tag {
 """
 
 ARTIFACT_BY_NAME_GQL = """
-query ArtifactByName($entity: String!, $project: String!, $name: String!, $enableTracking: Boolean) {
+query ArtifactByName($entity: String!, $project: String!, $name: String!, $enableTracking: Boolean, $includeAliases: Boolean = true) {
   project(name: $project, entityName: $entity) {
     artifact(name: $name, enableTracking: $enableTracking) {
       ...ArtifactFragment
@@ -945,16 +933,7 @@ fragment ArtifactAliasFragment on ArtifactAlias {
 }
 
 fragment ArtifactFragment on Artifact {
-  ...ArtifactFragmentWithoutAliases
-  aliases @include(if: true) {
-    artifactCollection {
-      ...CollectionInfoFragment
-    }
-    ...ArtifactAliasFragment
-  }
-}
-
-fragment ArtifactFragmentWithoutAliases on Artifact {
+  __typename
   id
   artifactSequence {
     ...SourceCollectionInfoFragment
@@ -978,6 +957,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+  aliases @include(if: $includeAliases) {
+    artifactCollection {
+      ...CollectionInfoFragment
+    }
+    ...ArtifactAliasFragment
+  }
 }
 
 fragment CollectionInfoFragment on ArtifactCollection {
@@ -1013,7 +998,7 @@ fragment TagFragment on Tag {
 """
 
 ARTIFACT_MEMBERSHIP_BY_NAME_GQL = """
-query ArtifactMembershipByName($entity: String!, $project: String!, $name: String!) {
+query ArtifactMembershipByName($entity: String!, $project: String!, $name: String!, $includeAliases: Boolean = true) {
   project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {
       ...ArtifactMembershipFragment
@@ -1028,16 +1013,7 @@ fragment ArtifactAliasFragment on ArtifactAlias {
 }
 
 fragment ArtifactFragment on Artifact {
-  ...ArtifactFragmentWithoutAliases
-  aliases @include(if: true) {
-    artifactCollection {
-      ...CollectionInfoFragment
-    }
-    ...ArtifactAliasFragment
-  }
-}
-
-fragment ArtifactFragmentWithoutAliases on Artifact {
+  __typename
   id
   artifactSequence {
     ...SourceCollectionInfoFragment
@@ -1061,6 +1037,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+  aliases @include(if: $includeAliases) {
+    artifactCollection {
+      ...CollectionInfoFragment
+    }
+    ...ArtifactAliasFragment
+  }
 }
 
 fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
@@ -1198,7 +1180,7 @@ mutation DeleteAliases($input: DeleteAliasesInput!) {
 """
 
 UPDATE_ARTIFACT_GQL = """
-mutation UpdateArtifact($input: UpdateArtifactInput!) {
+mutation UpdateArtifact($input: UpdateArtifactInput!, $includeAliases: Boolean = true) {
   updateArtifact(input: $input) {
     artifact {
       ...ArtifactFragment
@@ -1213,16 +1195,7 @@ fragment ArtifactAliasFragment on ArtifactAlias {
 }
 
 fragment ArtifactFragment on Artifact {
-  ...ArtifactFragmentWithoutAliases
-  aliases @include(if: true) {
-    artifactCollection {
-      ...CollectionInfoFragment
-    }
-    ...ArtifactAliasFragment
-  }
-}
-
-fragment ArtifactFragmentWithoutAliases on Artifact {
+  __typename
   id
   artifactSequence {
     ...SourceCollectionInfoFragment
@@ -1246,6 +1219,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+  aliases @include(if: $includeAliases) {
+    artifactCollection {
+      ...CollectionInfoFragment
+    }
+    ...ArtifactAliasFragment
+  }
 }
 
 fragment CollectionInfoFragment on ArtifactCollection {
@@ -1291,7 +1270,7 @@ mutation DeleteArtifact($input: DeleteArtifactInput!) {
 """
 
 LINK_ARTIFACT_GQL = """
-mutation LinkArtifact($input: LinkArtifactInput!) {
+mutation LinkArtifact($input: LinkArtifactInput!, $includeAliases: Boolean = true) {
   linkArtifact(input: $input) {
     versionIndex
     artifactMembership @include(if: true) {
@@ -1307,16 +1286,7 @@ fragment ArtifactAliasFragment on ArtifactAlias {
 }
 
 fragment ArtifactFragment on Artifact {
-  ...ArtifactFragmentWithoutAliases
-  aliases @include(if: true) {
-    artifactCollection {
-      ...CollectionInfoFragment
-    }
-    ...ArtifactAliasFragment
-  }
-}
-
-fragment ArtifactFragmentWithoutAliases on Artifact {
+  __typename
   id
   artifactSequence {
     ...SourceCollectionInfoFragment
@@ -1340,6 +1310,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+  aliases @include(if: $includeAliases) {
+    artifactCollection {
+      ...CollectionInfoFragment
+    }
+    ...ArtifactAliasFragment
+  }
 }
 
 fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
@@ -1441,7 +1417,7 @@ fragment OrgInfoFragment on Organization {
 """
 
 REGISTRY_VERSIONS_GQL = """
-query RegistryVersions($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString, $cursor: String, $perPage: Int) {
+query RegistryVersions($organization: String!, $registryFilter: JSONString, $collectionFilter: JSONString, $artifactFilter: JSONString, $cursor: String, $perPage: Int, $includeAliases: Boolean = false) {
   organization(name: $organization) {
     orgEntity {
       name
@@ -1465,16 +1441,7 @@ fragment ArtifactAliasFragment on ArtifactAlias {
 }
 
 fragment ArtifactFragment on Artifact {
-  ...ArtifactFragmentWithoutAliases
-  aliases @include(if: true) {
-    artifactCollection {
-      ...CollectionInfoFragment
-    }
-    ...ArtifactAliasFragment
-  }
-}
-
-fragment ArtifactFragmentWithoutAliases on Artifact {
+  __typename
   id
   artifactSequence {
     ...SourceCollectionInfoFragment
@@ -1498,6 +1465,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+  aliases @include(if: $includeAliases) {
+    artifactCollection {
+      ...CollectionInfoFragment
+    }
+    ...ArtifactAliasFragment
+  }
 }
 
 fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
