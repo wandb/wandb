@@ -57,7 +57,7 @@ type Model struct {
 	wcChan chan tea.Msg
 
 	// UI components
-	*metrics                   // Main metrics charts grid.
+	metrics      *metrics      // Main metrics charts grid.
 	leftSidebar  *LeftSidebar  // Run Overview.
 	rightSidebar *RightSidebar // System metrics.
 	help         *HelpModel
@@ -99,7 +99,7 @@ func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogg
 	m := &Model{
 		config:            cfg,
 		help:              NewHelp(),
-		metrics:           newMetrics(cfg),
+		metrics:           NewMetrics(cfg, logger),
 		fileComplete:      false,
 		isLoading:         true,
 		runPath:           runPath,
@@ -177,7 +177,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.leftSidebar.UpdateDimensions(t.Width, m.rightSidebar.IsVisible())
 		m.rightSidebar.UpdateDimensions(t.Width, m.leftSidebar.IsVisible())
 
-		m.updateChartSizes()
+		layout := m.computeViewports()
+		m.metrics.UpdateDimensions(
+			layout.mainContentAreaWidth,
+			layout.height,
+		)
 		return m, tea.Batch(cmds...)
 
 	default:
@@ -317,7 +321,7 @@ func (m *Model) View() string {
 	dims := CalculateChartDimensions(availableWidth, availableHeight)
 
 	// Render main content
-	gridView := m.renderGrid(dims)
+	gridView := m.metrics.renderGrid(dims)
 
 	// Build the main view based on sidebar visibility
 	var mainView string
@@ -518,14 +522,14 @@ func (m *Model) renderStatusBar() string {
 		}
 		statusText = fmt.Sprintf(" Overview filter: %s_ [%s] (@e/@c/@s for sections • Enter to apply)",
 			m.leftSidebar.GetFilterQuery(), filterInfo)
-	case m.filterMode:
+	case m.metrics.filterMode:
 		// Show chart filter input with cursor
-		matchCount := m.getFilteredChartCount()
-		m.chartMu.RLock()
-		totalCount := len(m.allCharts)
-		m.chartMu.RUnlock()
+		matchCount := m.metrics.getFilteredChartCount()
+		m.metrics.chartMu.RLock()
+		totalCount := len(m.metrics.allCharts)
+		m.metrics.chartMu.RUnlock()
 		statusText = fmt.Sprintf(" Filter: %s_ [%d/%d matches] (Enter to apply)",
-			m.filterInput, matchCount, totalCount)
+			m.metrics.filterInput, matchCount, totalCount)
 	case m.waitingForConfigKey:
 		// Show config hint
 		switch m.configKeyType {
@@ -539,10 +543,10 @@ func (m *Model) renderStatusBar() string {
 			statusText = " Press 1-9 to set system rows (ESC to cancel)"
 		}
 	case m.isLoading:
-		// Show loading progress
-		m.chartMu.RLock()
-		chartCount := len(m.allCharts)
-		m.chartMu.RUnlock()
+		// Show loading progress.
+		m.metrics.chartMu.RLock()
+		chartCount := len(m.metrics.allCharts)
+		m.metrics.chartMu.RUnlock()
 
 		if m.recordsLoaded > 0 {
 			statusText = fmt.Sprintf(" Loading data... [%d records, %d metrics]",
@@ -551,17 +555,17 @@ func (m *Model) renderStatusBar() string {
 			statusText = " Loading data..."
 		}
 	default:
-		// Add filter info if active (separated with a bullet point)
-		if m.activeFilter != "" {
-			m.chartMu.RLock()
-			filteredCount := len(m.filteredCharts)
-			totalCount := len(m.allCharts)
-			m.chartMu.RUnlock()
+		// Add filter info if active (separated with a bullet point).
+		if m.metrics.activeFilter != "" {
+			m.metrics.chartMu.RLock()
+			filteredCount := len(m.metrics.filteredCharts)
+			totalCount := len(m.metrics.allCharts)
+			m.metrics.chartMu.RUnlock()
 			statusText = fmt.Sprintf(" Filter: \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
-				m.activeFilter, filteredCount, totalCount)
+				m.metrics.activeFilter, filteredCount, totalCount)
 		}
 
-		// Add overview filter info if active
+		// Add overview filter info if active.
 		if m.leftSidebar.IsFiltering() {
 			filterInfo := m.leftSidebar.GetFilterInfo()
 			if statusText != "" {
@@ -571,7 +575,7 @@ func (m *Model) renderStatusBar() string {
 				m.leftSidebar.GetFilterQuery(), filterInfo)
 		}
 
-		// Add selected overview item if sidebar is visible (no truncation)
+		// Add selected overview item if sidebar is visible (no truncation).
 		if m.leftSidebar.IsVisible() {
 			key, value := m.leftSidebar.GetSelectedItem()
 			if key != "" {
@@ -582,12 +586,12 @@ func (m *Model) renderStatusBar() string {
 			}
 		}
 
-		// Add focused metric name if a chart is focused
-		if m.focusedTitle != "" {
+		// Add focused metric name if a chart is focused.
+		if m.metrics.focusedTitle != "" {
 			if statusText != "" {
 				statusText += " •"
 			}
-			statusText += fmt.Sprintf(" %s", m.focusedTitle)
+			statusText += fmt.Sprintf(" %s", m.metrics.focusedTitle)
 		}
 
 		// If nothing else to show, add a space to prevent empty status
@@ -596,9 +600,9 @@ func (m *Model) renderStatusBar() string {
 		}
 	}
 
-	// Right side content
+	// Right side content.
 	helpText := ""
-	if !m.filterMode && !m.leftSidebar.filterMode {
+	if !m.metrics.filterMode && !m.leftSidebar.filterMode {
 		helpText = "h: help "
 	}
 
