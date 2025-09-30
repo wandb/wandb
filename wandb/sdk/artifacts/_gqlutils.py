@@ -45,14 +45,3 @@ def allowed_fields(client: Client, typename: str) -> set[str]:
 def omit_artifact_fields(client: Client) -> set[str]:
     """Return names of Artifact fields to remove from GraphQL requests (for server compatibility)."""
     return set(OMITTABLE_ARTIFACT_FIELDS) - allowed_fields(client, "Artifact")
-
-
-def omit_artifact_fragments(client: Client) -> set[str]:
-    omitted_fields = omit_artifact_fields(client)
-
-    omitted_fragments = set()
-    if "tags" in omitted_fields:
-        omitted_fragments.add("TagFragment")
-    if "aliases" in omitted_fields:
-        omitted_fragments.add("ArtifactAliasFragment")
-    return omitted_fragments

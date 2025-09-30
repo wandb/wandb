@@ -110,12 +110,7 @@ from ._generated import (
     UpdateArtifact,
     UpdateArtifactInput,
 )
-from ._gqlutils import (
-    omit_artifact_fields,
-    omit_artifact_fragments,
-    supports_enable_tracking_var,
-    type_info,
-)
+from ._gqlutils import omit_artifact_fields, supports_enable_tracking_var, type_info
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
     ArtifactPath,
@@ -298,11 +293,7 @@ class Artifact:
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
-        query = gql_compat(
-            ARTIFACT_BY_ID_GQL,
-            omit_fields=omit_artifact_fields(client),
-            omit_fragments=omit_artifact_fragments(client),
-        )
+        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client))
 
         data = client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
@@ -336,7 +327,6 @@ class Artifact:
         query = gql_compat(
             ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
             omit_fields=omit_artifact_fields(client),
-            omit_fragments=omit_artifact_fragments(client),
         )
         gql_vars = {
             "entityName": path.prefix,
@@ -381,7 +371,6 @@ class Artifact:
             ARTIFACT_BY_NAME_GQL,
             omit_variables=omit_vars,
             omit_fields=omit_artifact_fields(client),
-            omit_fragments=omit_artifact_fragments(client),
         )
         data = client.execute(query, variable_values=gql_vars)
         result = ArtifactByName.model_validate(data)
@@ -1238,9 +1227,7 @@ class Artifact:
         assert self._client is not None
 
         query = gql_compat(
-            ARTIFACT_BY_ID_GQL,
-            omit_fields=omit_artifact_fields(self._client),
-            omit_fragments=omit_artifact_fragments(self._client),
+            ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(self._client)
         )
         data = self._client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
@@ -1319,7 +1306,6 @@ class Artifact:
             ]
 
         omit_fields = omit_artifact_fields(self._client)
-        omit_fragments = omit_artifact_fragments(self._client)
         omit_variables = set()
 
         if {"ttlIsInherited", "ttlDurationSeconds"} & omit_fields:
@@ -1346,7 +1332,6 @@ class Artifact:
             UPDATE_ARTIFACT_GQL,
             omit_variables=omit_variables,
             omit_fields=omit_fields,
-            omit_fragments=omit_fragments,
         )
         gql_input = UpdateArtifactInput(
             artifact_id=self.id,
@@ -2446,9 +2431,7 @@ class Artifact:
         )
         gql_vars = {"input": gql_input.model_dump()}
 
-        # Determine artifact-related fragments to omit, regardless of whether
-        # artifactMembership is directly returned in the response
-        omit_fragments = omit_artifact_fragments(self._client)
+        omit_fragments = set()
 
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
