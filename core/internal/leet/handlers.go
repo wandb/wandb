@@ -124,12 +124,10 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 		chart, exists := m.metrics.chartsByName[metricName]
 		m.logger.Debug(fmt.Sprintf("it exists: %v", exists))
 		if !exists {
-			// Compute content viewport once
 			layout := m.computeViewports()
 			dims := CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
 
-			// Create chart without color - it will be assigned during sort
-			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, 0, metricName)
+			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, metricName)
 
 			m.metrics.allCharts = append(m.metrics.allCharts, chart)
 			m.metrics.chartsByName[metricName] = chart
@@ -249,20 +247,12 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 			m.logger.Debug(fmt.Sprintf("handleMouseMsg: GetFocusedChartTitle='%s'", m.rightSidebar.GetFocusedChartTitle()))
 
 			if focusSet {
-				// System chart was focused - only clear main chart focus
+				// System chart was focused, clear main chart focus.
 				m.metrics.clearFocus()
-
-				// Set focus state for system chart
-				title := m.rightSidebar.GetFocusedChartTitle()
-				m.focusState = &FocusState{
-					Type:  FocusSystemChart,
-					Title: title,
-				}
 				m.logger.Debug(fmt.Sprintf("handleMouseMsg: FOCUSED - set focusedTitle='%s'", m.focusState.Title))
 			} else {
 				// System chart was unfocused
 				m.logger.Debug("handleMouseMsg: UNFOCUSED - clearing focus state")
-				m.focusState = &FocusState{Type: FocusNone}
 			}
 
 			m.logger.Debug(fmt.Sprintf("handleMouseMsg: AFTER - focusState.Type=%v, focusedTitle='%s'", m.metrics.focusState.Type, m.focusState.Title))
@@ -549,7 +539,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		m.shouldRestart = true
 		m.logger.Debug("model: restart requested")
 		if m.reader != nil {
-			_ = m.reader.Close()
+			m.reader.Close()
 		}
 		// Stop heartbeat and watcher before closing the channel.
 		m.stopHeartbeat()
