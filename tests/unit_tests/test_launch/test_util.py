@@ -442,6 +442,127 @@ def test_make_k8s_label_safe():
                 },
             },
         ),
+        (
+            # actual network policy we use on the public queue
+            {
+                "kind": "NetworkPolicy",
+                "spec": {
+                    "egress": [
+                        {
+                            "to": [
+                                {
+                                    "namespaceSelector": {
+                                        "matchLabels": {
+                                            "kubernetes.io/metadata.name": "kube-system"
+                                        }
+                                    }
+                                }
+                            ],
+                            "ports": [
+                                {"port": 53, "protocol": "UDP"},
+                                {"port": 53, "protocol": "TCP"},
+                            ],
+                        },
+                        {
+                            "to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
+                            "ports": [
+                                {"port": 80, "protocol": "TCP"},
+                                {"port": 443, "protocol": "TCP"},
+                            ],
+                        },
+                    ],
+                    "ingress": [
+                        {
+                            "from": [
+                                {
+                                    "podSelector": {
+                                        "matchLabels": {
+                                            "job-name": "evals-entity_with_underscore-project_with_underscore-abc"
+                                        }
+                                    }
+                                }
+                            ],
+                            "ports": [{"port": 8000, "protocol": "TCP"}],
+                        }
+                    ],
+                    "podSelector": {
+                        "matchLabels": {
+                            "wandb.ai/run-id": "abc",
+                            "wandb.ai/auxiliary-resource": "aux-entity_with_underscore-project_with_underscore-abc",
+                        }
+                    },
+                    "policyTypes": ["Egress", "Ingress"],
+                },
+                "metadata": {
+                    "name": "resource-policy-entity_with_underscore-project_with_underscore-abc",
+                    "labels": {
+                        "wandb.ai/run-id": "abc",
+                        "wandb.ai/created-by": "launch-agent",
+                        "wandb.ai/auxiliary-resource": "aux-entity_with_underscore-project_with_underscore-abc",
+                    },
+                },
+                "apiVersion": "networking.k8s.io/v1",
+            },
+            {
+                "kind": "NetworkPolicy",
+                "spec": {
+                    "egress": [
+                        {
+                            "to": [
+                                {
+                                    "namespaceSelector": {
+                                        "matchLabels": {
+                                            "kubernetes.io/metadata.name": "kube-system"
+                                        }
+                                    }
+                                }
+                            ],
+                            "ports": [
+                                {"port": 53, "protocol": "UDP"},
+                                {"port": 53, "protocol": "TCP"},
+                            ],
+                        },
+                        {
+                            "to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
+                            "ports": [
+                                {"port": 80, "protocol": "TCP"},
+                                {"port": 443, "protocol": "TCP"},
+                            ],
+                        },
+                    ],
+                    "ingress": [
+                        {
+                            "from": [
+                                {
+                                    "podSelector": {
+                                        "matchLabels": {
+                                            "job-name": "evals-entity-with-underscore-project-with-underscore-abc"
+                                        }
+                                    }
+                                }
+                            ],
+                            "ports": [{"port": 8000, "protocol": "TCP"}],
+                        }
+                    ],
+                    "podSelector": {
+                        "matchLabels": {
+                            "wandb.ai/run-id": "abc",
+                            "wandb.ai/auxiliary-resource": "aux-entity-with-underscore-project-with-underscore-abc",
+                        }
+                    },
+                    "policyTypes": ["Egress", "Ingress"],
+                },
+                "metadata": {
+                    "name": "resource-policy-entity-with-underscore-project-with-underscore",  # name is over 63 chars
+                    "labels": {
+                        "wandb.ai/run-id": "abc",
+                        "wandb.ai/created-by": "launch-agent",
+                        "wandb.ai/auxiliary-resource": "aux-entity-with-underscore-project-with-underscore-abc",
+                    },
+                },
+                "apiVersion": "networking.k8s.io/v1",
+            },
+        ),
     ],
 )
 def test_sanitize_identifiers_for_k8s(manifest, expected):
