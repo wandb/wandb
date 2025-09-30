@@ -31,9 +31,7 @@ type metrics struct {
 	totalPages  int
 
 	// Chart focus state.
-	focusState             FocusState
-	focusedTitle           string // For status bar display
-	focusedRow, focusedCol int
+	focusState *FocusState
 
 	// Charts filter state.
 	filterMode     bool              // Whether we're currently typing a filter
@@ -44,7 +42,7 @@ type metrics struct {
 	logger *observability.CoreLogger
 }
 
-func NewMetrics(config *ConfigManager, logger *observability.CoreLogger) *metrics {
+func NewMetrics(config *ConfigManager, focusState *FocusState, logger *observability.CoreLogger) *metrics {
 	gridRows, gridCols := config.GetMetricsGrid()
 
 	mg := &metrics{
@@ -53,10 +51,7 @@ func NewMetrics(config *ConfigManager, logger *observability.CoreLogger) *metric
 		chartsByName:   make(map[string]*EpochLineChart),
 		filteredCharts: make([]*EpochLineChart, 0),
 		charts:         make([][]*EpochLineChart, gridRows),
-		focusState:     FocusState{Type: FocusNone},
-		focusedTitle:   "",
-		focusedRow:     -1,
-		focusedCol:     -1,
+		focusState:     focusState,
 		logger:         logger,
 	}
 	for r := range gridRows {
@@ -277,7 +272,7 @@ func (m *metrics) renderGridCell(row, col int, dims ChartDimensions) string {
 
 		boxStyle := borderStyle
 		// Highlight if focused
-		if row == m.focusedRow && col == m.focusedCol {
+		if m.focusState.Type == FocusMainChart && row == m.focusState.Row && col == m.focusState.Col {
 			boxStyle = focusedBorderStyle
 		}
 
@@ -394,9 +389,7 @@ func (m *metrics) handleClick(row, col int) {
 
 	if row >= 0 && row < gridRows && col >= 0 && col < gridCols &&
 		row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
-		// Clear any existing main chart focus
 		m.clearFocus()
-		// Set new focus
 		m.setFocus(row, col)
 	}
 }
@@ -406,15 +399,10 @@ func (m *metrics) setFocus(row, col int) {
 	// Assumes caller holds chartMu lock if needed
 	if row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
 		chart := m.charts[row][col]
-		m.focusState = FocusState{
-			Type:  FocusMainChart,
-			Row:   row,
-			Col:   col,
-			Title: chart.Title(),
-		}
-		m.focusedRow = row
-		m.focusedCol = col
-		m.focusedTitle = chart.Title()
+		m.focusState.Type = FocusMainChart
+		m.focusState.Row = row
+		m.focusState.Col = col
+		m.focusState.Title = chart.Title()
 		chart.SetFocused(true)
 	}
 }
@@ -427,12 +415,10 @@ func (m *metrics) clearFocus() {
 			m.charts[m.focusState.Row][m.focusState.Col] != nil {
 			m.charts[m.focusState.Row][m.focusState.Col].SetFocused(false)
 		}
-	}
-	if m.focusState.Type == FocusMainChart {
-		m.focusState = FocusState{Type: FocusNone}
-		m.focusedRow = -1
-		m.focusedCol = -1
-		m.focusedTitle = ""
+		m.focusState.Type = FocusNone
+		m.focusState.Row = -1
+		m.focusState.Col = -1
+		m.focusState.Title = ""
 	}
 }
 
