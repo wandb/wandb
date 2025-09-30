@@ -104,7 +104,7 @@ def test_multiple_orgs_raises_error(mock_fetch_orgs_and_org_entities_from_entity
 
 def test_gql_compat():
     """Test that gql_compat rewrites a GraphQL request by omitting the expected parts."""
-    omit_fragments = ["ArtifactInfo"]
+    omit_fragments = ["RemovedArtifactInfo"]
     omit_variables = ["ttlDurationSeconds", "tagsToAdd", "tagsToDelete"]
     omit_fields = ["ttlDurationSeconds", "ttlIsInherited", "tags"]
 
@@ -132,21 +132,35 @@ def test_gql_compat():
                 }
             ) {
                 artifact {
-                    ...ArtifactIdAndName
-                    ... ArtifactInfo
+                    ...KeptArtifactIdAndName
+                    ...RemovedArtifactInfo
                     ttlDurationSeconds
                     ttlIsInherited
-                    tags {name}
+                    tags {
+                        ...RemovedTagFragment
+                    }
                 }
             }
         }
-        fragment ArtifactIdAndName on Artifact {
-            id
+        fragment RemovedNestedNestedArtifactDesc on Artifact {
+            description
+        }
+        fragment RemovedNestedArtifactDesc on Artifact {
+            ...RemovedNestedNestedArtifactDesc
+        }
+        fragment RemovedArtifactInfo on Artifact {
+            ...RemovedNestedArtifactDesc
+            versionIndex
+        }
+        fragment RemovedTagFragment on Tag {
             name
         }
-        fragment ArtifactInfo on Artifact {
-            description
-            versionIndex
+        fragment KeptNestedArtifactName on Artifact {
+            name
+        }
+        fragment KeptArtifactIdAndName on Artifact {
+            id
+            ...KeptNestedArtifactName
         }
         """
     )
@@ -167,13 +181,16 @@ def test_gql_compat():
                 }
             ) {
                 artifact {
-                    ...ArtifactIdAndName
+                    ...KeptArtifactIdAndName
                 }
             }
         }
-        fragment ArtifactIdAndName on Artifact {
-            id
+        fragment KeptNestedArtifactName on Artifact {
             name
+        }
+        fragment KeptArtifactIdAndName on Artifact {
+            id
+            ...KeptNestedArtifactName
         }
         """
     )
