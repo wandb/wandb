@@ -22,6 +22,23 @@ const (
 	RunStateCrashed
 )
 
+// FocusType indicates what type of UI element is focused.
+type FocusType int
+
+const (
+	FocusNone FocusType = iota
+	FocusMainChart
+	FocusSystemChart
+)
+
+// FocusState tracks what is currently focused in the UI.
+type FocusState struct {
+	Type FocusType // What type of element is focused
+	// (row, column) position in grid (for chart focus)
+	Row, Col int
+	Title    string // Title of focused element
+}
+
 // Model describes the application state.
 //
 // Implements tea.Model.
@@ -55,6 +72,9 @@ type Model struct {
 	watcherStarted bool
 	// wcChan is the channel to receive watcher callbacks.
 	wcChan chan tea.Msg
+
+	// Chart focus state.
+	focusState *FocusState
 
 	// UI components
 	metrics      *metrics      // Main metrics charts grid.
@@ -92,19 +112,22 @@ type Model struct {
 func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogger) *Model {
 	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
 
-	// Get heartbeat interval from config
 	heartbeatInterval := cfg.HeartbeatInterval()
+
 	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
+
+	focusState := &FocusState{Type: FocusNone, Row: -1, Col: -1}
 
 	m := &Model{
 		config:            cfg,
 		help:              NewHelp(),
-		metrics:           NewMetrics(cfg, logger),
+		focusState:        focusState,
 		fileComplete:      false,
 		isLoading:         true,
 		runPath:           runPath,
+		metrics:           NewMetrics(cfg, focusState, logger),
 		leftSidebar:       NewLeftSidebar(cfg, runPath),
-		rightSidebar:      NewRightSidebar(cfg, logger),
+		rightSidebar:      NewRightSidebar(cfg, focusState, logger),
 		watcher:           watcher.New(watcher.Params{Logger: logger}),
 		watcherStarted:    false,
 		wcChan:            make(chan tea.Msg, 4096),
@@ -266,6 +289,14 @@ func (m *Model) dispatch(msg tea.Msg) []tea.Cmd {
 		}
 		return nil
 	}
+}
+
+// GetFocusedTitle returns the title of the currently focused chart (main or system)
+func (m *Model) GetFocusedTitle() string {
+	if m.focusState.Type != FocusNone {
+		return m.focusState.Title
+	}
+	return ""
 }
 
 // View renders the UI based on the data in the model.
@@ -587,11 +618,12 @@ func (m *Model) renderStatusBar() string {
 		}
 
 		// Add focused metric name if a chart is focused.
-		if m.metrics.focusedTitle != "" {
+		focusedTitle := m.GetFocusedTitle()
+		if focusedTitle != "" {
 			if statusText != "" {
 				statusText += " •"
 			}
-			statusText += fmt.Sprintf(" %s", m.metrics.focusedTitle)
+			statusText += fmt.Sprintf(" %s", focusedTitle)
 		}
 
 		// If nothing else to show, add a space to prevent empty status

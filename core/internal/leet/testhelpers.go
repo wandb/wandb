@@ -8,9 +8,21 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func NewConfigManager(configPath string) *ConfigManager {
+	return &ConfigManager{
+		configPath: configPath,
+		config: Config{
+			MetricsGrid:       GridConfig{Rows: DefaultMetricsGridRows, Cols: DefaultMetricsGridCols},
+			SystemGrid:        GridConfig{Rows: DefaultSystemGridRows, Cols: DefaultSystemGridCols},
+			ColorScheme:       "sunset-glow",
+			HeartbeatInterval: DefaultHeartbeatInterval,
+		},
+	}
+}
+
 // TestFocusState returns the current focus state
-func (m *Model) TestFocusState() FocusState {
-	return m.metrics.focusState
+func (m *Model) TestFocusState() *FocusState {
+	return m.focusState
 }
 
 func (m *Model) TestRunID() string {

@@ -9,23 +9,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// FocusState represents what is currently focused in the UI.
-type FocusState struct {
-	Type FocusType // What type of element is focused
-	// (row, column) position in grid (for chart focus)
-	Row, Col int
-	Title    string // Title of focused element
-}
-
-// FocusType indicates what type of UI element is focused.
-type FocusType int
-
-const (
-	FocusNone FocusType = iota
-	FocusMainChart
-	FocusSystemChart
-)
-
 // processRecordMsg handles messages that carry data from the .wandb file.
 func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 	// Recover from any panics in message processing
@@ -256,7 +239,7 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 			tea.MouseEvent(msg).Action == tea.MouseActionPress {
 
 			m.logger.Debug(fmt.Sprintf("handleMouseMsg: RIGHT SIDEBAR CLICK at adjustedX=%d, Y=%d", adjustedX, msg.Y))
-			m.logger.Debug(fmt.Sprintf("handleMouseMsg: BEFORE - focusState.Type=%v, focusedTitle='%s'", m.metrics.focusState.Type, m.metrics.focusedTitle))
+			m.logger.Debug(fmt.Sprintf("handleMouseMsg: BEFORE - focusState.Type=%v, focusedTitle='%s'", m.metrics.focusState.Type, m.focusState.Title))
 
 			// Apply focus in system metrics
 			focusSet := m.rightSidebar.HandleMouseClick(adjustedX, msg.Y)
@@ -270,20 +253,18 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 
 				// Set focus state for system chart
 				title := m.rightSidebar.GetFocusedChartTitle()
-				m.metrics.focusState = FocusState{
+				m.focusState = &FocusState{
 					Type:  FocusSystemChart,
 					Title: title,
 				}
-				m.metrics.focusedTitle = title
-				m.logger.Debug(fmt.Sprintf("handleMouseMsg: FOCUSED - set focusedTitle='%s'", m.metrics.focusedTitle))
+				m.logger.Debug(fmt.Sprintf("handleMouseMsg: FOCUSED - set focusedTitle='%s'", m.focusState.Title))
 			} else {
 				// System chart was unfocused
 				m.logger.Debug("handleMouseMsg: UNFOCUSED - clearing focus state")
-				m.metrics.focusState = FocusState{Type: FocusNone}
-				m.metrics.focusedTitle = ""
+				m.focusState = &FocusState{Type: FocusNone}
 			}
 
-			m.logger.Debug(fmt.Sprintf("handleMouseMsg: AFTER - focusState.Type=%v, focusedTitle='%s'", m.metrics.focusState.Type, m.metrics.focusedTitle))
+			m.logger.Debug(fmt.Sprintf("handleMouseMsg: AFTER - focusState.Type=%v, focusedTitle='%s'", m.metrics.focusState.Type, m.focusState.Title))
 		}
 		// TODO: add wheel handling for system metrics.
 		return m, nil

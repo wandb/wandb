@@ -419,3 +419,180 @@ func TestReload_WhileLoading_DoesNotCrash(t *testing.T) {
 	}()
 	_, _ = m.Update(leet.ChunkedBatchMsg{Msgs: nil, HasMore: true, Progress: 1})
 }
+
+func TestModel_HandleMouseMsg(t *testing.T) {
+	// Helper to create a fresh model with data
+	setupModel := func(t *testing.T) *leet.Model {
+		cfg := leet.GetConfig()
+		cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
+		if err := cfg.Load(); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		_ = cfg.SetMetricsRows(2)
+		_ = cfg.SetMetricsCols(2)
+		_ = cfg.SetSystemRows(2)
+		_ = cfg.SetSystemCols(1)
+		_ = cfg.SetLeftSidebarVisible(true)
+		_ = cfg.SetRightSidebarVisible(true)
+
+		logger := observability.NewNoOpLogger()
+		m := leet.NewModel("dummy", logger)
+
+		var model tea.Model = m
+		model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+		// Add metrics data
+		model, _ = model.Update(leet.HistoryMsg{
+			Metrics: map[string]float64{
+				"loss":     1.0,
+				"accuracy": 0.9,
+				"val_loss": 1.2,
+			},
+		})
+
+		// Process stats multiple times to ensure system charts are created and drawn
+		model, _ = model.Update(leet.StatsMsg{
+			Timestamp: 1234567890,
+			Metrics: map[string]float64{
+				"gpu.0.temp":        45.0,
+				"cpu.0.cpu_percent": 65.0,
+			},
+		})
+
+		// Add more data points to ensure charts are properly initialized
+		model, _ = model.Update(leet.StatsMsg{
+			Timestamp: 1234567891,
+			Metrics: map[string]float64{
+				"gpu.0.temp":        46.0,
+				"cpu.0.cpu_percent": 66.0,
+			},
+		})
+
+		// Force a render to ensure sidebars are drawn
+		_ = model.(*leet.Model).View()
+
+		return model.(*leet.Model)
+	}
+
+	tests := []struct {
+		name   string
+		setup  func(*leet.Model)
+		events []tea.MouseMsg
+		verify func(*testing.T, *leet.Model)
+	}{
+		{
+			name: "click_in_left_sidebar_clears_all_focus",
+			setup: func(m *leet.Model) {
+				m.TestSetMainChartFocus(0, 0)
+			},
+			events: []tea.MouseMsg{
+				{X: 10, Y: 10, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
+			},
+			verify: func(t *testing.T, m *leet.Model) {
+				if m.TestFocusState().Type != leet.FocusNone {
+					t.Errorf("expected FocusNone, got %v", m.TestFocusState().Type)
+				}
+			},
+		},
+		{
+			name: "click_in_main_grid_focuses_and_unfocuses_chart",
+			events: []tea.MouseMsg{
+				{X: 60, Y: 15, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
+			},
+			verify: func(t *testing.T, m *leet.Model) {
+				if m.TestFocusState().Type != leet.FocusMainChart {
+					t.Fatalf("expected FocusMainChart after first click, got %v", m.TestFocusState().Type)
+				}
+
+				// Send second click to same position
+				var model tea.Model = m
+				model.Update(tea.MouseMsg{
+					X: 60, Y: 15, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress,
+				})
+
+				if m.TestFocusState().Type != leet.FocusNone {
+					t.Errorf("expected FocusNone after second click, got %v", m.TestFocusState().Type)
+				}
+			},
+		},
+		{
+			name: "click_in_right_sidebar_focuses_system_chart",
+			events: []tea.MouseMsg{
+				// Right sidebar starts at approximately 120 - 40 (sidebar width) = 80
+				// Click well inside the right sidebar area
+				{X: 110, Y: 10, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
+			},
+			verify: func(t *testing.T, m *leet.Model) {
+				fs := m.TestFocusState()
+				if fs.Type != leet.FocusSystemChart {
+					t.Errorf("expected FocusSystemChart, got %v", fs.Type)
+				}
+				if fs.Title == "" {
+					t.Error("expected focused system chart to have a title")
+				}
+			},
+		},
+		{
+			name: "wheel_events_focus_chart_and_zoom",
+			events: []tea.MouseMsg{
+				{X: 60, Y: 25, Button: tea.MouseButtonWheelUp},
+				{X: 60, Y: 25, Button: tea.MouseButtonWheelDown},
+				{X: 60, Y: 25, Button: tea.MouseButtonWheelUp},
+			},
+			verify: func(t *testing.T, m *leet.Model) {
+				if m.TestFocusState().Type != leet.FocusMainChart {
+					t.Errorf("expected FocusMainChart after wheel events, got %v", m.TestFocusState().Type)
+				}
+			},
+		},
+		{
+			name: "mouse_release_ignored",
+			setup: func(m *leet.Model) {
+				m.TestSetMainChartFocus(0, 0)
+			},
+			events: []tea.MouseMsg{
+				{X: 60, Y: 15, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease},
+			},
+			verify: func(t *testing.T, m *leet.Model) {
+				if m.TestFocusState().Type != leet.FocusMainChart {
+					t.Errorf("expected focus unchanged after release, got %v", m.TestFocusState().Type)
+				}
+			},
+		},
+		{
+			name: "wheel_on_unfocused_chart_focuses_it",
+			setup: func(m *leet.Model) {
+				// Ensure no initial focus
+				m.TestClearMainChartFocus()
+			},
+			events: []tea.MouseMsg{
+				{X: 60, Y: 25, Button: tea.MouseButtonWheelUp},
+			},
+			verify: func(t *testing.T, m *leet.Model) {
+				if m.TestFocusState().Type != leet.FocusMainChart {
+					t.Errorf("expected wheel to focus chart, got %v", m.TestFocusState().Type)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := setupModel(t)
+			var model tea.Model = m
+
+			// Run setup if provided
+			if tc.setup != nil {
+				tc.setup(m)
+			}
+
+			// Process all events
+			for _, event := range tc.events {
+				model, _ = model.Update(event)
+			}
+
+			// Verify final state
+			tc.verify(t, m)
+		})
+	}
+}
