@@ -89,17 +89,25 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
     collection_name = "test-collection"
+    project_name = "test-project"
+    entity_name = "test-entity"
+    collection_type = "dataset"
     collection = ArtifactCollection(
         client=mock_client,
-        entity="test-entity",
-        project="test-project",
+        entity=entity_name,
+        project=project_name,
         name=collection_name,
-        type="dataset",
+        type=collection_type,
         attrs=ArtifactCollectionFragment(
             typename__="ArtifactPortfolio",
             id=make_graphql_id(prefix="ArtifactCollection"),
             name=collection_name,
-            type="dataset",
+            project={
+                "id": make_graphql_id(prefix="Project"),
+                "name": project_name,
+                "entityName": entity_name,
+            },
+            default_artifact_type={"name": collection_type},
             description="This is a fake artifact collection.",
             aliases={"edges": []},
             createdAt="2021-01-01T00:00:00Z",

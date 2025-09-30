@@ -4,6 +4,12 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   name
   description
   createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  defaultArtifactType {
+    name
+  }
   tags {
     edges {
       node {
