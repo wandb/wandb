@@ -742,12 +742,9 @@ class Artifacts(SizedPaginator["Artifact"]):
         else:
             rename_fields = {"artifactCollection": "artifactSequence"}
 
-        omit_fields = omit_artifact_fields(client)
-        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
         self.QUERY = gql_compat(
             PROJECT_ARTIFACTS_GQL,
-            omit_fields=omit_fields,
-            omit_fragments=omit_fragments,
+            omit_fields=omit_artifact_fields(client),
             rename_fields=rename_fields,
         )
 
@@ -848,11 +845,7 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         except LookupError:
             raise ValueError("mode must be logged or used")
         else:
-            omit_fields = omit_artifact_fields(client)
-            omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
-            self.QUERY = gql_compat(
-                query_str, omit_fields=omit_fields, omit_fragments=omit_fragments
-            )
+            self.QUERY = gql_compat(query_str, omit_fields=omit_artifact_fields(client))
 
         variable_values = {
             "entity": run.entity,
