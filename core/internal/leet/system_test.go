@@ -10,17 +10,13 @@ import (
 )
 
 func TestSystemMetricsGrid(t *testing.T) {
-	cfg := leet.GetConfig()
-	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
-	if err := cfg.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	_ = cfg.SetSystemRows(2)
-	_ = cfg.SetSystemCols(2)
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	_, _ = cfg.SetSystemRows(2), cfg.SetSystemCols(1)
 
 	logger := observability.NewNoOpLogger()
+	focusState := &leet.FocusState{}
 	// Give the grid enough space (any positive multiples will do).
-	grid := leet.NewSystemMetricsGrid(2*leet.MinMetricChartWidth, 2*leet.MinMetricChartHeight, cfg, logger)
+	grid := leet.NewSystemMetricsGrid(2*leet.MinMetricChartWidth, 2*leet.MinMetricChartHeight, cfg, focusState, logger)
 
 	ts := time.Now().Unix()
 	grid.AddDataPoint("gpu.0.temp", ts, 50)
@@ -32,16 +28,11 @@ func TestSystemMetricsGrid(t *testing.T) {
 }
 
 func TestRightSidebar_ProcessStatsMsg_GroupsSeriesByBaseKey(t *testing.T) {
-	cfg := leet.GetConfig()
-	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
-	if err := cfg.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	_ = cfg.SetSystemRows(2)
-	_ = cfg.SetSystemCols(2)
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	_, _ = cfg.SetSystemRows(2), cfg.SetSystemCols(1)
 
 	logger := observability.NewNoOpLogger()
-	rs := leet.NewRightSidebar(cfg, logger)
+	rs := leet.NewRightSidebar(cfg, &leet.FocusState{}, logger)
 
 	ts := time.Now().Unix()
 	rs.ProcessStatsMsg(leet.StatsMsg{
@@ -86,21 +77,16 @@ func TestRightSidebar_ProcessStatsMsg_GroupsSeriesByBaseKey(t *testing.T) {
 
 // --- System metrics grid focus ---
 func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
-	cfgPath := filepath.Join(t.TempDir(), "config.json")
-	cfg := leet.GetConfig()
-	cfg.SetPathForTests(cfgPath)
-	if err := cfg.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	_ = cfg.SetSystemRows(2)
-	_ = cfg.SetSystemCols(2)
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	_, _ = cfg.SetSystemRows(2), cfg.SetSystemCols(1)
 	gridRows, gridCols := cfg.GetSystemGrid()
 
 	logger := observability.NewNoOpLogger()
 	// Create grid with sufficient size
 	gridWidth := leet.MinMetricChartWidth * gridCols * 2
 	gridHeight := leet.MinMetricChartHeight * gridRows * 2
-	grid := leet.NewSystemMetricsGrid(gridWidth, gridHeight, cfg, logger)
+	focusState := &leet.FocusState{}
+	grid := leet.NewSystemMetricsGrid(gridWidth, gridHeight, cfg, focusState, logger)
 
 	ts := time.Now().Unix()
 	// Add multiple data points to ensure chart is properly created and visible
@@ -142,25 +128,15 @@ func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
 }
 
 func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
-	// Setup config
-	cfg := leet.GetConfig()
-	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
-	if err := cfg.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if err := cfg.SetSystemRows(1); err != nil {
-		t.Fatalf("SetSystemRows: %v", err)
-	}
-	if err := cfg.SetSystemCols(1); err != nil {
-		t.Fatalf("SetSystemCols: %v", err)
-	}
-
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	_, _ = cfg.SetSystemRows(2), cfg.SetSystemCols(1)
 	gridRows, gridCols := cfg.GetSystemGrid()
 
 	logger := observability.NewNoOpLogger()
 	gridWidth := leet.MinMetricChartWidth * gridCols * 2
 	gridHeight := leet.MinMetricChartHeight * gridRows * 2
-	grid := leet.NewSystemMetricsGrid(gridWidth, gridHeight, cfg, logger)
+	focusState := &leet.FocusState{}
+	grid := leet.NewSystemMetricsGrid(gridWidth, gridHeight, cfg, focusState, logger)
 
 	ts := time.Now().Unix()
 

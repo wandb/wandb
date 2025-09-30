@@ -25,6 +25,8 @@ type RightSidebar struct {
 	// System metrics grid
 	metricsGrid *SystemMetricsGrid
 
+	focusState *FocusState
+
 	// Logger
 	logger *observability.CoreLogger
 }
@@ -53,14 +55,13 @@ type SystemMetricsGrid struct {
 	orderedCharts  []*SystemMetricChart          // alphabetically ordered list
 
 	// Grid display
-	charts       [][]*SystemMetricChart // Grid arrangement
-	currentPage  int
-	totalPages   int
-	focusedRow   int
-	focusedCol   int
-	focusedChart *SystemMetricChart // Currently focused chart
-	width        int
-	height       int
+	charts      [][]*SystemMetricChart // Grid arrangement
+	currentPage int
+	totalPages  int
+
+	focusState *FocusState
+
+	width, height int
 
 	// Color management
 	nextColorIdx int
@@ -70,7 +71,7 @@ type SystemMetricsGrid struct {
 }
 
 // NewSystemMetricsGrid creates a new system metrics grid
-func NewSystemMetricsGrid(width, height int, config *ConfigManager, logger *observability.CoreLogger) *SystemMetricsGrid {
+func NewSystemMetricsGrid(width, height int, config *ConfigManager, focusState *FocusState, logger *observability.CoreLogger) *SystemMetricsGrid {
 	gridRows, gridCols := config.GetSystemGrid()
 
 	grid := &SystemMetricsGrid{
@@ -79,8 +80,7 @@ func NewSystemMetricsGrid(width, height int, config *ConfigManager, logger *obse
 		orderedCharts:  make([]*SystemMetricChart, 0),
 		charts:         make([][]*SystemMetricChart, gridRows),
 		currentPage:    0,
-		focusedRow:     -1,
-		focusedCol:     -1,
+		focusState:     focusState,
 		width:          width,
 		height:         height,
 		nextColorIdx:   0,
@@ -321,30 +321,19 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 
 // ChartDimensions for metric charts
 type MetricChartDimensions struct {
-	ChartWidth             int
-	ChartHeight            int
-	ChartWidthWithPadding  int
-	ChartHeightWithPadding int
+	ChartWidth, ChartHeight                       int
+	ChartWidthWithPadding, ChartHeightWithPadding int
 }
 
 // calculateChartDimensions computes dimensions for metric charts
 func (g *SystemMetricsGrid) calculateChartDimensions() MetricChartDimensions {
 	gridRows, gridCols := g.config.GetSystemGrid()
 
-	availableHeight := g.height - 2
-	if availableHeight < 0 {
-		availableHeight = 0
-	}
+	availableHeight := max(g.height-2, 0)
 
-	chartHeightWithPadding := availableHeight / gridRows
-	if chartHeightWithPadding < 0 {
-		chartHeightWithPadding = 0
-	}
+	chartHeightWithPadding := max(availableHeight/gridRows, 0)
 
-	chartWidthWithPadding := g.width / gridCols
-	if chartWidthWithPadding < 0 {
-		chartWidthWithPadding = 0
-	}
+	chartWidthWithPadding := max(g.width/gridCols, 0)
 
 	borderChars := 2
 	titleLines := 1
@@ -381,18 +370,23 @@ func (g *SystemMetricsGrid) LoadCurrentPage() {
 	gridRows, gridCols := g.config.GetSystemGrid()
 	metricsPerPage := gridRows * gridCols
 
+	// Ensure charts array is properly sized before proceeding
+	if len(g.charts) != gridRows || (len(g.charts) > 0 && len(g.charts[0]) != gridCols) {
+		g.charts = make([][]*SystemMetricChart, gridRows)
+		for row := range gridRows {
+			g.charts[row] = make([]*SystemMetricChart, gridCols)
+		}
+	}
+
 	// Clear current grid
-	for row := 0; row < gridRows; row++ {
-		for col := 0; col < gridCols; col++ {
+	for row := range gridRows {
+		for col := range gridCols {
 			g.charts[row][col] = nil
 		}
 	}
 
 	startIdx := g.currentPage * metricsPerPage
-	endIdx := startIdx + metricsPerPage
-	if endIdx > len(g.orderedCharts) {
-		endIdx = len(g.orderedCharts)
-	}
+	endIdx := min(startIdx+metricsPerPage, len(g.orderedCharts))
 
 	idx := startIdx
 	for row := 0; row < gridRows && idx < endIdx; row++ {
@@ -428,15 +422,15 @@ func (g *SystemMetricsGrid) Navigate(direction int) {
 // Returns true if a chart was focused, false if unfocused
 func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
 	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: row=%d, col=%d", row, col))
-	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: BEFORE - focusedRow=%d, focusedCol=%d, focusedChart=%v",
-		g.focusedRow, g.focusedCol, g.focusedChart != nil))
+	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: BEFORE - focusState.Row=%d, focusState.Col=%d, focusState.Type=%v",
+		g.focusState.Row, g.focusState.Col, g.focusState.Type))
 
 	// Check if clicking on the already focused chart (to unfocus)
-	if row == g.focusedRow && col == g.focusedCol {
+	if g.focusState.Type == FocusSystemChart && row == g.focusState.Row && col == g.focusState.Col {
 		g.logger.Debug("SystemMetricsGrid.HandleMouseClick: clicking on already focused chart - UNFOCUSING")
 		g.clearFocus()
-		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: AFTER UNFOCUS - focusedRow=%d, focusedCol=%d, focusedChart=%v",
-			g.focusedRow, g.focusedCol, g.focusedChart != nil))
+		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: AFTER UNFOCUS - focusState.Type=%v",
+			g.focusState.Type))
 		return false // Chart was unfocused
 	}
 
@@ -449,12 +443,17 @@ func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
 	// Set new focus
 	if row >= 0 && row < gridRows && col >= 0 && col < gridCols &&
 		row < len(g.charts) && col < len(g.charts[row]) && g.charts[row][col] != nil {
+		chart := g.charts[row][col]
 		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: FOCUSING chart at row=%d, col=%d", row, col))
-		g.focusedRow = row
-		g.focusedCol = col
-		g.focusedChart = g.charts[row][col]
-		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: AFTER FOCUS - focusedRow=%d, focusedCol=%d, focusedChart.title='%s'",
-			g.focusedRow, g.focusedCol, g.focusedChart.fullTitle))
+
+		// Update focus state.
+		g.focusState.Type = FocusSystemChart
+		g.focusState.Row = row
+		g.focusState.Col = col
+		g.focusState.Title = chart.fullTitle
+
+		g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: AFTER FOCUS - focusState.Type=%v, focusState.Title='%s'",
+			g.focusState.Type, g.focusState.Title))
 		return true // Focus was set
 	}
 
@@ -464,15 +463,19 @@ func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
 
 // clearFocus removes focus from all charts
 func (g *SystemMetricsGrid) clearFocus() {
-	g.focusedRow = -1
-	g.focusedCol = -1
-	g.focusedChart = nil
+	// Clear shared focus state if it was a system chart
+	if g.focusState.Type == FocusSystemChart {
+		g.focusState.Type = FocusNone
+		g.focusState.Row = -1
+		g.focusState.Col = -1
+		g.focusState.Title = ""
+	}
 }
 
 // GetFocusedChartTitle returns the title of the focused chart
 func (g *SystemMetricsGrid) GetFocusedChartTitle() string {
-	if g.focusedChart != nil {
-		return g.focusedChart.fullTitle
+	if g.focusState.Type == FocusSystemChart {
+		return g.focusState.Title
 	}
 	return ""
 }
@@ -584,7 +587,7 @@ func (g *SystemMetricsGrid) View() string {
 
 				// Highlight if focused
 				boxStyle := borderStyle
-				if row == g.focusedRow && col == g.focusedCol {
+				if g.focusState.Type == FocusSystemChart && row == g.focusState.Row && col == g.focusState.Col {
 					boxStyle = focusedBorderStyle
 				}
 
@@ -639,12 +642,16 @@ func (g *SystemMetricsGrid) RebuildGrid() {
 
 	// Resize all charts
 	dims := g.calculateChartDimensions()
-	for _, metricChart := range g.chartsByMetric {
-		metricChart.chart.Resize(dims.ChartWidth, dims.ChartHeight)
-		if len(metricChart.series) > 0 {
-			metricChart.chart.DrawBrailleAll()
-		} else {
-			metricChart.chart.DrawBraille()
+	if dims.ChartWidth > 0 && dims.ChartHeight > 0 {
+		for _, metricChart := range g.chartsByMetric {
+			if metricChart != nil && metricChart.chart != nil {
+				metricChart.chart.Resize(dims.ChartWidth, dims.ChartHeight)
+				if len(metricChart.series) > 0 {
+					metricChart.chart.DrawBrailleAll()
+				} else {
+					metricChart.chart.DrawBraille()
+				}
+			}
 		}
 	}
 }
@@ -664,7 +671,11 @@ func (g *SystemMetricsGrid) GetChartCount() int {
 	return count
 }
 
-func NewRightSidebar(config *ConfigManager, logger *observability.CoreLogger) *RightSidebar {
+func NewRightSidebar(
+	config *ConfigManager,
+	focusState *FocusState,
+	logger *observability.CoreLogger,
+) *RightSidebar {
 	state := SidebarCollapsed
 	currentWidth, targetWidth := 0, 0
 	if config.GetRightSidebarVisible() {
@@ -679,6 +690,7 @@ func NewRightSidebar(config *ConfigManager, logger *observability.CoreLogger) *R
 		targetWidth:   targetWidth,
 		expandedWidth: SidebarMinWidth,
 		logger:        logger,
+		focusState:    focusState,
 	}
 	return rs
 }
@@ -758,7 +770,7 @@ func (rs *RightSidebar) Toggle() {
 			gridRows, gridCols := rs.config.GetSystemGrid()
 			initialWidth := MinMetricChartWidth * gridCols
 			initialHeight := MinMetricChartHeight * gridRows
-			rs.metricsGrid = NewSystemMetricsGrid(initialWidth, initialHeight, rs.config, rs.logger)
+			rs.metricsGrid = NewSystemMetricsGrid(initialWidth, initialHeight, rs.config, rs.focusState, rs.logger)
 			rs.logger.Debug("RightSidebar.Toggle: created grid on expansion")
 		}
 
@@ -1016,7 +1028,7 @@ func (rs *RightSidebar) View(height int) string {
 	// We have sufficient space - create or resize grid
 	if rs.metricsGrid == nil {
 		// Create new grid
-		rs.metricsGrid = NewSystemMetricsGrid(gridWidth, gridHeight, rs.config, rs.logger)
+		rs.metricsGrid = NewSystemMetricsGrid(gridWidth, gridHeight, rs.config, rs.focusState, rs.logger)
 	} else {
 		// Resize existing grid
 		rs.metricsGrid.Resize(gridWidth, gridHeight)
@@ -1106,7 +1118,7 @@ func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 		gridRows, gridCols := rs.config.GetSystemGrid()
 		initialWidth := MinMetricChartWidth * gridCols
 		initialHeight := MinMetricChartHeight * gridRows
-		rs.metricsGrid = NewSystemMetricsGrid(initialWidth, initialHeight, rs.config, rs.logger)
+		rs.metricsGrid = NewSystemMetricsGrid(initialWidth, initialHeight, rs.config, rs.focusState, rs.logger)
 		rs.logger.Debug(fmt.Sprintf("RightSidebar.ProcessStatsMsg: created grid with initial dimensions %dx%d",
 			initialWidth, initialHeight))
 	}

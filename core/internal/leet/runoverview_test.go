@@ -1,6 +1,7 @@
 package leet_test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -11,7 +12,8 @@ import (
 )
 
 func TestSidebarFilter_WithPrefixes(t *testing.T) {
-	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	s := leet.NewLeftSidebar(cfg, "/some/path")
 
 	// Use the actual ProcessRunMsg API with minimal proto
 	s.ProcessRunMsg(leet.RunMsg{
@@ -42,7 +44,8 @@ func TestSidebarFilter_WithPrefixes(t *testing.T) {
 }
 
 func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
-	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	s := leet.NewLeftSidebar(cfg, "/some/path")
 
 	// Only config is non-empty
 	s.ProcessRunMsg(leet.RunMsg{
@@ -60,7 +63,8 @@ func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
 }
 
 func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
-	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	s := leet.NewLeftSidebar(cfg, "/some/path")
 
 	s.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
@@ -98,7 +102,8 @@ func expandSidebar(t *testing.T, s *leet.LeftSidebar, termWidth int, rightVisibl
 }
 
 func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
-	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	s := leet.NewLeftSidebar(cfg, "/some/path")
 	expandSidebar(t, s, 120, false)
 
 	s.ProcessRunMsg(leet.RunMsg{
@@ -147,7 +152,8 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
-	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	s := leet.NewLeftSidebar(cfg, "/some/path")
 	expandSidebar(t, s, 120, false)
 
 	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
@@ -205,7 +211,8 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 }
 
 func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
-	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	s := leet.NewLeftSidebar(cfg, "/some/path")
 	expandSidebar(t, s, 120, false)
 
 	s.ProcessRunMsg(leet.RunMsg{
@@ -249,7 +256,8 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 }
 
 func TestSidebar_TruncateValue(t *testing.T) {
-	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	s := leet.NewLeftSidebar(cfg, "/some/path")
 	expandSidebar(t, s, 40, false) // clamps to SidebarMinWidth
 
 	long := strings.Repeat("x", 200)
