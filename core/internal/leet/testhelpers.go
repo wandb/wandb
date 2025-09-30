@@ -10,7 +10,7 @@ import (
 
 // TestFocusState returns the current focus state
 func (m *Model) TestFocusState() FocusState {
-	return m.focusState
+	return m.metrics.focusState
 }
 
 func (m *Model) TestRunID() string {
@@ -57,22 +57,17 @@ func (m *Model) TestProcessRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 
 // TestHandleChartGridClick handles a click on the main chart grid
 func (m *Model) TestHandleChartGridClick(row, col int) {
-	m.handleChartGridClick(row, col)
+	m.metrics.handleClick(row, col)
 }
 
 // TestSetMainChartFocus sets focus to a main chart
 func (m *Model) TestSetMainChartFocus(row, col int) {
-	m.setMainChartFocus(row, col)
+	m.metrics.setFocus(row, col)
 }
 
 // TestClearMainChartFocus clears focus from main charts
 func (m *Model) TestClearMainChartFocus() {
-	m.clearMainChartFocus()
-}
-
-// TestClearAllFocus clears all focus
-func (m *Model) TestClearAllFocus() {
-	m.clearAllFocus()
+	m.metrics.clearFocus()
 }
 
 // TestForceExpand forces the sidebar to expanded state without animation
@@ -106,5 +101,5 @@ func (c *SystemMetricChart) TestSeriesCount() int {
 
 // Add test helper to Model for getting active filter
 func (m *Model) TestGetActiveFilter() string {
-	return m.activeFilter
+	return m.metrics.activeFilter
 }

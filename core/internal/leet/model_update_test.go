@@ -51,7 +51,7 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 	}
 }
 
-func TestFocus_Clicks_SetClear_All(t *testing.T) {
+func TestFocus_Clicks_SetClear(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	var m tea.Model = leet.NewModel("dummy", logger)
 
@@ -79,12 +79,6 @@ func TestFocus_Clicks_SetClear_All(t *testing.T) {
 	model.TestClearMainChartFocus()
 	if model.TestFocusState().Type != leet.FocusNone {
 		t.Fatalf("expected no focus after clearMainChartFocus")
-	}
-
-	model.TestHandleChartGridClick(0, 0)
-	model.TestClearAllFocus()
-	if model.TestFocusState().Type != leet.FocusNone {
-		t.Fatalf("expected no focus after clearAllFocus")
 	}
 }
 

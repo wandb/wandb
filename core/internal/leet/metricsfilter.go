@@ -53,14 +53,14 @@ func matchPattern(pattern, str string) bool {
 }
 
 // applyFilter applies the current filter pattern to charts.
-func (m *Model) applyFilter(pattern string) {
+func (m *metrics) applyFilter(pattern string) {
 	m.chartMu.Lock()
 	defer m.chartMu.Unlock()
 	m.applyFilterNoLock(pattern)
 }
 
 // applyFilterNoLock applies the filter assuming the caller holds chartMu.
-func (m *Model) applyFilterNoLock(pattern string) {
+func (m *metrics) applyFilterNoLock(pattern string) {
 	if pattern == "" {
 		// No filter, use all charts
 		m.filteredCharts = m.allCharts
@@ -101,18 +101,18 @@ func (m *Model) applyFilterNoLock(pattern string) {
 }
 
 // enterFilterMode enters filter input mode
-func (m *Model) enterFilterMode() {
+func (m *metrics) enterFilterMode() {
 	m.filterMode = true
 	m.filterInput = m.activeFilter // Start with current filter
 }
 
 // exitFilterMode exits filter input mode and optionally applies the filter
-func (m *Model) exitFilterMode(apply bool) {
+func (m *metrics) exitFilterMode(apply bool) {
 	m.filterMode = false
 	if apply {
 		m.activeFilter = m.filterInput
 		m.applyFilter(m.activeFilter)
-		m.drawVisibleCharts()
+		m.drawVisible()
 	} else {
 		// Restore previous filter
 		m.filterInput = m.activeFilter
@@ -121,15 +121,15 @@ func (m *Model) exitFilterMode(apply bool) {
 }
 
 // clearFilter removes the active filter
-func (m *Model) clearFilter() {
+func (m *metrics) clearFilter() {
 	m.activeFilter = ""
 	m.filterInput = ""
 	m.applyFilter("")
-	m.drawVisibleCharts()
+	m.drawVisible()
 }
 
 // getFilteredChartCount returns the number of charts matching the current filter
-func (m *Model) getFilteredChartCount() int {
+func (m *metrics) getFilteredChartCount() int {
 	if m.filterMode {
 		// Count matches for current input
 		count := 0
