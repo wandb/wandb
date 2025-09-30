@@ -89,6 +89,7 @@ __all__ = [
     "UpdateArtifactInput",
     "UpdateArtifactPortfolioInput",
     "UpdateArtifactSequenceInput",
+    "ArtifactAliasFragment",
     "ArtifactCollectionConnectionFragment",
     "ArtifactFragment",
     "ArtifactFragmentWithoutAliases",
@@ -110,6 +111,7 @@ __all__ = [
     "RunInfoFragment",
     "RunInputArtifactConnectionFragment",
     "RunOutputArtifactConnectionFragment",
+    "TagFragment",
     "TypeInfoFragment",
     "VersionedArtifactConnectionFragment",
     "ArtifactCollectionState",
@@ -145,6 +147,7 @@ from .fetch_linked_artifacts import FetchLinkedArtifacts
 from .fetch_org_info_from_entity import FetchOrgInfoFromEntity
 from .fetch_registries import FetchRegistries
 from .fragments import (
+    ArtifactAliasFragment,
     ArtifactCollectionConnectionFragment,
     ArtifactFragment,
     ArtifactFragmentWithoutAliases,
@@ -166,6 +169,7 @@ from .fragments import (
     RunInfoFragment,
     RunInputArtifactConnectionFragment,
     RunOutputArtifactConnectionFragment,
+    TagFragment,
     TypeInfoFragment,
     VersionedArtifactConnectionFragment,
 )

@@ -54,9 +54,7 @@ mutation CreateArtifactCollectionTagAssignments(
 ) {
   createArtifactCollectionTagAssignments(input: $input) {
     tags {
-      id
-      name
-      tagCategoryName
+      ...TagFragment
     }
   }
 }
@@ -124,15 +122,14 @@ query ProjectArtifactCollection(
         tags {
           edges {
             node {
-              id
-              name
+              ...TagFragment
             }
           }
         }
         aliases(after: $cursor, first: $perPage) {
           edges {
             node {
-              alias
+              ...ArtifactAliasFragment
             }
             cursor
           }

@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
-from .fragments import PageInfoFragment
+from .fragments import ArtifactAliasFragment, PageInfoFragment, TagFragment
 
 
 class ProjectArtifactCollection(GQLResult):
@@ -50,14 +50,7 @@ class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTags(GQLResu
 class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTagsEdges(
     GQLResult
 ):
-    node: ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTagsEdgesNode
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionTagsEdgesNode(
-    GQLResult
-):
-    id: GQLId
-    name: str
+    node: TagFragment
 
 
 class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliases(GQLResult):
@@ -70,16 +63,8 @@ class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliases(GQLR
 class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdges(
     GQLResult
 ):
-    node: Optional[
-        ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdgesNode
-    ]
+    node: Optional[ArtifactAliasFragment]
     cursor: str
-
-
-class ProjectArtifactCollectionProjectArtifactTypeArtifactCollectionAliasesEdgesNode(
-    GQLResult
-):
-    alias: str
 
 
 class ProjectArtifactCollectionProjectArtifactTypeArtifactSequence(GQLResult):

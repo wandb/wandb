@@ -268,8 +268,12 @@ class Versions(Paginator["Artifact"]):
         self.collection_filter = collection_filter
         self.artifact_filter = artifact_filter or {}
 
+        omit_fields = omit_artifact_fields(client)
+        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
         self.QUERY = gql_compat(
-            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields(client)
+            REGISTRY_VERSIONS_GQL,
+            omit_fields=omit_fields,
+            omit_fragments=omit_fragments,
         )
 
         variables = {
