@@ -44,7 +44,7 @@ func NewApiStream(
 
 // Start implements Stream.Start.
 func (s *ApiStream) Start() {
-	s.logger.Info("api stream: starting")
+	s.logger.Debug("api stream: starting")
 	// TODO: implement an api handler
 }
 
