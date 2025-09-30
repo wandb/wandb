@@ -713,7 +713,7 @@ query FetchLinkedArtifacts($artifactID: ID!) {
       edges {
         node {
           aliases {
-            alias
+            ...ArtifactAliasFragment
           }
           versionIndex
           artifactCollection {
@@ -727,6 +727,12 @@ query FetchLinkedArtifacts($artifactID: ID!) {
       }
     }
   }
+}
+
+fragment ArtifactAliasFragment on ArtifactAlias {
+  __typename
+  id
+  alias
 }
 
 fragment ProjectNames on Project {

@@ -170,7 +170,7 @@ query FetchLinkedArtifacts($artifactID: ID!) {
       edges {
         node {
           aliases {
-            alias
+            ...ArtifactAliasFragment
           }
           versionIndex
           artifactCollection {

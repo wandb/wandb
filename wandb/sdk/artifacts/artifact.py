@@ -2437,7 +2437,7 @@ class Artifact:
         if not api._server_supports(
             pb.ServerFeature.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
         ):
-            omit_fragments |= {"MembershipWithArtifact"}
+            omit_fragments = {"MembershipWithArtifact"}
 
         gql_op = gql_compat(LINK_ARTIFACT_GQL, omit_fragments=omit_fragments)
         data = self._client.execute(gql_op, variable_values=gql_vars)
