@@ -30,11 +30,10 @@ def test_build_repo_job(runner, api):
 
         settings = SettingsStatic(
             {
-                "x_files_dir": "./",
                 "disable_job_creation": False,
             }
         )
-        job_builder = JobBuilder(settings)
+        job_builder = JobBuilder(settings, files_dir="./")
         artifact = job_builder.build(
             api,
             dockerfile="Dockerfile",
@@ -86,12 +85,11 @@ def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
 
         settings = SettingsStatic(
             {
-                "x_files_dir": "./",
                 "disable_job_creation": False,
                 "x_jupyter_root": str(tmp_path),
             }
         )
-        job_builder = JobBuilder(settings, True)
+        job_builder = JobBuilder(settings, True, files_dir="./")
         artifact = job_builder.build(api)
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(
@@ -119,11 +117,10 @@ def test_build_artifact_job(runner, api):
 
         settings = SettingsStatic(
             {
-                "x_files_dir": "./",
                 "disable_job_creation": False,
             }
         )
-        job_builder = JobBuilder(settings)
+        job_builder = JobBuilder(settings, files_dir="./")
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -161,12 +158,11 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
             f.write(json.dumps(metadata))
         settings = SettingsStatic(
             {
-                "x_files_dir": "./",
                 "disable_job_creation": False,
                 "x_jupyter_root": str(tmp_path),
             }
         )
-        job_builder = JobBuilder(settings)
+        job_builder = JobBuilder(settings, files_dir="./")
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -207,12 +203,11 @@ def test_build_artifact_notebook_job_no_program(
             f.write(json.dumps(metadata))
         settings = SettingsStatic(
             {
-                "x_files_dir": "./",
                 "disable_job_creation": False,
                 "x_jupyter_root": str(tmp_path),
             }
         )
-        job_builder = JobBuilder(settings, verbose)
+        job_builder = JobBuilder(settings, verbose, files_dir="./")
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -248,12 +243,11 @@ def test_build_artifact_notebook_job_no_metadata(
 
         settings = SettingsStatic(
             {
-                "x_files_dir": "./",
                 "disable_job_creation": False,
                 "x_jupyter_root": str(tmp_path),
             }
         )
-        job_builder = JobBuilder(settings, verbose)
+        job_builder = JobBuilder(settings, verbose, files_dir="./")
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -294,12 +288,11 @@ def test_build_artifact_notebook_job_no_program_metadata(
             f.write(json.dumps(metadata))
         settings = SettingsStatic(
             {
-                "x_files_dir": "./",
                 "disable_job_creation": False,
                 "x_jupyter_root": str(tmp_path),
             }
         )
-        job_builder = JobBuilder(settings, verbose)
+        job_builder = JobBuilder(settings, verbose, files_dir="./")
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -331,11 +324,10 @@ def test_build_image_job(runner, api):
             f.write(json.dumps(metadata))
         settings = SettingsStatic(
             {
-                "x_files_dir": "./",
                 "disable_job_creation": False,
             }
         )
-        job_builder = JobBuilder(settings)
+        job_builder = JobBuilder(settings, files_dir="./")
         artifact = job_builder.build(api)
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(f"job-{image_name}")
@@ -347,12 +339,11 @@ def test_build_image_job(runner, api):
 def test_set_disabled():
     settings = SettingsStatic(
         {
-            "x_files_dir": "./",
             "disable_job_creation": False,
         }
     )
 
-    job_builder = JobBuilder(settings)
+    job_builder = JobBuilder(settings, files_dir="./")
     job_builder.disable = "testtest"
     assert job_builder.disable == "testtest"
 
@@ -360,10 +351,9 @@ def test_set_disabled():
 def test_no_metadata_file(runner, api):
     settings = SettingsStatic(
         {
-            "x_files_dir": "./",
             "disable_job_creation": False,
         }
     )
-    job_builder = JobBuilder(settings)
+    job_builder = JobBuilder(settings, files_dir="./")
     artifact = job_builder.build(api)
     assert artifact is None
