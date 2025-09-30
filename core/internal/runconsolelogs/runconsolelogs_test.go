@@ -15,19 +15,16 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestFileStreamUpdates(t *testing.T) {
-	settings := settings.From(&spb.Settings{
-		FilesDir: wrapperspb.String(t.TempDir()),
-	})
+	settings := settings.New()
 	fileStream := filestreamtest.NewFakeFileStream()
 	outputFile, _ := paths.Relative("output.log")
 
 	sender := New(Params{
 		ConsoleOutputFile: *outputFile,
-		FilesDir:          settings.GetFilesDir(),
+		FilesDir:          t.TempDir(),
 		EnableCapture:     true,
 		Logger:            observabilitytest.NewTestLogger(t),
 		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(t,
@@ -56,17 +53,14 @@ func TestFileStreamUpdates(t *testing.T) {
 }
 
 func TestFileStreamUpdatesDisabled(t *testing.T) {
-
 	// Test that the filestream is not updated when capture is disabled.
-	settings := settings.From(&spb.Settings{
-		FilesDir: wrapperspb.String(t.TempDir()),
-	})
+	filesDir := t.TempDir()
 	fileStream := filestreamtest.NewFakeFileStream()
 	outputFile, _ := paths.Relative("output.log")
 
 	sender := New(Params{
 		ConsoleOutputFile: *outputFile,
-		FilesDir:          settings.GetFilesDir(),
+		FilesDir:          filesDir,
 		EnableCapture:     false,
 		Logger:            observabilitytest.NewTestLogger(t),
 		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(t,
@@ -83,10 +77,10 @@ func TestFileStreamUpdatesDisabled(t *testing.T) {
 	sender.StreamLogs(&spb.OutputRawRecord{Line: "\x1b[Aline2 - modified\n"})
 	sender.Finish()
 
-	outputFilePath := filepath.Join(settings.GetFilesDir(), string(*outputFile))
+	outputFilePath := filepath.Join(filesDir, string(*outputFile))
 	_, err := os.Stat(outputFilePath)
 	assert.True(t, os.IsNotExist(err))
 
-	request := fileStream.GetRequest(settings)
+	request := fileStream.GetRequest(settings.New())
 	assert.Equal(t, []sparselist.Run[string]{}, request.ConsoleLines.ToRuns())
 }
