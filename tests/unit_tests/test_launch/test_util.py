@@ -358,16 +358,16 @@ def test_make_k8s_label_safe():
                     "name": "resource-policy_jobs_1234abc",
                     "labels": {
                         "wandb.ai/created-by": "launch-agent",
-                        "wandb.ai/auxiliary-resource": "aux-jobs-1234abc",
-                        "wandb.ai/run-id": "1234abc",
+                        "wandb.ai/auxiliary-resource": "aux_jobs_1234ABC",
+                        "wandb.ai/run-id": "1234_ABC",
                     },
                 },
                 "spec": {
                     "policyTypes": ["Ingress"],
                     "podSelector": {
                         "matchLabels": {
-                            "wandb.ai/run-id": "1234abc",
-                            "wandb.ai/auxiliary-resource": "aux-jobs-1234abc",
+                            "wandb.ai/run-id": "1234_ABC",
+                            "wandb.ai/auxiliary-resource": "aux_jobs_1234-ABC",
                         }
                     },
                     "ingress": [
@@ -375,7 +375,7 @@ def test_make_k8s_label_safe():
                             "from": [
                                 {
                                     "podSelector": {
-                                        "matchLabels": {"job-name": "jobs-1234abc"}
+                                        "matchLabels": {"job-name": "jobs_1234_ABC"}
                                     }
                                 }
                             ],
@@ -392,15 +392,15 @@ def test_make_k8s_label_safe():
                     "labels": {
                         "wandb.ai/created-by": "launch-agent",
                         "wandb.ai/auxiliary-resource": "aux-jobs-1234abc",
-                        "wandb.ai/run-id": "1234abc",
+                        "wandb.ai/run-id": "1234-abc",
                     },
                 },
                 "spec": {
                     "policyTypes": ["Ingress"],
                     "podSelector": {
                         "matchLabels": {
-                            "wandb.ai/run-id": "1234abc",
-                            "wandb.ai/auxiliary-resource": "aux-jobs-1234abc",
+                            "wandb.ai/run-id": "1234-abc",
+                            "wandb.ai/auxiliary-resource": "aux-jobs-1234-abc",
                         }
                     },
                     "ingress": [
@@ -408,7 +408,7 @@ def test_make_k8s_label_safe():
                             "from": [
                                 {
                                     "podSelector": {
-                                        "matchLabels": {"job-name": "jobs-1234abc"}
+                                        "matchLabels": {"job-name": "jobs-1234-abc"}
                                     }
                                 }
                             ],

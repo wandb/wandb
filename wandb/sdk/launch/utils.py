@@ -20,7 +20,6 @@ from typing import (
 )
 
 import click
-
 import wandb
 import wandb.docker as docker
 from wandb import util
@@ -800,6 +799,21 @@ def yield_containers(root: Union[dict, list]) -> Iterator[dict]:
             yield from yield_containers(item)
 
 
+def yield_dictionaries_from_key(root: Union[dict, list], key: str) -> Iterator[dict]:
+    """Yield all specs matching key in a manifest.
+
+    Recursively traverses the manifest and yields the dictionary value when a key
+    equals the provided key.
+    """
+    if isinstance(root, dict):
+        for k, v in root.items():
+            if k == key and isinstance(v, dict):
+                yield v
+    elif isinstance(root, list):
+        for item in root:
+            yield from yield_dictionaries_from_key(item, key)
+
+
 def sanitize_identifiers_for_k8s(root: Any) -> None:
     if isinstance(root, list):
         for item in root:
@@ -818,6 +832,16 @@ def sanitize_identifiers_for_k8s(root: Any) -> None:
     for container in yield_containers(root):
         if name := container.get("name"):
             container["name"] = make_k8s_label_safe(str(name))
+
+    for labels in yield_dictionaries_from_key(root, "labels"):
+        for k, v in labels.items():
+            if isinstance(v, str):
+                labels[k] = make_k8s_label_safe(v)
+
+    for match_label in yield_dictionaries_from_key(root, "matchLabels"):
+        for k, v in match_label.items():
+            if isinstance(v, str):
+                match_label[k] = make_k8s_label_safe(v)
 
     # nested names
     for key, value in root.items():
