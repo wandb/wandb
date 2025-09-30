@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -38,7 +37,7 @@ func (m *RunSyncManager) InitSync(
 	m.nextID++
 	m.pendingSyncOps[id] = m.runSyncOperationFactory.New(
 		request.Path,
-		settings.From(request.Settings),
+		request.Settings,
 	)
 
 	return &spb.ServerInitSyncResponse{Id: id}
