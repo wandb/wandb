@@ -58,7 +58,7 @@ from wandb.sdk.artifacts._generated import (
     UpdateArtifactPortfolioInput,
     UpdateArtifactSequenceInput,
 )
-from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields, omit_artifact_fragments
 from wandb.sdk.artifacts._validators import (
     SOURCE_ARTIFACT_COLLECTION_TYPE,
     FullArtifactPath,
@@ -730,6 +730,7 @@ class Artifacts(SizedPaginator["Artifact"]):
         self.QUERY = gql_compat(
             PROJECT_ARTIFACTS_GQL,
             omit_fields=omit_artifact_fields(client),
+            omit_fragments=omit_artifact_fragments(client),
             rename_fields=rename_fields,
         )
 
@@ -827,12 +828,16 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         if mode == "logged":
             self.run_key = "outputArtifacts"
             self.QUERY = gql_compat(
-                RUN_OUTPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields(client)
+                RUN_OUTPUT_ARTIFACTS_GQL,
+                omit_fields=omit_artifact_fields(client),
+                omit_fragments=omit_artifact_fragments(client),
             )
         elif mode == "used":
             self.run_key = "inputArtifacts"
             self.QUERY = gql_compat(
-                RUN_INPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields(client)
+                RUN_INPUT_ARTIFACTS_GQL,
+                omit_fields=omit_artifact_fields(client),
+                omit_fragments=omit_artifact_fragments(client),
             )
         else:
             raise ValueError("mode must be logged or used")
