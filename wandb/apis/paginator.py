@@ -1,18 +1,27 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any, ClassVar, Iterator, Mapping, Protocol, Sized, TypeVar, overload
-
-from typing_extensions import runtime_checkable
-from wandb_graphql.language.ast import Document
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Iterator,
+    Mapping,
+    Protocol,
+    Sized,
+    TypeVar,
+    overload,
+)
 
 import wandb
+
+if TYPE_CHECKING:
+    from wandb_graphql.language.ast import Document
 
 T = TypeVar("T")
 
 
 # Structural type hint for the client instance
-@runtime_checkable
 class _Client(Protocol):
     def execute(self, *args: Any, **kwargs: Any) -> dict[str, Any]: ...
 
