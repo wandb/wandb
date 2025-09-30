@@ -6,7 +6,9 @@ from typing import Any, Iterable, Mapping
 from urllib.parse import urlparse
 
 from wandb_gql import gql
+from wandb_graphql import TypeInfo
 from wandb_graphql.language import ast, visitor
+from wandb_graphql.validation.validation import ValidationContext
 
 from wandb._iterutils import one
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
@@ -112,11 +114,6 @@ def fetch_org_from_settings_or_entity(
 class _GQLCompatRewriter(visitor.Visitor):
     """GraphQL AST visitor to rewrite queries/mutations to be compatible with older server versions."""
 
-    omit_variables: set[str]
-    omit_fragments: set[str]
-    omit_fields: set[str]
-    rename_fields: dict[str, str]
-
     def __init__(
         self,
         omit_variables: Iterable[str] | None = None,
@@ -128,6 +125,30 @@ class _GQLCompatRewriter(visitor.Visitor):
         self.omit_fragments = set(omit_fragments or ())
         self.omit_fields = set(omit_fields or ())
         self.rename_fields = dict(rename_fields or {})
+
+    def leave_Document(self, node: ast.Document, *_, **__) -> Any:  # noqa: N802
+        # After rewriting the GQL document, prune "orphan" (unused) fragment definitions
+        # that are unreachable from any GQL operations in the document.
+        #
+        # Note: The ValidationContext doesn't require a schema here, as we only use it to check for reachable fragments.
+        ctx = ValidationContext(schema=None, ast=node, type_info=TypeInfo(schema=None))
+
+        used_fragments = {
+            frag.name.value
+            for defn in node.definitions
+            if isinstance(defn, ast.OperationDefinition)
+            for frag in ctx.get_recursively_referenced_fragments(defn)
+        }
+
+        node.definitions = [
+            dfn
+            for dfn in node.definitions
+            if not (
+                # Drop unused fragments
+                isinstance(dfn, ast.FragmentDefinition)
+                and (dfn.name.value not in used_fragments)
+            )
+        ]
 
     def enter_VariableDefinition(self, node: ast.VariableDefinition, *_, **__) -> Any:  # noqa: N802
         if node.variable.name.value in self.omit_variables:
@@ -167,7 +188,6 @@ class _GQLCompatRewriter(visitor.Visitor):
             return visitor.REMOVE
         if new_name := self.rename_fields.get(node.name.value):
             node.name.value = new_name
-            return node
 
     def leave_Field(self, node: ast.Field, *_, **__) -> Any:  # noqa: N802
         # If the field had a selection set, but now it's empty, remove the field entirely
