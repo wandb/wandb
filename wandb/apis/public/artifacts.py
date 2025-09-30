@@ -323,7 +323,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
         return self.last_response.total_count
 
     @property
-    def more(self):
+    def more(self) -> bool:
         """Returns whether there are more artifacts to fetch.
 
         <!-- lazydoc-ignore: internal -->
@@ -333,7 +333,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
         return self.last_response.page_info.has_next_page
 
     @property
-    def cursor(self):
+    def cursor(self) -> str | None:
         """Returns the cursor for the next page of results.
 
         <!-- lazydoc-ignore: internal -->
