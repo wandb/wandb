@@ -11,19 +11,19 @@ import (
 // only one stream exists for a given streamId so that
 // we can safely add responders to streams.
 type StreamMux struct {
-	mux   map[string]*Stream
+	mux   map[string]Stream
 	mutex sync.RWMutex
 }
 
 // NewStreamMux creates a new stream mux.
 func NewStreamMux() *StreamMux {
 	return &StreamMux{
-		mux: make(map[string]*Stream),
+		mux: make(map[string]Stream),
 	}
 }
 
 // AddStream adds a stream to the mux if it doesn't already exist.
-func (sm *StreamMux) AddStream(streamId string, stream *Stream) error {
+func (sm *StreamMux) AddStream(streamId string, stream Stream) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	if _, ok := sm.mux[streamId]; !ok {
@@ -35,7 +35,7 @@ func (sm *StreamMux) AddStream(streamId string, stream *Stream) error {
 }
 
 // GetStream gets a stream from the mux.
-func (sm *StreamMux) GetStream(streamId string) (*Stream, error) {
+func (sm *StreamMux) GetStream(streamId string) (Stream, error) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	if stream, ok := sm.mux[streamId]; !ok {
@@ -46,7 +46,7 @@ func (sm *StreamMux) GetStream(streamId string) (*Stream, error) {
 }
 
 // RemoveStream removes a stream from the mux.
-func (sm *StreamMux) RemoveStream(streamId string) (*Stream, error) {
+func (sm *StreamMux) RemoveStream(streamId string) (Stream, error) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	if stream, ok := sm.mux[streamId]; !ok {
@@ -65,7 +65,7 @@ func (sm *StreamMux) FinishAndCloseAllStreams(exitCode int32) {
 	wg := sync.WaitGroup{}
 	for streamId, stream := range sm.mux {
 		wg.Add(1)
-		go func(stream *Stream) {
+		go func(stream Stream) {
 			stream.FinishAndClose(exitCode)
 			wg.Done()
 		}(stream)

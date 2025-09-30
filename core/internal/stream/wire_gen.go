@@ -7,6 +7,7 @@
 package stream
 
 import (
+	"crypto/tls"
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -24,12 +25,30 @@ import (
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	"log/slog"
+	"net/http"
+	"time"
 )
+
+// Injectors from apistreaminject.go:
+
+// InjectApiStream returns a new ApiStream as a Stream interface.
+func InjectApiStream(streamID ApiStreamID, debugCorePath DebugCorePath, logLevel slog.Level, sentry *sentry_ext.Client, settings2 *settings.Settings) Stream {
+	string2 := provideApiStreamIDAsString(streamID)
+	streamStreamLoggerFile := openStreamLoggerFile(settings2)
+	coreLogger := streamLogger(streamStreamLoggerFile, settings2, sentry, logLevel)
+	backend := NewBackend(coreLogger, settings2)
+	peeker := &observability.Peeker{}
+	clientID := sharedmode.RandomClientID()
+	client := NewGraphQLClient(backend, settings2, peeker, clientID)
+	httpClient := provideHttpClient(settings2)
+	apiStream := NewApiStream(string2, settings2, coreLogger, client, httpClient)
+	return apiStream
+}
 
 // Injectors from streaminject.go:
 
 // InjectStream returns a new Stream.
-func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, sentry *sentry_ext.Client, settings2 *settings.Settings) *Stream {
+func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, sentry *sentry_ext.Client, settings2 *settings.Settings) Stream {
 	clientID := sharedmode.RandomClientID()
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	coreLogger := streamLogger(streamStreamLoggerFile, settings2, sentry, logLevel)
@@ -114,14 +133,63 @@ func InjectStream(commit GitCommitHash, gpuResourceManager *monitor.GPUResourceM
 		Logger:   coreLogger,
 		Settings: settings2,
 	}
-	stream := NewStream(clientID, debugCorePath, serverFeaturesCache, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, recordParserFactory, senderFactory, sentry, settings2, runHandle, tbHandlerFactory, writerFactory)
-	return stream
+	runStream := NewRunStream(clientID, debugCorePath, serverFeaturesCache, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, recordParserFactory, senderFactory, sentry, settings2, runHandle, tbHandlerFactory, writerFactory)
+	return runStream
+}
+
+// apistreaminject.go:
+
+// ApiStreamID is a type alias for the stream ID used by ApiStream.
+type ApiStreamID string
+
+var apiStreamProviders = wire.NewSet(
+	NewApiStream, wire.Bind(new(Stream), new(*ApiStream)), wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), streamLoggerProviders,
+	provideApiStreamIDAsString,
+	NewBackend, sharedmode.RandomClientID, NewGraphQLClient,
+	provideHttpClient,
+)
+
+// provideApiStreamIDAsString converts ApiStreamID to string for NewApiStream.
+func provideApiStreamIDAsString(id ApiStreamID) string {
+	return string(id)
+}
+
+// provideHttpClient creates an HTTP client configured with settings for
+// timeout, proxy, SSL/TLS, and extra headers.
+func provideHttpClient(settings2 *settings.Settings) *http.Client {
+
+	transport := &http.Transport{
+		Proxy: ProxyFn(settings2.GetHTTPProxy(), settings2.GetHTTPSProxy()),
+	}
+
+	if settings2.IsInsecureDisableSSL() {
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+
+	extraHeaders := settings2.GetExtraHTTPHeaders()
+	if proxyAuth, ok := extraHeaders["Proxy-Authorization"]; ok {
+		transport.ProxyConnectHeader = http.Header{
+			"Proxy-Authorization": []string{proxyAuth},
+		}
+	}
+
+	timeout := 30 * time.Second
+	if graphqlTimeout := settings2.GetGraphQLTimeout(); graphqlTimeout > 0 {
+		timeout = graphqlTimeout
+	}
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   timeout,
+	}
 }
 
 // streaminject.go:
 
 var streamProviders = wire.NewSet(
-	NewStream, wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, flowControlProviders,
+	NewRunStream, wire.Bind(new(Stream), new(*RunStream)), wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, flowControlProviders,
 	handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewBackend,
 	NewFileTransferManager,
 	NewGraphQLClient, observability.NewPrinter, provideFileWatcher,
