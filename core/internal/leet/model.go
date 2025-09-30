@@ -2,14 +2,13 @@ package leet
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime/debug"
 	"sync"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/internal/runenvironment"
-	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/watcher"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,6 +23,23 @@ const (
 	RunStateFailed
 	RunStateCrashed
 )
+
+// FocusType indicates what type of UI element is focused.
+type FocusType int
+
+const (
+	FocusNone FocusType = iota
+	FocusMainChart
+	FocusSystemChart
+)
+
+// FocusState tracks what is currently focused in the UI.
+type FocusState struct {
+	Type FocusType // What type of element is focused
+	// (row, column) position in grid (for chart focus)
+	Row, Col int
+	Title    string // Title of focused element
+}
 
 // Model describes the application state.
 //
@@ -49,24 +65,27 @@ type Model struct {
 	// runPath is the path to the .wandb file.
 	runPath string
 
-	// Main metrics charts grid.
-	*metrics
+	fileComplete bool
+	isLoading    bool
 
-	fileComplete   bool
-	isLoading      bool
-	runState       RunState
-	reader         *WandbReader
+	// Indicates the Run state (running, finished, failed, or crashed).
+	runState RunState
+
+	reader *WandbReader
+
 	watcher        watcher.Watcher
 	watcherStarted bool
-	sidebar        *Sidebar
-	rightSidebar   *RightSidebar
-	runOverview    RunOverview
-	runConfig      *runconfig.RunConfig
-	runEnvironment *runenvironment.RunEnvironment
-	runSummary     *runsummary.RunSummary
-
 	// wcChan is the channel to receive watcher callbacks.
 	wcChan chan tea.Msg
+
+	// Chart focus state.
+	focusState *FocusState
+
+	// UI components
+	metrics      *metrics      // Main metrics charts grid.
+	leftSidebar  *LeftSidebar  // Run Overview.
+	rightSidebar *RightSidebar // System metrics.
+	help         *HelpModel
 
 	// Sidebar animation synchronization.
 	animationMu sync.Mutex
@@ -92,13 +111,6 @@ type Model struct {
 	// When gridConfigNone, no input is pending.
 	pendingGridConfig gridConfigTarget
 
-	// Overview filter state.
-	overviewFilterMode  bool   // Whether we're typing an overview filter
-	overviewFilterInput string // The current overview filter being typed
-
-	// Help screen.
-	help *HelpModel
-
 	// logger is the debug logger for the application.
 	logger *observability.CoreLogger
 }
@@ -106,34 +118,33 @@ type Model struct {
 func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogger) *Model {
 	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
 
-	// Get heartbeat interval from config
+	if cfg == nil {
+		configDir, _ := os.UserConfigDir()
+		cfg = NewConfigManager(filepath.Join(configDir, "wandb-leet", "config.json"), logger)
+	}
+
 	heartbeatInterval := cfg.HeartbeatInterval()
 	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
 
-	m := &Model{
-		config:              cfg,
-		keyMap:              buildKeyMap(),
-		help:                NewHelp(),
-		metrics:             newMetrics(cfg),
-		overviewFilterMode:  false,
-		overviewFilterInput: "",
-		fileComplete:        false,
-		isLoading:           true,
-		runPath:             runPath,
-		sidebar:             NewSidebar(cfg),
-		rightSidebar:        NewRightSidebar(cfg, logger),
-		watcher:             watcher.New(watcher.Params{Logger: logger}),
-		watcherStarted:      false,
-		runConfig:           runconfig.New(),
-		runSummary:          runsummary.New(),
-		wcChan:              make(chan tea.Msg, 4096),
-		logger:              logger,
-		heartbeatInterval:   heartbeatInterval,
-	}
+	focusState := &FocusState{Type: FocusNone, Row: -1, Col: -1}
 
-	m.sidebar.SetRunOverview(RunOverview{
-		RunPath: runPath,
-	})
+	m := &Model{
+		config:            cfg,
+		keyMap:            buildKeyMap(),
+		help:              NewHelp(),
+		focusState:        focusState,
+		fileComplete:      false,
+		isLoading:         true,
+		runPath:           runPath,
+		metrics:           NewMetrics(cfg, focusState, logger),
+		leftSidebar:       NewLeftSidebar(cfg),
+		rightSidebar:      NewRightSidebar(cfg, focusState, logger),
+		watcher:           watcher.New(watcher.Params{Logger: logger}),
+		watcherStarted:    false,
+		wcChan:            make(chan tea.Msg, 4096),
+		heartbeatInterval: heartbeatInterval,
+		logger:            logger,
+	}
 
 	return m
 }
@@ -167,8 +178,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// 2) Forward *UI/animation only* to children (never data/control)
 	if isUIMsg(msg) {
-		if s, c := m.sidebar.Update(msg); c != nil {
-			m.sidebar = s
+		if s, c := m.leftSidebar.Update(msg); c != nil {
+			m.leftSidebar = s
 			cmds = append(cmds, c)
 		}
 		if rs, c := m.rightSidebar.Update(msg); c != nil {
@@ -197,10 +208,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = t.Width, t.Height
 		m.help.SetSize(t.Width, t.Height)
 
-		m.sidebar.UpdateDimensions(t.Width, m.rightSidebar.IsVisible())
-		m.rightSidebar.UpdateDimensions(t.Width, m.sidebar.IsVisible())
+		m.leftSidebar.UpdateDimensions(t.Width, m.rightSidebar.IsVisible())
+		m.rightSidebar.UpdateDimensions(t.Width, m.leftSidebar.IsVisible())
 
-		m.updateChartSizes()
+		layout := m.computeViewports()
+		m.metrics.UpdateDimensions(
+			layout.mainContentAreaWidth,
+			layout.height,
+		)
 		return m, tea.Batch(cmds...)
 
 	default:
@@ -287,6 +302,14 @@ func (m *Model) dispatch(msg tea.Msg) []tea.Cmd {
 	}
 }
 
+// GetFocusedTitle returns the title of the currently focused chart (main or system)
+func (m *Model) GetFocusedTitle() string {
+	if m.focusState.Type != FocusNone {
+		return m.focusState.Title
+	}
+	return ""
+}
+
 // View renders the UI based on the data in the model.
 //
 // Implements tea.Model.View.
@@ -314,17 +337,8 @@ func (m *Model) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, content)
 	}
 
-	// Get sidebar widths (ensure they're valid)
-	leftWidth := m.sidebar.Width()
+	leftWidth := m.leftSidebar.Width()
 	rightWidth := m.rightSidebar.Width()
-
-	// Sanity check widths
-	if leftWidth < 0 {
-		leftWidth = 0
-	}
-	if rightWidth < 0 {
-		rightWidth = 0
-	}
 
 	// Ensure we have enough space for content
 	totalSidebarWidth := leftWidth + rightWidth
@@ -336,23 +350,20 @@ func (m *Model) View() string {
 			rightWidth = 0
 		}
 		if leftWidth+10 >= m.width {
-			m.sidebar.state = SidebarCollapsed
-			m.sidebar.currentWidth = 0
+			m.leftSidebar.state = SidebarCollapsed
+			m.leftSidebar.currentWidth = 0
 			leftWidth = 0
 		}
 	}
 
 	// Calculate available space for charts (subtract 2 for margins)
-	availableWidth := m.width - leftWidth - rightWidth - 2
-	if availableWidth < MinChartWidth {
-		availableWidth = MinChartWidth
-	}
+	availableWidth := max(m.width-leftWidth-rightWidth-2, MinChartWidth)
 
 	availableHeight := m.height - StatusBarHeight
-	dims := CalculateChartDimensions(availableWidth, availableHeight)
+	dims := m.metrics.CalculateChartDimensions(availableWidth, availableHeight)
 
 	// Render main content
-	gridView := m.renderGrid(dims)
+	gridView := m.metrics.renderGrid(dims)
 
 	// Build the main view based on sidebar visibility
 	var mainView string
@@ -362,7 +373,7 @@ func (m *Model) View() string {
 		rightSidebarView := ""
 
 		if leftWidth > 0 {
-			leftSidebarView = m.sidebar.View(m.height - StatusBarHeight - 2)
+			leftSidebarView = m.leftSidebar.View(m.height - StatusBarHeight - 2)
 		}
 		if rightWidth > 0 {
 			rightSidebarView = m.rightSidebar.View(m.height - StatusBarHeight)
@@ -405,17 +416,14 @@ func (m *Model) ShouldRestart() bool {
 	return m.shouldRestart
 }
 
+type Layout struct {
+	leftSidebarWidth, mainContentAreaWidth, rightSidebarWidth, height int
+}
+
 // computeViewports returns (leftW, contentW, rightW, contentH).
-// The main content area never looks at sidebars directly; it receives a viewport.
-func (m *Model) computeViewports() (int, int, int, int) {
-	leftW := m.sidebar.Width()
+func (m *Model) computeViewports() Layout {
+	leftW := m.leftSidebar.Width()
 	rightW := m.rightSidebar.Width()
-	if leftW < 0 {
-		leftW = 0
-	}
-	if rightW < 0 {
-		rightW = 0
-	}
 
 	contentW := m.width - leftW - rightW - 2 // margins
 	_, gridCols := m.config.MetricsGrid()
@@ -425,7 +433,7 @@ func (m *Model) computeViewports() (int, int, int, int) {
 	}
 
 	contentH := m.height - StatusBarHeight
-	return leftW, contentW, rightW, contentH
+	return Layout{leftW, contentW, rightW, contentH}
 }
 
 // logPanic logs panics to Sentry before re-panicing.
@@ -548,22 +556,22 @@ func (m *Model) renderStatusBar() string {
 	// Left side content
 	statusText := ""
 	switch {
-	case m.overviewFilterMode:
+	case m.leftSidebar.filterMode:
 		// Show overview filter input
-		filterInfo := m.sidebar.GetFilterInfo()
+		filterInfo := m.leftSidebar.GetFilterInfo()
 		if filterInfo == "" {
 			filterInfo = "no matches"
 		}
 		statusText = fmt.Sprintf(" Overview filter: %s_ [%s] (@e/@c/@s for sections • Enter to apply)",
-			m.overviewFilterInput, filterInfo)
-	case m.filterMode:
+			m.leftSidebar.GetFilterQuery(), filterInfo)
+	case m.metrics.filterMode:
 		// Show chart filter input with cursor
-		matchCount := m.getFilteredChartCount()
-		m.chartMu.RLock()
-		totalCount := len(m.allCharts)
-		m.chartMu.RUnlock()
+		matchCount := m.metrics.getFilteredChartCount()
+		m.metrics.chartMu.RLock()
+		totalCount := len(m.metrics.allCharts)
+		m.metrics.chartMu.RUnlock()
 		statusText = fmt.Sprintf(" Filter: %s_ [%d/%d matches] (Enter to apply)",
-			m.filterInput, matchCount, totalCount)
+			m.metrics.filterInput, matchCount, totalCount)
 	case m.pendingGridConfig != gridConfigNone:
 		// Show config hint.
 		switch m.pendingGridConfig {
@@ -577,10 +585,10 @@ func (m *Model) renderStatusBar() string {
 			statusText = " Press 1-9 to set system grid rows (ESC to cancel)"
 		}
 	case m.isLoading:
-		// Show loading progress
-		m.chartMu.RLock()
-		chartCount := len(m.allCharts)
-		m.chartMu.RUnlock()
+		// Show loading progress.
+		m.metrics.chartMu.RLock()
+		chartCount := len(m.metrics.allCharts)
+		m.metrics.chartMu.RUnlock()
 
 		if m.recordsLoaded > 0 {
 			statusText = fmt.Sprintf(" Loading data... [%d records, %d metrics]",
@@ -589,29 +597,29 @@ func (m *Model) renderStatusBar() string {
 			statusText = " Loading data..."
 		}
 	default:
-		// Add filter info if active (separated with a bullet point)
-		if m.activeFilter != "" {
-			m.chartMu.RLock()
-			filteredCount := len(m.filteredCharts)
-			totalCount := len(m.allCharts)
-			m.chartMu.RUnlock()
+		// Add filter info if active (separated with a bullet point).
+		if m.metrics.activeFilter != "" {
+			m.metrics.chartMu.RLock()
+			filteredCount := len(m.metrics.filteredCharts)
+			totalCount := len(m.metrics.allCharts)
+			m.metrics.chartMu.RUnlock()
 			statusText = fmt.Sprintf(" Filter: \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
-				m.activeFilter, filteredCount, totalCount)
+				m.metrics.activeFilter, filteredCount, totalCount)
 		}
 
-		// Add overview filter info if active
-		if m.sidebar.IsFiltering() {
-			filterInfo := m.sidebar.GetFilterInfo()
+		// Add overview filter info if active.
+		if m.leftSidebar.IsFiltering() {
+			filterInfo := m.leftSidebar.GetFilterInfo()
 			if statusText != "" {
 				statusText += " •"
 			}
 			statusText += fmt.Sprintf(" Overview: \"%s\" [%s] (o to change, Ctrl+K to clear)",
-				m.sidebar.GetFilterQuery(), filterInfo)
+				m.leftSidebar.GetFilterQuery(), filterInfo)
 		}
 
-		// Add selected overview item if sidebar is visible (no truncation)
-		if m.sidebar.IsVisible() {
-			key, value := m.sidebar.GetSelectedItem()
+		// Add selected overview item if sidebar is visible (no truncation).
+		if m.leftSidebar.IsVisible() {
+			key, value := m.leftSidebar.GetSelectedItem()
 			if key != "" {
 				if statusText != "" {
 					statusText += " •"
@@ -620,12 +628,13 @@ func (m *Model) renderStatusBar() string {
 			}
 		}
 
-		// Add focused metric name if a chart is focused
-		if m.focusedTitle != "" {
+		// Add focused metric name if a chart is focused.
+		focusedTitle := m.GetFocusedTitle()
+		if focusedTitle != "" {
 			if statusText != "" {
 				statusText += " •"
 			}
-			statusText += fmt.Sprintf(" %s", m.focusedTitle)
+			statusText += fmt.Sprintf(" %s", focusedTitle)
 		}
 
 		// If nothing else to show, add a space to prevent empty status
@@ -634,16 +643,9 @@ func (m *Model) renderStatusBar() string {
 		}
 	}
 
-	// Add buffer status if channel is getting full
-	bufferUsage := len(m.wcChan)
-	bufferCapacity := cap(m.wcChan)
-	if bufferUsage > bufferCapacity*3/4 {
-		statusText += fmt.Sprintf(" [Buffer: %d/%d]", bufferUsage, bufferCapacity)
-	}
-
-	// Right side content
+	// Right side content.
 	helpText := ""
-	if !m.filterMode && !m.overviewFilterMode {
+	if !m.metrics.filterMode && !m.leftSidebar.filterMode {
 		helpText = "h: help "
 	}
 

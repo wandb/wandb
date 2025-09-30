@@ -8,9 +8,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/internal/runenvironment"
+	"github.com/wandb/wandb/core/internal/runsummary"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// SidebarState represents the state of the sidebar
+// SidebarState represents the UI state of the sidebar.
 type SidebarState int
 
 const (
@@ -40,46 +44,41 @@ type SectionView struct {
 	FilterMatches int
 }
 
-// RunOverview contains the run information to display.
-type RunOverview struct {
-	RunPath     string
-	Project     string
-	ID          string
-	DisplayName string
-	Config      map[string]any
-	Summary     map[string]any
-	Environment map[string]any
-}
-
-// Sidebar represents a collapsible sidebar panel.
-type Sidebar struct {
+// LeftSidebar represents a collapsible sidebar panel that owns all run data.
+type LeftSidebar struct {
 	state          SidebarState
 	currentWidth   int
 	targetWidth    int
 	expandedWidth  int
 	animationStep  int
 	animationTimer time.Time
-	runOverview    RunOverview
 
-	// Section management - reordered: Environment, Config, Summary.
+	// Run data
+	runPath        string
+	runID          string
+	displayName    string
+	project        string
+	runConfig      *runconfig.RunConfig
+	runEnvironment *runenvironment.RunEnvironment
+	runSummary     *runsummary.RunSummary
+	runState       RunState
+
+	// Section management: Environment, Config, Summary.
 	sections      []SectionView
 	activeSection int
 
 	// Filter state
-	filterActive  bool
-	filterQuery   string
+	filterMode    bool   // Whether we're currently typing a filter
+	filterQuery   string // Current filter being typed
 	filterApplied bool   // Whether filter is applied (after Enter)
 	appliedQuery  string // The query that was applied
 	filterSection string // "@e", "@c", "@s", or ""
 
 	// Dimensions
 	height int
-
-	// Run state (moved from model)
-	runState RunState
 }
 
-func NewSidebar(config *ConfigManager) *Sidebar {
+func NewLeftSidebar(config *ConfigManager, runPath string) *LeftSidebar {
 	state := SidebarCollapsed
 	currentWidth, targetWidth := 0, 0
 	if config.GetLeftSidebarVisible() {
@@ -88,13 +87,17 @@ func NewSidebar(config *ConfigManager) *Sidebar {
 		targetWidth = SidebarMinWidth
 	}
 
-	return &Sidebar{
-		state:         state,
-		currentWidth:  currentWidth,
-		targetWidth:   targetWidth,
-		expandedWidth: SidebarMinWidth,
+	return &LeftSidebar{
+		state:          state,
+		currentWidth:   currentWidth,
+		targetWidth:    targetWidth,
+		expandedWidth:  SidebarMinWidth,
+		runPath:        runPath,
+		runConfig:      runconfig.New(),
+		runEnvironment: nil, // Created on first system info
+		runSummary:     runsummary.New(),
 		sections: []SectionView{
-			{Title: "Environment", ItemsPerPage: 10, Active: true}, // First now
+			{Title: "Environment", ItemsPerPage: 10, Active: true},
 			{Title: "Config", ItemsPerPage: 15},
 			{Title: "Summary", ItemsPerPage: 20},
 		},
@@ -103,12 +106,50 @@ func NewSidebar(config *ConfigManager) *Sidebar {
 	}
 }
 
-// SetRunState sets the run state for display
-func (s *Sidebar) SetRunState(state RunState) {
+// ProcessRunMsg updates the sidebar with run information.
+func (s *LeftSidebar) ProcessRunMsg(msg RunMsg) {
+	s.runID = msg.ID
+	s.displayName = msg.DisplayName
+	s.project = msg.Project
+
+	if msg.Config != nil {
+		s.runConfig.ApplyChangeRecord(msg.Config, func(err error) {})
+		s.updateSections()
+	}
+}
+
+// ProcessSystemInfoMsg updates environment data.
+func (s *LeftSidebar) ProcessSystemInfoMsg(record *spb.EnvironmentRecord) {
+	if s.runEnvironment == nil && record != nil {
+		s.runEnvironment = runenvironment.New(record.GetWriterId())
+	}
+	if s.runEnvironment != nil {
+		s.runEnvironment.ProcessRecord(record)
+		s.updateSections()
+	}
+}
+
+// ProcessSummaryMsg updates summary data.
+func (s *LeftSidebar) ProcessSummaryMsg(summary *spb.SummaryRecord) {
+	if summary == nil {
+		return
+	}
+
+	for _, update := range summary.Update {
+		_ = s.runSummary.SetFromRecord(update)
+	}
+	for _, remove := range summary.Remove {
+		s.runSummary.RemoveFromRecord(remove)
+	}
+	s.updateSections()
+}
+
+// SetRunState sets the run state for display.
+func (s *LeftSidebar) SetRunState(state RunState) {
 	s.runState = state
 }
 
-// flattenMap converts nested maps to flat key-value pairs
+// flattenMap converts nested maps to flat key-value pairs.
 func flattenMap(data map[string]any, prefix string, result *[]KeyValuePair, path []string) {
 	if data == nil {
 		return
@@ -179,8 +220,8 @@ func processEnvironment(data map[string]any) []KeyValuePair {
 	}
 }
 
-// updateSections updates section data from run overview.
-func (s *Sidebar) updateSections() {
+// updateSections updates section data from internal run data.
+func (s *LeftSidebar) updateSections() {
 	// Preserve current selection state
 	var currentKey, currentValue string
 	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
@@ -188,21 +229,29 @@ func (s *Sidebar) updateSections() {
 	}
 
 	// Update Environment section (index 0)
-	envItems := processEnvironment(s.runOverview.Environment)
+	var envData map[string]any
+	if s.runEnvironment != nil {
+		envData = s.runEnvironment.ToRunConfigData()
+	}
+	envItems := processEnvironment(envData)
 	s.sections[0].Items = envItems
 
 	// Update Config section (index 1)
 	configItems := make([]KeyValuePair, 0)
-	flattenMap(s.runOverview.Config, "", &configItems, []string{})
+	if s.runConfig != nil {
+		flattenMap(s.runConfig.CloneTree(), "", &configItems, []string{})
+	}
 	s.sections[1].Items = configItems
 
 	// Update Summary section (index 2)
 	summaryItems := make([]KeyValuePair, 0)
-	flattenMap(s.runOverview.Summary, "", &summaryItems, []string{})
+	if s.runSummary != nil {
+		flattenMap(s.runSummary.ToNestedMaps(), "", &summaryItems, []string{})
+	}
 	s.sections[2].Items = summaryItems
 
 	// Apply filter if active
-	if s.filterActive || s.filterApplied {
+	if s.filterMode || s.filterApplied {
 		s.applyFilter()
 	} else {
 		// Use original items as filtered items
@@ -211,7 +260,6 @@ func (s *Sidebar) updateSections() {
 		}
 	}
 
-	// Calculate section heights
 	s.calculateSectionHeights()
 
 	// Restore selection or select first available if nothing was selected
@@ -225,7 +273,7 @@ func (s *Sidebar) updateSections() {
 }
 
 // restoreSelection attempts to restore the previously selected item
-func (s *Sidebar) restoreSelection(previousKey, previousValue string) {
+func (s *LeftSidebar) restoreSelection(previousKey, previousValue string) {
 	// First try to find the exact same item in the current section
 	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
 		section := &s.sections[s.activeSection]
@@ -292,7 +340,7 @@ func (s *Sidebar) restoreSelection(previousKey, previousValue string) {
 
 // selectFirstAvailableItem selects the first item in the first non-empty section
 // This should only be called when there's no previous selection to preserve
-func (s *Sidebar) selectFirstAvailableItem() {
+func (s *LeftSidebar) selectFirstAvailableItem() {
 	// Find first non-empty section
 	foundSection := false
 	for i := range s.sections {
@@ -323,7 +371,7 @@ func (s *Sidebar) selectFirstAvailableItem() {
 }
 
 // applyFilter filters items based on current filter query.
-func (s *Sidebar) applyFilter() {
+func (s *LeftSidebar) applyFilter() {
 	query := strings.TrimSpace(s.filterQuery)
 	if s.filterApplied {
 		query = strings.TrimSpace(s.appliedQuery)
@@ -396,7 +444,7 @@ func (s *Sidebar) applyFilter() {
 // calculateSectionHeights dynamically allocates heights to sections.
 //
 //gocyclo:ignore
-func (s *Sidebar) calculateSectionHeights() {
+func (s *LeftSidebar) calculateSectionHeights() {
 	if s.height == 0 {
 		return
 	}
@@ -556,14 +604,8 @@ func (s *Sidebar) calculateSectionHeights() {
 	}
 }
 
-// SetRunOverview sets the run overview information and triggers a content update
-func (s *Sidebar) SetRunOverview(overview RunOverview) {
-	s.runOverview = overview
-	s.updateSections()
-}
-
 // UpdateDimensions updates the sidebar dimensions based on terminal width
-func (s *Sidebar) UpdateDimensions(terminalWidth int, rightSidebarVisible bool) {
+func (s *LeftSidebar) UpdateDimensions(terminalWidth int, rightSidebarVisible bool) {
 	var calculatedWidth int
 
 	if rightSidebarVisible {
@@ -589,7 +631,7 @@ func (s *Sidebar) UpdateDimensions(terminalWidth int, rightSidebarVisible bool) 
 }
 
 // Toggle toggles the sidebar state between expanded and collapsed.
-func (s *Sidebar) Toggle() {
+func (s *LeftSidebar) Toggle() {
 	switch s.state {
 	case SidebarCollapsed:
 		s.state = SidebarExpanding
@@ -607,7 +649,7 @@ func (s *Sidebar) Toggle() {
 }
 
 // navigateUp moves cursor up within the active section.
-func (s *Sidebar) navigateUp() {
+func (s *LeftSidebar) navigateUp() {
 	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
 		return
 	}
@@ -623,7 +665,7 @@ func (s *Sidebar) navigateUp() {
 }
 
 // navigateDown moves cursor down within the active section.
-func (s *Sidebar) navigateDown() {
+func (s *LeftSidebar) navigateDown() {
 	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
 		return
 	}
@@ -643,7 +685,7 @@ func (s *Sidebar) navigateDown() {
 }
 
 // navigateSection jumps between sections, skipping empty ones.
-func (s *Sidebar) navigateSection(direction int) {
+func (s *LeftSidebar) navigateSection(direction int) {
 	if len(s.sections) == 0 {
 		return
 	}
@@ -681,7 +723,7 @@ func (s *Sidebar) navigateSection(direction int) {
 }
 
 // navigatePage changes page within active section.
-func (s *Sidebar) navigatePage(direction int) {
+func (s *LeftSidebar) navigatePage(direction int) {
 	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
 		return
 	}
@@ -705,8 +747,8 @@ func (s *Sidebar) navigatePage(direction int) {
 }
 
 // StartFilter activates filter mode.
-func (s *Sidebar) StartFilter() {
-	s.filterActive = true
+func (s *LeftSidebar) StartFilter() {
+	s.filterMode = true
 	// If we have an applied filter, start with that value
 	if s.filterApplied && s.appliedQuery != "" {
 		s.filterQuery = s.appliedQuery
@@ -716,25 +758,52 @@ func (s *Sidebar) StartFilter() {
 }
 
 // UpdateFilter updates the filter query (for live preview).
-func (s *Sidebar) UpdateFilter(query string) {
+func (s *LeftSidebar) UpdateFilter(query string) {
 	s.filterQuery = query
 	s.applyFilter()
 	s.calculateSectionHeights()
 }
 
 // ConfirmFilter applies the filter (on Enter).
-func (s *Sidebar) ConfirmFilter() {
+func (s *LeftSidebar) ConfirmFilter() {
 	s.filterApplied = true
 	s.appliedQuery = s.filterQuery
-	s.filterActive = false
+	s.filterMode = false
 	// Need to reapply the filter with the confirmed query
 	s.applyFilter()
 	s.calculateSectionHeights()
 }
 
+// CancelFilter cancels the current filter input and restores the previous state
+func (s *LeftSidebar) CancelFilter() {
+	s.filterMode = false
+	s.filterQuery = ""
+	// Restore the applied filter if any
+	if s.filterApplied && s.appliedQuery != "" {
+		s.filterQuery = s.appliedQuery
+		s.applyFilter()
+		s.calculateSectionHeights()
+	} else {
+		// No applied filter, clear everything
+		s.filterQuery = ""
+		s.applyFilter()
+		s.calculateSectionHeights()
+	}
+}
+
+// IsFilterMode returns true if the sidebar is currently in filter input mode
+func (s *LeftSidebar) IsFilterMode() bool {
+	return s.filterMode
+}
+
+// GetFilterInput returns the current filter input being typed
+func (s *LeftSidebar) GetFilterInput() string {
+	return s.filterQuery
+}
+
 // clearFilter clears the active filter.
-func (s *Sidebar) clearFilter() {
-	s.filterActive = false
+func (s *LeftSidebar) clearFilter() {
+	s.filterMode = false
 	s.filterApplied = false
 	s.filterQuery = ""
 	s.appliedQuery = ""
@@ -751,8 +820,45 @@ func (s *Sidebar) clearFilter() {
 	s.calculateSectionHeights()
 }
 
+// IsFiltering returns true if the sidebar has an applied filter.
+func (s *LeftSidebar) IsFiltering() bool {
+	return s.filterApplied
+}
+
+// GetFilterQuery returns the current or applied filter query.
+func (s *LeftSidebar) GetFilterQuery() string {
+	if s.filterApplied {
+		return s.appliedQuery
+	}
+	return s.filterQuery
+}
+
+// GetFilterInfo returns formatted filter information for status bar.
+func (s *LeftSidebar) GetFilterInfo() string {
+	if (!s.filterMode && !s.filterApplied) || (s.filterQuery == "" && s.appliedQuery == "") {
+		return ""
+	}
+
+	totalMatches := 0
+	var matchInfo []string
+
+	for _, section := range s.sections {
+		if section.FilterMatches > 0 {
+			totalMatches += section.FilterMatches
+			matchInfo = append(matchInfo,
+				fmt.Sprintf("@%s: %d", strings.ToLower(section.Title)[:1], section.FilterMatches))
+		}
+	}
+
+	if len(matchInfo) == 0 {
+		return "no matches"
+	}
+
+	return strings.Join(matchInfo, ", ")
+}
+
 // GetSelectedItem returns the currently selected key-value pair.
-func (s *Sidebar) GetSelectedItem() (key, value string) {
+func (s *LeftSidebar) GetSelectedItem() (key, value string) {
 	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
 		return "", ""
 	}
@@ -774,7 +880,7 @@ func (s *Sidebar) GetSelectedItem() (key, value string) {
 }
 
 // Update handles animation and input updates for the sidebar.
-func (s *Sidebar) Update(msg tea.Msg) (*Sidebar, tea.Cmd) {
+func (s *LeftSidebar) Update(msg tea.Msg) (*LeftSidebar, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	// Handle key input only when expanded
@@ -838,7 +944,7 @@ func truncateValue(value string, maxWidth int) string {
 }
 
 // renderSection renders a single section.
-func (s *Sidebar) renderSection(idx int, width int) string {
+func (s *LeftSidebar) renderSection(idx int, width int) string {
 	section := &s.sections[idx]
 
 	if len(section.FilteredItems) == 0 || section.Height == 0 {
@@ -865,7 +971,7 @@ func (s *Sidebar) renderSection(idx int, width int) string {
 	infoText := ""
 
 	switch {
-	case (s.filterActive || s.filterApplied) && filteredItems != totalItems:
+	case (s.filterMode || s.filterApplied) && filteredItems != totalItems:
 		infoText = fmt.Sprintf(" [%d-%d of %d filtered from %d]",
 			startIdx+1, endIdx, filteredItems, totalItems)
 	case filteredItems > section.ItemsPerPage:
@@ -915,7 +1021,7 @@ func (s *Sidebar) renderSection(idx int, width int) string {
 }
 
 // View renders the sidebar - optimized spacing.
-func (s *Sidebar) View(height int) string {
+func (s *LeftSidebar) View(height int) string {
 	if s.currentWidth <= 0 {
 		return ""
 	}
@@ -942,17 +1048,17 @@ func (s *Sidebar) View(height int) string {
 	lines = append(lines, sidebarKeyStyle.Render("State: ")+
 		sidebarValueStyle.Render(strings.TrimPrefix(stateText, "State: ")))
 
-	if s.runOverview.ID != "" {
+	if s.runID != "" {
 		lines = append(lines, sidebarKeyStyle.Render("ID: ")+
-			sidebarValueStyle.Render(s.runOverview.ID))
+			sidebarValueStyle.Render(s.runID))
 	}
-	if s.runOverview.DisplayName != "" {
+	if s.displayName != "" {
 		lines = append(lines, sidebarKeyStyle.Render("Name: ")+
-			sidebarValueStyle.Render(s.runOverview.DisplayName))
+			sidebarValueStyle.Render(s.displayName))
 	}
-	if s.runOverview.Project != "" {
+	if s.project != "" {
 		lines = append(lines, sidebarKeyStyle.Render("Project: ")+
-			sidebarValueStyle.Render(s.runOverview.Project))
+			sidebarValueStyle.Render(s.project))
 	}
 
 	// Single empty line before sections
@@ -1007,62 +1113,25 @@ func (s *Sidebar) View(height int) string {
 }
 
 // Width returns the current width of the sidebar.
-func (s *Sidebar) Width() int {
+func (s *LeftSidebar) Width() int {
 	return s.currentWidth
 }
 
 // IsVisible returns true if the sidebar is visible.
-func (s *Sidebar) IsVisible() bool {
+func (s *LeftSidebar) IsVisible() bool {
 	return s.state != SidebarCollapsed
 }
 
 // IsAnimating returns true if the sidebar is currently animating.
-func (s *Sidebar) IsAnimating() bool {
+func (s *LeftSidebar) IsAnimating() bool {
 	return s.state == SidebarExpanding || s.state == SidebarCollapsing
 }
 
 // animationCmd returns a command to continue the animation.
-func (s *Sidebar) animationCmd() tea.Cmd {
+func (s *LeftSidebar) animationCmd() tea.Cmd {
 	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg {
 		return SidebarAnimationMsg{}
 	})
-}
-
-// IsFiltering returns true if the sidebar is in filter mode or has an applied filter.
-func (s *Sidebar) IsFiltering() bool {
-	return s.filterActive || s.filterApplied
-}
-
-// GetFilterQuery returns the current or applied filter query.
-func (s *Sidebar) GetFilterQuery() string {
-	if s.filterApplied {
-		return s.appliedQuery
-	}
-	return s.filterQuery
-}
-
-// GetFilterInfo returns formatted filter information for status bar.
-func (s *Sidebar) GetFilterInfo() string {
-	if (!s.filterActive && !s.filterApplied) || (s.filterQuery == "" && s.appliedQuery == "") {
-		return ""
-	}
-
-	totalMatches := 0
-	var matchInfo []string
-
-	for _, section := range s.sections {
-		if section.FilterMatches > 0 {
-			totalMatches += section.FilterMatches
-			matchInfo = append(matchInfo,
-				fmt.Sprintf("@%s: %d", strings.ToLower(section.Title)[:1], section.FilterMatches))
-		}
-	}
-
-	if len(matchInfo) == 0 {
-		return "no matches"
-	}
-
-	return strings.Join(matchInfo, ", ")
 }
 
 // easeOutCubic provides smooth deceleration for animations.

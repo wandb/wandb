@@ -2,29 +2,12 @@ package leet
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/wandb/wandb/core/internal/runenvironment"
-)
-
-// FocusState represents what is currently focused in the UI
-type FocusState struct {
-	Type  FocusType // What type of element is focused
-	Row   int       // Row in grid (for chart focus)
-	Col   int       // Column in grid (for chart focus)
-	Title string    // Title of focused element
-}
-
-// FocusType indicates what type of UI element is focused
-type FocusType int
-
-const (
-	FocusNone FocusType = iota
-	FocusMainChart
-	FocusSystemChart
 )
 
 // processRecordMsg handles messages that carry data from the .wandb file.
@@ -43,17 +26,10 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 
 	case RunMsg:
 		m.logger.Debug("model: processing RunMsg")
-		m.runOverview.ID = msg.ID
-		m.runOverview.DisplayName = msg.DisplayName
-		m.runOverview.Project = msg.Project
-		if msg.Config != nil {
-			onError := func(err error) {
-				m.logger.Error(fmt.Sprintf("model: error applying config record: %v", err))
-			}
-			m.runConfig.ApplyChangeRecord(msg.Config, onError)
-			m.runOverview.Config = m.runConfig.CloneTree()
-		}
-		m.sidebar.SetRunOverview(m.runOverview)
+		// Delegate to sidebar
+		m.leftSidebar.ProcessRunMsg(msg)
+		m.runState = RunStateRunning // Model still tracks overall state
+		return m, nil
 
 	case StatsMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing StatsMsg with timestamp %d", msg.Timestamp))
@@ -62,29 +38,19 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 			m.resetHeartbeat()
 		}
 		m.rightSidebar.ProcessStatsMsg(msg)
+		return m, nil
 
 	case SystemInfoMsg:
 		m.logger.Debug("model: processing SystemInfoMsg")
-		if m.runEnvironment == nil {
-			m.runEnvironment = runenvironment.New(msg.Record.GetWriterId())
-		}
-		m.runEnvironment.ProcessRecord(msg.Record)
-		m.runOverview.Environment = m.runEnvironment.ToRunConfigData()
-		m.sidebar.SetRunOverview(m.runOverview)
+		// Delegate to sidebar
+		m.leftSidebar.ProcessSystemInfoMsg(msg.Record)
+		return m, nil
 
 	case SummaryMsg:
 		m.logger.Debug("model: processing SummaryMsg")
-		for _, update := range msg.Summary.Update {
-			err := m.runSummary.SetFromRecord(update)
-			if err != nil {
-				m.logger.Error(fmt.Sprintf("model: error processing summary: %v", err))
-			}
-		}
-		for _, remove := range msg.Summary.Remove {
-			m.runSummary.RemoveFromRecord(remove)
-		}
-		m.runOverview.Summary = m.runSummary.ToNestedMaps()
-		m.sidebar.SetRunOverview(m.runOverview)
+		// Delegate to sidebar
+		m.leftSidebar.ProcessSummaryMsg(msg.Summary)
+		return m, nil
 
 	case FileCompleteMsg:
 		m.logger.Debug("model: processing FileCompleteMsg - file is complete!")
@@ -97,7 +63,7 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 				m.runState = RunStateFailed
 			}
 			// Update sidebar with new state
-			m.sidebar.SetRunState(m.runState)
+			m.leftSidebar.SetRunState(m.runState)
 			// Stop heartbeat since run is complete
 			m.stopHeartbeat()
 			if m.watcherStarted {
@@ -106,13 +72,14 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 				m.watcherStarted = false
 			}
 		}
+		return m, nil
 
 	case ErrorMsg:
 		m.logger.Debug(fmt.Sprintf("model: processing ErrorMsg: %v", msg.Err))
 		m.fileComplete = true
 		m.runState = RunStateFailed
 		// Update sidebar with new state
-		m.sidebar.SetRunState(m.runState)
+		m.leftSidebar.SetRunState(m.runState)
 		// Stop heartbeat on error
 		m.stopHeartbeat()
 		if m.watcherStarted {
@@ -120,31 +87,32 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 			m.watcher.Finish()
 			m.watcherStarted = false
 		}
+		return m, nil
 	}
 
 	return m, nil
 }
 
-// handleHistoryMsg processes new history data
+// handleHistoryMsg processes new history data.
 //
 //gocyclo:ignore
 func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
-	gridRows, gridCols := m.config.GetMetricsGrid()
+	gridRows, gridCols := m.config.MetricsGrid()
 	chartsPerPage := gridRows * gridCols
 
 	// Track if we need to sort
 	needsSort := false
 
 	// Lock for write when modifying charts
-	m.chartMu.Lock()
+	m.metrics.chartMu.Lock()
 
 	// Save the currently focused chart's title if any
 	var previouslyFocusedTitle string
-	if m.focusState.Type == FocusMainChart &&
-		m.focusState.Row >= 0 && m.focusState.Col >= 0 &&
-		m.focusState.Row < len(m.charts) && m.focusState.Col < len(m.charts[m.focusState.Row]) &&
-		m.charts[m.focusState.Row][m.focusState.Col] != nil {
-		previouslyFocusedTitle = m.charts[m.focusState.Row][m.focusState.Col].Title()
+	if m.metrics.focusState.Type == FocusMainChart &&
+		m.metrics.focusState.Row >= 0 && m.metrics.focusState.Col >= 0 &&
+		m.metrics.focusState.Row < len(m.metrics.charts) && m.metrics.focusState.Col < len(m.metrics.charts[m.metrics.focusState.Row]) &&
+		m.metrics.charts[m.metrics.focusState.Row][m.metrics.focusState.Col] != nil {
+		previouslyFocusedTitle = m.metrics.charts[m.metrics.focusState.Row][m.metrics.focusState.Col].Title()
 	}
 
 	// Track new charts for adding to filtered list
@@ -153,24 +121,22 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 	// Add data points to existing charts or create new ones
 	for metricName, value := range msg.Metrics {
 		m.logger.Debug(fmt.Sprintf("processing %v, %v", metricName, value))
-		chart, exists := m.chartsByName[metricName]
+		chart, exists := m.metrics.chartsByName[metricName]
 		m.logger.Debug(fmt.Sprintf("it exists: %v", exists))
 		if !exists {
-			// Compute content viewport once
-			_, contentW, _, contentH := m.computeViewports()
-			dims := CalculateChartDimensions(contentW, contentH)
+			layout := m.computeViewports()
+			dims := m.metrics.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
 
-			// Create chart without color - it will be assigned during sort
-			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, 0, metricName)
+			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, metricName)
 
-			m.allCharts = append(m.allCharts, chart)
-			m.chartsByName[metricName] = chart
+			m.metrics.allCharts = append(m.metrics.allCharts, chart)
+			m.metrics.chartsByName[metricName] = chart
 			newCharts = append(newCharts, chart)
 			needsSort = true
 
 			// Log when we're creating many charts
-			if len(m.allCharts)%1000 == 0 {
-				m.logger.Info(fmt.Sprintf("model: created %d charts", len(m.allCharts)))
+			if len(m.metrics.allCharts)%1000 == 0 {
+				m.logger.Debug(fmt.Sprintf("model: created %d charts", len(m.metrics.allCharts)))
 			}
 		}
 		chart.AddPoint(float64(msg.Step), value)
@@ -178,62 +144,56 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 	// Sort if we added new charts (this will also assign/reassign colors)
 	if needsSort {
-		m.sortChartsNoLock()
+		m.metrics.sortChartsNoLock()
 
 		// If no filter is active, add new charts to filteredCharts
-		if m.activeFilter == "" {
+		if m.metrics.activeFilter == "" {
 			// Add new charts to filtered list and re-sort
 			for _, newChart := range newCharts {
 				// Check if it's not already in filteredCharts (shouldn't be, but safe check)
-				found := false
-				for _, fc := range m.filteredCharts {
-					if fc == newChart {
-						found = true
-						break
-					}
-				}
+				found := slices.Contains(m.metrics.filteredCharts, newChart)
 				if !found {
-					m.filteredCharts = append(m.filteredCharts, newChart)
+					m.metrics.filteredCharts = append(m.metrics.filteredCharts, newChart)
 				}
 			}
 			// Re-sort filteredCharts to maintain alphabetical order
-			sort.Slice(m.filteredCharts, func(i, j int) bool {
-				return m.filteredCharts[i].Title() < m.filteredCharts[j].Title()
+			sort.Slice(m.metrics.filteredCharts, func(i, j int) bool {
+				return m.metrics.filteredCharts[i].Title() < m.metrics.filteredCharts[j].Title()
 			})
 		} else {
 			// Apply current filter to new charts
-			m.applyFilterNoLock(m.activeFilter)
+			m.metrics.applyFilterNoLock(m.metrics.activeFilter)
 		}
 
-		m.totalPages = (len(m.filteredCharts) + chartsPerPage - 1) / chartsPerPage
+		m.metrics.totalPages = (len(m.metrics.filteredCharts) + chartsPerPage - 1) / chartsPerPage
 	}
 
 	// Exit loading state only when we have actual charts with data
-	if m.isLoading && len(m.allCharts) > 0 {
+	if m.isLoading && len(m.metrics.allCharts) > 0 {
 		m.isLoading = false
 	}
 
 	// Reload page while holding the lock (mutates grid)
 	shouldDraw := len(msg.Metrics) > 0
 	if shouldDraw {
-		m.loadCurrentPageNoLock()
+		m.metrics.loadCurrentPageNoLock()
 	}
 
 	// Capture before unlocking
 	prevTitle := previouslyFocusedTitle
-	m.chartMu.Unlock()
+	m.metrics.chartMu.Unlock()
 
 	// Restore focus and draw OUTSIDE the critical section
 	if shouldDraw && !m.suppressDraw {
-		if prevTitle != "" && m.focusState.Type == FocusMainChart {
+		if prevTitle != "" && m.metrics.focusState.Type == FocusMainChart {
 			// Use a read lock while scanning the grid
-			m.chartMu.RLock()
+			m.metrics.chartMu.RLock()
 			foundRow, foundCol := -1, -1
-			for row := 0; row < gridRows; row++ {
-				for col := 0; col < gridCols; col++ {
-					if row < len(m.charts) && col < len(m.charts[row]) &&
-						m.charts[row][col] != nil &&
-						m.charts[row][col].Title() == prevTitle {
+			for row := range gridRows {
+				for col := range gridCols {
+					if row < len(m.metrics.charts) && col < len(m.metrics.charts[row]) &&
+						m.metrics.charts[row][col] != nil &&
+						m.metrics.charts[row][col].Title() == prevTitle {
 						foundRow, foundCol = row, col
 						break
 					}
@@ -242,143 +202,34 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 					break
 				}
 			}
-			m.chartMu.RUnlock()
+			m.metrics.chartMu.RUnlock()
 			if foundRow != -1 {
-				m.setMainChartFocus(foundRow, foundCol)
+				m.metrics.setFocus(foundRow, foundCol)
 			}
 		}
-		m.drawVisibleCharts()
+		m.metrics.drawVisible()
 	}
 
 	return m, nil
 }
 
-// drawVisibleCharts only draws charts that are currently visible
-func (m *Model) drawVisibleCharts() {
-	defer func() {
-		if r := recover(); r != nil {
-			m.logger.Error(fmt.Sprintf("panic in drawVisibleCharts: %v", r))
-		}
-	}()
-
-	gridRows, gridCols := m.config.GetMetricsGrid()
-
-	// Force redraw all visible charts
-	for row := 0; row < gridRows; row++ {
-		for col := 0; col < gridCols; col++ {
-			if row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
-				chart := m.charts[row][col]
-				// Always force a redraw when this is called
-				chart.dirty = true
-				chart.Draw()
-				chart.dirty = false
-			}
-		}
-	}
-}
-
-// handleChartGridClick handles mouse clicks in the main chart grid
-func (m *Model) handleChartGridClick(row, col int) {
-	// Check if clicking on the already focused chart (to unfocus)
-	if m.focusState.Type == FocusMainChart &&
-		row == m.focusState.Row && col == m.focusState.Col {
-		m.clearAllFocus()
-		return
-	}
-	gridRows, gridCols := m.config.GetMetricsGrid()
-
-	// Set new focus
-	m.chartMu.RLock()
-	defer m.chartMu.RUnlock()
-
-	if row >= 0 && row < gridRows && col >= 0 && col < gridCols &&
-		row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
-		// Clear system chart focus if any (through public API)
-		m.rightSidebar.ClearFocus()
-		// Clear any existing main chart focus
-		m.clearMainChartFocus()
-		// Set new focus
-		m.setMainChartFocus(row, col)
-	}
-}
-
-// setMainChartFocus sets focus to a main grid chart
-func (m *Model) setMainChartFocus(row, col int) {
-	// Assumes caller holds chartMu lock if needed
-	if row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
-		chart := m.charts[row][col]
-		m.focusState = FocusState{
-			Type:  FocusMainChart,
-			Row:   row,
-			Col:   col,
-			Title: chart.Title(),
-		}
-		m.focusedRow = row // Keep backward compatibility
-		m.focusedCol = col
-		m.focusedTitle = chart.Title()
-		chart.SetFocused(true)
-	}
-}
-
-// clearMainChartFocus clears focus only from main charts
-func (m *Model) clearMainChartFocus() {
-	// Clear main chart focus only
-	if m.focusState.Type == FocusMainChart {
-		if m.focusState.Row >= 0 && m.focusState.Col >= 0 &&
-			m.focusState.Row < len(m.charts) && m.focusState.Col < len(m.charts[m.focusState.Row]) &&
-			m.charts[m.focusState.Row][m.focusState.Col] != nil {
-			m.charts[m.focusState.Row][m.focusState.Col].SetFocused(false)
-		}
-	}
-
-	// Reset focus state only if it was a main chart
-	if m.focusState.Type == FocusMainChart {
-		m.focusState = FocusState{Type: FocusNone}
-		m.focusedRow = -1
-		m.focusedCol = -1
-		m.focusedTitle = ""
-	}
-}
-
-// clearAllFocus clears focus from all UI elements
-func (m *Model) clearAllFocus() {
-	// Clear main chart focus
-	if m.focusState.Type == FocusMainChart {
-		if m.focusState.Row >= 0 && m.focusState.Col >= 0 &&
-			m.focusState.Row < len(m.charts) && m.focusState.Col < len(m.charts[m.focusState.Row]) &&
-			m.charts[m.focusState.Row][m.focusState.Col] != nil {
-			m.charts[m.focusState.Row][m.focusState.Col].SetFocused(false)
-		}
-	}
-
-	// Clear system chart focus via right sidebar API
-	m.rightSidebar.ClearFocus()
-
-	// Reset focus state
-	m.focusState = FocusState{Type: FocusNone}
-	m.focusedRow = -1
-	m.focusedCol = -1
-	m.focusedTitle = ""
-}
-
-// handleMouseMsg processes mouse events, routing by region
+// handleMouseMsg processes mouse events, routing by region.
 //
 //gocyclo:ignore
 func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
-	// Compute regions once; children do not read each other's widths.
-	leftW, contentW, rightW, contentH := m.computeViewports()
+	layout := m.computeViewports()
 
 	// --- Left sidebar region ---
-	if msg.X < leftW {
+	if msg.X < layout.leftSidebarWidth {
 		// Clicking on overview: clear chart focus on both sides
-		m.clearMainChartFocus()
+		m.metrics.clearFocus()
 		m.rightSidebar.ClearFocus()
 		return m, nil
 	}
 
 	// --- Right sidebar region ---
-	rightStart := m.width - rightW
-	if msg.X >= rightStart && rightW > 0 {
+	rightStart := m.width - layout.rightSidebarWidth
+	if msg.X >= rightStart && layout.rightSidebarWidth > 0 {
 		// Adjust coordinates relative to sidebar
 		adjustedX := msg.X - rightStart
 
@@ -387,7 +238,7 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 			tea.MouseEvent(msg).Action == tea.MouseActionPress {
 
 			m.logger.Debug(fmt.Sprintf("handleMouseMsg: RIGHT SIDEBAR CLICK at adjustedX=%d, Y=%d", adjustedX, msg.Y))
-			m.logger.Debug(fmt.Sprintf("handleMouseMsg: BEFORE - focusState.Type=%v, focusedTitle='%s'", m.focusState.Type, m.focusedTitle))
+			m.logger.Debug(fmt.Sprintf("handleMouseMsg: BEFORE - focusState.Type=%v, focusedTitle='%s'", m.metrics.focusState.Type, m.focusState.Title))
 
 			// Apply focus in system metrics
 			focusSet := m.rightSidebar.HandleMouseClick(adjustedX, msg.Y)
@@ -396,25 +247,15 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 			m.logger.Debug(fmt.Sprintf("handleMouseMsg: GetFocusedChartTitle='%s'", m.rightSidebar.GetFocusedChartTitle()))
 
 			if focusSet {
-				// System chart was focused - only clear main chart focus
-				m.clearMainChartFocus()
-
-				// Set focus state for system chart
-				title := m.rightSidebar.GetFocusedChartTitle()
-				m.focusState = FocusState{
-					Type:  FocusSystemChart,
-					Title: title,
-				}
-				m.focusedTitle = title
-				m.logger.Debug(fmt.Sprintf("handleMouseMsg: FOCUSED - set focusedTitle='%s'", m.focusedTitle))
+				// System chart was focused, clear main chart focus.
+				m.metrics.clearFocus()
+				m.logger.Debug(fmt.Sprintf("handleMouseMsg: FOCUSED - set focusedTitle='%s'", m.focusState.Title))
 			} else {
 				// System chart was unfocused
 				m.logger.Debug("handleMouseMsg: UNFOCUSED - clearing focus state")
-				m.focusState = FocusState{Type: FocusNone}
-				m.focusedTitle = ""
 			}
 
-			m.logger.Debug(fmt.Sprintf("handleMouseMsg: AFTER - focusState.Type=%v, focusedTitle='%s'", m.focusState.Type, m.focusedTitle))
+			m.logger.Debug(fmt.Sprintf("handleMouseMsg: AFTER - focusState.Type=%v, focusedTitle='%s'", m.metrics.focusState.Type, m.focusState.Title))
 		}
 		// TODO: add wheel handling for system metrics.
 		return m, nil
@@ -422,15 +263,15 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 
 	// --- Main content region (metrics grid) ---
 	const gridPadding = 1
-	adjustedX := msg.X - leftW - gridPadding
+	adjustedX := msg.X - layout.leftSidebarWidth - gridPadding
 	adjustedY := msg.Y - gridPadding - 1 // -1 for header
 
-	dims := CalculateChartDimensions(contentW, contentH)
+	dims := m.metrics.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
 
 	row := adjustedY / dims.ChartHeightWithPadding
 	col := adjustedX / dims.ChartWidthWithPadding
 
-	gridRows, gridCols := m.config.GetMetricsGrid()
+	gridRows, gridCols := m.config.MetricsGrid()
 
 	// Handle left click for focus
 	if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
@@ -438,7 +279,7 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 		if row >= 0 && row < gridRows && col >= 0 && col < gridCols {
 			// When focusing main grid, clear system focus
 			m.rightSidebar.ClearFocus()
-			m.handleChartGridClick(row, col)
+			m.metrics.handleClick(row, col)
 		}
 		return m, nil
 	}
@@ -448,101 +289,28 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Use RLock for reading charts
-	m.chartMu.RLock()
-	defer m.chartMu.RUnlock()
-
-	if row >= 0 && row < gridRows && col >= 0 && col < gridCols &&
-		row < len(m.charts) && col < len(m.charts[row]) && m.charts[row][col] != nil {
-		chart := m.charts[row][col]
-
-		chartStartX := col * dims.ChartWidthWithPadding
-		graphStartX := chartStartX + 1
-		if chart.YStep() > 0 {
-			graphStartX += chart.Origin().X + 1
-		}
-
-		relativeMouseX := adjustedX - graphStartX
-
-		if relativeMouseX >= 0 && relativeMouseX < chart.GraphWidth() {
-			// Focus the chart when zooming (if not already focused)
-			if m.focusState.Type != FocusMainChart ||
-				m.focusState.Row != row || m.focusState.Col != col {
-				m.clearAllFocus()
-				m.setMainChartFocus(row, col)
-			}
-
-			switch msg.Button {
-			case tea.MouseButtonWheelUp:
-				chart.HandleZoom("in", relativeMouseX)
-			case tea.MouseButtonWheelDown:
-				chart.HandleZoom("out", relativeMouseX)
-			}
-			chart.DrawIfNeeded()
-		}
-	}
-
-	return m, nil
-}
-
-// handleOverviewFilter handles overview filter input.
-func (m *Model) handleOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	if !m.overviewFilterMode {
-		return m, nil
-	}
-
-	switch msg.Type {
-	case tea.KeyEsc:
-		// Cancel filter input - restore to last applied state
-		m.overviewFilterMode = false
-		m.overviewFilterInput = ""
-		// Restore the applied filter if any
-		if m.sidebar.filterApplied && m.sidebar.appliedQuery != "" {
-			m.sidebar.filterQuery = m.sidebar.appliedQuery
-			m.sidebar.applyFilter()
-			m.sidebar.calculateSectionHeights()
-		} else {
-			// No applied filter, clear everything
-			m.sidebar.filterActive = false
-			m.sidebar.filterQuery = ""
-			m.sidebar.applyFilter()
-			m.sidebar.calculateSectionHeights()
-		}
-		return m, nil
-
-	case tea.KeyEnter:
-		// Apply filter
-		m.overviewFilterMode = false
-		m.sidebar.filterQuery = m.overviewFilterInput // Ensure query is set
-		m.sidebar.ConfirmFilter()
-		return m, nil
-
-	case tea.KeyBackspace:
-		// Remove last character
-		if len(m.overviewFilterInput) > 0 {
-			m.overviewFilterInput = m.overviewFilterInput[:len(m.overviewFilterInput)-1]
-			m.sidebar.UpdateFilter(m.overviewFilterInput)
-		}
-		return m, nil
-
-	case tea.KeyRunes:
-		// Add typed characters
-		m.overviewFilterInput += string(msg.Runes)
-		m.sidebar.UpdateFilter(m.overviewFilterInput)
-		return m, nil
-
-	case tea.KeySpace:
-		// Add space
-		m.overviewFilterInput += " "
-		m.sidebar.UpdateFilter(m.overviewFilterInput)
-		return m, nil
-	}
+	// Delegate wheel zoom to main metrics area.
+	m.metrics.HandleWheel(
+		adjustedX,
+		row,
+		col,
+		dims,
+		msg.Button == tea.MouseButtonWheelUp,
+	)
 
 	return m, nil
 }
 
 // handleKeyMsg processes keyboard events using the centralized key bindings.
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	if m.leftSidebar.IsFilterMode() {
+		return m.handleOverviewFilter(msg)
+	}
+
+	if m.metrics.filterMode {
+		return m.handleMetricsFilter(msg)
+	}
+
 	if m.pendingGridConfig != gridConfigNone {
 		return m.handleConfigNumberKey(msg)
 	}
@@ -560,52 +328,133 @@ func (m *Model) handleToggleHelp(msg tea.KeyMsg) (*Model, tea.Cmd) {
 }
 
 func (m *Model) handleQuit(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	m.logger.Debug("model: quit requested")
+	if m.reader != nil {
+		m.reader.Close()
+	}
+	m.stopHeartbeat()
+	if m.watcherStarted {
+		m.logger.Debug("model: finishing watcher on quit")
+		m.watcher.Finish()
+		m.watcherStarted = false
+	}
+	close(m.wcChan)
 	return m, tea.Quit
 }
 
 func (m *Model) handleRestart(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	m.shouldRestart = true
 	m.logger.Debug("model: restart requested")
+	if m.reader != nil {
+		m.reader.Close()
+	}
+	m.stopHeartbeat()
+	if m.watcherStarted {
+		m.logger.Debug("model: finishing watcher on restart")
+		m.watcher.Finish()
+		m.watcherStarted = false
+	}
+	close(m.wcChan)
 	return m, tea.Quit
 }
 
 func (m *Model) handleToggleLeftSidebar(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	return m, nil
+	// Prevent concurrent animations
+	m.animationMu.Lock()
+	if m.animating {
+		m.animationMu.Unlock()
+		return m, nil
+	}
+	m.animating = true
+	m.animationMu.Unlock()
+
+	leftWillBeVisible := !m.leftSidebar.IsVisible()
+
+	if err := m.config.SetLeftSidebarVisible(leftWillBeVisible); err != nil {
+		m.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
+	}
+
+	m.leftSidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
+	m.rightSidebar.UpdateDimensions(m.width, leftWillBeVisible)
+	m.leftSidebar.Toggle()
+
+	layout := m.computeViewports()
+	m.metrics.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	return m, m.leftSidebar.animationCmd()
 }
 
 func (m *Model) handleToggleRightSidebar(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	return m, nil
+	// Prevent concurrent animations
+	m.animationMu.Lock()
+	if m.animating {
+		m.animationMu.Unlock()
+		return m, nil
+	}
+	m.animating = true
+	m.animationMu.Unlock()
+
+	rightWillBeVisible := !m.rightSidebar.IsVisible()
+
+	if err := m.config.SetRightSidebarVisible(rightWillBeVisible); err != nil {
+		m.logger.Error(fmt.Sprintf("model: failed to save right sidebar state: %v", err))
+	}
+
+	m.rightSidebar.UpdateDimensions(m.width, m.leftSidebar.IsVisible())
+	m.leftSidebar.UpdateDimensions(m.width, rightWillBeVisible)
+	m.rightSidebar.Toggle()
+
+	layout := m.computeViewports()
+	m.metrics.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+
+	return m, m.rightSidebar.animationCmd()
 }
 
 func (m *Model) handlePrevPage(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	m.metrics.navigatePage(-1)
 	return m, nil
 }
 
 func (m *Model) handleNextPage(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	m.metrics.navigatePage(1)
 	return m, nil
 }
 
 func (m *Model) handlePrevSystemPage(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	if m.rightSidebar.IsVisible() && m.rightSidebar.metricsGrid != nil {
+		m.rightSidebar.metricsGrid.Navigate(-1)
+	}
 	return m, nil
 }
 
 func (m *Model) handleNextSystemPage(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	if m.rightSidebar.IsVisible() && m.rightSidebar.metricsGrid != nil {
+		m.rightSidebar.metricsGrid.Navigate(1)
+	}
 	return m, nil
 }
 
 func (m *Model) handleEnterMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	m.metrics.enterFilterMode()
 	return m, nil
 }
 
 func (m *Model) handleClearMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	if m.metrics.activeFilter != "" {
+		m.metrics.clearFilter()
+	}
 	return m, nil
 }
 
 func (m *Model) handleEnterOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	m.leftSidebar.StartFilter()
 	return m, nil
 }
 
 func (m *Model) handleClearOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	if m.leftSidebar.IsFiltering() {
+		m.leftSidebar.clearFilter()
+	}
 	return m, nil
 }
 
@@ -626,6 +475,79 @@ func (m *Model) handleConfigSystemCols(msg tea.KeyMsg) (*Model, tea.Cmd) {
 
 func (m *Model) handleConfigSystemRows(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	m.pendingGridConfig = gridConfigSystemRows
+	return m, nil
+}
+
+// handleMetricsFilter handles filter mode input for metrics
+func (m *Model) handleMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.metrics.exitFilterMode(false)
+		return m, nil
+	case tea.KeyEnter:
+		m.metrics.exitFilterMode(true)
+		return m, nil
+	case tea.KeyBackspace:
+		if len(m.metrics.filterInput) > 0 {
+			m.metrics.filterInput = m.metrics.filterInput[:len(m.metrics.filterInput)-1]
+			m.metrics.applyFilter(m.metrics.filterInput)
+			m.metrics.drawVisible()
+		}
+		return m, nil
+	case tea.KeyRunes:
+		m.metrics.filterInput += string(msg.Runes)
+		m.metrics.applyFilter(m.metrics.filterInput)
+		m.metrics.drawVisible()
+		return m, nil
+	case tea.KeySpace:
+		m.metrics.filterInput += " "
+		m.metrics.applyFilter(m.metrics.filterInput)
+		m.metrics.drawVisible()
+		return m, nil
+	default:
+		return m, nil
+	}
+}
+
+// handleOverviewFilter handles overview filter keyboard input.
+func (m *Model) handleOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	// Sidebar now handles its own filter state
+	if !m.leftSidebar.IsFilterMode() {
+		return m, nil
+	}
+
+	switch msg.Type {
+	case tea.KeyEsc:
+		// Cancel filter input
+		m.leftSidebar.CancelFilter()
+		return m, nil
+
+	case tea.KeyEnter:
+		// Apply filter
+		m.leftSidebar.ConfirmFilter()
+		return m, nil
+
+	case tea.KeyBackspace:
+		// Remove last character
+		input := m.leftSidebar.GetFilterInput()
+		if len(input) > 0 {
+			m.leftSidebar.UpdateFilter(input[:len(input)-1])
+		}
+		return m, nil
+
+	case tea.KeyRunes:
+		// Add typed characters
+		input := m.leftSidebar.GetFilterInput()
+		m.leftSidebar.UpdateFilter(input + string(msg.Runes))
+		return m, nil
+
+	case tea.KeySpace:
+		// Add space
+		input := m.leftSidebar.GetFilterInput()
+		m.leftSidebar.UpdateFilter(input + " ")
+		return m, nil
+	}
+
 	return m, nil
 }
 
@@ -679,8 +601,10 @@ func (m *Model) handleConfigNumberKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	}
 
 	// Update grid dimensions and rebuild the UI
-	m.rebuildGrids()
-	m.updateChartSizes()
+	m.metrics.rebuildGrids()
+	// Update metrics using new content viewport
+	layout := m.computeViewports()
+	m.metrics.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
 	// TODO: show in status bar.
 	m.logger.Info(statusMsg)
@@ -700,17 +624,18 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 		m.help.SetSize(msg.Width, msg.Height)
 
 		// Update sidebar dimensions based on new window size
-		m.sidebar.UpdateDimensions(msg.Width, m.rightSidebar.IsVisible())
-		m.rightSidebar.UpdateDimensions(msg.Width, m.sidebar.IsVisible())
+		m.leftSidebar.UpdateDimensions(msg.Width, m.rightSidebar.IsVisible())
+		m.rightSidebar.UpdateDimensions(msg.Width, m.leftSidebar.IsVisible())
 
-		// Then update chart sizes
-		m.updateChartSizes()
+		// Update metrics using new content viewport
+		layout := m.computeViewports()
+		m.metrics.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
 	case SidebarAnimationMsg:
-		if m.sidebar.IsAnimating() {
+		if m.leftSidebar.IsAnimating() {
 			// Don't update chart sizes during every animation frame
 			// Just continue the animation
-			return m, m.sidebar.animationCmd()
+			return m, m.leftSidebar.animationCmd()
 		} else {
 			// Animation complete - now update everything
 			m.animationMu.Lock()
@@ -718,11 +643,13 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 			m.animationMu.Unlock()
 
 			// Final update after animation completes
-			m.rightSidebar.UpdateDimensions(m.width, m.sidebar.IsVisible())
-			m.updateChartSizes()
+			m.rightSidebar.UpdateDimensions(m.width, m.leftSidebar.IsVisible())
+			// Update metrics using new content viewport
+			layout := m.computeViewports()
+			m.metrics.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
 			// Force redraw all visible charts now that animation is complete
-			m.drawVisibleCharts()
+			m.metrics.drawVisible()
 		}
 
 	case RightSidebarAnimationMsg:
@@ -737,11 +664,13 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 			m.animationMu.Unlock()
 
 			// Final update after animation completes
-			m.sidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
-			m.updateChartSizes()
+			m.leftSidebar.UpdateDimensions(m.width, m.rightSidebar.IsVisible())
+			// Update metrics using new content viewport
+			layout := m.computeViewports()
+			m.metrics.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
 			// Force redraw all visible charts now that animation is complete
-			m.drawVisibleCharts()
+			m.metrics.drawVisible()
 		}
 	}
 
@@ -764,13 +693,13 @@ func (m *Model) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea
 	}
 	m.suppressDraw = prev
 	if !m.suppressDraw {
-		m.drawVisibleCharts()
+		m.metrics.drawVisible()
 	}
 
 	// Exit loading state once we have some charts
-	m.chartMu.RLock()
-	hasCharts := len(m.allCharts) > 0
-	m.chartMu.RUnlock()
+	m.metrics.chartMu.RLock()
+	hasCharts := len(m.metrics.allCharts) > 0
+	m.metrics.chartMu.RUnlock()
 	if m.isLoading && hasCharts {
 		m.isLoading = false
 	}

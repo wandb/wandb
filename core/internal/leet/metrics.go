@@ -31,10 +31,9 @@ type metrics struct {
 	totalPages  int
 
 	// Chart focus state.
-	focusState   FocusState
-	focusedTitle string // For status bar display
-	focusedRow   int
-	focusedCol   int
+	focusState             FocusState
+	focusedTitle           string // For status bar display
+	focusedRow, focusedCol int
 }
 
 func newMetrics(config *ConfigManager) *metrics {
@@ -58,18 +57,16 @@ func newMetrics(config *ConfigManager) *metrics {
 
 // ChartDimensions represents chart dimensions for the given window size.
 type ChartDimensions struct {
-	ChartWidth             int
-	ChartHeight            int
-	ChartWidthWithPadding  int
-	ChartHeightWithPadding int
+	ChartWidth, ChartHeight                       int
+	ChartWidthWithPadding, ChartHeightWithPadding int
 }
 
-// CalculateChartDimensions computes the chart dimensions based on window size
+// CalculateChartDimensions computes the chart dimensions based on window size.
 func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
 	// Read current layout from config (no global vars).
 	cfg := GetConfig()
 	gridRows, gridCols := cfg.GetMetricsGrid()
-	// TODO: should this be in getmetricsgrid?
+	// TODO: should this be in GetMetricsGrid?
 	if gridRows <= 0 {
 		gridRows = 1
 	}
@@ -106,7 +103,9 @@ func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
 	}
 }
 
-// sortChartsNoLock sorts charts without acquiring the mutex (caller must hold the lock)
+// sortChartsNoLock sorts charts
+//
+// The caller must hold the lock.
 func (m *metrics) sortChartsNoLock() {
 	sort.Slice(m.allCharts, func(i, j int) bool {
 		return m.allCharts[i].Title() < m.allCharts[j].Title()
@@ -130,7 +129,7 @@ func (m *metrics) sortChartsNoLock() {
 	}
 }
 
-// loadCurrentPage loads the charts for the current page into the grid
+// loadCurrentPage loads the charts for the current page into the grid.
 func (m *Model) loadCurrentPage() {
 	m.chartMu.Lock()
 	defer m.chartMu.Unlock()
@@ -138,7 +137,7 @@ func (m *Model) loadCurrentPage() {
 	m.loadCurrentPageNoLock()
 }
 
-// loadCurrentPageNoLock loads the current page without acquiring the mutex
+// loadCurrentPageNoLock loads the current page without acquiring the mutex.
 func (m *Model) loadCurrentPageNoLock() {
 	gridRows, gridCols := m.config.GetMetricsGrid()
 	chartsPerPage := gridRows * gridCols
@@ -169,7 +168,7 @@ func (m *Model) loadCurrentPageNoLock() {
 	}
 }
 
-// updateChartSizes updates all chart sizes when window is resized or sidebar toggled
+// updateChartSizes updates all chart sizes when window is resized or sidebar toggled.
 func (m *Model) updateChartSizes() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -178,7 +177,7 @@ func (m *Model) updateChartSizes() {
 	}()
 
 	// Get current sidebar widths
-	leftWidth := m.sidebar.Width()
+	leftWidth := m.leftSidebar.Width()
 	rightWidth := m.rightSidebar.Width()
 
 	// Validate widths
@@ -216,7 +215,7 @@ func (m *Model) updateChartSizes() {
 	m.drawVisibleCharts()
 }
 
-// renderGrid creates the chart grid view
+// renderGrid creates the chart grid view.
 func (m *Model) renderGrid(dims ChartDimensions) string {
 	// Build header with consistent padding
 	header := headerStyle.Render("Metrics")
@@ -278,7 +277,7 @@ func (m *Model) renderGrid(dims ChartDimensions) string {
 	return lipgloss.JoinVertical(lipgloss.Left, headerContainer, gridContainer)
 }
 
-// renderGridCell renders a single grid cell
+// renderGridCell renders a single grid cell.
 func (m *Model) renderGridCell(row, col int, dims ChartDimensions) string {
 	// Use RLock for reading charts
 	m.chartMu.RLock()
@@ -324,7 +323,7 @@ func (m *Model) renderGridCell(row, col int, dims ChartDimensions) string {
 		Render("")
 }
 
-// navigatePage changes the current page
+// navigatePage changes the current page.
 func (m *Model) navigatePage(direction int) {
 	if m.totalPages <= 1 {
 		return

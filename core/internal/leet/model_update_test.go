@@ -27,9 +27,14 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 		DisplayName: "cool-run",
 		Project:     "proj",
 	})
-	ro := model.TestRunOverview()
-	if ro.ID != "run_123" || ro.DisplayName != "cool-run" || ro.Project != "proj" {
-		t.Fatalf("Run overview not populated: %+v", ro)
+	if runID := model.TestRunID(); runID != "run_123" {
+		t.Fatalf("Run ID not updated to: %+v", runID)
+	}
+	if displayName := model.TestRunDisplayName(); displayName != "cool-run" {
+		t.Fatalf("Run displayName not updated to: %+v", displayName)
+	}
+	if project := model.TestRunProject(); project != "proj" {
+		t.Fatalf("Run project not updated to: %+v", project)
 	}
 
 	model.TestProcessRecordMsg(leet.SystemInfoMsg{
