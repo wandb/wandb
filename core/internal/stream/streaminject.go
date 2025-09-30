@@ -31,13 +31,14 @@ func InjectStream(
 	logLevel slog.Level,
 	sentry *sentry_ext.Client,
 	settings *settings.Settings,
-) *Stream {
+) Stream {
 	wire.Build(streamProviders)
-	return &Stream{}
+	return nil
 }
 
 var streamProviders = wire.NewSet(
-	NewStream,
+	NewRunStream,
+	wire.Bind(new(Stream), new(*RunStream)),
 	wire.Bind(new(api.Peeker), new(*observability.Peeker)),
 	wire.Struct(new(observability.Peeker)),
 	featurechecker.NewServerFeaturesCache,
