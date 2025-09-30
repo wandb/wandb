@@ -809,6 +809,8 @@ def yield_dictionaries_from_key(root: Union[dict, list], key: str) -> Iterator[d
         for k, v in root.items():
             if k == key and isinstance(v, dict):
                 yield v
+            elif isinstance(v, (dict, list)):
+                yield from yield_dictionaries_from_key(v, key)
     elif isinstance(root, list):
         for item in root:
             yield from yield_dictionaries_from_key(item, key)

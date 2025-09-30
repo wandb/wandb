@@ -15,6 +15,7 @@ from wandb.sdk.launch.utils import (
     sanitize_identifiers_for_k8s,
     validate_launch_spec_source,
     yield_containers,
+    yield_dictionaries_from_key,
 )
 
 
@@ -289,6 +290,29 @@ def test_validate_launch_spec_source(spec, valid):
 )
 def test_yield_containers(manifest, expected):
     assert list(yield_containers(manifest)) == expected
+
+
+@pytest.mark.parametrize(
+    "manifest, expected",
+    [
+        ({"labels": {"label-1": "label-1"}}, [{"label-1": "label-1"}]),  # basic test
+        (
+            # nested key
+            {"nested": {"labels": {"label-1": "label-1"}}},
+            [{"label-1": "label-1"}],
+        ),
+        (
+            # multiple matches
+            {
+                "labels": {"label-1": "label-1"},
+                "matchLabels": {"matchLabel-1": {"labels": {"label-2": "label-2"}}},
+            },
+            [{"label-1": "label-1"}, {"label-2": "label-2"}],
+        ),
+    ],
+)
+def test_yield_dictionaries_from_key(manifest, expected):
+    assert list(yield_dictionaries_from_key(manifest, "labels")) == expected
 
 
 def test_make_k8s_label_safe():
