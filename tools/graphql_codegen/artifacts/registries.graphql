@@ -5,6 +5,7 @@ query RegistryVersions(
   $artifactFilter: JSONString
   $cursor: String
   $perPage: Int
+  $includeAliases: Boolean = false
 ) {
   organization(name: $organization) {
     orgEntity {
@@ -37,7 +38,7 @@ fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnec
       }
       versionIndex
       artifact {
-        ...ArtifactFragmentWithoutAliases
+        ...ArtifactFragment
       }
       aliases {
         ...ArtifactAliasFragment
