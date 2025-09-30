@@ -532,37 +532,16 @@ func (g *SystemMetricsGrid) Resize(width, height int) {
 	g.LoadCurrentPage()
 }
 
-// Reset clears all metrics data
-func (g *SystemMetricsGrid) Reset() {
-	// Clear all data
-	g.chartsByMetric = make(map[string]*SystemMetricChart)
-	g.orderedCharts = make([]*SystemMetricChart, 0)
-	g.currentPage = 0
-	g.nextColorIdx = 0
-	g.clearFocus()
-
-	gridRows, gridCols := g.config.GetSystemGrid()
-
-	// Clear the grid
-	for row := 0; row < gridRows; row++ {
-		for col := 0; col < gridCols; col++ {
-			g.charts[row][col] = nil
-		}
-	}
-
-	g.totalPages = 0
-}
-
-// View renders the metrics grid
+// View renders the metrics grid.
 func (g *SystemMetricsGrid) View() string {
 	dims := g.calculateChartDimensions()
 	gridRows, gridCols := g.config.GetSystemGrid()
 	metricsPerPage := gridRows * gridCols
 
 	var rows []string
-	for row := 0; row < gridRows; row++ {
+	for row := range gridRows {
 		var cols []string
-		for col := 0; col < gridCols; col++ {
+		for col := range gridCols {
 			cellIdx := g.currentPage*metricsPerPage + row*gridCols + col
 
 			if row < len(g.charts) && col < len(g.charts[row]) && g.charts[row][col] != nil && cellIdx < len(g.orderedCharts) {
@@ -633,14 +612,14 @@ func (g *SystemMetricsGrid) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
-// RebuildGrid rebuilds the grid structure with new dimensions
+// RebuildGrid rebuilds the grid structure.
 func (g *SystemMetricsGrid) RebuildGrid() {
 	gridRows, gridCols := g.config.GetSystemGrid()
 	metricsPerPage := gridRows * gridCols
 
 	// Rebuild grid structure
 	g.charts = make([][]*SystemMetricChart, gridRows)
-	for row := 0; row < gridRows; row++ {
+	for row := range gridRows {
 		g.charts[row] = make([]*SystemMetricChart, gridCols)
 	}
 
@@ -674,7 +653,7 @@ func (g *SystemMetricsGrid) GetCharts() [][]*SystemMetricChart {
 	return g.charts
 }
 
-// GetChartCount returns the number of charts with data
+// GetChartCount returns the number of charts with data.
 func (g *SystemMetricsGrid) GetChartCount() int {
 	count := 0
 	for _, chart := range g.orderedCharts {
@@ -685,7 +664,6 @@ func (g *SystemMetricsGrid) GetChartCount() int {
 	return count
 }
 
-// NewRightSidebar creates a new right sidebar instance
 func NewRightSidebar(config *ConfigManager, logger *observability.CoreLogger) *RightSidebar {
 	state := SidebarCollapsed
 	currentWidth, targetWidth := 0, 0
@@ -705,7 +683,7 @@ func NewRightSidebar(config *ConfigManager, logger *observability.CoreLogger) *R
 	return rs
 }
 
-// UpdateDimensions updates the right sidebar dimensions based on terminal width and left sidebar state
+// UpdateDimensions updates the right sidebar dimensions based on terminal width and left sidebar state.
 func (rs *RightSidebar) UpdateDimensions(terminalWidth int, leftSidebarVisible bool) {
 	var calculatedWidth int
 
@@ -766,7 +744,7 @@ func (rs *RightSidebar) UpdateDimensions(terminalWidth int, leftSidebarVisible b
 	}
 }
 
-// Toggle toggles the sidebar state between expanded and collapsed
+// Toggle flips the sidebar state between expanded and collapsed.
 func (rs *RightSidebar) Toggle() {
 	switch rs.state {
 	case SidebarCollapsed:
@@ -795,7 +773,8 @@ func (rs *RightSidebar) Toggle() {
 	}
 }
 
-// HandleMouseClick handles mouse clicks in the sidebar
+// HandleMouseClick handles mouse clicks in the sidebar.
+//
 // x and y are already adjusted relative to the sidebar's position
 // Returns true if a chart was focused, false if unfocused or no chart clicked
 func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
@@ -838,7 +817,7 @@ func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
 	return result
 }
 
-// GetFocusedChartTitle returns the title of the focused chart
+// GetFocusedChartTitle returns the title of the focused chart.
 func (rs *RightSidebar) GetFocusedChartTitle() string {
 	if rs.metricsGrid != nil {
 		return rs.metricsGrid.GetFocusedChartTitle()
@@ -853,7 +832,7 @@ func (rs *RightSidebar) ClearFocus() {
 	}
 }
 
-// Update handles animation updates and forwards system metrics data
+// Update handles animation updates and forwards system metrics data.
 func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -909,7 +888,7 @@ func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 	return rs, tea.Batch(cmds...)
 }
 
-// View renders the right sidebar
+// View renders the right sidebar.
 func (rs *RightSidebar) View(height int) string {
 	// Check if we have minimum width for rendering
 	if rs.currentWidth <= 3 {
@@ -1087,32 +1066,32 @@ func (rs *RightSidebar) View(height int) string {
 	return bordered
 }
 
-// Width returns the current width of the sidebar
+// Width returns the current width of the sidebar.
 func (rs *RightSidebar) Width() int {
 	return rs.currentWidth
 }
 
-// IsVisible returns true if the sidebar is visible
+// IsVisible returns true if the sidebar is visible.
 func (rs *RightSidebar) IsVisible() bool {
 	return rs.state != SidebarCollapsed
 }
 
-// IsAnimating returns true if the sidebar is currently animating
+// IsAnimating returns true if the sidebar is currently animating.
 func (rs *RightSidebar) IsAnimating() bool {
 	return rs.state == SidebarExpanding || rs.state == SidebarCollapsing
 }
 
-// animationCmd returns a command to continue the animation
+// animationCmd returns a command to continue the animation.
 func (rs *RightSidebar) animationCmd() tea.Cmd {
 	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg {
 		return RightSidebarAnimationMsg{}
 	})
 }
 
-// RightSidebarAnimationMsg is sent during right sidebar animations
+// RightSidebarAnimationMsg is sent during right sidebar animations.
 type RightSidebarAnimationMsg struct{}
 
-// ProcessStatsMsg processes a stats message and updates the metrics
+// ProcessStatsMsg processes a stats message and updates the metrics.
 func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 	rs.logger.Debug(fmt.Sprintf("RightSidebar.ProcessStatsMsg: processing %d metrics (state=%v, width=%d)",
 		len(msg.Metrics), rs.state, rs.currentWidth))
@@ -1135,12 +1114,5 @@ func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 	// Always add data points, but drawing will be skipped if sidebar is collapsed
 	for metricName, value := range msg.Metrics {
 		rs.metricsGrid.AddDataPoint(metricName, msg.Timestamp, value)
-	}
-}
-
-// Reset clears all system metrics data
-func (rs *RightSidebar) Reset() {
-	if rs.metricsGrid != nil {
-		rs.metricsGrid.Reset()
 	}
 }

@@ -7,15 +7,32 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	leet "github.com/wandb/wandb/core/internal/leet"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestSidebarFilter_WithPrefixes(t *testing.T) {
-	s := leet.NewSidebar(leet.GetConfig())
-	s.SetRunOverview(leet.RunOverview{
-		Config:      map[string]any{"trainer": map[string]any{"epochs": 10}},
-		Summary:     map[string]any{"acc": 0.9},
-		Environment: map[string]any{"writer-1": map[string]any{"os": "linux"}},
+	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
+
+	// Use the actual ProcessRunMsg API with minimal proto
+	s.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"trainer", "epochs"}, ValueJson: "10"},
+			},
+		},
 	})
+
+	s.ProcessSummaryMsg(&spb.SummaryRecord{
+		Update: []*spb.SummaryItem{
+			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
+		},
+	})
+
+	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
+		WriterId: "writer-1",
+		Os:       "linux",
+	})
+
 	s.StartFilter()
 	s.UpdateFilter("@c train") // live preview
 	if info := s.GetFilterInfo(); info == "" {
@@ -25,12 +42,15 @@ func TestSidebarFilter_WithPrefixes(t *testing.T) {
 }
 
 func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
-	s := leet.NewSidebar(leet.GetConfig())
-	s.SetRunOverview(leet.RunOverview{
-		// Only config is non-empty.
-		Config:      map[string]any{"trainer": map[string]any{"epochs": 10}},
-		Summary:     map[string]any{},
-		Environment: map[string]any{},
+	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
+
+	// Only config is non-empty
+	s.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"trainer", "epochs"}, ValueJson: "10"},
+			},
+		},
 	})
 
 	key, val := s.GetSelectedItem()
@@ -40,12 +60,20 @@ func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
 }
 
 func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
-	s := leet.NewSidebar(leet.GetConfig())
-	s.SetRunOverview(leet.RunOverview{
-		Config: map[string]any{"trainer": map[string]any{"epochs": 10}},
-		Summary: map[string]any{
-			"acc":  0.9,
-			"loss": 0.5,
+	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
+
+	s.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"trainer", "epochs"}, ValueJson: "10"},
+			},
+		},
+	})
+
+	s.ProcessSummaryMsg(&spb.SummaryRecord{
+		Update: []*spb.SummaryItem{
+			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
+			{NestedKey: []string{"loss"}, ValueJson: "0.5"},
 		},
 	})
 
@@ -60,7 +88,7 @@ func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
 	}
 }
 
-func expandSidebar(t *testing.T, s *leet.Sidebar, termWidth int, rightVisible bool) {
+func expandSidebar(t *testing.T, s *leet.LeftSidebar, termWidth int, rightVisible bool) {
 	t.Helper()
 	s.UpdateDimensions(termWidth, rightVisible)
 	s.Toggle()
@@ -70,25 +98,39 @@ func expandSidebar(t *testing.T, s *leet.Sidebar, termWidth int, rightVisible bo
 }
 
 func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
-	s := leet.NewSidebar(leet.GetConfig())
+	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
 	expandSidebar(t, s, 120, false)
 
-	ro := leet.RunOverview{
-		Config: map[string]any{
-			"alpha": map[string]any{"a": 1, "b": 2, "c": 3},
-			"beta":  map[string]any{"d": 4, "e": 5},
-		}, // 5 items
-		Summary:     map[string]any{"acc": 0.91, "val": map[string]any{"acc": 0.88}},                           // 2 items
-		Environment: map[string]any{"writer-1": map[string]any{"os": "linux", "cpu": "x86_64", "ram": "64GB"}}, // 3 items
-	}
-	s.SetRunOverview(ro)
+	s.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"alpha", "a"}, ValueJson: "1"},
+				{NestedKey: []string{"alpha", "b"}, ValueJson: "2"},
+				{NestedKey: []string{"alpha", "c"}, ValueJson: "3"},
+				{NestedKey: []string{"beta", "d"}, ValueJson: "4"},
+				{NestedKey: []string{"beta", "e"}, ValueJson: "5"},
+			},
+		},
+	})
+
+	s.ProcessSummaryMsg(&spb.SummaryRecord{
+		Update: []*spb.SummaryItem{
+			{NestedKey: []string{"acc"}, ValueJson: "0.91"},
+			{NestedKey: []string{"val", "acc"}, ValueJson: "0.88"},
+		},
+	})
+
+	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
+		WriterId: "writer-1",
+		Os:       "linux",
+	})
 
 	// Small height -> ItemsPerPage=1 -> expect "[1-1 of N]" pagination per section.
 	view := s.View(15)
 	if !strings.Contains(view, "Config") || !strings.Contains(view, "Summary") || !strings.Contains(view, "Environment") {
 		t.Fatalf("expected all section headers in view; got:\n%s", view)
 	}
-	if !strings.Contains(view, "Config [1-1 of 5]") {
+	if !strings.Contains(view, "Config [1-2 of 5]") {
 		t.Fatalf("expected paginated config header; got:\n%s", view)
 	}
 	if !strings.Contains(view, "Summary [1-1 of 2]") {
@@ -105,15 +147,29 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
-	s := leet.NewSidebar(leet.GetConfig())
+	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
 	expandSidebar(t, s, 120, false)
-	s.SetRunOverview(leet.RunOverview{
-		Config: map[string]any{
-			"alpha": map[string]any{"a": 1, "z": 2},
-			"beta":  map[string]any{"b": 3},
+
+	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
+		WriterId: "writer-1",
+		Os:       "linux",
+	})
+
+	s.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"alpha", "a"}, ValueJson: "1"},
+				{NestedKey: []string{"alpha", "z"}, ValueJson: "2"},
+				{NestedKey: []string{"beta", "b"}, ValueJson: "3"},
+			},
 		},
-		Summary:     map[string]any{"acc": 0.9, "loss": 0.1},
-		Environment: map[string]any{"writer-1": map[string]any{"os": "linux", "cpu": "x86"}},
+	})
+
+	s.ProcessSummaryMsg(&spb.SummaryRecord{
+		Update: []*spb.SummaryItem{
+			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
+			{NestedKey: []string{"loss"}, ValueJson: "0.1"},
+		},
 	})
 
 	// Start in Environment; Tab to Config (navigateSection).
@@ -149,12 +205,27 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 }
 
 func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
-	s := leet.NewSidebar(leet.GetConfig())
+	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
 	expandSidebar(t, s, 120, false)
-	s.SetRunOverview(leet.RunOverview{
-		Config:      map[string]any{"alpha": map[string]any{"a": 1, "b": 2}},
-		Summary:     map[string]any{"acc": 0.91},
-		Environment: map[string]any{"writer-1": map[string]any{"os": "linux"}},
+
+	s.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"alpha", "a"}, ValueJson: "1"},
+				{NestedKey: []string{"alpha", "b"}, ValueJson: "2"},
+			},
+		},
+	})
+
+	s.ProcessSummaryMsg(&spb.SummaryRecord{
+		Update: []*spb.SummaryItem{
+			{NestedKey: []string{"acc"}, ValueJson: "0.91"},
+		},
+	})
+
+	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
+		WriterId: "writer-1",
+		Os:       "linux",
 	})
 
 	// Apply a filter and verify info shows.
@@ -178,14 +249,22 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 }
 
 func TestSidebar_TruncateValue(t *testing.T) {
-	s := leet.NewSidebar(leet.GetConfig())
+	s := leet.NewLeftSidebar(leet.GetConfig(), "/some/path")
 	expandSidebar(t, s, 40, false) // clamps to SidebarMinWidth
 
 	long := strings.Repeat("x", 200)
-	s.SetRunOverview(leet.RunOverview{
-		Config:      map[string]any{"a": map[string]any{"k": long}},
-		Summary:     map[string]any{},
-		Environment: map[string]any{"writer-1": map[string]any{"os": "linux"}},
+
+	s.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"a", "k"}, ValueJson: `"` + long + `"`},
+			},
+		},
+	})
+
+	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
+		WriterId: "writer-1",
+		Os:       "linux",
 	})
 
 	view := s.View(12)

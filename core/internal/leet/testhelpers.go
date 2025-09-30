@@ -13,9 +13,16 @@ func (m *Model) TestFocusState() FocusState {
 	return m.focusState
 }
 
-// TestRunOverview returns the current run overview
-func (m *Model) TestRunOverview() RunOverview {
-	return m.runOverview
+func (m *Model) TestRunID() string {
+	return m.leftSidebar.runID
+}
+
+func (m *Model) TestRunDisplayName() string {
+	return m.leftSidebar.displayName
+}
+
+func (m *Model) TestRunProject() string {
+	return m.leftSidebar.project
 }
 
 // TestRunState returns the current run state
@@ -25,22 +32,22 @@ func (m *Model) TestRunState() RunState {
 
 // TestLeftSidebarVisible returns true if the left sidebar is visible
 func (m *Model) TestLeftSidebarVisible() bool {
-	return m.sidebar.IsVisible()
+	return m.leftSidebar.IsVisible()
 }
 
 // TestSidebarIsFiltering returns true if the sidebar has an active filter
 func (m *Model) TestSidebarIsFiltering() bool {
-	return m.sidebar.IsFiltering()
+	return m.leftSidebar.IsFiltering()
 }
 
 // TestSidebarFilterQuery returns the current sidebar filter query
 func (m *Model) TestSidebarFilterQuery() string {
-	return m.sidebar.GetFilterQuery()
+	return m.leftSidebar.GetFilterQuery()
 }
 
 // TestGetLeftSidebar returns the left sidebar for testing
-func (m *Model) TestGetLeftSidebar() *Sidebar {
-	return m.sidebar
+func (m *Model) TestGetLeftSidebar() *LeftSidebar {
+	return m.leftSidebar
 }
 
 // TestProcessRecordMsg processes a record message
@@ -69,7 +76,7 @@ func (m *Model) TestClearAllFocus() {
 }
 
 // TestForceExpand forces the sidebar to expanded state without animation
-func (s *Sidebar) TestForceExpand() {
+func (s *LeftSidebar) TestForceExpand() {
 	s.state = SidebarExpanded
 	s.currentWidth = s.expandedWidth
 	s.targetWidth = s.expandedWidth
