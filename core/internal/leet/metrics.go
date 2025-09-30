@@ -71,7 +71,6 @@ func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
 	// Read current layout from config (no global vars).
 	cfg := GetConfig()
 	gridRows, gridCols := cfg.GetMetricsGrid()
-	// TODO: should this be in GetMetricsGrid?
 	if gridRows <= 0 {
 		gridRows = 1
 	}
@@ -79,19 +78,13 @@ func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
 		gridCols = 1
 	}
 
-	// windowHeight here should already have StatusBarHeight subtracted by the caller
-	// Reserve space for header (1 line + 1 margin top)
-	headerHeight := 2
-	availableHeight := windowHeight - headerHeight
+	availableHeight := windowHeight - ChartHeaderHeight
 	chartHeightWithPadding := availableHeight / gridRows
 	chartWidthWithPadding := windowWidth / gridCols
 
-	borderChars := 2
-	titleLines := 1
-
 	// Ensure minimum size
-	chartHeight := max(chartHeightWithPadding-borderChars-titleLines, MinChartHeight)
-	chartWidth := max(chartWidthWithPadding-borderChars, MinChartWidth)
+	chartHeight := max(chartHeightWithPadding-ChartBorderSize-ChartTitleHeight, MinChartHeight)
+	chartWidth := max(chartWidthWithPadding-ChartBorderSize, MinChartWidth)
 
 	return ChartDimensions{
 		ChartWidth:             chartWidth,
