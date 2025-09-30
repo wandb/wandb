@@ -2,3 +2,11 @@
 
 Excludes GraphQL-generated classes.
 """
+
+__all__ = [
+    "ArtifactsBase",
+    "ArtifactCollectionData",
+]
+
+from .artifact_collection import ArtifactCollectionData
+from .base_model import ArtifactsBase
