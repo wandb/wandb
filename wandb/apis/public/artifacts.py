@@ -58,13 +58,8 @@ from wandb.sdk.artifacts._generated import (
     UpdateArtifactSequenceInput,
 )
 from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
-from wandb.sdk.artifacts._validators import (
-    SOURCE_ARTIFACT_COLLECTION_TYPE,
-    FullArtifactPath,
-    validate_artifact_name,
-    validate_artifact_type,
-    validate_tags,
-)
+from wandb.sdk.artifacts._models import ArtifactCollectionData
+from wandb.sdk.artifacts._validators import FullArtifactPath, validate_artifact_type
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import deprecate
 
@@ -388,8 +383,11 @@ class ArtifactCollection:
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    _attrs: ArtifactCollectionFragment
-    """The saved artifact collection data, as of the last time the data was fetched from server."""
+    _saved: ArtifactCollectionData
+    """The saved artifact collection data as last fetched from the W&B server."""
+
+    _current: ArtifactCollectionData
+    """The local, editable artifact collection data."""
 
     def __init__(
         self,
@@ -401,59 +399,60 @@ class ArtifactCollection:
         organization: str | None = None,
         attrs: ArtifactCollectionFragment | None = None,
     ):
-        name = validate_artifact_name(name)
-
         self.client = client
-        self.entity = entity
-        self.project = project
-        self._name = name
-        self._saved_name = name
-        self._type = type
-        self._saved_type = type
 
         # FIXME: Make this lazy, so we don't (re-)fetch the attributes until they are needed
         if attrs is None:
-            self._attrs = self._fetch()
+            fragment = self._fetch(entity, project, type, name)
         else:
-            self._attrs = ArtifactCollectionFragment.model_validate(attrs)
+            fragment = attrs
 
-        self._description = self._attrs.description
-        self._tags = (
-            [a.node.name for a in conn.edges] if (conn := self._attrs.tags) else []
-        )
-        self._saved_tags = copy(self._tags)
+        # Separate "saved" vs "current" copies of the artifact collection data
+        self._saved = ArtifactCollectionData.from_fragment(fragment)
+        self._current = self._saved.model_copy(deep=True)
+
         self.organization = organization
 
     @property
     def id(self) -> str:
         """The unique identifier of the artifact collection."""
-        return self._attrs.id
+        return self._saved.id
+
+    @property
+    def entity(self) -> str:
+        """The entity (user or team) that owns the project."""
+        return self._saved.entity
+
+    @property
+    def project(self) -> str:
+        """The project that contains the artifact collection."""
+        return self._saved.project
 
     @normalize_exceptions
     def artifacts(self, per_page: int = 50) -> Artifacts:
         """Get all artifacts in the collection."""
         return Artifacts(
             client=self.client,
-            entity=self.entity,
-            project=self.project,
-            collection_name=self._saved_name,
-            type=self._saved_type,
+            entity=self._saved.entity,
+            project=self._saved.project,
+            collection_name=self._saved.name,
+            type=self._saved.type,
             per_page=per_page,
         )
 
     @property
     def aliases(self) -> list[str]:
         """Artifact Collection Aliases."""
-        if conn := self._attrs.aliases:
-            return [a.node.alias for a in conn.edges]
-        return []
+        return self._saved.aliases
 
     @property
     def created_at(self) -> str:
         """The creation date of the artifact collection."""
-        return self._attrs.created_at
+        return self._saved.created_at
 
-    def _fetch(self) -> ArtifactCollectionFragment:
+    def _fetch(
+        self, entity: str, project: str, artifact_type: str, name: str
+    ) -> ArtifactCollectionFragment:
         """Returns the validated data for this artifact collection from the W&B server."""
         if server_supports_artifact_collections_gql_edges(self.client):
             rename_fields = None
@@ -463,10 +462,10 @@ class ArtifactCollection:
         response = self.client.execute(
             gql_compat(PROJECT_ARTIFACT_COLLECTION_GQL, rename_fields=rename_fields),
             variable_values={
-                "entityName": self.entity,
-                "projectName": self.project,
-                "artifactTypeName": self._saved_type,
-                "artifactCollectionName": self._saved_name,
+                "entityName": entity,
+                "projectName": project,
+                "artifactTypeName": artifact_type,
+                "artifactCollectionName": name,
             },
         )
 
@@ -478,7 +477,7 @@ class ArtifactCollection:
             and (type_ := proj.artifact_type)
             and (collection := type_.artifact_collection)
         ):
-            raise ValueError(f"Could not find artifact type {self._saved_type}")
+            raise ValueError(f"Could not find artifact type {artifact_type!s}")
 
         return collection
 
@@ -495,8 +494,8 @@ class ArtifactCollection:
         <!-- lazydoc-ignore: internal -->
         """
         # NOTE: Kept for continuity since it's formally a public method, but avoid using this.
-        self._attrs = self._fetch()
-        return self._attrs.model_dump(exclude_unset=True)
+        attrs = self._fetch(self.entity, self.project, self.type, self.name)
+        return attrs.model_dump(exclude_unset=True)
 
     @normalize_exceptions
     def change_type(self, new_type: str) -> None:
@@ -506,7 +505,7 @@ class ArtifactCollection:
             warning_message="ArtifactCollection.change_type(type) is deprecated, use ArtifactCollection.save() instead.",
         )
 
-        if (saved_type := self._saved_type) != new_type:
+        if (saved_type := self._saved.type) != new_type:
             try:
                 validate_artifact_type(saved_type, self.name)
             except ValueError as e:
@@ -528,12 +527,12 @@ class ArtifactCollection:
             gql(MOVE_ARTIFACT_COLLECTION_GQL),
             variable_values={"input": gql_input.model_dump()},
         )
-        self._saved_type = new_type
-        self._type = new_type
+        self._saved.type = new_type
+        self._current.type = new_type
 
     def is_sequence(self) -> bool:
         """Return whether the artifact collection is a sequence."""
-        return self._attrs.typename__ == SOURCE_ARTIFACT_COLLECTION_TYPE
+        return self._saved.is_sequence
 
     @normalize_exceptions
     def delete(self) -> None:
@@ -550,37 +549,37 @@ class ArtifactCollection:
     @property
     def description(self) -> str:
         """A description of the artifact collection."""
-        return self._description
+        return self._current.description
 
     @description.setter
     def description(self, description: str | None) -> None:
         """Set the description of the artifact collection."""
-        self._description = description
+        self._current.description = description
 
     @property
     def tags(self) -> list[str]:
         """The tags associated with the artifact collection."""
-        return self._tags
+        return self._current.tags
 
     @tags.setter
     def tags(self, tags: list[str]) -> None:
         """Set the tags associated with the artifact collection."""
-        self._tags = validate_tags(tags)
+        self._current.tags = tags
 
     @property
     def name(self) -> str:
         """The name of the artifact collection."""
-        return self._name
+        return self._current.name
 
     @name.setter
     def name(self, name: str) -> None:
         """Set the name of the artifact collection."""
-        self._name = validate_artifact_name(name)
+        self._current.name = name
 
     @property
     def type(self):
         """Returns the type of the artifact collection."""
-        return self._type
+        return self._current.type
 
     @type.setter
     def type(self, type: list[str]) -> None:
@@ -589,7 +588,7 @@ class ArtifactCollection:
             raise ValueError(
                 "Type can only be changed if the artifact collection is a sequence."
             )
-        self._type = type
+        self._current.type = type
 
     def _update_collection(self) -> None:
         if self.is_sequence():
@@ -607,7 +606,7 @@ class ArtifactCollection:
                 description=self.description,
             )
         self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
-        self._saved_name = self._name
+        self._saved.name = self._current.name
 
     def _update_collection_type(self) -> None:
         gql_op = gql(MOVE_ARTIFACT_COLLECTION_GQL)
@@ -616,14 +615,14 @@ class ArtifactCollection:
             destination_artifact_type_name=self.type,
         )
         self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
-        self._saved_type = self._type
+        self._saved.type = self._current.type
 
     def _add_tags(self, tags_to_add: Iterable[str]) -> None:
         gql_op = gql(CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL)
         gql_input = CreateArtifactCollectionTagAssignmentsInput(
             entity_name=self.entity,
             project_name=self.project,
-            artifact_collection_name=self._saved_name,
+            artifact_collection_name=self._saved.name,
             tags=[{"tagName": tag} for tag in tags_to_add],
         )
         self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
@@ -633,7 +632,7 @@ class ArtifactCollection:
         gql_input = DeleteArtifactCollectionTagAssignmentsInput(
             entity_name=self.entity,
             project_name=self.project,
-            artifact_collection_name=self._saved_name,
+            artifact_collection_name=self._saved.name,
             tags=[{"tagName": tag} for tag in tags_to_delete],
         )
         self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
@@ -641,7 +640,7 @@ class ArtifactCollection:
     @normalize_exceptions
     def save(self) -> None:
         """Persist any changes made to the artifact collection."""
-        if (saved_type := self._saved_type) != (new_type := self.type):
+        if (saved_type := self._saved.type) != (new_type := self.type):
             try:
                 validate_artifact_type(new_type, self.name)
             except ValueError as e:
@@ -662,16 +661,16 @@ class ArtifactCollection:
         if self.is_sequence() and (saved_type != new_type):
             self._update_collection_type()
 
-        current_tags = set(self._tags)
-        saved_tags = set(self._saved_tags)
+        current_tags = set(self._current.tags)
+        saved_tags = set(self._saved.tags)
         if tags_to_add := (current_tags - saved_tags):
             self._add_tags(tags_to_add)
         if tags_to_delete := (saved_tags - current_tags):
             self._delete_tags(tags_to_delete)
-        self._saved_tags = copy(self._tags)
+        self._saved.tags = copy(self._current.tags)
 
     def __repr__(self) -> str:
-        return f"<ArtifactCollection {self._name} ({self._type})>"
+        return f"<ArtifactCollection {self.name} ({self.type})>"
 
 
 class _ArtifactEdge(Edge[ArtifactFragment]):

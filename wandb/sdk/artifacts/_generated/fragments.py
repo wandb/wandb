@@ -34,6 +34,10 @@ class ArtifactCollectionFragment(GQLResult):
     name: str
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
+    project: Optional[ProjectNames]
+    default_artifact_type: ArtifactCollectionFragmentDefaultArtifactType = Field(
+        alias="defaultArtifactType"
+    )
     tags: ArtifactCollectionFragmentTags
     aliases: Optional[ArtifactCollectionFragmentAliases] = None
 
@@ -44,6 +48,10 @@ class ArtifactCollectionFragmentAliases(GQLResult):
 
 class ArtifactCollectionFragmentAliasesEdges(GQLResult):
     node: Optional[ArtifactAliasFragment]
+
+
+class ArtifactCollectionFragmentDefaultArtifactType(GQLResult):
+    name: str
 
 
 class ArtifactCollectionFragmentTags(GQLResult):
@@ -387,6 +395,7 @@ ArtifactCollectionConnectionFragmentEdges.model_rebuild()
 ArtifactCollectionFragment.model_rebuild()
 ArtifactCollectionFragmentAliases.model_rebuild()
 ArtifactCollectionFragmentAliasesEdges.model_rebuild()
+ArtifactCollectionFragmentDefaultArtifactType.model_rebuild()
 ArtifactCollectionFragmentTags.model_rebuild()
 ArtifactCollectionFragmentTagsEdges.model_rebuild()
 ArtifactFragmentAliasesArtifactCollection.model_rebuild()
@@ -459,6 +468,7 @@ PageInfoFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
+ProjectNames.model_rebuild()
 ProjectNames.model_rebuild()
 ProjectNames.model_rebuild()
 ProjectNames.model_rebuild()
