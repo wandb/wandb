@@ -9,7 +9,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-func TestSystemMetricsGrid_Reset(t *testing.T) {
+func TestSystemMetricsGrid(t *testing.T) {
 	cfg := leet.GetConfig()
 	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
 	if err := cfg.Load(); err != nil {
@@ -28,11 +28,6 @@ func TestSystemMetricsGrid_Reset(t *testing.T) {
 
 	if got := grid.GetChartCount(); got == 0 {
 		t.Fatalf("expected charts after AddDataPoint, got %d", got)
-	}
-
-	grid.Reset()
-	if got := grid.GetChartCount(); got != 0 {
-		t.Fatalf("GetChartCount()=%d after Reset; want 0", got)
 	}
 }
 
