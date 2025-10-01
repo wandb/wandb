@@ -79,7 +79,7 @@ func TestRightSidebar_ProcessStatsMsg_GroupsSeriesByBaseKey(t *testing.T) {
 func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	_, _ = cfg.SetSystemRows(2), cfg.SetSystemCols(1)
-	gridRows, gridCols := cfg.GetSystemGrid()
+	gridRows, gridCols := cfg.SystemGrid()
 
 	logger := observability.NewNoOpLogger()
 	// Create grid with sufficient size
@@ -130,7 +130,7 @@ func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
 func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	_, _ = cfg.SetSystemRows(2), cfg.SetSystemCols(1)
-	gridRows, gridCols := cfg.GetSystemGrid()
+	gridRows, gridCols := cfg.SystemGrid()
 
 	logger := observability.NewNoOpLogger()
 	gridWidth := leet.MinMetricChartWidth * gridCols * 2

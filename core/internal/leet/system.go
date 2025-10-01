@@ -72,7 +72,7 @@ type SystemMetricsGrid struct {
 
 // NewSystemMetricsGrid creates a new system metrics grid
 func NewSystemMetricsGrid(width, height int, config *ConfigManager, focusState *FocusState, logger *observability.CoreLogger) *SystemMetricsGrid {
-	gridRows, gridCols := config.GetSystemGrid()
+	gridRows, gridCols := config.SystemGrid()
 
 	grid := &SystemMetricsGrid{
 		config:         config,
@@ -97,7 +97,7 @@ func NewSystemMetricsGrid(width, height int, config *ConfigManager, focusState *
 
 // effectiveGridSize returns the grid size that can fit in the current viewport.
 func (g *SystemMetricsGrid) effectiveGridSize() (rows, cols int) {
-	rows, cols = g.config.GetSystemGrid()
+	rows, cols = g.config.SystemGrid()
 	if g.width <= 0 || g.height <= 0 {
 		return rows, cols
 	}
@@ -692,7 +692,7 @@ func NewRightSidebar(
 ) *RightSidebar {
 	state := SidebarCollapsed
 	currentWidth, targetWidth := 0, 0
-	if config.GetRightSidebarVisible() {
+	if config.RightSidebarVisible() {
 		state = SidebarExpanded
 		currentWidth = SidebarMinWidth
 		targetWidth = SidebarMinWidth
@@ -771,7 +771,7 @@ func (rs *RightSidebar) Toggle() {
 
 		// Ensure we have a metrics grid ready when opening
 		if rs.metricsGrid == nil {
-			gridRows, gridCols := rs.config.GetSystemGrid()
+			gridRows, gridCols := rs.config.SystemGrid()
 			initialWidth := MinMetricChartWidth * gridCols
 			initialHeight := MinMetricChartHeight * gridRows
 			rs.metricsGrid = NewSystemMetricsGrid(initialWidth, initialHeight, rs.config, rs.focusState, rs.logger)
@@ -1087,7 +1087,7 @@ func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 	if rs.metricsGrid == nil {
 		// Use a reasonable initial size for storing data
 		// The actual display size will be set when the sidebar opens
-		gridRows, gridCols := rs.config.GetSystemGrid()
+		gridRows, gridCols := rs.config.SystemGrid()
 		initialWidth := MinMetricChartWidth * gridCols
 		initialHeight := MinMetricChartHeight * gridRows
 		rs.metricsGrid = NewSystemMetricsGrid(initialWidth, initialHeight, rs.config, rs.focusState, rs.logger)

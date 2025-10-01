@@ -17,8 +17,9 @@ import (
 )
 
 func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
-	var m tea.Model = leet.NewModel("dummy", logger)
+	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
 
 	model := m.(*leet.Model)
@@ -52,8 +53,9 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 }
 
 func TestFocus_Clicks_SetClear(t *testing.T) {
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
-	var m tea.Model = leet.NewModel("dummy", logger)
+	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
 	m, _ = m.Update(leet.HistoryMsg{
@@ -83,8 +85,9 @@ func TestFocus_Clicks_SetClear(t *testing.T) {
 }
 
 func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
-	var m tea.Model = leet.NewModel("dummy", logger)
+	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
 
 	// Enter overview filter mode
@@ -116,8 +119,9 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 }
 
 func TestHandleKeyMsg_VariousPaths(t *testing.T) {
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
-	var m tea.Model = leet.NewModel("dummy", logger)
+	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 50})
 
 	// Toggle left sidebar
@@ -154,11 +158,7 @@ func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 
 func TestHeartbeat_LiveRun(t *testing.T) {
 	// Setup config with short heartbeat interval for testing
-	cfg := leet.GetConfig()
-	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
-	if err := cfg.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	_ = cfg.SetHeartbeatInterval(1)
 
 	// Create a wandb file with initial data
@@ -203,7 +203,7 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 
 	// Create model
 	logger := observability.NewNoOpLogger()
-	m := leet.NewModel(tmp.Name(), logger)
+	m := leet.NewModel(tmp.Name(), cfg, logger)
 
 	// Track heartbeat messages
 	heartbeatCount := 0
@@ -317,11 +317,7 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 
 func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	// Setup config with short heartbeat
-	cfg := leet.GetConfig()
-	cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
-	if err := cfg.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	_ = cfg.SetHeartbeatInterval(1) // 1 second minimum
 
 	// Create wandb file
@@ -346,7 +342,7 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 
 	// Create model
 	logger := observability.NewNoOpLogger()
-	m := leet.NewModel(tmpPath, logger)
+	m := leet.NewModel(tmpPath, cfg, logger)
 
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
@@ -397,8 +393,9 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 }
 
 func TestReload_WhileLoading_DoesNotCrash(t *testing.T) {
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
-	var m tea.Model = leet.NewModel("dummy", logger)
+	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Trigger a reload (Alt+r).
@@ -423,11 +420,8 @@ func TestReload_WhileLoading_DoesNotCrash(t *testing.T) {
 func TestModel_HandleMouseMsg(t *testing.T) {
 	// Helper to create a fresh model with data
 	setupModel := func(t *testing.T) *leet.Model {
-		cfg := leet.GetConfig()
-		cfg.SetPathForTests(filepath.Join(t.TempDir(), "config.json"))
-		if err := cfg.Load(); err != nil {
-			t.Fatalf("Load: %v", err)
-		}
+		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+
 		_ = cfg.SetMetricsRows(2)
 		_ = cfg.SetMetricsCols(2)
 		_ = cfg.SetSystemRows(2)
@@ -436,7 +430,7 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 		_ = cfg.SetRightSidebarVisible(true)
 
 		logger := observability.NewNoOpLogger()
-		m := leet.NewModel("dummy", logger)
+		m := leet.NewModel("dummy", cfg, logger)
 
 		var model tea.Model = m
 		model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
