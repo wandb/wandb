@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
@@ -40,7 +41,7 @@ func NewTFEventStream(
 		logger:    logger,
 		ctx:       ctx,
 
-		reader: NewTFEventReader(logDir, fileFilter, logger),
+		reader: NewTFEventReader(logDir, fileFilter, logger, time.Now),
 
 		events: make(chan *tbproto.TFEvent),
 		files:  make(chan *LocalOrCloudPath),
