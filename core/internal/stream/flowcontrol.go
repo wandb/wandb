@@ -26,14 +26,14 @@ type FlowControl struct {
 	buffer *FlowControlBuffer
 	reader *transactionlog.Reader
 
-	flushWriter  func()
+	flushWriter  func() error
 	logger       *observability.CoreLogger
 	recordParser RecordParser
 }
 
 func (f *FlowControlFactory) New(
 	reader *transactionlog.Reader,
-	flushWriter func(),
+	flushWriter func() error,
 	recordParser RecordParser,
 	params FlowControlParams,
 ) *FlowControl {
@@ -108,9 +108,12 @@ func (fc *FlowControl) loopFlushBuffer() {
 func (fc *FlowControl) readSavedChunk(
 	chunk *FlowControlBufferSavedChunk,
 ) error {
-	fc.flushWriter()
+	err := fc.flushWriter()
+	if err != nil {
+		return fmt.Errorf("flowcontrol: failed to flush writer: %v", err)
+	}
 
-	err := fc.reader.SeekRecord(chunk.InitialOffset)
+	err = fc.reader.SeekRecord(chunk.InitialOffset)
 	if err != nil {
 		return fmt.Errorf("flowcontrol: failed to seek: %v", err)
 	}
