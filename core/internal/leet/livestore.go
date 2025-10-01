@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/pkg/leveldb"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
@@ -22,9 +23,14 @@ type LiveStore struct {
 	// reader is a LiveReader that reads records from a W&B LevelDB-style log
 	// that may be actively written.
 	reader *leveldb.LiveReader
+
+	logger *observability.CoreLogger
 }
 
-func NewLiveStore(filename string) (*LiveStore, error) {
+func NewLiveStore(
+	filename string,
+	logger *observability.CoreLogger,
+) (*LiveStore, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, fmt.Errorf("livestore: failed opening file: %w", err)
@@ -36,7 +42,7 @@ func NewLiveStore(filename string) (*LiveStore, error) {
 		_ = f.Close()
 		return nil, fmt.Errorf("livestore: header verify: %w", err)
 	}
-	return &LiveStore{f, reader}, nil
+	return &LiveStore{f, reader, logger}, nil
 }
 
 // Reads the next record from the database.
@@ -67,17 +73,21 @@ func (lr *LiveStore) Read() (*spb.Record, error) {
 }
 
 // Close closes the database.
-func (ls *LiveStore) Close() error {
+func (ls *LiveStore) Close() {
 	if ls.db == nil {
-		return nil
+		return
 	}
 
 	db := ls.db
 	ls.db = nil
 
+	// Since we only use the file for reading, we do not care about
+	// errors when closing, but they could indicate other issues with
+	// the user's system.
 	if err := db.Close(); err != nil {
-		return fmt.Errorf("livestore: failed closing file: %v", err)
+		ls.logger.Warn(
+			fmt.Sprintf("livestore: error closing reader: %v", err))
 	}
 
-	return nil
+	ls.reader = nil
 }
