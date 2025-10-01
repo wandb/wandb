@@ -296,9 +296,19 @@ func (f *lineFileIO) loadMore() error {
 	nToRead := min(8*1024, f.bufStart)
 	newBufStart := f.bufStart - int64(nToRead)
 
+	// We don't have to loop here. From the ReaderAt.ReadAt docs:
+	//   If some data is available but not len(p) bytes, ReadAt blocks until
+	//   either all the data is available or an error occurs. In this respect
+	//   ReadAt is different from Read.
 	newBuf := make([]byte, nToRead, int(nToRead)+len(f.buf))
-	_, err := f.f.ReadAt(newBuf, newBufStart)
-	if err != nil {
+	n, err := f.f.ReadAt(newBuf, newBufStart)
+
+	// From the ReaderAt.ReadAt docs:
+	//   If the n = len(p) bytes returned by ReadAt are at the end of the
+	//   input source, ReadAt may return either err == EOF or err == nil.
+	// Although File.ReadAt doesn't say this, it appears to still be possible.
+	if int64(n) != nToRead {
+		// err is guaranteed non-nil by ReadAt in this case.
 		return fmt.Errorf("failed to load %d bytes at offset %d: %v",
 			nToRead, newBufStart, err)
 	}
