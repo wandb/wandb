@@ -9,22 +9,16 @@ import (
 	"os"
 )
 
-// fileLike is the subset of *os.File LiveReader relies on.
-type fileLike interface {
-	ReadAt(p []byte, off int64) (int, error)
-	Stat() (os.FileInfo, error)
-}
-
 // LiveReader reads records from a W&B LevelDB-style log that may be actively written.
 // It is NOT safe for concurrent use.
 type LiveReader struct {
 	// f is the underlying LevelDB-style log.
-	f fileLike
+	f io.ReaderAt
 	// Cyclic redundancy check function.
 	crc func([]byte) uint32
-	// nextOff si the absolute position where we expect the next record's first chunk header.
+	// nextOff is the absolute position where we expect the next record's first chunk header.
 	nextOff int64
-	// processedFirstBlock is whether the first block has been read and validated.
+	// processedFirstBlock indicates whether the first block has been read and validated.
 	// The first block needs special handling because of the W&B header.
 	processedFirstBlock bool
 }
@@ -85,14 +79,6 @@ func (r *LiveReader) Next() (io.Reader, error) {
 		}
 	}
 
-	size, err := r.size()
-	if err != nil {
-		return nil, fmt.Errorf("livereader: stat: %w", err)
-	}
-	if r.nextOff >= size {
-		return nil, io.EOF
-	}
-
 	// cur is a transient cursor; commit to nextOff ONLY after we fully build a record.
 	cur := r.nextOff
 
@@ -104,22 +90,13 @@ func (r *LiveReader) Next() (io.Reader, error) {
 		inblock := int(cur & blockSizeMask)
 		if inblock+headerSize > blockSize {
 			cur = (cur &^ int64(blockSizeMask)) + blockSize
-			if cur >= size {
-				// We are beyond current file size; treat as incomplete.
-				return nil, io.EOF
-			}
 			continue
-		}
-
-		// Ensure the 7-byte header is fully available.
-		if cur+headerSize > size {
-			return nil, io.EOF
 		}
 
 		// Read header.
 		var h [headerSize]byte
-		if _, err := r.readAtExactly(h[:], cur); err != nil {
-			return nil, err // only happens on unexpected I/O error (not size-related)
+		if err := r.readAtExactly(h[:], cur); err != nil {
+			return nil, err
 		}
 		checksum := binary.LittleEndian.Uint32(h[0:4])
 		length := binary.LittleEndian.Uint16(h[4:6])
@@ -129,9 +106,6 @@ func (r *LiveReader) Next() (io.Reader, error) {
 		if checksum == 0 && length == 0 && ctype == 0 {
 			// Move to next block boundary (do not commit nextOff).
 			cur = (cur &^ int64(blockSizeMask)) + blockSize
-			if cur >= size {
-				return nil, io.EOF
-			}
 			continue
 		}
 
@@ -154,13 +128,10 @@ func (r *LiveReader) Next() (io.Reader, error) {
 		// Ensure payload fully available in the file.
 		payloadOff := cur + headerSize
 		payloadEnd := payloadOff + int64(length)
-		if payloadEnd > size {
-			return nil, io.EOF
-		}
 
 		// Read payload.
 		buf := make([]byte, length)
-		if _, err := r.readAtExactly(buf, payloadOff); err != nil {
+		if err := r.readAtExactly(buf, payloadOff); err != nil {
 			return nil, err
 		}
 
@@ -205,21 +176,19 @@ func (r *LiveReader) Next() (io.Reader, error) {
 	}
 }
 
-func (r *LiveReader) size() (int64, error) {
-	fi, err := r.f.Stat()
-	if err != nil {
-		return 0, err
-	}
-	return fi.Size(), nil
-}
-
-func (r *LiveReader) readAtExactly(p []byte, off int64) (int, error) {
+func (r *LiveReader) readAtExactly(p []byte, off int64) error {
 	n, err := r.f.ReadAt(p, off)
-	if err != nil {
-		return n, err
+	switch {
+	case n == len(p):
+		return nil
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		// An EOF is never unexpected: we assume the file may be incomplete.
+		return io.EOF
+	case err != nil:
+		return err
+	default:
+		// By the contract of ReadAt, this is not possible:
+		// err must be non-nil if n != len(p).
+		return errors.New("ReadAt was short but err was nil")
 	}
-	if n != len(p) {
-		return n, io.ErrUnexpectedEOF
-	}
-	return n, nil
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/pkg/leveldb"
 )
 
@@ -24,39 +25,30 @@ func encodeRecords(t *testing.T, algo leveldb.CRCAlgo, version byte, recs ...[]b
 	w := leveldb.NewWriterExt(&buf, algo, version)
 	for _, r := range recs {
 		ww, err := w.Next()
-		if err != nil {
-			t.Fatalf("writer.Next: %v", err)
-		}
-		if _, err := ww.Write(r); err != nil {
-			t.Fatalf("writer.Write: %v", err)
-		}
+		require.NoError(t, err)
+		_, err = ww.Write(r)
+		require.NoError(t, err)
 	}
-	if err := w.Close(); err != nil {
-		t.Fatalf("writer.Close: %v", err)
-	}
+	err := w.Close()
+	require.NoError(t, err)
 	return buf.Bytes()
 }
 
-func openLiveFiles(t *testing.T) (path string, w *os.File, r *os.File, cleanup func()) {
+func openLiveFiles(t *testing.T) (path string, w *os.File, r *os.File) {
 	t.Helper()
 	dir := t.TempDir()
 	path = filepath.Join(dir, "live.wandb")
 	// Writer handle (append).
 	wh, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
-	if err != nil {
-		t.Fatalf("open writer: %v", err)
-	}
+	require.NoError(t, err)
 	// Reader handle (ReadAt).
 	rh, err := os.Open(path)
-	if err != nil {
-		_ = wh.Close()
-		t.Fatalf("open reader: %v", err)
-	}
-	cleanup = func() {
+	require.NoError(t, err)
+	t.Cleanup(func() {
 		_ = wh.Close()
 		_ = rh.Close()
-	}
-	return path, wh, rh, cleanup
+	})
+	return path, wh, rh
 }
 
 func appendAndSync(t *testing.T, w *os.File, p []byte) {
@@ -64,20 +56,17 @@ func appendAndSync(t *testing.T, w *os.File, p []byte) {
 	if len(p) == 0 {
 		return
 	}
-	if _, err := w.Write(p); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	if err := w.Sync(); err != nil {
-		t.Fatalf("sync: %v", err)
-	}
+	_, err := w.Write(p)
+	require.NoError(t, err)
+
+	err = w.Sync()
+	require.NoError(t, err)
 }
 
 func readAll(t *testing.T, r io.Reader) []byte {
 	t.Helper()
 	b, err := io.ReadAll(r)
-	if err != nil {
-		t.Fatalf("readAll: %v", err)
-	}
+	require.NoError(t, err)
 	return b
 }
 
@@ -85,10 +74,7 @@ func TestLiveReader_PartialHeaderAndPayload(t *testing.T) {
 	// Partial W&B header, then partial chunk header, then partial payload.
 	// Next() must return io.EOF until the complete record is available.
 
-	t.Parallel()
-
-	_, w, rf, cleanup := openLiveFiles(t)
-	defer cleanup()
+	_, w, rf := openLiveFiles(t)
 
 	// One small record.
 	payload := []byte("hello world")
@@ -97,58 +83,45 @@ func TestLiveReader_PartialHeaderAndPayload(t *testing.T) {
 	lr := leveldb.NewLiveReader(rf, leveldb.CRCAlgoCustom)
 
 	// 0. Empty file -> soft EOF.
-	if _, err := lr.Next(); err != io.EOF {
-		t.Fatalf("expected io.EOF on empty file, got %v", err)
-	}
+	_, err := lr.Next()
+	require.ErrorIs(t, err, io.EOF)
 
 	// 1. Write partial W&B header (3 bytes).
 	appendAndSync(t, w, stream[:3])
-	if _, err := lr.Next(); err != io.EOF {
-		t.Fatalf("expected io.EOF with partial W&B header, got %v", err)
-	}
+	_, err = lr.Next()
+	require.ErrorIs(t, err, io.EOF)
 
 	// 2. Finish W&B header (bytes 3..6).
 	appendAndSync(t, w, stream[3:7])
-	if _, err := lr.Next(); err != io.EOF {
-		t.Fatalf("expected io.EOF with only W&B header present, got %v", err)
-	}
+	_, err = lr.Next()
+	require.ErrorIs(t, err, io.EOF)
 
 	// 3. Write partial chunk header (7..10).
 	appendAndSync(t, w, stream[7:10])
-	if _, err := lr.Next(); err != io.EOF {
-		t.Fatalf("expected io.EOF with partial chunk header, got %v", err)
-	}
+	_, err = lr.Next()
+	require.ErrorIs(t, err, io.EOF)
 
 	// 4. Finish chunk header (10..14).
 	appendAndSync(t, w, stream[10:14])
-	if _, err := lr.Next(); err != io.EOF {
-		t.Fatalf("expected io.EOF with no payload yet, got %v", err)
-	}
+	_, err = lr.Next()
+	require.ErrorIs(t, err, io.EOF)
 
 	// 5. Write all payload except the last byte.
 	appendAndSync(t, w, stream[14:len(stream)-1])
-	if _, err := lr.Next(); err != io.EOF {
-		t.Fatalf("expected io.EOF with last payload byte missing, got %v", err)
-	}
+	_, err = lr.Next()
+	require.ErrorIs(t, err, io.EOF)
 
 	// 6. Write last byte -> record should be readable now.
 	appendAndSync(t, w, stream[len(stream)-1:])
 	rdr, err := lr.Next()
-	if err != nil {
-		t.Fatalf("Next(): %v", err)
-	}
+	require.NoError(t, err)
 	got := readAll(t, rdr)
-	if !bytes.Equal(got, payload) {
-		t.Fatalf("payload mismatch: got %q want %q", string(got), string(payload))
-	}
+	require.Equal(t, got, payload)
 }
 
 func TestLiveReader_DoesNotSkipGoodRecordWhenNextIsIncomplete(t *testing.T) {
 	// Do not skip a good record when the following one is incomplete.
-	t.Parallel()
-
-	_, w, rf, cleanup := openLiveFiles(t)
-	defer cleanup()
+	_, w, rf := openLiveFiles(t)
 
 	recA := bytes.Repeat([]byte("A"), 1000)
 	recB := bytes.Repeat([]byte("B"), 1000)
@@ -161,38 +134,27 @@ func TestLiveReader_DoesNotSkipGoodRecordWhenNextIsIncomplete(t *testing.T) {
 
 	// Should read recA successfully.
 	rdr, err := lr.Next()
-	if err != nil {
-		t.Fatalf("Next() for recA: %v", err)
-	}
+	require.NoError(t, err)
 	gotA := readAll(t, rdr)
-	if !bytes.Equal(gotA, recA) {
-		t.Fatalf("recA mismatch: got %d bytes want %d", len(gotA), len(recA))
-	}
+	require.Equal(t, recA, gotA)
 
 	// recB is incomplete -> io.EOF (soft).
-	if _, err := lr.Next(); err != io.EOF {
-		t.Fatalf("expected io.EOF for incomplete recB, got %v", err)
-	}
+	_, err = lr.Next()
+	require.ErrorIs(t, err, io.EOF)
 
 	// Append the final byte; recB should be returned on the next call.
 	appendAndSync(t, w, stream[len(stream)-1:])
 	rdr, err = lr.Next()
-	if err != nil {
-		t.Fatalf("Next() for recB after append: %v", err)
-	}
+	require.NoError(t, err)
 	gotB := readAll(t, rdr)
-	if !bytes.Equal(gotB, recB) {
-		t.Fatalf("recB mismatch: got %d bytes want %d", len(gotB), len(recB))
-	}
+	require.Equal(t, recB, gotB)
 }
 
 func TestLiveReader_MultiChunkRecord_PartialThenComplete(t *testing.T) {
 	// One very large record spanning multiple blocks. With the tail missing,
 	// Next() must soft-EOF; after appending the final byte, it must return the record.
-	t.Parallel()
 
-	_, w, rf, cleanup := openLiveFiles(t)
-	defer cleanup()
+	_, w, rf := openLiveFiles(t)
 
 	// ~2.5 blocks to guarantee FIRST/MIDDLE/LAST chunking.
 	long := bytes.Repeat([]byte{0xAB}, blockSize*2+1000)
@@ -204,23 +166,17 @@ func TestLiveReader_MultiChunkRecord_PartialThenComplete(t *testing.T) {
 	appendAndSync(t, w, stream[:len(stream)-1])
 
 	// No complete record yet -> soft EOF.
-	if _, err := lr.Next(); err != io.EOF {
-		t.Fatalf("expected io.EOF for incomplete large record, got %v", err)
-	}
+	_, err := lr.Next()
+	require.ErrorIs(t, err, io.EOF)
 
 	// Finish the file.
 	appendAndSync(t, w, stream[len(stream)-1:])
 	rdr, err := lr.Next()
-	if err != nil {
-		t.Fatalf("Next() after append: %v", err)
-	}
+	require.NoError(t, err)
 	got := readAll(t, rdr)
-	if len(got) != len(long) {
-		t.Fatalf("length mismatch: got %d want %d", len(got), len(long))
-	}
-	if !bytes.Equal(got[:64], long[:64]) || !bytes.Equal(got[len(got)-64:], long[len(long)-64:]) {
-		t.Fatalf("content mismatch at edges")
-	}
+	require.Equal(t, len(got), len(long))
+	require.Equal(t, got[:64], long[:64])
+	require.Equal(t, got[len(got)-64:], long[len(long)-64:])
 }
 
 func TestLiveReader_SkipBlockTailPaddingToNextBlock(t *testing.T) {
@@ -228,10 +184,8 @@ func TestLiveReader_SkipBlockTailPaddingToNextBlock(t *testing.T) {
 	// so the next record starts in the next block. Write exactly one block first,
 	// then verify the first record is readable, the next is not, and only becomes
 	// readable once the next block is appended.
-	t.Parallel()
 
-	_, w, rf, cleanup := openLiveFiles(t)
-	defer cleanup()
+	_, w, rf := openLiveFiles(t)
 
 	// First record leaves 3 bytes at end-of-block:
 	// payload L1 = blockSize - W&B header - chunk header - 3.
@@ -253,29 +207,20 @@ func TestLiveReader_SkipBlockTailPaddingToNextBlock(t *testing.T) {
 
 	// rec1 should be readable.
 	rdr, err := lr.Next()
-	if err != nil {
-		t.Fatalf("Next() rec1: %v", err)
-	}
+	require.NoError(t, err)
 	got1 := readAll(t, rdr)
-	if len(got1) != len(rec1) {
-		t.Fatalf("rec1 length mismatch: got %d want %d", len(got1), len(rec1))
-	}
+	require.Equal(t, len(got1), len(rec1))
 
 	// rec2 lives in the next block -> soft EOF until we append that block.
-	if _, err := lr.Next(); err != io.EOF {
-		t.Fatalf("expected io.EOF for next-block record, got %v", err)
-	}
+	_, err = lr.Next()
+	require.ErrorIs(t, err, io.EOF)
 
 	// Append the remainder of the stream (starting at the second block).
 	appendAndSync(t, w, stream[blockSize:])
 
 	// Now rec2 should be returned.
 	rdr, err = lr.Next()
-	if err != nil {
-		t.Fatalf("Next() rec2 after append: %v", err)
-	}
+	require.NoError(t, err)
 	got2 := readAll(t, rdr)
-	if !bytes.Equal(got2, rec2) {
-		t.Fatalf("rec2 mismatch: got %d bytes want %d", len(got2), len(rec2))
-	}
+	require.Equal(t, rec2, got2)
 }
