@@ -3,6 +3,7 @@ package leet_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -21,8 +22,9 @@ import (
 // 3) verify only *loss* charts show,
 // 4) clear the filter with Ctrl+L and verify all charts reappear.
 func TestChartFilter_FilterAndClear(t *testing.T) {
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
-	var m tea.Model = leet.NewModel("dummy", logger)
+	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 
 	// Establish terminal size so the grid is laid out.
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
@@ -74,8 +76,9 @@ func TestChartFilter_NewChartsRespectActiveFilter(t *testing.T) {
 	}
 	_ = tmp.Close()
 
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
-	m := leet.NewModel(tmp.Name(), logger)
+	m := leet.NewModel(tmp.Name(), cfg, logger)
 
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(240, 80))
 
@@ -118,8 +121,9 @@ func TestFilterLiveUpdates(t *testing.T) {
 	}
 	_ = tmp.Close()
 
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
-	var m tea.Model = leet.NewModel(tmp.Name(), logger)
+	var m tea.Model = leet.NewModel(tmp.Name(), cfg, logger)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
 
@@ -180,8 +184,9 @@ func TestFilterLiveUpdates(t *testing.T) {
 // Switching filters should update the grid immediately.
 // Filter "acc" should show both "accuracy" and "val/accuracy" and hide "train/loss".
 func TestChartFilter_SwitchFilter(t *testing.T) {
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
-	var m tea.Model = leet.NewModel("dummy", logger)
+	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
 
@@ -209,10 +214,9 @@ func TestChartFilter_SwitchFilter(t *testing.T) {
 
 // TestConcurrentFilterAndUpdate tests that filtering and chart updates don't deadlock
 func TestConcurrentFilterAndUpdate(t *testing.T) {
-	// Don't run in parallel - modifies global state
-
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
-	model := leet.NewModel("dummy", logger)
+	model := leet.NewModel("dummy", cfg, logger)
 
 	// Set up initial state
 	model.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
@@ -371,8 +375,9 @@ func TestFilterEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 			logger := observability.NewNoOpLogger()
-			var m tea.Model = leet.NewModel("dummy", logger)
+			var m tea.Model = leet.NewModel("dummy", cfg, logger)
 
 			m, _ = m.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
 			m, _ = m.Update(leet.HistoryMsg{Metrics: tt.metrics})
@@ -407,8 +412,9 @@ func TestFilterEdgeCases(t *testing.T) {
 
 // TestFilterModeInterruption tests interrupting filter mode with other operations
 func TestFilterModeInterruption(t *testing.T) {
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
-	var m tea.Model = leet.NewModel("dummy", logger)
+	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
 	m, _ = m.Update(leet.HistoryMsg{

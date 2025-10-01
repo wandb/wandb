@@ -96,7 +96,7 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 //
 //gocyclo:ignore
 func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
-	gridRows, gridCols := m.config.GetMetricsGrid()
+	gridRows, gridCols := m.config.MetricsGrid()
 	chartsPerPage := gridRows * gridCols
 
 	// Track if we need to sort
@@ -124,7 +124,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 		m.logger.Debug(fmt.Sprintf("it exists: %v", exists))
 		if !exists {
 			layout := m.computeViewports()
-			dims := CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
+			dims := m.metrics.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
 
 			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, metricName)
 
@@ -265,12 +265,12 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 	adjustedX := msg.X - layout.leftSidebarWidth - gridPadding
 	adjustedY := msg.Y - gridPadding - 1 // -1 for header
 
-	dims := CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
+	dims := m.metrics.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
 
 	row := adjustedY / dims.ChartHeightWithPadding
 	col := adjustedX / dims.ChartWidthWithPadding
 
-	gridRows, gridCols := m.config.GetMetricsGrid()
+	gridRows, gridCols := m.config.MetricsGrid()
 
 	// Handle left click for focus
 	if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
@@ -447,8 +447,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		leftWillBeVisible := !m.leftSidebar.IsVisible()
 
 		// Save the new state to config
-		cfg := GetConfig()
-		if err := cfg.SetLeftSidebarVisible(leftWillBeVisible); err != nil {
+		if err := m.config.SetLeftSidebarVisible(leftWillBeVisible); err != nil {
 			m.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
 		}
 
@@ -480,8 +479,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		rightWillBeVisible := !m.rightSidebar.IsVisible()
 
 		// Save the new state to config
-		cfg := GetConfig()
-		if err := cfg.SetRightSidebarVisible(rightWillBeVisible); err != nil {
+		if err := m.config.SetRightSidebarVisible(rightWillBeVisible); err != nil {
 			m.logger.Error(fmt.Sprintf("model: failed to save right sidebar state: %v", err))
 		}
 

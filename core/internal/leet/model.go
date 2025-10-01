@@ -2,6 +2,8 @@ package leet
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -112,8 +114,12 @@ type Model struct {
 func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogger) *Model {
 	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
 
-	heartbeatInterval := cfg.HeartbeatInterval()
+	if cfg == nil {
+		configDir, _ := os.UserConfigDir()
+		cfg = NewConfigManager(filepath.Join(configDir, "wandb-leet", "config.json"))
+	}
 
+	heartbeatInterval := cfg.HeartbeatInterval()
 	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
 
 	focusState := &FocusState{Type: FocusNone, Row: -1, Col: -1}
@@ -349,7 +355,7 @@ func (m *Model) View() string {
 	availableWidth := max(m.width-leftWidth-rightWidth-2, MinChartWidth)
 
 	availableHeight := m.height - StatusBarHeight
-	dims := CalculateChartDimensions(availableWidth, availableHeight)
+	dims := m.metrics.CalculateChartDimensions(availableWidth, availableHeight)
 
 	// Render main content
 	gridView := m.metrics.renderGrid(dims)

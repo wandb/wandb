@@ -81,7 +81,7 @@ type LeftSidebar struct {
 func NewLeftSidebar(config *ConfigManager, runPath string) *LeftSidebar {
 	state := SidebarCollapsed
 	currentWidth, targetWidth := 0, 0
-	if config.GetLeftSidebarVisible() {
+	if config.LeftSidebarVisible() {
 		state = SidebarExpanded
 		currentWidth = SidebarMinWidth
 		targetWidth = SidebarMinWidth
