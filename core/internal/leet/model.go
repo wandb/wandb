@@ -44,10 +44,8 @@ type Model struct {
 	logger *observability.CoreLogger
 }
 
-func NewModel(runPath string, logger *observability.CoreLogger) *Model {
+func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogger) *Model {
 	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
-
-	cfg := GetConfig()
 
 	m := &Model{
 		config:  cfg,

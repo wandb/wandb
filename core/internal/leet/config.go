@@ -2,20 +2,30 @@ package leet
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
-const DefaultHeartbeatInterval = 15 // seconds
+const (
+	// Chart grid size constraints.
+	MinGridSize = 1
+	MaxGridSize = 9
 
-// Config represents the application configuration.
+	DefaultColorScheme       = "sunset-glow"
+	DefaultHeartbeatInterval = 15 // seconds
+)
+
+// Config stores the application configuration.
 type Config struct {
-	// MetricsGrid is the dimentions for the main metrics chart grid.
+	// MetricsGrid is the dimensions for the main metrics chart grid.
 	MetricsGrid GridConfig `json:"metrics_grid"`
 
-	// SystemGrid is the dimentions for the system metrics chart grid.
+	// SystemGrid is the dimensions for the system metrics chart grid.
 	SystemGrid GridConfig `json:"system_grid"`
 
 	// ColorScheme is the color scheme to display the main metrics.
@@ -38,53 +48,48 @@ type GridConfig struct {
 	Cols int `json:"cols"`
 }
 
-// ConfigManager handles configuration loading and saving.
+// ConfigManager manages application configuration with thread-safe access
+// and automatic persistence to disk.
+//
+// All setter methods automatically save changes to disk.
+// Getters use read locks for concurrent access.
 type ConfigManager struct {
-	config     Config
-	configPath string
-	mu         sync.RWMutex
+	mu     sync.RWMutex
+	path   string
+	config Config
+	logger *observability.CoreLogger
 }
 
-// Global config instance.
-var (
-	configManager *ConfigManager
-	configOnce    sync.Once
-)
+func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigManager {
+	cm := &ConfigManager{
+		path: path,
+		config: Config{
+			MetricsGrid:       GridConfig{Rows: DefaultMetricsGridRows, Cols: DefaultMetricsGridCols},
+			SystemGrid:        GridConfig{Rows: DefaultSystemGridRows, Cols: DefaultSystemGridCols},
+			ColorScheme:       DefaultColorScheme,
+			HeartbeatInterval: DefaultHeartbeatInterval,
+		},
+		logger: logger,
+	}
+	if err := cm.loadOrCreateConfig(); err != nil {
+		cm.logger.Error(fmt.Sprintf("config: error loading or creating:%v", err))
+	}
 
-// GetConfig returns the singleton config manager.
-func GetConfig() *ConfigManager {
-	configOnce.Do(func() {
-		configDir, _ := os.UserConfigDir()
-		leetConfigDir := filepath.Join(configDir, "wandb-leet")
-		configPath := filepath.Join(leetConfigDir, "config.json")
+	return cm
+}
 
-		configManager = &ConfigManager{
-			configPath: configPath,
-			config: Config{
-				MetricsGrid:       GridConfig{Rows: DefaultMetricsGridRows, Cols: DefaultMetricsGridCols},
-				SystemGrid:        GridConfig{Rows: DefaultSystemGridRows, Cols: DefaultSystemGridCols},
-				ColorScheme:       "sunset-glow",
-				HeartbeatInterval: DefaultHeartbeatInterval,
-			},
+// loadOrCreateConfig loads the configuration from disk or stores and uses defaults.
+func (m *ConfigManager) loadOrCreateConfig() error {
+	data, err := os.ReadFile(m.path)
+
+	// No config file yet, create and save it.
+	if os.IsNotExist(err) {
+		if dir := filepath.Dir(m.path); dir != "" {
+			_ = os.MkdirAll(dir, 0755)
 		}
-	})
-	return configManager
-}
-
-// Load loads the configuration from disk or uses defaults.
-func (m *ConfigManager) Load() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	data, err := os.ReadFile(m.configPath)
+		return m.save()
+	}
 	if err != nil {
-		if os.IsNotExist(err) {
-			// No config file yet, ensure directory exists
-			if dir := filepath.Dir(m.configPath); dir != "" {
-				_ = os.MkdirAll(dir, 0755)
-			}
-			return m.save()
-		}
 		return err
 	}
 
@@ -92,33 +97,63 @@ func (m *ConfigManager) Load() error {
 		return err
 	}
 
-	// Ensure heartbeat interval has a reasonable value.
-	if m.config.HeartbeatInterval <= 0 {
-		m.config.HeartbeatInterval = DefaultHeartbeatInterval
-	}
+	m.normalizeConfig()
 
 	return nil
 }
 
+// normalizeConfig ensures all config values are within valid ranges.
+func (m *ConfigManager) normalizeConfig() {
+	// Clamp grid dimensions
+	m.config.MetricsGrid.Rows = clamp(m.config.MetricsGrid.Rows, MinGridSize, MaxGridSize)
+	m.config.MetricsGrid.Cols = clamp(m.config.MetricsGrid.Cols, MinGridSize, MaxGridSize)
+	m.config.SystemGrid.Rows = clamp(m.config.SystemGrid.Rows, MinGridSize, MaxGridSize)
+	m.config.SystemGrid.Cols = clamp(m.config.SystemGrid.Cols, MinGridSize, MaxGridSize)
+
+	if _, ok := colorSchemes[m.config.ColorScheme]; !ok {
+		m.config.ColorScheme = DefaultColorScheme
+	}
+
+	if m.config.HeartbeatInterval <= 0 {
+		m.config.HeartbeatInterval = DefaultHeartbeatInterval
+	}
+}
+
+func clamp(val, min, max int) int {
+	if val < min {
+		return min
+	}
+	if val > max {
+		return max
+	}
+	return val
+}
+
 // save writes the current configuration to disk.
 //
-// Must be called with lock held.
+// Must be called while holding the lock.
 func (m *ConfigManager) save() error {
 	data, err := json.MarshalIndent(m.config, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	// Write atomically
-	tempPath := m.configPath + ".tmp"
+	targetPath := m.path
+	tempPath := targetPath + ".tmp"
+
+	// Write atomically via temp file + rename.
 	if err := os.WriteFile(tempPath, data, 0644); err != nil {
-		return err
+		return fmt.Errorf("failed to write temp config file: %v", err)
 	}
-	return os.Rename(tempPath, m.configPath)
+	if err := os.Rename(tempPath, targetPath); err != nil {
+		return fmt.Errorf("failed to rename tmp config file: %v", err)
+	}
+
+	return nil
 }
 
-// GetMetricsGrid returns the metrics grid configuration.
-func (m *ConfigManager) GetMetricsGrid() (rows, cols int) {
+// MetricsGrid returns the metrics grid configuration.
+func (m *ConfigManager) MetricsGrid() (rows, cols int) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.config.MetricsGrid.Rows, m.config.MetricsGrid.Cols
@@ -126,8 +161,8 @@ func (m *ConfigManager) GetMetricsGrid() (rows, cols int) {
 
 // SetMetricsRows sets the metrics grid rows.
 func (m *ConfigManager) SetMetricsRows(rows int) error {
-	if rows < 1 || rows > 9 {
-		return nil // silently ignore invalid values
+	if rows < MinGridSize || rows > MaxGridSize {
+		return fmt.Errorf("invalid value, must be [%d, %d]", MinGridSize, MaxGridSize)
 	}
 
 	m.mu.Lock()
@@ -138,8 +173,8 @@ func (m *ConfigManager) SetMetricsRows(rows int) error {
 
 // SetMetricsCols sets the metrics grid columns.
 func (m *ConfigManager) SetMetricsCols(cols int) error {
-	if cols < 1 || cols > 9 {
-		return nil
+	if cols < MinGridSize || cols > MaxGridSize {
+		return fmt.Errorf("invalid value, must be [%d, %d]", MinGridSize, MaxGridSize)
 	}
 
 	m.mu.Lock()
@@ -148,8 +183,8 @@ func (m *ConfigManager) SetMetricsCols(cols int) error {
 	return m.save()
 }
 
-// GetSystemGrid returns the system grid configuration.
-func (m *ConfigManager) GetSystemGrid() (rows, cols int) {
+// SystemGrid returns the system grid configuration.
+func (m *ConfigManager) SystemGrid() (rows, cols int) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.config.SystemGrid.Rows, m.config.SystemGrid.Cols
@@ -157,8 +192,8 @@ func (m *ConfigManager) GetSystemGrid() (rows, cols int) {
 
 // SetSystemRows sets the system grid rows.
 func (m *ConfigManager) SetSystemRows(rows int) error {
-	if rows < 1 || rows > 9 {
-		return nil
+	if rows < MinGridSize || rows > MaxGridSize {
+		return fmt.Errorf("invalid value, must be [%d, %d]", MinGridSize, MaxGridSize)
 	}
 
 	m.mu.Lock()
@@ -169,8 +204,8 @@ func (m *ConfigManager) SetSystemRows(rows int) error {
 
 // SetSystemCols sets the system grid columns.
 func (m *ConfigManager) SetSystemCols(cols int) error {
-	if cols < 1 || cols > 9 {
-		return nil
+	if cols < MinGridSize || cols > MaxGridSize {
+		return fmt.Errorf("invalid value, must be [%d, %d]", MinGridSize, MaxGridSize)
 	}
 
 	m.mu.Lock()
@@ -179,30 +214,25 @@ func (m *ConfigManager) SetSystemCols(cols int) error {
 	return m.save()
 }
 
-// GetColorScheme returns the current color scheme.
-func (m *ConfigManager) GetColorScheme() string {
+// ColorScheme returns the current color scheme.
+func (m *ConfigManager) ColorScheme() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.config.ColorScheme
 }
 
-// GetHeartbeatInterval returns the heartbeat interval as a Duration.
-func (m *ConfigManager) GetHeartbeatInterval() time.Duration {
+// HeartbeatInterval returns the heartbeat interval as a Duration.
+func (m *ConfigManager) HeartbeatInterval() time.Duration {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	interval := m.config.HeartbeatInterval
-	if interval <= 0 {
-		interval = DefaultHeartbeatInterval
-	}
-
-	return time.Duration(interval) * time.Second
+	return time.Duration(m.config.HeartbeatInterval) * time.Second
 }
 
 // SetHeartbeatInterval sets the heartbeat interval in seconds.
 func (m *ConfigManager) SetHeartbeatInterval(seconds int) error {
 	if seconds <= 0 {
-		return nil // silently ignore invalid values
+		return fmt.Errorf("invalid value, must be a positive integer")
 	}
 
 	m.mu.Lock()
@@ -211,8 +241,8 @@ func (m *ConfigManager) SetHeartbeatInterval(seconds int) error {
 	return m.save()
 }
 
-// GetLeftSidebarVisible returns whether the left sidebar should be visible.
-func (m *ConfigManager) GetLeftSidebarVisible() bool {
+// LeftSidebarVisible returns whether the left sidebar should be visible.
+func (m *ConfigManager) LeftSidebarVisible() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.config.LeftSidebarVisible
@@ -226,8 +256,8 @@ func (m *ConfigManager) SetLeftSidebarVisible(visible bool) error {
 	return m.save()
 }
 
-// GetRightSidebarVisible returns whether the right sidebar should be visible.
-func (m *ConfigManager) GetRightSidebarVisible() bool {
+// RightSidebarVisible returns whether the right sidebar should be visible.
+func (m *ConfigManager) RightSidebarVisible() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.config.RightSidebarVisible
@@ -239,14 +269,4 @@ func (m *ConfigManager) SetRightSidebarVisible(visible bool) error {
 	defer m.mu.Unlock()
 	m.config.RightSidebarVisible = visible
 	return m.save()
-}
-
-// SetPathForTests overrides the on-disk path used to load/save the config.
-//
-// Call this in tests before Load or any Set* method.
-// Production code should not call this.
-func (m *ConfigManager) SetPathForTests(path string) {
-	m.mu.Lock()
-	m.configPath = path
-	m.mu.Unlock()
 }
