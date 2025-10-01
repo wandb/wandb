@@ -43,7 +43,7 @@ type metrics struct {
 }
 
 func NewMetrics(config *ConfigManager, focusState *FocusState, logger *observability.CoreLogger) *metrics {
-	gridRows, gridCols := config.GetMetricsGrid()
+	gridRows, gridCols := config.MetricsGrid()
 
 	mg := &metrics{
 		config:         config,
@@ -67,10 +67,8 @@ type ChartDimensions struct {
 }
 
 // CalculateChartDimensions computes the chart dimensions based on window size.
-func CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
-	// Read current layout from config (no global vars).
-	cfg := GetConfig()
-	gridRows, gridCols := cfg.GetMetricsGrid()
+func (m *metrics) CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
+	gridRows, gridCols := m.config.MetricsGrid()
 	if gridRows <= 0 {
 		gridRows = 1
 	}
@@ -130,7 +128,7 @@ func (m *metrics) loadCurrentPage() {
 
 // loadCurrentPageNoLock loads the current page without acquiring the mutex.
 func (m *metrics) loadCurrentPageNoLock() {
-	gridRows, gridCols := m.config.GetMetricsGrid()
+	gridRows, gridCols := m.config.MetricsGrid()
 	chartsPerPage := gridRows * gridCols
 
 	m.charts = make([][]*EpochLineChart, gridRows)
@@ -171,11 +169,11 @@ func (m *metrics) UpdateDimensions(contentWidth, contentHeight int) {
 	m.width, m.height = contentWidth, contentHeight
 
 	// Ensure minimum width for grid
-	_, gridCols := m.config.GetMetricsGrid()
+	_, gridCols := m.config.MetricsGrid()
 	if contentWidth < MinChartWidth*gridCols {
 		contentWidth = MinChartWidth * gridCols
 	}
-	dims := CalculateChartDimensions(contentWidth, contentHeight)
+	dims := m.CalculateChartDimensions(contentWidth, contentHeight)
 
 	// Resize all charts with mutex protection
 	m.chartMu.Lock()
@@ -206,7 +204,7 @@ func (m *metrics) renderGrid(dims ChartDimensions) string {
 	totalCount := len(m.allCharts)
 	m.chartMu.RUnlock()
 
-	gridRows, gridCols := m.config.GetMetricsGrid()
+	gridRows, gridCols := m.config.MetricsGrid()
 	chartsPerPage := gridRows * gridCols
 
 	if m.totalPages > 0 && chartCount > 0 {
@@ -317,7 +315,7 @@ func (m *metrics) navigatePage(direction int) {
 
 // rebuildGrids rebuilds the chart grids.
 func (m *metrics) rebuildGrids() {
-	gridRows, gridCols := m.config.GetMetricsGrid()
+	gridRows, gridCols := m.config.MetricsGrid()
 
 	m.charts = make([][]*EpochLineChart, gridRows)
 	for row := 0; row < gridRows; row++ {
@@ -350,7 +348,7 @@ func (m *metrics) drawVisible() {
 		}
 	}()
 
-	gridRows, gridCols := m.config.GetMetricsGrid()
+	gridRows, gridCols := m.config.MetricsGrid()
 
 	// Force redraw all visible charts.
 	for row := range gridRows {
@@ -374,7 +372,7 @@ func (m *metrics) handleClick(row, col int) {
 		m.clearFocus()
 		return
 	}
-	gridRows, gridCols := m.config.GetMetricsGrid()
+	gridRows, gridCols := m.config.MetricsGrid()
 
 	// Set new focus
 	m.chartMu.RLock()
@@ -419,7 +417,7 @@ func (m *metrics) clearFocus() {
 //
 // adjustedX is relative to the grid content; dims is the current grid dimensions.
 func (m *metrics) HandleWheel(adjustedX, row, col int, dims ChartDimensions, wheelUp bool) {
-	gridRows, gridCols := m.config.GetMetricsGrid()
+	gridRows, gridCols := m.config.MetricsGrid()
 
 	m.chartMu.RLock()
 	defer m.chartMu.RUnlock()
