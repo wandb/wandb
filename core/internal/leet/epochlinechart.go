@@ -507,89 +507,85 @@ func FormatYLabel(value float64, unit string) string {
 		return "0"
 	}
 
-	// Percentages.
-	if unit == "%" {
-		if value >= 100 {
+	switch unit {
+	case "%":
+		switch {
+		case value >= 100:
 			return formatFloat(value, 0) + "%"
-		}
-		if value >= 10 {
+		case value >= 10:
 			return formatFloat(value, 1) + "%"
+		default:
+			return formatFloat(value, 2) + "%"
 		}
-		return formatFloat(value, 2) + "%"
-	}
 
-	// Temperature.
-	if unit == "°C" {
+	case "°C":
 		if value >= 100 {
 			return formatFloat(value, 0) + "°C"
 		}
 		return formatFloat(value, 1) + "°C"
-	}
 
-	// Power (W).
-	if unit == "W" {
-		if value >= 1000 {
+	case "W":
+		switch {
+		case value >= 1000:
 			return formatFloat(value/1000, 1) + "kW"
-		}
-		if value >= 100 {
+		case value >= 100:
 			return formatFloat(value, 0) + "W"
+		default:
+			return formatFloat(value, 1) + "W"
 		}
-		return formatFloat(value, 1) + "W"
-	}
 
-	// Frequency (MHz).
-	if unit == "MHz" {
-		if value >= 1000 {
+	case "MHz":
+		switch {
+		case value >= 1000:
 			return formatFloat(value/1000, 2) + "GHz"
-		}
-		if value >= 100 {
+		case value >= 100:
 			return formatFloat(value, 0) + "MHz"
+		default:
+			return formatFloat(value, 1) + "MHz"
 		}
-		return formatFloat(value, 1) + "MHz"
-	}
 
-	// Bytes.
-	if unit == "B" {
+	case "B":
 		return formatBytes(value)
-	}
-	if unit == "MB" {
-		if value >= 1024*1024 {
+
+	case "MB":
+		switch {
+		case value >= 1024*1024:
 			return formatFloat(value/(1024*1024), 1) + "TB"
-		}
-		if value >= 1024 {
+		case value >= 1024:
 			return formatFloat(value/1024, 1) + "GB"
+		default:
+			return formatFloat(value, 0) + "MB"
 		}
-		return formatFloat(value, 0) + "MB"
-	}
-	if unit == "GB" {
+
+	case "GB":
 		if value >= 1024 {
 			return formatFloat(value/1024, 1) + "TB"
 		}
 		return formatFloat(value, 1) + "GB"
-	}
-	// Byte rates (MB/s, GB/s).
-	if strings.HasSuffix(unit, "/s") {
-		baseUnit := strings.TrimSuffix(unit, "/s")
-		return formatRate(value, baseUnit)
-	}
 
-	// Default: just show the number with appropriate precision.
-	if value >= 1000000 {
-		return formatFloat(value/1000000, 1) + "M"
+	default:
+		// Handle rates (MB/s, GB/s, etc.)
+		if strings.HasSuffix(unit, "/s") {
+			baseUnit := strings.TrimSuffix(unit, "/s")
+			return formatRate(value, baseUnit)
+		}
+
+		// Default: just show the number with appropriate precision
+		switch {
+		case value >= 1000000:
+			return formatFloat(value/1000000, 1) + "M"
+		case value >= 1000:
+			return formatFloat(value/1000, 1) + "k"
+		case value < 0.01:
+			return formatFloat(value*1000, 1) + "m"
+		case value < 1:
+			return formatFloat(value, 2)
+		case value < 10:
+			return formatFloat(value, 1)
+		default:
+			return formatFloat(value, 0)
+		}
 	}
-	if value >= 1000 {
-		return formatFloat(value/1000, 1) + "k"
-	}
-	if value < 0.01 {
-		return formatFloat(value*1000, 1) + "m"
-	}
-	if value < 1 {
-		return formatFloat(value, 2)
-	}
-	if value < 10 {
-		return formatFloat(value, 1) + ""
-	}
-	return formatFloat(value, 0)
 }
 
 // formatFloat formats a float with specified decimal places.
