@@ -136,15 +136,13 @@ func (w *Writer) write(record *spb.Record) (int64, error) {
 }
 
 // Flush ensures all Work the Writer has output has been written to disk.
-func (w *Writer) Flush() {
+func (w *Writer) Flush() error {
 	w.writerMu.Lock()
 	defer w.writerMu.Unlock()
 
 	if w.finished {
-		return
+		return nil
 	}
 
-	if err := w.writer.Flush(); err != nil {
-		w.logger.CaptureError(fmt.Errorf("writer: failed to flush: %v", err))
-	}
+	return w.writer.Flush()
 }
