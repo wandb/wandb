@@ -14,8 +14,14 @@ class GenericWebhookIntegrationsByEntity(GQLBase):
     entity: Optional[GenericWebhookIntegrationsByEntityEntity]
 
 
-class GenericWebhookIntegrationsByEntityEntity(GQLBase):
-    integrations: Optional[GenericWebhookIntegrationConnectionFields]
+class GenericWebhookIntegrationsByEntityEntity(GQLResult):
+    integrations: Optional[GenericWebhookIntegrationsByEntityEntityIntegrations]
+
+
+class GenericWebhookIntegrationsByEntityEntityIntegrations(
+    GenericWebhookIntegrationConnectionFields
+):
+    pass
 
 
 GenericWebhookIntegrationsByEntity.model_rebuild()

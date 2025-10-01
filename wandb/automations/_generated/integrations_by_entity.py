@@ -14,8 +14,12 @@ class IntegrationsByEntity(GQLBase):
     entity: Optional[IntegrationsByEntityEntity]
 
 
-class IntegrationsByEntityEntity(GQLBase):
-    integrations: Optional[IntegrationConnectionFields]
+class IntegrationsByEntityEntity(GQLResult):
+    integrations: Optional[IntegrationsByEntityEntityIntegrations]
+
+
+class IntegrationsByEntityEntityIntegrations(IntegrationConnectionFields):
+    pass
 
 
 IntegrationsByEntity.model_rebuild()

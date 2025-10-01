@@ -16,6 +16,7 @@ from ariadne_codegen.codegen import (
     generate_method_call,
     generate_pydantic_field,
 )
+from libcst import matchers as m
 
 
 def remove_module_files(root: Path, module_names: Iterable[str]) -> None:
@@ -43,7 +44,8 @@ def base_class_names(class_def: ast.ClassDef) -> list[str]:
     return [base.id for base in class_def.bases]
 
 
-def is_redundant_class_def(stmt: ast.ClassDef) -> TypeGuard[ast.ClassDef]:
+# def is_redundant_class_def(stmt: ast.ClassDef) -> TypeGuard[ast.ClassDef]:
+def is_redundant_subclass_def(stmt: cst.CSTNode) -> TypeGuard[cst.ClassDef]:
     """Return True if this class definition is a redundant subclass definition.
 
     A redundant subclass will look like:
@@ -60,39 +62,37 @@ def is_redundant_class_def(stmt: ast.ClassDef) -> TypeGuard[ast.ClassDef]:
     # if not isinstance(stmt, ast.ClassDef):
     #     return False
     # cst_stmt = ast_to_cst(stmt)
-    # if match := (
-    #     m.matches(
-    #         cst_stmt,
-    #         m.ClassDef(
-    #             bases=[m.AtMostN(m.Name(), n=1)],
-    #             body=[m.Pass()],
-    #         ),
-    #     )
-    #     | m.matches(
-    #         cst_stmt,
-    #         m.ClassDef(
-    #             bases=[m.AllOf(m.Name(), ~(m.Name("GQLInput") | m.Name("GQLResult")))],
-    #             body=[m.AnnAssign(target=m.Name("typename__"))],
-    #         ),
-    #     )
-    # ):
-    #     print(f"statement matches redundant subclass definition:\n{ast.unparse(stmt)}")
-    # return match
 
-    return (
-        is_class_def(stmt)
-        and len(stmt.bases) == 1
-        and len(stmt.body) == 1
-        and (
-            (isinstance(stmt.body[0], ast.Pass))
-            or (
-                stmt.bases[0].id != "GQLBase"
-                and isinstance(ann_assign := stmt.body[0], ast.AnnAssign)
-                and isinstance(ann_assign.target, ast.Name)
-                and ann_assign.target.id == "typename__"
-            )
-        )
+    is_empty_class_def = m.matches(
+        stmt,
+        m.ClassDef(
+            bases=m.Name(),
+            body=m.Pass(),
+        ),
     )
+    is_typename_only_class_def = m.matches(
+        stmt,
+        m.ClassDef(
+            bases=m.AllOf(m.Name(), ~(m.Name("GQLInput") | m.Name("GQLResult"))),
+            body=m.AnnAssign(target=m.Name("typename__")),
+        ),
+    )
+    return is_empty_class_def | is_typename_only_class_def
+
+    # return (
+    #     is_class_def(stmt)
+    #     and len(stmt.bases) == 1
+    #     and len(stmt.body) == 1
+    #     and (
+    #         (isinstance(stmt.body[0], ast.Pass))
+    #         or (
+    #             stmt.bases[0].id != "GQLBase"
+    #             and isinstance(ann_assign := stmt.body[0], ast.AnnAssign)
+    #             and isinstance(ann_assign.target, ast.Name)
+    #             and ann_assign.target.id == "typename__"
+    #         )
+    #     )
+    # )
 
 
 def is_class_def(stmt: ast.stmt) -> TypeGuard[ast.ClassDef]:
@@ -150,7 +150,8 @@ def make_subscript(name: str, inner: str | ast.expr) -> ast.Subscript:
 
 def ast_to_cst(node: ast.AST) -> cst.CSTNode:
     """Convert a native python AST node to a libcst CST node."""
-    return cst.parse_statement(ast.unparse(node))
+    unparsed = ast.unparse(ast.fix_missing_locations(node)) + "\n"
+    return cst.parse_statement(unparsed)
 
 
 def make_literal(*vals: Any) -> ast.Subscript:

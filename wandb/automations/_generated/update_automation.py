@@ -14,4 +14,8 @@ class UpdateAutomation(GQLBase):
     result: Optional[UpdateAutomationResult]
 
 
+class UpdateAutomationResult(UpdateAutomationResult):
+    pass
+
+
 UpdateAutomation.model_rebuild()

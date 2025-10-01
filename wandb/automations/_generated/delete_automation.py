@@ -12,4 +12,8 @@ class DeleteAutomation(GQLBase):
     result: DeleteAutomationResult
 
 
+class DeleteAutomationResult(DeleteAutomationResult):
+    pass
+
+
 DeleteAutomation.model_rebuild()
