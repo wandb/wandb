@@ -4,84 +4,67 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	leet "github.com/wandb/wandb/core/internal/leet"
 )
 
 func TestEpochLineChart_Range(t *testing.T) {
-	t.Parallel()
-
-	c := leet.NewEpochLineChart(100, 10, 0, "loss")
+	c := leet.NewEpochLineChart(100, 10, "loss")
 
 	// Add a couple of points; Y padding should expand range.
 	c.AddPoint(0, 0.5)
 	c.AddPoint(1, 1.0)
 
-	if c.ViewMinY() >= 0.5 {
-		t.Fatalf("expected ViewMinY < 0.5 due to padding, got %v", c.ViewMinY())
-	}
-	if c.ViewMaxY() <= 1.0 {
-		t.Fatalf("expected ViewMaxY > 1.0 due to padding, got %v", c.ViewMaxY())
-	}
+	require.Less(t, c.ViewMinY(), 0.5)
+	require.Greater(t, c.ViewMaxY(), 1.0)
 
 	// Force X-range to expand in rounded tens (0..30) once we exceed 20 steps.
 	for i := range 21 {
 		c.AddPoint(float64(i+2), float64(i))
 	}
-	if maxX := c.MaxX(); math.Abs(maxX-30) > 1e-9 {
-		t.Fatalf("expected MaxX≈30 after 21 steps, got %v", maxX)
-	}
-	if vmin, vmax := c.ViewMinX(), c.ViewMaxX(); vmin != 0 || math.Abs(vmax-30) > 1e-9 {
-		t.Fatalf("expected view X range [0,30], got [%v,%v]", vmin, vmax)
-	}
+	// Expecting MaxX≈30 after 21 steps.
+	require.LessOrEqual(t, math.Abs(c.MaxX()-30), 1e-9)
+	// Expecting view range to be [0, 30].
+	require.NotEqual(t, c.ViewMinX(), 0)
+	require.LessOrEqual(t, math.Abs(c.ViewMaxX()-30), 1e-9)
 }
 
 func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {
-	t.Parallel()
-
-	c := leet.NewEpochLineChart(120, 12, 0, "acc")
+	c := leet.NewEpochLineChart(120, 12, "acc")
 	for i := range 40 {
 		c.AddPoint(float64(i), 0.1+0.02*float64(i))
 	}
 	oldMin, oldMax := c.ViewMinX(), c.ViewMaxX()
 	oldRange := oldMax - oldMin
 
-	// Zoom in around the middle of the graph - should NOT snap to tail
+	// Zoom in around the middle of the graph - should NOT snap to tail.
 	mouseX := c.GraphWidth() / 2
 	c.HandleZoom("in", mouseX)
 
 	newMin, newMax := c.ViewMinX(), c.ViewMaxX()
 	newRange := newMax - newMin
 
-	// Verify zoom reduced range
-	if !(newRange < oldRange) {
-		t.Fatalf("expected zoom-in to reduce range, old=%v new=%v", oldRange, newRange)
-	}
+	// Verify zoom reduced range.
+	require.Less(t, newRange, oldRange)
 
-	// Verify we're still centered around the middle (not snapped to tail)
+	// Verify we're still centered around the middle (not snapped to tail).
 	midPoint := (newMin + newMax) / 2
 	expectedMid := (oldMin + oldMax) / 2
 	tolerance := oldRange * 0.2 // Allow some movement but not a full snap
-	if math.Abs(midPoint-expectedMid) > tolerance {
-		t.Fatalf("zoom incorrectly snapped away from center: mid=%v expected=%v", midPoint, expectedMid)
-	}
+	require.LessOrEqual(t, math.Abs(midPoint-expectedMid), tolerance)
 
-	// Test zoom at right edge - should maintain tail visibility
+	// Test zoom at right edge - should maintain tail visibility.
 	c.SetViewXRange(30, 40)              // Position at tail
 	c.HandleZoom("in", c.GraphWidth()-1) // Mouse at far right
 
-	_, tailMax := c.ViewMinX(), c.ViewMaxX()
-	// Should still see the last data point (39)
-	if tailMax < 39 {
-		t.Fatalf("zoom lost tail visibility: max=%v, expected >= 39", tailMax)
-	}
+	// Should still see the last data point (39).
+	require.GreaterOrEqual(t, c.ViewMaxX(), 39.0)
 }
 
 // When zooming away from the right edge (and not already at the tail),
 // the view should NOT jump to the tail.
 func TestEpochLineChart_ZoomDoesNotSnapToTailAwayFromRight(t *testing.T) {
-	t.Parallel()
-
-	c := leet.NewEpochLineChart(120, 12, 0, "loss")
+	c := leet.NewEpochLineChart(120, 12, "loss")
 	for i := range 40 {
 		c.AddPoint(float64(i), float64(i))
 	}
@@ -90,17 +73,13 @@ func TestEpochLineChart_ZoomDoesNotSnapToTailAwayFromRight(t *testing.T) {
 	mouseX := c.GraphWidth() / 4 // left-ish
 	c.HandleZoom("in", mouseX)
 
-	// If the view wrongly snapped to the tail, ViewMaxX would be ~39±ε.
-	if diff := math.Abs(c.ViewMaxX() - 39.0); diff < 0.75 {
-		t.Fatalf("unexpected snap to tail: ViewMaxX=%v (diff=%v)", c.ViewMaxX(), diff)
-	}
+	// If the view wrongly snapped to the tail, ViewMaxX would be ~39.
+	require.Greater(t, math.Abs(c.ViewMaxX()-39.0), 0.75)
 }
 
 // When zooming near the right edge, we still anchor to the tail.
 func TestEpochLineChart_ZoomNearRightAnchorsToTail(t *testing.T) {
-	t.Parallel()
-
-	c := leet.NewEpochLineChart(120, 12, 0, "loss")
+	c := leet.NewEpochLineChart(120, 12, "loss")
 	for i := range 40 {
 		c.AddPoint(float64(i), 0.5)
 	}
@@ -109,9 +88,7 @@ func TestEpochLineChart_ZoomNearRightAnchorsToTail(t *testing.T) {
 	c.HandleZoom("in", mouseX)
 
 	// Expect the right edge to be close to the last data point (~39).
-	if diff := math.Abs(c.ViewMaxX() - 39.0); diff > 1.0 {
-		t.Fatalf("expected right edge near tail (~39), got %v (diff=%v)", c.ViewMaxX(), diff)
-	}
+	require.Less(t, math.Abs(c.ViewMaxX()-39.0), 1.0)
 }
 
 func TestTruncateTitle(t *testing.T) {
@@ -156,9 +133,7 @@ func TestTruncateTitle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := leet.TruncateTitle(tt.title, tt.maxWidth)
-			if got != tt.want {
-				t.Errorf("TruncateTitle(%q, %d) = %q, want %q", tt.title, tt.maxWidth, got, tt.want)
-			}
+			require.Equal(t, got, tt.want)
 		})
 	}
 }
