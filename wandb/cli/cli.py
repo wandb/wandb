@@ -2741,7 +2741,7 @@ def online():
 def offline():
     """Save data logged to W&B locally without uploading it to the cloud.
 
-    Use `wandb sync` to upload offline runs.
+    Use `wandb online` or `wandb sync` to upload offline runs.
     """
     api = InternalApi()
     try:
