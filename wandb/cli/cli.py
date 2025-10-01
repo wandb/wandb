@@ -2725,7 +2725,7 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
 @cli.command("online")
 @display_error
 def online():
-    "Undo `wandb offline`."
+    """Undo `wandb offline`."""
     api = InternalApi()
     try:
         api.clear_setting("mode", persist=True)
