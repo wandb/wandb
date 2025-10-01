@@ -53,7 +53,7 @@ func (r *LiveReader) VerifyWandbHeader(expectedVersion byte) error {
 	version := hdr[6]
 
 	if ident != wandbHeaderIdent {
-		return fmt.Errorf("livereader: invalid W&B ident: %q", ident)
+		return fmt.Errorf("livereader: invalid W&B ident: %X (%q)", ident, ident)
 	}
 	if magic != wandbHeaderMagic {
 		return fmt.Errorf("livereader: invalid W&B magic: 0x%X", magic)

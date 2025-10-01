@@ -276,8 +276,8 @@ func (r *Reader) VerifyWandbHeader(expectedVersion byte) error {
 
 	if string(identBytes) != wandbHeaderIdent {
 		return fmt.Errorf(
-			"leveldb/record: invalid W&B identifier string: %s",
-			string(identBytes))
+			"leveldb/record: invalid W&B identifier: %X (%q)",
+			identBytes, identBytes)
 	}
 
 	magic := uint16(magicBytes[0]) + uint16(magicBytes[1])<<8
