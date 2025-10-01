@@ -84,28 +84,27 @@ func (m *Model) handleConfigNumberKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	}
 
 	// Apply the configuration change
-	cfg := GetConfig()
 	var err error
 	var statusMsg string
 
 	switch m.configKeyType {
 	case "c": // Metrics columns
-		err = cfg.SetMetricsCols(num)
+		err = m.config.SetMetricsCols(num)
 		if err == nil {
 			statusMsg = fmt.Sprintf("Metrics grid columns set to %d", num)
 		}
 	case "r": // Metrics rows
-		err = cfg.SetMetricsRows(num)
+		err = m.config.SetMetricsRows(num)
 		if err == nil {
 			statusMsg = fmt.Sprintf("Metrics grid rows set to %d", num)
 		}
 	case "C": // System columns
-		err = cfg.SetSystemCols(num)
+		err = m.config.SetSystemCols(num)
 		if err == nil {
 			statusMsg = fmt.Sprintf("System grid columns set to %d", num)
 		}
 	case "R": // System rows
-		err = cfg.SetSystemRows(num)
+		err = m.config.SetSystemRows(num)
 		if err == nil {
 			statusMsg = fmt.Sprintf("System grid rows set to %d", num)
 		}
@@ -120,7 +119,7 @@ func (m *Model) handleConfigNumberKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Log the status message for now (could show in status bar later)
+	// TODO: show in status bar instead.
 	m.logger.Info(statusMsg)
 
 	return m, nil

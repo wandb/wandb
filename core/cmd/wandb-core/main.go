@@ -226,7 +226,7 @@ func leetMain(args []string) int {
 
 	// Run the TUI; allow in-process restarts (Alt+R) without re-parsing flags.
 	for {
-		model := leet.NewModel(wandbFile, logger)
+		model := leet.NewModel(wandbFile, nil, logger)
 		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 		finalModel, err := p.Run()
