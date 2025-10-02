@@ -117,7 +117,7 @@ func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogg
 
 	if cfg == nil {
 		configDir, _ := os.UserConfigDir()
-		cfg = NewConfigManager(filepath.Join(configDir, "wandb-leet", "config.json"))
+		cfg = NewConfigManager(filepath.Join(configDir, "wandb-leet", "config.json"), logger)
 	}
 
 	heartbeatInterval := cfg.HeartbeatInterval()
@@ -133,7 +133,7 @@ func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogg
 		isLoading:         true,
 		runPath:           runPath,
 		metrics:           NewMetrics(cfg, focusState, logger),
-		leftSidebar:       NewLeftSidebar(cfg, runPath),
+		leftSidebar:       NewLeftSidebar(cfg),
 		rightSidebar:      NewRightSidebar(cfg, focusState, logger),
 		watcher:           watcher.New(watcher.Params{Logger: logger}),
 		watcherStarted:    false,

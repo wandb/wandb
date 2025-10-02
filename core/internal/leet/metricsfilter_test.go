@@ -11,6 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -22,8 +23,8 @@ import (
 // 3) verify only *loss* charts show,
 // 4) clear the filter with Ctrl+L and verify all charts reappear.
 func TestChartFilter_FilterAndClear(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 
 	// Establish terminal size so the grid is laid out.
@@ -39,9 +40,8 @@ func TestChartFilter_FilterAndClear(t *testing.T) {
 	})
 
 	out := m.View()
-	if !strings.Contains(out, "train/loss") || !strings.Contains(out, "accuracy") {
-		t.Fatalf("expected initial charts in view; got:\n%s", out)
-	}
+	require.Contains(t, out, "train/loss")
+	require.Contains(t, out, "accuracy")
 
 	// Enter chart-filter mode and type "loss".
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
@@ -49,20 +49,17 @@ func TestChartFilter_FilterAndClear(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
 	out = m.View()
-	if !strings.Contains(out, "train/loss") {
-		t.Fatalf("expected 'train/loss' to be visible after filter 'loss'; got:\n%s", out)
-	}
-	if strings.Contains(out, "accuracy") || strings.Contains(out, "val/accuracy") {
-		t.Fatalf("expected accuracy charts to be hidden after filter 'loss'; got:\n%s", out)
-	}
+	require.Contains(t, out, "train/loss")
+	require.NotContains(t, out, "accuracy")
+	require.NotContains(t, out, "val/accuracy")
 
 	// Clear the filter (Ctrl+L).
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
 
 	out = m.View()
-	if !strings.Contains(out, "train/loss") || !strings.Contains(out, "accuracy") || !strings.Contains(out, "val/accuracy") {
-		t.Fatalf("expected all charts after clearing filter; got:\n%s", out)
-	}
+	require.Contains(t, out, "train/loss")
+	require.Contains(t, out, "accuracy")
+	require.Contains(t, out, "val/accuracy")
 }
 
 // Once a filter is active, new matching charts should appear automatically.
@@ -71,13 +68,11 @@ func TestChartFilter_FilterAndClear(t *testing.T) {
 func TestChartFilter_NewChartsRespectActiveFilter(t *testing.T) {
 	// Create a real file so model init doesn't fail.
 	tmp, err := os.CreateTemp(t.TempDir(), "empty-*.wandb")
-	if err != nil {
-		t.Fatalf("CreateTemp: %v", err)
-	}
+	require.NoError(t, err)
 	_ = tmp.Close()
 
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	m := leet.NewModel(tmp.Name(), cfg, logger)
 
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(240, 80))
@@ -116,13 +111,11 @@ func TestChartFilter_NewChartsRespectActiveFilter(t *testing.T) {
 func TestFilterLiveUpdates(t *testing.T) {
 	// Create a real file so model init doesn't fail.
 	tmp, err := os.CreateTemp(t.TempDir(), "empty-*.wandb")
-	if err != nil {
-		t.Fatalf("CreateTemp: %v", err)
-	}
+	require.NoError(t, err)
 	_ = tmp.Close()
 
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	var m tea.Model = leet.NewModel(tmp.Name(), cfg, logger)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
@@ -143,12 +136,9 @@ func TestFilterLiveUpdates(t *testing.T) {
 
 	// Verify initial filter state
 	view := m.View()
-	if !strings.Contains(view, "train/loss") || !strings.Contains(view, "val/loss") {
-		t.Fatal("Expected loss charts to be visible")
-	}
-	if strings.Contains(view, "train/accuracy") {
-		t.Fatal("Expected accuracy chart to be hidden")
-	}
+	require.Contains(t, view, "train/loss")
+	require.Contains(t, view, "val/loss")
+	require.NotContains(t, view, "train/accuracy")
 
 	// Add new metrics while filter is active
 	m, _ = m.Update(leet.HistoryMsg{
@@ -169,14 +159,11 @@ func TestFilterLiveUpdates(t *testing.T) {
 	view = m.View()
 
 	// New matching chart should appear
-	if !strings.Contains(view, "test/loss") {
-		t.Fatal("New matching chart 'test/loss' should be visible")
-	}
+	require.Contains(t, view, "test/loss")
 
 	// Non-matching chart should remain hidden
-	if strings.Contains(view, "test/accuracy") || strings.Contains(view, "train/accuracy") {
-		t.Fatal("Accuracy charts should remain hidden")
-	}
+	require.NotContains(t, view, "test/accuracy")
+	require.NotContains(t, view, "train/accuracy")
 
 	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 }
@@ -184,8 +171,8 @@ func TestFilterLiveUpdates(t *testing.T) {
 // Switching filters should update the grid immediately.
 // Filter "acc" should show both "accuracy" and "val/accuracy" and hide "train/loss".
 func TestChartFilter_SwitchFilter(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
@@ -204,18 +191,15 @@ func TestChartFilter_SwitchFilter(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
 	out := m.View()
-	if strings.Contains(out, "train/loss") {
-		t.Fatalf("did not expect 'train/loss' under filter 'acc'; got:\n%s", out)
-	}
-	if !strings.Contains(out, "accuracy") || !strings.Contains(out, "val/accuracy") {
-		t.Fatalf("expected accuracy charts under filter 'acc'; got:\n%s", out)
-	}
+	require.NotContains(t, out, "train/loss")
+	require.Contains(t, out, "accuracy")
+	require.Contains(t, out, "val/accuracy")
 }
 
 // TestConcurrentFilterAndUpdate tests that filtering and chart updates don't deadlock
 func TestConcurrentFilterAndUpdate(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	model := leet.NewModel("dummy", cfg, logger)
 
 	// Set up initial state
@@ -321,9 +305,7 @@ func TestConcurrentFilterAndUpdate(t *testing.T) {
 
 	// Verify model is still in valid state
 	view := model.View()
-	if len(view) == 0 {
-		t.Fatal("Model view is empty after concurrent operations")
-	}
+	require.NotEmpty(t, view)
 }
 
 // TestFilterEdgeCases tests edge cases in filter functionality
@@ -375,8 +357,8 @@ func TestFilterEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 			logger := observability.NewNoOpLogger()
+			cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 			var m tea.Model = leet.NewModel("dummy", cfg, logger)
 
 			m, _ = m.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
@@ -395,16 +377,12 @@ func TestFilterEdgeCases(t *testing.T) {
 
 			// Check expected visible charts
 			for _, chart := range tt.expectVisible {
-				if !strings.Contains(view, chart) {
-					t.Errorf("Expected chart '%s' to be visible", chart)
-				}
+				require.Contains(t, view, chart, "chart should be visible")
 			}
 
 			// Check expected hidden charts
 			for _, chart := range tt.expectHidden {
-				if strings.Contains(view, chart) {
-					t.Errorf("Expected chart '%s' to be hidden", chart)
-				}
+				require.NotContains(t, view, chart, "chart should be hidden")
 			}
 		})
 	}
@@ -412,8 +390,8 @@ func TestFilterEdgeCases(t *testing.T) {
 
 // TestFilterModeInterruption tests interrupting filter mode with other operations
 func TestFilterModeInterruption(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
@@ -433,9 +411,8 @@ func TestFilterModeInterruption(t *testing.T) {
 
 	// View should show all charts (filter not applied)
 	view := m.View()
-	if !strings.Contains(view, "loss") || !strings.Contains(view, "acc") {
-		t.Fatal("All charts should be visible after canceling filter")
-	}
+	require.Contains(t, view, "loss")
+	require.Contains(t, view, "acc")
 
 	// Start another filter
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
@@ -454,10 +431,8 @@ func TestFilterModeInterruption(t *testing.T) {
 
 	view = m.View()
 	// Should show only "acc" charts
-	if !strings.Contains(view, "acc") || !strings.Contains(view, "val/acc") {
-		t.Fatal("Accuracy charts should be visible")
-	}
-	if strings.Contains(view, "loss") || strings.Contains(view, "val/loss") {
-		t.Fatal("Loss charts should be hidden")
-	}
+	require.Contains(t, view, "acc")
+	require.Contains(t, view, "val/acc")
+	require.NotContains(t, view, "loss")
+	require.NotContains(t, view, "val/loss")
 }

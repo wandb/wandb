@@ -54,7 +54,6 @@ type LeftSidebar struct {
 	animationTimer time.Time
 
 	// Run data
-	runPath        string
 	runID          string
 	displayName    string
 	project        string
@@ -78,7 +77,7 @@ type LeftSidebar struct {
 	height int
 }
 
-func NewLeftSidebar(config *ConfigManager, runPath string) *LeftSidebar {
+func NewLeftSidebar(config *ConfigManager) *LeftSidebar {
 	state := SidebarCollapsed
 	currentWidth, targetWidth := 0, 0
 	if config.LeftSidebarVisible() {
@@ -92,7 +91,6 @@ func NewLeftSidebar(config *ConfigManager, runPath string) *LeftSidebar {
 		currentWidth:   currentWidth,
 		targetWidth:    targetWidth,
 		expandedWidth:  SidebarMinWidth,
-		runPath:        runPath,
 		runConfig:      runconfig.New(),
 		runEnvironment: nil, // Created on first system info
 		runSummary:     runsummary.New(),
