@@ -64,7 +64,8 @@ func forceRepaint(tm *teatest.TestModel, w, h int) {
 }
 
 func TestLoadingScreenAndQuit(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	tm, _ := newTestModel(t, cfg, "no/such/file.wandb", 100, 30)
 
 	// Wait for loading screen text.
@@ -80,7 +81,8 @@ func TestLoadingScreenAndQuit(t *testing.T) {
 
 func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 	// Configure a visible 2x2 system metrics grid.
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	_ = cfg.SetSystemRows(2)
 	_ = cfg.SetSystemCols(2)
 	_ = cfg.SetRightSidebarVisible(true)

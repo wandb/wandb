@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -17,8 +18,8 @@ import (
 )
 
 func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
 
@@ -28,15 +29,9 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 		DisplayName: "cool-run",
 		Project:     "proj",
 	})
-	if runID := model.TestRunID(); runID != "run_123" {
-		t.Fatalf("Run ID not updated to: %+v", runID)
-	}
-	if displayName := model.TestRunDisplayName(); displayName != "cool-run" {
-		t.Fatalf("Run displayName not updated to: %+v", displayName)
-	}
-	if project := model.TestRunProject(); project != "proj" {
-		t.Fatalf("Run project not updated to: %+v", project)
-	}
+	require.Equal(t, "run_123", model.TestRunID())
+	require.Equal(t, "cool-run", model.TestRunDisplayName())
+	require.Equal(t, "proj", model.TestRunProject())
 
 	model.TestProcessRecordMsg(leet.SystemInfoMsg{
 		Record: &spb.EnvironmentRecord{},
@@ -47,14 +42,12 @@ func TestProcessRecordMsg_Run_Summary_System_FileComplete(t *testing.T) {
 	})
 
 	model.TestProcessRecordMsg(leet.FileCompleteMsg{ExitCode: 0})
-	if got := model.TestRunState(); got != leet.RunStateFinished {
-		t.Fatalf("run state=%v; want Finished", got)
-	}
+	require.Equal(t, leet.RunStateFinished, model.TestRunState())
 }
 
 func TestFocus_Clicks_SetClear(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
@@ -65,28 +58,24 @@ func TestFocus_Clicks_SetClear(t *testing.T) {
 	model := m.(*leet.Model)
 	model.TestSetMainChartFocus(0, 0)
 	fs := model.TestFocusState()
-	if fs.Type != leet.FocusMainChart || fs.Row != 0 || fs.Col != 0 || fs.Title == "" {
-		t.Fatalf("unexpected focus after setMainChartFocus: %+v", fs)
-	}
+	require.Equal(t, leet.FocusMainChart, fs.Type)
+	require.Equal(t, 0, fs.Row)
+	require.Equal(t, 0, fs.Col)
+	require.NotEmpty(t, fs.Title)
 
 	model.TestHandleChartGridClick(0, 0)
-	if model.TestFocusState().Type != leet.FocusNone {
-		t.Fatalf("expected no focus after clicking focused chart")
-	}
+	require.Equal(t, leet.FocusNone, model.TestFocusState().Type)
 
 	model.TestHandleChartGridClick(0, 1)
-	if model.TestFocusState().Type != leet.FocusMainChart {
-		t.Fatalf("expected main focus after clicking a different chart")
-	}
+	require.Equal(t, leet.FocusMainChart, model.TestFocusState().Type)
+
 	model.TestClearMainChartFocus()
-	if model.TestFocusState().Type != leet.FocusNone {
-		t.Fatalf("expected no focus after clearMainChartFocus")
-	}
+	require.Equal(t, leet.FocusNone, model.TestFocusState().Type)
 }
 
 func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
 
@@ -101,10 +90,8 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
 	model := m.(*leet.Model)
-	if !model.TestSidebarIsFiltering() || model.TestSidebarFilterQuery() != "acc" {
-		t.Fatalf("overview filter not applied; got active=%v query=%q",
-			model.TestSidebarIsFiltering(), model.TestSidebarFilterQuery())
-	}
+	require.True(t, model.TestSidebarIsFiltering())
+	require.Equal(t, "acc", model.TestSidebarFilterQuery())
 
 	// Enter filter mode again, type something, then Esc
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
@@ -112,15 +99,13 @@ func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
 	// Should keep the previously applied "acc" state
-	if !model.TestSidebarIsFiltering() || model.TestSidebarFilterQuery() != "acc" {
-		t.Fatalf("overview filter ESC should restore applied query; got active=%v query=%q",
-			model.TestSidebarIsFiltering(), model.TestSidebarFilterQuery())
-	}
+	require.True(t, model.TestSidebarIsFiltering())
+	require.Equal(t, "acc", model.TestSidebarFilterQuery())
 }
 
 func TestHandleKeyMsg_VariousPaths(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 50})
 
@@ -132,9 +117,7 @@ func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 	ls := model.TestGetLeftSidebar()
 	ls.TestForceExpand()
 
-	if !model.TestLeftSidebarVisible() {
-		t.Fatalf("expected left sidebar visible after Ctrl+B toggle + animation")
-	}
+	require.True(t, model.TestLeftSidebarVisible())
 
 	// Page navigation (shouldn't panic)
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyPgUp})
@@ -158,21 +141,15 @@ func TestHandleKeyMsg_VariousPaths(t *testing.T) {
 
 func TestHeartbeat_LiveRun(t *testing.T) {
 	// Setup config with short heartbeat interval for testing
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
-	_ = cfg.SetHeartbeatInterval(1)
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	require.NoError(t, cfg.SetHeartbeatInterval(1))
 
 	// Create a wandb file with initial data
-	tmp, err := os.CreateTemp(t.TempDir(), "heartbeat-*.wandb")
-	if err != nil {
-		t.Fatalf("CreateTemp: %v", err)
-	}
-	_ = tmp.Close()
-	_ = os.Remove(tmp.Name())
+	path := filepath.Join(t.TempDir(), "heartbeat.wandb")
 
-	w, err := transactionlog.OpenWriter(tmp.Name())
-	if err != nil {
-		t.Fatalf("Failed to open transaction log for writing: %v", err)
-	}
+	w, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
 
 	// Write initial records
 	runRecord := &spb.Record{
@@ -183,9 +160,7 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 			},
 		},
 	}
-	if err := w.Write(runRecord); err != nil {
-		t.Fatalf("write run: %v", err)
-	}
+	require.NoError(t, w.Write(runRecord))
 
 	// Write some history
 	for i := range 5 {
@@ -195,15 +170,12 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 				{NestedKey: []string{"loss"}, ValueJson: fmt.Sprintf("%f", float64(i)*0.1)},
 			},
 		}
-		if err := w.Write(&spb.Record{RecordType: &spb.Record_History{History: h}}); err != nil {
-			t.Fatalf("write history: %v", err)
-		}
+		require.NoError(t, w.Write(&spb.Record{RecordType: &spb.Record_History{History: h}}))
 	}
 	w.Close()
 
 	// Create model
-	logger := observability.NewNoOpLogger()
-	m := leet.NewModel(tmp.Name(), cfg, logger)
+	m := leet.NewModel(path, cfg, logger)
 
 	// Track heartbeat messages
 	heartbeatCount := 0
@@ -222,7 +194,7 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 	// Process initial reader
 	model, _ = model.Update(leet.InitMsg{
 		Reader: func() *leet.WandbReader {
-			r, _ := leet.NewWandbReader(tmp.Name(), logger)
+			r, _ := leet.NewWandbReader(path, logger)
 			return r
 		}(),
 	})
@@ -238,15 +210,13 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 
 	// Verify model is in running state
 	concreteModel := model.(*leet.Model)
-	if concreteModel.TestRunState() != leet.RunStateRunning {
-		t.Fatalf("expected RunStateRunning, got %v", concreteModel.TestRunState())
-	}
+	require.Equal(t, leet.RunStateRunning, concreteModel.TestRunState())
 
 	// Write more data in background to simulate live run
 	go func() {
 		time.Sleep(500 * time.Millisecond)
-		_ = os.Remove(tmp.Name())
-		w, _ := transactionlog.OpenWriter(tmp.Name())
+		_ = os.Remove(path)
+		w, _ := transactionlog.OpenWriter(path)
 
 		for i := 5; i < 10; i++ {
 			h := &spb.HistoryRecord{
@@ -292,9 +262,7 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 	finalCount := heartbeatCount
 	heartbeatMu.Unlock()
 
-	if finalCount == 0 {
-		t.Fatal("no heartbeats were processed during live run")
-	}
+	require.NotZero(t, finalCount, "no heartbeats were processed during live run")
 
 	// Send exit to stop heartbeat
 	model.Update(leet.FileCompleteMsg{ExitCode: 0})
@@ -310,39 +278,28 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 	countAfter := heartbeatCount
 	heartbeatMu.Unlock()
 
-	if countAfter != countBefore {
-		t.Fatal("heartbeat continued after file completion")
-	}
+	require.Equal(t, countBefore, countAfter, "heartbeat continued after file completion")
 }
 
 func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	// Setup config with short heartbeat
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
-	_ = cfg.SetHeartbeatInterval(1) // 1 second minimum
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	require.NoError(t, cfg.SetHeartbeatInterval(1)) // 1 second minimum
 
-	// Create wandb file
-	tmp, err := os.CreateTemp(t.TempDir(), "reset-*.wandb")
-	if err != nil {
-		t.Fatalf("CreateTemp: %v", err)
-	}
-	tmpPath := tmp.Name()
-	_ = tmp.Close()
-	_ = os.Remove(tmpPath)
+	path := filepath.Join(t.TempDir(), "reset.wandb")
 
-	w, err := transactionlog.OpenWriter(tmpPath)
-	if err != nil {
-		t.Fatalf("Failed to open transaction log for writing: %v", err)
-	}
-	_ = w.Write(&spb.Record{
+	w, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	require.NoError(t, w.Write(&spb.Record{
 		RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{RunId: "test"},
 		},
-	})
+	}))
 	w.Close()
 
 	// Create model
-	logger := observability.NewNoOpLogger()
-	m := leet.NewModel(tmpPath, cfg, logger)
+	m := leet.NewModel(path, cfg, logger)
 
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
@@ -350,7 +307,7 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	// Initialize
 	model, _ = model.Update(leet.InitMsg{
 		Reader: func() *leet.WandbReader {
-			r, _ := leet.NewWandbReader(tmpPath, logger)
+			r, _ := leet.NewWandbReader(path, logger)
 			return r
 		}(),
 	})
@@ -381,55 +338,46 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 	// that receiving data doesn't break the heartbeat mechanism
 	model, _ = model.Update(leet.HeartbeatMsg{})
 
-	if !heartbeatReceived {
-		t.Fatal("heartbeat not processed initially")
-	}
+	require.True(t, heartbeatReceived, "heartbeat not processed initially")
 
 	// Verify model still in good state
 	concreteModel := model.(*leet.Model)
-	if concreteModel.TestRunState() != leet.RunStateRunning {
-		t.Fatal("model not in running state after data receipt")
-	}
+	require.Equal(t, leet.RunStateRunning, concreteModel.TestRunState())
 }
 
 func TestReload_WhileLoading_DoesNotCrash(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	var m tea.Model = leet.NewModel("dummy", cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Trigger a reload (Alt+r).
 	var cmd tea.Cmd
 	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}, Alt: true})
-	if cmd == nil {
-		t.Fatal("expected reload command")
-	}
+	require.NotNil(t, cmd, "expected reload command")
 
 	// Execute the reload message; this sets m.reader = nil internally.
 	m, _ = m.Update(cmd())
 
 	// A late chunk with HasMore=true should NOT panic.
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("Update panicked handling late chunk during reload: %v", r)
-		}
-	}()
-	_, _ = m.Update(leet.ChunkedBatchMsg{Msgs: nil, HasMore: true, Progress: 1})
+	require.NotPanics(t, func() {
+		_, _ = m.Update(leet.ChunkedBatchMsg{Msgs: nil, HasMore: true, Progress: 1})
+	})
 }
 
 func TestModel_HandleMouseMsg(t *testing.T) {
 	// Helper to create a fresh model with data
 	setupModel := func(t *testing.T) *leet.Model {
-		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
-
-		_ = cfg.SetMetricsRows(2)
-		_ = cfg.SetMetricsCols(2)
-		_ = cfg.SetSystemRows(2)
-		_ = cfg.SetSystemCols(1)
-		_ = cfg.SetLeftSidebarVisible(true)
-		_ = cfg.SetRightSidebarVisible(true)
-
 		logger := observability.NewNoOpLogger()
+		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+		require.NoError(t, cfg.SetMetricsRows(2))
+		require.NoError(t, cfg.SetMetricsCols(2))
+		require.NoError(t, cfg.SetSystemRows(2))
+		require.NoError(t, cfg.SetSystemCols(1))
+		require.NoError(t, cfg.SetLeftSidebarVisible(true))
+		require.NoError(t, cfg.SetRightSidebarVisible(true))
+
 		m := leet.NewModel("dummy", cfg, logger)
 
 		var model tea.Model = m
@@ -483,9 +431,7 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 				{X: 10, Y: 10, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
 			},
 			verify: func(t *testing.T, m *leet.Model) {
-				if m.TestFocusState().Type != leet.FocusNone {
-					t.Errorf("expected FocusNone, got %v", m.TestFocusState().Type)
-				}
+				require.Equal(t, leet.FocusNone, m.TestFocusState().Type)
 			},
 		},
 		{
@@ -494,9 +440,7 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 				{X: 60, Y: 15, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress},
 			},
 			verify: func(t *testing.T, m *leet.Model) {
-				if m.TestFocusState().Type != leet.FocusMainChart {
-					t.Fatalf("expected FocusMainChart after first click, got %v", m.TestFocusState().Type)
-				}
+				require.Equal(t, leet.FocusMainChart, m.TestFocusState().Type)
 
 				// Send second click to same position
 				var model tea.Model = m
@@ -504,9 +448,7 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 					X: 60, Y: 15, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress,
 				})
 
-				if m.TestFocusState().Type != leet.FocusNone {
-					t.Errorf("expected FocusNone after second click, got %v", m.TestFocusState().Type)
-				}
+				require.Equal(t, leet.FocusNone, m.TestFocusState().Type)
 			},
 		},
 		{
@@ -518,12 +460,8 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 			},
 			verify: func(t *testing.T, m *leet.Model) {
 				fs := m.TestFocusState()
-				if fs.Type != leet.FocusSystemChart {
-					t.Errorf("expected FocusSystemChart, got %v", fs.Type)
-				}
-				if fs.Title == "" {
-					t.Error("expected focused system chart to have a title")
-				}
+				require.Equal(t, leet.FocusSystemChart, fs.Type)
+				require.NotEmpty(t, fs.Title)
 			},
 		},
 		{
@@ -534,9 +472,7 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 				{X: 60, Y: 25, Button: tea.MouseButtonWheelUp},
 			},
 			verify: func(t *testing.T, m *leet.Model) {
-				if m.TestFocusState().Type != leet.FocusMainChart {
-					t.Errorf("expected FocusMainChart after wheel events, got %v", m.TestFocusState().Type)
-				}
+				require.Equal(t, leet.FocusMainChart, m.TestFocusState().Type)
 			},
 		},
 		{
@@ -548,9 +484,7 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 				{X: 60, Y: 15, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease},
 			},
 			verify: func(t *testing.T, m *leet.Model) {
-				if m.TestFocusState().Type != leet.FocusMainChart {
-					t.Errorf("expected focus unchanged after release, got %v", m.TestFocusState().Type)
-				}
+				require.Equal(t, leet.FocusMainChart, m.TestFocusState().Type)
 			},
 		},
 		{
@@ -563,9 +497,7 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 				{X: 60, Y: 25, Button: tea.MouseButtonWheelUp},
 			},
 			verify: func(t *testing.T, m *leet.Model) {
-				if m.TestFocusState().Type != leet.FocusMainChart {
-					t.Errorf("expected wheel to focus chart, got %v", m.TestFocusState().Type)
-				}
+				require.Equal(t, leet.FocusMainChart, m.TestFocusState().Type)
 			},
 		},
 	}

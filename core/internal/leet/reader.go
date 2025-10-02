@@ -45,8 +45,8 @@ func (r *WandbReader) ReadAllRecordsChunked() tea.Msg {
 		// No reader available; no-op to keep Bubble Tea flow consistent.
 		return func() tea.Msg { return nil }
 	}
-	const chunkSize = 100                          // Process records in chunks
-	const maxTimePerChunk = 100 * time.Millisecond // Increased time limit
+	const chunkSize = 1000
+	const maxTimePerChunk = 50 * time.Millisecond
 
 	if r.store == nil {
 		return ChunkedBatchMsg{Msgs: []tea.Msg{}, HasMore: false}

@@ -528,7 +528,7 @@ func (m *Model) stopHeartbeat() {
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen
 func (m *Model) renderLoadingScreen() string {
 	artStyle := lipgloss.NewStyle().
-		Foreground(wandbColor).
+		Foreground(colorHeading).
 		Bold(true)
 
 	logoContent := lipgloss.JoinVertical(
