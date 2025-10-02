@@ -3,8 +3,14 @@ import platform
 from contextlib import nullcontext
 
 import pytest
+import requests
 import wandb
+from wandb._strutils import nameof
+from wandb.errors.errors import CommError
+from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.sdk.artifacts._generated import ArtifactByName, ArtifactViaMembershipByName
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
+from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
 @pytest.fixture
@@ -123,14 +129,58 @@ def test_artifact_download(user, api, sample_data):
 
 
 def test_artifact_exists(user, api, sample_data):
-    assert api.artifact_exists("mnist:v0")
-    assert not api.artifact_exists("mnist:v2")
-    assert not api.artifact_exists("mnist-fake:v0")
+    assert api.artifact_exists("mnist:v0") is True
+    assert api.artifact_exists("mnist:v2") is False
+    assert api.artifact_exists("mnist-fake:v0") is False
 
 
 def test_artifact_collection_exists(user, api, sample_data):
-    assert api.artifact_collection_exists("mnist", "dataset")
-    assert not api.artifact_collection_exists("mnist-fake", "dataset")
+    assert api.artifact_collection_exists("mnist", "dataset") is True
+    assert api.artifact_collection_exists("mnist-fake", "dataset") is False
+
+
+def test_artifact_exists_raises_on_timeout(mocker, user, api, sample_data):
+    # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
+    # actual python methods, but this is complicated by the fact that we need to instantiate
+    # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
+    #
+    # Mocking every single one of them makes test setup quite brittle and error prone.
+    # Moreover, the interaction between @normalize_exceptions and our home-grown retry
+    # logic isn't readily configurable, so this test can easily become flaky and/or timeout.
+    # The following will have to do for now.
+    mocker.patch.object(api, "_artifact", side_effect=requests.Timeout())
+
+    with pytest.raises(CommError) as exc_info:
+        api.artifact_exists("mnist:v0")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
+
+    with pytest.raises(CommError) as exc_info:
+        api.artifact_exists("mnist-fake:v0")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
+
+    with pytest.raises(CommError):
+        api.artifact_exists("mnist-fake:v0")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
+
+
+def test_artifact_collection_exists_raises_on_timeout(mocker, user, api, sample_data):
+    # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
+    # actual python methods, but this is complicated by the fact that we need to instantiate
+    # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
+    #
+    # Mocking every single one of them makes test setup quite brittle and error prone.
+    # Moreover, the interaction between @normalize_exceptions and our home-grown retry
+    # logic isn't readily configurable, so this test can easily become flaky and/or timeout.
+    # The following will have to do for now.
+    mocker.patch.object(api, "artifact_collection", side_effect=requests.Timeout())
+
+    with pytest.raises(CommError) as exc_info:
+        api.artifact_collection_exists("mnist", "dataset")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
+
+    with pytest.raises(CommError) as exc_info:
+        api.artifact_collection_exists("mnist-fake", "dataset")
+    assert isinstance(exc_info.value.exc, requests.Timeout)
 
 
 def test_artifact_delete(user, api, sample_data):
@@ -341,6 +391,7 @@ def test_parse_artifact_path(user, api):
 )
 def test_fetch_registry_artifact(
     user,
+    wandb_backend_spy,
     api,
     mocker,
     artifact_path,
@@ -348,16 +399,16 @@ def test_fetch_registry_artifact(
     is_registry_project,
     expected_artifact_fetched,
 ):
-    mocker.patch(
-        "wandb.sdk.artifacts.artifact.Artifact._from_attrs",
+    server_supports_artifact_via_membership = InternalApi()._server_supports(
+        ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
     )
+
+    mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")
 
     mock__resolve_org_entity_name = mocker.patch(
         "wandb.sdk.internal.internal_api.Api._resolve_org_entity_name",
         return_value=resolve_org_entity_name,
     )
-
-    mock_fetch_artifact_by_name = mocker.patch.object(api.client, "execute")
 
     mock_artifact_fragment_data = {
         "name": "test-collection",  # NOTE: relevant
@@ -388,8 +439,18 @@ def test_fetch_registry_artifact(
         # ------------------------------------------------------------------------------
     }
 
-    if expected_artifact_fetched:
-        mock_fetch_artifact_by_name.return_value = {
+    mock_empty_rsp_data = {"data": {"project": {}}}
+
+    mock_artifact_rsp_data = {
+        "data": {
+            "project": {
+                "artifact": mock_artifact_fragment_data,
+            }
+        }
+    }
+
+    mock_membership_rsp_data = {
+        "data": {
             "project": {
                 "artifact": mock_artifact_fragment_data,
                 "artifactCollectionMembership": {
@@ -408,8 +469,25 @@ def test_fetch_registry_artifact(
                 },
             }
         }
+    }
+
+    # Set up the mock response for the appropriate GQL operation
+    # Return equivalent payload for either membership or by-name fetches
+    if server_supports_artifact_via_membership:
+        op_name = nameof(ArtifactViaMembershipByName)
+        mock_rsp = mock_membership_rsp_data
     else:
-        mock_fetch_artifact_by_name.return_value = {"data": {"project": {}}}
+        op_name = nameof(ArtifactByName)
+        mock_rsp = mock_artifact_rsp_data
+
+    # If we aren't simulating a successfully-fetched artifact, override the mock response with an empty one
+    if not expected_artifact_fetched:
+        mock_rsp = mock_empty_rsp_data
+
+    # Now stub the actual GQL request/response we expect to make
+    op_matcher = wandb_backend_spy.gql.Matcher(operation=op_name)
+    mock_responder = wandb_backend_spy.gql.Constant(content=mock_rsp)
+    wandb_backend_spy.stub_gql(match=op_matcher, respond=mock_responder)
 
     expectation = (
         nullcontext()
@@ -424,4 +502,5 @@ def test_fetch_registry_artifact(
     else:
         mock__resolve_org_entity_name.assert_not_called()
 
-    mock_fetch_artifact_by_name.assert_called_once()
+    # Ensure at least one of the artifact queries was exercised
+    assert mock_responder.total_calls == 1

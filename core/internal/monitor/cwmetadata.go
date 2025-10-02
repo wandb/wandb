@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -41,8 +42,9 @@ type CoreWeaveInstanceData struct {
 
 type CoreWeaveMetadataParams struct {
 	Client        *retryablehttp.Client
-	Logger        *observability.CoreLogger
 	GraphqlClient graphql.Client
+	Logger        *observability.CoreLogger
+	RunHandle     *runhandle.RunHandle
 	Settings      *settings.Settings
 }
 
@@ -58,12 +60,13 @@ type CoreWeaveMetadata struct {
 	// Internal debug logger.
 	logger *observability.CoreLogger
 
+	// runHandle contains the run's entity, used for the
+	// OrganizationCoreWeaveOrganizationID GQL query.
+	runHandle *runhandle.RunHandle
+
 	// settings contain the info needed to probe the CoreWeave metadata.
 	//
 	// Specifically:
-	//  - Entity is W&B entity to use with the gql.OrganizationCoreWeaveOrganizationID query.
-	//    May be updated upon a run start with the information from the server, which is
-	//    the main reason we keep a pointer to a Settings struct.
 	//  - The scheme and hostname for contacting the metadata server,
 	//    not including a final slash. For example, "http://localhost:8080".
 	//  - The relative path on the server to which to make requests, not
@@ -91,6 +94,7 @@ func NewCoreWeaveMetadata(params CoreWeaveMetadataParams) (*CoreWeaveMetadata, e
 		client:        params.Client,
 		graphqlClient: params.GraphqlClient,
 		logger:        params.Logger,
+		runHandle:     params.RunHandle,
 		settings:      params.Settings,
 	}
 
@@ -115,12 +119,19 @@ func (cwm *CoreWeaveMetadata) Probe(ctx context.Context) *spb.EnvironmentRecord 
 		return nil
 	}
 
+	upserter, err := cwm.runHandle.Upserter()
+	if err != nil {
+		cwm.logger.CaptureError(fmt.Errorf("cwmetadata: %v", err))
+		return nil
+	}
+	entity := upserter.RunPath().Entity
+
 	// Check whether this entity's organization is on CoreWeave
 	// to limit collecting metadata to the relevant organizations.
 	data, err := gql.OrganizationCoreWeaveOrganizationID(
 		ctx,
 		cwm.graphqlClient,
-		cwm.settings.GetEntity(),
+		entity,
 	)
 	if err != nil || data == nil || data.GetEntity() == nil || data.GetEntity().GetOrganization() == nil {
 		return nil

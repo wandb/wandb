@@ -3,6 +3,7 @@
 __all__ = [
     "IS_PYDANTIC_V2",
     "CompatBaseModel",
+    "JsonableModel",
     "GQLBase",
     "Typename",
     "GQLId",
@@ -17,7 +18,7 @@ __all__ = [
     "gql_typename",
 ]
 
-from .base import CompatBaseModel, GQLBase
+from .base import CompatBaseModel, GQLBase, JsonableModel
 from .field_types import GQLId, Typename
 from .utils import IS_PYDANTIC_V2, from_json, gql_typename, pydantic_isinstance, to_json
 from .v1_compat import (

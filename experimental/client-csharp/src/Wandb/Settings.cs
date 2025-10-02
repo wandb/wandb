@@ -252,7 +252,6 @@ namespace Wandb
                 ApiKey = ApiKey,
                 BaseUrl = BaseUrl.ToString(),
                 Entity = Entity,
-                FilesDir = FilesDir,
                 InitTimeout = InitTimeout,
                 LogDir = LogDir,
                 LogInternal = LogInternal,

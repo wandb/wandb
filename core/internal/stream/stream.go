@@ -11,11 +11,13 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/tensorboard"
+	"github.com/wandb/wandb/core/internal/transactionlog"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
@@ -34,8 +36,8 @@ type Stream struct {
 	// runWork is a channel of records to process.
 	runWork runwork.RunWork
 
-	// run is the state of the run controlled by this stream.
-	run *StreamRun
+	// runHandle is run info initialized after the first RunRecord.
+	runHandle *runhandle.RunHandle
 
 	// operations tracks the status of asynchronous work.
 	operations *wboperation.WandbOperations
@@ -66,8 +68,11 @@ type Stream struct {
 	// handler is the handler for the stream
 	handler *Handler
 
-	// writer is the writer for the stream
-	writer *Writer
+	// writerFactory is used to create the Writer component
+	writerFactory *WriterFactory
+
+	// flowControlFactory is used to create the FlowControl component
+	flowControlFactory *FlowControlFactory
 
 	// sender is the sender for the stream
 	sender *Sender
@@ -90,6 +95,7 @@ func NewStream(
 	clientID sharedmode.ClientID,
 	debugCorePath DebugCorePath,
 	featureProvider *featurechecker.ServerFeaturesCache,
+	flowControlFactory *FlowControlFactory,
 	graphqlClientOrNil graphql.Client,
 	handlerFactory *HandlerFactory,
 	loggerFile streamLoggerFile,
@@ -99,7 +105,7 @@ func NewStream(
 	senderFactory *SenderFactory,
 	sentry *sentry_ext.Client,
 	settings *settings.Settings,
-	streamRun *StreamRun,
+	runHandle *runhandle.RunHandle,
 	tbHandlerFactory *tensorboard.TBHandlerFactory,
 	writerFactory *WriterFactory,
 ) *Stream {
@@ -114,7 +120,7 @@ func NewStream(
 
 	s := &Stream{
 		runWork:            runWork,
-		run:                streamRun,
+		runHandle:          runHandle,
 		operations:         operations,
 		featureProvider:    featureProvider,
 		graphqlClientOrNil: graphqlClientOrNil,
@@ -123,18 +129,11 @@ func NewStream(
 		settings:           settings,
 		recordParser:       recordParser,
 		handler:            handlerFactory.New(runWork),
+		writerFactory:      writerFactory,
+		flowControlFactory: flowControlFactory,
 		sender:             senderFactory.New(runWork),
 		sentryClient:       sentry,
 		clientID:           clientID,
-	}
-
-	switch {
-	case !s.settings.IsSkipTransactionLog():
-		s.writer = writerFactory.New(make(chan runwork.Work, BufferSize))
-	default:
-		logger.Info("stream: not syncing, skipping transaction log",
-			"id", s.settings.GetRunID(),
-		)
 	}
 
 	s.dispatcher = NewDispatcher(logger)
@@ -153,45 +152,21 @@ func (s *Stream) GetSettings() *settings.Settings {
 	return s.settings
 }
 
-// Start starts the stream's handler, writer, sender, and dispatcher.
-// We use Stream's wait group to ensure that all of these components are cleanly
-// finalized and closed when the stream is closed in Stream.Close().
+// Start begins processing the stream's input records and producing outputs.
 func (s *Stream) Start() {
-
-	// handle the client requests with the handler
 	s.wg.Add(1)
 	go func() {
 		s.handler.Do(s.runWork.Chan())
 		s.wg.Done()
 	}()
 
-	// different modes of operations depending on the settings
-	switch {
-	case s.settings.IsSkipTransactionLog():
-		// if we are skipping the transaction log, we just forward the data from
-		// the handler to the sender directly
-		s.wg.Add(1)
-		go func() {
-			s.sender.Do(s.handler.OutChan())
-			s.wg.Done()
-		}()
-	default:
-		// This is the default case, where we are not skipping the transaction log
-		// and we are not syncing. We only get the data from the client and the
-		// handler handles it passing it to the writer (storing in the transaction log),
-		// that will forward it to the sender
-		s.wg.Add(1)
-		go func() {
-			s.writer.Do(s.handler.OutChan())
-			s.wg.Done()
-		}()
+	maybeSavedWork := s.maybeSavingToTransactionLog(s.handler.OutChan())
 
-		s.wg.Add(1)
-		go func() {
-			s.sender.Do(s.writer.fwdChan)
-			s.wg.Done()
-		}()
-	}
+	s.wg.Add(1)
+	go func() {
+		s.sender.Do(maybeSavedWork)
+		s.wg.Done()
+	}()
 
 	// handle dispatching between components
 	for _, ch := range []<-chan *spb.Result{
@@ -208,6 +183,65 @@ func (s *Stream) Start() {
 	}
 
 	s.logger.Info("stream: started", "id", s.settings.GetRunID())
+}
+
+// maybeSavingToTransactionLog saves work from the channel into a transaction
+// log if allowed by settings.
+//
+// The output is work that has been saved.
+func (s *Stream) maybeSavingToTransactionLog(
+	work <-chan runwork.Work,
+) <-chan runwork.Work {
+	if s.settings.IsSkipTransactionLog() {
+		s.logger.Info(
+			"stream: skipping transaction log due to settings",
+			"id", s.settings.GetRunID())
+		return work
+	}
+
+	w, err := transactionlog.OpenWriter(s.settings.GetTransactionLogPath())
+	if err != nil {
+		s.logger.Error(
+			fmt.Sprintf("stream: error opening transaction log for writing: %v", err),
+			"id", s.settings.GetRunID())
+		return work
+	}
+
+	r, err := transactionlog.OpenReader(
+		s.settings.GetTransactionLogPath(),
+		s.logger,
+	)
+	if err != nil {
+		// Capture the error because if we can open for writing,
+		// why can't we open for reading?
+		s.logger.CaptureError(
+			fmt.Errorf("stream: error opening transaction log for reading: %v", err),
+			"id", s.settings.GetRunID())
+		return work
+	}
+
+	writer := s.writerFactory.New(w)
+	flowControl := s.flowControlFactory.New(
+		r, writer.Flush, s.recordParser,
+		FlowControlParams{
+			InMemorySize: 32,   // Max records before off-loading.
+			Limit:        1024, // Max unsaved records before blocking.
+		},
+	)
+
+	s.wg.Add(1)
+	go func() {
+		writer.Do(work)
+		s.wg.Done()
+	}()
+
+	s.wg.Add(1)
+	go func() {
+		flowControl.Do(writer.Chan())
+		s.wg.Done()
+	}()
+
+	return flowControl.Chan()
 }
 
 // HandleRecord ingests a record from the client.

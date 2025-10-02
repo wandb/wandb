@@ -727,7 +727,7 @@ class _WandbInit:
         drun = Run(
             settings=Settings(
                 mode="disabled",
-                x_files_dir=tempfile.gettempdir(),
+                root_dir=tempfile.gettempdir(),
                 run_id=run_id,
                 run_tags=tuple(),
                 run_notes=None,

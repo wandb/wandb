@@ -1,7 +1,6 @@
 package runsync
 
 import (
-	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"golang.org/x/sync/errgroup"
@@ -21,14 +20,14 @@ type RunSyncOperation struct {
 
 func (f *RunSyncOperationFactory) New(
 	paths []string,
-	settings *settings.Settings,
+	globalSettings *spb.Settings,
 ) *RunSyncOperation {
 	op := &RunSyncOperation{}
 
 	op.operations = wboperation.NewOperations()
 
-	// TODO: Since settings are mutable, we need to create copies!
 	for _, path := range paths {
+		settings := MakeSyncSettings(globalSettings, path)
 		factory := InjectRunSyncerFactory(op.operations, settings)
 		op.syncers = append(op.syncers, factory.New(path))
 	}

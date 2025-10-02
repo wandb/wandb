@@ -21,6 +21,7 @@ from graphql import (
     FragmentDefinitionNode,
     GraphQLSchema,
     SelectionSetNode,
+    TypeMetaFieldDef,
 )
 
 from .plugin_utils import (
@@ -32,6 +33,7 @@ from .plugin_utils import (
     is_redundant_class_def,
     make_all_assignment,
     make_import_from,
+    make_literal,
     make_model_rebuild,
     remove_module_files,
 )
@@ -150,6 +152,8 @@ class GraphQLCodegenPlugin(Plugin):
     package_dir: Path
     #: Generated classes that we don't need in the final code
     classes_to_drop: set[str]
+    #: Maps GraphQL interface type names to the concrete GraphQL object type names that implement them
+    interface2typenames: dict[str, list[str]]
 
     # From ariadne-codegen, we don't currently need the generated httpx client,
     # exceptions, etc., so drop these generated modules in favor of
@@ -174,6 +178,7 @@ class GraphQLCodegenPlugin(Plugin):
         self.package_dir = Path(package_path) / package_name
 
         self.classes_to_drop = set()
+        self.interface2typenames = {}
 
         # HACK: Override the default python type that ariadne-codegen uses for GraphQL's `ID` type.
         # See: https://github.com/mirumee/ariadne-codegen/issues/316
@@ -182,6 +187,12 @@ class GraphQLCodegenPlugin(Plugin):
 
             codegen_constants.SIMPLE_TYPE_MAP.pop(ID, None)
             codegen_constants.INPUT_SCALARS_MAP.pop(ID, None)
+
+        # Ensure standard introspection meta fields exist on `Query`.
+        # `ariadne-codegen` doesn't automatically recognize meta fields
+        # like `__type`, `__schema`, etc.  Inject them here so codegen can proceed.
+        if query_type := self.schema.query_type:
+            query_type.fields["__type"] = TypeMetaFieldDef
 
     def generate_init_code(self, generated_code: str) -> str:
         # This should be the last hook in the codegen process, after all modules have been generated.
@@ -198,6 +209,25 @@ class GraphQLCodegenPlugin(Plugin):
 
     def generate_inputs_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
+
+    def process_schema(self, schema: GraphQLSchema) -> GraphQLSchema:
+        # Maps a GraphQL type OR interface name to the actual concrete GQL type names.
+        # This is needed to accurately restrict the allowed `typename__`
+        # strings on generated fragment classes.
+        #
+        # interface2typenames should look something like, e.g.:
+        #   {
+        #     "ArtifactCollection" -> ["ArtifactPortfolio", "ArtifactSequence"],
+        #     "ArtifactPortfolio" -> ["ArtifactPortfolio"],
+        #     "ArtifactSequence" -> ["ArtifactSequence"],
+        #     ...
+        #   }
+        self.interface2typenames = {
+            name: [impl.name for impl in schema.get_possible_types(gql_type)]
+            for name, gql_type in schema.type_map.items()
+        }
+
+        return schema
 
     def generate_result_class(
         self,
@@ -220,10 +250,15 @@ class GraphQLCodegenPlugin(Plugin):
         module: ast.Module,
         fragments_definitions: dict[str, FragmentDefinitionNode],
     ) -> ast.Module:
-        # Maps {fragment names -> original schema type names}
-        fragment2typename = {
-            f.name.value: f.type_condition.name.value
-            for f in fragments_definitions.values()
+        # Maps {fragment name -> orig GQL object type names}
+        # If a fragment was defined on an interface type, `typename__` should
+        # only allow the names of the interface's implemented object types.
+        fragment2typenames: dict[str, list[str]] = {
+            frag.name.value: (
+                self.interface2typenames.get(typename := frag.type_condition.name.value)
+                or [typename]
+            )
+            for frag in fragments_definitions.values()
         }
 
         # Rewrite `typename__` fields:
@@ -234,13 +269,13 @@ class GraphQLCodegenPlugin(Plugin):
                 if (
                     isinstance(stmt, ast.AnnAssign)
                     and (stmt.target.id == "typename__")
-                    and (typename := fragment2typename.get(class_def.name))
+                    and (names := fragment2typenames.get(class_def.name))
                 ):
-                    stmt.annotation = ast.Subscript(
-                        value=ast.Name(id="Literal"),
-                        slice=ast.Constant(value=typename),
-                    )
-                    stmt.value = ast.Constant(value=typename)
+                    stmt.annotation = make_literal(*names)
+                    # Determine if we prepopulate `typename__` with a default field value
+                    # - assign default: Fragment defined on a GQL object type OR interface with 1 impl.
+                    # - omit default: Fragment defined on a GQL interface with multiple impls.
+                    stmt.value = ast.Constant(names[0]) if len(names) == 1 else None
 
         module = self._rewrite_generated_module(module)
         return ast.fix_missing_locations(module)
@@ -337,16 +372,16 @@ class PydanticModuleRewriter(ast.NodeTransformer):
         if node.target.id == "typename__":
             # e.g. BEFORE: `typename__: Literal["MyType"] = Field(alias="__typename")`
             # e.g. AFTER:  `typename__: Typename[Literal["MyType"]]`
-            node.annotation = ast.Subscript(  # T -> Typename[T]
-                value=ast.Name(id=TYPENAME_TYPE),
-                slice=node.annotation,
-            )
+
+            # T -> Typename[T]
+            node.annotation = ast.Subscript(ast.Name(TYPENAME_TYPE), node.annotation)
+
             # Drop `= Field(alias="__typename")`, if present
             if (
-                isinstance(node.value, ast.Call)
-                and node.value.func.id == "Field"
-                and len(node.value.keywords) == 1
-                and node.value.keywords[0].arg == "alias"
+                isinstance(call := node.value, ast.Call)
+                and call.func.id == "Field"
+                and len(call.keywords) == 1
+                and call.keywords[0].arg == "alias"
             ):
                 node.value = None
 
