@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -32,6 +33,21 @@ func TestNewManifestFromProto(t *testing.T) {
 	assert.Equal(t, proto.Version, manifest.Version)
 	assert.Equal(t, proto.StoragePolicy, manifest.StoragePolicy)
 	assert.Equal(t, "value1", manifest.Contents["path1"].Extra["key1"])
+}
+
+func TestNewManifestFromProto_StorageRegion(t *testing.T) {
+	proto := &spb.ArtifactManifest{
+		Version:       1,
+		StoragePolicy: "policy",
+		StoragePolicyConfig: []*spb.StoragePolicyConfigItem{
+			{Key: "storageRegion", ValueJson: `"coreweave-us"`},
+		},
+	}
+
+	manifest, err := NewManifestFromProto(proto)
+	require.NoError(t, err)
+	require.NotNil(t, manifest.StoragePolicyConfig.StorageRegion)
+	assert.Equal(t, "coreweave-us", *manifest.StoragePolicyConfig.StorageRegion)
 }
 
 func TestNewManifestFromProto_InvalidManifestFilePath(t *testing.T) {

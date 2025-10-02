@@ -35,7 +35,7 @@ jobs:
         run: |
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/wandb/wandb.git
+          git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
       - name: Install Dependencies
         run: pip install bump2version click
@@ -65,81 +65,6 @@ jobs:
         run: |
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push --no-verify -f origin release-${{ github.event.inputs.version }}
-
-  build-macos-10-wheels:
-    name: Build wheels for MacOS 10.x
-    needs: prepare-release
-    runs-on: macos-14
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: release-${{ github.event.inputs.version }}
-
-      ##################################################
-      # Go 1.22 is required for building the wheels on MacOS 10.x.
-      #
-      # See https://github.com/golang/go/issues/64207.
-      ##################################################
-      - name: Downgrade Go version
-        run: |
-          mv core/go.mod.1.22 core/go.mod
-
-      ##################################################
-      # Install Go.
-      ##################################################
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: core/go.mod
-
-      ##################################################
-      # Vendor downgraded dependencies
-      ##################################################
-      - name: Vendor downgraded dependencies
-        run: |
-          cd core
-          rm -rf vendor
-          rm go.sum
-          go mod tidy
-          go mod vendor
-
-      ##################################################
-      # All platforms: create wheels
-      ##################################################
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
-        with:
-          package-dir: .
-          output-dir: dist
-        env:
-          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_BUILD: cp*-macosx* pp*-macosx*
-          CIBW_SKIP: cp36-*
-          # arm64 is skipped because it still produces 11.0 wheels due to
-          # restrictions in the cibuildwheel package.
-          CIBW_ARCHS_MACOS: x86_64
-
-          # Work around https://github.com/matthew-brett/delocate/issues/204
-          # by adding `--ignore-missing-dependencies` to cibuildwheel's default
-          # repair wheel command.
-          CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
-            delocate-listdeps --all --depending {wheel} &&
-            delocate-wheel \
-              --require-archs {delocate_archs} \
-              --ignore-missing-dependencies \
-              -w {dest_dir} \
-              -v {wheel}
-          CIBW_ENVIRONMENT_MACOS: >
-            MACOSX_DEPLOYMENT_TARGET=10.14
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wandb-sdk-distribution-macos-10-x86_64
-          path: ./dist
 
   build-linux-arm64-wheels:
     name: Build wheels for Linux arm64
@@ -193,6 +118,7 @@ jobs:
         os:
           - ubuntu-22.04
           - windows-2022
+          - windows-11-arm
           - macos-14
 
     steps:
@@ -281,13 +207,7 @@ jobs:
 
   test-pypi-publish:
     name: Publish to TestPyPI
-    needs:
-      [
-        build-platform-wheels,
-        build-linux-arm64-wheels,
-        build-macos-10-wheels,
-        build-sdist,
-      ]
+    needs: [build-platform-wheels, build-linux-arm64-wheels, build-sdist]
     continue-on-error: true
     runs-on: ubuntu-latest
     environment:
@@ -521,7 +441,7 @@ jobs:
           slack-message: |
             W&B SDK ${{ github.event.inputs.version }} released :tada::
             - PyPI: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/
-            - Release notes: https://github.com/wandb/wandb/releases/tag/v${{ github.event.inputs.version }}
+            - Release notes: https://github.com/${{ github.repository }}/releases/tag/v${{ github.event.inputs.version }}
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 

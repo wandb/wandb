@@ -58,6 +58,8 @@ class MailboxHandle(abc.ABC, Generic[_T]):
     def cancel(self, iface: interface.InterfaceBase) -> None:
         """Cancel the handle, requesting any associated work to not complete.
 
+        It is an error to call this from an async function.
+
         This automatically abandons the handle, as a response is no longer
         guaranteed.
 

@@ -43,8 +43,8 @@ message ServerSyncRequest {
 
 // Indicates a sync operation completed, either successfully or with errors.
 message ServerSyncResponse {
-  // Any error messages that were not returned via a status response.
-  repeated string errors = 2;
+  // Any messages that were not returned via a status response.
+  repeated ServerSyncMessage messages = 1;
 }
 
 // Checks the status of an ongoing sync operation.
@@ -58,6 +58,19 @@ message ServerSyncStatusResponse {
   // The status of any ongoing work (such as network requests).
   OperationStats stats = 1;
 
-  // New error messages since the last status request.
-  repeated string new_errors = 2;
+  // New messages since the last status request.
+  repeated ServerSyncMessage new_messages = 2;
+}
+
+// ServerSyncMessage is a console message generated during a sync operation.
+message ServerSyncMessage {
+  // Severity values match Python's logging module for convenience.
+  enum Severity {
+    SEVERITY_NOTSET = 0;
+    SEVERITY_INFO = 20;
+    SEVERITY_ERROR = 40;
+  }
+
+  Severity severity = 1;
+  string content = 2;
 }

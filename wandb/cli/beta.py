@@ -15,8 +15,7 @@ from wandb.util import get_core_path
 
 @click.group()
 def beta():
-    """Beta versions of wandb CLI commands. Requires wandb-core."""
-    # this is the future that requires wandb-core!
+    """Beta versions of wandb CLI commands."""
     import wandb.env
 
     wandb._sentry.configure_scope(process_context="wandb_beta")
@@ -30,6 +29,21 @@ def beta():
             fg="red",
             err=True,
         )
+
+
+@beta.command()
+@click.argument("path", nargs=1, type=click.Path(exists=True), required=False)
+def leet(path: str | None = None) -> None:
+    """Launch W&B LEET: the Lightweight Experiment Exploration Tool.
+
+    LEET is a terminal UI for viewing a W&B run specified by an optional PATH.
+
+    PATH can include a .wandb file or a run directory containing a .wandb file.
+    If PATH is not provided, the command will look for the latest run.
+    """
+    from . import beta_leet
+
+    beta_leet.launch(path)
 
 
 @beta.command()

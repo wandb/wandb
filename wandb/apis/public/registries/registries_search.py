@@ -24,8 +24,8 @@ from wandb.sdk.artifacts._generated import (
     RegistryVersions,
     RegistryVersionsPage,
 )
-from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
-from wandb.sdk.artifacts._validators import remove_registry_prefix
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
+from wandb.sdk.artifacts._validators import FullArtifactPath, remove_registry_prefix
 
 from ._utils import ensure_registry_prefix_on_names
 
@@ -270,7 +270,7 @@ class Versions(Paginator["Artifact"]):
         self.artifact_filter = artifact_filter or {}
 
         self.QUERY = gql_compat(
-            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields()
+            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields(client)
         )
 
         variables = {
@@ -335,9 +335,11 @@ class Versions(Paginator["Artifact"]):
         nodes = (e.node for e in self.last_response.edges)
         return [
             Artifact._from_attrs(
-                entity=project.entity.name,
-                project=project.name,
-                name=f"{collection.name}:v{node.version_index}",
+                path=FullArtifactPath(
+                    prefix=project.entity.name,
+                    project=project.name,
+                    name=f"{collection.name}:v{node.version_index}",
+                ),
                 attrs=artifact,
                 client=self.client,
                 aliases=[alias.alias for alias in node.aliases],

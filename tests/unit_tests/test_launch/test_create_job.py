@@ -75,7 +75,7 @@ def test_configure_job_builder_for_partial():
     assert isinstance(builder, JobBuilder)
     assert builder._config == {}
     assert builder._summary == {}
-    assert builder._settings.files_dir == dir
+    assert builder._files_dir == dir
     assert builder._settings.job_source == job_source
 
 

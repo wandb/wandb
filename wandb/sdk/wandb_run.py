@@ -33,6 +33,7 @@ from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
@@ -41,7 +42,6 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib import asyncio_compat, wb_logging
@@ -2698,7 +2698,9 @@ class Run:
             assert self._backend and self._backend.interface
 
             while True:
-                handle = self._backend.interface.deliver_poll_exit()
+                handle = await self._backend.interface.deliver_async(
+                    pb.Record(request=pb.Request(poll_exit=pb.PollExitRequest()))
+                )
 
                 time_start = time.monotonic()
                 last_result = await handle.wait_async(timeout=None)
@@ -3004,7 +3006,7 @@ class Run:
         # the target entity to the run's entity.  Instead, delegate to
         # Artifact.link() to resolve the required org entity.
         target = ArtifactPath.from_str(target_path)
-        if not (target.project and is_artifact_registry_project(target.project)):
+        if not target.is_registry_path():
             target = target.with_defaults(prefix=self.entity, project=self.project)
 
         return artifact.link(target.to_str(), aliases)

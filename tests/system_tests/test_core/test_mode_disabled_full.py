@@ -13,11 +13,11 @@ def test_disabled_noop(user):
         run.log(dict(this=2))
 
 
-def test_disabled_dir(user):
+def test_disabled_dir():
     tmp_dir = "/tmp/dir"
     with mock.patch("tempfile.gettempdir", lambda: tmp_dir):
         run = wandb.init(mode="disabled")
-        assert run.dir == tmp_dir
+        assert run.dir.startswith(tmp_dir)
 
 
 def test_disabled_summary(user):

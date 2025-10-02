@@ -2,8 +2,7 @@
 
 import contextlib
 import io
-import os
-import unittest.mock
+import pathlib
 
 import wandb
 from wandb.apis.public import Api
@@ -37,7 +36,7 @@ def test_agent_basic(user):
     assert sweep_resumed[0] is False
 
 
-def test_agent_config_merge(user):
+def test_agent_config_merge(user, monkeypatch):
     sweep_configs = []
 
     def train():
@@ -51,9 +50,9 @@ def test_agent_config_merge(user):
         "parameters": {"a": {"values": [1, 2, 3]}},
     }
 
-    with unittest.mock.patch.dict(os.environ, {"WANDB_CONSOLE": "off"}):
-        sweep_id = wandb.sweep(sweep_config)
-        wandb.agent(sweep_id, function=train, count=1)
+    monkeypatch.setenv("WANDB_CONSOLE", "off")
+    sweep_id = wandb.sweep(sweep_config)
+    wandb.agent(sweep_id, function=train, count=1)
 
     assert len(sweep_configs) == 1
     assert sweep_configs[0] == {"a": 1, "extra": 2}
@@ -143,3 +142,27 @@ def test_agent_exception(user):
     assert current_pattern == len(patterns), (
         f"Not found in stderr: '{patterns[current_pattern]}'"
     )
+
+
+def test_agent_subprocess_with_import_readline(user, monkeypatch):
+    """Test that wandb.agent works safely when subprocess imports readline."""
+    script_path = pathlib.Path(__file__).parent / "train_with_import_readline.py"
+
+    project = "train-with-import-readline"
+    sweep_config = {
+        "name": "Train with import readline",
+        "method": "grid",
+        "parameters": {"test_param": {"values": [1]}},
+        "command": ["python", str(script_path)],
+    }
+    sweep_id = wandb.sweep(sweep_config, project=project)
+
+    monkeypatch.setenv("WANDB_AGENT_MAX_INITIAL_FAILURES", "1")
+    wandb.agent(sweep_id, count=1)
+    # We'll just rely on the default pytest 60s timeout if it deadlocks.
+
+    runs = Api().runs(project, {"sweep": sweep_id})
+    assert len(runs) == 1
+    history = runs[0].history(pandas=False)
+    assert history[0]["got_eof"]
+    assert history[0]["test_param"] == 1

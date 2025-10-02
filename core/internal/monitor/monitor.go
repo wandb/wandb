@@ -20,6 +20,7 @@ import (
 
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
@@ -71,6 +72,9 @@ type SystemMonitor struct {
 	// The in-memory metrics buffer for the system monitor.
 	buffer *Buffer
 
+	// runHandle is a handle to the eventually-initialized run.
+	runHandle *runhandle.RunHandle
+
 	// settings is the settings for the system monitor.
 	settings *settings.Settings
 
@@ -85,12 +89,18 @@ type SystemMonitor struct {
 
 	// Unique identifier of the writer to the run.
 	writerID sharedmode.ClientID
+
+	// Information about the Git repository, if applicable.
+	git *spb.GitRepoRecord
 }
 
 // SystemMonitorFactory constructs a SystemMonitor.
 type SystemMonitorFactory struct {
 	// A logger for internal debug logging.
 	Logger *observability.CoreLogger
+
+	// RunHandle is a handle to the eventually-initialized run.
+	RunHandle *runhandle.RunHandle
 
 	// Stream settings.
 	Settings *settings.Settings
@@ -114,6 +124,7 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 		ctx:              ctx,
 		cancel:           cancel,
 		wg:               sync.WaitGroup{},
+		runHandle:        f.RunHandle,
 		settings:         f.Settings,
 		logger:           f.Logger,
 		extraWork:        extraWork,
@@ -182,9 +193,8 @@ func (sm *SystemMonitor) initializeResources(gpuResourceManager *GPUResourceMana
 		CoreWeaveMetadataParams{
 			GraphqlClient: sm.graphqlClient,
 			Logger:        sm.logger,
-			Entity:        sm.settings.GetEntity(),
-			BaseURL:       sm.settings.GetStatsCoreWeaveMetadataBaseURL(),
-			Endpoint:      sm.settings.GetStatsCoreWeaveMetadataEndpoint(),
+			RunHandle:     sm.runHandle,
+			Settings:      sm.settings,
 		},
 	); cwm != nil {
 		sm.resources = append(sm.resources, cwm)
@@ -248,7 +258,7 @@ func (sm *SystemMonitor) GetState() int32 {
 }
 
 // probeExecutionContext collects information about the compute environment.
-func (sm *SystemMonitor) probeExecutionContext(git *spb.GitRepoRecord) *spb.Record {
+func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
 	sm.logger.Debug("monitor: probing execution environment")
 
 	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &spb.EnvironmentRecord{
@@ -266,7 +276,7 @@ func (sm *SystemMonitor) probeExecutionContext(git *spb.GitRepoRecord) *spb.Reco
 		Args:          sm.settings.GetArgs(),
 		Colab:         sm.settings.GetColabURL(),
 		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
-		Git:           git,
+		Git:           sm.git,
 
 		WriterId: string(sm.writerID),
 	}}}
@@ -322,7 +332,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 	return &spb.Record{RecordType: &spb.Record_Environment{Environment: e}}
 }
 
-// Start begins the monitoring process for all resources and probes system information.
+// Start begins resource monitoring.
 //
 // It is safe to call Start multiple times; only a stopped monitor will initiate.
 func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
@@ -334,16 +344,36 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 		return // Already started or paused
 	}
 
-	// Probe the environment and resource metadata.
+	sm.git = git
+
+	// Start collecting metrics.
+	if !sm.settings.IsDisableStats() && !sm.settings.IsDisableMachineInfo() {
+		sm.logger.Debug("monitor: starting")
+		for _, resource := range sm.resources {
+			sm.wg.Add(1)
+			go func() {
+				sm.monitorResource(resource)
+				sm.wg.Done()
+			}()
+		}
+	}
+}
+
+// Probe collects environment and resource information.
+//
+// This operation may take some time, so we perform it on a best-effort basis.
+func (sm *SystemMonitor) Probe() {
 	if !sm.settings.IsDisableMeta() && !sm.settings.IsDisableMachineInfo() && sm.settings.IsPrimary() {
-		sm.extraWork.AddWorkOrCancel(
-			sm.ctx.Done(),
-			runwork.WorkFromRecord(
-				sm.probeExecutionContext(git),
-			),
-		)
 		go func() {
-			// This operation may take some time, so we perform it on a best-effort basis.
+			sm.logger.Debug("monitor: collecting the environment and resource information")
+
+			sm.extraWork.AddWorkOrCancel(
+				sm.ctx.Done(),
+				runwork.WorkFromRecord(
+					sm.probeExecutionContext(),
+				),
+			)
+
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
 				runwork.WorkFromRecord(
@@ -351,15 +381,6 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 				),
 			)
 		}()
-	}
-
-	// Start collecting metrics.
-	if !sm.settings.IsDisableStats() && !sm.settings.IsDisableMachineInfo() {
-		sm.logger.Debug("monitor: starting")
-		for _, resource := range sm.resources {
-			sm.wg.Add(1)
-			go sm.monitorResource(resource)
-		}
 	}
 }
 
@@ -389,13 +410,11 @@ func (sm *SystemMonitor) Resume() {
 // and is meant to run in its own goroutine.
 func (sm *SystemMonitor) monitorResource(resource Resource) {
 	if resource == nil {
-		sm.wg.Done()
 		return
 	}
 
 	// recover from panic and log the error
 	defer func() {
-		sm.wg.Done()
 		if err := recover(); err != nil {
 			if resource != nil {
 				sm.logger.CaptureError(fmt.Errorf("monitor: panic: %v", err))

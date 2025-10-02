@@ -11,6 +11,41 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.22.1] - 2025-09-29
+
+### Added
+
+- Optimize artifacts downloads re-verification with checksum caching (@thanos-wandb in https://github.com/wandb/wandb/pull/10157)
+- Lazy loading support for `Api().runs()` to improve performance when listing runs. The new `lazy=True` parameter (default) loads only essential metadata initially, with automatic on-demand loading of heavy fields like config and summary when accessed (@thanos-wandb in https://github.com/wandb/wandb/pull/10034)
+- Add `storage_region` option when creating artifacts. Users can use [CoreWeave AI Object Storage](https://docs.coreweave.com/docs/products/storage/object-storage) by specifying `wandb.Artifact(storage_region="coreweave-us")` when using wandb.ai for faster artifact upload/download on CoreWeave's infrastructure. (@pingleiwandb in https://github.com/wandb/wandb/pull/10533)
+
+
+### Fixed
+
+- `Api.artifact_exists()` and `Api.artifact_collection_exists()` now raise on encountering timeout errors, rather than (potentially erroneously) returning `False`.  (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10591)
+
+## [0.22.0] - 2025-09-18
+
+### Notable Changes
+
+This version removes support of MacOS 10.
+
+### Removed
+
+- Remove a build targeting MacOS 10.x due to multiple security and supply chain considerations (@dmitryduev in https://github.com/wandb/wandb/pull/10529)
+
+### Fixed
+
+- Resuming a run with a different active run will now raise an error unless you call `run.finish()` first, or call `wandb.init()` with the parameter `reinit='create_new'` (@jacobromero in https://github.com/wandb/wandb/pull/10468)
+- Fix `Api().runs()` for wandb server < 0.51.0 (when `project.internalId` was added to gql API) (@kelu-wandb in https://github.com/wandb/wandb/pull/10507)
+- Sweeps: `command` run scripts that `import readline` whether directly or indirectly (e.g. `import torch` on Python 3.13) should no longer deadlock (@kelu-wandb in https://github.com/wandb/wandb/pull/10489)
+
+## [0.21.4] - 2025-09-11
+
+### Added
+
+- Add DSPy integration: track evaluation metrics over time, log predictions and program signature evolution to W&B Tables, and save DSPy programs as W&B Artifacts (complete program or state as JSON/PKL) (@ayulockin in https://github.com/wandb/wandb/pull/10327)
+
 ## [0.21.3] - 2025-08-30
 
 ### Changed

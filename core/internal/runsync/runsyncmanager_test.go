@@ -14,8 +14,11 @@ func Test_DoSync_NotPrepped(t *testing.T) {
 
 	response := m.DoSync(request)
 
-	assert.Len(t, response.Errors, 1)
+	assert.Len(t, response.Messages, 1)
+	assert.Equal(t,
+		spb.ServerSyncMessage_SEVERITY_ERROR,
+		response.Messages[0].Severity)
 	assert.Equal(t,
 		"Internal error: operation unknown or already started: bad-id",
-		response.Errors[0])
+		response.Messages[0].Content)
 }

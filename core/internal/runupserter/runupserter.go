@@ -162,7 +162,8 @@ func InitRun(
 		environment: environment,
 	}
 
-	operation := upserter.operations.New("creating run")
+	operation := upserter.operations.New(
+		fmt.Sprintf("setting up run %s", runParams.RunID))
 	defer operation.Finish()
 	ctx := operation.Context(upserter.beforeRunEndCtx)
 

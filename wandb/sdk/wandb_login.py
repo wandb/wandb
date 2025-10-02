@@ -77,7 +77,7 @@ def login(
         UsageError: If `api_key` cannot be configured and no tty.
     """
     _handle_host_wandb_setting(host)
-    return _login(
+    logged_in, _ = _login(
         anonymous=anonymous,
         key=key,
         relogin=relogin,
@@ -87,6 +87,7 @@ def login(
         verify=verify,
         referrer=referrer,
     )
+    return logged_in
 
 
 class ApiKeyStatus(enum.Enum):
@@ -245,24 +246,6 @@ class _WandbLogin:
 
         return key, status
 
-    def _verify_login(self, key: str) -> None:
-        api = InternalApi(api_key=key)
-
-        try:
-            is_api_key_valid = api.validate_api_key()
-        except ConnectionError:
-            raise AuthenticationError(
-                "Unable to connect to server to verify API token."
-            )
-        except Exception:
-            raise AuthenticationError("An error occurred while verifying the API key.")
-
-        if not is_api_key_valid:
-            raise AuthenticationError(
-                f"API key verification failed for host {self._settings.base_url}."
-                " Make sure your API key is valid."
-            )
-
 
 def _login(
     *,
@@ -277,11 +260,30 @@ def _login(
     update_api_key: bool = True,
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
-) -> bool:
+) -> (bool, Optional[str]):
+    """Logs in to W&B.
+
+    This is the internal implementation of wandb.login(),
+    with many of the same arguments as wandb.login().
+    Additional arguments are documented below.
+
+    Args:
+        update_api_key: If true, the api key will be saved or updated
+            in the users .netrc file.
+        _silent: If true, will not print any messages to the console.
+        _disable_warning: If true, no warning will be displayed
+            when calling wandb.login() after wandb.init().
+
+    Returns:
+        bool: If the login was successful
+            or the user is assumed to be already be logged in.
+        str: The API key used to log in,
+            or None if the api key was not verified during the login process.
+    """
     if wandb.run is not None:
         if not _disable_warning:
             wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
-        return True
+        return True, None
 
     wlogin = _WandbLogin(
         anonymous=anonymous,
@@ -293,19 +295,19 @@ def _login(
     )
 
     if wlogin._settings._noop:
-        return True
+        return True, None
 
     if wlogin._settings._offline and not wlogin._settings.x_cli_only_mode:
         wandb.termwarn("Unable to verify login in offline mode.")
-        return False
+        return False, None
     elif wandb.util._is_kaggle() and not wandb.util._has_internet():
         wandb.termerror(
             "To use W&B in kaggle you must enable internet in the settings panel on the right."
         )
-        return False
+        return False, None
 
     if wlogin._settings.identity_token_file:
-        return True
+        return True, None
 
     key_is_pre_configured = False
     key_status = None
@@ -318,7 +320,7 @@ def _login(
             key, key_status = wlogin.prompt_api_key(referrer=referrer)
 
     if verify:
-        wlogin._verify_login(key)
+        _verify_login(key, wlogin._settings.base_url)
 
     if not key_is_pre_configured:
         if update_api_key:
@@ -329,4 +331,28 @@ def _login(
     if key and not _silent:
         wlogin._print_logged_in_message()
 
-    return key is not None
+    return key is not None, key
+
+
+def _verify_login(key: str, base_url: str) -> None:
+    api = InternalApi(
+        api_key=key,
+        default_settings={"base_url": base_url},
+    )
+
+    try:
+        is_api_key_valid = api.validate_api_key()
+    except ConnectionError:
+        raise AuthenticationError(
+            "Unable to connect to server to verify API token."
+        ) from None
+    except Exception as e:
+        raise AuthenticationError(
+            "An error occurred while verifying the API key."
+        ) from e
+
+    if not is_api_key_valid:
+        raise AuthenticationError(
+            f"API key verification failed for host {base_url}."
+            " Make sure your API key is valid."
+        )

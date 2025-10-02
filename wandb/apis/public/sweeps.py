@@ -27,8 +27,9 @@ Note:
     and wandb.agent() functions from the main wandb package.
 """
 
+from __future__ import annotations
+
 import urllib
-from typing import Optional
 
 from wandb_gql import gql
 
@@ -103,7 +104,7 @@ class Sweeps(SizedPaginator["Sweep"]):
         entity: str,
         project: str,
         per_page: int = 50,
-    ) -> "Sweeps":
+    ) -> Sweeps:
         """An iterable collection of `Sweep` objects.
 
         Args:
@@ -317,7 +318,7 @@ class Sweep(Attrs):
             return None
 
     @property
-    def expected_run_count(self) -> Optional[int]:
+    def expected_run_count(self) -> int | None:
         """Return the number of expected runs in the sweep or None for infinite runs."""
         return self._attrs.get("runCountExpected")
 
@@ -360,12 +361,12 @@ class Sweep(Attrs):
     @classmethod
     def get(
         cls,
-        client: "RetryingClient",
-        entity: Optional[str] = None,
-        project: Optional[str] = None,
-        sid: Optional[str] = None,
-        order: Optional[str] = None,
-        query: Optional[str] = None,
+        client: RetryingClient,
+        entity: str | None = None,
+        project: str | None = None,
+        sid: str | None = None,
+        order: str | None = None,
+        query: str | None = None,
         **kwargs,
     ):
         """Execute a query against the cloud backend.
