@@ -70,6 +70,7 @@ from wandb.util import (
     vendor_setup,
 )
 
+from ._factories import make_storage_policy
 from ._generated import (
     ADD_ALIASES_GQL,
     ARTIFACT_BY_ID_GQL,
