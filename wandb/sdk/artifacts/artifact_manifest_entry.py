@@ -97,48 +97,6 @@ def _write_cached_checksum(file_path: str, checksum: str) -> None:
         logger.debug(f"Failed to write checksum cache for {file_path!r}")
 
 
-def _checksum_cache_path(file_path: str) -> str:
-    """Get path for checksum in central cache directory."""
-    from wandb.sdk.artifacts.artifact_file_cache import artifacts_cache_dir
-
-    # Create a unique cache key based on the file's absolute path
-    abs_path = os.path.abspath(file_path)
-    path_hash = hashlib.sha256(abs_path.encode()).hexdigest()
-
-    # Store in wandb cache directory under checksums subdirectory
-    cache_dir = artifacts_cache_dir() / "checksums"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-
-    return str(cache_dir / f"{path_hash}.checksum")
-
-
-def _read_cached_checksum(file_path: str) -> str | None:
-    """Read checksum from cache if it exists and is valid."""
-    checksum_path = _checksum_cache_path(file_path)
-
-    try:
-        with open(file_path) as f, open(checksum_path) as f_checksum:
-            if os.path.getmtime(f_checksum.name) < os.path.getmtime(f.name):
-                # File was modified after checksum was written
-                return None
-            # Read and return the cached checksum
-            return f_checksum.read().strip()
-    except OSError:
-        # File doesn't exist or couldn't be opened
-        return None
-
-
-def _write_cached_checksum(file_path: str, checksum: str) -> None:
-    """Write checksum to cache directory."""
-    checksum_path = _checksum_cache_path(file_path)
-    try:
-        with open(checksum_path, "w") as f:
-            f.write(checksum)
-    except OSError:
-        # Non-critical failure, just log it
-        logger.debug(f"Failed to write checksum cache for {file_path!r}")
-
-
 class ArtifactManifestEntry(ArtifactsBase):
     """A single entry in an artifact manifest."""
 
@@ -255,14 +213,14 @@ class ArtifactManifestEntry(ArtifactsBase):
             )
 
         # Determine the final path
-        final_path = override_cache_path or copy_or_overwrite_changed(
-            cache_path, dest_path
+        final_path = FilePathStr(
+            override_cache_path or copy_or_overwrite_changed(cache_path, dest_path)
         )
 
         # Cache the checksum for future downloads
-        _write_cached_checksum(str(final_path), self.digest)
+        _write_cached_checksum(final_path, self.digest)
 
-        return FilePathStr(final_path)
+        return final_path
 
     def ref_target(self) -> FilePathStr | URIStr:
         """Get the reference URL that is targeted by this artifact entry.
