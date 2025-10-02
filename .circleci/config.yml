@@ -1,7 +1,6 @@
 version: 2.1
 
 orbs:
-  win: circleci/windows@5.0.0
   slack: circleci/slack@4.12.5
   gcloud: circleci/gcp-cli@3.1.1
   codecov: codecov/codecov@5.0.0
@@ -22,6 +21,12 @@ executors:
     macos:
       xcode: 16.4.0
     resource_class: m4pro.medium
+
+  windows:
+    resource_class: windows.xlarge
+    machine:
+      image: windows-server-2022-gui:current
+      shell: bash.exe
 
   linux-python:
     parameters:
@@ -359,10 +364,7 @@ jobs:
       session: { type: string }
 
     parallelism: <<parameters.parallelism>>
-    executor:
-      name: win/server-2019
-      size: large
-      shell: bash.exe
+    executor: windows
 
     steps:
       - checkout
