@@ -4,7 +4,9 @@ astunparse; python_version < '3.9'
 cloudpickle
 click~=8.1
 filelock~=3.13
-pydantic~=2.11
+pydantic~=2.9; python_version < '3.9'
+pydantic~=2.11; python_version >= '3.9'
+
 # For Pydantic to work with modern type annotations in older Pythons:
 eval-type-backport~=0.2.0; python_version >= '3.8' and python_version < '3.10'
 
