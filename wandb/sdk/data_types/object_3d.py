@@ -138,9 +138,10 @@ def box3d(
     label: "Optional[str]" = None,
     score: "Optional[numeric]" = None,
 ) -> "Box3D":
-    """Returns a Box3D.
+    """A 3D bounding box. The box is specified by its center, size and orientation.
 
     Args:
+        center: The center point of the box as a length-3 ndarray.
         size: The box's X, Y and Z dimensions as a length-3 ndarray.
         orientation: The rotation transforming global XYZ coordinates
             into the box's local XYZ coordinates, given as a length-4
@@ -148,7 +149,11 @@ def box3d(
             r + xi + yj + zk.
         color: The box's color as an (r, g, b) tuple with 0 <= r,g,b <= 1.
         label: An optional label for the box.
-        score: An optional score for the box.
+        score: An optional score for the box. Typically used to indicate
+            the confidence of a detection.
+
+    Returns:
+        A Box3D object.
 
     Example:
     The following example creates a point cloud with 60 boxes rotating
@@ -176,6 +181,7 @@ def box3d(
                             ).as_quat(),
                             color=(0.5 + t / 40, 0.5, 0.5),
                             label=f"box {t}",
+                            score=0.9,
                         )
                         for t in range(20)
                     ]
@@ -188,6 +194,7 @@ def box3d(
                             ).as_quat(),
                             color=(0.5, 0.5 + t / 40, 0.5),
                             label=f"box {t}",
+                            score=0.9,
                         )
                         for t in range(20)
                     ]
@@ -200,6 +207,7 @@ def box3d(
                             ).as_quat(),
                             color=(0.5, 0.5, 0.5 + t / 40),
                             label=f"box {t}",
+                            score=0.9,
                         )
                         for t in range(20)
                     ],
