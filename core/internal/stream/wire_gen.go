@@ -16,6 +16,8 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/publicapi"
+	"github.com/wandb/wandb/core/internal/publicapi/work"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
@@ -36,7 +38,9 @@ func InjectApiStream(streamID ApiStreamID, debugCorePath DebugCorePath, logLevel
 	string2 := provideApiStreamIDAsString(streamID)
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	coreLogger := streamLogger(streamStreamLoggerFile, settings2, sentry, logLevel)
-	apiStream := NewApiStream(string2, settings2, coreLogger)
+	workRecordParser := provideRecordParser(coreLogger, settings2)
+	apiWorkHandler := provideApiWorkHandler(coreLogger, workRecordParser)
+	apiStream := NewApiStream(string2, settings2, apiWorkHandler, coreLogger)
 	return apiStream
 }
 
@@ -140,6 +144,8 @@ type ApiStreamID string
 var apiStreamProviders = wire.NewSet(
 	NewApiStream, wire.Bind(new(Streamer), new(*ApiStream)), wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), NewBackend,
 	NewGraphQLClient,
+	provideRecordParser,
+	provideApiWorkHandler,
 	provideApiStreamIDAsString,
 	provideHttpClient, sharedmode.RandomClientID, streamLoggerProviders,
 	RecordParserProviders,
@@ -180,6 +186,21 @@ func provideHttpClient(settings2 *settings.Settings) *http.Client {
 		Transport: transport,
 		Timeout:   timeout,
 	}
+}
+
+func provideRecordParser(
+	logger *observability.CoreLogger, settings2 *settings.Settings,
+) *work.RecordParser {
+	return &work.RecordParser{
+		Logger:   logger,
+		Settings: settings2,
+	}
+}
+
+func provideApiWorkHandler(
+	logger *observability.CoreLogger, recordParser2 *work.RecordParser,
+) *publicapi.ApiWorkHandler {
+	return publicapi.NewApiWorkHandler(logger, recordParser2)
 }
 
 // streaminject.go:
