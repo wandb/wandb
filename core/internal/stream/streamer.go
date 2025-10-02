@@ -5,7 +5,8 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-type Stream interface {
+// Streamer is an interface for ingesting records from a client.
+type Streamer interface {
 	Start()
 	Close()
 	HandleRecord(record *spb.Record)
