@@ -443,7 +443,7 @@ def test_make_k8s_label_safe():
             },
         ),
         (
-            # actual network policy we use on the public queue
+            # actual network policy we use on the public queue (tests labels and matchLabels)
             {
                 "kind": "NetworkPolicy",
                 "spec": {
@@ -561,6 +561,51 @@ def test_make_k8s_label_safe():
                     },
                 },
                 "apiVersion": "networking.k8s.io/v1",
+            },
+        ),
+        (
+            # similar format service config we use on the public queue (tests selector and labels)
+            {
+                "kind": "Service",
+                "spec": {
+                    "type": "ClusterIP",
+                    "ports": [
+                        {
+                            "foobar": "baz",
+                        }
+                    ],
+                    "selector": {
+                        "app": "deploy-entity_with_underscore-project_with_underscore-abc"
+                    },
+                },
+                "metadata": {
+                    "name": "evals-entity_with_underscore-project_with_underscore-abc",
+                    "labels": {
+                        "app": "service-entity_with_underscore-project_with_underscore-abc",
+                    },
+                },
+                "apiVersion": "v1",
+            },
+            {
+                "kind": "Service",
+                "spec": {
+                    "type": "ClusterIP",
+                    "ports": [
+                        {
+                            "foobar": "baz",
+                        }
+                    ],
+                    "selector": {
+                        "app": "deploy-entity-with-underscore-project-with-underscore-abc"
+                    },
+                },
+                "metadata": {
+                    "name": "evals-entity-with-underscore-project-with-underscore-abc",
+                    "labels": {
+                        "app": "service-entity-with-underscore-project-with-underscore-abc",
+                    },
+                },
+                "apiVersion": "v1",
             },
         ),
     ],

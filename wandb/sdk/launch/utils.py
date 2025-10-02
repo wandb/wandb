@@ -20,7 +20,6 @@ from typing import (
 )
 
 import click
-
 import wandb
 import wandb.docker as docker
 from wandb import util
@@ -836,15 +835,11 @@ def sanitize_identifiers_for_k8s(root: Any) -> None:
         if name := container.get("name"):
             container["name"] = make_k8s_label_safe(str(name))
 
-    for labels in yield_dictionaries_from_key(root, "labels"):
-        for k, v in labels.items():
-            if isinstance(v, str):
-                labels[k] = make_k8s_label_safe(v)
-
-    for match_label in yield_dictionaries_from_key(root, "matchLabels"):
-        for k, v in match_label.items():
-            if isinstance(v, str):
-                match_label[k] = make_k8s_label_safe(v)
+    for k8s_keyword in ["labels", "matchLabels", "selector"]:
+        for attributes in yield_dictionaries_from_key(root, k8s_keyword):
+            for attr_key, attr_value in attributes.items():
+                if isinstance(attr_value, str):
+                    attributes[attr_key] = make_k8s_label_safe(attr_value)
 
     # nested names
     for key, value in root.items():
