@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 from operator import itemgetter
-from typing import Any, Mapping
+from typing import Final, Mapping
 
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.hashutil import HexMD5, _md5
+
+#: Inner ArtifactManifestEntry fields to keep when dumping the ArtifactManifest to JSON.
+_JSONABLE_MANIFEST_ENTRY_FIELDS: Final[frozenset[str]] = frozenset(
+    ("digest", "birth_artifact_id", "ref", "extra", "size")
+)
 
 
 class ArtifactManifestV1(ArtifactManifest):
@@ -30,19 +35,9 @@ class ArtifactManifestV1(ArtifactManifest):
         storage_policy_config = manifest_json.get("storagePolicyConfig", {})
         storage_policy_cls = StoragePolicy.lookup_by_name(storage_policy_name)
 
-        entries: Mapping[str, ArtifactManifestEntry]
         entries = {
-            name: ArtifactManifestEntry(
-                path=name,
-                digest=val["digest"],
-                birth_artifact_id=val.get("birthArtifactID"),
-                ref=val.get("ref"),
-                size=val.get("size"),
-                extra=val.get("extra"),
-                local_path=val.get("local_path"),
-                skip_cache=val.get("skip_cache"),
-            )
-            for name, val in manifest_json["contents"].items()
+            path: ArtifactManifestEntry(**{**val, "path": path})
+            for path, val in manifest_json["contents"].items()
         }
 
         return cls(
@@ -64,25 +59,15 @@ class ArtifactManifestV1(ArtifactManifest):
         system. We don't need to include the local paths in the artifact manifest
         contents.
         """
-        contents = {}
-        for name, entry in sorted(self.entries.items(), key=itemgetter(0)):
-            json_entry: dict[str, Any] = {
-                "digest": entry.digest,
-            }
-            if entry.birth_artifact_id:
-                json_entry["birthArtifactID"] = entry.birth_artifact_id
-            if entry.ref:
-                json_entry["ref"] = entry.ref
-            if entry.extra:
-                json_entry["extra"] = entry.extra
-            if entry.size is not None:
-                json_entry["size"] = entry.size
-            contents[name] = json_entry
+        kept_entry_fields = set(_JSONABLE_MANIFEST_ENTRY_FIELDS)
         return {
-            "version": self.__class__.version(),
+            "version": self.version(),
             "storagePolicy": self.storage_policy.name(),
             "storagePolicyConfig": self.storage_policy.config() or {},
-            "contents": contents,
+            "contents": {
+                path: entry.model_dump(include=kept_entry_fields, exclude_defaults=True)
+                for path, entry in self.entries.items()
+            },
         }
 
     def digest(self) -> HexMD5:

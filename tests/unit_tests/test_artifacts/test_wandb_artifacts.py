@@ -21,10 +21,6 @@ from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
-from wandb.sdk.artifacts.storage_policies._multipart import (
-    multipart_download,
-    should_multipart_download,
-)
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 
 if TYPE_CHECKING:
@@ -105,8 +101,7 @@ class TestStoreFile:
             entry=ArtifactManifestEntry(
                 path=entry_path,
                 digest=entry_digest,
-                local_path=str(entry_local_path) if entry_local_path else None,
-                size=entry_local_path.stat().st_size if entry_local_path else None,
+                local_path=entry_local_path,
             ),
             preparer=preparer if preparer else mock_preparer(),
         )
@@ -331,7 +326,8 @@ class TestStoreFile:
         policy = WandbStoragePolicy(api=api)
         # Mock minimum size for multipart so that we can test multipart
         with mock.patch(
-            "wandb.sdk.artifacts.storage_policies._multipart.MIN_MULTI_UPLOAD_SIZE",
+            "wandb.sdk.artifacts.storage_policies.wandb_storage_policy."
+            "S3_MIN_MULTI_UPLOAD_SIZE",
             example_file.stat().st_size,
         ):
             deduped = self._store_file(
@@ -471,10 +467,9 @@ def test_cache_write_failure_is_ignored(monkeypatch, capsys):
     path.write_text("hello")
 
     entry = ArtifactManifestEntry(
-        path=str(path),
+        path=path,
         digest="NWQ0MTQwMmFiYzRiMmE3NmI5NzE5ZDkxMTAxN2M1OTI=",
-        local_path=str(path),
-        size=path.stat().st_size,
+        local_path=path,
     )
 
     policy._write_cache(entry)
@@ -510,11 +505,12 @@ def test_download_with_pathlib_root(monkeypatch):
 
 
 def test_artifact_multipart_download_threshold():
+    policy = WandbStoragePolicy()
     mb = 1024 * 1024
-    assert should_multipart_download(100 * mb, override=True) is True
-    assert should_multipart_download(100 * mb, override=None) is False
-    assert should_multipart_download(2080 * mb, override=False) is False
-    assert should_multipart_download(5070 * mb, override=None) is True
+    assert policy._should_multipart_download(100 * mb, True)
+    assert not policy._should_multipart_download(100 * mb, None)
+    assert not policy._should_multipart_download(2080 * mb, False)
+    assert policy._should_multipart_download(5070 * mb, None)
 
 
 class MockOpener:
@@ -537,6 +533,7 @@ def test_artifact_multipart_download_network_error():
     adapter = requests.adapters.HTTPAdapter(max_retries=0)
     session.mount("http://", adapter)
     session.mount("https://", adapter)
+    policy = WandbStoragePolicy(session=session)
 
     class CountOnlyFile(IO):
         def __init__(self):
@@ -555,8 +552,8 @@ def test_artifact_multipart_download_network_error():
     opener = MockOpener(file)
     with pytest.raises(requests.exceptions.ConnectionError):
         with ThreadPoolExecutor(max_workers=2) as executor:
-            multipart_download(
-                executor, session, "https://invalid.com", 4 * 1024 * 1024 * 1024, opener
+            policy._multipart_file_download(
+                executor, "https://invalid.com", 4 * 1024 * 1024 * 1024, opener
             )
     assert file.seek_count == 0
     assert file.write_count == 0
@@ -574,12 +571,6 @@ def test_artifact_multipart_download_disk_error():
         def iter_content(self, chunk_size: int = 1024):
             return [b"test"]
 
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_value, traceback):
-            pass
-
     class MockSession:
         def __init__(self):
             self.get_count = 0
@@ -589,14 +580,14 @@ def test_artifact_multipart_download_disk_error():
             return MockResponse()
 
     session = MockSession()
+    policy = WandbStoragePolicy(session=session)
 
     file = ThrowFile()
     opener = MockOpener(file)
     with pytest.raises(ValueError):
         with ThreadPoolExecutor(max_workers=2) as executor:
-            multipart_download(
+            policy._multipart_file_download(
                 executor,
-                session,
                 "https://mocked.com",
                 500 * 1024 * 1024,  # 500MB should have 5 parts
                 opener,
