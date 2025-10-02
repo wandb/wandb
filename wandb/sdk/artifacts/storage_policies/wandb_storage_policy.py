@@ -118,7 +118,7 @@ class WandbStoragePolicy(StoragePolicy):
         if hit:
             return path
 
-        if url := manifest_entry._download_url:
+        if url := manifest_entry.direct_url:
             # Use multipart parallel download for large file
             if executor and (size := manifest_entry.size):
                 multipart_download(executor, self._session, url, size, cache_open)
@@ -129,9 +129,9 @@ class WandbStoragePolicy(StoragePolicy):
                 response = self._session.get(url, stream=True)
             except requests.HTTPError:
                 # Signed URL might have expired, fall back to fetching it one by one.
-                manifest_entry._download_url = None
+                manifest_entry.direct_url = None
 
-        if manifest_entry._download_url is None:
+        if manifest_entry.direct_url is None:
             auth = None
             headers = _thread_local_api_settings.headers
             cookies = _thread_local_api_settings.cookies
