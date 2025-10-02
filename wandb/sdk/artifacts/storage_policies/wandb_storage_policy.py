@@ -12,7 +12,7 @@ import queue
 import shutil
 import threading
 from collections import deque
-from typing import IO, TYPE_CHECKING, Any, NamedTuple, Sequence
+from typing import IO, TYPE_CHECKING, Any, NamedTuple
 from urllib.parse import quote
 
 import requests
@@ -109,7 +109,7 @@ class WandbStoragePolicy(StoragePolicy):
         if not storage_region.strip():
             raise ValueError("storageRegion must be a non-empty string")
 
-    def config(self) -> dict:
+    def config(self) -> dict[str, Any]:
         return self._config
 
     def load_file(
@@ -314,7 +314,7 @@ class WandbStoragePolicy(StoragePolicy):
         name: str | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         return self._handler.store_path(
             artifact, path, name=name, checksum=checksum, max_objects=max_objects
         )
