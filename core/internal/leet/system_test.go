@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -22,9 +23,7 @@ func TestSystemMetricsGrid(t *testing.T) {
 	grid.AddDataPoint("gpu.0.temp", ts, 50)
 	grid.AddDataPoint("gpu.1.temp", ts, 55)
 
-	if got := grid.GetChartCount(); got == 0 {
-		t.Fatalf("expected charts after AddDataPoint, got %d", got)
-	}
+	require.NotZero(t, grid.GetChartCount(), "expected charts after AddDataPoint")
 }
 
 func TestRightSidebar_ProcessStatsMsg_GroupsSeriesByBaseKey(t *testing.T) {
@@ -44,35 +43,25 @@ func TestRightSidebar_ProcessStatsMsg_GroupsSeriesByBaseKey(t *testing.T) {
 		},
 	})
 
-	if got, want := rs.TestGetChartCount(), 2; got != want {
-		t.Fatalf("chartCount=%d; want %d", got, want)
-	}
+	require.Equal(t, 2, rs.TestGetChartCount())
 
 	gpuChart := rs.TestMetricsChart("gpu.temp")
-	if gpuChart == nil {
-		t.Fatalf("gpu.temp chart missing")
-	}
-	if got, want := gpuChart.TestSeriesCount(), 2; got != want {
-		t.Fatalf("gpu.temp series=%d; want %d", got, want)
-	}
+	require.NotNil(t, gpuChart, "gpu.temp chart missing")
+	require.Equal(t, 2, gpuChart.TestSeriesCount())
 
 	// Add a third GPU series
 	rs.ProcessStatsMsg(leet.StatsMsg{
 		Timestamp: ts + 1,
 		Metrics:   map[string]float64{"gpu.2.temp": 43},
 	})
-	if got, want := gpuChart.TestSeriesCount(), 3; got != want {
-		t.Fatalf("gpu.temp series=%d; want %d", got, want)
-	}
+	require.Equal(t, 3, gpuChart.TestSeriesCount())
 
 	// Unknown metrics are ignored
 	rs.ProcessStatsMsg(leet.StatsMsg{
 		Timestamp: ts + 2,
 		Metrics:   map[string]float64{"unknown.metric": 1},
 	})
-	if rs.TestMetricsChart("unknown.metric") != nil {
-		t.Fatalf("unexpected chart created for unknown.metric")
-	}
+	require.Nil(t, rs.TestMetricsChart("unknown.metric"), "unexpected chart created for unknown.metric")
 }
 
 // --- System metrics grid focus ---
@@ -97,22 +86,15 @@ func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
 	grid.LoadCurrentPage()
 
 	// Verify chart was created
-	if grid.GetChartCount() != 1 {
-		t.Fatalf("expected 1 chart, got %d", grid.GetChartCount())
-	}
+	require.Equal(t, 1, grid.GetChartCount())
 
 	// First click should focus (charts array is populated by AddDataPoint)
 	ok := grid.HandleMouseClick(0, 0)
-	if !ok {
-		t.Fatalf("expected focus after first click")
-	}
+	require.True(t, ok, "expected focus after first click")
 
 	// Second click on same cell should unfocus
 	ok2 := grid.HandleMouseClick(0, 0)
-
-	if ok2 {
-		t.Fatalf("expected unfocus (toggle off) after second click")
-	}
+	require.False(t, ok2, "expected unfocus (toggle off) after second click")
 
 	// Rebuild clears focus
 	grid.RebuildGrid()
@@ -122,9 +104,7 @@ func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
 
 	// Should be able to focus again after rebuild
 	ok3 := grid.HandleMouseClick(0, 0)
-	if !ok3 {
-		t.Fatalf("expected to be able to focus after rebuild")
-	}
+	require.True(t, ok3, "expected to be able to focus after rebuild")
 }
 
 func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
@@ -150,9 +130,7 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 
 	// Verify initial state
 	grid.LoadCurrentPage()
-	if got, want := grid.GetChartCount(), 4; got != want {
-		t.Fatalf("expected %d charts, got %d", want, got)
-	}
+	require.Equal(t, 4, grid.GetChartCount())
 
 	// Test navigation forward
 	initialCharts := grid.GetCharts()
@@ -172,9 +150,7 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 
 	// Verify page changed (different charts)
 	if firstPageChart != nil && secondPageChart != nil {
-		if firstPageChart == secondPageChart {
-			t.Fatal("navigation did not change displayed charts")
-		}
+		require.NotEqual(t, firstPageChart, secondPageChart, "navigation did not change displayed charts")
 	}
 
 	// Test navigation backward (wrap around)
@@ -193,12 +169,8 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 
 	// Verify focus is cleared after navigation
 	grid.HandleMouseClick(0, 0) // Focus a chart
-	if grid.GetFocusedChartTitle() == "" {
-		t.Fatal("chart should be focused before navigation")
-	}
+	require.NotEmpty(t, grid.GetFocusedChartTitle(), "chart should be focused before navigation")
 
 	grid.Navigate(1)
-	if grid.GetFocusedChartTitle() != "" {
-		t.Fatal("focus should be cleared after navigation")
-	}
+	require.Empty(t, grid.GetFocusedChartTitle(), "focus should be cleared after navigation")
 }
