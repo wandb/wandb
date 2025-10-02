@@ -11,6 +11,8 @@ import (
 	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/publicapi"
+	"github.com/wandb/wandb/core/internal/publicapi/work"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
@@ -38,6 +40,8 @@ var apiStreamProviders = wire.NewSet(
 	wire.Struct(new(observability.Peeker)),
 	NewBackend,
 	NewGraphQLClient,
+	provideRecordParser,
+	provideApiWorkHandler,
 	provideApiStreamIDAsString,
 	provideHttpClient,
 	sharedmode.RandomClientID,
@@ -84,4 +88,21 @@ func provideHttpClient(settings *settings.Settings) *http.Client {
 		Transport: transport,
 		Timeout:   timeout,
 	}
+}
+
+func provideRecordParser(
+	logger *observability.CoreLogger,
+	settings *settings.Settings,
+) *work.RecordParser {
+	return &work.RecordParser{
+		Logger:   logger,
+		Settings: settings,
+	}
+}
+
+func provideApiWorkHandler(
+	logger *observability.CoreLogger,
+	recordParser *work.RecordParser,
+) *publicapi.ApiWorkHandler {
+	return publicapi.NewApiWorkHandler(logger, recordParser)
 }
