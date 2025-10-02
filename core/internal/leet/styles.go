@@ -117,6 +117,15 @@ func GetGraphColors() []string {
 	return colorSchemes["sunset-glow"]
 }
 
+// Chart styles.
+var (
+	axisStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")) // gray
+
+	labelStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245")) // light gray
+)
+
 // Status bar styles.
 var (
 	statusBarStyle = lipgloss.NewStyle().
