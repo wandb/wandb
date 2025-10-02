@@ -327,6 +327,8 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleSync(wg, msg.RequestId, x.Sync)
 		case *spb.ServerRequest_SyncStatus:
 			nc.handleSyncStatus(msg.RequestId, x.SyncStatus)
+		case *spb.ServerRequest_InformInitApi:
+			nc.handleInformInitApi(x.InformInitApi)
 		case nil:
 			slog.Error("handleIncomingRequests: ServerRequestType is nil", "id", nc.id)
 			panic("ServerRequestType is nil")
@@ -585,6 +587,27 @@ func (nc *Connection) handleSyncStatus(
 			SyncStatusResponse: response,
 		},
 	})
+}
+
+// handleInformInitApi initializes a new API stream by the client.
+func (nc *Connection) handleInformInitApi(
+	request *spb.ServerInformApiRequest,
+) {
+	strm := stream.InjectApiStream(
+		stream.ApiStreamID(request.GetXInfo().GetStreamId()),
+		stream.DebugCorePath(nc.loggerPath),
+		nc.logLevel,
+		nc.sentryClient,
+		settings.From(request.GetSettings()),
+	)
+	strm.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
+	strm.Start()
+
+	streamId := request.GetXInfo().GetStreamId()
+	if err := nc.streamMux.AddStream(streamId, strm); err != nil {
+		slog.Error("handleInformInitApi: error adding stream", "err", err, "streamId", streamId, "id", nc.id)
+		return
+	}
 }
 
 // Close closes the underlying TCP connection.
