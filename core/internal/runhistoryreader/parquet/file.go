@@ -8,6 +8,7 @@ import (
 
 // LocalParquetFile opens a parquet file from the local file system
 // and creates an arrow reader.
+//
 // The caller may specify whether to parallelize the reading columns
 // of the parquet file.
 func LocalParquetFile(
