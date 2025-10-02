@@ -15,6 +15,7 @@ from wandb.sdk.launch.utils import (
     sanitize_identifiers_for_k8s,
     validate_launch_spec_source,
     yield_containers,
+    yield_dictionaries_from_key,
 )
 
 
@@ -291,6 +292,29 @@ def test_yield_containers(manifest, expected):
     assert list(yield_containers(manifest)) == expected
 
 
+@pytest.mark.parametrize(
+    "manifest, expected",
+    [
+        ({"labels": {"label-1": "label-1"}}, [{"label-1": "label-1"}]),  # basic test
+        (
+            # nested key
+            {"nested": {"labels": {"label-1": "label-1"}}},
+            [{"label-1": "label-1"}],
+        ),
+        (
+            # multiple matches
+            {
+                "labels": {"label-1": "label-1"},
+                "matchLabels": {"matchLabel-1": {"labels": {"label-2": "label-2"}}},
+            },
+            [{"label-1": "label-1"}, {"label-2": "label-2"}],
+        ),
+    ],
+)
+def test_yield_dictionaries_from_key(manifest, expected):
+    assert list(yield_dictionaries_from_key(manifest, "labels")) == expected
+
+
 def test_make_k8s_label_safe():
     assert make_k8s_label_safe("container-1") == "container-1"  # no change needed
     assert make_k8s_label_safe("container_1") == "container-1"  # underscores to dashes
@@ -358,16 +382,16 @@ def test_make_k8s_label_safe():
                     "name": "resource-policy_jobs_1234abc",
                     "labels": {
                         "wandb.ai/created-by": "launch-agent",
-                        "wandb.ai/auxiliary-resource": "aux-jobs-1234abc",
-                        "wandb.ai/run-id": "1234abc",
+                        "wandb.ai/auxiliary-resource": "aux_jobs_1234ABC",
+                        "wandb.ai/run-id": "1234_ABC",
                     },
                 },
                 "spec": {
                     "policyTypes": ["Ingress"],
                     "podSelector": {
                         "matchLabels": {
-                            "wandb.ai/run-id": "1234abc",
-                            "wandb.ai/auxiliary-resource": "aux-jobs-1234abc",
+                            "wandb.ai/run-id": "1234_ABC",
+                            "wandb.ai/auxiliary-resource": "aux_jobs_1234-ABC",
                         }
                     },
                     "ingress": [
@@ -375,7 +399,7 @@ def test_make_k8s_label_safe():
                             "from": [
                                 {
                                     "podSelector": {
-                                        "matchLabels": {"job-name": "jobs-1234abc"}
+                                        "matchLabels": {"job-name": "jobs_1234_ABC"}
                                     }
                                 }
                             ],
@@ -392,15 +416,15 @@ def test_make_k8s_label_safe():
                     "labels": {
                         "wandb.ai/created-by": "launch-agent",
                         "wandb.ai/auxiliary-resource": "aux-jobs-1234abc",
-                        "wandb.ai/run-id": "1234abc",
+                        "wandb.ai/run-id": "1234-abc",
                     },
                 },
                 "spec": {
                     "policyTypes": ["Ingress"],
                     "podSelector": {
                         "matchLabels": {
-                            "wandb.ai/run-id": "1234abc",
-                            "wandb.ai/auxiliary-resource": "aux-jobs-1234abc",
+                            "wandb.ai/run-id": "1234-abc",
+                            "wandb.ai/auxiliary-resource": "aux-jobs-1234-abc",
                         }
                     },
                     "ingress": [
@@ -408,7 +432,7 @@ def test_make_k8s_label_safe():
                             "from": [
                                 {
                                     "podSelector": {
-                                        "matchLabels": {"job-name": "jobs-1234abc"}
+                                        "matchLabels": {"job-name": "jobs-1234-abc"}
                                     }
                                 }
                             ],
@@ -416,6 +440,172 @@ def test_make_k8s_label_safe():
                         }
                     ],
                 },
+            },
+        ),
+        (
+            # actual network policy we use on the public queue (tests labels and matchLabels)
+            {
+                "kind": "NetworkPolicy",
+                "spec": {
+                    "egress": [
+                        {
+                            "to": [
+                                {
+                                    "namespaceSelector": {
+                                        "matchLabels": {
+                                            "kubernetes.io/metadata.name": "kube-system"
+                                        }
+                                    }
+                                }
+                            ],
+                            "ports": [
+                                {"port": 53, "protocol": "UDP"},
+                                {"port": 53, "protocol": "TCP"},
+                            ],
+                        },
+                        {
+                            "to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
+                            "ports": [
+                                {"port": 80, "protocol": "TCP"},
+                                {"port": 443, "protocol": "TCP"},
+                            ],
+                        },
+                    ],
+                    "ingress": [
+                        {
+                            "from": [
+                                {
+                                    "podSelector": {
+                                        "matchLabels": {
+                                            "job-name": "evals-entity_with_underscore-project_with_underscore-abc"
+                                        }
+                                    }
+                                }
+                            ],
+                            "ports": [{"port": 8000, "protocol": "TCP"}],
+                        }
+                    ],
+                    "podSelector": {
+                        "matchLabels": {
+                            "wandb.ai/run-id": "abc",
+                            "wandb.ai/auxiliary-resource": "aux-entity_with_underscore-project_with_underscore-abc",
+                        }
+                    },
+                    "policyTypes": ["Egress", "Ingress"],
+                },
+                "metadata": {
+                    "name": "resource-policy-entity_with_underscore-project_with_underscore-abc",
+                    "labels": {
+                        "wandb.ai/run-id": "abc",
+                        "wandb.ai/created-by": "launch-agent",
+                        "wandb.ai/auxiliary-resource": "aux-entity_with_underscore-project_with_underscore-abc",
+                    },
+                },
+                "apiVersion": "networking.k8s.io/v1",
+            },
+            {
+                "kind": "NetworkPolicy",
+                "spec": {
+                    "egress": [
+                        {
+                            "to": [
+                                {
+                                    "namespaceSelector": {
+                                        "matchLabels": {
+                                            "kubernetes.io/metadata.name": "kube-system"
+                                        }
+                                    }
+                                }
+                            ],
+                            "ports": [
+                                {"port": 53, "protocol": "UDP"},
+                                {"port": 53, "protocol": "TCP"},
+                            ],
+                        },
+                        {
+                            "to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
+                            "ports": [
+                                {"port": 80, "protocol": "TCP"},
+                                {"port": 443, "protocol": "TCP"},
+                            ],
+                        },
+                    ],
+                    "ingress": [
+                        {
+                            "from": [
+                                {
+                                    "podSelector": {
+                                        "matchLabels": {
+                                            "job-name": "evals-entity-with-underscore-project-with-underscore-abc"
+                                        }
+                                    }
+                                }
+                            ],
+                            "ports": [{"port": 8000, "protocol": "TCP"}],
+                        }
+                    ],
+                    "podSelector": {
+                        "matchLabels": {
+                            "wandb.ai/run-id": "abc",
+                            "wandb.ai/auxiliary-resource": "aux-entity-with-underscore-project-with-underscore-abc",
+                        }
+                    },
+                    "policyTypes": ["Egress", "Ingress"],
+                },
+                "metadata": {
+                    "name": "resource-policy-entity-with-underscore-project-with-underscore",  # name is over 63 chars
+                    "labels": {
+                        "wandb.ai/run-id": "abc",
+                        "wandb.ai/created-by": "launch-agent",
+                        "wandb.ai/auxiliary-resource": "aux-entity-with-underscore-project-with-underscore-abc",
+                    },
+                },
+                "apiVersion": "networking.k8s.io/v1",
+            },
+        ),
+        (
+            # similar format service config we use on the public queue (tests selector and labels)
+            {
+                "kind": "Service",
+                "spec": {
+                    "type": "ClusterIP",
+                    "ports": [
+                        {
+                            "foobar": "baz",
+                        }
+                    ],
+                    "selector": {
+                        "app": "deploy-entity_with_underscore-project_with_underscore-abc"
+                    },
+                },
+                "metadata": {
+                    "name": "evals-entity_with_underscore-project_with_underscore-abc",
+                    "labels": {
+                        "app": "service-entity_with_underscore-project_with_underscore-abc",
+                    },
+                },
+                "apiVersion": "v1",
+            },
+            {
+                "kind": "Service",
+                "spec": {
+                    "type": "ClusterIP",
+                    "ports": [
+                        {
+                            "foobar": "baz",
+                        }
+                    ],
+                    "selector": {
+                        "app": "deploy-entity-with-underscore-project-with-underscore-abc"
+                    },
+                },
+                "metadata": {
+                    "name": "evals-entity-with-underscore-project-with-underscore-abc",
+                    "labels": {
+                        "app": "service-entity-with-underscore-project-with-underscore-abc",
+                    },
+                },
+                "apiVersion": "v1",
             },
         ),
     ],

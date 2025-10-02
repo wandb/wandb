@@ -800,6 +800,23 @@ def yield_containers(root: Union[dict, list]) -> Iterator[dict]:
             yield from yield_containers(item)
 
 
+def yield_dictionaries_from_key(root: Union[dict, list], key: str) -> Iterator[dict]:
+    """Yield all specs matching key in a manifest.
+
+    Recursively traverses the manifest and yields the dictionary value when a key
+    equals the provided key.
+    """
+    if isinstance(root, dict):
+        for k, v in root.items():
+            if k == key and isinstance(v, dict):
+                yield v
+            elif isinstance(v, (dict, list)):
+                yield from yield_dictionaries_from_key(v, key)
+    elif isinstance(root, list):
+        for item in root:
+            yield from yield_dictionaries_from_key(item, key)
+
+
 def sanitize_identifiers_for_k8s(root: Any) -> None:
     if isinstance(root, list):
         for item in root:
@@ -818,6 +835,12 @@ def sanitize_identifiers_for_k8s(root: Any) -> None:
     for container in yield_containers(root):
         if name := container.get("name"):
             container["name"] = make_k8s_label_safe(str(name))
+
+    for k8s_keyword in ["labels", "matchLabels", "selector"]:
+        for attributes in yield_dictionaries_from_key(root, k8s_keyword):
+            for attr_key, attr_value in attributes.items():
+                if isinstance(attr_value, str):
+                    attributes[attr_key] = make_k8s_label_safe(attr_value)
 
     # nested names
     for key, value in root.items():
