@@ -15,6 +15,8 @@ const (
 	defaultZoomFactor        = 0.10
 	minZoomRange             = 5.0
 	tailAnchorMouseThreshold = 0.95
+	defaultMaxX              = 20
+	defaultMaxY              = 1
 )
 
 // EpochLineChart is a custom line chart for epoch-based data.
@@ -66,7 +68,7 @@ func NewEpochLineChart(width, height int, title string) *EpochLineChart {
 		Foreground(lipgloss.Color(graphColors[0]))
 
 	chart := &EpochLineChart{
-		Model: linechart.New(width, height, 0, 20, 0, 1,
+		Model: linechart.New(width, height, 0, defaultMaxX, 0, defaultMaxY,
 			linechart.WithXYSteps(4, 5),
 			linechart.WithAutoXRange(),
 			linechart.WithYLabelFormatter(func(i int, v float64) string {
@@ -141,9 +143,9 @@ func (c *EpochLineChart) updateRanges() {
 		dataMaxX = 0
 	}
 	niceMax := dataMaxX
-	if niceMax < 20 {
+	if niceMax < defaultMaxX {
 		// Keep a decent default domain early in a run.
-		niceMax = 20
+		niceMax = defaultMaxX
 	} else {
 		// Round to nearest 10.
 		niceMax = float64(((int(math.Ceil(niceMax)) + 9) / 10) * 10)
@@ -264,8 +266,6 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 }
 
 // Draw renders the line chart using Braille patterns.
-//
-//gocyclo:ignore
 func (c *EpochLineChart) Draw() {
 	c.Clear()
 	c.DrawXYAxisAndLabel()
@@ -302,30 +302,6 @@ func (c *EpochLineChart) Draw() {
 	xScale := float64(c.GraphWidth()) / (c.ViewMaxX() - c.ViewMinX())
 	yScale := float64(c.GraphHeight()) / (c.ViewMaxY() - c.ViewMinY())
 
-	// If only one visible point, draw a dot.
-	if ub-lb == 1 {
-		x := (c.xData[lb] - c.ViewMinX()) * xScale
-		y := (c.yData[lb] - c.ViewMinY()) * yScale
-		if x >= 0 && x <= float64(c.GraphWidth()) && y >= 0 && y <= float64(c.GraphHeight()) {
-			point := canvas.Float64Point{X: x, Y: y}
-			gp := bGrid.GridPoint(point)
-			bGrid.Set(gp)
-
-			startX := 0
-			if c.YStep() > 0 {
-				startX = c.Origin().X + 1
-			}
-
-			patterns := bGrid.BraillePatterns()
-			graph.DrawBraillePatterns(&c.Canvas,
-				canvas.Point{X: startX, Y: 0},
-				patterns,
-				c.graphStyle)
-		}
-		c.dirty = false
-		return
-	}
-
 	// Convert visible data points to canvas coordinates.
 	points := make([]canvas.Float64Point, 0, ub-lb)
 	for i := lb; i < ub; i++ {
@@ -337,16 +313,16 @@ func (c *EpochLineChart) Draw() {
 		}
 	}
 
-	if len(points) < 2 {
-		c.dirty = false
-		return
-	}
-
-	// Draw lines between consecutive points.
-	for i := 0; i < len(points)-1; i++ {
-		gp1 := bGrid.GridPoint(points[i])
-		gp2 := bGrid.GridPoint(points[i+1])
-		drawLine(bGrid, gp1, gp2)
+	// Draw single point or lines between consecutive points.
+	if len(points) == 1 {
+		gp := bGrid.GridPoint(points[0])
+		bGrid.Set(gp)
+	} else {
+		for i := 0; i < len(points)-1; i++ {
+			gp1 := bGrid.GridPoint(points[i])
+			gp2 := bGrid.GridPoint(points[i+1])
+			drawLine(bGrid, gp1, gp2)
+		}
 	}
 
 	// Render braille patterns.
