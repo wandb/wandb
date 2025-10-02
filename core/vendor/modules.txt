@@ -458,7 +458,7 @@ github.com/charmbracelet/x/ansi/parser
 # github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd
 ## explicit; go 1.18
 github.com/charmbracelet/x/cellbuf
-# github.com/charmbracelet/x/exp/golden v0.0.0-20240815200342-61de596daa2b
+# github.com/charmbracelet/x/exp/golden v0.0.0-20241011142426-46044092ad91
 ## explicit; go 1.19
 github.com/charmbracelet/x/exp/golden
 # github.com/charmbracelet/x/exp/teatest v0.0.0-20250922100529-c9afca5d6f21

@@ -8,12 +8,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	leet "github.com/wandb/wandb/core/internal/leet"
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestSidebarFilter_WithPrefixes(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
-	s := leet.NewLeftSidebar(cfg, "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	s := leet.NewLeftSidebar(cfg)
 
 	// Use the actual ProcessRunMsg API with minimal proto
 	s.ProcessRunMsg(leet.RunMsg{
@@ -44,8 +45,8 @@ func TestSidebarFilter_WithPrefixes(t *testing.T) {
 }
 
 func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
-	s := leet.NewLeftSidebar(cfg, "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	s := leet.NewLeftSidebar(cfg)
 
 	// Only config is non-empty
 	s.ProcessRunMsg(leet.RunMsg{
@@ -63,8 +64,8 @@ func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
 }
 
 func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
-	s := leet.NewLeftSidebar(cfg, "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	s := leet.NewLeftSidebar(cfg)
 
 	s.ProcessRunMsg(leet.RunMsg{
 		Config: &spb.ConfigRecord{
@@ -102,8 +103,8 @@ func expandSidebar(t *testing.T, s *leet.LeftSidebar, termWidth int, rightVisibl
 }
 
 func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
-	s := leet.NewLeftSidebar(cfg, "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	s := leet.NewLeftSidebar(cfg)
 	expandSidebar(t, s, 120, false)
 
 	s.ProcessRunMsg(leet.RunMsg{
@@ -152,8 +153,8 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
-	s := leet.NewLeftSidebar(cfg, "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	s := leet.NewLeftSidebar(cfg)
 	expandSidebar(t, s, 120, false)
 
 	s.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
@@ -211,8 +212,8 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 }
 
 func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
-	s := leet.NewLeftSidebar(cfg, "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	s := leet.NewLeftSidebar(cfg)
 	expandSidebar(t, s, 120, false)
 
 	s.ProcessRunMsg(leet.RunMsg{
@@ -256,8 +257,8 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 }
 
 func TestSidebar_TruncateValue(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
-	s := leet.NewLeftSidebar(cfg, "/some/path")
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), observability.NewNoOpLogger())
+	s := leet.NewLeftSidebar(cfg)
 	expandSidebar(t, s, 40, false) // clamps to SidebarMinWidth
 
 	long := strings.Repeat("x", 200)

@@ -52,6 +52,9 @@ var teal450 = lipgloss.AdaptiveColor{
 // Functional colors not specific to any visual component.
 // Ideally these should be adaptive!
 var (
+	// Color for main items such as chart titles.
+	colorAccent = lipgloss.Color("250")
+
 	// Main text color that appears the most frequently on the screen.
 	colorText = lipgloss.Color("245")
 
@@ -60,18 +63,22 @@ var (
 	colorSubtle = lipgloss.Color("240")
 
 	// Color for layout elements, like borders and separator lines.
-	// colorLayout = lipgloss.Color("238")
+	colorLayout = lipgloss.Color("238")
 
 	// Color for layout elements when they're highlighted or focused.
-	// colorLayoutHighlight = teal450
+	colorLayoutHighlight = teal450
 
 	// Color for top-level headings; least frequent.
 	// Leet logo, help page section headings.
-	// colorHeading = wandbColor
+	colorHeading = wandbColor
 
 	// Color for lower-level headings; more frequent than headings.
 	// Help page keys, metrics grid header.
 	colorSubheading = lipgloss.Color("230")
+
+	// Colors for key-value pairs such as run summary or config items.
+	colorItemKey   = lipgloss.Color("241")
+	colorItemValue = lipgloss.Color("252")
 )
 
 // ASCII art for the loading screen and the help page.
@@ -153,34 +160,22 @@ func GetGraphColors() []string {
 
 // Metrics grid styles.
 var (
-	headerStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("230"))
+	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
 
-	navInfoStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+	navInfoStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
-	headerContainerStyle = lipgloss.NewStyle().
-				MarginLeft(1).
-				MarginTop(1).
-				MarginBottom(0)
+	headerContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginTop(1).MarginBottom(0)
 
-	gridContainerStyle = lipgloss.NewStyle().
-				MarginLeft(1).
-				MarginRight(1)
+	gridContainerStyle = lipgloss.NewStyle().MarginLeft(1).MarginRight(1)
 )
 
 // Chart styles.
 var (
-	borderStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("238")) // dark gray
+	borderStyle = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(colorLayout)
 
-	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("250")). // light gray
-			Bold(true)
+	titleStyle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
 
-	focusedBorderStyle = borderStyle.BorderForeground(lipgloss.Color("#E1F7FA"))
+	focusedBorderStyle = borderStyle.BorderForeground(colorLayoutHighlight)
 
 	axisStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
@@ -189,17 +184,17 @@ var (
 
 // Status bar styles.
 var (
-	statusBarStyle = lipgloss.NewStyle().Foreground(moon900).Background(teal450)
+	statusBarStyle = lipgloss.NewStyle().Foreground(moon900).Background(colorLayoutHighlight)
 )
 
 // Sidebar styles.
 var (
 	sidebarStyle        = lipgloss.NewStyle().Padding(0, 1)
-	sidebarBorderStyle  = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(lipgloss.Color("238"))
-	sidebarHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).MarginBottom(1)
-	sidebarSectionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Bold(true)
-	sidebarKeyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	sidebarValueStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	sidebarBorderStyle  = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(colorLayout)
+	sidebarHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginBottom(1)
+	sidebarSectionStyle = lipgloss.NewStyle().Foreground(colorText).Bold(true)
+	sidebarKeyStyle     = lipgloss.NewStyle().Foreground(colorItemKey)
+	sidebarValueStyle   = lipgloss.NewStyle().Foreground(colorItemValue)
 
 	RightBorder = lipgloss.Border{
 		Top:         " ",
@@ -216,8 +211,8 @@ var (
 // Right sidebar styles.
 var (
 	rightSidebarStyle       = lipgloss.NewStyle().Padding(0, 1)
-	rightSidebarBorderStyle = lipgloss.NewStyle().Border(lipgloss.Border{Left: "│"}).BorderForeground(lipgloss.Color("238"))
-	rightSidebarHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("230")).MarginLeft(1)
+	rightSidebarBorderStyle = lipgloss.NewStyle().Border(lipgloss.Border{Left: "│"}).BorderForeground(colorLayout)
+	rightSidebarHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginLeft(1)
 
 	LeftBorder = lipgloss.Border{
 		Top:         " ",
@@ -243,7 +238,7 @@ var (
 
 	helpDescStyle = lipgloss.NewStyle().Foreground(colorText)
 
-	helpSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(wandbColor)
+	helpSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(colorHeading)
 
 	helpContentStyle = lipgloss.NewStyle().MarginLeft(2).MarginTop(1)
 )

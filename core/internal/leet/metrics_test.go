@@ -11,8 +11,9 @@ import (
 )
 
 func TestCalculateChartDimensions_RespectsMinimums(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
-	m := leet.NewMetrics(cfg, &leet.FocusState{}, observability.NewNoOpLogger())
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	m := leet.NewMetrics(cfg, &leet.FocusState{}, logger)
 	d := m.CalculateChartDimensions(30, 10) // small on purpose
 	if d.ChartWidth < leet.MinChartWidth {
 		t.Fatalf("ChartWidth=%d < MinChartWidth=%d", d.ChartWidth, leet.MinChartWidth)
@@ -23,8 +24,8 @@ func TestCalculateChartDimensions_RespectsMinimums(t *testing.T) {
 }
 
 func TestModelView_TruncatesLongTitles(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	m := leet.NewModel("dummy", cfg, logger)
 
 	// Establish terminal size first so new charts get reasonable dims.
@@ -45,8 +46,8 @@ func TestModelView_TruncatesLongTitles(t *testing.T) {
 }
 
 func TestModelView_ChartsAreSortedAlphabetically(t *testing.T) {
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"))
 	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	m := leet.NewModel("dummy", cfg, logger)
 
 	if tm, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40}); tm != nil {
