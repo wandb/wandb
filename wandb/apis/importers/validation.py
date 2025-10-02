@@ -81,13 +81,13 @@ def _collect_entries(art):
         for edge in attrs["edges"]:
             name = edge["node"]["name"]
             entry = art.get_entry(name)
-            entry._download_url = edge["node"]["directUrl"]
+            entry.direct_url = edge["node"]["directUrl"]
             entries.append(entry)
     return entries
 
 
 def _check_entry_is_downloable(entry):
-    url = entry._download_url
+    url = entry.direct_url
     expected_size = entry.size
 
     try:
