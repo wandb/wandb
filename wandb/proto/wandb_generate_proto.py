@@ -28,6 +28,7 @@ for proto_file in [
     "wandb_telemetry.proto",
     "wandb_server.proto",
     "wandb_sync.proto",
+    "wandb_api.proto",
 ]:
     ret = protoc.main(
         (

@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+import "wandb/proto/wandb_base.proto";
+
+option go_package = "core/pkg/service_go_proto";
+
+message ApiRequest {
+  oneof request {
+    ReadRunHistoryRequest read_run_history = 1;
+  }
+}
+
+message ApiResponse {
+  oneof response {
+    ReadRunHistoryResponse read_run_history = 1;
+  }
+}
+
+// Start of Read run history
+
+message ReadRunHistoryRequest {
+  string entity = 1;
+  string project = 2;
+  string run_id = 3;
+  repeated string keys = 4;
+  int64 min_step = 5;
+  int64 max_step = 6;
+
+  _RecordInfo _info = 200;
+}
+
+message ReadRunHistoryResponse {
+  repeated HistoryRow history_rows = 1;
+  string error_message = 2;
+}
+
+message HistoryRow {
+  repeated ParquetHistoryItem history_items = 1;
+}
+
+message ParquetHistoryItem {
+  string key = 1;
+  string value_json = 16;
+}
+
+// End of Read run history
