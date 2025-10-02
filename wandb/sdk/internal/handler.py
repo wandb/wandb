@@ -37,7 +37,6 @@ from wandb.proto.wandb_internal_pb2 import (
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util
-from ..wandb_metadata import Metadata
 from . import context, sample, tb_watcher
 from .settings_static import SettingsStatic
 
@@ -115,7 +114,6 @@ class HandleManager:
         self._context_keeper = context_keeper
 
         self._tb_watcher = None
-        self._metadata: Optional[Metadata] = None
         self._step = 0
 
         self._track_time = None
@@ -172,9 +170,6 @@ class HandleManager:
 
     def handle_request_cancel(self, record: Record) -> None:
         self._dispatch_record(record)
-
-    def handle_request_metadata(self, record: Record) -> None:
-        logger.warning("Metadata updates are ignored when using the legacy service.")
 
     def handle_request_defer(self, record: Record) -> None:
         defer = record.request.defer
@@ -647,6 +642,9 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_footer(self, record: Record) -> None:
+        self._dispatch_record(record)
+
+    def handle_metadata(self, record: Record) -> None:
         self._dispatch_record(record)
 
     def handle_request_attach(self, record: Record) -> None:

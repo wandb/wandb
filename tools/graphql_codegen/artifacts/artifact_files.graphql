@@ -1,61 +1,101 @@
 fragment FilesFragment on FileConnection {
-    edges {
-        node {
-            id
-            name: displayName
-            url
-            sizeBytes
-            storagePath @include(if: true)  # Workaround: ensures generated pydantic field defaults to `None`
-            mimetype
-            updatedAt
-            digest
-            md5
-            directUrl
-        }
-        cursor
+  edges {
+    node {
+      id
+      name: displayName
+      url
+      sizeBytes
+      storagePath @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
+      mimetype
+      updatedAt
+      digest
+      md5
+      directUrl
     }
-    pageInfo {
-        endCursor
-        hasNextPage
-    }
+    cursor
+  }
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
 }
 
 query ArtifactVersionFiles(
-    $entityName: String!,
-    $projectName: String!,
-    $artifactTypeName: String!,
-    $artifactName: String!
-    $fileNames: [String!],
-    $fileCursor: String,
-    $fileLimit: Int = 50,
+  $entityName: String!
+  $projectName: String!
+  $artifactTypeName: String!
+  $artifactName: String!
+  $fileNames: [String!]
+  $fileCursor: String
+  $fileLimit: Int = 50
 ) {
-    project(name: $projectName, entityName: $entityName) {
-        artifactType(name: $artifactTypeName) {
-            artifact(name: $artifactName) {
-                files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
-                    ...FilesFragment
-                }
-            }
+  project(name: $projectName, entityName: $entityName) {
+    artifactType(name: $artifactTypeName) {
+      artifact(name: $artifactName) {
+        files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
+          ...FilesFragment
         }
+      }
     }
+  }
 }
 
 query ArtifactCollectionMembershipFiles(
-    $entityName: String!,
-    $projectName: String!,
-    $artifactName: String!,
-    $artifactVersionIndex: String!,
-    $fileNames: [String!],
-    $fileCursor: String,
-    $fileLimit: Int = 50,
+  $entityName: String!
+  $projectName: String!
+  $artifactName: String!
+  $artifactVersionIndex: String!
+  $fileNames: [String!]
+  $fileCursor: String
+  $fileLimit: Int = 50
 ) {
-    project(name: $projectName, entityName: $entityName) {
-        artifactCollection(name: $artifactName) {
-            artifactMembership (aliasName: $artifactVersionIndex) {
-                files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
-                    ...FilesFragment
-                }
-            }
+  project(name: $projectName, entityName: $entityName) {
+    artifactCollection(name: $artifactName) {
+      artifactMembership(aliasName: $artifactVersionIndex) {
+        files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
+          ...FilesFragment
         }
+      }
     }
+  }
+}
+
+fragment FileUrlsFragment on FileConnection {
+  pageInfo {
+    hasNextPage
+    endCursor
+  }
+  edges {
+    node {
+      name
+      directUrl
+    }
+  }
+}
+
+query ArtifactCollectionMembershipFileUrls(
+  $entityName: String!
+  $projectName: String!
+  $artifactName: String!
+  $artifactVersionIndex: String!
+  $cursor: String
+  $perPage: Int
+) {
+  project(name: $projectName, entityName: $entityName) {
+    artifactCollection(name: $artifactName) {
+      artifactMembership(aliasName: $artifactVersionIndex) {
+        files(after: $cursor, first: $perPage) {
+          ...FileUrlsFragment
+        }
+      }
+    }
+  }
+}
+
+query ArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
+  artifact(id: $id) {
+    files(after: $cursor, first: $perPage) {
+      ...FileUrlsFragment
+    }
+  }
 }

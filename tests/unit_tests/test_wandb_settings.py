@@ -42,6 +42,43 @@ def test_invalid_field_type():
         Settings(api_key=271828)  # must be a string
 
 
+@pytest.mark.parametrize(
+    "tags,expected_error",
+    [
+        ([""], "Tags must be between 1 and 64 characters"),
+        (["a" * 65], "Tags must be between 1 and 64 characters"),
+        (
+            ["valid", "a" * 65, "another_valid"],
+            "Tags must be between 1 and 64 characters",
+        ),
+    ],
+)
+def test_run_tags_validation_errors(tags, expected_error):
+    """Test that invalid run tags raise appropriate errors."""
+    with pytest.raises(ValueError, match=expected_error):
+        Settings(run_tags=tags)
+
+
+@pytest.mark.parametrize(
+    "tags,expected",
+    [
+        (["valid", "tag2"], ("valid", "tag2")),
+        (["a" * 64], ("a" * 64,)),
+        ("single_tag", ("single_tag",)),
+        (None, None),
+    ],
+)
+def test_run_tags_validation_success(tags, expected):
+    """Test that valid run tags are accepted and converted appropriately."""
+    settings = Settings(run_tags=tags)
+    if expected is None:
+        assert settings.run_tags is None
+    else:
+        assert settings.run_tags == expected
+        if tags == ["a" * 64]:
+            assert len(settings.run_tags[0]) == 64
+
+
 def test_program_python_m():
     with tempfile.TemporaryDirectory() as tmpdir:
         path_module = os.path.join(tmpdir, "module")
@@ -338,6 +375,10 @@ def test_preprocess_bool_settings(setting: str):
             "x_stats_open_metrics_filters",
             '{"DCGM_FI_DEV_POWER_USAGE": {"pod": "dcgm-*"}}',
         ),
+        (
+            "x_extra_http_headers",
+            '{"User-Agent": "foobar"}',
+        ),
     ],
 )
 def test_preprocess_dict_settings(setting: str, value: str):
@@ -389,7 +430,7 @@ def test_log_internal():
 def test_settings_static():
     from wandb.sdk.internal.settings_static import SettingsStatic
 
-    static_settings = SettingsStatic(Settings().to_proto())
+    static_settings = SettingsStatic({})
     assert "base_url" in static_settings
     assert static_settings.base_url == "https://api.wandb.ai"
 

@@ -27,7 +27,8 @@ func PartitionsWithContext(_ context.Context, _ bool) ([]PartitionStat, error) {
 		return ret, err
 	}
 
-	for _, stat := range fs {
+	for i := range fs {
+		stat := &fs[i]
 		opts := []string{"rw"}
 		if stat.F_flags&unix.MNT_RDONLY != 0 {
 			opts = []string{"rw"}
@@ -113,9 +114,7 @@ func IOCountersWithContext(_ context.Context, names ...string) (map[string]IOCou
 func parseDiskstats(buf []byte) (Diskstats, error) {
 	var ds Diskstats
 	br := bytes.NewReader(buf)
-	//	err := binary.Read(br, binary.LittleEndian, &ds)
-	err := common.Read(br, binary.LittleEndian, &ds)
-	if err != nil {
+	if err := binary.Read(br, binary.LittleEndian, &ds); err != nil {
 		return ds, err
 	}
 

@@ -157,8 +157,8 @@ class BackendFixtureFactory:
     def __post_init__(self, service_url: str):
         self._client = httpx.Client(
             base_url=service_url,
-            # event_hooks={"response": [httpx.Response.raise_for_status]},
-            # timeout=None,
+            # The default 5s timeout is sometimes too short in CI.
+            timeout=30,
         )
 
     def __enter__(self):
@@ -171,7 +171,14 @@ class BackendFixtureFactory:
 
     def make_user(self, name: str | None = None, admin: bool = False) -> str:
         """Create a new user and return their username."""
-        name = name or f"user-{self.worker_id}-{random_string()}"
+        # Many tests use the username as the API key.
+        # However, the API key must be 40 characters long after the first hyphen.
+        # So we need to pad the username
+        # with the appropriate number of random characters.
+        name = name or (
+            f"user-{self.worker_id}-"
+            f"{random_string(length=(40 - len(self.worker_id) - 1))}"
+        )
 
         self.send_cmds(
             UserCmd("up", username=name, admin=admin),
@@ -204,9 +211,16 @@ class BackendFixtureFactory:
         org_name: str | None = None,
         plan_name: str | None = None,
     ) -> TeamAndOrgNames:
-        """Create a new team and return the team name."""
+        """Create a new team within a new org and return the team name."""
+        # Create the new org.
+        #
+        # We rely on the Org "down" cmd for cleanup, NOT the Team "down" cmd.
+        # Unfortunately, the Team "down" cmd, as currently implemented, is
+        # overly aggressive and deletes ALL orgs and teams, which can affect
+        # other tests which may still be running (or have yet to run).
+        org_name = self.make_org(org_name, username=username)
+
         name = name or f"team-{self.worker_id}-{random_string()}"
-        org_name = org_name or f"org-{self.worker_id}-{random_string()}"
         plan_name = plan_name or f"plan-{self.worker_id}-{random_string()}"
 
         self.send_cmds(
@@ -221,8 +235,9 @@ class BackendFixtureFactory:
             ),
         )
 
-        # Register command(s) to delete the team(s) on cleanup
-        self._cleanup_stack.append(TeamCmd("down"))
+        # DO NOT register the Team "down" cmd for cleanup.
+        # As mentioned above, we rely on the Org "down" cmd for cleanup.
+
         return TeamAndOrgNames(team=name, org=org_name)
 
     def send_cmds(self, *cmds: FixtureCmd) -> None:
@@ -239,7 +254,7 @@ class BackendFixtureFactory:
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
             # FIXME: Figure out how SDK team preferences/conventions for replacing print statements
-            print(e.response.json(), file=sys.stderr)
+            print(e.response.text, file=sys.stderr)
 
     def cleanup(self) -> None:
         while True:

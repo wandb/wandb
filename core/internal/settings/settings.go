@@ -4,6 +4,8 @@ package settings
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/auth"
@@ -15,6 +17,8 @@ import (
 //
 // This is derived from the Settings proto and adapted for use in Go.
 type Settings struct {
+	// Mutex to protect access to fields that may be updated.
+	sync.Mutex
 
 	// The source proto.
 	//
@@ -114,6 +118,8 @@ func (s *Settings) IsSharedMode() bool {
 
 // The ID of the run.
 func (s *Settings) GetRunID() string {
+	s.Lock()
+	defer s.Unlock()
 	return s.Proto.RunId.GetValue()
 }
 
@@ -124,16 +130,22 @@ func (s *Settings) GetRunURL() string {
 
 // The W&B project ID.
 func (s *Settings) GetProject() string {
+	s.Lock()
+	defer s.Unlock()
 	return s.Proto.Project.GetValue()
 }
 
 // The W&B entity, like a user or a team.
 func (s *Settings) GetEntity() string {
+	s.Lock()
+	defer s.Unlock()
 	return s.Proto.Entity.GetValue()
 }
 
 // The name of the run.
 func (s *Settings) GetDisplayName() string {
+	s.Lock()
+	defer s.Unlock()
 	return s.Proto.RunName.GetValue()
 }
 
@@ -168,7 +180,8 @@ func (s *Settings) GetInternalLogFile() string {
 
 // Absolute path to the local directory where this run's files are stored.
 func (s *Settings) GetFilesDir() string {
-	return s.Proto.FilesDir.GetValue()
+	// Must match the logic in the Python wandb.Settings.
+	return filepath.Join(s.GetSyncDir(), "files")
 }
 
 // Unix glob patterns relative to `files_dir` to not upload.
@@ -519,12 +532,41 @@ func (s *Settings) GetStatsOpenMetricsHeaders() map[string]string {
 
 // The scheme and hostname for contacting the CoreWeave metadata server.
 func (s *Settings) GetStatsCoreWeaveMetadataBaseURL() string {
+	s.Lock()
+	defer s.Unlock()
 	return s.Proto.XStatsCoreweaveMetadataBaseUrl.GetValue()
 }
 
 // The relative path on the CoreWeave metadata server to which to make requests.
 func (s *Settings) GetStatsCoreWeaveMetadataEndpoint() string {
+	s.Lock()
+	defer s.Unlock()
 	return s.Proto.XStatsCoreweaveMetadataEndpoint.GetValue()
+}
+
+// User-provided CPU count to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsCpuCount() int32 {
+	return s.Proto.XStatsCpuCount.GetValue()
+}
+
+// User-provided Logical CPU count to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsCpuLogicalCount() int32 {
+	return s.Proto.XStatsCpuLogicalCount.GetValue()
+}
+
+// User-provided GPU count to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsGpuCount() int32 {
+	return s.Proto.XStatsGpuCount.GetValue()
+}
+
+// User-provided GPU type to override the auto-detected value in the run metadata.
+func (s *Settings) GetStatsGpuType() string {
+	return s.Proto.XStatsGpuType.GetValue()
+}
+
+// Whether to track the process-specific metrics for the entire process tree.
+func (s *Settings) GetStatsTrackProcessTree() bool {
+	return s.Proto.XStatsTrackProcessTree.GetValue()
 }
 
 // The label for the run namespacing for console output and system metrics.
@@ -545,35 +587,49 @@ func (s *Settings) UpdateStartTime(startTime time.Time) {
 
 // Updates the run's entity name.
 func (s *Settings) UpdateEntity(entity string) {
+	s.Lock()
+	defer s.Unlock()
 	s.Proto.Entity = &wrapperspb.StringValue{Value: entity}
 }
 
 // Updates the run's project name.
 func (s *Settings) UpdateProject(project string) {
+	s.Lock()
+	defer s.Unlock()
 	s.Proto.Project = &wrapperspb.StringValue{Value: project}
 }
 
 // Updates the run's display name.
 func (s *Settings) UpdateDisplayName(displayName string) {
+	s.Lock()
+	defer s.Unlock()
 	s.Proto.RunName = &wrapperspb.StringValue{Value: displayName}
 }
 
 // Updates the run ID.
 func (s *Settings) UpdateRunID(runID string) {
+	s.Lock()
+	defer s.Unlock()
 	s.Proto.RunId = &wrapperspb.StringValue{Value: runID}
 }
 
 // Update server-side derived summary computation setting.
 func (s *Settings) UpdateServerSideDerivedSummary(enable bool) {
+	s.Lock()
+	defer s.Unlock()
 	s.Proto.XServerSideDerivedSummary = &wrapperspb.BoolValue{Value: enable}
 }
 
 // Updates the scheme and hostname for contacting the CoreWeave metadata server.
 func (s *Settings) UpdateStatsCoreWeaveMetadataBaseURL(baseURL string) {
+	s.Lock()
+	defer s.Unlock()
 	s.Proto.XStatsCoreweaveMetadataBaseUrl = &wrapperspb.StringValue{Value: baseURL}
 }
 
 // Updates the relative path on the CoreWeave metadata server to which to make requests.
 func (s *Settings) UpdateStatsCoreWeaveMetadataEndpoint(endpoint string) {
+	s.Lock()
+	defer s.Unlock()
 	s.Proto.XStatsCoreweaveMetadataEndpoint = &wrapperspb.StringValue{Value: endpoint}
 }

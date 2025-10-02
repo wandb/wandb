@@ -42,8 +42,8 @@ class HTTPHandler(StorageHandler):
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
             URIStr(manifest_entry.ref),
-            ETag(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
-            manifest_entry.size if manifest_entry.size is not None else 0,
+            ETag(manifest_entry.digest),
+            manifest_entry.size or 0,
         )
         if hit:
             return path
@@ -54,7 +54,6 @@ class HTTPHandler(StorageHandler):
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
         )
-        response.raise_for_status()
 
         digest: ETag | FilePathStr | URIStr | None
         digest, size, extra = self._entry_from_headers(response.headers)
@@ -87,7 +86,6 @@ class HTTPHandler(StorageHandler):
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
         ) as response:
-            response.raise_for_status()
             digest: ETag | FilePathStr | URIStr | None
             digest, size, extra = self._entry_from_headers(response.headers)
             digest = digest or path

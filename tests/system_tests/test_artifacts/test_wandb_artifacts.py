@@ -16,6 +16,7 @@ import responses
 import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
+import wandb.sdk.internal.sender
 from wandb import Artifact, util
 from wandb.errors.errors import CommError
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
@@ -38,7 +39,6 @@ from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.tracking_handler import TrackingHandler
 from wandb.sdk.lib.hashutil import md5_string
-from wandb.sdk.wandb_run import Run
 
 
 def mock_boto(artifact, path=False, content_type=None, version_id="1"):
@@ -109,7 +109,7 @@ def mock_boto(artifact, path=False, content_type=None, version_id="1"):
             return BucketStatus()
 
     mock = S3Resource()
-    for handler in artifact._storage_policy._handler._handlers:
+    for handler in artifact.manifest.storage_policy._handler._handlers:
         if isinstance(handler, S3Handler):
             handler._s3 = mock
             handler._botocore = util.get_module("botocore")
@@ -148,7 +148,7 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
             return GSBucket()
 
     mock = GSClient()
-    for handler in artifact._storage_policy._handler._handlers:
+    for handler in artifact.manifest.storage_policy._handler._handlers:
         if isinstance(handler, GCSHandler):
             handler._client = mock
     return mock
@@ -287,7 +287,7 @@ def mock_http(artifact, path=False, headers=None):
             return Response(self.headers)
 
     mock = Session()
-    for handler in artifact._storage_policy._handler._handlers:
+    for handler in artifact.manifest.storage_policy._handler._handlers:
         if isinstance(handler, HTTPHandler):
             handler._session = mock
     return mock
@@ -493,7 +493,7 @@ def test_add_reference_local_file_no_checksum(tmp_path, artifact):
 
 class TestAddReferenceLocalFileNoChecksumTwice:
     @pytest.fixture
-    def run(self, user) -> Iterator[Run]:
+    def run(self, user) -> Iterator[wandb.Run]:
         with wandb.init() as run:
             yield run
 
@@ -1670,7 +1670,7 @@ def test_change_artifact_collection_type_to_internal_type(user):
         artifact = Artifact("image_data", "data")
         run.log_artifact(artifact).wait()
 
-    internal_type = RESERVED_ARTIFACT_TYPE_PREFIX + "invalid"
+    internal_type = f"{RESERVED_ARTIFACT_TYPE_PREFIX}invalid"
     collection = artifact.collection
     with wandb.init() as run:
         # test deprecated change_type errors for changing to internal type
@@ -1684,7 +1684,7 @@ def test_change_artifact_collection_type_to_internal_type(user):
 
 
 def test_change_type_of_internal_artifact_collection(user):
-    internal_type = RESERVED_ARTIFACT_TYPE_PREFIX + "invalid"
+    internal_type = f"{RESERVED_ARTIFACT_TYPE_PREFIX}invalid"
     with wandb.init() as run:
         artifact = InternalArtifact("test-internal", internal_type)
         run.log_artifact(artifact).wait()

@@ -9,7 +9,6 @@ pytest-split~=0.10.0
 pytest-mock~=3.14
 pytest-timeout~=2.3
 pytest-flakefinder~=1.1
-pytest-memray~=1.7; sys_platform != 'win32'
 pyfakefs~=5.7
 parameterized~=0.9.0
 Faker<35.0.0; python_version < '3.9'

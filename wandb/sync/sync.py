@@ -54,6 +54,7 @@ class SyncThread(threading.Thread):
         log_path=None,
         append=None,
         skip_console=None,
+        replace_tags=None,
     ):
         threading.Thread.__init__(self)
         # mark this process as internal
@@ -71,6 +72,7 @@ class SyncThread(threading.Thread):
         self._log_path = log_path
         self._append = append
         self._skip_console = skip_console
+        self._replace_tags = replace_tags or {}
 
         self._tmp_dir = tempfile.TemporaryDirectory()
         atexit.register(self._tmp_dir.cleanup)
@@ -94,6 +96,11 @@ class SyncThread(threading.Thread):
                 pb.run.entity = self._entity
             if self._job_type:
                 pb.run.job_type = self._job_type
+            # Replace tags if specified
+            if self._replace_tags:
+                new_tags = [self._replace_tags.get(tag, tag) for tag in pb.run.tags]
+                pb.run.ClearField("tags")
+                pb.run.tags.extend(new_tags)
             pb.control.req_resp = True
         elif record_type in ("output", "output_raw") and self._skip_console:
             return pb, exit_pb, True
@@ -186,7 +193,7 @@ class SyncThread(threading.Thread):
             x_start_time=time.time(),
         )
 
-        settings_static = SettingsStatic(settings.to_proto())
+        settings_static = SettingsStatic(dict(settings))
 
         handle_manager = handler.HandleManager(
             settings=settings_static,
@@ -200,7 +207,12 @@ class SyncThread(threading.Thread):
 
         filesystem.mkdir_exists_ok(settings.files_dir)
         send_manager.send_run(record, file_dir=settings.files_dir)
-        watcher = tb_watcher.TBWatcher(settings, proto_run, new_interface, True)
+        watcher = tb_watcher.TBWatcher(
+            settings_static,
+            proto_run,
+            new_interface,
+            True,
+        )
 
         for tb in tb_logdirs:
             watcher.add(tb, True, tb_root)
@@ -338,6 +350,7 @@ class SyncManager:
         log_path=None,
         append=None,
         skip_console=None,
+        replace_tags=None,
     ):
         self._sync_list = []
         self._thread = None
@@ -353,6 +366,7 @@ class SyncManager:
         self._log_path = log_path
         self._append = append
         self._skip_console = skip_console
+        self._replace_tags = replace_tags or {}
 
     def status(self):
         pass
@@ -376,6 +390,7 @@ class SyncManager:
             log_path=self._log_path,
             append=self._append,
             skip_console=self._skip_console,
+            replace_tags=self._replace_tags,
         )
         self._thread.start()
 

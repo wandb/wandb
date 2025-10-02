@@ -9,13 +9,13 @@ import (
 // the width of the left column
 const colWidth = 25
 
-// Fail prints usage information to stderr and exits with non-zero status
+// Fail prints usage information to p.Config.Out and exits with status code 2.
 func (p *Parser) Fail(msg string) {
 	p.FailSubcommand(msg)
 }
 
-// FailSubcommand prints usage information for a specified subcommand to stderr,
-// then exits with non-zero status. To write usage information for a top-level
+// FailSubcommand prints usage information for a specified subcommand to p.Config.Out,
+// then exits with status code 2. To write usage information for a top-level
 // subcommand, provide just the name of that subcommand. To write usage
 // information for a subcommand that is nested under another subcommand, provide
 // a sequence of subcommand names starting with the top-level subcommand and so
@@ -27,7 +27,7 @@ func (p *Parser) FailSubcommand(msg string, subcommand ...string) error {
 	}
 
 	fmt.Fprintln(p.config.Out, "error:", msg)
-	p.config.Exit(-1)
+	p.config.Exit(2)
 	return nil
 }
 
@@ -57,10 +57,6 @@ func (p *Parser) WriteUsageForSubcommand(w io.Writer, subcommand ...string) erro
 		case spec.short != "":
 			shortOptions = append(shortOptions, spec)
 		}
-	}
-
-	if p.version != "" {
-		fmt.Fprintln(w, p.version)
 	}
 
 	// print the beginning of the usage string
@@ -208,6 +204,9 @@ func (p *Parser) WriteHelpForSubcommand(w io.Writer, subcommand ...string) error
 			positionals = append(positionals, spec)
 		case spec.long != "":
 			longOptions = append(longOptions, spec)
+			if spec.long == "version" {
+				hasVersionOption = true
+			}
 		case spec.short != "":
 			shortOptions = append(shortOptions, spec)
 		case spec.short == "" && spec.long == "":
@@ -215,16 +214,36 @@ func (p *Parser) WriteHelpForSubcommand(w io.Writer, subcommand ...string) error
 		}
 	}
 
+	// obtain a flattened list of options from all ancestors
+	// also determine if any ancestor has a version option spec
+	var globals []*spec
+	ancestor := cmd.parent
+	for ancestor != nil {
+		for _, spec := range ancestor.specs {
+			if spec.long == "version" {
+				hasVersionOption = true
+				break
+			}
+		}
+		globals = append(globals, ancestor.specs...)
+		ancestor = ancestor.parent
+	}
+
 	if p.description != "" {
 		fmt.Fprintln(w, p.description)
 	}
+
+	if !hasVersionOption && p.version != "" {
+		fmt.Fprintln(w, p.version)
+	}
+
 	p.WriteUsageForSubcommand(w, subcommand...)
 
 	// write the list of positionals
 	if len(positionals) > 0 {
 		fmt.Fprint(w, "\nPositional arguments:\n")
 		for _, spec := range positionals {
-			print(w, spec.placeholder, spec.help)
+			print(w, spec.placeholder, spec.help, withDefault(spec.defaultString), withEnv(spec.env))
 		}
 	}
 
@@ -236,18 +255,7 @@ func (p *Parser) WriteHelpForSubcommand(w io.Writer, subcommand ...string) error
 		}
 		for _, spec := range longOptions {
 			p.printOption(w, spec)
-			if spec.long == "version" {
-				hasVersionOption = true
-			}
 		}
-	}
-
-	// obtain a flattened list of options from all ancestors
-	var globals []*spec
-	ancestor := cmd.parent
-	for ancestor != nil {
-		globals = append(globals, ancestor.specs...)
-		ancestor = ancestor.parent
 	}
 
 	// write the list of global options
@@ -255,9 +263,6 @@ func (p *Parser) WriteHelpForSubcommand(w io.Writer, subcommand ...string) error
 		fmt.Fprint(w, "\nGlobal options:\n")
 		for _, spec := range globals {
 			p.printOption(w, spec)
-			if spec.long == "version" {
-				hasVersionOption = true
-			}
 		}
 	}
 

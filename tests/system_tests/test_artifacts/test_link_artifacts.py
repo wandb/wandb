@@ -43,6 +43,37 @@ def test_unlink_artifact(logged_artifact, linked_artifact, api):
     assert api.artifact_exists(source_artifact_path) is True
 
 
+def test_link_artifact_from_run_logs_draft_artifacts_first(user):
+    with wandb.init() as run:
+        artifact = wandb.Artifact("test-artifact", "test-type")
+
+        assert artifact.is_draft() is True
+
+        linked_artifact = run.link_artifact(artifact, "test-collection")
+        assert artifact.is_draft() is False
+
+        assert linked_artifact.id == artifact.id
+        assert linked_artifact.source_artifact.is_draft() is False
+
+
+def test_link_artifact_from_run_infers_target_path_from_run(user):
+    collection = "test-collection"
+    other_proj = "other-project"
+
+    with wandb.init() as run:
+        artifact = wandb.Artifact("test-artifact", "test-type")
+
+        # No explicit entity or project in target path
+        link_a = run.link_artifact(artifact, collection)
+        assert link_a.entity == run.entity
+        assert link_a.project == run.project
+
+        # Explicit project, but no entity in target path
+        link_b = run.link_artifact(artifact, f"{other_proj}/{collection}")
+        assert link_b.entity == run.entity
+        assert link_b.project == other_proj
+
+
 def test_artifact_is_link(user, api):
     run = wandb.init()
     artifact_type = "model"

@@ -87,10 +87,37 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
 
 
 class InterfaceBase:
+    """Methods for sending different types of Records to the service.
+
+    None of the methods may be called from an asyncio context other than
+    deliver_async().
+    """
+
     _drop: bool
 
     def __init__(self) -> None:
         self._drop = False
+
+    @abstractmethod
+    async def deliver_async(
+        self,
+        record: pb.Record,
+    ) -> MailboxHandle[pb.Result]:
+        """Send a record and create a handle to wait for the response.
+
+        The synchronous publish and deliver methods on this class cannot be
+        called in the asyncio thread because they block. Instead of having
+        an async copy of every method, this is a general method for sending
+        any kind of record in the asyncio thread.
+
+        Args:
+            record: The record to send. This method takes ownership of the
+                record and it must not be used afterward.
+
+        Returns:
+            A handle to wait for a response to the record.
+        """
+        raise NotImplementedError
 
     def publish_header(self) -> None:
         header = pb.HeaderRecord()
@@ -150,8 +177,7 @@ class InterfaceBase:
         if run._settings.run_notes is not None:
             proto_run.notes = run._settings.run_notes
         if run._settings.run_tags is not None:
-            for tag in run._settings.run_tags:
-                proto_run.tags.append(tag)
+            proto_run.tags.extend(run._settings.run_tags)
         if run._start_time is not None:
             proto_run.start_time.FromMicroseconds(int(run._start_time * 1e6))
         if run._starting_step is not None:
@@ -215,13 +241,6 @@ class InterfaceBase:
 
     @abstractmethod
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
-        raise NotImplementedError
-
-    def publish_metadata(self, metadata: pb.MetadataRequest) -> None:
-        self._publish_metadata(metadata)
-
-    @abstractmethod
-    def _publish_metadata(self, metadata: pb.MetadataRequest) -> None:
         raise NotImplementedError
 
     @abstractmethod
@@ -400,9 +419,13 @@ class InterfaceBase:
             proto_manifest.manifest_file_path = path
             return proto_manifest
 
+        # Set storage policy on storageLayout (always V2) and storageRegion, only allow coreweave-us on wandb.ai for now.
+        # NOTE: the decode logic is NewManifestFromProto in core/pkg/artifacts/manifest.go
+        # The creation logic is in artifacts/_factories.py make_storage_policy
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
             cfg = proto_manifest.storage_policy_config.add()
             cfg.key = k
+            # TODO: Why json.dumps when existing values are plain string? We want to send complex structure without defining the proto?
             cfg.value_json = json.dumps(v)
 
         for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):
@@ -671,6 +694,13 @@ class InterfaceBase:
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         raise NotImplementedError
 
+    def publish_environment(self, environment: pb.EnvironmentRecord) -> None:
+        self._publish_environment(environment)
+
+    @abstractmethod
+    def _publish_environment(self, environment: pb.EnvironmentRecord) -> None:
+        raise NotImplementedError
+
     def publish_partial_history(
         self,
         run: "Run",
@@ -884,6 +914,16 @@ class InterfaceBase:
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
+    def publish_probe_system_info(self) -> None:
+        probe_system_info = pb.ProbeSystemInfoRequest()
+        return self._publish_probe_system_info(probe_system_info)
+
+    @abstractmethod
+    def _publish_probe_system_info(
+        self, probe_system_info: pb.ProbeSystemInfoRequest
+    ) -> None:
+        raise NotImplementedError
+
     def join(self) -> None:
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
@@ -1000,16 +1040,6 @@ class InterfaceBase:
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_get_system_metadata(self) -> MailboxHandle[pb.Result]:
-        get_system_metadata = pb.GetSystemMetadataRequest()
-        return self._deliver_get_system_metadata(get_system_metadata)
-
-    @abstractmethod
-    def _deliver_get_system_metadata(
-        self, get_system_metadata: pb.GetSystemMetadataRequest
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
     def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle[pb.Result]:
         exit_data = self._make_exit(exit_code)
         return self._deliver_exit(exit_data)
@@ -1019,10 +1049,6 @@ class InterfaceBase:
         self,
         exit_data: pb.RunExitRecord,
     ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def deliver_operation_stats(self) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
     def deliver_poll_exit(self) -> MailboxHandle[pb.Result]:

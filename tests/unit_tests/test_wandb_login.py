@@ -75,8 +75,8 @@ def mock_tty(monkeypatch):
 
 def test_login_timeout(mock_tty):
     mock_tty("junk\nmore\n")
-    ret = wandb.login(timeout=4)
-    assert ret is False
+    logged_in = wandb.login(timeout=4)
+    assert logged_in is False
     assert wandb.api.api_key is None
     assert wandb.setup().settings.mode == "disabled"
 
@@ -87,8 +87,8 @@ def test_login_timeout(mock_tty):
 )
 def test_login_timeout_choose(mock_tty):
     mock_tty("3\n")
-    ret = wandb.login(timeout=8)
-    assert ret is False
+    logged_in = wandb.login(timeout=8)
+    assert logged_in is False
     assert wandb.api.api_key is None
     assert wandb.setup().settings.mode == "offline"
 
@@ -96,8 +96,8 @@ def test_login_timeout_choose(mock_tty):
 def test_login_timeout_env_blank(mock_tty):
     mock_tty("\n\n\n")
     with mock.patch.dict(os.environ, {"WANDB_LOGIN_TIMEOUT": "4"}):
-        ret = wandb.login()
-        assert ret is False
+        logged_in = wandb.login()
+        assert logged_in is False
         assert wandb.api.api_key is None
         assert wandb.setup().settings.mode == "disabled"
 
@@ -140,7 +140,7 @@ def test_login_anonymous():
         assert wandb.setup().settings.anonymous == "must"
 
 
-def test_login_sets_api_base_url(local_settings):
+def test_login_sets_api_base_url(local_settings, skip_verify_login):
     with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
         base_url = "https://api.test.host.ai"
         wandb.login(anonymous="must", host=base_url)

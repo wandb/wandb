@@ -600,6 +600,7 @@ type CreateArtifactInput struct {
 	DistributedID             *string                 `json:"distributedID"`
 	ClientID                  string                  `json:"clientID"`
 	SequenceClientID          string                  `json:"sequenceClientID"`
+	StorageRegion             *string                 `json:"storageRegion"`
 	ClientMutationId          *string                 `json:"clientMutationId"`
 }
 
@@ -659,6 +660,9 @@ func (v *CreateArtifactInput) GetClientID() string { return v.ClientID }
 
 // GetSequenceClientID returns CreateArtifactInput.SequenceClientID, and is useful for accessing the field via an interface.
 func (v *CreateArtifactInput) GetSequenceClientID() string { return v.SequenceClientID }
+
+// GetStorageRegion returns CreateArtifactInput.StorageRegion, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetStorageRegion() *string { return v.StorageRegion }
 
 // GetClientMutationId returns CreateArtifactInput.ClientMutationId, and is useful for accessing the field via an interface.
 func (v *CreateArtifactInput) GetClientMutationId() *string { return v.ClientMutationId }
@@ -1086,6 +1090,7 @@ type RunResumeStatusModelProjectBucketRun struct {
 	EventsTail       *string  `json:"eventsTail"`
 	Config           *string  `json:"config"`
 	Tags             []string `json:"tags"`
+	Notes            *string  `json:"notes"`
 	WandbConfig      *string  `json:"wandbConfig"`
 }
 
@@ -1121,6 +1126,9 @@ func (v *RunResumeStatusModelProjectBucketRun) GetConfig() *string { return v.Co
 
 // GetTags returns RunResumeStatusModelProjectBucketRun.Tags, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusModelProjectBucketRun) GetTags() []string { return v.Tags }
+
+// GetNotes returns RunResumeStatusModelProjectBucketRun.Notes, and is useful for accessing the field via an interface.
+func (v *RunResumeStatusModelProjectBucketRun) GetNotes() *string { return v.Notes }
 
 // GetWandbConfig returns RunResumeStatusModelProjectBucketRun.WandbConfig, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusModelProjectBucketRun) GetWandbConfig() *string { return v.WandbConfig }
@@ -2796,6 +2804,7 @@ query RunResumeStatus ($project: String, $entity: String, $name: String!) {
 			eventsTail
 			config
 			tags
+			notes
 			wandbConfig(keys: ["t"])
 		}
 	}

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -37,16 +37,18 @@ func TestServerFeaturesInitialization(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 	stubServerFeaturesQuery(mockGQL)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
-		context.Background(),
 		mockGQL,
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	// Assert - features are not loaded until Get is called
 	assert.Equal(t, 0, len(mockGQL.AllRequests()))
 
 	// Act
-	serverFeaturesCache.GetFeature(spb.ServerFeature_LARGE_FILENAMES)
+	serverFeaturesCache.GetFeature(
+		context.Background(),
+		spb.ServerFeature_LARGE_FILENAMES,
+	)
 
 	// Assert - Features are loaded after Get is called
 	assert.Equal(t, 1, len(mockGQL.AllRequests()))
@@ -57,14 +59,19 @@ func TestGetFeature(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 	stubServerFeaturesQuery(mockGQL)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
-		context.Background(),
 		mockGQL,
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	// Act
-	enabledFeatureValue := serverFeaturesCache.GetFeature(spb.ServerFeature_LARGE_FILENAMES)
-	disabledFeatureValue := serverFeaturesCache.GetFeature(spb.ServerFeature_ARTIFACT_TAGS)
+	enabledFeatureValue := serverFeaturesCache.GetFeature(
+		context.Background(),
+		spb.ServerFeature_LARGE_FILENAMES,
+	)
+	disabledFeatureValue := serverFeaturesCache.GetFeature(
+		context.Background(),
+		spb.ServerFeature_ARTIFACT_TAGS,
+	)
 
 	// Assert
 	assert.True(t, enabledFeatureValue.Enabled)
@@ -77,13 +84,15 @@ func TestGetFeature_MissingWithDefaultValue(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 	stubServerFeaturesQuery(mockGQL)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
-		context.Background(),
 		mockGQL,
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	// Act
-	missingFeatureValue := serverFeaturesCache.GetFeature(spb.ServerFeature_ARTIFACT_TAGS)
+	missingFeatureValue := serverFeaturesCache.GetFeature(
+		context.Background(),
+		spb.ServerFeature_ARTIFACT_TAGS,
+	)
 
 	// Assert
 	assert.False(t, missingFeatureValue.Enabled)
@@ -93,13 +102,15 @@ func TestGetFeature_MissingWithDefaultValue(t *testing.T) {
 func TestCreateFeaturesCache_WithNullGraphQLClient(t *testing.T) {
 	// Arrange
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
-		context.Background(),
 		nil,
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
 	// Act
-	feature := serverFeaturesCache.GetFeature(spb.ServerFeature_LARGE_FILENAMES)
+	feature := serverFeaturesCache.GetFeature(
+		context.Background(),
+		spb.ServerFeature_LARGE_FILENAMES,
+	)
 
 	// Assert
 	assert.False(t, feature.Enabled)
@@ -115,12 +126,14 @@ func TestGetFeature_GraphQLError(t *testing.T) {
 
 	// stubServerFeaturesQuery(mockGQL)
 	serverFeaturesCache := featurechecker.NewServerFeaturesCache(
-		context.Background(),
 		mockGQL,
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 	)
 
-	feature := serverFeaturesCache.GetFeature(spb.ServerFeature_LARGE_FILENAMES)
+	feature := serverFeaturesCache.GetFeature(
+		context.Background(),
+		spb.ServerFeature_LARGE_FILENAMES,
+	)
 
 	// Assert
 	assert.False(t, feature.Enabled)

@@ -19,13 +19,13 @@ from requests.compat import urljoin
 
 import wandb
 import wandb.util
-from wandb.sdk import wandb_run, wandb_setup
+from wandb.sdk import wandb_setup
 from wandb.sdk.lib import filesystem
 
 logger = logging.getLogger(__name__)
 
 
-def display_if_magic_is_used(run: wandb_run.Run) -> bool:
+def display_if_magic_is_used(run: wandb.Run) -> bool:
     """Display a run's page if the cell has the %%wandb cell magic.
 
     Args:
@@ -53,7 +53,7 @@ class _WandbCellMagicState:
         self._height = height
         self._already_displayed = False
 
-    def display_if_allowed(self, run: wandb_run.Run) -> None:
+    def display_if_allowed(self, run: wandb.Run) -> None:
         """Display a run's iframe if one is not already displayed.
 
         Args:
@@ -93,7 +93,7 @@ def _display_by_wandb_path(path: str, *, height: int) -> None:
         )
 
 
-def _display_wandb_run(run: wandb_run.Run, *, height: int) -> None:
+def _display_wandb_run(run: wandb.Run, *, height: int) -> None:
     """Display a run (usually in an iframe).
 
     Args:
@@ -461,7 +461,7 @@ class Notebook:
 
         return False
 
-    def save_history(self, run: wandb_run.Run):
+    def save_history(self, run: wandb.Run):
         """This saves all cell executions in the current session as a new notebook."""
         try:
             from nbformat import v4, validator, write  # type: ignore

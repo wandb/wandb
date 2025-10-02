@@ -28,8 +28,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-    from ..wandb_run import Run as LocalRun
-
     ImageDataType = Union[
         "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
     ]
@@ -101,7 +99,7 @@ def _convert_to_uint8(data: "np.ndarray") -> "np.ndarray":
     return data.astype(np.uint8)
 
 
-def _server_accepts_image_filenames(run: "LocalRun") -> bool:
+def _server_accepts_image_filenames(run: "wandb.Run") -> bool:
     if run.offline:
         return True
 
@@ -117,7 +115,7 @@ def _server_accepts_image_filenames(run: "LocalRun") -> bool:
     return accepts_image_filenames
 
 
-def _server_accepts_artifact_path(run: "LocalRun") -> bool:
+def _server_accepts_artifact_path(run: "wandb.Run") -> bool:
     if run.offline:
         return False
 
@@ -161,19 +159,29 @@ class Image(BatchableMedia):
         file_type: Optional[str] = None,
         normalize: bool = True,
     ) -> None:
-        """Initialize a wandb.Image object.
+        """Initialize a `wandb.Image` object.
+
+        This class handles various image data formats and automatically normalizes
+        pixel values to the range [0, 255] when needed, ensuring compatibility
+        with the W&B backend.
+
+        * Data in range [0, 1] is multiplied by 255 and converted to uint8
+        * Data in range [-1, 1] is rescaled from [-1, 1] to [0, 255] by mapping
+            -1 to 0 and 1 to 255, then converted to uint8
+        * Data outside [-1, 1] but not in [0, 255] is clipped to [0, 255] and
+            converted to uint8 (with a warning if values fall outside [0, 255])
+        * Data already in [0, 255] is converted to uint8 without modification
 
         Args:
-            data_or_path: Accepts numpy array/pytorch tensor of image data,
-                a PIL image object, or a path to an image file.
-
-                If a numpy array or pytorch tensor is provided,
+            data_or_path: Accepts NumPy array/pytorch tensor of image data,
+                a PIL image object, or a path to an image file. If a NumPy
+                array or pytorch tensor is provided,
                 the image data will be saved to the given file type.
                 If the values are not in the range [0, 255] or all values are in the range [0, 1],
                 the image pixel values will be normalized to the range [0, 255]
-                unless `normalize` is set to False.
-                - pytorch tensor should be in the format (channel, height, width)
-                - numpy array should be in the format (height, width, channel)
+                unless `normalize` is set to `False`.
+            - pytorch tensor should be in the format (channel, height, width)
+            - NumPy array should be in the format (height, width, channel)
             mode: The PIL mode for an image. Most common are "L", "RGB",
                 "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
             caption: Label for display of image.
@@ -181,62 +189,65 @@ class Image(BatchableMedia):
             classes: A list of class information for the image,
                 used for labeling bounding boxes, and image masks.
             boxes: A dictionary containing bounding box information for the image.
-                see: https://docs.wandb.ai/ref/python/data-types/boundingboxes2d/
+                see https://docs.wandb.ai/ref/python/data-types/boundingboxes2d/
             masks: A dictionary containing mask information for the image.
-                see: https://docs.wandb.ai/ref/python/data-types/imagemask/
+                see https://docs.wandb.ai/ref/python/data-types/imagemask/
             file_type: The file type to save the image as.
-                This parameter has no effect if data_or_path is a path to an image file.
-            normalize: If True, normalize the image pixel values to fall within the range of [0, 255].
-                Normalize is only applied if data_or_path is a numpy array or pytorch tensor.
+                This parameter has no effect if `data_or_path` is a path to an image file.
+            normalize: If `True`, normalize the image pixel values to fall within the range of [0, 255].
+                Normalize is only applied if `data_or_path` is a numpy array or pytorch tensor.
 
         Examples:
-            ### Create a wandb.Image from a numpy array
-            ```python
-            import numpy as np
-            import wandb
+        Create a wandb.Image from a numpy array
 
-            with wandb.init() as run:
-                examples = []
-                for i in range(3):
-                    pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                    image = wandb.Image(pixels, caption=f"random field {i}")
-                    examples.append(image)
-                run.log({"examples": examples})
-            ```
+        ```python
+        import numpy as np
+        import wandb
 
-            ### Create a wandb.Image from a PILImage
-            ```python
-            import numpy as np
-            from PIL import Image as PILImage
-            import wandb
+        with wandb.init() as run:
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                image = wandb.Image(pixels, caption=f"random field {i}")
+                examples.append(image)
+            run.log({"examples": examples})
+        ```
 
-            with wandb.init() as run:
-                examples = []
-                for i in range(3):
-                    pixels = np.random.randint(
-                        low=0, high=256, size=(100, 100, 3), dtype=np.uint8
-                    )
-                    pil_image = PILImage.fromarray(pixels, mode="RGB")
-                    image = wandb.Image(pil_image, caption=f"random field {i}")
-                    examples.append(image)
-                run.log({"examples": examples})
-            ```
+        Create a wandb.Image from a PILImage
 
-            ### log .jpg rather than .png (default)
-            ```python
-            import numpy as np
-            import wandb
+        ```python
+        import numpy as np
+        from PIL import Image as PILImage
+        import wandb
 
-            with wandb.init() as run:
-                examples = []
-                for i in range(3):
-                    pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-                    image = wandb.Image(
-                        pixels, caption=f"random field {i}", file_type="jpg"
-                    )
-                    examples.append(image)
-                run.log({"examples": examples})
-            ```
+        with wandb.init() as run:
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(
+                    low=0, high=256, size=(100, 100, 3), dtype=np.uint8
+                )
+                pil_image = PILImage.fromarray(pixels, mode="RGB")
+                image = wandb.Image(pil_image, caption=f"random field {i}")
+                examples.append(image)
+            run.log({"examples": examples})
+        ```
+
+        Log .jpg rather than .png (default)
+
+        ```python
+        import numpy as np
+        import wandb
+
+        with wandb.init() as run:
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                image = wandb.Image(
+                    pixels, caption=f"random field {i}", file_type="jpg"
+                )
+                examples.append(image)
+            run.log({"examples": examples})
+        ```
         """
         super().__init__(caption=caption)
         # TODO: We should remove grouping, it's a terrible name and I don't
@@ -442,6 +453,10 @@ class Image(BatchableMedia):
     def from_json(
         cls: Type["Image"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Image":
+        """Factory method to create an Audio object from a JSON object.
+
+        "<!-- lazydoc-ignore-classmethod: internal -->
+        """
         classes: Optional[Classes] = None
         if json_obj.get("classes") is not None:
             value = source_artifact.get(json_obj["classes"]["path"])
@@ -476,16 +491,24 @@ class Image(BatchableMedia):
 
     @classmethod
     def get_media_subdir(cls: Type["Image"]) -> str:
+        """Get media subdirectory.
+
+        "<!-- lazydoc-ignore-classmethod: internal -->
+        """
         return os.path.join("media", "images")
 
     def bind_to_run(
         self,
-        run: "LocalRun",
+        run: "wandb.Run",
         key: Union[int, str],
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
         ignore_copy_err: Optional[bool] = None,
     ) -> None:
+        """Bind this object to a run.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # For Images, we are going to avoid copying the image file to the run.
         # We should make this common functionality for all media types, but that
         # requires a broader UI refactor. This model can easily be moved to the
@@ -519,9 +542,11 @@ class Image(BatchableMedia):
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
-        from wandb.sdk.wandb_run import Run
+    def to_json(self, run_or_artifact: Union["wandb.Run", "Artifact"]) -> dict:
+        """Returns the JSON representation expected by the backend.
 
+        <!-- lazydoc-ignore: internal -->
+        """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type
         json_dict["format"] = self.format
@@ -558,8 +583,8 @@ class Image(BatchableMedia):
                     "digest": classes_entry.digest,
                 }
 
-        elif not isinstance(run_or_artifact, Run):
-            raise TypeError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+        elif not isinstance(run_or_artifact, wandb.Run):
+            raise TypeError("to_json accepts wandb.Run or wandb_artifact.Artifact")
 
         if self._boxes:
             json_dict["boxes"] = {
@@ -576,7 +601,10 @@ class Image(BatchableMedia):
         data: Union["np.ndarray", "torch.Tensor"],
         file_type: Optional[str] = None,
     ) -> str:
-        """Guess what type of image the np.array is representing."""
+        """Guess what type of image the np.array is representing.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         # TODO: do we want to support dimensions being at the beginning of the array?
         ndims = data.ndim
         if util.is_pytorch_tensor_typename(util.get_full_typename(data)):
@@ -608,11 +636,14 @@ class Image(BatchableMedia):
     def seq_to_json(
         cls: Type["Image"],
         seq: Sequence["BatchableMedia"],
-        run: "LocalRun",
+        run: "wandb.Run",
         key: str,
         step: Union[int, str],
     ) -> dict:
-        """Combine a list of images into a meta dictionary object describing the child images."""
+        """Convert a sequence of Image objects to a JSON representation.
+
+        "<!-- lazydoc-ignore-classmethod: internal -->
+        """
         if TYPE_CHECKING:
             seq = cast(Sequence["Image"], seq)
 
@@ -682,10 +713,14 @@ class Image(BatchableMedia):
     def all_masks(
         cls: Type["Image"],
         images: Sequence["Image"],
-        run: "LocalRun",
+        run: "wandb.Run",
         run_key: str,
         step: Union[int, str],
     ) -> Union[List[Optional[dict]], bool]:
+        """Collect all masks from a list of images.
+
+        "<!-- lazydoc-ignore-classmethod: internal -->
+        """
         all_mask_groups: List[Optional[dict]] = []
         for image in images:
             if image._masks:
@@ -705,10 +740,14 @@ class Image(BatchableMedia):
     def all_boxes(
         cls: Type["Image"],
         images: Sequence["Image"],
-        run: "LocalRun",
+        run: "wandb.Run",
         run_key: str,
         step: Union[int, str],
     ) -> Union[List[Optional[dict]], bool]:
+        """Collect all boxes from a list of images.
+
+        "<!-- lazydoc-ignore-classmethod: internal -->
+        """
         all_box_groups: List[Optional[dict]] = []
         for image in images:
             if image._boxes:
@@ -728,6 +767,10 @@ class Image(BatchableMedia):
     def all_captions(
         cls: Type["Image"], images: Sequence["Media"]
     ) -> Union[bool, Sequence[Optional[str]]]:
+        """Get captions from a list of images.
+
+        "<!-- lazydoc-ignore-classmethod: internal -->
+        """
         return cls.captions(images)
 
     def __ne__(self, other: object) -> bool:
@@ -758,6 +801,10 @@ class Image(BatchableMedia):
             )
 
     def to_data_array(self) -> List[Any]:
+        """Convert to data array.
+
+        <!-- lazydoc-ignore: internal -->
+        """
         res = []
         if self.image is not None:
             data = list(self.image.getdata())

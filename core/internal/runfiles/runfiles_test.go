@@ -7,7 +7,6 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -21,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/internal/watchertest"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -75,7 +75,10 @@ func TestUploader(t *testing.T) {
 	// Optional batch delay to use in the uploader.
 	var batchDelay *waitingtest.FakeDelay
 
-	// The files_dir to set on Settings.
+	// The sync_dir to set on Settings.
+	var syncDir string
+
+	// The files_dir derived from sync_dir (not configurable).
 	var filesDir string
 
 	// The ignore_globs to set on Settings.
@@ -95,7 +98,7 @@ func TestUploader(t *testing.T) {
 	) {
 		// Set a default and allow tests to override it.
 		batchDelay = nil
-		filesDir = t.TempDir()
+		syncDir = t.TempDir()
 		ignoreGlobs = []string{}
 		isOffline = false
 		isSync = false
@@ -110,19 +113,24 @@ func TestUploader(t *testing.T) {
 
 		fakeFileWatcher = watchertest.NewFakeWatcher()
 
-		uploader = NewUploader(runfilestest.WithTestDefaults(UploaderParams{
-			GraphQL:      mockGQLClient,
-			FileStream:   fakeFileStream,
-			FileTransfer: fakeFileTransfer,
-			FileWatcher:  fakeFileWatcher,
-			BatchDelay:   batchDelay,
-			Settings: settings.From(&spb.Settings{
-				FilesDir:    &wrapperspb.StringValue{Value: filesDir},
-				IgnoreGlobs: &spb.ListStringValue{Value: ignoreGlobs},
-				XOffline:    &wrapperspb.BoolValue{Value: isOffline},
-				XSync:       &wrapperspb.BoolValue{Value: isSync},
-			}),
-		}))
+		settings := settings.From(&spb.Settings{
+			SyncDir:     &wrapperspb.StringValue{Value: syncDir},
+			IgnoreGlobs: &spb.ListStringValue{Value: ignoreGlobs},
+			XOffline:    &wrapperspb.BoolValue{Value: isOffline},
+			XSync:       &wrapperspb.BoolValue{Value: isSync},
+		})
+		filesDir = settings.GetFilesDir()
+
+		uploader = runfilestest.WithTestDefaults(t,
+			runfilestest.Params{
+				GraphQL:      mockGQLClient,
+				FileStream:   fakeFileStream,
+				FileTransfer: fakeFileTransfer,
+				FileWatcher:  fakeFileWatcher,
+				Settings:     settings,
+				BatchDelay:   batchDelay,
+			},
+		)
 
 		t.Run(name, test)
 	}
@@ -368,7 +376,7 @@ func TestUploader(t *testing.T) {
 		})
 
 	runTest("UploadRemaining uploads all files using GraphQL response",
-		func() { filesDir = filepath.Join(t.TempDir(), "files") },
+		func() {},
 		func(t *testing.T) {
 			mockGQLClient.StubMatchOnce(
 				gqlmock.WithOpName("CreateRunFiles"),

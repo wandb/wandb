@@ -7,6 +7,9 @@ core/vendor/** linguist-vendored
 **/*.pb.go linguist-generated
 gpu_stats/src/wandb_internal.rs linguist-generated
 
+# https://github.com/google/wire
+**/wire_gen.go linguist-generated
+
 # Our own generated files.
 *_generated.py linguist-generated
 **/_generated/*.py linguist-generated

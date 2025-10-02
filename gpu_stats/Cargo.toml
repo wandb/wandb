@@ -1,6 +1,6 @@
 [package]
 name = "gpu_stats"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 
 [[bin]]
@@ -33,6 +33,7 @@ tonic-build = "0.13.1"
 tempfile = "3.20.0"
 
 libloading = "0.8"
+async-trait = "0.1"
 
 [target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dependencies]
 which = "7.0.3"

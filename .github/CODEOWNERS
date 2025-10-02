@@ -47,13 +47,28 @@
 # GitHub configuration
 /.github @wandb/sdk-team
 
+# Internal helpers: used by multiple teams, any here can approve
+/wandb/_iterutils.py @wandb/sdk-team @wandb/art-reg-team
+/wandb/_strutils.py @wandb/sdk-team @wandb/art-reg-team
+/wandb/_pydantic/ @wandb/sdk-team @wandb/art-reg-team
 
-# Artifacts, Automations, and Launch teams
-/core/pkg/artifacts/ @wandb/mlw-team
-/wandb/sdk/artifacts/ @wandb/mlw-team
-/wandb/automations/ @wandb/mlw-team
-/tests/system_tests/test_artifacts/ @wandb/mlw-team
-/tests/system_tests/test_automations/ @wandb/mlw-team
-/tests/unit_tests/test_artifacts/ @wandb/mlw-team
-/tests/unit_tests/test_automations/ @wandb/mlw-team
-/tests/unit_tests/test_launch/ @wandb/mlw-team
+
+# Artifacts, Registries, Automations
+/core/pkg/artifacts/                  @wandb/art-reg-team @wandb/sdk-team
+/wandb/sdk/artifacts/                 @wandb/art-reg-team @wandb/sdk-team
+/wandb/automations/                   @wandb/art-reg-team @wandb/sdk-team
+/wandb/apis/public/registries/        @wandb/art-reg-team @wandb/sdk-team
+/wandb/apis/public/artifacts.py       @wandb/art-reg-team @wandb/sdk-team
+/wandb/apis/public/automations.py     @wandb/art-reg-team @wandb/sdk-team
+/wandb/apis/public/integrations.py    @wandb/art-reg-team @wandb/sdk-team
+/tests/system_tests/test_artifacts/   @wandb/art-reg-team @wandb/sdk-team
+/tests/system_tests/test_registries/  @wandb/art-reg-team @wandb/sdk-team
+/tests/system_tests/test_automations/ @wandb/art-reg-team @wandb/sdk-team
+/tests/unit_tests/test_artifacts/     @wandb/art-reg-team @wandb/sdk-team
+/tests/unit_tests/test_registries/    @wandb/art-reg-team @wandb/sdk-team
+/tests/unit_tests/test_automations/   @wandb/art-reg-team @wandb/sdk-team
+
+# Launch
+/wandb/sdk/launch/                    @wandb/sweeps-launch-team @wandb/sdk-team
+/tests/system_tests/test_launch/      @wandb/sweeps-launch-team @wandb/sdk-team
+/tests/unit_tests/test_launch/        @wandb/sweeps-launch-team @wandb/sdk-team

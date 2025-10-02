@@ -2,162 +2,147 @@ package stream
 
 import (
 	"fmt"
-	"os"
 	"sync"
 
+	"github.com/google/wire"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-type WriterParams struct {
+var WriterProviders = wire.NewSet(
+	wire.Struct(new(WriterFactory), "*"),
+)
+
+type WriterFactory struct {
 	Logger   *observability.CoreLogger
 	Settings *settings.Settings
-	FwdChan  chan runwork.Work
 }
 
-// Writer is responsible for writing messages to the append-only log.
-// It receives messages from the handler, processes them,
-// if the message is to be persisted it writes them to the log.
-// It also sends the messages to the sender.
+// Writer saves work to the transaction log.
+//
+// The transaction log is primarily used for offline runs. During online runs,
+// it is used for data recovery in case there is an issue uploading data.
 type Writer struct {
-	// settings is the settings for the writer
-	settings *settings.Settings
+	logger   *observability.CoreLogger // logger for debugging
+	settings *settings.Settings        // the run's settings
 
-	// logger is the logger for the writer
-	logger *observability.CoreLogger
+	// out is the channel to which processed Work is added.
+	out chan runwork.MaybeSavedWork
 
-	// fwdChan is a channel of work to pass to the Sender
-	fwdChan chan runwork.Work
+	// writerMu is a mutex for write operations.
+	writerMu sync.Mutex
 
-	// storeChan is the channel for messages to be stored
-	storeChan chan *spb.Record
+	// writer writes to the underlying file.
+	writer *transactionlog.Writer
 
-	// store is the store for the writer
-	store *Store
+	// finished is true after we're done writing.
+	finished bool
 
-	// recordNum is the running count of stored records
+	// recordNum the number of records we've attempted to save.
 	recordNum int64
-
-	// wg is the wait group for the writer
-	wg sync.WaitGroup
 }
 
-// NewWriter returns a new Writer
-func NewWriter(params WriterParams) *Writer {
-	w := &Writer{
-		wg:       sync.WaitGroup{},
-		logger:   params.Logger,
-		settings: params.Settings,
-		fwdChan:  params.FwdChan,
+// New returns a new Writer.
+func (f *WriterFactory) New(writer *transactionlog.Writer) *Writer {
+	return &Writer{
+		logger:   f.Logger,
+		settings: f.Settings,
+		out:      make(chan runwork.MaybeSavedWork),
+		writer:   writer,
 	}
-	return w
 }
 
-func (w *Writer) startStore() {
-	if w.settings.IsSync() {
-		// do not set up store if we are syncing an offline run
-		return
-	}
-
-	w.storeChan = make(chan *spb.Record, BufferSize*8)
-
-	var err error
-	w.store = NewStore(w.settings.GetTransactionLogPath())
-	err = w.store.Open(os.O_WRONLY)
-	if err != nil {
-		w.logger.CaptureFatalAndPanic(
-			fmt.Errorf("writer: startStore: error creating store: %v", err))
-	}
-
-	w.wg.Add(1)
-	go func() {
-		for record := range w.storeChan {
-			if err = w.store.Write(record); err != nil {
-				w.logger.CaptureError(
-					fmt.Errorf(
-						"writer: startStore: error storing record: %v",
-						err,
-					))
-			}
-		}
-
-		if err = w.store.Close(); err != nil {
-			w.logger.CaptureError(
-				fmt.Errorf("writer: startStore: error closing store: %v", err))
-		}
-		w.wg.Done()
-	}()
+// Chan returns the output channel.
+func (w *Writer) Chan() <-chan runwork.MaybeSavedWork {
+	return w.out
 }
 
-// Do processes all records on the input channel.
+// Do saves all input Work and pushes it to the output channel,
+// closing it and the transaction log writer at the end.
 func (w *Writer) Do(allWork <-chan runwork.Work) {
 	defer w.logger.Reraise()
-	w.logger.Info("writer: Do: started", "stream_id", w.settings.GetRunID())
-
-	w.startStore()
+	defer close(w.out)
+	w.logger.Info("writer: started", "stream_id", w.settings.GetRunID())
 
 	for work := range allWork {
 		w.logger.Debug(
-			"write: Do: got work",
+			"writer: got work",
 			"work", work,
 			"stream_id", w.settings.GetRunID(),
 		)
 
-		work.Save(w.writeRecord)
+		savedWork := runwork.MaybeSavedWork{Work: work}
+
+		record := work.ToRecord()
+		if !w.isLocal(record) {
+			recordNum := w.setNumber(record)
+			offset, err := w.write(record)
+
+			if err != nil {
+				w.logger.CaptureError(
+					fmt.Errorf("writer: failed to save record: %v", err))
+			} else {
+				savedWork.IsSaved = true
+				savedWork.SavedOffset = offset
+				savedWork.RecordNumber = recordNum
+			}
+		}
 
 		if w.settings.IsOffline() && !work.BypassOfflineMode() {
 			continue
 		}
 
-		w.fwdChan <- work
+		w.out <- savedWork
 	}
 
-	w.Close()
-	w.wg.Wait()
-}
+	w.writerMu.Lock()
+	defer w.writerMu.Unlock()
+	w.finished = true
 
-// Close closes the writer and all its resources
-// which includes the store
-func (w *Writer) Close() {
-	close(w.fwdChan)
-	if w.storeChan != nil {
-		close(w.storeChan)
-	}
-	w.logger.Info("writer: Close: closed", "stream_id", w.settings.GetRunID())
-}
-
-// writeRecord Writing messages to the append-only log,
-// and passing them to the sender.
-// Ensure that the messages are numbered and written to the transaction log
-// before network operations could block processing of the record.
-func (w *Writer) writeRecord(record *spb.Record) {
-	switch record.RecordType.(type) {
-	case *spb.Record_Request:
-		// Requests are never written to the transaction log.
-	case nil:
-		w.logger.Error("writer: writeRecord: nil record type")
-
-	default:
-		w.applyRecordNumber(record)
-		w.storeRecord(record)
+	if err := w.writer.Close(); err != nil {
+		w.logger.CaptureError(
+			fmt.Errorf("writer: failed closing store: %v", err))
 	}
 }
 
-// applyRecordNumber labels the protobuf with an increasing number to be stored in transaction log
-func (w *Writer) applyRecordNumber(record *spb.Record) {
-	if record.GetControl().GetLocal() {
-		return
-	}
+// isLocal returns true if the record should not be written to disk.
+//
+// Requests are never written to disk, and some records can be explicitly marked
+// "local" as well.
+func (w *Writer) isLocal(record *spb.Record) bool {
+	return record.GetRequest() != nil || record.GetControl().GetLocal()
+}
+
+// setNumber sets the record's number and increments the current number.
+func (w *Writer) setNumber(record *spb.Record) int64 {
 	w.recordNum += 1
 	record.Num = w.recordNum
+	return w.recordNum
 }
 
-// storeRecord stores the record in the append-only log
-func (w *Writer) storeRecord(record *spb.Record) {
-	if record.GetControl().GetLocal() {
-		return
+// write saves the record to the transaction log.
+func (w *Writer) write(record *spb.Record) (int64, error) {
+	w.writerMu.Lock()
+	defer w.writerMu.Unlock()
+
+	if err := w.writer.Write(record); err != nil {
+		return 0, err
 	}
-	w.storeChan <- record
+
+	return w.writer.LastRecordOffset()
+}
+
+// Flush ensures all Work the Writer has output has been written to disk.
+func (w *Writer) Flush() error {
+	w.writerMu.Lock()
+	defer w.writerMu.Unlock()
+
+	if w.finished {
+		return nil
+	}
+
+	return w.writer.Flush()
 }
