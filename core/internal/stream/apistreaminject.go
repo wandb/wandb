@@ -26,22 +26,23 @@ func InjectApiStream(
 	logLevel slog.Level,
 	sentry *sentry_ext.Client,
 	settings *settings.Settings,
-) Stream {
+) Streamer {
 	wire.Build(apiStreamProviders)
 	return nil
 }
 
 var apiStreamProviders = wire.NewSet(
 	NewApiStream,
-	wire.Bind(new(Stream), new(*ApiStream)),
+	wire.Bind(new(Streamer), new(*ApiStream)),
 	wire.Bind(new(api.Peeker), new(*observability.Peeker)),
 	wire.Struct(new(observability.Peeker)),
-	streamLoggerProviders,
-	provideApiStreamIDAsString,
 	NewBackend,
-	sharedmode.RandomClientID,
 	NewGraphQLClient,
+	provideApiStreamIDAsString,
 	provideHttpClient,
+	sharedmode.RandomClientID,
+	streamLoggerProviders,
+	RecordParserProviders,
 )
 
 // provideApiStreamIDAsString converts ApiStreamID to string for NewApiStream.

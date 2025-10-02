@@ -1,9 +1,8 @@
 package stream
 
 import (
-	"net/http"
+	"sync"
 
-	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -14,12 +13,10 @@ import (
 type ApiStream struct {
 	StreamID string
 
-	dispatcher    *Dispatcher
-	graphqlClient graphql.Client
-	httpClient    *http.Client
-	inChan        chan *spb.Record
-	logger        *observability.CoreLogger
-	settings      *settings.Settings
+	dispatcher *Dispatcher
+	logger     *observability.CoreLogger
+	settings   *settings.Settings
+	wg         sync.WaitGroup
 }
 
 // NewApiStream creates a new ApiStream.
@@ -27,18 +24,14 @@ func NewApiStream(
 	streamID string,
 	settings *settings.Settings,
 	logger *observability.CoreLogger,
-	graphqlClient graphql.Client,
-	httpClient *http.Client,
 ) *ApiStream {
 	return &ApiStream{
 		StreamID: streamID,
 
-		dispatcher:    NewDispatcher(logger),
-		graphqlClient: graphqlClient,
-		httpClient:    httpClient,
-		inChan:        make(chan *spb.Record),
-		logger:        logger,
-		settings:      settings,
+		dispatcher: NewDispatcher(logger),
+		logger:     logger,
+		settings:   settings,
+		wg:         sync.WaitGroup{},
 	}
 }
 
@@ -50,7 +43,7 @@ func (s *ApiStream) Start() {
 
 // HandleRecord implements Stream.HandleRecord.
 func (s *ApiStream) HandleRecord(record *spb.Record) {
-	s.inChan <- record
+	// TODO: implement an api handler
 }
 
 // GetSettings implements Stream.GetSettings.
