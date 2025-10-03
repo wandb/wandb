@@ -754,6 +754,9 @@ def save(
     When given an absolute path or glob and no `base_path`, one
     directory level is preserved as in the example above.
 
+    Files are automatically deduplicated: calling `save()` multiple times
+    on the same file without modifications will not re-upload it.
+
     Args:
         glob_str: A relative or absolute path or Unix glob.
         base_path: A path to use to infer a directory structure; see examples.
