@@ -3,13 +3,12 @@ package runfiles
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -52,14 +51,12 @@ type savedFile struct {
 	// `reuploadScheduled`.
 	reuploadHeaders []string
 
-	// The size of the file when it was last uploaded.
-	//
-	// Used to avoid re-uploading files that haven't changed.
-	lastUploadedSize int64
+	// Hash of the last successfully uploaded content (base64 MD5).
+	lastUploadedB64MD5 string
 
-	// The modification time of the file when it was last uploaded.
-	// Used to avoid re-uploading files that haven't changed.
-	lastUploadedMtime time.Time
+	// Hash of the file content at the moment the current upload started.
+	// Set only while an upload is in-flight.
+	uploadingB64MD5 string
 }
 
 func newSavedFile(
@@ -88,32 +85,39 @@ func (f *savedFile) SetCategory(category filetransfer.RunFileKind) {
 	f.category = category
 }
 
-// isUnchanged checks whether the file has not changed since the last upload.
-//
-// Must be called with the lock held.
-func (f *savedFile) isUnchanged() bool {
-	info, err := os.Stat(f.realPath)
-	if err != nil {
-		return false // Be conservative: try to upload in case of an error.
-	}
-	return info.Size() == f.lastUploadedSize && info.ModTime().Equal(f.lastUploadedMtime)
-}
-
 // Upload schedules an upload of savedFile.
 //
 // If there is an ongoing upload operation for the file, the new upload
 // is scheduled to happen after the previous one completes.
-func (f *savedFile) Upload(
-	url string,
-	headers []string,
-) {
+func (f *savedFile) Upload(url string, headers []string) {
+	f.Lock()
+
+	if f.isFinished {
+		f.Unlock()
+		return
+	}
+
+	if f.isUploading {
+		f.reuploadScheduled = true
+		f.reuploadURL = url
+		f.reuploadHeaders = headers
+		f.Unlock()
+		return
+	}
+
+	// Not uploading and not finished: we intend to decide based on bytes.
+	// Drop the lock while doing IO.
+	f.Unlock()
+
+	currentB64MD5, err := hashencode.ComputeFileB64MD5(f.realPath)
+	if err != nil {
+		currentB64MD5 = "" // treat as "changed" below
+	}
+
+	// Re-acquire and double-check state in case it changed while we hashed.
 	f.Lock()
 	defer f.Unlock()
 	if f.isFinished {
-		return
-	}
-	// Early exit: no change since last successful upload, and not currently uploading.
-	if !f.isUploading && f.isUnchanged() {
 		return
 	}
 	if f.isUploading {
@@ -122,6 +126,13 @@ func (f *savedFile) Upload(
 		f.reuploadHeaders = headers
 		return
 	}
+
+	// Check if content unchanged using pre-computed hash.
+	if currentB64MD5 != "" && f.lastUploadedB64MD5 == currentB64MD5 {
+		return
+	}
+
+	f.uploadingB64MD5 = currentB64MD5
 	f.doUpload(url, headers)
 }
 
@@ -156,10 +167,6 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 // onFinishUpload marks an upload completed and triggers another if scheduled.
 func (f *savedFile) onFinishUpload(task *filetransfer.DefaultUploadTask) {
 	if task.Err == nil {
-		if info, err := os.Stat(f.realPath); err == nil {
-			f.lastUploadedSize = info.Size()
-			f.lastUploadedMtime = info.ModTime()
-		}
 		f.fs.StreamUpdate(&filestream.FilesUploadedUpdate{
 			// Convert backslashes to forward slashes in the file path.
 			// Since the backend API requires forward slashes.
@@ -168,12 +175,33 @@ func (f *savedFile) onFinishUpload(task *filetransfer.DefaultUploadTask) {
 	}
 
 	f.Lock()
+	defer f.Unlock()
+
+	if task.Err == nil {
+		if f.uploadingB64MD5 != "" {
+			f.lastUploadedB64MD5 = f.uploadingB64MD5
+		} else if b64, err := hashencode.ComputeFileB64MD5(f.realPath); err == nil {
+			f.lastUploadedB64MD5 = b64
+		} else {
+			f.lastUploadedB64MD5 = ""
+		}
+	}
+
 	f.isUploading = false
 	if f.reuploadScheduled {
 		f.reuploadScheduled = false
-		f.doUpload(f.reuploadURL, f.reuploadHeaders)
+
+		// Unlock temporarily to compute hash.
+		f.Unlock()
+		currentB64, err := hashencode.ComputeFileB64MD5(f.realPath)
+		shouldReupload := (err != nil) || (f.lastUploadedB64MD5 == "") || (currentB64 != f.lastUploadedB64MD5)
+		f.uploadingB64MD5 = currentB64
+		f.Lock()
+
+		if shouldReupload {
+			f.doUpload(f.reuploadURL, f.reuploadHeaders)
+		}
 	}
-	f.Unlock()
 
 	f.wg.Done()
 }
