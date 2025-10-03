@@ -91,21 +91,10 @@ func (f *savedFile) SetCategory(category filetransfer.RunFileKind) {
 // is scheduled to happen after the previous one completes.
 func (f *savedFile) Upload(url string, headers []string) {
 	f.Lock()
-
-	if f.isFinished {
+	if f.shouldDeferUpload(url, headers) {
 		f.Unlock()
 		return
 	}
-
-	if f.isUploading {
-		f.reuploadScheduled = true
-		f.reuploadURL = url
-		f.reuploadHeaders = headers
-		f.Unlock()
-		return
-	}
-
-	// Not uploading and not finished: we intend to decide based on bytes.
 	// Drop the lock while doing IO.
 	f.Unlock()
 
@@ -117,13 +106,7 @@ func (f *savedFile) Upload(url string, headers []string) {
 	// Re-acquire and double-check state in case it changed while we hashed.
 	f.Lock()
 	defer f.Unlock()
-	if f.isFinished {
-		return
-	}
-	if f.isUploading {
-		f.reuploadScheduled = true
-		f.reuploadURL = url
-		f.reuploadHeaders = headers
+	if f.shouldDeferUpload(url, headers) {
 		return
 	}
 
@@ -134,6 +117,26 @@ func (f *savedFile) Upload(url string, headers []string) {
 
 	f.uploadingB64MD5 = currentB64MD5
 	f.doUpload(url, headers)
+}
+
+// shouldDeferUpload handles the early-return logic in f.Upload.
+//
+// Callers must hold f.Lock().
+//
+// Returns true if the caller should return immediately (either because the
+// file is finished, or because an upload is already in-flight, in which case
+// a reupload is queued).
+func (f *savedFile) shouldDeferUpload(url string, headers []string) bool {
+	if f.isFinished {
+		return true
+	}
+	if f.isUploading {
+		f.reuploadScheduled = true
+		f.reuploadURL = url
+		f.reuploadHeaders = headers
+		return true
+	}
+	return false
 }
 
 // doUpload sends an upload Task to the FileTransferManager.
