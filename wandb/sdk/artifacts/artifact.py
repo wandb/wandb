@@ -128,7 +128,6 @@ from .artifact_download_logger import ArtifactDownloadLogger
 from .artifact_instance_cache import artifact_instance_cache
 from .artifact_manifest import ArtifactManifest
 from .artifact_manifest_entry import ArtifactManifestEntry
-from .artifact_manifests.artifact_manifest_v1 import ArtifactManifestV1
 from .artifact_state import ArtifactState
 from .artifact_ttl import ArtifactTTL
 from .exceptions import (
@@ -269,7 +268,7 @@ class Artifact:
         self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
         self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
-            ArtifactManifestV1(storage_policy=make_storage_policy(storage_region))
+            ArtifactManifest.from_storage_policy(make_storage_policy(storage_region))
         )
         self._commit_hash: str | None = None
         self._file_count: int | None = None
