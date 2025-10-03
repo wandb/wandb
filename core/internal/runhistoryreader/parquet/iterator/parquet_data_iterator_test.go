@@ -22,8 +22,10 @@ func getRowIteratorForFile(
 	t *testing.T,
 	filePath string,
 	keys []string,
-	opt RowIteratorOption,
-) (RowIterator, func()) {
+	config IteratorConfig,
+) RowIterator {
+	t.Helper()
+
 	pr, err := file.OpenParquetFile(filePath, true)
 	require.NoError(t, err)
 	r, err := pqarrow.NewFileReader(pr, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
@@ -32,13 +34,15 @@ func getRowIteratorForFile(
 		context.Background(),
 		r,
 		keys,
-		opt,
+		config,
 	)
 	require.NoError(t, err)
-	return it, func() {
+
+	t.Cleanup(func() {
 		it.Release()
 		pr.Close()
-	}
+	})
+	return it
 }
 
 func TestSelectRowGroups(t *testing.T) {
@@ -64,19 +68,16 @@ func TestSelectRowGroups(t *testing.T) {
 
 	// all row groups should be read
 	ctx := context.Background()
-	page := HistoryPageParams{
-		MinStep: 0,
-		MaxStep: 999,
-	}
-	it, err := NewRowIterator(ctx, r, []string{"_step"}, WithHistoryPageRange(page))
+	config := NewSelectAllRowsIteratorConfig(StepKey)
+	it, err := NewRowIterator(ctx, r, []string{"_step"}, config)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assert.Equal(t, 5, len(it.RowGroupIndices()))
 
 	// only row groups within the requested step range should be read
-	page.MaxStep = 500
-	it, err = NewRowIterator(ctx, r, []string{"_step"}, WithHistoryPageRange(page))
+	config = NewRowFilteredIteratorConfig(StepKey, 0, 500)
+	it, err = NewRowIterator(ctx, r, []string{"_step"}, config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,13 +104,13 @@ func TestRowIterator_WithHistoryPageRange(t *testing.T) {
 		schema,
 		data,
 	)
-	it, cleanup := getRowIteratorForFile(
+	it := getRowIteratorForFile(
 		t,
 		filePath,
 		[]string{"loss"},
-		WithHistoryPageRange(HistoryPageParams{MinStep: 0, MaxStep: 2}),
+		NewRowFilteredIteratorConfig(StepKey, 0, 2),
+		// NewSelectAllRowsIteratorConfig(StepKey),
 	)
-	defer cleanup()
 
 	next, err := it.Next()
 	assert.NoError(t, err)
@@ -143,16 +144,12 @@ func TestRowIterator_WithEventsPageRange(t *testing.T) {
 		schema,
 		data,
 	)
-	it, cleanup := getRowIteratorForFile(
+	it := getRowIteratorForFile(
 		t,
 		filePath,
 		[]string{"loss"},
-		WithEventsPageRange(EventsPageParams{
-			MinTimestamp: 0.0,
-			MaxTimestamp: 2.0,
-		}),
+		NewRowFilteredIteratorConfig(TimestampKey, 0.0, 2.0),
 	)
-	defer cleanup()
 
 	next, err := it.Next()
 	assert.NoError(t, err)
@@ -170,16 +167,12 @@ func TestRowIterator_ReleaseFreesMemory(t *testing.T) {
 	defer allocator.AssertSize(t, 0)
 
 	filePath := "../../../../tests/files/history.parquet"
-	it, cleanup := getRowIteratorForFile(
+	it := getRowIteratorForFile(
 		t,
 		filePath,
-		[]string{"loss"},
-		WithHistoryPageRange(HistoryPageParams{
-			MinStep: 0,
-			MaxStep: 999,
-		}),
+		[]string{"_step"},
+		NewSelectAllRowsIteratorConfig(StepKey),
 	)
-	defer cleanup()
 
 	next, err := it.Next()
 	i := 0
@@ -188,7 +181,7 @@ func TestRowIterator_ReleaseFreesMemory(t *testing.T) {
 		assert.True(t, next)
 		assert.Equal(
 			t,
-			KeyValueList{{Key: "_step", Value: int64(i + 1)}},
+			KeyValueList{{Key: "_step", Value: float64(i)}},
 			it.Value(),
 		)
 		i++
@@ -221,11 +214,8 @@ func TestRowIterator_EmptyFile(t *testing.T) {
 
 	// all row groups should be read
 	ctx := context.Background()
-	page := HistoryPageParams{
-		MinStep: 0,
-		MaxStep: 999,
-	}
-	it, err := NewRowIterator(ctx, r, []string{"_step"}, WithHistoryPageRange(page))
+	config := NewSelectAllRowsIteratorConfig(StepKey)
+	it, err := NewRowIterator(ctx, r, []string{"_step"}, config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,18 +240,21 @@ func TestRowIterator_WithMissingColumns(t *testing.T) {
 	}
 	filePath := filepath.Join(t.TempDir(), "test.parquet")
 	test.CreateTestParquetFileFromData(t, filePath, schema, data)
-	it, cleanup := getRowIteratorForFile(
-		t,
-		filePath,
-		[]string{"_step", "loss", "nonexistent_column"},
-		WithHistoryPageRange(HistoryPageParams{MinStep: 0, MaxStep: 2}),
-	)
-	defer cleanup()
 
-	// Expect no data returned
-	next, err := it.Next()
-	assert.NoError(t, err)
-	assert.False(t, next)
+	pr, err := file.OpenParquetFile(filePath, true)
+	require.NoError(t, err)
+	r, err := pqarrow.NewFileReader(pr, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
+	require.NoError(t, err)
+
+	_, err = NewRowIterator(
+		context.Background(),
+		r,
+		[]string{"_step", "loss", "nonexistent_column"},
+		NewRowFilteredIteratorConfig(StepKey, 0, 2),
+	)
+
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "column nonexistent_column selected but not found")
 }
 
 func TestRowIterator_WithComplexColumns(t *testing.T) {
@@ -292,16 +285,12 @@ func TestRowIterator_WithComplexColumns(t *testing.T) {
 	}
 	tempFile := filepath.Join(t.TempDir(), "test_list_of_structs.parquet")
 	test.CreateTestParquetFileFromData(t, tempFile, schema, data)
-	it, cleanup := getRowIteratorForFile(
+	it := getRowIteratorForFile(
 		t,
 		tempFile,
 		[]string{},
-		WithHistoryPageRange(HistoryPageParams{
-			MinStep: 0,
-			MaxStep: math.MaxInt64,
-		}),
+		NewRowFilteredIteratorConfig(StepKey, 0, math.MaxInt64),
 	)
-	defer cleanup()
 
 	// Verify all rows match the input data
 	for i, row := range data {
@@ -345,12 +334,6 @@ func TestSelectColumns(t *testing.T) {
 		wantErr     bool
 	}{
 		{
-			name:        "select all columns when empty list",
-			columns:     []string{},
-			wantIndices: []int{0, 1, 2, 3},
-			wantErr:     false,
-		},
-		{
 			name:        "select specific columns",
 			columns:     []string{"_step", "loss"},
 			wantIndices: []int{0, 1},
@@ -378,41 +361,15 @@ func TestSelectColumns(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			indices, err := selectColumns(s, tt.columns)
+			selectedColumns, err := SelectOnlyColumns(tt.columns, s)
+
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
+				indices := selectedColumns.GetColumnIndices()
 				assert.NoError(t, err)
 				assert.Equal(t, tt.wantIndices, indices)
 			}
 		})
 	}
-}
-
-func TestIteratorConfig_Applies_Changes(t *testing.T) {
-	t.Run("WithHistoryPageRange", func(t *testing.T) {
-		config := IteratorConfig{}
-		page := HistoryPageParams{
-			MinStep: 10,
-			MaxStep: 100,
-		}
-		config.Apply(WithHistoryPageRange(page))
-
-		assert.Equal(t, StepKey, config.Key)
-		assert.Equal(t, float64(10), config.Min)
-		assert.Equal(t, float64(100), config.Max)
-	})
-
-	t.Run("WithEventsPageRange", func(t *testing.T) {
-		config := IteratorConfig{}
-		page := EventsPageParams{
-			MinTimestamp: 1000.5,
-			MaxTimestamp: 2000.5,
-		}
-		config.Apply(WithEventsPageRange(page))
-
-		assert.Equal(t, TimestampKey, config.Key)
-		assert.Equal(t, 1000.5, config.Min)
-		assert.Equal(t, 2000.5, config.Max)
-	})
 }

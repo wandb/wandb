@@ -6,6 +6,11 @@ import (
 	"github.com/apache/arrow-go/v18/arrow"
 )
 
+type keyIteratorPair struct {
+	Key      string
+	Iterator columnIterator
+}
+
 // recordIterator iterates over columnIterators
 // to read columns in the given arrow.RecordBatch in chunks.
 type recordIterator struct {
@@ -31,7 +36,7 @@ func (r *recordIterator) Apply(opts ...RecordIteratorOption) {
 
 func RecordIteratorWithPage(config IteratorConfig) RecordIteratorOption {
 	return func(t *recordIterator) {
-		t.indexKey = config.Key
+		t.indexKey = config.key
 		t.validIndex = func(it columnIterator) bool {
 			if it == nil {
 				return false
@@ -39,8 +44,8 @@ func RecordIteratorWithPage(config IteratorConfig) RecordIteratorOption {
 			// cache the type of Value()
 			switch it.Value().(type) {
 			case int64:
-				minStep := int64(config.Min)
-				maxStep := int64(config.Max)
+				minStep := int64(config.min)
+				maxStep := int64(config.max)
 				t.validIndex = func(it columnIterator) bool {
 					step, ok := it.Value().(int64)
 					if !ok {
@@ -55,7 +60,7 @@ func RecordIteratorWithPage(config IteratorConfig) RecordIteratorOption {
 						return false
 					}
 
-					return indexVal >= config.Min && indexVal < config.Max
+					return indexVal >= config.min && indexVal < config.max
 				}
 			default:
 				t.validIndex = func(columnIterator) bool {
