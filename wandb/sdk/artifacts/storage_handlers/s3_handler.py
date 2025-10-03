@@ -6,7 +6,7 @@ import os
 import re
 import time
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qsl, urlparse
 
 from wandb import util
@@ -32,16 +32,18 @@ if TYPE_CHECKING:
     import boto3.session  # type: ignore
 
     from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 
 
 class S3Handler(StorageHandler):
-    _s3: boto3.resources.base.ServiceResource | None
     _scheme: str
+    _cache: ArtifactFileCache
+    _s3: boto3.resources.base.ServiceResource | None
 
-    def __init__(self, scheme: str | None = None) -> None:
-        self._scheme = scheme or "s3"
-        self._s3 = None
+    def __init__(self, scheme: str = "s3") -> None:
+        self._scheme = scheme
         self._cache = get_artifact_file_cache()
+        self._s3 = None
 
     def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
@@ -160,7 +162,7 @@ class S3Handler(StorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
 
@@ -206,7 +208,7 @@ class S3Handler(StorageHandler):
             multi = True
 
         if multi:
-            start_time = time.time()
+            start_time = time.monotonic()
             termlog(
                 f'Generating checksum for up to {max_objects} objects in "{bucket}/{key}"... ',
                 newline=False,
@@ -227,7 +229,7 @@ class S3Handler(StorageHandler):
             if size(obj) > 0
         ]
         if start_time is not None:
-            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+            termlog("Done. %.1fs" % (time.monotonic() - start_time), prefix=False)
         if len(entries) > max_objects:
             raise ValueError(
                 f"Exceeded {max_objects} objects tracked, pass max_objects to add_reference"
