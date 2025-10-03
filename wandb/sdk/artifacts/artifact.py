@@ -2098,7 +2098,7 @@ class Artifact:
                     # if require_core and entry.ref is None:
                     #     # Handled by core
                     #     continue
-                    entry._download_url = node.direct_url
+                    entry.direct_url = node.direct_url
                     if (not path_prefix) or entry.path.startswith(str(path_prefix)):
                         active_futures.add(
                             executor.submit(_download_entry, entry, executor=executor)
