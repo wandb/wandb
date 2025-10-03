@@ -241,20 +241,15 @@ class Settings(BaseModel, validate_assignment=True):
     """The type of console capture to be applied.
 
     Possible values are:
-      "auto" - Automatically selects the console capture method based on the
+    - "auto" - Automatically selects the console capture method based on the
       system environment and settings.
-
-      "off" - Disables console capture.
-
-      "redirect" - Redirects low-level file descriptors for capturing output.
-
-      "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
+    - "off" - Disables console capture.
+    - "redirect" - Redirects low-level file descriptors for capturing output.
+    - "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
       mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
-
-      "wrap_raw" - Same as "wrap" but captures raw output directly instead of
+    - "wrap_raw" - Same as "wrap" but captures raw output directly instead of
       through an emulator. Derived from the `wrap` setting and should not be set manually.
-
-      "wrap_emu" - Same as "wrap" but captures output through an emulator.
+    - "wrap_emu" - Same as "wrap" but captures output through an emulator.
       Derived from the `wrap` setting and should not be set manually.
     """
 

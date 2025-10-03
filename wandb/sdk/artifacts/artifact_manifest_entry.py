@@ -182,7 +182,6 @@ class ArtifactManifestEntry:
         root: str | None = None,
         skip_cache: bool | None = None,
         executor: concurrent.futures.Executor | None = None,
-        multipart: bool | None = None,
     ) -> FilePathStr:
         """Download this artifact entry to the specified root path.
 
@@ -193,11 +192,10 @@ class ArtifactManifestEntry:
         Returns:
             (str): The path of the downloaded artifact entry.
         """
-        if self._parent_artifact is None:
-            raise NotImplementedError
+        artifact = self.parent_artifact()
 
-        root = root or self._parent_artifact._default_root()
-        self._parent_artifact._add_download_root(root)
+        root = root or artifact._default_root()
+        artifact._add_download_root(root)
         path = str(Path(self.path))
         dest_path = os.path.join(root, path)
 
@@ -225,16 +223,12 @@ class ArtifactManifestEntry:
                 return FilePathStr(dest_path)
 
         if self.ref is not None:
-            cache_path = self._parent_artifact.manifest.storage_policy.load_reference(
+            cache_path = artifact.manifest.storage_policy.load_reference(
                 self, local=True, dest_path=override_cache_path
             )
         else:
-            cache_path = self._parent_artifact.manifest.storage_policy.load_file(
-                self._parent_artifact,
-                self,
-                dest_path=override_cache_path,
-                executor=executor,
-                multipart=multipart,
+            cache_path = artifact.manifest.storage_policy.load_file(
+                artifact, self, dest_path=override_cache_path, executor=executor
             )
 
         # Determine the final path
