@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import ArtifactTypesFragment
+from .fragments import ArtifactTypeConnectionFragment
 
 
 class ProjectArtifactTypes(GQLResult):
@@ -17,7 +17,7 @@ class ProjectArtifactTypes(GQLResult):
 
 
 class ProjectArtifactTypesProject(GQLResult):
-    artifact_types: ArtifactTypesFragment = Field(alias="artifactTypes")
+    artifact_types: ArtifactTypeConnectionFragment = Field(alias="artifactTypes")
 
 
 ProjectArtifactTypes.model_rebuild()
