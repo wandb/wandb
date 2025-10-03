@@ -798,8 +798,9 @@ class Artifacts(SizedPaginator["Artifact"]):
             )
             for edge in artifact_edges
         )
-        required_tags = set(self.tags or [])
-        return [art for art in artifacts if required_tags.issubset(art.tags)]
+        if required_tags := set(self.tags):
+            return [art for art in artifacts if required_tags.issubset(art.tags)]
+        return list(artifacts)
 
 
 class _RunArtifactConnection(ConnectionWithTotal[ArtifactFragment]):
@@ -1002,7 +1003,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         """
         if self.last_response is None:
             return None
-        return self.last_response.edges[-1].cursor
+        return self.last_response.page_info.end_cursor
 
     def update_variables(self) -> None:
         """Update the variables dictionary with the cursor.
