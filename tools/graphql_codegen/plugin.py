@@ -38,10 +38,11 @@ from .plugin_utils import (
     remove_module_files,
 )
 
-DEFAULT_BASE_MODEL_NAME = "BaseModel"  #: The name of the default pydantic base class
+# Base class names
+BASE_MODEL = "BaseModel"  #: Default base class name for pydantic types (to be replaced)
+GQL_INPUT = "GQLInput"  #: Custom base class name for GraphQL input types
+GQL_RESULT = "GQLResult"  #: Custom base class name for GraphQL result types
 
-# Names of custom-defined types
-GQL_BASE_CLASS_NAME = "GQLBase"  #: Custom base class for GraphQL types
 TYPENAME_TYPE = "Typename"  #: Custom Typename type for field annotations
 
 
@@ -207,6 +208,14 @@ class GraphQLCodegenPlugin(Plugin):
     def generate_enums_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
 
+    def generate_input_class(self, class_def: ast.ClassDef, *_, **__) -> ast.ClassDef:
+        # Replace the default base class: `BaseModel` -> `GQLInput`
+        class_def.bases = [
+            ast.Name(GQL_INPUT if (name == BASE_MODEL) else name)
+            for name in base_class_names(class_def)
+        ]
+        return class_def
+
     def generate_inputs_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
 
@@ -240,6 +249,12 @@ class GraphQLCodegenPlugin(Plugin):
         # - It's a fragment type
         if class_def.name.lower() != operation_definition.name.value.lower():
             self.classes_to_drop.add(class_def.name)
+
+        # Replace the default base class: `BaseModel` -> `GQLResult`
+        class_def.bases = [
+            ast.Name(GQL_RESULT if (name == BASE_MODEL) else name)
+            for name in base_class_names(class_def)
+        ]
         return class_def
 
     def generate_result_types_module(self, module: ast.Module, *_, **__) -> ast.Module:
@@ -353,7 +368,10 @@ class PydanticModuleRewriter(ast.NodeTransformer):
         # Prepend shared import statements to the module. Ruff will clean this up later.
         node.body = [
             make_import_from("__future__", "annotations"),
-            make_import_from("wandb._pydantic", [GQL_BASE_CLASS_NAME, TYPENAME_TYPE]),
+            make_import_from(
+                "wandb._pydantic",
+                [GQL_INPUT, GQL_RESULT, TYPENAME_TYPE],
+            ),
             make_import_from("typing_extensions", TYPING_EXTENSIONS_TYPES),
             *node.body,
         ]
@@ -399,13 +417,6 @@ class PydanticModuleRewriter(ast.NodeTransformer):
             node.annotation = annotation.slice.elts[0]  # Union[T,] -> T
             node.value = None  # drop `= Field(discriminator=...)`, if present
 
-        return self.generic_visit(node)
-
-    def visit_Name(self, node: ast.Name) -> ast.Name:
-        """Visit the name of a base class in a class definition."""
-        # Replace the default pydantic.BaseModel with our custom base class
-        if node.id == DEFAULT_BASE_MODEL_NAME:
-            node.id = GQL_BASE_CLASS_NAME
         return self.generic_visit(node)
 
 

@@ -7,26 +7,26 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import FilesFragment
 
 
-class ArtifactVersionFiles(GQLBase):
+class ArtifactVersionFiles(GQLResult):
     project: Optional[ArtifactVersionFilesProject]
 
 
-class ArtifactVersionFilesProject(GQLBase):
+class ArtifactVersionFilesProject(GQLResult):
     artifact_type: Optional[ArtifactVersionFilesProjectArtifactType] = Field(
         alias="artifactType"
     )
 
 
-class ArtifactVersionFilesProjectArtifactType(GQLBase):
+class ArtifactVersionFilesProjectArtifactType(GQLResult):
     artifact: Optional[ArtifactVersionFilesProjectArtifactTypeArtifact]
 
 
-class ArtifactVersionFilesProjectArtifactTypeArtifact(GQLBase):
+class ArtifactVersionFilesProjectArtifactTypeArtifact(GQLResult):
     files: Optional[FilesFragment]
 
 

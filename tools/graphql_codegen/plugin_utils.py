@@ -58,7 +58,7 @@ def is_redundant_class_def(stmt: ast.ClassDef) -> TypeGuard[ast.ClassDef]:
         and (
             (isinstance(stmt.body[0], ast.Pass))
             or (
-                stmt.bases[0].id != "GQLBase"
+                stmt.bases[0].id not in {"GQLInput", "GQLResult"}
                 and isinstance(ann_assign := stmt.body[0], ast.AnnAssign)
                 and isinstance(ann_assign.target, ast.Name)
                 and ann_assign.target.id == "typename__"
