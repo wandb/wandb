@@ -26,20 +26,20 @@ class CreateGenericWebhookIntegrationInput(GQLBase):
     client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
 
 
-class QueueJobActionInput(GQLBase):
-    queue_id: GQLId = Field(alias="queueID")
+class QueueJobActionInput(GQLInput):
+    queue_id: str = Field(alias="queueID", frozen=True, repr=False)
     template: str
 
 
-class NotificationActionInput(GQLBase):
-    integration_id: GQLId = Field(alias="integrationID")
+class NotificationActionInput(GQLInput):
+    integration_id: str = Field(alias="integrationID", frozen=True, repr=False)
     title: Optional[str] = None
     message: Optional[str] = None
     severity: Optional[AlertSeverity] = None
 
 
-class GenericWebhookActionInput(GQLBase):
-    integration_id: GQLId = Field(alias="integrationID")
+class GenericWebhookActionInput(GQLInput):
+    integration_id: str = Field(alias="integrationID", frozen=True, repr=False)
     request_payload: Optional[str] = Field(alias="requestPayload", default=None)
 
 
@@ -69,7 +69,7 @@ class CreateFilterTriggerInput(GQLBase):
         alias="triggeringEventType"
     )
     scope_type: TriggerScopeType = Field(alias="scopeType")
-    scope_id: GQLId = Field(alias="scopeID")
+    scope_id: str = Field(alias="scopeID", frozen=True, repr=False)
     event_filter: str = Field(alias="eventFilter")
     triggered_action_type: TriggeredActionType = Field(alias="triggeredActionType")
     triggered_action_config: TriggeredActionConfig = Field(
