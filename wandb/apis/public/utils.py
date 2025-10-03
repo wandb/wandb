@@ -133,7 +133,7 @@ class _GQLCompatRewriter(visitor.Visitor):
         # AFTER the first pass at rewriting, prune "orphan" fragment definitions
         # that are unreachable from any GQL operations in the document.
         orphan_fragments = self._orphan_fragments(node)
-        node.defintions = [
+        node.definitions = [
             dfn
             for dfn in node.definitions
             if not (
