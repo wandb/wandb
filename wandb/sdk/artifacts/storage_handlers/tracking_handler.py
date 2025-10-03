@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from wandb.errors.term import termwarn
@@ -17,7 +17,9 @@ if TYPE_CHECKING:
 
 
 class TrackingHandler(StorageHandler):
-    def __init__(self, scheme: str | None = None) -> None:
+    _scheme: str
+
+    def __init__(self, scheme: str = "") -> None:
         """Track paths with no modification or special processing.
 
         Useful when paths being tracked are on file systems mounted at a standardized
@@ -26,7 +28,7 @@ class TrackingHandler(StorageHandler):
         For example, if the data to track is located on an NFS share mounted on
         `/data`, then it is sufficient to just track the paths.
         """
-        self._scheme = scheme or ""
+        self._scheme = scheme
 
     def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
@@ -55,7 +57,7 @@ class TrackingHandler(StorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         url = urlparse(path)
         if name is None:
             raise ValueError(
