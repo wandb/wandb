@@ -19,7 +19,7 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   ttlIsInherited @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
   tags @include(if: true) {
     # Workaround: ensures generated pydantic field defaults to `None`
-    name
+    ...TagFragment
   }
   historyStep @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
   state
@@ -51,7 +51,7 @@ fragment ArtifactFragment on Artifact {
       }
       name
     }
-    alias
+    ...ArtifactAliasFragment
   }
 }
 
@@ -170,7 +170,7 @@ query FetchLinkedArtifacts($artifactID: ID!) {
       edges {
         node {
           aliases {
-            alias
+            ...ArtifactAliasFragment
           }
           versionIndex
           artifactCollection {

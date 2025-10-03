@@ -1329,7 +1329,9 @@ class Artifact:
             omit_variables |= {"tagsToAdd", "tagsToDelete"}
 
         mutation = gql_compat(
-            UPDATE_ARTIFACT_GQL, omit_variables=omit_variables, omit_fields=omit_fields
+            UPDATE_ARTIFACT_GQL,
+            omit_variables=omit_variables,
+            omit_fields=omit_fields,
         )
         gql_input = UpdateArtifactInput(
             artifact_id=self.id,

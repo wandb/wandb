@@ -40,7 +40,7 @@ fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnec
         ...ArtifactFragmentWithoutAliases
       }
       aliases {
-        alias
+        ...ArtifactAliasFragment
       }
     }
   }
@@ -91,7 +91,7 @@ fragment RegistryCollectionFragment on ArtifactCollection {
   tags {
     edges {
       node {
-        name
+        ...TagFragment
       }
     }
   }
@@ -104,7 +104,7 @@ fragment RegistryCollectionFragment on ArtifactCollection {
   aliases {
     edges {
       node {
-        alias
+        ...ArtifactAliasFragment
       }
     }
   }
