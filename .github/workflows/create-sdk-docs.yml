@@ -1,0 +1,53 @@
+name: Generate API Reference Docs
+
+on:
+  push:
+    branches:
+        - '**'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Commit SHA or tag to generate docs from'
+        required: true
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout wandb repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Clone doc generator repo
+        run: |
+          git clone https://github.com/ngrayluna/generate-wandb-python-reference.git
+          cd generate-wandb-python-reference
+
+      - name: Clone wandb/docs repository
+        env:
+          TOKEN: ${{ secrets.DOC_PUSH_TOKEN }}
+        run: |
+          git clone https://$TOKEN@github.com/wandb/docs.git
+          cd docs
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Copy generated docs into wandb/docs
+        run: |
+          cp -r generate-wandb-python-reference/output/* docs/content/en/ref/
+
+      - name: Create PR in wandb/docs
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.DOC_PUSH_TOKEN }}
+          path: docs
+          commit-message: Auto-generate API reference docs
+          branch: auto/generated-docs-${{ github.run_id }}
+          title: Auto-generate API reference docs
+          body: |
+            This PR includes API reference documentation generated from `${{ github.event.inputs.ref }}`.
+          base: main
+          add-paths: |
+            content/en/ref/**
