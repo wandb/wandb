@@ -6,6 +6,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_telemetry.proto";
+import "wandb/proto/wandb_api.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
@@ -54,6 +55,8 @@ message Record {
 
     // request field does not belong here longterm
     Request request = 100;
+
+    ApiRequest api_request = 101;
   }
   Control control = 16;
   string uuid = 19;
@@ -662,6 +665,7 @@ message Response {
     SyncResponse sync_response = 70;
     RunFinishWithoutExitResponse run_finish_without_exit_response = 72;
     OperationStatsResponse operations_response = 74;
+    ApiResponse api_response = 84;
     TestInjectResponse test_inject_response = 1000;
   }
 }
