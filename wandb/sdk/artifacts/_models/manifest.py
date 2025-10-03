@@ -4,6 +4,7 @@ from wandb._pydantic import field_validator, to_camel
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
 from .base_model import ArtifactsBase
+from .storage import StoragePolicyConfig
 
 
 @final
@@ -15,7 +16,7 @@ class ArtifactManifestV1Data(ArtifactsBase, alias_generator=to_camel):
     contents: Dict[str, ArtifactManifestEntry]
 
     storage_policy: str
-    storage_policy_config: Dict[str, Any]
+    storage_policy_config: StoragePolicyConfig
 
     @field_validator("contents", mode="before")
     def _validate_entries(cls, v: Any) -> Any:
