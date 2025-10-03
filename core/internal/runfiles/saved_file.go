@@ -88,7 +88,7 @@ func (f *savedFile) SetCategory(category filetransfer.RunFileKind) {
 // Upload schedules an upload of savedFile.
 //
 // If there is an ongoing upload operation for the file, the new upload
-// is scheduled to happen after the previous one completes.
+// is scheduled to happen after the previous one completes, and the file has changed..
 func (f *savedFile) Upload(url string, headers []string) {
 	f.Lock()
 	if f.shouldDeferUpload(url, headers) {
