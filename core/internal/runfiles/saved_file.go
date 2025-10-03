@@ -184,10 +184,16 @@ func (f *savedFile) onFinishUpload(task *filetransfer.DefaultUploadTask) {
 	if task.Err == nil {
 		if f.uploadingB64MD5 != "" {
 			f.lastUploadedB64MD5 = f.uploadingB64MD5
-		} else if b64, err := hashencode.ComputeFileB64MD5(f.realPath); err == nil {
-			f.lastUploadedB64MD5 = b64
 		} else {
-			f.lastUploadedB64MD5 = ""
+			// Drop the lock while hashing to avoid I/O under lock.
+			f.Unlock()
+			b64, err := hashencode.ComputeFileB64MD5(f.realPath)
+			f.Lock()
+			if err == nil {
+				f.lastUploadedB64MD5 = b64
+			} else {
+				f.lastUploadedB64MD5 = ""
+			}
 		}
 	}
 
