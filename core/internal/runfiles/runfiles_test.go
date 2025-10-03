@@ -433,4 +433,46 @@ func TestUploader(t *testing.T) {
 				[]string{"Header1:Value1", "Header2:Value2"},
 				task.Headers)
 		})
+
+	runTest("Process same file twice (unchanged) does not schedule reupload",
+		func() { /* no batchDelay => immediate batching */ },
+		func(t *testing.T) {
+			fakeFileTransfer.ShouldCompleteImmediately = false
+
+			testRel := "test_no_reupload.txt"
+			testAbs := filepath.Join(filesDir, testRel)
+			writeEmptyFile(t, testAbs)
+
+			// 1) First Process -> schedules a single upload task.
+			stubCreateRunFilesOneFile(mockGQLClient, testRel)
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{
+					{Path: testRel, Policy: spb.FilesItem_NOW},
+				},
+			})
+			// Wait until CreateRunFiles scheduling is done.
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+			require.Len(t, fakeFileTransfer.Tasks(), 1, "first upload should schedule exactly one task")
+
+			// Complete the first upload so savedFile records the last uploaded state.
+			fakeFileTransfer.Tasks()[0].Complete(nil)
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+
+			// 2) Second Process with the SAME, UNCHANGED file -> should NOT schedule another task.
+			stubCreateRunFilesOneFile(mockGQLClient, testRel)
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{
+					{Path: testRel, Policy: spb.FilesItem_NOW},
+				},
+			})
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 1,
+				"unchanged file must not schedule a second upload task")
+
+			// Clean up.
+			uploader.Finish()
+		},
+	)
+
 }

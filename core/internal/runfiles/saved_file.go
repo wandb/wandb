@@ -3,8 +3,10 @@ package runfiles
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -49,6 +51,15 @@ type savedFile struct {
 	// HTTP headers to set on the reupload request for the file if
 	// `reuploadScheduled`.
 	reuploadHeaders []string
+
+	// The size the file when it was last uploaded.
+	//
+	// Used to avoid re-uploading files that haven't changed.
+	lastUploadedSize int64
+
+	// The modification time of the file when it was last uploaded.
+	// Used to avoid re-uploading files that haven't changed.
+	lastUploadedMtime time.Time
 }
 
 func newSavedFile(
@@ -77,6 +88,17 @@ func (f *savedFile) SetCategory(category filetransfer.RunFileKind) {
 	f.category = category
 }
 
+// isUnchanged checks whether the file has not changed since the last upload.
+//
+// Must be called with the lock held.
+func (f *savedFile) isUnchanged() bool {
+	info, err := os.Stat(f.realPath)
+	if err != nil {
+		return false // Be conservative: try to upload in case of an error.
+	}
+	return info.Size() == f.lastUploadedSize && info.ModTime().Equal(f.lastUploadedMtime)
+}
+
 // Upload schedules an upload of savedFile.
 //
 // If there is an ongoing upload operation for the file, the new upload
@@ -87,18 +109,19 @@ func (f *savedFile) Upload(
 ) {
 	f.Lock()
 	defer f.Unlock()
-
 	if f.isFinished {
 		return
 	}
-
+	// Early exit: no change since last successful upload, and not currently uploading.
+	if !f.isUploading && f.isUnchanged() {
+		return
+	}
 	if f.isUploading {
 		f.reuploadScheduled = true
 		f.reuploadURL = url
 		f.reuploadHeaders = headers
 		return
 	}
-
 	f.doUpload(url, headers)
 }
 
@@ -133,6 +156,10 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 // onFinishUpload marks an upload completed and triggers another if scheduled.
 func (f *savedFile) onFinishUpload(task *filetransfer.DefaultUploadTask) {
 	if task.Err == nil {
+		if info, err := os.Stat(f.realPath); err == nil {
+			f.lastUploadedSize = info.Size()
+			f.lastUploadedMtime = info.ModTime()
+		}
 		f.fs.StreamUpdate(&filestream.FilesUploadedUpdate{
 			// Convert backslashes to forward slashes in the file path.
 			// Since the backend API requires forward slashes.

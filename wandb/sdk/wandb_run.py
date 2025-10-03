@@ -2075,10 +2075,10 @@ class Run:
         run.save("these/are/myfiles/*", base_path="these")
         # => Saves files in an "are/myfiles/" folder in the run.
 
-        run.save("/User/username/Documents/run123/*.txt")
+        run.save("/Users/username/Documents/run123/*.txt")
         # => Saves files in a "run123/" folder in the run. See note below.
 
-        run.save("/User/username/Documents/run123/*.txt", base_path="/User")
+        run.save("/Users/username/Documents/run123/*.txt", base_path="/Users")
         # => Saves files in a "username/Documents/run123/" folder in the run.
 
         run.save("files/*/saveme.txt")
