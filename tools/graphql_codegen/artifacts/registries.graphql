@@ -24,8 +24,7 @@ query RegistryVersions(
 
 fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   edges {
     node {
@@ -77,8 +76,7 @@ query RegistryCollections(
 fragment RegistryCollectionsPage on ArtifactCollectionConnection {
   totalCount
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   edges {
     cursor
@@ -133,8 +131,7 @@ query FetchRegistries(
 
 fragment RegistriesPage on ProjectConnection {
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   edges {
     node {

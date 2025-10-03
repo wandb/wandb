@@ -14,8 +14,7 @@ fragment ArtifactTypesFragment on ArtifactTypeConnection {
     cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
 }
 

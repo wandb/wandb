@@ -78,8 +78,7 @@ fragment ArtifactsFragment on VersionedArtifactConnection {
     cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
 }
 
@@ -117,8 +116,7 @@ fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
     cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
 }
 
@@ -131,8 +129,7 @@ fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
     cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
 }
 
