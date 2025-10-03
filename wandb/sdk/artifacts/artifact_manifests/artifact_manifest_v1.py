@@ -11,25 +11,14 @@ from typing import Any, Dict, Final, Literal, final
 from pydantic import Field
 from typing_extensions import Annotated
 
-from wandb._pydantic import field_validator, to_camel
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.hashutil import HexMD5, _md5
 
 from .._factories import make_storage_policy
-from .._models.base_model import ArtifactsBase
+from .._models.manifest import ArtifactManifestV1Data
 from ..artifact_manifest import ArtifactManifest
 from ..artifact_manifest_entry import ArtifactManifestEntry
 from ..storage_policy import StoragePolicy
-
-
-class _ManifestV1Data(ArtifactsBase, frozen=True, alias_generator=to_camel):
-    """Data model for the v1 artifact manifest."""
-
-    version: Literal[1]
-    contents: Dict[str, Dict[str, Any]]
-    storage_policy: str
-    storage_policy_config: Dict[str, Any]
-
 
 #: Inner ArtifactManifestEntry fields to keep when dumping the ArtifactManifest to JSON.
 _JSONABLE_MANIFEST_ENTRY_FIELDS: Final[frozenset[str]] = frozenset(
@@ -39,35 +28,44 @@ _JSONABLE_MANIFEST_ENTRY_FIELDS: Final[frozenset[str]] = frozenset(
 
 @final
 class ArtifactManifestV1(ArtifactManifest):
+    _data: ArtifactManifestV1Data
+
     manifest_version: Annotated[Literal[1], Field(alias="version", repr=False)] = 1
-    entries: Dict[str, ArtifactManifestEntry] = Field(
-        default_factory=dict, alias="contents"
-    )
+
+    # entries: Dict[str, ArtifactManifestEntry] = Field(
+    #     default_factory=dict, alias="contents"
+    # )
 
     storage_policy: StoragePolicy = Field(
         default_factory=make_storage_policy, exclude=True, repr=False
     )
 
-    @field_validator("entries", mode="before")
-    def _validate_entries(cls, v: Any) -> Any:
-        # The dict keys should be the `entry.path` values, but they've
-        # historically been dropped from the JSON objects. This restores
-        # them on instantiation.
-        # Pydantic will handle converting dicts -> ArtifactManifestEntries.
-        return {path: {**dict(entry), "path": path} for path, entry in v.items()}
+    # @field_validator("entries", mode="before")
+    # def _validate_entries(cls, v: Any) -> Any:
+    #     # The dict keys should be the `entry.path` values, but they've
+    #     # historically been dropped from the JSON objects. This restores
+    #     # them on instantiation.
+    #     # Pydantic will handle converting dicts -> ArtifactManifestEntries.
+    #     return {path: {**dict(entry), "path": path} for path, entry in v.items()}
+
+    @property
+    def entries(self) -> Dict[str, ArtifactManifestEntry]:
+        return self._data.contents
 
     @classmethod
     def from_manifest_json(
         cls, manifest_json: dict[str, Any], api: InternalApi | None = None
     ) -> ArtifactManifestV1:
-        data = _ManifestV1Data(**manifest_json)
+        data = ArtifactManifestV1Data.model_validate(manifest_json)
 
         policy_name = data.storage_policy
         policy_cfg = data.storage_policy_config
         policy = StoragePolicy.lookup_by_name(policy_name).from_config(policy_cfg, api)
-        return cls(
+        instance = cls(
             manifest_version=data.version, entries=data.contents, storage_policy=policy
         )
+        instance._data = data
+        return instance
 
     def to_manifest_json(self) -> dict:
         """This is the JSON that's stored in wandb_manifest.json.
@@ -79,12 +77,12 @@ class ArtifactManifestV1(ArtifactManifest):
         """
         kept_entry_fields = set(_JSONABLE_MANIFEST_ENTRY_FIELDS)
         return {
-            "version": self.manifest_version,
+            "version": self._data.version,
             "storagePolicy": self.storage_policy.name(),
             "storagePolicyConfig": self.storage_policy.config(),
             "contents": {
                 path: entry.model_dump(include=kept_entry_fields, exclude_defaults=True)
-                for path, entry in self.entries.items()
+                for path, entry in self._data.contents.items()
             },
         }
 
