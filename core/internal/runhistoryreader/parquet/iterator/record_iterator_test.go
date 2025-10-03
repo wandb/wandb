@@ -73,9 +73,10 @@ func TestRecordIterator_FiltersRowsWithStepOutOfRange(t *testing.T) {
 	reader, err := NewRecordIterator(
 		record,
 		RecordIteratorWithPage(IteratorConfig{
-			Key: StepKey,
-			Min: 1,
-			Max: 2,
+			key: StepKey,
+			min: 1,
+			max: 2,
+			selectAllRows: false,
 		}),
 	)
 	require.NoError(t, err)
