@@ -52,7 +52,7 @@ type savedFile struct {
 	// `reuploadScheduled`.
 	reuploadHeaders []string
 
-	// The size the file when it was last uploaded.
+	// The size of the file when it was last uploaded.
 	//
 	// Used to avoid re-uploading files that haven't changed.
 	lastUploadedSize int64
