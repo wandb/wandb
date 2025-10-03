@@ -16,3 +16,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Possibly fixed some cases where the `output.log` file was not being uploaded (@timoffex in https://github.com/wandb/wandb/pull/10620)
+- Fixed an issue where TensorBoard sync would sometimes stop working if the tfevents files were being written live (@timoffex in https://github.com/wandb/wandb/pull/10625)

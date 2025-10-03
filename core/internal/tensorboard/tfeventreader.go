@@ -24,9 +24,10 @@ type TFEventReader struct {
 
 	logger *observability.CoreLogger
 
-	buffer        []byte
-	currentFile   string
-	currentOffset int64
+	buffer            []byte
+	bufferStartOffset int64  // offset in currentFile where buffer starts
+	currentFile       string // file from which to read more data
+	currentOffset     int64  // offset in currentFile from which to read more
 }
 
 func NewTFEventReader(
@@ -39,8 +40,6 @@ func NewTFEventReader(
 		tfeventsPath: logDir,
 
 		logger: logger,
-
-		buffer: make([]byte, 0),
 	}
 }
 
@@ -82,11 +81,17 @@ func (s *TFEventReader) NextEvent(
 	// Check the CRC32 checksum of the header.
 	actualHeaderCRC32C := MaskedCRC32C(headerBytes)
 	if actualHeaderCRC32C != expectedHeaderCRC32C {
-		return nil, fmt.Errorf(
-			"tensorboard: unexpected CRC-32C checksum for event header. Expected: %d, got: %d",
-			expectedHeaderCRC32C,
-			actualHeaderCRC32C,
+		// Transient checksum errors are possible if the tfevents file
+		// is being written using mmap().
+		s.rewindBuffer()
+		s.logger.Warn(
+			"tensorboard: unexpected header checksum",
+			"expected", expectedHeaderCRC32C,
+			"computed", actualHeaderCRC32C,
+			"file", s.currentFile,
+			"offset", s.bufferStartOffset,
 		)
+		return nil, nil
 	}
 
 	// Read the event proto.
@@ -106,14 +111,21 @@ func (s *TFEventReader) NextEvent(
 	// Check the CRC32 checksum of the event.
 	actualEventCRC32C := MaskedCRC32C(eventBytes)
 	if actualEventCRC32C != expectedEventCRC32C {
-		return nil, fmt.Errorf(
-			"tensorboard: unexpected CRC-32C checksum for event. Expected: %d, got: %d",
-			expectedEventCRC32C,
-			actualEventCRC32C,
+		// Transient checksum errors are possible if the tfevents file
+		// is being written using mmap().
+		s.rewindBuffer()
+		s.logger.Warn(
+			"tensorboard: unexpected payload checksum",
+			"expected", expectedEventCRC32C,
+			"computed", actualEventCRC32C,
+			"file", s.currentFile,
+			"offset", s.bufferStartOffset,
 		)
+		return nil, nil
 	}
 
 	s.buffer = slices.Clone(s.buffer[bytesRead:])
+	s.bufferStartOffset += int64(bytesRead)
 
 	var ret tbproto.TFEvent
 	err := proto.Unmarshal(eventBytes, &ret)
@@ -123,6 +135,13 @@ func (s *TFEventReader) NextEvent(
 	}
 
 	return &ret, nil
+}
+
+// rewindBuffer clears the buffer and causes the next read to reread
+// the same section of the file.
+func (s *TFEventReader) rewindBuffer() {
+	s.buffer = nil
+	s.currentOffset = s.bufferStartOffset
 }
 
 // ensureBuffer tries to read enough data into the buffer so that it
@@ -143,12 +162,19 @@ func (s *TFEventReader) ensureBuffer(
 	// If we haven't found the first file, try to find it.
 	if s.currentFile == "" {
 		s.currentFile = s.nextTFEventsFile(ctx)
+		s.currentOffset = 0
+		s.buffer = nil
+		s.bufferStartOffset = 0
 
 		if s.currentFile == "" {
 			return false
 		}
 
 		s.emitCurrentFile(onNewFile)
+	}
+
+	if len(s.buffer) == 0 {
+		s.bufferStartOffset = s.currentOffset
 	}
 
 	for {
@@ -179,8 +205,20 @@ func (s *TFEventReader) ensureBuffer(
 			return false
 		}
 
+		// If there's still unconsumed data in the current file,
+		// we can't move on to the next file. Events don't get split
+		// between files.
+		if len(s.buffer) > 0 {
+			s.logger.Warn(
+				"tensorboard: maybe incomplete event",
+				"file", s.currentFile,
+				"offset", s.bufferStartOffset)
+			return false
+		}
+
 		s.currentFile = nextFile
 		s.currentOffset = 0
+		s.bufferStartOffset = 0
 		s.emitCurrentFile(onNewFile)
 	}
 }

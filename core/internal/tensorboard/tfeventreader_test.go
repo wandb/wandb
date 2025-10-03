@@ -29,6 +29,26 @@ func encodeEvent(event *tbproto.TFEvent) []byte {
 	return data
 }
 
+func corruptHeaderCRC(eventBytes []byte) []byte {
+	corruptedBytes := slices.Clone(eventBytes)
+
+	for i := range 4 {
+		corruptedBytes[8+i] = 0
+	}
+
+	return corruptedBytes
+}
+
+func corruptEventCRC(eventBytes []byte) []byte {
+	corruptedBytes := slices.Clone(eventBytes)
+
+	for i := range 4 {
+		corruptedBytes[len(corruptedBytes)-i-1] = 0
+	}
+
+	return corruptedBytes
+}
+
 var event1 = &tbproto.TFEvent{Step: 1}
 var event2 = &tbproto.TFEvent{Step: 2}
 var event3 = &tbproto.TFEvent{Step: 3}
@@ -80,4 +100,60 @@ func TestReadsSequenceOfFiles(t *testing.T) {
 	assert.NoError(t, err2)
 	assert.NoError(t, err3)
 	assert.NoError(t, err4)
+}
+
+func TestRetriesChecksumErrors(t *testing.T) {
+	tmpdir := absoluteTmpdir(t)
+	tmpdirAsPath, err := tensorboard.ParseTBPath(string(tmpdir))
+	require.NoError(t, err)
+	// Include two events to test bufferStartOffset and rewinding logic.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(string(tmpdir), "tfevents.1.hostname"),
+		slices.Concat(encodeEvent(event1), corruptHeaderCRC(encodeEvent(event2))),
+		os.ModePerm,
+	))
+	// Write the second file to test we don't continue to the next file
+	// after an error.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(string(tmpdir), "tfevents.2.hostname"),
+		encodeEvent(event3),
+		os.ModePerm,
+	))
+	testLogger, logs := observabilitytest.NewRecordingTestLogger(t)
+	reader := tensorboard.NewTFEventReader(
+		tmpdirAsPath,
+		tensorboard.TFEventsFileFilter{},
+		testLogger,
+	)
+	backgroundCtx := context.Background()
+	noopOnFile := func(path *tensorboard.LocalOrCloudPath) {}
+	// Skip event1.
+	_, _ = reader.NextEvent(backgroundCtx, noopOnFile)
+
+	// Should rewind after a header checksum error.
+	result, err := reader.NextEvent(backgroundCtx, noopOnFile)
+	assert.Nil(t, result)
+	assert.NoError(t, err)
+	assert.Contains(t, logs.String(), "unexpected header checksum")
+
+	// Should rewind after a payload checksum error.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(string(tmpdir), "tfevents.1.hostname"),
+		slices.Concat(encodeEvent(event1), corruptEventCRC(encodeEvent(event2))),
+		os.ModePerm,
+	))
+	result, err = reader.NextEvent(backgroundCtx, noopOnFile)
+	assert.Nil(t, result)
+	assert.NoError(t, err)
+	assert.Contains(t, logs.String(), "unexpected payload checksum")
+
+	// Should succeed after checksums are corrected.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(string(tmpdir), "tfevents.1.hostname"),
+		slices.Concat(encodeEvent(event1), encodeEvent(event2)),
+		os.ModePerm,
+	))
+	result, err = reader.NextEvent(backgroundCtx, noopOnFile)
+	assert.True(t, proto.Equal(event2, result))
+	assert.NoError(t, err)
 }
