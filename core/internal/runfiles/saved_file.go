@@ -180,6 +180,7 @@ func (f *savedFile) onFinishUpload(task *filetransfer.DefaultUploadTask) {
 	f.Lock()
 	defer f.Unlock()
 
+	// Record what we believe the server now has.
 	if task.Err == nil {
 		if f.uploadingB64MD5 != "" {
 			f.lastUploadedB64MD5 = f.uploadingB64MD5
