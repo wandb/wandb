@@ -133,7 +133,7 @@ class _GQLCompatRewriter(visitor.Visitor):
         # AFTER the first pass at rewriting, prune "orphan" fragment definitions
         # that are unreachable from any GQL operations in the document.
         orphan_fragments = self._orphan_fragments(node)
-        node.defintions = [
+        node.definitions = [
             dfn
             for dfn in node.definitions
             if not (
@@ -142,7 +142,7 @@ class _GQLCompatRewriter(visitor.Visitor):
             )
         ]
 
-    def _fragment_spreads(self, node: ast.Node | None) -> set[str]:
+    def _used_fragment_spreads(self, node: ast.Node | None) -> set[str]:
         """Recursively find the names of fragments that are referenced as fragment spreads in a GQL node.
 
         E.g. should end up finding `MyFragment`, `NestedFragment` in the query operation below:
@@ -156,61 +156,54 @@ class _GQLCompatRewriter(visitor.Visitor):
         if isinstance(node, ast.FragmentSpread):
             return {node.name.value}
         if isinstance(node, ast.SelectionSet):
-            return set().union(*map(self._fragment_spreads, node.selections))
+            return set().union(*map(self._used_fragment_spreads, node.selections))
         if selection_set := getattr(node, "selection_set", None):
             # Recurse into the selection set of OperationDefinitions, FragmentDefinitions, InlineFragments, Fields
-            return self._fragment_spreads(selection_set)
+            return self._used_fragment_spreads(selection_set)
         return set()  # Fallback
 
     def _orphan_fragments(self, doc: ast.Document) -> set[str]:
         """Returns names of "orphan" fragment definitions in the GQL document.
 
         Notably, fragments only referenced by other unreachable fragments are excluded.
+
+        E.g. The following document:
+
+          query MyQuery {
+             myField {
+               ...KeptFragment
+             }
+          }
+          fragment KeptFragment on MyType { ...KeptOtherFragment }
+          fragment KeptOtherFragment on MyOtherType { ... }
+          fragment OrphanFragment on UnusedType { ...AnotherOrphanFragment }
+          fragment AnotherOrphanFragment on AnotherUnusedType { ... }
+
+        ...should return only `{ "OrphanFragment", "AnotherOrphanFragment" }`.
         """
-        fragments_by_name: dict[str, ast.FragmentDefinition] = {
+        # Start with the fragment spreads referenced directly in the GQL operation(s).
+        used_fragment_names = set().union(
+            *(
+                self._used_fragment_spreads(defn)
+                for defn in doc.definitions
+                if isinstance(defn, ast.OperationDefinition)
+            )
+        )
+
+        # Now find any fragments but ONLY inside the currently reachable fragments.
+        unvisited_fragments: dict[str, ast.FragmentDefinition] = {
             dfn.name.value: dfn
             for dfn in doc.definitions
             if isinstance(dfn, ast.FragmentDefinition)
         }
+        while names_to_visit := used_fragment_names.intersection(unvisited_fragments):
+            for fragment_name in names_to_visit:
+                # Fragment may be missing for spreads that were already removed
+                if fragment := unvisited_fragments.pop(fragment_name, None):
+                    used_fragment_names |= self._used_fragment_spreads(fragment)
 
-        # Start with the fragment spreads used directly in the GQL operation(s).
-        #
-        # E.g. first find `NestedFragment` in the query below:
-        #   query MyQuery {
-        #      myField {
-        #        ...NestedFragment
-        #      }
-        #   }
-        #
-        # Then we SHOULD find `OtherFragment` in the fragment definition below:
-        #   fragment MyFragment on MyType { ...OtherFragment }
-        #   fragment OtherFragment on OtherType { ... }
-        #
-        # But should SKIP `OrphanFragment` and `AnotherFragment` in the fragment definition below:
-        #   fragment OrphanFragment on MyType {
-        #     id
-        #     ...AnotherFragment
-        #   }
-        operations = (
-            dfn for dfn in doc.definitions if isinstance(dfn, ast.OperationDefinition)
-        )
-        found: set[str] = set().union(
-            *(self._fragment_spreads(op) for op in operations)
-        )
-
-        # Now find any fragments but ONLY inside the currently reachable fragments.
-        # This is done by computing the transitive closure over the fragment->spreads graph.
-        done: set[str] = set()
-        while pending := (found - done):
-            name = pending.pop()
-
-            # Fragment may be missing for spreads that were removed earlier
-            if fragment := fragments_by_name.get(name):
-                found |= self._fragment_spreads(fragment)
-            done.add(name)
-
-        orphans = set(fragments_by_name) - found
-        return orphans
+        # Any remaining, unreferenced fragment names are unused (orphan) fragments
+        return set(unvisited_fragments)
 
     def enter_VariableDefinition(self, node: ast.VariableDefinition, *_, **__) -> Any:  # noqa: N802
         if node.variable.name.value in self.omit_variables:
