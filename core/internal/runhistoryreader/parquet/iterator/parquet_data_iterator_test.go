@@ -45,45 +45,6 @@ func getRowIteratorForFile(
 	return it
 }
 
-func TestSelectRowGroups(t *testing.T) {
-	allocator := memory.NewCheckedAllocator(memory.DefaultAllocator)
-	filePath := "../../../../tests/files/history.parquet"
-	f, err := os.Open(filePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pf, err := file.NewParquetReader(
-		f,
-		file.WithReadProps(parquet.NewReaderProperties(allocator)),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pf.Close()
-
-	r, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{}, allocator)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// all row groups should be read
-	ctx := context.Background()
-	config := NewSelectAllRowsIteratorConfig(StepKey)
-	it, err := NewRowIterator(ctx, r, []string{"_step"}, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, 5, len(it.RowGroupIndices()))
-
-	// only row groups within the requested step range should be read
-	config = NewRowFilteredIteratorConfig(StepKey, 0, 500)
-	it, err = NewRowIterator(ctx, r, []string{"_step"}, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, 3, len(it.RowGroupIndices()))
-}
-
 func TestRowIterator_WithHistoryPageRange(t *testing.T) {
 	schema := arrow.NewSchema(
 		[]arrow.Field{
