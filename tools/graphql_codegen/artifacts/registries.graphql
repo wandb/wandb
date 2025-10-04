@@ -29,20 +29,7 @@ fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnec
   }
   edges {
     node {
-      artifactCollection {
-        __typename
-        project {
-          ...ProjectNames
-        }
-        name
-      }
-      versionIndex
-      artifact {
-        ...ArtifactFragment
-      }
-      aliases {
-        ...ArtifactAliasFragment
-      }
+      ...MembershipWithArtifact
     }
   }
 }

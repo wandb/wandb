@@ -39,17 +39,22 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: $includeAliases) {
     artifactCollection {
       __typename
+      name
       project {
         ...ProjectNames
       }
-      name
     }
     ...ArtifactAliasFragment
   }
 }
 
 fragment MembershipWithArtifact on ArtifactCollectionMembership {
+  __typename
   id
+  versionIndex
+  aliases {
+    ...ArtifactAliasFragment
+  }
   artifactCollection {
     __typename
     id
