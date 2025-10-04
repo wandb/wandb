@@ -16,21 +16,11 @@ import time
 from collections import deque
 from concurrent.futures import Executor, ThreadPoolExecutor, as_completed
 from copy import copy
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, replace
 from datetime import timedelta
 from itertools import filterfalse
 from pathlib import Path, PurePosixPath
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    Final,
-    Iterator,
-    Literal,
-    Sequence,
-    Type,
-    final,
-)
+from typing import IO, TYPE_CHECKING, Any, Final, Iterator, Literal, Sequence, Type
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
@@ -111,6 +101,7 @@ from ._generated import (
     UpdateArtifactInput,
 )
 from ._gqlutils import omit_artifact_fields, supports_enable_tracking_var, type_info
+from ._models.artifact import DeferredArtifactManifest
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
     ArtifactPath,
@@ -157,14 +148,6 @@ logger = logging.getLogger(__name__)
 
 
 _MB: Final[int] = 1024 * 1024
-
-
-@final
-@dataclass
-class _DeferredArtifactManifest:
-    """A lightweight wrapper around the manifest URL, used to indicate deferred loading of the actual manifest."""
-
-    url: str
 
 
 class Artifact:
@@ -271,7 +254,7 @@ class Artifact:
             )
         self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
-        self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
+        self._manifest: ArtifactManifest | DeferredArtifactManifest | None = (
             ArtifactManifestV1(storage_policy=make_storage_policy(storage_region))
         )
         self._commit_hash: str | None = None
@@ -534,7 +517,7 @@ class Artifact:
         self._state = ArtifactState(art.state)
 
         self._manifest = (
-            _DeferredArtifactManifest(manifest.file.direct_url)
+            DeferredArtifactManifest(manifest.file.direct_url)
             if (manifest := art.current_manifest)
             else None
         )
@@ -1032,7 +1015,7 @@ class Artifact:
         The manifest lists all of its contents, and can't be changed once the artifact
         has been logged.
         """
-        if isinstance(self._manifest, _DeferredArtifactManifest):
+        if isinstance(self._manifest, DeferredArtifactManifest):
             # A deferred manifest URL flags a deferred download request,
             # so fetch the manifest to override the placeholder object
             self._manifest = self._load_manifest(self._manifest.url)
