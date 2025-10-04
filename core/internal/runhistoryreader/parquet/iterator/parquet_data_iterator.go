@@ -18,8 +18,8 @@ type ParquetDataIterator struct {
 	keys   []string
 	config IteratorConfig
 
-	selectAllRows bool
-	rowGroupIndices  []int
+	selectAllRows   bool
+	rowGroupIndices []int
 
 	recordReader pqarrow.RecordReader
 	current      RowIterator
@@ -89,8 +89,8 @@ func NewRowIterator(
 		keys:   keys,
 		config: config,
 
-		selectAllRows: config.selectAllRows,
-		rowGroupIndices:  selectedRowGroups.GetRowGroupIndices(),
+		selectAllRows:   config.selectAllRows,
+		rowGroupIndices: selectedRowGroups.GetRowGroupIndices(),
 
 		recordReader: recordReader,
 		current:      &NoopRowIterator{},
@@ -141,10 +141,6 @@ func (r *ParquetDataIterator) Release() {
 	if r.recordReader != nil {
 		r.recordReader.Release()
 	}
-}
-
-func (r *ParquetDataIterator) RowGroupIndices() []int {
-	return r.rowGroupIndices
 }
 
 func batchSizeForSchemaSize(numColumns int) int {
