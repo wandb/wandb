@@ -53,10 +53,6 @@ type savedFile struct {
 
 	// Hash of the last successfully uploaded content (base64 MD5).
 	lastUploadedB64MD5 string
-
-	// Hash of the file content at the moment the current upload started.
-	// Set only while an upload is in-flight.
-	uploadingB64MD5 string
 }
 
 func newSavedFile(
@@ -88,61 +84,53 @@ func (f *savedFile) SetCategory(category filetransfer.RunFileKind) {
 // Upload schedules an upload of savedFile.
 //
 // If there is an ongoing upload operation for the file, the new upload
-// is scheduled to happen after the previous one completes, and the file has changed..
-func (f *savedFile) Upload(url string, headers []string) {
-	f.Lock()
-	if f.shouldDeferUpload(url, headers) {
-		f.Unlock()
-		return
-	}
-	// Drop the lock while doing IO.
-	f.Unlock()
-
-	currentB64MD5, err := hashencode.ComputeFileB64MD5(f.realPath)
-	if err != nil {
-		currentB64MD5 = "" // treat as "changed" below
-	}
-
-	// Re-acquire and double-check state in case it changed while we hashed.
+// is scheduled to happen after the previous one completes, and only if
+// the file bytes differ from the last successful upload.
+func (f *savedFile) Upload(
+	url string,
+	headers []string,
+) {
 	f.Lock()
 	defer f.Unlock()
-	if f.shouldDeferUpload(url, headers) {
-		return
-	}
 
-	// Check if content unchanged using pre-computed hash.
-	if currentB64MD5 != "" && f.lastUploadedB64MD5 == currentB64MD5 {
-		return
-	}
-
-	f.uploadingB64MD5 = currentB64MD5
-	f.doUpload(url, headers)
-}
-
-// shouldDeferUpload handles the early-return logic in f.Upload.
-//
-// Callers must hold f.Lock().
-//
-// Returns true if the caller should return immediately (either because the
-// file is finished, or because an upload is already in-flight, in which case
-// a reupload is queued).
-func (f *savedFile) shouldDeferUpload(url string, headers []string) bool {
 	if f.isFinished {
-		return true
+		return
 	}
+
 	if f.isUploading {
 		f.reuploadScheduled = true
 		f.reuploadURL = url
 		f.reuploadHeaders = headers
-		return true
+		return
 	}
-	return false
+
+	f.doUpload(url, headers)
 }
 
 // doUpload sends an upload Task to the FileTransferManager.
 //
 // It must be called while a lock is held. It temporarily releases the lock.
 func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
+	// Mark as uploading first so concurrent f.Upload calls defer and queue.
+	f.isUploading = true
+
+	// Check if the file bytes differ from the last successful upload.
+	f.Unlock()
+	currentB64MD5, err := hashencode.ComputeFileB64MD5(f.realPath)
+	if err != nil {
+		currentB64MD5 = "" // treat as "changed" below
+	}
+	f.Lock()
+	if currentB64MD5 != "" && f.lastUploadedB64MD5 == currentB64MD5 {
+		// No changes: clear in-flight state and honor any queued reupload.
+		f.isUploading = false
+		if f.reuploadScheduled {
+			f.reuploadScheduled = false
+			f.doUpload(f.reuploadURL, f.reuploadHeaders)
+		}
+		return
+	}
+
 	op := f.operations.New(fmt.Sprintf("uploading %s", string(f.runPath)))
 
 	task := &filetransfer.DefaultUploadTask{
@@ -154,11 +142,10 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 		Headers:  uploadHeaders,
 	}
 
-	f.isUploading = true
 	f.wg.Add(1)
 	task.OnComplete = func() {
 		op.Finish()
-		f.onFinishUpload(task)
+		f.onFinishUpload(task, currentB64MD5)
 	}
 
 	// Temporarily unlock while we run arbitrary code.
@@ -168,50 +155,27 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 }
 
 // onFinishUpload marks an upload completed and triggers another if scheduled.
-func (f *savedFile) onFinishUpload(task *filetransfer.DefaultUploadTask) {
+func (f *savedFile) onFinishUpload(
+	task *filetransfer.DefaultUploadTask,
+	uploadedB64MD5 string,
+) {
 	if task.Err == nil {
 		f.fs.StreamUpdate(&filestream.FilesUploadedUpdate{
 			// Convert backslashes to forward slashes in the file path.
 			// Since the backend API requires forward slashes.
 			RelativePath: filepath.ToSlash(string(f.runPath)),
 		})
+		// Record what we believe the server now has.
+		f.lastUploadedB64MD5 = uploadedB64MD5
 	}
 
 	f.Lock()
-	defer f.Unlock()
-
-	// Record what we believe the server now has.
-	if task.Err == nil {
-		if f.uploadingB64MD5 != "" {
-			f.lastUploadedB64MD5 = f.uploadingB64MD5
-		} else {
-			// Drop the lock while hashing to avoid I/O under lock.
-			f.Unlock()
-			b64, err := hashencode.ComputeFileB64MD5(f.realPath)
-			f.Lock()
-			if err == nil {
-				f.lastUploadedB64MD5 = b64
-			} else {
-				f.lastUploadedB64MD5 = ""
-			}
-		}
-	}
-
 	f.isUploading = false
 	if f.reuploadScheduled {
 		f.reuploadScheduled = false
-
-		// Unlock temporarily to compute hash.
-		f.Unlock()
-		currentB64, err := hashencode.ComputeFileB64MD5(f.realPath)
-		shouldReupload := (err != nil) || (f.lastUploadedB64MD5 == "") || (currentB64 != f.lastUploadedB64MD5)
-		f.uploadingB64MD5 = currentB64
-		f.Lock()
-
-		if shouldReupload {
-			f.doUpload(f.reuploadURL, f.reuploadHeaders)
-		}
+		f.doUpload(f.reuploadURL, f.reuploadHeaders)
 	}
+	f.Unlock()
 
 	f.wg.Done()
 }
