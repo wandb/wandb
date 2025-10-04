@@ -21,7 +21,8 @@ from .exceptions import ArtifactFinalizedError, ArtifactNotLoggedError
 if TYPE_CHECKING:
     from typing import Final, Iterable
 
-    from wandb.sdk.artifacts.artifact import Artifact
+    from ._generated import ArtifactFragment, ArtifactMembershipFragment
+    from .artifact import Artifact
 
 ArtifactT = TypeVar("ArtifactT", bound="Artifact")
 SelfT = TypeVar("SelfT")
@@ -346,3 +347,23 @@ class FullArtifactPath(ArtifactPath):
     name: str
     project: str
     prefix: str
+
+    @classmethod
+    def from_artifact_fragment(cls, obj: ArtifactFragment) -> Self:
+        if not obj.artifact_sequence.project:
+            raise ValueError("Project info not found in artifact fragment")
+        return cls(
+            prefix=obj.artifact_sequence.project.entity.name,
+            project=obj.artifact_sequence.project.name,
+            name=obj.artifact_sequence.name,
+        )
+
+    @classmethod
+    def from_membership_fragment(cls, obj: ArtifactMembershipFragment) -> Self:
+        if not (obj.artifact_collection and obj.artifact_collection.project):
+            raise ValueError("Project info not found in artifact membership fragment")
+        return cls(
+            prefix=obj.artifact_collection.project.entity.name,
+            project=obj.artifact_collection.project.name,
+            name=obj.artifact_collection.name,
+        )
