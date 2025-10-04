@@ -20,6 +20,10 @@ Typename = Annotated[T, Field(alias="__typename")]
 """Annotates GraphQL `__typename` fields."""
 
 
+Frozen = Annotated[T, Field(frozen=True)]
+"""Generic annotation for a frozen pydantic field."""
+
+
 if IS_PYDANTIC_V2 or TYPE_CHECKING:
     # GQLId = Annotated[StrictStr, Field(repr=False, frozen=True)]
     GQLId = StrictStr
