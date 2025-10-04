@@ -3384,15 +3384,23 @@ class Run:
                 f"Artifact {artifact.name} already exists with type '{expected_type}'; "
                 f"cannot create another with type '{artifact.type}'"
             )
-        if entity and artifact._source_entity and entity != artifact._source_entity:
+        if (
+            entity
+            and (source_entity := artifact._current.source_path.prefix)
+            and entity != source_entity
+        ):
             raise ValueError(
                 f"Artifact {artifact.name} is owned by entity "
-                f"'{artifact._source_entity}'; it can't be moved to '{entity}'"
+                f"{source_entity!r}; it can't be moved to {entity!r}"
             )
-        if project and artifact._source_project and project != artifact._source_project:
+        if (
+            project
+            and (source_project := artifact._current.source_path.project)
+            and project != source_project
+        ):
             raise ValueError(
                 f"Artifact {artifact.name} exists in project "
-                f"'{artifact._source_project}'; it can't be moved to '{project}'"
+                f"{source_project!r}; it can't be moved to {project!r}"
             )
 
     def _prepare_artifact(

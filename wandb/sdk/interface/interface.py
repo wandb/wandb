@@ -366,8 +366,8 @@ class InterfaceBase(abc.ABC):
             proto_artifact.description = artifact.description
         if artifact.metadata:
             proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
-        if artifact._base_id:
-            proto_artifact.base_id = artifact._base_id
+        if artifact._current.base_id:
+            proto_artifact.base_id = artifact._current.base_id
 
         ttl_duration_input = artifact._ttl_duration_seconds_to_gql()
         if ttl_duration_input:

@@ -33,8 +33,6 @@ from typing import (
 )
 from urllib.parse import quote, urljoin, urlparse
 
-from pydantic import NonNegativeInt
-
 import wandb
 from wandb import data_types, env
 from wandb._iterutils import one, unique_list
@@ -111,6 +109,7 @@ if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient
 
     from ._generated import ArtifactFragment, ArtifactMembershipFragment
+    from ._models.artifact import ArtifactData, DraftArtifactData
     from ._models.pagination import FileWithUrlConnection
     from ._validators import FullArtifactPath, LinkArtifactFields
 
@@ -156,6 +155,12 @@ class Artifact:
         An `Artifact` object.
     """
 
+    _saved: ArtifactData | None
+    """The saved artifact data as last fetched from the W&B server."""
+
+    _current: ArtifactData | DraftArtifactData
+    """The local, editable artifact data."""
+
     _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
     atexit.register(_TMP_DIR.cleanup)
 
@@ -175,13 +180,9 @@ class Artifact:
         source_project: str | None = None,
         _client: RetryingClient | None = None,
     ) -> None:
-        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-
-        from ._validators import (
-            validate_artifact_name,
-            validate_artifact_type,
-            validate_metadata,
-        )
+        from ._internal_artifact import InternalArtifact
+        from ._models.artifact import DraftArtifactData
+        from ._validators import ArtifactPath
 
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -200,37 +201,76 @@ class Artifact:
         self._added_local_paths: dict[str, ArtifactManifestEntry] = {}
         self._save_handle: MailboxHandle[pb.Result] | None = None
         self._download_roots: set[str] = set()
-        # Set by new_draft(), otherwise the latest artifact will be used as the base.
-        self._base_id: str | None = None
+
+        # # Set by new_draft(), otherwise the latest artifact will be used as the base.
+        # self._base_id: str | None = None
+
         # Properties.
-        self._id: str | None = None
+        self._saved = None
+        self._current = DraftArtifactData(
+            # Set by new_draft(), otherwise the latest artifact will be used as the base.
+            base_id=None,
+            id=None,
+            source_path=ArtifactPath(
+                prefix=source_entity, project=source_project, name=name
+            ),
+            source_version=None,
+            path=ArtifactPath(prefix=entity, project=project, name=name),
+            version=None,
+            type=type,
+            description=description,
+            metadata=metadata,
+            ttl_duration_seconds=None,
+            ttl_is_inherited=True,
+            aliases=[],
+            tags=[],
+            # NOTE: These fields only reflect the last fetched response from the
+            # server, if any. If the ArtifactManifest has already been fetched and/or
+            # populated locally, it should take priority when determining these values.
+            size=None,
+            digest=None,
+            manifest=ArtifactManifestV1(
+                storage_policy=make_storage_policy(region=storage_region)
+            ),
+            commit_hash=None,
+            file_count=None,
+            created_at=None,
+            updated_at=None,
+            history_step=None,
+        )
+
+        # self._id: str | None = None
 
         # Client IDs don't need cryptographic strength, so use a faster implementation.
         self._client_id: str = generate_fast_id(128)
         self._sequence_client_id: str = generate_fast_id(128)
 
-        self._entity: str | None = entity
-        self._project: str | None = project
-        self._name: str = validate_artifact_name(name)  # includes version after saving
-        self._version: str | None = None
-        self._source_entity: str | None = source_entity
-        self._source_project: str | None = source_project
-        self._source_name: str = name  # includes version after saving
-        self._source_version: str | None = None
+        # self._entity: str | None = entity
+        # self._project: str | None = project
+        # self._name: str = validate_artifact_name(name)  # includes version after saving
+        # self._version: str | None = None
+        # self._source_entity: str | None = source_entity
+        # self._source_project: str | None = source_project
+        # self._source_name: str = name  # includes version after saving
+        # self._source_version: str | None = None
+
         self._source_artifact: Artifact | None = None
         self._is_link: bool = False
-        self._type: str = validate_artifact_type(type, name)
-        self._description: str | None = description
-        self._metadata: dict[str, Any] = validate_metadata(metadata)
-        self._ttl_duration_seconds: int | None = None
-        self._ttl_is_inherited: bool = True
+
+        # self._type: str = validate_artifact_type(type, name)
+        # self._description: str | None = description
+        # self._metadata: dict[str, Any] = validate_metadata(metadata)
+        # self._ttl_duration_seconds: int | None = None
+        # self._ttl_is_inherited: bool = True
         self._ttl_changed: bool = False
-        self._aliases: list[str] = []
-        self._saved_aliases: list[str] = []
-        self._tags: list[str] = []
-        self._saved_tags: list[str] = []
+        # self._aliases: list[str] = []
+        # self._saved_aliases: list[str] = []
+        # self._tags: list[str] = []
+        # self._saved_tags: list[str] = []
+
         self._distributed_id: str | None = None
         self._incremental: bool = incremental
+
         if use_as is not None:
             warn_and_record_deprecation(
                 feature=Deprecated(artifact__init_use_as=True),
@@ -239,24 +279,26 @@ class Artifact:
                 ),
             )
         self._use_as: str | None = None
-        self._state: ArtifactState = ArtifactState.PENDING
 
-        # NOTE: These fields only reflect the last fetched response from the
-        # server, if any. If the ArtifactManifest has already been fetched and/or
-        # populated locally, it should take priority when determining these values.
-        self._size: NonNegativeInt | None = None
-        self._digest: str | None = None
+        # self._state: ArtifactState = ArtifactState.PENDING
 
-        self._manifest: ArtifactManifest | None = ArtifactManifestV1(
-            storage_policy=make_storage_policy(region=storage_region)
-        )
+        # # NOTE: These fields only reflect the last fetched response from the
+        # # server, if any. If the ArtifactManifest has already been fetched and/or
+        # # populated locally, it should take priority when determining these values.
+        # self._size: NonNegativeInt | None = None
+        # self._digest: str | None = None
 
-        self._commit_hash: str | None = None
-        self._file_count: int | None = None
-        self._created_at: str | None = None
-        self._updated_at: str | None = None
+        # self._manifest: ArtifactManifest | None = ArtifactManifestV1(
+        #     storage_policy=make_storage_policy(region=storage_region)
+        # )
+
+        # self._commit_hash: str | None = None
+        # self._file_count: int | None = None
+        # self._created_at: str | None = None
+        # self._updated_at: str | None = None
+        # self._history_step: int | None = None
+
         self._final: bool = False
-        self._history_step: int | None = None
         self._linked_artifacts: list[Artifact] = []
 
         self._fetch_file_urls_decorated: Callable[..., Any] | None = None
@@ -280,19 +322,23 @@ class Artifact:
         data = client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
 
-        if (artifact := result.artifact) is None:
+        if not (
+            (artifact := result.artifact)
+            and FullArtifactPath.can_parse(src_collection := artifact.artifact_sequence)
+        ):
             return None
+        src_path = FullArtifactPath.from_collection_fragment(src_collection)
+        return cls._from_attrs(src_path, artifact, client)
 
-        src_collection = artifact.artifact_sequence
-        src_project = src_collection.project
+        # src_collection = artifact.artifact_sequence
+        # src_project = src_collection.project
 
-        entity_name = src_project.entity.name if src_project else ""
-        project_name = src_project.name if src_project else ""
+        # entity = src_project.entity.name if src_project else ""
+        # project = src_project.name if src_project else ""
+        # name = f"{src_collection.name}:v{artifact.version_index}"
 
-        name = f"{src_collection.name}:v{artifact.version_index}"
-
-        path = FullArtifactPath(prefix=entity_name, project=project_name, name=name)
-        return cls._from_attrs(path, artifact, client)
+        # path = FullArtifactPath(prefix=entity, project=project, name=name)
+        # return cls._from_attrs(path, artifact, client)
 
     @classmethod
     def _membership_from_name(
@@ -416,7 +462,8 @@ class Artifact:
             project=path.project,
             _client=client,
         )
-        artifact._name = path.name
+        artifact._current.path = path
+        # artifact._current.path.name = path.name
 
         artifact._assign_attrs(attrs, aliases)
 
@@ -436,44 +483,57 @@ class Artifact:
         is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
+        from ._models.artifact import ArtifactData
         from ._validators import validate_metadata, validate_ttl_duration_seconds
 
-        self._id = art.id
+        # Ensure current is no longer a draft artifact
+        self._current = ArtifactData.from_artifact_fragment(art)
+
+        self._current.id = art.id
 
         src_collection = art.artifact_sequence
         src_project = src_collection.project
 
-        self._source_entity = src_project.entity.name if src_project else ""
-        self._source_project = src_project.name if src_project else ""
-        self._source_name = f"{src_collection.name}:v{art.version_index}"
-        self._source_version = f"v{art.version_index}"
+        self._current.source_path.prefix = (
+            src_project.entity.name if src_project else ""
+        )
+        self._current.source_path.project = src_project.name if src_project else ""
+        self._current.source_path.name = f"{src_collection.name}:v{art.version_index}"
+        self._current.source_version = f"v{art.version_index}"
 
-        self._entity = self._entity or self._source_entity
-        self._project = self._project or self._source_project
-        self._name = self._name or self._source_name
+        self._current.path.prefix = (
+            self._current.path.prefix or self._current.source_path.prefix
+        )
+        self._current.path.project = (
+            self._current.path.project or self._current.source_path.project
+        )
+        self._current.path.name = (
+            self._current.path.name or self._current.source_path.name
+        )
 
         # TODO: Refactor artifact query to fetch artifact via membership instead
         # and get the collection type
         if is_link is None:
             self._is_link = (
-                self._entity != self._source_entity
-                or self._project != self._source_project
-                or self._name.split(":")[0] != self._source_name.split(":")[0]
+                self._current.path.prefix != self._current.source_path.prefix
+                or self._current.path.project != self._current.source_path.project
+                or self._current.path.name.split(":")[0]
+                != self._current.source_path.name.split(":")[0]
             )
         else:
             self._is_link = is_link
 
-        self._type = art.artifact_type.name
-        self._description = art.description
+        self._current.type = art.artifact_type.name
+        self._current.description = art.description
 
         # The future of aliases is to move all alias fetches to the membership level
         # so we don't have to do the collection fetches below
         if aliases:
             processed_aliases = aliases
         elif art.aliases:
-            entity = self._entity
-            project = self._project
-            collection = self._name.split(":")[0]
+            entity = self._current.path.prefix
+            project = self._current.path.project
+            collection = self._current.path.name.split(":")[0]
             processed_aliases = [
                 art_alias.alias
                 for art_alias in art.aliases
@@ -501,35 +561,41 @@ class Artifact:
             msg = f"Expected at most one version alias, got {len(version_aliases)}: {version_aliases!r}"
             raise ValueError(msg) from None
 
-        self._version = version
-        self._name = self._name if (":" in self._name) else f"{self._name}:{version}"
+        self._current.version = version
+        self._current.path.name = (
+            self._current.path.name
+            if (":" in self._current.path.name)
+            else f"{self._current.path.name}:{version}"
+        )
 
-        self._aliases = other_aliases
-        self._saved_aliases = copy(self._aliases)
+        self._current.aliases = other_aliases
+        # self._saved.aliases = copy(self._current.aliases)
 
-        self._tags = [tag.name for tag in (art.tags or [])]
-        self._saved_tags = copy(self._tags)
+        self._current.tags = [tag.name for tag in (art.tags or [])]
+        # self._saved_tags = copy(self._tags)
 
-        self._metadata = validate_metadata(art.metadata)
+        self._current.metadata = validate_metadata(art.metadata)
 
-        self._ttl_duration_seconds = validate_ttl_duration_seconds(
+        self._current.ttl_duration_seconds = validate_ttl_duration_seconds(
             art.ttl_duration_seconds
         )
-        self._ttl_is_inherited = (
+        self._current.ttl_is_inherited = (
             True if (art.ttl_is_inherited is None) else art.ttl_is_inherited
         )
 
-        self._state = ArtifactState(art.state)
-        self._size = art.size
-        self._digest = art.digest
+        self._current.state = ArtifactState(art.state)
+        self._current.size = art.size
+        self._current.digest = art.digest
 
-        self._manifest = None
+        self._current.manifest = None
 
-        self._commit_hash = art.commit_hash
-        self._file_count = art.file_count
-        self._created_at = art.created_at
-        self._updated_at = art.updated_at
-        self._history_step = art.history_step
+        self._current.commit_hash = art.commit_hash
+        self._current.file_count = art.file_count
+        self._current.created_at = art.created_at
+        self._current.updated_at = art.updated_at
+        self._current.history_step = art.history_step
+
+        self._saved = self._current.model_copy(deep=True)
 
     @ensure_logged
     def new_draft(self) -> Artifact:
@@ -552,20 +618,20 @@ class Artifact:
             type=self.type,
             description=self.description,
             metadata=self.metadata,
-            entity=self._source_entity,
-            project=self._source_project,
-            source_entity=self._source_entity,
-            source_project=self._source_project,
+            entity=self._current.source_path.prefix,
+            project=self._current.source_path.project,
+            source_entity=self._current.source_path.prefix,
+            source_project=self._current.source_path.project,
             _client=self._client,
         )
 
         # This artifact's parent is the one we are making a draft from.
-        artifact._base_id = self.id
+        artifact._current.base_id = self._current.id
 
         # We can reuse the client, and copy over all the attributes that aren't
         # version-dependent and don't depend on having been logged.
-        artifact._manifest = ArtifactManifest.from_manifest_json(
-            self.manifest.to_manifest_json()
+        artifact._current.manifest = ArtifactManifestV1.from_manifest_json(
+            self._current.manifest.to_manifest_json()
         )
         return artifact
 
@@ -576,8 +642,8 @@ class Artifact:
         """The artifact's ID."""
         if self.is_draft():
             return None
-        assert self._id is not None
-        return self._id
+        assert self._current.id is not None
+        return self._current.id
 
     @property
     @ensure_logged
@@ -586,8 +652,8 @@ class Artifact:
 
         If the artifact is a link, the entity will be the entity of the linked artifact.
         """
-        assert self._entity is not None
-        return self._entity
+        assert self._current.path.prefix is not None
+        return self._current.path.prefix
 
     @property
     @ensure_logged
@@ -596,8 +662,8 @@ class Artifact:
 
         If the artifact is a link, the project will be the project of the linked artifact.
         """
-        assert self._project is not None
-        return self._project
+        assert self._current.path.project is not None
+        return self._current.path.project
 
     @property
     def name(self) -> str:
@@ -607,7 +673,7 @@ class Artifact:
         logged/saved, the name won't contain the alias.
         If the artifact is a link, the name will be the name of the linked artifact.
         """
-        return self._name
+        return self._current.path.name
 
     @property
     def qualified_name(self) -> str:
@@ -626,8 +692,8 @@ class Artifact:
         A string with the format `v{number}`.
         If this is a link artifact, the version will be from the linked collection.
         """
-        assert self._version is not None
-        return self._version
+        assert self._current.version is not None
+        return self._current.version
 
     @property
     @ensure_logged
@@ -651,15 +717,15 @@ class Artifact:
     @ensure_logged
     def source_entity(self) -> str:
         """The name of the entity of the source artifact."""
-        assert self._source_entity is not None
-        return self._source_entity
+        assert self._current.source_path.prefix is not None
+        return self._current.source_path.prefix
 
     @property
     @ensure_logged
     def source_project(self) -> str:
         """The name of the project of the source artifact."""
-        assert self._source_project is not None
-        return self._source_project
+        assert self._current.source_path.project is not None
+        return self._current.source_path.project
 
     @property
     def source_name(self) -> str:
@@ -668,7 +734,7 @@ class Artifact:
         A string with the format `{source_collection}:{alias}`. Before the artifact
         is saved, contains only the name since the version is not yet known.
         """
-        return self._source_name
+        return self._current.source_path.name
 
     @property
     def source_qualified_name(self) -> str:
@@ -682,8 +748,8 @@ class Artifact:
 
         A string with the format `v{number}`.
         """
-        assert self._source_version is not None
-        return self._source_version
+        assert self._current.source_version is not None
+        return self._current.source_version
 
     @property
     @ensure_logged
@@ -728,7 +794,6 @@ class Artifact:
         If this artifact is a source artifact (`artifact.is_link == False`),
         it will return itself.
         """
-        from ._validators import FullArtifactPath
 
         if not self.is_link:
             return self
@@ -737,11 +802,12 @@ class Artifact:
                 raise ValueError("Client is not initialized")
 
             try:
-                path = FullArtifactPath(
-                    prefix=self.source_entity,
-                    project=self.source_project,
-                    name=self.source_name,
-                )
+                # path = FullArtifactPath(
+                #     prefix=self.source_entity,
+                #     project=self.source_project,
+                #     name=self.source_name,
+                # )
+                path = self._current.source_path
                 self._source_artifact = self._from_name(path=path, client=client)
             except Exception as e:
                 raise ValueError(
@@ -752,7 +818,7 @@ class Artifact:
     @property
     def type(self) -> str:
         """The artifact's type. Common types include `dataset` or `model`."""
-        return self._type
+        return self._current.type
 
     @property
     @ensure_logged
@@ -784,15 +850,15 @@ class Artifact:
                 base_url,
                 self.entity,
                 self.project,
-                self._type,
+                self._current.type,
                 self.collection.name,
-                self._version,
+                self._current.version,
             ]
         ):
             return ""
         return urljoin(
             base_url,
-            f"{self.entity}/{self.project}/artifacts/{quote(self._type)}/{quote(self.collection.name)}/{self._version}",
+            f"{self.entity}/{self.project}/artifacts/{quote(self._current.type)}/{quote(self.collection.name)}/{self._current.version}",
         )
 
     def _construct_registry_url(self, base_url: str) -> str:
@@ -804,7 +870,7 @@ class Artifact:
                 self.entity,
                 self.project,
                 self.collection.name,
-                self._version,
+                self._current.version,
             ]
         ):
             return ""
@@ -829,7 +895,7 @@ class Artifact:
                 self.entity,
                 self.project,
                 self.collection.name,
-                self._version,
+                self._current.version,
             ]
         ):
             return ""
@@ -838,13 +904,13 @@ class Artifact:
         )
         return urljoin(
             base_url,
-            f"{self.entity}/registry/model?selectionPath={selection_path}&view=membership&version={self._version}",
+            f"{self.entity}/registry/model?selectionPath={selection_path}&view=membership&version={self._current.version}",
         )
 
     @property
     def description(self) -> str | None:
         """A description of the artifact."""
-        return self._description
+        return self._current.description
 
     @description.setter
     def description(self, description: str | None) -> None:
@@ -864,7 +930,7 @@ class Artifact:
             wandb.termwarn(
                 "Editing the description of this linked artifact will edit the description for the source artifact and it's linked artifacts as well."
             )
-        self._description = description
+        self._current.description = description
 
     @property
     def metadata(self) -> dict:
@@ -872,7 +938,7 @@ class Artifact:
 
         Structured data associated with the artifact.
         """
-        return self._metadata
+        return self._current.metadata
 
     @metadata.setter
     def metadata(self, metadata: dict) -> None:
@@ -894,7 +960,7 @@ class Artifact:
             wandb.termwarn(
                 "Editing the metadata of this linked artifact will edit the metadata for the source artifact and it's linked artifacts as well."
             )
-        self._metadata = validate_metadata(metadata)
+        self._current.metadata = validate_metadata(metadata)
 
     @property
     def ttl(self) -> timedelta | None:
@@ -911,11 +977,11 @@ class Artifact:
             ArtifactNotLoggedError: Unable to fetch inherited TTL if the
             artifact has not been logged or saved.
         """
-        if self._ttl_is_inherited and (self.is_draft() or self._ttl_changed):
+        if self._current.ttl_is_inherited and (self.is_draft() or self._ttl_changed):
             raise ArtifactNotLoggedError(f"{nameof(type(self))}.ttl", self)
-        if self._ttl_duration_seconds is None:
+        if self._current.ttl_duration_seconds is None:
             return None
-        return timedelta(seconds=self._ttl_duration_seconds)
+        return timedelta(seconds=self._current.ttl_duration_seconds)
 
     @ttl.setter
     def ttl(self, ttl: timedelta | ArtifactTTL | None) -> None:
@@ -944,19 +1010,19 @@ class Artifact:
         self._ttl_changed = True
         if isinstance(ttl, ArtifactTTL):
             if ttl == ArtifactTTL.INHERIT:
-                self._ttl_is_inherited = True
+                self._current.ttl_is_inherited = True
             else:
                 raise ValueError(f"Unhandled ArtifactTTL enum {ttl}")
         else:
-            self._ttl_is_inherited = False
+            self._current.ttl_is_inherited = False
             if ttl is None:
-                self._ttl_duration_seconds = None
+                self._current.ttl_duration_seconds = None
             else:
                 if ttl.total_seconds() <= 0:
                     raise ValueError(
                         f"Artifact TTL Duration has to be positive. ttl: {ttl.total_seconds()}"
                     )
-                self._ttl_duration_seconds = int(ttl.total_seconds())
+                self._current.ttl_duration_seconds = int(ttl.total_seconds())
 
     @property
     @ensure_logged
@@ -970,7 +1036,7 @@ class Artifact:
         See [Create new artifact versions](https://docs.wandb.ai/guides/artifacts/create-a-new-artifact-version)
         for more information.
         """
-        return self._aliases
+        return self._current.aliases
 
     @aliases.setter
     @ensure_logged
@@ -978,13 +1044,13 @@ class Artifact:
         """Set the aliases associated with this artifact."""
         from ._validators import validate_aliases
 
-        self._aliases = validate_aliases(aliases)
+        self._current.aliases = validate_aliases(aliases)
 
     @property
     @ensure_logged
     def tags(self) -> list[str]:
         """List of one or more tags assigned to this artifact version."""
-        return self._tags
+        return self._current.tags
 
     @tags.setter
     @ensure_logged
@@ -1000,7 +1066,7 @@ class Artifact:
             wandb.termwarn(
                 "Editing tags will apply the changes to the source artifact and all linked artifacts associated with it."
             )
-        self._tags = validate_tags(tags)
+        self._current.tags = validate_tags(tags)
 
     @property
     def distributed_id(self) -> str | None:
@@ -1034,7 +1100,7 @@ class Artifact:
     @property
     def state(self) -> str:
         """The status of the artifact. One of: "PENDING", "COMMITTED", or "DELETED"."""
-        return self._state.value
+        return self._current.state.value
 
     @property
     def manifest(self) -> ArtifactManifest:
@@ -1043,9 +1109,9 @@ class Artifact:
         The manifest lists all of its contents, and can't be changed once the artifact
         has been logged.
         """
-        if self._manifest is None:
-            self._manifest = self._fetch_manifest()
-        return self._manifest
+        if self._current.manifest is None:
+            self._current.manifest = self._fetch_manifest()
+        return self._current.manifest
 
     def _fetch_manifest(self) -> ArtifactManifest:
         """Fetch, parse, and load the full ArtifactManifest."""
@@ -1086,8 +1152,8 @@ class Artifact:
         # Otherwise, use the manifest directly to recalculate the digest, as its contents
         # may have been locally modified.
         return (
-            self._digest
-            if (self._manifest is None) and (self._digest is not None)
+            self._current.digest
+            if (self._current.manifest is None) and (self._current.digest is not None)
             else self.manifest.digest()
         )
 
@@ -1105,8 +1171,8 @@ class Artifact:
         # NOTE on choice of GQL field: `Artifact.size` counts references, while
         # `Artifact.storageBytes` does not.
         return (
-            self._size
-            if (self._manifest is None) and (self._size is not None)
+            self._current.size
+            if (self._current.manifest is None) and (self._current.size is not None)
             else self.manifest.size()
         )
 
@@ -1114,29 +1180,29 @@ class Artifact:
     @ensure_logged
     def commit_hash(self) -> str:
         """The hash returned when this artifact was committed."""
-        assert self._commit_hash is not None
-        return self._commit_hash
+        assert self._current.commit_hash is not None
+        return self._current.commit_hash
 
     @property
     @ensure_logged
     def file_count(self) -> int:
         """The number of files (including references)."""
-        assert self._file_count is not None
-        return self._file_count
+        assert self._current.file_count is not None
+        return self._current.file_count
 
     @property
     @ensure_logged
     def created_at(self) -> str:
         """Timestamp when the artifact was created."""
-        assert self._created_at is not None
-        return self._created_at
+        assert self._current.created_at is not None
+        return self._current.created_at
 
     @property
     @ensure_logged
     def updated_at(self) -> str:
         """The time when the artifact was last updated."""
-        assert self._created_at is not None
-        return self._updated_at or self._created_at
+        assert self._current.created_at is not None
+        return self._current.updated_at or self._current.created_at
 
     @property
     @ensure_logged
@@ -1154,9 +1220,9 @@ class Artifact:
             )
         ```
         """
-        if self._history_step is None:
+        if self._current.history_step is None:
             return None
-        return max(0, self._history_step - 1)
+        return max(0, self._current.history_step - 1)
 
     # State management.
 
@@ -1176,7 +1242,7 @@ class Artifact:
         Returns:
             Boolean. `False` if artifact is saved. `True` if artifact is not saved.
         """
-        return self._state is ArtifactState.PENDING
+        return self._current.state is ArtifactState.PENDING
 
     def _is_draft_save_started(self) -> bool:
         return self._save_handle is not None
@@ -1197,7 +1263,7 @@ class Artifact:
             settings: A settings object to use when initializing an automatic run. Most
                 commonly used in testing harness.
         """
-        if self._state is not ArtifactState.PENDING:
+        if self._current.state is not ArtifactState.PENDING:
             return self._update()
 
         if self._incremental:
@@ -1211,8 +1277,8 @@ class Artifact:
             if settings is None:
                 settings = wandb.Settings(silent="true")
             with wandb.init(  # type: ignore
-                entity=self._source_entity,
-                project=project or self._source_project,
+                entity=self._current.source_path.prefix,
+                project=project or self._current.source_path.project,
                 job_type="auto",
                 settings=settings,
             ) as run:
@@ -1290,7 +1356,10 @@ class Artifact:
         update_alias_inputs = None
         if type_info(client, "AddAliasesInput") is not None:
             # wandb backend version >= 0.13.0
-            old_aliases, new_aliases = set(self._saved_aliases), set(self.aliases)
+            old_aliases, new_aliases = (
+                set(self._saved.aliases),
+                set(self._current.aliases),
+            )
             target = FullArtifactPath(
                 prefix=self.entity, project=self.project, name=collection
             )
@@ -1298,7 +1367,7 @@ class Artifact:
                 self._add_aliases(added_aliases, target=target)
             if deleted_aliases := (old_aliases - new_aliases):
                 self._delete_aliases(deleted_aliases, target=target)
-            self._saved_aliases = copy(self.aliases)
+            self._saved.aliases = copy(new_aliases)
         else:
             # wandb backend version < 0.13.0
             update_alias_inputs = [
@@ -1317,8 +1386,8 @@ class Artifact:
 
             omit_variables |= {"ttlDurationSeconds"}
 
-        added_tags = validate_tags(set(self.tags) - set(self._saved_tags))
-        deleted_tags = validate_tags(set(self._saved_tags) - set(self.tags))
+        added_tags = validate_tags(set(self._current.tags) - set(self._saved.tags))
+        deleted_tags = validate_tags(set(self._saved.tags) - set(self._current.tags))
 
         if {"tags"} & omit_fields:
             if added_tags or deleted_tags:
@@ -2472,7 +2541,7 @@ class Artifact:
             if not self._is_draft_save_started():
                 # Avoiding public `.source_project` property here,
                 # as it requires the artifact is logged first.
-                self.save(project=self._source_project)
+                self.save(project=self._current.source_path.project)
 
             # Wait until the artifact is committed before trying to link it.
             self.wait()
@@ -2675,9 +2744,9 @@ class Artifact:
 
         if not self._ttl_changed:
             return None
-        if self._ttl_is_inherited:
+        if self._current.ttl_is_inherited:
             return INHERIT
-        return self._ttl_duration_seconds or DISABLED
+        return self._current.ttl_duration_seconds or DISABLED
 
     def _fetch_linked_artifacts(self) -> list[Artifact]:
         """Fetches all linked artifacts from the server."""
@@ -2753,12 +2822,15 @@ class Artifact:
     ) -> Artifact:
         """Copies the source artifact to a linked artifact."""
         linked_artifact = copy(self)
-        linked_artifact._version = link_fields.version
-        linked_artifact._aliases = link_fields.aliases
-        linked_artifact._saved_aliases = copy(link_fields.aliases)
-        linked_artifact._name = link_fields.name
-        linked_artifact._entity = link_fields.entity_name
-        linked_artifact._project = link_fields.project_name
+        linked_artifact._current.version = link_fields.version
+        linked_artifact._current.aliases = link_fields.aliases
+        # linked_artifact._saved_aliases = copy(link_fields.aliases)
+        linked_artifact._current.path.name = link_fields.name
+        linked_artifact._current.path.prefix = link_fields.entity_name
+        linked_artifact._current.path.project = link_fields.project_name
+
+        linked_artifact._saved = linked_artifact._current.model_copy(deep=True)
+
         linked_artifact._is_link = link_fields.is_link
         linked_artifact._linked_artifacts = link_fields.linked_artifacts
         return linked_artifact

@@ -1253,7 +1253,7 @@ class JoinedTable(Media):
             table = entry.path
 
         err_str = "JoinedTable table:{} not found in artifact. Add a table to the artifact using Artifact#add(<table>, {}) before adding this JoinedTable"
-        if table not in artifact._manifest.entries:
+        if table not in artifact.manifest.entries:
             raise ValueError(err_str.format(table, table))
 
         return table

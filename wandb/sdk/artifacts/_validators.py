@@ -6,10 +6,10 @@ import json
 import re
 from dataclasses import dataclass, field, replace
 from functools import singledispatch, wraps
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, TypeVar
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from typing_extensions import Concatenate, ParamSpec, Self
+from typing_extensions import Concatenate, ParamSpec, Self, TypeGuard
 
 from wandb._iterutils import always_list, unique_list
 from wandb._pydantic import from_json
@@ -21,7 +21,12 @@ from .exceptions import ArtifactFinalizedError, ArtifactNotLoggedError
 if TYPE_CHECKING:
     from typing import Final, Iterable
 
-    from wandb.sdk.artifacts.artifact import Artifact
+    from ._generated import (
+        CollectionInfoFragment,
+        ProjectInfoFragment,
+        SourceCollectionInfoFragment,
+    )
+    from .artifact import Artifact
 
 ArtifactT = TypeVar("ArtifactT", bound="Artifact")
 SelfT = TypeVar("SelfT")
@@ -339,6 +344,11 @@ class ArtifactPath:
         return bool((p := self.project) and is_artifact_registry_project(p))
 
 
+class _CollectionInfoWithProject(Protocol):
+    name: str
+    project: ProjectInfoFragment  # Not optional
+
+
 @pydantic_dataclass
 class FullArtifactPath(ArtifactPath):
     """Same as ArtifactPath, but with all parts required."""
@@ -346,3 +356,15 @@ class FullArtifactPath(ArtifactPath):
     name: str
     project: str
     prefix: str
+
+    @classmethod
+    def can_parse(
+        cls, obj: SourceCollectionInfoFragment | CollectionInfoFragment
+    ) -> TypeGuard[_CollectionInfoWithProject]:
+        return obj.project is not None
+
+    @classmethod
+    def from_collection_fragment(cls, obj: _CollectionInfoWithProject) -> Self:
+        return cls(
+            prefix=obj.project.entity.name, project=obj.project.name, name=obj.name
+        )
