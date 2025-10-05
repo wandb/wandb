@@ -101,7 +101,12 @@ from ._generated import (
     UpdateArtifact,
     UpdateArtifactInput,
 )
-from ._gqlutils import omit_artifact_fields, supports_enable_tracking_var, type_info
+from ._gqlutils import (
+    omit_artifact_fields,
+    server_supports,
+    supports_enable_tracking_var,
+    type_info,
+)
 from ._models.pagination import FileWithUrlConnection
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
@@ -308,9 +313,7 @@ class Artifact:
     def _membership_from_name(
         cls, *, path: FullArtifactPath, client: RetryingClient
     ) -> Artifact:
-        if not InternalApi()._server_supports(
-            pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
-        ):
+        if not server_supports(client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
             raise UnsupportedError(
                 "querying for the artifact collection membership is not supported "
                 "by this version of wandb server. Consider updating to the latest version."
@@ -347,9 +350,7 @@ class Artifact:
         client: RetryingClient,
         enable_tracking: bool = False,
     ) -> Artifact:
-        if InternalApi()._server_supports(
-            pb.ServerFeature.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
-        ):
+        if server_supports(client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
             return cls._membership_from_name(path=path, client=client)
 
         omit_vars = None if supports_enable_tracking_var(client) else {"enableTracking"}
@@ -2151,9 +2152,7 @@ class Artifact:
         if self._client is None:
             raise RuntimeError("Client not initialized")
 
-        if InternalApi()._server_supports(
-            pb.ServerFeature.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
-        ):
+        if server_supports(self._client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES):
             query = gql(ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL)
             gql_vars = {
                 "entityName": self.entity,
@@ -2435,8 +2434,8 @@ class Artifact:
 
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
-        if api._server_supports(
-            pb.ServerFeature.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
+        if server_supports(
+            self._client, pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
         ):
             omit_fragments = set()
         else:
