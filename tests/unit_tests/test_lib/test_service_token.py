@@ -47,7 +47,7 @@ def test_unix_token(asyncer, chdir_to_tmp_path):
 
         # Connection should succeed.
         client = token.connect(asyncer=asyncer)
-        client.close()
+        asyncer.run(client.close)
 
 
 def test_tcp_token(asyncer):
@@ -60,4 +60,4 @@ def test_tcp_token(asyncer):
 
         # Connection should succeed.
         client = token.connect(asyncer=asyncer)
-        client.close()
+        asyncer.run(client.close)

@@ -6,7 +6,7 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import ParseResult
 
 from wandb import util
@@ -20,17 +20,21 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 
 
 class LocalFileHandler(StorageHandler):
     """Handles file:// references."""
 
-    def __init__(self, scheme: str | None = None) -> None:
+    _scheme: str
+    _cache: ArtifactFileCache
+
+    def __init__(self, scheme: str = "file") -> None:
         """Track files or directories on a local filesystem.
 
         Expand directories to create an entry for each file contained.
         """
-        self._scheme = scheme or "file"
+        self._scheme = scheme
         self._cache = get_artifact_file_cache()
 
     def can_handle(self, parsed_url: ParseResult) -> bool:
@@ -51,7 +55,7 @@ class LocalFileHandler(StorageHandler):
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
-            manifest_entry.size if manifest_entry.size is not None else 0,
+            manifest_entry.size or 0,
         )
         if hit:
             return path
@@ -75,7 +79,7 @@ class LocalFileHandler(StorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         local_path = util.local_file_uri_to_path(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         # We have a single file or directory
@@ -95,7 +99,7 @@ class LocalFileHandler(StorageHandler):
 
         if os.path.isdir(local_path):
             i = 0
-            start_time = time.time()
+            start_time = time.monotonic()
             if checksum:
                 termlog(
                     f'Generating checksum for up to {max_objects} files in "{local_path}"... ',
@@ -126,7 +130,7 @@ class LocalFileHandler(StorageHandler):
                     )
                     entries.append(entry)
             if checksum:
-                termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
+                termlog("Done. %.1fs" % (time.monotonic() - start_time), prefix=False)
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(

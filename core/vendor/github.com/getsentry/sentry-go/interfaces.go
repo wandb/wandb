@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go/attribute"
+	"github.com/getsentry/sentry-go/internal/ratelimit"
 )
 
 const eventType = "event"
@@ -602,6 +603,21 @@ func (e *Event) checkInMarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(checkIn)
+}
+
+func (e *Event) toCategory() ratelimit.Category {
+	switch e.Type {
+	case "":
+		return ratelimit.CategoryError
+	case transactionType:
+		return ratelimit.CategoryTransaction
+	case logEvent.Type:
+		return ratelimit.CategoryLog
+	case checkInType:
+		return ratelimit.CategoryMonitor
+	default:
+		return ratelimit.CategoryUnknown
+	}
 }
 
 // NewEvent creates a new Event.

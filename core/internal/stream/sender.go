@@ -26,6 +26,7 @@ import (
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -64,7 +65,7 @@ type SenderFactory struct {
 	RunfilesUploaderFactory *runfiles.UploaderFactory
 	GraphqlClient           graphql.Client
 	Peeker                  *observability.Peeker
-	StreamRun               *StreamRun
+	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
 }
 
@@ -117,8 +118,8 @@ type Sender struct {
 	// summaryDebouncer is the debouncer for summary updates
 	summaryDebouncer *debounce.Debouncer
 
-	// streamRun is this stream's run state.
-	streamRun *StreamRun
+	// runHandle is parts of the Stream initialized after the first RunRecord
+	runHandle *runhandle.RunHandle
 
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
@@ -244,7 +245,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		networkPeeker: f.Peeker,
 		graphqlClient: f.GraphqlClient,
 		mailbox:       f.Mailbox,
-		streamRun:     f.StreamRun,
+		runHandle:     f.RunHandle,
 		runSummary:    runsummary.New(),
 		outChan:       make(chan *spb.Result, BufferSize),
 		summaryDebouncer: debounce.NewDebouncer(
@@ -257,7 +258,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 
 	backendOrNil := f.Backend
 	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
-		s.jobBuilder = launch.NewJobBuilder(s.settings.Proto, s.logger, false)
+		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
 	}
 
 	return s
@@ -497,7 +498,7 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 // updateSettings updates the settings from the run record upon a run start
 // with the information from the server
 func (s *Sender) updateSettings() {
-	upserter, _ := s.streamRun.GetRunUpserter()
+	upserter, _ := s.runHandle.Upserter()
 	if s.settings == nil || upserter == nil {
 		return
 	}
@@ -526,7 +527,7 @@ func (s *Sender) updateSettings() {
 // sendRequestRunStart sends a run start request to start all the stream
 // components that need to be started and to update the settings
 func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
 			fmt.Errorf("sender: sendRequestRunStart: %v", err))
@@ -575,7 +576,7 @@ func (s *Sender) sendJobFlush() {
 		return
 	}
 
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendJobFlush: %v", err))
 		return
@@ -645,7 +646,7 @@ func (s *Sender) finishRunSync() {
 	s.summaryDebouncer.Stop()
 	s.uploadSummaryFile()
 
-	upserter, _ := s.streamRun.GetRunUpserter()
+	upserter, _ := s.runHandle.Upserter()
 	if upserter != nil {
 		upserter.Finish()
 	}
@@ -742,7 +743,7 @@ func (s *Sender) finishFileStream() {
 }
 
 func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendTelemetry: %v", err))
 		return
@@ -752,7 +753,7 @@ func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 }
 
 func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendMetadata: %v", err))
 		return
@@ -774,7 +775,7 @@ func (s *Sender) uploadMetadataFile() {
 		return
 	}
 
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: uploadMetadataFile: %v", err))
 		return
@@ -940,7 +941,7 @@ func (s *Sender) uploadConfigFile() {
 		return
 	}
 
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: uploadConfigFile: %v", err))
 		return
@@ -999,7 +1000,7 @@ func (s *Sender) scheduleFileUpload(
 
 // sendConfig updates the run's config and schedules an upload.
 func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendConfig: %v", err))
 		return
@@ -1019,7 +1020,7 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 		return
 	}
 
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendSystemMetrics: %v", err))
 		return
@@ -1065,7 +1066,7 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 		return
 	}
 
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureFatalAndPanic(fmt.Errorf("sender: sendAlert: %v", err))
 		return
@@ -1127,7 +1128,7 @@ func (s *Sender) sendExit(record *spb.Record) {
 
 // sendMetric updates the metrics in the run config.
 func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
-	upserter, err := s.streamRun.GetRunUpserter()
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(fmt.Errorf("sender: sendMetric: %v", err))
 		return
@@ -1198,6 +1199,8 @@ func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifact
 
 		if result.Err != nil {
 			response.ErrorMessage = result.Err.Error()
+			// TODO: it will send error to sentry, do we want it?
+			s.logger.CaptureError(fmt.Errorf("sender: failed to log artifact: %v", result.Err), "artifactID", result.ArtifactID)
 		} else {
 			response.ArtifactId = result.ArtifactID
 		}
@@ -1260,7 +1263,13 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 		})
 	}
 
-	upserter, err := s.streamRun.GetRunUpserter()
+	// Prefer filestream feedback if available.
+	if s.fileStream != nil && s.fileStream.StopState() != fs.StopUnknown {
+		respondShouldStop(s.fileStream.StopState() == fs.StopTrue)
+		return
+	}
+
+	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
 			fmt.Errorf("sender: sendRequestStopStatus: %v", err))
@@ -1268,7 +1277,6 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 		return
 	}
 
-	// TODO: unify everywhere to use settings
 	runPath := upserter.RunPath()
 	entity := runPath.Entity
 	project := runPath.Project
@@ -1281,6 +1289,7 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 		return
 	}
 
+	// Fallback: consult GraphQL when filestream status is unknown.
 	response, err := gql.RunStoppedStatus(
 		s.runWork.BeforeEndCtx(),
 		s.graphqlClient,

@@ -1,5 +1,7 @@
 """normalize."""
 
+from __future__ import annotations
+
 import ast
 import sys
 from functools import wraps

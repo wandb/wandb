@@ -108,6 +108,34 @@ query ProjectArtifacts(
   }
 }
 
+fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
+  totalCount
+  edges {
+    node {
+      ...ArtifactFragment
+    }
+    cursor
+  }
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
+}
+
+fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
+  totalCount
+  edges {
+    node {
+      ...ArtifactFragment
+    }
+    cursor
+  }
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
+}
+
 query RunOutputArtifacts(
   $entity: String!
   $project: String!
@@ -118,17 +146,7 @@ query RunOutputArtifacts(
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
       outputArtifacts(after: $cursor, first: $perPage) {
-        totalCount
-        edges {
-          node {
-            ...ArtifactFragment
-          }
-          cursor
-        }
-        pageInfo {
-          endCursor
-          hasNextPage
-        }
+        ...RunOutputArtifactConnectionFragment
       }
     }
   }
@@ -144,17 +162,7 @@ query RunInputArtifacts(
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
       inputArtifacts(after: $cursor, first: $perPage) {
-        totalCount
-        edges {
-          node {
-            ...ArtifactFragment
-          }
-          cursor
-        }
-        pageInfo {
-          endCursor
-          hasNextPage
-        }
+        ...RunInputArtifactConnectionFragment
       }
     }
   }

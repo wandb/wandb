@@ -160,7 +160,7 @@ type uploadResult struct {
 	err  error
 }
 
-func (as *ArtifactSaver) createArtifact() (
+func (as *ArtifactSaver) createArtifact(manifest *Manifest) (
 	attrs gql.CreatedArtifactArtifact,
 	rerr error,
 ) {
@@ -193,7 +193,7 @@ func (as *ArtifactSaver) createArtifact() (
 			tags = append(tags, gql.TagInput{TagName: tag})
 		}
 	}
-
+	as.logger.Debug("createArtifact: manifest", "storagePolicyConfig", manifest.StoragePolicyConfig)
 	input := gql.CreateArtifactInput{
 		EntityName:                as.artifact.Entity,
 		ProjectName:               as.artifact.Project,
@@ -212,6 +212,7 @@ func (as *ArtifactSaver) createArtifact() (
 		DistributedID:             nullify.NilIfZero(as.artifact.DistributedId),
 		ClientID:                  as.artifact.ClientId,
 		SequenceClientID:          as.artifact.SequenceClientId,
+		StorageRegion:             manifest.StoragePolicyConfig.StorageRegion,
 	}
 
 	response, err := gql.CreateArtifact(as.ctx, as.graphqlClient, input)
@@ -709,7 +710,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 
 	defer as.deleteStagingFiles(&manifest)
 
-	artifactAttrs, err := as.createArtifact()
+	artifactAttrs, err := as.createArtifact(&manifest)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
 	}

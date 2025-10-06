@@ -212,7 +212,7 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Install Go version `1.25.0` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.25.1` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 
 ```shell
 brew install go@1.25
@@ -337,7 +337,9 @@ If there is a schema change on the Server side that affects your GraphQL API,
 follow the instructions:
 
 - For `wandb-core` (Go): [here](core/api/graphql/schemas/README.md)
-- For `wandb` (Python): [here](tools/graphql_codegen/README.md)
+- For `wandb` (Python):
+  - Update the commit hash in `./core/api/graphql/schemas/commit.hash.txt`
+  - (Re-)run `nox -s gql-codegen`
 
 ## Testing
 

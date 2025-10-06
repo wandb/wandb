@@ -9,6 +9,8 @@ Note:
     both complete and sampled access to metrics logged during training runs.
 """
 
+from __future__ import annotations
+
 import json
 
 from wandb_gql import gql

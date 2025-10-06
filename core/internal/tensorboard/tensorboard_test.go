@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
@@ -20,7 +20,7 @@ import (
 // testOptions is data used to configure a test.
 type testOptions struct {
 	// The files_dir run setting, as a slash-separated relative path.
-	SlashFilesDir string
+	SlashSyncDir string
 }
 
 // testContext is a set of variables and functions available in each test.
@@ -47,13 +47,13 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 	}
 
 	settingsProto := &spb.Settings{}
-	if opts.SlashFilesDir != "" {
-		settingsProto.FilesDir = wrapperspb.String(toPath(opts.SlashFilesDir))
+	if opts.SlashSyncDir != "" {
+		settingsProto.SyncDir = wrapperspb.String(toPath(opts.SlashSyncDir))
 	}
 	settings := settings.From(settingsProto)
 
 	factory := tensorboard.TBHandlerFactory{
-		Logger:   observability.NewNoOpLogger(),
+		Logger:   observabilitytest.NewTestLogger(t),
 		Settings: settings,
 	}
 	handler := factory.New(runWork, fileReadDelay)
@@ -72,7 +72,7 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 }
 
 func Test_SymlinksFile(t *testing.T) {
-	ctx := setupTest(t, testOptions{SlashFilesDir: "runfiles"})
+	ctx := setupTest(t, testOptions{SlashSyncDir: "my-run"})
 	ctx.TouchFile("logs/train/events.out.tfevents.123.hostname")
 
 	require.NoError(t,
@@ -84,5 +84,5 @@ func Test_SymlinksFile(t *testing.T) {
 	ctx.Handler.Finish()
 
 	assert.FileExists(t,
-		ctx.Path("runfiles/train/events.out.tfevents.123.hostname"))
+		ctx.Path("my-run/files/train/events.out.tfevents.123.hostname"))
 }

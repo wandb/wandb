@@ -24,7 +24,6 @@ class ServiceClient:
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
     ) -> None:
-        self._asyncer = asyncer
         self._reader = reader
         self._writer = writer
         self._mailbox = Mailbox(asyncer)
@@ -34,11 +33,11 @@ class ServiceClient:
             name="ServiceClient._forward_responses",
         )
 
-    def publish(self, request: spb.ServerRequest) -> None:
+    async def publish(self, request: spb.ServerRequest) -> None:
         """Send a request without waiting for a response."""
-        self._asyncer.run_soon(lambda: self._send_server_request(request))
+        await self._send_server_request(request)
 
-    def deliver(
+    async def deliver(
         self,
         request: spb.ServerRequest,
     ) -> MailboxHandle[spb.ServerResponse]:
@@ -52,7 +51,7 @@ class ServiceClient:
                 stopped due to an error.
         """
         handle = self._mailbox.require_response(request)
-        self._asyncer.run_soon(lambda: self._send_server_request(request))
+        await self._send_server_request(request)
         return handle
 
     async def _send_server_request(self, request: spb.ServerRequest) -> None:
@@ -64,11 +63,8 @@ class ServiceClient:
 
         await self._writer.drain()
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Flush and close the socket."""
-        self._asyncer.run_soon(self._close)
-
-    async def _close(self) -> None:
         self._writer.close()
         await self._writer.wait_closed()
 

@@ -8,12 +8,15 @@ import logging
 from multiprocessing.process import BaseProcess
 from typing import TYPE_CHECKING, Optional
 
+from typing_extensions import override
+
 from .interface_shared import InterfaceShared
 
 if TYPE_CHECKING:
     from queue import Queue
 
     from wandb.proto import wandb_internal_pb2 as pb
+    from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 
 logger = logging.getLogger("wandb")
@@ -30,6 +33,13 @@ class InterfaceQueue(InterfaceShared):
         self.result_q = result_q
         self._process = process
         super().__init__()
+
+    @override
+    async def deliver_async(
+        self,
+        record: "pb.Record",
+    ) -> "MailboxHandle[pb.Result]":
+        raise NotImplementedError
 
     def _publish(self, record: "pb.Record", local: Optional[bool] = None) -> None:
         if self._process and not self._process.is_alive():

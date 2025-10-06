@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-from wandb.sdk.artifacts.storage_handler import StorageHandler
+from wandb.sdk.artifacts.storage_handler import StorageHandler, _BaseStorageHandler
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
@@ -13,8 +13,9 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
 
-class MultiHandler(StorageHandler):
+class MultiHandler(_BaseStorageHandler):
     _handlers: list[StorageHandler]
+    _default_handler: StorageHandler | None
 
     def __init__(
         self,
@@ -49,7 +50,7 @@ class MultiHandler(StorageHandler):
         name: str | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         handler = self._get_handler(path)
         return handler.store_path(
             artifact, path, name=name, checksum=checksum, max_objects=max_objects

@@ -406,6 +406,25 @@ class _WandbInit:
                 run_id=settings.run_id,
             )
 
+    def set_sync_dir_suffix(self, settings: Settings) -> None:
+        """Add a suffix to sync_dir if it already exists.
+
+        The sync_dir uses a timestamp with second-level precision which can
+        result in conflicts if a run with the same ID is initialized within the
+        same second. This is most likely to happen in tests.
+
+        This can't prevent conflicts from multiple processes attempting
+        to create a wandb run simultaneously.
+
+        Args:
+            settings: Fully initialized settings other than the
+                x_sync_dir_suffix setting which will be modified.
+        """
+        index = 1
+        while pathlib.Path(settings.sync_dir).exists():
+            settings.x_sync_dir_suffix = f"{index}"
+            index += 1
+
     def make_run_config(
         self,
         settings: Settings,
@@ -708,7 +727,7 @@ class _WandbInit:
         drun = Run(
             settings=Settings(
                 mode="disabled",
-                x_files_dir=tempfile.gettempdir(),
+                root_dir=tempfile.gettempdir(),
                 run_id=run_id,
                 run_tags=tuple(),
                 run_notes=None,
@@ -839,6 +858,13 @@ class _WandbInit:
                     " and reinit is set to 'create_new', so continuing"
                 )
 
+            elif settings.resume == "must":
+                raise wandb.Error(
+                    "Cannot resume a run while another run is active."
+                    " You must either finish it using run.finish(),"
+                    " or use reinit='create_new' when calling wandb.init()."
+                )
+
             else:
                 run_printer.display(
                     "wandb.init() called while a run is active and reinit is"
@@ -864,7 +890,6 @@ class _WandbInit:
         backend.ensure_launched()
         self._logger.info("backend started and connected")
 
-        # resuming needs access to the server, check server_status()?
         run = Run(
             config=config.base_no_artifacts,
             settings=settings,
@@ -1018,6 +1043,8 @@ class _WandbInit:
             run_start_handle.wait_or(timeout=30)
         except TimeoutError:
             pass
+
+        backend.interface.publish_probe_system_info()
 
         assert self._wl is not None
         self.run = run
@@ -1399,8 +1426,8 @@ def init(  # noqa: C901
             enable on your settings page.
         tensorboard: Deprecated. Use `sync_tensorboard` instead.
         sync_tensorboard: Enables automatic syncing of W&B logs from TensorBoard
-            or TensorBoardX, saving relevant event files for viewing in the W&B UI.
-            saving relevant event files for viewing in the W&B UI. (Default: `False`)
+            or TensorBoardX, saving relevant event files for viewing in
+            the W&B UI.
         monitor_gym: Enables automatic logging of videos of the environment when
             using OpenAI Gym.
         settings: Specifies a dictionary or `wandb.Settings` object with advanced
@@ -1516,6 +1543,7 @@ def init(  # noqa: C901
             init_telemetry.feature.rewind_mode = True
 
         wi.set_run_id(run_settings)
+        wi.set_sync_dir_suffix(run_settings)
         run_printer = printer.new_printer(run_settings)
         show_warnings(run_printer)
 

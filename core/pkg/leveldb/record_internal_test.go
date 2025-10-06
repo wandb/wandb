@@ -829,7 +829,7 @@ func TestVerifyWandbHeader_InvalidIdent(t *testing.T) {
 
 	err := r.VerifyWandbHeader(0)
 
-	if !strings.Contains(err.Error(), "invalid W&B identifier") {
+	if !strings.Contains(err.Error(), `invalid W&B identifier: 6F6F7073 ("oops")`) {
 		t.Fatalf("wrong error: %v", err)
 	}
 }

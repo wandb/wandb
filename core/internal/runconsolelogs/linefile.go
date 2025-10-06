@@ -9,6 +9,8 @@ import (
 	"github.com/wandb/wandb/core/internal/sparselist"
 )
 
+var errCursorBehindBufStart = errors.New("cursor < bufStart")
+
 // lineFile is a file containing line-oriented text.
 type lineFile struct {
 	// path is the path to the file.
@@ -24,23 +26,31 @@ type lineFile struct {
 type lineFileIO struct {
 	f *os.File
 
-	// buf is buffered data from the file.
+	// buf is buffered data from the tail end of the file.
 	buf []byte
 
 	// bufStart is the file offset from which the rest of the file is
 	// contained in buf.
+	//
+	// The file's contents from bufStart to bufStart+len(buf) are guaranteed
+	// to be equal to buf. It may have contents beyond that which are stale
+	// and will be removed on the next write.
 	bufStart int64
 
-	// cursor is an offset into the file.
+	// needsTruncate is true if the file contains bytes beyond
+	// bufStart+len(buf) that should be discarded.
+	needsTruncate bool
+
+	// cursor is an offset into the file used during PopLine.
 	//
-	// `cursor - bufStartOffset` is always a valid index into the buffer
-	// if it holds at least one byte. Otherwise, `cursor == bufStart`.
+	// It is always true that bufStart <= cursor <= bufStart+len(buf).
 	cursor int64
 }
 
 // CreateLineFile creates an empty file or returns an error.
 //
-// The file must not already exist. Its parent directory must exist.
+// The file's parent directory must exist. If the file already exists,
+// it is truncated.
 func CreateLineFile(path string, perm fs.FileMode) (*lineFile, error) {
 	if err := os.WriteFile(string(path), []byte{}, perm); err != nil {
 		return nil, err
@@ -143,12 +153,13 @@ func (f *lineFile) Open() (*lineFileIO, error) {
 
 // Close flushes changes and closes the file handle.
 func (f *lineFileIO) Close() error {
+	// Drop data that was removed by PopLine.
 	if err := f.f.Truncate(f.bufStart + int64(len(f.buf))); err != nil {
-		return err
+		return fmt.Errorf("failed to truncate when closing: %v", err)
 	}
 
 	if err := f.f.Close(); err != nil {
-		return err
+		return fmt.Errorf("failed to close: %v", err)
 	}
 
 	return nil
@@ -160,11 +171,12 @@ func (f *lineFileIO) Close() error {
 func (f *lineFileIO) AppendLine(line string) error {
 	lineStart := f.bufStart + int64(len(f.buf))
 
-	// Truncate the file to the current position first.
-	if len(f.buf) > 0 {
+	// Drop data that was removed by PopLine.
+	if f.needsTruncate {
 		if err := f.f.Truncate(lineStart); err != nil {
-			return err
+			return fmt.Errorf("failed to truncate before appending: %v", err)
 		}
+		f.needsTruncate = false
 	}
 
 	// Write the UTF-8 bytes of the line to the file with a '\n' at the end.
@@ -174,7 +186,7 @@ func (f *lineFileIO) AppendLine(line string) error {
 
 	_, err := f.f.WriteAt(data, lineStart)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to append: %v", err)
 	}
 
 	f.buf = make([]byte, 0)
@@ -183,7 +195,7 @@ func (f *lineFileIO) AppendLine(line string) error {
 	return nil
 }
 
-// PopLine drops the last file from the file and returns it.
+// PopLine removes the last file from the file and returns it.
 //
 // The returned line does not end with '\n'.
 //
@@ -220,6 +232,7 @@ func (f *lineFileIO) PopLine() (string, error) {
 
 			// Drop the line from the buffer.
 			f.buf = f.buf[:bufIdx:bufIdx]
+			f.needsTruncate = true
 
 			return line, nil
 		}
@@ -233,8 +246,11 @@ func (f *lineFileIO) cursorBack() error {
 	if f.cursor == 0 {
 		return errors.New("cursor is at start of file")
 	}
+	if f.cursor < f.bufStart {
+		return errCursorBehindBufStart
+	}
 
-	if f.cursor <= f.bufStart {
+	if f.cursor == f.bufStart {
 		if err := f.loadMore(); err != nil {
 			return err
 		}
@@ -253,8 +269,11 @@ func (f *lineFileIO) peekPrevByte() (byte, bool, error) {
 	if f.cursor == 0 {
 		return 0, true, nil
 	}
+	if f.cursor < f.bufStart {
+		return 0, false, errCursorBehindBufStart
+	}
 
-	if len(f.buf) == 0 || f.cursor == f.bufStart {
+	if f.cursor == f.bufStart {
 		if err := f.loadMore(); err != nil {
 			return 0, false, err
 		}
@@ -263,9 +282,9 @@ func (f *lineFileIO) peekPrevByte() (byte, bool, error) {
 	return f.buf[f.cursor-f.bufStart-1], false, nil
 }
 
-// loadMore reads more data from the file to the buffer.
+// loadMore reads the file backwards to grow the buffer.
 //
-// Guarantees that bufStartOffset decreases. Returns an error if it is
+// Guarantees that bufStart decreases. Returns an error if it is
 // already at 0.
 func (f *lineFileIO) loadMore() error {
 	if f.bufStart == 0 {
@@ -274,17 +293,28 @@ func (f *lineFileIO) loadMore() error {
 
 	// Read 8K at a time, which is one or two pages on most systems.
 	// It doesn't really matter, it's fast enough.
-	nToRead := min(2<<13, f.bufStart)
-	newBufStartOffset := f.bufStart - int64(nToRead)
+	nToRead := min(8*1024, f.bufStart)
+	newBufStart := f.bufStart - int64(nToRead)
 
+	// We don't have to loop here. From the ReaderAt.ReadAt docs:
+	//   If some data is available but not len(p) bytes, ReadAt blocks until
+	//   either all the data is available or an error occurs. In this respect
+	//   ReadAt is different from Read.
 	newBuf := make([]byte, nToRead, int(nToRead)+len(f.buf))
-	_, err := f.f.ReadAt(newBuf, newBufStartOffset)
-	if err != nil {
-		return err
+	n, err := f.f.ReadAt(newBuf, newBufStart)
+
+	// From the ReaderAt.ReadAt docs:
+	//   If the n = len(p) bytes returned by ReadAt are at the end of the
+	//   input source, ReadAt may return either err == EOF or err == nil.
+	// Although File.ReadAt doesn't say this, it appears to still be possible.
+	if int64(n) != nToRead {
+		// err is guaranteed non-nil by ReadAt in this case.
+		return fmt.Errorf("failed to load %d bytes at offset %d: %v",
+			nToRead, newBufStart, err)
 	}
 
 	newBuf = append(newBuf, f.buf...)
 	f.buf = newBuf
-	f.bufStart = newBufStartOffset
+	f.bufStart = newBufStart
 	return nil
 }
