@@ -8,6 +8,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -49,6 +50,9 @@ type savedFile struct {
 	// HTTP headers to set on the reupload request for the file if
 	// `reuploadScheduled`.
 	reuploadHeaders []string
+
+	// Hash of the last successfully uploaded content (base64 MD5).
+	lastUploadedB64MD5 string
 }
 
 func newSavedFile(
@@ -80,7 +84,8 @@ func (f *savedFile) SetCategory(category filetransfer.RunFileKind) {
 // Upload schedules an upload of savedFile.
 //
 // If there is an ongoing upload operation for the file, the new upload
-// is scheduled to happen after the previous one completes.
+// is scheduled to happen after the previous one completes, and only if
+// the file bytes differ from the last successful upload.
 func (f *savedFile) Upload(
 	url string,
 	headers []string,
@@ -106,6 +111,16 @@ func (f *savedFile) Upload(
 //
 // It must be called while a lock is held. It temporarily releases the lock.
 func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
+	// Mark as uploading first so concurrent f.Upload calls defer and queue.
+	f.isUploading = true
+
+	// Check if the file bytes differ from the last successful upload.
+	currentB64MD5, isUnchanged := f.checkContentB64MD5()
+	if isUnchanged {
+		f.maybeReupload()
+		return
+	}
+
 	op := f.operations.New(fmt.Sprintf("uploading %s", string(f.runPath)))
 
 	task := &filetransfer.DefaultUploadTask{
@@ -117,11 +132,10 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 		Headers:  uploadHeaders,
 	}
 
-	f.isUploading = true
 	f.wg.Add(1)
 	task.OnComplete = func() {
 		op.Finish()
-		f.onFinishUpload(task)
+		f.onFinishUpload(task, currentB64MD5)
 	}
 
 	// Temporarily unlock while we run arbitrary code.
@@ -130,22 +144,50 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 	f.ftm.AddTask(task)
 }
 
+// checkContentB64MD5 computes the MD5 hash of the file and compares it
+// with the hash at the last successful upload.
+//
+// It must be called while holding the lock, which it temporarily releases.
+func (f *savedFile) checkContentB64MD5() (string, bool) {
+	f.Unlock()
+	currentB64MD5, err := hashencode.ComputeFileB64MD5(f.realPath)
+	if err != nil {
+		currentB64MD5 = "" // treat file as "changed" below
+	}
+	f.Lock()
+	isUnchanged := currentB64MD5 != "" && f.lastUploadedB64MD5 == currentB64MD5
+
+	return currentB64MD5, isUnchanged
+}
+
+// maybeReupload clears the in-flight state and honors any queued reupload.
+//
+// It must be called while holding the lock.
+func (f *savedFile) maybeReupload() {
+	f.isUploading = false
+	if f.reuploadScheduled {
+		f.reuploadScheduled = false
+		f.doUpload(f.reuploadURL, f.reuploadHeaders)
+	}
+}
+
 // onFinishUpload marks an upload completed and triggers another if scheduled.
-func (f *savedFile) onFinishUpload(task *filetransfer.DefaultUploadTask) {
+func (f *savedFile) onFinishUpload(
+	task *filetransfer.DefaultUploadTask,
+	uploadedB64MD5 string,
+) {
 	if task.Err == nil {
 		f.fs.StreamUpdate(&filestream.FilesUploadedUpdate{
 			// Convert backslashes to forward slashes in the file path.
 			// Since the backend API requires forward slashes.
 			RelativePath: filepath.ToSlash(string(f.runPath)),
 		})
+		// Record what we believe the server now has.
+		f.lastUploadedB64MD5 = uploadedB64MD5
 	}
 
 	f.Lock()
-	f.isUploading = false
-	if f.reuploadScheduled {
-		f.reuploadScheduled = false
-		f.doUpload(f.reuploadURL, f.reuploadHeaders)
-	}
+	f.maybeReupload()
 	f.Unlock()
 
 	f.wg.Done()
