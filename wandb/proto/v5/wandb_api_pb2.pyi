@@ -15,15 +15,19 @@ DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
 @typing.final
 class ApiRequest(google.protobuf.message.Message):
+    """ApiRequest is a request to the backend process
+    to perform an action related to an API call.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     READ_RUN_HISTORY_FIELD_NUMBER: builtins.int
     @property
-    def read_run_history(self) -> global___ReadRunHistoryRequest: ...
+    def read_run_history(self) -> global___ReadRunHistoryApiRequest: ...
     def __init__(
         self,
         *,
-        read_run_history: global___ReadRunHistoryRequest | None = ...,
+        read_run_history: global___ReadRunHistoryApiRequest | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["read_run_history", b"read_run_history", "request", b"request"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing.Literal["read_run_history", b"read_run_history", "request", b"request"]) -> None: ...
@@ -33,15 +37,17 @@ global___ApiRequest = ApiRequest
 
 @typing.final
 class ApiResponse(google.protobuf.message.Message):
+    """ApiResponse is a response from the backend process for an ApiRequest."""
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     READ_RUN_HISTORY_FIELD_NUMBER: builtins.int
     @property
-    def read_run_history(self) -> global___ReadRunHistoryResponse: ...
+    def read_run_history(self) -> global___ReadRunHistoryApiResponse: ...
     def __init__(
         self,
         *,
-        read_run_history: global___ReadRunHistoryResponse | None = ...,
+        read_run_history: global___ReadRunHistoryApiResponse | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["read_run_history", b"read_run_history", "response", b"response"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing.Literal["read_run_history", b"read_run_history", "response", b"response"]) -> None: ...
@@ -50,8 +56,10 @@ class ApiResponse(google.protobuf.message.Message):
 global___ApiResponse = ApiResponse
 
 @typing.final
-class ReadRunHistoryRequest(google.protobuf.message.Message):
-    """Start of Read run history"""
+class ReadRunHistoryApiRequest(google.protobuf.message.Message):
+    """Start of Read run history
+    ReadRunHistoryApiRequest is a request to get a slice of a run's history.
+    """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -85,10 +93,10 @@ class ReadRunHistoryRequest(google.protobuf.message.Message):
     def HasField(self, field_name: typing.Literal["_info", b"_info"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing.Literal["_info", b"_info", "entity", b"entity", "keys", b"keys", "max_step", b"max_step", "min_step", b"min_step", "project", b"project", "run_id", b"run_id"]) -> None: ...
 
-global___ReadRunHistoryRequest = ReadRunHistoryRequest
+global___ReadRunHistoryApiRequest = ReadRunHistoryApiRequest
 
 @typing.final
-class ReadRunHistoryResponse(google.protobuf.message.Message):
+class ReadRunHistoryApiResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     HISTORY_ROWS_FIELD_NUMBER: builtins.int
@@ -104,7 +112,7 @@ class ReadRunHistoryResponse(google.protobuf.message.Message):
     ) -> None: ...
     def ClearField(self, field_name: typing.Literal["error_message", b"error_message", "history_rows", b"history_rows"]) -> None: ...
 
-global___ReadRunHistoryResponse = ReadRunHistoryResponse
+global___ReadRunHistoryApiResponse = ReadRunHistoryApiResponse
 
 @typing.final
 class HistoryRow(google.protobuf.message.Message):

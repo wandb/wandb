@@ -612,6 +612,8 @@ pub struct Issues {
     #[prost(bool, tag = "3")]
     pub settings_preprocessing_warnings: bool,
 }
+/// ApiRequest is a request to the backend process
+/// to perform an action related to an API call.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ApiRequest {
     #[prost(oneof = "api_request::Request", tags = "1")]
@@ -622,9 +624,10 @@ pub mod api_request {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Request {
         #[prost(message, tag = "1")]
-        ReadRunHistory(super::ReadRunHistoryRequest),
+        ReadRunHistory(super::ReadRunHistoryApiRequest),
     }
 }
+/// ApiResponse is a response from the backend process for an ApiRequest.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ApiResponse {
     #[prost(oneof = "api_response::Response", tags = "1")]
@@ -635,11 +638,11 @@ pub mod api_response {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Response {
         #[prost(message, tag = "1")]
-        ReadRunHistory(super::ReadRunHistoryResponse),
+        ReadRunHistory(super::ReadRunHistoryApiResponse),
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ReadRunHistoryRequest {
+pub struct ReadRunHistoryApiRequest {
     #[prost(string, tag = "1")]
     pub entity: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
@@ -656,7 +659,7 @@ pub struct ReadRunHistoryRequest {
     pub info: ::core::option::Option<RecordInfo>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ReadRunHistoryResponse {
+pub struct ReadRunHistoryApiResponse {
     #[prost(message, repeated, tag = "1")]
     pub history_rows: ::prost::alloc::vec::Vec<HistoryRow>,
     #[prost(string, tag = "2")]

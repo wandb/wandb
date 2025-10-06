@@ -6,21 +6,25 @@ import "wandb/proto/wandb_base.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
+// ApiRequest is a request to the backend process
+// to perform an action related to an API call.
 message ApiRequest {
   oneof request {
-    ReadRunHistoryRequest read_run_history = 1;
+    ReadRunHistoryApiRequest read_run_history = 1;
   }
 }
 
+// ApiResponse is a response from the backend process for an ApiRequest.
 message ApiResponse {
   oneof response {
-    ReadRunHistoryResponse read_run_history = 1;
+    ReadRunHistoryApiResponse read_run_history = 1;
   }
 }
 
 // Start of Read run history
+// ReadRunHistoryApiRequest is a request to get a slice of a run's history.
 
-message ReadRunHistoryRequest {
+message ReadRunHistoryApiRequest {
   string entity = 1;
   string project = 2;
   string run_id = 3;
@@ -31,7 +35,7 @@ message ReadRunHistoryRequest {
   _RecordInfo _info = 200;
 }
 
-message ReadRunHistoryResponse {
+message ReadRunHistoryApiResponse {
   repeated HistoryRow history_rows = 1;
   string error_message = 2;
 }
