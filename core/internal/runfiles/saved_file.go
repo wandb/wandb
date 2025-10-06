@@ -115,20 +115,9 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 	f.isUploading = true
 
 	// Check if the file bytes differ from the last successful upload.
-	f.Unlock()
-	currentB64MD5, err := hashencode.ComputeFileB64MD5(f.realPath)
-	if err != nil {
-		currentB64MD5 = "" // treat as "changed" below
-	}
-	f.Lock()
-	if currentB64MD5 != "" && f.lastUploadedB64MD5 == currentB64MD5 {
-		// No changes: clear in-flight state and honor any queued reupload.
-		f.isUploading = false
-		if f.reuploadScheduled {
-			f.reuploadScheduled = false
-			f.doUpload(f.reuploadURL, f.reuploadHeaders)
-		}
-		return
+	currentB64MD5, isUnchanged := f.checkContentB64MD5()
+	if isUnchanged {
+		f.maybeReupload()
 	}
 
 	op := f.operations.New(fmt.Sprintf("uploading %s", string(f.runPath)))
@@ -154,6 +143,33 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 	f.ftm.AddTask(task)
 }
 
+// checkContentB64MD5 computes the MD5 hash of the file and compares it
+// with the hash at the last successful upload.
+//
+// It must be called while holding the lock, which it temporarily releases.
+func (f *savedFile) checkContentB64MD5() (currentB64MD5 string, isUnchanged bool) {
+	f.Unlock()
+	currentB64MD5, err := hashencode.ComputeFileB64MD5(f.realPath)
+	if err != nil {
+		currentB64MD5 = "" // treat file as "changed" below
+	}
+	f.Lock()
+	isUnchanged = currentB64MD5 != "" && f.lastUploadedB64MD5 == currentB64MD5
+
+	return currentB64MD5, isUnchanged
+}
+
+// maybeReupload clears the in-flight state and honors any queued reupload.
+//
+// It must be called while holding the lock.
+func (f *savedFile) maybeReupload() {
+	f.isUploading = false
+	if f.reuploadScheduled {
+		f.reuploadScheduled = false
+		f.doUpload(f.reuploadURL, f.reuploadHeaders)
+	}
+}
+
 // onFinishUpload marks an upload completed and triggers another if scheduled.
 func (f *savedFile) onFinishUpload(
 	task *filetransfer.DefaultUploadTask,
@@ -170,11 +186,7 @@ func (f *savedFile) onFinishUpload(
 	}
 
 	f.Lock()
-	f.isUploading = false
-	if f.reuploadScheduled {
-		f.reuploadScheduled = false
-		f.doUpload(f.reuploadURL, f.reuploadHeaders)
-	}
+	f.maybeReupload()
 	f.Unlock()
 
 	f.wg.Done()
