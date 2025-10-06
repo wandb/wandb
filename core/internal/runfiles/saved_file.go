@@ -118,6 +118,7 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 	currentB64MD5, isUnchanged := f.checkContentB64MD5()
 	if isUnchanged {
 		f.maybeReupload()
+		return
 	}
 
 	op := f.operations.New(fmt.Sprintf("uploading %s", string(f.runPath)))
@@ -147,14 +148,14 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 // with the hash at the last successful upload.
 //
 // It must be called while holding the lock, which it temporarily releases.
-func (f *savedFile) checkContentB64MD5() (currentB64MD5 string, isUnchanged bool) {
+func (f *savedFile) checkContentB64MD5() (string, bool) {
 	f.Unlock()
 	currentB64MD5, err := hashencode.ComputeFileB64MD5(f.realPath)
 	if err != nil {
 		currentB64MD5 = "" // treat file as "changed" below
 	}
 	f.Lock()
-	isUnchanged = currentB64MD5 != "" && f.lastUploadedB64MD5 == currentB64MD5
+	isUnchanged := currentB64MD5 != "" && f.lastUploadedB64MD5 == currentB64MD5
 
 	return currentB64MD5, isUnchanged
 }
