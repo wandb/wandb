@@ -11,6 +11,16 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+type gridConfigTarget int
+
+const (
+	gridConfigNone gridConfigTarget = iota
+	gridConfigMetricsRows
+	gridConfigMetricsCols
+	gridConfigSystemRows
+	gridConfigSystemCols
+)
+
 const (
 	// Chart grid size constraints.
 	MinGridSize = 1
@@ -79,43 +89,43 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 }
 
 // loadOrCreateConfig loads the configuration from disk or stores and uses defaults.
-func (m *ConfigManager) loadOrCreateConfig() error {
-	data, err := os.ReadFile(m.path)
+func (cm *ConfigManager) loadOrCreateConfig() error {
+	data, err := os.ReadFile(cm.path)
 
 	// No config file yet, create and save it.
 	if os.IsNotExist(err) {
-		if dir := filepath.Dir(m.path); dir != "" {
+		if dir := filepath.Dir(cm.path); dir != "" {
 			_ = os.MkdirAll(dir, 0755)
 		}
-		return m.save()
+		return cm.save()
 	}
 	if err != nil {
 		return err
 	}
 
-	if err := json.Unmarshal(data, &m.config); err != nil {
+	if err := json.Unmarshal(data, &cm.config); err != nil {
 		return err
 	}
 
-	m.normalizeConfig()
+	cm.normalizeConfig()
 
 	return nil
 }
 
 // normalizeConfig ensures all config values are within valid ranges.
-func (m *ConfigManager) normalizeConfig() {
+func (cm *ConfigManager) normalizeConfig() {
 	// Clamp grid dimensions
-	m.config.MetricsGrid.Rows = clamp(m.config.MetricsGrid.Rows, MinGridSize, MaxGridSize)
-	m.config.MetricsGrid.Cols = clamp(m.config.MetricsGrid.Cols, MinGridSize, MaxGridSize)
-	m.config.SystemGrid.Rows = clamp(m.config.SystemGrid.Rows, MinGridSize, MaxGridSize)
-	m.config.SystemGrid.Cols = clamp(m.config.SystemGrid.Cols, MinGridSize, MaxGridSize)
+	cm.config.MetricsGrid.Rows = clamp(cm.config.MetricsGrid.Rows, MinGridSize, MaxGridSize)
+	cm.config.MetricsGrid.Cols = clamp(cm.config.MetricsGrid.Cols, MinGridSize, MaxGridSize)
+	cm.config.SystemGrid.Rows = clamp(cm.config.SystemGrid.Rows, MinGridSize, MaxGridSize)
+	cm.config.SystemGrid.Cols = clamp(cm.config.SystemGrid.Cols, MinGridSize, MaxGridSize)
 
-	if _, ok := colorSchemes[m.config.ColorScheme]; !ok {
-		m.config.ColorScheme = DefaultColorScheme
+	if _, ok := colorSchemes[cm.config.ColorScheme]; !ok {
+		cm.config.ColorScheme = DefaultColorScheme
 	}
 
-	if m.config.HeartbeatInterval <= 0 {
-		m.config.HeartbeatInterval = DefaultHeartbeatInterval
+	if cm.config.HeartbeatInterval <= 0 {
+		cm.config.HeartbeatInterval = DefaultHeartbeatInterval
 	}
 }
 
@@ -132,13 +142,13 @@ func clamp(val, min, max int) int {
 // save writes the current configuration to disk.
 //
 // Must be called while holding the lock.
-func (m *ConfigManager) save() error {
-	data, err := json.MarshalIndent(m.config, "", "  ")
+func (cm *ConfigManager) save() error {
+	data, err := json.MarshalIndent(cm.config, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	targetPath := m.path
+	targetPath := cm.path
 	tempPath := targetPath + ".tmp"
 
 	// Write atomically via temp file + rename.
@@ -153,120 +163,120 @@ func (m *ConfigManager) save() error {
 }
 
 // MetricsGrid returns the metrics grid configuration.
-func (m *ConfigManager) MetricsGrid() (rows, cols int) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.config.MetricsGrid.Rows, m.config.MetricsGrid.Cols
+func (cm *ConfigManager) MetricsGrid() (int, int) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.MetricsGrid.Rows, cm.config.MetricsGrid.Cols
 }
 
 // SetMetricsRows sets the metrics grid rows.
-func (m *ConfigManager) SetMetricsRows(rows int) error {
+func (cm *ConfigManager) SetMetricsRows(rows int) error {
 	if rows < MinGridSize || rows > MaxGridSize {
-		return fmt.Errorf("invalid value, must be [%d, %d]", MinGridSize, MaxGridSize)
+		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.config.MetricsGrid.Rows = rows
-	return m.save()
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.MetricsGrid.Rows = rows
+	return cm.save()
 }
 
 // SetMetricsCols sets the metrics grid columns.
-func (m *ConfigManager) SetMetricsCols(cols int) error {
+func (cm *ConfigManager) SetMetricsCols(cols int) error {
 	if cols < MinGridSize || cols > MaxGridSize {
-		return fmt.Errorf("invalid value, must be [%d, %d]", MinGridSize, MaxGridSize)
+		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.config.MetricsGrid.Cols = cols
-	return m.save()
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.MetricsGrid.Cols = cols
+	return cm.save()
 }
 
 // SystemGrid returns the system grid configuration.
-func (m *ConfigManager) SystemGrid() (rows, cols int) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.config.SystemGrid.Rows, m.config.SystemGrid.Cols
+func (cm *ConfigManager) SystemGrid() (int, int) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.SystemGrid.Rows, cm.config.SystemGrid.Cols
 }
 
 // SetSystemRows sets the system grid rows.
-func (m *ConfigManager) SetSystemRows(rows int) error {
+func (cm *ConfigManager) SetSystemRows(rows int) error {
 	if rows < MinGridSize || rows > MaxGridSize {
-		return fmt.Errorf("invalid value, must be [%d, %d]", MinGridSize, MaxGridSize)
+		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.config.SystemGrid.Rows = rows
-	return m.save()
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SystemGrid.Rows = rows
+	return cm.save()
 }
 
 // SetSystemCols sets the system grid columns.
-func (m *ConfigManager) SetSystemCols(cols int) error {
+func (cm *ConfigManager) SetSystemCols(cols int) error {
 	if cols < MinGridSize || cols > MaxGridSize {
-		return fmt.Errorf("invalid value, must be [%d, %d]", MinGridSize, MaxGridSize)
+		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.config.SystemGrid.Cols = cols
-	return m.save()
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.SystemGrid.Cols = cols
+	return cm.save()
 }
 
 // ColorScheme returns the current color scheme.
-func (m *ConfigManager) ColorScheme() string {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.config.ColorScheme
+func (cm *ConfigManager) ColorScheme() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.ColorScheme
 }
 
 // HeartbeatInterval returns the heartbeat interval as a Duration.
-func (m *ConfigManager) HeartbeatInterval() time.Duration {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+func (cm *ConfigManager) HeartbeatInterval() time.Duration {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 
-	return time.Duration(m.config.HeartbeatInterval) * time.Second
+	return time.Duration(cm.config.HeartbeatInterval) * time.Second
 }
 
 // SetHeartbeatInterval sets the heartbeat interval in seconds.
-func (m *ConfigManager) SetHeartbeatInterval(seconds int) error {
+func (cm *ConfigManager) SetHeartbeatInterval(seconds int) error {
 	if seconds <= 0 {
-		return fmt.Errorf("invalid value, must be a positive integer")
+		return fmt.Errorf("heartbeat interval must be a positive integer")
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.config.HeartbeatInterval = seconds
-	return m.save()
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.HeartbeatInterval = seconds
+	return cm.save()
 }
 
 // LeftSidebarVisible returns whether the left sidebar should be visible.
-func (m *ConfigManager) LeftSidebarVisible() bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.config.LeftSidebarVisible
+func (cm *ConfigManager) LeftSidebarVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.LeftSidebarVisible
 }
 
 // SetLeftSidebarVisible sets the left sidebar visibility.
-func (m *ConfigManager) SetLeftSidebarVisible(visible bool) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.config.LeftSidebarVisible = visible
-	return m.save()
+func (cm *ConfigManager) SetLeftSidebarVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.LeftSidebarVisible = visible
+	return cm.save()
 }
 
 // RightSidebarVisible returns whether the right sidebar should be visible.
-func (m *ConfigManager) RightSidebarVisible() bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.config.RightSidebarVisible
+func (cm *ConfigManager) RightSidebarVisible() bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.RightSidebarVisible
 }
 
 // SetRightSidebarVisible sets the right sidebar visibility.
-func (m *ConfigManager) SetRightSidebarVisible(visible bool) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.config.RightSidebarVisible = visible
-	return m.save()
+func (cm *ConfigManager) SetRightSidebarVisible(visible bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.RightSidebarVisible = visible
+	return cm.save()
 }

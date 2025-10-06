@@ -36,9 +36,10 @@ type Model struct {
 	// shouldRestart is set when the user requests a full restart (Alt+R).
 	shouldRestart bool
 
-	// Config key handling state to set the grid size of the (system) charts section.
-	waitingForConfigKey bool
-	configKeyType       string // "c", "r", "C", "R"
+	// pendingGridConfig indicates which metrics/system grid dimension is awaiting user input.
+	//
+	// When gridConfigNone, no input is pending.
+	pendingGridConfig gridConfigTarget
 
 	// logger is the debug logger for the application.
 	logger *observability.CoreLogger
