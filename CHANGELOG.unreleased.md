@@ -16,3 +16,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Possibly fixed some cases where the `output.log` file was not being uploaded (@timoffex in https://github.com/wandb/wandb/pull/10620)
+- Fixed excessive data uploads when calling `run.save()` repeatedly on unchanged files (@dmitryduev in https://github.com/wandb/wandb/pull/10639)
