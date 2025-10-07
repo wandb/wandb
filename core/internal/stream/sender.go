@@ -217,7 +217,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 
 	backendOrNil := f.Backend
 	if !s.settings.IsOffline() && backendOrNil != nil && !s.settings.IsJobCreationDisabled() {
-		s.jobBuilder = launch.NewJobBuilder(s.settings.Proto, s.logger, false)
+		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
 	}
 
 	return s
@@ -1158,6 +1158,8 @@ func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifact
 
 		if result.Err != nil {
 			response.ErrorMessage = result.Err.Error()
+			// TODO: it will send error to sentry, do we want it?
+			s.logger.CaptureError(fmt.Errorf("sender: failed to log artifact: %v", result.Err), "artifactID", result.ArtifactID)
 		} else {
 			response.ArtifactId = result.ArtifactID
 		}

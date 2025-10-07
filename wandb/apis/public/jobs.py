@@ -4,11 +4,13 @@ This module provides classes for managing W&B jobs, queued runs, and run
 queues.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import shutil
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Literal, Mapping
 
 from wandb_gql import gql
 
@@ -37,11 +39,11 @@ class Job:
     _output_types: Type
     _entity: str
     _project: str
-    _entrypoint: List[str]
+    _entrypoint: list[str]
     _notebook_job: bool
     _partial: bool
 
-    def __init__(self, api: "Api", name, path: Optional[str] = None) -> None:
+    def __init__(self, api: Api, name, path: str | None = None) -> None:
         try:
             self._job_artifact = api._artifact(name, type="job")
         except CommError:
@@ -166,7 +168,7 @@ class Job:
         if self._entrypoint:
             launch_project.set_job_entry_point(self._entrypoint)
 
-    def set_entrypoint(self, entrypoint: List[str]):
+    def set_entrypoint(self, entrypoint: list[str]):
         """Set the entrypoint for the job."""
         self._entrypoint = entrypoint
 
@@ -307,7 +309,7 @@ class QueuedRun:
         )
 
     @normalize_exceptions
-    def _get_run_queue_item_legacy(self) -> Dict:
+    def _get_run_queue_item_legacy(self) -> dict:
         query = gql(
             """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
@@ -490,13 +492,13 @@ class RunQueue:
 
     def __init__(
         self,
-        client: "RetryingClient",
+        client: RetryingClient,
         name: str,
         entity: str,
-        prioritization_mode: Optional[RunQueuePrioritizationMode] = None,
-        _access: Optional[RunQueueAccessType] = None,
-        _default_resource_config_id: Optional[int] = None,
-        _default_resource_config: Optional[dict] = None,
+        prioritization_mode: RunQueuePrioritizationMode | None = None,
+        _access: RunQueueAccessType | None = None,
+        _default_resource_config_id: int | None = None,
+        _default_resource_config: dict | None = None,
     ) -> None:
         self._name: str = name
         self._client = client
@@ -538,7 +540,7 @@ class RunQueue:
         return self._access
 
     @property
-    def external_links(self) -> Dict[str, str]:
+    def external_links(self) -> dict[str, str]:
         """External resource links for the queue."""
         if self._external_links is None:
             self._get_metadata()
@@ -579,7 +581,7 @@ class RunQueue:
         return self._id
 
     @property
-    def items(self) -> List[QueuedRun]:
+    def items(self) -> list[QueuedRun]:
         """Up to the first 100 queued runs. Modifying this list will not modify the queue or any enqueued items!"""
         # TODO(np): Add a paginated interface
         if self._items is None:
@@ -716,12 +718,12 @@ class RunQueue:
     def create(
         cls,
         name: str,
-        resource: "RunQueueResourceType",
-        entity: Optional[str] = None,
-        prioritization_mode: Optional["RunQueuePrioritizationMode"] = None,
-        config: Optional[dict] = None,
-        template_variables: Optional[dict] = None,
-    ) -> "RunQueue":
+        resource: RunQueueResourceType,
+        entity: str | None = None,
+        prioritization_mode: RunQueuePrioritizationMode | None = None,
+        config: dict | None = None,
+        template_variables: dict | None = None,
+    ) -> RunQueue:
         """Create a RunQueue.
 
         Args:

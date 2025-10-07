@@ -75,7 +75,10 @@ func TestUploader(t *testing.T) {
 	// Optional batch delay to use in the uploader.
 	var batchDelay *waitingtest.FakeDelay
 
-	// The files_dir to set on Settings.
+	// The sync_dir to set on Settings.
+	var syncDir string
+
+	// The files_dir derived from sync_dir (not configurable).
 	var filesDir string
 
 	// The ignore_globs to set on Settings.
@@ -95,7 +98,7 @@ func TestUploader(t *testing.T) {
 	) {
 		// Set a default and allow tests to override it.
 		batchDelay = nil
-		filesDir = t.TempDir()
+		syncDir = t.TempDir()
 		ignoreGlobs = []string{}
 		isOffline = false
 		isSync = false
@@ -110,19 +113,22 @@ func TestUploader(t *testing.T) {
 
 		fakeFileWatcher = watchertest.NewFakeWatcher()
 
+		settings := settings.From(&spb.Settings{
+			SyncDir:     &wrapperspb.StringValue{Value: syncDir},
+			IgnoreGlobs: &spb.ListStringValue{Value: ignoreGlobs},
+			XOffline:    &wrapperspb.BoolValue{Value: isOffline},
+			XSync:       &wrapperspb.BoolValue{Value: isSync},
+		})
+		filesDir = settings.GetFilesDir()
+
 		uploader = runfilestest.WithTestDefaults(t,
 			runfilestest.Params{
 				GraphQL:      mockGQLClient,
 				FileStream:   fakeFileStream,
 				FileTransfer: fakeFileTransfer,
 				FileWatcher:  fakeFileWatcher,
-				Settings: settings.From(&spb.Settings{
-					FilesDir:    &wrapperspb.StringValue{Value: filesDir},
-					IgnoreGlobs: &spb.ListStringValue{Value: ignoreGlobs},
-					XOffline:    &wrapperspb.BoolValue{Value: isOffline},
-					XSync:       &wrapperspb.BoolValue{Value: isSync},
-				}),
-				BatchDelay: batchDelay,
+				Settings:     settings,
+				BatchDelay:   batchDelay,
 			},
 		)
 
@@ -370,7 +376,7 @@ func TestUploader(t *testing.T) {
 		})
 
 	runTest("UploadRemaining uploads all files using GraphQL response",
-		func() { filesDir = filepath.Join(t.TempDir(), "files") },
+		func() {},
 		func(t *testing.T) {
 			mockGQLClient.StubMatchOnce(
 				gqlmock.WithOpName("CreateRunFiles"),
@@ -427,4 +433,138 @@ func TestUploader(t *testing.T) {
 				[]string{"Header1:Value1", "Header2:Value2"},
 				task.Headers)
 		})
+
+	runTest("Process same file twice (unchanged) does not schedule reupload",
+		func() { /* no batchDelay => immediate batching */ },
+		func(t *testing.T) {
+			fakeFileTransfer.ShouldCompleteImmediately = false
+
+			testRel := "test_no_reupload.txt"
+			testAbs := filepath.Join(filesDir, testRel)
+			writeEmptyFile(t, testAbs)
+
+			require.NoError(t, os.Chmod(testAbs, os.FileMode(0644)))
+
+			// 1) First Process -> schedules a single upload task.
+			stubCreateRunFilesOneFile(mockGQLClient, testRel)
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{
+					{Path: testRel, Policy: spb.FilesItem_NOW},
+				},
+			})
+			// Wait until CreateRunFiles scheduling is done.
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+			require.Len(t, fakeFileTransfer.Tasks(), 1, "first upload should schedule exactly one task")
+
+			// Complete the first upload so savedFile records the last uploaded state.
+			fakeFileTransfer.Tasks()[0].Complete(nil)
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+
+			// 2) Second Process with the SAME, UNCHANGED file -> should NOT schedule another task.
+			stubCreateRunFilesOneFile(mockGQLClient, testRel)
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{
+					{Path: testRel, Policy: spb.FilesItem_NOW},
+				},
+			})
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 1,
+				"unchanged file must not schedule a second upload task")
+
+			// Clean up.
+			uploader.Finish()
+		},
+	)
+
+	runTest("Process reuploads when file modified between calls",
+		func() { /* no batchDelay => immediate batching */ },
+		func(t *testing.T) {
+			fakeFileTransfer.ShouldCompleteImmediately = false
+
+			testRel := "test_reupload_on_change.txt"
+			testAbs := filepath.Join(filesDir, testRel)
+			writeEmptyFile(t, testAbs)
+
+			require.NoError(t, os.Chmod(testAbs, os.FileMode(0644)))
+
+			// 1) First Process -> schedules a single upload task.
+			stubCreateRunFilesOneFile(mockGQLClient, testRel)
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{
+					{Path: testRel, Policy: spb.FilesItem_NOW},
+				},
+			})
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+			require.Len(t, fakeFileTransfer.Tasks(), 1, "first upload should schedule exactly one task")
+
+			// Complete the first upload.
+			fakeFileTransfer.Tasks()[0].Complete(nil)
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+
+			// Modify the file (size changes).
+			require.NoError(t, os.Chmod(testAbs, os.FileMode(0644)))
+			require.NoError(t, os.WriteFile(testAbs, []byte("changed"), 0644))
+
+			// 2) Second Process after modification -> should schedule a new task.
+			stubCreateRunFilesOneFile(mockGQLClient, testRel)
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{
+					{Path: testRel, Policy: spb.FilesItem_NOW},
+				},
+			})
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 2,
+				"modified file should schedule a new upload task")
+
+			// Complete the second upload and finish to avoid dangling goroutines.
+			fakeFileTransfer.Tasks()[1].Complete(nil)
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+			uploader.Finish()
+		},
+	)
+
+	runTest("Process reuploads when bytes change but size is the same",
+		func() { /* no batchDelay */ },
+		func(t *testing.T) {
+			fakeFileTransfer.ShouldCompleteImmediately = false
+
+			testRel := "same_size_change.txt"
+			testAbs := filepath.Join(filesDir, testRel)
+			writeEmptyFile(t, testAbs)
+			require.NoError(t, os.Chmod(testAbs, os.FileMode(0644)))
+
+			// Write 4 bytes, make file writable.
+			require.NoError(t, os.WriteFile(testAbs, []byte("AAAA"), 0644))
+
+			// First upload.
+			stubCreateRunFilesOneFile(mockGQLClient, testRel)
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{{Path: testRel, Policy: spb.FilesItem_NOW}},
+			})
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+			require.Len(t, fakeFileTransfer.Tasks(), 1)
+			fakeFileTransfer.Tasks()[0].Complete(nil)
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+
+			// Overwrite with same size but different bytes.
+			require.NoError(t, os.WriteFile(testAbs, []byte("BBBB"), 0644))
+
+			// Second Process should schedule reupload (hash differs).
+			stubCreateRunFilesOneFile(mockGQLClient, testRel)
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{{Path: testRel, Policy: spb.FilesItem_NOW}},
+			})
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 2,
+				"same-size content change must schedule reupload")
+
+			// Finish cleanly.
+			fakeFileTransfer.Tasks()[1].Complete(nil)
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+			uploader.Finish()
+		},
+	)
 }

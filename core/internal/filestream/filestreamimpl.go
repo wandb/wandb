@@ -70,6 +70,7 @@ func (fs *fileStream) startTransmitting(
 	}
 
 	transmissions := CollectLoop{
+		Logger:              fs.logger,
 		TransmitRateLimit:   fs.transmitRateLimit,
 		MaxRequestSizeBytes: int(maxRequestSizeBytes),
 	}.Start(requests)

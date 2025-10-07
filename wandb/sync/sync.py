@@ -193,7 +193,7 @@ class SyncThread(threading.Thread):
             x_start_time=time.time(),
         )
 
-        settings_static = SettingsStatic(settings.to_proto())
+        settings_static = SettingsStatic(dict(settings))
 
         handle_manager = handler.HandleManager(
             settings=settings_static,
@@ -207,7 +207,12 @@ class SyncThread(threading.Thread):
 
         filesystem.mkdir_exists_ok(settings.files_dir)
         send_manager.send_run(record, file_dir=settings.files_dir)
-        watcher = tb_watcher.TBWatcher(settings, proto_run, new_interface, True)
+        watcher = tb_watcher.TBWatcher(
+            settings_static,
+            proto_run,
+            new_interface,
+            True,
+        )
 
         for tb in tb_logdirs:
             watcher.add(tb, True, tb_root)

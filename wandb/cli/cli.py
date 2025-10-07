@@ -244,7 +244,7 @@ def projects(entity, display=True):
     return projects
 
 
-@cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
+@cli.command(context_settings=CONTEXT)
 @click.argument("key", nargs=-1)
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
 @click.option(
@@ -262,6 +262,16 @@ def projects(entity, display=True):
 )
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
+    """Verify and store your API key for authentication with W&B services.
+
+    By default, only store credentials locally without verifying them with W&B.
+    To verify credentials, set `--verify=True`.
+
+    For server deployments (dedicated cloud or customer-managed instances),
+    specify the host URL using the `--host` flag. You can also set environment
+    variables `WANDB_BASE_URL` and `WANDB_API_KEY` instead of running
+    the `login` command with host parameters.
+    """
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
@@ -422,9 +432,7 @@ def init(ctx, project, entity, reset, mode):
     )
 
 
-@cli.command(
-    context_settings=CONTEXT, help="Upload an offline training directory to W&B"
-)
+@cli.command(context_settings=CONTEXT)
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
 @click.option("--view", is_flag=True, default=False, help="View runs", hidden=True)
@@ -518,9 +526,23 @@ def sync(
     skip_console=None,
     replace_tags=None,
 ):
+    """Synchronize W&B run data to the cloud.
+
+    If PATH is provided, sync runs found at the given path. If a path
+    is not specified, search for `./wandb` first, then search for a
+    `wandb/` subdirectory.
+
+    To sync a specific run:
+
+        wandb sync ./wandb/run-20250813_124246-n67z9ude
+
+    Or equivalently:
+
+        wandb sync ./wandb/run-20250813_124246-n67z9ude/run-n67z9ude.wandb
+    """
     api = _get_cling_api()
     if not api.is_authenticated:
-        wandb.termlog("Login to W&B to sync offline runs")
+        wandb.termlog("Login to W&B to sync runs")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
@@ -2700,9 +2722,10 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
     return commit, json_config, patch_content, repo, metadata
 
 
-@cli.command("online", help="Enable W&B sync")
+@cli.command("online")
 @display_error
 def online():
+    """Undo `wandb offline`."""
     api = InternalApi()
     try:
         api.clear_setting("mode", persist=True)
@@ -2713,9 +2736,13 @@ def online():
     )
 
 
-@cli.command("offline", help="Disable W&B sync")
+@cli.command("offline")
 @display_error
 def offline():
+    """Save data logged to W&B locally without uploading it to the cloud.
+
+    Use `wandb online` or `wandb sync` to upload offline runs.
+    """
     api = InternalApi()
     try:
         api.set_setting("mode", "offline", persist=True)

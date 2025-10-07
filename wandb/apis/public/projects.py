@@ -31,6 +31,8 @@ Note:
     with a new project name.
 """
 
+from __future__ import annotations
+
 from requests import HTTPError
 from wandb_gql import gql
 
@@ -100,7 +102,7 @@ class Projects(Paginator["Project"]):
         client: RetryingClient,
         entity: str,
         per_page: int = 50,
-    ) -> "Projects":
+    ) -> Projects:
         """An iterable collection of `Project` objects.
 
         Args:
@@ -187,7 +189,7 @@ class Project(Attrs):
         entity: str,
         project: str,
         attrs: dict,
-    ) -> "Project":
+    ) -> Project:
         """A single project associated with an entity.
 
         Args:

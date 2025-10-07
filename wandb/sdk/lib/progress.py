@@ -93,7 +93,6 @@ class ProgressPrinter:
         progress_text_area: p.DynamicText | None,
         default_text: str,
     ) -> None:
-        self._show_operation_stats = True
         self._printer = printer
         self._progress_text_area = progress_text_area
         self._default_text = default_text
@@ -110,14 +109,10 @@ class ProgressPrinter:
 
         if isinstance(progress, pb.OperationStats):
             self._update_operation_stats([progress])
-        elif self._show_operation_stats:
+        else:
             self._update_operation_stats(
                 list(response.operation_stats for response in progress)
             )
-        elif len(progress) == 1:
-            self._update_single_run(progress[0])
-        else:
-            self._update_multiple_runs(progress)
 
         self._tick += 1
 
@@ -145,69 +140,9 @@ class ProgressPrinter:
             if extra_operations > 0:
                 line += f" (+ {extra_operations} more)"
 
-            if line != self._last_printed_line:
+            if line and line != self._last_printed_line:
                 self._printer.display(line)
-
-            self._last_printed_line = line
-
-    def _update_single_run(
-        self,
-        progress: pb.PollExitResponse,
-    ) -> None:
-        stats = progress.pusher_stats
-        line = (
-            f"{_megabytes(stats.uploaded_bytes):.3f} MB"
-            f" of {_megabytes(stats.total_bytes):.3f} MB uploaded"
-        )
-
-        if stats.deduped_bytes > 0:
-            line += f" ({_megabytes(stats.deduped_bytes):.3f} MB deduped)"
-
-        if stats.total_bytes > 0:
-            self._update_progress_text(
-                line,
-                stats.uploaded_bytes / stats.total_bytes,
-            )
-        else:
-            self._update_progress_text(line, 1.0)
-
-    def _update_multiple_runs(
-        self,
-        progress_list: list[pb.PollExitResponse],
-    ) -> None:
-        total_files = 0
-        uploaded_bytes = 0
-        total_bytes = 0
-
-        for progress in progress_list:
-            total_files += progress.file_counts.wandb_count
-            total_files += progress.file_counts.media_count
-            total_files += progress.file_counts.artifact_count
-            total_files += progress.file_counts.other_count
-
-            uploaded_bytes += progress.pusher_stats.uploaded_bytes
-            total_bytes += progress.pusher_stats.total_bytes
-
-        line = (
-            f"Processing {len(progress_list)} runs with {total_files} files"
-            f" ({_megabytes(uploaded_bytes):.2f} MB"
-            f" / {_megabytes(total_bytes):.2f} MB)"
-        )
-
-        if total_bytes > 0:
-            self._update_progress_text(line, uploaded_bytes / total_bytes)
-        else:
-            self._update_progress_text(line, 1.0)
-
-    def _update_progress_text(self, text: str, progress: float) -> None:
-        if text == self._last_printed_line:
-            return
-        self._last_printed_line = text
-
-        if self._progress_text_area:
-            self._progress_text_area.set_text(text)
-        else:
-            self._printer.progress_update(text + "\r", progress)
+                self._last_printed_line = line
 
 
 class _DynamicOperationStatsPrinter:
@@ -319,8 +254,3 @@ def _time_to_string(seconds: float) -> str:
     hours = int(seconds / (60 * 60))
     minutes = int((seconds / 60) % 60)
     return f"{hours}h{minutes}m"
-
-
-def _megabytes(bytes: int) -> float:
-    """Returns the number of megabytes in `bytes`."""
-    return bytes / (1 << 20)

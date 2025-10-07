@@ -305,57 +305,6 @@ def attempt_kaggle_load_ipynb():
     return parsed
 
 
-def attempt_colab_login(
-    app_url: str,
-    referrer: str | None = None,
-):
-    """This renders an iframe to wandb in the hopes it posts back an api key."""
-    from google.colab import output  # type: ignore
-    from google.colab._message import MessageError  # type: ignore
-    from IPython import display
-
-    display.display(
-        display.Javascript(
-            """
-        window._wandbApiKey = new Promise((resolve, reject) => {{
-            function loadScript(url) {{
-            return new Promise(function(resolve, reject) {{
-                let newScript = document.createElement("script");
-                newScript.onerror = reject;
-                newScript.onload = resolve;
-                document.body.appendChild(newScript);
-                newScript.src = url;
-            }});
-            }}
-            loadScript("https://cdn.jsdelivr.net/npm/postmate/build/postmate.min.js").then(() => {{
-            const iframe = document.createElement('iframe')
-            iframe.style.cssText = "width:0;height:0;border:none"
-            document.body.appendChild(iframe)
-            const handshake = new Postmate({{
-                container: iframe,
-                url: '{}/authorize{}'
-            }});
-            const timeout = setTimeout(() => reject("Couldn't auto authenticate"), 5000)
-            handshake.then(function(child) {{
-                child.on('authorize', data => {{
-                    clearTimeout(timeout)
-                    resolve(data)
-                }});
-            }});
-            }})
-        }});
-    """.format(
-                app_url.replace("http:", "https:"),
-                f"?ref={referrer}" if referrer else "",
-            )
-        )
-    )
-    try:
-        return output.eval_js("_wandbApiKey")
-    except MessageError:
-        return None
-
-
 class Notebook:
     def __init__(self, settings: wandb.Settings) -> None:
         self.outputs: dict[int, Any] = {}

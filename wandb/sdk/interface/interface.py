@@ -419,9 +419,13 @@ class InterfaceBase:
             proto_manifest.manifest_file_path = path
             return proto_manifest
 
+        # Set storage policy on storageLayout (always V2) and storageRegion, only allow coreweave-us on wandb.ai for now.
+        # NOTE: the decode logic is NewManifestFromProto in core/pkg/artifacts/manifest.go
+        # The creation logic is in artifacts/_factories.py make_storage_policy
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
             cfg = proto_manifest.storage_policy_config.add()
             cfg.key = k
+            # TODO: Why json.dumps when existing values are plain string? We want to send complex structure without defining the proto?
             cfg.value_json = json.dumps(v)
 
         for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):
