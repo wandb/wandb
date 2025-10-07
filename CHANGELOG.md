@@ -11,6 +11,13 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.22.2] - 2025-10-07
+
+### Fixed
+
+- Possibly fixed some cases where the `output.log` file was not being uploaded (@timoffex in https://github.com/wandb/wandb/pull/10620)
+- Fixed excessive data uploads when calling `run.save()` repeatedly on unchanged files (@dmitryduev in https://github.com/wandb/wandb/pull/10639)
+
 ## [0.22.1] - 2025-09-29
 
 ### Added
