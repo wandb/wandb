@@ -86,7 +86,13 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("file transfer: upload: failed to upload: %s", resp.Status)
+		// Try to read the body to know the detail error message
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return fmt.Errorf("file transfer: upload: failed to upload: %s", resp.Status)
+		}
+		return fmt.Errorf("file transfer: upload: failed to upload: %s, body: %s", resp.Status, string(body))
 	}
 	task.Response = resp
 
