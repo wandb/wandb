@@ -1,6 +1,6 @@
 <p align="center">
-  <img src="./assets/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
-  <img src="./assets/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./assets/logo-dark.svg#gh-dark-mode-only" width="400" alt="Weights & Biases" />
+  <img src="./assets/logo-light.svg#gh-light-mode-only" width="400" alt="Weights & Biases" />
 </p>
 
 <p align="center">
