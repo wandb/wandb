@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Literal, overload
 
 from pydantic import BaseModel, ConfigDict
 from typing_extensions import TypedDict, Unpack, override
@@ -15,15 +15,20 @@ if TYPE_CHECKING:
 
 
 class ModelDumpKwargs(TypedDict, total=False):
-    """Shared keyword arguments for `BaseModel.model_{dump,dump_json}`."""
+    """Shared keyword arguments for `BaseModel.model_{dump,dump_json}`.
+
+    Newer pydantic versions may accept more arguments than are listed here.
+    Last updated for pydantic v2.12.0.
+    """
 
     include: IncEx | None
     exclude: IncEx | None
-    context: dict[str, Any] | None
+    context: Any | None
     by_alias: bool | None
     exclude_unset: bool
     exclude_defaults: bool
     exclude_none: bool
+    exclude_computed_fields: bool
     round_trip: bool
     warnings: bool | Literal["none", "warn", "error"]
     fallback: Callable[[Any], Any] | None
@@ -78,22 +83,38 @@ class JsonableModel(CompatBaseModel, ABC):
     # - round_trip: Ensure round-trippable result
     __DUMP_DEFAULTS: ClassVar[ModelDumpKwargs] = dict(by_alias=True, round_trip=True)
 
+    @overload  # Actual signature
+    def model_dump(
+        self, *, mode: str = ..., **kwargs: Unpack[ModelDumpKwargs]
+    ) -> dict[str, Any]: ...
+
+    @overload  # In case pydantic adds more kwargs in future releases
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]: ...
+
     @override
     def model_dump(
         self,
         *,
         mode: Literal["json", "python"] | str = "json",  # NOTE: changed default
-        **kwargs: Unpack[ModelDumpKwargs],
+        **kwargs: Any,
     ) -> dict[str, Any]:
         kwargs = {**self.__DUMP_DEFAULTS, **kwargs}  # allows overrides, if needed
         return super().model_dump(mode=mode, **kwargs)
+
+    @overload  # Actual signature
+    def model_dump_json(
+        self, *, indent: int | None = ..., **kwargs: Unpack[ModelDumpKwargs]
+    ) -> str: ...
+
+    @overload  # In case pydantic adds more kwargs in future releases
+    def model_dump_json(self, **kwargs: Any) -> str: ...
 
     @override
     def model_dump_json(
         self,
         *,
         indent: int | None = None,
-        **kwargs: Unpack[ModelDumpKwargs],
+        **kwargs: Any,
     ) -> str:
         kwargs = {**self.__DUMP_DEFAULTS, **kwargs}  # allows overrides, if needed
         return super().model_dump_json(indent=indent, **kwargs)
