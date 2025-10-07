@@ -313,7 +313,9 @@ class Api:
             )
             self.settings["entity"] = _overrides["username"]
 
-        if _thread_local_api_settings.cookies is None:
+        use_api_key = api_key is not None or _thread_local_api_settings.cookies is None
+
+        if use_api_key:
             self.api_key = self._load_api_key(
                 base_url=self.settings["base_url"],
                 init_api_key=api_key,
@@ -331,7 +333,7 @@ class Api:
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
         auth = None
-        if not _thread_local_api_settings.cookies:
+        if use_api_key:
             auth = ("api", self.api_key)
         proxies = self.settings.get("_proxies") or json.loads(
             os.environ.get("WANDB__PROXIES", "{}")
@@ -365,17 +367,18 @@ class Api:
         """Attempts to load a configured API key or prompt if one is not found.
 
         The API key is loaded in the following order:
-            1. Thread local api key
-            2. User explicitly provided api key
+            1. User explicitly provided api key
+            2. Thread local api key
             3. Environment variable
             4. Netrc file
             5. Prompt for api key using wandb.login
         """
-        # just use thread local api key if it's set
-        if _thread_local_api_settings.api_key:
-            return _thread_local_api_settings.api_key
+        # Use explicit key before thread local.
+        # This allow user switching keys without picking up the wrong key from thread local.
         if init_api_key is not None:
             return init_api_key
+        if _thread_local_api_settings.api_key:
+            return _thread_local_api_settings.api_key
         if os.getenv("WANDB_API_KEY"):
             return os.environ["WANDB_API_KEY"]
 
