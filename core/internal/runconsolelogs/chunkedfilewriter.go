@@ -25,26 +25,26 @@ import (
 type chunkedFileWriter struct {
 	mu sync.Mutex
 
-	// Current chunk state
+	// Current chunk state.
 	currentChunk     *lineFile
 	currentChunkPath paths.RelativePath
 	currentSize      int64
 	chunkStartTime   time.Time
 
-	// Global line tracking for offset management
-	globalLineOffset int // Starting line number for current chunk
-	nextGlobalLine   int // Next line number to be written globally
+	// Global line tracking for offset management.
+	globalLineOffset int // Starting line number for current chunk.
+	nextGlobalLine   int // Next line number to be written globally.
 
-	// Configuration
+	// Chunking configuration.
 	maxChunkBytes    int64
 	maxChunkDuration time.Duration
 
-	// Dependencies
+	// Dependencies.
 	filesDir string
 	uploader runfiles.Uploader
 	logger   *observability.CoreLogger
 
-	// Chunk naming
+	// Chunk naming.
 	baseFileName    string
 	outputExtension string
 	chunkIndex      int
@@ -120,7 +120,14 @@ func (w *chunkedFileWriter) WriteToFile(
 		return fmt.Errorf("failed to write to chunk: %v", err)
 	}
 
-	w.currentSize += addedBytes
+	// Use the on-disk size after UpdateLines closes the file handle.
+	// This keeps size-based rotation correct even when UpdateLines
+	// pops/replays lines near the end.
+	if sz, err := w.statCurrentChunkSizeLocked(); err != nil {
+		w.currentSize += addedBytes // Fall back to an estimate.
+	} else {
+		w.currentSize = sz
+	}
 
 	if w.shouldRotate() {
 		w.rotateChunk()
@@ -187,12 +194,20 @@ func (w *chunkedFileWriter) rotateChunk() {
 // This method should be called before the filestream is closed to ensure
 // all console output is uploaded.
 func (w *chunkedFileWriter) Finish() {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+	var path paths.RelativePath
 
-	// Only upload if we have a current chunk with data
+	w.mu.Lock()
 	if w.currentChunk != nil && w.currentChunkPath != "" {
-		w.uploader.UploadNow(w.currentChunkPath, filetransfer.RunFileKindWandb)
+		path = w.currentChunkPath
+		// Clear state so repeated Finish() calls are no-ops.
+		w.currentChunk = nil
+		w.currentChunkPath = ""
+		w.currentSize = 0
+	}
+	w.mu.Unlock()
+
+	if path != "" {
+		w.uploader.UploadNow(path, filetransfer.RunFileKindWandb)
 	}
 }
 
@@ -209,7 +224,22 @@ func (w *chunkedFileWriter) generateChunkPath(timestamp time.Time) paths.Relativ
 		w.outputExtension,
 	)
 
-	// This is guaranteed not to fail based on the format
-	path, _ := paths.Relative(filepath.Join("logs", filename))
-	return *path
+	p, err := paths.Relative(filepath.Join("logs", filename))
+	if err == nil {
+		return *p
+	}
+	// Extremely defensive fallback; preserves forward progress even if validation changes.
+	return paths.RelativePath(filepath.Join("logs", filename))
+}
+
+// statCurrentChunkSizeLocked returns the current chunk's on-disk size.
+//
+// Call only while holding w.mu.
+func (w *chunkedFileWriter) statCurrentChunkSizeLocked() (int64, error) {
+	fullPath := filepath.Join(w.filesDir, string(w.currentChunkPath))
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
 }
