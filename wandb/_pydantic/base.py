@@ -24,6 +24,7 @@ class ModelDumpKwargs(TypedDict, total=False):
     exclude_unset: bool
     exclude_defaults: bool
     exclude_none: bool
+    exclude_computed_fields: bool
     round_trip: bool
     warnings: bool | Literal["none", "warn", "error"]
     fallback: Callable[[Any], Any] | None
@@ -93,10 +94,11 @@ class JsonableModel(CompatBaseModel, ABC):
         self,
         *,
         indent: int | None = None,
+        ensure_ascii: bool = True,
         **kwargs: Unpack[ModelDumpKwargs],
     ) -> str:
         kwargs = {**self.__DUMP_DEFAULTS, **kwargs}  # allows overrides, if needed
-        return super().model_dump_json(indent=indent, **kwargs)
+        return super().model_dump_json(indent=indent, ensure_ascii=ensure_ascii, **kwargs)
 
 
 # Base class for all GraphQL-generated types.
