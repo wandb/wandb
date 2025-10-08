@@ -19,23 +19,32 @@ def test_api_auto_login_no_tty():
             Api()
 
 
-def test_thread_local_cookies():
-    try:
-        _thread_local_api_settings.cookies = {"foo": "bar"}
-        api = Api()
-        assert api._base_client.transport.cookies == {"foo": "bar"}
-    finally:
-        _thread_local_api_settings.cookies = None
+def test_thread_local_cookies(monkeypatch):
+    monkeypatch.setattr(_thread_local_api_settings, "cookies", {"foo": "bar"})
+    api = Api()
+    assert api._base_client.transport.cookies == {"foo": "bar"}
 
 
 @pytest.mark.usefixtures("skip_verify_login")
-def test_thread_local_api_key():
-    try:
-        _thread_local_api_settings.api_key = "X" * 40
-        api = Api()
-        assert api.api_key == "X" * 40
-    finally:
-        _thread_local_api_settings.api_key = None
+def test_thread_local_api_key(monkeypatch):
+    monkeypatch.setattr(_thread_local_api_settings, "api_key", "X" * 40)
+    api = Api()
+    assert api.api_key == "X" * 40
+
+
+@pytest.mark.usefixtures("skip_verify_login")
+def test_thread_local_api_key_with_explicit_api_key(monkeypatch):
+    monkeypatch.setattr(_thread_local_api_settings, "api_key", "X" * 40)
+    api = Api(api_key="Y" * 40)
+    assert api.api_key == "Y" * 40
+
+
+@pytest.mark.usefixtures("skip_verify_login")
+def test_thread_local_cookies_with_explicit_api_key(monkeypatch):
+    monkeypatch.setattr(_thread_local_api_settings, "cookies", {"foo": "bar"})
+    monkeypatch.setattr(_thread_local_api_settings, "api_key", "X" * 40)
+    api = Api(api_key="Y" * 40)
+    assert api.api_key == "Y" * 40
 
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt", "skip_verify_login")

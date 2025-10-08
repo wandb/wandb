@@ -15,4 +15,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- Possibly fixed some cases where the `output.log` file was not being uploaded (@timoffex in https://github.com/wandb/wandb/pull/10620)
+- `wandb.Api(api_key=...)` now prioritizes the explicitly provided API key over thread-local cached credentials (@pingleiwandb in https://github.com/wandb/wandb/pull/10657)

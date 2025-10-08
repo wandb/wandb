@@ -107,7 +107,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.22.2.dev1"
+__version__: str = "0.22.3.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -754,6 +754,9 @@ def save(
     When given an absolute path or glob and no `base_path`, one
     directory level is preserved as in the example above.
 
+    Files are automatically deduplicated: calling `save()` multiple times
+    on the same file without modifications will not re-upload it.
+
     Args:
         glob_str: A relative or absolute path or Unix glob.
         base_path: A path to use to infer a directory structure; see examples.
@@ -778,10 +781,10 @@ def save(
     run.save("these/are/myfiles/*", base_path="these")
     # => Saves files in an "are/myfiles/" folder in the run.
 
-    run.save("/User/username/Documents/run123/*.txt")
+    run.save("/Users/username/Documents/run123/*.txt")
     # => Saves files in a "run123/" folder in the run. See note below.
 
-    run.save("/User/username/Documents/run123/*.txt", base_path="/User")
+    run.save("/Users/username/Documents/run123/*.txt", base_path="/Users")
     # => Saves files in a "username/Documents/run123/" folder in the run.
 
     run.save("files/*/saveme.txt")

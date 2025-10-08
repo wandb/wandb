@@ -22,6 +22,9 @@ type Model struct {
 	// Serialize access to Update / broad model state.
 	stateMu sync.RWMutex
 
+	// Configuration.
+	config *ConfigManager
+
 	// runPath is the path to the .wandb file.
 	runPath string
 
@@ -33,14 +36,20 @@ type Model struct {
 	// shouldRestart is set when the user requests a full restart (Alt+R).
 	shouldRestart bool
 
+	// pendingGridConfig indicates which metrics/system grid dimension is awaiting user input.
+	//
+	// When gridConfigNone, no input is pending.
+	pendingGridConfig gridConfigTarget
+
 	// logger is the debug logger for the application.
 	logger *observability.CoreLogger
 }
 
-func NewModel(runPath string, logger *observability.CoreLogger) *Model {
+func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogger) *Model {
 	logger.Info(fmt.Sprintf("model: creating new model for runPath: %s", runPath))
 
 	m := &Model{
+		config:  cfg,
 		runPath: runPath,
 		logger:  logger,
 	}

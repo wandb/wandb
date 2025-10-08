@@ -5,7 +5,7 @@ go 1.25.1
 require (
 	cloud.google.com/go/storage v1.57.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.12.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.2
 	github.com/Khan/genqlient v0.8.1
 	github.com/NimbleMarkets/ntcharts v0.3.1
@@ -15,7 +15,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/getsentry/sentry-go v0.35.3
-	github.com/go-git/go-git/v5 v5.16.2
+	github.com/go-git/go-git/v5 v5.16.3
 	github.com/google/wire v0.7.0
 	github.com/googleapis/gax-go/v2 v2.15.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
@@ -32,8 +32,8 @@ require (
 	golang.org/x/sync v0.17.0
 	golang.org/x/time v0.13.0
 	google.golang.org/api v0.251.0
-	google.golang.org/grpc v1.75.1
-	google.golang.org/protobuf v1.36.9
+	google.golang.org/grpc v1.76.0
+	google.golang.org/protobuf v1.36.10
 	gopkg.in/yaml.v3 v3.0.1
 )
 

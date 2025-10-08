@@ -136,12 +136,6 @@ def prompt_api_key(  # noqa: C901
     if (jupyter and not settings.login_timeout) or no_create:
         choices.remove(LOGIN_CHOICE_NEW)
 
-    if jupyter and "google.colab" in sys.modules:
-        log_string = term.LOG_STRING_NOCOLOR
-        key = wandb.jupyter.attempt_colab_login(app_url)  # type: ignore
-        if key is not None:
-            return key  # type: ignore
-
     if anon_mode == "must":
         result = LOGIN_CHOICE_ANON
     # If we're not in an interactive environment, default to dry-run.
