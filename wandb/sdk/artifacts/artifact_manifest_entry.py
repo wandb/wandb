@@ -86,7 +86,10 @@ def _write_cached_checksum(file_path: str, checksum: str) -> None:
 
 
 class ArtifactManifestEntry(ArtifactsBase):
-    """A single entry in an artifact manifest."""
+    """A single entry in an artifact manifest.
+
+    External code should avoid instantiating this class directly.
+    """
 
     path: LogicalPath
 
@@ -127,9 +130,8 @@ class ArtifactManifestEntry(ArtifactsBase):
 
     def __repr__(self) -> str:
         # For compatibility with prior behavior, don't display `extra` if it's empty
-        repr_dict = self.model_dump(by_alias=False, exclude_none=True)
-        if not repr_dict.get("extra"):
-            repr_dict.pop("extra")
+        exclude = None if self.extra else {"extra"}
+        repr_dict = self.model_dump(by_alias=False, exclude_none=True, exclude=exclude)
         return f"{nameof(type(self))}({', '.join(f'{k}={v!r}' for k, v in repr_dict.items())})"
 
     @property
@@ -244,7 +246,7 @@ class ArtifactManifestEntry(ArtifactsBase):
             raise ValueError("Parent artifact is not set")
         elif (parent_id := parent_artifact.id) is None:
             raise ValueError("Parent artifact ID is not set")
-        return f"{_WB_ARTIFACT_SCHEME}://{b64_to_hex_id(B64MD5(parent_id))}/{self.path}"
+        return f"{_WB_ARTIFACT_SCHEME}://{b64_to_hex_id(parent_id)}/{self.path}"
 
     def to_json(self) -> dict[str, Any]:
         # NOTE: The method name `to_json` is a bit misleading, as this returns a
