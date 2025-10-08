@@ -9,11 +9,13 @@ import (
 type RecordParser struct {
 	Logger   *observability.CoreLogger
 	Settings *settings.Settings
+
+	ReadRunHistoryWorkFactory *ReadRunHistoryWorkFactory
 }
 
 func (p *RecordParser) Parse(record *spb.Record) ApiWork {
 	switch record.GetRecordType().(type) {
-	case *spb.Record_Request:
+	case *spb.Record_ApiRequest:
 		return p.parseRequest(record)
 	default:
 		return nil
@@ -21,6 +23,12 @@ func (p *RecordParser) Parse(record *spb.Record) ApiWork {
 }
 
 func (p *RecordParser) parseRequest(record *spb.Record) ApiWork {
-	// TODO: implement ApiWork for ApiRequests
-	return nil
+	request := record.GetApiRequest()
+
+	switch request.GetRequest().(type) {
+	case *spb.ApiRequest_ReadRunHistory:
+		return p.ReadRunHistoryWorkFactory.New(record)
+	default:
+		return nil
+	}
 }

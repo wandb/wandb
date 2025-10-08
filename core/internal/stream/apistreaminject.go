@@ -42,6 +42,7 @@ var apiStreamProviders = wire.NewSet(
 	NewGraphQLClient,
 	provideRecordParser,
 	provideApiWorkHandler,
+	provideReadRunHistoryWorkFactory,
 	provideApiStreamIDAsString,
 	provideHttpClient,
 	sharedmode.RandomClientID,
@@ -90,19 +91,30 @@ func provideHttpClient(settings *settings.Settings) *http.Client {
 	}
 }
 
-func provideRecordParser(
-	logger *observability.CoreLogger,
-	settings *settings.Settings,
-) *work.RecordParser {
-	return &work.RecordParser{
-		Logger:   logger,
-		Settings: settings,
-	}
-}
-
 func provideApiWorkHandler(
 	logger *observability.CoreLogger,
 	recordParser *work.RecordParser,
 ) *publicapi.ApiWorkHandler {
 	return publicapi.NewApiWorkHandler(logger, recordParser)
+}
+
+func provideRecordParser(
+	logger *observability.CoreLogger,
+	settings *settings.Settings,
+	readRunHistoryWorkFactory *work.ReadRunHistoryWorkFactory,
+) *work.RecordParser {
+	return &work.RecordParser{
+		Logger:   logger,
+		Settings: settings,
+
+		ReadRunHistoryWorkFactory: readRunHistoryWorkFactory,
+	}
+}
+
+func provideReadRunHistoryWorkFactory(
+	logger *observability.CoreLogger,
+) *work.ReadRunHistoryWorkFactory {
+	return &work.ReadRunHistoryWorkFactory{
+		Logger: logger,
+	}
 }
