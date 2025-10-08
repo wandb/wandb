@@ -38,7 +38,8 @@ func InjectApiStream(streamID ApiStreamID, debugCorePath DebugCorePath, logLevel
 	string2 := provideApiStreamIDAsString(streamID)
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	coreLogger := streamLogger(streamStreamLoggerFile, settings2, sentry, logLevel)
-	workRecordParser := provideRecordParser(coreLogger, settings2)
+	readRunHistoryWorkFactory := provideReadRunHistoryWorkFactory(coreLogger)
+	workRecordParser := provideRecordParser(coreLogger, settings2, readRunHistoryWorkFactory)
 	apiWorkHandler := provideApiWorkHandler(coreLogger, workRecordParser)
 	apiStream := NewApiStream(string2, settings2, apiWorkHandler, coreLogger)
 	return apiStream
@@ -146,6 +147,7 @@ var apiStreamProviders = wire.NewSet(
 	NewGraphQLClient,
 	provideRecordParser,
 	provideApiWorkHandler,
+	provideReadRunHistoryWorkFactory,
 	provideApiStreamIDAsString,
 	provideHttpClient, sharedmode.RandomClientID, streamLoggerProviders,
 	RecordParserProviders,
@@ -188,19 +190,30 @@ func provideHttpClient(settings2 *settings.Settings) *http.Client {
 	}
 }
 
-func provideRecordParser(
-	logger *observability.CoreLogger, settings2 *settings.Settings,
-) *work.RecordParser {
-	return &work.RecordParser{
-		Logger:   logger,
-		Settings: settings2,
-	}
-}
-
 func provideApiWorkHandler(
 	logger *observability.CoreLogger, recordParser2 *work.RecordParser,
 ) *publicapi.ApiWorkHandler {
 	return publicapi.NewApiWorkHandler(logger, recordParser2)
+}
+
+func provideRecordParser(
+	logger *observability.CoreLogger, settings2 *settings.Settings,
+	readRunHistoryWorkFactory *work.ReadRunHistoryWorkFactory,
+) *work.RecordParser {
+	return &work.RecordParser{
+		Logger:   logger,
+		Settings: settings2,
+
+		ReadRunHistoryWorkFactory: readRunHistoryWorkFactory,
+	}
+}
+
+func provideReadRunHistoryWorkFactory(
+	logger *observability.CoreLogger,
+) *work.ReadRunHistoryWorkFactory {
+	return &work.ReadRunHistoryWorkFactory{
+		Logger: logger,
+	}
 }
 
 // streaminject.go:
