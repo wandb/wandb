@@ -14,70 +14,35 @@ import (
 // over a run history parquet file.
 type ParquetDataIterator struct {
 	ctx    context.Context
-	reader *pqarrow.FileReader
-	keys   []string
-	config IteratorConfig
-
-	selectAllRows   bool
-	rowGroupIndices []int
+	selectedRows *SelectedRows
+	selectedColumns *SelectedColumns
 
 	recordReader pqarrow.RecordReader
 	current      RowIterator
 }
 
-func NewRowIterator(
+func NewParquetDataIterator(
 	ctx context.Context,
 	reader *pqarrow.FileReader,
-	keys []string,
-	config IteratorConfig,
-) (*ParquetDataIterator, error) {
-	// Check if this file is empty
-	if reader.ParquetReader().NumRows() == 0 {
-		rgi := &ParquetDataIterator{
-			current: &NoopRowIterator{},
-		}
-		return rgi, nil
-	}
-
+	selectedRows *SelectedRows,
+	selectedColumns *SelectedColumns,
+) (RowIterator, error) {
+	columnIndices := selectedColumns.GetColumnIndices()
 	if reader.Props.BatchSize <= 0 {
-		if len(keys) > 0 {
-			reader.Props.BatchSize = int64(batchSizeForSchemaSize(len(keys)))
-		} else {
-			numColumns := reader.ParquetReader().MetaData().Schema.NumColumns()
-			reader.Props.BatchSize = int64(batchSizeForSchemaSize(numColumns))
-		}
+		reader.Props.BatchSize = int64(
+			batchSizeForSchemaSize(len(columnIndices)),
+		)
 	}
 
-	var selectedRowGroups SeletedRowGroups
-	if config.selectAllRows {
-		selectedRowGroups = SelectAllRowGroups(reader)
-	} else {
-		var err error
-		selectedRowGroups, err = SelectOnlyRowGroups(reader, config)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	var selectedColumns SelectedColumns
-	parquetSchema := reader.ParquetReader().MetaData().Schema
-	if len(keys) > 0 {
-		// include the index key as we need to read it to filter rows
-		selectedKeys := keys
-		selectedKeys = append(selectedKeys, config.key)
-		var err error
-		selectedColumns, err = SelectOnlyColumns(selectedKeys, parquetSchema)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		selectedColumns = SelectAllColumns(parquetSchema)
+	rowGroupIndices, err := selectedRows.GetRowGroupIndices()
+	if err != nil {
+		return nil, err
 	}
 
 	recordReader, err := reader.GetRecordReader(
 		ctx,
-		selectedColumns.GetColumnIndices(),
-		selectedRowGroups.GetRowGroupIndices(),
+		columnIndices,
+		rowGroupIndices,
 	)
 	if err != nil {
 		return nil, err
@@ -85,12 +50,9 @@ func NewRowIterator(
 
 	rgi := &ParquetDataIterator{
 		ctx:    ctx,
-		reader: reader,
-		keys:   keys,
-		config: config,
 
-		selectAllRows:   config.selectAllRows,
-		rowGroupIndices: selectedRowGroups.GetRowGroupIndices(),
+		selectedRows: selectedRows,
+		selectedColumns: selectedColumns,
 
 		recordReader: recordReader,
 		current:      &NoopRowIterator{},
@@ -105,17 +67,12 @@ func (r *ParquetDataIterator) Next() (bool, error) {
 		return next, err
 	}
 
-	if r.recordReader != nil && r.recordReader.Next() {
-		opts := []RecordIteratorOption{
-			RecordIteratorWithResultCols(r.keys),
-		}
-		if !r.selectAllRows {
-			opts = append(opts, RecordIteratorWithPage(r.config))
-		}
+	if r.recordReader.Next() {
 		r.current.Release()
 		r.current, err = NewRecordIterator(
 			r.recordReader.RecordBatch(),
-			opts...,
+			r.selectedColumns,
+			r.selectedRows,
 		)
 		if err != nil {
 			return false, err
@@ -138,9 +95,7 @@ func (r *ParquetDataIterator) Value() KeyValueList {
 // Additional calls to Release are no-ops.
 func (r *ParquetDataIterator) Release() {
 	r.current.Release()
-	if r.recordReader != nil {
-		r.recordReader.Release()
-	}
+	r.recordReader.Release()
 }
 
 func batchSizeForSchemaSize(numColumns int) int {
