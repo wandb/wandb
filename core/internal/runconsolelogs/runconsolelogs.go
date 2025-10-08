@@ -214,7 +214,7 @@ func New(params Params) *Sender {
 		),
 		stderrTerm: terminalemulator.NewTerminal(
 			model.LineSupplier("ERROR ", params.Label),
-			maxTerminalLineLength,
+			maxTerminalLines,
 		),
 
 		consoleOutputFile: outputFileName,

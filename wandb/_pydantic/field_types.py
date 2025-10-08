@@ -11,13 +11,18 @@ from .utils import IS_PYDANTIC_V2
 
 T = TypeVar("T")
 
+# HACK: Pydantic no longer seems to like it when you define a type alias
+# at the module level with `Annotated[...]`.
+# The commented TypeAliases are a hack to unblock CI for now.
 
-#: GraphQL `__typename` fields
-Typename = Annotated[T, Field(repr=False, frozen=True, alias="__typename")]
+# Typename = Annotated[T, Field(repr=False, frozen=True, alias="__typename")]
+Typename = Annotated[T, Field(alias="__typename")]
+"""Annotates GraphQL `__typename` fields."""
 
 
 if IS_PYDANTIC_V2 or TYPE_CHECKING:
-    GQLId = Annotated[StrictStr, Field(repr=False, frozen=True)]
+    # GQLId = Annotated[StrictStr, Field(repr=False, frozen=True)]
+    GQLId = StrictStr
 
 else:
     # FIXME: Find a way to fix this for pydantic v1, which doesn't like when
