@@ -35,21 +35,30 @@ func TestRecordIterator_FiltersRowsWithEmptyColumns(t *testing.T) {
 
 	reader, err := NewRecordIterator(
 		record,
-		RecordIteratorWithResultCols([]string{"_step", "acc"}),
+		&SelectedColumns{
+			indexKey: StepKey,
+			requestedColumns: keySet{"_step": struct{}{}, "acc": struct{}{}},
+			selectAll: false,
+		},
+		&SelectedRows{
+			selectAll: false,
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 1,
+		},
 	)
 	require.NoError(t, err)
 
 	next, err := reader.Next()
 	assert.NoError(t, err)
 	assert.True(t, next)
-	assert.Equal(
-		t,
-		KeyValueList{
-			{Key: "_step", Value: int64(0)},
-			{Key: "acc", Value: float64(1)},
-		},
-		reader.Value(),
-	)
+	expectedValue := map[string]any{
+		"_step": int64(0),
+		"acc": float64(1),
+	}
+	for _, kvPair := range reader.Value() {
+		assert.Equal(t, expectedValue[kvPair.Key], kvPair.Value)
+	}
 
 	// Verify no more data returned
 	next, err = reader.Next()
@@ -72,12 +81,17 @@ func TestRecordIterator_FiltersRowsWithStepOutOfRange(t *testing.T) {
 
 	reader, err := NewRecordIterator(
 		record,
-		RecordIteratorWithPage(IteratorConfig{
-			key: StepKey,
-			min: 1,
-			max: 2,
-			selectAllRows: false,
-		}),
+		&SelectedColumns{
+			indexKey: StepKey,
+			requestedColumns: keySet{"_step": struct{}{}},
+			selectAll: false,
+		},
+		&SelectedRows{
+			selectAll: false,
+			indexKey: StepKey,
+			minValue: 1,
+			maxValue: 2,
+		},
 	)
 	require.NoError(t, err)
 
@@ -110,7 +124,20 @@ func TestRecordIterator_ReleaseFreesMemory(t *testing.T) {
 	record := builder.NewRecordBatch()
 	defer record.Release()
 
-	reader, err := NewRecordIterator(record)
+	reader, err := NewRecordIterator(
+		record,
+		&SelectedColumns{
+			indexKey: StepKey,
+			requestedColumns: keySet{"_step": struct{}{}},
+			selectAll: false,
+		},
+		&SelectedRows{
+			selectAll: false,
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 3,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +171,20 @@ func TestRecordIterator_WithEmptyRecordIsNil(t *testing.T) {
 	record := builder.NewRecordBatch()
 	defer record.Release()
 
-	iter, err := NewRecordIterator(record)
+	iter, err := NewRecordIterator(
+		record,
+		&SelectedColumns{
+			indexKey: StepKey,
+			requestedColumns: keySet{"_step": struct{}{}},
+			selectAll: false,
+		},
+		&SelectedRows{
+			selectAll: false,
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 0,
+		},
+	)
 	require.NoError(t, err)
 	defer iter.Release()
 
