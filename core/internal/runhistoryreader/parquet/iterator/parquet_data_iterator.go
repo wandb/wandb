@@ -2,7 +2,6 @@ package iterator
 
 import (
 	"context"
-	"math"
 
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 )
@@ -13,8 +12,8 @@ import (
 // It is the high level iterator used to iterate
 // over a run history parquet file.
 type ParquetDataIterator struct {
-	ctx    context.Context
-	selectedRows *SelectedRows
+	ctx             context.Context
+	selectedRows    *SelectedRows
 	selectedColumns *SelectedColumns
 
 	recordReader pqarrow.RecordReader
@@ -28,12 +27,6 @@ func NewParquetDataIterator(
 	selectedColumns *SelectedColumns,
 ) (RowIterator, error) {
 	columnIndices := selectedColumns.GetColumnIndices()
-	if reader.Props.BatchSize <= 0 {
-		reader.Props.BatchSize = int64(
-			batchSizeForSchemaSize(len(columnIndices)),
-		)
-	}
-
 	rowGroupIndices, err := selectedRows.GetRowGroupIndices()
 	if err != nil {
 		return nil, err
@@ -49,9 +42,9 @@ func NewParquetDataIterator(
 	}
 
 	rgi := &ParquetDataIterator{
-		ctx:    ctx,
+		ctx: ctx,
 
-		selectedRows: selectedRows,
+		selectedRows:    selectedRows,
 		selectedColumns: selectedColumns,
 
 		recordReader: recordReader,
@@ -96,19 +89,4 @@ func (r *ParquetDataIterator) Value() KeyValueList {
 func (r *ParquetDataIterator) Release() {
 	r.current.Release()
 	r.recordReader.Release()
-}
-
-func batchSizeForSchemaSize(numColumns int) int {
-	// builder.Reserve reserves an amount of memory for N rows, which is more efficient since the
-	// allocations are batched and the values are contiguous (less work for gc).
-	// But remember that how big a row is is determined by the number (and type) of columns. So we
-	// use a very unscientific formula. Some example breakpoints:
-	// At <=100 columns, reserve 10k rows (max reservation)
-	// At 1k columns, reserve 1k rows
-	// At >=10k columns, reserve 100 rows
-	if numColumns < 1 {
-		return 10000
-	}
-
-	return int(math.Max(math.Min(10000, float64(1000000/numColumns)), 100))
 }
