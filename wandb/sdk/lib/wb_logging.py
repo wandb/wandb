@@ -136,7 +136,7 @@ def add_file_handler(run_id: str, filepath: pathlib.Path) -> logging.Handler:
     return handler
 
 
-class _RunIDFilter(logging.Filter):
+class _RunIDFilter:
     """Filters out messages logged for a different run."""
 
     def __init__(self, run_id: str) -> None:
@@ -148,6 +148,7 @@ class _RunIDFilter(logging.Filter):
         self._run_id = run_id
 
     def filter(self, record: logging.LogRecord) -> bool:
+        """Modify a log record and return whether it matches the run."""
         run_id = _run_id.get()
 
         if run_id is None:
