@@ -13,6 +13,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Changed
+
+- `wandb.Api()` now supports an optional `session` argument which can be set to any object compatible with `requests.Session`. This allows advanced users to override HTTP client settings which are not otherwise/directly exposed through public interfaces.
+
 ### Fixed
 
 - `wandb.Api(api_key=...)` now prioritizes the explicitly provided API key over thread-local cached credentials (@pingleiwandb in https://github.com/wandb/wandb/pull/10657)

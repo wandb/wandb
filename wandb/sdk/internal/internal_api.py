@@ -218,6 +218,9 @@ class Api:
         default_settings(dict, optional): If you aren't using a settings
         file, or you wish to override the section to use in the settings file
         Override the settings here.
+
+        session: Requests session instance, in case your environment requires custom
+        setup for HTTP requests.
     """
 
     HTTP_TIMEOUT = env.get_http_timeout(20)
@@ -240,8 +243,9 @@ class Api:
             days=7
         ),
         environ: MutableMapping = os.environ,
-        retry_callback: Optional[Callable[[int, str], Any]] = None,
-        api_key: Optional[str] = None,
+        retry_callback: Callable[[int, str], Any] | None = None,
+        api_key: str | None = None,
+        session: requests.Session | None = None,
     ) -> None:
         self._environ = environ
         self._global_context = context.Context()
@@ -312,6 +316,7 @@ class Api:
                 url=f"{self.settings('base_url')}/graphql",
                 cookies=_thread_local_api_settings.cookies,
                 proxies=proxies,
+                session=session,
             )
         )
 
