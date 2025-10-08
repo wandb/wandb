@@ -5,14 +5,15 @@ import (
 	"io"
 	"path/filepath"
 	"testing"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -60,23 +61,14 @@ func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
 	batch, ok := msg.(leet.ChunkedBatchMsg)
 	require.True(t, ok)
 	require.False(t, batch.HasMore)
-	require.NotEqual(t, 0, batch.Progress)
-	require.NotEqual(t, 0, batch.Msgs)
+	require.Equal(t, 1, batch.Progress)
+	require.Equal(t, 2, len(batch.Msgs))
 
-	var sawHistory, sawComplete bool
-	for _, m := range batch.Msgs {
-		switch mm := m.(type) {
-		case leet.HistoryMsg:
-			sawHistory = true
-			require.Equal(t, 1, mm.Step)
-			require.Equal(t, 0.42, mm.Metrics["loss"])
-		case leet.FileCompleteMsg:
-			sawComplete = true
-			require.Equal(t, int32(0), mm.ExitCode)
-		}
-	}
-	require.True(t, sawHistory, "expected to see history message")
-	require.True(t, sawComplete, "expected to see file-complete message")
+	assert.IsType(t, leet.HistoryMsg{}, batch.Msgs[0])
+	assert.EqualValues(t, 1, batch.Msgs[0].(leet.HistoryMsg).Step)
+	assert.EqualValues(t, 0.42, batch.Msgs[0].(leet.HistoryMsg).Metrics["loss"])
+	assert.IsType(t, leet.FileCompleteMsg{}, batch.Msgs[1])
+	assert.EqualValues(t, 0, batch.Msgs[1].(leet.FileCompleteMsg).ExitCode)
 }
 
 //gocyclo:ignore
@@ -87,78 +79,64 @@ func TestReadNext_MultipleRecordTypes(t *testing.T) {
 	w, err := transactionlog.OpenWriter(path)
 	require.NoError(t, err)
 
-	// Write different record types
 	records := []struct {
-		name   string
-		record *spb.Record
+		name  string
+		txtpb string
 	}{
 		{
 			name: "run",
-			record: &spb.Record{
-				RecordType: &spb.Record_Run{
-					Run: &spb.RunRecord{
-						RunId:       "test-run-123",
-						DisplayName: "Test Run",
-						Project:     "test-project",
-					},
-				},
-			},
+			txtpb: `
+				run {
+					run_id: "test-run-123"
+					display_name: "Test Run"
+					project: "test-project"
+				}
+			`,
 		},
 		{
 			name: "stats",
-			record: &spb.Record{
-				RecordType: &spb.Record_Stats{
-					Stats: &spb.StatsRecord{
-						Timestamp: &timestamppb.Timestamp{Seconds: time.Now().Unix()},
-						Item: []*spb.StatsItem{
-							{Key: "cpu", ValueJson: "45.5"},
-							{Key: "memory_percent", ValueJson: "78.2"},
-						},
-					},
-				},
-			},
+			txtpb: `
+				stats {
+					timestamp { seconds: 123 }
+					item: [
+						{ key: "cpu", value_json: "45.5" },
+						{ key: "memory_percent", value_json: "78.2" }
+					]
+				}`,
 		},
 		{
 			name: "summary",
-			record: &spb.Record{
-				RecordType: &spb.Record_Summary{
-					Summary: &spb.SummaryRecord{
-						Update: []*spb.SummaryItem{
-							{
-								NestedKey: []string{"best_loss"},
-								ValueJson: "0.123",
-							},
-						},
-					},
-				},
-			},
+			txtpb: `
+				summary {
+					update: [
+						{ nested_key: "best_loss", value_json: "0.123" }
+					]
+				}`,
 		},
 		{
 			name: "environment",
-			record: &spb.Record{
-				RecordType: &spb.Record_Environment{
-					Environment: &spb.EnvironmentRecord{
-						WriterId: "writer-1",
-						Python:   "3.9.7",
-						Os:       "Linux",
-					},
-				},
-			},
+			txtpb: `
+				environment {
+					writer_id: "writer-1"
+					python: "3.9.7"
+					os: "Linux"
+				}`,
 		},
 		{
 			name: "exit",
-			record: &spb.Record{
-				RecordType: &spb.Record_Exit{
-					Exit: &spb.RunExitRecord{
-						ExitCode: 0,
-					},
-				},
-			},
+			txtpb: `
+				exit {
+					exit_code: 0
+				}`,
 		},
 	}
 
-	for _, rec := range records {
-		require.NoError(t, w.Write(rec.record), "write %s", rec.name)
+	for _, input := range records {
+		var rec spb.Record
+		require.NoError(t,
+			prototext.Unmarshal([]byte(input.txtpb), &rec),
+			"unmarshal %s", input.name)
+		require.NoError(t, w.Write(&rec), "write %s", input.name)
 	}
 	w.Close()
 

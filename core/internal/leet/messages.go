@@ -48,10 +48,6 @@ type ErrorMsg struct {
 	Err error
 }
 
-func (e ErrorMsg) Error() string {
-	return e.Err.Error()
-}
-
 // InitMsg contains the initialized reader.
 type InitMsg struct {
 	Reader *WandbReader
