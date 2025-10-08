@@ -193,12 +193,13 @@ class ArtifactManifestEntry(ArtifactsBase):
         # Override the target cache path IF we're skipping the cache.
         # Note that `override_cache_path is None` <=> `skip_cache is False`.
         override_cache_path = FilePathStr(dest_path) if skip_cache else None
+        storage_policy = artifact.manifest.storage_policy
         if self.ref is not None:
-            cache_path = artifact.manifest.storage_policy.load_reference(
+            cache_path = storage_policy.load_reference(
                 self, local=True, dest_path=override_cache_path
             )
         else:
-            cache_path = artifact.manifest.storage_policy.load_file(
+            cache_path = storage_policy.load_file(
                 artifact, self, dest_path=override_cache_path, executor=executor
             )
 
