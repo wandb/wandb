@@ -49,7 +49,6 @@ from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk import wandb_setup
-from wandb.sdk.artifacts.storage_policies._multipart import should_multipart_download
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -140,6 +139,7 @@ from .exceptions import (
 )
 from .staging import get_staging_dir
 from .storage_handlers.gcs_handler import _GCSIsADirectoryError
+from .storage_policies._multipart import should_multipart_download
 
 reset_path = vendor_setup()
 
@@ -1947,8 +1947,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        root = FilePathStr(root or self._default_root())
-        self._add_download_root(root)
+        root = self._add_download_root(root)
 
         # TODO: download artifacts using core when implemented
         # if is_require_core():
@@ -2306,8 +2305,10 @@ class Artifact:
         # use that, otherwise we'll fall back to the system-preferred path.
         return FilePathStr(check_exists(root) or system_preferred_path(root))
 
-    def _add_download_root(self, dir_path: str) -> None:
-        self._download_roots.add(os.path.abspath(dir_path))
+    def _add_download_root(self, dir_path: StrPath | None) -> FilePathStr:
+        root = str(dir_path or self._default_root())
+        self._download_roots.add(os.path.abspath(root))
+        return root
 
     def _local_path_to_name(self, file_path: str) -> str | None:
         """Convert a local file path to a path entry in the artifact."""
