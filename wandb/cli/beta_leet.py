@@ -55,13 +55,14 @@ def launch(path: str | None) -> Never:
         core_path = get_core_path()
 
         args = [core_path, "leet"]
-        args.append(wandb_file)
 
         if not error_reporting_enabled():
             args.append("--no-observability")
 
         if is_debug(default="False"):
             args.extend(["--log-level", "-4"])
+
+        args.append(wandb_file)
 
         result = subprocess.run(
             args,
