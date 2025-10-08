@@ -263,6 +263,11 @@ class Settings(BaseModel, validate_assignment=True):
     access to logs while the run is active. Rollover cadence is
     controlled by `console_chunk_max_bytes` and/or `console_chunk_max_seconds`.
     If both limits are `0`, all logs are uploaded once at run finish.
+
+    Note: Terminal emulator sequences that modify previous lines (e.g., progress
+    bars using carriage returns) only affect the current chunk. Once a chunk is
+    uploaded, its content is immutable and subsequent modifications are silently
+    dropped.
     """
 
     console_chunk_max_bytes: int = 0

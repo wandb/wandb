@@ -19,9 +19,6 @@ import (
 // This writer splits console output into multiple files based on size and time
 // thresholds. Each chunk is uploaded independently, allowing console logs to be
 // available during long-running jobs and preserving logs in case of crashes.
-//
-// The writer maintains global line number consistency across chunks to ensure
-// proper reconstruction of the complete log file.
 type chunkedFileWriter struct {
 	mu sync.Mutex
 
@@ -61,10 +58,6 @@ type ChunkedFileWriterParams struct {
 	Logger           *observability.CoreLogger
 }
 
-// newChunkedFileWriter creates a new chunked file writer.
-//
-// The writer delays creating the first chunk file until the first write,
-// ensuring accurate timestamps for chunk naming.
 func NewChunkedFileWriter(params ChunkedFileWriterParams) *chunkedFileWriter {
 	return &chunkedFileWriter{
 		baseFileName:     params.BaseFileName,
@@ -91,22 +84,22 @@ func (w *chunkedFileWriter) WriteToFile(
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	// Create first chunk on first write, or create new chunk after rotation
+	// Create first chunk on first write, or create new chunk after rotation.
 	if w.currentChunk == nil {
 		if err := w.createNewChunk(); err != nil {
 			return fmt.Errorf("failed to create chunk: %v", err)
 		}
 	}
 
-	// Convert RunLogsLine to string and track line numbers
+	// Convert RunLogsLine to string and track line numbers.
 	lines := sparselist.SparseList[string]{}
 	var addedBytes int64
 
 	changes.ForEach(func(globalLineNum int, line *RunLogsLine) {
-		// Track the highest line number seen
+		// Track the highest line number seen.
 		w.nextGlobalLine = max(w.nextGlobalLine, globalLineNum+1)
 
-		// Convert to chunk-local line number
+		// Convert to chunk-local line number.
 		localLineNum := globalLineNum - w.globalLineOffset
 		if localLineNum >= 0 {
 			lineStr := string(line.Content)
@@ -123,7 +116,7 @@ func (w *chunkedFileWriter) WriteToFile(
 	// Use the on-disk size after UpdateLines closes the file handle.
 	// This keeps size-based rotation correct even when UpdateLines
 	// pops/replays lines near the end.
-	if sz, err := w.statCurrentChunkSizeLocked(); err != nil {
+	if sz, err := w.statCurrentChunkSize(); err != nil {
 		w.currentSize += addedBytes // Fall back to an estimate.
 	} else {
 		w.currentSize = sz
@@ -153,7 +146,11 @@ func (w *chunkedFileWriter) shouldRotate() bool {
 // This method assumes the mutex is already held by the caller.
 func (w *chunkedFileWriter) createNewChunk() error {
 	timestamp := time.Now()
-	w.currentChunkPath = w.generateChunkPath(timestamp)
+	p, err := w.generateChunkPath(timestamp)
+	if err != nil {
+		return err
+	}
+	w.currentChunkPath = p
 
 	fullPath := filepath.Join(w.filesDir, string(w.currentChunkPath))
 	if err := os.MkdirAll(filepath.Dir(fullPath), os.ModePerm); err != nil {
@@ -177,13 +174,13 @@ func (w *chunkedFileWriter) createNewChunk() error {
 //
 // This method should be called synchronously while holding the w.mu lock.
 func (w *chunkedFileWriter) rotateChunk() {
-	// Upload the current chunk
+	// Schedule the uploading of the current chunk.
 	w.uploader.UploadNow(w.currentChunkPath, filetransfer.RunFileKindWandb)
 
-	// Update offset for next chunk
+	// Update offset for next chunk.
 	w.globalLineOffset = w.nextGlobalLine
 
-	// Clear current chunk state - next write will create new chunk
+	// Clear current chunk state - next write will create new chunk.
 	w.currentChunk = nil
 	w.currentChunkPath = ""
 	w.currentSize = 0
@@ -215,7 +212,7 @@ func (w *chunkedFileWriter) Finish() {
 //
 // The path format is: logs/baseFileName_YYYYMMDD_HHMMSS_nnnnnnnnn.extension
 // where nnnnnnnnn is the nanosecond portion for uniqueness.
-func (w *chunkedFileWriter) generateChunkPath(timestamp time.Time) paths.RelativePath {
+func (w *chunkedFileWriter) generateChunkPath(timestamp time.Time) (paths.RelativePath, error) {
 	filename := fmt.Sprintf(
 		"%s_%s_%09d%s",
 		w.baseFileName,
@@ -225,17 +222,13 @@ func (w *chunkedFileWriter) generateChunkPath(timestamp time.Time) paths.Relativ
 	)
 
 	p, err := paths.Relative(filepath.Join("logs", filename))
-	if err == nil {
-		return *p
-	}
-	// Extremely defensive fallback; preserves forward progress even if validation changes.
-	return paths.RelativePath(filepath.Join("logs", filename))
+	return *p, err
 }
 
 // statCurrentChunkSizeLocked returns the current chunk's on-disk size.
 //
 // Call only while holding w.mu.
-func (w *chunkedFileWriter) statCurrentChunkSizeLocked() (int64, error) {
+func (w *chunkedFileWriter) statCurrentChunkSize() (int64, error) {
 	fullPath := filepath.Join(w.filesDir, string(w.currentChunkPath))
 	info, err := os.Stat(fullPath)
 	if err != nil {
