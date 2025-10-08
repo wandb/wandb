@@ -14,7 +14,7 @@ parameters:
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
   server_image_tag:
     type: string
-    default: "master"
+    default: "70dd597b70b4c3565f5a5753eeb5abfa3886cf7c"
 
 executors:
   macos:
