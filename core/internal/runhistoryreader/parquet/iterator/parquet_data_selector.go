@@ -18,108 +18,173 @@ type keySet map[string]struct{}
 
 type SelectedColumns struct {
 	selectAll bool
+	schema *schema.Schema
 
-	columnIndices []int
+	indexKey string
+	requestedColumns keySet
 }
 
-func SelectAllColumns(schema *schema.Schema) SelectedColumns {
-	indices := make([]int, schema.NumColumns())
-	for i := range indices {
-		indices[i] = i
-	}
-	return SelectedColumns{
-		selectAll:     true,
-		columnIndices: indices,
-	}
-}
-
-func SelectOnlyColumns(
+func SelectColumns(
+	indexKey string,
 	keys []string,
 	schema *schema.Schema,
-) (SelectedColumns, error) {
-	requestedColumns := keySet{}
-	for _, key := range keys {
-		requestedColumns[key] = struct{}{}
-	}
+) (*SelectedColumns, error) {
+	var requestedColumns keySet
+	selectAll := false
 
-	foundColumns := keySet{}
+	// When no keys are provided, then we will return all columns.
+	if len(keys) == 0 {
+		selectAll = true
+		requestedColumns = make(keySet, schema.NumColumns())
+		for i := 0; i < schema.NumColumns(); i++ {
+			col := schema.Column(i)
+			requestedColumns[col.ColumnPath()[0]] = struct{}{}
+		}
+	} else {
+		requestedColumns = make(keySet, len(keys)+1)
+		requestedColumns[indexKey] = struct{}{}
+		for _, key := range keys {
+			requestedColumns[key] = struct{}{}
 
-	var indices []int
-	for i := 0; i < schema.NumColumns(); i++ {
-		col := schema.Column(i)
-		if _, ok := requestedColumns[col.ColumnPath()[0]]; ok {
-			indices = append(indices, i)
-			foundColumns[col.ColumnPath()[0]] = struct{}{}
+			colIndex := schema.ColumnIndexByName(key)
+			if colIndex < 0 {
+				return nil, fmt.Errorf(
+					"column %s selected but not found",
+					key,
+				)
+			}
 		}
 	}
 
-	// Make sure that selected columns were found.
-	for column := range requestedColumns {
-		if _, ok := foundColumns[column]; !ok {
-			return SelectedColumns{}, fmt.Errorf(
-				"column %s selected but not found",
-				column,
-			)
-		}
-	}
-
-	return SelectedColumns{
-		selectAll:     false,
-		columnIndices: indices,
+	return &SelectedColumns{
+		indexKey: indexKey,
+		schema: schema,
+		requestedColumns: requestedColumns,
+		selectAll: selectAll,
 	}, nil
 }
 
 func (sc *SelectedColumns) GetColumnIndices() []int {
-	return sc.columnIndices
+	var indices []int
+	if sc.selectAll {
+		indices := make([]int, sc.schema.NumColumns())
+		for i := range indices {
+			indices[i] = i
+		}
+	} else {
+		indices = make([]int, len(sc.requestedColumns))
+		i := 0
+		for column := range sc.requestedColumns {
+			colIndex := sc.schema.ColumnIndexByName(column)
+			indices[i] = colIndex
+			i++
+		}
+	}
+
+	return indices
 }
 
-type SeletedRowGroups struct {
+func (sc *SelectedColumns) GetRequestedColumns() keySet {
+	return sc.requestedColumns
+}
+
+func (sc *SelectedColumns) GetIndexKey() string {
+	return sc.indexKey
+}
+
+type SelectedRows struct {
 	selectAll       bool
-	rowGroupIndices []int
+	parquetFileReader *pqarrow.FileReader
+	indexKey string
+	minValue float64
+	maxValue float64
 }
-
-func SelectAllRowGroups(pf *pqarrow.FileReader) SeletedRowGroups {
-	indices := make([]int, pf.ParquetReader().NumRowGroups())
-	for i := range indices {
-		indices[i] = i
-	}
-	return SeletedRowGroups{
-		selectAll:       true,
-		rowGroupIndices: indices,
-	}
-}
-
-func SelectOnlyRowGroups(
+func SelectRows(
 	pf *pqarrow.FileReader,
-	config IteratorConfig,
-) (SeletedRowGroups, error) {
-	indices := []int{}
+	indexKey string,
+	minValue float64,
+	maxValue float64,
+	selectAll bool,
+) *SelectedRows {
+	return &SelectedRows{
+		selectAll:       selectAll,
+		parquetFileReader: pf,
+		indexKey: indexKey,
+		minValue: minValue,
+		maxValue: maxValue,
+	}
+}
 
-	// filter row groups that are outside of the requested step range
-	metadata := pf.ParquetReader().MetaData()
-	for i := 0; i < len(metadata.RowGroups); i++ {
-		minValue, maxValue, err := getColumnRangeFromStats(
-			metadata,
-			i,
-			config.key,
+// GetRowGroupIndices returns the indices of the row groups that should be read.
+//
+// It does this by checking if the index key value
+// is within the min and max value range.
+func (sr *SelectedRows) GetRowGroupIndices() ([]int, error) {
+	var rowGroupIndices []int
+
+	// If selecting all rows, then return all row groups.
+	if sr.selectAll {
+		rowGroupIndices = make(
+			[]int,
+			sr.parquetFileReader.ParquetReader().NumRowGroups(),
 		)
-		if err != nil {
-			return SeletedRowGroups{}, err
+		for i := range rowGroupIndices {
+			rowGroupIndices[i] = i
 		}
+	} else {
+		// filter row groups that are outside of the requested step range
+		metadata := sr.parquetFileReader.ParquetReader().MetaData()
+		for i := 0; i < len(metadata.RowGroups); i++ {
+			fileMinValue, fileMaxValue, err := getColumnRangeFromStats(
+				metadata,
+				i,
+				sr.indexKey,
+			)
+			if err != nil {
+				return nil, err
+			}
 
-		if minValue < config.max && maxValue >= config.min {
-			indices = append(indices, i)
+			if fileMinValue < sr.maxValue && fileMaxValue >= sr.minValue {
+				rowGroupIndices = append(rowGroupIndices, i)
+			}
 		}
 	}
 
-	return SeletedRowGroups{
-		selectAll:       false,
-		rowGroupIndices: indices,
-	}, nil
+	return rowGroupIndices, nil
 }
 
-func (sr *SeletedRowGroups) GetRowGroupIndices() []int {
-	return sr.rowGroupIndices
+// ShouldSkipRecordRow checks if the current row within a row group
+// should be skipped based on SelectedRows min and max values.
+func (sr *SelectedRows) IsRowValid(
+	columnIterators map[string]keyIteratorPair,
+) bool {
+	if sr.selectAll {
+		return true
+	}
+
+	indexColumnIterator := columnIterators[sr.indexKey].Iterator
+	if indexColumnIterator == nil {
+		return false
+	}
+
+	switch indexColumnIterator.Value().(type) {
+	case int64:
+		minValue := int64(sr.minValue)
+		maxValue := int64(sr.maxValue)
+		colValue, ok := indexColumnIterator.Value().(int64)
+		if !ok {
+			return false
+		}
+		return colValue >= minValue && colValue < maxValue
+	case float64:
+		colValue, ok := indexColumnIterator.Value().(float64)
+		if !ok {
+			return false
+		}
+		return colValue >= sr.minValue && colValue < sr.maxValue
+	default:
+		return false
+	}
 }
 
 // getColumnRangeFromStats returns the range of values

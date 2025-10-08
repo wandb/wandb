@@ -1,6 +1,10 @@
 package iterator
 
-import "math"
+import (
+	"context"
+
+	"github.com/apache/arrow-go/v18/parquet/pqarrow"
+)
 
 // This file copies most of its logic from how history parquet files
 // are read on the backend.
@@ -33,38 +37,21 @@ type RowIterator interface {
 	Release()
 }
 
-// IteratorConfig is a configuration for which history rows should be selected.
-//
-// key is the key to filter on.
-// min is the minimum value to filter on it is inclusive.
-// max is the maximum value to filter on it is exclusive.
-// selectAllRows will not filter any rows
-// based on the index key when set to true.
-type IteratorConfig struct {
-	key           string
-	min           float64
-	max           float64
-	selectAllRows bool
-}
-
-func NewRowFilteredIteratorConfig(
-	indexKey string,
-	minValue float64,
-	maxValue float64,
-) IteratorConfig {
-	return IteratorConfig{
-		key:           indexKey,
-		min:           minValue,
-		max:           maxValue,
-		selectAllRows: false,
+func NewRowIterator(
+	ctx context.Context,
+	reader *pqarrow.FileReader,
+	selectedRows *SelectedRows,
+	selectedColumns *SelectedColumns,
+) (RowIterator, error) {
+	// For empty parquet files, return a noop iterator.
+	if reader.ParquetReader().NumRows() <= 0 {
+		return &NoopRowIterator{}, nil
 	}
-}
 
-func NewSelectAllRowsIteratorConfig(indexKey string) IteratorConfig {
-	return IteratorConfig{
-		key:           indexKey,
-		min:           0,
-		max:           math.MaxFloat64,
-		selectAllRows: true,
-	}
+	return NewParquetDataIterator(
+		ctx,
+		reader,
+		selectedRows,
+		selectedColumns,
+	)
 }

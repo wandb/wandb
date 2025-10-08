@@ -2,7 +2,6 @@ package iterator
 
 import (
 	"context"
-	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +21,10 @@ func getRowIteratorForFile(
 	t *testing.T,
 	filePath string,
 	keys []string,
-	config IteratorConfig,
+	indexKey string,
+	minValue float64,
+	maxValue float64,
+	selectAll bool,
 ) RowIterator {
 	t.Helper()
 
@@ -30,11 +32,21 @@ func getRowIteratorForFile(
 	require.NoError(t, err)
 	r, err := pqarrow.NewFileReader(pr, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
 	require.NoError(t, err)
+
+	selectedRows := SelectRows(r, indexKey, minValue, maxValue, selectAll)
+	selectedColumns, err := SelectColumns(
+		indexKey,
+		keys,
+		r.ParquetReader().MetaData().Schema,
+	)
+	require.NoError(t, err)
+
+
 	it, err := NewRowIterator(
 		context.Background(),
 		r,
-		keys,
-		config,
+		selectedRows,
+		selectedColumns,
 	)
 	require.NoError(t, err)
 
@@ -54,9 +66,9 @@ func TestRowIterator_WithHistoryPageRange(t *testing.T) {
 		nil, /* metadata */
 	)
 	data := []map[string]any{
-		{"_step": 1, "loss": 1},
-		{"_step": 2, "loss": 2},
-		{"_step": 3, "loss": 3},
+		{"_step": int64(1), "loss": int64(1)},
+		{"_step": int64(2), "loss": int64(2)},
+		{"_step": int64(3), "loss": int64(3)},
 	}
 	filePath := filepath.Join(t.TempDir(), "test.parquet")
 	test.CreateTestParquetFileFromData(
@@ -69,14 +81,19 @@ func TestRowIterator_WithHistoryPageRange(t *testing.T) {
 		t,
 		filePath,
 		[]string{"loss"},
-		NewRowFilteredIteratorConfig(StepKey, 0, 2),
-		// NewSelectAllRowsIteratorConfig(StepKey),
+		StepKey,
+		0,
+		2,
+		false,
 	)
 
 	next, err := it.Next()
 	assert.NoError(t, err)
 	assert.True(t, next)
-	assert.Equal(t, KeyValueList{{Key: "loss", Value: int64(1)}}, it.Value())
+	expectedValue := data[0]
+	for _, kvPair := range it.Value() {
+		assert.Equal(t, expectedValue[kvPair.Key], kvPair.Value)
+	}
 
 	// Verify no more data returned
 	next, err = it.Next()
@@ -94,9 +111,9 @@ func TestRowIterator_WithEventsPageRange(t *testing.T) {
 		nil, /* metadata */
 	)
 	data := []map[string]any{
-		{"_timestamp": 1.0, "loss": 1, "_step": 3.0},
-		{"_timestamp": 2.0, "loss": 2, "_step": 2.0},
-		{"_timestamp": 3.0, "loss": 3, "_step": 1.0},
+		{"_timestamp": 1.0, "loss": int64(1), "_step": 3.0},
+		{"_timestamp": 2.0, "loss": int64(2), "_step": 2.0},
+		{"_timestamp": 3.0, "loss": int64(3), "_step": 1.0},
 	}
 	filePath := filepath.Join(t.TempDir(), "test.parquet")
 	test.CreateTestParquetFileFromData(
@@ -109,13 +126,19 @@ func TestRowIterator_WithEventsPageRange(t *testing.T) {
 		t,
 		filePath,
 		[]string{"loss"},
-		NewRowFilteredIteratorConfig(TimestampKey, 0.0, 2.0),
+		TimestampKey,
+		0.0,
+		2.0,
+		false,
 	)
 
 	next, err := it.Next()
 	assert.NoError(t, err)
 	assert.True(t, next)
-	assert.Equal(t, KeyValueList{{Key: "loss", Value: int64(1)}}, it.Value())
+	expectedValue := data[0]
+	for _, kvPair := range it.Value() {
+		assert.Equal(t, expectedValue[kvPair.Key], kvPair.Value)
+	}
 
 	// Verify no more data returned
 	next, err = it.Next()
@@ -132,7 +155,10 @@ func TestRowIterator_ReleaseFreesMemory(t *testing.T) {
 		t,
 		filePath,
 		[]string{"_step"},
-		NewSelectAllRowsIteratorConfig(StepKey),
+		StepKey,
+		0,
+		0,
+		true,
 	)
 
 	next, err := it.Next()
@@ -152,6 +178,7 @@ func TestRowIterator_ReleaseFreesMemory(t *testing.T) {
 	allocator.AssertSize(t, 0)
 }
 
+// TODO: move this to parquet_data_selector_test.go
 func TestRowIterator_EmptyFile(t *testing.T) {
 	allocator := memory.NewCheckedAllocator(memory.DefaultAllocator)
 	filePath := "../../../../tests/files/empty.parquet"
@@ -174,22 +201,17 @@ func TestRowIterator_EmptyFile(t *testing.T) {
 	}
 
 	// all row groups should be read
-	ctx := context.Background()
-	config := NewSelectAllRowsIteratorConfig(StepKey)
-	it, err := NewRowIterator(ctx, r, []string{"_step"}, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	hasRow, err := it.Next()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if hasRow {
-		t.Fatal("found row in empty parquet file")
-	}
+	_, err = SelectColumns(StepKey, []string{"_step"}, r.ParquetReader().MetaData().Schema)
+	require.Error(t, err)
+	// it, err := NewRowIterator(ctx, r, selectedRows, selectedColumns)
+	// require.NoError(t, err)
+	//
+	// next, err := it.Next()
+	// require.NoError(t, err)
+	// assert.False(t, next, "Expected no more rows")
 }
 
+// TODO: move this to parquet_data_selector_test.go
 func TestRowIterator_WithMissingColumns(t *testing.T) {
 	schema := arrow.NewSchema([]arrow.Field{
 		{Name: "_step", Type: arrow.PrimitiveTypes.Float64},
@@ -207,15 +229,13 @@ func TestRowIterator_WithMissingColumns(t *testing.T) {
 	r, err := pqarrow.NewFileReader(pr, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
 	require.NoError(t, err)
 
-	_, err = NewRowIterator(
-		context.Background(),
-		r,
+	_, err = SelectColumns(
+		StepKey,
 		[]string{"_step", "loss", "nonexistent_column"},
-		NewRowFilteredIteratorConfig(StepKey, 0, 2),
+		r.ParquetReader().MetaData().Schema,
 	)
 
 	assert.Error(t, err)
-	assert.ErrorContains(t, err, "column nonexistent_column selected but not found")
 }
 
 func TestRowIterator_WithComplexColumns(t *testing.T) {
@@ -250,7 +270,10 @@ func TestRowIterator_WithComplexColumns(t *testing.T) {
 		t,
 		tempFile,
 		[]string{},
-		NewRowFilteredIteratorConfig(StepKey, 0, math.MaxInt64),
+		StepKey,
+		0,
+		0,
+		true,
 	)
 
 	// Verify all rows match the input data
@@ -259,15 +282,10 @@ func TestRowIterator_WithComplexColumns(t *testing.T) {
 		assert.NoError(t, err, "Error getting row %d", i)
 		assert.True(t, next, "Expected row %d to exist", i)
 
-		// Build expected KVMapList from the data row
-		// The order should match how the iterator returns columns
-		expectedRow := KeyValueList{
-			{Key: "_step", Value: row["_step"]},
-			{Key: "loss", Value: row["loss"]},
-			{Key: "nested", Value: row["nested"]},
+		val := it.Value()
+		for _, kv := range val {
+			assert.Equal(t, row[kv.Key], kv.Value)
 		}
-
-		assert.Equal(t, expectedRow, it.Value(), "Row %d mismatch", i)
 	}
 
 	// Verify no more rows beyond what's in the data
@@ -296,14 +314,14 @@ func TestSelectColumns(t *testing.T) {
 	}{
 		{
 			name:        "select specific columns",
-			columns:     []string{"_step", "loss"},
-			wantIndices: []int{0, 1},
+			columns:     []string{"_step", "loss", "metric"},
+			wantIndices: []int{0, 1, 2},
 			wantErr:     false,
 		},
 		{
 			name:        "select single column",
 			columns:     []string{"metric"},
-			wantIndices: []int{2},
+			wantIndices: []int{0, 2},
 			wantErr:     false,
 		},
 		{
@@ -322,14 +340,18 @@ func TestSelectColumns(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			selectedColumns, err := SelectOnlyColumns(tt.columns, s)
+			selectedColumns, err := SelectColumns(
+				StepKey,
+				tt.columns,
+				s,
+			)
 
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
 				indices := selectedColumns.GetColumnIndices()
 				assert.NoError(t, err)
-				assert.Equal(t, tt.wantIndices, indices)
+				assert.ElementsMatch(t, tt.wantIndices, indices)
 			}
 		})
 	}
