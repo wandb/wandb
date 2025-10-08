@@ -11,6 +11,22 @@ matplotlib.use("Agg")
 data = np.random.randint(255, size=(1000))
 
 
+def filter_artifacts_by_type(run, *artifact_types):
+    """Filter logged artifacts by their type(s).
+
+    Do NOT assert on length of run.logged_artifacts().
+    Server side can generate other artifacts e.g. parquet exports.
+
+    Args:
+        run: The wandb API run object.
+        *artifact_types: One or more artifact type strings to filter by.
+
+    Returns:
+        List of artifacts matching the specified type(s).
+    """
+    return [art for art in run.logged_artifacts() if art.type in artifact_types]
+
+
 @pytest.fixture
 def sample_data():
     artifact = wandb.Artifact("N", type="dataset")
@@ -63,7 +79,8 @@ def test_log_dataframe(user, test_settings):
     run.finish()
 
     run = wandb.Api().run(f"uncategorized/{run.id}")
-    assert len(run.logged_artifacts()) == 1
+    table_artifacts = filter_artifacts_by_type(run, "run_table")
+    assert len(table_artifacts) == 1
 
 
 @pytest.mark.parametrize("log_mode", ["IMMUTABLE", "MUTABLE", "INCREMENTAL"])
@@ -155,7 +172,8 @@ def test_table_mutation_logging(user, test_settings, wandb_backend_spy):
     run.finish()
 
     run = wandb.Api().run(f"uncategorized/{run.id}")
-    assert len(run.logged_artifacts()) == 3
+    table_artifacts = filter_artifacts_by_type(run, "run_table")
+    assert len(table_artifacts) == 3
 
 
 def test_incr_logging_initial_log(user, test_settings):
@@ -165,7 +183,8 @@ def test_incr_logging_initial_log(user, test_settings):
     run.log({"table": t})
     run.finish()
     api_run = wandb.Api().run(f"uncategorized/{run.id}")
-    assert len(api_run.logged_artifacts()) == 1
+    table_artifacts = filter_artifacts_by_type(api_run, "wandb-run-incremental-table")
+    assert len(table_artifacts) == 1
     assert t._last_logged_idx == 0
     assert t._artifact_target is not None
     assert t._increment_num == 0
@@ -218,7 +237,8 @@ def test_incr_logging_multiple_logs(user, test_settings):
     assert len(t._previous_increments_paths) == 2
 
     api_run = wandb.Api().run(f"uncategorized/{run.id}")
-    assert len(api_run.logged_artifacts()) == 3
+    table_artifacts = filter_artifacts_by_type(api_run, "wandb-run-incremental-table")
+    assert len(table_artifacts) == 3
 
 
 def test_using_incrementally_logged_table(user, test_settings, monkeypatch):
@@ -266,7 +286,8 @@ def test_table_incremental_logging_empty(user, test_settings, wandb_backend_spy)
     run.finish()
     run = wandb.Api().run(f"uncategorized/{run.id}")
 
-    assert len(run.logged_artifacts()) == 2
+    table_artifacts = filter_artifacts_by_type(run, "wandb-run-incremental-table")
+    assert len(table_artifacts) == 2
 
 
 def test_resumed_run_incremental_table(user, test_settings):
@@ -325,7 +346,8 @@ def test_resumed_run_nothing_prev_logged_to_key(user, test_settings):
     resumed_run.finish()
     api_run = wandb.Api().run(f"uncategorized/{resumed_run.id}")
 
-    assert len(api_run.logged_artifacts()) == 2
+    table_artifacts = filter_artifacts_by_type(api_run, "wandb-run-incremental-table")
+    assert len(table_artifacts) == 2
 
 
 def test_resumed_run_no_prev_incr_table_wbvalue(user, test_settings):
@@ -360,7 +382,10 @@ def test_resumed_run_no_prev_incr_table_wbvalue(user, test_settings):
     resumed_run.finish()
     api_run = wandb.Api().run(f"uncategorized/{resumed_run.id}")
 
-    assert len(api_run.logged_artifacts()) == 4
+    table_artifacts = filter_artifacts_by_type(
+        api_run, "run_table", "wandb-run-incremental-table"
+    )
+    assert len(table_artifacts) == 4
 
 
 def test_resumed_run_no_prev_incr_table_nonwbvalue(user, test_settings):
@@ -394,7 +419,8 @@ def test_resumed_run_no_prev_incr_table_nonwbvalue(user, test_settings):
     resumed_run.finish()
     api_run = wandb.Api().run(f"uncategorized/{resumed_run.id}")
 
-    assert len(api_run.logged_artifacts()) == 3
+    table_artifacts = filter_artifacts_by_type(api_run, "wandb-run-incremental-table")
+    assert len(table_artifacts) == 3
 
 
 def test_resumed_run_incremental_table_ordering(user, test_settings, monkeypatch):
