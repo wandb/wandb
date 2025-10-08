@@ -415,3 +415,32 @@ module = [
     "wandb.vendor.*",
 ]
 ignore_missing_imports = true
+
+
+[tool.basedpyright]
+pythonVersion = "3.8"
+pythonPlatform = "All"
+
+# We use implicit string concatenation quite a lot, so don't yell too loud.
+reportImplicitStringConcatenation = "hint"
+
+# Our convention is that the type of a field assigned in __init__() is
+# the type of what it's assigned to. Don't duplicate annotations like in
+#
+#   def __init__(self, value: SomeType) -> None:
+#       self._value: SomeType = value
+reportUnannotatedClassAttribute = false
+reportIncompatibleUnannotatedOverride = "error"
+
+# While this seems like a good idea, it's very common to ignore return values
+# in Python. For instance:
+#
+#   - threading.Event.wait() always returns True if no timeout is passed
+#   - asyncio.Event.wait() always returns True no matter what
+#   - call_soon_threadsafe() in asyncio returns a Handle that is rarely useful
+#   - asyncio.Task.cancel() returns a boolean that's rarely useful
+reportUnusedCallResult = false
+
+# Any is frequently unavoidable when forwarding an argument with a generic type
+# to a library function that didn't specify the generic type parameters.
+reportExplicitAny = "hint"
