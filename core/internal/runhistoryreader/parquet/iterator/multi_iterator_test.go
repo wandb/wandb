@@ -32,20 +32,24 @@ func TestMultiIterator_ReadsAllRows(t *testing.T) {
 	tempFile2 := filepath.Join(t.TempDir(), "test2.parquet")
 	test.CreateTestParquetFileFromData(t, tempFile1, schema, dataPart1)
 	test.CreateTestParquetFileFromData(t, tempFile2, schema, dataPart2)
-	it1, cleanup1 := getRowIteratorForFile(
+	it1 := getRowIteratorForFile(
 		t,
 		tempFile1,
 		[]string{"_step", "value"},
-		nil,
+		StepKey,
+		0,
+		0,
+		true,
 	)
-	it2, cleanup2 := getRowIteratorForFile(
+	it2 := getRowIteratorForFile(
 		t,
 		tempFile2,
 		[]string{"_step", "value"},
-		nil,
+		StepKey,
+		0,
+		0,
+		true,
 	)
-	defer cleanup1()
-	defer cleanup2()
 
 	multiReader := NewMultiIterator([]RowIterator{it1, it2})
 
@@ -90,27 +94,25 @@ func TestMultiIterator_WithPageRange_AcrossPartitions(t *testing.T) {
 	tempFile2 := filepath.Join(t.TempDir(), "test2.parquet")
 	test.CreateTestParquetFileFromData(t, tempFile1, schema, dataPart1)
 	test.CreateTestParquetFileFromData(t, tempFile2, schema, dataPart2)
-	pageOpt := WithHistoryPageRange(HistoryPageParams{
-		MinStep: 10,
-		MaxStep: 40,
-	})
-	it1, cleanup1 := getRowIteratorForFile(
+	it1 := getRowIteratorForFile(
 		t,
 		tempFile1,
 		[]string{"_step", "value"},
-		pageOpt,
+		StepKey,
+		10,
+		40,
+		false,
 	)
-	it2, cleanup2 := getRowIteratorForFile(
+	it2 := getRowIteratorForFile(
 		t,
 		tempFile2,
 		[]string{"_step", "value"},
-		pageOpt,
+		StepKey,
+		10,
+		40,
+		false,
 	)
-	defer cleanup1()
-	defer cleanup2()
-	multiReader := NewMultiIterator(
-		[]RowIterator{it1, it2},
-	)
+	multiReader := NewMultiIterator([]RowIterator{it1, it2})
 
 	// Read all rows and verify they're within the range
 	values := make([]map[string]any, 0)
