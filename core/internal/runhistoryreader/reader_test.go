@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/gqlmock"
-	test "github.com/wandb/wandb/core/tests/parquet"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator/iteratortest"
 )
 
 func respondWithParquetContent(
@@ -96,7 +96,7 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 		{"_step": int64(2), "metric1": 3.0},
 	}
 	parquetFilePath := filepath.Join(tempDir, "test.parquet")
-	test.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
+	iteratortest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
 	parquetContent, err := os.ReadFile(parquetFilePath)
 	require.NoError(t, err)
 	server := createHttpServer(t, respondWithParquetContent(t, parquetContent))
@@ -147,7 +147,7 @@ func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 	servers := make([]*httptest.Server, 2)
 	for i, data := range [][]map[string]any{data1, data2} {
 		parquetFilePath := filepath.Join(tempDir, fmt.Sprintf("test%d.parquet", i))
-		test.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
+		iteratortest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
 		parquetContent, err := os.ReadFile(parquetFilePath)
 		require.NoError(t, err)
 		servers[i] = createHttpServer(
@@ -201,7 +201,7 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 		{"_step": int64(2), "metric1": 3.0, "metric2": 30.0},
 	}
 	parquetFilePath := filepath.Join(tempDir, "test.parquet")
-	test.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
+	iteratortest.CreateTestParquetFileFromData(t, parquetFilePath, schema, data)
 	parquetContent, err := os.ReadFile(parquetFilePath)
 	require.NoError(t, err)
 	server := createHttpServer(t, respondWithParquetContent(t, parquetContent))

@@ -108,15 +108,32 @@ func (h *HistoryReader) GetHistorySteps(
 
 	partitions := make([]iterator.RowIterator, len(h.parquetFiles))
 	for i, parquetFile := range h.parquetFiles {
-		partitions[i] = parquet.NewParquetPartitionReader(
+		selectedRows := iterator.SelectRows(
+			parquetFile,
+			iterator.StepKey,
+			float64(minStep),
+			float64(maxStep),
+			false,
+		)
+		selectedColumns, err := iterator.SelectColumns(
+			iterator.StepKey,
+			h.keys,
+			parquetFile.ParquetReader().MetaData().Schema,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		rowIterator, err := iterator.NewRowIterator(
 			context.Background(),
 			parquetFile,
-			h.keys,
-			iterator.WithHistoryPageRange(iterator.HistoryPageParams{
-				MinStep: minStep,
-				MaxStep: maxStep,
-			}),
+			selectedRows,
+			selectedColumns,
 		)
+		if err != nil {
+			return nil, err
+		}
+		partitions[i] = rowIterator
 	}
 
 	multiIterator := iterator.NewMultiIterator(partitions)
