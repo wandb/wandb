@@ -7,7 +7,7 @@ import concurrent.futures
 import contextlib
 import logging
 import threading
-from typing import Any, Callable, Coroutine, TypeVar
+from typing import Awaitable, Callable, TypeVar
 
 from . import asyncio_compat
 
@@ -104,7 +104,7 @@ class AsyncioManager:
             # This only matters if the KeyboardInterrupt is suppressed.
             self._runner.cancel()
 
-    def run(self, fn: Callable[[], Coroutine[Any, Any, _T]]) -> _T:
+    def run(self, fn: Callable[[], Awaitable[_T]]) -> _T:
         """Run an async function to completion.
 
         The function is called in the asyncio thread. Blocks until start()
@@ -148,7 +148,7 @@ class AsyncioManager:
 
     def run_soon(
         self,
-        fn: Callable[[], Coroutine[Any, Any, None]],
+        fn: Callable[[], Awaitable[None]],
         *,
         daemon: bool = False,
         name: str | None = None,
@@ -186,7 +186,7 @@ class AsyncioManager:
 
     def _schedule(
         self,
-        fn: Callable[[], Coroutine[Any, Any, _T]],
+        fn: Callable[[], Awaitable[_T]],
         daemon: bool,
         name: str | None = None,
     ) -> concurrent.futures.Future[_T]:
@@ -207,7 +207,7 @@ class AsyncioManager:
 
     async def _wrap(
         self,
-        fn: Callable[[], Coroutine[Any, Any, _T]],
+        fn: Callable[[], Awaitable[_T]],
         daemon: bool,
         name: str | None,
     ) -> _T:

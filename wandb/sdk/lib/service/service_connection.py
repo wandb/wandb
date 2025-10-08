@@ -190,8 +190,8 @@ class ServiceConnection:
         except TimeoutError:
             raise WandbAttachFailedError(
                 "Failed to attach because the run does not belong to"
-                " the current service process, or because the service"
-                " process is busy (unlikely)."
+                + " the current service process, or because the service"
+                + " process is busy (unlikely)."
             ) from None
 
         else:

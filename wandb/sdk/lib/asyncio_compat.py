@@ -133,7 +133,7 @@ class TaskGroup:
     """Object that `open_task_group()` yields."""
 
     def __init__(self) -> None:
-        self._tasks: list[asyncio.Task] = []
+        self._tasks: list[asyncio.Task[None]] = []
 
     def start_soon(self, coro: Coroutine[Any, Any, Any]) -> None:
         """Schedule a task in the group.
