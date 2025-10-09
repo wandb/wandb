@@ -44,7 +44,7 @@ from wandb.apis.public.utils import (
 )
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
-from wandb.sdk import wandb_login
+from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts._validators import (
     ArtifactPath,
     FullArtifactPath,
@@ -358,6 +358,26 @@ class Api:
         self._client = RetryingClient(self._base_client)
         self._sentry = wandb.analytics.sentry.Sentry()
         self._configure_sentry()
+
+        self._backend: wandb.sdk.backend.backend.Backend | None = None
+        if _overrides.get("beta_start_service", False):
+            self._start_service()
+
+    def _start_service(self):
+        from wandb.sdk.backend.backend import Backend
+
+        self._stream_id = str(runid.generate_id())
+        singleton = wandb_setup.singleton()
+        settings = singleton.settings.model_copy()
+        settings.run_id = self._stream_id
+        settings.base_url = self.settings["base_url"]
+        settings.silent = True
+        os.makedirs(settings.log_dir, exist_ok=True)
+
+        self._service = singleton.ensure_service()
+        self._service.inform_api_start(settings.to_proto(), self._stream_id)
+        self._backend = Backend(settings=settings, service=self._service)
+        self._backend.ensure_launched()
 
     def _load_api_key(
         self,
@@ -1248,6 +1268,7 @@ class Api:
             per_page=per_page,
             include_sweeps=include_sweeps,
             lazy=lazy,
+            backend=self._backend,
         )
         return self._runs[key]
 
@@ -1267,7 +1288,12 @@ class Api:
         if not self._runs.get(path):
             # Individual runs should load full data by default
             self._runs[path] = public.Run(
-                self.client, entity, project, run_id, lazy=False
+                self.client,
+                entity,
+                project,
+                run_id,
+                lazy=False,
+                backend=self._backend,
             )
         return self._runs[path]
 

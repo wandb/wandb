@@ -15,8 +15,95 @@ import json
 
 from wandb_gql import gql
 
+from wandb import sdk
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import api, runs
+
+
+class BetaHistoryScan:
+    """Iterator for scanning complete run history.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
+    def __init__(
+        self,
+        client: api.RetryingClient,
+        backend: sdk.backend.backend.Backend,
+        run: api.public.runs.Run,
+        min_step: int,
+        max_step: int,
+        keys: list[str] | None = None,
+        page_size: int = 1000,
+    ):
+        if keys is None:
+            keys = []
+        self.client = client
+        self.run = run
+        self.min_step = min_step
+        self.max_step = max_step
+        self.page_size = page_size
+        self.scan_offset = 0
+        self.rows = []
+        self.keys = keys
+        self.backend = backend
+        pass
+
+    def __iter__(self):
+        self.scan_offset = 0
+        self.page_offset = self.min_step
+        self.rows = []
+        return self
+
+    def __next__(self):
+        # print(f"page_offset: {self.page_offset}")
+        while True:
+            if self.scan_offset < len(self.rows):
+                row = self.rows[self.scan_offset]
+                self.scan_offset += 1
+                return row
+            if self.page_offset >= self.max_step:
+                raise StopIteration()
+            if self.page_offset >= self.run.lastHistoryStep:
+                raise StopIteration()
+            self._load_next()
+
+    def _load_next(self):
+        from wandb.proto import wandb_api_pb2 as apb
+
+        max_step = self.page_offset + self.page_size
+        if max_step > self.max_step:
+            max_step = self.max_step
+
+        read_run_history = apb.ReadRunHistoryApiRequest(
+            entity=self.run.entity,
+            project=self.run.project,
+            run_id=self.run.id,
+            keys=self.keys,
+            min_step=self.page_offset,
+            max_step=max_step,
+        )
+        api_request = apb.ApiRequest(read_run_history=read_run_history)
+
+        response = self.backend.interface._deliver_api_request(
+            api_request,
+        )
+        response = response.wait_or(timeout=None)
+        response = response.response
+        api_response: apb.ApiResponse = response.api_response
+        read_run_history_response: apb.ReadRunHistoryApiResponse = (
+            api_response.read_run_history
+        )
+        history_rows: list[apb.HistoryRow] = read_run_history_response.history_rows
+        self.rows = [self._convert_history_row_to_dict(row) for row in history_rows]
+        self.page_offset += self.page_size
+        self.scan_offset = 0
+        return
+
+    def _convert_history_row_to_dict(self, history_row):
+        return {
+            item.key: json.loads(item.value_json) for item in history_row.history_items
+        }
 
 
 class HistoryScan:
