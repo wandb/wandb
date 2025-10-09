@@ -53,6 +53,10 @@ class ArtifactManifest(ArtifactsBase, ABC):
     def digest(self) -> HexMD5:
         raise NotImplementedError
 
+    @abstractmethod
+    def size(self) -> int:
+        raise NotImplementedError
+
     def add_entry(self, entry: ArtifactManifestEntry, overwrite: bool = False) -> None:
         if (
             (not overwrite)

@@ -58,18 +58,17 @@ class ArtifactFragmentWithoutAliases(GQLResult):
     )
     description: Optional[str]
     metadata: Optional[Any]
-    ttl_duration_seconds: Optional[Any] = Field(
+    ttl_duration_seconds: Optional[int] = Field(
         alias="ttlDurationSeconds", default=None
     )
     ttl_is_inherited: Optional[bool] = Field(alias="ttlIsInherited", default=None)
     tags: Optional[List[ArtifactFragmentWithoutAliasesTags]] = None
-    history_step: Optional[Any] = Field(alias="historyStep", default=None)
+    history_step: Optional[int] = Field(alias="historyStep", default=None)
     state: ArtifactState
-    current_manifest: Optional[ArtifactFragmentWithoutAliasesCurrentManifest] = Field(
-        alias="currentManifest"
-    )
+    size: int
+    digest: str
     commit_hash: Optional[str] = Field(alias="commitHash")
-    file_count: Any = Field(alias="fileCount")
+    file_count: int = Field(alias="fileCount")
     created_at: str = Field(alias="createdAt")
     updated_at: Optional[str] = Field(alias="updatedAt")
 
@@ -83,12 +82,8 @@ class ArtifactFragmentWithoutAliasesArtifactType(GQLResult):
     name: str
 
 
-class ArtifactFragmentWithoutAliasesCurrentManifest(GQLResult):
-    file: ArtifactFragmentWithoutAliasesCurrentManifestFile
-
-
-class ArtifactFragmentWithoutAliasesCurrentManifestFile(GQLResult):
-    direct_url: str = Field(alias="directUrl")
+class ArtifactFragmentWithoutAliasesArtifactType(GQLBase):
+    name: str
 
 
 class ArtifactFragmentWithoutAliasesTags(GQLResult):
@@ -115,12 +110,80 @@ class ArtifactTypeFragment(GQLResult):
     created_at: str = Field(alias="createdAt")
 
 
-class FileFragment(GQLResult):
-    typename__: Typename[Literal["File"]] = "File"
+class ArtifactTypesFragment(GQLBase):
+    edges: List[ArtifactTypesFragmentEdges]
+    page_info: ArtifactTypesFragmentPageInfo = Field(alias="pageInfo")
+
+
+class ArtifactTypesFragmentEdges(GQLBase):
+    node: Optional[ArtifactTypeFragment]
+    cursor: str
+
+
+class ArtifactTypesFragmentPageInfo(GQLBase):
+    end_cursor: Optional[str] = Field(alias="endCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
+
+
+class ArtifactsFragment(GQLBase):
+    total_count: int = Field(alias="totalCount")
+    edges: List[ArtifactsFragmentEdges]
+    page_info: ArtifactsFragmentPageInfo = Field(alias="pageInfo")
+
+
+class ArtifactsFragmentEdges(GQLBase):
+    node: ArtifactFragment
+    version: str
+    cursor: str
+
+
+class ArtifactsFragmentPageInfo(GQLBase):
+    end_cursor: Optional[str] = Field(alias="endCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
+
+
+class DeferredManifestFragment(GQLBase):
+    file: DeferredManifestFragmentFile
+
+
+class DeferredManifestFragmentFile(GQLBase):
+    direct_url: str = Field(alias="directUrl")
+
+
+class FileUrlsFragment(GQLBase):
+    page_info: FileUrlsFragmentPageInfo = Field(alias="pageInfo")
+    edges: List[FileUrlsFragmentEdges]
+
+
+class FileUrlsFragmentEdges(GQLBase):
+    node: Optional[FileUrlsFragmentEdgesNode]
+
+
+class FileUrlsFragmentEdgesNode(GQLBase):
+    name: str
+    direct_url: str = Field(alias="directUrl")
+
+
+class FileUrlsFragmentPageInfo(GQLBase):
+    has_next_page: bool = Field(alias="hasNextPage")
+    end_cursor: Optional[str] = Field(alias="endCursor")
+
+
+class FilesFragment(GQLBase):
+    edges: List[FilesFragmentEdges]
+    page_info: FilesFragmentPageInfo = Field(alias="pageInfo")
+
+
+class FilesFragmentEdges(GQLBase):
+    node: Optional[FilesFragmentEdgesNode]
+    cursor: str
+
+
+class FilesFragmentEdgesNode(GQLBase):
     id: GQLId
     name: str
     url: Optional[str]
-    size_bytes: Any = Field(alias="sizeBytes")
+    size_bytes: int = Field(alias="sizeBytes")
     storage_path: Optional[str] = Field(alias="storagePath", default=None)
     mimetype: Optional[str]
     updated_at: Optional[str] = Field(alias="updatedAt")
@@ -352,14 +415,26 @@ ArtifactFragmentAliasesArtifactCollection.model_rebuild()
 ArtifactFragmentWithoutAliases.model_rebuild()
 ArtifactFragmentWithoutAliasesArtifactSequence.model_rebuild()
 ArtifactFragmentWithoutAliasesArtifactType.model_rebuild()
-ArtifactFragmentWithoutAliasesCurrentManifest.model_rebuild()
-ArtifactFragmentWithoutAliasesCurrentManifestFile.model_rebuild()
 ArtifactFragmentWithoutAliasesTags.model_rebuild()
 ArtifactPortfolioTypeFields.model_rebuild()
 ArtifactSequenceTypeFields.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
-FileFragment.model_rebuild()
-FileWithUrlFragment.model_rebuild()
+ArtifactTypesFragment.model_rebuild()
+ArtifactTypesFragmentEdges.model_rebuild()
+ArtifactTypesFragmentPageInfo.model_rebuild()
+ArtifactsFragment.model_rebuild()
+ArtifactsFragmentEdges.model_rebuild()
+ArtifactsFragmentPageInfo.model_rebuild()
+DeferredManifestFragment.model_rebuild()
+DeferredManifestFragmentFile.model_rebuild()
+FileUrlsFragment.model_rebuild()
+FileUrlsFragmentEdges.model_rebuild()
+FileUrlsFragmentEdgesNode.model_rebuild()
+FileUrlsFragmentPageInfo.model_rebuild()
+FilesFragment.model_rebuild()
+FilesFragmentEdges.model_rebuild()
+FilesFragmentEdgesNode.model_rebuild()
+FilesFragmentPageInfo.model_rebuild()
 MembershipWithArtifact.model_rebuild()
 MembershipWithArtifactArtifactCollection.model_rebuild()
 PageInfoFragment.model_rebuild()

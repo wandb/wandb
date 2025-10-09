@@ -16,28 +16,20 @@ import time
 from collections import deque
 from concurrent.futures import Executor, ThreadPoolExecutor, as_completed
 from copy import copy
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, replace
 from datetime import timedelta
 from itertools import filterfalse
 from pathlib import Path, PurePosixPath
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    Final,
-    Iterator,
-    Literal,
-    Sequence,
-    Type,
-    final,
-)
+from typing import IO, TYPE_CHECKING, Any, Final, Iterator, Literal, Sequence, Type
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
+from pydantic import NonNegativeInt
 
 import wandb
 from wandb import data_types, env
 from wandb._iterutils import one, unique_list
+from wandb._pydantic import from_json
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
@@ -98,6 +90,7 @@ from ._generated import (
     ArtifactType,
     ArtifactUsedBy,
     ArtifactViaMembershipByName,
+    DeferredManifestFragment,
     DeleteAliasesInput,
     DeleteArtifactInput,
     FetchArtifactManifest,
@@ -157,14 +150,6 @@ logger = logging.getLogger(__name__)
 
 
 _MB: Final[int] = 1024 * 1024
-
-
-@final
-@dataclass
-class _DeferredArtifactManifest:
-    """A lightweight wrapper around the manifest URL, used to indicate deferred loading of the actual manifest."""
-
-    url: str
 
 
 class Artifact:
@@ -271,9 +256,17 @@ class Artifact:
             )
         self._use_as: str | None = None
         self._state: ArtifactState = ArtifactState.PENDING
-        self._manifest: ArtifactManifest | _DeferredArtifactManifest | None = (
-            ArtifactManifestV1(storage_policy=make_storage_policy(storage_region))
+
+        # NOTE: These fields will only reflect the last fetched response from the server, if any.
+        # If the ArtifactManifest has already been fetched and/or populated locally, it should
+        # take priority for determining these values.
+        self._size: NonNegativeInt | None = None
+        self._digest: str | None = None
+
+        self._manifest: ArtifactManifest | None = ArtifactManifestV1(
+            storage_policy=make_storage_policy(storage_region)
         )
+
         self._commit_hash: str | None = None
         self._file_count: int | None = None
         self._created_at: str | None = None
@@ -531,12 +524,10 @@ class Artifact:
         )
 
         self._state = ArtifactState(art.state)
+        self._size = art.size
+        self._digest = art.digest
 
-        self._manifest = (
-            _DeferredArtifactManifest(manifest.file.direct_url)
-            if (manifest := art.current_manifest)
-            else None
-        )
+        self._manifest = None
 
         self._commit_hash = art.commit_hash
         self._file_count = art.file_count
@@ -1031,33 +1022,33 @@ class Artifact:
         The manifest lists all of its contents, and can't be changed once the artifact
         has been logged.
         """
-        if isinstance(self._manifest, _DeferredArtifactManifest):
-            # A deferred manifest URL flags a deferred download request,
-            # so fetch the manifest to override the placeholder object
-            self._manifest = self._load_manifest(self._manifest.url)
-            return self._manifest
+        # if isinstance(self._manifest, _DeferredArtifactManifest):
+        #     # A deferred manifest URL flags a deferred download request,
+        #     # so fetch the manifest to override the placeholder object
+        #     self._manifest = self._load_manifest(self._manifest.url)
+        #     return self._manifest
 
         if self._manifest is None:
-            if self._client is None:
-                raise RuntimeError("Client not initialized for artifact queries")
-
-            query = gql(FETCH_ARTIFACT_MANIFEST_GQL)
-            gql_vars = {
-                "entityName": self.entity,
-                "projectName": self.project,
-                "name": self.name,
-            }
-            data = self._client.execute(query, variable_values=gql_vars)
-            result = FetchArtifactManifest.model_validate(data)
-            if not (
-                (project := result.project)
-                and (artifact := project.artifact)
-                and (manifest := artifact.current_manifest)
-            ):
-                raise ValueError("Failed to fetch artifact manifest")
-            self._manifest = self._load_manifest(manifest.file.direct_url)
-
+            manifest_url = self._fetch_manifest_fragment().file.direct_url
+            self._manifest = self._load_manifest(manifest_url)
         return self._manifest
+
+    def _fetch_manifest_fragment(self) -> DeferredManifestFragment:
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact queries")
+
+        gql_op = gql(FETCH_ARTIFACT_MANIFEST_GQL)
+        gql_vars = {"entity": self.entity, "project": self.project, "name": self.name}
+        data = self._client.execute(gql_op, variable_values=gql_vars)
+        result = FetchArtifactManifest.model_validate(data)
+
+        if not (
+            (project := result.project)
+            and (artifact := project.artifact)
+            and (manifest := artifact.current_manifest)
+        ):
+            raise ValueError("Failed to fetch artifact manifest")
+        return manifest
 
     @property
     def digest(self) -> str:
@@ -1066,7 +1057,14 @@ class Artifact:
         The digest is the checksum of the artifact's contents. If an artifact has the
         same digest as the current `latest` version, then `log_artifact` is a no-op.
         """
-        return self.manifest.digest()
+        # Use the last fetched value of `Artifact.digest` ONLY if present AND the manifest has not been
+        # fetched and/or populated locally.  Otherwise, use the manifest directly to recalculate
+        # the digest, as its contents may have been locally modified.
+        return (
+            self._digest
+            if (self._manifest is None) and (self._digest is not None)
+            else self.manifest.digest()
+        )
 
     @property
     def size(self) -> int:
@@ -1074,7 +1072,16 @@ class Artifact:
 
         Includes any references tracked by this artifact.
         """
-        return sum(entry.size for entry in self.manifest.entries.values() if entry.size)
+        # Use the last fetched value of `Artifact.size` ONLY if present AND the manifest has not been
+        # fetched and/or populated locally.  Otherwise, use the manifest directly to recalculate
+        # the size, as its contents may have been locally modified.
+        #
+        # NOTE: The `Artifact.size` GQL field includes references, `Artifact.storageBytes` does not.
+        return (
+            self._size
+            if (self._manifest is None) and (self._size is not None)
+            else self.manifest.size()
+        )
 
     @property
     @ensure_logged
@@ -2585,9 +2592,12 @@ class Artifact:
         return None
 
     def _load_manifest(self, url: str) -> ArtifactManifest:
-        with requests.get(url) as response:
-            response.raise_for_status()
-            return ArtifactManifest.from_manifest_json(response.json())
+        if self._client is None:
+            raise RuntimeError("Client not initialized for artifact queries")
+
+        rsp = self._client.session.get(url)
+        rsp.raise_for_status()
+        return ArtifactManifest.from_manifest_json(from_json(rsp.content))
 
     def _ttl_duration_seconds_to_gql(self) -> int | None:
         # Set artifact ttl value to ttl_duration_seconds if the user set a value

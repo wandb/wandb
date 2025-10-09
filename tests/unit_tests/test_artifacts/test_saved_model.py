@@ -178,7 +178,7 @@ def make_local_artifact_public(art: Artifact):
         description=None,
         metadata=None,
         state="COMMITTED",
-        currentManifest={"file": {"directUrl": "FAKE_URL"}},
+        # currentManifest={"file": {"directUrl": "FAKE_URL"}},
         commitHash="FAKE_HASH",
         fileCount=0,
         createdAt="FAKE_CREATED_AT",
