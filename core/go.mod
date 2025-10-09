@@ -30,7 +30,7 @@ require (
 	go.uber.org/mock v0.6.0
 	gocloud.dev v0.43.0
 	golang.org/x/sync v0.17.0
-	golang.org/x/time v0.13.0
+	golang.org/x/time v0.14.0
 	google.golang.org/api v0.252.0
 	google.golang.org/grpc v1.76.0
 	google.golang.org/protobuf v1.36.10
