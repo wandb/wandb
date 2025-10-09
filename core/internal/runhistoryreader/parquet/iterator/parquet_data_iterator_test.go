@@ -14,7 +14,7 @@ import (
 	"github.com/apache/arrow-go/v18/parquet/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	test "github.com/wandb/wandb/core/tests/parquet"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator/iteratortest"
 )
 
 func getRowIteratorForFile(
@@ -71,7 +71,7 @@ func TestRowIterator_WithHistoryPageRange(t *testing.T) {
 		{"_step": int64(3), "loss": int64(3)},
 	}
 	filePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFileFromData(
+	iteratortest.CreateTestParquetFileFromData(
 		t,
 		filePath,
 		schema,
@@ -116,7 +116,7 @@ func TestRowIterator_WithEventsPageRange(t *testing.T) {
 		{"_timestamp": 3.0, "loss": int64(3), "_step": 1.0},
 	}
 	filePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFileFromData(
+	iteratortest.CreateTestParquetFileFromData(
 		t,
 		filePath,
 		schema,
@@ -222,7 +222,7 @@ func TestRowIterator_WithMissingColumns(t *testing.T) {
 		{"_step": 2.0, "loss": 2},
 	}
 	filePath := filepath.Join(t.TempDir(), "test.parquet")
-	test.CreateTestParquetFileFromData(t, filePath, schema, data)
+	iteratortest.CreateTestParquetFileFromData(t, filePath, schema, data)
 
 	pr, err := file.OpenParquetFile(filePath, true)
 	require.NoError(t, err)
@@ -265,7 +265,7 @@ func TestRowIterator_WithComplexColumns(t *testing.T) {
 		},
 	}
 	tempFile := filepath.Join(t.TempDir(), "test_list_of_structs.parquet")
-	test.CreateTestParquetFileFromData(t, tempFile, schema, data)
+	iteratortest.CreateTestParquetFileFromData(t, tempFile, schema, data)
 	it := getRowIteratorForFile(
 		t,
 		tempFile,
