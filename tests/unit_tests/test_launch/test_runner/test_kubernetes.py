@@ -417,6 +417,32 @@ def mock_create_from_dict(monkeypatch):
     return function_mock
 
 
+@pytest.fixture
+def mock_apps_api(monkeypatch):
+    """Patches the kubernetes apps api with a mock and returns it."""
+    apps_api = MagicMock()
+    apps_api.list_namespaced_deployment = AsyncMock()
+    apps_api.delete_namespaced_deployment = AsyncMock()
+    monkeypatch.setattr(
+        "kubernetes_asyncio.client.AppsV1Api",
+        lambda *args, **kwargs: apps_api,
+    )
+    return apps_api
+
+
+@pytest.fixture
+def mock_network_api(monkeypatch):
+    """Patches the kubernetes network api with a mock and returns it."""
+    network_api = MagicMock()
+    network_api.list_namespaced_network_policy = AsyncMock()
+    network_api.delete_namespaced_network_policy = AsyncMock()
+    monkeypatch.setattr(
+        "kubernetes_asyncio.client.NetworkingV1Api",
+        lambda *args, **kwargs: network_api,
+    )
+    return network_api
+
+
 @pytest.mark.asyncio
 @pytest.mark.xfail(reason="This test is flaky")
 async def test_launch_kube_works(
@@ -1696,6 +1722,201 @@ async def test_kubernetes_submitted_run_cleanup_job_api_key_secret_no_secret():
     await submitted_run.cleanup_job_api_key_secret()
 
     core_api.delete_namespaced_secret.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_kubernetes_submitted_run_cleanup_noop_when_no_additional_services(
+    monkeypatch,
+    mock_create_from_dict,
+    mock_batch_api,
+    mock_core_api,
+    mock_apps_api,
+    mock_network_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    clean_agent,
+    clean_monitor,
+):
+    """End-to-end test that verifies no cleanup when there are no additional services.
+
+    This test verifies that when a KubernetesRunner.run() is called with a launch_spec
+    that has no additional_services, the returned KubernetesSubmittedRun has
+    auxiliary_resource_label_key=None and cleanup methods don't call delete APIs.
+    """
+    # Mock additional helper functions not covered by fixtures
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.ensure_api_key_secret",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_wandb_team_secrets_secret",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.ensure_initialized",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.monitor_namespace",
+        MagicMock(),
+    )
+
+    # Spy on cleanup methods
+    mock_batch_api.list_namespaced_job = AsyncMock()
+    mock_batch_api.delete_namespaced_job = AsyncMock()
+    mock_core_api.list_namespaced_service = AsyncMock()
+    mock_core_api.delete_namespaced_service = AsyncMock()
+    mock_core_api.list_namespaced_pod = AsyncMock()
+    mock_core_api.delete_namespaced_pod = AsyncMock()
+    mock_core_api.list_namespaced_secret = AsyncMock()
+    mock_core_api.delete_namespaced_secret = AsyncMock()
+
+    # Create a mock launch project WITHOUT additional_services
+    launch_project = MagicMock()
+    launch_project.target_entity = "test-entity"
+    launch_project.target_project = "test-project"
+    launch_project.run_id = "test-run-id"
+    launch_project.name = "test-name"
+    launch_project.author = "test-author"
+    launch_project.resource_args = {"kubernetes": {"kind": "Job"}}
+    launch_project.launch_spec = {"_resume_count": 0}  # No additional_services
+    launch_project.override_args = []
+    launch_project.override_entrypoint = None
+    launch_project.get_single_entry_point.return_value = None
+    launch_project.fill_macros = lambda image_uri: {"kubernetes": {"kind": "Job"}}
+    launch_project.docker_config = {}
+    launch_project.job_base_image = None
+
+    # Create the runner
+    api = MagicMock()
+    environment = MagicMock()
+    registry = MagicMock()
+    backend_config = {"SYNCHRONOUS": False}
+
+    runner = KubernetesRunner(api, backend_config, environment, registry)
+
+    # Run and get the submitted run
+    submitted_run = await runner.run(launch_project, "test-image:latest")
+
+    # Verify the submitted run has no auxiliary_resource_label_key
+    assert submitted_run is not None
+    assert submitted_run.auxiliary_resource_label_key is None
+
+    # Call cleanup
+    await submitted_run._delete_auxiliary_resources_by_label()
+
+    # Verify that no delete methods were called
+    mock_batch_api.list_namespaced_job.assert_not_called()
+    mock_batch_api.delete_namespaced_job.assert_not_called()
+    mock_core_api.list_namespaced_service.assert_not_called()
+    mock_core_api.delete_namespaced_service.assert_not_called()
+    mock_core_api.list_namespaced_pod.assert_not_called()
+    mock_core_api.delete_namespaced_pod.assert_not_called()
+    mock_core_api.list_namespaced_secret.assert_not_called()
+    mock_core_api.delete_namespaced_secret.assert_not_called()
+    mock_apps_api.list_namespaced_deployment.assert_not_called()
+    mock_apps_api.delete_namespaced_deployment.assert_not_called()
+    mock_network_api.list_namespaced_network_policy.assert_not_called()
+    mock_network_api.delete_namespaced_network_policy.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_kubernetes_submitted_run_cleanup_with_additional_services(
+    monkeypatch,
+    mock_create_from_dict,
+    mock_batch_api,
+    mock_core_api,
+    mock_apps_api,
+    mock_network_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    clean_agent,
+    clean_monitor,
+):
+    """End-to-end test that verifies cleanup when there are additional services.
+
+    This test verifies that when a KubernetesRunner.run() is called with a launch_spec
+    that has additional_services, the returned KubernetesSubmittedRun has
+    auxiliary_resource_label_key and cleanup methods call delete APIs.
+    """
+
+    # Helper to create mock resource lists
+    def make_mock_resource_list(resource_names):
+        mock_list = MagicMock()
+        mock_items = []
+        for name in resource_names:
+            mock_item = MagicMock()
+            mock_item.metadata.name = name
+            mock_items.append(mock_item)
+        mock_list.items = mock_items
+        return mock_list
+
+    # Override mock API methods to return resources with items
+    mock_core_api.list_namespaced_service = AsyncMock(
+        return_value=make_mock_resource_list(["aux-service-1"])
+    )
+    mock_core_api.delete_namespaced_service = AsyncMock()
+
+    # Mock additional helper functions not covered by fixtures
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.ensure_api_key_secret",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_wandb_team_secrets_secret",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.ensure_initialized",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.LaunchKubernetesMonitor.monitor_namespace",
+        MagicMock(),
+    )
+
+    # Create a launch project WITH additional_services
+    launch_project = MagicMock()
+    launch_project.target_entity = "test-entity"
+    launch_project.target_project = "test-project"
+    launch_project.run_id = "test-run-id"
+    launch_project.name = "test-name"
+    launch_project.author = "test-author"
+    launch_project.resource_args = {"kubernetes": {"kind": "Job"}}
+    launch_project.launch_spec = {
+        "_resume_count": 0,
+        "additional_services": [{"config": {"kind": "Service"}}],
+    }
+    launch_project.override_args = []
+    launch_project.override_entrypoint = None
+    launch_project.get_single_entry_point.return_value = None
+    launch_project.fill_macros = lambda image_uri: {"kubernetes": {"kind": "Job"}}
+    launch_project.docker_config = {}
+    launch_project.job_base_image = None
+
+    # Create the runner
+    api = MagicMock()
+    environment = MagicMock()
+    registry = MagicMock()
+    backend_config = {"SYNCHRONOUS": False}
+
+    runner = KubernetesRunner(api, backend_config, environment, registry)
+
+    # Run and get the submitted run
+    submitted_run = await runner.run(launch_project, "test-image:latest")
+
+    # Verify the submitted run has an auxiliary_resource_label_key
+    assert submitted_run is not None
+    assert submitted_run.auxiliary_resource_label_key is not None
+
+    # Call cleanup
+    await submitted_run._delete_auxiliary_resources_by_label()
+
+    # Verify that all list methods were called and delete methods were called for each resource
+    mock_core_api.list_namespaced_service.assert_called_once()
+    mock_core_api.delete_namespaced_service.assert_called_once_with(
+        name="aux-service-1", namespace="default"
+    )
 
 
 @pytest.mark.asyncio
