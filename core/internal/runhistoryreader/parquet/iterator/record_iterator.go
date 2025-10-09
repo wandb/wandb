@@ -22,23 +22,48 @@ type recordIterator struct {
 }
 
 func NewRecordIterator(
-	record arrow.RecordBatch,
+	recordBatch arrow.RecordBatch,
 	selectedColumns *SelectedColumns,
 	selectedRows *SelectedRows,
 ) (RowIterator, error) {
 	// Increment the reference count of the record.
-	record.Retain()
+	recordBatch.Retain()
 
+	wantedColumns := selectedColumns.GetRequestedColumns()
+	wantedColumns[selectedRows.GetIndexKey()] = struct{}{}
+
+	cols, err := mapToRecordColumns(
+		recordBatch,
+		selectedColumns.GetRequestedColumns(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &recordIterator{
+		recordBatch:           recordBatch,
+		columns:          cols,
+
+		selectedRows: selectedRows,
+		selectedColumns: selectedColumns,
+	}, nil
+}
+
+func mapToRecordColumns(
+	recordBatch arrow.RecordBatch,
+	requestedColumns map[string]struct{},
+) (map[string]keyIteratorPair, error) {
 	cols := make(
 		map[string]keyIteratorPair,
-		len(selectedColumns.GetRequestedColumns()) + 1,
+		len(requestedColumns) + 1,
 	)
-	wantedColumns := selectedColumns.GetRequestedColumns()
-	for i := 0; i < int(record.NumCols()); i++ {
-		colName := record.ColumnName(i)
-		_, ok := wantedColumns[colName]
-		if ok || colName == selectedColumns.GetIndexKey() {
-			it, err := newColumnIterator(record.Column(i))
+
+	for i := 0; i < int(recordBatch.NumCols()); i++ {
+		colName := recordBatch.ColumnName(i)
+
+		_, ok := requestedColumns[colName]
+		if ok {
+			it, err := newColumnIterator(recordBatch.Column(i))
 			if err != nil {
 				return nil, fmt.Errorf("%s > %v", colName, err)
 			}
@@ -49,14 +74,16 @@ func NewRecordIterator(
 		}
 	}
 
-	t := &recordIterator{
-		recordBatch:           record,
-		columns:          cols,
-
-		selectedRows: selectedRows,
-		selectedColumns: selectedColumns,
+	for colName := range requestedColumns {
+		if _, ok := cols[colName]; !ok {
+			return nil, fmt.Errorf(
+				"column %s not found in record batch",
+				colName,
+			)
+		}
 	}
-	return t, nil
+
+	return cols, nil
 }
 
 // Next implements RowIterator.Next.
