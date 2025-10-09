@@ -24,17 +24,17 @@ func TestRecordIterator_ErrorsOnMissingColumns(t *testing.T) {
 	record := builder.NewRecordBatch()
 	defer record.Release()
 
-	_, err := NewRecordIterator(
+	_, err := NewRowGroupIterator(
 		record,
 		&SelectedColumns{
 			requestedColumns: map[string]struct{}{"_step": {}, "acc": {}},
-			selectAll: false,
+			selectAll:        false,
 		},
 		&SelectedRows{
 			selectAll: false,
-			indexKey: StepKey,
-			minValue: 0,
-			maxValue: 1,
+			indexKey:  StepKey,
+			minValue:  0,
+			maxValue:  1,
 		},
 	)
 
@@ -55,17 +55,17 @@ func TestRecordIterator_ErrorsOnMissingIndexKey(t *testing.T) {
 	record := builder.NewRecordBatch()
 	defer record.Release()
 
-	_, err := NewRecordIterator(
+	_, err := NewRowGroupIterator(
 		record,
 		&SelectedColumns{
 			requestedColumns: map[string]struct{}{"acc": {}},
-			selectAll: false,
+			selectAll:        false,
 		},
 		&SelectedRows{
 			selectAll: false,
-			indexKey: StepKey,
-			minValue: 0,
-			maxValue: 1,
+			indexKey:  StepKey,
+			minValue:  0,
+			maxValue:  1,
 		},
 	)
 
@@ -95,17 +95,17 @@ func TestRecordIterator_FiltersRowsWithEmptyColumns(t *testing.T) {
 	record := builder.NewRecordBatch()
 	defer record.Release()
 
-	reader, err := NewRecordIterator(
+	reader, err := NewRowGroupIterator(
 		record,
 		&SelectedColumns{
 			requestedColumns: map[string]struct{}{"_step": {}, "acc": {}},
-			selectAll: false,
+			selectAll:        false,
 		},
 		&SelectedRows{
 			selectAll: false,
-			indexKey: StepKey,
-			minValue: 0,
-			maxValue: 1,
+			indexKey:  StepKey,
+			minValue:  0,
+			maxValue:  1,
 		},
 	)
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestRecordIterator_FiltersRowsWithEmptyColumns(t *testing.T) {
 	assert.True(t, next)
 	expectedValue := map[string]any{
 		"_step": int64(0),
-		"acc": float64(1),
+		"acc":   float64(1),
 	}
 	for _, kvPair := range reader.Value() {
 		assert.Equal(t, expectedValue[kvPair.Key], kvPair.Value)
@@ -140,17 +140,17 @@ func TestRecordIterator_FiltersRowsWithStepOutOfRange(t *testing.T) {
 	record := builder.NewRecordBatch()
 	defer record.Release()
 
-	reader, err := NewRecordIterator(
+	reader, err := NewRowGroupIterator(
 		record,
 		&SelectedColumns{
 			requestedColumns: map[string]struct{}{"_step": {}},
-			selectAll: false,
+			selectAll:        false,
 		},
 		&SelectedRows{
 			selectAll: false,
-			indexKey: StepKey,
-			minValue: 1,
-			maxValue: 2,
+			indexKey:  StepKey,
+			minValue:  1,
+			maxValue:  2,
 		},
 	)
 	require.NoError(t, err)
@@ -184,17 +184,17 @@ func TestRecordIterator_ReleaseFreesMemory(t *testing.T) {
 	record := builder.NewRecordBatch()
 	defer record.Release()
 
-	reader, err := NewRecordIterator(
+	reader, err := NewRowGroupIterator(
 		record,
 		&SelectedColumns{
 			requestedColumns: map[string]struct{}{"_step": {}},
-			selectAll: false,
+			selectAll:        false,
 		},
 		&SelectedRows{
 			selectAll: false,
-			indexKey: StepKey,
-			minValue: 0,
-			maxValue: 3,
+			indexKey:  StepKey,
+			minValue:  0,
+			maxValue:  3,
 		},
 	)
 	if err != nil {
@@ -230,17 +230,17 @@ func TestRecordIterator_WithEmptyRecordIsNil(t *testing.T) {
 	record := builder.NewRecordBatch()
 	defer record.Release()
 
-	iter, err := NewRecordIterator(
+	iter, err := NewRowGroupIterator(
 		record,
 		&SelectedColumns{
 			requestedColumns: map[string]struct{}{"_step": {}},
-			selectAll: false,
+			selectAll:        false,
 		},
 		&SelectedRows{
 			selectAll: false,
-			indexKey: StepKey,
-			minValue: 0,
-			maxValue: 0,
+			indexKey:  StepKey,
+			minValue:  0,
+			maxValue:  0,
 		},
 	)
 	require.NoError(t, err)
