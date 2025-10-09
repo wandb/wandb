@@ -13,7 +13,7 @@ type ParquetDataIterator struct {
 	selectedColumns *SelectedColumns
 
 	recordReader pqarrow.RecordReader
-	current      RowIterator
+	current      *RowGroupIterator
 }
 
 func NewParquetDataIterator(
@@ -37,17 +37,29 @@ func NewParquetDataIterator(
 		return nil, err
 	}
 
-	rgi := &ParquetDataIterator{
+	// No rows to read
+	if !recordReader.Next() {
+		return &NoopRowIterator{}, nil
+	}
+
+	current, err := NewRowGroupIterator(
+		recordReader.RecordBatch(),
+		selectedColumns,
+		selectedRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ParquetDataIterator{
 		ctx: ctx,
 
 		selectedRows:    selectedRows,
 		selectedColumns: selectedColumns,
 
 		recordReader: recordReader,
-		current:      &NoopRowIterator{},
-	}
-
-	return rgi, nil
+		current:      current,
+	}, nil
 }
 
 // Next implements RowIterator.Next.
@@ -64,7 +76,7 @@ func (r *ParquetDataIterator) Next() (bool, error) {
 		}
 
 		r.current.Release()
-		r.current, err = NewRecordIterator(
+		r.current, err = NewRowGroupIterator(
 			r.recordReader.RecordBatch(),
 			r.selectedColumns,
 			r.selectedRows,

@@ -38,7 +38,6 @@ func getRowIteratorForFile(
 	)
 	require.NoError(t, err)
 
-
 	it, err := NewRowIterator(
 		context.Background(),
 		r,
@@ -174,7 +173,6 @@ func TestRowIterator_ReleaseFreesMemory(t *testing.T) {
 	it.Release()
 	allocator.AssertSize(t, 0)
 }
-
 
 func TestRowIterator_WithComplexColumns(t *testing.T) {
 	schema := arrow.NewSchema([]arrow.Field{

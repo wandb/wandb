@@ -20,5 +20,5 @@ func TestNoopRowIterator_Value_ReturnsEmptyKeyValueList(t *testing.T) {
 
 	value := iter.Value()
 
-	assert.Equal(t, KeyValueList{}, value)
+	assert.Empty(t, value)
 }
