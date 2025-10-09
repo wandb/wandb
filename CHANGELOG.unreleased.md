@@ -16,3 +16,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - `wandb.Api(api_key=...)` now prioritizes the explicitly provided API key over thread-local cached credentials (@pingleiwandb in https://github.com/wandb/wandb/pull/10657)
+- `Artifact.manifest` delays downloading **and** generating the download URL for the artifact manifest until they are first used.  If the manifest has not been locally modified, `Artifact.size` and `Artifact.digest` can return without (re-)fetching it (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10680)
