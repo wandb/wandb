@@ -10,27 +10,20 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/array"
 )
 
-// columnIterator is the interface used to iterate over the values in a single
-// column. The values across columns should be merged together to form a single
-// row.
-// It handles columns which may not always have the same type.
+// columnIterator is used to iterate over the values in a single column.
 type columnIterator interface {
 	Next() bool
 	Value() any
 }
 
-type columnIteratorConfig struct {
-	returnRawBinary bool
-}
-
 // newColumnIterator returns the concrete struct responsible for iterating over
 // a single arrow.Array (values for a single data chunk in a single column).
-func newColumnIterator(data arrow.Array, config columnIteratorConfig) (columnIterator, error) {
+func newColumnIterator(data arrow.Array) (columnIterator, error) {
 	switch data.DataType().(type) {
 	case *arrow.StructType:
-		return newStructIterator(data, config)
+		return newStructIterator(data)
 	case *arrow.ListType:
-		return newListIterator(data, config)
+		return newListIterator(data)
 	case *arrow.Int32Type:
 		return newScalarIterator(data, int32Accessor), nil
 	case *arrow.Int64Type:
@@ -46,9 +39,6 @@ func newColumnIterator(data arrow.Array, config columnIteratorConfig) (columnIte
 	case *arrow.StringType:
 		return newScalarIterator(data, stringAccessor), nil
 	case *arrow.BinaryType:
-		if config.returnRawBinary {
-			return newScalarIterator(data, rawBinaryAccessor), nil
-		}
 		return newScalarIterator(data, binaryAccessor), nil
 	case *arrow.FixedSizeBinaryType:
 		return newScalarIterator(data, fixedBinaryAccessor), nil
@@ -66,18 +56,17 @@ type structIterator struct {
 	typ    *arrow.StructType
 
 	children []columnIterator
-	config   columnIteratorConfig
 }
 
-func newStructIterator(data arrow.Array, config columnIteratorConfig) (*structIterator, error) {
+func newStructIterator(data arrow.Array) (*structIterator, error) {
 	arr := data.(*array.Struct)
 	children := make([]columnIterator, arr.NumField())
 	typ := data.DataType().(*arrow.StructType)
 	var err error
 	for i := 0; i < arr.NumField(); i++ {
-		children[i], err = newColumnIterator(arr.Field(i), config)
+		children[i], err = newColumnIterator(arr.Field(i))
 		if err != nil {
-			return nil, fmt.Errorf("%s > %w", typ.Field(i).Name, err)
+			return nil, fmt.Errorf("%s > %v", typ.Field(i).Name, err)
 		}
 	}
 	return &structIterator{
@@ -85,7 +74,6 @@ func newStructIterator(data arrow.Array, config columnIteratorConfig) (*structIt
 		typ:      typ,
 		offset:   -1,
 		children: children,
-		config:   config,
 	}, nil
 }
 
@@ -94,13 +82,12 @@ func (s *structIterator) Next() bool {
 	if s.offset >= s.data.Len() {
 		return false
 	}
-	next := false
+	hasMoreData := false
 	for _, c := range s.children {
-		if c.Next() {
-			next = true
-		}
+		hasMoreData = c.Next() || hasMoreData
 	}
-	return next
+
+	return hasMoreData
 }
 
 func (s *structIterator) Value() interface{} {
@@ -109,9 +96,8 @@ func (s *structIterator) Value() interface{} {
 	}
 	result := map[string]interface{}{}
 	for i, c := range s.children {
-		v := c.Value()
-		if v != nil {
-			result[s.typ.Field(i).Name] = c.Value()
+		if v := c.Value(); v != nil {
+			result[s.typ.Field(i).Name] = v
 		}
 	}
 	return result
@@ -120,19 +106,17 @@ func (s *structIterator) Value() interface{} {
 type listIterator struct {
 	data   *array.List
 	offset int
-	config columnIteratorConfig
 }
 
-func newListIterator(data arrow.Array, config columnIteratorConfig) (*listIterator, error) {
+func newListIterator(data arrow.Array) (*listIterator, error) {
 	arr := data.(*array.List)
-	_, err := newColumnIterator(arr.ListValues(), config)
+	_, err := newColumnIterator(arr.ListValues())
 	if err != nil {
 		return nil, err
 	}
 	return &listIterator{
 		data:   arr,
 		offset: -1,
-		config: config,
 	}, nil
 }
 
@@ -153,7 +137,7 @@ func (c *listIterator) Value() any {
 	}
 	s := array.NewSlice(c.data.ListValues(), int64(beg), int64(end))
 	defer s.Release()
-	it, err := newColumnIterator(s, c.config)
+	it, err := newColumnIterator(s)
 	if err != nil {
 		// we did check for errors in the constructor,
 		// so there should not be any errors...

@@ -11,12 +11,11 @@ type keyIteratorPair struct {
 	Iterator columnIterator
 }
 
-// recordIterator iterates over columnIterators
-// to read columns in the given arrow.RecordBatch in chunks.
+// recordIterator iterates over a row group in a parquet file
 type recordIterator struct {
-	record           arrow.RecordBatch
+	recordBatch           arrow.RecordBatch
 	columns          map[string]keyIteratorPair
-	value            KeyValueList
+	cachedValue            KeyValueList
 
 	selectedRows *SelectedRows
 	selectedColumns *SelectedColumns
@@ -39,12 +38,9 @@ func NewRecordIterator(
 		colName := record.ColumnName(i)
 		_, ok := wantedColumns[colName]
 		if ok || colName == selectedColumns.GetIndexKey() {
-			it, err := newColumnIterator(
-				record.Column(i),
-				columnIteratorConfig{returnRawBinary: false},
-			)
+			it, err := newColumnIterator(record.Column(i))
 			if err != nil {
-				return nil, fmt.Errorf("%s > %w", colName, err)
+				return nil, fmt.Errorf("%s > %v", colName, err)
 			}
 			cols[colName] = keyIteratorPair{
 				Key:      colName,
@@ -54,7 +50,7 @@ func NewRecordIterator(
 	}
 
 	t := &recordIterator{
-		record:           record,
+		recordBatch:           record,
 		columns:          cols,
 
 		selectedRows: selectedRows,
@@ -65,13 +61,15 @@ func NewRecordIterator(
 
 // Next implements RowIterator.Next.
 //
-// It advances the iterator to next column in the arrow.RecordBatch.
+// It advances the iterator to next row in the arrow.RecordBatch.
 func (t *recordIterator) Next() (bool, error) {
-	t.value = nil
+	// Clear the cached value for the row before advancing.
+	t.cachedValue = nil
+
+RowSearch:
 	for {
 		for _, c := range t.columns {
-			next := c.Iterator.Next()
-			if !next {
+			if !c.Iterator.Next() {
 				return false, nil
 			}
 		}
@@ -82,14 +80,10 @@ func (t *recordIterator) Next() (bool, error) {
 
 		// Only return the row if it has all the selected columns
 		if !t.selectedColumns.selectAll {
-			allValues := true
 			for k := range t.selectedColumns.GetRequestedColumns() {
 				if t.columns[k].Iterator.Value() == nil {
-					allValues = false
+					continue RowSearch
 				}
-			}
-			if !allValues {
-				continue
 			}
 		}
 
@@ -98,30 +92,23 @@ func (t *recordIterator) Next() (bool, error) {
 }
 
 // Value implements RowIterator.Value.
-//
-// It returns a KeyValueList of the current row in the arrow.RecordBatch.
 func (t *recordIterator) Value() KeyValueList {
-	if t.value != nil { // cache the value in case we're asked for it multiple times
-		return t.value
+	// cache the value in case we're asked for it multiple times
+	if t.cachedValue != nil {
+		return t.cachedValue
 	}
-	t.value = make(KeyValueList, len(t.selectedColumns.GetRequestedColumns()))
-	i := 0
-	for col := range t.selectedColumns.GetRequestedColumns() {
-		col := t.columns[col]
-		t.value[i] = KeyValuePair{
+
+	t.cachedValue = make(KeyValueList, 0, len(t.selectedColumns.GetRequestedColumns()))
+	for _, col := range t.columns {
+		t.cachedValue = append(t.cachedValue, KeyValuePair{
 			Key:   col.Key,
 			Value: col.Iterator.Value(),
-		}
-		i++
+		})
 	}
-	return t.value
+	return t.cachedValue
 }
 
 // Release implements RowIterator.Release.
-//
-// It decrements the reference count of the record.
-// When the reference count goes to zero, the memory is freed.
-// Release should be called only once after the iterator is no longer needed.
 func (t *recordIterator) Release() {
-	t.record.Release()
+	t.recordBatch.Release()
 }
