@@ -45,7 +45,7 @@ func TestListIterator(t *testing.T) {
 	defer list.Release()
 
 	// Test the list iterator
-	it, err := newListIterator(list, columnIteratorConfig{})
+	it, err := newListIterator(list)
 
 	assert.NoError(t, err)
 	i := 0
@@ -83,7 +83,7 @@ func TestStructIterator(t *testing.T) {
 	structs := sb.NewArray()
 	defer structs.Release()
 
-	it, err := newStructIterator(structs, columnIteratorConfig{})
+	it, err := newStructIterator(structs)
 
 	assert.NoError(t, err)
 	i := 0
