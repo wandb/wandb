@@ -2,16 +2,13 @@ package iterator
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/memory"
-	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/apache/arrow-go/v18/parquet/file"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
-	"github.com/apache/arrow-go/v18/parquet/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator/iteratortest"
@@ -178,65 +175,6 @@ func TestRowIterator_ReleaseFreesMemory(t *testing.T) {
 	allocator.AssertSize(t, 0)
 }
 
-// TODO: move this to parquet_data_selector_test.go
-func TestRowIterator_EmptyFile(t *testing.T) {
-	allocator := memory.NewCheckedAllocator(memory.DefaultAllocator)
-	filePath := "../../../../tests/files/empty.parquet"
-	f, err := os.Open(filePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pf, err := file.NewParquetReader(
-		f,
-		file.WithReadProps(parquet.NewReaderProperties(allocator)),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pf.Close()
-
-	r, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{}, allocator)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// all row groups should be read
-	_, err = SelectColumns(StepKey, []string{"_step"}, r.ParquetReader().MetaData().Schema)
-	require.Error(t, err)
-	// it, err := NewRowIterator(ctx, r, selectedRows, selectedColumns)
-	// require.NoError(t, err)
-	//
-	// next, err := it.Next()
-	// require.NoError(t, err)
-	// assert.False(t, next, "Expected no more rows")
-}
-
-// TODO: move this to parquet_data_selector_test.go
-func TestRowIterator_WithMissingColumns(t *testing.T) {
-	schema := arrow.NewSchema([]arrow.Field{
-		{Name: "_step", Type: arrow.PrimitiveTypes.Float64},
-		{Name: "loss", Type: arrow.PrimitiveTypes.Int64},
-	}, nil)
-	data := []map[string]any{
-		{"_step": 1.0, "loss": 1},
-		{"_step": 2.0, "loss": 2},
-	}
-	filePath := filepath.Join(t.TempDir(), "test.parquet")
-	iteratortest.CreateTestParquetFileFromData(t, filePath, schema, data)
-
-	pr, err := file.OpenParquetFile(filePath, true)
-	require.NoError(t, err)
-	r, err := pqarrow.NewFileReader(pr, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
-	require.NoError(t, err)
-
-	_, err = SelectColumns(
-		StepKey,
-		[]string{"_step", "loss", "nonexistent_column"},
-		r.ParquetReader().MetaData().Schema,
-	)
-
-	assert.Error(t, err)
-}
 
 func TestRowIterator_WithComplexColumns(t *testing.T) {
 	schema := arrow.NewSchema([]arrow.Field{
@@ -292,67 +230,4 @@ func TestRowIterator_WithComplexColumns(t *testing.T) {
 	next, err := it.Next()
 	assert.NoError(t, err)
 	assert.False(t, next, "Expected no more rows after %d rows", len(data))
-}
-
-func TestSelectColumns(t *testing.T) {
-	// Create a simple schema with 4 columns
-	fields := []schema.Node{
-		schema.NewInt64Node("_step", parquet.Repetitions.Required, -1),
-		schema.NewFloat64Node("loss", parquet.Repetitions.Optional, -1),
-		schema.MustPrimitive(schema.NewPrimitiveNode("metric", parquet.Repetitions.Optional, parquet.Types.ByteArray, int32(schema.ConvertedTypes.UTF8), -1)),
-		schema.NewInt64Node("timestamp", parquet.Repetitions.Required, -1),
-	}
-	testSchema, err := schema.NewGroupNode("schema", parquet.Repetitions.Required, fields, -1)
-	require.NoError(t, err)
-	s := schema.NewSchema(testSchema)
-
-	tests := []struct {
-		name        string
-		columns     []string
-		wantIndices []int
-		wantErr     bool
-	}{
-		{
-			name:        "select specific columns",
-			columns:     []string{"_step", "loss", "metric"},
-			wantIndices: []int{0, 1, 2},
-			wantErr:     false,
-		},
-		{
-			name:        "select single column",
-			columns:     []string{"metric"},
-			wantIndices: []int{0, 2},
-			wantErr:     false,
-		},
-		{
-			name:        "error on non-existent column",
-			columns:     []string{"nonexistent"},
-			wantIndices: nil,
-			wantErr:     true,
-		},
-		{
-			name:        "mix of existing and non-existing columns",
-			columns:     []string{"_step", "nonexistent"},
-			wantIndices: nil,
-			wantErr:     true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			selectedColumns, err := SelectColumns(
-				StepKey,
-				tt.columns,
-				s,
-			)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				indices := selectedColumns.GetColumnIndices()
-				assert.NoError(t, err)
-				assert.ElementsMatch(t, tt.wantIndices, indices)
-			}
-		})
-	}
 }
