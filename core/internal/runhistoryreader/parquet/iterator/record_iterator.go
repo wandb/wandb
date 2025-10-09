@@ -63,8 +63,9 @@ func NewRecordIterator(
 	return t, nil
 }
 
-// Next implements the RowIterator interface.
-// Next advances the iterator to next column in the arrow.RecordBatch.
+// Next implements RowIterator.Next.
+//
+// It advances the iterator to next column in the arrow.RecordBatch.
 func (t *recordIterator) Next() (bool, error) {
 	t.value = nil
 	for {
@@ -96,8 +97,9 @@ func (t *recordIterator) Next() (bool, error) {
 	}
 }
 
-// Value implements the RowIterator interface.
-// Value returns a KeyValueList of the current row in the arrow.RecordBatch.
+// Value implements RowIterator.Value.
+//
+// It returns a KeyValueList of the current row in the arrow.RecordBatch.
 func (t *recordIterator) Value() KeyValueList {
 	if t.value != nil { // cache the value in case we're asked for it multiple times
 		return t.value
@@ -115,9 +117,9 @@ func (t *recordIterator) Value() KeyValueList {
 	return t.value
 }
 
-// Release implements the RowIterator interface.
+// Release implements RowIterator.Release.
 //
-// Release decrements the reference count of the record.
+// It decrements the reference count of the record.
 // When the reference count goes to zero, the memory is freed.
 // Release should be called only once after the iterator is no longer needed.
 func (t *recordIterator) Release() {
