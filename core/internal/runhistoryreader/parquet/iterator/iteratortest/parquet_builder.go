@@ -1,4 +1,4 @@
-package test
+package iteratortest
 
 // parquet_builder.go is a utility for creating parquet files used for testing
 // from data that looks similar to data logged by run.log().
