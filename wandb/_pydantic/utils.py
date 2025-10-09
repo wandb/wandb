@@ -30,7 +30,7 @@ def gql_typename(cls: type[BaseModel]) -> str:
 if IS_PYDANTIC_V2:
     import pydantic_core  # pydantic_core is only installed by pydantic v2
 
-    def from_json(s: str) -> Any:
+    def from_json(s: str | bytes) -> Any:
         """Quickly deserialize a JSON string to a Python object."""
         return pydantic_core.from_json(s)
 
@@ -63,7 +63,7 @@ else:
 
     from pydantic.json import pydantic_encoder  # Only valid in pydantic v1
 
-    def from_json(s: str) -> Any:
+    def from_json(s: str | bytes) -> Any:
         return json.loads(s)
 
     def to_json(v: Any) -> str:

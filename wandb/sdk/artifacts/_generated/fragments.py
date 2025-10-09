@@ -69,18 +69,17 @@ class ArtifactFragmentWithoutAliases(GQLBase):
     )
     description: Optional[str]
     metadata: Optional[Any]
-    ttl_duration_seconds: Optional[Any] = Field(
+    ttl_duration_seconds: Optional[int] = Field(
         alias="ttlDurationSeconds", default=None
     )
     ttl_is_inherited: Optional[bool] = Field(alias="ttlIsInherited", default=None)
     tags: Optional[List[ArtifactFragmentWithoutAliasesTags]] = None
-    history_step: Optional[Any] = Field(alias="historyStep", default=None)
+    history_step: Optional[int] = Field(alias="historyStep", default=None)
     state: ArtifactState
-    current_manifest: Optional[ArtifactFragmentWithoutAliasesCurrentManifest] = Field(
-        alias="currentManifest"
-    )
+    size: int
+    digest: str
     commit_hash: Optional[str] = Field(alias="commitHash")
-    file_count: Any = Field(alias="fileCount")
+    file_count: int = Field(alias="fileCount")
     created_at: str = Field(alias="createdAt")
     updated_at: Optional[str] = Field(alias="updatedAt")
 
@@ -97,14 +96,6 @@ class ArtifactFragmentWithoutAliasesArtifactSequenceProject(GQLBase):
 
 class ArtifactFragmentWithoutAliasesArtifactType(GQLBase):
     name: str
-
-
-class ArtifactFragmentWithoutAliasesCurrentManifest(GQLBase):
-    file: ArtifactFragmentWithoutAliasesCurrentManifestFile
-
-
-class ArtifactFragmentWithoutAliasesCurrentManifestFile(GQLBase):
-    direct_url: str = Field(alias="directUrl")
 
 
 class ArtifactFragmentWithoutAliasesTags(GQLBase):
@@ -163,6 +154,14 @@ class ArtifactsFragmentPageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+class DeferredManifestFragment(GQLBase):
+    file: DeferredManifestFragmentFile
+
+
+class DeferredManifestFragmentFile(GQLBase):
+    direct_url: str = Field(alias="directUrl")
+
+
 class FileUrlsFragment(GQLBase):
     page_info: FileUrlsFragmentPageInfo = Field(alias="pageInfo")
     edges: List[FileUrlsFragmentEdges]
@@ -196,7 +195,7 @@ class FilesFragmentEdgesNode(GQLBase):
     id: GQLId
     name: str
     url: Optional[str]
-    size_bytes: Any = Field(alias="sizeBytes")
+    size_bytes: int = Field(alias="sizeBytes")
     storage_path: Optional[str] = Field(alias="storagePath", default=None)
     mimetype: Optional[str]
     updated_at: Optional[str] = Field(alias="updatedAt")
@@ -453,8 +452,6 @@ ArtifactFragmentWithoutAliases.model_rebuild()
 ArtifactFragmentWithoutAliasesArtifactSequence.model_rebuild()
 ArtifactFragmentWithoutAliasesArtifactSequenceProject.model_rebuild()
 ArtifactFragmentWithoutAliasesArtifactType.model_rebuild()
-ArtifactFragmentWithoutAliasesCurrentManifest.model_rebuild()
-ArtifactFragmentWithoutAliasesCurrentManifestFile.model_rebuild()
 ArtifactFragmentWithoutAliasesTags.model_rebuild()
 ArtifactPortfolioTypeFields.model_rebuild()
 ArtifactSequenceTypeFields.model_rebuild()
@@ -465,6 +462,8 @@ ArtifactTypesFragmentPageInfo.model_rebuild()
 ArtifactsFragment.model_rebuild()
 ArtifactsFragmentEdges.model_rebuild()
 ArtifactsFragmentPageInfo.model_rebuild()
+DeferredManifestFragment.model_rebuild()
+DeferredManifestFragmentFile.model_rebuild()
 FileUrlsFragment.model_rebuild()
 FileUrlsFragmentEdges.model_rebuild()
 FileUrlsFragmentEdgesNode.model_rebuild()
