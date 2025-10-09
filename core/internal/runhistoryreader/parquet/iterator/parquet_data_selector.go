@@ -82,23 +82,7 @@ func SelectColumns(
 // GetColumnIndices returns the indices of the columns
 // in the parquet file corresponding to the requested columns.
 func (sc *SelectedColumns) GetColumnIndices() []int {
-	var indices []int
-	if sc.selectAll {
-		indices := make([]int, sc.schema.NumColumns())
-		for i := range indices {
-			indices[i] = i
-		}
-	} else {
-		indices = make([]int, len(sc.requestedColumns))
-		i := 0
-		for column := range sc.requestedColumns {
-			colIndex := sc.schema.ColumnIndexByName(column)
-			indices[i] = colIndex
-			i++
-		}
-	}
-
-	return indices
+	return sc.columnIndices
 }
 
 // GetRequestedColumns returns the columns that were requested to be read.
