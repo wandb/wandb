@@ -10,7 +10,6 @@ import (
 	"github.com/apache/arrow-go/v18/parquet"
 )
 
-// TODO: verify impl vs main impl
 func getObjectSize(
 	ctx context.Context,
 	client *http.Client,
@@ -23,7 +22,6 @@ func getObjectSize(
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("error creating request: %v\n", err)
 		return -1, err
 	}
 	if resp.StatusCode >= http.StatusBadRequest {
@@ -153,6 +151,6 @@ func (o *HttpFileReader) readAt(
 	if err != nil {
 		return n, err
 	}
-	// o.offset = end // TODO: verify if necessary
+
 	return n, nil
 }
