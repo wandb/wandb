@@ -17,7 +17,6 @@ type SelectedColumns struct {
 	selectAll bool
 	schema *schema.Schema
 
-	indexKey string
 	requestedColumns map[string]struct{}
 	columnIndices []int
 }
@@ -71,7 +70,6 @@ func SelectColumns(
 	}
 
 	return &SelectedColumns{
-		indexKey: indexKey,
 		schema: schema,
 		requestedColumns: requestedColumns,
 		selectAll: selectAll,
@@ -88,11 +86,6 @@ func (sc *SelectedColumns) GetColumnIndices() []int {
 // GetRequestedColumns returns the columns that were requested to be read.
 func (sc *SelectedColumns) GetRequestedColumns() map[string]struct{} {
 	return sc.requestedColumns
-}
-
-// GetIndexKey returns the index key used to filter data read from the file.
-func (sc *SelectedColumns) GetIndexKey() string {
-	return sc.indexKey
 }
 
 // SelectedRows contains the information about how to filter rows
@@ -120,6 +113,10 @@ func SelectRows(
 		minValue: minValue,
 		maxValue: maxValue,
 	}
+}
+
+func (sr *SelectedRows) GetIndexKey() string {
+	return sr.indexKey
 }
 
 // GetRowGroupIndices returns the indices of the row groups that should be read.
