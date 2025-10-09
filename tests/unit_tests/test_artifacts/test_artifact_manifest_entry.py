@@ -59,12 +59,12 @@ def test_manifest_download(monkeypatch):
     default_cache = Path("default_cache")
 
     monkeypatch.setattr(
-        short_entry._parent_artifact.manifest.storage_policy,
+        artifact.manifest.storage_policy,
         "load_reference",
         lambda x, y, **kwargs: default_cache,
     )
     monkeypatch.setattr(
-        short_entry._parent_artifact.manifest.storage_policy,
+        artifact.manifest.storage_policy,
         "load_file",
         lambda x, y, **kwargs: default_cache,
     )
