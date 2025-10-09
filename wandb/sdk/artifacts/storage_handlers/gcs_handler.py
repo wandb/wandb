@@ -79,6 +79,7 @@ class GCSHandler(StorageHandler):
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
+        # Skip downloading an entry that corresponds to a folder
         if self._is_dir(manifest_entry):
             raise _GCSIsADirectoryError(
                 f"Unable to download GCS folder {manifest_entry.ref!r}, skipping"
@@ -132,7 +133,8 @@ class GCSHandler(StorageHandler):
         obj = self._client.bucket(bucket).get_blob(key, generation=version)
         if obj is None and version is not None:
             raise ValueError(f"Object does not exist: {path}#{version}")
-        multi = obj is None
+        # HNS buckets have blobs for directories, so we also check the blob name to see if its a directory
+        multi = obj is None or obj.name.endswith("/")
         if multi:
             start_time = time.monotonic()
             termlog(
@@ -215,11 +217,11 @@ class GCSHandler(StorageHandler):
         assert manifest_entry.ref is not None
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
         bucket_obj = self._client.bucket(bucket)
-        # A gcs bucket key should end with a forward slash on gcloud, but
-        # we save these refs without the forward slash in the manifest entry
-        # so we check the size and extension, make sure its not referring to
-        # an actual file with this reference, and that the ref with the slash
-        # exists on gcloud
+        # A gcs folder key should end with a forward slash on gcloud, but
+        # we previously saved these refs without the forward slash in the manifest entry
+        # To check whether the entry corresponds to a folder, we check the size and extension,
+        # make sure there is no file with this reference, and that the ref with the slash
+        # exists on gcloud as a folder
         return key.endswith("/") or (
             not (manifest_entry.size or PurePosixPath(key).suffix)
             and bucket_obj.get_blob(key) is None

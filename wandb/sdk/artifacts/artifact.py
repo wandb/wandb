@@ -2061,6 +2061,16 @@ class Artifact:
             except _GCSIsADirectoryError as e:
                 logger.debug(str(e))
                 return
+            except IsADirectoryError:
+                logger.debug(
+                    f"Unable to download file {entry.path} as there is a directory with the same path, skipping."
+                )
+                return
+            except NotADirectoryError:
+                logger.debug(
+                    f"Unable to download file {entry.path} as there is a file with the same path as a directory this file is expected to be in, skipping."
+                )
+                return
             download_logger.notify_downloaded()
 
         def _init_thread(
