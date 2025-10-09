@@ -11,6 +11,68 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRecordIterator_ErrorsOnMissingColumns(t *testing.T) {
+	schema := arrow.NewSchema([]arrow.Field{
+		{
+			Name: "_step",
+			Type: &arrow.Int64Type{},
+		},
+	}, nil)
+	builder := array.NewRecordBuilder(memory.DefaultAllocator, schema)
+	defer builder.Release()
+	builder.Field(0).(*array.Int64Builder).AppendValues([]int64{0, 1}, nil)
+	record := builder.NewRecordBatch()
+	defer record.Release()
+
+	_, err := NewRecordIterator(
+		record,
+		&SelectedColumns{
+			requestedColumns: map[string]struct{}{"_step": {}, "acc": {}},
+			selectAll: false,
+		},
+		&SelectedRows{
+			selectAll: false,
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 1,
+		},
+	)
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "column acc not found in record batch")
+}
+
+func TestRecordIterator_ErrorsOnMissingIndexKey(t *testing.T) {
+	schema := arrow.NewSchema([]arrow.Field{
+		{
+			Name: "acc",
+			Type: &arrow.Int64Type{},
+		},
+	}, nil)
+	builder := array.NewRecordBuilder(memory.DefaultAllocator, schema)
+	defer builder.Release()
+	builder.Field(0).(*array.Int64Builder).AppendValues([]int64{0, 1}, nil)
+	record := builder.NewRecordBatch()
+	defer record.Release()
+
+	_, err := NewRecordIterator(
+		record,
+		&SelectedColumns{
+			requestedColumns: map[string]struct{}{"acc": {}},
+			selectAll: false,
+		},
+		&SelectedRows{
+			selectAll: false,
+			indexKey: StepKey,
+			minValue: 0,
+			maxValue: 1,
+		},
+	)
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "column _step not found in record batch")
+}
+
 func TestRecordIterator_FiltersRowsWithEmptyColumns(t *testing.T) {
 	schema := arrow.NewSchema([]arrow.Field{
 		{
@@ -36,7 +98,6 @@ func TestRecordIterator_FiltersRowsWithEmptyColumns(t *testing.T) {
 	reader, err := NewRecordIterator(
 		record,
 		&SelectedColumns{
-			indexKey: StepKey,
 			requestedColumns: map[string]struct{}{"_step": {}, "acc": {}},
 			selectAll: false,
 		},
@@ -82,7 +143,6 @@ func TestRecordIterator_FiltersRowsWithStepOutOfRange(t *testing.T) {
 	reader, err := NewRecordIterator(
 		record,
 		&SelectedColumns{
-			indexKey: StepKey,
 			requestedColumns: map[string]struct{}{"_step": {}},
 			selectAll: false,
 		},
@@ -127,7 +187,6 @@ func TestRecordIterator_ReleaseFreesMemory(t *testing.T) {
 	reader, err := NewRecordIterator(
 		record,
 		&SelectedColumns{
-			indexKey: StepKey,
 			requestedColumns: map[string]struct{}{"_step": {}},
 			selectAll: false,
 		},
@@ -174,7 +233,6 @@ func TestRecordIterator_WithEmptyRecordIsNil(t *testing.T) {
 	iter, err := NewRecordIterator(
 		record,
 		&SelectedColumns{
-			indexKey: StepKey,
 			requestedColumns: map[string]struct{}{"_step": {}},
 			selectAll: false,
 		},
