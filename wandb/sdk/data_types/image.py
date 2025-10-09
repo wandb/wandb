@@ -182,8 +182,8 @@ class Image(BatchableMedia):
                 unless `normalize` is set to `False`.
             - pytorch tensor should be in the format (channel, height, width)
             - NumPy array should be in the format (height, width, channel)
-            mode: The PIL mode for an image. Most common are "L", "RGB",
-                "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
+            mode: The PIL mode for an image. Most common are "L", "RGB", "RGBA".
+                Full Pillow docs for more information https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
             caption: Label for display of image.
             grouping: The grouping number for the image.
             classes: A list of class information for the image,
