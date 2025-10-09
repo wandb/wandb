@@ -19,6 +19,7 @@ type SelectedColumns struct {
 
 	indexKey string
 	requestedColumns map[string]struct{}
+	columnIndices []int
 }
 
 // SelectColumns returns a SelectedColumns struct.
@@ -32,28 +33,39 @@ func SelectColumns(
 	schema *schema.Schema,
 ) (*SelectedColumns, error) {
 	var requestedColumns map[string]struct{}
+	var columnIndices []int
 	selectAll := false
 
 	// When no keys are provided, then we will return all columns.
 	if len(keys) == 0 {
 		selectAll = true
 		requestedColumns = make(map[string]struct{}, schema.NumColumns())
+		columnIndices = make([]int, 0, schema.NumColumns())
 		for i := 0; i < schema.NumColumns(); i++ {
 			col := schema.Column(i)
 			requestedColumns[col.ColumnPath()[0]] = struct{}{}
+			columnIndices = append(columnIndices, i)
 		}
 	} else {
 		requestedColumns = make(map[string]struct{}, len(keys)+1)
-		requestedColumns[indexKey] = struct{}{}
-		for _, key := range keys {
-			requestedColumns[key] = struct{}{}
+		columnIndices = make([]int, 0, len(keys)+1)
 
+		requestedColumns[indexKey] = struct{}{}
+		columnIndices = append(columnIndices, schema.ColumnIndexByName(indexKey))
+
+		for _, key := range keys {
 			colIndex := schema.ColumnIndexByName(key)
 			if colIndex < 0 {
 				return nil, fmt.Errorf(
 					"column %s selected but not found",
 					key,
 				)
+			}
+
+			// Only add the column if it hasn't been seen yet.
+			if _, ok := requestedColumns[key]; !ok {
+				columnIndices = append(columnIndices, colIndex)
+				requestedColumns[key] = struct{}{}
 			}
 		}
 	}
@@ -63,29 +75,14 @@ func SelectColumns(
 		schema: schema,
 		requestedColumns: requestedColumns,
 		selectAll: selectAll,
+		columnIndices: columnIndices,
 	}, nil
 }
 
 // GetColumnIndices returns the indices of the columns
 // in the parquet file corresponding to the requested columns.
 func (sc *SelectedColumns) GetColumnIndices() []int {
-	var indices []int
-	if sc.selectAll {
-		indices := make([]int, sc.schema.NumColumns())
-		for i := range indices {
-			indices[i] = i
-		}
-	} else {
-		indices = make([]int, len(sc.requestedColumns))
-		i := 0
-		for column := range sc.requestedColumns {
-			colIndex := sc.schema.ColumnIndexByName(column)
-			indices[i] = colIndex
-			i++
-		}
-	}
-
-	return indices
+	return sc.columnIndices
 }
 
 // GetRequestedColumns returns the columns that were requested to be read.

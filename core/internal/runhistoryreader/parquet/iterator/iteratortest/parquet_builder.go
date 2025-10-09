@@ -129,7 +129,6 @@ func appendInt64Value(t *testing.T, b *array.Int64Builder, value any) {
 	case int32:
 		b.Append(int64(v))
 	case float64:
-		// Handle float64 to int64 conversion (useful for JSON deserialization)
 		b.Append(int64(v))
 	default:
 		t.Fatalf("cannot convert %T to int64", value)

@@ -6,11 +6,7 @@ import (
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 )
 
-// ParquetDataIterator uses recordIterators
-// to iterate over arrow.RecordBatches in the given parquet file
-//
-// It is the high level iterator used to iterate
-// over a run history parquet file.
+// ParquetDataIterator iterates over history steps in a run's parquet file.
 type ParquetDataIterator struct {
 	ctx             context.Context
 	selectedRows    *SelectedRows
@@ -56,12 +52,17 @@ func NewParquetDataIterator(
 
 // Next implements RowIterator.Next.
 func (r *ParquetDataIterator) Next() (bool, error) {
-	next, err := r.current.Next()
-	if next || err != nil {
-		return next, err
-	}
+	for {
+		next, err := r.current.Next()
+		if next || err != nil {
+			return next, err
+		}
 
-	if r.recordReader.Next() {
+		if !r.recordReader.Next() {
+			r.current.Release()
+			return false, nil
+		}
+
 		r.current.Release()
 		r.current, err = NewRecordIterator(
 			r.recordReader.RecordBatch(),
@@ -71,12 +72,7 @@ func (r *ParquetDataIterator) Next() (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		return r.Next()
 	}
-
-	r.current.Release()
-	r.current = &NoopRowIterator{}
-	return false, nil
 }
 
 // Value implements RowIterator.Value.
@@ -85,10 +81,6 @@ func (r *ParquetDataIterator) Value() KeyValueList {
 }
 
 // Release implements RowIterator.Release.
-//
-// Releases the underlying resources used by the iterator.
-// It should be called only once after the iterator is no longer needed.
-// Additional calls to Release are no-ops.
 func (r *ParquetDataIterator) Release() {
 	r.current.Release()
 	r.recordReader.Release()
