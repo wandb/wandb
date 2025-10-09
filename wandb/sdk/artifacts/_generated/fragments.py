@@ -233,6 +233,17 @@ class MembershipWithArtifactArtifactCollectionProject(GQLBase):
     name: str
 
 
+class OrgInfoFragment(GQLBase):
+    name: str
+    org_entity: Optional[OrgInfoFragmentOrgEntity] = Field(
+        alias="orgEntity", default=None
+    )
+
+
+class OrgInfoFragmentOrgEntity(GQLBase):
+    name: str
+
+
 class RegistriesPage(GQLBase):
     page_info: RegistriesPagePageInfo = Field(alias="pageInfo")
     edges: List[RegistriesPageEdges]
@@ -476,6 +487,8 @@ FilesFragmentPageInfo.model_rebuild()
 MembershipWithArtifact.model_rebuild()
 MembershipWithArtifactArtifactCollection.model_rebuild()
 MembershipWithArtifactArtifactCollectionProject.model_rebuild()
+OrgInfoFragment.model_rebuild()
+OrgInfoFragmentOrgEntity.model_rebuild()
 RegistriesPage.model_rebuild()
 RegistriesPageEdges.model_rebuild()
 RegistriesPagePageInfo.model_rebuild()

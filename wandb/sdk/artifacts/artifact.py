@@ -109,6 +109,7 @@ from ._generated import (
 )
 from ._gqlutils import (
     omit_artifact_fields,
+    resolve_org_entity_name,
     server_supports,
     supports_enable_tracking_var,
     type_info,
@@ -2408,8 +2409,10 @@ class Artifact:
         if target.is_registry_path():
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
-            org = target.prefix or settings.get("organization") or ""
-            target.prefix = api._resolve_org_entity_name(self.source_entity, org)
+            org = target.prefix or settings.get("organization") or None
+            target.prefix = resolve_org_entity_name(
+                self._client, self.source_entity, org
+            )
         else:
             target = target.with_defaults(prefix=self.source_entity)
 
