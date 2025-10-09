@@ -144,7 +144,7 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
             if override_blob_name.endswith("/"):
                 return [
                     Blob(name=override_blob_name),
-                    Blob(name=f"{override_blob_name}my_other_object.pb"),
+                    Blob(name=os.path.join(override_blob_name, "my_other_object.pb")),
                 ]
             else:
                 return [Blob(), Blob(name="my_other_object.pb")]

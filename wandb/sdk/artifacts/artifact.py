@@ -2063,12 +2063,12 @@ class Artifact:
                 return
             except IsADirectoryError:
                 logger.debug(
-                    f"Unable to download file {entry.path} as there is a directory with the same path, skipping."
+                    f"Unable to download file {entry.path!r} as there is a directory with the same path, skipping."
                 )
                 return
             except NotADirectoryError:
                 logger.debug(
-                    f"Unable to download file {entry.path} as there is a file with the same path as a directory this file is expected to be in, skipping."
+                    f"Unable to download file {entry.path!r} as there is a file with the same path as a directory this file is expected to be in, skipping."
                 )
                 return
             download_logger.notify_downloaded()
