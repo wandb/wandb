@@ -15,10 +15,10 @@ import (
 // that were requested to be read from the parquet file.
 type SelectedColumns struct {
 	selectAll bool
-	schema *schema.Schema
+	schema    *schema.Schema
 
 	requestedColumns map[string]struct{}
-	columnIndices []int
+	columnIndices    []int
 }
 
 // SelectColumns returns a SelectedColumns struct.
@@ -70,10 +70,10 @@ func SelectColumns(
 	}
 
 	return &SelectedColumns{
-		schema: schema,
+		schema:           schema,
 		requestedColumns: requestedColumns,
-		selectAll: selectAll,
-		columnIndices: columnIndices,
+		selectAll:        selectAll,
+		columnIndices:    columnIndices,
 	}, nil
 }
 
@@ -91,11 +91,11 @@ func (sc *SelectedColumns) GetRequestedColumns() map[string]struct{} {
 // SelectedRows contains the information about how to filter rows
 // read from the parquet file.
 type SelectedRows struct {
-	selectAll       bool
+	selectAll         bool
 	parquetFileReader *pqarrow.FileReader
-	indexKey string
-	minValue float64
-	maxValue float64
+	indexKey          string
+	minValue          float64
+	maxValue          float64
 }
 
 // SelectRows returns a SelectedRows struct.
@@ -107,11 +107,11 @@ func SelectRows(
 	selectAll bool,
 ) *SelectedRows {
 	return &SelectedRows{
-		selectAll:       selectAll,
+		selectAll:         selectAll,
 		parquetFileReader: pf,
-		indexKey: indexKey,
-		minValue: minValue,
-		maxValue: maxValue,
+		indexKey:          indexKey,
+		minValue:          minValue,
+		maxValue:          maxValue,
 	}
 }
 
