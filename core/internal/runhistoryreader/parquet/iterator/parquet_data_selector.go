@@ -11,37 +11,39 @@ import (
 	"github.com/apache/arrow-go/v18/parquet/schema"
 )
 
-// keySet is a mapping of strings to empty structs
-//
-// It acts a set of strings for easier lookups.
-type keySet map[string]struct{}
-
+// SelectedColumns contains the information about the columns
+// that were requested to be read from the parquet file.
 type SelectedColumns struct {
 	selectAll bool
 	schema *schema.Schema
 
 	indexKey string
-	requestedColumns keySet
+	requestedColumns map[string]struct{}
 }
 
+// SelectColumns returns a SelectedColumns struct.
+//
+// When no keys are provided, then all columns are selected.
+// When at least one key is provided,
+// then only the columns for those keys are selected.
 func SelectColumns(
 	indexKey string,
 	keys []string,
 	schema *schema.Schema,
 ) (*SelectedColumns, error) {
-	var requestedColumns keySet
+	var requestedColumns map[string]struct{}
 	selectAll := false
 
 	// When no keys are provided, then we will return all columns.
 	if len(keys) == 0 {
 		selectAll = true
-		requestedColumns = make(keySet, schema.NumColumns())
+		requestedColumns = make(map[string]struct{}, schema.NumColumns())
 		for i := 0; i < schema.NumColumns(); i++ {
 			col := schema.Column(i)
 			requestedColumns[col.ColumnPath()[0]] = struct{}{}
 		}
 	} else {
-		requestedColumns = make(keySet, len(keys)+1)
+		requestedColumns = make(map[string]struct{}, len(keys)+1)
 		requestedColumns[indexKey] = struct{}{}
 		for _, key := range keys {
 			requestedColumns[key] = struct{}{}
@@ -64,6 +66,8 @@ func SelectColumns(
 	}, nil
 }
 
+// GetColumnIndices returns the indices of the columns
+// in the parquet file corresponding to the requested columns.
 func (sc *SelectedColumns) GetColumnIndices() []int {
 	var indices []int
 	if sc.selectAll {
@@ -84,14 +88,18 @@ func (sc *SelectedColumns) GetColumnIndices() []int {
 	return indices
 }
 
-func (sc *SelectedColumns) GetRequestedColumns() keySet {
+// GetRequestedColumns returns the columns that were requested to be read.
+func (sc *SelectedColumns) GetRequestedColumns() map[string]struct{} {
 	return sc.requestedColumns
 }
 
+// GetIndexKey returns the index key used to filter data read from the file.
 func (sc *SelectedColumns) GetIndexKey() string {
 	return sc.indexKey
 }
 
+// SelectedRows contains the information about how to filter rows
+// read from the parquet file.
 type SelectedRows struct {
 	selectAll       bool
 	parquetFileReader *pqarrow.FileReader
@@ -99,6 +107,8 @@ type SelectedRows struct {
 	minValue float64
 	maxValue float64
 }
+
+// SelectRows returns a SelectedRows struct.
 func SelectRows(
 	pf *pqarrow.FileReader,
 	indexKey string,
