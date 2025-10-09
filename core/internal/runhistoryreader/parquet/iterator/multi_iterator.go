@@ -1,7 +1,6 @@
 package iterator
 
-// multiIterator is a RowIterator that iterates over multiple RowIterators.
-// It is made by concatenating multiple RowIterators.
+// multiIterator iterates over multiple RowIterators in sequence.
 type multiIterator struct {
 	iterators []RowIterator
 	offset    int
