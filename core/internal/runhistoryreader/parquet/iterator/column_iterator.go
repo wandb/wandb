@@ -237,10 +237,6 @@ func binaryAccessor(data arrow.Array, offset int) any {
 	return value
 }
 
-func rawBinaryAccessor(data arrow.Array, offset int) any {
-	return data.(*array.Binary).Value(offset)
-}
-
 func fixedBinaryAccessor(data arrow.Array, offset int) any {
 	return data.(*array.FixedSizeBinary).Value(offset)
 }

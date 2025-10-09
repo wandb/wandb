@@ -35,6 +35,8 @@ type RowIterator interface {
 
 // NewRowIterator returns an iterator over all rows in the given parquet file.
 // If the parquet file is empty, a noop iterator is returned.
+//
+// reader is safe to use after the creation of the iterator.
 func NewRowIterator(
 	ctx context.Context,
 	reader *pqarrow.FileReader,
@@ -61,10 +63,13 @@ func NewRowIterator(
 }
 
 func batchSizeForSchemaSize(numColumns int) int {
-	// builder.Reserve reserves an amount of memory for N rows, which is more efficient since the
-	// allocations are batched and the values are contiguous (less work for gc).
-	// But remember that how big a row is is determined by the number (and type) of columns. So we
-	// use a very unscientific formula. Some example breakpoints:
+	// When reading data from a parquet file,
+	// The reader reserves an amount of memory for N rows.
+	// This is more efficient since the allocations are batched
+	// and the values are contiguous (less work for gc).
+	//
+	// But, the size of a row is determined by the number (and type) of columns.
+	// So we use a very unscientific formula. Some example breakpoints:
 	// At <=100 columns, reserve 10k rows (max reservation)
 	// At 1k columns, reserve 1k rows
 	// At >=10k columns, reserve 100 rows
