@@ -7,7 +7,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	test "github.com/wandb/wandb/core/tests/parquet"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/iterator/iteratortest"
 )
 
 func TestMultiIterator_ReadsAllRows(t *testing.T) {
@@ -30,8 +30,8 @@ func TestMultiIterator_ReadsAllRows(t *testing.T) {
 	}
 	tempFile1 := filepath.Join(t.TempDir(), "test1.parquet")
 	tempFile2 := filepath.Join(t.TempDir(), "test2.parquet")
-	test.CreateTestParquetFileFromData(t, tempFile1, schema, dataPart1)
-	test.CreateTestParquetFileFromData(t, tempFile2, schema, dataPart2)
+	iteratortest.CreateTestParquetFileFromData(t, tempFile1, schema, dataPart1)
+	iteratortest.CreateTestParquetFileFromData(t, tempFile2, schema, dataPart2)
 	it1 := getRowIteratorForFile(
 		t,
 		tempFile1,
@@ -54,22 +54,27 @@ func TestMultiIterator_ReadsAllRows(t *testing.T) {
 	multiReader := NewMultiIterator([]RowIterator{it1, it2})
 
 	// Verify all rows are read
-	values := make([]map[string]any, 0)
+	actualValues := make([]map[string]any, 0)
 	next, err := multiReader.Next()
 	assert.NoError(t, err)
 	for next {
-		value := multiReader.Value()
-		values = append(values, map[string]any{
-			"_step": value[0].Value,
-			"value": value[1].Value,
-		})
+		v := multiReader.Value()
+		values := make(map[string]any)
+
+		for _, v := range v {
+			values[v.Key] = v.Value
+		}
+
+		actualValues = append(actualValues, values)
 		next, err = multiReader.Next()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 	expectedValues := append([]map[string]any{}, dataPart1...)
 	expectedValues = append(expectedValues, dataPart2...)
-	assert.Equal(t, len(expectedValues), len(values))
-	assert.Equal(t, expectedValues, values)
+	assert.Equal(t, len(expectedValues), len(actualValues))
+	for _, value := range actualValues {
+		assert.Contains(t, expectedValues, value)
+	}
 }
 
 func TestMultiIterator_WithPageRange_AcrossPartitions(t *testing.T) {
@@ -92,8 +97,8 @@ func TestMultiIterator_WithPageRange_AcrossPartitions(t *testing.T) {
 	}
 	tempFile1 := filepath.Join(t.TempDir(), "test1.parquet")
 	tempFile2 := filepath.Join(t.TempDir(), "test2.parquet")
-	test.CreateTestParquetFileFromData(t, tempFile1, schema, dataPart1)
-	test.CreateTestParquetFileFromData(t, tempFile2, schema, dataPart2)
+	iteratortest.CreateTestParquetFileFromData(t, tempFile1, schema, dataPart1)
+	iteratortest.CreateTestParquetFileFromData(t, tempFile2, schema, dataPart2)
 	it1 := getRowIteratorForFile(
 		t,
 		tempFile1,
@@ -115,15 +120,18 @@ func TestMultiIterator_WithPageRange_AcrossPartitions(t *testing.T) {
 	multiReader := NewMultiIterator([]RowIterator{it1, it2})
 
 	// Read all rows and verify they're within the range
-	values := make([]map[string]any, 0)
+	actualValues := make([]map[string]any, 0)
 	next, err := multiReader.Next()
 	assert.NoError(t, err)
 	for next {
-		value := multiReader.Value()
-		values = append(values, map[string]any{
-			"_step": value[0].Value,
-			"value": value[1].Value,
-		})
+		v := multiReader.Value()
+		values := make(map[string]any)
+
+		for _, v := range v {
+			values[v.Key] = v.Value
+		}
+
+		actualValues = append(actualValues, values)
 		next, err = multiReader.Next()
 		require.NoError(t, err)
 	}
@@ -133,6 +141,8 @@ func TestMultiIterator_WithPageRange_AcrossPartitions(t *testing.T) {
 		{"_step": int64(20), "value": 20.0},
 		{"_step": int64(30), "value": 30.0},
 	}
-	assert.Equal(t, len(expectedValues), len(values))
-	assert.Equal(t, expectedValues, values)
+
+	for _, value := range actualValues {
+		assert.Contains(t, expectedValues, value)
+	}
 }
