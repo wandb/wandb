@@ -8,6 +8,7 @@ import logging
 from abc import abstractmethod
 from typing import Any, Optional, cast
 
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.mailbox import MailboxHandle
@@ -470,4 +471,11 @@ class InterfaceShared(InterfaceBase):
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle[pb.Result]:
         record = self._make_request(run_status=run_status)
+        return self._deliver(record)
+
+    def _deliver_api_request(
+        self, api_request: apb.ApiRequest
+    ) -> MailboxHandle[pb.Result]:
+        record = pb.Record()
+        record.api_request.CopyFrom(api_request)
         return self._deliver(record)

@@ -27,6 +27,7 @@ from typing import (
 )
 
 from wandb import termwarn
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.artifacts.artifact import Artifact
@@ -1089,5 +1090,11 @@ class InterfaceBase:
     @abstractmethod
     def _deliver_request_run_status(
         self, run_status: pb.RunStatusRequest
+    ) -> MailboxHandle[pb.Result]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _deliver_api_request(
+        self, get_run_history: apb.ReadRunHistoryApiRequest
     ) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
