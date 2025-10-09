@@ -200,7 +200,7 @@ class _DynamicOperationStatsPrinter:
         if not is_subtask:
             self._ops_shown += 1
 
-        parts = []
+        parts: list[str] = []
 
         # Subtask indicator.
         if is_subtask and self._printer.supports_unicode:
