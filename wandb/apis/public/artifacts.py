@@ -15,6 +15,7 @@ from typing_extensions import override
 from wandb_gql import Client, gql
 
 import wandb
+from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator, SizedPaginator
@@ -50,12 +51,13 @@ from wandb.sdk.artifacts._generated import (
     ProjectArtifacts,
     ProjectArtifactType,
     ProjectArtifactTypes,
-    RunInputArtifactsProjectRunInputArtifacts,
-    RunOutputArtifactsProjectRunOutputArtifacts,
+    RunInputArtifactConnectionFragment,
+    RunOutputArtifactConnectionFragment,
 )
-from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 from wandb.sdk.artifacts._validators import (
     SOURCE_ARTIFACT_COLLECTION_TYPE,
+    FullArtifactPath,
     validate_artifact_name,
     validate_artifact_type,
 )
@@ -104,7 +106,7 @@ class ArtifactTypes(Paginator["ArtifactType"]):
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not ((proj := result.project) and (conn := proj.artifact_types)):
-            raise ValueError(f"Unable to parse {type(self).__name__!r} response data")
+            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = ArtifactTypesFragment.model_validate(conn)
 
@@ -305,7 +307,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
             and (type_ := proj.artifact_type)
             and (conn := type_.artifact_collections)
         ):
-            raise ValueError(f"Unable to parse {type(self).__name__!r} response data")
+            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = ArtifactCollectionsFragment.model_validate(conn)
 
@@ -714,7 +716,7 @@ class Artifacts(SizedPaginator["Artifact"]):
 
         self.QUERY = gql_compat(
             PROJECT_ARTIFACTS_GQL,
-            omit_fields=omit_artifact_fields(),
+            omit_fields=omit_artifact_fields(client),
             rename_fields=rename_fields,
         )
 
@@ -732,7 +734,7 @@ class Artifacts(SizedPaginator["Artifact"]):
             and (collection := type_.artifact_collection)
             and (conn := collection.artifacts)
         ):
-            raise ValueError(f"Unable to parse {type(self).__name__!r} response data")
+            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = ArtifactsFragment.model_validate(conn)
 
@@ -777,10 +779,12 @@ class Artifacts(SizedPaginator["Artifact"]):
         artifact_edges = (edge for edge in self.last_response.edges if edge.node)
         artifacts = (
             wandb.Artifact._from_attrs(
-                entity=self.entity,
-                project=self.project,
-                name=f"{self.collection_name}:{edge.version}",
-                attrs=edge.node.model_dump(exclude_unset=True),
+                path=FullArtifactPath(
+                    prefix=self.entity,
+                    project=self.project,
+                    name=f"{self.collection_name}:{edge.version}",
+                ),
+                attrs=edge.node,
                 client=self.client,
             )
             for edge in artifact_edges
@@ -796,14 +800,12 @@ class RunArtifacts(SizedPaginator["Artifact"]):
     """
 
     last_response: (
-        RunOutputArtifactsProjectRunOutputArtifacts
-        | RunInputArtifactsProjectRunInputArtifacts
+        RunOutputArtifactConnectionFragment | RunInputArtifactConnectionFragment
     )
 
     #: The pydantic model used to parse the (inner part of the) raw response.
     _response_cls: type[
-        RunOutputArtifactsProjectRunOutputArtifacts
-        | RunInputArtifactsProjectRunInputArtifacts
+        RunOutputArtifactConnectionFragment | RunInputArtifactConnectionFragment
     ]
 
     def __init__(
@@ -818,15 +820,15 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         if mode == "logged":
             self.run_key = "outputArtifacts"
             self.QUERY = gql_compat(
-                RUN_OUTPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields()
+                RUN_OUTPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields(client)
             )
-            self._response_cls = RunOutputArtifactsProjectRunOutputArtifacts
+            self._response_cls = RunOutputArtifactConnectionFragment
         elif mode == "used":
             self.run_key = "inputArtifacts"
             self.QUERY = gql_compat(
-                RUN_INPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields()
+                RUN_INPUT_ARTIFACTS_GQL, omit_fields=omit_artifact_fields(client)
             )
-            self._response_cls = RunInputArtifactsProjectRunInputArtifacts
+            self._response_cls = RunInputArtifactConnectionFragment
         else:
             raise ValueError("mode must be logged or used")
 
@@ -885,10 +887,12 @@ class RunArtifacts(SizedPaginator["Artifact"]):
 
         return [
             wandb.Artifact._from_attrs(
-                entity=proj.entity_name,
-                project=proj.name,
-                name=f"{artifact_seq.name}:v{node.version_index}",
-                attrs=node.model_dump(exclude_unset=True),
+                path=FullArtifactPath(
+                    prefix=proj.entity_name,
+                    project=proj.name,
+                    name=f"{artifact_seq.name}:v{node.version_index}",
+                ),
+                attrs=node,
                 client=self.client,
             )
             for edge in self.last_response.edges
@@ -959,7 +963,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
             conn = result.project.artifact_type.artifact.files
 
         if conn is None:
-            raise ValueError(f"Unable to parse {type(self).__name__!r} response data")
+            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
         self.last_response = FilesFragment.model_validate(conn)
 

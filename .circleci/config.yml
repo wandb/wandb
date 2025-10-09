@@ -1,7 +1,6 @@
 version: 2.1
 
 orbs:
-  win: circleci/windows@5.0.0
   slack: circleci/slack@4.12.5
   gcloud: circleci/gcp-cli@3.1.1
   codecov: codecov/codecov@5.0.0
@@ -9,19 +8,25 @@ orbs:
 parameters:
   go_version:
     type: string
-    default: "1.25.0"
+    default: "1.25.2"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
   server_image_tag:
     type: string
-    default: "master"
+    default: "96f3ecb397dbeff1a36909f19039d913b30e791c"
 
 executors:
   macos:
     macos:
-      xcode: 15.1.0
-    resource_class: macos.m1.medium.gen1
+      xcode: 16.4.0
+    resource_class: m4pro.medium
+
+  windows:
+    resource_class: windows.xlarge
+    machine:
+      image: windows-server-2022-gui:current
+      shell: bash.exe
 
   linux-python:
     parameters:
@@ -359,10 +364,7 @@ jobs:
       session: { type: string }
 
     parallelism: <<parameters.parallelism>>
-    executor:
-      name: win/server-2019
-      size: large
-      shell: bash.exe
+    executor: windows
 
     steps:
       - checkout
@@ -496,7 +498,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.12"]
+              python: ["3.8", "3.13"]
 
       - nox-tests-linux:
           name: unit-tests-pydantic-v1-linux-<<matrix.python>>
@@ -506,7 +508,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.12"]
+              python: ["3.8", "3.13"]
 
       #
       # Unit tests with pytest on macOS
@@ -519,7 +521,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.12"]
+              python: ["3.9", "3.13"]
 
       #
       # Unit tests with pytest on Windows
@@ -539,7 +541,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.9", "3.12"]
+              python: ["3.9", "3.13"]
 
       #
       # System tests on Linux
@@ -558,7 +560,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.12"]
+              python: ["3.8", "3.13"]
 
       - nox-tests-linux:
           name: system-tests-min-server-version-linux-<<matrix.python>>
@@ -574,7 +576,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.12"]
+              python: ["3.13"]
               server_image:
                 [
                   "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer",
@@ -590,7 +592,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.8", "3.12"]
+              python: ["3.8", "3.13"]
 
       #
       # Functional tests with pytest on Linux
@@ -609,7 +611,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.12"]
+              python: ["3.13"]
 
       #
       # Functional tests of experimental clients with pytest on Linux
@@ -629,7 +631,7 @@ workflows:
 
           matrix:
             parameters:
-              python: ["3.12"]
+              python: ["3.13"]
 
       #
       # W&B Importer tests on Linux, using 2 real wandb servers

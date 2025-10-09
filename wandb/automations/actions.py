@@ -7,7 +7,8 @@ from typing import Any, Literal, Optional, Union
 from pydantic import BeforeValidator, Field
 from typing_extensions import Annotated, Self, get_args
 
-from wandb._pydantic import GQLBase, GQLId, SerializedToJson, Typename
+from wandb._pydantic import GQLBase, GQLId, Typename
+from wandb._strutils import nameof
 
 from ._generated import (
     AlertSeverity,
@@ -21,6 +22,7 @@ from ._generated import (
 )
 from ._validators import (
     LenientStrEnum,
+    SerializedToJson,
     default_if_none,
     to_input_action,
     to_saved_action,
@@ -214,5 +216,5 @@ InputActionTypes: tuple[type, ...] = get_args(InputAction.__origin__)  # type: i
 
 __all__ = [
     "ActionType",
-    *(cls.__name__ for cls in InputActionTypes),
+    *(nameof(cls) for cls in InputActionTypes),
 ]

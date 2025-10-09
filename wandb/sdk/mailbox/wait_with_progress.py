@@ -62,7 +62,7 @@ def wait_all_with_progress(
     start_time = time.monotonic()
 
     async def progress_loop_with_timeout() -> list[_T]:
-        with asyncio_compat.cancel_on_exit(display_progress()):
+        async with asyncio_compat.cancel_on_exit(display_progress()):
             if timeout is not None:
                 elapsed_time = time.monotonic() - start_time
                 remaining_timeout = timeout - elapsed_time

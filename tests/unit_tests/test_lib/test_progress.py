@@ -74,6 +74,25 @@ def test_minimal_operations_static(mock_wandb_log, static_progress_printer):
     assert mock_wandb_log.logged("op 1; op 2; op 3; op 4; op 5 (+ 95 more)")
 
 
+def test_does_not_print_empty_lines(capsys, static_progress_printer):
+    stats1 = pb.OperationStats(
+        total_operations=1,
+        operations=[pb.Operation(desc="op 1", runtime_seconds=123)],
+    )
+    static_progress_printer.update(stats1)
+
+    # Normally, this prints a new line whenever the status changes.
+    # But since the new status is empty, it should just be ignored.
+    static_progress_printer.update(pb.OperationStats(total_operations=0))
+    # The new status is different from the previous one (empty),
+    # but it's the same as the last *printed* one, so it should be skipped.
+    static_progress_printer.update(stats1)
+
+    assert capsys.readouterr().err.splitlines() == [
+        "wandb: op 1",
+    ]
+
+
 def test_operation_progress_and_error(
     emulated_terminal,
     dynamic_progress_printer,

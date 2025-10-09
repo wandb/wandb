@@ -33,6 +33,7 @@ __all__ = [
     "REGISTRY_VERSIONS_GQL",
     "RUN_INPUT_ARTIFACTS_GQL",
     "RUN_OUTPUT_ARTIFACTS_GQL",
+    "TYPE_INFO_GQL",
     "UNLINK_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_GQL",
     "UPDATE_ARTIFACT_PORTFOLIO_GQL",
@@ -456,17 +457,7 @@ query RunOutputArtifacts($entity: String!, $project: String!, $runName: String!,
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
       outputArtifacts(after: $cursor, first: $perPage) {
-        totalCount
-        edges {
-          node {
-            ...ArtifactFragment
-          }
-          cursor
-        }
-        pageInfo {
-          endCursor
-          hasNextPage
-        }
+        ...RunOutputArtifactConnectionFragment
       }
     }
   }
@@ -518,6 +509,20 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+
+fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
+  totalCount
+  edges {
+    node {
+      ...ArtifactFragment
+    }
+    cursor
+  }
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
 }
 """
 
@@ -526,17 +531,7 @@ query RunInputArtifacts($entity: String!, $project: String!, $runName: String!, 
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
       inputArtifacts(after: $cursor, first: $perPage) {
-        totalCount
-        edges {
-          node {
-            ...ArtifactFragment
-          }
-          cursor
-        }
-        pageInfo {
-          endCursor
-          hasNextPage
-        }
+        ...RunInputArtifactConnectionFragment
       }
     }
   }
@@ -588,6 +583,20 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+
+fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
+  totalCount
+  edges {
+    node {
+      ...ArtifactFragment
+    }
+    cursor
+  }
+  pageInfo {
+    endCursor
+    hasNextPage
+  }
 }
 """
 
@@ -1036,6 +1045,27 @@ mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
     artifactID
     success
     clientMutationId
+  }
+}
+"""
+
+TYPE_INFO_GQL = """
+query TypeInfo($name: String!) {
+  __type(name: $name) {
+    ...TypeInfoFragment
+  }
+}
+
+fragment TypeInfoFragment on __Type {
+  name
+  fields {
+    name
+    args {
+      name
+    }
+  }
+  inputFields {
+    name
   }
 }
 """

@@ -156,14 +156,10 @@ class Printer(abc.ABC):
         """
 
     @abc.abstractmethod
-    def progress_close(self, text: str | None = None) -> None:
+    def progress_close(self) -> None:
         """Close the progress indicator.
 
         After this, `progress_update` should not be used.
-
-        Args:
-            text: The final text to set on the progress indicator.
-                Ignored in Jupyter notebooks.
         """
 
     @staticmethod
@@ -342,12 +338,9 @@ class _PrinterTerm(Printer):
         wandb.termlog(f"{next(self._progress)} {text}", newline=False)
 
     @override
-    def progress_close(self, text: str | None = None) -> None:
+    def progress_close(self) -> None:
         if self._settings and self._settings.silent:
             return
-
-        text = text or " " * 79
-        wandb.termlog(text)
 
     @property
     @override
@@ -462,11 +455,14 @@ class _PrinterJupyter(Printer):
             display_id=True,
         )
 
-        if handle:
-            yield _DynamicJupyterText(handle)
-            handle.update(self._ipython_display.HTML(""))
-        else:
+        if not handle:
             yield None
+            return
+
+        try:
+            yield _DynamicJupyterText(handle)
+        finally:
+            handle.update(self._ipython_display.HTML(""))
 
     @override
     def display(
@@ -539,7 +535,7 @@ class _PrinterJupyter(Printer):
         self._progress.update(percent_done, text)
 
     @override
-    def progress_close(self, text: str | None = None) -> None:
+    def progress_close(self) -> None:
         if self._progress:
             self._progress.close()
 

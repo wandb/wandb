@@ -385,6 +385,59 @@ class RegistryVersionsPagePageInfo(GQLBase):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+class RunInputArtifactConnectionFragment(GQLBase):
+    total_count: int = Field(alias="totalCount")
+    edges: List[RunInputArtifactConnectionFragmentEdges]
+    page_info: RunInputArtifactConnectionFragmentPageInfo = Field(alias="pageInfo")
+
+
+class RunInputArtifactConnectionFragmentEdges(GQLBase):
+    node: Optional[ArtifactFragment]
+    cursor: str
+
+
+class RunInputArtifactConnectionFragmentPageInfo(GQLBase):
+    end_cursor: Optional[str] = Field(alias="endCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
+
+
+class RunOutputArtifactConnectionFragment(GQLBase):
+    total_count: int = Field(alias="totalCount")
+    edges: List[RunOutputArtifactConnectionFragmentEdges]
+    page_info: RunOutputArtifactConnectionFragmentPageInfo = Field(alias="pageInfo")
+
+
+class RunOutputArtifactConnectionFragmentEdges(GQLBase):
+    node: Optional[ArtifactFragment]
+    cursor: str
+
+
+class RunOutputArtifactConnectionFragmentPageInfo(GQLBase):
+    end_cursor: Optional[str] = Field(alias="endCursor")
+    has_next_page: bool = Field(alias="hasNextPage")
+
+
+class TypeInfoFragment(GQLBase):
+    name: Optional[str]
+    fields: Optional[List[TypeInfoFragmentFields]]
+    input_fields: Optional[List[TypeInfoFragmentInputFields]] = Field(
+        alias="inputFields"
+    )
+
+
+class TypeInfoFragmentFields(GQLBase):
+    name: str
+    args: List[TypeInfoFragmentFieldsArgs]
+
+
+class TypeInfoFragmentFieldsArgs(GQLBase):
+    name: str
+
+
+class TypeInfoFragmentInputFields(GQLBase):
+    name: str
+
+
 class ArtifactFragment(ArtifactFragmentWithoutAliases):
     aliases: Optional[List[ArtifactFragmentAliases]] = None
 
@@ -451,9 +504,21 @@ RegistryVersionsPageEdgesNodeArtifactCollection.model_rebuild()
 RegistryVersionsPageEdgesNodeArtifactCollectionProject.model_rebuild()
 RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity.model_rebuild()
 RegistryVersionsPagePageInfo.model_rebuild()
+RunInputArtifactConnectionFragment.model_rebuild()
+RunInputArtifactConnectionFragmentEdges.model_rebuild()
+RunInputArtifactConnectionFragmentPageInfo.model_rebuild()
+RunOutputArtifactConnectionFragment.model_rebuild()
+RunOutputArtifactConnectionFragmentEdges.model_rebuild()
+RunOutputArtifactConnectionFragmentPageInfo.model_rebuild()
+TypeInfoFragment.model_rebuild()
+TypeInfoFragmentFields.model_rebuild()
+TypeInfoFragmentFieldsArgs.model_rebuild()
+TypeInfoFragmentInputFields.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactFragmentWithoutAliases.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
 RegistryFragment.model_rebuild()
+ArtifactFragment.model_rebuild()
+ArtifactFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactFragment.model_rebuild()

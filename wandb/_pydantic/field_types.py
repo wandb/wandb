@@ -2,39 +2,27 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
-from pydantic import Field, Json, StrictStr
+from pydantic import Field, StrictStr
 from typing_extensions import Annotated
 
-from .utils import IS_PYDANTIC_V2, to_json
+from .utils import IS_PYDANTIC_V2
 
 T = TypeVar("T")
 
+# HACK: Pydantic no longer seems to like it when you define a type alias
+# at the module level with `Annotated[...]`.
+# The commented TypeAliases are a hack to unblock CI for now.
 
-def ensure_json(v: Any) -> Any:
-    """In case the incoming value isn't serialized JSON, reserialize it.
-
-    This lets us use `Json[...]` fields with values that are already deserialized.
-    """
-    # NOTE: Assumes that the deserialized type is not itself a string.
-    # Revisit this if we need to support deserialized types that are str/bytes.
-    return v if isinstance(v, (str, bytes)) else to_json(v)
-
-
-#: GraphQL `__typename` fields
-Typename = Annotated[T, Field(repr=False, frozen=True, alias="__typename")]
+# Typename = Annotated[T, Field(repr=False, frozen=True, alias="__typename")]
+Typename = Annotated[T, Field(alias="__typename")]
+"""Annotates GraphQL `__typename` fields."""
 
 
 if IS_PYDANTIC_V2 or TYPE_CHECKING:
-    from pydantic import BeforeValidator, PlainSerializer
-
-    GQLId = Annotated[StrictStr, Field(repr=False, frozen=True)]
-
-    # Allow lenient instantiation/validation: incoming data may already be deserialized.
-    SerializedToJson = Annotated[
-        Json[T], BeforeValidator(ensure_json), PlainSerializer(to_json)
-    ]
+    # GQLId = Annotated[StrictStr, Field(repr=False, frozen=True)]
+    GQLId = StrictStr
 
 else:
     # FIXME: Find a way to fix this for pydantic v1, which doesn't like when
@@ -44,6 +32,3 @@ else:
     #   class MyModel(GQLBase):
     #       my_id: GQLId = Field(alias="myID")
     GQLId = StrictStr  # type: ignore[misc]
-
-    # FIXME: Restore, modify, or replace this later after ensuring pydantic v1 compatibility.
-    SerializedToJson = Json[T]  # type: ignore[misc]

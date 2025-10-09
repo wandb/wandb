@@ -26,6 +26,31 @@ func TestSizeLimit_HugeLine_SentAlone(t *testing.T) {
 	assert.False(t, done)
 }
 
+func TestSizeLimit_AboveMaxSize(t *testing.T) {
+	reader, isTruncated := NewRequestReader(
+		&FileStreamRequest{HistoryLines: []string{"one", "two"}},
+		// "one" will fit, "two" will not, and the size will not be exactly 5
+		5,
+	)
+
+	json := reader.GetJSON(&FileStreamState{})
+
+	assert.True(t, isTruncated)
+	assert.Equal(t, []string{"one"}, json.Files[HistoryFileName].Content)
+}
+
+func TestSizeLimit_BelowMaxSize(t *testing.T) {
+	reader, isTruncated := NewRequestReader(
+		&FileStreamRequest{HistoryLines: []string{"one", "two"}},
+		10, // both lines will fit
+	)
+
+	json := reader.GetJSON(&FileStreamState{})
+
+	assert.False(t, isTruncated)
+	assert.Equal(t, []string{"one", "two"}, json.Files[HistoryFileName].Content)
+}
+
 func TestHistory_MergeAppends(t *testing.T) {
 	req1 := &FileStreamRequest{HistoryLines: []string{"original"}}
 	req2 := &FileStreamRequest{HistoryLines: []string{"new"}}

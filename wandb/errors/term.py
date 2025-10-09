@@ -224,10 +224,10 @@ class DynamicBlock:
     """A handle to a changeable text area in the terminal."""
 
     def __init__(self):
-        self._lines_to_print = []
+        self._lines_to_print: list[str] = []
         self._num_lines_printed = 0
 
-    def set_text(self, text: str, prefix=True) -> None:
+    def set_text(self, text: str, prefix: bool = True) -> None:
         r"""Replace the text in this block.
 
         Args:
@@ -335,12 +335,12 @@ def _raw_shorten(text: str, width: int) -> str:
 
 
 def _log(
-    string="",
-    newline=True,
-    repeat=True,
-    prefix=True,
-    silent=False,
-    level=logging.INFO,
+    string: str = "",
+    newline: bool = True,
+    repeat: bool = True,
+    prefix: bool = True,
+    silent: bool = False,
+    level: int = logging.INFO,
 ) -> None:
     with _dynamic_text_lock, _l_above_dynamic_text():
         if not repeat:

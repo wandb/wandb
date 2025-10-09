@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
 func TestDefaultFileTransfer_Download(t *testing.T) {
@@ -36,7 +36,7 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	// Creating a file transfer
 	ft := filetransfer.NewDefaultFileTransfer(
 		retryablehttp.NewClient(),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 
@@ -98,7 +98,7 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	// Creating a file transfer
 	ft := filetransfer.NewDefaultFileTransfer(
 		retryablehttp.NewClient(),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 
@@ -136,7 +136,7 @@ func TestDefaultFileTransfer_UploadOffsetChunk(t *testing.T) {
 
 	ft := filetransfer.NewDefaultFileTransfer(
 		impatientClient(),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 
@@ -169,7 +169,7 @@ func TestDefaultFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
 
 	ft := filetransfer.NewDefaultFileTransfer(
 		impatientClient(),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 
@@ -229,7 +229,7 @@ func TestDefaultFileTransfer_UploadContextCancelled(t *testing.T) {
 	}))
 	ft := filetransfer.NewDefaultFileTransfer(
 		impatientClient(),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 
@@ -255,7 +255,7 @@ func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	ft := filetransfer.NewDefaultFileTransfer(
 		impatientClient(),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 
@@ -288,7 +288,7 @@ func uploadToServerWithHandler(
 	defer server.Close()
 	ft := filetransfer.NewDefaultFileTransfer(
 		impatientClient(),
-		observability.NewNoOpLogger(),
+		observabilitytest.NewTestLogger(t),
 		filetransfer.NewFileTransferStats(),
 	)
 

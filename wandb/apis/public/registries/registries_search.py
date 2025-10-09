@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from typing_extensions import override
 from wandb_gql import gql
 
+from wandb._analytics import tracked
 from wandb.apis.paginator import Paginator
 from wandb.apis.public.utils import gql_compat
 from wandb.sdk.artifacts._generated import (
@@ -23,8 +24,8 @@ from wandb.sdk.artifacts._generated import (
     RegistryVersions,
     RegistryVersionsPage,
 )
-from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
-from wandb.sdk.artifacts._validators import remove_registry_prefix
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
+from wandb.sdk.artifacts._validators import FullArtifactPath, remove_registry_prefix
 
 from ._utils import ensure_registry_prefix_on_names
 
@@ -69,6 +70,7 @@ class Registries(Paginator):
                 raise StopIteration
         return self.objects[self.index]
 
+    @tracked
     def collections(self, filter: dict[str, Any] | None = None) -> Collections:
         return Collections(
             client=self.client,
@@ -77,6 +79,7 @@ class Registries(Paginator):
             collection_filter=filter,
         )
 
+    @tracked
     def versions(self, filter: dict[str, Any] | None = None) -> Versions:
         return Versions(
             client=self.client,
@@ -177,6 +180,7 @@ class Collections(Paginator["ArtifactCollection"]):
                 raise StopIteration
         return self.objects[self.index]
 
+    @tracked
     def versions(self, filter: dict[str, Any] | None = None) -> Versions:
         return Versions(
             client=self.client,
@@ -266,7 +270,7 @@ class Versions(Paginator["Artifact"]):
         self.artifact_filter = artifact_filter or {}
 
         self.QUERY = gql_compat(
-            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields()
+            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields(client)
         )
 
         variables = {
@@ -331,9 +335,11 @@ class Versions(Paginator["Artifact"]):
         nodes = (e.node for e in self.last_response.edges)
         return [
             Artifact._from_attrs(
-                entity=project.entity.name,
-                project=project.name,
-                name=f"{collection.name}:v{node.version_index}",
+                path=FullArtifactPath(
+                    prefix=project.entity.name,
+                    project=project.name,
+                    name=f"{collection.name}:v{node.version_index}",
+                ),
                 attrs=artifact,
                 client=self.client,
                 aliases=[alias.alias for alias in node.aliases],

@@ -52,7 +52,7 @@ message RunMoment {
 //
 // Next ID: 199
 message Settings {
-  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 91, 94, 100, 136, 137, 173, 176;
+  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 70, 91, 94, 100, 136, 137, 173, 176, 180;
 
   // The W&B API key.
   //
@@ -113,12 +113,6 @@ message Settings {
 
   // The path to the file to use for internal logs.
   google.protobuf.StringValue log_internal = 86;
-
-  // Absolute path to the local directory where the run's files are stored.
-  google.protobuf.StringValue files_dir = 70;
-
-  // Internal override setting for the computed files_dir
-  google.protobuf.StringValue x_files_dir = 180;
 
   // Unix glob patterns relative to `files_dir` to not upload.
   ListStringValue ignore_globs = 78;

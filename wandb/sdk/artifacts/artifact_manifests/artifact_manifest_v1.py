@@ -1,60 +1,47 @@
 """Artifact manifest v1."""
 
+# Older-style type annotations required for Pydantic v1 / python 3.8 compatibility.
+# ruff: noqa: UP006
+
 from __future__ import annotations
 
 from operator import itemgetter
-from typing import Any, Mapping
+from typing import Any, Dict, Literal, final
 
-from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.storage_policy import StoragePolicy
+from pydantic import Field
+from typing_extensions import Annotated
+
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.hashutil import HexMD5, _md5
 
+from .._factories import make_storage_policy
+from .._models.manifest import ArtifactManifestV1Data
+from ..artifact_manifest import ArtifactManifest
+from ..artifact_manifest_entry import ArtifactManifestEntry
+from ..storage_policy import StoragePolicy
 
+
+@final
 class ArtifactManifestV1(ArtifactManifest):
-    @classmethod
-    def version(cls) -> int:
-        return 1
+    manifest_version: Annotated[Literal[1], Field(repr=False)] = 1
+    entries: Dict[str, ArtifactManifestEntry] = Field(default_factory=dict)
+
+    storage_policy: StoragePolicy = Field(
+        default_factory=make_storage_policy, exclude=True, repr=False
+    )
 
     @classmethod
     def from_manifest_json(
-        cls, manifest_json: dict, api: InternalApi | None = None
+        cls, manifest_json: dict[str, Any], api: InternalApi | None = None
     ) -> ArtifactManifestV1:
-        if manifest_json["version"] != cls.version():
-            raise ValueError(
-                "Expected manifest version 1, got {}".format(manifest_json["version"])
-            )
+        data = ArtifactManifestV1Data(**manifest_json)
 
-        storage_policy_name = manifest_json["storagePolicy"]
-        storage_policy_config = manifest_json.get("storagePolicyConfig", {})
-        storage_policy_cls = StoragePolicy.lookup_by_name(storage_policy_name)
-
-        entries: Mapping[str, ArtifactManifestEntry]
-        entries = {
-            name: ArtifactManifestEntry(
-                path=name,
-                digest=val["digest"],
-                birth_artifact_id=val.get("birthArtifactID"),
-                ref=val.get("ref"),
-                size=val.get("size"),
-                extra=val.get("extra"),
-                local_path=val.get("local_path"),
-                skip_cache=val.get("skip_cache"),
-            )
-            for name, val in manifest_json["contents"].items()
-        }
-
+        policy_name = data.storage_policy
+        policy_cfg = data.storage_policy_config
+        policy = StoragePolicy.lookup_by_name(policy_name).from_config(policy_cfg, api)
         return cls(
-            storage_policy_cls.from_config(storage_policy_config, api=api), entries
+            manifest_version=data.version, entries=data.contents, storage_policy=policy
         )
-
-    def __init__(
-        self,
-        storage_policy: StoragePolicy,
-        entries: Mapping[str, ArtifactManifestEntry] | None = None,
-    ) -> None:
-        super().__init__(storage_policy, entries=entries)
 
     def to_manifest_json(self) -> dict:
         """This is the JSON that's stored in wandb_manifest.json.
@@ -64,25 +51,15 @@ class ArtifactManifestV1(ArtifactManifest):
         system. We don't need to include the local paths in the artifact manifest
         contents.
         """
-        contents = {}
-        for name, entry in sorted(self.entries.items(), key=itemgetter(0)):
-            json_entry: dict[str, Any] = {
-                "digest": entry.digest,
-            }
-            if entry.birth_artifact_id:
-                json_entry["birthArtifactID"] = entry.birth_artifact_id
-            if entry.ref:
-                json_entry["ref"] = entry.ref
-            if entry.extra:
-                json_entry["extra"] = entry.extra
-            if entry.size is not None:
-                json_entry["size"] = entry.size
-            contents[name] = json_entry
+        omit_entry_fields = {"path", "local_path", "skip_cache"}
         return {
-            "version": self.__class__.version(),
+            "version": self.manifest_version,
             "storagePolicy": self.storage_policy.name(),
-            "storagePolicyConfig": self.storage_policy.config() or {},
-            "contents": contents,
+            "storagePolicyConfig": self.storage_policy.config(),
+            "contents": {
+                path: entry.model_dump(exclude=omit_entry_fields, exclude_defaults=True)
+                for path, entry in self.entries.items()
+            },
         }
 
     def digest(self) -> HexMD5:

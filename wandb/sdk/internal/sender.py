@@ -311,7 +311,10 @@ class SendManager:
         self._output_raw_file = None
 
         # job builder
-        self._job_builder = JobBuilder(settings)
+        self._job_builder = JobBuilder(
+            settings,
+            files_dir=settings.files_dir,
+        )
 
         time_now = time.monotonic()
         self._debounce_config_time = time_now
@@ -343,7 +346,7 @@ class SendManager:
         publish_interface = InterfaceQueue(record_q=record_q)
         context_keeper = context.ContextKeeper()
         return SendManager(
-            settings=SettingsStatic(settings.to_proto()),
+            settings=SettingsStatic(dict(settings)),
             record_q=record_q,
             result_q=result_q,
             interface=publish_interface,

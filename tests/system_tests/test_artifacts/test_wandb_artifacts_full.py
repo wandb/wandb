@@ -782,10 +782,46 @@ def test_used_artifacts_preserve_original_project(user, api, logged_artifact):
 
 
 def test_internal_artifacts(user):
-    internal_type = RESERVED_ARTIFACT_TYPE_PREFIX + "invalid"
+    internal_type = f"{RESERVED_ARTIFACT_TYPE_PREFIX}invalid"
     with wandb.init() as run:
         with pytest.raises(ValueError, match="is reserved for internal use"):
             artifact = wandb.Artifact(name="test-artifact", type=internal_type)
 
         artifact = InternalArtifact(name="test-artifact", type=internal_type)
         run.log_artifact(artifact)
+
+
+def test_storage_policy_storage_region(user, tmp_path):
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("test data")
+    project = "test"
+    with wandb.init(entity=user, project=project) as run:
+        # Set in onprem/local/scripts/env.txt when building the test container from gorilla.
+        art = wandb.Artifact(
+            "test-storage-region", type="dataset", storage_region="minio-local"
+        )
+        art.add_file(file_path)
+        run.log_artifact(art)
+        art.wait()
+
+    # Able to download the file
+    api = Api()
+    art = api.artifact(f"{user}/{project}/test-storage-region:latest")
+    art.download()
+    assert os.path.exists(file_path)
+    assert open(file_path).read() == "test data"
+
+    # Manifest should have the storage region
+    manifest = art.manifest.to_manifest_json()
+    assert manifest["storagePolicyConfig"]["storageRegion"] == "minio-local"
+
+
+def test_storage_policy_storage_region_not_available(user):
+    with wandb.init() as run:
+        # NOTE: We match on the region name instead of exact API error because different versions of server fails at different APIs.
+        # In latest version, storageRegion is passed in `CreateArtifact` and it would return soemthing like `CreateArtifact invalid storageRegion: coreweave-us`
+        # In previous version, storageRegion is ignored in graphql APIs but used in `CommitArtifact` from manifest json and ther error is `malformed region: coreweave-us`
+        with pytest.raises(ValueError, match="coreweave-us"):
+            art = wandb.Artifact("test", type="dataset", storage_region="coreweave-us")
+            run.log_artifact(art)
+            art.wait()
