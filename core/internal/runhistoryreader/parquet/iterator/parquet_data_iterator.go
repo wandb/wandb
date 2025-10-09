@@ -54,6 +54,7 @@ func NewParquetDataIterator(
 	return rgi, nil
 }
 
+// Next implements RowIterator.Next.
 func (r *ParquetDataIterator) Next() (bool, error) {
 	next, err := r.current.Next()
 	if next || err != nil {
@@ -78,11 +79,13 @@ func (r *ParquetDataIterator) Next() (bool, error) {
 	return false, nil
 }
 
+// Value implements RowIterator.Value.
 func (r *ParquetDataIterator) Value() KeyValueList {
 	return r.current.Value()
 }
 
-// Release implements the RowIterator interface.
+// Release implements RowIterator.Release.
+//
 // Releases the underlying resources used by the iterator.
 // It should be called only once after the iterator is no longer needed.
 // Additional calls to Release are no-ops.
