@@ -11,21 +11,21 @@ type keyIteratorPair struct {
 	Iterator columnIterator
 }
 
-// recordIterator iterates over a row group in a parquet file
-type recordIterator struct {
-	recordBatch           arrow.RecordBatch
-	columns          map[string]keyIteratorPair
-	cachedValue            KeyValueList
+// RowGroupIterator iterates over a row group in a parquet file
+type RowGroupIterator struct {
+	recordBatch arrow.RecordBatch
+	columns     map[string]keyIteratorPair
+	cachedValue KeyValueList
 
-	selectedRows *SelectedRows
+	selectedRows    *SelectedRows
 	selectedColumns *SelectedColumns
 }
 
-func NewRecordIterator(
+func NewRowGroupIterator(
 	recordBatch arrow.RecordBatch,
 	selectedColumns *SelectedColumns,
 	selectedRows *SelectedRows,
-) (RowIterator, error) {
+) (*RowGroupIterator, error) {
 	// Increment the reference count of the record.
 	recordBatch.Retain()
 
@@ -40,11 +40,11 @@ func NewRecordIterator(
 		return nil, err
 	}
 
-	return &recordIterator{
-		recordBatch:           recordBatch,
-		columns:          cols,
+	return &RowGroupIterator{
+		recordBatch: recordBatch,
+		columns:     cols,
 
-		selectedRows: selectedRows,
+		selectedRows:    selectedRows,
 		selectedColumns: selectedColumns,
 	}, nil
 }
@@ -55,7 +55,7 @@ func mapToRecordColumns(
 ) (map[string]keyIteratorPair, error) {
 	cols := make(
 		map[string]keyIteratorPair,
-		len(requestedColumns) + 1,
+		len(requestedColumns)+1,
 	)
 
 	for i := 0; i < int(recordBatch.NumCols()); i++ {
@@ -89,7 +89,7 @@ func mapToRecordColumns(
 // Next implements RowIterator.Next.
 //
 // It advances the iterator to next row in the arrow.RecordBatch.
-func (t *recordIterator) Next() (bool, error) {
+func (t *RowGroupIterator) Next() (bool, error) {
 	// Clear the cached value for the row before advancing.
 	t.cachedValue = nil
 
@@ -119,7 +119,7 @@ RowSearch:
 }
 
 // Value implements RowIterator.Value.
-func (t *recordIterator) Value() KeyValueList {
+func (t *RowGroupIterator) Value() KeyValueList {
 	// cache the value in case we're asked for it multiple times
 	if t.cachedValue != nil {
 		return t.cachedValue
@@ -136,6 +136,6 @@ func (t *recordIterator) Value() KeyValueList {
 }
 
 // Release implements RowIterator.Release.
-func (t *recordIterator) Release() {
+func (t *RowGroupIterator) Release() {
 	t.recordBatch.Release()
 }
