@@ -141,7 +141,13 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
             )
 
         def list_blobs(self, *args, **kwargs):
-            return [Blob(), Blob(name="my_other_object.pb")]
+            if override_blob_name.endswith("/"):
+                return [
+                    Blob(name=override_blob_name),
+                    Blob(name=f"{override_blob_name}my_other_object.pb"),
+                ]
+            else:
+                return [Blob(), Blob(name="my_other_object.pb")]
 
     class GSClient:
         def bucket(self, bucket):
@@ -937,7 +943,16 @@ def test_add_gs_reference_with_dir_paths(artifact):
     mock_gcs(artifact, override_blob_name="my_folder/")
     artifact.add_reference("gs://my-bucket/my_folder/")
 
-    assert len(artifact.manifest.entries) == 0
+    # uploading a reference to a folder path should add entries for
+    # everything returned by the list_blobs call
+    assert len(artifact.manifest.entries) == 1
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["my_other_object.pb"] == {
+        "digest": "1234567890abcde",
+        "ref": "gs://my-bucket/my_folder/my_other_object.pb",
+        "extra": {"versionID": "1"},
+        "size": 10,
+    }
 
 
 def test_load_gs_reference_with_dir_paths(artifact):
