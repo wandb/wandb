@@ -16,3 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - Settings `console_chunk_max_seconds` and `console_chunk_max_bytes` for size- and time-based multipart console logs file chunking (@dmitryduev in https://github.com/wandb/wandb/pull/10162)
+
+### Fixed
+
+- `wandb.Api(api_key=...)` now prioritizes the explicitly provided API key over thread-local cached credentials (@pingleiwandb in https://github.com/wandb/wandb/pull/10657)
