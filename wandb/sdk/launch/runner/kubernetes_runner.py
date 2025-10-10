@@ -1124,7 +1124,7 @@ class KubernetesRunner(AbstractRunner):
             job_name,
             namespace,
             secret,
-            auxiliary_resource_label_value,
+            auxiliary_resource_label_value if additional_services else None,
             wandb_team_secrets_secret,
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
