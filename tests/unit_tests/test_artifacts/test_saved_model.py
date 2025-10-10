@@ -137,8 +137,8 @@ class ArtifactManifestEntryPatch(ArtifactManifestEntry):
 
 
 class ArtifactPatch(Artifact):
-    def _load_manifest(self, url: str) -> None:
-        assert url == "FAKE_URL"
+    def _fetch_manifest(self) -> None:  # type: ignore
+        return None
 
 
 def make_local_artifact_public(art: Artifact):
@@ -170,7 +170,8 @@ def make_local_artifact_public(art: Artifact):
         description=None,
         metadata=None,
         state="COMMITTED",
-        # currentManifest={"file": {"directUrl": "FAKE_URL"}},
+        size=0,
+        digest="FAKE_DIGEST",
         commitHash="FAKE_HASH",
         fileCount=0,
         createdAt="FAKE_CREATED_AT",
