@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from operator import itemgetter
-from typing import Any, Dict, Literal, final
+from typing import Any, ClassVar, Dict, Literal, final
 
 from pydantic import Field
 from typing_extensions import Annotated
@@ -62,7 +62,7 @@ class ArtifactManifestV1(ArtifactManifest):
             },
         }
 
-    _DIGEST_HEADER = b"wandb-artifact-manifest-v1\n"
+    _DIGEST_HEADER: ClassVar[bytes] = b"wandb-artifact-manifest-v1\n"
     """Encoded prefix/header for the ArtifactManifest digest."""
 
     def digest(self) -> HexMD5:

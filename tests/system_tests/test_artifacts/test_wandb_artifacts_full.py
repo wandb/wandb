@@ -791,7 +791,7 @@ def test_internal_artifacts(user):
         run.log_artifact(artifact)
 
 
-def test_storage_policy_storage_region(user, tmp_path):
+def test_storage_policy_storage_region(user, api, tmp_path):
     file_path = tmp_path / "test.txt"
     file_path.write_text("test data")
     project = "test"
@@ -805,7 +805,6 @@ def test_storage_policy_storage_region(user, tmp_path):
         art.wait()
 
     # Able to download the file
-    api = Api()
     art = api.artifact(f"{user}/{project}/test-storage-region:latest")
     art.download()
     assert os.path.exists(file_path)
