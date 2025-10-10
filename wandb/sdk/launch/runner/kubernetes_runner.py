@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import time
+import uuid
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
@@ -1064,9 +1065,7 @@ class KubernetesRunner(AbstractRunner):
         additional_services: List[Dict[str, Any]] = recursive_macro_sub(
             launch_project.launch_spec.get("additional_services", []), update_dict
         )
-        auxiliary_resource_label_value = make_k8s_label_safe(
-            f"aux-{launch_project.target_entity}-{launch_project.target_project}-{launch_project.run_id}"
-        )
+        auxiliary_resource_label_value = str(uuid.uuid4())
         if additional_services:
             wandb.termlog(
                 f"{LOG_PREFIX}Creating additional services: {additional_services}"
