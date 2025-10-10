@@ -1754,7 +1754,7 @@ async def test_launch_additional_services(
     expected_deployment_name = "deploy-test-entity-test-project-test-run-id"
     expected_pod_name = "pod-test-entity-test-project-test-run-id"
     expected_label = "auxiliary-resource"
-    expected_auxiliary_resource_label = "aux-test-entity-test-project-test-run-id"
+    expected_auxiliary_resource_label = "aux-test-run-id-test-project-test-entity"
 
     additional_service = {
         "apiVersion": "apps/v1",

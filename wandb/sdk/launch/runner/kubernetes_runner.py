@@ -1065,7 +1065,7 @@ class KubernetesRunner(AbstractRunner):
             launch_project.launch_spec.get("additional_services", []), update_dict
         )
         auxiliary_resource_label_value = make_k8s_label_safe(
-            f"aux-{launch_project.target_entity}-{launch_project.target_project}-{launch_project.run_id}"
+            f"aux-{launch_project.run_id}-{launch_project.target_project}-{launch_project.target_entity}"
         )
         if additional_services:
             wandb.termlog(
