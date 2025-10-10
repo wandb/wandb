@@ -9,30 +9,18 @@ from pydantic import Field
 
 from wandb._pydantic import GQLBase
 
+from .fragments import DeferredManifestFragment
+
 
 class FetchArtifactManifest(GQLBase):
-    project: Optional[FetchArtifactManifestProject]
+    artifact: Optional[FetchArtifactManifestArtifact]
 
 
-class FetchArtifactManifestProject(GQLBase):
-    artifact: Optional[FetchArtifactManifestProjectArtifact]
-
-
-class FetchArtifactManifestProjectArtifact(GQLBase):
-    current_manifest: Optional[FetchArtifactManifestProjectArtifactCurrentManifest] = (
-        Field(alias="currentManifest")
+class FetchArtifactManifestArtifact(GQLBase):
+    current_manifest: Optional[DeferredManifestFragment] = Field(
+        alias="currentManifest"
     )
 
 
-class FetchArtifactManifestProjectArtifactCurrentManifest(GQLBase):
-    file: FetchArtifactManifestProjectArtifactCurrentManifestFile
-
-
-class FetchArtifactManifestProjectArtifactCurrentManifestFile(GQLBase):
-    direct_url: str = Field(alias="directUrl")
-
-
 FetchArtifactManifest.model_rebuild()
-FetchArtifactManifestProject.model_rebuild()
-FetchArtifactManifestProjectArtifact.model_rebuild()
-FetchArtifactManifestProjectArtifactCurrentManifest.model_rebuild()
+FetchArtifactManifestArtifact.model_rebuild()

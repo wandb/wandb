@@ -425,11 +425,8 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   }
   historyStep @include(if: true)
   state
-  currentManifest {
-    file {
-      directUrl
-    }
-  }
+  size
+  digest
   commitHash
   fileCount
   createdAt
@@ -500,11 +497,8 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   }
   historyStep @include(if: true)
   state
-  currentManifest {
-    file {
-      directUrl
-    }
-  }
+  size
+  digest
   commitHash
   fileCount
   createdAt
@@ -574,11 +568,8 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   }
   historyStep @include(if: true)
   state
-  currentManifest {
-    file {
-      directUrl
-    }
-  }
+  size
+  digest
   commitHash
   fileCount
   createdAt
@@ -626,15 +617,17 @@ query FetchLinkedArtifacts($artifactID: ID!) {
 """
 
 FETCH_ARTIFACT_MANIFEST_GQL = """
-query FetchArtifactManifest($entityName: String!, $projectName: String!, $name: String!) {
-  project(entityName: $entityName, name: $projectName) {
-    artifact(name: $name) {
-      currentManifest {
-        file {
-          directUrl
-        }
-      }
+query FetchArtifactManifest($id: ID!) {
+  artifact(id: $id) {
+    currentManifest {
+      ...DeferredManifestFragment
     }
+  }
+}
+
+fragment DeferredManifestFragment on ArtifactManifest {
+  file {
+    directUrl
   }
 }
 """
@@ -683,11 +676,8 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   }
   historyStep @include(if: true)
   state
-  currentManifest {
-    file {
-      directUrl
-    }
-  }
+  size
+  digest
   commitHash
   fileCount
   createdAt
@@ -741,11 +731,8 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   }
   historyStep @include(if: true)
   state
-  currentManifest {
-    file {
-      directUrl
-    }
-  }
+  size
+  digest
   commitHash
   fileCount
   createdAt
@@ -799,11 +786,8 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   }
   historyStep @include(if: true)
   state
-  currentManifest {
-    file {
-      directUrl
-    }
-  }
+  size
+  digest
   commitHash
   fileCount
   createdAt
@@ -939,11 +923,8 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   }
   historyStep @include(if: true)
   state
-  currentManifest {
-    file {
-      directUrl
-    }
-  }
+  size
+  digest
   commitHash
   fileCount
   createdAt
@@ -1008,11 +989,8 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   }
   historyStep @include(if: true)
   state
-  currentManifest {
-    file {
-      directUrl
-    }
-  }
+  size
+  digest
   commitHash
   fileCount
   createdAt
@@ -1110,11 +1088,8 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   }
   historyStep @include(if: true)
   state
-  currentManifest {
-    file {
-      directUrl
-    }
-  }
+  size
+  digest
   commitHash
   fileCount
   createdAt
