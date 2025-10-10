@@ -504,18 +504,18 @@ class Runs(SizedPaginator["Run"]):
             with_project_id=_server_provides_project_id_for_run(self.client),
         )
 
-        # Upgrade any existing runs that have been loaded - use parallel loading for performance
+        # Upgrade any existing runs that have been loaded - use sequential loading to avoid threading issues
         lazy_runs = [run for run in self.objects if run._lazy]
         if lazy_runs:
-            from concurrent.futures import ThreadPoolExecutor
-
-            # Limit workers to avoid overwhelming the server
-            max_workers = min(len(lazy_runs), 10)
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = [executor.submit(run.load_full_data) for run in lazy_runs]
-                # Wait for all to complete
-                for future in futures:
-                    future.result()
+            # Sequential loading to prevent asyncio manager deadlocks
+            # While this is slower than parallel loading, it's safer and prevents
+            # overwhelming the asyncio system with concurrent network requests
+            for run in lazy_runs:
+                try:
+                    run.load_full_data()
+                except Exception:
+                    # Don't let individual run failures break the entire upgrade
+                    pass
 
 
 class Run(Attrs):
@@ -745,21 +745,24 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
-        if not self._is_loaded:
+        if not self._is_loaded or force:
             # Always set _project_internal_id if projectId is available, regardless of fragment type
             if "projectId" in self._attrs:
                 self._project_internal_id = int(self._attrs["projectId"])
             else:
                 self._project_internal_id = None
 
-            # Only call _load_from_attrs when using the full fragment or when the fields are actually present
+            # Always call _load_from_attrs when using the full fragment or when the fields are actually present
             if fragment_name == RUN_FRAGMENT_NAME or (
                 "config" in self._attrs
                 or "summaryMetrics" in self._attrs
                 or "systemMetrics" in self._attrs
             ):
                 self._load_from_attrs()
-            self._is_loaded = True
+
+            # Only mark as loaded for lightweight fragments, not full fragments
+            if fragment_name == LIGHTWEIGHT_RUN_FRAGMENT_NAME:
+                self._is_loaded = True
 
         return self._attrs
 
@@ -1305,7 +1308,15 @@ class Run(Attrs):
         """Get run config. Auto-loads full data if in lazy mode."""
         if self._lazy and not self._full_data_loaded and "config" not in self._attrs:
             self.load_full_data()
-        return self._attrs.get("config", {})
+
+        # Ensure config is always converted to dict (defensive against conversion issues)
+        config_value = self._attrs.get("config", {})
+        if isinstance(config_value, str):
+            # Convert string config to dict and cache the result
+            config_value = _convert_to_dict(config_value)
+            self._attrs["config"] = config_value
+
+        return config_value
 
     @property
     def summary(self):
@@ -1332,7 +1343,15 @@ class Run(Attrs):
             and "systemMetrics" not in self._attrs
         ):
             self.load_full_data()
-        return self._attrs.get("systemMetrics", {})
+
+        # Ensure systemMetrics is always converted to dict (defensive against conversion issues)
+        system_metrics_value = self._attrs.get("systemMetrics", {})
+        if isinstance(system_metrics_value, str):
+            # Convert string to dict and cache the result
+            system_metrics_value = _convert_to_dict(system_metrics_value)
+            self._attrs["systemMetrics"] = system_metrics_value
+
+        return system_metrics_value
 
     @property
     def summary_metrics(self):
@@ -1343,7 +1362,15 @@ class Run(Attrs):
             and "summaryMetrics" not in self._attrs
         ):
             self.load_full_data()
-        return self._attrs.get("summaryMetrics", {})
+
+        # Ensure summaryMetrics is always converted to dict (defensive against conversion issues)
+        summary_metrics_value = self._attrs.get("summaryMetrics", {})
+        if isinstance(summary_metrics_value, str):
+            # Convert string to dict and cache the result
+            summary_metrics_value = _convert_to_dict(summary_metrics_value)
+            self._attrs["summaryMetrics"] = summary_metrics_value
+
+        return summary_metrics_value
 
     @property
     def rawconfig(self):
