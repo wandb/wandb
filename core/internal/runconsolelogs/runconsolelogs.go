@@ -28,6 +28,10 @@ const (
 )
 
 // Sender processes OutputRawRecords.
+//
+// It processes console output records, applies terminal emulation,
+// and writes the results to file(s) and/or the filestream.
+// In multipart mode, the output is split into chunks that are uploaded periodically.
 type Sender struct {
 	mu         sync.Mutex
 	isFinished bool
@@ -51,15 +55,10 @@ type Sender struct {
 	captureEnabled bool
 
 	// fileWriter handles writing to disk (either single file or chunked).
-	fileWriter fileWriter
+	fileWriter *outputFileWriter
 
 	// isMultipart indicates whether we're using chunked file output.
 	isMultipart bool
-}
-
-// fileWriter is an interface for writing console logs to files.
-type fileWriter interface {
-	WriteToFile(sparselist.SparseList[*RunLogsLine]) error
 }
 
 // Params contains parameters for creating a console logs Sender.
@@ -95,18 +94,13 @@ type Params struct {
 	// under the `logs/` directory instead of a single `output.log`.
 	Multipart bool
 
-	// Size-based rollover threshold for multipart console logs, in bytes.
+	// ChunkMaxBytes is a size-based rollover threshold for multipart console logs, in bytes.
 	ChunkMaxBytes int32
 
-	// Time-based rollover threshold for multipart console logs, in seconds.
+	// ChunkMaxSeconds is a time-based rollover threshold for multipart console logs, in seconds.
 	ChunkMaxSeconds int32
 }
 
-// New creates a new console logs Sender.
-//
-// The sender processes console output records, applies terminal emulation,
-// and writes the results to files and/or the filestream. In multipart mode,
-// the output is split into chunks that are uploaded periodically.
 func New(params Params) *Sender {
 	if params.Logger == nil {
 		panic("runconsolelogs: Logger is nil")
@@ -138,60 +132,28 @@ func New(params Params) *Sender {
 		}
 	}
 
-	var fileWriter fileWriter
+	var fileWriter *outputFileWriter
 	if params.EnableCapture {
-		if params.Multipart {
-			// Extract chunk configuration.
-			maxBytes := int64(params.ChunkMaxBytes)
-			maxSeconds := int64(params.ChunkMaxSeconds)
-
-			// Create chunked writer
-			extension := filepath.Ext(string(outputFileName))
-			baseFileName := strings.TrimSuffix(string(outputFileName), extension)
-
-			fileWriter = NewChunkedFileWriter(ChunkedFileWriterParams{
-				BaseFileName:     baseFileName,
-				OutputExtension:  extension,
-				FilesDir:         params.FilesDir,
-				MaxChunkBytes:    maxBytes,
-				MaxChunkDuration: time.Duration(maxSeconds) * time.Second,
-				Uploader:         params.RunfilesUploaderOrNil,
-				Logger:           params.Logger,
-			})
-		} else {
-			var err error
-			fileWriter, err = NewOutputFileWriter(
-				filepath.Join(params.FilesDir, string(outputFileName)),
-				params.Logger,
-			)
-
-			if err != nil {
-				params.Logger.CaptureError(
-					fmt.Errorf(
-						"runconsolelogs: cannot write to file: %v",
-						err,
-					))
-				fileWriter = nil
-			}
-		}
+		fileWriter = NewChunkedFileWriter(OutputFileWriterParams{
+			OutputFileName:  string(outputFileName),
+			FilesDir:        params.FilesDir,
+			Multipart:       params.Multipart,
+			MaxChunkBytes:   params.ChunkMaxBytes,
+			MaxChunkSeconds: params.ChunkMaxSeconds,
+			Uploader:        params.RunfilesUploaderOrNil,
+		})
 	}
 
 	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
 		func(lines sparselist.SparseList[*RunLogsLine]) {
 			if fileWriter != nil {
-				err := fileWriter.WriteToFile(lines)
-
-				if err != nil {
+				if err := fileWriter.WriteToFile(lines); err != nil {
 					params.Logger.CaptureError(
 						fmt.Errorf(
 							"runconsolelogs: failed to write to file: %v",
 							err,
 						))
-					// Don't nil out chunked writer on error - it handles its own degradation
-					if !params.Multipart {
-						fileWriter = nil
-					}
 				}
 			}
 

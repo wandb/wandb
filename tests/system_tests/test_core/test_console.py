@@ -109,7 +109,7 @@ def test_chunked_logs(user):
         print("AAAAA")
         print("BBBBB")
         # Sleep to bypass internal 10ms debounce
-        time.sleep(0.5)
+        # time.sleep(0.5)
         print("CCCCC")
 
     log_dir = pathlib.Path(run.dir) / "logs"
