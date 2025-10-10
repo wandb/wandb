@@ -34,6 +34,7 @@ from typing import (
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
+from typing_extensions import Self
 
 import wandb
 from wandb import data_types, env
@@ -284,6 +285,10 @@ class Artifact:
 
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
+
+    def __await__(self) -> Iterator[Self]:
+        """Supports `await artifact` as syntactic sugar for `artifact.wait()` within async code."""
+        yield self.wait()
 
     @classmethod
     def _from_id(cls, artifact_id: str, client: RetryingClient) -> Artifact | None:
@@ -1194,7 +1199,7 @@ class Artifact:
         self._save_handle = save_handle
         self._client = client
 
-    def wait(self, timeout: int | None = None) -> Artifact:
+    def wait(self, timeout: int | None = None) -> Self:
         """If needed, wait for this artifact to finish logging.
 
         Args:
