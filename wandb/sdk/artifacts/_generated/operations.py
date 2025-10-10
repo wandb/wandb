@@ -671,12 +671,10 @@ fragment ProjectInfoFragment on Project {
 """
 
 FETCH_ARTIFACT_MANIFEST_GQL = """
-query FetchArtifactManifest($entity: String!, $project: String!, $name: String!) {
-  project(name: $project, entityName: $entity) {
-    artifact(name: $name) {
-      currentManifest {
-        ...DeferredManifestFragment
-      }
+query FetchArtifactManifest($id: ID!) {
+  artifact(id: $id) {
+    currentManifest {
+      ...DeferredManifestFragment
     }
   }
 }

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import Field
 
@@ -57,7 +57,7 @@ class ArtifactFragmentWithoutAliases(GQLResult):
         alias="artifactType"
     )
     description: Optional[str]
-    metadata: Optional[Any]
+    metadata: Optional[str]
     ttl_duration_seconds: Optional[int] = Field(
         alias="ttlDurationSeconds", default=None
     )
@@ -79,10 +79,6 @@ class ArtifactFragmentWithoutAliasesArtifactSequence(GQLResult):
 
 
 class ArtifactFragmentWithoutAliasesArtifactType(GQLResult):
-    name: str
-
-
-class ArtifactFragmentWithoutAliasesArtifactType(GQLBase):
     name: str
 
 
@@ -110,76 +106,16 @@ class ArtifactTypeFragment(GQLResult):
     created_at: str = Field(alias="createdAt")
 
 
-class ArtifactTypesFragment(GQLBase):
-    edges: List[ArtifactTypesFragmentEdges]
-    page_info: ArtifactTypesFragmentPageInfo = Field(alias="pageInfo")
-
-
-class ArtifactTypesFragmentEdges(GQLBase):
-    node: Optional[ArtifactTypeFragment]
-    cursor: str
-
-
-class ArtifactTypesFragmentPageInfo(GQLBase):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
-
-
-class ArtifactsFragment(GQLBase):
-    total_count: int = Field(alias="totalCount")
-    edges: List[ArtifactsFragmentEdges]
-    page_info: ArtifactsFragmentPageInfo = Field(alias="pageInfo")
-
-
-class ArtifactsFragmentEdges(GQLBase):
-    node: ArtifactFragment
-    version: str
-    cursor: str
-
-
-class ArtifactsFragmentPageInfo(GQLBase):
-    end_cursor: Optional[str] = Field(alias="endCursor")
-    has_next_page: bool = Field(alias="hasNextPage")
-
-
-class DeferredManifestFragment(GQLBase):
+class DeferredManifestFragment(GQLResult):
     file: DeferredManifestFragmentFile
 
 
-class DeferredManifestFragmentFile(GQLBase):
+class DeferredManifestFragmentFile(GQLResult):
     direct_url: str = Field(alias="directUrl")
 
 
-class FileUrlsFragment(GQLBase):
-    page_info: FileUrlsFragmentPageInfo = Field(alias="pageInfo")
-    edges: List[FileUrlsFragmentEdges]
-
-
-class FileUrlsFragmentEdges(GQLBase):
-    node: Optional[FileUrlsFragmentEdgesNode]
-
-
-class FileUrlsFragmentEdgesNode(GQLBase):
-    name: str
-    direct_url: str = Field(alias="directUrl")
-
-
-class FileUrlsFragmentPageInfo(GQLBase):
-    has_next_page: bool = Field(alias="hasNextPage")
-    end_cursor: Optional[str] = Field(alias="endCursor")
-
-
-class FilesFragment(GQLBase):
-    edges: List[FilesFragmentEdges]
-    page_info: FilesFragmentPageInfo = Field(alias="pageInfo")
-
-
-class FilesFragmentEdges(GQLBase):
-    node: Optional[FilesFragmentEdgesNode]
-    cursor: str
-
-
-class FilesFragmentEdgesNode(GQLBase):
+class FileFragment(GQLResult):
+    typename__: Typename[Literal["File"]] = "File"
     id: GQLId
     name: str
     url: Optional[str]
@@ -419,22 +355,10 @@ ArtifactFragmentWithoutAliasesTags.model_rebuild()
 ArtifactPortfolioTypeFields.model_rebuild()
 ArtifactSequenceTypeFields.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
-ArtifactTypesFragment.model_rebuild()
-ArtifactTypesFragmentEdges.model_rebuild()
-ArtifactTypesFragmentPageInfo.model_rebuild()
-ArtifactsFragment.model_rebuild()
-ArtifactsFragmentEdges.model_rebuild()
-ArtifactsFragmentPageInfo.model_rebuild()
 DeferredManifestFragment.model_rebuild()
 DeferredManifestFragmentFile.model_rebuild()
-FileUrlsFragment.model_rebuild()
-FileUrlsFragmentEdges.model_rebuild()
-FileUrlsFragmentEdgesNode.model_rebuild()
-FileUrlsFragmentPageInfo.model_rebuild()
-FilesFragment.model_rebuild()
-FilesFragmentEdges.model_rebuild()
-FilesFragmentEdgesNode.model_rebuild()
-FilesFragmentPageInfo.model_rebuild()
+FileFragment.model_rebuild()
+FileWithUrlFragment.model_rebuild()
 MembershipWithArtifact.model_rebuild()
 MembershipWithArtifactArtifactCollection.model_rebuild()
 PageInfoFragment.model_rebuild()

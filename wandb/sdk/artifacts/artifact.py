@@ -90,7 +90,6 @@ from ._generated import (
     ArtifactType,
     ArtifactUsedBy,
     ArtifactViaMembershipByName,
-    DeferredManifestFragment,
     DeleteAliasesInput,
     DeleteArtifactInput,
     FetchArtifactManifest,
@@ -135,6 +134,7 @@ from .exceptions import (
 )
 from .staging import get_staging_dir
 from .storage_handlers.gcs_handler import _GCSIsADirectoryError
+from .storage_policies._factories import raise_for_status
 from .storage_policies._multipart import should_multipart_download
 
 reset_path = vendor_setup()
@@ -1022,33 +1022,28 @@ class Artifact:
         The manifest lists all of its contents, and can't be changed once the artifact
         has been logged.
         """
-        # if isinstance(self._manifest, _DeferredArtifactManifest):
-        #     # A deferred manifest URL flags a deferred download request,
-        #     # so fetch the manifest to override the placeholder object
-        #     self._manifest = self._load_manifest(self._manifest.url)
-        #     return self._manifest
-
         if self._manifest is None:
-            manifest_url = self._fetch_manifest_fragment().file.direct_url
-            self._manifest = self._load_manifest(manifest_url)
+            self._manifest = self._fetch_manifest()
         return self._manifest
 
-    def _fetch_manifest_fragment(self) -> DeferredManifestFragment:
+    def _fetch_manifest(self) -> ArtifactManifest:
+        """Fetch, parse, and load the full ArtifactManifest."""
         if self._client is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
+        # From the GraphQL API, get the (expiring) directUrl for downloading the manifest.
         gql_op = gql(FETCH_ARTIFACT_MANIFEST_GQL)
-        gql_vars = {"entity": self.entity, "project": self.project, "name": self.name}
+        gql_vars = {"id": self.id}
         data = self._client.execute(gql_op, variable_values=gql_vars)
         result = FetchArtifactManifest.model_validate(data)
 
-        if not (
-            (project := result.project)
-            and (artifact := project.artifact)
-            and (manifest := artifact.current_manifest)
-        ):
-            raise ValueError("Failed to fetch artifact manifest")
-        return manifest
+        # Now fetch the actual manifest contents from the directUrl.
+        if (artifact := result.artifact) and (manifest := artifact.current_manifest):
+            url = manifest.file.direct_url
+            rsp = self._client.session.get(url, hooks={"response": raise_for_status})
+            return ArtifactManifest.from_manifest_json(from_json(rsp.content))
+
+        raise ValueError("Failed to fetch artifact manifest")
 
     @property
     def digest(self) -> str:
@@ -2590,14 +2585,6 @@ class Artifact:
         ):
             return artifact_type.name
         return None
-
-    def _load_manifest(self, url: str) -> ArtifactManifest:
-        if self._client is None:
-            raise RuntimeError("Client not initialized for artifact queries")
-
-        rsp = self._client.session.get(url)
-        rsp.raise_for_status()
-        return ArtifactManifest.from_manifest_json(from_json(rsp.content))
 
     def _ttl_duration_seconds_to_gql(self) -> int | None:
         # Set artifact ttl value to ttl_duration_seconds if the user set a value

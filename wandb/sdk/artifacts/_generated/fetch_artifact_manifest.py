@@ -13,19 +13,14 @@ from .fragments import DeferredManifestFragment
 
 
 class FetchArtifactManifest(GQLResult):
-    project: Optional[FetchArtifactManifestProject]
+    artifact: Optional[FetchArtifactManifestArtifact]
 
 
-class FetchArtifactManifestProject(GQLResult):
-    artifact: Optional[FetchArtifactManifestProjectArtifact]
-
-
-class FetchArtifactManifestProjectArtifact(GQLResult):
+class FetchArtifactManifestArtifact(GQLResult):
     current_manifest: Optional[DeferredManifestFragment] = Field(
         alias="currentManifest"
     )
 
 
 FetchArtifactManifest.model_rebuild()
-FetchArtifactManifestProject.model_rebuild()
-FetchArtifactManifestProjectArtifact.model_rebuild()
+FetchArtifactManifestArtifact.model_rebuild()
