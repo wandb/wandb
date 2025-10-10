@@ -2,8 +2,9 @@ import asyncio
 import base64
 import json
 import platform
+import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import wandb
@@ -1736,7 +1737,12 @@ async def test_kubernetes_submitted_run_cleanup_job_api_key_secret_delete_fails(
 
 
 @pytest.mark.asyncio
+@patch(
+    "wandb.sdk.launch.runner.kubernetes_runner.uuid.uuid4",
+    return_value=uuid.UUID("123e4567-e89b-12d3-a456-426614174000"),
+)
 async def test_launch_additional_services(
+    mock_uuid4,
     monkeypatch,
     mock_event_streams,
     mock_batch_api,
@@ -1754,7 +1760,6 @@ async def test_launch_additional_services(
     expected_deployment_name = "deploy-test-entity-test-project-test-run-id"
     expected_pod_name = "pod-test-entity-test-project-test-run-id"
     expected_label = "auxiliary-resource"
-    expected_auxiliary_resource_label = "aux-test-run-id-test-project-test-entity"
 
     additional_service = {
         "apiVersion": "apps/v1",
@@ -1834,5 +1839,6 @@ async def test_launch_additional_services(
     assert labels["wandb.ai/label"] == expected_label
     assert WANDB_K8S_LABEL_AUXILIARY_RESOURCE in labels
     assert (
-        labels[WANDB_K8S_LABEL_AUXILIARY_RESOURCE] == expected_auxiliary_resource_label
+        labels[WANDB_K8S_LABEL_AUXILIARY_RESOURCE]
+        == "123e4567-e89b-12d3-a456-426614174000"
     )
