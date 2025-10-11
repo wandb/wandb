@@ -2436,12 +2436,7 @@ class Artifact:
         ):
             omit_fragments = set()
         else:
-            # FIXME: Make `gql_compat` omit nested fragment definitions recursively (but safely)
-            omit_fragments = {
-                "MembershipWithArtifact",
-                "ArtifactFragment",
-                "ArtifactFragmentWithoutAliases",
-            }
+            omit_fragments = {"MembershipWithArtifact"}
 
         gql_op = gql_compat(LINK_ARTIFACT_GQL, omit_fragments=omit_fragments)
         data = self._client.execute(gql_op, variable_values=gql_vars)
