@@ -26,13 +26,13 @@ import (
 
 const BufferSize = 32
 
-// Stream processes incoming records for a single run.
+// RunStream processes incoming records for a single run.
 //
 // wandb consists of a service process (this code) to which one or more
 // user processes connect (e.g. using the Python wandb library). The user
 // processes send "records" to the service process that log to and modify
 // the run, which the service process consumes asynchronously.
-type Stream struct {
+type RunStream struct {
 	// runWork is a channel of records to process.
 	runWork runwork.RunWork
 
@@ -90,8 +90,8 @@ type Stream struct {
 // DebugCorePath is the absolute path to the debug-core.log file.
 type DebugCorePath string
 
-// NewStream creates a new stream.
-func NewStream(
+// NewRunStream creates a new stream.
+func NewRunStream(
 	clientID sharedmode.ClientID,
 	debugCorePath DebugCorePath,
 	featureProvider *featurechecker.ServerFeaturesCache,
@@ -108,7 +108,7 @@ func NewStream(
 	runHandle *runhandle.RunHandle,
 	tbHandlerFactory *tensorboard.TBHandlerFactory,
 	writerFactory *WriterFactory,
-) *Stream {
+) *RunStream {
 	symlinkDebugCore(settings, string(debugCorePath))
 
 	runWork := runwork.New(BufferSize, logger)
@@ -118,7 +118,7 @@ func NewStream(
 	)
 	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
 
-	s := &Stream{
+	s := &RunStream{
 		runWork:            runWork,
 		runHandle:          runHandle,
 		operations:         operations,
@@ -143,17 +143,17 @@ func NewStream(
 }
 
 // AddResponders adds the given responders to the stream's dispatcher.
-func (s *Stream) AddResponders(entries ...ResponderEntry) {
+func (s *RunStream) AddResponders(entries ...ResponderEntry) {
 	s.dispatcher.AddResponders(entries...)
 }
 
 // GetSettings returns the stream's settings.
-func (s *Stream) GetSettings() *settings.Settings {
+func (s *RunStream) GetSettings() *settings.Settings {
 	return s.settings
 }
 
 // Start begins processing the stream's input records and producing outputs.
-func (s *Stream) Start() {
+func (s *RunStream) Start() {
 	s.wg.Add(1)
 	go func() {
 		s.handler.Do(s.runWork.Chan())
@@ -189,7 +189,7 @@ func (s *Stream) Start() {
 // log if allowed by settings.
 //
 // The output is work that has been saved.
-func (s *Stream) maybeSavingToTransactionLog(
+func (s *RunStream) maybeSavingToTransactionLog(
 	work <-chan runwork.Work,
 ) <-chan runwork.Work {
 	if s.settings.IsSkipTransactionLog() {
@@ -245,14 +245,14 @@ func (s *Stream) maybeSavingToTransactionLog(
 }
 
 // HandleRecord ingests a record from the client.
-func (s *Stream) HandleRecord(record *spb.Record) {
+func (s *RunStream) HandleRecord(record *spb.Record) {
 	s.logger.Debug("handling record", "record", record.GetRecordType())
 	work := s.recordParser.Parse(record)
 	work.Schedule(&sync.WaitGroup{}, func() { s.runWork.AddWork(work) })
 }
 
 // Close waits for all run messages to be fully processed.
-func (s *Stream) Close() {
+func (s *RunStream) Close() {
 	s.logger.Info("stream: closing", "id", s.settings.GetRunID())
 	s.runWork.Close()
 	s.wg.Wait()
@@ -266,7 +266,7 @@ func (s *Stream) Close() {
 
 // FinishAndClose emits an exit record, waits for all run messages
 // to be fully processed, and prints the run footer to the terminal.
-func (s *Stream) FinishAndClose(exitCode int32) {
+func (s *RunStream) FinishAndClose(exitCode int32) {
 	s.HandleRecord(&spb.Record{
 		RecordType: &spb.Record_Exit{
 			Exit: &spb.RunExitRecord{
