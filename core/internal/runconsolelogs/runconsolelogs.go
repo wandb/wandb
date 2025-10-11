@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/filestream"
-	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
@@ -134,13 +133,13 @@ func New(params Params) *Sender {
 
 	var fileWriter *outputFileWriter
 	if params.EnableCapture {
-		fileWriter = NewChunkedFileWriter(OutputFileWriterParams{
-			OutputFileName:  string(outputFileName),
-			FilesDir:        params.FilesDir,
-			Multipart:       params.Multipart,
-			MaxChunkBytes:   params.ChunkMaxBytes,
-			MaxChunkSeconds: params.ChunkMaxSeconds,
-			Uploader:        params.RunfilesUploaderOrNil,
+		fileWriter = NewOutputFileWriter(OutputFileWriterParams{
+			OutputFileName:   string(outputFileName),
+			FilesDir:         params.FilesDir,
+			Multipart:        params.Multipart,
+			MaxChunkBytes:    int64(params.ChunkMaxBytes),
+			MaxChunkDuration: time.Duration(int64(params.ChunkMaxSeconds)) * time.Second,
+			Uploader:         params.RunfilesUploaderOrNil,
 		})
 	}
 
@@ -199,19 +198,8 @@ func (s *Sender) Finish() {
 	s.mu.Unlock()
 
 	s.writer.Finish()
-
-	// Handle final upload based on writer type
-	if s.captureEnabled && s.fileWriter != nil {
-		if chunkedWriter, ok := s.fileWriter.(*chunkedFileWriter); ok && s.isMultipart {
-			// For chunked writer, call its Finish to upload the final chunk
-			chunkedWriter.Finish()
-		} else if s.runfilesUploaderOrNil != nil && !s.isMultipart {
-			// For single file writer, upload the complete file
-			s.runfilesUploaderOrNil.UploadNow(
-				s.consoleOutputFile,
-				filetransfer.RunFileKindWandb,
-			)
-		}
+	if s.captureEnabled && s.runfilesUploaderOrNil != nil {
+		s.fileWriter.Finish()
 	}
 }
 

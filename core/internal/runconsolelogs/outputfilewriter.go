@@ -16,9 +16,10 @@ import (
 
 // outputFileWriter saves run console logs on disk.
 //
-// It splits console output into multiple files based on size and time
-// thresholds. Each chunk is uploaded independently, allowing console logs to be
-// available during long-running jobs and preserving logs in case of crashes.
+// If multipart is false, it writes a single file in filesDir.
+// If multipart is true, iIt splits console output into multiple timestamped
+// files based on size and time thresholds and writes them to filesDir/logs.
+// Chunks are uploaded on file rotation and/or on Finish.
 type outputFileWriter struct {
 	mu sync.Mutex
 
@@ -33,10 +34,10 @@ type outputFileWriter struct {
 	maxChunkDuration time.Duration
 
 	// Current chunk state.
-	currentChunk     *lineFile
-	currentChunkPath paths.RelativePath
-	currentSize      int64
-	chunkStartTime   time.Time
+	currentChunk             *lineFile
+	currentChunkRelativePath paths.RelativePath
+	currentSize              int64
+	chunkStartTime           time.Time
 
 	// Global line tracking for offset management.
 	currentChunkLineOffset int // Starting line number for current chunk.
@@ -52,15 +53,15 @@ type outputFileWriter struct {
 
 // OutputFileWriterParams contains parameters for creating a chunkedFileWriter.
 type OutputFileWriterParams struct {
-	FilesDir        string
-	OutputFileName  string
-	Multipart       bool
-	MaxChunkBytes   int32
-	MaxChunkSeconds int32
-	Uploader        runfiles.Uploader
+	FilesDir         string
+	OutputFileName   string
+	Multipart        bool
+	MaxChunkBytes    int64
+	MaxChunkDuration time.Duration
+	Uploader         runfiles.Uploader
 }
 
-func NewChunkedFileWriter(params OutputFileWriterParams) *outputFileWriter {
+func NewOutputFileWriter(params OutputFileWriterParams) *outputFileWriter {
 	extension := filepath.Ext(string(params.OutputFileName))
 	baseFileName := strings.TrimSuffix(string(params.OutputFileName), extension)
 
@@ -68,8 +69,9 @@ func NewChunkedFileWriter(params OutputFileWriterParams) *outputFileWriter {
 		filesDir:         params.FilesDir,
 		baseFileName:     baseFileName,
 		outputExtension:  extension,
-		maxChunkBytes:    int64(params.MaxChunkBytes),
-		maxChunkDuration: time.Duration(int64(params.MaxChunkSeconds)) * time.Second,
+		multipart:        params.Multipart,
+		maxChunkBytes:    params.MaxChunkBytes,
+		maxChunkDuration: params.MaxChunkDuration,
 		uploader:         params.Uploader,
 	}
 }
@@ -78,6 +80,8 @@ func NewChunkedFileWriter(params OutputFileWriterParams) *outputFileWriter {
 //
 // This method handles line number offset translation from global to chunk-local
 // coordinates and triggers chunk rotation when size or time limits are exceeded.
+//
+// If w.broken is true, this is a no-op.
 func (w *outputFileWriter) WriteToFile(
 	changes sparselist.SparseList[*RunLogsLine],
 ) error {
@@ -100,7 +104,6 @@ func (w *outputFileWriter) WriteToFile(
 		}
 	}
 
-	// Convert RunLogsLine to string and track line numbers.
 	lines := sparselist.SparseList[string]{}
 	var addedBytes int64
 
@@ -117,7 +120,6 @@ func (w *outputFileWriter) WriteToFile(
 		}
 	})
 
-	// Write to current chunk.
 	if err := w.currentChunk.UpdateLines(lines); err != nil {
 		w.broken = true
 		return fmt.Errorf("failed to write to chunk: %v", err)
@@ -141,14 +143,16 @@ func (w *outputFileWriter) WriteToFile(
 
 // shouldRotate determines if the current chunk should be rotated.
 func (w *outputFileWriter) shouldRotate() bool {
-	if w.maxChunkBytes > 0 && w.currentSize >= w.maxChunkBytes {
+	switch {
+	case !w.multipart:
+		return false
+	case w.maxChunkBytes > 0 && w.currentSize >= w.maxChunkBytes:
 		return true
-	}
-	if w.maxChunkDuration > 0 && time.Since(w.chunkStartTime) >= w.maxChunkDuration {
+	case w.maxChunkDuration > 0 && time.Since(w.chunkStartTime) >= w.maxChunkDuration:
 		return true
+	default:
+		return false
 	}
-
-	return false
 }
 
 // createNewChunk creates a new chunk file.
@@ -160,13 +164,15 @@ func (w *outputFileWriter) createNewChunk() error {
 	if err != nil {
 		return err
 	}
-	w.currentChunkPath = p
+	w.currentChunkRelativePath = *p
 
-	fullPath := filepath.Join(w.filesDir, string(w.currentChunkPath))
+	fullPath := filepath.Join(w.filesDir, string(w.currentChunkRelativePath))
 	if err := os.MkdirAll(filepath.Dir(fullPath), os.ModePerm); err != nil {
 		return err
 	}
 
+	// 6 = read, write permissions for the user.
+	// 4 = read-only for "group" and "other".
 	chunk, err := CreateLineFile(fullPath, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to create chunk file: %v", err)
@@ -184,14 +190,14 @@ func (w *outputFileWriter) createNewChunk() error {
 // This method should be called synchronously while holding the w.mu lock.
 func (w *outputFileWriter) rotateChunk() {
 	// Schedule the uploading of the current chunk.
-	w.uploader.UploadNow(w.currentChunkPath, filetransfer.RunFileKindWandb)
+	w.uploader.UploadNow(w.currentChunkRelativePath, filetransfer.RunFileKindWandb)
 
 	// Update offset for next chunk.
 	w.currentChunkLineOffset = w.nextGlobalLine
 
 	// Clear current chunk state - next write will create new chunk.
 	w.currentChunk = nil
-	w.currentChunkPath = ""
+	w.currentChunkRelativePath = ""
 	w.currentSize = 0
 }
 
@@ -203,11 +209,11 @@ func (w *outputFileWriter) Finish() {
 	var path paths.RelativePath
 
 	w.mu.Lock()
-	if w.currentChunk != nil && w.currentChunkPath != "" {
-		path = w.currentChunkPath
+	if w.currentChunk != nil && w.currentChunkRelativePath != "" {
+		path = w.currentChunkRelativePath
 		// Clear state so repeated Finish() calls are no-ops.
 		w.currentChunk = nil
-		w.currentChunkPath = ""
+		w.currentChunkRelativePath = ""
 		w.currentSize = 0
 	}
 	w.mu.Unlock()
@@ -217,11 +223,12 @@ func (w *outputFileWriter) Finish() {
 	}
 }
 
-// generateChunkPath generates a timestamped chunk file path.
-//
-// The path format is: logs/baseFileName_YYYYMMDD_HHMMSS_nnnnnnnnn.extension
-// where nnnnnnnnn is the nanosecond portion for uniqueness.
-func (w *outputFileWriter) generateChunkPath(timestamp time.Time) (paths.RelativePath, error) {
+// generateChunkPath generates a chunk file path.
+func (w *outputFileWriter) generateChunkPath(timestamp time.Time) (*paths.RelativePath, error) {
+	if !w.multipart {
+		return paths.Relative(w.baseFileName + w.outputExtension)
+	}
+
 	filename := fmt.Sprintf(
 		"%s_%s_%09d%s",
 		w.baseFileName,
@@ -230,75 +237,19 @@ func (w *outputFileWriter) generateChunkPath(timestamp time.Time) (paths.Relativ
 		w.outputExtension,
 	)
 
-	p, err := paths.Relative(filepath.Join("logs", filename))
-	return *p, err
+	// TODO: add an index if for some reason it already exists.
+
+	return paths.Relative(filepath.Join("logs", filename))
 }
 
 // statCurrentChunkSizeLocked returns the current chunk's on-disk size.
 //
 // Call only while holding w.mu.
 func (w *outputFileWriter) statCurrentChunkSize() (int64, error) {
-	fullPath := filepath.Join(w.filesDir, string(w.currentChunkPath))
+	fullPath := filepath.Join(w.filesDir, string(w.currentChunkRelativePath))
 	info, err := os.Stat(fullPath)
 	if err != nil {
 		return 0, err
 	}
 	return info.Size(), nil
 }
-
-// package runconsolelogs
-
-// import (
-// 	"os"
-// 	"path/filepath"
-
-// 	"github.com/wandb/wandb/core/internal/observability"
-// 	"github.com/wandb/wandb/core/internal/sparselist"
-// )
-
-// // uitputFileWriter saves run console logs in a local file.
-// type uitputFileWriter struct {
-// 	outputFile *lineFile
-// 	logger     *observability.CoreLogger
-// 	broken     bool
-// }
-
-// func NewOutputFileWriter(
-// 	path string,
-// 	logger *observability.CoreLogger,
-// ) (*uitputFileWriter, error) {
-// 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
-// 		return nil, err
-// 	}
-
-// 	// 6 = read, write permissions for the user.
-// 	// 4 = read-only for "group" and "other".
-// 	outputFile, err := CreateLineFile(path, 0644)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return &uitputFileWriter{outputFile: outputFile, logger: logger}, nil
-// }
-
-// // WriteToFile makes changes to the underlying file.
-// //
-// // It returns an error if writing fails, such as if the file is deleted
-// // or corrupted. In that case, the file should not be written to again.
-// func (w *uitputFileWriter) WriteToFile(
-// 	changes sparselist.SparseList[*RunLogsLine],
-// ) error {
-// 	if w.broken {
-// 		return nil
-// 	}
-
-// 	lines := sparselist.Map(changes, func(line *RunLogsLine) string {
-// 		return string(line.Content)
-// 	})
-
-// 	err := w.outputFile.UpdateLines(lines)
-// 	if err != nil {
-// 		w.broken = true
-// 	}
-// 	return err
-// }
