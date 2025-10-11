@@ -414,7 +414,8 @@ class Artifact:
         if not (artifact := membership.artifact):
             raise ValueError(f"Artifact {target.to_str()!r} not found in response")
 
-        return cls._from_attrs(new_target, artifact, client)
+        aliases = [a.alias for a in membership.aliases]
+        return cls._from_attrs(new_target, artifact, client, aliases=aliases)
 
     @classmethod
     def _from_attrs(

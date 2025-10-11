@@ -538,10 +538,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: $includeAliases) {
     artifactCollection {
       __typename
+      name
       project {
         ...ProjectNames
       }
-      name
     }
     ...ArtifactAliasFragment
   }
@@ -630,10 +630,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: $includeAliases) {
     artifactCollection {
       __typename
+      name
       project {
         ...ProjectNames
       }
-      name
     }
     ...ArtifactAliasFragment
   }
@@ -721,10 +721,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: $includeAliases) {
     artifactCollection {
       __typename
+      name
       project {
         ...ProjectNames
       }
-      name
     }
     ...ArtifactAliasFragment
   }
@@ -858,10 +858,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: $includeAliases) {
     artifactCollection {
       __typename
+      name
       project {
         ...ProjectNames
       }
-      name
     }
     ...ArtifactAliasFragment
   }
@@ -929,10 +929,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: $includeAliases) {
     artifactCollection {
       __typename
+      name
       project {
         ...ProjectNames
       }
-      name
     }
     ...ArtifactAliasFragment
   }
@@ -1000,17 +1000,22 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: $includeAliases) {
     artifactCollection {
       __typename
+      name
       project {
         ...ProjectNames
       }
-      name
     }
     ...ArtifactAliasFragment
   }
 }
 
 fragment MembershipWithArtifact on ArtifactCollectionMembership {
+  __typename
   id
+  versionIndex
+  aliases {
+    ...ArtifactAliasFragment
+  }
   artifactCollection {
     __typename
     id
@@ -1149,10 +1154,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: $includeAliases) {
     artifactCollection {
       __typename
+      name
       project {
         ...ProjectNames
       }
-      name
     }
     ...ArtifactAliasFragment
   }
@@ -1231,17 +1236,22 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: $includeAliases) {
     artifactCollection {
       __typename
+      name
       project {
         ...ProjectNames
       }
-      name
     }
     ...ArtifactAliasFragment
   }
 }
 
 fragment MembershipWithArtifact on ArtifactCollectionMembership {
+  __typename
   id
+  versionIndex
+  aliases {
+    ...ArtifactAliasFragment
+  }
   artifactCollection {
     __typename
     id
@@ -1356,12 +1366,32 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: $includeAliases) {
     artifactCollection {
       __typename
+      name
       project {
         ...ProjectNames
       }
-      name
     }
     ...ArtifactAliasFragment
+  }
+}
+
+fragment MembershipWithArtifact on ArtifactCollectionMembership {
+  __typename
+  id
+  versionIndex
+  aliases {
+    ...ArtifactAliasFragment
+  }
+  artifactCollection {
+    __typename
+    id
+    name
+    project {
+      ...ProjectNames
+    }
+  }
+  artifact {
+    ...ArtifactFragment
   }
 }
 
@@ -1383,20 +1413,7 @@ fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnec
   }
   edges {
     node {
-      artifactCollection {
-        __typename
-        project {
-          ...ProjectNames
-        }
-        name
-      }
-      versionIndex
-      artifact {
-        ...ArtifactFragment
-      }
-      aliases {
-        ...ArtifactAliasFragment
-      }
+      ...MembershipWithArtifact
     }
   }
 }
