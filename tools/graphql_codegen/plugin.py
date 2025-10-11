@@ -15,7 +15,7 @@ from itertools import chain, groupby
 from operator import attrgetter
 from pathlib import Path
 from shutil import rmtree
-from typing import Any, ClassVar, Iterable, Iterator
+from typing import Any, ClassVar, Iterable, Iterator, Mapping
 
 from ariadne_codegen import Plugin
 from graphlib import TopologicalSorter  # Run this only with python 3.9+
@@ -93,8 +93,7 @@ class FixFragmentOrder(Plugin):
 
         # Deterministically reorder the class definitions/model_rebuild() statements,
         # ensuring parent classes are defined first
-        sorter = ClassDefSorter(class_defs)
-        class_defs = sorter.sort_class_defs(class_defs)
+        class_defs = ClassDefSorter(class_defs).sort_class_defs(class_defs)
 
         # For safety, we're going to apply `.model_rebuild()` to all generated fragment types
         # This'll prevent errors that pop up in pydantic v1 like:
@@ -124,8 +123,7 @@ class ClassDefSorter:
     def sort_class_defs(self, class_defs: Iterable[ast.ClassDef]) -> list[ast.ClassDef]:
         """Return the class definitions in topologically sorted order."""
         return sorted(
-            class_defs,
-            key=lambda class_def: self.names.index(class_def.name),
+            class_defs, key=lambda class_def: self.names.index(class_def.name)
         )
 
 
@@ -164,7 +162,7 @@ class GraphQLCodegenPlugin(Plugin):
     def __init__(self, schema: GraphQLSchema, config_dict: dict[str, Any]) -> None:
         super().__init__(schema, config_dict)
 
-        codegen_config: dict[str, Any] = config_dict["tool"]["ariadne-codegen"]
+        codegen_config: dict[str, Any] = self.config_dict["tool"]["ariadne-codegen"]
 
         package_path = codegen_config["target_package_path"]
         package_name = codegen_config["target_package_name"]
@@ -209,18 +207,45 @@ class GraphQLCodegenPlugin(Plugin):
         return super().generate_init_code(generated_code)
 
     def generate_init_module(self, module: ast.Module) -> ast.Module:
-        return self._cleanup_init_module(module)
+        return self._rewrite_init_module(module)
+
+    def _rewrite_init_module(self, module: ast.Module) -> ast.Module:
+        """Remove dropped imports and rewrite `__all__` exports in `__init__`."""
+        # Drop selected import statements from the __init__ module
+        kept_import_stmts = list(
+            self._filter_init_imports(
+                module.body,
+                omit_modules=self.modules_to_drop,
+                omit_names=self.classes_to_drop,
+            )
+        )
+
+        # Regenerate the `__all__ = [...]` export statement
+        names_to_export = chain.from_iterable(map(imported_names, kept_import_stmts))
+        module.body = [
+            make_all_assignment(names_to_export),
+            *kept_import_stmts,
+        ]
+        return ast.fix_missing_locations(module)
+
+    @staticmethod
+    def _filter_init_imports(
+        stmts: Iterable[ast.stmt], omit_modules: set[str], omit_names: set[str]
+    ) -> Iterator[ast.ImportFrom]:
+        """Yield only import statements to keep from the given module statements."""
+        for stmt in stmts:
+            # Keep only imports from modules that aren't being dropped
+            if is_import_from(imp := stmt) and (imp.module not in omit_modules):
+                # Keep only imported names that aren't being dropped
+                kept_names = sorted(set(imported_names(imp)) - omit_names)
+                yield make_import_from(imp.module, kept_names, level=imp.level)
 
     def generate_enums_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
 
     def generate_input_class(self, class_def: ast.ClassDef, *_, **__) -> ast.ClassDef:
         # Replace the default base class: `BaseModel` -> `GQLInput`
-        class_def.bases = [
-            ast.Name(GQL_INPUT if (name == BASE_MODEL) else name)
-            for name in base_class_names(class_def)
-        ]
-        return class_def
+        return ClassReplacer(rename_map={BASE_MODEL: GQL_INPUT}).visit(class_def)
 
     def generate_inputs_module(self, module: ast.Module) -> ast.Module:
         return self._rewrite_generated_module(module)
@@ -231,12 +256,10 @@ class GraphQLCodegenPlugin(Plugin):
         # strings on generated fragment classes.
         #
         # interface2typenames should look something like, e.g.:
-        #   {
-        #     "ArtifactCollection" -> ["ArtifactPortfolio", "ArtifactSequence"],
-        #     "ArtifactPortfolio" -> ["ArtifactPortfolio"],
-        #     "ArtifactSequence" -> ["ArtifactSequence"],
-        #     ...
-        #   }
+        #   {"ArtifactCollection": ["ArtifactPortfolio", "ArtifactSequence"],
+        #    "ArtifactPortfolio": ["ArtifactPortfolio"],
+        #    "ArtifactSequence": ["ArtifactSequence"],
+        #    ...}
         self.interface2typenames = {
             name: [impl.name for impl in schema.get_possible_types(gql_type)]
             for name, gql_type in schema.type_map.items()
@@ -257,11 +280,7 @@ class GraphQLCodegenPlugin(Plugin):
             self.classes_to_drop.add(class_def.name)
 
         # Replace the default base class: `BaseModel` -> `GQLResult`
-        class_def.bases = [
-            ast.Name(GQL_RESULT if (name == BASE_MODEL) else name)
-            for name in base_class_names(class_def)
-        ]
-        return class_def
+        return ClassReplacer(rename_map={BASE_MODEL: GQL_RESULT}).visit(class_def)
 
     def generate_result_types_module(self, module: ast.Module, *_, **__) -> ast.Module:
         return self._rewrite_generated_module(module)
@@ -298,8 +317,7 @@ class GraphQLCodegenPlugin(Plugin):
                     # - omit default: Fragment defined on a GQL interface with multiple impls.
                     stmt.value = ast.Constant(names[0]) if len(names) == 1 else None
 
-        module = self._rewrite_generated_module(module)
-        return ast.fix_missing_locations(module)
+        return self._rewrite_generated_module(module)
 
     def _rewrite_generated_module(self, module: ast.Module) -> ast.Module:
         """Apply common transformations to the generated module, excluding `__init__`."""
@@ -307,57 +325,20 @@ class GraphQLCodegenPlugin(Plugin):
         module = self._replace_redundant_classes(module)
         return ast.fix_missing_locations(module)
 
-    def _get_classname_replacements(self, module: ast.Module) -> dict[str, str]:
-        """Find redundant classes in the module and return a class name replacement mapping.
-
-        Returns a replacement mapping of class names, i.e. `{redundantClass -> replacementClass}`.
-        """
-        return {
+    def _replace_redundant_classes(self, module: ast.Module) -> ast.Module:
+        # Identify redundant classes that we can drop/replace in the code,
+        # by mapping `{redundant_class_name -> replacement_class_name}`.
+        rename_map = {
             class_def.name: base_class_names(class_def)[0]
             for class_def in filter(is_redundant_class_def, module.body)
         }
 
-    def _replace_redundant_classes(self, module: ast.Module) -> ast.Module:
-        # Identify redundant classes that we can drop/replace in the code,
-        classname_replacements = self._get_classname_replacements(module)
-
         # Record replaced classes for later cleanup in __init__.py
-        self.classes_to_drop.update(classname_replacements.keys())
+        self.classes_to_drop.update(rename_map.keys())
 
         # Update any references to redundant classes in the remaining class definitions
         # Replace the module body with the cleaned-up statements
-        return RedundantClassReplacer(classname_replacements).visit(module)
-
-    def _cleanup_init_module(self, module: ast.Module) -> ast.Module:
-        """Remove dropped imports and rewrite `__all__` exports in `__init__`."""
-        # Drop selected import statements from the __init__ module
-        kept_import_stmts = list(
-            self._filter_init_imports(
-                module.body,
-                omit_modules=self.modules_to_drop,
-                omit_names=self.classes_to_drop,
-            )
-        )
-
-        # Replace the `__all__ = [...]` export statement
-        names_to_export = chain.from_iterable(map(imported_names, kept_import_stmts))
-        export_stmt = make_all_assignment(names_to_export)
-
-        # Update the module with the cleaned-up statements
-        module.body = [export_stmt, *kept_import_stmts]
-        return ast.fix_missing_locations(module)
-
-    @staticmethod
-    def _filter_init_imports(
-        stmts: Iterable[ast.stmt], omit_modules: set[str], omit_names: set[str]
-    ) -> Iterator[ast.ImportFrom]:
-        """Yield only import statements to keep from the given module statements."""
-        for stmt in stmts:
-            # Keep only imports from modules that aren't being dropped
-            if is_import_from(imp := stmt) and (imp.module not in omit_modules):
-                # Keep only imported names that aren't being dropped
-                kept_names = sorted(set(imported_names(imp)) - omit_names)
-                yield make_import_from(imp.module, kept_names, level=imp.level)
+        return ClassReplacer(rename_map).visit(module)
 
 
 class PydanticModuleRewriter(ast.NodeTransformer):
@@ -379,11 +360,11 @@ class PydanticModuleRewriter(ast.NodeTransformer):
             if kept_names := (set(imported_names(node)) - set(TYPING_EXTENSIONS_TYPES)):
                 return make_import_from(node.module, kept_names)
             return None
-        else:
-            return node  # Otherwise, keep the import as-is
+
+        return node  # Otherwise, keep the import as-is
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> Any:
-        if node.target.id == "typename__":
+        if isinstance(node.target, ast.Name) and node.target.id == "typename__":
             # e.g. BEFORE: `typename__: Literal["MyType"] = Field(alias="__typename")`
             # e.g. AFTER:  `typename__: Typename[Literal["MyType"]]`
 
@@ -393,6 +374,7 @@ class PydanticModuleRewriter(ast.NodeTransformer):
             # Drop `= Field(alias="__typename")`, if present
             if (
                 isinstance(call := node.value, ast.Call)
+                and isinstance(call.func, ast.Name)
                 and call.func.id == "Field"
                 and len(call.keywords) == 1
                 and call.keywords[0].arg == "alias"
@@ -404,6 +386,7 @@ class PydanticModuleRewriter(ast.NodeTransformer):
         # See: https://github.com/pydantic/pydantic/issues/3636
         elif (
             isinstance(annotation := node.annotation, ast.Subscript)
+            and isinstance(annotation.value, ast.Name)
             and annotation.value.id == "Union"
             and isinstance(annotation.slice, ast.Tuple)
             and len(annotation.slice.elts) == 1
@@ -416,17 +399,17 @@ class PydanticModuleRewriter(ast.NodeTransformer):
         return self.generic_visit(node)
 
 
-class RedundantClassReplacer(ast.NodeTransformer):
-    """Removes redundant class definitions and references to them."""
+class ClassReplacer(ast.NodeTransformer):
+    """Removes replaced class definitions and rewrites any references to them."""
 
-    #: Maps deleted class names -> replacement class names
-    replacement_names: dict[str, str]
+    rename_map: dict[str, str]
+    """Maps {removed_class_name -> replacement_class_name}."""
 
-    def __init__(self, replacement_names: dict[str, str]):
-        self.replacement_names = replacement_names
+    def __init__(self, rename_map: Mapping[str, str]):
+        self.rename_map = dict(rename_map)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> Any:
-        if node.name in self.replacement_names:
+        if node.name in self.rename_map:
             return None
         return self.generic_visit(node)
 
@@ -435,5 +418,5 @@ class RedundantClassReplacer(ast.NodeTransformer):
         # or an implicit forward ref, e.g. `"MyType"`, `'MyType'`
         unquoted_name = node.id.strip("'\"")
         with suppress(LookupError):
-            node.id = self.replacement_names[unquoted_name]
+            node.id = self.rename_map[unquoted_name]
         return self.generic_visit(node)
