@@ -87,6 +87,7 @@ __all__ = [
     "UpdateArtifactInput",
     "UpdateArtifactPortfolioInput",
     "UpdateArtifactSequenceInput",
+    "ArtifactAliasFragment",
     "ArtifactCollectionConnectionFragment",
     "ArtifactFragment",
     "ArtifactFragmentWithoutAliases",
@@ -107,6 +108,7 @@ __all__ = [
     "RegistryVersionConnectionFragment",
     "RunInputArtifactConnectionFragment",
     "RunOutputArtifactConnectionFragment",
+    "TagFragment",
     "TypeInfoFragment",
     "VersionedArtifactConnectionFragment",
     "ArtifactCollectionState",
@@ -141,6 +143,7 @@ from .fetch_artifact_manifest import FetchArtifactManifest
 from .fetch_linked_artifacts import FetchLinkedArtifacts
 from .fetch_registries import FetchRegistries
 from .fragments import (
+    ArtifactAliasFragment,
     ArtifactCollectionConnectionFragment,
     ArtifactFragment,
     ArtifactFragmentWithoutAliases,
@@ -161,6 +164,7 @@ from .fragments import (
     RegistryVersionConnectionFragment,
     RunInputArtifactConnectionFragment,
     RunOutputArtifactConnectionFragment,
+    TagFragment,
     TypeInfoFragment,
     VersionedArtifactConnectionFragment,
 )

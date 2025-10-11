@@ -154,6 +154,7 @@ def make_local_artifact_public(art: Artifact):
         artifactType={"name": "FAKE_TYPE_NAME"},
         aliases=[
             {
+                "id": "FAKE_ALIAS_ID",
                 "artifactCollection": {
                     "__typename": "ArtifactSequence",
                     "project": {"entityName": path.prefix, "name": path.project},

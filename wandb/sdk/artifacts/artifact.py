@@ -1329,7 +1329,9 @@ class Artifact:
             omit_variables |= {"tagsToAdd", "tagsToDelete"}
 
         mutation = gql_compat(
-            UPDATE_ARTIFACT_GQL, omit_variables=omit_variables, omit_fields=omit_fields
+            UPDATE_ARTIFACT_GQL,
+            omit_variables=omit_variables,
+            omit_fields=omit_fields,
         )
         gql_input = UpdateArtifactInput(
             artifact_id=self.id,
@@ -2429,13 +2431,13 @@ class Artifact:
         )
         gql_vars = {"input": gql_input.model_dump()}
 
+        omit_fragments = set()
+
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
         if api._server_supports(
             pb.ServerFeature.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
         ):
-            omit_fragments = set()
-        else:
             omit_fragments = {"MembershipWithArtifact"}
 
         gql_op = gql_compat(LINK_ARTIFACT_GQL, omit_fragments=omit_fragments)
