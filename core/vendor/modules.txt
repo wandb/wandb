@@ -435,6 +435,7 @@ github.com/cespare/xxhash/v2
 # github.com/charmbracelet/bubbles v0.20.0
 ## explicit; go 1.18
 github.com/charmbracelet/bubbles/key
+github.com/charmbracelet/bubbles/viewport
 # github.com/charmbracelet/bubbletea v1.3.10
 ## explicit; go 1.24.0
 github.com/charmbracelet/bubbletea
