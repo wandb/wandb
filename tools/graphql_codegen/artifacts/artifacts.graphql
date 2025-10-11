@@ -4,11 +4,10 @@
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectNames
+    }
   }
   versionIndex
   artifactType {
@@ -35,6 +34,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   updatedAt
 }
 
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
+}
+
 fragment ArtifactFragment on Artifact {
   ...ArtifactFragmentWithoutAliases
   aliases @include(if: true) {
@@ -42,8 +47,7 @@ fragment ArtifactFragment on Artifact {
     artifactCollection {
       __typename
       project {
-        entityName
-        name
+        ...ProjectNames
       }
       name
     }
@@ -58,9 +62,7 @@ fragment MembershipWithArtifact on ArtifactCollectionMembership {
     id
     name
     project {
-      id
-      entityName
-      name
+      ...ProjectNames
     }
   }
   artifact {
@@ -75,7 +77,6 @@ fragment VersionedArtifactConnectionFragment on VersionedArtifactConnection {
       ...ArtifactFragment
     }
     version
-    cursor
   }
   pageInfo {
     ...PageInfoFragment
@@ -113,7 +114,6 @@ fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
     node {
       ...ArtifactFragment
     }
-    cursor
   }
   pageInfo {
     ...PageInfoFragment
@@ -126,7 +126,6 @@ fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
     node {
       ...ArtifactFragment
     }
-    cursor
   }
   pageInfo {
     ...PageInfoFragment
@@ -175,12 +174,11 @@ query FetchLinkedArtifacts($artifactID: ID!) {
           }
           versionIndex
           artifactCollection {
-            project {
-              entityName
-              name
-            }
-            name
             __typename
+            name
+            project {
+              ...ProjectNames
+            }
           }
         }
       }

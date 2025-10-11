@@ -11,7 +11,6 @@ fragment ArtifactTypeConnectionFragment on ArtifactTypeConnection {
     node {
       ...ArtifactTypeFragment
     }
-    cursor
   }
   pageInfo {
     ...PageInfoFragment
