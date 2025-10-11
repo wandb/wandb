@@ -125,14 +125,8 @@ func (w *outputFileWriter) WriteToFile(
 		return fmt.Errorf("failed to write to chunk: %v", err)
 	}
 
-	// Use the on-disk size after UpdateLines closes the file handle.
-	// This keeps size-based rotation correct even when UpdateLines
-	// pops/replays lines near the end.
-	if sz, err := w.statCurrentChunkSize(); err != nil {
-		w.currentSize += addedBytes // Fall back to an estimate.
-	} else {
-		w.currentSize = sz
-	}
+	// This is an estimate as UpdateLines could pop or replay lines near the end.
+	w.currentSize += addedBytes
 
 	if w.shouldRotate() {
 		w.rotateChunk()
@@ -240,16 +234,4 @@ func (w *outputFileWriter) generateChunkPath(timestamp time.Time) (*paths.Relati
 	// TODO: add an index if for some reason it already exists.
 
 	return paths.Relative(filepath.Join("logs", filename))
-}
-
-// statCurrentChunkSizeLocked returns the current chunk's on-disk size.
-//
-// Call only while holding w.mu.
-func (w *outputFileWriter) statCurrentChunkSize() (int64, error) {
-	fullPath := filepath.Join(w.filesDir, string(w.currentChunkRelativePath))
-	info, err := os.Stat(fullPath)
-	if err != nil {
-		return 0, err
-	}
-	return info.Size(), nil
 }

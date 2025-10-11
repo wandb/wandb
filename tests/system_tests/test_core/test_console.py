@@ -95,24 +95,3 @@ def test_memory_leak2(user):
             print("ABCDEFGH")
         time.sleep(3)
         assert len(run._out_redir._emulator.buffer) < 1000
-
-
-def test_chunked_logs(user):
-    with wandb.init(
-        settings=wandb.Settings(
-            console_multipart=True,
-            console_chunk_max_bytes=10,
-        )
-    ) as run:
-        # These prints should trigger log file rotation,
-        # but both should end up in the first log file.
-        print("AAAAA")
-        print("BBBBB")
-        # Sleep to bypass internal 10ms debounce
-        # time.sleep(0.5)
-        print("CCCCC")
-
-    log_dir = pathlib.Path(run.dir) / "logs"
-    log_files = [f.name for f in log_dir.iterdir() if f.is_file()]
-
-    assert len(log_files) == 2
