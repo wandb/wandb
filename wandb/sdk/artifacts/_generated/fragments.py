@@ -62,23 +62,14 @@ class ArtifactCollectionFragmentTagsEdges(GQLResult):
     node: TagFragment
 
 
-class ArtifactFragmentAliasesArtifactCollection(GQLResult):
-    typename__: Typename[
-        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
-    ]
-    project: Optional[ProjectNames]
-    name: str
-
-
-class ArtifactFragmentWithoutAliases(GQLResult):
+class ArtifactFragment(GQLResult):
+    typename__: Typename[Literal["Artifact"]] = "Artifact"
     id: GQLId
-    artifact_sequence: ArtifactFragmentWithoutAliasesArtifactSequence = Field(
+    artifact_sequence: ArtifactFragmentArtifactSequence = Field(
         alias="artifactSequence"
     )
     version_index: Optional[int] = Field(alias="versionIndex")
-    artifact_type: ArtifactFragmentWithoutAliasesArtifactType = Field(
-        alias="artifactType"
-    )
+    artifact_type: ArtifactFragmentArtifactType = Field(alias="artifactType")
     description: Optional[str]
     metadata: Optional[Any]
     ttl_duration_seconds: Optional[Any] = Field(
@@ -88,29 +79,38 @@ class ArtifactFragmentWithoutAliases(GQLResult):
     tags: Optional[List[TagFragment]] = None
     history_step: Optional[Any] = Field(alias="historyStep", default=None)
     state: ArtifactState
-    current_manifest: Optional[ArtifactFragmentWithoutAliasesCurrentManifest] = Field(
+    current_manifest: Optional[ArtifactFragmentCurrentManifest] = Field(
         alias="currentManifest"
     )
     commit_hash: Optional[str] = Field(alias="commitHash")
     file_count: Any = Field(alias="fileCount")
     created_at: str = Field(alias="createdAt")
     updated_at: Optional[str] = Field(alias="updatedAt")
+    aliases: Optional[List[ArtifactFragmentAliases]] = None
 
 
-class ArtifactFragmentWithoutAliasesArtifactSequence(GQLResult):
+class ArtifactFragmentAliasesArtifactCollection(GQLResult):
+    typename__: Typename[
+        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
+    ]
+    project: Optional[ProjectNames]
+    name: str
+
+
+class ArtifactFragmentArtifactSequence(GQLResult):
     name: str
     project: Optional[ProjectNames]
 
 
-class ArtifactFragmentWithoutAliasesArtifactType(GQLResult):
+class ArtifactFragmentArtifactType(GQLResult):
     name: str
 
 
-class ArtifactFragmentWithoutAliasesCurrentManifest(GQLResult):
-    file: ArtifactFragmentWithoutAliasesCurrentManifestFile
+class ArtifactFragmentCurrentManifest(GQLResult):
+    file: ArtifactFragmentCurrentManifestFile
 
 
-class ArtifactFragmentWithoutAliasesCurrentManifestFile(GQLResult):
+class ArtifactFragmentCurrentManifestFile(GQLResult):
     direct_url: str = Field(alias="directUrl")
 
 
@@ -309,7 +309,7 @@ class RegistryVersionConnectionFragmentEdgesNode(GQLResult):
         RegistryVersionConnectionFragmentEdgesNodeArtifactCollection
     ] = Field(alias="artifactCollection")
     version_index: Optional[int] = Field(alias="versionIndex")
-    artifact: Optional[ArtifactFragmentWithoutAliases]
+    artifact: Optional[ArtifactFragment]
     aliases: List[ArtifactAliasFragment]
 
 
@@ -385,10 +385,6 @@ class ArtifactFragmentAliases(ArtifactAliasFragment):
     )
 
 
-class ArtifactFragment(ArtifactFragmentWithoutAliases):
-    aliases: Optional[List[ArtifactFragmentAliases]] = None
-
-
 ArtifactAliasFragment.model_rebuild()
 ArtifactCollectionConnectionFragment.model_rebuild()
 ArtifactCollectionConnectionFragmentEdges.model_rebuild()
@@ -398,12 +394,12 @@ ArtifactCollectionFragmentAliasesEdges.model_rebuild()
 ArtifactCollectionFragmentDefaultArtifactType.model_rebuild()
 ArtifactCollectionFragmentTags.model_rebuild()
 ArtifactCollectionFragmentTagsEdges.model_rebuild()
+ArtifactFragment.model_rebuild()
 ArtifactFragmentAliasesArtifactCollection.model_rebuild()
-ArtifactFragmentWithoutAliases.model_rebuild()
-ArtifactFragmentWithoutAliasesArtifactSequence.model_rebuild()
-ArtifactFragmentWithoutAliasesArtifactType.model_rebuild()
-ArtifactFragmentWithoutAliasesCurrentManifest.model_rebuild()
-ArtifactFragmentWithoutAliasesCurrentManifestFile.model_rebuild()
+ArtifactFragmentArtifactSequence.model_rebuild()
+ArtifactFragmentArtifactType.model_rebuild()
+ArtifactFragmentCurrentManifest.model_rebuild()
+ArtifactFragmentCurrentManifestFile.model_rebuild()
 ArtifactPortfolioTypeFields.model_rebuild()
 ArtifactSequenceTypeFields.model_rebuild()
 ArtifactTypeConnectionFragment.model_rebuild()
@@ -455,7 +451,10 @@ ArtifactAliasFragment.model_rebuild()
 ArtifactAliasFragment.model_rebuild()
 ArtifactCollectionFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
-ArtifactFragmentWithoutAliases.model_rebuild()
+ArtifactFragment.model_rebuild()
+ArtifactFragment.model_rebuild()
+ArtifactFragment.model_rebuild()
+ArtifactFragment.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
 FileFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
@@ -479,7 +478,3 @@ RegistryFragment.model_rebuild()
 TagFragment.model_rebuild()
 TagFragment.model_rebuild()
 TagFragment.model_rebuild()
-ArtifactFragment.model_rebuild()
-ArtifactFragment.model_rebuild()
-ArtifactFragment.model_rebuild()
-ArtifactFragment.model_rebuild()

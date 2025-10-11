@@ -1,7 +1,11 @@
-# Base artifact fragment that excludes the `aliases` field.  Necessary for compatibility with both:
-# - the pre-existing `ArtifactFragment` fragment
-# - the `RegistryVersionsPage` fragment, which omits `Artifact.aliases` but includes `ArtifactCollectionMembership.aliases`
-fragment ArtifactFragmentWithoutAliases on Artifact {
+fragment ProjectNames on Project {
+  __typename
+  name
+  entityName
+}
+
+fragment ArtifactFragment on Artifact {
+  __typename
   id
   artifactSequence {
     name
@@ -32,18 +36,7 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
-}
-
-fragment ProjectNames on Project {
-  __typename
-  name
-  entityName
-}
-
-fragment ArtifactFragment on Artifact {
-  ...ArtifactFragmentWithoutAliases
-  aliases @include(if: true) {
-    # Workaround: ensures generated pydantic field defaults to `None`
+  aliases @include(if: $includeAliases) {
     artifactCollection {
       __typename
       project {
@@ -92,6 +85,7 @@ query ProjectArtifacts(
   $perPage: Int = 50
   $order: String
   $filters: JSONString
+  $includeAliases: Boolean = true
 ) {
   project(name: $project, entityName: $entity) {
     artifactType(name: $type) {
@@ -138,6 +132,7 @@ query RunOutputArtifacts(
   $runName: String!
   $cursor: String
   $perPage: Int
+  $includeAliases: Boolean = true
 ) {
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
@@ -154,6 +149,7 @@ query RunInputArtifacts(
   $runName: String!
   $cursor: String
   $perPage: Int
+  $includeAliases: Boolean = true
 ) {
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
@@ -198,7 +194,7 @@ query FetchArtifactManifest($entityName: String!, $projectName: String!, $name: 
   }
 }
 
-query ArtifactByID($id: ID!) {
+query ArtifactByID($id: ID!, $includeAliases: Boolean = true) {
   artifact(id: $id) {
     ...ArtifactFragment
   }
@@ -209,6 +205,7 @@ query ArtifactByName(
   $projectName: String!
   $name: String!
   $enableTracking: Boolean
+  $includeAliases: Boolean = true
 ) {
   project(name: $projectName, entityName: $entityName) {
     artifact(name: $name, enableTracking: $enableTracking) {
@@ -217,7 +214,12 @@ query ArtifactByName(
   }
 }
 
-query ArtifactViaMembershipByName($entityName: String!, $projectName: String!, $name: String!) {
+query ArtifactViaMembershipByName(
+  $entityName: String!
+  $projectName: String!
+  $name: String!
+  $includeAliases: Boolean = true
+) {
   project(name: $projectName, entityName: $entityName) {
     artifactCollectionMembership(name: $name) {
       ...MembershipWithArtifact
@@ -277,7 +279,7 @@ mutation DeleteAliases($input: DeleteAliasesInput!) {
   }
 }
 
-mutation UpdateArtifact($input: UpdateArtifactInput!) {
+mutation UpdateArtifact($input: UpdateArtifactInput!, $includeAliases: Boolean = true) {
   updateArtifact(input: $input) {
     artifact {
       ...ArtifactFragment
@@ -293,7 +295,7 @@ mutation DeleteArtifact($input: DeleteArtifactInput!) {
   }
 }
 
-mutation LinkArtifact($input: LinkArtifactInput!) {
+mutation LinkArtifact($input: LinkArtifactInput!, $includeAliases: Boolean = true) {
   linkArtifact(input: $input) {
     versionIndex
     artifactMembership @include(if: true) {
