@@ -28,6 +28,7 @@ from wandb.automations import (
 from wandb.automations._utils import EXCLUDED_INPUT_ACTIONS, EXCLUDED_INPUT_EVENTS
 from wandb.automations.actions import InputAction, SavedAction, SavedNoOpAction
 from wandb.automations.events import InputEvent, SavedEvent
+from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
 
 # default Hypothesis settings
 settings.register_profile("default", max_examples=100)
@@ -87,21 +88,23 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     For unit-testing purposes, this has been heavily mocked.
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
+    collection_name = "test-collection"
     collection = ArtifactCollection(
         client=mock_client,
         entity="test-entity",
         project="test-project",
-        name="test-collection",
+        name=collection_name,
         type="dataset",
-        attrs={
-            "id": make_graphql_id(prefix="ArtifactCollection"),
-            "type": "dataset",
-            "description": "This is a fake artifact collection.",
-            "aliases": {"edges": []},
-            "createdAt": "2021-01-01T00:00:00Z",
-            "tags": {"edges": []},
-        },
-        is_sequence=False,
+        attrs=ArtifactCollectionFragment(
+            typename__="ArtifactPortfolio",
+            id=make_graphql_id(prefix="ArtifactCollection"),
+            name=collection_name,
+            type="dataset",
+            description="This is a fake artifact collection.",
+            aliases={"edges": []},
+            createdAt="2021-01-01T00:00:00Z",
+            tags={"edges": []},
+        ),
     )
 
     return collection

@@ -25,17 +25,33 @@ class ArtifactCollectionConnectionFragment(GQLResult):
 
 
 class ArtifactCollectionConnectionFragmentEdges(GQLResult):
-    node: Optional[ArtifactCollectionConnectionFragmentEdgesNode]
+    node: Optional[ArtifactCollectionFragment]
 
 
-class ArtifactCollectionConnectionFragmentEdgesNode(GQLResult):
-    typename__: Typename[
-        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
-    ]
+class ArtifactCollectionFragment(GQLResult):
+    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
     id: GQLId
     name: str
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
+    tags: ArtifactCollectionFragmentTags
+    aliases: Optional[ArtifactCollectionFragmentAliases] = None
+
+
+class ArtifactCollectionFragmentAliases(GQLResult):
+    edges: List[ArtifactCollectionFragmentAliasesEdges]
+
+
+class ArtifactCollectionFragmentAliasesEdges(GQLResult):
+    node: Optional[ArtifactAliasFragment]
+
+
+class ArtifactCollectionFragmentTags(GQLResult):
+    edges: List[ArtifactCollectionFragmentTagsEdges]
+
+
+class ArtifactCollectionFragmentTagsEdges(GQLResult):
+    node: TagFragment
 
 
 class ArtifactFragmentAliasesArtifactCollection(GQLResult):
@@ -171,6 +187,14 @@ class MembershipWithArtifactArtifactCollection(GQLResult):
     id: GQLId
     name: str
     project: Optional[ProjectNames]
+
+
+class MinimalArtifactCollectionFragment(GQLResult):
+    typename__: Typename[Literal["ArtifactSequence", "ArtifactPortfolio"]]
+    id: GQLId
+    name: str
+    description: Optional[str]
+    created_at: str = Field(alias="createdAt")
 
 
 class PageInfoFragment(GQLResult):
@@ -360,7 +384,11 @@ class ArtifactFragment(ArtifactFragmentWithoutAliases):
 ArtifactAliasFragment.model_rebuild()
 ArtifactCollectionConnectionFragment.model_rebuild()
 ArtifactCollectionConnectionFragmentEdges.model_rebuild()
-ArtifactCollectionConnectionFragmentEdgesNode.model_rebuild()
+ArtifactCollectionFragment.model_rebuild()
+ArtifactCollectionFragmentAliases.model_rebuild()
+ArtifactCollectionFragmentAliasesEdges.model_rebuild()
+ArtifactCollectionFragmentTags.model_rebuild()
+ArtifactCollectionFragmentTagsEdges.model_rebuild()
 ArtifactFragmentAliasesArtifactCollection.model_rebuild()
 ArtifactFragmentWithoutAliases.model_rebuild()
 ArtifactFragmentWithoutAliasesArtifactSequence.model_rebuild()
@@ -380,6 +408,7 @@ FileUrlConnectionFragmentEdges.model_rebuild()
 FileUrlConnectionFragmentEdgesNode.model_rebuild()
 MembershipWithArtifact.model_rebuild()
 MembershipWithArtifactArtifactCollection.model_rebuild()
+MinimalArtifactCollectionFragment.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectNames.model_rebuild()
 RegistryCollectionConnectionFragment.model_rebuild()
@@ -411,9 +440,11 @@ TypeInfoFragmentFieldsArgs.model_rebuild()
 TypeInfoFragmentInputFields.model_rebuild()
 VersionedArtifactConnectionFragment.model_rebuild()
 VersionedArtifactConnectionFragmentEdges.model_rebuild()
+ArtifactAliasFragment.model_rebuild()
 ArtifactFragmentAliases.model_rebuild()
 ArtifactAliasFragment.model_rebuild()
 ArtifactAliasFragment.model_rebuild()
+ArtifactCollectionFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactFragmentWithoutAliases.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
@@ -435,6 +466,7 @@ ProjectNames.model_rebuild()
 ProjectNames.model_rebuild()
 RegistryCollectionFragment.model_rebuild()
 RegistryFragment.model_rebuild()
+TagFragment.model_rebuild()
 TagFragment.model_rebuild()
 TagFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
