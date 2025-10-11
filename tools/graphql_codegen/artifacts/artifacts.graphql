@@ -271,45 +271,27 @@ query ArtifactType($entityName: String, $projectName: String, $name: String!) {
 }
 
 # ---------------------------------------------------------------------------
-mutation AddAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
-  addAliases(input: { artifactID: $artifactID, aliases: $aliases }) {
+mutation AddAliases($input: AddAliasesInput!) {
+  addAliases(input: $input) {
     success
   }
 }
-mutation DeleteAliases($artifactID: ID!, $aliases: [ArtifactCollectionAliasInput!]!) {
-  deleteAliases(input: { artifactID: $artifactID, aliases: $aliases }) {
+mutation DeleteAliases($input: DeleteAliasesInput!) {
+  deleteAliases(input: $input) {
     success
   }
 }
 
-mutation UpdateArtifact(
-  $artifactID: ID!
-  $description: String
-  $metadata: JSONString
-  $ttlDurationSeconds: Int64
-  $tagsToAdd: [TagInput!]
-  $tagsToDelete: [TagInput!]
-  $aliases: [ArtifactAliasInput!]
-) {
-  updateArtifact(
-    input: {
-      artifactID: $artifactID
-      description: $description
-      metadata: $metadata
-      ttlDurationSeconds: $ttlDurationSeconds
-      tagsToAdd: $tagsToAdd
-      tagsToDelete: $tagsToDelete
-      aliases: $aliases
-    }
-  ) {
+mutation UpdateArtifact($input: UpdateArtifactInput!) {
+  updateArtifact(input: $input) {
     artifact {
       ...ArtifactFragment
     }
   }
 }
 
-mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
-  deleteArtifact(input: { artifactID: $artifactID, deleteAliases: $deleteAliases }) {
+mutation DeleteArtifact($input: DeleteArtifactInput!) {
+  deleteArtifact(input: $input) {
     artifact {
       id
     }
@@ -326,10 +308,9 @@ mutation LinkArtifact($input: LinkArtifactInput!) {
   }
 }
 
-mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
-  unlinkArtifact(input: { artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID }) {
+mutation UnlinkArtifact($input: UnlinkArtifactInput!) {
+  unlinkArtifact(input: $input) {
     artifactID
     success
-    clientMutationId
   }
 }

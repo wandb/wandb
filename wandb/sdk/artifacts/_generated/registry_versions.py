@@ -7,22 +7,22 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import RegistryVersionsPage
 
 
-class RegistryVersions(GQLBase):
+class RegistryVersions(GQLResult):
     organization: Optional[RegistryVersionsOrganization]
 
 
-class RegistryVersionsOrganization(GQLBase):
+class RegistryVersionsOrganization(GQLResult):
     org_entity: Optional[RegistryVersionsOrganizationOrgEntity] = Field(
         alias="orgEntity"
     )
 
 
-class RegistryVersionsOrganizationOrgEntity(GQLBase):
+class RegistryVersionsOrganizationOrgEntity(GQLResult):
     name: str
     artifact_memberships: Optional[RegistryVersionsPage] = Field(
         alias="artifactMemberships"

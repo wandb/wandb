@@ -6,7 +6,7 @@ from typing import Optional
 from pydantic import Field
 from typing_extensions import Annotated
 
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLId, GQLInput
 
 from ._generated import TriggerFields
 from .actions import InputAction, SavedAction
@@ -15,9 +15,10 @@ from .scopes import AutomationScope
 
 
 # ------------------------------------------------------------------------------
-# Saved types: for parsing response data from saved automations
-class Automation(TriggerFields):
-    """A local instance of a saved W&B automation."""
+# Saved types: for parsing response data from saved automations while allowing
+# local editing.
+class Automation(TriggerFields, frozen=False):
+    """A local instance of a saved W&B automation that supports editing."""
 
     id: GQLId
 
@@ -48,7 +49,7 @@ class Automation(TriggerFields):
     """The action that will execute when this automation is triggered."""
 
 
-class NewAutomation(GQLBase, extra="forbid", validate_default=False):
+class NewAutomation(GQLInput, extra="forbid", validate_default=False):
     """A new automation to be created."""
 
     name: Optional[str] = None

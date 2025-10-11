@@ -7,31 +7,31 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 
-class ArtifactUsedBy(GQLBase):
+class ArtifactUsedBy(GQLResult):
     artifact: Optional[ArtifactUsedByArtifact]
 
 
-class ArtifactUsedByArtifact(GQLBase):
+class ArtifactUsedByArtifact(GQLResult):
     used_by: ArtifactUsedByArtifactUsedBy = Field(alias="usedBy")
 
 
-class ArtifactUsedByArtifactUsedBy(GQLBase):
+class ArtifactUsedByArtifactUsedBy(GQLResult):
     edges: List[ArtifactUsedByArtifactUsedByEdges]
 
 
-class ArtifactUsedByArtifactUsedByEdges(GQLBase):
+class ArtifactUsedByArtifactUsedByEdges(GQLResult):
     node: ArtifactUsedByArtifactUsedByEdgesNode
 
 
-class ArtifactUsedByArtifactUsedByEdgesNode(GQLBase):
+class ArtifactUsedByArtifactUsedByEdgesNode(GQLResult):
     name: str
     project: Optional[ArtifactUsedByArtifactUsedByEdgesNodeProject]
 
 
-class ArtifactUsedByArtifactUsedByEdgesNodeProject(GQLBase):
+class ArtifactUsedByArtifactUsedByEdgesNodeProject(GQLResult):
     name: str
     entity_name: str = Field(alias="entityName")
 
