@@ -13,6 +13,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- Within async code, `await artifact` is now equivalent to calling `artifact.wait()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10681).
+
 ### Fixed
 
 - `wandb.Api(api_key=...)` now prioritizes the explicitly provided API key over thread-local cached credentials (@pingleiwandb in https://github.com/wandb/wandb/pull/10657)
