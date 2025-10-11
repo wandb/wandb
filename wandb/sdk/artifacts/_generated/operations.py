@@ -134,8 +134,7 @@ query ProjectArtifactCollections($entityName: String!, $projectName: String!, $a
 
 fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   totalCount
   edges {
@@ -148,6 +147,12 @@ fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
     }
     cursor
   }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 """
 
@@ -177,8 +182,7 @@ query ProjectArtifactCollection($entityName: String!, $projectName: String!, $ar
             cursor
           }
           pageInfo {
-            endCursor
-            hasNextPage
+            ...PageInfoFragment
           }
         }
       }
@@ -187,6 +191,12 @@ query ProjectArtifactCollection($entityName: String!, $projectName: String!, $ar
       }
     }
   }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 """
 
@@ -220,9 +230,14 @@ fragment FilesFragment on FileConnection {
     cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 """
 
@@ -257,9 +272,14 @@ fragment FilesFragment on FileConnection {
     cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 """
 
@@ -279,8 +299,7 @@ query ArtifactCollectionMembershipFileUrls($entityName: String!, $projectName: S
 
 fragment FileUrlsFragment on FileConnection {
   pageInfo {
-    hasNextPage
-    endCursor
+    ...PageInfoFragment
   }
   edges {
     node {
@@ -288,6 +307,12 @@ fragment FileUrlsFragment on FileConnection {
       directUrl
     }
   }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 """
 
@@ -302,8 +327,7 @@ query ArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
 
 fragment FileUrlsFragment on FileConnection {
   pageInfo {
-    hasNextPage
-    endCursor
+    ...PageInfoFragment
   }
   edges {
     node {
@@ -311,6 +335,12 @@ fragment FileUrlsFragment on FileConnection {
       directUrl
     }
   }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 """
 
@@ -339,9 +369,14 @@ fragment ArtifactTypesFragment on ArtifactTypeConnection {
     cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 """
 
@@ -436,9 +471,14 @@ fragment ArtifactsFragment on VersionedArtifactConnection {
     cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
+}
+
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
 }
 """
 
@@ -501,6 +541,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   updatedAt
 }
 
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
 fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
   totalCount
   edges {
@@ -510,8 +556,7 @@ fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
     cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
 }
 """
@@ -575,6 +620,12 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   updatedAt
 }
 
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
 fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
   totalCount
   edges {
@@ -584,8 +635,7 @@ fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
     cursor
   }
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
 }
 """
@@ -1106,10 +1156,15 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   updatedAt
 }
 
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
 fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   edges {
     node {
@@ -1153,11 +1208,16 @@ query RegistryCollections($organization: String!, $registryFilter: JSONString, $
   }
 }
 
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
 fragment RegistryCollectionsPage on ArtifactCollectionConnection {
   totalCount
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   edges {
     cursor
@@ -1207,10 +1267,15 @@ query FetchRegistries($organization: String!, $filters: JSONString, $cursor: Str
   }
 }
 
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
 fragment RegistriesPage on ProjectConnection {
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   edges {
     node {
