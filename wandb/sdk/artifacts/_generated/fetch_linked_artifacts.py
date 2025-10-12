@@ -9,6 +9,8 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult, Typename
 
+from .fragments import ProjectInfoFragment
+
 
 class FetchLinkedArtifacts(GQLResult):
     artifact: Optional[FetchLinkedArtifactsArtifact]
@@ -43,20 +45,11 @@ class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeAliases(GQLResult)
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection(
     GQLResult
 ):
-    project: Optional[
-        FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollectionProject
-    ]
-    name: str
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
-
-
-class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollectionProject(
-    GQLResult
-):
-    entity_name: str = Field(alias="entityName")
     name: str
+    project: Optional[ProjectInfoFragment]
 
 
 FetchLinkedArtifacts.model_rebuild()

@@ -1,6 +1,7 @@
 mutation DeleteArtifactSequence($id: ID!) {
   deleteArtifactSequence(input: { artifactSequenceID: $id }) {
     artifactCollection {
+      __typename
       state
     }
   }
@@ -9,6 +10,7 @@ mutation DeleteArtifactSequence($id: ID!) {
 mutation DeleteArtifactPortfolio($id: ID!) {
   deleteArtifactPortfolio(input: { artifactPortfolioID: $id }) {
     artifactCollection {
+      __typename
       state
     }
   }
@@ -67,12 +69,11 @@ mutation DeleteArtifactCollectionTagAssignments(
   }
 }
 
-fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
-  pageInfo {
-    endCursor
-    hasNextPage
-  }
+fragment ArtifactCollectionConnectionFragment on ArtifactCollectionConnection {
   totalCount
+  pageInfo {
+    ...PageInfoFragment
+  }
   edges {
     node {
       __typename
@@ -81,7 +82,6 @@ fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
       description
       createdAt
     }
-    cursor
   }
 }
 
@@ -97,7 +97,7 @@ query ProjectArtifactCollections(
       # - `artifactCollections` for new servers
       # - `artifactSequences` for old servers
       artifactCollections: artifactCollections(after: $cursor) {
-        ...ArtifactCollectionsFragment
+        ...ArtifactCollectionConnectionFragment
       }
     }
   }
@@ -137,8 +137,7 @@ query ProjectArtifactCollection(
             cursor
           }
           pageInfo {
-            endCursor
-            hasNextPage
+            ...PageInfoFragment
           }
         }
       }

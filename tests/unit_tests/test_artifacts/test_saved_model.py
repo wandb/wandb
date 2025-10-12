@@ -156,7 +156,11 @@ def make_local_artifact_public(art: Artifact):
             {
                 "artifactCollection": {
                     "__typename": "ArtifactSequence",
-                    "project": {"entityName": path.prefix, "name": path.project},
+                    "project": {
+                        "id": "FAKE_PROJECT_ID",
+                        "entityName": path.prefix,
+                        "name": path.project,
+                    },
                     "name": path.name,
                 },
                 "alias": "v0",
@@ -164,7 +168,11 @@ def make_local_artifact_public(art: Artifact):
         ],
         artifactSequence={
             "name": "FAKE_SEQUENCE_NAME",
-            "project": {"entityName": path.prefix, "name": path.project},
+            "project": {
+                "id": "FAKE_PROJECT_ID",
+                "entityName": path.prefix,
+                "name": path.project,
+            },
         },
         versionIndex=0,
         description=None,
