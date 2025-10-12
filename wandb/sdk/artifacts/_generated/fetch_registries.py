@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import RegistriesPage
+from .fragments import RegistryConnectionFragment
 
 
 class FetchRegistries(GQLResult):
@@ -24,7 +24,7 @@ class FetchRegistriesOrganization(GQLResult):
 
 class FetchRegistriesOrganizationOrgEntity(GQLResult):
     name: str
-    projects: Optional[RegistriesPage]
+    projects: Optional[RegistryConnectionFragment]
 
 
 FetchRegistries.model_rebuild()

@@ -12,18 +12,18 @@ from wandb._pydantic import GQLId, GQLResult, Typename
 from .enums import ArtifactState
 
 
-class ArtifactCollectionsFragment(GQLResult):
+class ArtifactCollectionConnectionFragment(GQLResult):
     page_info: PageInfoFragment = Field(alias="pageInfo")
     total_count: int = Field(alias="totalCount")
-    edges: List[ArtifactCollectionsFragmentEdges]
+    edges: List[ArtifactCollectionConnectionFragmentEdges]
 
 
-class ArtifactCollectionsFragmentEdges(GQLResult):
-    node: Optional[ArtifactCollectionsFragmentEdgesNode]
+class ArtifactCollectionConnectionFragmentEdges(GQLResult):
+    node: Optional[ArtifactCollectionConnectionFragmentEdgesNode]
     cursor: str
 
 
-class ArtifactCollectionsFragmentEdgesNode(GQLResult):
+class ArtifactCollectionConnectionFragmentEdgesNode(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
@@ -126,53 +126,8 @@ class ArtifactTypeFragment(GQLResult):
     created_at: str = Field(alias="createdAt")
 
 
-class ArtifactTypesFragment(GQLResult):
-    edges: List[ArtifactTypesFragmentEdges]
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-
-
-class ArtifactTypesFragmentEdges(GQLResult):
-    node: Optional[ArtifactTypeFragment]
-    cursor: str
-
-
-class ArtifactsFragment(GQLResult):
-    total_count: int = Field(alias="totalCount")
-    edges: List[ArtifactsFragmentEdges]
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-
-
-class ArtifactsFragmentEdges(GQLResult):
-    node: ArtifactFragment
-    version: str
-    cursor: str
-
-
-class FileUrlsFragment(GQLResult):
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[FileUrlsFragmentEdges]
-
-
-class FileUrlsFragmentEdges(GQLResult):
-    node: Optional[FileUrlsFragmentEdgesNode]
-
-
-class FileUrlsFragmentEdgesNode(GQLResult):
-    name: str
-    direct_url: str = Field(alias="directUrl")
-
-
-class FilesFragment(GQLResult):
-    edges: List[FilesFragmentEdges]
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-
-
-class FilesFragmentEdges(GQLResult):
-    node: Optional[FilesFragmentEdgesNode]
-    cursor: str
-
-
-class FilesFragmentEdgesNode(GQLResult):
+class FileFragment(GQLResult):
+    typename__: Typename[Literal["File"]] = "File"
     id: GQLId
     name: str
     url: Optional[str]
@@ -182,6 +137,20 @@ class FilesFragmentEdgesNode(GQLResult):
     updated_at: Optional[str] = Field(alias="updatedAt")
     digest: Optional[str]
     md_5: Optional[str] = Field(alias="md5")
+    direct_url: str = Field(alias="directUrl")
+
+
+class FileUrlConnectionFragment(GQLResult):
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[FileUrlConnectionFragmentEdges]
+
+
+class FileUrlConnectionFragmentEdges(GQLResult):
+    node: Optional[FileUrlConnectionFragmentEdgesNode]
+
+
+class FileUrlConnectionFragmentEdgesNode(GQLResult):
+    name: str
     direct_url: str = Field(alias="directUrl")
 
 
@@ -214,27 +183,18 @@ class PageInfoFragment(GQLResult):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class RegistriesPage(GQLResult):
-    page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RegistriesPageEdges]
-
-
-class RegistriesPageEdges(GQLResult):
-    node: Optional[RegistryFragment]
-
-
-class RegistryCollectionsPage(GQLResult):
+class RegistryCollectionConnectionFragment(GQLResult):
     total_count: int = Field(alias="totalCount")
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RegistryCollectionsPageEdges]
+    edges: List[RegistryCollectionConnectionFragmentEdges]
 
 
-class RegistryCollectionsPageEdges(GQLResult):
+class RegistryCollectionConnectionFragmentEdges(GQLResult):
     cursor: str
-    node: Optional[RegistryCollectionsPageEdgesNode]
+    node: Optional[RegistryCollectionConnectionFragmentEdgesNode]
 
 
-class RegistryCollectionsPageEdgesNode(GQLResult):
+class RegistryCollectionConnectionFragmentEdgesNode(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
@@ -242,49 +202,58 @@ class RegistryCollectionsPageEdgesNode(GQLResult):
     name: str
     description: Optional[str]
     created_at: str = Field(alias="createdAt")
-    tags: RegistryCollectionsPageEdgesNodeTags
-    project: Optional[RegistryCollectionsPageEdgesNodeProject]
-    default_artifact_type: RegistryCollectionsPageEdgesNodeDefaultArtifactType = Field(
+    tags: RegistryCollectionConnectionFragmentEdgesNodeTags
+    project: Optional[RegistryCollectionConnectionFragmentEdgesNodeProject]
+    default_artifact_type: RegistryCollectionConnectionFragmentEdgesNodeDefaultArtifactType = Field(
         alias="defaultArtifactType"
     )
-    aliases: RegistryCollectionsPageEdgesNodeAliases
+    aliases: RegistryCollectionConnectionFragmentEdgesNodeAliases
 
 
-class RegistryCollectionsPageEdgesNodeAliases(GQLResult):
-    edges: List[RegistryCollectionsPageEdgesNodeAliasesEdges]
+class RegistryCollectionConnectionFragmentEdgesNodeAliases(GQLResult):
+    edges: List[RegistryCollectionConnectionFragmentEdgesNodeAliasesEdges]
 
 
-class RegistryCollectionsPageEdgesNodeAliasesEdges(GQLResult):
-    node: Optional[RegistryCollectionsPageEdgesNodeAliasesEdgesNode]
+class RegistryCollectionConnectionFragmentEdgesNodeAliasesEdges(GQLResult):
+    node: Optional[RegistryCollectionConnectionFragmentEdgesNodeAliasesEdgesNode]
 
 
-class RegistryCollectionsPageEdgesNodeAliasesEdgesNode(GQLResult):
+class RegistryCollectionConnectionFragmentEdgesNodeAliasesEdgesNode(GQLResult):
     alias: str
 
 
-class RegistryCollectionsPageEdgesNodeDefaultArtifactType(GQLResult):
+class RegistryCollectionConnectionFragmentEdgesNodeDefaultArtifactType(GQLResult):
     name: str
 
 
-class RegistryCollectionsPageEdgesNodeProject(GQLResult):
+class RegistryCollectionConnectionFragmentEdgesNodeProject(GQLResult):
     name: str
-    entity: RegistryCollectionsPageEdgesNodeProjectEntity
+    entity: RegistryCollectionConnectionFragmentEdgesNodeProjectEntity
 
 
-class RegistryCollectionsPageEdgesNodeProjectEntity(GQLResult):
+class RegistryCollectionConnectionFragmentEdgesNodeProjectEntity(GQLResult):
     name: str
 
 
-class RegistryCollectionsPageEdgesNodeTags(GQLResult):
-    edges: List[RegistryCollectionsPageEdgesNodeTagsEdges]
+class RegistryCollectionConnectionFragmentEdgesNodeTags(GQLResult):
+    edges: List[RegistryCollectionConnectionFragmentEdgesNodeTagsEdges]
 
 
-class RegistryCollectionsPageEdgesNodeTagsEdges(GQLResult):
-    node: RegistryCollectionsPageEdgesNodeTagsEdgesNode
+class RegistryCollectionConnectionFragmentEdgesNodeTagsEdges(GQLResult):
+    node: RegistryCollectionConnectionFragmentEdgesNodeTagsEdgesNode
 
 
-class RegistryCollectionsPageEdgesNodeTagsEdgesNode(GQLResult):
+class RegistryCollectionConnectionFragmentEdgesNodeTagsEdgesNode(GQLResult):
     name: str
+
+
+class RegistryConnectionFragment(GQLResult):
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[RegistryConnectionFragmentEdges]
+
+
+class RegistryConnectionFragmentEdges(GQLResult):
+    node: Optional[RegistryFragment]
 
 
 class RegistryFragment(GQLResult):
@@ -312,42 +281,46 @@ class RegistryFragmentArtifactTypesEdgesNode(GQLResult):
     name: str
 
 
-class RegistryVersionsPage(GQLResult):
+class RegistryVersionConnectionFragment(GQLResult):
     page_info: PageInfoFragment = Field(alias="pageInfo")
-    edges: List[RegistryVersionsPageEdges]
+    edges: List[RegistryVersionConnectionFragmentEdges]
 
 
-class RegistryVersionsPageEdges(GQLResult):
-    node: Optional[RegistryVersionsPageEdgesNode]
+class RegistryVersionConnectionFragmentEdges(GQLResult):
+    node: Optional[RegistryVersionConnectionFragmentEdgesNode]
 
 
-class RegistryVersionsPageEdgesNode(GQLResult):
-    artifact_collection: Optional[RegistryVersionsPageEdgesNodeArtifactCollection] = (
-        Field(alias="artifactCollection")
-    )
+class RegistryVersionConnectionFragmentEdgesNode(GQLResult):
+    artifact_collection: Optional[
+        RegistryVersionConnectionFragmentEdgesNodeArtifactCollection
+    ] = Field(alias="artifactCollection")
     version_index: Optional[int] = Field(alias="versionIndex")
     artifact: Optional[ArtifactFragmentWithoutAliases]
-    aliases: List[RegistryVersionsPageEdgesNodeAliases]
+    aliases: List[RegistryVersionConnectionFragmentEdgesNodeAliases]
 
 
-class RegistryVersionsPageEdgesNodeAliases(GQLResult):
+class RegistryVersionConnectionFragmentEdgesNodeAliases(GQLResult):
     alias: str
 
 
-class RegistryVersionsPageEdgesNodeArtifactCollection(GQLResult):
+class RegistryVersionConnectionFragmentEdgesNodeArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
-    project: Optional[RegistryVersionsPageEdgesNodeArtifactCollectionProject]
+    project: Optional[
+        RegistryVersionConnectionFragmentEdgesNodeArtifactCollectionProject
+    ]
     name: str
 
 
-class RegistryVersionsPageEdgesNodeArtifactCollectionProject(GQLResult):
+class RegistryVersionConnectionFragmentEdgesNodeArtifactCollectionProject(GQLResult):
     name: str
-    entity: RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity
+    entity: RegistryVersionConnectionFragmentEdgesNodeArtifactCollectionProjectEntity
 
 
-class RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity(GQLResult):
+class RegistryVersionConnectionFragmentEdgesNodeArtifactCollectionProjectEntity(
+    GQLResult
+):
     name: str
 
 
@@ -394,13 +367,25 @@ class TypeInfoFragmentInputFields(GQLResult):
     name: str
 
 
+class VersionedArtifactConnectionFragment(GQLResult):
+    total_count: int = Field(alias="totalCount")
+    edges: List[VersionedArtifactConnectionFragmentEdges]
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+
+
+class VersionedArtifactConnectionFragmentEdges(GQLResult):
+    node: ArtifactFragment
+    version: str
+    cursor: str
+
+
 class ArtifactFragment(ArtifactFragmentWithoutAliases):
     aliases: Optional[List[ArtifactFragmentAliases]] = None
 
 
-ArtifactCollectionsFragment.model_rebuild()
-ArtifactCollectionsFragmentEdges.model_rebuild()
-ArtifactCollectionsFragmentEdgesNode.model_rebuild()
+ArtifactCollectionConnectionFragment.model_rebuild()
+ArtifactCollectionConnectionFragmentEdges.model_rebuild()
+ArtifactCollectionConnectionFragmentEdgesNode.model_rebuild()
 ArtifactFragmentAliases.model_rebuild()
 ArtifactFragmentAliasesArtifactCollection.model_rebuild()
 ArtifactFragmentAliasesArtifactCollectionProject.model_rebuild()
@@ -414,45 +399,39 @@ ArtifactFragmentWithoutAliasesTags.model_rebuild()
 ArtifactPortfolioTypeFields.model_rebuild()
 ArtifactSequenceTypeFields.model_rebuild()
 ArtifactTypeFragment.model_rebuild()
-ArtifactTypesFragment.model_rebuild()
-ArtifactTypesFragmentEdges.model_rebuild()
-ArtifactsFragment.model_rebuild()
-ArtifactsFragmentEdges.model_rebuild()
-FileUrlsFragment.model_rebuild()
-FileUrlsFragmentEdges.model_rebuild()
-FileUrlsFragmentEdgesNode.model_rebuild()
-FilesFragment.model_rebuild()
-FilesFragmentEdges.model_rebuild()
-FilesFragmentEdgesNode.model_rebuild()
+FileFragment.model_rebuild()
+FileUrlConnectionFragment.model_rebuild()
+FileUrlConnectionFragmentEdges.model_rebuild()
+FileUrlConnectionFragmentEdgesNode.model_rebuild()
 MembershipWithArtifact.model_rebuild()
 MembershipWithArtifactArtifactCollection.model_rebuild()
 MembershipWithArtifactArtifactCollectionProject.model_rebuild()
 PageInfoFragment.model_rebuild()
-RegistriesPage.model_rebuild()
-RegistriesPageEdges.model_rebuild()
-RegistryCollectionsPage.model_rebuild()
-RegistryCollectionsPageEdges.model_rebuild()
-RegistryCollectionsPageEdgesNode.model_rebuild()
-RegistryCollectionsPageEdgesNodeAliases.model_rebuild()
-RegistryCollectionsPageEdgesNodeAliasesEdges.model_rebuild()
-RegistryCollectionsPageEdgesNodeAliasesEdgesNode.model_rebuild()
-RegistryCollectionsPageEdgesNodeDefaultArtifactType.model_rebuild()
-RegistryCollectionsPageEdgesNodeProject.model_rebuild()
-RegistryCollectionsPageEdgesNodeProjectEntity.model_rebuild()
-RegistryCollectionsPageEdgesNodeTags.model_rebuild()
-RegistryCollectionsPageEdgesNodeTagsEdges.model_rebuild()
-RegistryCollectionsPageEdgesNodeTagsEdgesNode.model_rebuild()
+RegistryCollectionConnectionFragment.model_rebuild()
+RegistryCollectionConnectionFragmentEdges.model_rebuild()
+RegistryCollectionConnectionFragmentEdgesNode.model_rebuild()
+RegistryCollectionConnectionFragmentEdgesNodeAliases.model_rebuild()
+RegistryCollectionConnectionFragmentEdgesNodeAliasesEdges.model_rebuild()
+RegistryCollectionConnectionFragmentEdgesNodeAliasesEdgesNode.model_rebuild()
+RegistryCollectionConnectionFragmentEdgesNodeDefaultArtifactType.model_rebuild()
+RegistryCollectionConnectionFragmentEdgesNodeProject.model_rebuild()
+RegistryCollectionConnectionFragmentEdgesNodeProjectEntity.model_rebuild()
+RegistryCollectionConnectionFragmentEdgesNodeTags.model_rebuild()
+RegistryCollectionConnectionFragmentEdgesNodeTagsEdges.model_rebuild()
+RegistryCollectionConnectionFragmentEdgesNodeTagsEdgesNode.model_rebuild()
+RegistryConnectionFragment.model_rebuild()
+RegistryConnectionFragmentEdges.model_rebuild()
 RegistryFragment.model_rebuild()
 RegistryFragmentArtifactTypes.model_rebuild()
 RegistryFragmentArtifactTypesEdges.model_rebuild()
 RegistryFragmentArtifactTypesEdgesNode.model_rebuild()
-RegistryVersionsPage.model_rebuild()
-RegistryVersionsPageEdges.model_rebuild()
-RegistryVersionsPageEdgesNode.model_rebuild()
-RegistryVersionsPageEdgesNodeAliases.model_rebuild()
-RegistryVersionsPageEdgesNodeArtifactCollection.model_rebuild()
-RegistryVersionsPageEdgesNodeArtifactCollectionProject.model_rebuild()
-RegistryVersionsPageEdgesNodeArtifactCollectionProjectEntity.model_rebuild()
+RegistryVersionConnectionFragment.model_rebuild()
+RegistryVersionConnectionFragmentEdges.model_rebuild()
+RegistryVersionConnectionFragmentEdgesNode.model_rebuild()
+RegistryVersionConnectionFragmentEdgesNodeAliases.model_rebuild()
+RegistryVersionConnectionFragmentEdgesNodeArtifactCollection.model_rebuild()
+RegistryVersionConnectionFragmentEdgesNodeArtifactCollectionProject.model_rebuild()
+RegistryVersionConnectionFragmentEdgesNodeArtifactCollectionProjectEntity.model_rebuild()
 RunInputArtifactConnectionFragment.model_rebuild()
 RunInputArtifactConnectionFragmentEdges.model_rebuild()
 RunOutputArtifactConnectionFragment.model_rebuild()
@@ -461,4 +440,6 @@ TypeInfoFragment.model_rebuild()
 TypeInfoFragmentFields.model_rebuild()
 TypeInfoFragmentFieldsArgs.model_rebuild()
 TypeInfoFragmentInputFields.model_rebuild()
+VersionedArtifactConnectionFragment.model_rebuild()
+VersionedArtifactConnectionFragmentEdges.model_rebuild()
 ArtifactFragment.model_rebuild()

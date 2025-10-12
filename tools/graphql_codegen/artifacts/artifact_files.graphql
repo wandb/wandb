@@ -1,22 +1,15 @@
-fragment FilesFragment on FileConnection {
-  edges {
-    node {
-      id
-      name: displayName
-      url
-      sizeBytes
-      storagePath @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
-      mimetype
-      updatedAt
-      digest
-      md5
-      directUrl
-    }
-    cursor
-  }
-  pageInfo {
-    ...PageInfoFragment
-  }
+fragment FileFragment on File {
+  __typename
+  id
+  name: displayName
+  url
+  sizeBytes
+  storagePath @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
+  mimetype
+  updatedAt
+  digest
+  md5
+  directUrl
 }
 
 query ArtifactVersionFiles(
@@ -32,7 +25,15 @@ query ArtifactVersionFiles(
     artifactType(name: $artifactTypeName) {
       artifact(name: $artifactName) {
         files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
-          ...FilesFragment
+          edges {
+            node {
+              ...FileFragment
+            }
+            cursor
+          }
+          pageInfo {
+            ...PageInfoFragment
+          }
         }
       }
     }
@@ -52,14 +53,22 @@ query ArtifactCollectionMembershipFiles(
     artifactCollection(name: $artifactName) {
       artifactMembership(aliasName: $artifactVersionIndex) {
         files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
-          ...FilesFragment
+          edges {
+            node {
+              ...FileFragment
+            }
+            cursor
+          }
+          pageInfo {
+            ...PageInfoFragment
+          }
         }
       }
     }
   }
 }
 
-fragment FileUrlsFragment on FileConnection {
+fragment FileUrlConnectionFragment on FileConnection {
   pageInfo {
     ...PageInfoFragment
   }
@@ -83,7 +92,7 @@ query ArtifactCollectionMembershipFileUrls(
     artifactCollection(name: $artifactName) {
       artifactMembership(aliasName: $artifactVersionIndex) {
         files(after: $cursor, first: $perPage) {
-          ...FileUrlsFragment
+          ...FileUrlConnectionFragment
         }
       }
     }
@@ -93,7 +102,7 @@ query ArtifactCollectionMembershipFileUrls(
 query ArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
   artifact(id: $id) {
     files(after: $cursor, first: $perPage) {
-      ...FileUrlsFragment
+      ...FileUrlConnectionFragment
     }
   }
 }

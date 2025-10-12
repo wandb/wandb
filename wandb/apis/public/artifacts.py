@@ -40,14 +40,14 @@ from wandb.sdk.artifacts._generated import (
     RUN_OUTPUT_ARTIFACTS_GQL,
     UPDATE_ARTIFACT_PORTFOLIO_GQL,
     UPDATE_ARTIFACT_SEQUENCE_GQL,
+    ArtifactCollectionConnectionFragment,
     ArtifactCollectionMembershipFiles,
-    ArtifactCollectionsFragment,
     ArtifactFragment,
     ArtifactTypeFragment,
     ArtifactVersionFiles,
     CreateArtifactCollectionTagAssignmentsInput,
     DeleteArtifactCollectionTagAssignmentsInput,
-    FilesFragment,
+    FileFragment,
     MoveArtifactSequenceInput,
     ProjectArtifactCollection,
     ProjectArtifactCollections,
@@ -265,7 +265,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    last_response: ArtifactCollectionsFragment | None
+    last_response: ArtifactCollectionConnectionFragment | None
 
     def __init__(
         self,
@@ -310,7 +310,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
         ):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
-        self.last_response = ArtifactCollectionsFragment.model_validate(conn)
+        self.last_response = ArtifactCollectionConnectionFragment.model_validate(conn)
 
     @property
     def _length(self) -> int:
@@ -799,7 +799,7 @@ class Artifacts(SizedPaginator["Artifact"]):
         return [art for art in artifacts if required_tags.issubset(art.tags)]
 
 
-class _RunArtifactConnection(ConnectionWithTotal[ArtifactFragment]):
+class RunArtifactConnection(ConnectionWithTotal[ArtifactFragment]):
     pass
 
 
@@ -809,7 +809,7 @@ class RunArtifacts(SizedPaginator["Artifact"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    last_response: _RunArtifactConnection | None
+    last_response: RunArtifactConnection | None
 
     def __init__(
         self,
@@ -846,7 +846,7 @@ class RunArtifacts(SizedPaginator["Artifact"]):
 
         # Extract the inner `*Connection` result for faster/easier access.
         inner_data = data["project"]["run"][self.run_key]
-        self.last_response = _RunArtifactConnection.model_validate(inner_data)
+        self.last_response = RunArtifactConnection.model_validate(inner_data)
 
     @property
     def _length(self) -> int:
@@ -898,13 +898,16 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         ]
 
 
+_ArtifactFileConnection = Connection[FileFragment]
+
+
 class ArtifactFiles(SizedPaginator["public.File"]):
     """A paginator for files in an artifact.
 
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    last_response: FilesFragment | None
+    last_response: _ArtifactFileConnection | None
 
     def __init__(
         self,
@@ -961,7 +964,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         if conn is None:
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
 
-        self.last_response = FilesFragment.model_validate(conn)
+        self.last_response = _ArtifactFileConnection.model_validate(conn)
 
     @property
     def path(self) -> list[str]:
@@ -1006,7 +1009,7 @@ class ArtifactFiles(SizedPaginator["public.File"]):
         self.variables.update({"fileLimit": self.per_page, "fileCursor": self.cursor})
 
     def convert_objects(self) -> list[public.File]:
-        """Convert the raw response data into a list of public.File objects.
+        """Convert the raw response data into a list of File objects.
 
         <!-- lazydoc-ignore: internal -->
         """

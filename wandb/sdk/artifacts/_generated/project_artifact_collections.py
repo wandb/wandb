@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import ArtifactCollectionsFragment
+from .fragments import ArtifactCollectionConnectionFragment
 
 
 class ProjectArtifactCollections(GQLResult):
@@ -23,7 +23,7 @@ class ProjectArtifactCollectionsProject(GQLResult):
 
 
 class ProjectArtifactCollectionsProjectArtifactType(GQLResult):
-    artifact_collections: Optional[ArtifactCollectionsFragment] = Field(
+    artifact_collections: Optional[ArtifactCollectionConnectionFragment] = Field(
         alias="artifactCollections"
     )
 

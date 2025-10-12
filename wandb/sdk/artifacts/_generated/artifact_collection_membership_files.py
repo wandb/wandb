@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import Field
 
 from wandb._pydantic import GQLResult, Typename
 
-from .fragments import FilesFragment
+from .fragments import FileFragment, PageInfoFragment
 
 
 class ArtifactCollectionMembershipFiles(GQLResult):
@@ -34,10 +34,30 @@ class ArtifactCollectionMembershipFilesProjectArtifactCollection(GQLResult):
 class ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembership(
     GQLResult
 ):
-    files: Optional[FilesFragment]
+    files: Optional[
+        ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFiles
+    ]
+
+
+class ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFiles(
+    GQLResult
+):
+    edges: List[
+        ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges
+    ]
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+
+
+class ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges(
+    GQLResult
+):
+    node: Optional[FileFragment]
+    cursor: str
 
 
 ArtifactCollectionMembershipFiles.model_rebuild()
 ArtifactCollectionMembershipFilesProject.model_rebuild()
 ArtifactCollectionMembershipFilesProjectArtifactCollection.model_rebuild()
 ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembership.model_rebuild()
+ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFiles.model_rebuild()
+ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges.model_rebuild()

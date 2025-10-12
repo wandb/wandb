@@ -7,7 +7,7 @@ from typing import Optional
 
 from wandb._pydantic import GQLResult
 
-from .fragments import FileUrlsFragment
+from .fragments import FileUrlConnectionFragment
 
 
 class ArtifactFileUrls(GQLResult):
@@ -15,7 +15,7 @@ class ArtifactFileUrls(GQLResult):
 
 
 class ArtifactFileUrlsArtifact(GQLResult):
-    files: Optional[FileUrlsFragment]
+    files: Optional[FileUrlConnectionFragment]
 
 
 ArtifactFileUrls.model_rebuild()

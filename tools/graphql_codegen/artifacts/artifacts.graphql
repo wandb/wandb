@@ -68,7 +68,7 @@ fragment MembershipWithArtifact on ArtifactCollectionMembership {
   }
 }
 
-fragment ArtifactsFragment on VersionedArtifactConnection {
+fragment VersionedArtifactConnectionFragment on VersionedArtifactConnection {
   totalCount
   edges {
     node {
@@ -100,7 +100,7 @@ query ProjectArtifacts(
       artifactCollection: artifactCollection(name: $collection) {
         name
         artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
-          ...ArtifactsFragment
+          ...VersionedArtifactConnectionFragment
         }
       }
     }
