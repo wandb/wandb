@@ -29,7 +29,6 @@ class ProjectArtifactTypesProjectArtifactTypes(GQLResult):
 
 class ProjectArtifactTypesProjectArtifactTypesEdges(GQLResult):
     node: Optional[ArtifactTypeFragment]
-    cursor: str
 
 
 ProjectArtifactTypes.model_rebuild()

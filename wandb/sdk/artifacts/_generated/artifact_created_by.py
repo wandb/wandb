@@ -10,6 +10,8 @@ from typing_extensions import Annotated
 
 from wandb._pydantic import GQLResult, Typename
 
+from .fragments import RunInfoFragment
+
 
 class ArtifactCreatedBy(GQLResult):
     artifact: Optional[ArtifactCreatedByArtifact]
@@ -18,24 +20,10 @@ class ArtifactCreatedBy(GQLResult):
 class ArtifactCreatedByArtifact(GQLResult):
     created_by: Optional[
         Annotated[
-            Union[
-                ArtifactCreatedByArtifactCreatedByRun,
-                ArtifactCreatedByArtifactCreatedByUser,
-            ],
+            Union[RunInfoFragment, ArtifactCreatedByArtifactCreatedByUser],
             Field(discriminator="typename__"),
         ]
     ] = Field(alias="createdBy")
-
-
-class ArtifactCreatedByArtifactCreatedByRun(GQLResult):
-    typename__: Typename[Literal["Run"]]
-    name: str
-    project: Optional[ArtifactCreatedByArtifactCreatedByRunProject]
-
-
-class ArtifactCreatedByArtifactCreatedByRunProject(GQLResult):
-    name: str
-    entity_name: str = Field(alias="entityName")
 
 
 class ArtifactCreatedByArtifactCreatedByUser(GQLResult):
@@ -44,4 +32,3 @@ class ArtifactCreatedByArtifactCreatedByUser(GQLResult):
 
 ArtifactCreatedBy.model_rebuild()
 ArtifactCreatedByArtifact.model_rebuild()
-ArtifactCreatedByArtifactCreatedByRun.model_rebuild()

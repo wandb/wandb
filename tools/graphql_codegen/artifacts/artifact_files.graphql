@@ -18,21 +18,20 @@ query ArtifactVersionFiles(
   $artifactTypeName: String!
   $artifactName: String!
   $fileNames: [String!]
-  $fileCursor: String
-  $fileLimit: Int = 50
+  $cursor: String
+  $perPage: Int = 50
 ) {
   project(name: $projectName, entityName: $entityName) {
     artifactType(name: $artifactTypeName) {
       artifact(name: $artifactName) {
-        files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
+        files(names: $fileNames, after: $cursor, first: $perPage) {
+          pageInfo {
+            ...PageInfoFragment
+          }
           edges {
             node {
               ...FileFragment
             }
-            cursor
-          }
-          pageInfo {
-            ...PageInfoFragment
           }
         }
       }
@@ -46,21 +45,20 @@ query ArtifactCollectionMembershipFiles(
   $artifactName: String!
   $artifactVersionIndex: String!
   $fileNames: [String!]
-  $fileCursor: String
-  $fileLimit: Int = 50
+  $cursor: String
+  $perPage: Int = 50
 ) {
   project(name: $projectName, entityName: $entityName) {
     artifactCollection(name: $artifactName) {
       artifactMembership(aliasName: $artifactVersionIndex) {
-        files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
+        files(names: $fileNames, after: $cursor, first: $perPage) {
+          pageInfo {
+            ...PageInfoFragment
+          }
           edges {
             node {
               ...FileFragment
             }
-            cursor
-          }
-          pageInfo {
-            ...PageInfoFragment
           }
         }
       }
@@ -68,16 +66,10 @@ query ArtifactCollectionMembershipFiles(
   }
 }
 
-fragment FileUrlConnectionFragment on FileConnection {
-  pageInfo {
-    ...PageInfoFragment
-  }
-  edges {
-    node {
-      name
-      directUrl
-    }
-  }
+fragment FileWithUrlFragment on File {
+  __typename
+  name
+  directUrl
 }
 
 query ArtifactCollectionMembershipFileUrls(
@@ -92,7 +84,14 @@ query ArtifactCollectionMembershipFileUrls(
     artifactCollection(name: $artifactName) {
       artifactMembership(aliasName: $artifactVersionIndex) {
         files(after: $cursor, first: $perPage) {
-          ...FileUrlConnectionFragment
+          pageInfo {
+            ...PageInfoFragment
+          }
+          edges {
+            node {
+              ...FileWithUrlFragment
+            }
+          }
         }
       }
     }
@@ -102,7 +101,14 @@ query ArtifactCollectionMembershipFileUrls(
 query ArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
   artifact(id: $id) {
     files(after: $cursor, first: $perPage) {
-      ...FileUrlConnectionFragment
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...FileWithUrlFragment
+        }
+      }
     }
   }
 }

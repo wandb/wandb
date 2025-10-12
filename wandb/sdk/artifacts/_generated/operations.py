@@ -133,10 +133,10 @@ query ProjectArtifactCollections($entityName: String!, $projectName: String!, $a
 }
 
 fragment ArtifactCollectionConnectionFragment on ArtifactCollectionConnection {
+  totalCount
   pageInfo {
     ...PageInfoFragment
   }
-  totalCount
   edges {
     node {
       __typename
@@ -145,7 +145,6 @@ fragment ArtifactCollectionConnectionFragment on ArtifactCollectionConnection {
       description
       createdAt
     }
-    cursor
   }
 }
 
@@ -201,19 +200,18 @@ fragment PageInfoFragment on PageInfo {
 """
 
 ARTIFACT_VERSION_FILES_GQL = """
-query ArtifactVersionFiles($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactName: String!, $fileNames: [String!], $fileCursor: String, $fileLimit: Int = 50) {
+query ArtifactVersionFiles($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactName: String!, $fileNames: [String!], $cursor: String, $perPage: Int = 50) {
   project(name: $projectName, entityName: $entityName) {
     artifactType(name: $artifactTypeName) {
       artifact(name: $artifactName) {
-        files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
+        files(names: $fileNames, after: $cursor, first: $perPage) {
+          pageInfo {
+            ...PageInfoFragment
+          }
           edges {
             node {
               ...FileFragment
             }
-            cursor
-          }
-          pageInfo {
-            ...PageInfoFragment
           }
         }
       }
@@ -243,20 +241,19 @@ fragment PageInfoFragment on PageInfo {
 """
 
 ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL = """
-query ArtifactCollectionMembershipFiles($entityName: String!, $projectName: String!, $artifactName: String!, $artifactVersionIndex: String!, $fileNames: [String!], $fileCursor: String, $fileLimit: Int = 50) {
+query ArtifactCollectionMembershipFiles($entityName: String!, $projectName: String!, $artifactName: String!, $artifactVersionIndex: String!, $fileNames: [String!], $cursor: String, $perPage: Int = 50) {
   project(name: $projectName, entityName: $entityName) {
     artifactCollection(name: $artifactName) {
       __typename
       artifactMembership(aliasName: $artifactVersionIndex) {
-        files(names: $fileNames, after: $fileCursor, first: $fileLimit) {
+        files(names: $fileNames, after: $cursor, first: $perPage) {
+          pageInfo {
+            ...PageInfoFragment
+          }
           edges {
             node {
               ...FileFragment
             }
-            cursor
-          }
-          pageInfo {
-            ...PageInfoFragment
           }
         }
       }
@@ -292,23 +289,24 @@ query ArtifactCollectionMembershipFileUrls($entityName: String!, $projectName: S
       __typename
       artifactMembership(aliasName: $artifactVersionIndex) {
         files(after: $cursor, first: $perPage) {
-          ...FileUrlConnectionFragment
+          pageInfo {
+            ...PageInfoFragment
+          }
+          edges {
+            node {
+              ...FileWithUrlFragment
+            }
+          }
         }
       }
     }
   }
 }
 
-fragment FileUrlConnectionFragment on FileConnection {
-  pageInfo {
-    ...PageInfoFragment
-  }
-  edges {
-    node {
-      name
-      directUrl
-    }
-  }
+fragment FileWithUrlFragment on File {
+  __typename
+  name
+  directUrl
 }
 
 fragment PageInfoFragment on PageInfo {
@@ -322,21 +320,22 @@ ARTIFACT_FILE_URLS_GQL = """
 query ArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
   artifact(id: $id) {
     files(after: $cursor, first: $perPage) {
-      ...FileUrlConnectionFragment
+      pageInfo {
+        ...PageInfoFragment
+      }
+      edges {
+        node {
+          ...FileWithUrlFragment
+        }
+      }
     }
   }
 }
 
-fragment FileUrlConnectionFragment on FileConnection {
-  pageInfo {
-    ...PageInfoFragment
-  }
-  edges {
-    node {
-      name
-      directUrl
-    }
-  }
+fragment FileWithUrlFragment on File {
+  __typename
+  name
+  directUrl
 }
 
 fragment PageInfoFragment on PageInfo {
@@ -354,7 +353,6 @@ query ProjectArtifactTypes($entityName: String!, $projectName: String!, $cursor:
         node {
           ...ArtifactTypeFragment
         }
-        cursor
       }
       pageInfo {
         ...PageInfoFragment
@@ -416,11 +414,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: true) {
     artifactCollection {
       __typename
-      project {
-        entityName
-        name
-      }
       name
+      project {
+        ...ProjectInfoFragment
+      }
     }
     alias
   }
@@ -429,11 +426,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectInfoFragment
+    }
   }
   versionIndex
   artifactType {
@@ -465,17 +461,23 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
+}
+
 fragment VersionedArtifactConnectionFragment on VersionedArtifactConnection {
   totalCount
+  pageInfo {
+    ...PageInfoFragment
+  }
   edges {
     node {
       ...ArtifactFragment
     }
     version
-    cursor
-  }
-  pageInfo {
-    ...PageInfoFragment
   }
 }
 """
@@ -484,7 +486,7 @@ RUN_OUTPUT_ARTIFACTS_GQL = """
 query RunOutputArtifacts($entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int) {
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
-      outputArtifacts(after: $cursor, first: $perPage) {
+      artifacts: outputArtifacts(after: $cursor, first: $perPage) {
         ...RunOutputArtifactConnectionFragment
       }
     }
@@ -496,11 +498,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: true) {
     artifactCollection {
       __typename
-      project {
-        entityName
-        name
-      }
       name
+      project {
+        ...ProjectInfoFragment
+      }
     }
     alias
   }
@@ -509,11 +510,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectInfoFragment
+    }
   }
   versionIndex
   artifactType {
@@ -545,16 +545,22 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
+}
+
 fragment RunOutputArtifactConnectionFragment on ArtifactConnection {
   totalCount
+  pageInfo {
+    ...PageInfoFragment
+  }
   edges {
     node {
       ...ArtifactFragment
     }
-    cursor
-  }
-  pageInfo {
-    ...PageInfoFragment
   }
 }
 """
@@ -563,7 +569,7 @@ RUN_INPUT_ARTIFACTS_GQL = """
 query RunInputArtifacts($entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int) {
   project(name: $project, entityName: $entity) {
     run(name: $runName) {
-      inputArtifacts(after: $cursor, first: $perPage) {
+      artifacts: inputArtifacts(after: $cursor, first: $perPage) {
         ...RunInputArtifactConnectionFragment
       }
     }
@@ -575,11 +581,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: true) {
     artifactCollection {
       __typename
-      project {
-        entityName
-        name
-      }
       name
+      project {
+        ...ProjectInfoFragment
+      }
     }
     alias
   }
@@ -588,11 +593,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectInfoFragment
+    }
   }
   versionIndex
   artifactType {
@@ -624,16 +628,22 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
+}
+
 fragment RunInputArtifactConnectionFragment on InputArtifactConnection {
   totalCount
+  pageInfo {
+    ...PageInfoFragment
+  }
   edges {
     node {
       ...ArtifactFragment
     }
-    cursor
-  }
-  pageInfo {
-    ...PageInfoFragment
   }
 }
 """
@@ -649,17 +659,23 @@ query FetchLinkedArtifacts($artifactID: ID!) {
           }
           versionIndex
           artifactCollection {
-            project {
-              entityName
-              name
-            }
-            name
             __typename
+            name
+            project {
+              ...ProjectInfoFragment
+            }
           }
         }
       }
     }
   }
+}
+
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
 }
 """
 
@@ -689,11 +705,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: true) {
     artifactCollection {
       __typename
-      project {
-        entityName
-        name
-      }
       name
+      project {
+        ...ProjectInfoFragment
+      }
     }
     alias
   }
@@ -702,11 +717,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectInfoFragment
+    }
   }
   versionIndex
   artifactType {
@@ -730,6 +744,13 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
 }
 """
 
@@ -747,11 +768,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: true) {
     artifactCollection {
       __typename
-      project {
-        entityName
-        name
-      }
       name
+      project {
+        ...ProjectInfoFragment
+      }
     }
     alias
   }
@@ -760,11 +780,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectInfoFragment
+    }
   }
   versionIndex
   artifactType {
@@ -789,6 +808,13 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   createdAt
   updatedAt
 }
+
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
+}
 """
 
 ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL = """
@@ -805,11 +831,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: true) {
     artifactCollection {
       __typename
-      project {
-        entityName
-        name
-      }
       name
+      project {
+        ...ProjectInfoFragment
+      }
     }
     alias
   }
@@ -818,11 +843,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectInfoFragment
+    }
   }
   versionIndex
   artifactType {
@@ -855,14 +879,19 @@ fragment MembershipWithArtifact on ArtifactCollectionMembership {
     id
     name
     project {
-      id
-      entityName
-      name
+      ...ProjectInfoFragment
     }
   }
   artifact {
     ...ArtifactFragment
   }
+}
+
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
 }
 """
 
@@ -872,14 +901,26 @@ query ArtifactUsedBy($id: ID!) {
     usedBy {
       edges {
         node {
-          name
-          project {
-            name
-            entityName
-          }
+          ...RunInfoFragment
         }
       }
     }
+  }
+}
+
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
+}
+
+fragment RunInfoFragment on Run {
+  __typename
+  id
+  name
+  project {
+    ...ProjectInfoFragment
   }
 }
 """
@@ -890,13 +931,25 @@ query ArtifactCreatedBy($id: ID!) {
     createdBy {
       __typename
       ... on Run {
-        name
-        project {
-          name
-          entityName
-        }
+        ...RunInfoFragment
       }
     }
+  }
+}
+
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
+}
+
+fragment RunInfoFragment on Run {
+  __typename
+  id
+  name
+  project {
+    ...ProjectInfoFragment
   }
 }
 """
@@ -943,11 +996,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: true) {
     artifactCollection {
       __typename
-      project {
-        entityName
-        name
-      }
       name
+      project {
+        ...ProjectInfoFragment
+      }
     }
     alias
   }
@@ -956,11 +1008,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectInfoFragment
+    }
   }
   versionIndex
   artifactType {
@@ -984,6 +1035,13 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   fileCount
   createdAt
   updatedAt
+}
+
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
 }
 """
 
@@ -1012,11 +1070,10 @@ fragment ArtifactFragment on Artifact {
   aliases @include(if: true) {
     artifactCollection {
       __typename
-      project {
-        entityName
-        name
-      }
       name
+      project {
+        ...ProjectInfoFragment
+      }
     }
     alias
   }
@@ -1025,11 +1082,10 @@ fragment ArtifactFragment on Artifact {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectInfoFragment
+    }
   }
   versionIndex
   artifactType {
@@ -1062,21 +1118,25 @@ fragment MembershipWithArtifact on ArtifactCollectionMembership {
     id
     name
     project {
-      id
-      entityName
-      name
+      ...ProjectInfoFragment
     }
   }
   artifact {
     ...ArtifactFragment
   }
 }
+
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
+}
 """
 
 UNLINK_ARTIFACT_GQL = """
 mutation UnlinkArtifact($input: UnlinkArtifactInput!) {
   unlinkArtifact(input: $input) {
-    artifactID
     success
   }
 }
@@ -1124,11 +1184,10 @@ query RegistryVersions($organization: String!, $registryFilter: JSONString, $col
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    project {
-      entityName
-      name
-    }
     name
+    project {
+      ...ProjectInfoFragment
+    }
   }
   versionIndex
   artifactType {
@@ -1160,6 +1219,13 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
+}
+
 fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnection {
   pageInfo {
     ...PageInfoFragment
@@ -1169,10 +1235,7 @@ fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnec
       artifactCollection {
         __typename
         project {
-          name
-          entity {
-            name
-          }
+          ...ProjectInfoFragment
         }
         name
       }
@@ -1212,41 +1275,48 @@ fragment PageInfoFragment on PageInfo {
   hasNextPage
 }
 
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
+}
+
 fragment RegistryCollectionConnectionFragment on ArtifactCollectionConnection {
   totalCount
   pageInfo {
     ...PageInfoFragment
   }
   edges {
-    cursor
     node {
-      __typename
-      id
-      name
-      description
-      createdAt
-      tags {
-        edges {
-          node {
-            name
-          }
-        }
-      }
-      project {
-        name
-        entity {
-          name
-        }
-      }
-      defaultArtifactType {
+      ...RegistryCollectionFragment
+    }
+  }
+}
+
+fragment RegistryCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  tags {
+    edges {
+      node {
         name
       }
-      aliases {
-        edges {
-          node {
-            alias
-          }
-        }
+    }
+  }
+  project {
+    ...ProjectInfoFragment
+  }
+  defaultArtifactType {
+    name
+  }
+  aliases {
+    edges {
+      node {
+        alias
       }
     }
   }
