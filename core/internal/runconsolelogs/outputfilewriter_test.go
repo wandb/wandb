@@ -40,7 +40,7 @@ func getChunkFiles(t *testing.T, tmpDir string) []string {
 
 // FakeUploader implements the Uploader interface.
 //
-// The ChunkedFileWriter only calls the UploadNow method of its uploader
+// The outputFileWriter only calls the UploadNow method of its uploader
 // on output file rotation and on finish, so we only need to verify that
 // the UploadNow method was called.
 type FakeUploader struct {
@@ -64,8 +64,8 @@ func (f *FakeUploader) UploadRemaining() {}
 
 func (f *FakeUploader) Finish() {}
 
-// TestChunkedFileWriterRotationBySize verifies that chunks rotate based on size.
-func TestChunkedFileWriterRotationBySize(t *testing.T) {
+// TestOutputFileWriterRotationBySize verifies that chunks rotate based on size.
+func TestOutputFileWriterRotationBySize(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
@@ -110,8 +110,8 @@ func TestChunkedFileWriterRotationBySize(t *testing.T) {
 	assert.Len(t, uploader.uploadedPaths, 2)
 }
 
-// TestChunkedFileWriterRotationByTime verifies that chunks rotate based on time.
-func TestChunkedFileWriterRotationByTime(t *testing.T) {
+// TestOutputFileWriterRotationByTime verifies that chunks rotate based on time.
+func TestOutputFileWriterRotationByTime(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
@@ -157,8 +157,8 @@ func TestChunkedFileWriterRotationByTime(t *testing.T) {
 	assert.Len(t, uploader.uploadedPaths, 2)
 }
 
-// TestChunkedFileWriterNoRotation verifies behavior when no rotation occurs.
-func TestChunkedFileWriterNoRotation(t *testing.T) {
+// TestOutputFileWriterNoRotation verifies behavior when no rotation occurs.
+func TestOutputFileWriterNoRotation(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
@@ -191,8 +191,8 @@ func TestChunkedFileWriterNoRotation(t *testing.T) {
 	assert.Len(t, uploader.uploadedPaths, 1)
 }
 
-// TestChunkedFileWriterNoData verifies behavior when no data is written.
-func TestChunkedFileWriterNoData(t *testing.T) {
+// TestOutputFileWriterNoData verifies behavior when no data is written.
+func TestOutputFileWriterNoData(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
@@ -215,8 +215,8 @@ func TestChunkedFileWriterNoData(t *testing.T) {
 	assert.Len(t, uploader.uploadedPaths, 0)
 }
 
-// TestChunkedFileWriterEmptyChanges verifies handling of empty change sets.
-func TestChunkedFileWriterEmptyChanges(t *testing.T) {
+// TestOutputFileWriterEmptyChanges verifies handling of empty change sets.
+func TestOutputFileWriterEmptyChanges(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
@@ -248,8 +248,8 @@ func TestChunkedFileWriterEmptyChanges(t *testing.T) {
 	assert.Len(t, uploader.uploadedPaths, 1)
 }
 
-// TestChunkedFileWriterBothSizeAndTime verifies rotation with both size and time limits.
-func TestChunkedFileWriterBothSizeAndTime(t *testing.T) {
+// TestOutputFileWriterBothSizeAndTime verifies rotation with both size and time limits.
+func TestOutputFileWriterBothSizeAndTime(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 
@@ -305,9 +305,9 @@ func TestChunkedFileWriterBothSizeAndTime(t *testing.T) {
 	assert.Equal(t, len(chunkFiles), len(uploader.uploadedPaths))
 }
 
-// TestChunkedFileWriterCrossChunkLineModification verifies that attempting
+// TestOutputFileWriterCrossChunkLineModification verifies that attempting
 // to modify a line from a previous chunk after rotation is handled correctly.
-func TestChunkedFileWriterCrossChunkLineModification(t *testing.T) {
+func TestOutputFileWriterCrossChunkLineModification(t *testing.T) {
 	tmpDir := t.TempDir()
 	uploader := NewFakeUploader()
 

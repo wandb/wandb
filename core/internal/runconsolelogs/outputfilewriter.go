@@ -51,7 +51,7 @@ type outputFileWriter struct {
 	uploader runfiles.Uploader
 }
 
-// OutputFileWriterParams contains parameters for creating a chunkedFileWriter.
+// OutputFileWriterParams contains parameters for creating an outputFileWriter.
 type OutputFileWriterParams struct {
 	FilesDir         string
 	OutputFileName   string
