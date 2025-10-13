@@ -55,8 +55,9 @@ message ServerSyncStatusRequest {
 
 // The status of a sync operation.
 message ServerSyncStatusResponse {
-  // The status of any ongoing work (such as network requests).
-  OperationStats stats = 1;
+  // The status of any ongoing work (such as network requests),
+  // keyed by the run ID.
+  map<string, OperationStats> stats = 1;
 
   // New messages since the last status request.
   repeated ServerSyncMessage new_messages = 2;

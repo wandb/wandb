@@ -52,10 +52,87 @@ def test_minimal_operations_dynamic(emulated_terminal, dynamic_progress_printer)
     ]
 
 
+def test_grouped_operations_dynamic(
+    emulated_terminal,
+    dynamic_progress_printer,
+    monkeypatch,
+):
+    monkeypatch.setattr(progress, "_MAX_LINES_TO_PRINT", 7)
+
+    dynamic_progress_printer.update(
+        {
+            "run1": pb.OperationStats(
+                total_operations=100,
+                operations=[
+                    pb.Operation(desc="op 1", runtime_seconds=45.315),
+                    pb.Operation(desc="op 2", runtime_seconds=9.123),
+                ],
+            ),
+            "run2": pb.OperationStats(
+                total_operations=20,
+                operations=[],  # no operations => group not printed
+            ),
+            "run3": pb.OperationStats(
+                total_operations=3,
+                operations=[
+                    pb.Operation(desc="op 3", runtime_seconds=5000),
+                    # over line limit => not printed
+                    pb.Operation(desc="op 4"),
+                ],
+            ),
+        }
+    )
+
+    assert emulated_terminal.read_stderr() == [
+        "wandb: run1",
+        "wandb:   ⢿ op 1 (45s)",
+        "wandb:   ⢿ op 2 (9.1s)",
+        "wandb:   + 98 more task(s)",
+        "wandb: run3",
+        "wandb:   ⢿ op 3 (1h23m)",
+        "wandb:   + 2 more task(s)",
+    ]
+
+
+def test_grouped_operations_near_max_lines(
+    emulated_terminal,
+    dynamic_progress_printer,
+    monkeypatch,
+):
+    monkeypatch.setattr(progress, "_MAX_LINES_TO_PRINT", 5)
+
+    # The first run takes 4 lines, but the second run needs at least 2 lines,
+    # so it is not printed.
+    dynamic_progress_printer.update(
+        {
+            "run1": pb.OperationStats(
+                total_operations=100,
+                operations=[
+                    pb.Operation(desc="op 1", runtime_seconds=45.315),
+                    pb.Operation(desc="op 2", runtime_seconds=9.123),
+                ],
+            ),
+            "run2": pb.OperationStats(
+                total_operations=20,
+                operations=[
+                    pb.Operation(desc="op 3", runtime_seconds=5000),
+                ],
+            ),
+        }
+    )
+
+    assert emulated_terminal.read_stderr() == [
+        "wandb: run1",
+        "wandb:   ⢿ op 1 (45s)",
+        "wandb:   ⢿ op 2 (9.1s)",
+        "wandb:   + 98 more task(s)",
+    ]
+
+
 def test_minimal_operations_static(mock_wandb_log, static_progress_printer):
     static_progress_printer.update(
         pb.OperationStats(
-            total_operations=4,
+            total_operations=200,
             operations=[
                 pb.Operation(desc=f"op {i}", runtime_seconds=45.315)
                 for i in range(1, 101)
@@ -63,7 +140,41 @@ def test_minimal_operations_static(mock_wandb_log, static_progress_printer):
         ),
     )
 
-    assert mock_wandb_log.logged("op 1; op 2; op 3; op 4; op 5 (+ 95 more)")
+    assert mock_wandb_log.logged("op 1; op 2; op 3; op 4; op 5 (+ 195 more)")
+
+
+def test_grouped_operations_static(
+    mock_wandb_log,
+    static_progress_printer,
+    monkeypatch,
+):
+    monkeypatch.setattr(progress, "_MAX_OPS_TO_PRINT", 3)
+
+    static_progress_printer.update(
+        {
+            "run1": pb.OperationStats(
+                total_operations=100,
+                operations=[pb.Operation(desc="op 1"), pb.Operation(desc="op 2")],
+            ),
+            "run2": pb.OperationStats(
+                total_operations=20,
+                operations=[],  # no operations => group not printed
+            ),
+            "run3": pb.OperationStats(
+                total_operations=3,
+                operations=[
+                    pb.Operation(desc="op 3"),
+                    pb.Operation(desc="op 4"),  # over limit => not printed
+                ],
+            ),
+            "run4": pb.OperationStats(  # over limit => not printed
+                total_operations=1,
+                operations=[pb.Operation(desc="op 5")],
+            ),
+        }
+    )
+
+    assert mock_wandb_log.logged("[run1] op 1; op 2; [run3] op 3 (+ 121 more)")
 
 
 def test_does_not_print_empty_lines(capsys, static_progress_printer):
