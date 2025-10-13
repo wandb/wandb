@@ -286,6 +286,7 @@ class Api:
         overrides: dict[str, Any] | None = None,
         timeout: int | None = None,
         api_key: str | None = None,
+        session: requests.Session | None = None,
     ) -> None:
         """Initialize the API.
 
@@ -299,6 +300,8 @@ class Api:
                 the API key from the current environment or configuration will be used.
                 Prompts for an API key if none is provided
                 or configured in the environment.
+            session: Requests session instance, in case your environment requires custom
+                setup for HTTP requests.
         """
         self.settings = InternalApi().settings()
 
@@ -353,6 +356,7 @@ class Api:
                 url="{}/graphql".format(self.settings["base_url"]),
                 cookies=_thread_local_api_settings.cookies,
                 proxies=proxies,
+                session=session,
             )
         )
         self._client = RetryingClient(self._base_client)
