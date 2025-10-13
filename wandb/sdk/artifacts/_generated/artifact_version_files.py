@@ -3,34 +3,45 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
-from .fragments import FilesFragment
+from .fragments import FileFragment, PageInfoFragment
 
 
-class ArtifactVersionFiles(GQLBase):
+class ArtifactVersionFiles(GQLResult):
     project: Optional[ArtifactVersionFilesProject]
 
 
-class ArtifactVersionFilesProject(GQLBase):
+class ArtifactVersionFilesProject(GQLResult):
     artifact_type: Optional[ArtifactVersionFilesProjectArtifactType] = Field(
         alias="artifactType"
     )
 
 
-class ArtifactVersionFilesProjectArtifactType(GQLBase):
+class ArtifactVersionFilesProjectArtifactType(GQLResult):
     artifact: Optional[ArtifactVersionFilesProjectArtifactTypeArtifact]
 
 
-class ArtifactVersionFilesProjectArtifactTypeArtifact(GQLBase):
-    files: Optional[FilesFragment]
+class ArtifactVersionFilesProjectArtifactTypeArtifact(GQLResult):
+    files: Optional[ArtifactVersionFilesProjectArtifactTypeArtifactFiles]
+
+
+class ArtifactVersionFilesProjectArtifactTypeArtifactFiles(GQLResult):
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[ArtifactVersionFilesProjectArtifactTypeArtifactFilesEdges]
+
+
+class ArtifactVersionFilesProjectArtifactTypeArtifactFilesEdges(GQLResult):
+    node: Optional[FileFragment]
 
 
 ArtifactVersionFiles.model_rebuild()
 ArtifactVersionFilesProject.model_rebuild()
 ArtifactVersionFilesProjectArtifactType.model_rebuild()
 ArtifactVersionFilesProjectArtifactTypeArtifact.model_rebuild()
+ArtifactVersionFilesProjectArtifactTypeArtifactFiles.model_rebuild()
+ArtifactVersionFilesProjectArtifactTypeArtifactFilesEdges.model_rebuild()

@@ -7,28 +7,28 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 
-class FetchArtifactManifest(GQLBase):
+class FetchArtifactManifest(GQLResult):
     project: Optional[FetchArtifactManifestProject]
 
 
-class FetchArtifactManifestProject(GQLBase):
+class FetchArtifactManifestProject(GQLResult):
     artifact: Optional[FetchArtifactManifestProjectArtifact]
 
 
-class FetchArtifactManifestProjectArtifact(GQLBase):
+class FetchArtifactManifestProjectArtifact(GQLResult):
     current_manifest: Optional[FetchArtifactManifestProjectArtifactCurrentManifest] = (
         Field(alias="currentManifest")
     )
 
 
-class FetchArtifactManifestProjectArtifactCurrentManifest(GQLBase):
+class FetchArtifactManifestProjectArtifactCurrentManifest(GQLResult):
     file: FetchArtifactManifestProjectArtifactCurrentManifestFile
 
 
-class FetchArtifactManifestProjectArtifactCurrentManifestFile(GQLBase):
+class FetchArtifactManifestProjectArtifactCurrentManifestFile(GQLResult):
     direct_url: str = Field(alias="directUrl")
 
 

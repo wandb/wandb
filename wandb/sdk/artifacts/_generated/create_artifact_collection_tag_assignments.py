@@ -7,17 +7,17 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLId, GQLResult
 
 
-class CreateArtifactCollectionTagAssignments(GQLBase):
+class CreateArtifactCollectionTagAssignments(GQLResult):
     create_artifact_collection_tag_assignments: Optional[
         CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignments
     ] = Field(alias="createArtifactCollectionTagAssignments")
 
 
 class CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignments(
-    GQLBase
+    GQLResult
 ):
     tags: List[
         CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignmentsTags
@@ -25,7 +25,7 @@ class CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignmen
 
 
 class CreateArtifactCollectionTagAssignmentsCreateArtifactCollectionTagAssignmentsTags(
-    GQLBase
+    GQLResult
 ):
     id: GQLId
     name: str

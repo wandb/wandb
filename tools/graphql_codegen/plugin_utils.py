@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable
 
 if TYPE_CHECKING:
-    from typing import TypeGuard
+    from typing_extensions import TypeGuard
 
 
 def remove_module_files(root: Path, module_names: Iterable[str]) -> None:
@@ -37,7 +37,7 @@ def base_class_names(class_def: ast.ClassDef) -> list[str]:
     return [base.id for base in class_def.bases]
 
 
-def is_redundant_class_def(stmt: ast.ClassDef) -> TypeGuard[ast.ClassDef]:
+def is_redundant_class_def(stmt: ast.stmt) -> TypeGuard[ast.ClassDef]:
     """Return True if this class definition is a redundant subclass definition.
 
     A redundant subclass will look like:
@@ -58,7 +58,7 @@ def is_redundant_class_def(stmt: ast.ClassDef) -> TypeGuard[ast.ClassDef]:
         and (
             (isinstance(stmt.body[0], ast.Pass))
             or (
-                stmt.bases[0].id != "GQLBase"
+                stmt.bases[0].id not in {"GQLInput", "GQLResult"}
                 and isinstance(ann_assign := stmt.body[0], ast.AnnAssign)
                 and isinstance(ann_assign.target, ast.Name)
                 and ann_assign.target.id == "typename__"
@@ -97,7 +97,7 @@ def make_assign(target: str, value: ast.expr) -> ast.Assign:
 
 
 def make_import_from(
-    module: str, names: str | Iterable[str], level: int = 0
+    module: str | None, names: str | Iterable[str], level: int = 0
 ) -> ast.ImportFrom:
     """Generate the AST node for a `from {module} import {names}` statement."""
     names = [names] if isinstance(names, str) else names

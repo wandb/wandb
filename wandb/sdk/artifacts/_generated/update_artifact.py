@@ -7,18 +7,18 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import ArtifactFragment
 
 
-class UpdateArtifact(GQLBase):
+class UpdateArtifact(GQLResult):
     update_artifact: Optional[UpdateArtifactUpdateArtifact] = Field(
         alias="updateArtifact"
     )
 
 
-class UpdateArtifactUpdateArtifact(GQLBase):
+class UpdateArtifactUpdateArtifact(GQLResult):
     artifact: ArtifactFragment
 
 

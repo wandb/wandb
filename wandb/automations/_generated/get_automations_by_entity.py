@@ -7,18 +7,18 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import ProjectConnectionFields
 
 
-class GetAutomationsByEntity(GQLBase):
+class GetAutomationsByEntity(GQLResult):
     search_scope: Optional[GetAutomationsByEntitySearchScope] = Field(
         alias="searchScope"
     )
 
 
-class GetAutomationsByEntitySearchScope(GQLBase):
+class GetAutomationsByEntitySearchScope(GQLResult):
     projects: Optional[ProjectConnectionFields]
 
 

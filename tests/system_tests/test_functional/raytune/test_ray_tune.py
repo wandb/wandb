@@ -6,8 +6,15 @@ Based on:
 """
 
 import pathlib
+import platform
+
+import pytest
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="As of 2025/10/08, ray wheels for python>=3.13 are not available for Windows",
+)
 def test_tune_with_callback(wandb_backend_spy, execute_script):
     """Example for using a WandbLoggerCallback with the function API."""
     train_script_path = pathlib.Path(__file__).parent / "tune_with_callback.py"
