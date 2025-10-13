@@ -504,18 +504,18 @@ class Runs(SizedPaginator["Run"]):
             with_project_id=_server_provides_project_id_for_run(self.client),
         )
 
-        # Upgrade any existing runs that have been loaded - use sequential loading to avoid threading issues
+        # Upgrade any existing runs that have been loaded - use parallel loading for performance
         lazy_runs = [run for run in self.objects if run._lazy]
         if lazy_runs:
-            # Sequential loading to prevent asyncio manager deadlocks
-            # While this is slower than parallel loading, it's safer and prevents
-            # overwhelming the asyncio system with concurrent network requests
-            for run in lazy_runs:
-                try:
-                    run.load_full_data()
-                except Exception:
-                    # Don't let individual run failures break the entire upgrade
-                    pass
+            from concurrent.futures import ThreadPoolExecutor
+
+            # Limit workers to avoid overwhelming the server
+            max_workers = min(len(lazy_runs), 10)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [executor.submit(run.load_full_data) for run in lazy_runs]
+                # Wait for all to complete
+                for future in futures:
+                    future.result()
 
 
 class Run(Attrs):
@@ -1311,11 +1311,9 @@ class Run(Attrs):
 
         # Ensure config is always converted to dict (defensive against conversion issues)
         config_value = self._attrs.get("config", {})
-        if isinstance(config_value, str):
-            # Convert string config to dict and cache the result
-            config_value = _convert_to_dict(config_value)
-            self._attrs["config"] = config_value
-
+        # _convert_to_dict handles dict inputs (noop) and converts str/bytes/bytearray to dict
+        config_value = _convert_to_dict(config_value)
+        self._attrs["config"] = config_value
         return config_value
 
     @property
@@ -1346,11 +1344,9 @@ class Run(Attrs):
 
         # Ensure systemMetrics is always converted to dict (defensive against conversion issues)
         system_metrics_value = self._attrs.get("systemMetrics", {})
-        if isinstance(system_metrics_value, str):
-            # Convert string to dict and cache the result
-            system_metrics_value = _convert_to_dict(system_metrics_value)
-            self._attrs["systemMetrics"] = system_metrics_value
-
+        # _convert_to_dict handles dict inputs (noop) and converts str/bytes/bytearray to dict
+        system_metrics_value = _convert_to_dict(system_metrics_value)
+        self._attrs["systemMetrics"] = system_metrics_value
         return system_metrics_value
 
     @property
@@ -1365,11 +1361,9 @@ class Run(Attrs):
 
         # Ensure summaryMetrics is always converted to dict (defensive against conversion issues)
         summary_metrics_value = self._attrs.get("summaryMetrics", {})
-        if isinstance(summary_metrics_value, str):
-            # Convert string to dict and cache the result
-            summary_metrics_value = _convert_to_dict(summary_metrics_value)
-            self._attrs["summaryMetrics"] = summary_metrics_value
-
+        # _convert_to_dict handles dict inputs (noop) and converts str/bytes/bytearray to dict
+        summary_metrics_value = _convert_to_dict(summary_metrics_value)
+        self._attrs["summaryMetrics"] = summary_metrics_value
         return summary_metrics_value
 
     @property

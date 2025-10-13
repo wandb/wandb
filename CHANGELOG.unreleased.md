@@ -15,6 +15,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- Critical regression where `run.config` returned string instead of dict when using `artifact.logged_by()` in v0.22.1 (@thanos-wandb in #TBD)
-- Threading deadlock in lazy loading implementation that could cause training jobs to hang when upgrading runs from lazy to full mode (@thanos-wandb in #TBD)
+- `run.config` now properly returns a dict when calling `artifact.logged_by()` in v0.22.1 (@thanos-wandb in #10682)
 - `wandb.Api(api_key=...)` now prioritizes the explicitly provided API key over thread-local cached credentials (@pingleiwandb in https://github.com/wandb/wandb/pull/10657)
