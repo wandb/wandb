@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import functools
 import json
 import logging
 import os
@@ -988,24 +989,20 @@ class _WandbInit:
 
         run_init_handle = backend.interface.deliver_run(run)
 
-        async def display_init_message() -> None:
-            assert backend.interface
-
+        try:
             with progress.progress_printer(
                 run_printer,
                 default_text="Waiting for wandb.init()...",
             ) as progress_printer:
-                await progress.loop_printing_operation_stats(
-                    progress_printer,
-                    backend.interface,
+                result = wait_with_progress(
+                    run_init_handle,
+                    timeout=timeout,
+                    display_progress=functools.partial(
+                        progress.loop_printing_operation_stats,
+                        progress_printer,
+                        backend.interface,
+                    ),
                 )
-
-        try:
-            result = wait_with_progress(
-                run_init_handle,
-                timeout=timeout,
-                display_progress=display_init_message,
-            )
 
         except TimeoutError:
             run_init_handle.cancel(backend.interface)

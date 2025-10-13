@@ -33,19 +33,15 @@ def static_progress_printer() -> Iterator[progress.ProgressPrinter]:
 
 def test_minimal_operations_dynamic(emulated_terminal, dynamic_progress_printer):
     dynamic_progress_printer.update(
-        [
-            pb.PollExitResponse(
-                operation_stats=pb.OperationStats(
-                    total_operations=4,
-                    operations=[
-                        pb.Operation(desc="op 1", runtime_seconds=45.315),
-                        pb.Operation(desc="op 2", runtime_seconds=9.123),
-                        pb.Operation(desc="op 3", runtime_seconds=123.45),
-                        pb.Operation(desc="op 4", runtime_seconds=5000),
-                    ],
-                ),
-            )
-        ]
+        pb.OperationStats(
+            total_operations=4,
+            operations=[
+                pb.Operation(desc="op 1", runtime_seconds=45.315),
+                pb.Operation(desc="op 2", runtime_seconds=9.123),
+                pb.Operation(desc="op 3", runtime_seconds=123.45),
+                pb.Operation(desc="op 4", runtime_seconds=5000),
+            ],
+        ),
     )
 
     assert emulated_terminal.read_stderr() == [
@@ -58,17 +54,13 @@ def test_minimal_operations_dynamic(emulated_terminal, dynamic_progress_printer)
 
 def test_minimal_operations_static(mock_wandb_log, static_progress_printer):
     static_progress_printer.update(
-        [
-            pb.PollExitResponse(
-                operation_stats=pb.OperationStats(
-                    total_operations=4,
-                    operations=[
-                        pb.Operation(desc=f"op {i}", runtime_seconds=45.315)
-                        for i in range(1, 101)
-                    ],
-                ),
-            )
-        ]
+        pb.OperationStats(
+            total_operations=4,
+            operations=[
+                pb.Operation(desc=f"op {i}", runtime_seconds=45.315)
+                for i in range(1, 101)
+            ],
+        ),
     )
 
     assert mock_wandb_log.logged("op 1; op 2; op 3; op 4; op 5 (+ 95 more)")
@@ -98,21 +90,17 @@ def test_operation_progress_and_error(
     dynamic_progress_printer,
 ):
     dynamic_progress_printer.update(
-        [
-            pb.PollExitResponse(
-                operation_stats=pb.OperationStats(
-                    total_operations=1,
-                    operations=[
-                        pb.Operation(
-                            desc="op 1",
-                            runtime_seconds=45.315,
-                            progress="4/9",
-                            error_status="retrying HTTP 419",
-                        ),
-                    ],
+        pb.OperationStats(
+            total_operations=1,
+            operations=[
+                pb.Operation(
+                    desc="op 1",
+                    runtime_seconds=45.315,
+                    progress="4/9",
+                    error_status="retrying HTTP 419",
                 ),
-            )
-        ]
+            ],
+        ),
     )
 
     assert emulated_terminal.read_stderr() == [
@@ -137,20 +125,16 @@ def test_operation_subtasks(emulated_terminal, dynamic_progress_printer):
     )
 
     dynamic_progress_printer.update(
-        [
-            pb.PollExitResponse(
-                operation_stats=pb.OperationStats(
-                    total_operations=1,
-                    operations=[
-                        pb.Operation(
-                            desc="op 1",
-                            runtime_seconds=45.315,
-                            subtasks=[subtask],
-                        ),
-                    ],
+        pb.OperationStats(
+            total_operations=1,
+            operations=[
+                pb.Operation(
+                    desc="op 1",
+                    runtime_seconds=45.315,
+                    subtasks=[subtask],
                 ),
-            )
-        ]
+            ],
+        ),
     )
 
     assert emulated_terminal.read_stderr() == [
@@ -164,16 +148,12 @@ def test_operation_subtasks(emulated_terminal, dynamic_progress_printer):
 
 def test_remaining_operations(emulated_terminal, dynamic_progress_printer):
     dynamic_progress_printer.update(
-        [
-            pb.PollExitResponse(
-                operation_stats=pb.OperationStats(
-                    total_operations=20,
-                    operations=[
-                        pb.Operation(desc="op 1"),
-                    ],
-                ),
-            )
-        ]
+        pb.OperationStats(
+            total_operations=20,
+            operations=[
+                pb.Operation(desc="op 1"),
+            ],
+        ),
     )
 
     assert emulated_terminal.read_stderr() == [
@@ -183,6 +163,6 @@ def test_remaining_operations(emulated_terminal, dynamic_progress_printer):
 
 
 def test_no_operations_text(emulated_terminal, dynamic_progress_printer):
-    dynamic_progress_printer.update([pb.PollExitResponse()])
+    dynamic_progress_printer.update(pb.OperationStats())
 
     assert emulated_terminal.read_stderr() == ["wandb: ⢿ DEFAULT TEXT"]
