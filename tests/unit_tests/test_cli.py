@@ -147,9 +147,9 @@ def test_login_onprem_key_arg(runner, dummy_api_key):
 
 def test_login_invalid_key_arg(runner, dummy_api_key):
     with runner.isolated_filesystem():
-        invalid_key = "test--" + dummy_api_key
+        invalid_key = "test-" + dummy_api_key[:-5]
         result = runner.invoke(cli.login, [invalid_key])
-        assert "API key must be 40 characters long, yours was" in str(result)
+        assert "API key must be at least 40 characters long, yours was" in str(result)
         assert result.exit_code == 1
 
 
