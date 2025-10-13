@@ -21,7 +21,7 @@ func getRowIteratorForFile(
 	indexKey string,
 	minValue float64,
 	maxValue float64,
-	selectAll bool,
+	selectAllRows bool,
 ) RowIterator {
 	t.Helper()
 
@@ -30,11 +30,14 @@ func getRowIteratorForFile(
 	r, err := pqarrow.NewFileReader(pr, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
 	require.NoError(t, err)
 
-	selectedRows := SelectRows(r, indexKey, minValue, maxValue, selectAll)
+	selectedRows := SelectRows(r, indexKey, minValue, maxValue, selectAllRows)
+
+	selectAllColumns := len(keys) == 0
 	selectedColumns, err := SelectColumns(
 		indexKey,
 		keys,
 		r.ParquetReader().MetaData().Schema,
+		selectAllColumns,
 	)
 	require.NoError(t, err)
 
