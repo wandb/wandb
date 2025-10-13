@@ -230,9 +230,9 @@ def check_netrc_access(
 def write_netrc(host: str, entity: str, key: str):
     """Add our host and key to .netrc."""
     _, key_suffix = key.split("-", 1) if "-" in key else ("", key)
-    if len(key_suffix) != 40:
+    if len(key_suffix) < 40:
         raise ValueError(
-            f"API-key must be exactly 40 characters long: {key_suffix} ({len(key_suffix)} chars)"
+            f"API-key must be at least 40 characters long: {key_suffix} ({len(key_suffix)} chars)"
         )
 
     normalized_host = urlparse(host).netloc
@@ -299,12 +299,14 @@ def write_key(
     # TODO(jhr): api shouldn't be optional or it shouldn't be passed, clean up callers
     api = api or InternalApi()
 
-    # Normal API keys are 40-character hex strings. On-prem API keys have a
-    # variable-length prefix, a dash, then the 40-char string.
+    # API keys are strings of at least 40 characters. On-prem API keys have a
+    # variable-length prefix, a dash, then the string of at least 40 chars.
     _, suffix = key.split("-", 1) if "-" in key else ("", key)
 
-    if len(suffix) != 40:
-        raise ValueError(f"API key must be 40 characters long, yours was {len(key)}")
+    if len(suffix) < 40:
+        raise ValueError(
+            f"API key must be at least 40 characters long, yours was {len(key)}"
+        )
 
     write_netrc(settings.base_url, "user", key)
 
