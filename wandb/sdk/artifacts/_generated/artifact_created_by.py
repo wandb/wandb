@@ -8,40 +8,27 @@ from typing import Literal, Optional, Union
 from pydantic import Field
 from typing_extensions import Annotated
 
-from wandb._pydantic import GQLBase, Typename
+from wandb._pydantic import GQLResult, Typename
+
+from .fragments import RunInfoFragment
 
 
-class ArtifactCreatedBy(GQLBase):
+class ArtifactCreatedBy(GQLResult):
     artifact: Optional[ArtifactCreatedByArtifact]
 
 
-class ArtifactCreatedByArtifact(GQLBase):
+class ArtifactCreatedByArtifact(GQLResult):
     created_by: Optional[
         Annotated[
-            Union[
-                ArtifactCreatedByArtifactCreatedByRun,
-                ArtifactCreatedByArtifactCreatedByUser,
-            ],
+            Union[RunInfoFragment, ArtifactCreatedByArtifactCreatedByUser],
             Field(discriminator="typename__"),
         ]
     ] = Field(alias="createdBy")
 
 
-class ArtifactCreatedByArtifactCreatedByRun(GQLBase):
-    typename__: Typename[Literal["Run"]]
-    name: str
-    project: Optional[ArtifactCreatedByArtifactCreatedByRunProject]
-
-
-class ArtifactCreatedByArtifactCreatedByRunProject(GQLBase):
-    name: str
-    entity_name: str = Field(alias="entityName")
-
-
-class ArtifactCreatedByArtifactCreatedByUser(GQLBase):
+class ArtifactCreatedByArtifactCreatedByUser(GQLResult):
     typename__: Typename[Literal["User"]]
 
 
 ArtifactCreatedBy.model_rebuild()
 ArtifactCreatedByArtifact.model_rebuild()
-ArtifactCreatedByArtifactCreatedByRun.model_rebuild()

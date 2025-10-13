@@ -147,8 +147,8 @@ fragment CreateAutomationResult on CreateFilterTriggerPayload {
     ...TriggerFields
   }
 }
-mutation CreateAutomation($params: CreateFilterTriggerInput!) {
-  result: createFilterTrigger(input: $params) {
+mutation CreateAutomation($input: CreateFilterTriggerInput!) {
+  result: createFilterTrigger(input: $input) {
     ...CreateAutomationResult
   }
 }
@@ -159,8 +159,8 @@ fragment UpdateAutomationResult on UpdateFilterTriggerPayload {
     ...TriggerFields
   }
 }
-mutation UpdateAutomation($params: UpdateFilterTriggerInput!) {
-  result: updateFilterTrigger(input: $params) {
+mutation UpdateAutomation($input: UpdateFilterTriggerInput!) {
+  result: updateFilterTrigger(input: $input) {
     ...UpdateAutomationResult
   }
 }
@@ -239,8 +239,8 @@ query GenericWebhookIntegrationsByEntity($entityName: String!, $cursor: String, 
   }
 }
 
-mutation CreateGenericWebhookIntegration($params: CreateGenericWebhookIntegrationInput!) {
-  createGenericWebhookIntegration(input: $params) {
+mutation CreateGenericWebhookIntegration($input: CreateGenericWebhookIntegrationInput!) {
+  createGenericWebhookIntegration(input: $input) {
     integration {
       ...GenericWebhookIntegrationFields
     }

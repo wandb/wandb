@@ -7,24 +7,24 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
-from .fragments import RegistriesPage
+from .fragments import RegistryConnectionFragment
 
 
-class FetchRegistries(GQLBase):
+class FetchRegistries(GQLResult):
     organization: Optional[FetchRegistriesOrganization]
 
 
-class FetchRegistriesOrganization(GQLBase):
+class FetchRegistriesOrganization(GQLResult):
     org_entity: Optional[FetchRegistriesOrganizationOrgEntity] = Field(
         alias="orgEntity"
     )
 
 
-class FetchRegistriesOrganizationOrgEntity(GQLBase):
+class FetchRegistriesOrganizationOrgEntity(GQLResult):
     name: str
-    projects: Optional[RegistriesPage]
+    projects: Optional[RegistryConnectionFragment]
 
 
 FetchRegistries.model_rebuild()
