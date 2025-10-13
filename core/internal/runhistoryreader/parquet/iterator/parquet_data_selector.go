@@ -30,14 +30,16 @@ func SelectColumns(
 	indexKey string,
 	keys []string,
 	schema *schema.Schema,
+	selectAll bool,
 ) (*SelectedColumns, error) {
 	var requestedColumns map[string]struct{}
 	var columnIndices []int
-	selectAll := false
 
-	// When no keys are provided, then we will return all columns.
-	if len(keys) == 0 {
-		selectAll = true
+	if len(keys) == 0 && !selectAll {
+		return nil, fmt.Errorf("no keys provided and selectAll is false")
+	}
+
+	if selectAll {
 		requestedColumns = make(map[string]struct{}, schema.NumColumns())
 		columnIndices = make([]int, 0, schema.NumColumns())
 		for i := 0; i < schema.NumColumns(); i++ {
@@ -157,8 +159,8 @@ func (sr *SelectedRows) GetRowGroupIndices() ([]int, error) {
 	return rowGroupIndices, nil
 }
 
-// ShouldSkipRecordRow checks if the current row within a row group
-// should be skipped based on SelectedRows min and max values.
+// IsRowValid checks if the current row within a row group
+// is valid based on SelectedRows min and max values.
 func (sr *SelectedRows) IsRowValid(
 	columnIterators map[string]keyIteratorPair,
 ) bool {
