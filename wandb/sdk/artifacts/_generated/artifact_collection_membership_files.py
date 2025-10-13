@@ -3,26 +3,26 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, Typename
+from wandb._pydantic import GQLResult, Typename
 
-from .fragments import FilesFragment
+from .fragments import FileFragment, PageInfoFragment
 
 
-class ArtifactCollectionMembershipFiles(GQLBase):
+class ArtifactCollectionMembershipFiles(GQLResult):
     project: Optional[ArtifactCollectionMembershipFilesProject]
 
 
-class ArtifactCollectionMembershipFilesProject(GQLBase):
+class ArtifactCollectionMembershipFilesProject(GQLResult):
     artifact_collection: Optional[
         ArtifactCollectionMembershipFilesProjectArtifactCollection
     ] = Field(alias="artifactCollection")
 
 
-class ArtifactCollectionMembershipFilesProjectArtifactCollection(GQLBase):
+class ArtifactCollectionMembershipFilesProjectArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
@@ -32,12 +32,31 @@ class ArtifactCollectionMembershipFilesProjectArtifactCollection(GQLBase):
 
 
 class ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembership(
-    GQLBase
+    GQLResult
 ):
-    files: Optional[FilesFragment]
+    files: Optional[
+        ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFiles
+    ]
+
+
+class ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFiles(
+    GQLResult
+):
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[
+        ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges
+    ]
+
+
+class ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges(
+    GQLResult
+):
+    node: Optional[FileFragment]
 
 
 ArtifactCollectionMembershipFiles.model_rebuild()
 ArtifactCollectionMembershipFilesProject.model_rebuild()
 ArtifactCollectionMembershipFilesProjectArtifactCollection.model_rebuild()
 ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembership.model_rebuild()
+ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFiles.model_rebuild()
+ArtifactCollectionMembershipFilesProjectArtifactCollectionArtifactMembershipFilesEdges.model_rebuild()

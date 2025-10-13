@@ -7,28 +7,30 @@ from typing import List, Literal, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, Typename
+from wandb._pydantic import GQLResult, Typename
+
+from .fragments import ProjectInfoFragment
 
 
-class FetchLinkedArtifacts(GQLBase):
+class FetchLinkedArtifacts(GQLResult):
     artifact: Optional[FetchLinkedArtifactsArtifact]
 
 
-class FetchLinkedArtifactsArtifact(GQLBase):
+class FetchLinkedArtifactsArtifact(GQLResult):
     artifact_memberships: FetchLinkedArtifactsArtifactArtifactMemberships = Field(
         alias="artifactMemberships"
     )
 
 
-class FetchLinkedArtifactsArtifactArtifactMemberships(GQLBase):
+class FetchLinkedArtifactsArtifactArtifactMemberships(GQLResult):
     edges: List[FetchLinkedArtifactsArtifactArtifactMembershipsEdges]
 
 
-class FetchLinkedArtifactsArtifactArtifactMembershipsEdges(GQLBase):
+class FetchLinkedArtifactsArtifactArtifactMembershipsEdges(GQLResult):
     node: Optional[FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode]
 
 
-class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode(GQLBase):
+class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode(GQLResult):
     aliases: List[FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeAliases]
     version_index: Optional[int] = Field(alias="versionIndex")
     artifact_collection: Optional[
@@ -36,27 +38,18 @@ class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode(GQLBase):
     ] = Field(alias="artifactCollection")
 
 
-class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeAliases(GQLBase):
+class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeAliases(GQLResult):
     alias: str
 
 
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection(
-    GQLBase
+    GQLResult
 ):
-    project: Optional[
-        FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollectionProject
-    ]
-    name: str
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
-
-
-class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollectionProject(
-    GQLBase
-):
-    entity_name: str = Field(alias="entityName")
     name: str
+    project: Optional[ProjectInfoFragment]
 
 
 FetchLinkedArtifacts.model_rebuild()

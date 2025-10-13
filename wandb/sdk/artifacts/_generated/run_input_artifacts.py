@@ -5,25 +5,21 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import Field
-
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import RunInputArtifactConnectionFragment
 
 
-class RunInputArtifacts(GQLBase):
+class RunInputArtifacts(GQLResult):
     project: Optional[RunInputArtifactsProject]
 
 
-class RunInputArtifactsProject(GQLBase):
+class RunInputArtifactsProject(GQLResult):
     run: Optional[RunInputArtifactsProjectRun]
 
 
-class RunInputArtifactsProjectRun(GQLBase):
-    input_artifacts: Optional[RunInputArtifactConnectionFragment] = Field(
-        alias="inputArtifacts"
-    )
+class RunInputArtifactsProjectRun(GQLResult):
+    artifacts: Optional[RunInputArtifactConnectionFragment]
 
 
 RunInputArtifacts.model_rebuild()

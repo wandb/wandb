@@ -3,20 +3,33 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
-from wandb._pydantic import GQLBase
+from pydantic import Field
 
-from .fragments import FileUrlsFragment
+from wandb._pydantic import GQLResult
+
+from .fragments import FileWithUrlFragment, PageInfoFragment
 
 
-class ArtifactFileUrls(GQLBase):
+class ArtifactFileUrls(GQLResult):
     artifact: Optional[ArtifactFileUrlsArtifact]
 
 
-class ArtifactFileUrlsArtifact(GQLBase):
-    files: Optional[FileUrlsFragment]
+class ArtifactFileUrlsArtifact(GQLResult):
+    files: Optional[ArtifactFileUrlsArtifactFiles]
+
+
+class ArtifactFileUrlsArtifactFiles(GQLResult):
+    page_info: PageInfoFragment = Field(alias="pageInfo")
+    edges: List[ArtifactFileUrlsArtifactFilesEdges]
+
+
+class ArtifactFileUrlsArtifactFilesEdges(GQLResult):
+    node: Optional[FileWithUrlFragment]
 
 
 ArtifactFileUrls.model_rebuild()
 ArtifactFileUrlsArtifact.model_rebuild()
+ArtifactFileUrlsArtifactFiles.model_rebuild()
+ArtifactFileUrlsArtifactFilesEdges.model_rebuild()

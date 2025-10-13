@@ -87,10 +87,10 @@ from ._generated import (
     LINK_ARTIFACT_GQL,
     UNLINK_ARTIFACT_GQL,
     UPDATE_ARTIFACT_GQL,
+    AddAliasesInput,
     ArtifactAliasInput,
     ArtifactByID,
     ArtifactByName,
-    ArtifactCollectionAliasInput,
     ArtifactCollectionMembershipFileUrls,
     ArtifactCreatedBy,
     ArtifactFileUrls,
@@ -98,16 +98,19 @@ from ._generated import (
     ArtifactType,
     ArtifactUsedBy,
     ArtifactViaMembershipByName,
+    DeleteAliasesInput,
+    DeleteArtifactInput,
     FetchArtifactManifest,
     FetchLinkedArtifacts,
-    FileUrlsFragment,
     LinkArtifact,
     LinkArtifactInput,
     MembershipWithArtifact,
-    TagInput,
+    UnlinkArtifactInput,
     UpdateArtifact,
+    UpdateArtifactInput,
 )
 from ._gqlutils import omit_artifact_fields, supports_enable_tracking_var, type_info
+from ._models.pagination import FileWithUrlConnection
 from ._validators import (
     LINKED_ARTIFACT_COLLECTION_TYPE,
     ArtifactPath,
@@ -1256,46 +1259,40 @@ class Artifact:
                 "project_name": project,
                 "artifact_collection_name": collection,
             }
-            if aliases_to_add := (set(self.aliases) - set(self._saved_aliases)):
+            if added_aliases := (set(self.aliases) - set(self._saved_aliases)):
                 add_mutation = gql(ADD_ALIASES_GQL)
-                add_alias_inputs = [
-                    ArtifactCollectionAliasInput(**alias_props, alias=alias)
-                    for alias in aliases_to_add
-                ]
+                add_alias_input = AddAliasesInput(
+                    artifact_id=self.id,
+                    aliases=[dict(**alias_props, alias=al) for al in added_aliases],
+                )
                 try:
                     self._client.execute(
                         add_mutation,
-                        variable_values={
-                            "artifactID": self.id,
-                            "aliases": [a.model_dump() for a in add_alias_inputs],
-                        },
+                        variable_values={"input": add_alias_input.model_dump()},
                     )
                 except CommError as e:
                     raise CommError(
                         "You do not have permission to add"
-                        f" {'at least one of the following aliases' if len(aliases_to_add) > 1 else 'the following alias'}"
-                        f" to this artifact: {aliases_to_add}"
+                        f" {'at least one of the following aliases' if len(added_aliases) > 1 else 'the following alias'}"
+                        f" to this artifact: {added_aliases}"
                     ) from e
 
-            if aliases_to_delete := (set(self._saved_aliases) - set(self.aliases)):
+            if removed_aliases := (set(self._saved_aliases) - set(self.aliases)):
                 delete_mutation = gql(DELETE_ALIASES_GQL)
-                delete_alias_inputs = [
-                    ArtifactCollectionAliasInput(**alias_props, alias=alias)
-                    for alias in aliases_to_delete
-                ]
+                delete_alias_input = DeleteAliasesInput(
+                    artifact_id=self.id,
+                    aliases=[dict(**alias_props, alias=al) for al in removed_aliases],
+                )
                 try:
                     self._client.execute(
                         delete_mutation,
-                        variable_values={
-                            "artifactID": self.id,
-                            "aliases": [a.model_dump() for a in delete_alias_inputs],
-                        },
+                        variable_values={"input": delete_alias_input.model_dump()},
                     )
                 except CommError as e:
                     raise CommError(
                         f"You do not have permission to delete"
-                        f" {'at least one of the following aliases' if len(aliases_to_delete) > 1 else 'the following alias'}"
-                        f" from this artifact: {aliases_to_delete}"
+                        f" {'at least one of the following aliases' if len(removed_aliases) > 1 else 'the following alias'}"
+                        f" from this artifact: {removed_aliases}"
                     ) from e
 
             self._saved_aliases = copy(self.aliases)
@@ -1332,22 +1329,21 @@ class Artifact:
             omit_variables |= {"tagsToAdd", "tagsToDelete"}
 
         mutation = gql_compat(
-            UPDATE_ARTIFACT_GQL,
-            omit_variables=omit_variables,
-            omit_fields=omit_fields,
+            UPDATE_ARTIFACT_GQL, omit_variables=omit_variables, omit_fields=omit_fields
         )
-
-        gql_vars = {
-            "artifactID": self.id,
-            "description": self.description,
-            "metadata": json_dumps_safer(self.metadata),
-            "ttlDurationSeconds": self._ttl_duration_seconds_to_gql(),
-            "aliases": aliases,
-            "tagsToAdd": [TagInput(tag_name=t).model_dump() for t in tags_to_add],
-            "tagsToDelete": [TagInput(tag_name=t).model_dump() for t in tags_to_del],
-        }
-
-        data = self._client.execute(mutation, variable_values=gql_vars)
+        gql_input = UpdateArtifactInput(
+            artifact_id=self.id,
+            description=self.description,
+            metadata=json_dumps_safer(self.metadata),
+            ttl_duration_seconds=self._ttl_duration_seconds_to_gql(),
+            aliases=aliases,
+            tags_to_add=[{"tagName": t} for t in tags_to_add],
+            tags_to_delete=[{"tagName": t} for t in tags_to_del],
+        )
+        data = self._client.execute(
+            mutation,
+            variable_values={"input": gql_input.model_dump(exclude=omit_variables)},
+        )
 
         result = UpdateArtifact.model_validate(data).update_artifact
         if not (result and (artifact := result.artifact)):
@@ -2147,7 +2143,7 @@ class Artifact:
     )
     def _fetch_file_urls(
         self, cursor: str | None, per_page: int = 5000
-    ) -> FileUrlsFragment:
+    ) -> FileWithUrlConnection:
         if self._client is None:
             raise RuntimeError("Client not initialized")
 
@@ -2173,7 +2169,7 @@ class Artifact:
                 and (files := membership.files)
             ):
                 raise ValueError(f"Unable to fetch files for artifact: {self.name!r}")
-            return files
+            return FileWithUrlConnection.model_validate(files)
         else:
             query = gql(ARTIFACT_FILE_URLS_GQL)
             gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
@@ -2182,7 +2178,7 @@ class Artifact:
 
             if not ((artifact := result.artifact) and (files := artifact.files)):
                 raise ValueError(f"Unable to fetch files for artifact: {self.name!r}")
-            return files
+            return FileWithUrlConnection.model_validate(files)
 
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:
@@ -2352,10 +2348,12 @@ class Artifact:
         if self._client is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        mutation = gql(DELETE_ARTIFACT_GQL)
-        gql_vars = {"artifactID": self.id, "deleteAliases": delete_aliases}
-
-        self._client.execute(mutation, variable_values=gql_vars)
+        gql_op = gql(DELETE_ARTIFACT_GQL)
+        gql_input = DeleteArtifactInput(
+            artifact_id=self.id,
+            delete_aliases=delete_aliases,
+        )
+        self._client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
 
     @normalize_exceptions
     def link(self, target_path: str, aliases: list[str] | None = None) -> Artifact:
@@ -2429,7 +2427,7 @@ class Artifact:
             project_name=target.project,
             aliases=alias_inputs,
         )
-        gql_vars = {"input": gql_input.model_dump(exclude_none=True)}
+        gql_vars = {"input": gql_input.model_dump()}
 
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
@@ -2443,6 +2441,7 @@ class Artifact:
                 "MembershipWithArtifact",
                 "ArtifactFragment",
                 "ArtifactFragmentWithoutAliases",
+                "ProjectInfoFragment",
             }
 
         gql_op = gql_compat(LINK_ARTIFACT_GQL, omit_fragments=omit_fragments)
@@ -2484,13 +2483,16 @@ class Artifact:
             raise RuntimeError("Client not initialized for artifact mutations")
 
         mutation = gql(UNLINK_ARTIFACT_GQL)
-        gql_vars = {"artifactID": self.id, "artifactPortfolioID": self.collection.id}
-
+        gql_input = UnlinkArtifactInput(
+            artifact_id=self.id,
+            artifact_portfolio_id=self.collection.id,
+        )
+        gql_vars = {"input": gql_input.model_dump()}
         try:
             self._client.execute(mutation, variable_values=gql_vars)
         except CommError as e:
             raise CommError(
-                f"You do not have permission to unlink the artifact {self.qualified_name}"
+                f"You do not have permission to unlink the artifact {self.qualified_name!r}"
             ) from e
 
     @ensure_logged

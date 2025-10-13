@@ -7,19 +7,19 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 
-class RenameProject(GQLBase):
+class RenameProject(GQLResult):
     rename_project: Optional[RenameProjectRenameProject] = Field(alias="renameProject")
 
 
-class RenameProjectRenameProject(GQLBase):
+class RenameProjectRenameProject(GQLResult):
     project: Optional[RenameProjectRenameProjectProject]
     inserted: Optional[bool]
 
 
-class RenameProjectRenameProjectProject(GQLBase):
+class RenameProjectRenameProjectProject(GQLResult):
     name: str
 
 

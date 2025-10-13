@@ -75,9 +75,12 @@ class _WriteCallback(Protocol):
         """
 
 
-# A reentrant lock is used to catch callbacks that write to stderr/stdout.
-_module_rlock = threading.RLock()
+_module_lock = threading.Lock()
 _is_writing = False
+"""Prevents infinite print-capture loops.
+
+If a capture callback prints, that output is not captured.
+"""
 
 _patch_exception: CannotCaptureConsoleError | None = None
 
@@ -99,7 +102,7 @@ def capture_stdout(callback: _WriteCallback) -> Callable[[], None]:
     Raises:
         CannotCaptureConsoleError: If patching failed on import.
     """
-    with _module_rlock:
+    with _module_lock:
         if _patch_exception:
             raise _patch_exception
 
@@ -121,7 +124,7 @@ def capture_stderr(callback: _WriteCallback) -> Callable[[], None]:
     Raises:
         CannotCaptureConsoleError: If patching failed on import.
     """
-    with _module_rlock:
+    with _module_lock:
         if _patch_exception:
             raise _patch_exception
 
@@ -144,7 +147,7 @@ def _insert_disposably(
     def dispose() -> None:
         nonlocal disposed
 
-        with _module_rlock:
+        with _module_lock:
             if disposed:
                 return
 
@@ -167,38 +170,43 @@ def _patch(
         global _is_writing
         n = orig_write(s)
 
-        # NOTE: Since _module_rlock is reentrant, this is safe. It will not
-        # deadlock if a callback invokes write() again.
-        with _module_rlock:
+        with _module_lock:
             if _is_writing:
                 return n
-
             _is_writing = True
-            try:
-                for cb in callbacks.values():
-                    cb(s, n)
 
-            except BaseException as e:
-                # Clear all callbacks on any exception to avoid infinite loops:
-                #
-                # * If we re-raise, an exception handler is likely to print
-                #   the exception to the console and trigger callbacks again
-                # * If we log, we can't guarantee that this doesn't print
-                #   to console.
-                #
-                # This is especially important for KeyboardInterrupt.
+            # Invoke callbacks outside of the lock to avoid deadlocks.
+            # 1. A callback may print, invoking this again.
+            # 2. A callback may block on a different thread which then prints.
+            callback_list = list(callbacks.values())
+
+        try:
+            for cb in callback_list:
+                cb(s, n)
+
+        except BaseException as e:
+            # Clear all callbacks on any exception to avoid infinite loops:
+            #
+            # * If we re-raise, an exception handler is likely to print
+            #   the exception to the console and trigger callbacks again
+            # * If we log, we can't guarantee that this doesn't print
+            #   to console.
+            #
+            # This is especially important for KeyboardInterrupt.
+            with _module_lock:
                 _stderr_callbacks.clear()
                 _stdout_callbacks.clear()
 
-                if isinstance(e, Exception):
-                    # We suppress Exceptions so that bugs in W&B code don't
-                    # cause the user's print() statements to raise errors.
-                    _logger.exception("Error in console callback, clearing all!")
-                else:
-                    # Re-raise errors like KeyboardInterrupt.
-                    raise
+            if isinstance(e, Exception):
+                # We suppress Exceptions so that bugs in W&B code don't
+                # cause the user's print() statements to raise errors.
+                _logger.exception("Error in console callback, clearing all!")
+            else:
+                # Re-raise errors like KeyboardInterrupt.
+                raise
 
-            finally:
+        finally:
+            with _module_lock:
                 _is_writing = False
 
         return n

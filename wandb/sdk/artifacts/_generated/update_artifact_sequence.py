@@ -7,22 +7,22 @@ from typing import Literal, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase, GQLId, Typename
+from wandb._pydantic import GQLId, GQLResult, Typename
 
 
-class UpdateArtifactSequence(GQLBase):
+class UpdateArtifactSequence(GQLResult):
     update_artifact_sequence: Optional[UpdateArtifactSequenceUpdateArtifactSequence] = (
         Field(alias="updateArtifactSequence")
     )
 
 
-class UpdateArtifactSequenceUpdateArtifactSequence(GQLBase):
+class UpdateArtifactSequenceUpdateArtifactSequence(GQLResult):
     artifact_collection: UpdateArtifactSequenceUpdateArtifactSequenceArtifactCollection = Field(
         alias="artifactCollection"
     )
 
 
-class UpdateArtifactSequenceUpdateArtifactSequenceArtifactCollection(GQLBase):
+class UpdateArtifactSequenceUpdateArtifactSequenceArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]

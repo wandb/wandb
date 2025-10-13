@@ -7,14 +7,14 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 
-class DeleteAliases(GQLBase):
+class DeleteAliases(GQLResult):
     delete_aliases: Optional[DeleteAliasesDeleteAliases] = Field(alias="deleteAliases")
 
 
-class DeleteAliasesDeleteAliases(GQLBase):
+class DeleteAliasesDeleteAliases(GQLResult):
     success: bool
 
 

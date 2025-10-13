@@ -1,6 +1,7 @@
 mutation DeleteArtifactSequence($id: ID!) {
   deleteArtifactSequence(input: { artifactSequenceID: $id }) {
     artifactCollection {
+      __typename
       state
     }
   }
@@ -9,15 +10,14 @@ mutation DeleteArtifactSequence($id: ID!) {
 mutation DeleteArtifactPortfolio($id: ID!) {
   deleteArtifactPortfolio(input: { artifactPortfolioID: $id }) {
     artifactCollection {
+      __typename
       state
     }
   }
 }
 
-mutation UpdateArtifactSequence($id: ID!, $name: String, $description: String) {
-  updateArtifactSequence(
-    input: { artifactSequenceID: $id, name: $name, description: $description }
-  ) {
+mutation UpdateArtifactSequence($input: UpdateArtifactSequenceInput!) {
+  updateArtifactSequence(input: $input) {
     artifactCollection {
       __typename
       id
@@ -27,10 +27,8 @@ mutation UpdateArtifactSequence($id: ID!, $name: String, $description: String) {
   }
 }
 
-mutation UpdateArtifactPortfolio($id: ID!, $name: String, $description: String) {
-  updateArtifactPortfolio(
-    input: { artifactPortfolioID: $id, name: $name, description: $description }
-  ) {
+mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
+  updateArtifactPortfolio(input: $input) {
     artifactCollection {
       __typename
       id
@@ -40,13 +38,8 @@ mutation UpdateArtifactPortfolio($id: ID!, $name: String, $description: String) 
   }
 }
 
-mutation MoveArtifactCollection($artifactSequenceID: ID!, $destinationArtifactTypeName: String!) {
-  moveArtifactSequence(
-    input: {
-      artifactSequenceID: $artifactSequenceID
-      destinationArtifactTypeName: $destinationArtifactTypeName
-    }
-  ) {
+mutation MoveArtifactCollection($input: MoveArtifactSequenceInput!) {
+  moveArtifactSequence(input: $input) {
     artifactCollection {
       __typename
       id
@@ -57,19 +50,9 @@ mutation MoveArtifactCollection($artifactSequenceID: ID!, $destinationArtifactTy
 }
 
 mutation CreateArtifactCollectionTagAssignments(
-  $entityName: String!
-  $projectName: String!
-  $artifactCollectionName: String!
-  $tags: [TagInput!]!
+  $input: CreateArtifactCollectionTagAssignmentsInput!
 ) {
-  createArtifactCollectionTagAssignments(
-    input: {
-      entityName: $entityName
-      projectName: $projectName
-      artifactCollectionName: $artifactCollectionName
-      tags: $tags
-    }
-  ) {
+  createArtifactCollectionTagAssignments(input: $input) {
     tags {
       id
       name
@@ -79,29 +62,18 @@ mutation CreateArtifactCollectionTagAssignments(
 }
 
 mutation DeleteArtifactCollectionTagAssignments(
-  $entityName: String!
-  $projectName: String!
-  $artifactCollectionName: String!
-  $tags: [TagInput!]!
+  $input: DeleteArtifactCollectionTagAssignmentsInput!
 ) {
-  deleteArtifactCollectionTagAssignments(
-    input: {
-      entityName: $entityName
-      projectName: $projectName
-      artifactCollectionName: $artifactCollectionName
-      tags: $tags
-    }
-  ) {
+  deleteArtifactCollectionTagAssignments(input: $input) {
     success
   }
 }
 
-fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
-  pageInfo {
-    endCursor
-    hasNextPage
-  }
+fragment ArtifactCollectionConnectionFragment on ArtifactCollectionConnection {
   totalCount
+  pageInfo {
+    ...PageInfoFragment
+  }
   edges {
     node {
       __typename
@@ -110,7 +82,6 @@ fragment ArtifactCollectionsFragment on ArtifactCollectionConnection {
       description
       createdAt
     }
-    cursor
   }
 }
 
@@ -126,7 +97,7 @@ query ProjectArtifactCollections(
       # - `artifactCollections` for new servers
       # - `artifactSequences` for old servers
       artifactCollections: artifactCollections(after: $cursor) {
-        ...ArtifactCollectionsFragment
+        ...ArtifactCollectionConnectionFragment
       }
     }
   }
@@ -166,8 +137,7 @@ query ProjectArtifactCollection(
             cursor
           }
           pageInfo {
-            endCursor
-            hasNextPage
+            ...PageInfoFragment
           }
         }
       }
