@@ -10,6 +10,12 @@ import (
 	"github.com/apache/arrow-go/v18/parquet"
 )
 
+// getObjectSize gets the size of an object at the given URL.
+//
+// getObjectSize makes an HTTP HEAD request to the given URL.
+// If the response is successful, it returns the Content-Length header value.
+// If any error occurs, or if a error status code is returned (>=400),
+// it returns -1, and the error that occurred or the status code.
 func getObjectSize(
 	ctx context.Context,
 	client *http.Client,
@@ -36,8 +42,6 @@ func getObjectSize(
 }
 
 type HttpFileReader struct {
-	parquet.ReaderAtSeeker
-
 	ctx context.Context
 
 	client   *http.Client
@@ -45,6 +49,8 @@ type HttpFileReader struct {
 	offset   int64
 	url      string
 }
+
+var _ parquet.ReaderAtSeeker = &HttpFileReader{}
 
 func NewHttpFileReader(
 	ctx context.Context,
@@ -67,8 +73,49 @@ func NewHttpFileReader(
 }
 
 // ReadAt implements io.ReaderAt.ReadAt
+//
+// ReadAt reads up to len(p) bytes from object at o.url
+// starting from the offset 'off'.
+//
+// ReadAt returns the number of bytes read and an error.
+// If the number of bytes read is less than the length of the buffer,
+// the error is io.ErrUnexpectedEOF.
 func (o *HttpFileReader) ReadAt(p []byte, off int64) (int, error) {
-	return o.readAt(o.ctx, p, off)
+	if off < 0 {
+		return 0, errors.New("negative offset")
+	}
+
+	// calculate range to read for request
+	start := off
+	end := min(off+int64(len(p)), o.fileSize)
+
+	req, err := http.NewRequestWithContext(o.ctx, http.MethodGet, o.url, nil)
+	if err != nil {
+		return 0, err
+	}
+	// set range header to read only specified bytes from file
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
+
+	resp, err := o.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	if resp.StatusCode >= http.StatusBadRequest {
+		return 0, fmt.Errorf(
+			"failed to read with status code: %d",
+			resp.StatusCode,
+		)
+	}
+	defer resp.Body.Close()
+
+	wantedBytes := end - start
+	n, err := io.ReadAtLeast(resp.Body, p, int(wantedBytes))
+	if int64(n) == wantedBytes && n < len(p) {
+		err = io.EOF
+	}
+
+	o.offset += int64(n)
+	return n, err
 }
 
 // Seek implements io.Seeker.Seek
@@ -105,52 +152,4 @@ func (o *HttpFileReader) validateOffset(offset int64) error {
 		return errors.New("offset exceeds file size")
 	}
 	return nil
-}
-
-// readAt calculates the range of bytes to read via an http request
-// using the Range header.
-func (o *HttpFileReader) readAt(
-	ctx context.Context,
-	p []byte,
-	off int64,
-) (int, error) {
-	if off < 0 {
-		return 0, errors.New("negative offset")
-	}
-
-	// calculate range to read for request
-	start := off
-	end := off + int64(len(p))
-
-	// if we try to read beyond the file size,
-	// change out end offset to the end of the file
-	if end > o.fileSize {
-		end = o.fileSize
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.url, nil)
-	if err != nil {
-		return 0, err
-	}
-	// set range header to read only specified bytes from file
-	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
-
-	resp, err := o.client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	if resp.StatusCode >= http.StatusBadRequest {
-		return 0, fmt.Errorf(
-			"failed to read with status code: %d",
-			resp.StatusCode,
-		)
-	}
-	defer resp.Body.Close()
-
-	n, err := io.ReadFull(resp.Body, p)
-	if err != nil {
-		return n, err
-	}
-
-	return n, nil
 }

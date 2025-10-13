@@ -289,11 +289,7 @@ func TestHttpFileReader_ReadAt(t *testing.T) {
 		n, err := reader.ReadAt(buffer, offset)
 
 		assert.Error(t, err)
-		assert.Contains(
-			t,
-			err.Error(),
-			"EOF",
-		)
+		assert.Equal(t, io.EOF, err)
 		assert.Equal(t, 5, n)
 	})
 }
