@@ -62,11 +62,13 @@ func TestSelectColumns(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		selectAllColumns := len(tt.columns) == 0
 		t.Run(tt.name, func(t *testing.T) {
 			selectedColumns, err := SelectColumns(
 				StepKey,
 				tt.columns,
 				s,
+				selectAllColumns,
 			)
 
 			if tt.wantErr {
