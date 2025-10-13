@@ -17,7 +17,7 @@ import (
 // outputFileWriter saves run console logs on disk.
 //
 // If multipart is false, it writes a single file in filesDir.
-// If multipart is true, iIt splits console output into multiple timestamped
+// If multipart is true, it splits console output into multiple timestamped
 // files based on size and time thresholds and writes them to filesDir/logs.
 // Chunks are uploaded on file rotation and/or on Finish.
 type outputFileWriter struct {
