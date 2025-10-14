@@ -2,9 +2,9 @@
 
 [tool.ariadne-codegen]
 schema_path = "core/api/graphql/schemas/schema-latest.graphql"
-queries_path = "tools/graphql_codegen/projects/"
+queries_path = "tools/graphql_codegen/api/"
 
-target_package_path = "wandb/sdk/projects"
+target_package_path = "wandb/apis"
 target_package_name = "_generated"
 
 include_all_inputs = false # Only generate input types needed for queries

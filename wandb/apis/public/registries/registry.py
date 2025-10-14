@@ -6,10 +6,7 @@ from wandb_gql import gql
 
 import wandb
 from wandb._analytics import tracked
-from wandb.proto.wandb_internal_pb2 import ServerFeature
-from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
-from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.projects._generated import (
+from wandb.apis._generated import (
     DELETE_PROJECT_GQL,
     FETCH_REGISTRY_GQL,
     RENAME_PROJECT_GQL,
@@ -18,6 +15,9 @@ from wandb.sdk.projects._generated import (
     RenameProject,
     UpsertRegistryProject,
 )
+from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
+from wandb.sdk.internal.internal_api import Api as InternalApi
 
 from ._freezable_list import AddOnlyArtifactTypesList
 from ._utils import (
