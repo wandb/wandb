@@ -47,6 +47,7 @@ import wandb
 from wandb import env, util
 from wandb._strutils import nameof
 from wandb.apis import public
+from wandb.apis._displayable import Displayable
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
@@ -493,7 +494,7 @@ class Runs(SizedPaginator["Run"]):
                     future.result()
 
 
-class Run(Attrs):
+class Run(Attrs, Displayable):
     """A single run associated with an entity and project.
 
     Args:
@@ -1450,9 +1451,6 @@ class Run(Attrs):
             style += "display:none;"
             prefix = ipython.toggle_button()
         return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
-
-    def _repr_html_(self) -> str:
-        return self.to_html()
 
     def __repr__(self) -> str:
         return f"<{nameof(type(self))} {'/'.join(self.path)} ({self.state})>"
