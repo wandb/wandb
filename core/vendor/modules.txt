@@ -432,8 +432,8 @@ github.com/bmatcuk/doublestar/v4
 # github.com/cespare/xxhash/v2 v2.3.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/charmbracelet/bubbles v0.20.0
-## explicit; go 1.18
+# github.com/charmbracelet/bubbles v0.21.0
+## explicit; go 1.23.0
 github.com/charmbracelet/bubbles/key
 github.com/charmbracelet/bubbles/viewport
 # github.com/charmbracelet/bubbletea v1.3.10
