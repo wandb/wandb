@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, List, Optional
 
 from pydantic import Field
 from typing_extensions import Literal
@@ -26,6 +26,84 @@ class PageInfoFragment(GQLResult):
     has_next_page: bool = Field(alias="hasNextPage")
 
 
+class ApiKeyFragment(GQLResult):
+    id: GQLId
+    name: str
+    description: Optional[str]
+
+
+class FullUserFragment(GQLResult):
+    id: GQLId
+    name: str
+    username: Optional[str]
+    email: Optional[str]
+    admin: Optional[bool]
+    flags: Optional[Any]
+    entity: Optional[str]
+    deleted_at: Optional[str] = Field(alias="deletedAt")
+    api_keys: Optional[FullUserFragmentApiKeys] = Field(alias="apiKeys")
+    teams: Optional[FullUserFragmentTeams]
+
+
+class FullUserFragmentApiKeys(GQLResult):
+    edges: List[FullUserFragmentApiKeysEdges]
+
+
+class FullUserFragmentApiKeysEdges(GQLResult):
+    node: Optional[ApiKeyFragment]
+
+
+class FullUserFragmentTeams(GQLResult):
+    edges: List[FullUserFragmentTeamsEdges]
+
+
+class FullUserFragmentTeamsEdges(GQLResult):
+    node: Optional[FullUserFragmentTeamsEdgesNode]
+
+
+class FullUserFragmentTeamsEdgesNode(GQLResult):
+    name: str
+
+
+class ApiKeyFragment(GQLResult):
+    id: GQLId
+    name: str
+    description: Optional[str]
+
+
+class FullUserFragment(GQLResult):
+    id: GQLId
+    name: str
+    username: Optional[str]
+    email: Optional[str]
+    admin: Optional[bool]
+    flags: Optional[Any]
+    entity: Optional[str]
+    deleted_at: Optional[str] = Field(alias="deletedAt")
+    api_keys: Optional[FullUserFragmentApiKeys] = Field(alias="apiKeys")
+    teams: Optional[FullUserFragmentTeams]
+
+
+class FullUserFragmentApiKeys(GQLResult):
+    edges: List[FullUserFragmentApiKeysEdges]
+
+
+class FullUserFragmentApiKeysEdges(GQLResult):
+    node: Optional[ApiKeyFragment]
+
+
+class FullUserFragmentTeams(GQLResult):
+    edges: List[FullUserFragmentTeamsEdges]
+
+
+class FullUserFragmentTeamsEdges(GQLResult):
+    node: Optional[FullUserFragmentTeamsEdgesNode]
+
+
+class FullUserFragmentTeamsEdgesNode(GQLResult):
+    name: str
+
+
 class ProjectFragment(GQLResult):
     typename__: Typename[Literal["Project"]] = "Project"
     id: GQLId
@@ -35,6 +113,51 @@ class ProjectFragment(GQLResult):
     is_benchmark: bool = Field(alias="isBenchmark")
 
 
-CreatedProjectFragment.model_rebuild()
+class RegistryFragment(GQLResult):
+    id: GQLId
+    allow_all_artifact_types_in_registry: bool = Field(
+        alias="allowAllArtifactTypesInRegistry"
+    )
+    artifact_types: RegistryFragmentArtifactTypes = Field(alias="artifactTypes")
+    name: str
+    description: Optional[str]
+    created_at: str = Field(alias="createdAt")
+    updated_at: Optional[str] = Field(alias="updatedAt")
+    access: Optional[str]
+
+
+class RegistryFragmentArtifactTypes(GQLResult):
+    edges: List[RegistryFragmentArtifactTypesEdges]
+
+
+class RegistryFragmentArtifactTypesEdges(GQLResult):
+    node: Optional[RegistryFragmentArtifactTypesEdgesNode]
+
+
+class RegistryFragmentArtifactTypesEdgesNode(GQLResult):
+    name: str
+
+
+class UserFragment(GQLResult):
+    id: GQLId
+    name: str
+    username: Optional[str]
+    email: Optional[str]
+    admin: Optional[bool]
+
+
+ApiKeyFragment.model_rebuild()
+FullUserFragment.model_rebuild()
+FullUserFragmentApiKeys.model_rebuild()
+FullUserFragmentApiKeysEdges.model_rebuild()
+FullUserFragmentTeams.model_rebuild()
+FullUserFragmentTeamsEdges.model_rebuild()
+FullUserFragmentTeamsEdgesNode.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectFragment.model_rebuild()
+RegistryFragment.model_rebuild()
+RegistryFragmentArtifactTypes.model_rebuild()
+RegistryFragmentArtifactTypesEdges.model_rebuild()
+RegistryFragmentArtifactTypesEdgesNode.model_rebuild()
+UserFragment.model_rebuild()
+ApiKeyFragment.model_rebuild()
