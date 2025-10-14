@@ -472,19 +472,26 @@ def test_projects(user, wandb_backend_spy):
             "models": {
                 "edges": [
                     {
-                        "node": {"name": f"test_{i}", "entityName": user},
+                        "node": {
+                            "id": "fake-project-id",
+                            "name": f"test_{i}",
+                            "entityName": user,
+                            "createdAt": "2021-01-01T00:00:00Z",
+                            "isBenchmark": False,
+                        },
                     }
                     for i in range(num_projects)
                 ],
                 "pageInfo": {
                     "hasNextPage": False,
+                    "endCursor": "cursor-1",
                 },
             },
         },
     }
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Projects"),
+        gql.Matcher(operation="FetchProjects"),
         gql.Constant(content=body),
     )
 
@@ -498,7 +505,7 @@ def test_projects(user, wandb_backend_spy):
 def test_project_get_id(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Project"),
+        gql.Matcher(operation="FetchProject"),
         gql.once(
             content={
                 "data": {
@@ -522,7 +529,7 @@ def test_project_get_id(user, wandb_backend_spy):
 def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="Project"),
+        gql.Matcher(operation="FetchProject"),
         gql.once(
             content={
                 "data": {
