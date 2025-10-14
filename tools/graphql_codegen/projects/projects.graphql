@@ -71,3 +71,34 @@ mutation deleteProject($id: String!) {
     __typename
   }
 }
+
+# ----------------------------------------------------------------------------
+
+fragment ProjectFragment on Project {
+  id
+  name
+  entityName
+  createdAt
+  isBenchmark
+}
+
+query FetchProjects($entity: String, $cursor: String, $perPage: Int = 50) {
+  models(entityName: $entity, after: $cursor, first: $perPage) {
+    edges {
+      node {
+        ...ProjectFragment
+      }
+      cursor
+    }
+    pageInfo {
+      endCursor
+      hasNextPage
+    }
+  }
+}
+
+query FetchProject($project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    ...ProjectFragment
+  }
+}

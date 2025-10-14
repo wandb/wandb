@@ -3,6 +3,8 @@
 
 __all__ = [
     "DELETE_PROJECT_GQL",
+    "FETCH_PROJECTS_GQL",
+    "FETCH_PROJECT_GQL",
     "FETCH_REGISTRY_GQL",
     "RENAME_PROJECT_GQL",
     "UPSERT_REGISTRY_PROJECT_GQL",
@@ -84,5 +86,46 @@ mutation deleteProject($id: String!) {
     success
     __typename
   }
+}
+"""
+
+FETCH_PROJECTS_GQL = """
+query FetchProjects($entity: String, $cursor: String, $perPage: Int = 50) {
+  models(entityName: $entity, after: $cursor, first: $perPage) {
+    edges {
+      node {
+        ...ProjectFragment
+      }
+      cursor
+    }
+    pageInfo {
+      endCursor
+      hasNextPage
+    }
+  }
+}
+
+fragment ProjectFragment on Project {
+  id
+  name
+  entityName
+  createdAt
+  isBenchmark
+}
+"""
+
+FETCH_PROJECT_GQL = """
+query FetchProject($project: String!, $entity: String!) {
+  project(name: $project, entityName: $entity) {
+    ...ProjectFragment
+  }
+}
+
+fragment ProjectFragment on Project {
+  id
+  name
+  entityName
+  createdAt
+  isBenchmark
 }
 """

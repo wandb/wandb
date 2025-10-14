@@ -2,6 +2,8 @@
 
 __all__ = [
     "DELETE_PROJECT_GQL",
+    "FETCH_PROJECTS_GQL",
+    "FETCH_PROJECT_GQL",
     "FETCH_REGISTRY_GQL",
     "RENAME_PROJECT_GQL",
     "UPSERT_REGISTRY_PROJECT_GQL",
@@ -9,15 +11,22 @@ __all__ = [
     "RenameProject",
     "UpsertRegistryProject",
     "DeleteProject",
+    "FetchProjects",
+    "FetchProject",
     "ArtifactTypeInput",
+    "ProjectFragment",
     "RegistryFragment",
 ]
 from .delete_project import DeleteProject
+from .fetch_project import FetchProject
+from .fetch_projects import FetchProjects
 from .fetch_registry import FetchRegistry
-from .fragments import RegistryFragment
+from .fragments import ProjectFragment, RegistryFragment
 from .input_types import ArtifactTypeInput
 from .operations import (
     DELETE_PROJECT_GQL,
+    FETCH_PROJECT_GQL,
+    FETCH_PROJECTS_GQL,
     FETCH_REGISTRY_GQL,
     RENAME_PROJECT_GQL,
     UPSERT_REGISTRY_PROJECT_GQL,

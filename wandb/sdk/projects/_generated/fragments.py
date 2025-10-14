@@ -10,6 +10,14 @@ from pydantic import Field
 from wandb._pydantic import GQLId, GQLResult
 
 
+class ProjectFragment(GQLResult):
+    id: GQLId
+    name: str
+    entity_name: str = Field(alias="entityName")
+    created_at: str = Field(alias="createdAt")
+    is_benchmark: bool = Field(alias="isBenchmark")
+
+
 class RegistryFragment(GQLResult):
     id: GQLId
     allow_all_artifact_types_in_registry: bool = Field(
@@ -35,6 +43,7 @@ class RegistryFragmentArtifactTypesEdgesNode(GQLResult):
     name: str
 
 
+ProjectFragment.model_rebuild()
 RegistryFragment.model_rebuild()
 RegistryFragmentArtifactTypes.model_rebuild()
 RegistryFragmentArtifactTypesEdges.model_rebuild()

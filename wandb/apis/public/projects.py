@@ -33,9 +33,14 @@ Note:
 
 from __future__ import annotations
 
+from typing import Any
+
 from requests import HTTPError
+from typing_extensions import override
 from wandb_gql import gql
 
+from wandb._pydantic import Connection
+from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
@@ -43,14 +48,15 @@ from wandb.apis.paginator import Paginator
 from wandb.apis.public.api import RetryingClient
 from wandb.apis.public.sweeps import Sweeps
 from wandb.sdk.lib import ipython
+from wandb.sdk.projects._generated import (
+    FETCH_PROJECT_GQL,
+    FETCH_PROJECTS_GQL,
+    FetchProject,
+    FetchProjects,
+    ProjectFragment,
+)
 
-PROJECT_FRAGMENT = """fragment ProjectFragment on Project {
-    id
-    name
-    entityName
-    createdAt
-    isBenchmark
-}"""
+_ProjectConnection = Connection[ProjectFragment]
 
 
 class Projects(Paginator["Project"]):
@@ -79,23 +85,9 @@ class Projects(Paginator["Project"]):
     ```
     """
 
-    QUERY = gql(f"""#graphql
-        query Projects($entity: String, $cursor: String, $perPage: Int = 50) {{
-            models(entityName: $entity, after: $cursor, first: $perPage) {{
-                edges {{
-                    node {{
-                        ...ProjectFragment
-                    }}
-                    cursor
-                }}
-                pageInfo {{
-                    endCursor
-                    hasNextPage
-                }}
-            }}
-        }}
-        {PROJECT_FRAGMENT}
-    """)
+    last_response: _ProjectConnection | None
+
+    QUERY = gql(FETCH_PROJECTS_GQL)
 
     def __init__(
         self,
@@ -117,6 +109,18 @@ class Projects(Paginator["Project"]):
         }
         super().__init__(client, variables, per_page)
 
+    @override
+    def _update_response(self) -> None:
+        """Fetch and validate the response data for the current page."""
+        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        result = FetchProjects.model_validate(data)
+
+        # Extract the inner `*Connection` result for faster/easier access.
+        if not (conn := result.models):
+            raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
+
+        self.last_response = _ProjectConnection.model_validate(conn)
+
     @property
     def length(self) -> None:
         """Returns the total number of projects.
@@ -129,36 +133,30 @@ class Projects(Paginator["Project"]):
         return None
 
     @property
-    def more(self):
+    def more(self) -> bool:
         """Returns `True` if there are more projects to fetch. Returns
         `False` if there are no more projects to fetch.
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return self.last_response["models"]["pageInfo"]["hasNextPage"]
-        else:
-            return True
+        return (conn := self.last_response) is None or conn.has_next
 
     @property
-    def cursor(self):
+    def cursor(self) -> str | None:
         """Returns the cursor position for pagination of project results.
 
         <!-- lazydoc-ignore: internal -->
         """
-        if self.last_response:
-            return self.last_response["models"]["edges"][-1]["cursor"]
-        else:
-            return None
+        return conn.next_cursor if (conn := self.last_response) else None
 
-    def convert_objects(self):
+    def convert_objects(self) -> list[Project]:
         """Converts GraphQL edges to File objects.
 
         <!-- lazydoc-ignore: internal -->
         """
         return [
-            Project(self.client, self.entity, p["node"]["name"], p["node"])
-            for p in self.last_response["models"]["edges"]
+            Project(self.client, self.entity, node.name, node.model_dump())
+            for node in self.last_response.nodes()
         ]
 
     def __repr__(self):
@@ -174,14 +172,7 @@ class Project(Attrs):
         entity (str): The entity name that owns the project.
     """
 
-    QUERY = gql(f"""#graphql
-        query Project($project: String!, $entity: String!) {{
-            project(name: $project, entityName: $entity) {{
-                ...ProjectFragment
-            }}
-        }}
-        {PROJECT_FRAGMENT}
-    """)
+    QUERY = gql(FETCH_PROJECT_GQL)
 
     def __init__(
         self,
@@ -204,28 +195,29 @@ class Project(Attrs):
         self.name = project
         self.entity = entity
 
-    def _load(self):
+    def _load(self) -> None:
         variable_values = {"project": self.name, "entity": self.entity}
         try:
-            response = self.client.execute(self.QUERY, variable_values)
+            data = self.client.execute(self.QUERY, variable_values)
         except HTTPError as e:
             raise ValueError(f"Unable to fetch project ID: {variable_values!r}") from e
 
-        self._attrs = response["project"]
+        project = FetchProject.model_validate(data).project
+        self._attrs = project.model_dump() if project else {}
         self._is_loaded = True
 
     @property
-    def path(self):
+    def path(self) -> list[str]:
         """Returns the path of the project. The path is a list containing the
         entity and project name."""
         return [self.entity, self.name]
 
     @property
-    def url(self):
+    def url(self) -> str:
         """Returns the URL of the project."""
         return self.client.app_url + "/".join(self.path + ["workspace"])
 
-    def to_html(self, height=420, hidden=False):
+    def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this project.
 
         <!-- lazydoc-ignore: internal -->
@@ -245,12 +237,12 @@ class Project(Attrs):
         return "<Project {}>".format("/".join(self.path))
 
     @normalize_exceptions
-    def artifacts_types(self, per_page=50):
+    def artifacts_types(self, per_page: int = 50) -> public.ArtifactTypes:
         """Returns all artifact types associated with this project."""
         return public.ArtifactTypes(self.client, self.entity, self.name)
 
     @normalize_exceptions
-    def sweeps(self, per_page=50):
+    def sweeps(self, per_page: int = 50) -> Sweeps:
         """Return a paginated collection of sweeps in this project.
 
         Args:
@@ -271,7 +263,7 @@ class Project(Attrs):
 
         return self._attrs["id"]
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:
         if not self._is_loaded:
             self._load()
 
