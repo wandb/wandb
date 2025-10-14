@@ -41,19 +41,19 @@ from wandb_gql import gql
 from wandb._pydantic import Connection
 from wandb._strutils import nameof
 from wandb.apis import public
-from wandb.apis.attrs import Attrs
-from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.paginator import Paginator
-from wandb.apis.public.api import RetryingClient
-from wandb.apis.public.sweeps import Sweeps
-from wandb.sdk.lib import ipython
-from wandb.sdk.projects._generated import (
+from wandb.apis._generated import (
     FETCH_PROJECT_GQL,
     FETCH_PROJECTS_GQL,
     FetchProject,
     FetchProjects,
     ProjectFragment,
 )
+from wandb.apis.attrs import Attrs
+from wandb.apis.normalize import normalize_exceptions
+from wandb.apis.paginator import Paginator
+from wandb.apis.public.api import RetryingClient
+from wandb.apis.public.sweeps import Sweeps
+from wandb.sdk.lib import ipython
 
 _ProjectConnection = Connection[ProjectFragment]
 
@@ -153,6 +153,8 @@ class Projects(Paginator["Project"]):
 
         <!-- lazydoc-ignore: internal -->
         """
+        if self.last_response is None:
+            return []
         return [
             Project(self.client, self.entity, node.name, node.model_dump())
             for node in self.last_response.nodes()
@@ -264,8 +266,8 @@ class Project(Attrs):
 
         return self._attrs["id"]
 
+    @override
     def __getattr__(self, name: str) -> Any:
         if not self._is_loaded:
             self._load()
-
         return super().__getattr__(name)
