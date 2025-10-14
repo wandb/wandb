@@ -9,10 +9,23 @@ Note:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from requests import HTTPError
 from wandb_gql import gql
 
 import wandb
+from wandb.apis._generated import (
+    CREATE_USER_FROM_ADMIN_GQL,
+    DELETE_API_KEY_GQL,
+    GENERATE_API_KEY_GQL,
+    CreateUserFromAdmin,
+    GenerateApiKey,
+)
 from wandb.apis.attrs import Attrs
+
+if TYPE_CHECKING:
+    from .api import Api
 
 
 class User(Attrs):
@@ -30,53 +43,19 @@ class User(Attrs):
         Some operations require admin privileges
     """
 
-    CREATE_USER_MUTATION = gql(
-        """
-    mutation CreateUserFromAdmin($email: String!, $admin: Boolean) {
-        createUser(input: {email: $email, admin: $admin}) {
-            user {
-                id
-                name
-                username
-                email
-                admin
-            }
-        }
-    }
-        """
-    )
-
-    DELETE_API_KEY_MUTATION = gql(
-        """
-    mutation DeleteApiKey($id: String!) {
-        deleteApiKey(input: {id: $id}) {
-            success
-        }
-    }
-        """
-    )
-    GENERATE_API_KEY_MUTATION = gql(
-        """
-    mutation GenerateApiKey($description: String) {
-        generateApiKey(input: {description: $description}) {
-            apiKey {
-                id
-                name
-            }
-        }
-    }
-        """
-    )
+    CREATE_USER_MUTATION = gql(CREATE_USER_FROM_ADMIN_GQL)
+    DELETE_API_KEY_MUTATION = gql(DELETE_API_KEY_GQL)
+    GENERATE_API_KEY_MUTATION = gql(GENERATE_API_KEY_GQL)
 
     def __init__(self, client, attrs):
         super().__init__(attrs)
         self._client = client
-        self._user_api = None
+        self._user_api: Api | None = None
 
     @property
     def user_api(self):
         """An instance of the api using credentials from the user."""
-        if self._user_api is None and len(self.api_keys) > 0:
+        if self._user_api is None and self.api_keys:
             self._user_api = wandb.Api(api_key=self.api_keys[0])
         return self._user_api
 
@@ -92,11 +71,12 @@ class User(Attrs):
         Returns:
             A `User` object
         """
-        res = api.client.execute(
+        data = api.client.execute(
             cls.CREATE_USER_MUTATION,
             {"email": email, "admin": admin},
         )
-        return User(api.client, res["createUser"]["user"])
+        user = CreateUserFromAdmin.model_validate(data).create_user.user
+        return cls(api.client, user.model_dump())
 
     @property
     def api_keys(self):
@@ -122,7 +102,7 @@ class User(Attrs):
             return []
         return [k["node"]["name"] for k in self._attrs["teams"]["edges"]]
 
-    def delete_api_key(self, api_key):
+    def delete_api_key(self, api_key: str) -> bool:
         """Delete a user's api key.
 
         Args:
@@ -135,19 +115,15 @@ class User(Attrs):
         Raises:
             ValueError if the api_key couldn't be found
         """
-        import requests
-
         idx = self.api_keys.index(api_key)
+        api_key_id = self._attrs["apiKeys"]["edges"][idx]["node"]["id"]
         try:
-            self._client.execute(
-                self.DELETE_API_KEY_MUTATION,
-                {"id": self._attrs["apiKeys"]["edges"][idx]["node"]["id"]},
-            )
-        except requests.exceptions.HTTPError:
+            self._client.execute(self.DELETE_API_KEY_MUTATION, {"id": api_key_id})
+        except HTTPError:
             return False
         return True
 
-    def generate_api_key(self, description=None):
+    def generate_api_key(self, description: str | None = None) -> str | None:
         """Generate a new api key.
 
         Args:
@@ -157,26 +133,25 @@ class User(Attrs):
         Returns:
             The new api key, or None on failure
         """
-        import requests
-
         try:
             # We must make this call using credentials from the original user
-            key = self.user_api.client.execute(
+            data = self.user_api.client.execute(
                 self.GENERATE_API_KEY_MUTATION, {"description": description}
-            )["generateApiKey"]["apiKey"]
-            self._attrs["apiKeys"]["edges"].append({"node": key})
-            return key["name"]
-        except (requests.exceptions.HTTPError, AttributeError):
+            )
+            key = GenerateApiKey.model_validate(data).generate_api_key.api_key
+            self._attrs["apiKeys"]["edges"].append({"node": key.model_dump()})
+        except (HTTPError, AttributeError):
             return None
+        else:
+            return key.name
 
     def __repr__(self):
-        if "email" in self._attrs:
-            return f"<User {self._attrs['email']}>"
-        elif "username" in self._attrs:
-            return f"<User {self._attrs['username']}>"
-        elif "id" in self._attrs:
-            return f"<User {self._attrs['id']}>"
-        elif "name" in self._attrs:
-            return f"<User {self._attrs['name']!r}>"
-        else:
-            return "<User ???>"
+        if email := self._attrs.get("email"):
+            return f"<User {email}>"
+        if username := self._attrs.get("username"):
+            return f"<User {username}>"
+        if id_ := self._attrs.get("id"):
+            return f"<User {id_}>"
+        if name := self._attrs.get("name"):
+            return f"<User {name!r}>"
+        return "<User ???>"
