@@ -96,7 +96,6 @@ query FetchProjects($entity: String, $cursor: String, $perPage: Int = 50) {
       node {
         ...ProjectFragment
       }
-      cursor
     }
     pageInfo {
       endCursor
