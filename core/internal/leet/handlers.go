@@ -7,34 +7,91 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// handleKeyMsg processes keyboard events.
+// handleKeyMsg processes keyboard events using the centralized key bindings.
 func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	// If we're waiting for a config key, handle that next
 	if m.pendingGridConfig != gridConfigNone {
 		return m.handleConfigNumberKey(msg)
 	}
 
-	switch msg.String() {
-	case "q", "ctrl+c":
-		return m, tea.Quit
-
-	case "c":
-		m.pendingGridConfig = gridConfigMetricsCols
-		return m, nil
-
-	case "r":
-		m.pendingGridConfig = gridConfigMetricsRows
-		return m, nil
-
-	case "C":
-		m.pendingGridConfig = gridConfigSystemCols
-		return m, nil
-
-	case "R":
-		m.pendingGridConfig = gridConfigSystemRows
-		return m, nil
+	if handler, ok := m.keyMap[msg.String()]; ok && handler != nil {
+		return handler(m, msg)
 	}
 
+	return m, nil
+}
+
+func (m *Model) handleToggleHelp(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	m.help.Toggle()
+	return m, nil
+}
+
+func (m *Model) handleQuit(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	return m, tea.Quit
+}
+
+func (m *Model) handleRestart(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	m.shouldRestart = true
+	m.logger.Debug("model: restart requested")
+	return m, tea.Quit
+}
+
+func (m *Model) handleToggleLeftSidebar(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	return m, nil
+}
+
+func (m *Model) handleToggleRightSidebar(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	return m, nil
+}
+
+func (m *Model) handlePrevPage(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	return m, nil
+}
+
+func (m *Model) handleNextPage(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	return m, nil
+}
+
+func (m *Model) handlePrevSystemPage(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	return m, nil
+}
+
+func (m *Model) handleNextSystemPage(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	return m, nil
+}
+
+func (m *Model) handleEnterMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	return m, nil
+}
+
+func (m *Model) handleClearMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	return m, nil
+}
+
+func (m *Model) handleEnterOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	return m, nil
+}
+
+func (m *Model) handleClearOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	return m, nil
+}
+
+func (m *Model) handleConfigMetricsCols(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	m.pendingGridConfig = gridConfigMetricsCols
+	return m, nil
+}
+
+func (m *Model) handleConfigMetricsRows(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	m.pendingGridConfig = gridConfigMetricsRows
+	return m, nil
+}
+
+func (m *Model) handleConfigSystemCols(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	m.pendingGridConfig = gridConfigSystemCols
+	return m, nil
+}
+
+func (m *Model) handleConfigSystemRows(msg tea.KeyMsg) (*Model, tea.Cmd) {
+	m.pendingGridConfig = gridConfigSystemRows
 	return m, nil
 }
 
