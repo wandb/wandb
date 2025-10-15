@@ -27,6 +27,9 @@ _SLEEP = asyncio.sleep  # patched in tests
 def sync(
     paths: list[pathlib.Path],
     *,
+    entity: str,
+    project: str,
+    run_id: str,
     dry_run: bool,
     skip_synced: bool,
     verbose: bool,
@@ -35,6 +38,9 @@ def sync(
     """Replay one or more .wandb files.
 
     Args:
+        entity: The entity override for all paths, or an empty string.
+        project: The project override for all paths, or an empty string.
+        run_id: The run ID override for all paths, or an empty string.
         paths: One or more .wandb files, run directories containing
             .wandb files, and wandb directories containing run directories.
         dry_run: If true, just prints what it would do and exits.
@@ -67,6 +73,9 @@ def sync(
         lambda: _do_sync(
             wandb_files,
             service=service,
+            entity=entity,
+            project=project,
+            run_id=run_id,
             settings=singleton.settings,
             printer=printer,
             parallelism=parallelism,
@@ -78,6 +87,9 @@ async def _do_sync(
     wandb_files: set[pathlib.Path],
     *,
     service: ServiceConnection,
+    entity: str,
+    project: str,
+    run_id: str,
     settings: wandb.Settings,
     printer: Printer,
     parallelism: int,
@@ -86,7 +98,13 @@ async def _do_sync(
 
     This is factored out to make the progress animation testable.
     """
-    init_handle = await service.init_sync(wandb_files, settings)
+    init_handle = await service.init_sync(
+        wandb_files,
+        settings,
+        entity=entity,
+        project=project,
+        run_id=run_id,
+    )
     init_result = await init_handle.wait_async(timeout=5)
 
     sync_handle = await service.sync(init_result.id, parallelism=parallelism)
