@@ -16,26 +16,22 @@ query RegistryVersions(
         after: $cursor
         first: $perPage
       ) {
-        ...RegistryVersionsPage
+        ...RegistryVersionConnectionFragment
       }
     }
   }
 }
 
-fragment RegistryVersionsPage on ArtifactCollectionMembershipConnection {
+fragment RegistryVersionConnectionFragment on ArtifactCollectionMembershipConnection {
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   edges {
     node {
       artifactCollection {
         __typename
         project {
-          name
-          entity {
-            name
-          }
+          ...ProjectInfoFragment
         }
         name
       }
@@ -68,48 +64,47 @@ query RegistryCollections(
         after: $cursor
         first: $perPage
       ) {
-        ...RegistryCollectionsPage
+        ...RegistryCollectionConnectionFragment
       }
     }
   }
 }
 
-fragment RegistryCollectionsPage on ArtifactCollectionConnection {
+fragment RegistryCollectionConnectionFragment on ArtifactCollectionConnection {
   totalCount
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   edges {
-    cursor
     node {
-      __typename
-      id
-      name
-      description
-      createdAt
-      tags {
-        edges {
-          node {
-            name
-          }
-        }
-      }
-      project {
-        name
-        entity {
-          name
-        }
-      }
-      defaultArtifactType {
+      ...RegistryCollectionFragment
+    }
+  }
+}
+
+fragment RegistryCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  tags {
+    edges {
+      node {
         name
       }
-      aliases {
-        edges {
-          node {
-            alias
-          }
-        }
+    }
+  }
+  project {
+    ...ProjectInfoFragment
+  }
+  defaultArtifactType {
+    name
+  }
+  aliases {
+    edges {
+      node {
+        alias
       }
     }
   }
@@ -125,16 +120,15 @@ query FetchRegistries(
     orgEntity {
       name
       projects(filters: $filters, after: $cursor, first: $perPage) {
-        ...RegistriesPage
+        ...RegistryConnectionFragment
       }
     }
   }
 }
 
-fragment RegistriesPage on ProjectConnection {
+fragment RegistryConnectionFragment on ProjectConnection {
   pageInfo {
-    endCursor
-    hasNextPage
+    ...PageInfoFragment
   }
   edges {
     node {

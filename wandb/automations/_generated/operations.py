@@ -272,8 +272,8 @@ fragment TriggerFields on Trigger {
 """
 
 CREATE_AUTOMATION_GQL = """
-mutation CreateAutomation($params: CreateFilterTriggerInput!) {
-  result: createFilterTrigger(input: $params) {
+mutation CreateAutomation($input: CreateFilterTriggerInput!) {
+  result: createFilterTrigger(input: $input) {
     ...CreateAutomationResult
   }
 }
@@ -386,8 +386,8 @@ fragment TriggerFields on Trigger {
 """
 
 UPDATE_AUTOMATION_GQL = """
-mutation UpdateAutomation($params: UpdateFilterTriggerInput!) {
-  result: updateFilterTrigger(input: $params) {
+mutation UpdateAutomation($input: UpdateFilterTriggerInput!) {
+  result: updateFilterTrigger(input: $input) {
     ...UpdateAutomationResult
   }
 }
@@ -629,8 +629,8 @@ fragment PageInfoFields on PageInfo {
 """
 
 CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL = """
-mutation CreateGenericWebhookIntegration($params: CreateGenericWebhookIntegrationInput!) {
-  createGenericWebhookIntegration(input: $params) {
+mutation CreateGenericWebhookIntegration($input: CreateGenericWebhookIntegrationInput!) {
+  createGenericWebhookIntegration(input: $input) {
     integration {
       __typename
       ...GenericWebhookIntegrationFields

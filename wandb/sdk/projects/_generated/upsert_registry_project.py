@@ -7,18 +7,18 @@ from typing import Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLResult
 
 from .fragments import RegistryFragment
 
 
-class UpsertRegistryProject(GQLBase):
+class UpsertRegistryProject(GQLResult):
     upsert_model: Optional[UpsertRegistryProjectUpsertModel] = Field(
         alias="upsertModel"
     )
 
 
-class UpsertRegistryProjectUpsertModel(GQLBase):
+class UpsertRegistryProjectUpsertModel(GQLResult):
     project: Optional[RegistryFragment]
     inserted: Optional[bool]
 

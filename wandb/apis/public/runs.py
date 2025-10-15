@@ -745,21 +745,24 @@ class Run(Attrs):
                     withRuns=False,
                 )
 
-        if not self._is_loaded:
+        if not self._is_loaded or force:
             # Always set _project_internal_id if projectId is available, regardless of fragment type
             if "projectId" in self._attrs:
                 self._project_internal_id = int(self._attrs["projectId"])
             else:
                 self._project_internal_id = None
 
-            # Only call _load_from_attrs when using the full fragment or when the fields are actually present
+            # Always call _load_from_attrs when using the full fragment or when the fields are actually present
             if fragment_name == RUN_FRAGMENT_NAME or (
                 "config" in self._attrs
                 or "summaryMetrics" in self._attrs
                 or "systemMetrics" in self._attrs
             ):
                 self._load_from_attrs()
-            self._is_loaded = True
+
+            # Only mark as loaded for lightweight fragments, not full fragments
+            if fragment_name == LIGHTWEIGHT_RUN_FRAGMENT_NAME:
+                self._is_loaded = True
 
         return self._attrs
 
@@ -1305,7 +1308,13 @@ class Run(Attrs):
         """Get run config. Auto-loads full data if in lazy mode."""
         if self._lazy and not self._full_data_loaded and "config" not in self._attrs:
             self.load_full_data()
-        return self._attrs.get("config", {})
+
+        # Ensure config is always converted to dict (defensive against conversion issues)
+        config_value = self._attrs.get("config", {})
+        # _convert_to_dict handles dict inputs (noop) and converts str/bytes/bytearray to dict
+        config_value = _convert_to_dict(config_value)
+        self._attrs["config"] = config_value
+        return config_value
 
     @property
     def summary(self):
@@ -1332,7 +1341,13 @@ class Run(Attrs):
             and "systemMetrics" not in self._attrs
         ):
             self.load_full_data()
-        return self._attrs.get("systemMetrics", {})
+
+        # Ensure systemMetrics is always converted to dict (defensive against conversion issues)
+        system_metrics_value = self._attrs.get("systemMetrics", {})
+        # _convert_to_dict handles dict inputs (noop) and converts str/bytes/bytearray to dict
+        system_metrics_value = _convert_to_dict(system_metrics_value)
+        self._attrs["systemMetrics"] = system_metrics_value
+        return system_metrics_value
 
     @property
     def summary_metrics(self):
@@ -1343,7 +1358,13 @@ class Run(Attrs):
             and "summaryMetrics" not in self._attrs
         ):
             self.load_full_data()
-        return self._attrs.get("summaryMetrics", {})
+
+        # Ensure summaryMetrics is always converted to dict (defensive against conversion issues)
+        summary_metrics_value = self._attrs.get("summaryMetrics", {})
+        # _convert_to_dict handles dict inputs (noop) and converts str/bytes/bytearray to dict
+        summary_metrics_value = _convert_to_dict(summary_metrics_value)
+        self._attrs["summaryMetrics"] = summary_metrics_value
+        return summary_metrics_value
 
     @property
     def rawconfig(self):

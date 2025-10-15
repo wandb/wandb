@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import functools
 import glob
 import json
@@ -33,7 +32,6 @@ from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
 from wandb.plot import CustomChart, Visualize
-from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
@@ -44,7 +42,7 @@ from wandb.proto.wandb_internal_pb2 import (
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
-from wandb.sdk.lib import asyncio_compat, wb_logging
+from wandb.sdk.lib import wb_logging
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
@@ -489,7 +487,7 @@ class Run:
 
     You can log data to a run with `wandb.Run.log()`. Anything you log using
     `wandb.Run.log()` is sent to that run. See
-    [Create an experiment](https://docs.wandb.ai/guides/track/launch) or
+    [Create an experiment](https://docs.wandb.ai/guides/track/create-an-experiment/) or
     [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page
     or more information.
 
@@ -2682,41 +2680,6 @@ class Run:
         else:
             return artifact
 
-    async def _display_finish_stats(
-        self,
-        progress_printer: progress.ProgressPrinter,
-    ) -> None:
-        last_result: Result | None = None
-
-        async def loop_update_printer() -> None:
-            while True:
-                if last_result:
-                    progress_printer.update(
-                        [last_result.response.poll_exit_response],
-                    )
-                await asyncio.sleep(0.1)
-
-        async def loop_poll_exit() -> None:
-            nonlocal last_result
-            assert self._backend and self._backend.interface
-
-            while True:
-                handle = await self._backend.interface.deliver_async(
-                    pb.Record(request=pb.Request(poll_exit=pb.PollExitRequest()))
-                )
-
-                time_start = time.monotonic()
-                last_result = await handle.wait_async(timeout=None)
-
-                # Update at most once a second.
-                time_elapsed = time.monotonic() - time_start
-                if time_elapsed < 1:
-                    await asyncio.sleep(1 - time_elapsed)
-
-        async with asyncio_compat.open_task_group() as task_group:
-            task_group.start_soon(loop_update_printer())
-            task_group.start_soon(loop_poll_exit())
-
     def _on_finish(self) -> None:
         trigger.call("on_finished")
 
@@ -2741,8 +2704,9 @@ class Run:
                 exit_handle,
                 timeout=None,
                 display_progress=functools.partial(
-                    self._display_finish_stats,
+                    progress.loop_printing_operation_stats,
                     progress_printer,
+                    self._backend.interface,
                 ),
             )
 
