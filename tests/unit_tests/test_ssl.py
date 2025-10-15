@@ -37,10 +37,17 @@ def ssl_creds(assets_path: Callable[[str], Path]) -> SSLCredPaths:
 @pytest.fixture(scope="session")
 def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
     class MyServer(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
         def do_GET(self):  # noqa: N802
+            body = b"Hello, world!"
             self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
             self.end_headers()
-            self.wfile.write(b"Hello, world!")
+            self.wfile.write(body)
+            self.wfile.flush()
 
     httpd = http.server.HTTPServer(("localhost", 0), MyServer)
 
@@ -101,7 +108,8 @@ def test_disable_ssl(
         requests.get(url)
 
     with disable_ssl_context():
-        assert requests.get(url).status_code == 200
+        with requests.get(url, stream=True) as resp:
+            assert resp.status_code == 200
 
 
 @pytest.mark.parametrize(
@@ -122,4 +130,5 @@ def test_uses_userspecified_custom_ssl_certs(
         requests.get(url)
 
     with patch.dict("os.environ", make_env(ssl_creds.cert)):
-        assert requests.get(url).status_code == 200
+        with requests.get(url, stream=True) as resp:
+            assert resp.status_code == 200
