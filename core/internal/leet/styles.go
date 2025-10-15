@@ -65,6 +65,9 @@ var (
 	// Color for layout elements, like borders and separator lines.
 	colorLayout = lipgloss.Color("238")
 
+	// Color for selected items.
+	colorSelected = lipgloss.Color("237")
+
 	// Color for layout elements when they're highlighted or focused.
 	colorLayoutHighlight = teal450
 

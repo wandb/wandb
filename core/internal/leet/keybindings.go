@@ -141,17 +141,35 @@ func KeyBindings() []BindingCategory {
 		{
 			Name: "Run Overview Navigation (when sidebar open)",
 			Bindings: []KeyBinding{
-				{Keys: []string{"up", "down"}, Description: "Navigate items in section"},
-				{Keys: []string{"tab", "shift+tab"}, Description: "Switch between sections"},
-				{Keys: []string{"left", "right"}, Description: "Navigate pages in section"},
-				{Keys: []string{"@e", "@c", "@s"}, Description: "Filter specific section (environment/config/summary)"},
+				{
+					Keys:        []string{"up", "down"},
+					Description: "Navigate items in section",
+				},
+				{
+					Keys:        []string{"tab", "shift+tab"},
+					Description: "Switch between sections",
+				},
+				{
+					Keys:        []string{"left", "right"},
+					Description: "Navigate pages in section",
+				},
+				{
+					Keys:        []string{"@e", "@c", "@s"},
+					Description: "Filter specific section (environment/config/summary)",
+				},
 			},
 		},
 		{
 			Name: "Mouse",
 			Bindings: []KeyBinding{
-				{Keys: []string{"mouse wheel"}, Description: "Zoom in/out on focused chart"},
-				{Keys: []string{"shift+mouse select"}, Description: "Select text"},
+				{
+					Keys:        []string{"mouse wheel"},
+					Description: "Zoom in/out on focused chart",
+				},
+				{
+					Keys:        []string{"shift+mouse select"},
+					Description: "Select text",
+				},
 			},
 		},
 	}

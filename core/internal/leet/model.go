@@ -238,6 +238,14 @@ func isUIMsg(msg tea.Msg) bool {
 
 // handleHelp centralizes help toggle and routing while active.
 func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
+	// Do not toggle help while any filter UI is active.
+	if m.metrics != nil && m.metrics.filterMode {
+		return false, nil
+	}
+	if m.leftSidebar != nil && m.leftSidebar.IsFilterMode() {
+		return false, nil
+	}
+
 	// Toggle on 'h' / '?'
 	if km, ok := msg.(tea.KeyMsg); ok {
 		switch km.String() {
@@ -337,6 +345,10 @@ func (m *Model) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, content)
 	}
 
+	layout := m.computeViewports()
+	dims := m.metrics.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
+	gridView := m.metrics.renderGrid(dims)
+
 	leftWidth := m.leftSidebar.Width()
 	rightWidth := m.rightSidebar.Width()
 
@@ -355,15 +367,6 @@ func (m *Model) View() string {
 			leftWidth = 0
 		}
 	}
-
-	// Calculate available space for charts (subtract 2 for margins)
-	availableWidth := max(m.width-leftWidth-rightWidth-2, MinChartWidth)
-
-	availableHeight := m.height - StatusBarHeight
-	dims := m.metrics.CalculateChartDimensions(availableWidth, availableHeight)
-
-	// Render main content
-	gridView := m.metrics.renderGrid(dims)
 
 	// Build the main view based on sidebar visibility
 	var mainView string
@@ -425,14 +428,9 @@ func (m *Model) computeViewports() Layout {
 	leftW := m.leftSidebar.Width()
 	rightW := m.rightSidebar.Width()
 
-	contentW := m.width - leftW - rightW - 2 // margins
-	_, gridCols := m.config.MetricsGrid()
-	minContentW := MinChartWidth * gridCols
-	if contentW < minContentW {
-		contentW = minContentW
-	}
+	contentW := max(m.width-leftW-rightW-2, 1)
+	contentH := max(m.height-StatusBarHeight, 1)
 
-	contentH := m.height - StatusBarHeight
 	return Layout{leftW, contentW, rightW, contentH}
 }
 
@@ -469,7 +467,7 @@ func (m *Model) startHeartbeat() {
 		// This runs in a separate goroutine
 		defer m.logPanic("heartbeat callback")
 
-		// Only send heartbeat if run is still active
+		// Only send heartbeat if run is still active.
 		if m.runState == RunStateRunning && !m.fileComplete {
 			select {
 			case m.wcChan <- HeartbeatMsg{}:

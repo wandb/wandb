@@ -592,10 +592,7 @@ func (s *LeftSidebar) calculateSectionHeights() {
 	// ItemsPerPage is the number of data items we can show (excluding title)
 	for i := range s.sections {
 		if s.sections[i].Height > 0 {
-			s.sections[i].ItemsPerPage = s.sections[i].Height - 1 // -1 for title
-			if s.sections[i].ItemsPerPage < 1 {
-				s.sections[i].ItemsPerPage = 1
-			}
+			s.sections[i].ItemsPerPage = max(s.sections[i].Height-1, 1)
 		} else {
 			s.sections[i].ItemsPerPage = 0
 		}
@@ -978,8 +975,7 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 		infoText = fmt.Sprintf(" [%d items]", filteredItems)
 	}
 
-	lines = append(lines, titleStyle.Render(titleText)+
-		lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(infoText))
+	lines = append(lines, titleStyle.Render(titleText)+navInfoStyle.Render(infoText))
 
 	// Render items - no colon, increased key width
 	maxKeyWidth := (width * 2) / 5           // 40% for keys
@@ -988,7 +984,7 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 	// Only render as many items as we have space for
 	itemsToRender := min(actualItemsToShow, section.ItemsPerPage)
 
-	for i := 0; i < itemsToRender; i++ {
+	for i := range itemsToRender {
 		itemIdx := startIdx + i
 		if itemIdx >= len(section.FilteredItems) {
 			break
@@ -1001,8 +997,8 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 
 		// Highlight cursor position if section is active
 		if section.Active && i == section.CursorPos {
-			keyStyle = keyStyle.Background(lipgloss.Color("237"))
-			valueStyle = valueStyle.Background(lipgloss.Color("237"))
+			keyStyle = keyStyle.Background(colorSelected)
+			valueStyle = valueStyle.Background(colorSelected)
 		}
 
 		key := truncateValue(item.Key, maxKeyWidth)
@@ -1091,7 +1087,6 @@ func (s *LeftSidebar) View(height int) string {
 
 	content := strings.Join(lines, "\n")
 
-	// Apply styles - ensure exact height
 	styledContent := sidebarStyle.
 		Width(s.currentWidth - 1).
 		Height(height).
