@@ -37,7 +37,7 @@ def ssl_creds(assets_path: Callable[[str], Path]) -> SSLCredPaths:
 @pytest.fixture(scope="session")
 def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
     class MyServer(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
+        def do_GET(self):  # noqa: N802
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"Hello, world!")
