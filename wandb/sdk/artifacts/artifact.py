@@ -134,7 +134,6 @@ from .exceptions import (
 )
 from .staging import get_staging_dir
 from .storage_handlers.gcs_handler import _GCSIsADirectoryError
-from .storage_policies._factories import raise_for_status
 from .storage_policies._multipart import should_multipart_download
 
 reset_path = vendor_setup()
@@ -1039,9 +1038,12 @@ class Artifact:
 
         # Now fetch the actual manifest contents from the directUrl.
         if (artifact := result.artifact) and (manifest := artifact.current_manifest):
-            url = manifest.file.direct_url
-            rsp = self._client.session.get(url, hooks={"response": raise_for_status})
-            return ArtifactManifest.from_manifest_json(from_json(rsp.content))
+            # FIXME: For successive/repeated calls to `manifest`, figure out how to reuse a single
+            # `requests.Session` within the constraints of the current artifacts API.  Right now,
+            # `requests.get()` creates a new session for _each_ fetch.  This is wasteful and introduces a
+            # noticeable perf overhead when e.g. downloading many artifacts sequentially or concurrently.
+            response = requests.get(manifest.file.direct_url)
+            return ArtifactManifest.from_manifest_json(from_json(response.content))
 
         raise ValueError("Failed to fetch artifact manifest")
 

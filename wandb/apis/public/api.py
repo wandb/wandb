@@ -109,11 +109,6 @@ class RetryingClient:
         self._client = client
 
     @property
-    def session(self) -> requests.Session:
-        """The client session, if needed for non-GraphQL requests."""
-        return self._client.transport.session
-
-    @property
     def app_url(self):
         return util.app_url(self._client.transport.url.replace("/graphql", "")) + "/"
 
