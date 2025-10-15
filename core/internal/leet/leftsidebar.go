@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -12,16 +11,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runenvironment"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-)
-
-// SidebarState represents the UI state of the sidebar.
-type SidebarState int
-
-const (
-	SidebarCollapsed SidebarState = iota
-	SidebarExpanded
-	SidebarCollapsing
-	SidebarExpanding
 )
 
 // KeyValuePair represents a single key-value item to display.
@@ -46,12 +35,7 @@ type SectionView struct {
 
 // LeftSidebar represents a collapsible sidebar panel that owns all run data.
 type LeftSidebar struct {
-	state          SidebarState
-	currentWidth   int
-	targetWidth    int
-	expandedWidth  int
-	animationStep  int
-	animationTimer time.Time
+	animState *AnimationState
 
 	// Run data
 	runID          string
@@ -78,21 +62,12 @@ type LeftSidebar struct {
 }
 
 func NewLeftSidebar(config *ConfigManager) *LeftSidebar {
-	state := SidebarCollapsed
-	currentWidth, targetWidth := 0, 0
-	if config.LeftSidebarVisible() {
-		state = SidebarExpanded
-		currentWidth = SidebarMinWidth
-		targetWidth = SidebarMinWidth
-	}
+	animState := NewAnimationState(config.LeftSidebarVisible(), SidebarMinWidth)
 
 	return &LeftSidebar{
-		state:          state,
-		currentWidth:   currentWidth,
-		targetWidth:    targetWidth,
-		expandedWidth:  SidebarMinWidth,
+		animState:      animState,
 		runConfig:      runconfig.New(),
-		runEnvironment: nil, // Created on first system info
+		runEnvironment: nil,
 		runSummary:     runsummary.New(),
 		sections: []SectionView{
 			{Title: "Environment", ItemsPerPage: 10, Active: true},
@@ -186,7 +161,6 @@ func processEnvironment(data map[string]any) []KeyValuePair {
 		return []KeyValuePair{}
 	}
 
-	// Get the first writer ID's data
 	keys := make([]string, 0, len(data))
 	for k := range data {
 		keys = append(keys, k)
@@ -199,20 +173,17 @@ func processEnvironment(data map[string]any) []KeyValuePair {
 	sort.Strings(keys)
 	firstKey := keys[0]
 
-	// Get the value for the first key
 	firstValue, ok := data[firstKey]
 	if !ok {
 		return []KeyValuePair{}
 	}
 
-	// If it's a map, flatten it
 	if valueMap, ok := firstValue.(map[string]any); ok {
 		result := make([]KeyValuePair, 0)
 		flattenMap(valueMap, "", &result, []string{})
 		return result
 	}
 
-	// Otherwise, return as is
 	return []KeyValuePair{
 		{Key: firstKey, Value: fmt.Sprintf("%v", firstValue), Path: []string{firstKey}},
 	}
@@ -220,13 +191,12 @@ func processEnvironment(data map[string]any) []KeyValuePair {
 
 // updateSections updates section data from internal run data.
 func (s *LeftSidebar) updateSections() {
-	// Preserve current selection state
 	var currentKey, currentValue string
 	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
 		currentKey, currentValue = s.GetSelectedItem()
 	}
 
-	// Update Environment section (index 0)
+	// Update Environment section
 	var envData map[string]any
 	if s.runEnvironment != nil {
 		envData = s.runEnvironment.ToRunConfigData()
@@ -234,14 +204,14 @@ func (s *LeftSidebar) updateSections() {
 	envItems := processEnvironment(envData)
 	s.sections[0].Items = envItems
 
-	// Update Config section (index 1)
+	// Update Config section
 	configItems := make([]KeyValuePair, 0)
 	if s.runConfig != nil {
 		flattenMap(s.runConfig.CloneTree(), "", &configItems, []string{})
 	}
 	s.sections[1].Items = configItems
 
-	// Update Summary section (index 2)
+	// Update Summary section
 	summaryItems := make([]KeyValuePair, 0)
 	if s.runSummary != nil {
 		flattenMap(s.runSummary.ToNestedMaps(), "", &summaryItems, []string{})
@@ -252,7 +222,6 @@ func (s *LeftSidebar) updateSections() {
 	if s.filterMode || s.filterApplied {
 		s.applyFilter()
 	} else {
-		// Use original items as filtered items
 		for i := range s.sections {
 			s.sections[i].FilteredItems = s.sections[i].Items
 		}
@@ -260,24 +229,20 @@ func (s *LeftSidebar) updateSections() {
 
 	s.calculateSectionHeights()
 
-	// Restore selection or select first available if nothing was selected
+	// Restore selection
 	if currentKey == "" {
-		// Only select first item if nothing was previously selected
 		s.selectFirstAvailableItem()
 	} else {
-		// Try to restore previous selection
 		s.restoreSelection(currentKey, currentValue)
 	}
 }
 
-// restoreSelection attempts to restore the previously selected item
+// restoreSelection attempts to restore the previously selected item.
 func (s *LeftSidebar) restoreSelection(previousKey, previousValue string) {
-	// First try to find the exact same item in the current section
 	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
 		section := &s.sections[s.activeSection]
 		for i, item := range section.FilteredItems {
 			if item.Key == previousKey && item.Value == previousValue {
-				// Calculate which page this item is on
 				page := i / section.ItemsPerPage
 				posInPage := i % section.ItemsPerPage
 
@@ -287,7 +252,6 @@ func (s *LeftSidebar) restoreSelection(previousKey, previousValue string) {
 			}
 		}
 
-		// If exact item not found in current section, just try to find by key
 		for i, item := range section.FilteredItems {
 			if item.Key == previousKey {
 				page := i / section.ItemsPerPage
@@ -300,16 +264,14 @@ func (s *LeftSidebar) restoreSelection(previousKey, previousValue string) {
 		}
 	}
 
-	// If we couldn't restore in the current section, try to find it in any section
+	// Try to find in any section
 	for sectionIdx, section := range s.sections {
 		for i, item := range section.FilteredItems {
 			if item.Key == previousKey {
-				// Switch to this section
 				s.sections[s.activeSection].Active = false
 				s.activeSection = sectionIdx
 				s.sections[sectionIdx].Active = true
 
-				// Set position
 				if section.ItemsPerPage > 0 {
 					page := i / section.ItemsPerPage
 					posInPage := i % section.ItemsPerPage
@@ -322,32 +284,25 @@ func (s *LeftSidebar) restoreSelection(previousKey, previousValue string) {
 		}
 	}
 
-	// If we still couldn't find it, keep current section/position if valid
-	// or select first available item
+	// Keep current position or select first available
 	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
 		section := &s.sections[s.activeSection]
 		if len(section.FilteredItems) == 0 || section.ItemsPerPage == 0 {
-			// Current section is now empty, find first non-empty
 			s.selectFirstAvailableItem()
 		}
-		// else keep current position (it's still valid)
 	} else {
 		s.selectFirstAvailableItem()
 	}
 }
 
-// selectFirstAvailableItem selects the first item in the first non-empty section
-// This should only be called when there's no previous selection to preserve
+// selectFirstAvailableItem selects the first item in the first non-empty section.
 func (s *LeftSidebar) selectFirstAvailableItem() {
-	// Find first non-empty section
 	foundSection := false
 	for i := range s.sections {
 		if len(s.sections[i].FilteredItems) > 0 && s.sections[i].ItemsPerPage > 0 {
-			// Deactivate all sections first
 			for j := range s.sections {
 				s.sections[j].Active = false
 			}
-			// Activate this section
 			s.activeSection = i
 			s.sections[i].Active = true
 			s.sections[i].CurrentPage = 0
@@ -357,7 +312,6 @@ func (s *LeftSidebar) selectFirstAvailableItem() {
 		}
 	}
 
-	// If no sections have items, set safe defaults
 	if !foundSection {
 		s.activeSection = 0
 		for i := range s.sections {
@@ -375,7 +329,6 @@ func (s *LeftSidebar) applyFilter() {
 		query = strings.TrimSpace(s.appliedQuery)
 	}
 
-	// Parse section prefix
 	sectionFilter := ""
 	switch {
 	case strings.HasPrefix(query, "@e "):
@@ -394,7 +347,6 @@ func (s *LeftSidebar) applyFilter() {
 	for i := range s.sections {
 		section := &s.sections[i]
 
-		// Skip sections not matching filter
 		if sectionFilter != "" {
 			sectionName := strings.ToLower(section.Title)
 			if !strings.HasPrefix(sectionName, sectionFilter) {
@@ -404,7 +356,6 @@ func (s *LeftSidebar) applyFilter() {
 			}
 		}
 
-		// Filter items
 		filtered := make([]KeyValuePair, 0)
 		for _, item := range section.Items {
 			if query == "" ||
@@ -447,11 +398,9 @@ func (s *LeftSidebar) calculateSectionHeights() {
 		return
 	}
 
-	// Reserve space for header
-	headerLines := 7 // "Run Overview" (1 + 1 margin) + State + ID + Name + Project + 1 empty line before sections
+	headerLines := 7
 	availableHeight := s.height - headerLines
 
-	// Calculate how many sections have items
 	activeSections := 0
 	for i := range s.sections {
 		if len(s.sections[i].FilteredItems) > 0 {
@@ -463,25 +412,17 @@ func (s *LeftSidebar) calculateSectionHeights() {
 		return
 	}
 
-	// Calculate available space for all sections
-	// We need 1 line spacing between sections (activeSections - 1)
 	spacingBetweenSections := 0
 	if activeSections > 1 {
 		spacingBetweenSections = activeSections - 1
 	}
 
-	totalAvailable := availableHeight - spacingBetweenSections
-	if totalAvailable < activeSections*2 {
-		// Not enough space, give minimum to each
-		totalAvailable = activeSections * 2
-	}
+	totalAvailable := max(availableHeight-spacingBetweenSections, activeSections*2)
 
-	// Distribute space proportionally
-	envMax := 12 // Total lines including title
+	envMax := 12
 	configMax := 20
 	summaryMax := 25
 
-	// First pass: calculate desired heights
 	totalDesired := 0
 	desiredHeights := make([]int, len(s.sections))
 
@@ -497,28 +438,21 @@ func (s *LeftSidebar) calculateSectionHeights() {
 
 		var maxHeight int
 		switch i {
-		case 0: // Environment
+		case 0:
 			maxHeight = envMax
-		case 1: // Config
+		case 1:
 			maxHeight = configMax
-		case 2: // Summary
+		case 2:
 			maxHeight = summaryMax
 		}
 
-		// Calculate desired height (title + items)
-		// We need at least 2 lines (title + 1 item)
-		desired := min(itemCount+1, maxHeight) // +1 for title
-		if desired < 2 {
-			desired = 2
-		}
+		desired := max(min(itemCount+1, maxHeight), 2)
 
 		desiredHeights[i] = desired
 		totalDesired += desired
 	}
 
-	// Second pass: scale down if necessary
 	if totalDesired > totalAvailable {
-		// Scale down proportionally
 		scaleFactor := float64(totalAvailable) / float64(totalDesired)
 
 		allocated := 0
@@ -526,7 +460,7 @@ func (s *LeftSidebar) calculateSectionHeights() {
 			if desiredHeights[i] > 0 {
 				scaled := int(float64(desiredHeights[i]) * scaleFactor)
 				if scaled < 2 && s.sections[i].FilteredItems != nil && len(s.sections[i].FilteredItems) > 0 {
-					scaled = 2 // Minimum for non-empty sections
+					scaled = 2
 				}
 				s.sections[i].Height = scaled
 				allocated += scaled
@@ -535,10 +469,8 @@ func (s *LeftSidebar) calculateSectionHeights() {
 			}
 		}
 
-		// Distribute any remaining space to the largest section
 		if allocated < totalAvailable {
 			remainder := totalAvailable - allocated
-			// Give remainder to Summary section if it has items
 			switch {
 			case len(s.sections[2].FilteredItems) > 0 && s.sections[2].Height > 0:
 				s.sections[2].Height += remainder
@@ -549,34 +481,30 @@ func (s *LeftSidebar) calculateSectionHeights() {
 			}
 		}
 	} else {
-		// We have enough space, use desired heights
 		for i := range s.sections {
 			s.sections[i].Height = desiredHeights[i]
 		}
 
-		// Distribute extra space if available
 		if totalDesired < totalAvailable {
 			extraSpace := totalAvailable - totalDesired
 
-			// Prioritize Summary, then Config, then Environment
 			for i := 2; i >= 0 && extraSpace > 0; i-- {
 				section := &s.sections[i]
 				if section.Height > 0 {
 					itemCount := len(section.FilteredItems)
-					currentItems := section.Height - 1 // Subtract title
+					currentItems := section.Height - 1
 
 					if currentItems < itemCount {
 						var maxHeight int
 						switch i {
-						case 0: // Environment
+						case 0:
 							maxHeight = envMax
-						case 1: // Config
+						case 1:
 							maxHeight = configMax
-						case 2: // Summary
+						case 2:
 							maxHeight = summaryMax
 						}
 
-						// How much more can this section take?
 						maxIncrease := min(maxHeight-section.Height, itemCount+1-section.Height)
 						increase := min(maxIncrease, extraSpace)
 
@@ -588,8 +516,6 @@ func (s *LeftSidebar) calculateSectionHeights() {
 		}
 	}
 
-	// Set items per page based on calculated height
-	// ItemsPerPage is the number of data items we can show (excluding title)
 	for i := range s.sections {
 		if s.sections[i].Height > 0 {
 			s.sections[i].ItemsPerPage = max(s.sections[i].Height-1, 1)
@@ -599,7 +525,7 @@ func (s *LeftSidebar) calculateSectionHeights() {
 	}
 }
 
-// UpdateDimensions updates the sidebar dimensions based on terminal width
+// UpdateDimensions updates the sidebar dimensions based on terminal width.
 func (s *LeftSidebar) UpdateDimensions(terminalWidth int, rightSidebarVisible bool) {
 	var calculatedWidth int
 
@@ -609,37 +535,16 @@ func (s *LeftSidebar) UpdateDimensions(terminalWidth int, rightSidebarVisible bo
 		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
 	}
 
-	// Clamp to min/max
-	switch {
-	case calculatedWidth < SidebarMinWidth:
-		s.expandedWidth = SidebarMinWidth
-	case calculatedWidth > SidebarMaxWidth:
-		s.expandedWidth = SidebarMaxWidth
-	default:
-		s.expandedWidth = calculatedWidth
-	}
-
-	if s.state == SidebarExpanded {
-		s.targetWidth = s.expandedWidth
-		s.currentWidth = s.expandedWidth
-	}
+	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
+	s.animState.SetExpandedWidth(expandedWidth)
 }
 
 // Toggle toggles the sidebar state between expanded and collapsed.
 func (s *LeftSidebar) Toggle() {
-	switch s.state {
-	case SidebarCollapsed:
-		s.state = SidebarExpanding
-		s.targetWidth = s.expandedWidth
-		s.animationStep = 0
-		s.animationTimer = time.Now()
-		// Ensure first available item is selected when opening
+	s.animState.Toggle()
+
+	if s.animState.State() == SidebarExpanding {
 		s.selectFirstAvailableItem()
-	case SidebarExpanded:
-		s.state = SidebarCollapsing
-		s.targetWidth = 0
-		s.animationStep = 0
-		s.animationTimer = time.Now()
 	}
 }
 
@@ -653,7 +558,6 @@ func (s *LeftSidebar) navigateUp() {
 	if section.CursorPos > 0 {
 		section.CursorPos--
 	} else if section.CurrentPage > 0 {
-		// Move to previous page
 		section.CurrentPage--
 		section.CursorPos = section.ItemsPerPage - 1
 	}
@@ -673,7 +577,6 @@ func (s *LeftSidebar) navigateDown() {
 	if section.CursorPos < itemsOnPage-1 {
 		section.CursorPos++
 	} else if endIdx < len(section.FilteredItems) {
-		// Move to next page
 		section.CurrentPage++
 		section.CursorPos = 0
 	}
@@ -688,7 +591,6 @@ func (s *LeftSidebar) navigateSection(direction int) {
 	prev := s.activeSection
 	idx := prev
 
-	// Scan forward/backward without mutating state.
 	for i := 0; i < len(s.sections); i++ {
 		idx += direction
 		if idx < 0 {
@@ -698,22 +600,18 @@ func (s *LeftSidebar) navigateSection(direction int) {
 		}
 
 		if len(s.sections[idx].FilteredItems) > 0 {
-			// Deactivate previous, activate the found section.
 			s.sections[prev].Active = false
 			s.activeSection = idx
 			s.sections[idx].Active = true
-			// Reset position in the newly focused section.
 			s.sections[idx].CurrentPage = 0
 			s.sections[idx].CursorPos = 0
 			return
 		}
 
-		// Full loop, nothing to switch to.
 		if idx == prev {
 			break
 		}
 	}
-	// Keep the current section active if no non-empty target exists.
 	s.sections[prev].Active = true
 }
 
@@ -737,14 +635,12 @@ func (s *LeftSidebar) navigatePage(direction int) {
 		section.CurrentPage = 0
 	}
 
-	// Reset cursor to first item of new page
 	section.CursorPos = 0
 }
 
 // StartFilter activates filter mode.
 func (s *LeftSidebar) StartFilter() {
 	s.filterMode = true
-	// If we have an applied filter, start with that value
 	if s.filterApplied && s.appliedQuery != "" {
 		s.filterQuery = s.appliedQuery
 	} else {
@@ -764,34 +660,31 @@ func (s *LeftSidebar) ConfirmFilter() {
 	s.filterApplied = true
 	s.appliedQuery = s.filterQuery
 	s.filterMode = false
-	// Need to reapply the filter with the confirmed query
 	s.applyFilter()
 	s.calculateSectionHeights()
 }
 
-// CancelFilter cancels the current filter input and restores the previous state
+// CancelFilter cancels the current filter input and restores the previous state.
 func (s *LeftSidebar) CancelFilter() {
 	s.filterMode = false
 	s.filterQuery = ""
-	// Restore the applied filter if any
 	if s.filterApplied && s.appliedQuery != "" {
 		s.filterQuery = s.appliedQuery
 		s.applyFilter()
 		s.calculateSectionHeights()
 	} else {
-		// No applied filter, clear everything
 		s.filterQuery = ""
 		s.applyFilter()
 		s.calculateSectionHeights()
 	}
 }
 
-// IsFilterMode returns true if the sidebar is currently in filter input mode
+// IsFilterMode returns true if the sidebar is currently in filter input mode.
 func (s *LeftSidebar) IsFilterMode() bool {
 	return s.filterMode
 }
 
-// GetFilterInput returns the current filter input being typed
+// GetFilterInput returns the current filter input being typed.
 func (s *LeftSidebar) GetFilterInput() string {
 	return s.filterQuery
 }
@@ -804,7 +697,6 @@ func (s *LeftSidebar) clearFilter() {
 	s.appliedQuery = ""
 	s.filterSection = ""
 
-	// Restore original items
 	for i := range s.sections {
 		s.sections[i].FilteredItems = s.sections[i].Items
 		s.sections[i].CurrentPage = 0
@@ -876,55 +768,30 @@ func (s *LeftSidebar) GetSelectedItem() (key, value string) {
 
 // Update handles animation and input updates for the sidebar.
 func (s *LeftSidebar) Update(msg tea.Msg) (*LeftSidebar, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	// Handle key input only when expanded
-	if s.state == SidebarExpanded {
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch msg.Type {
+	if s.animState.State() == SidebarExpanded {
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			switch keyMsg.Type {
 			case tea.KeyUp:
 				s.navigateUp()
 			case tea.KeyDown:
 				s.navigateDown()
 			case tea.KeyTab:
-				// Tab to navigate between sections (vim-inspired alternative)
 				s.navigateSection(1)
 			case tea.KeyShiftTab:
-				// Shift+Tab to go backwards
 				s.navigateSection(-1)
 			case tea.KeyLeft:
 				s.navigatePage(-1)
 			case tea.KeyRight:
 				s.navigatePage(1)
 			}
-		default:
 		}
 	}
 
 	// Handle animation
-	if s.state == SidebarExpanding || s.state == SidebarCollapsing {
-		elapsed := time.Since(s.animationTimer)
-		progress := float64(elapsed) / float64(AnimationDuration)
+	cmd, _ := s.animState.Update()
 
-		if progress >= 1.0 {
-			s.currentWidth = s.targetWidth
-			if s.state == SidebarExpanding {
-				s.state = SidebarExpanded
-			} else {
-				s.state = SidebarCollapsed
-			}
-		} else {
-			if s.state == SidebarExpanding {
-				s.currentWidth = int(easeOutCubic(progress) * float64(s.expandedWidth))
-			} else {
-				s.currentWidth = int((1 - easeOutCubic(progress)) * float64(s.expandedWidth))
-			}
-			cmds = append(cmds, s.animationCmd())
-		}
-	}
-
-	return s, tea.Batch(cmds...)
+	return s, cmd
 }
 
 // truncateValue truncates long values for display.
@@ -948,7 +815,6 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 
 	var lines []string
 
-	// Section title with info
 	titleStyle := sidebarSectionStyle
 	if section.Active {
 		titleStyle = titleStyle.Foreground(lipgloss.Color("230")).Bold(true)
@@ -957,7 +823,6 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 	totalItems := len(section.Items)
 	filteredItems := len(section.FilteredItems)
 
-	// Calculate page info
 	startIdx := section.CurrentPage * section.ItemsPerPage
 	endIdx := min(startIdx+section.ItemsPerPage, filteredItems)
 	actualItemsToShow := endIdx - startIdx
@@ -977,11 +842,9 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 
 	lines = append(lines, titleStyle.Render(titleText)+navInfoStyle.Render(infoText))
 
-	// Render items - no colon, increased key width
-	maxKeyWidth := (width * 2) / 5           // 40% for keys
-	maxValueWidth := width - maxKeyWidth - 1 // Account for space between
+	maxKeyWidth := (width * 2) / 5
+	maxValueWidth := width - maxKeyWidth - 1
 
-	// Only render as many items as we have space for
 	itemsToRender := min(actualItemsToShow, section.ItemsPerPage)
 
 	for i := range itemsToRender {
@@ -995,7 +858,6 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 		keyStyle := sidebarKeyStyle
 		valueStyle := sidebarValueStyle
 
-		// Highlight cursor position if section is active
 		if section.Active && i == section.CursorPos {
 			keyStyle = keyStyle.Background(colorSelected)
 			valueStyle = valueStyle.Background(colorSelected)
@@ -1004,7 +866,6 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 		key := truncateValue(item.Key, maxKeyWidth)
 		value := truncateValue(item.Value, maxValueWidth)
 
-		// Render without colon
 		line := fmt.Sprintf("%s %s",
 			keyStyle.Width(maxKeyWidth).Render(key),
 			valueStyle.Render(value))
@@ -1014,20 +875,18 @@ func (s *LeftSidebar) renderSection(idx int, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-// View renders the sidebar - optimized spacing.
+// View renders the sidebar.
 func (s *LeftSidebar) View(height int) string {
-	if s.currentWidth <= 0 {
+	if s.animState.Width() <= 0 {
 		return ""
 	}
 
 	s.height = height
 	s.calculateSectionHeights()
 
-	// Build header
 	var lines []string
 	lines = append(lines, sidebarHeaderStyle.Render("Run Overview"))
 
-	// Add run state first
 	stateText := "State: "
 	switch s.runState {
 	case RunStateRunning:
@@ -1055,11 +914,9 @@ func (s *LeftSidebar) View(height int) string {
 			sidebarValueStyle.Render(s.project))
 	}
 
-	// Single empty line before sections
 	lines = append(lines, "")
 
-	// Render sections
-	contentWidth := s.currentWidth - 4 // Account for padding and border
+	contentWidth := s.animState.Width() - 4
 	for i := range s.sections {
 		if s.sections[i].Height == 0 {
 			continue
@@ -1068,9 +925,7 @@ func (s *LeftSidebar) View(height int) string {
 		sectionContent := s.renderSection(i, contentWidth)
 		if sectionContent != "" {
 			lines = append(lines, sectionContent)
-			// Only add spacing between sections if not the last one
 			if i < len(s.sections)-1 {
-				// Check if next section has content
 				hasNextContent := false
 				for j := i + 1; j < len(s.sections); j++ {
 					if s.sections[j].Height > 0 {
@@ -1079,7 +934,7 @@ func (s *LeftSidebar) View(height int) string {
 					}
 				}
 				if hasNextContent {
-					lines = append(lines, "") // Add spacing between sections
+					lines = append(lines, "")
 				}
 			}
 		}
@@ -1088,17 +943,16 @@ func (s *LeftSidebar) View(height int) string {
 	content := strings.Join(lines, "\n")
 
 	styledContent := sidebarStyle.
-		Width(s.currentWidth - 1).
+		Width(s.animState.Width() - 1).
 		Height(height).
-		MaxWidth(s.currentWidth - 1).
+		MaxWidth(s.animState.Width() - 1).
 		MaxHeight(height).
 		Render(content)
 
-	// Apply border
 	bordered := sidebarBorderStyle.
-		Width(s.currentWidth).
+		Width(s.animState.Width()).
 		Height(height).
-		MaxWidth(s.currentWidth).
+		MaxWidth(s.animState.Width()).
 		MaxHeight(height).
 		Render(styledContent)
 
@@ -1107,31 +961,20 @@ func (s *LeftSidebar) View(height int) string {
 
 // Width returns the current width of the sidebar.
 func (s *LeftSidebar) Width() int {
-	return s.currentWidth
+	return s.animState.Width()
 }
 
 // IsVisible returns true if the sidebar is visible.
 func (s *LeftSidebar) IsVisible() bool {
-	return s.state != SidebarCollapsed
+	return s.animState.IsVisible()
 }
 
 // IsAnimating returns true if the sidebar is currently animating.
 func (s *LeftSidebar) IsAnimating() bool {
-	return s.state == SidebarExpanding || s.state == SidebarCollapsing
+	return s.animState.IsAnimating()
 }
 
-// animationCmd returns a command to continue the animation.
-func (s *LeftSidebar) animationCmd() tea.Cmd {
-	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg {
-		return SidebarAnimationMsg{}
-	})
+func (m *LeftSidebar) animationCmd() tea.Cmd {
+	// This should be replaced when LeftSidebar is updated to use AnimationState
+	return animationCmd()
 }
-
-// easeOutCubic provides smooth deceleration for animations.
-func easeOutCubic(t float64) float64 {
-	t--
-	return t*t*t + 1
-}
-
-// SidebarAnimationMsg is sent during sidebar animations.
-type SidebarAnimationMsg struct{}

@@ -57,25 +57,25 @@ func (m *Model) TestProcessRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 
 // TestHandleChartGridClick handles a click on the main chart grid
 func (m *Model) TestHandleChartGridClick(row, col int) {
-	m.metrics.handleClick(row, col)
+	m.metricsGrid.handleClick(row, col)
 }
 
 // TestSetMainChartFocus sets focus to a main chart
 func (m *Model) TestSetMainChartFocus(row, col int) {
-	m.metrics.setFocus(row, col)
+	m.metricsGrid.setFocus(row, col)
 }
 
 // TestClearMainChartFocus clears focus from main charts
 func (m *Model) TestClearMainChartFocus() {
-	m.metrics.clearFocus()
+	m.metricsGrid.clearFocus()
 }
 
 // TestForceExpand forces the sidebar to expanded state without animation
 func (s *LeftSidebar) TestForceExpand() {
-	s.state = SidebarExpanded
-	s.currentWidth = s.expandedWidth
-	s.targetWidth = s.expandedWidth
-	s.animationTimer = time.Now().Add(-AnimationDuration)
+	s.animState.state = SidebarExpanded
+	s.animState.currentWidth = s.animState.expandedWidth
+	s.animState.targetWidth = s.animState.expandedWidth
+	s.animState.timer = time.Now().Add(-AnimationDuration)
 }
 
 // TestGetChartCount returns the number of charts in the grid
@@ -101,5 +101,5 @@ func (c *SystemMetricChart) TestSeriesCount() int {
 
 // Add test helper to Model for getting active filter
 func (m *Model) TestGetActiveFilter() string {
-	return m.metrics.activeFilter
+	return m.metricsGrid.activeFilter
 }

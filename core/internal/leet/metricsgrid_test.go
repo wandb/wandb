@@ -13,7 +13,7 @@ import (
 func TestCalculateChartDimensions_RespectsMinimums(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	m := leet.NewMetrics(cfg, &leet.FocusState{}, logger)
+	m := leet.NewMetricsGrid(cfg, &leet.FocusState{}, logger)
 	d := m.CalculateChartDimensions(30, 10) // small on purpose
 	if d.ChartWidth < leet.MinChartWidth {
 		t.Fatalf("ChartWidth=%d < MinChartWidth=%d", d.ChartWidth, leet.MinChartWidth)

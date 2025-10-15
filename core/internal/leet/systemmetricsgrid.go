@@ -7,27 +7,9 @@ import (
 	"time"
 
 	"github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/wandb/wandb/core/internal/observability"
 )
-
-const systemMetricsHeader = "System Metrics"
-
-// RightSidebar represents a collapsible right sidebar panel.
-type RightSidebar struct {
-	config         *ConfigManager
-	state          SidebarState
-	currentWidth   int
-	targetWidth    int
-	expandedWidth  int
-	animationStep  int
-	animationTimer time.Time
-
-	metricsGrid *SystemMetricsGrid
-	focusState  *FocusState
-	logger      *observability.CoreLogger
-}
 
 // SystemMetricChart represents a single metric chart with multiple series.
 type SystemMetricChart struct {
@@ -63,6 +45,7 @@ type SystemMetricsGrid struct {
 	logger *observability.CoreLogger
 }
 
+// NewSystemMetricsGrid creates a new system metrics grid.
 func NewSystemMetricsGrid(
 	width, height int,
 	config *ConfigManager,
@@ -86,8 +69,7 @@ func NewSystemMetricsGrid(
 		grid.charts[row] = make([]*SystemMetricChart, size.Cols)
 	}
 
-	logger.Debug(fmt.Sprintf("SystemMetricsGrid: created with dimensions %dx%d",
-		width, height))
+	logger.Debug(fmt.Sprintf("SystemMetricsGrid: created with dimensions %dx%d", width, height))
 
 	return grid
 }
@@ -100,7 +82,7 @@ func effectiveSystemGridSize(availW, availH int, config *ConfigManager) GridSize
 		Cols:        cfgCols,
 		MinCellW:    MinMetricChartWidth,
 		MinCellH:    MinMetricChartHeight,
-		HeaderLines: 0, // RightSidebar passes header-less height
+		HeaderLines: 0,
 	}
 	return EffectiveGridSize(availW, availH, spec)
 }
@@ -124,7 +106,7 @@ func (g *SystemMetricsGrid) calculateChartDimensions() MetricChartDimensions {
 		Cols:        cfgCols,
 		MinCellW:    MinMetricChartWidth,
 		MinCellH:    MinMetricChartHeight,
-		HeaderLines: 0, // right sidebar accounts for its 1-line header outside
+		HeaderLines: 0,
 	}
 
 	size := EffectiveGridSize(g.width, g.height, spec)
@@ -140,7 +122,6 @@ func (g *SystemMetricsGrid) calculateChartDimensions() MetricChartDimensions {
 
 // getNextColor returns the next color from the palette.
 func (g *SystemMetricsGrid) getNextColor() string {
-	// TODO: make this configurable.
 	colors := colorSchemes["wandb-vibe-10"]
 	color := colors[g.nextColorIdx%len(colors)]
 	g.nextColorIdx++
@@ -148,10 +129,7 @@ func (g *SystemMetricsGrid) getNextColor() string {
 }
 
 // createMetricChart creates a time series chart for a system metric.
-func (g *SystemMetricsGrid) createMetricChart(
-	def *MetricDef,
-	baseKey string,
-) *SystemMetricChart {
+func (g *SystemMetricsGrid) createMetricChart(def *MetricDef, baseKey string) *SystemMetricChart {
 	dims := g.calculateChartDimensions()
 
 	chartWidth := max(dims.ChartWidth, MinMetricChartWidth)
@@ -163,7 +141,6 @@ func (g *SystemMetricsGrid) createMetricChart(
 
 	minY, maxY := def.MinY, def.MaxY
 	now := time.Now()
-	// TODO: make the display interval configurable.
 	minTime := now.Add(-10 * time.Minute)
 
 	firstColor := g.getNextColor()
@@ -207,11 +184,7 @@ func (g *SystemMetricsGrid) createMetricChart(
 // AddDataPoint adds a new data point to the appropriate metric chart.
 //
 //gocyclo:ignore
-func (g *SystemMetricsGrid) AddDataPoint(
-	metricName string,
-	timestamp int64,
-	value float64,
-) {
+func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, value float64) {
 	g.logger.Debug(fmt.Sprintf(
 		"SystemMetricsGrid.AddDataPoint: metric=%s, timestamp=%d, value=%f",
 		metricName, timestamp, value))
@@ -219,8 +192,7 @@ func (g *SystemMetricsGrid) AddDataPoint(
 	def := MatchMetricDef(metricName)
 	if def == nil {
 		g.logger.Debug(fmt.Sprintf(
-			"SystemMetricsGrid.AddDataPoint: no definition for metric=%s",
-			metricName))
+			"SystemMetricsGrid.AddDataPoint: no definition for metric=%s", metricName))
 		return
 	}
 
@@ -232,8 +204,7 @@ func (g *SystemMetricsGrid) AddDataPoint(
 	chart, exists := g.chartsByMetric[baseKey]
 	if !exists {
 		g.logger.Debug(fmt.Sprintf(
-			"SystemMetricsGrid.AddDataPoint: creating new chart for baseKey=%s",
-			baseKey))
+			"SystemMetricsGrid.AddDataPoint: creating new chart for baseKey=%s", baseKey))
 
 		chart = g.createMetricChart(def, baseKey)
 		g.chartsByMetric[baseKey] = chart
@@ -369,13 +340,11 @@ func (g *SystemMetricsGrid) Navigate(direction int) {
 
 // HandleMouseClick handles mouse clicks for chart selection.
 func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
-	g.logger.Debug(fmt.Sprintf(
-		"SystemMetricsGrid.HandleMouseClick: row=%d, col=%d", row, col))
+	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: row=%d, col=%d", row, col))
 
 	if g.focusState.Type == FocusSystemChart &&
 		row == g.focusState.Row && col == g.focusState.Col {
-		g.logger.Debug(
-			"SystemMetricsGrid.HandleMouseClick: clicking on focused chart - unfocusing")
+		g.logger.Debug("SystemMetricsGrid.HandleMouseClick: clicking on focused chart - unfocusing")
 		g.clearFocus()
 		return false
 	}
@@ -389,8 +358,7 @@ func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
 		g.charts[row][col] != nil {
 		chart := g.charts[row][col]
 		g.logger.Debug(fmt.Sprintf(
-			"SystemMetricsGrid.HandleMouseClick: focusing chart at row=%d, col=%d",
-			row, col))
+			"SystemMetricsGrid.HandleMouseClick: focusing chart at row=%d, col=%d", row, col))
 
 		g.focusState.Type = FocusSystemChart
 		g.focusState.Row = row
@@ -425,8 +393,7 @@ func (g *SystemMetricsGrid) GetFocusedChartTitle() string {
 func (g *SystemMetricsGrid) Resize(width, height int) {
 	if width <= 0 || height <= 0 {
 		g.logger.Debug(fmt.Sprintf(
-			"SystemMetricsGrid.Resize: invalid dimensions %dx%d, skipping",
-			width, height))
+			"SystemMetricsGrid.Resize: invalid dimensions %dx%d, skipping", width, height))
 		return
 	}
 
@@ -499,11 +466,7 @@ func (g *SystemMetricsGrid) View() string {
 						TruncateTitle(titleText, availableWidth))
 				}
 
-				boxContent := lipgloss.JoinVertical(
-					lipgloss.Left,
-					titleText,
-					chartView,
-				)
+				boxContent := lipgloss.JoinVertical(lipgloss.Left, titleText, chartView)
 
 				boxStyle := borderStyle
 				if g.focusState.Type == FocusSystemChart &&
@@ -533,7 +496,7 @@ func (g *SystemMetricsGrid) View() string {
 
 	grid := lipgloss.JoinVertical(lipgloss.Left, rows...)
 
-	// Bottom filler for visual tightness
+	// Bottom filler
 	used := size.Rows * dims.ChartHeightWithPadding
 	if extra := g.height - used; extra > 0 {
 		filler := lipgloss.NewStyle().Height(extra).Render("")
@@ -586,278 +549,4 @@ func (g *SystemMetricsGrid) GetChartCount() int {
 		}
 	}
 	return count
-}
-
-func NewRightSidebar(
-	config *ConfigManager,
-	focusState *FocusState,
-	logger *observability.CoreLogger,
-) *RightSidebar {
-	state := SidebarCollapsed
-	currentWidth, targetWidth := 0, 0
-	if config.RightSidebarVisible() {
-		state = SidebarExpanded
-		currentWidth = SidebarMinWidth
-		targetWidth = SidebarMinWidth
-	}
-	return &RightSidebar{
-		config:        config,
-		state:         state,
-		currentWidth:  currentWidth,
-		targetWidth:   targetWidth,
-		expandedWidth: SidebarMinWidth,
-		logger:        logger,
-		focusState:    focusState,
-	}
-}
-
-// UpdateDimensions updates the right sidebar dimensions.
-func (rs *RightSidebar) UpdateDimensions(terminalWidth int, leftSidebarVisible bool) {
-	var calculatedWidth int
-
-	if leftSidebarVisible {
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatioBoth)
-	} else {
-		calculatedWidth = int(float64(terminalWidth) * SidebarWidthRatio)
-	}
-
-	switch {
-	case calculatedWidth < SidebarMinWidth:
-		rs.expandedWidth = SidebarMinWidth
-	case calculatedWidth > SidebarMaxWidth:
-		rs.expandedWidth = SidebarMaxWidth
-	default:
-		rs.expandedWidth = calculatedWidth
-	}
-
-	switch rs.state {
-	case SidebarExpanded:
-		rs.targetWidth = rs.expandedWidth
-		rs.currentWidth = rs.expandedWidth
-	case SidebarCollapsed:
-		rs.currentWidth = 0
-		rs.targetWidth = 0
-	case SidebarExpanding:
-		rs.targetWidth = rs.expandedWidth
-	case SidebarCollapsing:
-		rs.targetWidth = 0
-	}
-
-	if rs.metricsGrid != nil && rs.state == SidebarExpanded &&
-		rs.currentWidth > 3 {
-		gridWidth := rs.currentWidth - 3
-		gridHeight := 40
-		rs.metricsGrid.Resize(gridWidth, gridHeight)
-	}
-}
-
-// Toggle flips the sidebar state.
-func (rs *RightSidebar) Toggle() {
-	switch rs.state {
-	case SidebarCollapsed:
-		rs.state = SidebarExpanding
-		rs.targetWidth = rs.expandedWidth
-		rs.animationStep = 0
-		rs.animationTimer = time.Now()
-
-		if rs.metricsGrid == nil {
-			gridRows, gridCols := rs.config.SystemGrid()
-			initialWidth := MinMetricChartWidth * gridCols
-			initialHeight := MinMetricChartHeight * gridRows
-			rs.metricsGrid = NewSystemMetricsGrid(
-				initialWidth, initialHeight, rs.config, rs.focusState, rs.logger)
-			rs.logger.Debug("RightSidebar.Toggle: created grid on expansion")
-		}
-
-	case SidebarExpanded:
-		rs.state = SidebarCollapsing
-		rs.targetWidth = 0
-		rs.animationStep = 0
-		rs.animationTimer = time.Now()
-	case SidebarExpanding, SidebarCollapsing:
-		rs.logger.Debug("RightSidebar.Toggle: ignoring toggle during animation")
-	}
-}
-
-// HandleMouseClick handles mouse clicks in the sidebar.
-func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
-	rs.logger.Debug(fmt.Sprintf(
-		"RightSidebar.HandleMouseClick: x=%d, y=%d, state=%v", x, y, rs.state))
-
-	if rs.state != SidebarExpanded || rs.metricsGrid == nil {
-		return false
-	}
-
-	adjustedX := x - 1
-	if adjustedX < 0 {
-		return false
-	}
-
-	adjustedY := y - 1
-	if adjustedY < 0 {
-		return false
-	}
-
-	dims := rs.metricsGrid.calculateChartDimensions()
-
-	row := adjustedY / dims.ChartHeightWithPadding
-	col := adjustedX / dims.ChartWidthWithPadding
-
-	return rs.metricsGrid.HandleMouseClick(row, col)
-}
-
-// GetFocusedChartTitle returns the title of the focused chart.
-func (rs *RightSidebar) GetFocusedChartTitle() string {
-	if rs.metricsGrid != nil {
-		return rs.metricsGrid.GetFocusedChartTitle()
-	}
-	return ""
-}
-
-// ClearFocus clears focus from the currently focused system chart.
-func (rs *RightSidebar) ClearFocus() {
-	if rs.metricsGrid != nil {
-		rs.metricsGrid.clearFocus()
-	}
-}
-
-// Update handles animation updates.
-func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
-	var cmds []tea.Cmd
-
-	if msg, ok := msg.(StatsMsg); ok {
-		rs.ProcessStatsMsg(msg)
-	}
-
-	if rs.state == SidebarExpanding || rs.state == SidebarCollapsing {
-		elapsed := time.Since(rs.animationTimer)
-		progress := float64(elapsed) / float64(AnimationDuration)
-
-		if progress >= 1.0 {
-			rs.currentWidth = rs.targetWidth
-			if rs.state == SidebarExpanding {
-				rs.state = SidebarExpanded
-				if rs.metricsGrid != nil && rs.currentWidth > 3 {
-					gridWidth := rs.currentWidth - 3
-					gridHeight := 40
-					rs.metricsGrid.Resize(gridWidth, gridHeight)
-				}
-			} else {
-				rs.state = SidebarCollapsed
-			}
-		} else {
-			if rs.state == SidebarExpanding {
-				rs.currentWidth = int(
-					easeOutCubic(progress) * float64(rs.expandedWidth))
-			} else {
-				rs.currentWidth = int(
-					(1 - easeOutCubic(progress)) * float64(rs.expandedWidth))
-			}
-			cmds = append(cmds, rs.animationCmd())
-		}
-	}
-
-	return rs, tea.Batch(cmds...)
-}
-
-// View renders the right sidebar.
-func (rs *RightSidebar) View(height int) string {
-	if rs.currentWidth <= 3 {
-		return ""
-	}
-
-	header := rightSidebarHeaderStyle.Render(systemMetricsHeader)
-
-	gridWidth := rs.currentWidth - 3
-	gridHeight := height - 1
-
-	if gridWidth <= 0 || gridHeight <= 0 {
-		return ""
-	}
-
-	if rs.metricsGrid == nil {
-		rs.metricsGrid = NewSystemMetricsGrid(
-			gridWidth, gridHeight, rs.config, rs.focusState, rs.logger)
-	} else {
-		rs.metricsGrid.Resize(gridWidth, gridHeight)
-	}
-
-	navInfo := ""
-	chartCount := rs.metricsGrid.GetChartCount()
-	size := rs.metricsGrid.effectiveGridSize()
-	itemsPerPage := ItemsPerPage(size)
-
-	if rs.metricsGrid.navigator.TotalPages() > 0 &&
-		chartCount > 0 && itemsPerPage > 0 {
-		startIdx, endIdx := rs.metricsGrid.navigator.GetPageBounds(
-			chartCount, itemsPerPage)
-		startIdx++
-		navInfo = navInfoStyle.
-			Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, chartCount))
-	}
-
-	headerLine := lipgloss.JoinHorizontal(lipgloss.Left, header, navInfo)
-	metricsView := rs.metricsGrid.View()
-
-	content := lipgloss.JoinVertical(lipgloss.Left, headerLine, metricsView)
-
-	styledContent := rightSidebarStyle.
-		Width(rs.currentWidth - 1).
-		Height(height).
-		MaxWidth(rs.currentWidth - 1).
-		MaxHeight(height).
-		Render(content)
-
-	return rightSidebarBorderStyle.
-		Width(rs.currentWidth).
-		Height(height).
-		MaxHeight(height).
-		Render(styledContent)
-}
-
-// Width returns the current width of the sidebar.
-func (rs *RightSidebar) Width() int {
-	return rs.currentWidth
-}
-
-// IsVisible returns true if the sidebar is visible.
-func (rs *RightSidebar) IsVisible() bool {
-	return rs.state != SidebarCollapsed
-}
-
-// IsAnimating returns true if the sidebar is currently animating.
-func (rs *RightSidebar) IsAnimating() bool {
-	return rs.state == SidebarExpanding || rs.state == SidebarCollapsing
-}
-
-// animationCmd returns a command to continue the animation.
-func (rs *RightSidebar) animationCmd() tea.Cmd {
-	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg {
-		return RightSidebarAnimationMsg{}
-	})
-}
-
-// RightSidebarAnimationMsg is sent during right sidebar animations.
-type RightSidebarAnimationMsg struct{}
-
-// ProcessStatsMsg processes a stats message and updates the metrics.
-func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
-	rs.logger.Debug(fmt.Sprintf(
-		"RightSidebar.ProcessStatsMsg: processing %d metrics (state=%v, width=%d)",
-		len(msg.Metrics), rs.state, rs.currentWidth))
-
-	if rs.metricsGrid == nil {
-		gridRows, gridCols := rs.config.SystemGrid()
-		initialWidth := MinMetricChartWidth * gridCols
-		initialHeight := MinMetricChartHeight * gridRows
-		rs.metricsGrid = NewSystemMetricsGrid(
-			initialWidth, initialHeight, rs.config, rs.focusState, rs.logger)
-		rs.logger.Debug(fmt.Sprintf(
-			"RightSidebar.ProcessStatsMsg: created grid with initial dimensions %dx%d",
-			initialWidth, initialHeight))
-	}
-
-	for metricName, value := range msg.Metrics {
-		rs.metricsGrid.AddDataPoint(metricName, msg.Timestamp, value)
-	}
 }
