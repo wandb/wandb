@@ -491,7 +491,7 @@ def test_projects(user, wandb_backend_spy):
     }
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="FetchProjects"),
+        gql.Matcher(operation="GetProjects"),
         gql.Constant(content=body),
     )
 
@@ -505,7 +505,7 @@ def test_projects(user, wandb_backend_spy):
 def test_project_get_id(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="FetchProject"),
+        gql.Matcher(operation="GetProject"),
         gql.once(
             content={
                 "data": {
@@ -529,7 +529,7 @@ def test_project_get_id(user, wandb_backend_spy):
 def test_project_get_id_project_does_not_exist__raises_error(user, wandb_backend_spy):
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="FetchProject"),
+        gql.Matcher(operation="GetProject"),
         gql.once(
             content={
                 "data": {

@@ -10,8 +10,8 @@ from wandb._pydantic import GQLResult
 from .fragments import ProjectFragment
 
 
-class FetchProject(GQLResult):
+class GetProject(GQLResult):
     project: Optional[ProjectFragment]
 
 
-FetchProject.model_rebuild()
+GetProject.model_rebuild()
