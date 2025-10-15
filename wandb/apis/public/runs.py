@@ -46,6 +46,7 @@ from wandb_gql import gql
 import wandb
 from wandb import env, util
 from wandb.apis import public
+from wandb.apis._displayable import Displayable
 from wandb.apis.attrs import Attrs
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
@@ -518,7 +519,7 @@ class Runs(SizedPaginator["Run"]):
                     future.result()
 
 
-class Run(Attrs):
+class Run(Attrs, Displayable):
     """A single run associated with an entity and project.
 
     Args:
@@ -1442,7 +1443,7 @@ class Run(Attrs):
         history_keys = response["project"]["run"]["historyKeys"]
         return history_keys["lastStep"] if "lastStep" in history_keys else -1
 
-    def to_html(self, height=420, hidden=False):
+    def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this run."""
         url = self.url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
@@ -1451,9 +1452,6 @@ class Run(Attrs):
             style += "display:none;"
             prefix = ipython.toggle_button()
         return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
-
-    def _repr_html_(self) -> str:
-        return self.to_html()
 
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
