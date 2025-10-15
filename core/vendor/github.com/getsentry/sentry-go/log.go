@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go/attribute"
+	debuglog "github.com/getsentry/sentry-go/internal/debuglog"
 )
 
 type LogLevel string
@@ -74,7 +75,7 @@ func NewLogger(ctx context.Context) Logger {
 		}
 	}
 
-	DebugLogger.Println("fallback to noopLogger: enableLogs disabled")
+	debuglog.Println("fallback to noopLogger: enableLogs disabled")
 	return &noopLogger{} // fallback: does nothing
 }
 
@@ -187,7 +188,7 @@ func (l *sentryLogger) log(ctx context.Context, level LogLevel, severity int, me
 	}
 
 	if l.client.options.Debug {
-		DebugLogger.Printf(message, args...)
+		debuglog.Printf(message, args...)
 	}
 }
 
@@ -198,7 +199,7 @@ func (l *sentryLogger) SetAttributes(attrs ...attribute.Builder) {
 	for _, v := range attrs {
 		t, ok := mapTypesToStr[v.Value.Type()]
 		if !ok || t == "" {
-			DebugLogger.Printf("invalid attribute type set: %v", t)
+			debuglog.Printf("invalid attribute type set: %v", t)
 			continue
 		}
 
