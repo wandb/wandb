@@ -250,7 +250,7 @@ commands:
                 command: |
                   wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
                   chmod +x dotnet-install.sh
-                  ./dotnet-install.sh --version latest
+                  ./dotnet-install.sh --channel 9.0
                   echo 'export PATH="$HOME/.dotnet:$PATH"' >> "$BASH_ENV"
                 no_output_timeout: 5m
 
