@@ -60,14 +60,14 @@ func wildcardMatch(p, t string) bool {
 }
 
 // applyFilter applies the current filter pattern to charts.
-func (m *metrics) applyFilter(pattern string) {
+func (m *MetricsGrid) applyFilter(pattern string) {
 	m.chartMu.Lock()
 	defer m.chartMu.Unlock()
 	m.applyFilterNoLock(pattern)
 }
 
 // applyFilterNoLock applies the filter assuming the caller holds chartMu.
-func (m *metrics) applyFilterNoLock(pattern string) {
+func (m *MetricsGrid) applyFilterNoLock(pattern string) {
 	if pattern == "" {
 		// Copy to avoid aliasing the backing array of allCharts
 		// (prevents duplicates when appending while iterating).
@@ -91,7 +91,7 @@ func (m *metrics) applyFilterNoLock(pattern string) {
 }
 
 // getFilteredChartCount returns the number of charts matching the current filter.
-func (m *metrics) getFilteredChartCount() int {
+func (m *MetricsGrid) getFilteredChartCount() int {
 	if m.filterMode {
 		p := m.filterInput
 		if p == "" {
@@ -113,13 +113,13 @@ func (m *metrics) getFilteredChartCount() int {
 }
 
 // enterFilterMode enters filter input mode
-func (m *metrics) enterFilterMode() {
+func (m *MetricsGrid) enterFilterMode() {
 	m.filterMode = true
 	m.filterInput = m.activeFilter // Start with current filter
 }
 
 // exitFilterMode exits filter input mode and optionally applies the filter
-func (m *metrics) exitFilterMode(apply bool) {
+func (m *MetricsGrid) exitFilterMode(apply bool) {
 	m.filterMode = false
 	if apply {
 		// Commit the filter that was being typed.
@@ -131,7 +131,7 @@ func (m *metrics) exitFilterMode(apply bool) {
 }
 
 // clearFilter removes the active filter
-func (m *metrics) clearFilter() {
+func (m *MetricsGrid) clearFilter() {
 	m.activeFilter = ""
 	m.filterInput = ""
 	m.applyFilter("")

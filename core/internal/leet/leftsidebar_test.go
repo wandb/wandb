@@ -99,7 +99,7 @@ func expandSidebar(t *testing.T, s *leet.LeftSidebar, termWidth int, rightVisibl
 	s.Toggle()
 	time.Sleep(leet.AnimationDuration + 20*time.Millisecond)
 	// Drive animation to completion.
-	s.Update(leet.SidebarAnimationMsg{})
+	s.Update(leet.LeftSidebarAnimationMsg{})
 }
 
 func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {

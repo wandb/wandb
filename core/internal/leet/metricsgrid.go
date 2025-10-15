@@ -9,8 +9,8 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-// metrics holds state for the main run metrics charts (not system metrics).
-type metrics struct {
+// MetricsGrid manages the main run metrics charts (not system metrics).
+type MetricsGrid struct {
 	chartMu sync.RWMutex
 
 	allCharts      []*EpochLineChart
@@ -33,10 +33,14 @@ type metrics struct {
 	logger *observability.CoreLogger
 }
 
-func NewMetrics(config *ConfigManager, focusState *FocusState, logger *observability.CoreLogger) *metrics {
+func NewMetricsGrid(
+	config *ConfigManager,
+	focusState *FocusState,
+	logger *observability.CoreLogger,
+) *MetricsGrid {
 	gridRows, gridCols := config.MetricsGrid()
 
-	mg := &metrics{
+	mg := &MetricsGrid{
 		config:         config,
 		allCharts:      make([]*EpochLineChart, 0),
 		chartsByName:   make(map[string]*EpochLineChart),
@@ -58,8 +62,8 @@ type ChartDimensions struct {
 }
 
 // CalculateChartDimensions computes chart dimensions.
-func (m *metrics) CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
-	gridRows, gridCols := m.config.MetricsGrid()
+func (mg *MetricsGrid) CalculateChartDimensions(windowWidth, windowHeight int) ChartDimensions {
+	gridRows, gridCols := mg.config.MetricsGrid()
 	spec := GridSpec{
 		Rows:        gridRows,
 		Cols:        gridCols,
@@ -80,8 +84,8 @@ func (m *metrics) CalculateChartDimensions(windowWidth, windowHeight int) ChartD
 }
 
 // effectiveGridSize returns the grid size that can fit in the current viewport.
-func (m *metrics) effectiveGridSize() GridSize {
-	gridRows, gridCols := m.config.MetricsGrid()
+func (mg *MetricsGrid) effectiveGridSize() GridSize {
+	gridRows, gridCols := mg.config.MetricsGrid()
 	spec := GridSpec{
 		Rows:        gridRows,
 		Cols:        gridCols,
@@ -89,122 +93,122 @@ func (m *metrics) effectiveGridSize() GridSize {
 		MinCellH:    MinChartHeight,
 		HeaderLines: ChartHeaderHeight,
 	}
-	return EffectiveGridSize(m.width, m.height, spec)
+	return EffectiveGridSize(mg.width, mg.height, spec)
 }
 
 // sortChartsNoLock sorts charts alphabetically and reassigns colors.
 // Caller must hold the lock.
-func (m *metrics) sortChartsNoLock() {
-	sort.Slice(m.allCharts, func(i, j int) bool {
-		return m.allCharts[i].Title() < m.allCharts[j].Title()
+func (mg *MetricsGrid) sortChartsNoLock() {
+	sort.Slice(mg.allCharts, func(i, j int) bool {
+		return mg.allCharts[i].Title() < mg.allCharts[j].Title()
 	})
 
 	graphColors := GetGraphColors()
 
-	m.chartsByName = make(map[string]*EpochLineChart)
-	for i, chart := range m.allCharts {
-		m.chartsByName[chart.Title()] = chart
+	mg.chartsByName = make(map[string]*EpochLineChart)
+	for i, chart := range mg.allCharts {
+		mg.chartsByName[chart.Title()] = chart
 		chart.graphStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(graphColors[i%len(graphColors)]))
 	}
 
-	if m.filteredCharts == nil || (len(m.filteredCharts) == 0 && m.activeFilter == "") {
-		m.filteredCharts = append(make([]*EpochLineChart, 0, len(m.allCharts)), m.allCharts...)
+	if mg.filteredCharts == nil || (len(mg.filteredCharts) == 0 && mg.activeFilter == "") {
+		mg.filteredCharts = append(make([]*EpochLineChart, 0, len(mg.allCharts)), mg.allCharts...)
 	}
 }
 
 // loadCurrentPage loads the charts for the current page into the grid.
-func (m *metrics) loadCurrentPage() {
-	m.chartMu.Lock()
-	defer m.chartMu.Unlock()
-	m.loadCurrentPageNoLock()
+func (mg *MetricsGrid) loadCurrentPage() {
+	mg.chartMu.Lock()
+	defer mg.chartMu.Unlock()
+	mg.loadCurrentPageNoLock()
 }
 
 // loadCurrentPageNoLock loads the current page without acquiring the mutex.
-func (m *metrics) loadCurrentPageNoLock() {
-	size := m.effectiveGridSize()
+func (mg *MetricsGrid) loadCurrentPageNoLock() {
+	size := mg.effectiveGridSize()
 
 	// Rebuild grid structure
-	m.currentPage = make([][]*EpochLineChart, size.Rows)
+	mg.currentPage = make([][]*EpochLineChart, size.Rows)
 	for row := 0; row < size.Rows; row++ {
-		m.currentPage[row] = make([]*EpochLineChart, size.Cols)
+		mg.currentPage[row] = make([]*EpochLineChart, size.Cols)
 	}
 
 	// Use filtered charts if filter is active.
-	chartsToShow := m.filteredCharts
-	if len(chartsToShow) == 0 && m.activeFilter == "" {
-		chartsToShow = m.allCharts
+	chartsToShow := mg.filteredCharts
+	if len(chartsToShow) == 0 && mg.activeFilter == "" {
+		chartsToShow = mg.allCharts
 	}
 
-	startIdx, endIdx := m.navigator.GetPageBounds(len(chartsToShow), ItemsPerPage(size))
+	startIdx, endIdx := mg.navigator.GetPageBounds(len(chartsToShow), ItemsPerPage(size))
 
 	idx := startIdx
 	for row := 0; row < size.Rows && idx < endIdx; row++ {
 		for col := 0; col < size.Cols && idx < endIdx; col++ {
-			m.currentPage[row][col] = chartsToShow[idx]
+			mg.currentPage[row][col] = chartsToShow[idx]
 			idx++
 		}
 	}
 }
 
 // UpdateDimensions updates chart sizes based on content viewport.
-func (m *metrics) UpdateDimensions(contentWidth, contentHeight int) {
+func (mg *MetricsGrid) UpdateDimensions(contentWidth, contentHeight int) {
 	defer func() {
-		if r := recover(); r != nil && m.logger != nil {
-			m.logger.Error(fmt.Sprintf("panic in metrics.UpdateDimensions: %v", r))
+		if r := recover(); r != nil && mg.logger != nil {
+			mg.logger.Error(fmt.Sprintf("panic in MetricsGrid.UpdateDimensions: %v", r))
 		}
 	}()
 
-	m.width, m.height = contentWidth, contentHeight
+	mg.width, mg.height = contentWidth, contentHeight
 
-	dims := m.CalculateChartDimensions(contentWidth, contentHeight)
+	dims := mg.CalculateChartDimensions(contentWidth, contentHeight)
 
 	// Resize all charts
-	m.chartMu.Lock()
-	for _, chart := range m.allCharts {
+	mg.chartMu.Lock()
+	for _, chart := range mg.allCharts {
 		if chart != nil {
 			chart.Resize(dims.ChartWidth, dims.ChartHeight)
 			chart.dirty = true
 		}
 	}
-	m.chartMu.Unlock()
+	mg.chartMu.Unlock()
 
-	size := m.effectiveGridSize()
-	m.chartMu.RLock()
-	chartCount := len(m.filteredCharts)
-	if chartCount == 0 && m.activeFilter == "" {
-		chartCount = len(m.allCharts)
+	size := mg.effectiveGridSize()
+	mg.chartMu.RLock()
+	chartCount := len(mg.filteredCharts)
+	if chartCount == 0 && mg.activeFilter == "" {
+		chartCount = len(mg.allCharts)
 	}
-	m.chartMu.RUnlock()
-	m.navigator.UpdateTotalPages(chartCount, ItemsPerPage(size))
+	mg.chartMu.RUnlock()
+	mg.navigator.UpdateTotalPages(chartCount, ItemsPerPage(size))
 
-	m.loadCurrentPage()
-	m.drawVisible()
+	mg.loadCurrentPage()
+	mg.drawVisible()
 }
 
 // renderGrid creates the chart grid view.
-func (m *metrics) renderGrid(dims ChartDimensions) string {
+func (mg *MetricsGrid) renderGrid(dims ChartDimensions) string {
 	header := headerStyle.Render("Metrics")
 
 	// Add navigation info
 	navInfo := ""
-	m.chartMu.RLock()
-	chartCount := len(m.filteredCharts)
-	if chartCount == 0 && m.activeFilter == "" {
-		chartCount = len(m.allCharts)
+	mg.chartMu.RLock()
+	chartCount := len(mg.filteredCharts)
+	if chartCount == 0 && mg.activeFilter == "" {
+		chartCount = len(mg.allCharts)
 	}
-	totalCount := len(m.allCharts)
-	m.chartMu.RUnlock()
+	totalCount := len(mg.allCharts)
+	mg.chartMu.RUnlock()
 
-	size := m.effectiveGridSize()
+	size := mg.effectiveGridSize()
 	itemsPerPage := ItemsPerPage(size)
-	totalPages := m.navigator.TotalPages()
+	totalPages := mg.navigator.TotalPages()
 
 	if totalPages > 0 && chartCount > 0 {
-		startIdx, endIdx := m.navigator.GetPageBounds(chartCount, itemsPerPage)
+		startIdx, endIdx := mg.navigator.GetPageBounds(chartCount, itemsPerPage)
 		startIdx++ // Display as 1-indexed
 
-		if m.activeFilter != "" {
+		if mg.activeFilter != "" {
 			navInfo = navInfoStyle.Render(
 				fmt.Sprintf(" [%d-%d of %d filtered from %d total]",
 					startIdx, endIdx, chartCount, totalCount))
@@ -222,7 +226,7 @@ func (m *metrics) renderGrid(dims ChartDimensions) string {
 	for row := 0; row < size.Rows; row++ {
 		var cols []string
 		for col := 0; col < size.Cols; col++ {
-			cellContent := m.renderGridCell(row, col, dims)
+			cellContent := mg.renderGridCell(row, col, dims)
 			cols = append(cols, cellContent)
 		}
 		rowView := lipgloss.JoinHorizontal(lipgloss.Left, cols...)
@@ -232,7 +236,7 @@ func (m *metrics) renderGrid(dims ChartDimensions) string {
 	gridContainer := gridContainerStyle.Render(gridContent)
 
 	// Add vertical filler to use all available height.
-	availableHeight := max(m.height-ChartHeaderHeight, 0)
+	availableHeight := max(mg.height-ChartHeaderHeight, 0)
 	usedHeight := size.Rows * dims.ChartHeightWithPadding
 	extra := availableHeight - usedHeight
 	if extra > 0 {
@@ -244,17 +248,17 @@ func (m *metrics) renderGrid(dims ChartDimensions) string {
 }
 
 // renderGridCell renders a single grid cell.
-func (m *metrics) renderGridCell(row, col int, dims ChartDimensions) string {
-	m.chartMu.RLock()
-	defer m.chartMu.RUnlock()
+func (mg *MetricsGrid) renderGridCell(row, col int, dims ChartDimensions) string {
+	mg.chartMu.RLock()
+	defer mg.chartMu.RUnlock()
 
-	if row < len(m.currentPage) && col < len(m.currentPage[row]) && m.currentPage[row][col] != nil {
-		chart := m.currentPage[row][col]
+	if row < len(mg.currentPage) && col < len(mg.currentPage[row]) && mg.currentPage[row][col] != nil {
+		chart := mg.currentPage[row][col]
 		chartView := chart.View()
 
 		boxStyle := borderStyle
-		if m.focusState.Type == FocusMainChart &&
-			row == m.focusState.Row && col == m.focusState.Col {
+		if mg.focusState.Type == FocusMainChart &&
+			row == mg.focusState.Row && col == mg.focusState.Col {
 			boxStyle = focusedBorderStyle
 		}
 
@@ -285,25 +289,25 @@ func (m *metrics) renderGridCell(row, col int, dims ChartDimensions) string {
 }
 
 // Navigate changes the current page.
-func (m *metrics) Navigate(direction int) {
-	if !m.navigator.Navigate(direction) {
+func (mg *MetricsGrid) Navigate(direction int) {
+	if !mg.navigator.Navigate(direction) {
 		return
 	}
 
-	m.clearFocus()
-	m.loadCurrentPage()
-	m.drawVisible()
+	mg.clearFocus()
+	mg.loadCurrentPage()
+	mg.drawVisible()
 }
 
 // drawVisible draws charts that are currently visible.
-func (m *metrics) drawVisible() {
-	size := m.effectiveGridSize()
+func (mg *MetricsGrid) drawVisible() {
+	size := mg.effectiveGridSize()
 
 	for row := 0; row < size.Rows; row++ {
 		for col := 0; col < size.Cols; col++ {
-			if row < len(m.currentPage) && col < len(m.currentPage[row]) &&
-				m.currentPage[row][col] != nil {
-				chart := m.currentPage[row][col]
+			if row < len(mg.currentPage) && col < len(mg.currentPage[row]) &&
+				mg.currentPage[row][col] != nil {
+				chart := mg.currentPage[row][col]
 				chart.dirty = true
 				chart.Draw()
 				chart.dirty = false
@@ -313,73 +317,73 @@ func (m *metrics) drawVisible() {
 }
 
 // handleClick handles clicks in the main chart grid.
-func (m *metrics) handleClick(row, col int) {
+func (mg *MetricsGrid) handleClick(row, col int) {
 	// Check if clicking on already focused chart (to unfocus)
-	if m.focusState.Type == FocusMainChart &&
-		row == m.focusState.Row && col == m.focusState.Col {
-		m.clearFocus()
+	if mg.focusState.Type == FocusMainChart &&
+		row == mg.focusState.Row && col == mg.focusState.Col {
+		mg.clearFocus()
 		return
 	}
 
-	size := m.effectiveGridSize()
+	size := mg.effectiveGridSize()
 
-	m.chartMu.RLock()
-	defer m.chartMu.RUnlock()
+	mg.chartMu.RLock()
+	defer mg.chartMu.RUnlock()
 
 	if row >= 0 && row < size.Rows &&
 		col >= 0 && col < size.Cols &&
-		row < len(m.currentPage) && col < len(m.currentPage[row]) &&
-		m.currentPage[row][col] != nil {
-		m.clearFocus()
-		m.setFocus(row, col)
+		row < len(mg.currentPage) && col < len(mg.currentPage[row]) &&
+		mg.currentPage[row][col] != nil {
+		mg.clearFocus()
+		mg.setFocus(row, col)
 	}
 }
 
 // setFocus sets focus to a main grid chart.
-func (m *metrics) setFocus(row, col int) {
-	if row < len(m.currentPage) && col < len(m.currentPage[row]) &&
-		m.currentPage[row][col] != nil {
-		chart := m.currentPage[row][col]
-		m.focusState.Type = FocusMainChart
-		m.focusState.Row = row
-		m.focusState.Col = col
-		m.focusState.Title = chart.Title()
+func (mg *MetricsGrid) setFocus(row, col int) {
+	if row < len(mg.currentPage) && col < len(mg.currentPage[row]) &&
+		mg.currentPage[row][col] != nil {
+		chart := mg.currentPage[row][col]
+		mg.focusState.Type = FocusMainChart
+		mg.focusState.Row = row
+		mg.focusState.Col = col
+		mg.focusState.Title = chart.Title()
 		chart.SetFocused(true)
 	}
 }
 
 // clearFocus clears focus only from main charts.
-func (m *metrics) clearFocus() {
-	if m.focusState.Type == FocusMainChart {
-		if m.focusState.Row >= 0 && m.focusState.Col >= 0 &&
-			m.focusState.Row < len(m.currentPage) &&
-			m.focusState.Col < len(m.currentPage[m.focusState.Row]) &&
-			m.currentPage[m.focusState.Row][m.focusState.Col] != nil {
-			m.currentPage[m.focusState.Row][m.focusState.Col].SetFocused(false)
+func (mg *MetricsGrid) clearFocus() {
+	if mg.focusState.Type == FocusMainChart {
+		if mg.focusState.Row >= 0 && mg.focusState.Col >= 0 &&
+			mg.focusState.Row < len(mg.currentPage) &&
+			mg.focusState.Col < len(mg.currentPage[mg.focusState.Row]) &&
+			mg.currentPage[mg.focusState.Row][mg.focusState.Col] != nil {
+			mg.currentPage[mg.focusState.Row][mg.focusState.Col].SetFocused(false)
 		}
-		m.focusState.Type = FocusNone
-		m.focusState.Row = -1
-		m.focusState.Col = -1
-		m.focusState.Title = ""
+		mg.focusState.Type = FocusNone
+		mg.focusState.Row = -1
+		mg.focusState.Col = -1
+		mg.focusState.Title = ""
 	}
 }
 
 // HandleWheel performs zoom handling on a main-grid chart at (row, col).
-func (m *metrics) HandleWheel(
+func (mg *MetricsGrid) HandleWheel(
 	adjustedX, row, col int,
 	dims ChartDimensions,
 	wheelUp bool,
 ) {
-	size := m.effectiveGridSize()
+	size := mg.effectiveGridSize()
 
-	m.chartMu.RLock()
-	defer m.chartMu.RUnlock()
+	mg.chartMu.RLock()
+	defer mg.chartMu.RUnlock()
 
 	if row >= 0 && row < size.Rows &&
 		col >= 0 && col < size.Cols &&
-		row < len(m.currentPage) && col < len(m.currentPage[row]) &&
-		m.currentPage[row][col] != nil {
-		chart := m.currentPage[row][col]
+		row < len(mg.currentPage) && col < len(mg.currentPage[row]) &&
+		mg.currentPage[row][col] != nil {
+		chart := mg.currentPage[row][col]
 
 		chartStartX := col * dims.ChartWidthWithPadding
 		graphStartX := chartStartX + 1
@@ -390,10 +394,10 @@ func (m *metrics) HandleWheel(
 
 		if relativeMouseX >= 0 && relativeMouseX < chart.GraphWidth() {
 			// Focus the chart when zooming (if not already focused)
-			if m.focusState.Type != FocusMainChart ||
-				m.focusState.Row != row || m.focusState.Col != col {
-				m.clearFocus()
-				m.setFocus(row, col)
+			if mg.focusState.Type != FocusMainChart ||
+				mg.focusState.Row != row || mg.focusState.Col != col {
+				mg.clearFocus()
+				mg.setFocus(row, col)
 			}
 
 			direction := "out"
