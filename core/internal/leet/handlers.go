@@ -97,35 +97,31 @@ func (m *Model) processRecordMsg(msg tea.Msg) (*Model, tea.Cmd) {
 //
 //gocyclo:ignore
 func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
-	gridRows, gridCols := m.config.MetricsGrid()
-	chartsPerPage := gridRows * gridCols
-
-	// Track if we need to sort
 	needsSort := false
 
-	// Lock for write when modifying charts
 	m.metrics.chartMu.Lock()
 
-	// Save the currently focused chart's title if any
+	// Save focused chart title.
 	var previouslyFocusedTitle string
 	if m.metrics.focusState.Type == FocusMainChart &&
 		m.metrics.focusState.Row >= 0 && m.metrics.focusState.Col >= 0 &&
-		m.metrics.focusState.Row < len(m.metrics.charts) && m.metrics.focusState.Col < len(m.metrics.charts[m.metrics.focusState.Row]) &&
-		m.metrics.charts[m.metrics.focusState.Row][m.metrics.focusState.Col] != nil {
-		previouslyFocusedTitle = m.metrics.charts[m.metrics.focusState.Row][m.metrics.focusState.Col].Title()
+		m.metrics.focusState.Row < len(m.metrics.currentPage) &&
+		m.metrics.focusState.Col < len(m.metrics.currentPage[m.metrics.focusState.Row]) &&
+		m.metrics.currentPage[m.metrics.focusState.Row][m.metrics.focusState.Col] != nil {
+		previouslyFocusedTitle = m.metrics.currentPage[m.metrics.focusState.Row][m.metrics.focusState.Col].Title()
 	}
 
-	// Track new charts for adding to filtered list
 	var newCharts []*EpochLineChart
 
-	// Add data points to existing charts or create new ones
+	// Add data points.
 	for metricName, value := range msg.Metrics {
-		m.logger.Debug(fmt.Sprintf("processing %v, %v", metricName, value))
 		chart, exists := m.metrics.chartsByName[metricName]
-		m.logger.Debug(fmt.Sprintf("it exists: %v", exists))
 		if !exists {
 			layout := m.computeViewports()
-			dims := m.metrics.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
+			dims := m.metrics.CalculateChartDimensions(
+				layout.mainContentAreaWidth,
+				layout.height,
+			)
 
 			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, metricName)
 
@@ -134,7 +130,6 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 			newCharts = append(newCharts, chart)
 			needsSort = true
 
-			// Log when we're creating many charts
 			if len(m.metrics.allCharts)%1000 == 0 {
 				m.logger.Debug(fmt.Sprintf("model: created %d charts", len(m.metrics.allCharts)))
 			}
@@ -142,21 +137,19 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 		chart.AddPoint(float64(msg.Step), value)
 	}
 
-	// Sort if we added new charts (this will also assign/reassign colors)
+	// Sort if we added new charts.
 	if needsSort {
 		m.metrics.sortChartsNoLock()
 
 		// If no filter is active, add new charts to filteredCharts
 		if m.metrics.activeFilter == "" {
-			// Add new charts to filtered list and re-sort
 			for _, newChart := range newCharts {
-				// Check if it's not already in filteredCharts (shouldn't be, but safe check)
 				found := slices.Contains(m.metrics.filteredCharts, newChart)
 				if !found {
 					m.metrics.filteredCharts = append(m.metrics.filteredCharts, newChart)
 				}
 			}
-			// Re-sort filteredCharts to maintain alphabetical order
+			// Re-sort filteredCharts
 			sort.Slice(m.metrics.filteredCharts, func(i, j int) bool {
 				return m.metrics.filteredCharts[i].Title() < m.metrics.filteredCharts[j].Title()
 			})
@@ -165,35 +158,42 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 			m.metrics.applyFilterNoLock(m.metrics.activeFilter)
 		}
 
-		m.metrics.totalPages = (len(m.metrics.filteredCharts) + chartsPerPage - 1) / chartsPerPage
+		// Update navigator - it automatically handles page clamping
+		size := m.metrics.effectiveGridSize()
+		m.metrics.navigator.UpdateTotalPages(
+			len(m.metrics.filteredCharts),
+			ItemsPerPage(size),
+		)
 	}
 
-	// Exit loading state only when we have actual charts with data
+	// Exit loading state.
 	if m.isLoading && len(m.metrics.allCharts) > 0 {
 		m.isLoading = false
 	}
 
-	// Reload page while holding the lock (mutates grid)
+	// Reload page.
 	shouldDraw := len(msg.Metrics) > 0
 	if shouldDraw {
 		m.metrics.loadCurrentPageNoLock()
 	}
 
-	// Capture before unlocking
 	prevTitle := previouslyFocusedTitle
 	m.metrics.chartMu.Unlock()
 
-	// Restore focus and draw OUTSIDE the critical section
+	// Restore focus.
 	if shouldDraw && !m.suppressDraw {
 		if prevTitle != "" && m.metrics.focusState.Type == FocusMainChart {
-			// Use a read lock while scanning the grid
+			// Use effective grid size for bounds checking
+			size := m.metrics.effectiveGridSize()
+
 			m.metrics.chartMu.RLock()
 			foundRow, foundCol := -1, -1
-			for row := range gridRows {
-				for col := range gridCols {
-					if row < len(m.metrics.charts) && col < len(m.metrics.charts[row]) &&
-						m.metrics.charts[row][col] != nil &&
-						m.metrics.charts[row][col].Title() == prevTitle {
+			for row := range size.Rows {
+				for col := range size.Cols {
+					if row < len(m.metrics.currentPage) &&
+						col < len(m.metrics.currentPage[row]) &&
+						m.metrics.currentPage[row][col] != nil &&
+						m.metrics.currentPage[row][col].Title() == prevTitle {
 						foundRow, foundCol = row, col
 						break
 					}
@@ -203,6 +203,7 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 				}
 			}
 			m.metrics.chartMu.RUnlock()
+
 			if foundRow != -1 {
 				m.metrics.setFocus(foundRow, foundCol)
 			}
@@ -221,7 +222,6 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 
 	// --- Left sidebar region ---
 	if msg.X < layout.leftSidebarWidth {
-		// Clicking on overview: clear chart focus on both sides
 		m.metrics.clearFocus()
 		m.rightSidebar.ClearFocus()
 		return m, nil
@@ -230,57 +230,41 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 	// --- Right sidebar region ---
 	rightStart := m.width - layout.rightSidebarWidth
 	if msg.X >= rightStart && layout.rightSidebarWidth > 0 {
-		// Adjust coordinates relative to sidebar
 		adjustedX := msg.X - rightStart
 
-		// Handle left click for focus
 		if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
 			tea.MouseEvent(msg).Action == tea.MouseActionPress {
 
-			m.logger.Debug(fmt.Sprintf("handleMouseMsg: RIGHT SIDEBAR CLICK at adjustedX=%d, Y=%d", adjustedX, msg.Y))
-			m.logger.Debug(fmt.Sprintf("handleMouseMsg: BEFORE - focusState.Type=%v, focusedTitle='%s'", m.metrics.focusState.Type, m.focusState.Title))
-
-			// Apply focus in system metrics
 			focusSet := m.rightSidebar.HandleMouseClick(adjustedX, msg.Y)
 
-			m.logger.Debug(fmt.Sprintf("handleMouseMsg: HandleMouseClick returned focusSet=%v", focusSet))
-			m.logger.Debug(fmt.Sprintf("handleMouseMsg: GetFocusedChartTitle='%s'", m.rightSidebar.GetFocusedChartTitle()))
-
 			if focusSet {
-				// System chart was focused, clear main chart focus.
 				m.metrics.clearFocus()
-				m.logger.Debug(fmt.Sprintf("handleMouseMsg: FOCUSED - set focusedTitle='%s'", m.focusState.Title))
-			} else {
-				// System chart was unfocused
-				m.logger.Debug("handleMouseMsg: UNFOCUSED - clearing focus state")
 			}
-
-			m.logger.Debug(fmt.Sprintf("handleMouseMsg: AFTER - focusState.Type=%v, focusedTitle='%s'", m.metrics.focusState.Type, m.focusState.Title))
 		}
-		// TODO: add wheel handling for system metrics.
 		return m, nil
 	}
 
 	// --- Main content region (metrics grid) ---
 	const gridPadding = 1
 	adjustedX := msg.X - layout.leftSidebarWidth - gridPadding
-	adjustedY := msg.Y - gridPadding - 1 // -1 for header
+	adjustedY := msg.Y - gridPadding - 1
 
-	dims := m.metrics.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
+	// CalculateChartDimensions now uses the shared helper internally
+	// Mouse hit-testing still works because we preserve uniform cell sizes
+	dims := m.metrics.CalculateChartDimensions(
+		layout.mainContentAreaWidth,
+		layout.height,
+	)
 
 	row := adjustedY / dims.ChartHeightWithPadding
 	col := adjustedX / dims.ChartWidthWithPadding
 
-	gridRows, gridCols := m.config.MetricsGrid()
-
 	// Handle left click for focus
 	if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
 		tea.MouseEvent(msg).Action == tea.MouseActionPress {
-		if row >= 0 && row < gridRows && col >= 0 && col < gridCols {
-			// When focusing main grid, clear system focus
-			m.rightSidebar.ClearFocus()
-			m.metrics.handleClick(row, col)
-		}
+		// Note: handleClick now internally checks effectiveGridSize for bounds
+		m.rightSidebar.ClearFocus()
+		m.metrics.handleClick(row, col)
 		return m, nil
 	}
 
@@ -289,7 +273,7 @@ func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Delegate wheel zoom to main metrics area.
+	// Delegate wheel zoom to main metrics area
 	m.metrics.HandleWheel(
 		adjustedX,
 		row,
@@ -411,12 +395,12 @@ func (m *Model) handleToggleRightSidebar(msg tea.KeyMsg) (*Model, tea.Cmd) {
 }
 
 func (m *Model) handlePrevPage(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	m.metrics.navigatePage(-1)
+	m.metrics.Navigate(-1)
 	return m, nil
 }
 
 func (m *Model) handleNextPage(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	m.metrics.navigatePage(1)
+	m.metrics.Navigate(1)
 	return m, nil
 }
 
@@ -600,9 +584,6 @@ func (m *Model) handleConfigNumberKey(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Update grid dimensions and rebuild the UI
-	m.metrics.rebuildGrids()
-	// Update metrics using new content viewport
 	layout := m.computeViewports()
 	m.metrics.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 

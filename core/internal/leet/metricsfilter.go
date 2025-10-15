@@ -2,54 +2,61 @@ package leet
 
 import "strings"
 
-// matchPattern implements simple glob pattern matching that treats / as a regular character
-func matchPattern(pattern, str string) bool {
-	// Convert both to lowercase for case-insensitive matching
-	pattern = strings.ToLower(pattern)
-	str = strings.ToLower(str)
+// GlobMatch matches s against pattern with case-insensitive,
+// unanchored glob semantics: '*' = any sequence, '?' = any single char.
+// '/' is treated as a normal character.
+func GlobMatch(pattern, s string) bool {
+	p := strings.ToLower(pattern)
+	t := strings.ToLower(s)
 
-	// Handle special cases
-	if pattern == "" {
+	// Empty or single '*' matches everything.
+	if p == "" || p == "*" {
 		return true
 	}
-	if pattern == "*" {
-		return true
+
+	// No wildcards -> substring match.
+	if !strings.ContainsAny(p, "*?") {
+		return strings.Contains(t, p)
 	}
 
-	// Simple implementation of glob matching
-	pi := 0    // pattern index
-	si := 0    // string index
-	star := -1 // position of last * in pattern
-	match := 0 // position in string matched by *
+	// Unanchored by default: allow leading/trailing text.
+	if !strings.HasPrefix(p, "*") {
+		p = "*" + p
+	}
+	if !strings.HasSuffix(p, "*") {
+		p += "*"
+	}
 
-	for si < len(str) {
+	return wildcardMatch(p, t)
+}
+
+// wildcardMatch is a classic '*'/'?' matcher with backtracking.
+// Assumes inputs are already lowercased.
+func wildcardMatch(p, t string) bool {
+	pi, si := 0, 0
+	star, match := -1, 0
+
+	for si < len(t) {
 		switch {
-		case pi < len(pattern) && (pattern[pi] == '?' || pattern[pi] == str[si]):
-			// Character match or ? wildcard
+		case pi < len(p) && (p[pi] == '?' || p[pi] == t[si]):
 			pi++
 			si++
-		case pi < len(pattern) && pattern[pi] == '*':
-			// * wildcard - record position and try to match rest
+		case pi < len(p) && p[pi] == '*':
 			star = pi
 			match = si
 			pi++
 		case star != -1:
-			// Backtrack to last * and try matching one more character
 			pi = star + 1
 			match++
 			si = match
 		default:
-			// No match
 			return false
 		}
 	}
-
-	// Check for remaining wildcards in pattern
-	for pi < len(pattern) && pattern[pi] == '*' {
+	for pi < len(p) && p[pi] == '*' {
 		pi++
 	}
-
-	return pi == len(pattern)
+	return pi == len(p)
 }
 
 // applyFilter applies the current filter pattern to charts.
@@ -62,42 +69,47 @@ func (m *metrics) applyFilter(pattern string) {
 // applyFilterNoLock applies the filter assuming the caller holds chartMu.
 func (m *metrics) applyFilterNoLock(pattern string) {
 	if pattern == "" {
-		// No filter, use all charts
-		m.filteredCharts = m.allCharts
+		// Copy to avoid aliasing the backing array of allCharts
+		// (prevents duplicates when appending while iterating).
+		m.filteredCharts = append(make([]*EpochLineChart, 0, len(m.allCharts)), m.allCharts...)
 	} else {
-		// Apply filter
-		m.filteredCharts = make([]*EpochLineChart, 0)
-
-		// If pattern has no wildcards, treat as substring match
-		useSubstring := !strings.Contains(pattern, "*") && !strings.Contains(pattern, "?")
-
-		for _, chart := range m.allCharts {
-			chartTitle := chart.Title()
-
-			var matched bool
-			if useSubstring {
-				// Simple substring match (case-insensitive)
-				matched = strings.Contains(strings.ToLower(chartTitle), strings.ToLower(pattern))
-			} else {
-				// Use our custom glob matcher
-				matched = matchPattern(pattern, chartTitle)
-			}
-
-			if matched {
-				m.filteredCharts = append(m.filteredCharts, chart)
+		// Fresh slice, no alias with allCharts.
+		filtered := make([]*EpochLineChart, 0, len(m.allCharts))
+		for _, ch := range m.allCharts {
+			if GlobMatch(pattern, ch.Title()) {
+				filtered = append(filtered, ch)
 			}
 		}
+		m.filteredCharts = filtered
 	}
 
-	// Recalculate pages based on filtered charts
-	gridRows, gridCols := m.config.MetricsGrid()
-	chartsPerPage := gridRows * gridCols
-	m.totalPages = (len(m.filteredCharts) + chartsPerPage - 1) / chartsPerPage
-	if m.currentPage >= m.totalPages && m.totalPages > 0 {
-		m.currentPage = 0
-	}
+	// Keep pagination in sync with what fits now.
+	size := m.effectiveGridSize()
+	m.navigator.UpdateTotalPages(len(m.filteredCharts), ItemsPerPage(size))
 
 	m.loadCurrentPageNoLock()
+}
+
+// getFilteredChartCount returns the number of charts matching the current filter.
+func (m *metrics) getFilteredChartCount() int {
+	if m.filterMode {
+		p := m.filterInput
+		if p == "" {
+			return len(m.allCharts)
+		}
+
+		m.chartMu.RLock()
+		defer m.chartMu.RUnlock()
+
+		count := 0
+		for _, chart := range m.allCharts {
+			if GlobMatch(p, chart.Title()) {
+				count++
+			}
+		}
+		return count
+	}
+	return len(m.filteredCharts)
 }
 
 // enterFilterMode enters filter input mode
@@ -110,14 +122,12 @@ func (m *metrics) enterFilterMode() {
 func (m *metrics) exitFilterMode(apply bool) {
 	m.filterMode = false
 	if apply {
+		// Commit the filter that was being typed.
 		m.activeFilter = m.filterInput
-		m.applyFilter(m.activeFilter)
-		m.drawVisible()
-	} else {
-		// Restore previous filter
-		m.filterInput = m.activeFilter
-		m.applyFilter(m.activeFilter)
 	}
+	// Always reapply based on the COMMITTED filter, so Esc cancels preview.
+	m.applyFilter(m.activeFilter)
+	m.drawVisible()
 }
 
 // clearFilter removes the active filter
@@ -126,41 +136,4 @@ func (m *metrics) clearFilter() {
 	m.filterInput = ""
 	m.applyFilter("")
 	m.drawVisible()
-}
-
-// getFilteredChartCount returns the number of charts matching the current filter
-func (m *metrics) getFilteredChartCount() int {
-	if m.filterMode {
-		// Count matches for current input
-		count := 0
-		pattern := m.filterInput
-		if pattern == "" {
-			return len(m.allCharts)
-		}
-
-		m.chartMu.RLock()
-		defer m.chartMu.RUnlock()
-
-		// If pattern has no wildcards, treat as substring match
-		useSubstring := !strings.Contains(pattern, "*") && !strings.Contains(pattern, "?")
-
-		for _, chart := range m.allCharts {
-			chartTitle := chart.Title()
-
-			var matched bool
-			if useSubstring {
-				// Simple substring match (case-insensitive)
-				matched = strings.Contains(strings.ToLower(chartTitle), strings.ToLower(pattern))
-			} else {
-				// Use our custom glob matcher
-				matched = matchPattern(pattern, chartTitle)
-			}
-
-			if matched {
-				count++
-			}
-		}
-		return count
-	}
-	return len(m.filteredCharts)
 }
