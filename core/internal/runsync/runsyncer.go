@@ -104,12 +104,12 @@ func (rs *RunSyncer) Sync() {
 		// TODO: Emit error.
 		logSyncFailure(rs.logger, err)
 	} else {
-		rs.printer.Write("Finished syncing run.")
+		rs.printer.Writef("Finished syncing %s", rs.path)
 	}
 }
 
 // AddStats inserts the sync operation's status info into the map
-// keyed by the run's ID.
+// keyed by the run's path.
 func (rs *RunSyncer) AddStats(status map[string]*spb.OperationStats) {
 	rs.mu.Lock()
 	runInfo := rs.runInfo
@@ -118,7 +118,7 @@ func (rs *RunSyncer) AddStats(status map[string]*spb.OperationStats) {
 		return
 	}
 
-	status[runInfo.RunID] = rs.operations.ToProto()
+	status[runInfo.Path()] = rs.operations.ToProto()
 }
 
 // PopMessages returns any new messages for the sync operation.
@@ -136,7 +136,7 @@ func (rs *RunSyncer) PopMessages() []*spb.ServerSyncMessage {
 			&spb.ServerSyncMessage{
 				// TODO: Existing code assumes printer messages are warnings.
 				Severity: spb.ServerSyncMessage_SEVERITY_INFO,
-				Content:  fmt.Sprintf("[%s] %s", runInfo.RunID, msg),
+				Content:  fmt.Sprintf("[%s] %s", runInfo.Path(), msg),
 			})
 	}
 	return messages
