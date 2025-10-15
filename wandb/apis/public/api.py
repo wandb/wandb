@@ -31,6 +31,7 @@ from wandb._analytics import tracked
 from wandb._iterutils import one
 from wandb._strutils import nameof
 from wandb.apis import public
+from wandb.apis._generated import CREATE_PROJECT_GQL
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries, Registry
@@ -242,49 +243,7 @@ class Api:
         """
     )
 
-    CREATE_PROJECT = gql(
-        """
-        mutation upsertModel(
-            $description: String
-            $entityName: String
-            $id: String
-            $name: String
-            $framework: String
-            $access: String
-            $views: JSONString
-        ) {
-            upsertModel(
-            input: {
-                description: $description
-                entityName: $entityName
-                id: $id
-                name: $name
-                framework: $framework
-                access: $access
-                views: $views
-            }
-            ) {
-            project {
-                id
-                name
-                entityName
-                description
-                access
-                views
-            }
-            model {
-                id
-                name
-                entityName
-                description
-                access
-                views
-            }
-            inserted
-            }
-        }
-    """
-    )
+    CREATE_PROJECT = gql(CREATE_PROJECT_GQL)
 
     def __init__(
         self,

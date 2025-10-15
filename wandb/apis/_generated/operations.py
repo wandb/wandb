@@ -2,10 +2,11 @@
 # Source: tools/graphql_codegen/api/
 
 __all__ = [
+    "CREATE_PROJECT_GQL",
     "DELETE_PROJECT_GQL",
-    "FETCH_PROJECTS_GQL",
-    "FETCH_PROJECT_GQL",
     "FETCH_REGISTRY_GQL",
+    "GET_PROJECTS_GQL",
+    "GET_PROJECT_GQL",
     "RENAME_PROJECT_GQL",
     "UPSERT_REGISTRY_PROJECT_GQL",
 ]
@@ -89,8 +90,8 @@ mutation deleteProject($id: String!) {
 }
 """
 
-FETCH_PROJECTS_GQL = """
-query FetchProjects($entity: String, $cursor: String, $perPage: Int = 50) {
+GET_PROJECTS_GQL = """
+query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {
   models(entityName: $entity, after: $cursor, first: $perPage) {
     edges {
       node {
@@ -113,8 +114,8 @@ fragment ProjectFragment on Project {
 }
 """
 
-FETCH_PROJECT_GQL = """
-query FetchProject($project: String!, $entity: String!) {
+GET_PROJECT_GQL = """
+query GetProject($project: String!, $entity: String!) {
   project(name: $project, entityName: $entity) {
     ...ProjectFragment
   }
@@ -126,5 +127,31 @@ fragment ProjectFragment on Project {
   entityName
   createdAt
   isBenchmark
+}
+"""
+
+CREATE_PROJECT_GQL = """
+mutation CreateProject($description: String, $entityName: String, $id: String, $name: String, $framework: String, $access: String, $views: JSONString) {
+  upsertModel(
+    input: {description: $description, entityName: $entityName, id: $id, name: $name, framework: $framework, access: $access, views: $views}
+  ) {
+    project {
+      id
+      name
+      entityName
+      description
+      access
+      views
+    }
+    model {
+      id
+      name
+      entityName
+      description
+      access
+      views
+    }
+    inserted
+  }
 }
 """

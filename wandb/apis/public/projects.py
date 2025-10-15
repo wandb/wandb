@@ -42,10 +42,10 @@ from wandb._pydantic import Connection
 from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis._generated import (
-    FETCH_PROJECT_GQL,
-    FETCH_PROJECTS_GQL,
-    FetchProject,
-    FetchProjects,
+    GET_PROJECT_GQL,
+    GET_PROJECTS_GQL,
+    GetProject,
+    GetProjects,
     ProjectFragment,
 )
 from wandb.apis.attrs import Attrs
@@ -86,7 +86,7 @@ class Projects(Paginator["Project"]):
 
     last_response: _ProjectConnection | None
 
-    QUERY = gql(FETCH_PROJECTS_GQL)
+    QUERY = gql(GET_PROJECTS_GQL)
 
     def __init__(
         self,
@@ -103,16 +103,14 @@ class Projects(Paginator["Project"]):
         """
         self.client = client
         self.entity = entity
-        variables = {
-            "entity": self.entity,
-        }
+        variables = {"entity": self.entity}
         super().__init__(client, variables, per_page)
 
     @override
     def _update_response(self) -> None:
         """Fetch and validate the response data for the current page."""
         data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = FetchProjects.model_validate(data)
+        result = GetProjects.model_validate(data)
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not (conn := result.models):
@@ -173,7 +171,7 @@ class Project(Attrs):
         entity (str): The entity name that owns the project.
     """
 
-    QUERY = gql(FETCH_PROJECT_GQL)
+    QUERY = gql(GET_PROJECT_GQL)
 
     def __init__(
         self,
@@ -205,7 +203,7 @@ class Project(Attrs):
         except HTTPError as e:
             raise ValueError(f"Unable to fetch project ID: {variable_values!r}") from e
 
-        project = FetchProject.model_validate(data).project
+        project = GetProject.model_validate(data).project
         self._attrs = project.model_dump() if project else {}
         self._is_loaded = True
 
