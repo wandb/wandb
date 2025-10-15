@@ -3,11 +3,50 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult
+
+
+class ApiKeyFragment(GQLResult):
+    id: GQLId
+    name: str
+    description: Optional[str]
+
+
+class FullUserFragment(GQLResult):
+    id: GQLId
+    name: str
+    username: Optional[str]
+    email: Optional[str]
+    admin: Optional[bool]
+    flags: Optional[Any]
+    entity: Optional[str]
+    deleted_at: Optional[str] = Field(alias="deletedAt")
+    api_keys: Optional[FullUserFragmentApiKeys] = Field(alias="apiKeys")
+    teams: Optional[FullUserFragmentTeams]
+
+
+class FullUserFragmentApiKeys(GQLResult):
+    edges: List[FullUserFragmentApiKeysEdges]
+
+
+class FullUserFragmentApiKeysEdges(GQLResult):
+    node: Optional[ApiKeyFragment]
+
+
+class FullUserFragmentTeams(GQLResult):
+    edges: List[FullUserFragmentTeamsEdges]
+
+
+class FullUserFragmentTeamsEdges(GQLResult):
+    node: Optional[FullUserFragmentTeamsEdgesNode]
+
+
+class FullUserFragmentTeamsEdgesNode(GQLResult):
+    name: str
 
 
 class ProjectFragment(GQLResult):
@@ -43,8 +82,25 @@ class RegistryFragmentArtifactTypesEdgesNode(GQLResult):
     name: str
 
 
+class UserFragment(GQLResult):
+    id: GQLId
+    name: str
+    username: Optional[str]
+    email: Optional[str]
+    admin: Optional[bool]
+
+
+ApiKeyFragment.model_rebuild()
+FullUserFragment.model_rebuild()
+FullUserFragmentApiKeys.model_rebuild()
+FullUserFragmentApiKeysEdges.model_rebuild()
+FullUserFragmentTeams.model_rebuild()
+FullUserFragmentTeamsEdges.model_rebuild()
+FullUserFragmentTeamsEdgesNode.model_rebuild()
 ProjectFragment.model_rebuild()
 RegistryFragment.model_rebuild()
 RegistryFragmentArtifactTypes.model_rebuild()
 RegistryFragmentArtifactTypesEdges.model_rebuild()
 RegistryFragmentArtifactTypesEdgesNode.model_rebuild()
+UserFragment.model_rebuild()
+ApiKeyFragment.model_rebuild()

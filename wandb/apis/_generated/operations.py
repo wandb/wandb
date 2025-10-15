@@ -3,11 +3,17 @@
 
 __all__ = [
     "CREATE_PROJECT_GQL",
+    "CREATE_USER_FROM_ADMIN_GQL",
+    "DELETE_API_KEY_GQL",
     "DELETE_PROJECT_GQL",
     "FETCH_REGISTRY_GQL",
+    "GENERATE_API_KEY_GQL",
+    "GET_DEFAULT_ENTITY_GQL",
     "GET_PROJECTS_GQL",
     "GET_PROJECT_GQL",
+    "GET_VIEWER_GQL",
     "RENAME_PROJECT_GQL",
+    "SEARCH_USERS_GQL",
     "UPSERT_REGISTRY_PROJECT_GQL",
 ]
 
@@ -153,5 +159,138 @@ mutation CreateProject($description: String, $entityName: String, $id: String, $
     }
     inserted
   }
+}
+"""
+
+SEARCH_USERS_GQL = """
+query SearchUsers($query: String) {
+  users(query: $query) {
+    edges {
+      node {
+        ...FullUserFragment
+      }
+    }
+  }
+}
+
+fragment ApiKeyFragment on ApiKey {
+  id
+  name
+  description
+}
+
+fragment FullUserFragment on User {
+  id
+  name
+  username
+  email
+  admin
+  flags
+  entity
+  deletedAt
+  apiKeys {
+    edges {
+      node {
+        ...ApiKeyFragment
+      }
+    }
+  }
+  teams {
+    edges {
+      node {
+        name
+      }
+    }
+  }
+}
+"""
+
+GET_VIEWER_GQL = """
+query GetViewer {
+  viewer {
+    ...FullUserFragment
+  }
+}
+
+fragment ApiKeyFragment on ApiKey {
+  id
+  name
+  description
+}
+
+fragment FullUserFragment on User {
+  id
+  name
+  username
+  email
+  admin
+  flags
+  entity
+  deletedAt
+  apiKeys {
+    edges {
+      node {
+        ...ApiKeyFragment
+      }
+    }
+  }
+  teams {
+    edges {
+      node {
+        name
+      }
+    }
+  }
+}
+"""
+
+GET_DEFAULT_ENTITY_GQL = """
+query GetDefaultEntity {
+  viewer {
+    id
+    entity
+  }
+}
+"""
+
+CREATE_USER_FROM_ADMIN_GQL = """
+mutation CreateUserFromAdmin($email: String!, $admin: Boolean) {
+  createUser(input: {email: $email, admin: $admin}) {
+    user {
+      ...UserFragment
+    }
+  }
+}
+
+fragment UserFragment on User {
+  id
+  name
+  username
+  email
+  admin
+}
+"""
+
+DELETE_API_KEY_GQL = """
+mutation DeleteApiKey($id: String!) {
+  deleteApiKey(input: {id: $id}) {
+    success
+  }
+}
+"""
+
+GENERATE_API_KEY_GQL = """
+mutation GenerateApiKey($description: String) {
+  generateApiKey(input: {description: $description}) {
+    apiKey {
+      ...ApiKeyFragment
+    }
+  }
+}
+
+fragment ApiKeyFragment on ApiKey {
+  id
+  name
+  description
 }
 """
