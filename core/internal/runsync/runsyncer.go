@@ -35,6 +35,7 @@ type RunSyncerFactory struct {
 type RunSyncer struct {
 	mu      sync.Mutex
 	runInfo *RunInfo
+	active  bool // whether Sync() is currently running
 
 	path string
 
@@ -73,17 +74,31 @@ func (f *RunSyncerFactory) New(path string) *RunSyncer {
 	}
 }
 
-// Sync uploads the .wandb file.
-func (rs *RunSyncer) Sync() {
+// Init loads basic information about the run being synced.
+func (rs *RunSyncer) Init() (*RunInfo, error) {
 	runInfo, err := rs.runReader.ExtractRunInfo()
 	if err != nil {
-		// TODO: Emit error.
-		logSyncFailure(rs.logger, err)
-		return
+		return nil, err
 	}
+
 	rs.mu.Lock()
 	rs.runInfo = runInfo
 	rs.mu.Unlock()
+
+	return runInfo, nil
+}
+
+// Sync uploads the .wandb file.
+func (rs *RunSyncer) Sync() error {
+	rs.mu.Lock()
+	rs.active = true
+	rs.mu.Unlock()
+
+	defer func() {
+		rs.mu.Lock()
+		rs.active = false
+		rs.mu.Unlock()
+	}()
 
 	g := &errgroup.Group{}
 
@@ -99,22 +114,28 @@ func (rs *RunSyncer) Sync() {
 		return nil
 	})
 
-	err = g.Wait()
+	err := g.Wait()
 	if err != nil {
-		// TODO: Emit error.
 		logSyncFailure(rs.logger, err)
-	} else {
-		rs.printer.Writef("Finished syncing %s", rs.path)
+		return err
 	}
+
+	rs.printer.Writef("Finished syncing %s", rs.path)
+	return nil
 }
 
 // AddStats inserts the sync operation's status info into the map
 // keyed by the run's path.
+//
+// Only modifies the map if Sync() is running. It is possible for
+// multiple syncers to exist for the same path (such as when resuming)
+// but it is assumed they do not run simultaneously.
 func (rs *RunSyncer) AddStats(status map[string]*spb.OperationStats) {
 	rs.mu.Lock()
+	active := rs.active
 	runInfo := rs.runInfo
 	rs.mu.Unlock()
-	if runInfo == nil {
+	if !active || runInfo == nil {
 		return
 	}
 
