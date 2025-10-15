@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Literal
 
 from wandb_gql import gql
 
@@ -35,11 +37,11 @@ class Registry:
 
     def __init__(
         self,
-        client: "Client",
+        client: Client,
         organization: str,
         entity: str,
         name: str,
-        attrs: Optional[Dict[str, Any]] = None,
+        attrs: dict[str, Any] | None = None,
     ):
         self.client = client
         self._name = name
@@ -49,7 +51,7 @@ class Registry:
         if attrs is not None:
             self._update_attributes(attrs)
 
-    def _update_attributes(self, attrs: Dict[str, Any]) -> None:
+    def _update_attributes(self, attrs: dict[str, Any]) -> None:
         """Helper method to update instance attributes from a dictionary."""
         self._id = attrs.get("id", "")
         if self._id is None:
@@ -127,14 +129,17 @@ class Registry:
             Previously saved artifact types cannot be removed.
 
         Example:
-            ```python
-            registry.artifact_types.append("model")
-            registry.save()  # once saved, the artifact type `model` cannot be removed
-            registry.artifact_types.append("accidentally_added")
-            registry.artifact_types.remove(
-                "accidentally_added"
-            )  # Types can only be removed if it has not been saved yet
-            ```
+        ```python
+        import wandb
+
+        registry = wandb.Api().create_registry()
+        registry.artifact_types.append("model")
+        registry.save()  # once saved, the artifact type `model` cannot be removed
+        registry.artifact_types.append("accidentally_added")
+        registry.artifact_types.remove(
+            "accidentally_added"
+        )  # Types can only be removed if it has not been saved yet
+        ```
         """
         return self._artifact_types
 
@@ -179,7 +184,7 @@ class Registry:
         self._visibility = value
 
     @tracked
-    def collections(self, filter: Optional[Dict[str, Any]] = None) -> Collections:
+    def collections(self, filter: dict[str, Any] | None = None) -> Collections:
         """Returns the collections belonging to the registry."""
         registry_filter = {
             "name": self.full_name,
@@ -187,7 +192,7 @@ class Registry:
         return Collections(self.client, self.organization, registry_filter, filter)
 
     @tracked
-    def versions(self, filter: Optional[Dict[str, Any]] = None) -> Versions:
+    def versions(self, filter: dict[str, Any] | None = None) -> Versions:
         """Returns the versions belonging to the registry."""
         registry_filter = {
             "name": self.full_name,
@@ -198,12 +203,12 @@ class Registry:
     @tracked
     def create(
         cls,
-        client: "Client",
+        client: Client,
         organization: str,
         name: str,
         visibility: Literal["organization", "restricted"],
-        description: Optional[str] = None,
-        artifact_types: Optional[List[str]] = None,
+        description: str | None = None,
+        artifact_types: list[str] | None = None,
     ):
         """Create a new registry.
 

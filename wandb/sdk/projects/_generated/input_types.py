@@ -5,9 +5,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from wandb._pydantic import GQLBase
+from wandb._pydantic import GQLInput
 
 
-class ArtifactTypeInput(GQLBase):
+class ArtifactTypeInput(GQLInput):
     name: str
     description: Optional[str] = None

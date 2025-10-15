@@ -417,10 +417,11 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
     if job_source == "code":
         job_source = "artifact"
 
-    settings = wandb.Settings(x_files_dir=tmpdir, job_source=job_source)
+    settings = wandb.Settings(job_source=job_source)
     job_builder = JobBuilder(
         settings=settings,  # type: ignore
         verbose=True,
+        files_dir=tmpdir,
     )
     job_builder._partial = True
     # never allow notebook runs

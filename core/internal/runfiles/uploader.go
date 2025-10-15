@@ -14,6 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
@@ -25,13 +26,15 @@ import (
 
 // uploader is the implementation of the Uploader interface.
 type uploader struct {
-	extraWork     runwork.ExtraWork
-	logger        *observability.CoreLogger
-	operations    *wboperation.WandbOperations
-	fs            filestream.FileStream
-	ftm           filetransfer.FileTransferManager
-	settings      *settings.Settings
-	graphQL       graphql.Client
+	extraWork  runwork.ExtraWork
+	fs         filestream.FileStream
+	ftm        filetransfer.FileTransferManager
+	graphQL    graphql.Client
+	logger     *observability.CoreLogger
+	operations *wboperation.WandbOperations
+	runHandle  *runhandle.RunHandle
+	settings   *settings.Settings
+
 	uploadBatcher *uploadBatcher
 
 	// Files in the run's files directory that we know.
@@ -78,12 +81,13 @@ func newUploader(
 
 	uploader := &uploader{
 		extraWork:  extraWork,
-		logger:     f.Logger,
-		operations: f.Operations,
 		fs:         fileStream,
 		ftm:        f.FileTransfer,
-		settings:   f.Settings,
 		graphQL:    f.GraphQL,
+		logger:     f.Logger,
+		operations: f.Operations,
+		runHandle:  f.RunHandle,
+		settings:   f.Settings,
 
 		knownFiles:  make(map[paths.RelativePath]*savedFile),
 		uploadAtEnd: make(map[paths.RelativePath]struct{}),
@@ -291,6 +295,13 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 
 	u.logger.Debug("runfiles: uploading files", "files", runPaths)
 
+	runUpserter, err := u.runHandle.Upserter()
+	if err != nil {
+		u.logger.CaptureError(fmt.Errorf("runfiles: %v", err))
+		return
+	}
+	runFullID := runUpserter.RunPath()
+
 	runPaths = u.filterNonExistingAndWarn(runPaths)
 	runPaths = u.filterIgnored(runPaths)
 	u.uploadWG.Add(len(runPaths))
@@ -304,9 +315,9 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 		createRunFilesResponse, err := gql.CreateRunFiles(
 			u.extraWork.BeforeEndCtx(),
 			u.graphQL,
-			u.settings.GetEntity(),
-			u.settings.GetProject(),
-			u.settings.GetRunID(),
+			runFullID.Entity,
+			runFullID.Project,
+			runFullID.RunID,
 			runSlashPaths,
 		)
 		if err != nil {

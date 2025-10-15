@@ -18,14 +18,14 @@ from wandb.sdk.artifacts._generated import (
     REGISTRY_VERSIONS_GQL,
     ArtifactCollectionType,
     FetchRegistries,
-    RegistriesPage,
+    RegistryCollectionConnectionFragment,
     RegistryCollections,
-    RegistryCollectionsPage,
+    RegistryConnectionFragment,
+    RegistryVersionConnectionFragment,
     RegistryVersions,
-    RegistryVersionsPage,
 )
-from wandb.sdk.artifacts._graphql_fragments import omit_artifact_fields
-from wandb.sdk.artifacts._validators import remove_registry_prefix
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
+from wandb.sdk.artifacts._validators import FullArtifactPath, remove_registry_prefix
 
 from ._utils import ensure_registry_prefix_on_names
 
@@ -40,7 +40,7 @@ class Registries(Paginator):
 
     QUERY = gql(FETCH_REGISTRIES_GQL)
 
-    last_response: RegistriesPage | None
+    last_response: RegistryConnectionFragment | None
     _last_org_entity: str | None
 
     def __init__(
@@ -117,8 +117,8 @@ class Registries(Paginator):
             )
 
         try:
-            page_data = org_entity.projects
-            self.last_response = RegistriesPage.model_validate(page_data)
+            conn = org_entity.projects
+            self.last_response = RegistryConnectionFragment.model_validate(conn)
             self._last_org_entity = org_entity.name
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
@@ -147,7 +147,7 @@ class Collections(Paginator["ArtifactCollection"]):
 
     QUERY = gql(REGISTRY_COLLECTIONS_GQL)
 
-    last_response: RegistryCollectionsPage | None
+    last_response: RegistryCollectionConnectionFragment | None
 
     def __init__(
         self,
@@ -212,17 +212,16 @@ class Collections(Paginator["ArtifactCollection"]):
     def _update_response(self) -> None:
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = RegistryCollections.model_validate(data)
-        if not (
-            (org_data := result.organization)
-            and (org_entity_data := org_data.org_entity)
-        ):
+        if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
                 f"Organization {self.organization!r} not found. Please verify the organization name is correct."
             )
 
         try:
-            page_data = org_entity_data.artifact_collections
-            self.last_response = RegistryCollectionsPage.model_validate(page_data)
+            conn = org_entity.artifact_collections
+            self.last_response = RegistryCollectionConnectionFragment.model_validate(
+                conn
+            )
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
@@ -236,7 +235,7 @@ class Collections(Paginator["ArtifactCollection"]):
         return [
             ArtifactCollection(
                 client=self.client,
-                entity=project.entity.name,
+                entity=project.entity_name,
                 project=project.name,
                 name=node.name,
                 type=node.default_artifact_type.name,
@@ -252,7 +251,7 @@ class Collections(Paginator["ArtifactCollection"]):
 class Versions(Paginator["Artifact"]):
     """An lazy iterator of `Artifact` objects in a Registry."""
 
-    last_response: RegistryVersionsPage | None
+    last_response: RegistryVersionConnectionFragment | None
 
     def __init__(
         self,
@@ -270,7 +269,7 @@ class Versions(Paginator["Artifact"]):
         self.artifact_filter = artifact_filter or {}
 
         self.QUERY = gql_compat(
-            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields()
+            REGISTRY_VERSIONS_GQL, omit_fields=omit_artifact_fields(client)
         )
 
         variables = {
@@ -312,17 +311,14 @@ class Versions(Paginator["Artifact"]):
     def _update_response(self) -> None:
         data = self.client.execute(self.QUERY, variable_values=self.variables)
         result = RegistryVersions.model_validate(data)
-        if not (
-            (org_data := result.organization)
-            and (org_entity_data := org_data.org_entity)
-        ):
+        if not ((org := result.organization) and (org_entity := org.org_entity)):
             raise ValueError(
                 f"Organization {self.organization!r} not found. Please verify the organization name is correct."
             )
 
         try:
-            page_data = org_entity_data.artifact_memberships
-            self.last_response = RegistryVersionsPage.model_validate(page_data)
+            conn = org_entity.artifact_memberships
+            self.last_response = RegistryVersionConnectionFragment.model_validate(conn)
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
 
@@ -335,9 +331,11 @@ class Versions(Paginator["Artifact"]):
         nodes = (e.node for e in self.last_response.edges)
         return [
             Artifact._from_attrs(
-                entity=project.entity.name,
-                project=project.name,
-                name=f"{collection.name}:v{node.version_index}",
+                path=FullArtifactPath(
+                    prefix=project.entity_name,
+                    project=project.name,
+                    name=f"{collection.name}:v{node.version_index}",
+                ),
                 attrs=artifact,
                 client=self.client,
                 aliases=[alias.alias for alias in node.aliases],

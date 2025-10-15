@@ -14,7 +14,7 @@ import wandb
 from wandb.proto.wandb_sync_pb2 import ServerSyncResponse
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import asyncio_compat
-from wandb.sdk.lib.printer import ERROR, Printer, new_printer
+from wandb.sdk.lib.printer import Printer, new_printer
 from wandb.sdk.lib.progress import progress_printer
 from wandb.sdk.lib.service.service_connection import ServiceConnection
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
@@ -86,12 +86,10 @@ async def _do_sync(
 
     This is factored out to make the progress animation testable.
     """
-    init_result = await service.init_sync(
-        wandb_files,
-        settings,
-    ).wait_async(timeout=5)
+    init_handle = await service.init_sync(wandb_files, settings)
+    init_result = await init_handle.wait_async(timeout=5)
 
-    sync_handle = service.sync(init_result.id, parallelism=parallelism)
+    sync_handle = await service.sync(init_result.id, parallelism=parallelism)
 
     await _SyncStatusLoop(
         init_result.id,
@@ -130,20 +128,20 @@ class _SyncStatusLoop:
         handle: MailboxHandle[ServerSyncResponse],
     ) -> None:
         response = await handle.wait_async(timeout=None)
-        if messages := list(response.errors):
-            self._printer.display(messages, level=ERROR)
+        for msg in response.messages:
+            self._printer.display(msg.content, level=msg.severity)
         self._done.set()
 
     async def _show_progress_until_done(self) -> None:
         """Show rate-limited status updates until _done is set."""
         with progress_printer(self._printer, "Syncing...") as progress:
             while not await self._rate_limit_check_done():
-                handle = self._service.sync_status(self._id)
+                handle = await self._service.sync_status(self._id)
                 response = await handle.wait_async(timeout=None)
 
-                if messages := list(response.new_errors):
-                    self._printer.display(messages, level=ERROR)
-                progress.update(response.stats)
+                for msg in response.new_messages:
+                    self._printer.display(msg.content, level=msg.severity)
+                progress.update(dict(response.stats))
 
     async def _rate_limit_check_done(self) -> bool:
         """Wait for rate limit and return whether _done is set."""

@@ -89,7 +89,7 @@ class Mailbox:
         def generate():
             return "".join(
                 secrets.choice(string.ascii_lowercase + string.digits)
-                for i in range(12)
+                for _ in range(12)
             )
 
         address = generate()

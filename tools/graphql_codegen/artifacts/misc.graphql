@@ -1,0 +1,25 @@
+fragment PageInfoFragment on PageInfo {
+  __typename
+  endCursor
+  hasNextPage
+}
+
+# Query for info on a GraphQL type to check for server compatibility
+fragment TypeInfoFragment on __Type {
+  name
+  fields {
+    name
+    args {
+      name
+    }
+  }
+  inputFields {
+    name
+  }
+}
+
+query TypeInfo($name: String!) {
+  __type(name: $name) {
+    ...TypeInfoFragment
+  }
+}

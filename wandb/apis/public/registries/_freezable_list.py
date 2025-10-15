@@ -1,14 +1,13 @@
+from __future__ import annotations
+
 from itertools import chain
 from typing import (
     Any,
     Iterable,
     Iterator,
-    List,
     MutableSequence,
     Sequence,
-    Tuple,
     TypeVar,
-    Union,
     final,
     overload,
 )
@@ -29,9 +28,9 @@ class FreezableList(MutableSequence[T]):
     Any initial items passed to the constructor are saved.
     """
 
-    def __init__(self, iterable: Union[Iterable[T], None] = None, /) -> None:
-        self._frozen: Tuple[T, ...] = tuple(iterable or ())
-        self._draft: List[T] = []
+    def __init__(self, iterable: Iterable[T] | None = None, /) -> None:
+        self._frozen: tuple[T, ...] = tuple(iterable or ())
+        self._draft: list[T] = []
 
     def append(self, value: T) -> None:
         """Append an item to the draft list. No duplicates are allowed."""
@@ -72,7 +71,7 @@ class FreezableList(MutableSequence[T]):
     @overload
     def __getitem__(self, index: slice) -> Sequence[T]: ...
 
-    def __getitem__(self, index: Union[int, slice]) -> Union[T, Sequence[T]]:
+    def __getitem__(self, index: int | slice) -> T | Sequence[T]:
         return [*self._frozen, *self._draft][index]
 
     @overload
@@ -81,9 +80,7 @@ class FreezableList(MutableSequence[T]):
     @overload
     def __setitem__(self, index: slice, value: Iterable[T]) -> None: ...
 
-    def __setitem__(
-        self, index: Union[int, slice], value: Union[T, Iterable[T]]
-    ) -> None:
+    def __setitem__(self, index: int | slice, value: T | Iterable[T]) -> None:
         if isinstance(index, slice):
             # Setting slices might affect saved items, disallow for simplicity
             raise TypeError(f"{nameof(type(self))!r} does not support slice assignment")
@@ -109,7 +106,7 @@ class FreezableList(MutableSequence[T]):
     @overload
     def __delitem__(self, index: slice) -> None: ...
 
-    def __delitem__(self, index: Union[int, slice]) -> None:
+    def __delitem__(self, index: int | slice) -> None:
         if isinstance(index, slice):
             raise TypeError(f"{nameof(type(self))!r} does not support slice deletion")
         else:
@@ -161,7 +158,7 @@ class FreezableList(MutableSequence[T]):
         return f"{nameof(type(self))}(frozen={list(self._frozen)!r}, draft={list(self._draft)!r})"
 
     @property
-    def draft(self) -> Tuple[T, ...]:
+    def draft(self) -> tuple[T, ...]:
         """A read-only, tuple copy of the current draft items."""
         return tuple(self._draft)
 

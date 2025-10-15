@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+import "wandb/proto/wandb_base.proto";
+
+option go_package = "core/pkg/service_go_proto";
+
+// ApiRequest is a request to the backend process
+// to perform an action related to an API call.
+message ApiRequest {
+  oneof request {
+    ReadRunHistoryApiRequest read_run_history = 1;
+  }
+}
+
+// ApiResponse is a response from the backend process for an ApiRequest.
+message ApiResponse {
+  oneof response {
+    ReadRunHistoryApiResponse read_run_history = 1;
+  }
+}
+
+// Start of Read run history
+// ReadRunHistoryApiRequest is a request to get a slice of a run's history.
+
+message ReadRunHistoryApiRequest {
+  string entity = 1;
+  string project = 2;
+  string run_id = 3;
+  repeated string keys = 4;
+  int64 min_step = 5;
+  int64 max_step = 6;
+
+  _RecordInfo _info = 200;
+}
+
+message ReadRunHistoryApiResponse {
+  repeated HistoryRow history_rows = 1;
+  string error_message = 2;
+}
+
+message HistoryRow {
+  repeated ParquetHistoryItem history_items = 1;
+}
+
+message ParquetHistoryItem {
+  string key = 1;
+  string value_json = 16;
+}
+
+// End of Read run history

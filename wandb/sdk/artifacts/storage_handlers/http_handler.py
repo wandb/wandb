@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 from urllib.parse import ParseResult
 
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
@@ -18,11 +18,16 @@ if TYPE_CHECKING:
     from requests.structures import CaseInsensitiveDict
 
     from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 
 
 class HTTPHandler(StorageHandler):
-    def __init__(self, session: requests.Session, scheme: str | None = None) -> None:
-        self._scheme = scheme or "http"
+    _scheme: str
+    _cache: ArtifactFileCache
+    _session: requests.Session
+
+    def __init__(self, session: requests.Session, scheme: str = "http") -> None:
+        self._scheme = scheme
         self._cache = get_artifact_file_cache()
         self._session = session
 
@@ -43,7 +48,7 @@ class HTTPHandler(StorageHandler):
         path, hit, cache_open = self._cache.check_etag_obj_path(
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),
-            manifest_entry.size if manifest_entry.size is not None else 0,
+            manifest_entry.size or 0,
         )
         if hit:
             return path
@@ -54,7 +59,6 @@ class HTTPHandler(StorageHandler):
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
         )
-        response.raise_for_status()
 
         digest: ETag | FilePathStr | URIStr | None
         digest, size, extra = self._entry_from_headers(response.headers)
@@ -76,7 +80,7 @@ class HTTPHandler(StorageHandler):
         name: StrPath | None = None,
         checksum: bool = True,
         max_objects: int | None = None,
-    ) -> Sequence[ArtifactManifestEntry]:
+    ) -> list[ArtifactManifestEntry]:
         name = name or os.path.basename(path)
         if not checksum:
             return [ArtifactManifestEntry(path=name, ref=path, digest=path)]
@@ -87,7 +91,6 @@ class HTTPHandler(StorageHandler):
             cookies=_thread_local_api_settings.cookies,
             headers=_thread_local_api_settings.headers,
         ) as response:
-            response.raise_for_status()
             digest: ETag | FilePathStr | URIStr | None
             digest, size, extra = self._entry_from_headers(response.headers)
             digest = digest or path

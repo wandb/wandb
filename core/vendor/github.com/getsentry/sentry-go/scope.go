@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/getsentry/sentry-go/internal/debuglog"
 )
 
 // Scope holds contextual data for the current scope.
@@ -472,7 +474,7 @@ func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) 
 		id := event.EventID
 		event = processor(event, hint)
 		if event == nil {
-			DebugLogger.Printf("Event dropped by one of the Scope EventProcessors: %s\n", id)
+			debuglog.Printf("Event dropped by one of the Scope EventProcessors: %s\n", id)
 			return nil
 		}
 	}

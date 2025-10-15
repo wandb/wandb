@@ -86,7 +86,7 @@ def api(user: str) -> wandb.Api:
     with unittest.mock.patch.object(
         wandb.sdk.wandb_login,
         "_login",
-        return_value=True,
+        return_value=(True, None),
     ):
         yield wandb.Api()
 
@@ -130,7 +130,7 @@ def make_webhook_integration(
         params = {"name": name, "entityName": entity, "urlEndpoint": url}
         data = api.client.execute(
             gql(CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL),
-            variable_values={"params": params},
+            variable_values={"input": params},
         )
 
         result = CreateGenericWebhookIntegration(**data)

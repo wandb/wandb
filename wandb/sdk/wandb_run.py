@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import functools
 import glob
 import json
@@ -41,10 +40,9 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
-from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
-from wandb.sdk.lib import asyncio_compat, wb_logging
+from wandb.sdk.lib import wb_logging
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
     unregister_post_import_hook,
@@ -489,7 +487,7 @@ class Run:
 
     You can log data to a run with `wandb.Run.log()`. Anything you log using
     `wandb.Run.log()` is sent to that run. See
-    [Create an experiment](https://docs.wandb.ai/guides/track/launch) or
+    [Create an experiment](https://docs.wandb.ai/guides/track/create-an-experiment/) or
     [`wandb.init`](https://docs.wandb.ai/ref/python/init/) API reference page
     or more information.
 
@@ -2051,6 +2049,9 @@ class Run:
         When given an absolute path or glob and no `base_path`, one
         directory level is preserved as in the example above.
 
+        Files are automatically deduplicated: calling `save()` multiple times
+        on the same file without modifications will not re-upload it.
+
         Args:
             glob_str: A relative or absolute path or Unix glob.
             base_path: A path to use to infer a directory structure; see examples.
@@ -2075,10 +2076,10 @@ class Run:
         run.save("these/are/myfiles/*", base_path="these")
         # => Saves files in an "are/myfiles/" folder in the run.
 
-        run.save("/User/username/Documents/run123/*.txt")
+        run.save("/Users/username/Documents/run123/*.txt")
         # => Saves files in a "run123/" folder in the run. See note below.
 
-        run.save("/User/username/Documents/run123/*.txt", base_path="/User")
+        run.save("/Users/username/Documents/run123/*.txt", base_path="/Users")
         # => Saves files in a "username/Documents/run123/" folder in the run.
 
         run.save("files/*/saveme.txt")
@@ -2679,39 +2680,6 @@ class Run:
         else:
             return artifact
 
-    async def _display_finish_stats(
-        self,
-        progress_printer: progress.ProgressPrinter,
-    ) -> None:
-        last_result: Result | None = None
-
-        async def loop_update_printer() -> None:
-            while True:
-                if last_result:
-                    progress_printer.update(
-                        [last_result.response.poll_exit_response],
-                    )
-                await asyncio.sleep(0.1)
-
-        async def loop_poll_exit() -> None:
-            nonlocal last_result
-            assert self._backend and self._backend.interface
-
-            while True:
-                handle = self._backend.interface.deliver_poll_exit()
-
-                time_start = time.monotonic()
-                last_result = await handle.wait_async(timeout=None)
-
-                # Update at most once a second.
-                time_elapsed = time.monotonic() - time_start
-                if time_elapsed < 1:
-                    await asyncio.sleep(1 - time_elapsed)
-
-        async with asyncio_compat.open_task_group() as task_group:
-            task_group.start_soon(loop_update_printer())
-            task_group.start_soon(loop_poll_exit())
-
     def _on_finish(self) -> None:
         trigger.call("on_finished")
 
@@ -2736,8 +2704,9 @@ class Run:
                 exit_handle,
                 timeout=None,
                 display_progress=functools.partial(
-                    self._display_finish_stats,
+                    progress.loop_printing_operation_stats,
                     progress_printer,
+                    self._backend.interface,
                 ),
             )
 
@@ -3004,7 +2973,7 @@ class Run:
         # the target entity to the run's entity.  Instead, delegate to
         # Artifact.link() to resolve the required org entity.
         target = ArtifactPath.from_str(target_path)
-        if not (target.project and is_artifact_registry_project(target.project)):
+        if not target.is_registry_path():
             target = target.with_defaults(prefix=self.entity, project=self.project)
 
         return artifact.link(target.to_str(), aliases)

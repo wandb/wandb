@@ -4,7 +4,6 @@ import random
 import tempfile
 from multiprocessing import Pool
 from pathlib import Path
-from urllib.parse import urlparse
 
 import pytest
 import wandb
@@ -13,7 +12,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.staging import get_staging_dir
-from wandb.sdk.artifacts.storage_handler import StorageHandler
+from wandb.sdk.artifacts.storage_handler import StorageHandler, _BaseStorageHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
@@ -525,22 +524,23 @@ def test_storage_policy_incomplete():
     policy = StoragePolicy.lookup_by_name("UnfinishedStoragePolicy")
     assert policy is UnfinishedStoragePolicy
 
-    with pytest.raises(NotImplementedError, match="Failed to find storage policy"):
+    with pytest.raises(ValueError, match="Failed to find storage policy"):
         StoragePolicy.lookup_by_name("NotAStoragePolicy")
 
 
 def test_storage_handler_incomplete():
-    class UnfinishedStorageHandler(StorageHandler):
+    class UnfinishedStorageHandler(_BaseStorageHandler):
         pass
 
-    ush = UnfinishedStorageHandler()
+    # Instantiation should fail if the StorageHandler impl doesn't fully implement all abstract methods.
+    with pytest.raises(TypeError):
+        UnfinishedStorageHandler()
 
-    with pytest.raises(NotImplementedError):
-        ush.can_handle(parsed_url=urlparse("https://wandb.com"))
-    with pytest.raises(NotImplementedError):
-        ush.load_path(manifest_entry=None)
-    with pytest.raises(NotImplementedError):
-        ush.store_path(artifact=None, path="")
+    class UnfinishedSingleStorageHandler(StorageHandler):
+        pass
+
+    with pytest.raises(TypeError):
+        UnfinishedSingleStorageHandler()
 
 
 def test_unwritable_staging_dir(monkeypatch):
@@ -562,3 +562,15 @@ def test_invalid_upload_policy():
         artifact.add_file(local_path=path, name="file.json", policy="tmp")
     with pytest.raises(ValueError):
         artifact.add_dir(local_path=path, policy="tmp")
+
+
+def test_storage_policy_storage_region():
+    wandb.Artifact("test", type="dataset", storage_region="coreweave-us")
+    # local verification does not query from server to know the actual supported regions
+    wandb.Artifact("test", type="dataset", storage_region="coreweave-404")
+    with pytest.raises(TypeError):
+        wandb.Artifact("test", type="dataset", storage_region=123)
+    with pytest.raises(ValueError):
+        wandb.Artifact("test", type="dataset", storage_region="")
+    with pytest.raises(ValueError):
+        wandb.Artifact("test", type="dataset", storage_region=" ")

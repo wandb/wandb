@@ -11,22 +11,14 @@ You might use the Public API to
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
 import urllib
 from http import HTTPStatus
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Iterator,
-    List,
-    Literal,
-    Optional,
-    Set,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Iterator, Literal
 
 import requests
 from pydantic import ValidationError
@@ -42,9 +34,8 @@ from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.apis.public.registries import Registries, Registry
 from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
-from wandb.apis.public.registries.registries_search import Registries
-from wandb.apis.public.registries.registry import Registry
 from wandb.apis.public.utils import (
     PathType,
     fetch_org_from_settings_or_entity,
@@ -54,7 +45,11 @@ from wandb.apis.public.utils import (
 from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_login
-from wandb.sdk.artifacts._validators import is_artifact_registry_project
+from wandb.sdk.artifacts._validators import (
+    ArtifactPath,
+    FullArtifactPath,
+    is_artifact_registry_project,
+)
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
@@ -73,6 +68,17 @@ if TYPE_CHECKING:
         WebhookIntegration,
     )
     from wandb.automations._utils import WriteAutomationsKwargs
+    from wandb.sdk.artifacts.artifact import Artifact
+
+    from .artifacts import (
+        ArtifactCollection,
+        ArtifactCollections,
+        Artifacts,
+        ArtifactType,
+        ArtifactTypes,
+    )
+    from .teams import Team
+    from .users import User
 
 logger = logging.getLogger(__name__)
 
@@ -277,9 +283,9 @@ class Api:
 
     def __init__(
         self,
-        overrides: Optional[Dict[str, Any]] = None,
-        timeout: Optional[int] = None,
-        api_key: Optional[str] = None,
+        overrides: dict[str, Any] | None = None,
+        timeout: int | None = None,
+        api_key: str | None = None,
     ) -> None:
         """Initialize the API.
 
@@ -291,6 +297,8 @@ class Api:
                 specified, the default timeout will be used.
             api_key: API key to use for authentication. If not provided,
                 the API key from the current environment or configuration will be used.
+                Prompts for an API key if none is provided
+                or configured in the environment.
         """
         self.settings = InternalApi().settings()
 
@@ -305,18 +313,16 @@ class Api:
             )
             self.settings["entity"] = _overrides["username"]
 
-        self._api_key = api_key
-        if _thread_local_api_settings.cookies is None:
-            wandb_login._login(
-                host=self.settings["base_url"],
+        use_api_key = api_key is not None or _thread_local_api_settings.cookies is None
+
+        if use_api_key:
+            self.api_key = self._load_api_key(
+                base_url=self.settings["base_url"],
+                init_api_key=api_key,
+            )
+            wandb_login._verify_login(
                 key=self.api_key,
-                verify=True,
-                _silent=(
-                    self.settings.get("silent", False)
-                    or self.settings.get("quiet", False)
-                ),
-                update_api_key=False,
-                _disable_warning=True,
+                base_url=self.settings["base_url"],
             )
 
         self._viewer = None
@@ -327,7 +333,7 @@ class Api:
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
         auth = None
-        if not _thread_local_api_settings.cookies:
+        if use_api_key:
             auth = ("api", self.api_key)
         proxies = self.settings.get("_proxies") or json.loads(
             os.environ.get("WANDB__PROXIES", "{}")
@@ -352,6 +358,46 @@ class Api:
         self._client = RetryingClient(self._base_client)
         self._sentry = wandb.analytics.sentry.Sentry()
         self._configure_sentry()
+
+    def _load_api_key(
+        self,
+        base_url: str,
+        init_api_key: str | None = None,
+    ) -> str:
+        """Attempts to load a configured API key or prompt if one is not found.
+
+        The API key is loaded in the following order:
+            1. User explicitly provided api key
+            2. Thread local api key
+            3. Environment variable
+            4. Netrc file
+            5. Prompt for api key using wandb.login
+        """
+        # Use explicit key before thread local.
+        # This allow user switching keys without picking up the wrong key from thread local.
+        if init_api_key is not None:
+            return init_api_key
+        if _thread_local_api_settings.api_key:
+            return _thread_local_api_settings.api_key
+        if os.getenv("WANDB_API_KEY"):
+            return os.environ["WANDB_API_KEY"]
+
+        auth = requests.utils.get_netrc_auth(base_url)
+        if auth:
+            return auth[-1]
+
+        _, prompted_key = wandb_login._login(
+            host=base_url,
+            key=None,
+            # We will explicitly verify the key later
+            verify=False,
+            _silent=(
+                self.settings.get("silent", False) or self.settings.get("quiet", False)
+            ),
+            update_api_key=False,
+            _disable_warning=True,
+        )
+        return prompted_key
 
     def _configure_sentry(self) -> None:
         try:
@@ -382,10 +428,10 @@ class Api:
     def create_run(
         self,
         *,
-        run_id: Optional[str] = None,
-        project: Optional[str] = None,
-        entity: Optional[str] = None,
-    ) -> "public.Run":
+        run_id: str | None = None,
+        project: str | None = None,
+        entity: str | None = None,
+    ) -> public.Run:
         """Create a new run.
 
         Args:
@@ -406,12 +452,12 @@ class Api:
     def create_run_queue(
         self,
         name: str,
-        type: "public.RunQueueResourceType",
-        entity: Optional[str] = None,
-        prioritization_mode: Optional["public.RunQueuePrioritizationMode"] = None,
-        config: Optional[dict] = None,
-        template_variables: Optional[dict] = None,
-    ) -> "public.RunQueue":
+        type: public.RunQueueResourceType,
+        entity: str | None = None,
+        prioritization_mode: public.RunQueuePrioritizationMode | None = None,
+        config: dict | None = None,
+        template_variables: dict | None = None,
+    ) -> public.RunQueue:
         """Create a new run queue in W&B Launch.
 
         Args:
@@ -517,7 +563,7 @@ class Api:
         display_name: str,
         spec_type: Literal["vega2"],
         access: Literal["private", "public"],
-        spec: Union[str, dict],
+        spec: str | dict,
     ) -> str:
         """Create a custom chart preset and return its id.
 
@@ -593,11 +639,11 @@ class Api:
         self,
         name: str,
         resource_config: dict,
-        resource_type: "public.RunQueueResourceType",
-        entity: Optional[str] = None,
-        template_variables: Optional[dict] = None,
-        external_links: Optional[dict] = None,
-        prioritization_mode: Optional["public.RunQueuePrioritizationMode"] = None,
+        resource_type: public.RunQueueResourceType,
+        entity: str | None = None,
+        template_variables: dict | None = None,
+        external_links: dict | None = None,
+        prioritization_mode: public.RunQueuePrioritizationMode | None = None,
     ):
         """Upsert a run queue in W&B Launch.
 
@@ -698,7 +744,7 @@ class Api:
             entity=entity,
         )
 
-    def create_user(self, email: str, admin: Optional[bool] = False):
+    def create_user(self, email: str, admin: bool | None = False) -> User:
         """Create a new user.
 
         Args:
@@ -708,7 +754,9 @@ class Api:
         Returns:
             A `User` object.
         """
-        return public.User.create(self, email, admin)
+        from .users import User
+
+        return User.create(self, email, admin)
 
     def sync_tensorboard(self, root_dir, run_id=None, project=None, entity=None):
         """Sync a local directory containing tfevent files to wandb."""
@@ -745,25 +793,7 @@ class Api:
         return "W&B Public Client {}".format(wandb.__version__)
 
     @property
-    def api_key(self) -> Optional[str]:
-        """Returns W&B API key."""
-        # just use thread local api key if it's set
-        if _thread_local_api_settings.api_key:
-            return _thread_local_api_settings.api_key
-        if self._api_key is not None:
-            return self._api_key
-        auth = requests.utils.get_netrc_auth(self.settings["base_url"])
-        key = None
-        if auth:
-            key = auth[-1]
-        # Environment should take precedence
-        if os.getenv("WANDB_API_KEY"):
-            key = os.environ["WANDB_API_KEY"]
-        self._api_key = key  # memoize key
-        return key
-
-    @property
-    def default_entity(self) -> Optional[str]:
+    def default_entity(self) -> str | None:
         """Returns the default W&B entity."""
         if self._default_entity is None:
             res = self._client.execute(self.DEFAULT_ENTITY_QUERY)
@@ -771,13 +801,15 @@ class Api:
         return self._default_entity
 
     @property
-    def viewer(self) -> "public.User":
+    def viewer(self) -> User:
         """Returns the viewer object.
 
         Raises:
             ValueError: If viewer data is not able to be fetched from W&B.
             requests.RequestException: If an error occurs while making the graphql request.
         """
+        from .users import User
+
         if self._viewer is None:
             viewer = self._client.execute(self.VIEWER_QUERY).get("viewer")
 
@@ -787,7 +819,7 @@ class Api:
                     " please verify your API key is valid."
                 )
 
-            self._viewer = public.User(self._client, viewer)
+            self._viewer = User(self._client, viewer)
             self._default_entity = self._viewer.entity
         return self._viewer
 
@@ -916,22 +948,13 @@ class Api:
         if path is None:
             return entity, project
 
-        path, colon, alias = path.partition(":")
-        full_alias = colon + alias
-
-        parts = path.split("/")
-        if len(parts) > 3:
-            raise ValueError("Invalid artifact path: {}".format(path))
-        elif len(parts) == 1:
-            return entity, project, path + full_alias
-        elif len(parts) == 2:
-            return entity, parts[0], parts[1] + full_alias
-        parts[-1] += full_alias
-        return parts
+        parsed = ArtifactPath.from_str(path)
+        parsed = parsed.with_defaults(prefix=entity, project=project)
+        return parsed.prefix, parsed.project, parsed.name
 
     def projects(
-        self, entity: Optional[str] = None, per_page: int = 200
-    ) -> "public.Projects":
+        self, entity: str | None = None, per_page: int = 200
+    ) -> public.Projects:
         """Get projects for a given entity.
 
         Args:
@@ -956,7 +979,7 @@ class Api:
             )
         return self._projects[entity]
 
-    def project(self, name: str, entity: Optional[str] = None) -> "public.Project":
+    def project(self, name: str, entity: str | None = None) -> public.Project:
         """Return the `Project` with the given name (and entity, if given).
 
         Args:
@@ -983,8 +1006,8 @@ class Api:
         return public.Project(self.client, entity, name, {})
 
     def reports(
-        self, path: str = "", name: Optional[str] = None, per_page: int = 50
-    ) -> "public.Reports":
+        self, path: str = "", name: str | None = None, per_page: int = 50
+    ) -> public.Reports:
         """Get reports for a given project path.
 
         Note: `wandb.Api.reports()` API is in beta and will likely change in
@@ -1027,9 +1050,7 @@ class Api:
             )
         return self._reports[key]
 
-    def create_team(
-        self, team: str, admin_username: Optional[str] = None
-    ) -> "public.Team":
+    def create_team(self, team: str, admin_username: str | None = None) -> Team:
         """Create a new team.
 
         Args:
@@ -1040,9 +1061,11 @@ class Api:
         Returns:
             A `Team` object.
         """
-        return public.Team.create(self, team, admin_username)
+        from .teams import Team
 
-    def team(self, team: str) -> "public.Team":
+        return Team.create(self, team, admin_username)
+
+    def team(self, team: str) -> Team:
         """Return the matching `Team` with the given name.
 
         Args:
@@ -1051,9 +1074,11 @@ class Api:
         Returns:
             A `Team` object.
         """
-        return public.Team(self.client, team)
+        from .teams import Team
 
-    def user(self, username_or_email: str) -> Optional["public.User"]:
+        return Team(self.client, team)
+
+    def user(self, username_or_email: str) -> User | None:
         """Return a user from a username or email address.
 
         This function only works for local administrators. Use `api.viewer`
@@ -1065,6 +1090,8 @@ class Api:
         Returns:
             A `User` object or None if a user is not found.
         """
+        from .users import User
+
         res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
         if len(res["users"]["edges"]) == 0:
             return None
@@ -1074,9 +1101,9 @@ class Api:
                     username_or_email
                 )
             )
-        return public.User(self._client, res["users"]["edges"][0]["node"])
+        return User(self._client, res["users"]["edges"][0]["node"])
 
-    def users(self, username_or_email: str) -> List["public.User"]:
+    def users(self, username_or_email: str) -> list[User]:
         """Return all users from a partial username or email address query.
 
         This function only works for local administrators. Use `api.viewer`
@@ -1088,18 +1115,19 @@ class Api:
         Returns:
             An array of `User` objects.
         """
+        from .users import User
+
         res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
-        return [
-            public.User(self._client, edge["node"]) for edge in res["users"]["edges"]
-        ]
+        return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
 
     def runs(
         self,
-        path: Optional[str] = None,
-        filters: Optional[Dict[str, Any]] = None,
+        path: str | None = None,
+        filters: dict[str, Any] | None = None,
         order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
+        lazy: bool = True,
     ):
         """Returns a `Runs` object, which lazily iterates over `Run` objects.
 
@@ -1149,6 +1177,10 @@ class Api:
                 The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
             include_sweeps: (bool) Whether to include the sweep runs in the results.
+            lazy: (bool) Whether to use lazy loading for faster performance.
+                When True (default), only essential run metadata is loaded initially.
+                Heavy fields like config, summaryMetrics, and systemMetrics are loaded
+                on-demand when accessed. Set to False for full data upfront.
 
         Returns:
             A `Runs` object, which is an iterable collection of `Run` objects.
@@ -1197,16 +1229,26 @@ class Api:
         entity, project = self._parse_project_path(path)
         filters = filters or {}
         key = (path or "") + str(filters) + str(order)
-        if not self._runs.get(key):
-            self._runs[key] = public.Runs(
-                self.client,
-                entity,
-                project,
-                filters=filters,
-                order=order,
-                per_page=per_page,
-                include_sweeps=include_sweeps,
-            )
+
+        # Check if we have cached results
+        if self._runs.get(key):
+            cached_runs = self._runs[key]
+            # If requesting full data but cached data is lazy, upgrade it
+            if not lazy and cached_runs._lazy:
+                cached_runs.upgrade_to_full()
+            return cached_runs
+
+        # Create new Runs object
+        self._runs[key] = public.Runs(
+            self.client,
+            entity,
+            project,
+            filters=filters,
+            order=order,
+            per_page=per_page,
+            include_sweeps=include_sweeps,
+            lazy=lazy,
+        )
         return self._runs[key]
 
     @normalize_exceptions
@@ -1223,7 +1265,10 @@ class Api:
         """
         entity, project, run_id = self._parse_path(path)
         if not self._runs.get(path):
-            self._runs[path] = public.Run(self.client, entity, project, run_id)
+            # Individual runs should load full data by default
+            self._runs[path] = public.Run(
+                self.client, entity, project, run_id, lazy=False
+            )
         return self._runs[path]
 
     def queued_run(
@@ -1283,7 +1328,7 @@ class Api:
         return self._sweeps[path]
 
     @normalize_exceptions
-    def artifact_types(self, project: Optional[str] = None) -> "public.ArtifactTypes":
+    def artifact_types(self, project: str | None = None) -> ArtifactTypes:
         """Returns a collection of matching artifact types.
 
         Args:
@@ -1292,6 +1337,8 @@ class Api:
         Returns:
             An iterable `ArtifactTypes` object.
         """
+        from .artifacts import ArtifactTypes
+
         project_path = project
         entity, project = self._parse_project_path(project_path)
         # If its a Registry project, the entity is considered to be an org instead
@@ -1301,12 +1348,10 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=org
             )
-        return public.ArtifactTypes(self.client, entity, project)
+        return ArtifactTypes(self.client, entity, project)
 
     @normalize_exceptions
-    def artifact_type(
-        self, type_name: str, project: Optional[str] = None
-    ) -> "public.ArtifactType":
+    def artifact_type(self, type_name: str, project: str | None = None) -> ArtifactType:
         """Returns the matching `ArtifactType`.
 
         Args:
@@ -1316,6 +1361,8 @@ class Api:
         Returns:
             An `ArtifactType` object.
         """
+        from .artifacts import ArtifactType
+
         project_path = project
         entity, project = self._parse_project_path(project_path)
         # If its an Registry artifact, the entity is an org instead
@@ -1325,12 +1372,12 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=org
             )
-        return public.ArtifactType(self.client, entity, project, type_name)
+        return ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
     def artifact_collections(
         self, project_name: str, type_name: str, per_page: int = 50
-    ) -> "public.ArtifactCollections":
+    ) -> ArtifactCollections:
         """Returns a collection of matching artifact collections.
 
         Args:
@@ -1342,6 +1389,8 @@ class Api:
         Returns:
             An iterable `ArtifactCollections` object.
         """
+        from .artifacts import ArtifactCollections
+
         entity, project = self._parse_project_path(project_name)
         # If iterating through Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
@@ -1350,14 +1399,12 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=org
             )
-        return public.ArtifactCollections(
+        return ArtifactCollections(
             self.client, entity, project, type_name, per_page=per_page
         )
 
     @normalize_exceptions
-    def artifact_collection(
-        self, type_name: str, name: str
-    ) -> "public.ArtifactCollection":
+    def artifact_collection(self, type_name: str, name: str) -> ArtifactCollection:
         """Returns a single artifact collection by type.
 
         You can use the returned `ArtifactCollection` object to retrieve
@@ -1392,6 +1439,8 @@ class Api:
         artifact_example.download()
         ```
         """
+        from .artifacts import ArtifactCollection
+
         entity, project, collection_name = self._parse_artifact_path(name)
         # If its an Registry artifact, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
@@ -1406,7 +1455,7 @@ class Api:
                 "Could not determine entity. Please include the entity as part of the collection name path."
             )
 
-        return public.ArtifactCollection(
+        return ArtifactCollection(
             self.client, entity, project, collection_name, type_name
         )
 
@@ -1428,8 +1477,8 @@ class Api:
         type_name: str,
         name: str,
         per_page: int = 50,
-        tags: Optional[List[str]] = None,
-    ) -> "public.Artifacts":
+        tags: list[str] | None = None,
+    ) -> Artifacts:
         """Return an `Artifacts` collection.
 
         Args:
@@ -1457,6 +1506,8 @@ class Api:
         wandb.Api().artifacts(type_name="type", name="entity/project/artifact_name")
         ```
         """
+        from .artifacts import Artifacts
+
         entity, project, collection_name = self._parse_artifact_path(name)
         # If its an Registry project, the entity is considered to be an org instead
         if is_artifact_registry_project(project):
@@ -1465,7 +1516,7 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=org
             )
-        return public.Artifacts(
+        return Artifacts(
             self.client,
             entity,
             project,
@@ -1477,8 +1528,10 @@ class Api:
 
     @normalize_exceptions
     def _artifact(
-        self, name: str, type: Optional[str] = None, enable_tracking: bool = False
-    ):
+        self, name: str, type: str | None = None, enable_tracking: bool = False
+    ) -> Artifact:
+        from wandb.sdk.artifacts.artifact import Artifact
+
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
@@ -1503,10 +1556,9 @@ class Api:
                 "Could not determine entity. Please include the entity as part of the artifact name path."
             )
 
-        artifact = wandb.Artifact._from_name(
-            entity=entity,
-            project=project,
-            name=artifact_name,
+        path = FullArtifactPath(prefix=entity, project=project, name=artifact_name)
+        artifact = Artifact._from_name(
+            path=path,
             client=self.client,
             enable_tracking=enable_tracking,
         )
@@ -1517,7 +1569,7 @@ class Api:
         return artifact
 
     @normalize_exceptions
-    def artifact(self, name: str, type: Optional[str] = None):
+    def artifact(self, name: str, type: str | None = None):
         """Returns a single artifact.
 
         Args:
@@ -1566,7 +1618,7 @@ class Api:
         return self._artifact(name=name, type=type, enable_tracking=True)
 
     @normalize_exceptions
-    def job(self, name: Optional[str], path: Optional[str] = None) -> "public.Job":
+    def job(self, name: str | None, path: str | None = None) -> public.Job:
         """Return a `Job` object.
 
         Args:
@@ -1585,7 +1637,7 @@ class Api:
         return public.Job(self, name, path)
 
     @normalize_exceptions
-    def list_jobs(self, entity: str, project: str) -> List[Dict[str, Any]]:
+    def list_jobs(self, entity: str, project: str) -> list[dict[str, Any]]:
         """Return a list of jobs, if any, for the given entity and project.
 
         Args:
@@ -1663,7 +1715,7 @@ class Api:
             return False
 
     @normalize_exceptions
-    def artifact_exists(self, name: str, type: Optional[str] = None) -> bool:
+    def artifact_exists(self, name: str, type: str | None = None) -> bool:
         """Whether an artifact version exists within the specified project and entity.
 
         Args:
@@ -1694,9 +1746,10 @@ class Api:
         """
         try:
             self._artifact(name, type)
-        except wandb.errors.CommError:
+        except wandb.errors.CommError as e:
+            if isinstance(e.exc, requests.Timeout):
+                raise
             return False
-
         return True
 
     @normalize_exceptions
@@ -1727,16 +1780,17 @@ class Api:
         """
         try:
             self.artifact_collection(type, name)
-        except wandb.errors.CommError:
+        except wandb.errors.CommError as e:
+            if isinstance(e.exc, requests.Timeout):
+                raise
             return False
-
         return True
 
     @tracked
     def registries(
         self,
-        organization: Optional[str] = None,
-        filter: Optional[Dict[str, Any]] = None,
+        organization: str | None = None,
+        filter: dict[str, Any] | None = None,
     ) -> Registries:
         """Returns a lazy iterator of `Registry` objects.
 
@@ -1801,7 +1855,7 @@ class Api:
         return Registries(self.client, organization, filter)
 
     @tracked
-    def registry(self, name: str, organization: Optional[str] = None) -> Registry:
+    def registry(self, name: str, organization: str | None = None) -> Registry:
         """Return a registry given a registry name.
 
         Args:
@@ -1845,9 +1899,9 @@ class Api:
         self,
         name: str,
         visibility: Literal["organization", "restricted"],
-        organization: Optional[str] = None,
-        description: Optional[str] = None,
-        artifact_types: Optional[List[str]] = None,
+        organization: str | None = None,
+        description: str | None = None,
+        artifact_types: list[str] | None = None,
     ) -> Registry:
         """Create a new registry.
 
@@ -1918,10 +1972,10 @@ class Api:
     @tracked
     def integrations(
         self,
-        entity: Optional[str] = None,
+        entity: str | None = None,
         *,
         per_page: int = 50,
-    ) -> Iterator["Integration"]:
+    ) -> Iterator[Integration]:
         """Return an iterator of all integrations for an entity.
 
         Args:
@@ -1941,8 +1995,8 @@ class Api:
 
     @tracked
     def webhook_integrations(
-        self, entity: Optional[str] = None, *, per_page: int = 50
-    ) -> Iterator["WebhookIntegration"]:
+        self, entity: str | None = None, *, per_page: int = 50
+    ) -> Iterator[WebhookIntegration]:
         """Returns an iterator of webhook integrations for an entity.
 
         Args:
@@ -1985,8 +2039,8 @@ class Api:
 
     @tracked
     def slack_integrations(
-        self, *, entity: Optional[str] = None, per_page: int = 50
-    ) -> Iterator["SlackIntegration"]:
+        self, *, entity: str | None = None, per_page: int = 50
+    ) -> Iterator[SlackIntegration]:
         """Returns an iterator of Slack integrations for an entity.
 
         Args:
@@ -2030,8 +2084,8 @@ class Api:
     def _supports_automation(
         self,
         *,
-        event: Optional["EventType"] = None,
-        action: Optional["ActionType"] = None,
+        event: EventType | None = None,
+        action: ActionType | None = None,
     ) -> bool:
         """Returns whether the server recognizes the automation event and/or action."""
         from wandb.automations._utils import (
@@ -2052,7 +2106,7 @@ class Api:
         )
         return supports_event and supports_action
 
-    def _omitted_automation_fragments(self) -> Set[str]:
+    def _omitted_automation_fragments(self) -> set[str]:
         """Returns the names of unsupported automation-related fragments.
 
         Older servers won't recognize newer GraphQL types, so a valid request may
@@ -2105,8 +2159,8 @@ class Api:
         self,
         name: str,
         *,
-        entity: Optional[str] = None,
-    ) -> "Automation":
+        entity: str | None = None,
+    ) -> Automation:
         """Returns the only Automation matching the parameters.
 
         Args:
@@ -2141,11 +2195,11 @@ class Api:
     @tracked
     def automations(
         self,
-        entity: Optional[str] = None,
+        entity: str | None = None,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         per_page: int = 50,
-    ) -> Iterator["Automation"]:
+    ) -> Iterator[Automation]:
         """Returns an iterator over all Automations that match the given parameters.
 
         If no parameters are provided, the returned iterator will contain all
@@ -2199,11 +2253,11 @@ class Api:
     @tracked
     def create_automation(
         self,
-        obj: "NewAutomation",
+        obj: NewAutomation,
         *,
         fetch_existing: bool = False,
-        **kwargs: Unpack["WriteAutomationsKwargs"],
-    ) -> "Automation":
+        **kwargs: Unpack[WriteAutomationsKwargs],
+    ) -> Automation:
         """Create a new Automation.
 
         Args:
@@ -2274,7 +2328,7 @@ class Api:
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         omit_fragments = self._omitted_automation_fragments()
         mutation = gql_compat(CREATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
-        variables = {"params": gql_input.model_dump(exclude_none=True)}
+        variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
         try:
@@ -2307,11 +2361,11 @@ class Api:
     @tracked
     def update_automation(
         self,
-        obj: "Automation",
+        obj: Automation,
         *,
         create_missing: bool = False,
-        **kwargs: Unpack["WriteAutomationsKwargs"],
-    ) -> "Automation":
+        **kwargs: Unpack[WriteAutomationsKwargs],
+    ) -> Automation:
         """Update an existing automation.
 
         Args:
@@ -2394,7 +2448,7 @@ class Api:
         # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
         omit_fragments = self._omitted_automation_fragments()
         mutation = gql_compat(UPDATE_AUTOMATION_GQL, omit_fragments=omit_fragments)
-        variables = {"params": gql_input.model_dump(exclude_none=True)}
+        variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
         try:
@@ -2428,7 +2482,7 @@ class Api:
 
     @normalize_exceptions
     @tracked
-    def delete_automation(self, obj: Union["Automation", str]) -> Literal[True]:
+    def delete_automation(self, obj: Automation | str) -> Literal[True]:
         """Delete an automation.
 
         Args:

@@ -40,7 +40,7 @@ namespace Wandb.Internal
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "wandb-core",
-                    Arguments = $"--port-filename {_portFilePath} --pid {Environment.ProcessId} --no-observability true",
+                    Arguments = $"--port-filename {_portFilePath} --pid {Environment.ProcessId} --no-observability",
                     UseShellExecute = false,
                     RedirectStandardOutput = false,
                     RedirectStandardError = false

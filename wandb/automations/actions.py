@@ -74,12 +74,12 @@ class _SavedActionWebhookIntegration(GQLBase, extra="allow"):
     id: GQLId
 
 
-class SavedNotificationAction(NotificationActionFields):
+class SavedNotificationAction(NotificationActionFields, frozen=False):
     action_type: Literal[ActionType.NOTIFICATION] = ActionType.NOTIFICATION
     integration: _SavedActionSlackIntegration
 
 
-class SavedWebhookAction(GenericWebhookActionFields):
+class SavedWebhookAction(GenericWebhookActionFields, frozen=False):
     action_type: Literal[ActionType.GENERIC_WEBHOOK] = ActionType.GENERIC_WEBHOOK
     integration: _SavedActionWebhookIntegration
 
@@ -92,7 +92,7 @@ class SavedWebhookAction(GenericWebhookActionFields):
     ] = None  # type: ignore[assignment]
 
 
-class SavedNoOpAction(NoOpActionFields, frozen=True):
+class SavedNoOpAction(NoOpActionFields, frozen=False):
     action_type: Literal[ActionType.NO_OP] = ActionType.NO_OP
 
     no_op: Annotated[bool, BeforeValidator(default_if_none)] = True

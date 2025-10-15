@@ -9,36 +9,36 @@ from typing import List, Literal, Optional, Union
 from pydantic import Field
 from typing_extensions import Annotated
 
-from wandb._pydantic import GQLBase, GQLId, Typename
+from wandb._pydantic import GQLId, GQLResult, Typename
 
 from .enums import AlertSeverity, EventTriggeringConditionType
 
 
-class ArtifactPortfolioScopeFields(GQLBase):
+class ArtifactPortfolioScopeFields(GQLResult):
     typename__: Typename[Literal["ArtifactPortfolio"]] = "ArtifactPortfolio"
     id: GQLId
     name: str
 
 
-class ArtifactSequenceScopeFields(GQLBase):
+class ArtifactSequenceScopeFields(GQLResult):
     typename__: Typename[Literal["ArtifactSequence"]] = "ArtifactSequence"
     id: GQLId
     name: str
 
 
-class CreateAutomationResult(GQLBase):
+class CreateAutomationResult(GQLResult):
     typename__: Typename[Literal["CreateFilterTriggerPayload"]] = (
         "CreateFilterTriggerPayload"
     )
     trigger: Optional[TriggerFields]
 
 
-class DeleteAutomationResult(GQLBase):
+class DeleteAutomationResult(GQLResult):
     typename__: Typename[Literal["DeleteTriggerPayload"]] = "DeleteTriggerPayload"
     success: bool
 
 
-class FilterEventFields(GQLBase):
+class FilterEventFields(GQLResult):
     typename__: Typename[Literal["FilterEventTriggeringCondition"]] = (
         "FilterEventTriggeringCondition"
     )
@@ -46,49 +46,49 @@ class FilterEventFields(GQLBase):
     filter: str
 
 
-class GenericWebhookActionFields(GQLBase):
+class GenericWebhookActionFields(GQLResult):
     typename__: Typename[Literal["GenericWebhookTriggeredAction"]] = (
         "GenericWebhookTriggeredAction"
     )
     integration: Union[
         GenericWebhookActionFieldsIntegrationIntegration,
-        GenericWebhookActionFieldsIntegrationGenericWebhookIntegration,
+        GenericWebhookIntegrationFields,
     ] = Field(discriminator="typename__")
     request_payload: Optional[str] = Field(alias="requestPayload")
 
 
-class GenericWebhookActionFieldsIntegrationIntegration(GQLBase):
+class GenericWebhookActionFieldsIntegrationIntegration(GQLResult):
     typename__: Typename[
         Literal["GitHubOAuthIntegration", "Integration", "SlackIntegration"]
     ]
 
 
-class GenericWebhookIntegrationConnectionFields(GQLBase):
+class GenericWebhookIntegrationConnectionFields(GQLResult):
     typename__: Typename[Literal["IntegrationConnection"]] = "IntegrationConnection"
     page_info: PageInfoFields = Field(alias="pageInfo")
     edges: List[GenericWebhookIntegrationConnectionFieldsEdges]
 
 
-class GenericWebhookIntegrationConnectionFieldsEdges(GQLBase):
+class GenericWebhookIntegrationConnectionFieldsEdges(GQLResult):
     cursor: str
     node: Optional[
         Annotated[
             Union[
                 GenericWebhookIntegrationConnectionFieldsEdgesNodeIntegration,
-                GenericWebhookIntegrationConnectionFieldsEdgesNodeGenericWebhookIntegration,
+                GenericWebhookIntegrationFields,
             ],
             Field(discriminator="typename__"),
         ]
     ]
 
 
-class GenericWebhookIntegrationConnectionFieldsEdgesNodeIntegration(GQLBase):
+class GenericWebhookIntegrationConnectionFieldsEdgesNodeIntegration(GQLResult):
     typename__: Typename[
         Literal["GitHubOAuthIntegration", "Integration", "SlackIntegration"]
     ]
 
 
-class GenericWebhookIntegrationFields(GQLBase):
+class GenericWebhookIntegrationFields(GQLResult):
     typename__: Typename[Literal["GenericWebhookIntegration"]] = (
         "GenericWebhookIntegration"
     )
@@ -97,124 +97,123 @@ class GenericWebhookIntegrationFields(GQLBase):
     url_endpoint: str = Field(alias="urlEndpoint")
 
 
-class IntegrationConnectionFields(GQLBase):
+class IntegrationConnectionFields(GQLResult):
     typename__: Typename[Literal["IntegrationConnection"]] = "IntegrationConnection"
     page_info: PageInfoFields = Field(alias="pageInfo")
     edges: List[IntegrationConnectionFieldsEdges]
 
 
-class IntegrationConnectionFieldsEdges(GQLBase):
+class IntegrationConnectionFieldsEdges(GQLResult):
     cursor: str
     node: Optional[
         Annotated[
             Union[
                 IntegrationConnectionFieldsEdgesNodeIntegration,
-                IntegrationConnectionFieldsEdgesNodeGenericWebhookIntegration,
-                IntegrationConnectionFieldsEdgesNodeSlackIntegration,
+                GenericWebhookIntegrationFields,
+                SlackIntegrationFields,
             ],
             Field(discriminator="typename__"),
         ]
     ]
 
 
-class IntegrationConnectionFieldsEdgesNodeIntegration(GQLBase):
+class IntegrationConnectionFieldsEdgesNodeIntegration(GQLResult):
     typename__: Typename[Literal["GitHubOAuthIntegration", "Integration"]]
 
 
-class NoOpActionFields(GQLBase):
+class NoOpActionFields(GQLResult):
     typename__: Typename[Literal["NoOpTriggeredAction"]] = "NoOpTriggeredAction"
     no_op: Optional[bool] = Field(alias="noOp")
 
 
-class NotificationActionFields(GQLBase):
+class NotificationActionFields(GQLResult):
     typename__: Typename[Literal["NotificationTriggeredAction"]] = (
         "NotificationTriggeredAction"
     )
     integration: Union[
-        NotificationActionFieldsIntegrationIntegration,
-        NotificationActionFieldsIntegrationSlackIntegration,
+        NotificationActionFieldsIntegrationIntegration, SlackIntegrationFields
     ] = Field(discriminator="typename__")
     title: Optional[str]
     message: Optional[str]
     severity: Optional[AlertSeverity]
 
 
-class NotificationActionFieldsIntegrationIntegration(GQLBase):
+class NotificationActionFieldsIntegrationIntegration(GQLResult):
     typename__: Typename[
         Literal["GenericWebhookIntegration", "GitHubOAuthIntegration", "Integration"]
     ]
 
 
-class PageInfoFields(GQLBase):
+class PageInfoFields(GQLResult):
     end_cursor: Optional[str] = Field(alias="endCursor")
     has_next_page: bool = Field(alias="hasNextPage")
 
 
-class ProjectConnectionFields(GQLBase):
+class ProjectConnectionFields(GQLResult):
     typename__: Typename[Literal["ProjectConnection"]] = "ProjectConnection"
     page_info: PageInfoFields = Field(alias="pageInfo")
     edges: List[ProjectConnectionFieldsEdges]
 
 
-class ProjectConnectionFieldsEdges(GQLBase):
+class ProjectConnectionFieldsEdges(GQLResult):
     cursor: str
     node: Optional[ProjectConnectionFieldsEdgesNode]
 
 
-class ProjectConnectionFieldsEdgesNode(GQLBase):
+class ProjectConnectionFieldsEdgesNode(GQLResult):
     triggers: List[TriggerFields]
 
 
-class ProjectScopeFields(GQLBase):
+class ProjectScopeFields(GQLResult):
     typename__: Typename[Literal["Project"]] = "Project"
     id: GQLId
     name: str
 
 
-class QueueJobActionFields(GQLBase):
+class QueueJobActionFields(GQLResult):
     typename__: Typename[Literal["QueueJobTriggeredAction"]] = "QueueJobTriggeredAction"
     queue: Optional[QueueJobActionFieldsQueue]
     template: str
 
 
-class QueueJobActionFieldsQueue(GQLBase):
+class QueueJobActionFieldsQueue(GQLResult):
     id: GQLId
     name: str
 
 
-class SlackIntegrationConnectionFields(GQLBase):
+class SlackIntegrationConnectionFields(GQLResult):
     typename__: Typename[Literal["IntegrationConnection"]] = "IntegrationConnection"
     page_info: PageInfoFields = Field(alias="pageInfo")
     edges: List[SlackIntegrationConnectionFieldsEdges]
 
 
-class SlackIntegrationConnectionFieldsEdges(GQLBase):
+class SlackIntegrationConnectionFieldsEdges(GQLResult):
     cursor: str
     node: Optional[
         Annotated[
             Union[
                 SlackIntegrationConnectionFieldsEdgesNodeIntegration,
-                SlackIntegrationConnectionFieldsEdgesNodeSlackIntegration,
+                SlackIntegrationFields,
             ],
             Field(discriminator="typename__"),
         ]
     ]
 
 
-class SlackIntegrationConnectionFieldsEdgesNodeIntegration(GQLBase):
+class SlackIntegrationConnectionFieldsEdgesNodeIntegration(GQLResult):
     typename__: Typename[
         Literal["GenericWebhookIntegration", "GitHubOAuthIntegration", "Integration"]
     ]
 
 
-class SlackIntegrationFields(GQLBase):
+class SlackIntegrationFields(GQLResult):
     typename__: Typename[Literal["SlackIntegration"]] = "SlackIntegration"
     id: GQLId
     team_name: str = Field(alias="teamName")
     channel_name: str = Field(alias="channelName")
 
 
-class TriggerFields(GQLBase):
+class TriggerFields(GQLResult):
     typename__: Typename[Literal["Trigger"]] = "Trigger"
     id: GQLId
     created_at: datetime = Field(alias="createdAt")
@@ -223,86 +222,22 @@ class TriggerFields(GQLBase):
     description: Optional[str]
     enabled: bool
     scope: Union[
-        TriggerFieldsScopeProject,
-        TriggerFieldsScopeArtifactSequence,
-        TriggerFieldsScopeArtifactPortfolio,
+        ProjectScopeFields, ArtifactSequenceScopeFields, ArtifactPortfolioScopeFields
     ] = Field(discriminator="typename__")
-    event: TriggerFieldsEventFilterEventTriggeringCondition
+    event: FilterEventFields
     action: Union[
-        TriggerFieldsActionQueueJobTriggeredAction,
-        TriggerFieldsActionNotificationTriggeredAction,
-        TriggerFieldsActionGenericWebhookTriggeredAction,
-        TriggerFieldsActionNoOpTriggeredAction,
+        QueueJobActionFields,
+        NotificationActionFields,
+        GenericWebhookActionFields,
+        NoOpActionFields,
     ] = Field(discriminator="typename__")
 
 
-class UpdateAutomationResult(GQLBase):
+class UpdateAutomationResult(GQLResult):
     typename__: Typename[Literal["UpdateFilterTriggerPayload"]] = (
         "UpdateFilterTriggerPayload"
     )
     trigger: Optional[TriggerFields]
-
-
-class TriggerFieldsScopeArtifactPortfolio(ArtifactPortfolioScopeFields):
-    typename__: Typename[Literal["ArtifactPortfolio"]]
-
-
-class TriggerFieldsScopeArtifactSequence(ArtifactSequenceScopeFields):
-    typename__: Typename[Literal["ArtifactSequence"]]
-
-
-class TriggerFieldsEventFilterEventTriggeringCondition(FilterEventFields):
-    typename__: Typename[Literal["FilterEventTriggeringCondition"]]
-
-
-class TriggerFieldsActionGenericWebhookTriggeredAction(GenericWebhookActionFields):
-    typename__: Typename[Literal["GenericWebhookTriggeredAction"]]
-
-
-class GenericWebhookActionFieldsIntegrationGenericWebhookIntegration(
-    GenericWebhookIntegrationFields
-):
-    typename__: Typename[Literal["GenericWebhookIntegration"]]
-
-
-class GenericWebhookIntegrationConnectionFieldsEdgesNodeGenericWebhookIntegration(
-    GenericWebhookIntegrationFields
-):
-    typename__: Typename[Literal["GenericWebhookIntegration"]]
-
-
-class IntegrationConnectionFieldsEdgesNodeGenericWebhookIntegration(
-    GenericWebhookIntegrationFields
-):
-    typename__: Typename[Literal["GenericWebhookIntegration"]]
-
-
-class TriggerFieldsActionNoOpTriggeredAction(NoOpActionFields):
-    typename__: Typename[Literal["NoOpTriggeredAction"]]
-
-
-class TriggerFieldsActionNotificationTriggeredAction(NotificationActionFields):
-    typename__: Typename[Literal["NotificationTriggeredAction"]]
-
-
-class TriggerFieldsScopeProject(ProjectScopeFields):
-    typename__: Typename[Literal["Project"]]
-
-
-class TriggerFieldsActionQueueJobTriggeredAction(QueueJobActionFields):
-    typename__: Typename[Literal["QueueJobTriggeredAction"]]
-
-
-class IntegrationConnectionFieldsEdgesNodeSlackIntegration(SlackIntegrationFields):
-    typename__: Typename[Literal["SlackIntegration"]]
-
-
-class NotificationActionFieldsIntegrationSlackIntegration(SlackIntegrationFields):
-    typename__: Typename[Literal["SlackIntegration"]]
-
-
-class SlackIntegrationConnectionFieldsEdgesNodeSlackIntegration(SlackIntegrationFields):
-    typename__: Typename[Literal["SlackIntegration"]]
 
 
 ArtifactPortfolioScopeFields.model_rebuild()
@@ -335,24 +270,3 @@ SlackIntegrationConnectionFieldsEdgesNodeIntegration.model_rebuild()
 SlackIntegrationFields.model_rebuild()
 TriggerFields.model_rebuild()
 UpdateAutomationResult.model_rebuild()
-TriggerFieldsScopeArtifactPortfolio.model_rebuild()
-TriggerFieldsScopeArtifactSequence.model_rebuild()
-TriggerFieldsEventFilterEventTriggeringCondition.model_rebuild()
-TriggerFieldsActionGenericWebhookTriggeredAction.model_rebuild()
-GenericWebhookActionFieldsIntegrationGenericWebhookIntegration.model_rebuild()
-GenericWebhookIntegrationConnectionFieldsEdgesNodeGenericWebhookIntegration.model_rebuild()
-IntegrationConnectionFieldsEdgesNodeGenericWebhookIntegration.model_rebuild()
-TriggerFieldsActionNoOpTriggeredAction.model_rebuild()
-TriggerFieldsActionNotificationTriggeredAction.model_rebuild()
-PageInfoFields.model_rebuild()
-PageInfoFields.model_rebuild()
-PageInfoFields.model_rebuild()
-PageInfoFields.model_rebuild()
-TriggerFieldsScopeProject.model_rebuild()
-TriggerFieldsActionQueueJobTriggeredAction.model_rebuild()
-IntegrationConnectionFieldsEdgesNodeSlackIntegration.model_rebuild()
-NotificationActionFieldsIntegrationSlackIntegration.model_rebuild()
-SlackIntegrationConnectionFieldsEdgesNodeSlackIntegration.model_rebuild()
-TriggerFields.model_rebuild()
-TriggerFields.model_rebuild()
-TriggerFields.model_rebuild()

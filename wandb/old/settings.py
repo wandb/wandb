@@ -51,15 +51,15 @@ class Settings:
         # write a temp file and then move it to the settings path
         target_dir = os.path.dirname(settings_path)
         with tempfile.NamedTemporaryFile(
-            "w+", suffix=".tmp", delete=False, dir=target_dir
+            mode="w", suffix=".tmp", delete=False, dir=target_dir
         ) as fp:
-            path = os.path.abspath(fp.name)
-            with open(path, "w+") as f:
-                settings.write(f)
+            settings.write(fp)
+            temp_path = fp.name
+
         try:
-            os.replace(path, settings_path)
+            os.replace(temp_path, settings_path)
         except AttributeError:
-            os.rename(path, settings_path)
+            os.rename(temp_path, settings_path)
 
     def set(self, section, key, value, globally=False, persist=False) -> None:
         """Persist settings to disk if persist = True"""
