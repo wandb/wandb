@@ -28,3 +28,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Fixed a rare deadlock in `console_capture.py` (@timoffex in https://github.com/wandb/wandb/pull/10683)
   - If you dump thread tracebacks during the deadlock and see the `wandb-AsyncioManager-main` thread stuck on a line in `console_capture.py`: this is now fixed.
 - Fixed an issue where TensorBoard sync would sometimes stop working if the tfevents files were being written live (@timoffex in https://github.com/wandb/wandb/pull/10625)
+- `Artifact.manifest` delays downloading **and** generating the download URL for the artifact manifest until it's first used.  If the manifest has not been locally modified, `Artifact.size` and `Artifact.digest` can return without waiting to fetch the full manifest (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10680)

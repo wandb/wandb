@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from pydantic import Field
 
@@ -38,12 +38,12 @@ class ArtifactAliasInput(GQLInput):
 class UpdateArtifactInput(GQLInput):
     artifact_id: GQLId = Field(alias="artifactID")
     description: Optional[str] = None
-    labels: Optional[Any] = None
+    labels: Optional[str] = None
     aliases: Optional[List[ArtifactAliasInput]] = None
     tags_to_add: Optional[List[TagInput]] = Field(alias="tagsToAdd", default=None)
     tags_to_delete: Optional[List[TagInput]] = Field(alias="tagsToDelete", default=None)
-    metadata: Optional[Any] = None
-    ttl_duration_seconds: Optional[Any] = Field(
+    metadata: Optional[str] = None
+    ttl_duration_seconds: Optional[int] = Field(
         alias="ttlDurationSeconds", default=None
     )
     client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
@@ -98,7 +98,7 @@ class DeleteAliasesInput(GQLInput):
 class TagInput(GQLInput):
     tag_category_name: Optional[str] = Field(alias="tagCategoryName", default=None)
     tag_name: str = Field(alias="tagName")
-    attributes: Optional[Any] = None
+    attributes: Optional[str] = None
 
 
 class CreateArtifactCollectionTagAssignmentsInput(GQLInput):

@@ -204,7 +204,7 @@ def validate_artifact_type(typ: str, name: str) -> str:
     return typ
 
 
-def validate_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+def validate_metadata(metadata: dict[str, Any] | str | None) -> dict[str, Any]:
     """Validate the artifact metadata and return it as a dict."""
     if metadata is None:
         return {}

@@ -31,15 +31,19 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   }
   historyStep @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
   state
-  currentManifest {
-    file {
-      directUrl
-    }
-  }
+  size
+  digest
   commitHash
   fileCount
   createdAt
   updatedAt
+}
+
+# An ArtifactManifest with a download URL to fetch the full manifest contents.
+fragment DeferredManifestFragment on ArtifactManifest {
+  file {
+    directUrl
+  }
 }
 
 fragment ArtifactFragment on Artifact {
@@ -188,14 +192,10 @@ query FetchLinkedArtifacts($artifactID: ID!) {
   }
 }
 
-query FetchArtifactManifest($entityName: String!, $projectName: String!, $name: String!) {
-  project(entityName: $entityName, name: $projectName) {
-    artifact(name: $name) {
-      currentManifest {
-        file {
-          directUrl
-        }
-      }
+query FetchArtifactManifest($id: ID!) {
+  artifact(id: $id) {
+    currentManifest {
+      ...DeferredManifestFragment
     }
   }
 }
