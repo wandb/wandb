@@ -101,19 +101,10 @@ class ProgressPrinter:
 
     def update(
         self,
-        progress: list[pb.PollExitResponse] | pb.OperationStats,
+        progress: pb.OperationStats,
     ) -> None:
         """Update the displayed information."""
-        if not progress:
-            return
-
-        if isinstance(progress, pb.OperationStats):
-            self._update_operation_stats([progress])
-        else:
-            self._update_operation_stats(
-                list(response.operation_stats for response in progress)
-            )
-
+        self._update_operation_stats([progress])
         self._tick += 1
 
     def _update_operation_stats(self, stats_list: list[pb.OperationStats]) -> None:
