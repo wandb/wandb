@@ -27,8 +27,9 @@ import (
 
 // Injectors from wire.go:
 
-func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *settings.Settings) *RunSyncerFactory {
+func InjectRunSyncerFactory(settings2 *settings.Settings) *RunSyncerFactory {
 	coreLogger := todoLogger()
+	wandbOperations := wboperation.NewOperations()
 	printer := observability.NewPrinter()
 	backend := stream.NewBackend(coreLogger, settings2)
 	peeker := &observability.Peeker{}
@@ -40,7 +41,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 		FeatureProvider:    serverFeaturesCache,
 		GraphqlClientOrNil: client,
 		Logger:             coreLogger,
-		Operations:         operations,
+		Operations:         wandbOperations,
 		RunHandle:          runHandle,
 		ClientID:           clientID,
 		Settings:           settings2,
@@ -50,7 +51,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 	}
 	fileStreamFactory := &filestream.FileStreamFactory{
 		Logger:     coreLogger,
-		Operations: operations,
+		Operations: wandbOperations,
 		Printer:    printer,
 		Settings:   settings2,
 	}
@@ -62,7 +63,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 		FileWatcher:  watcher,
 		GraphQL:      client,
 		Logger:       coreLogger,
-		Operations:   operations,
+		Operations:   wandbOperations,
 		RunHandle:    runHandle,
 		Settings:     settings2,
 	}
@@ -70,7 +71,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 	senderFactory := &stream.SenderFactory{
 		ClientID:                clientID,
 		Logger:                  coreLogger,
-		Operations:              operations,
+		Operations:              wandbOperations,
 		Settings:                settings2,
 		Backend:                 backend,
 		FeatureProvider:         serverFeaturesCache,
@@ -90,6 +91,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 	}
 	runSyncerFactory := &RunSyncerFactory{
 		Logger:              coreLogger,
+		Operations:          wandbOperations,
 		Printer:             printer,
 		RecordParserFactory: recordParserFactory,
 		RunReaderFactory:    runReaderFactory,
@@ -102,7 +104,7 @@ func InjectRunSyncerFactory(operations *wboperation.WandbOperations, settings2 *
 // wire.go:
 
 var runSyncerFactoryBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.NewServerFeaturesCache, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, observability.NewPrinter, provideFileWatcher, runfiles.UploaderProviders, runhandle.New, runReaderProviders,
-	runSyncerProviders, sharedmode.RandomClientID, stream.NewBackend, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, todoLogger,
+	runSyncerProviders, sharedmode.RandomClientID, stream.NewBackend, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, todoLogger, wboperation.NewOperations,
 )
 
 func todoLogger() *observability.CoreLogger {
