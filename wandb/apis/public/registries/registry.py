@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
+from pydantic import PositiveInt
 from wandb_gql import gql
 
 import wandb
@@ -195,24 +196,30 @@ class Registry:
         self._visibility = value
 
     @tracked
-    def collections(self, filter: dict[str, Any] | None = None) -> Collections:
+    def collections(
+        self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
+    ) -> Collections:
         """Returns the collections belonging to the registry."""
         return Collections(
-            self.client,
+            client=self.client,
             organization=self.organization,
             registry_filter={"name": self.full_name},
             collection_filter=filter,
+            per_page=per_page,
         )
 
     @tracked
-    def versions(self, filter: dict[str, Any] | None = None) -> Versions:
+    def versions(
+        self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
+    ) -> Versions:
         """Returns the versions belonging to the registry."""
         return Versions(
-            self.client,
+            client=self.client,
             organization=self.organization,
             registry_filter={"name": self.full_name},
             collection_filter=None,
             artifact_filter=filter,
+            per_page=per_page,
         )
 
     @classmethod
