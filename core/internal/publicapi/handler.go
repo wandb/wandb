@@ -5,25 +5,32 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type ApiRequestHandler struct {
+// APIRequestHandler is a handler for processing API requests
+// from the SDK API clients.
+type APIRequestHandler struct {
 	errgroup *errgroup.Group
 }
 
-func NewApiRequestHandler() *ApiRequestHandler {
+func NewApiRequestHandler() *APIRequestHandler {
 	errgroup := &errgroup.Group{}
 	errgroup.SetLimit(10)
 
-	return &ApiRequestHandler{
+	return &APIRequestHandler{
 		errgroup:                  errgroup,
 	}
 }
 
-func (p *ApiRequestHandler) HandleRequest(
+func (p *APIRequestHandler) HandleRequest(
 	id string,
 	request *spb.ApiRequest,
 	respondFn func(response *spb.ServerResponse),
 ) {
 	p.errgroup.Go(func() error {
+		// TODO: Implement request handling logic.
+		// For now respond with a place holder response.
+		respondFn(&spb.ServerResponse{
+			RequestId: id,
+		})
 		return nil
 	})
 }
