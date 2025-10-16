@@ -103,6 +103,8 @@ from ._generated import (
 )
 from ._gqlutils import (
     omit_artifact_fields,
+    org_info_from_entity,
+    resolve_org_entity_name,
     server_supports,
     supports_enable_tracking_var,
     type_info,
@@ -796,10 +798,8 @@ class Artifact:
             return ""
 
         try:
-            org, *_ = InternalApi()._fetch_orgs_and_org_entities_from_entity(
-                self.entity
-            )
-        except ValueError:
+            org_name = org_info_from_entity(self._client, self.entity).organization.name  # type: ignore[union-attr]
+        except (AttributeError, ValueError):
             return ""
 
         selection_path = quote(
@@ -807,7 +807,7 @@ class Artifact:
         )
         return urljoin(
             base_url,
-            f"orgs/{org.display_name}/registry/{remove_registry_prefix(self.project)}?selectionPath={selection_path}&view=membership&version={self.version}",
+            f"orgs/{org_name}/registry/{remove_registry_prefix(self.project)}?selectionPath={selection_path}&view=membership&version={self.version}",
         )
 
     def _construct_model_registry_url(self, base_url: str) -> str:
@@ -2387,7 +2387,7 @@ class Artifact:
                 "Linking to a link artifact will result in directly linking to the source artifact of that link artifact."
             )
 
-        if self._client is None:
+        if (client := self._client) is None:
             raise ValueError("Client not initialized for artifact mutations")
 
         # Save the artifact first if necessary
@@ -2410,8 +2410,8 @@ class Artifact:
         if target.is_registry_path():
             # In a Registry linking, the entity is used to fetch the organization of the artifact
             # therefore the source artifact's entity is passed to the backend
-            org = target.prefix or settings.get("organization") or ""
-            target.prefix = api._resolve_org_entity_name(self.source_entity, org)
+            org = target.prefix or settings.get("organization") or None
+            target.prefix = resolve_org_entity_name(client, self.source_entity, org)
         else:
             target = target.with_defaults(prefix=self.source_entity)
 
@@ -2434,9 +2434,7 @@ class Artifact:
 
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
-        if server_supports(
-            self._client, pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
-        ):
+        if server_supports(client, pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE):
             omit_fragments = set()
         else:
             # FIXME: Make `gql_compat` omit nested fragment definitions recursively (but safely)
@@ -2448,12 +2446,12 @@ class Artifact:
             }
 
         gql_op = gql_compat(LINK_ARTIFACT_GQL, omit_fragments=omit_fragments)
-        data = self._client.execute(gql_op, variable_values=gql_vars)
+        data = client.execute(gql_op, variable_values=gql_vars)
         result = LinkArtifact.model_validate(data).link_artifact
 
         # Newer server versions can return artifactMembership directly in the response
         if result and (membership := result.artifact_membership):
-            return self._from_membership(membership, target=target, client=self._client)
+            return self._from_membership(membership, target=target, client=client)
 
         # Fallback to old behavior, which requires re-fetching the linked artifact to return it
         if not (result and (version_idx := result.version_index) is not None):
