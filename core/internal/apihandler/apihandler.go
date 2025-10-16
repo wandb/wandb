@@ -1,4 +1,6 @@
-package publicapi
+// Package publicapi implements logic for handling
+// requests from SDK API clients.
+package apihandler
 
 import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
