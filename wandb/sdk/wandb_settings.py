@@ -1971,22 +1971,25 @@ class Settings(BaseModel, validate_assignment=True):
         program = self.program or self._get_program()
 
         if program is not None:
-            try:
-                root = (
-                    GitRepo().root or os.getcwd()
-                    if not self.disable_git
-                    else os.getcwd()
-                )
-            except Exception:
-                # if the git command fails, fall back to the current working directory
-                root = os.getcwd()
+            # For Jupyter notebooks, use the Jupyter server root if available
+            if self._jupyter and self.x_jupyter_root:
+                root = self.x_jupyter_root
+            else:
+                try:
+                    root = (
+                        GitRepo().root or os.getcwd()
+                        if not self.disable_git
+                        else os.getcwd()
+                    )
+                except Exception:
+                    # if the git command fails, fall back to the current working directory
+                    root = os.getcwd()
 
             self.program_relpath = self.program_relpath or self._get_program_relpath(
                 program, root
             )
-            program_abspath = os.path.abspath(
-                os.path.join(root, os.path.relpath(os.getcwd(), root), program)
-            )
+
+            program_abspath = os.path.abspath(os.path.join(root, program))
             if os.path.exists(program_abspath):
                 self.program_abspath = program_abspath
         else:
@@ -2134,9 +2137,7 @@ class Settings(BaseModel, validate_assignment=True):
         if not util.are_paths_on_same_drive(root, program):
             return None
 
-        full_path_to_program = os.path.join(
-            root, os.path.relpath(os.getcwd(), root), program
-        )
+        full_path_to_program = os.path.abspath(os.path.join(root, program))
         if os.path.exists(full_path_to_program):
             relative_path = os.path.relpath(full_path_to_program, start=root)
             if "../" in relative_path:
