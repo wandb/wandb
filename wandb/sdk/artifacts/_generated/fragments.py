@@ -151,6 +151,17 @@ class MembershipWithArtifactArtifactCollection(GQLResult):
     project: Optional[ProjectInfoFragment]
 
 
+class OrgInfoFragment(GQLResult):
+    name: str
+    org_entity: Optional[OrgInfoFragmentOrgEntity] = Field(
+        alias="orgEntity", default=None
+    )
+
+
+class OrgInfoFragmentOrgEntity(GQLResult):
+    name: str
+
+
 class PageInfoFragment(GQLResult):
     typename__: Typename[Literal["PageInfo"]] = "PageInfo"
     end_cursor: Optional[str] = Field(alias="endCursor")
@@ -361,6 +372,8 @@ FileFragment.model_rebuild()
 FileWithUrlFragment.model_rebuild()
 MembershipWithArtifact.model_rebuild()
 MembershipWithArtifactArtifactCollection.model_rebuild()
+OrgInfoFragment.model_rebuild()
+OrgInfoFragmentOrgEntity.model_rebuild()
 PageInfoFragment.model_rebuild()
 ProjectInfoFragment.model_rebuild()
 RegistryCollectionConnectionFragment.model_rebuild()
