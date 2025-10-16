@@ -391,25 +391,37 @@ func (s *LeftSidebar) applyFilter() {
 }
 
 // calculateSectionHeights dynamically allocates heights to sections.
-//
-//gocyclo:ignore
 func (s *LeftSidebar) calculateSectionHeights() {
 	if s.height == 0 {
 		return
 	}
 
-	headerLines := 7
-	availableHeight := s.height - headerLines
-
-	activeSections := 0
-	for i := range s.sections {
-		if len(s.sections[i].FilteredItems) > 0 {
-			activeSections++
-		}
+	totalAvailable := s.calculateAvailableHeight()
+	if totalAvailable <= 0 {
+		return
 	}
 
+	desired := s.calculateDesiredHeights()
+	totalDesired := s.sumDesiredHeights(desired)
+
+	if totalDesired > totalAvailable {
+		s.scaleHeightsProportionally(desired, totalAvailable)
+	} else {
+		s.allocateDesiredHeights(desired)
+		s.distributeExtraSpace(totalAvailable, totalDesired)
+	}
+
+	s.updateItemsPerPage()
+}
+
+// calculateAvailableHeight returns the height available for sections.
+func (s *LeftSidebar) calculateAvailableHeight() int {
+	const headerLines = 7
+	availableHeight := s.height - headerLines
+
+	activeSections := s.countActiveSections()
 	if activeSections == 0 {
-		return
+		return 0
 	}
 
 	spacingBetweenSections := 0
@@ -417,105 +429,132 @@ func (s *LeftSidebar) calculateSectionHeights() {
 		spacingBetweenSections = activeSections - 1
 	}
 
-	totalAvailable := max(availableHeight-spacingBetweenSections, activeSections*2)
+	return max(availableHeight-spacingBetweenSections, activeSections*2)
+}
 
-	envMax := 12
-	configMax := 20
-	summaryMax := 25
+// countActiveSections returns the number of sections with items.
+func (s *LeftSidebar) countActiveSections() int {
+	count := 0
+	for i := range s.sections {
+		if len(s.sections[i].FilteredItems) > 0 {
+			count++
+		}
+	}
+	return count
+}
 
-	totalDesired := 0
-	desiredHeights := make([]int, len(s.sections))
+// calculateDesiredHeights calculates the desired height for each section.
+func (s *LeftSidebar) calculateDesiredHeights() []int {
+	const (
+		envMax     = 12
+		configMax  = 20
+		summaryMax = 25
+	)
+	maxHeights := []int{envMax, configMax, summaryMax}
+
+	desired := make([]int, len(s.sections))
 
 	for i := range s.sections {
-		section := &s.sections[i]
-		itemCount := len(section.FilteredItems)
-
+		itemCount := len(s.sections[i].FilteredItems)
 		if itemCount == 0 {
-			section.Height = 0
-			desiredHeights[i] = 0
+			s.sections[i].Height = 0
+			desired[i] = 0
 			continue
 		}
 
-		var maxHeight int
-		switch i {
-		case 0:
-			maxHeight = envMax
-		case 1:
-			maxHeight = configMax
-		case 2:
-			maxHeight = summaryMax
-		}
-
-		desired := max(min(itemCount+1, maxHeight), 2)
-
-		desiredHeights[i] = desired
-		totalDesired += desired
+		maxHeight := maxHeights[i]
+		desired[i] = max(min(itemCount+1, maxHeight), 2)
 	}
 
-	if totalDesired > totalAvailable {
-		scaleFactor := float64(totalAvailable) / float64(totalDesired)
+	return desired
+}
 
-		allocated := 0
-		for i := range s.sections {
-			if desiredHeights[i] > 0 {
-				scaled := int(float64(desiredHeights[i]) * scaleFactor)
-				if scaled < 2 && s.sections[i].FilteredItems != nil && len(s.sections[i].FilteredItems) > 0 {
-					scaled = 2
-				}
-				s.sections[i].Height = scaled
-				allocated += scaled
-			} else {
-				s.sections[i].Height = 0
+// sumDesiredHeights returns the sum of all desired heights.
+func (s *LeftSidebar) sumDesiredHeights(desired []int) int {
+	total := 0
+	for _, h := range desired {
+		total += h
+	}
+	return total
+}
+
+// scaleHeightsProportionally scales section heights when total exceeds available.
+func (s *LeftSidebar) scaleHeightsProportionally(desired []int, totalAvailable int) {
+	totalDesired := s.sumDesiredHeights(desired)
+	scaleFactor := float64(totalAvailable) / float64(totalDesired)
+
+	allocated := 0
+	for i := range s.sections {
+		if desired[i] > 0 {
+			scaled := int(float64(desired[i]) * scaleFactor)
+			if scaled < 2 && len(s.sections[i].FilteredItems) > 0 {
+				scaled = 2
 			}
-		}
-
-		if allocated < totalAvailable {
-			remainder := totalAvailable - allocated
-			switch {
-			case len(s.sections[2].FilteredItems) > 0 && s.sections[2].Height > 0:
-				s.sections[2].Height += remainder
-			case len(s.sections[1].FilteredItems) > 0 && s.sections[1].Height > 0:
-				s.sections[1].Height += remainder
-			case len(s.sections[0].FilteredItems) > 0 && s.sections[0].Height > 0:
-				s.sections[0].Height += remainder
-			}
-		}
-	} else {
-		for i := range s.sections {
-			s.sections[i].Height = desiredHeights[i]
-		}
-
-		if totalDesired < totalAvailable {
-			extraSpace := totalAvailable - totalDesired
-
-			for i := 2; i >= 0 && extraSpace > 0; i-- {
-				section := &s.sections[i]
-				if section.Height > 0 {
-					itemCount := len(section.FilteredItems)
-					currentItems := section.Height - 1
-
-					if currentItems < itemCount {
-						var maxHeight int
-						switch i {
-						case 0:
-							maxHeight = envMax
-						case 1:
-							maxHeight = configMax
-						case 2:
-							maxHeight = summaryMax
-						}
-
-						maxIncrease := min(maxHeight-section.Height, itemCount+1-section.Height)
-						increase := min(maxIncrease, extraSpace)
-
-						section.Height += increase
-						extraSpace -= increase
-					}
-				}
-			}
+			s.sections[i].Height = scaled
+			allocated += scaled
+		} else {
+			s.sections[i].Height = 0
 		}
 	}
 
+	// Distribute remainder to last section with items
+	if allocated < totalAvailable {
+		remainder := totalAvailable - allocated
+		s.allocateRemainder(remainder)
+	}
+}
+
+// allocateDesiredHeights sets each section to its desired height.
+func (s *LeftSidebar) allocateDesiredHeights(desired []int) {
+	for i := range s.sections {
+		s.sections[i].Height = desired[i]
+	}
+}
+
+// distributeExtraSpace distributes unused space to sections that can use it.
+func (s *LeftSidebar) distributeExtraSpace(totalAvailable, totalDesired int) {
+	const (
+		envMax     = 12
+		configMax  = 20
+		summaryMax = 25
+	)
+	maxHeights := []int{envMax, configMax, summaryMax}
+
+	extraSpace := totalAvailable - totalDesired
+
+	// Try to expand sections from bottom to top (summary, config, env)
+	for i := 2; i >= 0 && extraSpace > 0; i-- {
+		section := &s.sections[i]
+		if section.Height == 0 {
+			continue
+		}
+
+		itemCount := len(section.FilteredItems)
+		currentItems := section.Height - 1
+
+		if currentItems < itemCount {
+			maxIncrease := min(maxHeights[i]-section.Height, itemCount+1-section.Height)
+			increase := min(maxIncrease, extraSpace)
+
+			section.Height += increase
+			extraSpace -= increase
+		}
+	}
+}
+
+// allocateRemainder distributes remaining space to the last section with items.
+func (s *LeftSidebar) allocateRemainder(remainder int) {
+	// Try sections from bottom to top
+	for i := 2; i >= 0; i-- {
+		if len(s.sections[i].FilteredItems) > 0 && s.sections[i].Height > 0 {
+			s.sections[i].Height += remainder
+			return
+		}
+	}
+}
+
+// updateItemsPerPage updates the items per page for each section.
+func (s *LeftSidebar) updateItemsPerPage() {
 	for i := range s.sections {
 		if s.sections[i].Height > 0 {
 			s.sections[i].ItemsPerPage = max(s.sections[i].Height-1, 1)
@@ -972,9 +1011,4 @@ func (s *LeftSidebar) IsVisible() bool {
 // IsAnimating returns true if the sidebar is currently animating.
 func (s *LeftSidebar) IsAnimating() bool {
 	return s.animState.IsAnimating()
-}
-
-func (m *LeftSidebar) animationCmd() tea.Cmd {
-	// This should be replaced when LeftSidebar is updated to use AnimationState
-	return animationCmd()
 }

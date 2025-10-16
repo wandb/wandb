@@ -87,7 +87,7 @@ func (rs *RightSidebar) TestGetChartCount() int {
 }
 
 // TestMetricsChart returns a chart by base key for testing
-func (rs *RightSidebar) TestMetricsChart(baseKey string) *SystemMetricChart {
+func (rs *RightSidebar) TestMetricsChart(baseKey string) *TimeSeriesLineChart {
 	if rs.metricsGrid == nil {
 		return nil
 	}
@@ -95,8 +95,13 @@ func (rs *RightSidebar) TestMetricsChart(baseKey string) *SystemMetricChart {
 }
 
 // TestSeriesCount returns the number of series in the chart
-func (c *SystemMetricChart) TestSeriesCount() int {
+func (c *TimeSeriesLineChart) TestSeriesCount() int {
 	return len(c.series)
+}
+
+// GetCharts returns the current grid of charts.
+func (g *SystemMetricsGrid) GetCharts() [][]*TimeSeriesLineChart {
+	return g.charts
 }
 
 // Add test helper to Model for getting active filter
