@@ -3527,13 +3527,13 @@ pub mod api_request {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Request {
         #[prost(message, tag = "1")]
-        ReadRunHistory(super::ReadRunHistoryApiRequest),
+        ReadRunHistoryRequest(super::ReadRunHistoryRequest),
     }
 }
 /// ApiResponse is a response from the backend process for an ApiRequest.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ApiResponse {
-    #[prost(oneof = "api_response::Response", tags = "1")]
+    #[prost(oneof = "api_response::Response", tags = "1, 2")]
     pub response: ::core::option::Option<api_response::Response>,
 }
 /// Nested message and enum types in `ApiResponse`.
@@ -3541,32 +3541,85 @@ pub mod api_response {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Response {
         #[prost(message, tag = "1")]
-        ReadRunHistory(super::ReadRunHistoryApiResponse),
+        ReadRunHistoryResponse(super::ReadRunHistoryResponse),
+        #[prost(message, tag = "2")]
+        ApiErrorResponse(super::ApiErrorResponse),
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ReadRunHistoryApiRequest {
+pub struct ApiErrorResponse {
+    #[prost(string, tag = "1")]
+    pub message: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ReadRunHistoryRequest {
+    #[prost(oneof = "read_run_history_request::Request", tags = "1, 2, 3")]
+    pub request: ::core::option::Option<read_run_history_request::Request>,
+}
+/// Nested message and enum types in `ReadRunHistoryRequest`.
+pub mod read_run_history_request {
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Request {
+        #[prost(message, tag = "1")]
+        ScanRunHistoryInit(super::ScanRunHistoryInit),
+        #[prost(message, tag = "2")]
+        ScanRunHistory(super::ScanRunHistory),
+        #[prost(message, tag = "3")]
+        ScanRunHistoryCleanup(super::ScanRunHistoryCleanup),
+    }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ReadRunHistoryResponse {
+    #[prost(oneof = "read_run_history_response::Response", tags = "1, 2")]
+    pub response: ::core::option::Option<read_run_history_response::Response>,
+}
+/// Nested message and enum types in `ReadRunHistoryResponse`.
+pub mod read_run_history_response {
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Response {
+        #[prost(message, tag = "1")]
+        ScanRunHistoryInit(super::ScanRunHistoryInitResponse),
+        #[prost(message, tag = "2")]
+        RunHistoryResponse(super::RunHistoryResponse),
+    }
+}
+/// ScanRunHistoryInitApiRequest is a request to initialize
+/// a scan over a run's history.
+///
+/// Because scan history request will be made over a series of requests,
+/// We want to keep initialize and keep track of the resources
+/// associated with the scan request.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ScanRunHistoryInit {
     #[prost(string, tag = "1")]
     pub entity: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub project: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub run_id: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag = "4")]
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct ScanRunHistoryInitResponse {
+    #[prost(int32, tag = "1")]
+    pub request_id: i32,
+}
+/// ScanRunHistoryApiRequest is a request to scan
+/// over a portion of a run's history.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ScanRunHistory {
+    #[prost(string, repeated, tag = "1")]
     pub keys: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(int64, tag = "5")]
+    #[prost(int64, tag = "2")]
     pub min_step: i64,
-    #[prost(int64, tag = "6")]
+    #[prost(int64, tag = "3")]
     pub max_step: i64,
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RecordInfo>,
+    #[prost(int32, tag = "4")]
+    pub request_id: i32,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ReadRunHistoryApiResponse {
+pub struct RunHistoryResponse {
     #[prost(message, repeated, tag = "1")]
     pub history_rows: ::prost::alloc::vec::Vec<HistoryRow>,
-    #[prost(string, tag = "2")]
-    pub error_message: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoryRow {
@@ -3579,4 +3632,11 @@ pub struct ParquetHistoryItem {
     pub key: ::prost::alloc::string::String,
     #[prost(string, tag = "16")]
     pub value_json: ::prost::alloc::string::String,
+}
+/// ScanRunHistoryCleanupApiRequest is a request to cleanup
+/// any resources associated with a scan request.
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct ScanRunHistoryCleanup {
+    #[prost(int32, tag = "1")]
+    pub request_id: i32,
 }
