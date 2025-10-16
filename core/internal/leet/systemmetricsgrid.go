@@ -107,10 +107,25 @@ func (g *SystemMetricsGrid) calculateChartDimensions() MetricChartDimensions {
 
 // getNextColor returns the next color from the palette.
 func (g *SystemMetricsGrid) getNextColor() string {
-	colors := colorSchemes["wandb-vibe-10"]
+	colors := colorSchemes[g.config.SystemColorScheme()]
 	color := colors[g.nextColorIdx%len(colors)]
 	g.nextColorIdx++
 	return color
+}
+
+// anchoredSeriesColorProvider returns a provider that yields colors relative
+// to a given base index in the current palette.
+//
+// The first call returns the color *after* the base color,
+// so the base can be used for the first series.
+func (g *SystemMetricsGrid) anchoredSeriesColorProvider(baseIdx int) func() string {
+	colors := colorSchemes[g.config.SystemColorScheme()]
+	idx := baseIdx + 1
+	return func() string {
+		c := colors[idx%len(colors)]
+		idx++
+		return c
+	}
 }
 
 // createMetricChart creates a time series chart for a system metric.
@@ -129,7 +144,25 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef, baseKey string) *T
 	// TODO: make this configurable.
 	minTime := now.Add(-10 * time.Minute)
 
-	firstColor := g.getNextColor()
+	// Get first color based on color mode.
+	var (
+		firstColor string
+		baseIdx    int
+	)
+
+	colorMode := g.config.SystemColorMode()
+	colors := colorSchemes[g.config.SystemColorScheme()]
+
+	if colorMode == ColorModePerSeries {
+		// All charts share the same base color.
+		firstColor = colors[0]
+	} else {
+		// Per-plot mode: each chart gets the next color from the palette.
+		firstColor = g.getNextColor()
+		// getNextColor() advanced g.nextColorIdx; base is the previous index.
+		baseIdx = (g.nextColorIdx - 1) % len(colors)
+	}
+
 	graphStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(firstColor))
 
 	fullTitle := def.Title
@@ -153,17 +186,18 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef, baseKey string) *T
 	)
 
 	return &TimeSeriesLineChart{
-		chart:        &chart,
-		def:          def,
-		baseKey:      baseKey,
-		title:        def.Title,
-		fullTitle:    fullTitle,
-		series:       make(map[string]int),
-		seriesColors: []string{firstColor},
-		hasData:      false,
-		lastUpdate:   now,
-		minValue:     math.Inf(1),
-		maxValue:     math.Inf(-1),
+		chart:         &chart,
+		def:           def,
+		baseKey:       baseKey,
+		title:         def.Title,
+		fullTitle:     fullTitle,
+		series:        make(map[string]int),
+		seriesColors:  []string{firstColor},
+		colorProvider: g.anchoredSeriesColorProvider(baseIdx),
+		hasData:       false,
+		lastUpdate:    now,
+		minValue:      math.Inf(1),
+		maxValue:      math.Inf(-1),
 	}
 }
 
@@ -184,7 +218,7 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 	seriesName := ExtractSeriesName(metricName)
 
 	chart := g.getOrCreateChart(baseKey, def)
-	chart.AddDataPoint(seriesName, timestamp, value, g.getNextColor)
+	chart.AddDataPoint(seriesName, timestamp, value)
 }
 
 // getOrCreateChart retrieves an existing chart or creates a new one.
