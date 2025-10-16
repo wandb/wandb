@@ -19,10 +19,15 @@ type TimeSeriesLineChart struct {
 	fullTitle    string
 	series       map[string]int
 	seriesColors []string
-	hasData      bool
-	lastUpdate   time.Time
-	minValue     float64
-	maxValue     float64
+
+	// colorProvider yields the next color for additional series on this chart.
+	// It is anchored to the chart's base color so multi-series colors are stable per chart.
+	colorProvider func() string
+
+	hasData    bool
+	lastUpdate time.Time
+	minValue   float64
+	maxValue   float64
 }
 
 // AddDataPoint adds a data point to this chart, creating series as needed.
@@ -30,16 +35,15 @@ func (c *TimeSeriesLineChart) AddDataPoint(
 	seriesName string,
 	timestamp int64,
 	value float64,
-	colorProvider func() string, // a function that returns the next color from the grid's palette.
 ) {
-	c.ensureSeries(seriesName, colorProvider)
+	c.ensureSeries(seriesName)
 	c.addDataPoint(seriesName, timestamp, value)
 	c.updateRanges(timestamp)
 	c.draw(seriesName)
 }
 
 // ensureSeries creates a new series if it doesn't exist.
-func (c *TimeSeriesLineChart) ensureSeries(seriesName string, colorProvider func() string) {
+func (c *TimeSeriesLineChart) ensureSeries(seriesName string) {
 	if seriesName == "Default" {
 		return
 	}
@@ -48,12 +52,17 @@ func (c *TimeSeriesLineChart) ensureSeries(seriesName string, colorProvider func
 		return
 	}
 
-	newColor := colorProvider()
-	colorIndex := len(c.series)
-	c.series[seriesName] = colorIndex
-	c.seriesColors = append(c.seriesColors, newColor)
-
-	seriesStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(newColor))
+	var color string
+	if len(c.series) == 0 {
+		// First dataset uses the chart's base color.
+		color = c.seriesColors[0]
+	} else {
+		// Additional datasets advance the palette via the chart-local provider.
+		color = c.colorProvider()
+		c.seriesColors = append(c.seriesColors, color)
+	}
+	c.series[seriesName] = len(c.series)
+	seriesStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
 	c.chart.SetDataSetStyle(seriesName, seriesStyle)
 }
 
