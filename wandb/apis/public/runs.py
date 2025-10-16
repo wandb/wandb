@@ -281,6 +281,7 @@ class Runs(SizedPaginator["Run"]):
         per_page: int = 50,
         include_sweeps: bool = True,
         lazy: bool = True,
+        api: public.Api | None = None,
     ):
         if not order:
             order = "+created_at"
@@ -299,6 +300,7 @@ class Runs(SizedPaginator["Run"]):
         self._sweeps = {}
         self._include_sweeps = include_sweeps
         self._lazy = lazy
+        self._api = api
         variables = {
             "project": self.project,
             "entity": self.entity,
@@ -358,6 +360,7 @@ class Runs(SizedPaginator["Run"]):
                 run_response["node"],
                 include_sweeps=self._include_sweeps,
                 lazy=self._lazy,
+                api=self._api,
             )
             objs.append(run)
 
@@ -561,6 +564,7 @@ class Run(Attrs):
         attrs: Mapping | None = None,
         include_sweeps: bool = True,
         lazy: bool = True,
+        api: public.Api | None = None,
     ):
         """Initialize a Run object.
 
@@ -590,6 +594,7 @@ class Run(Attrs):
         self.server_provides_internal_id_field: bool | None = None
         self._server_provides_project_id_field: bool | None = None
         self._is_loaded: bool = False
+        self._api: public.Api | None = api
 
         self.load(force=not _attrs)
 
@@ -739,6 +744,7 @@ class Run(Attrs):
                 # just for the sake of this one.
                 self.sweep = public.Sweep.get(
                     self.client,
+                    self._api,
                     self.entity,
                     self.project,
                     self.sweep_name,
@@ -1457,3 +1463,45 @@ class Run(Attrs):
 
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
+
+    def _beta_scan_history(
+        self,
+        keys: list[str] | None = None,
+        page_size=1000,
+        min_step=0,
+        max_step=None,
+    ) -> public.BetaHistoryScan:
+        """Returns an iterable collection of all history records for a run.
+
+        This function uses wandb-core to read history from a run's exported
+        parquet history locally.
+        This function is still in development and should not be used yet.
+
+        Args:
+            keys: list of metrics to read from the run's history.
+                if no keys are provided then all metrics will be returned.
+            page_size: the number of history records to read at a time.
+            min_step: The minimum step to start reading history from (inclusive).
+            max_step: The maximum step to read history up to (exclusive).
+
+        Returns:
+            A BetaHistoryScan object,
+            which can be iterator over to get history records.
+        """
+        if self._api is None:
+            raise ValueError("Object was not initialized with an api instance")
+
+        if keys is None:
+            keys = []
+        if max_step is None:
+            max_step = self.lastHistoryStep + 1
+
+        beta_history_scan = public.BetaHistoryScan(
+            api=self._api,
+            run=self,
+            min_step=min_step,
+            max_step=max_step,
+            keys=keys,
+            page_size=page_size,
+        )
+        return beta_history_scan

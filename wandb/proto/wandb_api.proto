@@ -6,12 +6,22 @@ import "wandb/proto/wandb_settings.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
+// ApiInitRequest provides settings from the client to the backend process.
+// this should be sent once prior to sending any ApiRequests.
+message ServerApiInitRequest {
+  Settings settings = 1;
+}
+
 // ApiRequest is a request to the backend process
 // to perform an action related to an API call.
 message ApiRequest {
   oneof request {
     ReadRunHistoryRequest read_run_history_request = 1;
   }
+}
+
+message ServerApiInitResponse {
+  string error_message = 1;
 }
 
 // ApiResponse is a response from the backend process for an ApiRequest.
@@ -40,6 +50,7 @@ message ReadRunHistoryResponse {
   oneof response {
     ScanRunHistoryInitResponse scan_run_history_init = 1;
     RunHistoryResponse run_history_response = 2;
+    ScanRunHistoryCleanupResponse scan_run_history_cleanup = 3;
   }
 }
 
@@ -86,5 +97,7 @@ message ParquetHistoryItem {
 message ScanRunHistoryCleanup {
   int32 request_id = 1;
 }
+
+message ScanRunHistoryCleanupResponse {}
 
 // End of Scan run history

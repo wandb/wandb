@@ -12,11 +12,142 @@ Note:
 from __future__ import annotations
 
 import json
+import weakref
 
 from wandb_gql import gql
 
+from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import api, runs
+from wandb.proto import wandb_api_pb2 as apb
+
+
+class BetaHistoryScan:
+    """Iterator for scanning complete run history.
+
+    <!-- lazydoc-ignore-class: internal -->
+    """
+
+    def __init__(
+        self,
+        run: runs.Run,
+        min_step: int,
+        max_step: int,
+        api: public.Api,
+        keys: list[str] | None = None,
+        page_size: int = 1000,
+    ):
+        if keys is None:
+            keys = []
+        self.run = run
+        self.min_step = min_step
+        self.max_step = max_step
+        self.keys = keys
+        self.page_size = page_size
+        self._api = api
+
+        # Tell wandb-core to initialize resources to scan the run's history.
+        scan_run_history_init = apb.ScanRunHistoryInit(
+            entity=self.run.entity,
+            project=self.run.project,
+            run_id=self.run.id,
+            keys=self.keys,
+        )
+        scan_run_history_init_request = apb.ReadRunHistoryRequest(
+            scan_run_history_init=scan_run_history_init
+        )
+        api_request = apb.ApiRequest(
+            read_run_history_request=scan_run_history_init_request
+        )
+        response: apb.ApiResponse = self._api._send_api_request(api_request)
+
+        self._scan_request_id = (
+            response.read_run_history_response.scan_run_history_init.request_id
+        )
+
+        self.scan_offset = 0
+        self.rows = []
+        self.keys = keys
+
+        # Add cleanup hook to clean up resources in wandb-core
+        # when this scan object is deleted.
+        weakref.finalize(
+            self,
+            self.cleanup,
+            self._api,
+            self._scan_request_id,
+        )
+
+    def __iter__(self):
+        self.scan_offset = 0
+        self.page_offset = self.min_step
+        self.rows = []
+        return self
+
+    def __next__(self):
+        while True:
+            if self.scan_offset < len(self.rows):
+                row = self.rows[self.scan_offset]
+                self.scan_offset += 1
+                return row
+            if self.page_offset >= self.max_step:
+                raise StopIteration()
+            if self.page_offset >= self.run.lastHistoryStep:
+                raise StopIteration()
+            self._load_next()
+
+    def _load_next(self):
+        from wandb.proto import wandb_api_pb2 as apb
+
+        max_step = self.page_offset + self.page_size
+        if max_step > self.max_step:
+            max_step = self.max_step
+
+        read_run_history_request = apb.ReadRunHistoryRequest(
+            scan_run_history=apb.ScanRunHistory(
+                min_step=self.page_offset,
+                max_step=max_step,
+                request_id=self._scan_request_id,
+            ),
+        )
+        api_request = apb.ApiRequest(read_run_history_request=read_run_history_request)
+
+        response: apb.ApiResponse = self._api._send_api_request(api_request)
+        run_history_response: apb.RunHistoryResponse = (
+            response.read_run_history_response.run_history_response
+        )
+        self.rows = [
+            self._convert_history_row_to_dict(row)
+            for row in run_history_response.history_rows
+        ]
+        self.page_offset += self.page_size
+        self.scan_offset = 0
+
+    def _convert_history_row_to_dict(self, history_row):
+        return {
+            item.key: json.loads(item.value_json) for item in history_row.history_items
+        }
+
+    @staticmethod
+    def cleanup(
+        api: public.Api,
+        request_id: int,
+    ):
+        scan_run_history_cleanup = apb.ScanRunHistoryCleanup(
+            request_id=request_id,
+        )
+        scan_run_history_cleanup_request = apb.ReadRunHistoryRequest(
+            scan_run_history_cleanup=scan_run_history_cleanup
+        )
+
+        try:
+            api._send_api_request(
+                apb.ApiRequest(
+                    read_run_history_request=scan_run_history_cleanup_request
+                )
+            )
+        except ConnectionResetError:
+            pass
 
 
 class HistoryScan:
@@ -40,7 +171,7 @@ class HistoryScan:
     def __init__(
         self,
         client: api.RetryingClient,
-        run: api.public.runs.Run,
+        run: runs.Run,
         min_step: int,
         max_step: int,
         page_size: int = 1000,

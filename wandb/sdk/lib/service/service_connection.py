@@ -4,8 +4,8 @@ import atexit
 import pathlib
 from typing import Callable
 
+from wandb.proto import wandb_api_pb2, wandb_settings_pb2, wandb_sync_pb2
 from wandb.proto import wandb_server_pb2 as spb
-from wandb.proto import wandb_settings_pb2, wandb_sync_pb2
 from wandb.sdk import wandb_settings
 from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_sock import InterfaceSock
@@ -135,6 +135,23 @@ class ServiceConnection:
         handle = await self._client.deliver(request)
         return handle.map(lambda r: r.sync_response)
 
+    def api_init_request(
+        self,
+        settings: wandb_settings_pb2.Settings,
+    ) -> None:
+        """Send a ServerApiInitRequest.
+
+        Telling wandb-core to initialize resources for handling API requests.
+        """
+        api_init_request = wandb_api_pb2.ServerApiInitRequest(settings=settings)
+        request = spb.ServerRequest(api_init_request=api_init_request)
+        handle = self._asyncer.run(lambda: self._client.deliver(request))
+        response = handle.wait_or(timeout=10)
+
+        api_init_response = response.api_init_response
+        if api_init_response.error_message:
+            raise Exception(api_init_response.error_message)
+
     async def sync_status(
         self,
         id: str,
@@ -145,6 +162,27 @@ class ServiceConnection:
 
         handle = await self._client.deliver(request)
         return handle.map(lambda r: r.sync_status_response)
+
+    def api_request(
+        self,
+        api_request: wandb_api_pb2.ApiRequest,
+    ) -> wandb_api_pb2.ApiResponse:
+        """Send an ApiRequest and wait for a response."""
+        request = spb.ServerRequest()
+        request.api_request.CopyFrom(api_request)
+        handle = self._asyncer.run(lambda: self._client.deliver(request))
+        response = handle.wait_or(timeout=10)
+
+        api_response = response.api_response
+        if api_response.HasField("api_error_response"):
+            raise Exception(api_response.api_error_response.message)
+        return api_response
+
+    def api_publish(self, api_request: wandb_api_pb2.ApiRequest) -> None:
+        """Publish an ApiRequest without waiting for a response."""
+        request = spb.ServerRequest()
+        request.api_request.CopyFrom(api_request)
+        self._asyncer.run(lambda: self._client.publish(request))
 
     def inform_init(
         self,

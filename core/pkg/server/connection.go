@@ -121,7 +121,6 @@ func NewConnection(
 		sentryClient:       params.SentryClient,
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
-		wbapi:              wbapi.NewWandbAPI(),
 	}
 }
 
@@ -332,6 +331,8 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleSync(wg, msg.RequestId, x.Sync)
 		case *spb.ServerRequest_SyncStatus:
 			nc.handleSyncStatus(msg.RequestId, x.SyncStatus)
+		case *spb.ServerRequest_ApiInitRequest:
+			nc.handleApiInit(msg.RequestId, x.ApiInitRequest)
 		case *spb.ServerRequest_ApiRequest:
 			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
@@ -594,11 +595,38 @@ func (nc *Connection) handleSyncStatus(
 	})
 }
 
+func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
+	settings := settings.From(request.GetSettings())
+	nc.wbapi = wbapi.NewWandbAPI(settings)
+	nc.Respond(&spb.ServerResponse{
+		RequestId: id,
+		ServerResponseType: &spb.ServerResponse_ApiInitResponse{
+			ApiInitResponse: &spb.ServerApiInitResponse{},
+		},
+	})
+}
+
 func (nc *Connection) handleApi(
 	wg *sync.WaitGroup,
 	id string,
 	request *spb.ApiRequest,
 ) {
+	if nc.wbapi == nil {
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_ApiResponse{
+				ApiResponse: &spb.ApiResponse{
+					Response: &spb.ApiResponse_ApiErrorResponse{
+						ApiErrorResponse: &spb.ApiErrorResponse{
+							Message: "WandbAPI is not initialized",
+						},
+					},
+				},
+			},
+		})
+		return
+	}
+
 	wg.Go(func() {
 		response := nc.wbapi.HandleRequest(id, request)
 
