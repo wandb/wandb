@@ -23,6 +23,10 @@ func NewApiRequestHandler() *APIRequestHandler {
 	}
 }
 
+// HandleRequest handles an API request and returns an API response,
+// or nil if not response is needed.
+//
+// HandleRequest Blocks until the request is processed.
 func (p *APIRequestHandler) HandleRequest(
 	id string,
 	request *spb.ApiRequest,
