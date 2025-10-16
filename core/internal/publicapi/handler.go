@@ -2,21 +2,24 @@ package publicapi
 
 import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"golang.org/x/sync/errgroup"
 )
 
-// APIRequestHandler is a handler for processing API requests
-// from the SDK API clients.
+const (
+	// maxConcurrency is the maximum number of concurrent requests
+	// we want to handle at any given time.
+	maxConcurrency = 10
+)
+
+// APIRequestHandler handles processing API requests
+// from the SDK API clients, and returning API responses to those requests.
 type APIRequestHandler struct {
-	errgroup *errgroup.Group
+	// semaphore is a buffered channel limiting concurrent request handling
+	semaphore chan struct{}
 }
 
 func NewApiRequestHandler() *APIRequestHandler {
-	errgroup := &errgroup.Group{}
-	errgroup.SetLimit(10)
-
 	return &APIRequestHandler{
-		errgroup:                  errgroup,
+		semaphore: make(chan struct{}, maxConcurrency),
 	}
 }
 
@@ -25,12 +28,13 @@ func (p *APIRequestHandler) HandleRequest(
 	request *spb.ApiRequest,
 	respondFn func(response *spb.ServerResponse),
 ) {
-	p.errgroup.Go(func() error {
-		// TODO: Implement request handling logic.
-		// For now respond with a place holder response.
-		respondFn(&spb.ServerResponse{
-			RequestId: id,
-		})
-		return nil
+	// block until until we are able to process more requests
+	p.semaphore <- struct{}{}
+	defer func() { <-p.semaphore }()
+
+	// TODO: Implement request handling logic.
+	// For now respond with a place holder response.
+	respondFn(&spb.ServerResponse{
+		RequestId: id,
 	})
 }
