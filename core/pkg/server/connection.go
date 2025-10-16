@@ -98,7 +98,7 @@ type Connection struct {
 	logLevel slog.Level
 
 	// apiRequestHandler handles processing API related requests from clients.
-	apiRequestHandler *publicapi.ApiRequestHandler
+	apiRequestHandler *publicapi.APIRequestHandler
 }
 
 func NewConnection(
