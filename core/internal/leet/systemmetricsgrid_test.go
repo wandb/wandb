@@ -96,8 +96,7 @@ func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
 	ok2 := grid.HandleMouseClick(0, 0)
 	require.False(t, ok2, "expected unfocus (toggle off) after second click")
 
-	// Rebuild clears focus
-	grid.RebuildGrid()
+	grid.ClearFocus()
 
 	// Add more data after rebuild
 	grid.AddDataPoint("gpu.0.temp", ts+3, 43)
@@ -134,7 +133,7 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 
 	// Test navigation forward
 	initialCharts := grid.GetCharts()
-	var firstPageChart *leet.SystemMetricChart
+	var firstPageChart *leet.TimeSeriesLineChart
 	if initialCharts[0][0] != nil {
 		firstPageChart = initialCharts[0][0]
 	}
@@ -143,7 +142,7 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 	grid.LoadCurrentPage()
 
 	secondPageCharts := grid.GetCharts()
-	var secondPageChart *leet.SystemMetricChart
+	var secondPageChart *leet.TimeSeriesLineChart
 	if secondPageCharts[0][0] != nil {
 		secondPageChart = secondPageCharts[0][0]
 	}

@@ -109,7 +109,7 @@ func (rs *RightSidebar) GetFocusedChartTitle() string {
 // ClearFocus clears focus from the currently focused system chart.
 func (rs *RightSidebar) ClearFocus() {
 	if rs.metricsGrid != nil {
-		rs.metricsGrid.clearFocus()
+		rs.metricsGrid.ClearFocus()
 	}
 }
 

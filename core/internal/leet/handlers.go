@@ -224,36 +224,57 @@ func (m *Model) restoreFocus(previousTitle string) {
 }
 
 // handleMouseMsg processes mouse events, routing by region.
-//
-//gocyclo:ignore
 func (m *Model) handleMouseMsg(msg tea.MouseMsg) (*Model, tea.Cmd) {
 	layout := m.computeViewports()
 
-	// Left sidebar region
-	if msg.X < layout.leftSidebarWidth {
-		m.metricsGrid.clearFocus()
-		m.rightSidebar.ClearFocus()
-		return m, nil
+	if m.isInLeftSidebar(msg, layout) {
+		return m.handleLeftSidebarMouse()
 	}
 
-	// Right sidebar region
+	if m.isInRightSidebar(msg, layout) {
+		return m.handleRightSidebarMouse(msg, layout)
+	}
+
+	return m.handleMainContentMouse(msg, layout)
+}
+
+// isInLeftSidebar checks if mouse position is in the left sidebar region.
+func (m *Model) isInLeftSidebar(msg tea.MouseMsg, layout Layout) bool {
+	return msg.X < layout.leftSidebarWidth
+}
+
+// isInRightSidebar checks if mouse position is in the right sidebar region.
+func (m *Model) isInRightSidebar(msg tea.MouseMsg, layout Layout) bool {
 	rightStart := m.width - layout.rightSidebarWidth
-	if msg.X >= rightStart && layout.rightSidebarWidth > 0 {
-		adjustedX := msg.X - rightStart
+	return msg.X >= rightStart && layout.rightSidebarWidth > 0
+}
 
-		if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
-			tea.MouseEvent(msg).Action == tea.MouseActionPress {
+// handleLeftSidebarMouse handles mouse events in the left sidebar.
+func (m *Model) handleLeftSidebarMouse() (*Model, tea.Cmd) {
+	m.metricsGrid.clearFocus()
+	m.rightSidebar.ClearFocus()
+	return m, nil
+}
 
-			focusSet := m.rightSidebar.HandleMouseClick(adjustedX, msg.Y)
+// handleRightSidebarMouse handles mouse events in the right sidebar.
+func (m *Model) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) (*Model, tea.Cmd) {
+	rightStart := m.width - layout.rightSidebarWidth
+	adjustedX := msg.X - rightStart
 
-			if focusSet {
-				m.metricsGrid.clearFocus()
-			}
+	if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
+		tea.MouseEvent(msg).Action == tea.MouseActionPress {
+
+		focusSet := m.rightSidebar.HandleMouseClick(adjustedX, msg.Y)
+
+		if focusSet {
+			m.metricsGrid.clearFocus()
 		}
-		return m, nil
 	}
+	return m, nil
+}
 
-	// Main content region (metrics grid)
+// handleMainContentMouse handles mouse events in the main content area.
+func (m *Model) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Model, tea.Cmd) {
 	const gridPaddingX = 1
 	const gridPaddingY = 1
 	const headerOffset = 1
@@ -370,7 +391,7 @@ func (m *Model) handleToggleLeftSidebar(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	layout := m.computeViewports()
 	m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
-	return m, m.leftSidebar.animationCmd()
+	return m, m.leftSidebar.animState.animationCmd()
 }
 
 func (m *Model) handleToggleRightSidebar(msg tea.KeyMsg) (*Model, tea.Cmd) {
@@ -599,7 +620,7 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 		m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
 		if m.leftSidebar.IsAnimating() {
-			return m, m.leftSidebar.animationCmd()
+			return m, m.leftSidebar.animState.animationCmd()
 		}
 
 		m.animationMu.Lock()

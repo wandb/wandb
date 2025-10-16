@@ -83,7 +83,7 @@ func (a *AnimationState) Update() (tea.Cmd, bool) {
 		a.currentWidth = int((1 - easeOutCubic(progress)) * float64(a.expandedWidth))
 	}
 
-	return animationCmd(), false
+	return a.animationCmd(), false
 }
 
 // SetExpandedWidth updates the expanded width.
@@ -122,7 +122,7 @@ func easeOutCubic(t float64) float64 {
 }
 
 // animationCmd returns a command to continue the animation.
-func animationCmd() tea.Cmd {
+func (a *AnimationState) animationCmd() tea.Cmd {
 	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg {
 		return LeftSidebarAnimationMsg{}
 	})
