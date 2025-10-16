@@ -11,10 +11,10 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wandb/wandb/core/internal/apihandler"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/publicapi"
 	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -98,7 +98,7 @@ type Connection struct {
 	logLevel slog.Level
 
 	// apiRequestHandler handles processing API related requests from clients.
-	apiRequestHandler *publicapi.APIRequestHandler
+	apiRequestHandler *apihandler.APIRequestHandler
 }
 
 func NewConnection(
@@ -121,7 +121,7 @@ func NewConnection(
 		sentryClient:       params.SentryClient,
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
-		apiRequestHandler:  publicapi.NewApiRequestHandler(),
+		apiRequestHandler:  apihandler.NewApiRequestHandler(),
 	}
 }
 
