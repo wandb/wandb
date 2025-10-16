@@ -10,16 +10,19 @@ const (
 	maxConcurrency = 10
 )
 
-// APIRequestHandler handles processing API requests
-// from the SDK API clients, and returning API responses to those requests.
+// APIRequestHandler handles processing API requests from the SDK API clients,
+// and returning API responses to those requests.
 type APIRequestHandler struct {
 	// semaphore is a buffered channel limiting concurrent request handling
 	semaphore chan struct{}
+
+	runHistoryApiHandler *RunHistoryAPIHandler
 }
 
 func NewApiRequestHandler() *APIRequestHandler {
 	return &APIRequestHandler{
-		semaphore: make(chan struct{}, maxConcurrency),
+		semaphore:            make(chan struct{}, maxConcurrency),
+		runHistoryApiHandler: NewRunHistoryAPIHandler(),
 	}
 }
 
@@ -30,15 +33,18 @@ func NewApiRequestHandler() *APIRequestHandler {
 func (p *APIRequestHandler) HandleRequest(
 	id string,
 	request *spb.ApiRequest,
-	respondFn func(response *spb.ServerResponse),
-) {
+) *spb.ApiResponse {
 	// block until until we are able to process more requests
 	p.semaphore <- struct{}{}
 	defer func() { <-p.semaphore }()
 
 	// TODO: Implement request handling logic.
 	// For now respond with a place holder response.
-	respondFn(&spb.ServerResponse{
-		RequestId: id,
-	})
+	if _, ok := request.Request.(*spb.ApiRequest_ReadRunHistoryRequest); ok {
+		return p.runHistoryApiHandler.HandleRequest(
+			request.GetReadRunHistoryRequest(),
+		)
+	}
+
+	return nil
 }
