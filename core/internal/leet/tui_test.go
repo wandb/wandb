@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/pkg/leveldb"
@@ -43,16 +44,11 @@ func newTestModel(
 func writeRecord(t *testing.T, w *leveldb.Writer, rec *spb.Record) {
 	t.Helper()
 	data, err := proto.Marshal(rec)
-	if err != nil {
-		t.Fatalf("marshal record: %v", err)
-	}
+	require.NoError(t, err)
 	dst, err := w.Next()
-	if err != nil {
-		t.Fatalf("writer.Next: %v", err)
-	}
-	if _, err := dst.Write(data); err != nil {
-		t.Fatalf("writer.Write: %v", err)
-	}
+	require.NoError(t, err)
+	_, err = dst.Write(data)
+	require.NoError(t, err)
 }
 
 // forceRepaint nudges Bubble Tea to produce a fresh frame.
@@ -80,7 +76,6 @@ func TestLoadingScreenAndQuit(t *testing.T) {
 }
 
 func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
-	// Configure a visible 2x2 system metrics grid.
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	_ = cfg.SetSystemRows(2)
@@ -104,6 +99,7 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 	writeRecord(t, writer, &spb.Record{
 		RecordType: &spb.Record_History{
 			History: &spb.HistoryRecord{
+				Step: &spb.HistoryStep{Num: 1},
 				Item: []*spb.HistoryItem{
 					{NestedKey: []string{"_step"}, ValueJson: "1"},
 					{NestedKey: []string{"loss"}, ValueJson: "1.0"},
@@ -125,9 +121,7 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 			},
 		},
 	})
-	if err := writer.Flush(); err != nil {
-		t.Fatalf("flush writer: %v", err)
-	}
+	require.NoError(t, writer.Flush())
 
 	// Spin up the TUI against the live file.
 	const W, H = 240, 80
@@ -148,7 +142,7 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 	// which updates widths/heights and re-computes layout, causing a redraw.
 	forceRepaint(tm, W, H)
 
-	// Assert the right sidebar header renders (it can be empty if width <= 3).
+	// Assert the right sidebar header renders.
 	teatest.WaitFor(t, tm.Output(),
 		func(b []byte) bool { return bytes.Contains(b, []byte("System Metrics")) },
 		teatest.WithDuration(longWait),
@@ -167,9 +161,7 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 			},
 		},
 	})
-	if err := writer.Flush(); err != nil {
-		t.Fatalf("flush writer: %v", err)
-	}
+	require.NoError(t, writer.Flush())
 	tm.Send(leet.FileChangedMsg{}) // triggers ReadAvailableRecords + redraw in Update.
 
 	forceRepaint(tm, 241, 80)
@@ -203,9 +195,7 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 			Exit: &spb.RunExitRecord{ExitCode: 0},
 		},
 	})
-	if err := writer.Close(); err != nil {
-		t.Fatalf("close writer: %v", err)
-	}
+	require.NoError(t, writer.Close())
 	tm.Send(leet.FileChangedMsg{}) // live read + redraw.
 
 	// Wait for the series count [3].

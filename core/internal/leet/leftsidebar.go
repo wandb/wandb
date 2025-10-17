@@ -48,10 +48,7 @@ type LeftSidebar struct {
 	activeSection int
 
 	// Filter state.
-	filterMode    bool   // Whether we're currently typing a filter
-	filterQuery   string // Current filter being typed
-	filterApplied bool   // Whether filter is applied (after Enter)
-	appliedQuery  string // The query that was applied
+	filter FilterState
 
 	// Dimensions.
 	height int
@@ -200,8 +197,8 @@ func (s *LeftSidebar) IsAnimating() bool {
 	return s.animState.IsAnimating()
 }
 
-// GetSelectedItem returns the currently selected key-value pair.
-func (s *LeftSidebar) GetSelectedItem() (key, value string) {
+// SelectedItem returns the currently selected key-value pair.
+func (s *LeftSidebar) SelectedItem() (key, value string) {
 	if s.activeSection < 0 || s.activeSection >= len(s.sections) {
 		return "", ""
 	}
@@ -227,14 +224,14 @@ func (s *LeftSidebar) updateSections() {
 	// Save current selection.
 	var currentKey, currentValue string
 	if s.activeSection >= 0 && s.activeSection < len(s.sections) {
-		currentKey, currentValue = s.GetSelectedItem()
+		currentKey, currentValue = s.SelectedItem()
 	}
 
-	s.sections[0].Items = s.runOverview.GetEnvironmentItems()
-	s.sections[1].Items = s.runOverview.GetConfigItems()
-	s.sections[2].Items = s.runOverview.GetSummaryItems()
+	s.sections[0].Items = s.runOverview.EnvironmentItems()
+	s.sections[1].Items = s.runOverview.ConfigItems()
+	s.sections[2].Items = s.runOverview.SummaryItems()
 
-	if s.filterMode || s.filterApplied {
+	if s.filter.active || s.filter.applied != "" {
 		s.applyFilter()
 	} else {
 		for i := range s.sections {
@@ -279,7 +276,7 @@ func (s *LeftSidebar) buildHeaderLines() []string {
 
 	// Run state from data model.
 	stateLabel := "State: "
-	stateValue := s.getRunStateString()
+	stateValue := s.runStateString()
 	lines = append(lines,
 		sidebarKeyStyle.Render(stateLabel)+sidebarValueStyle.Render(stateValue))
 
@@ -371,7 +368,7 @@ func (s *LeftSidebar) buildSectionInfo(
 	totalItems, filteredItems, startIdx, endIdx int,
 ) string {
 	switch {
-	case (s.filterMode || s.filterApplied) && filteredItems != totalItems:
+	case (s.filter.active || s.filter.applied != "") && filteredItems != totalItems:
 		// Filtered view with pagination.
 		return fmt.Sprintf(" [%d-%d of %d filtered from %d]",
 			startIdx+1, endIdx, filteredItems, totalItems)
@@ -436,8 +433,8 @@ func (s *LeftSidebar) renderItem(
 		valueStyle.Render(value))
 }
 
-// getRunStateString returns a string representation from the data model.
-func (s *LeftSidebar) getRunStateString() string {
+// runStateString returns a string representation from the data model.
+func (s *LeftSidebar) runStateString() string {
 	switch s.runOverview.State() {
 	case RunStateRunning:
 		return "Running"

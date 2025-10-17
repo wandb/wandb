@@ -5,76 +5,109 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/stretchr/testify/require"
 	leet "github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+func newMetricsGrid(t *testing.T, rows, cols, width, height int, focus *leet.Focus) *leet.MetricsGrid {
+	t.Helper()
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	require.NoError(t, cfg.SetMetricsRows(rows))
+	require.NoError(t, cfg.SetMetricsCols(cols))
+
+	if focus == nil {
+		focus = &leet.Focus{}
+	}
+
+	grid := leet.NewMetricsGrid(cfg, focus, logger)
+	grid.UpdateDimensions(width, height)
+	return grid
+}
+
 func TestCalculateChartDimensions_RespectsMinimums(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	m := leet.NewMetricsGrid(cfg, &leet.FocusState{}, logger)
-	d := m.CalculateChartDimensions(30, 10) // small on purpose
-	if d.ChartWidth < leet.MinChartWidth {
-		t.Fatalf("ChartWidth=%d < MinChartWidth=%d", d.ChartWidth, leet.MinChartWidth)
-	}
-	if d.ChartHeight < leet.MinChartHeight {
-		t.Fatalf("ChartHeight=%d < MinChartHeight=%d", d.ChartHeight, leet.MinChartHeight)
-	}
+	grid := newMetricsGrid(t, 2, 2, 200, 80, nil)
+
+	d := grid.CalculateChartDimensions(10, 5) // small on purpose
+	require.GreaterOrEqual(t, d.CellW, leet.MinChartWidth)
+	require.GreaterOrEqual(t, d.CellH, leet.MinChartHeight)
 }
 
-func TestModelView_TruncatesLongTitles(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	m := leet.NewModel("dummy", cfg, logger)
+func TestMetricsGrid_Render_EmptyGridShowsSectionHeader(t *testing.T) {
+	grid := newMetricsGrid(t, 2, 2, 200, 80, nil)
 
-	// Establish terminal size first so new charts get reasonable dims.
-	if tm, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 20}); tm != nil {
-		m = tm.(*leet.Model)
-	}
+	dims := grid.CalculateChartDimensions(200, 80)
 
-	// Add one long-titled metric to force truncation inside a narrow cell.
-	long := "this/is/a/very/long/title/that/should/truncate"
-	if tm, _ := m.Update(leet.HistoryMsg{Metrics: map[string]float64{long: 1.0}}); tm != nil {
-		m = tm.(*leet.Model)
-	}
-
-	out := m.View()
-	if !strings.Contains(out, "...") {
-		t.Fatalf("expected truncated title with ellipsis in View(); got:\n%s", out)
-	}
+	out := grid.RenderGrid(dims)
+	require.Contains(t, out, "Metrics", "section header should always be present")
 }
 
-func TestModelView_ChartsAreSortedAlphabetically(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	m := leet.NewModel("dummy", cfg, logger)
+func TestMetricsGrid_Lifecycle(t *testing.T) {
+	// 1 row x 2 cols so 3 charts produce 2 pages.
+	w, h := 200, 20
+	grid := newMetricsGrid(t, 1, 2, w, h, nil)
 
-	if tm, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40}); tm != nil {
-		m = tm.(*leet.Model)
-	}
+	created := grid.ProcessHistory(1, map[string]float64{
+		"zeta":  1.0,
+		"alpha": 2.0,
+		"beta":  3.0,
+	})
+	require.True(t, created, "ingestion should report that there is something to draw")
+	grid.UpdateDimensions(w, h)
 
-	// Send metrics out of order; model should sort charts by title.
-	msg := leet.HistoryMsg{
-		Metrics: map[string]float64{
-			"zeta":  1,
-			"alpha": 1,
-			"beta":  1,
-		},
-	}
-	if tm, _ := m.Update(msg); tm != nil {
-		m = tm.(*leet.Model)
-	}
+	dims := grid.CalculateChartDimensions(w, h)
+	out := grid.RenderGrid(dims)
 
-	out := m.View()
 	a := strings.Index(out, "alpha")
 	b := strings.Index(out, "beta")
 	z := strings.Index(out, "zeta")
+	require.Greater(t, a, 0, "alpha should be present in view")
+	require.Greater(t, b, 0, "beta should be present in view")
+	require.Equal(t, z, -1, "zeta should not be present in view")
+	require.Less(t, a, b, "expected alpha before beta as chart should be sorted alphabetically")
+	require.Contains(t, out, " [1-2 of 3]", "expected nav info for 2-wide page over 3 total charts")
 
-	if a < 0 || b < 0 || z < 0 {
-		t.Fatalf("expected all titles in view; got positions: alpha=%d beta=%d zeta=%d\n%s", a, b, z, out)
-	}
-	if (a >= b) || (b >= z) {
-		t.Fatalf("expected alphabetical order alpha < beta < zeta; got positions: a=%d b=%d z=%d", a, b, z)
-	}
+	grid.Navigate(1)
+	out = grid.RenderGrid(dims)
+	a = strings.Index(out, "alpha")
+	b = strings.Index(out, "beta")
+	z = strings.Index(out, "zeta")
+	require.Equal(t, a, -1, "alpha should not be present in view")
+	require.Equal(t, b, -1, "beta should not be present in view")
+	require.Greater(t, z, 0, "zeta should be present in view")
+	require.Contains(t, out, " [3-3 of 3]", "expected nav info for 1-wide page over 3 total charts")
+}
+
+func TestMetricsGrid_Navigate_ClearsMainChartFocus(t *testing.T) {
+	f := &leet.Focus{}
+	w, h := 120, 20
+	// 1 row x 1 cols so 2 charts produce 2 pages.
+	grid := newMetricsGrid(t, 1, 1, w, h, f)
+	grid.ProcessHistory(1, map[string]float64{"alpha": 1, "beta": 2})
+	grid.UpdateDimensions(w, h)
+
+	// Focus on the first metric chart.
+	f.Type = leet.FocusMainChart
+	f.Row, f.Col = 0, 0
+	f.Title = "alpha"
+
+	grid.Navigate(1)
+	require.Equal(t, leet.FocusNone, f.Type, "focus should be cleared after navigation")
+}
+
+func TestMetricsGrid_PreservesFocusAcrossHistoryUpdates(t *testing.T) {
+	f := &leet.Focus{}
+	w, h := 120, 20
+	grid := newMetricsGrid(t, 2, 2, w, h, f)
+	grid.ProcessHistory(1, map[string]float64{"alpha": 1, "beta": 2})
+	grid.UpdateDimensions(w, h)
+
+	// Focus on the first metric chart.
+	f.Type = leet.FocusMainChart
+	f.Row, f.Col = 0, 0
+	f.Title = "alpha"
+
+	grid.ProcessHistory(2, map[string]float64{"gamma": 3})
+	require.Equal(t, "alpha", f.Title, "expected focus restored to previous title")
 }

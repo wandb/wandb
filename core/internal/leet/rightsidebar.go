@@ -22,28 +22,30 @@ const (
 	mouseClickPaddingOffset = 1
 )
 
-// RightSidebar represents a collapsible right sidebar panel displaying system metrics.
+// RightSidebar represents a collapsible right sidebar displaying system metrics.
 type RightSidebar struct {
 	config      *ConfigManager
 	animState   *AnimationState
 	metricsGrid *SystemMetricsGrid
-	focusState  *FocusState
+	focusState  *Focus
 	logger      *observability.CoreLogger
 }
 
-// NewRightSidebar creates a new right sidebar.
 func NewRightSidebar(
 	config *ConfigManager,
-	focusState *FocusState,
+	focusState *Focus,
 	logger *observability.CoreLogger,
 ) *RightSidebar {
-	animState := NewAnimationState(config.RightSidebarVisible(), SidebarMinWidth)
+	rows, cols := config.SystemGrid()
+	initW := MinMetricChartWidth * cols
+	initH := MinMetricChartHeight * rows
 
 	return &RightSidebar{
-		config:     config,
-		animState:  animState,
-		logger:     logger,
-		focusState: focusState,
+		config:      config,
+		animState:   NewAnimationState(config.RightSidebarVisible(), SidebarMinWidth),
+		metricsGrid: NewSystemMetricsGrid(initW, initH, config, focusState, logger),
+		logger:      logger,
+		focusState:  focusState,
 	}
 }
 
@@ -61,31 +63,23 @@ func (rs *RightSidebar) UpdateDimensions(terminalWidth int, leftSidebarVisible b
 	expandedWidth := clamp(calculatedWidth, SidebarMinWidth, SidebarMaxWidth)
 	rs.animState.SetExpandedWidth(expandedWidth)
 
-	// Resize existing grid if visible and dimensions are valid.
-	if rs.metricsGrid != nil && rs.animState.IsVisible() {
-		if gridWidth := rs.calculateGridWidth(); gridWidth > 0 {
-			rs.metricsGrid.Resize(gridWidth, defaultSystemGridHeight)
-		}
+	if gridWidth := rs.calculateGridWidth(); gridWidth > 0 {
+		rs.metricsGrid.Resize(gridWidth, defaultSystemGridHeight)
 	}
 }
 
 // Toggle toggles the sidebar between expanded and collapsed states.
 func (rs *RightSidebar) Toggle() {
 	rs.animState.Toggle()
-
-	// Initialize grid when starting to expand (if not already created).
-	if rs.animState.State() == SidebarExpanding && rs.metricsGrid == nil {
-		rs.initializeGrid()
-	}
 }
 
 // HandleMouseClick handles mouse clicks in the sidebar and returns true if focus changed.
 func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
 	rs.logger.Debug(fmt.Sprintf(
-		"RightSidebar.HandleMouseClick: x=%d, y=%d, state=%v",
+		"rightsidebar: HandleMouseClick: x=%d, y=%d, state=%v",
 		x, y, rs.animState.State()))
 
-	if !rs.canHandleInteraction() {
+	if !rs.animState.IsVisible() {
 		return false
 	}
 
@@ -99,25 +93,20 @@ func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
 
 	dims := rs.metricsGrid.calculateChartDimensions()
 
-	row := adjustedY / dims.ChartHeightWithPadding
-	col := adjustedX / dims.ChartWidthWithPadding
+	row := adjustedY / dims.CellHWithPadding
+	col := adjustedX / dims.CellWWithPadding
 
 	return rs.metricsGrid.HandleMouseClick(row, col)
 }
 
-// GetFocusedChartTitle returns the title of the focused chart, or empty string if none.
-func (rs *RightSidebar) GetFocusedChartTitle() string {
-	if rs.metricsGrid != nil {
-		return rs.metricsGrid.GetFocusedChartTitle()
-	}
-	return ""
+// FocusedChartTitle returns the title of the focused chart, or empty string if none.
+func (rs *RightSidebar) FocusedChartTitle() string {
+	return rs.metricsGrid.FocusedChartTitle()
 }
 
 // ClearFocus clears focus from the currently focused system chart.
 func (rs *RightSidebar) ClearFocus() {
-	if rs.metricsGrid != nil {
-		rs.metricsGrid.ClearFocus()
-	}
+	rs.metricsGrid.ClearFocus()
 }
 
 // Update handles animation updates and stats processing.
@@ -126,14 +115,8 @@ func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 		rs.ProcessStatsMsg(statsMsg)
 	}
 
-	if rs.animState.IsAnimating() {
-		complete := rs.animState.Update()
-		if complete {
-			// Animation just completed - resize grid if needed.
-			rs.onAnimationComplete()
-		} else {
-			return rs, rs.animationCmd()
-		}
+	if rs.animState.IsAnimating() && !rs.animState.Update() {
+		return rs, rs.animationCmd()
 	}
 
 	return rs, nil
@@ -152,7 +135,7 @@ func (rs *RightSidebar) View(height int) string {
 		return ""
 	}
 
-	rs.ensureGrid(gridWidth, gridHeight)
+	rs.metricsGrid.Resize(gridWidth, gridHeight)
 
 	header := rs.renderHeader()
 	metricsView := rs.metricsGrid.View()
@@ -191,55 +174,12 @@ func (rs *RightSidebar) IsAnimating() bool {
 // ProcessStatsMsg processes a stats message and updates the metrics.
 func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 	rs.logger.Debug(fmt.Sprintf(
-		"RightSidebar.ProcessStatsMsg: processing %d metrics (state=%v, width=%d)",
+		"rightsidebar: ProcessStatsMsg: processing %d metrics (state=%v, width=%d)",
 		len(msg.Metrics), rs.animState.State(), rs.animState.Width()))
-
-	// Ensure grid exists before adding data.
-	if rs.metricsGrid == nil {
-		rs.initializeGrid()
-	}
 
 	// Add all data points to the grid.
 	for metricName, value := range msg.Metrics {
 		rs.metricsGrid.AddDataPoint(metricName, msg.Timestamp, value)
-	}
-}
-
-// initializeGrid creates a new metrics grid with initial dimensions.
-func (rs *RightSidebar) initializeGrid() {
-	gridRows, gridCols := rs.config.SystemGrid()
-	initialWidth := MinMetricChartWidth * gridCols
-	initialHeight := MinMetricChartHeight * gridRows
-
-	rs.metricsGrid = NewSystemMetricsGrid(
-		initialWidth, initialHeight, rs.config, rs.focusState, rs.logger)
-
-	rs.logger.Debug(fmt.Sprintf(
-		"RightSidebar.initializeGrid: created grid with dimensions %dx%d",
-		initialWidth, initialHeight))
-}
-
-// ensureGrid ensures the grid exists and is properly sized.
-//
-// This should only be called from View() to maintain proper lifecycle.
-func (rs *RightSidebar) ensureGrid(width, height int) {
-	if rs.metricsGrid == nil {
-		rs.metricsGrid = NewSystemMetricsGrid(
-			width, height, rs.config, rs.focusState, rs.logger)
-		rs.logger.Debug(fmt.Sprintf(
-			"RightSidebar.ensureGrid: created grid in View with dimensions %dx%d",
-			width, height))
-	} else {
-		rs.metricsGrid.Resize(width, height)
-	}
-}
-
-// onAnimationComplete handles actions after animation completes.
-func (rs *RightSidebar) onAnimationComplete() {
-	if rs.animState.State() == SidebarExpanded && rs.metricsGrid != nil {
-		if gridWidth := rs.calculateGridWidth(); gridWidth > 0 {
-			rs.metricsGrid.Resize(gridWidth, defaultSystemGridHeight)
-		}
 	}
 }
 
@@ -253,11 +193,6 @@ func (rs *RightSidebar) calculateGridHeight(sidebarHeight int) int {
 	// Reserve one line for the header.
 	const headerLines = 1
 	return sidebarHeight - headerLines
-}
-
-// canHandleInteraction returns true if the sidebar can handle mouse interactions.
-func (rs *RightSidebar) canHandleInteraction() bool {
-	return rs.animState.IsVisible() && rs.metricsGrid != nil
 }
 
 // renderHeader renders the header line with title and navigation info.
@@ -275,20 +210,16 @@ func (rs *RightSidebar) renderHeader() string {
 
 // buildNavigationInfo builds the navigation info string for the header.
 func (rs *RightSidebar) buildNavigationInfo() string {
-	if rs.metricsGrid == nil {
-		return ""
-	}
-
-	chartCount := rs.metricsGrid.GetChartCount()
+	chartCount := rs.metricsGrid.ChartCount()
 	size := rs.metricsGrid.effectiveGridSize()
 	itemsPerPage := ItemsPerPage(size)
 
 	// Only show navigation if we have charts and pagination.
-	if rs.metricsGrid.navigator.TotalPages() == 0 || chartCount == 0 || itemsPerPage == 0 {
+	if rs.metricsGrid.nav.TotalPages() == 0 || chartCount == 0 || itemsPerPage == 0 {
 		return ""
 	}
 
-	startIdx, endIdx := rs.metricsGrid.navigator.GetPageBounds(chartCount, itemsPerPage)
+	startIdx, endIdx := rs.metricsGrid.nav.PageBounds(chartCount, itemsPerPage)
 	startIdx++ // Display as 1-indexed
 
 	return navInfoStyle.Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, chartCount))

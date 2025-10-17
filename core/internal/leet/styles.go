@@ -65,9 +65,6 @@ var (
 	// Color for layout elements, like borders and separator lines.
 	colorLayout = lipgloss.Color("238")
 
-	// Color for selected items.
-	colorSelected = lipgloss.Color("237")
-
 	// Color for layout elements when they're highlighted or focused.
 	colorLayoutHighlight = teal450
 
@@ -80,8 +77,9 @@ var (
 	colorSubheading = lipgloss.Color("230")
 
 	// Colors for key-value pairs such as run summary or config items.
-	colorItemKey   = lipgloss.Color("241")
+	colorItemKey   = lipgloss.Color("243")
 	colorItemValue = lipgloss.Color("252")
+	colorSelected  = lipgloss.Color("238")
 )
 
 // ASCII art for the loading screen and the help page.
@@ -156,9 +154,9 @@ var colorSchemes = map[string][]string{
 	},
 }
 
-// GetGraphColors returns the colors for the current color scheme.
-func GetGraphColors() []string {
-	return colorSchemes["sunset-glow"]
+// GraphColors returns the colors for the current color scheme.
+func GraphColors() []string {
+	return colorSchemes[DefaultColorScheme]
 }
 
 // Metrics grid styles.
@@ -177,6 +175,8 @@ var (
 	borderStyle = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(colorLayout)
 
 	titleStyle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
+
+	seriesCountStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
 	focusedBorderStyle = borderStyle.BorderForeground(colorLayoutHighlight)
 

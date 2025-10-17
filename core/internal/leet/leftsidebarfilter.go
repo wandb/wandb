@@ -7,40 +7,39 @@ import (
 
 // StartFilter activates filter mode.
 func (s *LeftSidebar) StartFilter() {
-	s.filterMode = true
-	if s.filterApplied && s.appliedQuery != "" {
-		s.filterQuery = s.appliedQuery
+	s.filter.active = true
+	if s.filter.applied != "" {
+		s.filter.draft = s.filter.applied
 	} else {
-		s.filterQuery = ""
+		s.filter.draft = ""
 	}
 }
 
 // UpdateFilter updates the filter query (for live preview).
 func (s *LeftSidebar) UpdateFilter(query string) {
-	s.filterQuery = query
+	s.filter.draft = query
 	s.applyFilter()
 	s.calculateSectionHeights()
 }
 
 // ConfirmFilter applies the filter (on Enter).
 func (s *LeftSidebar) ConfirmFilter() {
-	s.filterApplied = true
-	s.appliedQuery = s.filterQuery
-	s.filterMode = false
+	s.filter.applied = s.filter.draft
+	s.filter.active = false
 	s.applyFilter()
 	s.calculateSectionHeights()
 }
 
 // CancelFilter cancels the current filter input and restores the previous state.
 func (s *LeftSidebar) CancelFilter() {
-	s.filterMode = false
-	s.filterQuery = ""
-	if s.filterApplied && s.appliedQuery != "" {
-		s.filterQuery = s.appliedQuery
+	s.filter.active = false
+	s.filter.draft = ""
+	if s.filter.applied != "" {
+		s.filter.draft = s.filter.applied
 		s.applyFilter()
 		s.calculateSectionHeights()
 	} else {
-		s.filterQuery = ""
+		s.filter.draft = ""
 		s.applyFilter()
 		s.calculateSectionHeights()
 	}
@@ -48,30 +47,30 @@ func (s *LeftSidebar) CancelFilter() {
 
 // IsFilterMode returns true if the sidebar is currently in filter input mode.
 func (s *LeftSidebar) IsFilterMode() bool {
-	return s.filterMode
+	return s.filter.active
 }
 
-// GetFilterInput returns the current filter input being typed.
-func (s *LeftSidebar) GetFilterInput() string {
-	return s.filterQuery
+// FilterDraft returns the current filter input being typed.
+func (s *LeftSidebar) FilterDraft() string {
+	return s.filter.draft
 }
 
 // IsFiltering returns true if the sidebar has an applied filter.
 func (s *LeftSidebar) IsFiltering() bool {
-	return s.filterApplied
+	return s.filter.applied != ""
 }
 
-// GetFilterQuery returns the current or applied filter query.
-func (s *LeftSidebar) GetFilterQuery() string {
-	if s.filterApplied {
-		return s.appliedQuery
+// FilterQuery returns the current or applied filter query.
+func (s *LeftSidebar) FilterQuery() string {
+	if s.filter.applied != "" {
+		return s.filter.applied
 	}
-	return s.filterQuery
+	return s.filter.draft
 }
 
-// GetFilterInfo returns formatted filter information for status bar.
-func (s *LeftSidebar) GetFilterInfo() string {
-	if (!s.filterMode && !s.filterApplied) || (s.filterQuery == "" && s.appliedQuery == "") {
+// FilterInfo returns formatted filter information for status bar.
+func (s *LeftSidebar) FilterInfo() string {
+	if (!s.filter.active && s.filter.applied == "") || (s.filter.draft == "" && s.filter.applied == "") {
 		return ""
 	}
 
@@ -95,10 +94,9 @@ func (s *LeftSidebar) GetFilterInfo() string {
 
 // clearFilter clears the active filter.
 func (s *LeftSidebar) clearFilter() {
-	s.filterMode = false
-	s.filterApplied = false
-	s.filterQuery = ""
-	s.appliedQuery = ""
+	s.filter.active = false
+	s.filter.draft = ""
+	s.filter.applied = ""
 
 	for i := range s.sections {
 		s.sections[i].FilteredItems = s.sections[i].Items
@@ -112,7 +110,7 @@ func (s *LeftSidebar) clearFilter() {
 
 // applyFilter filters items based on current filter query.
 func (s *LeftSidebar) applyFilter() {
-	query := s.getActiveFilterQuery()
+	query := s.filterQuery()
 	sectionFilter := s.extractSectionFilter(&query)
 	query = strings.ToLower(query)
 
@@ -126,11 +124,11 @@ func (s *LeftSidebar) applyFilter() {
 	}
 }
 
-// getActiveFilterQuery returns the current active filter query.
-func (s *LeftSidebar) getActiveFilterQuery() string {
-	query := strings.TrimSpace(s.filterQuery)
-	if s.filterApplied {
-		query = strings.TrimSpace(s.appliedQuery)
+// filterQuery returns the current active filter query.
+func (s *LeftSidebar) filterQuery() string {
+	query := strings.TrimSpace(s.filter.draft)
+	if s.filter.applied != "" {
+		query = strings.TrimSpace(s.filter.applied)
 	}
 	return query
 }

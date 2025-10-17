@@ -38,7 +38,7 @@ func TestSidebarFilter_WithPrefixes(t *testing.T) {
 
 	s.StartFilter()
 	s.UpdateFilter("@c train") // live preview
-	if info := s.GetFilterInfo(); info == "" {
+	if info := s.FilterInfo(); info == "" {
 		t.Fatal("expected filter info for config section")
 	}
 	s.ConfirmFilter() // locks it in
@@ -57,7 +57,7 @@ func TestSidebar_SelectsFirstNonEmptySection(t *testing.T) {
 		},
 	})
 
-	key, val := s.GetSelectedItem()
+	key, val := s.SelectedItem()
 	if key != "trainer.epochs" || val != "10" {
 		t.Fatalf("selected item = {%q,%q}; want {\"trainer.epochs\",\"10\"}", key, val)
 	}
@@ -87,7 +87,7 @@ func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
 	s.UpdateFilter("@s acc")
 	s.ConfirmFilter()
 
-	key, _ := s.GetSelectedItem()
+	key, _ := s.SelectedItem()
 	if key != "acc" {
 		t.Fatalf("after summary filter, selected key=%q; want \"acc\"", key)
 	}
@@ -181,7 +181,7 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 
 	// Start in Environment; Tab to Config (navigateSection).
 	s.Update(tea.KeyMsg{Type: tea.KeyTab})
-	key, _ := s.GetSelectedItem()
+	key, _ := s.SelectedItem()
 	if !strings.HasPrefix(key, "alpha.") && !strings.HasPrefix(key, "beta.") {
 		t.Fatalf("expected to be in Config after Tab, got key=%q", key)
 	}
@@ -189,7 +189,7 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 	// Height=15 -> 1 item/page; Down moves to next page/next item (navigateDown + navigatePage).
 	_ = s.View(15)
 	s.Update(tea.KeyMsg{Type: tea.KeyDown})
-	key2, _ := s.GetSelectedItem()
+	key2, _ := s.SelectedItem()
 	if key2 == key {
 		t.Fatalf("expected selection to move with Down; still at %q", key2)
 	}
@@ -198,14 +198,14 @@ func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
 	s.Update(tea.KeyMsg{Type: tea.KeyRight})
 	s.Update(tea.KeyMsg{Type: tea.KeyLeft})
 	s.Update(tea.KeyMsg{Type: tea.KeyUp})
-	key3, _ := s.GetSelectedItem()
+	key3, _ := s.SelectedItem()
 	if !strings.HasPrefix(key3, "alpha.") && !strings.HasPrefix(key3, "beta.") {
 		t.Fatalf("expected to stay in Config after paging; got key=%q", key3)
 	}
 
 	// Shift-Tab back to previous section (Environment).
 	s.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
-	key4, _ := s.GetSelectedItem()
+	key4, _ := s.SelectedItem()
 	if strings.HasPrefix(key4, "alpha.") || strings.HasPrefix(key4, "beta.") {
 		t.Fatalf("expected to be back in Environment; got key=%q", key4)
 	}
@@ -240,7 +240,7 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 	s.StartFilter()
 	s.UpdateFilter("acc")
 	s.ConfirmFilter()
-	if info := s.GetFilterInfo(); info == "" {
+	if info := s.FilterInfo(); info == "" {
 		t.Fatal("expected filter info after applying filter")
 	}
 
@@ -248,7 +248,7 @@ func TestSidebar_ClearFilter_PublicPath(t *testing.T) {
 	s.StartFilter()
 	s.UpdateFilter("")
 	s.ConfirmFilter()
-	if info := s.GetFilterInfo(); info != "" {
+	if info := s.FilterInfo(); info != "" {
 		t.Fatalf("expected empty filter info after clearing; got %q", info)
 	}
 	if view := s.View(40); !strings.Contains(view, "Config [2 items]") {

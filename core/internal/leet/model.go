@@ -14,32 +14,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-// RunState indicates the current state of the run.
-type RunState int32
-
-const (
-	RunStateRunning RunState = iota
-	RunStateFinished
-	RunStateFailed
-	RunStateCrashed
-)
-
-// FocusType indicates what type of UI element is focused.
-type FocusType int
-
-const (
-	FocusNone FocusType = iota
-	FocusMainChart
-	FocusSystemChart
-)
-
-// FocusState tracks the currently focused chart.
-type FocusState struct {
-	Type     FocusType
-	Row, Col int
-	Title    string
-}
-
 // Model is the main application model implementing tea.Model.
 //
 // It coordinates the main metrics grid, sidebars, help screen, and data loading.
@@ -74,7 +48,7 @@ type Model struct {
 	wcChan       chan tea.Msg
 
 	// Chart focus state.
-	focusState *FocusState
+	focus *Focus
 
 	// UI components.
 	metricsGrid  *MetricsGrid
@@ -112,14 +86,14 @@ func NewModel(runPath string, cfg *ConfigManager, logger *observability.CoreLogg
 	heartbeatInterval := cfg.HeartbeatInterval()
 	logger.Info(fmt.Sprintf("model: heartbeat interval set to %v", heartbeatInterval))
 
-	focusState := &FocusState{Type: FocusNone, Row: -1, Col: -1}
+	focusState := &Focus{Type: FocusNone, Row: -1, Col: -1}
 	wcChan := make(chan tea.Msg, 4096)
 
 	m := &Model{
 		config:       cfg,
 		keyMap:       buildKeyMap(),
 		help:         NewHelp(),
-		focusState:   focusState,
+		focus:        focusState,
 		fileComplete: false,
 		isLoading:    true,
 		runPath:      runPath,
@@ -226,7 +200,7 @@ func isUIMsg(msg tea.Msg) bool {
 // handleHelp centralizes help toggle and routing while active.
 func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 	// Don't toggle help while any filter UI is active.
-	if m.metricsGrid.filterMode || m.leftSidebar.IsFilterMode() {
+	if m.metricsGrid.filter.active || m.leftSidebar.IsFilterMode() {
 		return false, nil
 	}
 
@@ -284,10 +258,10 @@ func (m *Model) dispatch(msg tea.Msg) []tea.Cmd {
 	return nil
 }
 
-// GetFocusedTitle returns the title of the currently focused chart.
-func (m *Model) GetFocusedTitle() string {
-	if m.focusState.Type != FocusNone {
-		return m.focusState.Title
+// FocusedTitle returns the title of the currently focused chart.
+func (m *Model) FocusedTitle() string {
+	if m.focus.Type != FocusNone {
+		return m.focus.Title
 	}
 	return ""
 }
@@ -329,7 +303,7 @@ func (m *Model) renderHelpScreen() string {
 func (m *Model) renderMainView() string {
 	layout := m.computeViewports()
 	dims := m.metricsGrid.CalculateChartDimensions(layout.mainContentAreaWidth, layout.height)
-	gridView := m.metricsGrid.renderGrid(dims)
+	gridView := m.metricsGrid.RenderGrid(dims)
 
 	leftWidth := m.leftSidebar.Width()
 	rightWidth := m.rightSidebar.Width()
@@ -445,10 +419,10 @@ func (m *Model) renderStatusBar() string {
 
 // buildStatusText builds the main status text.
 func (m *Model) buildStatusText() string {
-	if m.leftSidebar.filterMode {
+	if m.leftSidebar.filter.active {
 		return m.buildOverviewFilterStatus()
 	}
-	if m.metricsGrid.filterMode {
+	if m.metricsGrid.filter.active {
 		return m.buildMetricsFilterStatus()
 	}
 	if m.pendingGridConfig != gridConfigNone {
@@ -462,22 +436,22 @@ func (m *Model) buildStatusText() string {
 
 // buildOverviewFilterStatus builds status for overview filter mode.
 func (m *Model) buildOverviewFilterStatus() string {
-	filterInfo := m.leftSidebar.GetFilterInfo()
+	filterInfo := m.leftSidebar.FilterInfo()
 	if filterInfo == "" {
 		filterInfo = "no matches"
 	}
 	return fmt.Sprintf(" Overview filter: %s_ [%s] (@e/@c/@s for sections • Enter to apply)",
-		m.leftSidebar.GetFilterQuery(), filterInfo)
+		m.leftSidebar.FilterQuery(), filterInfo)
 }
 
 // buildMetricsFilterStatus builds status for metrics filter mode.
 func (m *Model) buildMetricsFilterStatus() string {
-	matchCount := m.metricsGrid.getFilteredChartCount()
-	m.metricsGrid.chartMu.RLock()
-	totalCount := len(m.metricsGrid.allCharts)
-	m.metricsGrid.chartMu.RUnlock()
+	matchCount := m.metricsGrid.filteredChartCount()
+	m.metricsGrid.mu.RLock()
+	totalCount := len(m.metricsGrid.all)
+	m.metricsGrid.mu.RUnlock()
 	return fmt.Sprintf(" Filter: %s_ [%d/%d matches] (Enter to apply)",
-		m.metricsGrid.filterInput, matchCount, totalCount)
+		m.metricsGrid.filter.draft, matchCount, totalCount)
 }
 
 // buildGridConfigStatus builds status for grid configuration mode.
@@ -498,9 +472,9 @@ func (m *Model) buildGridConfigStatus() string {
 
 // buildLoadingStatus builds status for loading mode.
 func (m *Model) buildLoadingStatus() string {
-	m.metricsGrid.chartMu.RLock()
-	chartCount := len(m.metricsGrid.allCharts)
-	m.metricsGrid.chartMu.RUnlock()
+	m.metricsGrid.mu.RLock()
+	chartCount := len(m.metricsGrid.all)
+	m.metricsGrid.mu.RUnlock()
 
 	if m.recordsLoaded > 0 {
 		return fmt.Sprintf(" Loading data... [%d records, %d metrics]",
@@ -514,32 +488,33 @@ func (m *Model) buildActiveStatus() string {
 	var parts []string
 
 	// Add filter info if active.
-	if m.metricsGrid.activeFilter != "" {
-		m.metricsGrid.chartMu.RLock()
-		filteredCount := len(m.metricsGrid.filteredCharts)
-		totalCount := len(m.metricsGrid.allCharts)
-		m.metricsGrid.chartMu.RUnlock()
+	if m.metricsGrid.filter.applied != "" {
+		m.metricsGrid.mu.RLock()
+		filteredCount := len(m.metricsGrid.filtered)
+		totalCount := len(m.metricsGrid.all)
+		m.metricsGrid.mu.RUnlock()
 		parts = append(parts, fmt.Sprintf("Filter: \"%s\" [%d/%d] (/ to change, Ctrl+L to clear)",
-			m.metricsGrid.activeFilter, filteredCount, totalCount))
+			m.metricsGrid.filter.applied, filteredCount, totalCount))
 	}
 
 	// Add overview filter info if active.
 	if m.leftSidebar.IsFiltering() {
-		filterInfo := m.leftSidebar.GetFilterInfo()
 		parts = append(parts, fmt.Sprintf("Overview: \"%s\" [%s] (o to change, Ctrl+K to clear)",
-			m.leftSidebar.GetFilterQuery(), filterInfo))
+			m.leftSidebar.FilterQuery(),
+			m.leftSidebar.FilterInfo(),
+		))
 	}
 
 	// Add selected overview item if sidebar is visible.
 	if m.leftSidebar.IsVisible() {
-		key, value := m.leftSidebar.GetSelectedItem()
+		key, value := m.leftSidebar.SelectedItem()
 		if key != "" {
 			parts = append(parts, fmt.Sprintf("%s: %s", key, value))
 		}
 	}
 
 	// Add focused metric name if a chart is focused.
-	focusedTitle := m.GetFocusedTitle()
+	focusedTitle := m.FocusedTitle()
 	if focusedTitle != "" {
 		parts = append(parts, focusedTitle)
 	}
@@ -553,7 +528,7 @@ func (m *Model) buildActiveStatus() string {
 
 // buildHelpText builds the help text for the status bar.
 func (m *Model) buildHelpText() string {
-	if !m.metricsGrid.filterMode && !m.leftSidebar.filterMode {
+	if !m.metricsGrid.filter.active && !m.leftSidebar.filter.active {
 		return "h: help "
 	}
 	return ""

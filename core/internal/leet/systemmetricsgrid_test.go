@@ -15,7 +15,7 @@ func TestSystemMetricsGrid(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	_, _ = cfg.SetSystemRows(2), cfg.SetSystemCols(1)
 
-	focusState := &leet.FocusState{}
+	focusState := &leet.Focus{}
 	// Give the grid enough space (any positive multiples will do).
 	grid := leet.NewSystemMetricsGrid(2*leet.MinMetricChartWidth, 2*leet.MinMetricChartHeight, cfg, focusState, logger)
 
@@ -23,7 +23,7 @@ func TestSystemMetricsGrid(t *testing.T) {
 	grid.AddDataPoint("gpu.0.temp", ts, 50)
 	grid.AddDataPoint("gpu.1.temp", ts, 55)
 
-	require.NotZero(t, grid.GetChartCount(), "expected charts after AddDataPoint")
+	require.NotZero(t, grid.ChartCount(), "expected charts after AddDataPoint")
 }
 
 func TestRightSidebar_ProcessStatsMsg_GroupsSeriesByBaseKey(t *testing.T) {
@@ -31,7 +31,7 @@ func TestRightSidebar_ProcessStatsMsg_GroupsSeriesByBaseKey(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	_, _ = cfg.SetSystemRows(2), cfg.SetSystemCols(1)
 
-	rs := leet.NewRightSidebar(cfg, &leet.FocusState{}, logger)
+	rs := leet.NewRightSidebar(cfg, &leet.Focus{}, logger)
 
 	ts := time.Now().Unix()
 	rs.ProcessStatsMsg(leet.StatsMsg{
@@ -74,7 +74,7 @@ func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
 	// Create grid with sufficient size
 	gridWidth := leet.MinMetricChartWidth * gridCols * 2
 	gridHeight := leet.MinMetricChartHeight * gridRows * 2
-	focusState := &leet.FocusState{}
+	focusState := &leet.Focus{}
 	grid := leet.NewSystemMetricsGrid(gridWidth, gridHeight, cfg, focusState, logger)
 
 	ts := time.Now().Unix()
@@ -86,7 +86,7 @@ func TestSystemMetricsGrid_FocusToggleAndRebuild(t *testing.T) {
 	grid.LoadCurrentPage()
 
 	// Verify chart was created
-	require.Equal(t, 1, grid.GetChartCount())
+	require.Equal(t, 1, grid.ChartCount())
 
 	// First click should focus (charts array is populated by AddDataPoint)
 	ok := grid.HandleMouseClick(0, 0)
@@ -114,7 +114,7 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 
 	gridWidth := leet.MinMetricChartWidth * gridCols * 2
 	gridHeight := leet.MinMetricChartHeight * gridRows * 2
-	focusState := &leet.FocusState{}
+	focusState := &leet.Focus{}
 	grid := leet.NewSystemMetricsGrid(gridWidth, gridHeight, cfg, focusState, logger)
 
 	ts := time.Now().Unix()
@@ -129,10 +129,10 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 
 	// Verify initial state
 	grid.LoadCurrentPage()
-	require.Equal(t, 4, grid.GetChartCount())
+	require.Equal(t, 4, grid.ChartCount())
 
 	// Test navigation forward
-	initialCharts := grid.GetCharts()
+	initialCharts := grid.CurrentPage()
 	var firstPageChart *leet.TimeSeriesLineChart
 	if initialCharts[0][0] != nil {
 		firstPageChart = initialCharts[0][0]
@@ -141,7 +141,7 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 	grid.Navigate(1) // Move to page 2
 	grid.LoadCurrentPage()
 
-	secondPageCharts := grid.GetCharts()
+	secondPageCharts := grid.CurrentPage()
 	var secondPageChart *leet.TimeSeriesLineChart
 	if secondPageCharts[0][0] != nil {
 		secondPageChart = secondPageCharts[0][0]
@@ -168,8 +168,8 @@ func TestSystemMetricsGrid_NavigateWithPowerMetrics(t *testing.T) {
 
 	// Verify focus is cleared after navigation
 	grid.HandleMouseClick(0, 0) // Focus a chart
-	require.NotEmpty(t, grid.GetFocusedChartTitle(), "chart should be focused before navigation")
+	require.NotEmpty(t, grid.FocusedChartTitle(), "chart should be focused before navigation")
 
 	grid.Navigate(1)
-	require.Empty(t, grid.GetFocusedChartTitle(), "focus should be cleared after navigation")
+	require.Empty(t, grid.FocusedChartTitle(), "focus should be cleared after navigation")
 }
