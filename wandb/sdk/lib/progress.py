@@ -292,14 +292,17 @@ class _OperationStatsPrinter:
         if not is_subtask:
             self._ops_shown += 1
 
+        status_indent_level = 0  # alignment for the status message, if any
         parts: list[str] = []
 
         # Subtask indicator.
         if is_subtask and self._printer.supports_unicode:
+            status_indent_level += 2  # +1 for space
             parts.append("↳")
 
         # Loading symbol.
         if self._loading_symbol:
+            status_indent_level += 2  # +1 for space
             parts.append(self._loading_symbol)
 
         # Task name.
@@ -317,9 +320,9 @@ class _OperationStatsPrinter:
         if op.error_status:
             error_word = self._printer.error("ERROR")
             error_desc = self._printer.secondary_text(op.error_status)
-            subtask_indent = "  " if is_subtask else ""
+            status_indent = " " * status_indent_level
             self._lines.append(
-                f"{indent}{subtask_indent}  {error_word} {error_desc}",
+                f"{indent}{status_indent}{error_word} {error_desc}",
             )
 
         # Subtasks.
