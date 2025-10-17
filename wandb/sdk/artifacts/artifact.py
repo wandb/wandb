@@ -69,9 +69,9 @@ from ._generated import (
     ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL,
     ARTIFACT_CREATED_BY_GQL,
     ARTIFACT_FILE_URLS_GQL,
+    ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
     ARTIFACT_TYPE_GQL,
     ARTIFACT_USED_BY_GQL,
-    ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
     DELETE_ALIASES_GQL,
     DELETE_ARTIFACT_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
@@ -87,16 +87,16 @@ from ._generated import (
     ArtifactCreatedBy,
     ArtifactFileUrls,
     ArtifactFragment,
+    ArtifactMembershipByName,
+    ArtifactMembershipFragment,
     ArtifactType,
     ArtifactUsedBy,
-    ArtifactViaMembershipByName,
     DeleteAliasesInput,
     DeleteArtifactInput,
     FetchArtifactManifest,
     FetchLinkedArtifacts,
     LinkArtifact,
     LinkArtifactInput,
-    MembershipWithArtifact,
     UnlinkArtifactInput,
     UpdateArtifact,
     UpdateArtifactInput,
@@ -206,13 +206,13 @@ class Artifact:
         use_as: str | None = None,
         storage_region: str | None = None,
     ) -> None:
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
                 f"Artifact name may only contain alphanumeric characters, dashes, "
-                f"underscores, and dots. Invalid name: {name}"
+                f"underscores, and dots. Invalid name: {name!r}"
             )
-
-        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
         if incremental and not isinstance(self, InternalArtifact):
             termwarn("Using experimental arg `incremental`")
@@ -321,24 +321,20 @@ class Artifact:
     ) -> Artifact:
         if not server_supports(client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
             raise UnsupportedError(
-                "querying for the artifact collection membership is not supported "
+                "Querying for the artifact collection membership is not supported "
                 "by this version of wandb server. Consider updating to the latest version."
             )
 
         omit_fields = omit_artifact_fields(client)
         omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
         query = gql_compat(
-            ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
+            ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
             omit_fields=omit_fields,
             omit_fragments=omit_fragments,
         )
-        gql_vars = {
-            "entityName": path.prefix,
-            "projectName": path.project,
-            "name": path.name,
-        }
+        gql_vars = {"entity": path.prefix, "project": path.project, "name": path.name}
         data = client.execute(query, variable_values=gql_vars)
-        result = ArtifactViaMembershipByName.model_validate(data)
+        result = ArtifactMembershipByName.model_validate(data)
 
         if not (project := result.project):
             raise ValueError(
@@ -364,8 +360,8 @@ class Artifact:
 
         omit_vars = None if supports_enable_tracking_var(client) else {"enableTracking"}
         gql_vars = {
-            "entityName": path.prefix,
-            "projectName": path.project,
+            "entity": path.prefix,
+            "project": path.project,
             "name": path.name,
             "enableTracking": enable_tracking,
         }
@@ -393,7 +389,7 @@ class Artifact:
     @classmethod
     def _from_membership(
         cls,
-        membership: MembershipWithArtifact,
+        membership: ArtifactMembershipFragment,
         target: FullArtifactPath,
         client: RetryingClient,
     ) -> Artifact:
@@ -419,7 +415,8 @@ class Artifact:
         if not (artifact := membership.artifact):
             raise ValueError(f"Artifact {target.to_str()!r} not found in response")
 
-        return cls._from_attrs(new_target, artifact, client)
+        aliases = [a.alias for a in membership.aliases]
+        return cls._from_attrs(new_target, artifact, client, aliases=aliases)
 
     @classmethod
     def _from_attrs(
@@ -2456,10 +2453,12 @@ class Artifact:
         else:
             # FIXME: Make `gql_compat` omit nested fragment definitions recursively (but safely)
             omit_fragments = {
-                "MembershipWithArtifact",
+                "ArtifactMembershipFragment",
                 "ArtifactFragment",
                 "ArtifactFragmentWithoutAliases",
                 "ProjectInfoFragment",
+                "CollectionInfoFragment",
+                "SourceCollectionInfoFragment",
                 "TagFragment",
                 "ArtifactAliasFragment",
             }

@@ -146,6 +146,7 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
                 "id": "FAKE_ALIAS_ID",
                 "artifactCollection": {
                     "__typename": "ArtifactSequence",
+                    "id": "FAKE_SEQUENCE_ID",
                     "project": {
                         "id": "FAKE_PROJECT_ID",
                         "entityName": path.prefix,
@@ -157,6 +158,7 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
             }
         ],
         artifactSequence={
+            "id": "FAKE_SEQUENCE_ID",
             "name": "FAKE_SEQUENCE_NAME",
             "project": {
                 "id": "FAKE_PROJECT_ID",
