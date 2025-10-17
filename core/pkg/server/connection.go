@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wandb/wandb/core/internal/apihandler"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -95,6 +96,9 @@ type Connection struct {
 
 	// logLevel is the log level
 	logLevel slog.Level
+
+	// apiRequestHandler handles processing API related requests from clients.
+	apiRequestHandler *apihandler.APIRequestHandler
 }
 
 func NewConnection(
@@ -117,6 +121,7 @@ func NewConnection(
 		sentryClient:       params.SentryClient,
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
+		apiRequestHandler:  apihandler.NewApiRequestHandler(),
 	}
 }
 
@@ -327,6 +332,8 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleSync(wg, msg.RequestId, x.Sync)
 		case *spb.ServerRequest_SyncStatus:
 			nc.handleSyncStatus(msg.RequestId, x.SyncStatus)
+		case *spb.ServerRequest_ApiRequest:
+			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
 			slog.Error("handleIncomingRequests: ServerRequestType is nil", "id", nc.id)
 			panic("ServerRequestType is nil")
@@ -584,6 +591,16 @@ func (nc *Connection) handleSyncStatus(
 		ServerResponseType: &spb.ServerResponse_SyncStatusResponse{
 			SyncStatusResponse: response,
 		},
+	})
+}
+
+func (nc *Connection) handleApi(
+	wg *sync.WaitGroup,
+	id string,
+	request *spb.ApiRequest,
+) {
+	wg.Go(func() {
+		nc.apiRequestHandler.HandleRequest(id, request, nc.Respond)
 	})
 }
 
