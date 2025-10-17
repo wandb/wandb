@@ -11,6 +11,16 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// RunState indicates the current state of the run.
+type RunState int32
+
+const (
+	RunStateRunning RunState = iota
+	RunStateFinished
+	RunStateFailed
+	RunStateCrashed
+)
+
 // KeyValuePair represents a single key-value item to display.
 type KeyValuePair struct {
 	Key, Value string
@@ -100,8 +110,8 @@ func (ro *RunOverview) State() RunState {
 	return ro.runState
 }
 
-// GetEnvironmentItems returns environment data as key-value pairs.
-func (ro *RunOverview) GetEnvironmentItems() []KeyValuePair {
+// EnvironmentItems returns environment data as key-value pairs.
+func (ro *RunOverview) EnvironmentItems() []KeyValuePair {
 	if ro.runEnvironment == nil {
 		return []KeyValuePair{}
 	}
@@ -110,8 +120,8 @@ func (ro *RunOverview) GetEnvironmentItems() []KeyValuePair {
 	return processEnvironmentData(envData)
 }
 
-// GetConfigItems returns config data as key-value pairs.
-func (ro *RunOverview) GetConfigItems() []KeyValuePair {
+// ConfigItems returns config data as key-value pairs.
+func (ro *RunOverview) ConfigItems() []KeyValuePair {
 	if ro.runConfig == nil {
 		return []KeyValuePair{}
 	}
@@ -121,8 +131,8 @@ func (ro *RunOverview) GetConfigItems() []KeyValuePair {
 	return items
 }
 
-// GetSummaryItems returns summary data as key-value pairs.
-func (ro *RunOverview) GetSummaryItems() []KeyValuePair {
+// SummaryItems returns summary data as key-value pairs.
+func (ro *RunOverview) SummaryItems() []KeyValuePair {
 	if ro.runSummary == nil {
 		return []KeyValuePair{}
 	}

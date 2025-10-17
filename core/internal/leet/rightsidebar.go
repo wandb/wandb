@@ -27,14 +27,14 @@ type RightSidebar struct {
 	config      *ConfigManager
 	animState   *AnimationState
 	metricsGrid *SystemMetricsGrid
-	focusState  *FocusState
+	focusState  *Focus
 	logger      *observability.CoreLogger
 }
 
 // NewRightSidebar creates a new right sidebar.
 func NewRightSidebar(
 	config *ConfigManager,
-	focusState *FocusState,
+	focusState *Focus,
 	logger *observability.CoreLogger,
 ) *RightSidebar {
 	animState := NewAnimationState(config.RightSidebarVisible(), SidebarMinWidth)
@@ -99,16 +99,16 @@ func (rs *RightSidebar) HandleMouseClick(x, y int) bool {
 
 	dims := rs.metricsGrid.calculateChartDimensions()
 
-	row := adjustedY / dims.ChartHeightWithPadding
-	col := adjustedX / dims.ChartWidthWithPadding
+	row := adjustedY / dims.CellHWithPadding
+	col := adjustedX / dims.CellWWithPadding
 
 	return rs.metricsGrid.HandleMouseClick(row, col)
 }
 
-// GetFocusedChartTitle returns the title of the focused chart, or empty string if none.
-func (rs *RightSidebar) GetFocusedChartTitle() string {
+// FocusedChartTitle returns the title of the focused chart, or empty string if none.
+func (rs *RightSidebar) FocusedChartTitle() string {
 	if rs.metricsGrid != nil {
-		return rs.metricsGrid.GetFocusedChartTitle()
+		return rs.metricsGrid.FocusedChartTitle()
 	}
 	return ""
 }
@@ -279,16 +279,16 @@ func (rs *RightSidebar) buildNavigationInfo() string {
 		return ""
 	}
 
-	chartCount := rs.metricsGrid.GetChartCount()
+	chartCount := rs.metricsGrid.ChartCount()
 	size := rs.metricsGrid.effectiveGridSize()
 	itemsPerPage := ItemsPerPage(size)
 
 	// Only show navigation if we have charts and pagination.
-	if rs.metricsGrid.navigator.TotalPages() == 0 || chartCount == 0 || itemsPerPage == 0 {
+	if rs.metricsGrid.nav.TotalPages() == 0 || chartCount == 0 || itemsPerPage == 0 {
 		return ""
 	}
 
-	startIdx, endIdx := rs.metricsGrid.navigator.GetPageBounds(chartCount, itemsPerPage)
+	startIdx, endIdx := rs.metricsGrid.nav.PageBounds(chartCount, itemsPerPage)
 	startIdx++ // Display as 1-indexed
 
 	return navInfoStyle.Render(fmt.Sprintf(" [%d-%d of %d]", startIdx, endIdx, chartCount))

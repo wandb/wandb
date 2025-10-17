@@ -9,8 +9,8 @@ import (
 )
 
 // TestFocusState returns the current focus state
-func (m *Model) TestFocusState() *FocusState {
-	return m.focusState
+func (m *Model) TestFocusState() *Focus {
+	return m.focus
 }
 
 func (m *Model) TestRunID() string {
@@ -42,7 +42,7 @@ func (m *Model) TestSidebarIsFiltering() bool {
 
 // TestSidebarFilterQuery returns the current sidebar filter query
 func (m *Model) TestSidebarFilterQuery() string {
-	return m.leftSidebar.GetFilterQuery()
+	return m.leftSidebar.FilterQuery()
 }
 
 // TestGetLeftSidebar returns the left sidebar for testing
@@ -83,7 +83,7 @@ func (rs *RightSidebar) TestGetChartCount() int {
 	if rs.metricsGrid == nil {
 		return 0
 	}
-	return rs.metricsGrid.GetChartCount()
+	return rs.metricsGrid.ChartCount()
 }
 
 // TestMetricsChart returns a chart by base key for testing
@@ -91,7 +91,7 @@ func (rs *RightSidebar) TestMetricsChart(baseKey string) *TimeSeriesLineChart {
 	if rs.metricsGrid == nil {
 		return nil
 	}
-	return rs.metricsGrid.chartsByMetric[baseKey]
+	return rs.metricsGrid.byBaseKey[baseKey]
 }
 
 // TestSeriesCount returns the number of series in the chart
@@ -99,12 +99,12 @@ func (c *TimeSeriesLineChart) TestSeriesCount() int {
 	return len(c.series)
 }
 
-// GetCharts returns the current grid of charts.
-func (g *SystemMetricsGrid) GetCharts() [][]*TimeSeriesLineChart {
-	return g.charts
+// Charts returns the current grid of charts.
+func (g *SystemMetricsGrid) Charts() [][]*TimeSeriesLineChart {
+	return g.grid
 }
 
 // Add test helper to Model for getting active filter
-func (m *Model) TestGetActiveFilter() string {
-	return m.metricsGrid.activeFilter
+func (m *Model) TestAppliedFilter() string {
+	return m.metricsGrid.filter.applied
 }

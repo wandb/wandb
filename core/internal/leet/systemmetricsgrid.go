@@ -13,43 +13,46 @@ import (
 
 // SystemMetricsGrid manages the grid of system metric charts.
 type SystemMetricsGrid struct {
+	// Configuration and logging.
 	config *ConfigManager
-
-	chartsByMetric map[string]*TimeSeriesLineChart
-	orderedCharts  []*TimeSeriesLineChart
-
-	charts    [][]*TimeSeriesLineChart
-	navigator GridNavigator
-
-	focusState *FocusState
-
-	width, height int
-
-	nextColorIdx int
-
 	logger *observability.CoreLogger
+
+	// Layout and navigation.
+	width, height int
+	nav           GridNavigator // pagination state
+
+	// Charts state.
+	byBaseKey map[string]*TimeSeriesLineChart // baseKey -> chart
+	ordered   []*TimeSeriesLineChart          // charts sorted by title
+	grid      [][]*TimeSeriesLineChart        // current page view
+
+	// Chart focus management.
+	focus *Focus
+
+	// Coloring state for per-plot mode.
+	nextColor int // next palette index
 }
 
 func NewSystemMetricsGrid(
 	width, height int,
 	config *ConfigManager,
-	focusState *FocusState,
+	focusState *Focus,
 	logger *observability.CoreLogger,
 ) *SystemMetricsGrid {
 	grid := &SystemMetricsGrid{
-		config:         config,
-		chartsByMetric: make(map[string]*TimeSeriesLineChart),
-		orderedCharts:  make([]*TimeSeriesLineChart, 0),
-		focusState:     focusState,
-		width:          width,
-		height:         height,
-		logger:         logger,
+		config:    config,
+		byBaseKey: make(map[string]*TimeSeriesLineChart),
+		ordered:   make([]*TimeSeriesLineChart, 0),
+		focus:     focusState,
+		width:     width,
+		height:    height,
+		logger:    logger,
 	}
 
 	size := grid.effectiveGridSize()
-	grid.charts = make([][]*TimeSeriesLineChart, size.Rows)
+	grid.grid = make([][]*TimeSeriesLineChart, size.Rows)
 	for row := range size.Rows {
-		grid.charts[row] = make([]*TimeSeriesLineChart, size.Cols)
+		grid.grid[row] = make([]*TimeSeriesLineChart, size.Cols)
 	}
 
 	logger.Debug(fmt.Sprintf("SystemMetricsGrid: created with dimensions %dx%d (grid %dx%d)",
@@ -58,52 +61,35 @@ func NewSystemMetricsGrid(
 	return grid
 }
 
+// calculateChartDimensions computes dimensions for system metric charts.
+func (g *SystemMetricsGrid) calculateChartDimensions() GridDims {
+	cfgRows, cfgCols := g.config.SystemGrid()
+	return ComputeGridDims(g.width, g.height, GridSpec{
+		Rows:        cfgRows,
+		Cols:        cfgCols,
+		MinCellW:    MinMetricChartWidth,
+		MinCellH:    MinMetricChartHeight,
+		HeaderLines: 0,
+	})
+}
+
 // effectiveGridSize returns the grid size that can fit in the current viewport.
 func (g *SystemMetricsGrid) effectiveGridSize() GridSize {
 	cfgRows, cfgCols := g.config.SystemGrid()
-	spec := GridSpec{
+	return EffectiveGridSize(g.width, g.height, GridSpec{
 		Rows:        cfgRows,
 		Cols:        cfgCols,
 		MinCellW:    MinMetricChartWidth,
 		MinCellH:    MinMetricChartHeight,
 		HeaderLines: 0,
-	}
-	return EffectiveGridSize(g.width, g.height, spec)
+	})
 }
 
-// MetricChartDimensions represents dimensions for system metric charts.
-type MetricChartDimensions struct {
-	ChartWidth, ChartHeight                       int
-	ChartWidthWithPadding, ChartHeightWithPadding int
-}
-
-// calculateChartDimensions computes dimensions for system metric charts.
-func (g *SystemMetricsGrid) calculateChartDimensions() MetricChartDimensions {
-	cfgRows, cfgCols := g.config.SystemGrid()
-	spec := GridSpec{
-		Rows:        cfgRows,
-		Cols:        cfgCols,
-		MinCellW:    MinMetricChartWidth,
-		MinCellH:    MinMetricChartHeight,
-		HeaderLines: 0,
-	}
-
-	size := EffectiveGridSize(g.width, g.height, spec)
-	d := ComputeGridDims(g.width, g.height, spec, size)
-
-	return MetricChartDimensions{
-		ChartWidth:             d.CellW,
-		ChartHeight:            d.CellH,
-		ChartWidthWithPadding:  d.CellWWithPadding,
-		ChartHeightWithPadding: d.CellHWithPadding,
-	}
-}
-
-// getNextColor returns the next color from the palette.
-func (g *SystemMetricsGrid) getNextColor() string {
+// nextColorHex returns the next color from the palette.
+func (g *SystemMetricsGrid) nextColorHex() string {
 	colors := colorSchemes[g.config.SystemColorScheme()]
-	color := colors[g.nextColorIdx%len(colors)]
-	g.nextColorIdx++
+	color := colors[g.nextColor%len(colors)]
+	g.nextColor++
 	return color
 }
 
@@ -126,8 +112,8 @@ func (g *SystemMetricsGrid) anchoredSeriesColorProvider(baseIdx int) func() stri
 func (g *SystemMetricsGrid) createMetricChart(def *MetricDef, baseKey string) *TimeSeriesLineChart {
 	dims := g.calculateChartDimensions()
 
-	chartWidth := max(dims.ChartWidth, MinMetricChartWidth)
-	chartHeight := max(dims.ChartHeight, MinMetricChartHeight)
+	chartWidth := max(dims.CellW, MinMetricChartWidth)
+	chartHeight := max(dims.CellH, MinMetricChartHeight)
 
 	g.logger.Debug(fmt.Sprintf(
 		"SystemMetricsGrid.createMetricChart: creating chart %dx%d for %s",
@@ -152,9 +138,8 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef, baseKey string) *T
 		firstColor = colors[0]
 	} else {
 		// Per-plot mode: each chart gets the next color from the palette.
-		firstColor = g.getNextColor()
-		// getNextColor() advanced g.nextColorIdx; base is the previous index.
-		baseIdx = (g.nextColorIdx - 1) % len(colors)
+		firstColor = g.nextColorHex()
+		baseIdx = (g.nextColor - 1) % len(colors)
 	}
 
 	graphStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(firstColor))
@@ -217,13 +202,13 @@ func (g *SystemMetricsGrid) AddDataPoint(metricName string, timestamp int64, val
 
 // getOrCreateChart retrieves an existing chart or creates a new one.
 func (g *SystemMetricsGrid) getOrCreateChart(baseKey string, def *MetricDef) *TimeSeriesLineChart {
-	chart, exists := g.chartsByMetric[baseKey]
+	chart, exists := g.byBaseKey[baseKey]
 	if !exists {
 		g.logger.Debug(fmt.Sprintf(
 			"SystemMetricsGrid.getOrCreateChart: creating new chart for baseKey=%s", baseKey))
 
 		chart = g.createMetricChart(def, baseKey)
-		g.chartsByMetric[baseKey] = chart
+		g.byBaseKey[baseKey] = chart
 
 		g.addChartToGrid(chart)
 	}
@@ -232,46 +217,46 @@ func (g *SystemMetricsGrid) getOrCreateChart(baseKey string, def *MetricDef) *Ti
 
 // addChartToGrid adds a chart to the ordered list and updates pagination.
 func (g *SystemMetricsGrid) addChartToGrid(chart *TimeSeriesLineChart) {
-	g.orderedCharts = append(g.orderedCharts, chart)
-	sort.Slice(g.orderedCharts, func(i, j int) bool {
-		return g.orderedCharts[i].title < g.orderedCharts[j].title
+	g.ordered = append(g.ordered, chart)
+	sort.Slice(g.ordered, func(i, j int) bool {
+		return g.ordered[i].title < g.ordered[j].title
 	})
 
 	size := g.effectiveGridSize()
-	g.navigator.UpdateTotalPages(len(g.orderedCharts), ItemsPerPage(size))
+	g.nav.UpdateTotalPages(len(g.ordered), ItemsPerPage(size))
 	g.LoadCurrentPage()
 
 	g.logger.Debug(fmt.Sprintf(
 		"SystemMetricsGrid.addChartToGrid: chart added, total=%d, pages=%d",
-		len(g.orderedCharts), g.navigator.TotalPages()))
+		len(g.ordered), g.nav.TotalPages()))
 }
 
 // LoadCurrentPage loads charts for the current page.
 func (g *SystemMetricsGrid) LoadCurrentPage() {
 	size := g.effectiveGridSize()
 
-	if len(g.charts) != size.Rows ||
-		(len(g.charts) > 0 && len(g.charts[0]) != size.Cols) {
-		g.charts = make([][]*TimeSeriesLineChart, size.Rows)
+	if len(g.grid) != size.Rows ||
+		(len(g.grid) > 0 && len(g.grid[0]) != size.Cols) {
+		g.grid = make([][]*TimeSeriesLineChart, size.Rows)
 		for row := range size.Rows {
-			g.charts[row] = make([]*TimeSeriesLineChart, size.Cols)
+			g.grid[row] = make([]*TimeSeriesLineChart, size.Cols)
 		}
 	}
 
 	for row := range size.Rows {
 		for col := range size.Cols {
-			g.charts[row][col] = nil
+			g.grid[row][col] = nil
 		}
 	}
 
-	startIdx, endIdx := g.navigator.GetPageBounds(
-		len(g.orderedCharts), ItemsPerPage(size))
+	startIdx, endIdx := g.nav.PageBounds(
+		len(g.ordered), ItemsPerPage(size))
 
 	idx := startIdx
 	for row := 0; row < size.Rows && idx < endIdx; row++ {
 		for col := 0; col < size.Cols && idx < endIdx; col++ {
-			if g.orderedCharts[idx].hasData {
-				g.charts[row][col] = g.orderedCharts[idx]
+			if g.ordered[idx].hasData {
+				g.grid[row][col] = g.ordered[idx]
 			}
 			idx++
 		}
@@ -280,7 +265,7 @@ func (g *SystemMetricsGrid) LoadCurrentPage() {
 
 // Navigate changes pages.
 func (g *SystemMetricsGrid) Navigate(direction int) {
-	if !g.navigator.Navigate(direction) {
+	if !g.nav.Navigate(direction) {
 		return
 	}
 
@@ -292,8 +277,8 @@ func (g *SystemMetricsGrid) Navigate(direction int) {
 func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
 	g.logger.Debug(fmt.Sprintf("SystemMetricsGrid.HandleMouseClick: row=%d, col=%d", row, col))
 
-	if g.focusState.Type == FocusSystemChart &&
-		row == g.focusState.Row && col == g.focusState.Col {
+	if g.focus.Type == FocusSystemChart &&
+		row == g.focus.Row && col == g.focus.Col {
 		g.logger.Debug("SystemMetricsGrid.HandleMouseClick: clicking on focused chart - unfocusing")
 		g.ClearFocus()
 		return false
@@ -304,16 +289,16 @@ func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
 	size := g.effectiveGridSize()
 
 	if row >= 0 && row < size.Rows && col >= 0 && col < size.Cols &&
-		row < len(g.charts) && col < len(g.charts[row]) &&
-		g.charts[row][col] != nil {
-		chart := g.charts[row][col]
+		row < len(g.grid) && col < len(g.grid[row]) &&
+		g.grid[row][col] != nil {
+		chart := g.grid[row][col]
 		g.logger.Debug(fmt.Sprintf(
 			"SystemMetricsGrid.HandleMouseClick: focusing chart at row=%d, col=%d", row, col))
 
-		g.focusState.Type = FocusSystemChart
-		g.focusState.Row = row
-		g.focusState.Col = col
-		g.focusState.Title = chart.fullTitle
+		g.focus.Type = FocusSystemChart
+		g.focus.Row = row
+		g.focus.Col = col
+		g.focus.Title = chart.fullTitle
 
 		return true
 	}
@@ -323,18 +308,18 @@ func (g *SystemMetricsGrid) HandleMouseClick(row, col int) bool {
 
 // ClearFocus removes focus from all charts.
 func (g *SystemMetricsGrid) ClearFocus() {
-	if g.focusState.Type == FocusSystemChart {
-		g.focusState.Type = FocusNone
-		g.focusState.Row = -1
-		g.focusState.Col = -1
-		g.focusState.Title = ""
+	if g.focus.Type == FocusSystemChart {
+		g.focus.Type = FocusNone
+		g.focus.Row = -1
+		g.focus.Col = -1
+		g.focus.Title = ""
 	}
 }
 
-// GetFocusedChartTitle returns the title of the focused chart.
-func (g *SystemMetricsGrid) GetFocusedChartTitle() string {
-	if g.focusState.Type == FocusSystemChart {
-		return g.focusState.Title
+// FocusedChartTitle returns the title of the focused chart.
+func (g *SystemMetricsGrid) FocusedChartTitle() string {
+	if g.focus.Type == FocusSystemChart {
+		return g.focus.Title
 	}
 	return ""
 }
@@ -351,21 +336,21 @@ func (g *SystemMetricsGrid) Resize(width, height int) {
 	g.height = height
 
 	dims := g.calculateChartDimensions()
-	if dims.ChartWidth <= 0 || dims.ChartHeight <= 0 ||
-		dims.ChartWidth < MinMetricChartWidth ||
-		dims.ChartHeight < MinMetricChartHeight {
+	if dims.CellW <= 0 || dims.CellH <= 0 ||
+		dims.CellW < MinMetricChartWidth ||
+		dims.CellH < MinMetricChartHeight {
 		g.logger.Debug(fmt.Sprintf(
 			"SystemMetricsGrid.Resize: calculated dimensions %dx%d invalid, skipping",
-			dims.ChartWidth, dims.ChartHeight))
+			dims.CellW, dims.CellH))
 		return
 	}
 
 	size := g.effectiveGridSize()
-	g.navigator.UpdateTotalPages(len(g.orderedCharts), ItemsPerPage(size))
+	g.nav.UpdateTotalPages(len(g.ordered), ItemsPerPage(size))
 
-	for _, metricChart := range g.chartsByMetric {
+	for _, metricChart := range g.byBaseKey {
 		if metricChart != nil && metricChart.chart != nil {
-			metricChart.chart.Resize(dims.ChartWidth, dims.ChartHeight)
+			metricChart.chart.Resize(dims.CellW, dims.CellH)
 			actualWidth := metricChart.chart.Width()
 			actualHeight := metricChart.chart.Height()
 			if actualWidth > 0 && actualHeight > 0 &&
@@ -392,12 +377,12 @@ func (g *SystemMetricsGrid) View() string {
 	for row := range size.Rows {
 		var cols []string
 		for col := range size.Cols {
-			cellIdx := g.navigator.CurrentPage()*ItemsPerPage(size) +
+			cellIdx := g.nav.CurrentPage()*ItemsPerPage(size) +
 				row*size.Cols + col
 
-			if row < len(g.charts) && col < len(g.charts[row]) &&
-				g.charts[row][col] != nil && cellIdx < len(g.orderedCharts) {
-				metricChart := g.charts[row][col]
+			if row < len(g.grid) && col < len(g.grid[row]) &&
+				g.grid[row][col] != nil && cellIdx < len(g.ordered) {
+				metricChart := g.grid[row][col]
 				chartView := metricChart.chart.View()
 
 				titleText := metricChart.fullTitle
@@ -406,12 +391,12 @@ func (g *SystemMetricsGrid) View() string {
 					count := fmt.Sprintf(" [%d]", len(metricChart.series))
 
 					availableWidth := max(
-						dims.ChartWidthWithPadding-4-lipgloss.Width(count), 10)
+						dims.CellWWithPadding-4-lipgloss.Width(count), 10)
 					displayTitle := TruncateTitle(titleText, availableWidth)
 					titleText = titleStyle.Render(displayTitle) +
 						countStyle.Render(count)
 				} else {
-					availableWidth := max(dims.ChartWidthWithPadding-4, 10)
+					availableWidth := max(dims.CellWWithPadding-4, 10)
 					titleText = titleStyle.Render(
 						TruncateTitle(titleText, availableWidth))
 				}
@@ -419,15 +404,15 @@ func (g *SystemMetricsGrid) View() string {
 				boxContent := lipgloss.JoinVertical(lipgloss.Left, titleText, chartView)
 
 				boxStyle := borderStyle
-				if g.focusState.Type == FocusSystemChart &&
-					row == g.focusState.Row && col == g.focusState.Col {
+				if g.focus.Type == FocusSystemChart &&
+					row == g.focus.Row && col == g.focus.Col {
 					boxStyle = focusedBorderStyle
 				}
 
 				box := boxStyle.Render(boxContent)
 				cell := lipgloss.Place(
-					dims.ChartWidthWithPadding,
-					dims.ChartHeightWithPadding,
+					dims.CellWWithPadding,
+					dims.CellHWithPadding,
 					lipgloss.Left,
 					lipgloss.Top,
 					box,
@@ -435,8 +420,8 @@ func (g *SystemMetricsGrid) View() string {
 				cols = append(cols, cell)
 			} else {
 				cols = append(cols, lipgloss.NewStyle().
-					Width(dims.ChartWidthWithPadding).
-					Height(dims.ChartHeightWithPadding).
+					Width(dims.CellWWithPadding).
+					Height(dims.CellHWithPadding).
 					Render(""))
 			}
 		}
@@ -447,7 +432,7 @@ func (g *SystemMetricsGrid) View() string {
 	grid := lipgloss.JoinVertical(lipgloss.Left, rows...)
 
 	// Bottom filler
-	used := size.Rows * dims.ChartHeightWithPadding
+	used := size.Rows * dims.CellHWithPadding
 	if extra := g.height - used; extra > 0 {
 		filler := lipgloss.NewStyle().Height(extra).Render("")
 		grid = lipgloss.JoinVertical(lipgloss.Left, grid, filler)
@@ -456,10 +441,10 @@ func (g *SystemMetricsGrid) View() string {
 	return grid
 }
 
-// GetChartCount returns the number of charts with data.
-func (g *SystemMetricsGrid) GetChartCount() int {
+// ChartCount returns the number of charts with data.
+func (g *SystemMetricsGrid) ChartCount() int {
 	count := 0
-	for _, chart := range g.orderedCharts {
+	for _, chart := range g.ordered {
 		if chart.hasData {
 			count++
 		}

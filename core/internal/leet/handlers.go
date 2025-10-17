@@ -106,19 +106,19 @@ func (m *Model) handleHistoryMsg(msg HistoryMsg) (*Model, tea.Cmd) {
 
 // saveFocusTitle saves the currently focused chart title.
 func (m *Model) saveFocusTitle() string {
-	if m.metricsGrid.focusState.Type != FocusMainChart {
+	if m.metricsGrid.focus.Type != FocusMainChart {
 		return ""
 	}
 
-	row, col := m.metricsGrid.focusState.Row, m.metricsGrid.focusState.Col
-	m.metricsGrid.chartMu.RLock()
-	defer m.metricsGrid.chartMu.RUnlock()
+	row, col := m.metricsGrid.focus.Row, m.metricsGrid.focus.Col
+	m.metricsGrid.mu.RLock()
+	defer m.metricsGrid.mu.RUnlock()
 
 	if row >= 0 && col >= 0 &&
-		row < len(m.metricsGrid.currentPage) &&
-		col < len(m.metricsGrid.currentPage[row]) &&
-		m.metricsGrid.currentPage[row][col] != nil {
-		return m.metricsGrid.currentPage[row][col].Title()
+		row < len(m.metricsGrid.grid) &&
+		col < len(m.metricsGrid.grid[row]) &&
+		m.metricsGrid.grid[row][col] != nil {
+		return m.metricsGrid.grid[row][col].Title()
 	}
 
 	return ""
@@ -128,11 +128,11 @@ func (m *Model) saveFocusTitle() string {
 func (m *Model) addMetricPoints(msg HistoryMsg) bool {
 	needsSort := false
 
-	m.metricsGrid.chartMu.Lock()
-	defer m.metricsGrid.chartMu.Unlock()
+	m.metricsGrid.mu.Lock()
+	defer m.metricsGrid.mu.Unlock()
 
 	for metricName, value := range msg.Metrics {
-		chart, exists := m.metricsGrid.chartsByName[metricName]
+		chart, exists := m.metricsGrid.byTitle[metricName]
 		if !exists {
 			layout := m.computeViewports()
 			dims := m.metricsGrid.CalculateChartDimensions(
@@ -140,14 +140,14 @@ func (m *Model) addMetricPoints(msg HistoryMsg) bool {
 				layout.height,
 			)
 
-			chart = NewEpochLineChart(dims.ChartWidth, dims.ChartHeight, metricName)
+			chart = NewEpochLineChart(dims.CellW, dims.CellH, metricName)
 
-			m.metricsGrid.allCharts = append(m.metricsGrid.allCharts, chart)
-			m.metricsGrid.chartsByName[metricName] = chart
+			m.metricsGrid.all = append(m.metricsGrid.all, chart)
+			m.metricsGrid.byTitle[metricName] = chart
 			needsSort = true
 
-			if len(m.metricsGrid.allCharts)%1000 == 0 {
-				m.logger.Debug(fmt.Sprintf("model: created %d charts", len(m.metricsGrid.allCharts)))
+			if len(m.metricsGrid.all)%1000 == 0 {
+				m.logger.Debug(fmt.Sprintf("model: created %d charts", len(m.metricsGrid.all)))
 			}
 		}
 		chart.AddPoint(float64(msg.Step), value)
@@ -161,28 +161,28 @@ func (m *Model) sortAndFilterCharts() {
 	m.metricsGrid.sortChartsNoLock()
 
 	// If no filter is active, update filteredCharts with all charts
-	if m.metricsGrid.activeFilter == "" {
-		m.metricsGrid.filteredCharts = append(
-			make([]*EpochLineChart, 0, len(m.metricsGrid.allCharts)),
-			m.metricsGrid.allCharts...)
+	if m.metricsGrid.filter.applied == "" {
+		m.metricsGrid.filtered = append(
+			make([]*EpochLineChart, 0, len(m.metricsGrid.all)),
+			m.metricsGrid.all...)
 	} else {
 		// Apply current filter to new charts
-		m.metricsGrid.applyFilterNoLock(m.metricsGrid.activeFilter)
+		m.metricsGrid.applyFilterNoLock(m.metricsGrid.filter.applied)
 	}
 }
 
 // updateNavigationPages updates the navigator with new page count.
 func (m *Model) updateNavigationPages() {
 	size := m.metricsGrid.effectiveGridSize()
-	m.metricsGrid.navigator.UpdateTotalPages(
-		len(m.metricsGrid.filteredCharts),
+	m.metricsGrid.nav.UpdateTotalPages(
+		len(m.metricsGrid.filtered),
 		ItemsPerPage(size),
 	)
 }
 
 // exitLoadingIfReady exits loading state if we have charts.
 func (m *Model) exitLoadingIfReady() {
-	if m.isLoading && len(m.metricsGrid.allCharts) > 0 {
+	if m.isLoading && len(m.metricsGrid.all) > 0 {
 		m.isLoading = false
 	}
 }
@@ -194,20 +194,20 @@ func (m *Model) reloadCurrentPage() {
 
 // restoreFocus restores focus to the previously focused chart.
 func (m *Model) restoreFocus(previousTitle string) {
-	if previousTitle == "" || m.metricsGrid.focusState.Type != FocusMainChart {
+	if previousTitle == "" || m.metricsGrid.focus.Type != FocusMainChart {
 		return
 	}
 
 	size := m.metricsGrid.effectiveGridSize()
 
-	m.metricsGrid.chartMu.RLock()
+	m.metricsGrid.mu.RLock()
 	foundRow, foundCol := -1, -1
 	for row := range size.Rows {
 		for col := range size.Cols {
-			if row < len(m.metricsGrid.currentPage) &&
-				col < len(m.metricsGrid.currentPage[row]) &&
-				m.metricsGrid.currentPage[row][col] != nil &&
-				m.metricsGrid.currentPage[row][col].Title() == previousTitle {
+			if row < len(m.metricsGrid.grid) &&
+				col < len(m.metricsGrid.grid[row]) &&
+				m.metricsGrid.grid[row][col] != nil &&
+				m.metricsGrid.grid[row][col].Title() == previousTitle {
 				foundRow, foundCol = row, col
 				break
 			}
@@ -216,7 +216,7 @@ func (m *Model) restoreFocus(previousTitle string) {
 			break
 		}
 	}
-	m.metricsGrid.chartMu.RUnlock()
+	m.metricsGrid.mu.RUnlock()
 
 	if foundRow != -1 {
 		m.metricsGrid.setFocus(foundRow, foundCol)
@@ -287,8 +287,8 @@ func (m *Model) handleMainContentMouse(msg tea.MouseMsg, layout Layout) (*Model,
 		layout.height,
 	)
 
-	row := adjustedY / dims.ChartHeightWithPadding
-	col := adjustedX / dims.ChartWidthWithPadding
+	row := adjustedY / dims.CellHWithPadding
+	col := adjustedX / dims.CellWWithPadding
 
 	// Handle left click for focus
 	if tea.MouseEvent(msg).Button == tea.MouseButtonLeft &&
@@ -320,7 +320,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m.handleOverviewFilter(msg)
 	}
 
-	if m.metricsGrid.filterMode {
+	if m.metricsGrid.filter.active {
 		return m.handleMetricsFilter(msg)
 	}
 
@@ -449,7 +449,7 @@ func (m *Model) handleEnterMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 }
 
 func (m *Model) handleClearMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
-	if m.metricsGrid.activeFilter != "" {
+	if m.metricsGrid.filter.applied != "" {
 		m.metricsGrid.clearFilter()
 	}
 	return m, nil
@@ -497,20 +497,20 @@ func (m *Model) handleMetricsFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		m.metricsGrid.exitFilterMode(true)
 		return m, nil
 	case tea.KeyBackspace:
-		if len(m.metricsGrid.filterInput) > 0 {
-			m.metricsGrid.filterInput = m.metricsGrid.filterInput[:len(m.metricsGrid.filterInput)-1]
-			m.metricsGrid.applyFilter(m.metricsGrid.filterInput)
+		if len(m.metricsGrid.filter.draft) > 0 {
+			m.metricsGrid.filter.draft = m.metricsGrid.filter.draft[:len(m.metricsGrid.filter.draft)-1]
+			m.metricsGrid.applyFilter(m.metricsGrid.filter.draft)
 			m.metricsGrid.drawVisible()
 		}
 		return m, nil
 	case tea.KeyRunes:
-		m.metricsGrid.filterInput += string(msg.Runes)
-		m.metricsGrid.applyFilter(m.metricsGrid.filterInput)
+		m.metricsGrid.filter.draft += string(msg.Runes)
+		m.metricsGrid.applyFilter(m.metricsGrid.filter.draft)
 		m.metricsGrid.drawVisible()
 		return m, nil
 	case tea.KeySpace:
-		m.metricsGrid.filterInput += " "
-		m.metricsGrid.applyFilter(m.metricsGrid.filterInput)
+		m.metricsGrid.filter.draft += " "
+		m.metricsGrid.applyFilter(m.metricsGrid.filter.draft)
 		m.metricsGrid.drawVisible()
 		return m, nil
 	default:
@@ -534,19 +534,19 @@ func (m *Model) handleOverviewFilter(msg tea.KeyMsg) (*Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyBackspace:
-		input := m.leftSidebar.GetFilterInput()
+		input := m.leftSidebar.FilterDraft()
 		if len(input) > 0 {
 			m.leftSidebar.UpdateFilter(input[:len(input)-1])
 		}
 		return m, nil
 
 	case tea.KeyRunes:
-		input := m.leftSidebar.GetFilterInput()
+		input := m.leftSidebar.FilterDraft()
 		m.leftSidebar.UpdateFilter(input + string(msg.Runes))
 		return m, nil
 
 	case tea.KeySpace:
-		input := m.leftSidebar.GetFilterInput()
+		input := m.leftSidebar.FilterDraft()
 		m.leftSidebar.UpdateFilter(input + " ")
 		return m, nil
 	}
@@ -664,9 +664,9 @@ func (m *Model) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea
 		m.metricsGrid.drawVisible()
 	}
 
-	m.metricsGrid.chartMu.RLock()
-	hasCharts := len(m.metricsGrid.allCharts) > 0
-	m.metricsGrid.chartMu.RUnlock()
+	m.metricsGrid.mu.RLock()
+	hasCharts := len(m.metricsGrid.all) > 0
+	m.metricsGrid.mu.RUnlock()
 	if m.isLoading && hasCharts {
 		m.isLoading = false
 	}

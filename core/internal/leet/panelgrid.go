@@ -25,6 +25,22 @@ type GridDims struct {
 	CellHWithPadding int // full cell slot height (including border/title)
 }
 
+// Focus tracks the currently focused chart in the grid.
+type Focus struct {
+	Type     FocusType
+	Row, Col int
+	Title    string
+}
+
+// FocusType indicates what type of UI element is focused.
+type FocusType int
+
+const (
+	FocusNone FocusType = iota
+	FocusMainChart
+	FocusSystemChart
+)
+
 // ItemsPerPage returns Rows*Cols with basic safety.
 func ItemsPerPage(size GridSize) int {
 	if size.Rows <= 0 || size.Cols <= 0 {
@@ -69,7 +85,9 @@ func EffectiveGridSize(availW, availH int, spec GridSpec) GridSize {
 }
 
 // ComputeGridDims returns uniform per-cell sizes for the given grid size.
-func ComputeGridDims(availW, availH int, spec GridSpec, size GridSize) GridDims {
+func ComputeGridDims(availW, availH int, spec GridSpec) GridDims {
+	size := EffectiveGridSize(availW, availH, spec)
+
 	// Subtract header lines (never below 0).
 	if availH > spec.HeaderLines {
 		availH -= spec.HeaderLines
@@ -152,8 +170,8 @@ func (gn *GridNavigator) TotalPages() int {
 	return gn.totalPages
 }
 
-// GetPageBounds returns the start and end indices for the current page.
-func (gn *GridNavigator) GetPageBounds(itemCount, itemsPerPage int) (startIdx, endIdx int) {
+// PageBounds returns the start and end indices for the current page.
+func (gn *GridNavigator) PageBounds(itemCount, itemsPerPage int) (startIdx, endIdx int) {
 	startIdx = gn.currentPage * itemsPerPage
 	endIdx = min(startIdx+itemsPerPage, itemCount)
 	return startIdx, endIdx

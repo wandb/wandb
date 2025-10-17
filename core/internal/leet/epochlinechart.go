@@ -61,7 +61,7 @@ type EpochLineChart struct {
 }
 
 func NewEpochLineChart(width, height int, title string) *EpochLineChart {
-	graphColors := GetGraphColors()
+	graphColors := GraphColors()
 
 	// Temporarily use a default style - it will be updated during sorting.
 	graphStyle := lipgloss.NewStyle().
