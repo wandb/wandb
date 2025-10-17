@@ -14,15 +14,15 @@ func (m *Model) TestFocusState() *FocusState {
 }
 
 func (m *Model) TestRunID() string {
-	return m.leftSidebar.runID
+	return m.leftSidebar.runOverview.runID
 }
 
 func (m *Model) TestRunDisplayName() string {
-	return m.leftSidebar.displayName
+	return m.leftSidebar.runOverview.displayName
 }
 
 func (m *Model) TestRunProject() string {
-	return m.leftSidebar.project
+	return m.leftSidebar.runOverview.project
 }
 
 // TestRunState returns the current run state
