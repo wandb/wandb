@@ -192,12 +192,13 @@ var (
 
 // Sidebar styles.
 var (
-	sidebarStyle        = lipgloss.NewStyle().Padding(0, 1)
-	sidebarBorderStyle  = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(colorLayout)
-	sidebarHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginBottom(1)
-	sidebarSectionStyle = lipgloss.NewStyle().Foreground(colorText).Bold(true)
-	sidebarKeyStyle     = lipgloss.NewStyle().Foreground(colorItemKey)
-	sidebarValueStyle   = lipgloss.NewStyle().Foreground(colorItemValue)
+	sidebarStyle              = lipgloss.NewStyle().Padding(0, 1)
+	sidebarBorderStyle        = lipgloss.NewStyle().Border(lipgloss.Border{Right: "│"}).BorderForeground(colorLayout)
+	sidebarHeaderStyle        = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading).MarginBottom(1)
+	sidebarSectionHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(colorSubheading)
+	sidebarSectionStyle       = lipgloss.NewStyle().Foreground(colorText).Bold(true)
+	sidebarKeyStyle           = lipgloss.NewStyle().Foreground(colorItemKey)
+	sidebarValueStyle         = lipgloss.NewStyle().Foreground(colorItemValue)
 
 	RightBorder = lipgloss.Border{
 		Top:         " ",

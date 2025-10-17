@@ -30,38 +30,37 @@ type SystemMetricsGrid struct {
 	logger *observability.CoreLogger
 }
 
-// NewSystemMetricsGrid creates a new system metrics grid.
 func NewSystemMetricsGrid(
 	width, height int,
 	config *ConfigManager,
 	focusState *FocusState,
 	logger *observability.CoreLogger,
 ) *SystemMetricsGrid {
-	size := effectiveSystemGridSize(width, height, config)
-
 	grid := &SystemMetricsGrid{
 		config:         config,
 		chartsByMetric: make(map[string]*TimeSeriesLineChart),
 		orderedCharts:  make([]*TimeSeriesLineChart, 0),
-		charts:         make([][]*TimeSeriesLineChart, size.Rows),
 		focusState:     focusState,
 		width:          width,
 		height:         height,
 		logger:         logger,
 	}
 
-	for row := 0; row < size.Rows; row++ {
+	size := grid.effectiveGridSize()
+	grid.charts = make([][]*TimeSeriesLineChart, size.Rows)
+	for row := range size.Rows {
 		grid.charts[row] = make([]*TimeSeriesLineChart, size.Cols)
 	}
 
-	logger.Debug(fmt.Sprintf("SystemMetricsGrid: created with dimensions %dx%d", width, height))
+	logger.Debug(fmt.Sprintf("SystemMetricsGrid: created with dimensions %dx%d (grid %dx%d)",
+		width, height, size.Rows, size.Cols))
 
 	return grid
 }
 
-// effectiveSystemGridSize returns the grid size that can fit in the current viewport.
-func effectiveSystemGridSize(availW, availH int, config *ConfigManager) GridSize {
-	cfgRows, cfgCols := config.SystemGrid()
+// effectiveGridSize returns the grid size that can fit in the current viewport.
+func (g *SystemMetricsGrid) effectiveGridSize() GridSize {
+	cfgRows, cfgCols := g.config.SystemGrid()
 	spec := GridSpec{
 		Rows:        cfgRows,
 		Cols:        cfgCols,
@@ -69,12 +68,7 @@ func effectiveSystemGridSize(availW, availH int, config *ConfigManager) GridSize
 		MinCellH:    MinMetricChartHeight,
 		HeaderLines: 0,
 	}
-	return EffectiveGridSize(availW, availH, spec)
-}
-
-// effectiveGridSize returns the grid size that can fit in the current viewport.
-func (g *SystemMetricsGrid) effectiveGridSize() GridSize {
-	return effectiveSystemGridSize(g.width, g.height, g.config)
+	return EffectiveGridSize(g.width, g.height, spec)
 }
 
 // MetricChartDimensions represents dimensions for system metric charts.
