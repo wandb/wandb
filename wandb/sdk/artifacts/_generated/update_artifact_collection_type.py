@@ -12,17 +12,17 @@ from wandb._pydantic import GQLResult
 from .fragments import ArtifactCollectionSummary
 
 
-class MoveArtifactCollection(GQLResult):
-    move_artifact_sequence: Optional[MoveArtifactCollectionMoveArtifactSequence] = (
-        Field(alias="moveArtifactSequence")
-    )
+class UpdateArtifactCollectionType(GQLResult):
+    move_artifact_sequence: Optional[
+        UpdateArtifactCollectionTypeMoveArtifactSequence
+    ] = Field(alias="moveArtifactSequence")
 
 
-class MoveArtifactCollectionMoveArtifactSequence(GQLResult):
+class UpdateArtifactCollectionTypeMoveArtifactSequence(GQLResult):
     artifact_collection: Optional[ArtifactCollectionSummary] = Field(
         alias="artifactCollection"
     )
 
 
-MoveArtifactCollection.model_rebuild()
-MoveArtifactCollectionMoveArtifactSequence.model_rebuild()
+UpdateArtifactCollectionType.model_rebuild()
+UpdateArtifactCollectionTypeMoveArtifactSequence.model_rebuild()

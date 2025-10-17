@@ -10,16 +10,14 @@ from pydantic import Field
 from wandb._pydantic import GQLResult
 
 
-class DeleteArtifactCollectionTagAssignments(GQLResult):
+class DeleteArtifactCollectionTags(GQLResult):
     delete_artifact_collection_tag_assignments: Optional[
-        DeleteArtifactCollectionTagAssignmentsDeleteArtifactCollectionTagAssignments
+        DeleteArtifactCollectionTagsDeleteArtifactCollectionTagAssignments
     ] = Field(alias="deleteArtifactCollectionTagAssignments")
 
 
-class DeleteArtifactCollectionTagAssignmentsDeleteArtifactCollectionTagAssignments(
-    GQLResult
-):
+class DeleteArtifactCollectionTagsDeleteArtifactCollectionTagAssignments(GQLResult):
     success: bool
 
 
-DeleteArtifactCollectionTagAssignments.model_rebuild()
+DeleteArtifactCollectionTags.model_rebuild()
