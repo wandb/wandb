@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult, Typename
 
-from .fragments import ProjectInfoFragment
+from .fragments import ArtifactAliasFragment, ProjectInfoFragment
 
 
 class FetchLinkedArtifacts(GQLResult):
@@ -31,15 +31,11 @@ class FetchLinkedArtifactsArtifactArtifactMembershipsEdges(GQLResult):
 
 
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode(GQLResult):
-    aliases: List[FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeAliases]
+    aliases: List[ArtifactAliasFragment]
     version_index: Optional[int] = Field(alias="versionIndex")
     artifact_collection: Optional[
         FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection
     ] = Field(alias="artifactCollection")
-
-
-class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeAliases(GQLResult):
-    alias: str
 
 
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection(

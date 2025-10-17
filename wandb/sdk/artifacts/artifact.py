@@ -292,7 +292,11 @@ class Artifact:
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
-        query = gql_compat(ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(client))
+        omit_fields = omit_artifact_fields(client)
+        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
+        query = gql_compat(
+            ARTIFACT_BY_ID_GQL, omit_fields=omit_fields, omit_fragments=omit_fragments
+        )
 
         data = client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
@@ -321,9 +325,12 @@ class Artifact:
                 "by this version of wandb server. Consider updating to the latest version."
             )
 
+        omit_fields = omit_artifact_fields(client)
+        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
         query = gql_compat(
             ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
-            omit_fields=omit_artifact_fields(client),
+            omit_fields=omit_fields,
+            omit_fragments=omit_fragments,
         )
         gql_vars = {
             "entityName": path.prefix,
@@ -362,10 +369,13 @@ class Artifact:
             "name": path.name,
             "enableTracking": enable_tracking,
         }
+        omit_fields = omit_artifact_fields(client)
+        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
         query = gql_compat(
             ARTIFACT_BY_NAME_GQL,
             omit_variables=omit_vars,
-            omit_fields=omit_artifact_fields(client),
+            omit_fields=omit_fields,
+            omit_fragments=omit_fragments,
         )
         data = client.execute(query, variable_values=gql_vars)
         result = ArtifactByName.model_validate(data)
@@ -1231,8 +1241,10 @@ class Artifact:
     def _populate_after_save(self, artifact_id: str) -> None:
         assert self._client is not None
 
+        omit_fields = omit_artifact_fields(self._client)
+        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
         query = gql_compat(
-            ARTIFACT_BY_ID_GQL, omit_fields=omit_artifact_fields(self._client)
+            ARTIFACT_BY_ID_GQL, omit_fields=omit_fields, omit_fragments=omit_fragments
         )
         data = self._client.execute(query, variable_values={"id": artifact_id})
         result = ArtifactByID.model_validate(data)
@@ -1248,69 +1260,32 @@ class Artifact:
     @normalize_exceptions
     def _update(self) -> None:
         """Persists artifact changes to the wandb backend."""
-        if self._client is None:
+        if (client := self._client) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        entity = self.entity
-        project = self.project
         collection = self.name.split(":")[0]
 
-        aliases = None
-
-        if type_info(self._client, "AddAliasesInput") is not None:
+        update_alias_inputs = None
+        if type_info(client, "AddAliasesInput") is not None:
             # wandb backend version >= 0.13.0
-            alias_props = {
-                "entity_name": entity,
-                "project_name": project,
-                "artifact_collection_name": collection,
-            }
-            if added_aliases := (set(self.aliases) - set(self._saved_aliases)):
-                add_mutation = gql(ADD_ALIASES_GQL)
-                add_alias_input = AddAliasesInput(
-                    artifact_id=self.id,
-                    aliases=[dict(**alias_props, alias=al) for al in added_aliases],
-                )
-                try:
-                    self._client.execute(
-                        add_mutation,
-                        variable_values={"input": add_alias_input.model_dump()},
-                    )
-                except CommError as e:
-                    raise CommError(
-                        "You do not have permission to add"
-                        f" {'at least one of the following aliases' if len(added_aliases) > 1 else 'the following alias'}"
-                        f" to this artifact: {added_aliases}"
-                    ) from e
-
-            if removed_aliases := (set(self._saved_aliases) - set(self.aliases)):
-                delete_mutation = gql(DELETE_ALIASES_GQL)
-                delete_alias_input = DeleteAliasesInput(
-                    artifact_id=self.id,
-                    aliases=[dict(**alias_props, alias=al) for al in removed_aliases],
-                )
-                try:
-                    self._client.execute(
-                        delete_mutation,
-                        variable_values={"input": delete_alias_input.model_dump()},
-                    )
-                except CommError as e:
-                    raise CommError(
-                        f"You do not have permission to delete"
-                        f" {'at least one of the following aliases' if len(removed_aliases) > 1 else 'the following alias'}"
-                        f" from this artifact: {removed_aliases}"
-                    ) from e
-
+            old_aliases, new_aliases = set(self._saved_aliases), set(self.aliases)
+            target = FullArtifactPath(
+                prefix=self.entity, project=self.project, name=collection
+            )
+            if added_aliases := (new_aliases - old_aliases):
+                self._add_aliases(added_aliases, target=target)
+            if deleted_aliases := (old_aliases - new_aliases):
+                self._delete_aliases(deleted_aliases, target=target)
             self._saved_aliases = copy(self.aliases)
-
-        else:  # wandb backend version < 0.13.0
-            aliases = [
-                ArtifactAliasInput(
-                    artifact_collection_name=collection, alias=alias
-                ).model_dump()
+        else:
+            # wandb backend version < 0.13.0
+            update_alias_inputs = [
+                {"artifactCollectionName": collection, "alias": alias}
                 for alias in self.aliases
             ]
 
-        omit_fields = omit_artifact_fields(self._client)
+        omit_fields = omit_artifact_fields(client)
+        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
         omit_variables = set()
 
         if {"ttlIsInherited", "ttlDurationSeconds"} & omit_fields:
@@ -1321,11 +1296,11 @@ class Artifact:
 
             omit_variables |= {"ttlDurationSeconds"}
 
-        tags_to_add = validate_tags(set(self.tags) - set(self._saved_tags))
-        tags_to_del = validate_tags(set(self._saved_tags) - set(self.tags))
+        added_tags = validate_tags(set(self.tags) - set(self._saved_tags))
+        deleted_tags = validate_tags(set(self._saved_tags) - set(self.tags))
 
         if {"tags"} & omit_fields:
-            if tags_to_add or tags_to_del:
+            if added_tags or deleted_tags:
                 termwarn(
                     "Server not compatible with Artifact tags. "
                     "To use Artifact tags, please upgrade the server to v0.85 or higher."
@@ -1333,22 +1308,20 @@ class Artifact:
 
             omit_variables |= {"tagsToAdd", "tagsToDelete"}
 
-        mutation = gql_compat(
-            UPDATE_ARTIFACT_GQL, omit_variables=omit_variables, omit_fields=omit_fields
+        gql_op = gql_compat(
+            UPDATE_ARTIFACT_GQL, omit_fields=omit_fields, omit_fragments=omit_fragments
         )
         gql_input = UpdateArtifactInput(
             artifact_id=self.id,
             description=self.description,
             metadata=json_dumps_safer(self.metadata),
             ttl_duration_seconds=self._ttl_duration_seconds_to_gql(),
-            aliases=aliases,
-            tags_to_add=[{"tagName": t} for t in tags_to_add],
-            tags_to_delete=[{"tagName": t} for t in tags_to_del],
+            aliases=update_alias_inputs,
+            tags_to_add=[{"tagName": t} for t in added_tags],
+            tags_to_delete=[{"tagName": t} for t in deleted_tags],
         )
-        data = self._client.execute(
-            mutation,
-            variable_values={"input": gql_input.model_dump(exclude=omit_variables)},
-        )
+        gql_vars = {"input": gql_input.model_dump(exclude=omit_variables)}
+        data = client.execute(gql_op, variable_values=gql_vars)
 
         result = UpdateArtifact.model_validate(data).update_artifact
         if not (result and (artifact := result.artifact)):
@@ -1356,6 +1329,50 @@ class Artifact:
         self._assign_attrs(artifact)
 
         self._ttl_changed = False  # Reset after updating artifact
+
+    def _add_aliases(self, alias_names: set[str], target: FullArtifactPath) -> None:
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        target_props = {
+            "entityName": target.prefix,
+            "projectName": target.project,
+            "artifactCollectionName": target.name,
+        }
+        alias_inputs = [{**target_props, "alias": name} for name in alias_names]
+        gql_op = gql(ADD_ALIASES_GQL)
+        gql_input = AddAliasesInput(artifact_id=self.id, aliases=alias_inputs)
+        gql_vars = {"input": gql_input.model_dump()}
+        try:
+            client.execute(gql_op, variable_values=gql_vars)
+        except CommError as e:
+            raise CommError(
+                "You do not have permission to add"
+                f" {'at least one of the following aliases' if len(alias_names) > 1 else 'the following alias'}"
+                f" to this artifact: {alias_names!r}"
+            ) from e
+
+    def _delete_aliases(self, alias_names: set[str], target: FullArtifactPath) -> None:
+        if (client := self._client) is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        target_props = {
+            "entityName": target.prefix,
+            "projectName": target.project,
+            "artifactCollectionName": target.name,
+        }
+        alias_inputs = [{**target_props, "alias": name} for name in alias_names]
+        gql_op = gql(DELETE_ALIASES_GQL)
+        gql_input = DeleteAliasesInput(artifact_id=self.id, aliases=alias_inputs)
+        gql_vars = {"input": gql_input.model_dump()}
+        try:
+            client.execute(gql_op, variable_values=gql_vars)
+        except CommError as e:
+            raise CommError(
+                f"You do not have permission to delete"
+                f" {'at least one of the following aliases' if len(alias_names) > 1 else 'the following alias'}"
+                f" from this artifact: {alias_names!r}"
+            ) from e
 
     # Adding, removing, getting entries.
 
@@ -2443,6 +2460,8 @@ class Artifact:
                 "ArtifactFragment",
                 "ArtifactFragmentWithoutAliases",
                 "ProjectInfoFragment",
+                "TagFragment",
+                "ArtifactAliasFragment",
             }
 
         gql_op = gql_compat(LINK_ARTIFACT_GQL, omit_fragments=omit_fragments)
