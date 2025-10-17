@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import List, Optional
 
 from pydantic import Field
 
-from wandb._pydantic import GQLResult, Typename
+from wandb._pydantic import GQLResult
 
-from .fragments import ArtifactAliasFragment, ProjectInfoFragment
+from .fragments import ArtifactAliasFragment, CollectionInfoFragment
 
 
 class FetchLinkedArtifacts(GQLResult):
@@ -33,19 +33,9 @@ class FetchLinkedArtifactsArtifactArtifactMembershipsEdges(GQLResult):
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode(GQLResult):
     aliases: List[ArtifactAliasFragment]
     version_index: Optional[int] = Field(alias="versionIndex")
-    artifact_collection: Optional[
-        FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection
-    ] = Field(alias="artifactCollection")
-
-
-class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection(
-    GQLResult
-):
-    typename__: Typename[
-        Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
-    ]
-    name: str
-    project: Optional[ProjectInfoFragment]
+    artifact_collection: Optional[CollectionInfoFragment] = Field(
+        alias="artifactCollection"
+    )
 
 
 FetchLinkedArtifacts.model_rebuild()
@@ -53,4 +43,3 @@ FetchLinkedArtifactsArtifact.model_rebuild()
 FetchLinkedArtifactsArtifactArtifactMemberships.model_rebuild()
 FetchLinkedArtifactsArtifactArtifactMembershipsEdges.model_rebuild()
 FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode.model_rebuild()
-FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNodeArtifactCollection.model_rebuild()
