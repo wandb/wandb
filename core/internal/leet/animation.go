@@ -2,8 +2,6 @@ package leet
 
 import (
 	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // SidebarState represents the UI state of a sidebar.
@@ -58,10 +56,11 @@ func (a *AnimationState) Toggle() {
 	}
 }
 
-// Update updates the animation state and returns a command if animation continues.
-func (a *AnimationState) Update() (tea.Cmd, bool) {
+// Update updates the animation state and returns whether animation is complete.
+// Caller is responsible for creating continuation commands if needed.
+func (a *AnimationState) Update() bool {
 	if a.state != SidebarExpanding && a.state != SidebarCollapsing {
-		return nil, false
+		return true
 	}
 
 	elapsed := time.Since(a.timer)
@@ -74,7 +73,7 @@ func (a *AnimationState) Update() (tea.Cmd, bool) {
 		} else {
 			a.state = SidebarCollapsed
 		}
-		return nil, true
+		return true
 	}
 
 	if a.state == SidebarExpanding {
@@ -83,7 +82,7 @@ func (a *AnimationState) Update() (tea.Cmd, bool) {
 		a.currentWidth = int((1 - easeOutCubic(progress)) * float64(a.expandedWidth))
 	}
 
-	return a.animationCmd(), false
+	return false
 }
 
 // SetExpandedWidth updates the expanded width.
@@ -119,11 +118,4 @@ func (a *AnimationState) IsAnimating() bool {
 func easeOutCubic(t float64) float64 {
 	t--
 	return t*t*t + 1
-}
-
-// animationCmd returns a command to continue the animation.
-func (a *AnimationState) animationCmd() tea.Cmd {
-	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg {
-		return LeftSidebarAnimationMsg{}
-	})
 }
