@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -828,9 +829,21 @@ func (s *LeftSidebar) Update(msg tea.Msg) (*LeftSidebar, tea.Cmd) {
 	}
 
 	// Handle animation
-	cmd, _ := s.animState.Update()
+	if s.animState.IsAnimating() {
+		complete := s.animState.Update()
+		if !complete {
+			return s, s.animationCmd()
+		}
+	}
 
-	return s, cmd
+	return s, nil
+}
+
+// animationCmd returns a command to continue the animation.
+func (s *LeftSidebar) animationCmd() tea.Cmd {
+	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg {
+		return LeftSidebarAnimationMsg{}
+	})
 }
 
 // truncateValue truncates long values for display.

@@ -391,7 +391,7 @@ func (m *Model) handleToggleLeftSidebar(msg tea.KeyMsg) (*Model, tea.Cmd) {
 	layout := m.computeViewports()
 	m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
-	return m, m.leftSidebar.animState.animationCmd()
+	return m, m.leftSidebar.animationCmd()
 }
 
 func (m *Model) handleToggleRightSidebar(msg tea.KeyMsg) (*Model, tea.Cmd) {
@@ -620,7 +620,7 @@ func (m *Model) handleOther(msg tea.Msg) (*Model, tea.Cmd) {
 		m.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 
 		if m.leftSidebar.IsAnimating() {
-			return m, m.leftSidebar.animState.animationCmd()
+			return m, m.leftSidebar.animationCmd()
 		}
 
 		m.animationMu.Lock()

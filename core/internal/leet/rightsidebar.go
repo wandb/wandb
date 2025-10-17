@@ -2,6 +2,7 @@ package leet
 
 import (
 	"fmt"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -116,24 +117,35 @@ func (rs *RightSidebar) ClearFocus() {
 // Update handles animation updates and stats processing.
 func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 	// Process stats messages
-	if msg, ok := msg.(StatsMsg); ok {
-		rs.ProcessStatsMsg(msg)
+	if statsMsg, ok := msg.(StatsMsg); ok {
+		rs.ProcessStatsMsg(statsMsg)
 	}
 
 	// Handle animation
-	cmd, complete := rs.animState.Update()
-	if complete {
-		// Animation just completed
-		if rs.animState.State() == SidebarExpanded && rs.metricsGrid != nil {
-			gridWidth := rs.animState.Width() - 3
-			gridHeight := 40
-			if gridWidth > 0 {
-				rs.metricsGrid.Resize(gridWidth, gridHeight)
+	if rs.animState.IsAnimating() {
+		complete := rs.animState.Update()
+		if complete {
+			// Animation just completed
+			if rs.animState.State() == SidebarExpanded && rs.metricsGrid != nil {
+				gridWidth := rs.animState.Width() - 3
+				gridHeight := 40
+				if gridWidth > 0 {
+					rs.metricsGrid.Resize(gridWidth, gridHeight)
+				}
 			}
+		} else {
+			return rs, rs.animationCmd()
 		}
 	}
 
-	return rs, cmd
+	return rs, nil
+}
+
+// animationCmd returns a command to continue the animation.
+func (rs *RightSidebar) animationCmd() tea.Cmd {
+	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg {
+		return RightSidebarAnimationMsg{}
+	})
 }
 
 // View renders the right sidebar.
@@ -204,11 +216,6 @@ func (rs *RightSidebar) IsVisible() bool {
 // IsAnimating returns true if the sidebar is currently animating.
 func (rs *RightSidebar) IsAnimating() bool {
 	return rs.animState.IsAnimating()
-}
-
-func (m *RightSidebar) animationCmd() tea.Cmd {
-	cmd, _ := m.animState.Update()
-	return cmd
 }
 
 // ProcessStatsMsg processes a stats message and updates the metrics.
