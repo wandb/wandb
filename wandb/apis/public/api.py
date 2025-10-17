@@ -304,7 +304,13 @@ class Api:
 
         _overrides = overrides or {}
         self.settings.update(_overrides)
+        if "_extra_http_headers" in self.settings:
+            print("_extra_http_headers", self.settings["_extra_http_headers"])
+        if "x_extra_http_headers" in self.settings:
+            print("x_extra_http_headers", self.settings["x_extra_http_headers"])    
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
+        print("thread local headers are", _thread_local_api_settings.headers)
+
         if "organization" in _overrides:
             self.settings["organization"] = _overrides["organization"]
         if "username" in _overrides and "entity" not in _overrides:
@@ -316,10 +322,12 @@ class Api:
         use_api_key = api_key is not None or _thread_local_api_settings.cookies is None
 
         if use_api_key:
+            # TODO: I am thinking if my PR is correct https://github.com/wandb/wandb/pull/10657 and leads to run.log_artifact failure when using proxy
             self.api_key = self._load_api_key(
                 base_url=self.settings["base_url"],
                 init_api_key=api_key,
             )
+            print("use_api_key with base url", self.settings["base_url"], "the key we got is", self.api_key)
             wandb_login._verify_login(
                 key=self.api_key,
                 base_url=self.settings["base_url"],
@@ -373,19 +381,25 @@ class Api:
             4. Netrc file
             5. Prompt for api key using wandb.login
         """
+        print("calling _load_api_key")
         # Use explicit key before thread local.
         # This allow user switching keys without picking up the wrong key from thread local.
         if init_api_key is not None:
+            print("got key from init_api_key")
             return init_api_key
         if _thread_local_api_settings.api_key:
+            print("got key from thread local")
             return _thread_local_api_settings.api_key
         if os.getenv("WANDB_API_KEY"):
+            print("got key from env")
             return os.environ["WANDB_API_KEY"]
 
         auth = requests.utils.get_netrc_auth(base_url)
         if auth:
+            print("got key from requests.utils.get_netrc_auth")
             return auth[-1]
 
+        print("getting prompted key")
         _, prompted_key = wandb_login._login(
             host=base_url,
             key=None,

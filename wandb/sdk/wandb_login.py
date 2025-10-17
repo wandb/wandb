@@ -281,6 +281,7 @@ def _login(
             or None if the api key was not verified during the login process.
     """
     if wandb.run is not None:
+        print("return None because calling wandb.loing() after wandb.init()")
         if not _disable_warning:
             wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
         return True, None
@@ -314,6 +315,7 @@ def _login(
     if key is None:
         # Check if key is already set in the settings, or configured in the users .netrc file.
         key = apikey.api_key(settings=wlogin._settings)
+        print("key from apikey.api_key is", key)
         if key and not relogin:
             key_is_pre_configured = True
         else:
@@ -335,6 +337,8 @@ def _login(
 
 
 def _verify_login(key: str, base_url: str) -> None:
+    # FIXME: the key is None ... how could that be?
+    print(f"verify loging using key {key} on base url {base_url}")
     api = InternalApi(
         api_key=key,
         default_settings={"base_url": base_url},

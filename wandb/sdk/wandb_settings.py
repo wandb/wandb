@@ -1156,6 +1156,7 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_extra_http_headers", mode="before")
     @classmethod
     def validate_x_extra_http_headers(cls, value):
+        print(f"validate_x_extra_http_headers: {value}")
         if isinstance(value, str):
             return json.loads(value)
         return value

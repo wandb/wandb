@@ -314,6 +314,7 @@ class Api:
                 proxies=proxies,
             )
         )
+        print("Internal API client url is", f"{self.settings('base_url')}/graphql")
 
         self.retry_callback = retry_callback
         self._retry_gql = retry.Retry(
