@@ -66,7 +66,11 @@ func (r *RunReader) ExtractRunInfo() (*RunInfo, error) {
 		}
 
 		if run := record.GetRun(); run != nil {
-			return &RunInfo{RunID: run.RunId}, nil
+			return &RunInfo{
+				Entity:  run.Entity,
+				Project: run.Project,
+				RunID:   run.RunId,
+			}, nil
 		}
 	}
 }

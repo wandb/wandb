@@ -183,7 +183,7 @@ def test_syncs_run(tmp_path, wandb_backend_spy, runner: CliRunner):
     assert lines[0] == "Syncing 1 file(s):"
     assert lines[1].endswith(f"run-{run.id}.wandb")
     # More lines possible depending on status updates. Not deterministic.
-    assert lines[-1] == f"wandb: [{run.id}] Finished syncing run."
+    assert lines[-1] == f"wandb: [{run.path}] Finished syncing {run.settings.sync_file}"
 
     with wandb_backend_spy.freeze() as snapshot:
         history = snapshot.history(run_id=run.id)

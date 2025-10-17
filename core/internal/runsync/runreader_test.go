@@ -136,14 +136,20 @@ func Test_Extract_FindsRunRecord(t *testing.T) {
 		x.TransactionLog,
 		&spb.Record{RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
-				RunId: "test run ID",
+				Entity:  "test entity",
+				Project: "test project",
+				RunId:   "test run ID",
 			},
 		}})
 
 	runInfo, err := x.RunReader.ExtractRunInfo()
 	require.NoError(t, err)
 
-	assert.Equal(t, &runsync.RunInfo{RunID: "test run ID"}, runInfo)
+	assert.Equal(t, &runsync.RunInfo{
+		Entity:  "test entity",
+		Project: "test project",
+		RunID:   "test run ID",
+	}, runInfo)
 }
 
 func Test_Extract_ErrorIfNoRunRecord(t *testing.T) {
