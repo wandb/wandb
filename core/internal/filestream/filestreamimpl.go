@@ -69,17 +69,25 @@ func (fs *fileStream) startTransmitting(
 		maxRequestSizeBytes = 10 << 20 // 10 MB
 	}
 
+	state := &FileStreamState{}
+	if initialOffsets != nil {
+		state.HistoryLineNum = initialOffsets[HistoryChunk]
+		state.EventsLineNum = initialOffsets[EventsChunk]
+		state.SummaryLineNum = initialOffsets[SummaryChunk]
+		state.ConsoleLineOffset = initialOffsets[OutputChunk]
+	}
+
 	transmissions := CollectLoop{
 		Logger:              fs.logger,
 		TransmitRateLimit:   fs.transmitRateLimit,
 		MaxRequestSizeBytes: int(maxRequestSizeBytes),
-	}.Start(requests)
+	}.Start(state, requests)
 
 	feedback := TransmitLoop{
 		HeartbeatStopwatch:     fs.heartbeatStopwatch,
 		Send:                   fs.send,
 		LogFatalAndStopWorking: fs.logFatalAndStopWorking,
-	}.Start(transmissions, initialOffsets)
+	}.Start(transmissions)
 
 	return feedback
 }
