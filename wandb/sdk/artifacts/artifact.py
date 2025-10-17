@@ -206,13 +206,13 @@ class Artifact:
         use_as: str | None = None,
         storage_region: str | None = None,
     ) -> None:
+        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
                 f"Artifact name may only contain alphanumeric characters, dashes, "
-                f"underscores, and dots. Invalid name: {name}"
+                f"underscores, and dots. Invalid name: {name!r}"
             )
-
-        from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
         if incremental and not isinstance(self, InternalArtifact):
             termwarn("Using experimental arg `incremental`")
