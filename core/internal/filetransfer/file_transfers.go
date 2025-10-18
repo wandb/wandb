@@ -35,8 +35,10 @@ func NewFileTransfers(
 	client *retryablehttp.Client,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
+	extraHeaders map[string]string,
 ) *FileTransfers {
-	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
+	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats, extraHeaders)
+	// NOTE: Cloud specific handlers are reference artifacts so we do NOT pass the extra headers to them (for now)
 	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
 	s3FileTransfer := NewS3FileTransfer(nil, logger, fileTransferStats)
 	azureFileTransfer := NewAzureFileTransfer(nil, logger, fileTransferStats)
