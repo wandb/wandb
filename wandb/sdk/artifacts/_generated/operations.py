@@ -179,6 +179,12 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   name
   description
   createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  defaultArtifactType {
+    name
+  }
   tags {
     edges {
       node {
@@ -199,6 +205,13 @@ fragment PageInfoFragment on PageInfo {
   __typename
   endCursor
   hasNextPage
+}
+
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
 }
 
 fragment TagFragment on Tag {
@@ -232,6 +245,12 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   name
   description
   createdAt
+  project {
+    ...ProjectInfoFragment
+  }
+  defaultArtifactType {
+    name
+  }
   tags {
     edges {
       node {
@@ -246,6 +265,13 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
       }
     }
   }
+}
+
+fragment ProjectInfoFragment on Project {
+  __typename
+  id
+  name
+  entityName
 }
 
 fragment TagFragment on Tag {
