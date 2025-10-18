@@ -2434,11 +2434,15 @@ class Artifact:
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
         if server_supports(client, pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE):
+            omit_variables = set()
             omit_fields = set()
         else:
+            omit_variables = {"includeAliases"}
             omit_fields = {"artifactMembership"}
 
-        gql_op = gql_compat(LINK_ARTIFACT_GQL, omit_fields=omit_fields)
+        gql_op = gql_compat(
+            LINK_ARTIFACT_GQL, omit_variables=omit_variables, omit_fields=omit_fields
+        )
         data = client.execute(gql_op, variable_values=gql_vars)
         result = LinkArtifact.model_validate(data).link_artifact
 
