@@ -258,6 +258,39 @@ def test_model_dump_methods_with_json_fields():
     assert json.loads(rt_json) == obj.model_dump(round_trip=True)
 
 
+def test_field_constraints_on_list_fields():
+    class ListFields(CompatBaseModel):
+        required_list: List[int] = Field(min_length=1, max_length=3)
+        optional_list: Optional[List[str]] = Field(
+            default=None, min_length=1, max_length=3
+        )
+
+    valid_model1 = ListFields(required_list=[1, 2, 3])
+    assert valid_model1.required_list == [1, 2, 3]
+    assert valid_model1.optional_list is None
+
+    valid_model2 = ListFields(required_list=[1, 2, 3], optional_list=None)
+    assert valid_model2.required_list == [1, 2, 3]
+    assert valid_model2.optional_list is None
+
+    valid_model3 = ListFields(required_list=[1], optional_list=["hello"])
+    assert valid_model3.required_list == [1]
+    assert valid_model3.optional_list == ["hello"]
+
+    with raises(ValidationError):
+        # required too short
+        ListFields(required_list=[])
+    with raises(ValidationError):
+        # required too long
+        ListFields(required_list=[1, 2, 3, 4])
+    with raises(ValidationError):
+        # required ok; optional too short
+        ListFields(required_list=[1, 2, 3], optional_list=[])
+    with raises(ValidationError):
+        # required ok; optional too long
+        ListFields(required_list=[1], optional_list=["hello", "world", "foo", "bar"])
+
+
 # ------------------------------------------------------------------------------
 def test_generated_pydantic_fragment_validates_response_data():
     """Check that the generated fragment validates the response data.

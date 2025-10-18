@@ -20,7 +20,7 @@ from .enums import (
 class CreateGenericWebhookIntegrationInput(GQLInput):
     entity_name: str = Field(alias="entityName")
     url_endpoint: str = Field(alias="urlEndpoint")
-    name: str
+    name: str = Field(max_length=64, pattern="^[-\\w]+([ ]+[-\\w]+)*$")
     secret_ref: Optional[str] = Field(alias="secretRef", default=None)
     access_token_ref: Optional[str] = Field(alias="accessTokenRef", default=None)
     client_mutation_id: Optional[str] = Field(alias="clientMutationId", default=None)
@@ -63,7 +63,7 @@ class TriggeredActionConfig(GQLInput):
 
 
 class CreateFilterTriggerInput(GQLInput):
-    name: str
+    name: str = Field(max_length=255)
     description: Optional[str] = None
     triggering_event_type: EventTriggeringConditionType = Field(
         alias="triggeringEventType"
@@ -81,7 +81,7 @@ class CreateFilterTriggerInput(GQLInput):
 
 class UpdateFilterTriggerInput(GQLInput):
     id: GQLId
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
     triggering_event_type: Optional[EventTriggeringConditionType] = Field(
         alias="triggeringEventType", default=None
