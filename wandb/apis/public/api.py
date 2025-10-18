@@ -334,7 +334,8 @@ class Api:
                 base_url=self.settings["base_url"],
                 init_api_key=api_key,
             )
-            print("Api._init_ use_api_key with base url", self.settings["base_url"], "the key we got is", self.api_key[:3] + "..." if self.api_key else None)
+            if self.api_key is None:
+                print("Api._init_ use_api_key with base url", self.settings["base_url"], "the key is None")
             wandb_login._verify_login(
                 key=self.api_key,
                 base_url=self.settings["base_url"],

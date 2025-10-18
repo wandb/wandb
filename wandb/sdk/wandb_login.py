@@ -315,7 +315,8 @@ def _login(
     if key is None:
         # Check if key is already set in the settings, or configured in the users .netrc file.
         key = apikey.api_key(settings=wlogin._settings)
-        print("key from apikey.api_key is", key)
+        if key is None:
+            print("key from apikey.api_key is None")
         if key and not relogin:
             key_is_pre_configured = True
         else:
@@ -338,7 +339,8 @@ def _login(
 
 def _verify_login(key: str, base_url: str) -> None:
     # FIXME: the key is None ... how could that be? Well, if you create public Api within a run
-    print(f"verify login using key {key[:3] + '...' if key else None} on base url {base_url}")
+    if key is None:
+        print(f"verify login using key None on base url {base_url}")
     api = InternalApi(
         api_key=key,
         default_settings={"base_url": base_url},
