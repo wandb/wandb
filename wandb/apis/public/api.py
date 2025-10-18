@@ -304,12 +304,13 @@ class Api:
 
         _overrides = overrides or {}
         self.settings.update(_overrides)
-        if "_extra_http_headers" in self.settings:
-            print("_extra_http_headers", self.settings["_extra_http_headers"])
-        if "x_extra_http_headers" in self.settings:
-            print("x_extra_http_headers", self.settings["x_extra_http_headers"])    
+        # From settings, we should only be using x_extra_http_headers
+        extra_http_headers = self.settings["x_extra_http_headers"] or {}
+        if extra_http_headers:
+            print("Api._init__ extra_http_headers", extra_http_headers)
+        else:
+            print("Api._init__ extra_http_headers not found")
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
-        print("thread local headers are", _thread_local_api_settings.headers)
 
         if "organization" in _overrides:
             self.settings["organization"] = _overrides["organization"]
@@ -327,7 +328,7 @@ class Api:
                 base_url=self.settings["base_url"],
                 init_api_key=api_key,
             )
-            print("use_api_key with base url", self.settings["base_url"], "the key we got is", self.api_key)
+            print("Api._init_ use_api_key with base url", self.settings["base_url"], "the key we got is", self.api_key[:3] + "..." if self.api_key else None)
             wandb_login._verify_login(
                 key=self.api_key,
                 base_url=self.settings["base_url"],
@@ -351,7 +352,8 @@ class Api:
                 headers={
                     "User-Agent": self.user_agent,
                     "Use-Admin-Privileges": "true",
-                    **(_thread_local_api_settings.headers or {}),
+                    # NOTE: no longer use thread local headers
+                    **(extra_http_headers or {}),
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
@@ -381,7 +383,6 @@ class Api:
             4. Netrc file
             5. Prompt for api key using wandb.login
         """
-        print("calling _load_api_key")
         # Use explicit key before thread local.
         # This allow user switching keys without picking up the wrong key from thread local.
         if init_api_key is not None:

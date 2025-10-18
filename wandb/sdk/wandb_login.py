@@ -337,8 +337,8 @@ def _login(
 
 
 def _verify_login(key: str, base_url: str) -> None:
-    # FIXME: the key is None ... how could that be?
-    print(f"verify loging using key {key} on base url {base_url}")
+    # FIXME: the key is None ... how could that be? Well, if you create public Api within a run
+    print(f"verify login using key {key[:3] + '...' if key else None} on base url {base_url}")
     api = InternalApi(
         api_key=key,
         default_settings={"base_url": base_url},
