@@ -1390,46 +1390,6 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
             return "segmentation_mask"
     return None
 
-
-def download_file_from_url(
-    dest_path: str, source_url: str, api_key: Optional[str] = None
-) -> None:
-    auth = None
-    if not _thread_local_api_settings.cookies:
-        auth = ("api", api_key or "")
-    response = requests.get(
-        source_url,
-        auth=auth,
-        headers=_thread_local_api_settings.headers,
-        cookies=_thread_local_api_settings.cookies,
-        stream=True,
-        timeout=5,
-    )
-    response.raise_for_status()
-
-    if os.sep in dest_path:
-        filesystem.mkdir_exists_ok(os.path.dirname(dest_path))
-    with fsync_open(dest_path, "wb") as file:
-        for data in response.iter_content(chunk_size=1024):
-            file.write(data)
-
-
-def download_file_into_memory(source_url: str, api_key: Optional[str] = None) -> bytes:
-    auth = None
-    if not _thread_local_api_settings.cookies:
-        auth = ("api", api_key or "")
-    response = requests.get(
-        source_url,
-        auth=auth,
-        headers=_thread_local_api_settings.headers,
-        cookies=_thread_local_api_settings.cookies,
-        stream=True,
-        timeout=5,
-    )
-    response.raise_for_status()
-    return response.content
-
-
 def isatty(ob: IO) -> bool:
     return hasattr(ob, "isatty") and ob.isatty()
 
