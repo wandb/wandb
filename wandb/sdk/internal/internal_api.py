@@ -283,7 +283,7 @@ class Api:
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
         self._extra_http_headers.update(_thread_local_api_settings.headers or {})
-        print("InternalApi._extra_http.headers", self._extra_http_headers)
+        logger.debug("InternalApi._extra_http_headers: %s", self._extra_http_headers)
 
         auth = None
         api_key = api_key or self.default_settings.get("api_key")
@@ -316,7 +316,7 @@ class Api:
                 proxies=proxies,
             )
         )
-        print("Internal API client url is", f"{self.settings('base_url')}/graphql")
+        logger.debug("Internal API client URL: %s/graphql", self.settings('base_url'))
 
         self.retry_callback = retry_callback
         self._retry_gql = retry.Retry(

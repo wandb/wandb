@@ -47,6 +47,8 @@ from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     import wandb.jupyter
 
@@ -277,7 +279,7 @@ class _WandbInit:
 
         # Inherit global settings.
         settings = self._wl.settings.model_copy()
-        print("self.wl.settings.x_extra_http_headers", settings.x_extra_http_headers)
+        logger.debug("settings.x_extra_http_headers: %s", settings.x_extra_http_headers)
 
         # Apply settings from wandb.init() call.
         settings.update_from_settings(init_settings)
@@ -1466,7 +1468,7 @@ def init(  # noqa: C901
         init_settings = Settings(**settings)
     elif isinstance(settings, Settings):
         init_settings = settings
-    print("init_settings.x_extra_http_headers", init_settings.x_extra_http_headers)
+    logger.debug("init_settings.x_extra_http_headers: %s", init_settings.x_extra_http_headers)
 
     # Explicit function arguments take precedence over settings
     if job_type is not None:
@@ -1521,7 +1523,7 @@ def init(  # noqa: C901
 
         wi.maybe_login(init_settings)
         run_settings, show_warnings = wi.make_run_settings(init_settings)
-        print("run_settings.x_extra_http_headers", run_settings.x_extra_http_headers)
+        logger.debug("run_settings.x_extra_http_headers: %s", run_settings.x_extra_http_headers)
 
         if isinstance(run_settings.reinit, bool):
             wi.deprecated_features_used["run__reinit_bool"] = (

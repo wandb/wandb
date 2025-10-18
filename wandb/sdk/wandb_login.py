@@ -4,6 +4,7 @@ This authenticates your machine to log data to your account.
 """
 
 import enum
+import logging
 import os
 from typing import Literal, Optional, Tuple
 
@@ -18,6 +19,8 @@ from wandb.sdk import wandb_setup
 from ..apis import InternalApi
 from .internal.internal_api import Api
 from .lib import apikey
+
+logger = logging.getLogger(__name__)
 
 
 def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None:
@@ -281,7 +284,7 @@ def _login(
             or None if the api key was not verified during the login process.
     """
     if wandb.run is not None:
-        print("return None because calling wandb.loing() after wandb.init()")
+        logger.debug("Returning None because calling wandb.login() after wandb.init()")
         if not _disable_warning:
             wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
         return True, None
@@ -316,7 +319,7 @@ def _login(
         # Check if key is already set in the settings, or configured in the users .netrc file.
         key = apikey.api_key(settings=wlogin._settings)
         if key is None:
-            print("key from apikey.api_key is None")
+            logger.debug("API key from apikey.api_key is None")
         if key and not relogin:
             key_is_pre_configured = True
         else:
@@ -340,7 +343,7 @@ def _login(
 def _verify_login(key: str, base_url: str) -> None:
     # FIXME: the key is None ... how could that be? Well, if you create public Api within a run
     if key is None:
-        print(f"verify login using key None on base url {base_url}")
+        logger.debug("Verifying login with key None on base URL: %s", base_url)
     api = InternalApi(
         api_key=key,
         default_settings={"base_url": base_url},
