@@ -61,7 +61,7 @@ type EpochLineChart struct {
 }
 
 func NewEpochLineChart(width, height int, title string) *EpochLineChart {
-	graphColors := GetGraphColors()
+	graphColors := GraphColors()
 
 	// Temporarily use a default style - it will be updated during sorting.
 	graphStyle := lipgloss.NewStyle().
@@ -351,8 +351,8 @@ func (c *EpochLineChart) pixelEpsX(xRange float64) float64 {
 //
 // See https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm.
 func drawLine(bGrid *graph.BrailleGrid, p1, p2 canvas.Point) {
-	dx := abs(p2.X - p1.X)
-	dy := abs(p2.Y - p1.Y)
+	dx := int(math.Abs(float64(p2.X - p1.X)))
+	dy := int(math.Abs(float64(p2.Y - p1.Y)))
 
 	sx := 1
 	if p1.X > p2.X {
@@ -384,13 +384,6 @@ func drawLine(bGrid *graph.BrailleGrid, p1, p2 canvas.Point) {
 			y += sy
 		}
 	}
-}
-
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
 }
 
 // DrawIfNeeded only draws if the chart is marked as dirty.

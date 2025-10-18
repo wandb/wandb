@@ -168,7 +168,7 @@ func leetMain(args []string) int {
 		fmt.Fprintf(os.Stderr, "wandb-core leet - Lightweight Experiment Exploration Tool\n\n")
 		fmt.Fprintf(os.Stderr, "A terminal UI for viewing your W&B runs locally.\n\n")
 		fmt.Fprintf(os.Stderr, "Usage:\n")
-		fmt.Fprintf(os.Stderr, "  wandb-core leet <wandb-file> [flags]\n")
+		fmt.Fprintf(os.Stderr, "  wandb-core leet [flags] <wandb-file>\n")
 		fmt.Fprintf(os.Stderr, "Arguments:\n")
 		fmt.Fprintf(os.Stderr, "  <wandb-file>       Path to the .wandb file of a W&B run.\n")
 		fmt.Fprintf(os.Stderr, "                     Example: \n")
