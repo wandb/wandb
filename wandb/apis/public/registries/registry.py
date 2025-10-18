@@ -22,18 +22,14 @@ from wandb.sdk.artifacts._generated import (
     UpsertRegistry,
 )
 from wandb.sdk.artifacts._gqlutils import server_supports
-from wandb.sdk.artifacts._validators import (
-    REGISTRY_PREFIX,
-    remove_registry_prefix,
-    validate_project_name,
-)
+from wandb.sdk.artifacts._models import RegistryData
+from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, validate_project_name
 
 from ._freezable_list import AddOnlyArtifactTypesList
 from ._utils import (
+    Visibility,
     fetch_org_entity_from_organization,
-    format_gql_artifact_types_input,
-    gql_to_registry_visibility,
-    registry_visibility_to_gql,
+    prepare_artifact_types_input,
 )
 from .registries_search import Collections, Versions
 
@@ -44,6 +40,12 @@ if TYPE_CHECKING:
 class Registry:
     """A single registry in the Registry."""
 
+    _saved: RegistryData
+    """The saved registry data as last fetched from the W&B server."""
+
+    _current: RegistryData
+    """The local, editable registry data."""
+
     def __init__(
         self,
         client: Client,
@@ -53,80 +55,71 @@ class Registry:
         attrs: RegistryFragment | None = None,
     ):
         self.client = client
-        self._name = name
-        self._saved_name = name
-        self._entity = entity
-        self._organization = organization
-        if attrs is not None:
+
+        if attrs is None:
+            # FIXME: This is awkward and bypasses validation which seems shaky.
+            # Reconsider the init signature of `Registry` so this isn't necessary?
+            draft = RegistryData.model_construct(
+                organization=organization, entity=entity, name=name
+            )
+            self._saved = draft
+            self._current = draft.model_copy(deep=True)
+        else:
             self._update_attributes(attrs)
 
-    def _update_attributes(self, attrs: RegistryFragment) -> None:
-        """Helper method to update instance attributes from a dictionary."""
-        self._id = attrs.id
-
-        registry_name = remove_registry_prefix(attrs.name)
-        self._saved_name = registry_name
-        self._name = registry_name
-
-        self._entity = attrs.entity.name
-        self._organization = attrs.entity.organization.name
-
-        self._description = attrs.description
-        self._allow_all_artifact_types = attrs.allow_all_artifact_types_in_registry
-        self._artifact_types = AddOnlyArtifactTypesList(
-            node.name for edge in attrs.artifact_types.edges if (node := edge.node)
-        )
-        self._created_at = attrs.created_at
-        self._updated_at = attrs.updated_at or ""
-        self._visibility = gql_to_registry_visibility(attrs.access or "")
+    def _update_attributes(self, fragment: RegistryFragment) -> None:
+        """Internal helper method to update instance attributes from GraphQL fragment data."""
+        saved = RegistryData.from_fragment(fragment)
+        self._saved = saved
+        self._current = saved.model_copy(deep=True)
 
     @property
     def full_name(self) -> str:
         """Full name of the registry including the `wandb-registry-` prefix."""
-        return f"wandb-registry-{self.name}"
+        return self._current.full_name
 
     @property
     def name(self) -> str:
         """Name of the registry without the `wandb-registry-` prefix."""
-        return self._name
+        return self._current.name
 
     @name.setter
     def name(self, value: str):
-        self._name = value
+        self._current.name = value
 
     @property
     def entity(self) -> str:
         """Organization entity of the registry."""
-        return self._entity
+        return self._current.entity
 
     @property
     def organization(self) -> str:
         """Organization name of the registry."""
-        return self._organization
+        return self._current.organization
 
     @property
     def description(self) -> str:
         """Description of the registry."""
-        return self._description
+        return self._current.description
 
     @description.setter
     def description(self, value: str):
         """Set the description of the registry."""
-        self._description = value
+        self._current.description = value
 
     @property
-    def allow_all_artifact_types(self):
+    def allow_all_artifact_types(self) -> bool:
         """Returns whether all artifact types are allowed in the registry.
 
         If `True` then artifacts of any type can be added to this registry.
         If `False` then artifacts are restricted to the types in `artifact_types` for this registry.
         """
-        return self._allow_all_artifact_types
+        return self._current.allow_all_artifact_types
 
     @allow_all_artifact_types.setter
-    def allow_all_artifact_types(self, value: bool):
+    def allow_all_artifact_types(self, value: bool) -> None:
         """Set whether all artifact types are allowed in the registry."""
-        self._allow_all_artifact_types = value
+        self._current.allow_all_artifact_types = value
 
     @property
     def artifact_types(self) -> AddOnlyArtifactTypesList:
@@ -153,20 +146,20 @@ class Registry:
         )  # Types can only be removed if it has not been saved yet
         ```
         """
-        return self._artifact_types
+        return self._current.artifact_types
 
     @property
     def created_at(self) -> str:
         """Timestamp of when the registry was created."""
-        return self._created_at
+        return self._current.created_at
 
     @property
     def updated_at(self) -> str:
         """Timestamp of when the registry was last updated."""
-        return self._updated_at
+        return self._current.updated_at
 
     @property
-    def path(self):
+    def path(self) -> list[str]:
         return [self.entity, self.full_name]
 
     @property
@@ -180,7 +173,7 @@ class Registry:
                 - "restricted": Only invited members via the UI can access this registry.
                   Public sharing is disabled.
         """
-        return self._visibility
+        return self._current.visibility.name
 
     @visibility.setter
     def visibility(self, value: Literal["organization", "restricted"]):
@@ -193,7 +186,7 @@ class Registry:
                 - "restricted": Only invited members via the UI can access this registry.
                   Public sharing is disabled.
         """
-        self._visibility = value
+        self._current.visibility = value
 
     @tracked
     def collections(
@@ -258,18 +251,15 @@ class Registry:
         )
 
         org_entity = fetch_org_entity_from_organization(client, organization)
-        project_name = validate_project_name(f"{REGISTRY_PREFIX}{name}")
-        accepted_artifact_types = format_gql_artifact_types_input(artifact_types)
-        visibility_value = registry_visibility_to_gql(visibility)
 
         gql_op = gql(UPSERT_REGISTRY_GQL)
         gql_input = UpsertModelInput(
             description=description,
             entity_name=org_entity,
-            name=project_name,
-            access=visibility_value,
+            name=validate_project_name(f"{REGISTRY_PREFIX}{name}"),
+            access=Visibility.from_python(visibility).value,
             allow_all_artifact_types_in_registry=not artifact_types,
-            artifact_types=accepted_artifact_types,
+            artifact_types=prepare_artifact_types_input(artifact_types),
         )
         gql_vars = {"input": gql_input.model_dump()}
         try:
@@ -277,7 +267,7 @@ class Registry:
             result = UpsertRegistry.model_validate(data).upsert_model
         except Exception as e:
             raise ValueError(failed_msg) from e
-        if not (result and result.inserted and result.project):
+        if not (result and result.inserted and (registry_project := result.project)):
             raise ValueError(failed_msg)
 
         return Registry(
@@ -285,7 +275,7 @@ class Registry:
             organization=organization,
             entity=org_entity,
             name=name,
-            attrs=result.project,
+            attrs=registry_project,
         )
 
     @tracked
@@ -294,7 +284,7 @@ class Registry:
         failed_msg = f"Failed to delete registry {self.name!r} in organization {self.organization!r}"
 
         gql_op = gql(DELETE_REGISTRY_GQL)
-        gql_vars = {"id": self._id}
+        gql_vars = {"id": self._saved.id}
         try:
             data = self.client.execute(gql_op, variable_values=gql_vars)
             result = DeleteRegistry.model_validate(data).delete_model
@@ -332,27 +322,27 @@ class Registry:
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
-        if self._no_updating_registry_types():
+        # If `artifact_types.draft` has items, it means the user has added artifact types that aren't saved yet.
+        if (
+            new_artifact_types := self.artifact_types.draft
+        ) and self.allow_all_artifact_types:
             raise ValueError(
                 f"Cannot update artifact types when `allows_all_artifact_types` is {True!r}. Set it to {False!r} first."
             )
 
-        failed_msg = f"Failed to save and update registry {self.name!r} in organization {self.organization!r}"
+        failed_msg = f"Failed to save registry {self.name!r} in organization {self.organization!r}"
 
-        old_project_name = validate_project_name(f"{REGISTRY_PREFIX}{self._saved_name}")
-        new_project_name = validate_project_name(self.full_name)
-
-        visibility = registry_visibility_to_gql(self.visibility)
-        newly_added_types = format_gql_artifact_types_input(self.artifact_types.draft)
+        old_project_name = validate_project_name(self._saved.full_name)
+        new_project_name = validate_project_name(self._current.full_name)
 
         upsert_op = gql(UPSERT_REGISTRY_GQL)
         upsert_input = UpsertModelInput(
             description=self.description,
             entity_name=self.entity,
             name=old_project_name,
-            access=visibility,
+            access=self._current.visibility.value,
             allow_all_artifact_types_in_registry=self.allow_all_artifact_types,
-            artifact_types=newly_added_types,
+            artifact_types=prepare_artifact_types_input(new_artifact_types),
         )
         upsert_vars = {"input": upsert_input.model_dump()}
         try:

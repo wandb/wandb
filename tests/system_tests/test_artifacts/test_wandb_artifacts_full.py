@@ -66,10 +66,10 @@ def test_artifact_error_for_invalid_aliases(user):
     for aliases in error_aliases:
         with pytest.raises(ValueError) as e_info:
             run.log_artifact(artifact, aliases=aliases)
-            assert (
-                str(e_info.value)
-                == "Aliases must not contain any of the following characters: /, :"
-            )
+        assert (
+            str(e_info.value)
+            == "Aliases must not contain any of the following characters: '/', ':'"
+        )
 
     for aliases in [["latest", "boom_test-q"]]:
         run.log_artifact(artifact, aliases=aliases)

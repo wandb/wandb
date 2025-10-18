@@ -377,7 +377,7 @@ class ArtifactCollections(SizedPaginator["ArtifactCollection"]):
                 entity=node.project.entity.name,
                 project=node.project.name,
                 name=node.name,
-                type=node.default_artifact_type.name,
+                type=node.type.name,
                 attrs=node,
             )
             for node in self.last_response.nodes()

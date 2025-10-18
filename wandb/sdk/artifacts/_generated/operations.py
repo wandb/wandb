@@ -183,7 +183,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   project {
     ...ProjectInfoFragment
   }
-  defaultArtifactType {
+  type: defaultArtifactType {
     name
   }
   tags {
@@ -249,7 +249,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
   project {
     ...ProjectInfoFragment
   }
-  defaultArtifactType {
+  type: defaultArtifactType {
     name
   }
   tags {
@@ -1597,7 +1597,7 @@ fragment RegistryCollectionFragment on ArtifactCollection {
   project {
     ...ProjectInfoFragment
   }
-  defaultArtifactType {
+  type: defaultArtifactType {
     name
   }
   tags {
@@ -1646,7 +1646,7 @@ fragment RegistryFragment on Project {
   createdAt
   updatedAt
   access
-  allowAllArtifactTypesInRegistry
+  allowAllArtifactTypes: allowAllArtifactTypesInRegistry
   artifactTypes(includeAll: true) {
     edges {
       node {
@@ -1695,7 +1695,7 @@ fragment RegistryFragment on Project {
   createdAt
   updatedAt
   access
-  allowAllArtifactTypesInRegistry
+  allowAllArtifactTypes: allowAllArtifactTypesInRegistry
   artifactTypes(includeAll: true) {
     edges {
       node {
@@ -1730,7 +1730,7 @@ fragment RegistryFragment on Project {
   createdAt
   updatedAt
   access
-  allowAllArtifactTypesInRegistry
+  allowAllArtifactTypes: allowAllArtifactTypesInRegistry
   artifactTypes(includeAll: true) {
     edges {
       node {
@@ -1765,7 +1765,7 @@ fragment RegistryFragment on Project {
   createdAt
   updatedAt
   access
-  allowAllArtifactTypesInRegistry
+  allowAllArtifactTypes: allowAllArtifactTypesInRegistry
   artifactTypes(includeAll: true) {
     edges {
       node {
