@@ -31,8 +31,8 @@ class FetchLinkedArtifactsArtifactArtifactMembershipsEdges(GQLResult):
 
 
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode(GQLResult):
-    aliases: List[ArtifactAliasFragment]
     version_index: Optional[int] = Field(alias="versionIndex")
+    aliases: List[ArtifactAliasFragment]
     artifact_collection: Optional[CollectionInfoFragment] = Field(
         alias="artifactCollection"
     )

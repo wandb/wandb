@@ -10,6 +10,7 @@ from .._generated.fragments import (
     FileFragment,
     FileWithUrlFragment,
     RegistryCollectionFragment,
+    RegistryFragment,
 )
 
 ArtifactTypeConnection = Connection[ArtifactTypeFragment]
@@ -21,4 +22,5 @@ ArtifactFileConnection = Connection[FileFragment]
 
 RunArtifactConnection = ConnectionWithTotal[ArtifactFragment]
 
+RegistryConnection = Connection[RegistryFragment]
 RegistryCollectionConnection = ConnectionWithTotal[RegistryCollectionFragment]

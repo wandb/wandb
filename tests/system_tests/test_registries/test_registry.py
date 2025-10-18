@@ -335,7 +335,7 @@ def test_edit_registry_name(mock_termlog, default_organization, api: Api):
 
 
 @mark.usefixtures(skip_if_server_does_not_support_create_registry.__name__)
-def test_fetch_registries(team: str, org: str, api: Api):
+def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
     num_registries = 3
 
     for registry_idx in range(num_registries):
@@ -345,9 +345,17 @@ def test_fetch_registries(team: str, org: str, api: Api):
             visibility="organization",
         )
 
-    registries = list(api.registries(organization=org))
+    # Sort the registries by name for predictable assertions
+    registries = sorted(api.registries(organization=org), key=lambda r: r.name)
 
     assert len(registries) == num_registries
+
+    for i, registry in enumerate(registries):
+        assert registry.entity == org_entity
+        assert registry.organization == org
+        assert registry.full_name == f"wandb-registry-test-{i}"
+        assert registry.full_name == f"{REGISTRY_PREFIX}test-{i}"
+        assert registry.visibility == "organization"
 
 
 @fixture

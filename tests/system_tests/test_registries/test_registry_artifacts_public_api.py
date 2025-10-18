@@ -25,12 +25,10 @@ def mock_artifact_fragment_data() -> dict[str, Any]:
         versionIndex=0,  # NOTE: relevant
         artifactType={"name": "model"},
         artifactSequence={
-            "id": "PLACEHOLDER",
             "name": "test-collection",
             "project": {
-                "id": "PLACEHOLDER",
-                "entityName": "test-team",
                 "name": "orig-project",
+                "entity": {"name": "test-team"},
             },
         },
         id="PLACEHOLDER",
@@ -56,12 +54,10 @@ def mock_membership_fragment_data(
         artifact=mock_artifact_fragment_data,
         artifactCollection={
             "__typename": "ArtifactPortfolio",
-            "id": "PLACEHOLDER",
             "name": "test-collection",  # NOTE: relevant
             "project": {
-                "id": "PLACEHOLDER",
-                "entityName": "org-entity-name",  # NOTE: relevant
                 "name": "wandb-registry-model",  # NOTE: relevant
+                "entity": {"name": "org-entity-name"},  # NOTE: relevant
             },
         },
         versionIndex=1,

@@ -1,7 +1,6 @@
 # A fragment on ArtifactCollection that only includes minimal identifying fields.
 fragment CollectionInfoFragment on ArtifactCollection {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -11,7 +10,6 @@ fragment CollectionInfoFragment on ArtifactCollection {
 # A fragment on ArtifactSequence that only includes minimal identifying fields.
 fragment SourceCollectionInfoFragment on ArtifactSequence {
   __typename
-  id
   name
   project {
     ...ProjectInfoFragment
@@ -20,10 +18,10 @@ fragment SourceCollectionInfoFragment on ArtifactSequence {
 
 # A fragment on Project that only includes minimal identifying fields.
 fragment ProjectInfoFragment on Project {
-  __typename
-  id
   name
-  entityName
+  entity {
+    name
+  }
 }
 
 # Base artifact fragment that excludes the `aliases` field.  Necessary for compatibility with both:
@@ -73,7 +71,6 @@ fragment DeferredManifestFragment on ArtifactManifest {
     directUrl
   }
 }
-
 
 fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   __typename
@@ -188,10 +185,10 @@ query FetchLinkedArtifacts($artifactID: ID!) {
     artifactMemberships {
       edges {
         node {
+          versionIndex
           aliases {
             ...ArtifactAliasFragment
           }
-          versionIndex
           artifactCollection {
             ...CollectionInfoFragment
           }

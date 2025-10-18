@@ -422,12 +422,10 @@ def test_fetch_registry_artifact(
         # NOTE: Remaining artifact fields are placeholders and not as relevant to the test
         artifact_type={"name": "model"},
         artifact_sequence={
-            "id": "PLACEHOLDER",
             "name": "test-collection",
             "project": {
-                "id": "PLACEHOLDER",
-                "entityName": "test-team",
                 "name": "orig-project",
+                "entity": {"name": "test-team"},
             },
         },
         id="PLACEHOLDER",
@@ -448,12 +446,10 @@ def test_fetch_registry_artifact(
         artifact=mock_artifact_fragment_data,
         artifact_collection={
             "__typename": "ArtifactPortfolio",
-            "id": "PLACEHOLDER",
             "name": "test-collection",
             "project": {
-                "id": "PLACEHOLDER",
-                "entityName": "org-entity-name",  # NOTE: relevant
                 "name": "wandb-registry-model",  # NOTE: relevant
+                "entity": {"name": "org-entity-name"},  # NOTE: relevant
             },
         },
         version_index=1,
