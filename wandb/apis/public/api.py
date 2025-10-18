@@ -311,7 +311,9 @@ class Api:
         self.settings.update(_overrides)
         # From settings, we should only be using x_extra_http_headers
         # Save it to use in _download_file_from_url
-        self._extra_http_headers = self.settings["x_extra_http_headers"] or {}
+        self._extra_http_headers = {}
+        if "x_extra_http_headers" in self.settings:
+            self._extra_http_headers = self.settings["x_extra_http_headers"]
         if self._extra_http_headers:
             print("Api._init__ extra_http_headers", self._extra_http_headers)
         else:
