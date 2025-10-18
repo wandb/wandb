@@ -315,9 +315,9 @@ class Api:
         if "x_extra_http_headers" in self.settings:
             self._extra_http_headers = self.settings["x_extra_http_headers"]
         if self._extra_http_headers:
-            print("Api._init__ extra_http_headers", self._extra_http_headers)
+            logger.debug("Api.__init__ extra_http_headers: %s", self._extra_http_headers)
         else:
-            print("Api._init__ extra_http_headers not found")
+            logger.debug("Api.__init__ extra_http_headers not found")
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
 
         if "organization" in _overrides:
@@ -395,21 +395,21 @@ class Api:
         # Use explicit key before thread local.
         # This allow user switching keys without picking up the wrong key from thread local.
         if init_api_key is not None:
-            print("got key from init_api_key")
+            logger.debug("API key source: init_api_key parameter")
             return init_api_key
         if _thread_local_api_settings.api_key:
-            print("got key from thread local")
+            logger.debug("API key source: thread local settings")
             return _thread_local_api_settings.api_key
         if os.getenv("WANDB_API_KEY"):
-            print("got key from env")
+            logger.debug("API key source: WANDB_API_KEY environment variable")
             return os.environ["WANDB_API_KEY"]
 
         auth = requests.utils.get_netrc_auth(base_url)
         if auth:
-            print("got key from requests.utils.get_netrc_auth")
+            logger.debug("API key source: netrc file")
             return auth[-1]
 
-        print("getting prompted key")
+        logger.debug("API key source: user prompt")
         _, prompted_key = wandb_login._login(
             host=base_url,
             key=None,

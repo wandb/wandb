@@ -39,6 +39,8 @@ from .lib import apikey, credentials, ipython
 from .lib.gitlib import GitRepo
 from .lib.run_moment import RunMoment
 
+logger = logging.getLogger(__name__)
+
 validate_url: Callable[[str], None]
 
 if IS_PYDANTIC_V2:
@@ -1156,7 +1158,7 @@ class Settings(BaseModel, validate_assignment=True):
     @field_validator("x_extra_http_headers", mode="before")
     @classmethod
     def validate_x_extra_http_headers(cls, value):
-        print(f"validate_x_extra_http_headers: {value}")
+        logger.debug("validate_x_extra_http_headers: %s", value)
         if isinstance(value, str):
             return json.loads(value)
         return value

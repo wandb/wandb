@@ -77,7 +77,7 @@ class WandbStoragePolicy(StoragePolicy):
             self._validate_storage_region(storage_region)
         self._cache = cache or get_artifact_file_cache()
         self._session = session or make_http_session()
-        print("WandbStoragePolicy.extra_http_headers", extra_http_headers)
+        logger.debug("WandbStoragePolicy extra_http_headers: %s", extra_http_headers)
         self._session.headers = extra_http_headers or {}
         # TODO: Creating InternalApi() directly would ignore the settings ...
         self._api = api or InternalApi()

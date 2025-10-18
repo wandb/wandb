@@ -1054,7 +1054,7 @@ class Artifact:
             # `requests.get()` creates a new session for _each_ fetch.  This is wasteful and introduces a
             # noticeable perf overhead when e.g. downloading many artifacts sequentially or concurrently.
             extra_http_headers = self._client.extra_http_headers()
-            print("Aritfact._fetch_manifest extra_http_headers", extra_http_headers)
+            logger.debug("Artifact._fetch_manifest extra_http_headers: %s", extra_http_headers)
             response = requests.get(manifest.file.direct_url, headers=extra_http_headers)
             return ArtifactManifest.from_manifest_json(
                 from_json(response.content), extra_http_headers=extra_http_headers)
