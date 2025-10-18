@@ -102,9 +102,12 @@ class ArtifactManifestEntry(ArtifactsBase):
 
     skip_cache: bool = False
 
+    direct_url: Annotated[
+        Optional[str], Field(alias="directUrl", exclude=True, repr=False)
+    ] = None
+
     # Note: Pydantic considers these private attributes, omitting them from validation and comparison logic.
     _parent_artifact: Optional[Artifact] = None
-    _download_url: Optional[str] = None
 
     @field_validator("path", mode="before")
     def _validate_path(cls, v: Any) -> LogicalPath:
