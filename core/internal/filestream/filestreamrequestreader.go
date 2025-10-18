@@ -1,8 +1,11 @@
 package filestream
 
 import (
+	"fmt"
 	"slices"
 
+	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sparselist"
 )
 
@@ -45,11 +48,21 @@ type FileStreamState struct {
 	// to properly resume such a run we must update the last line.
 	SummaryLineNum int
 
+	// RunSummary is the run's entire summary.
+	//
+	// Due to backend limitations, we always send the full summary
+	// to update it rather than sending incremental updates.
+	RunSummary *runsummary.RunSummary
+
 	// ConsoleLineOffset is an offset to add to all console updates.
 	//
 	// This is used when resuming a run, in which case we want the new
 	// console logs to be appended to the old ones.
 	ConsoleLineOffset int
+}
+
+func NewFileStreamState() *FileStreamState {
+	return &FileStreamState{RunSummary: runsummary.New()}
 }
 
 // NewRequestReader makes a request reader and computes the request's size.
@@ -96,7 +109,7 @@ func NewRequestReader(
 		return len(data)
 	}
 
-	addStringsToRequest(request.LatestSummary)
+	// TODO: Add summary size.
 	historyLinesToSend := addStringsToRequest(request.HistoryLines...)
 	eventsLinesToSend := addStringsToRequest(request.EventsLines...)
 
@@ -138,6 +151,7 @@ func NewRequestReader(
 // by the underlying [FileStreamRequest] and updates the [fileStreamState].
 func (r *FileStreamRequestReader) GetJSON(
 	state *FileStreamState,
+	logger *observability.CoreLogger,
 ) *FileStreamRequestJSON {
 	json := &FileStreamRequestJSON{
 		Files: map[string]offsetAndContent{},
@@ -157,10 +171,24 @@ func (r *FileStreamRequestReader) GetJSON(
 		}
 		state.EventsLineNum += r.eventsLinesToSend
 	}
-	if r.request.LatestSummary != "" {
-		json.Files[SummaryFileName] = offsetAndContent{
-			Offset:  state.SummaryLineNum,
-			Content: []string{r.request.LatestSummary},
+	if !r.request.SummaryUpdates.IsEmpty() {
+		err := r.request.SummaryUpdates.Apply(state.RunSummary)
+
+		// A partial success is possible, so we continue after logging.
+		if err != nil {
+			logger.CaptureError(
+				fmt.Errorf("filestream: error applying summary updates: %v", err))
+		}
+
+		summaryJSON, err := state.RunSummary.Serialize()
+		if err != nil {
+			logger.CaptureError(
+				fmt.Errorf("filestream: failed to serialize summary: %v", err))
+		} else {
+			json.Files[SummaryFileName] = offsetAndContent{
+				Offset:  state.SummaryLineNum,
+				Content: []string{string(summaryJSON)},
+			}
 		}
 	}
 	if len(r.consoleLineRuns) > 0 {

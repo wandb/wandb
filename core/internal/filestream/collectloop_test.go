@@ -24,7 +24,7 @@ func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
 		return map[string]struct{}{s: {}}
 	}
 
-	transmissions := loop.Start(&FileStreamState{}, requests)
+	transmissions := loop.Start(NewFileStreamState(), requests)
 	requests <- &FileStreamRequest{UploadedFiles: set("one")}
 	requests <- &FileStreamRequest{UploadedFiles: set("two")}
 	requests <- &FileStreamRequest{UploadedFiles: set("three")}
@@ -47,7 +47,7 @@ func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
 		MaxRequestSizeBytes: 99999,
 	}
 
-	transmissions := loop.Start(&FileStreamState{}, requests)
+	transmissions := loop.Start(NewFileStreamState(), requests)
 	close(requests)
 	request1, ok1 := transmissions.NextRequest(waiting.NewStopwatch(time.Second))
 	request2, ok2 := transmissions.NextRequest(waiting.NewStopwatch(time.Second))
@@ -66,7 +66,7 @@ func TestCollectLoop_BlocksOnceAtMaxSize(t *testing.T) {
 		MaxRequestSizeBytes: 5,
 	}
 
-	transmissions := loop.Start(&FileStreamState{}, requests)
+	transmissions := loop.Start(NewFileStreamState(), requests)
 	requests <- &FileStreamRequest{HistoryLines: []string{`{"x": "12345"}`}}
 
 	// Verify that the loop blocks since the above request is above max size.

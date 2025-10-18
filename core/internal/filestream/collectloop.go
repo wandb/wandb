@@ -37,7 +37,7 @@ func (cl CollectLoop) Start(
 
 		for !isDone {
 			reader, _ := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
-			output.Push(reader.GetJSON(state))
+			output.Push(reader.GetJSON(state, cl.Logger))
 			buffer, isDone = reader.Next()
 		}
 
@@ -99,19 +99,19 @@ func (cl CollectLoop) transmit(
 		// If we're at max size, stop adding to the buffer.
 		if isTruncated {
 			cl.Logger.Info("filestream: waiting to send request of max size")
-			output.Push(reader.GetJSON(state))
+			output.Push(reader.GetJSON(state, cl.Logger))
 			return reader.Next()
 		}
 
 		// Otherwise, either send the buffer or add to it.
 		select {
 		case pushChan := <-output.PreparePush():
-			pushChan <- reader.GetJSON(state)
+			pushChan <- reader.GetJSON(state, cl.Logger)
 			return reader.Next()
 
 		case request, ok := <-requests:
 			if !ok {
-				output.Push(reader.GetJSON(state))
+				output.Push(reader.GetJSON(state, cl.Logger))
 				return reader.Next()
 			}
 

@@ -69,7 +69,7 @@ func (fs *fileStream) startTransmitting(
 		maxRequestSizeBytes = 10 << 20 // 10 MB
 	}
 
-	state := &FileStreamState{}
+	state := NewFileStreamState()
 	if initialOffsets != nil {
 		state.HistoryLineNum = initialOffsets[HistoryChunk]
 		state.EventsLineNum = initialOffsets[EventsChunk]
