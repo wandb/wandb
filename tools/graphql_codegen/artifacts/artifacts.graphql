@@ -1,4 +1,24 @@
-# A fragment on Project that only includes minimal descriptive fields.
+# A fragment on ArtifactCollection that only includes minimal identifying fields.
+fragment CollectionInfoFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  project {
+    ...ProjectInfoFragment
+  }
+}
+
+# A fragment on ArtifactSequence that only includes minimal identifying fields.
+fragment SourceCollectionInfoFragment on ArtifactSequence {
+  __typename
+  id
+  name
+  project {
+    ...ProjectInfoFragment
+  }
+}
+
+# A fragment on Project that only includes minimal identifying fields.
 fragment ProjectInfoFragment on Project {
   __typename
   id
@@ -12,10 +32,7 @@ fragment ProjectInfoFragment on Project {
 fragment ArtifactFragmentWithoutAliases on Artifact {
   id
   artifactSequence {
-    name
-    project {
-      ...ProjectInfoFragment
-    }
+    ...SourceCollectionInfoFragment
   }
   versionIndex
   artifactType {
@@ -27,7 +44,7 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   ttlIsInherited @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
   tags @include(if: true) {
     # Workaround: ensures generated pydantic field defaults to `None`
-    name
+    ...TagFragment
   }
   historyStep @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
   state
@@ -39,6 +56,17 @@ fragment ArtifactFragmentWithoutAliases on Artifact {
   updatedAt
 }
 
+fragment ArtifactFragment on Artifact {
+  ...ArtifactFragmentWithoutAliases
+  aliases @include(if: true) {
+    # Workaround: ensures generated pydantic field defaults to `None`
+    artifactCollection {
+      ...CollectionInfoFragment
+    }
+    ...ArtifactAliasFragment
+  }
+}
+
 # An ArtifactManifest with a download URL to fetch the full manifest contents.
 fragment DeferredManifestFragment on ArtifactManifest {
   file {
@@ -46,30 +74,16 @@ fragment DeferredManifestFragment on ArtifactManifest {
   }
 }
 
-fragment ArtifactFragment on Artifact {
-  ...ArtifactFragmentWithoutAliases
-  aliases @include(if: true) {
-    # Workaround: ensures generated pydantic field defaults to `None`
-    artifactCollection {
-      __typename
-      name
-      project {
-        ...ProjectInfoFragment
-      }
-    }
-    alias
-  }
-}
 
-fragment MembershipWithArtifact on ArtifactCollectionMembership {
+fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
+  __typename
   id
+  versionIndex
+  aliases {
+    ...ArtifactAliasFragment
+  }
   artifactCollection {
-    __typename
-    id
-    name
-    project {
-      ...ProjectInfoFragment
-    }
+    ...CollectionInfoFragment
   }
   artifact {
     ...ArtifactFragment
@@ -105,7 +119,6 @@ query ProjectArtifacts(
       # - `artifactCollection` for new servers
       # - `artifactSequence` for old servers
       artifactCollection: artifactCollection(name: $collection) {
-        name
         artifacts(filters: $filters, after: $cursor, first: $perPage, order: $order) {
           ...VersionedArtifactConnectionFragment
         }
@@ -176,15 +189,11 @@ query FetchLinkedArtifacts($artifactID: ID!) {
       edges {
         node {
           aliases {
-            alias
+            ...ArtifactAliasFragment
           }
           versionIndex
           artifactCollection {
-            __typename
-            name
-            project {
-              ...ProjectInfoFragment
-            }
+            ...CollectionInfoFragment
           }
         }
       }
@@ -207,22 +216,22 @@ query ArtifactByID($id: ID!) {
 }
 
 query ArtifactByName(
-  $entityName: String!
-  $projectName: String!
+  $entity: String!
+  $project: String!
   $name: String!
   $enableTracking: Boolean
 ) {
-  project(name: $projectName, entityName: $entityName) {
+  project(name: $project, entityName: $entity) {
     artifact(name: $name, enableTracking: $enableTracking) {
       ...ArtifactFragment
     }
   }
 }
 
-query ArtifactViaMembershipByName($entityName: String!, $projectName: String!, $name: String!) {
-  project(name: $projectName, entityName: $entityName) {
+query ArtifactMembershipByName($entity: String!, $project: String!, $name: String!) {
+  project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {
-      ...MembershipWithArtifact
+      ...ArtifactMembershipFragment
     }
   }
 }
@@ -302,7 +311,7 @@ mutation LinkArtifact($input: LinkArtifactInput!) {
     versionIndex
     artifactMembership @include(if: true) {
       # Workaround: ensures generated pydantic field defaults to `None`
-      ...MembershipWithArtifact
+      ...ArtifactMembershipFragment
     }
   }
 }

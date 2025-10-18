@@ -1,3 +1,34 @@
+fragment ArtifactCollectionFragment on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+  tags {
+    edges {
+      node {
+        ...TagFragment
+      }
+    }
+  }
+  aliases(after: $aliasesCursor, first: $aliasesPerPage) @include(if: $includeAliases) {
+    edges {
+      node {
+        ...ArtifactAliasFragment
+      }
+    }
+  }
+}
+
+# A smaller fragment on ArtifactCollection that only includes minimal descriptive fields.
+fragment ArtifactCollectionSummary on ArtifactCollection {
+  __typename
+  id
+  name
+  description
+  createdAt
+}
+
 mutation DeleteArtifactSequence($id: ID!) {
   deleteArtifactSequence(input: { artifactSequenceID: $id }) {
     artifactCollection {
@@ -19,10 +50,7 @@ mutation DeleteArtifactPortfolio($id: ID!) {
 mutation UpdateArtifactSequence($input: UpdateArtifactSequenceInput!) {
   updateArtifactSequence(input: $input) {
     artifactCollection {
-      __typename
-      id
-      name
-      description
+      ...ArtifactCollectionSummary
     }
   }
 }
@@ -30,10 +58,7 @@ mutation UpdateArtifactSequence($input: UpdateArtifactSequenceInput!) {
 mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
   updateArtifactPortfolio(input: $input) {
     artifactCollection {
-      __typename
-      id
-      name
-      description
+      ...ArtifactCollectionSummary
     }
   }
 }
@@ -41,10 +66,7 @@ mutation UpdateArtifactPortfolio($input: UpdateArtifactPortfolioInput!) {
 mutation MoveArtifactCollection($input: MoveArtifactSequenceInput!) {
   moveArtifactSequence(input: $input) {
     artifactCollection {
-      __typename
-      id
-      name
-      description
+      ...ArtifactCollectionSummary
     }
   }
 }
@@ -54,9 +76,7 @@ mutation CreateArtifactCollectionTagAssignments(
 ) {
   createArtifactCollectionTagAssignments(input: $input) {
     tags {
-      id
-      name
-      tagCategoryName
+      ...TagFragment
     }
   }
 }
@@ -76,11 +96,7 @@ fragment ArtifactCollectionConnectionFragment on ArtifactCollectionConnection {
   }
   edges {
     node {
-      __typename
-      id
-      name
-      description
-      createdAt
+      ...ArtifactCollectionFragment
     }
   }
 }
@@ -90,6 +106,9 @@ query ProjectArtifactCollections(
   $projectName: String!
   $artifactTypeName: String!
   $cursor: String
+  $aliasesCursor: String
+  $aliasesPerPage: Int = 0
+  $includeAliases: Boolean = false
 ) {
   project(name: $projectName, entityName: $entityName) {
     artifactType(name: $artifactTypeName) {
@@ -108,8 +127,9 @@ query ProjectArtifactCollection(
   $projectName: String!
   $artifactTypeName: String!
   $artifactCollectionName: String!
-  $cursor: String
-  $perPage: Int = 1000
+  $aliasesCursor: String
+  $aliasesPerPage: Int = 1000
+  $includeAliases: Boolean = true
 ) {
   project(name: $projectName, entityName: $entityName) {
     artifactType(name: $artifactTypeName) {
@@ -117,32 +137,7 @@ query ProjectArtifactCollection(
       # - `artifactCollection` for new servers
       # - `artifactSequence` for old servers
       artifactCollection: artifactCollection(name: $artifactCollectionName) {
-        id
-        name
-        description
-        createdAt
-        tags {
-          edges {
-            node {
-              id
-              name
-            }
-          }
-        }
-        aliases(after: $cursor, first: $perPage) {
-          edges {
-            node {
-              alias
-            }
-            cursor
-          }
-          pageInfo {
-            ...PageInfoFragment
-          }
-        }
-      }
-      artifactSequence(name: $artifactCollectionName) {
-        __typename
+        ...ArtifactCollectionFragment
       }
     }
   }

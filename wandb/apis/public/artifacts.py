@@ -21,7 +21,7 @@ from typing import (
 )
 
 from typing_extensions import override
-from wandb_gql import Client, gql
+from wandb_gql import gql
 
 import wandb
 from wandb._iterutils import always_list
@@ -84,6 +84,8 @@ from wandb.sdk.lib import deprecate
 from .utils import gql_compat
 
 if TYPE_CHECKING:
+    from wandb_gql import Client
+
     from wandb.sdk.artifacts.artifact import Artifact
 
     from . import RetryingClient, Run
@@ -492,10 +494,7 @@ class ArtifactCollection:
         ):
             raise ValueError(f"Could not find artifact type {self._saved_type}")
 
-        sequence = type_.artifact_sequence
-        self._is_sequence = (
-            sequence is not None
-        ) and sequence.typename__ == SOURCE_ARTIFACT_COLLECTION_TYPE
+        self._is_sequence = collection.typename__ == SOURCE_ARTIFACT_COLLECTION_TYPE
 
         if self._attrs is None:
             self._attrs = collection.model_dump(exclude_unset=True)
@@ -743,9 +742,12 @@ class Artifacts(SizedPaginator["Artifact"]):
         else:
             rename_fields = {"artifactCollection": "artifactSequence"}
 
+        omit_fields = omit_artifact_fields(client)
+        omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
         self.QUERY = gql_compat(
             PROJECT_ARTIFACTS_GQL,
-            omit_fields=omit_artifact_fields(client),
+            omit_fields=omit_fields,
+            omit_fragments=omit_fragments,
             rename_fields=rename_fields,
         )
 
@@ -846,7 +848,11 @@ class RunArtifacts(SizedPaginator["Artifact"]):
         except LookupError:
             raise ValueError("mode must be logged or used")
         else:
-            self.QUERY = gql_compat(query_str, omit_fields=omit_artifact_fields(client))
+            omit_fields = omit_artifact_fields(client)
+            omit_fragments = {"TagFragment"} if ("tags" in omit_fields) else set()
+            self.QUERY = gql_compat(
+                query_str, omit_fields=omit_fields, omit_fragments=omit_fragments
+            )
 
         variable_values = {
             "entity": run.entity,

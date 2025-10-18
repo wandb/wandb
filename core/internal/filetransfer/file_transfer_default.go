@@ -86,11 +86,25 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("file transfer: upload: failed to upload: %s", resp.Status)
+		// Try to read the body to know the detail error message
+		return attachErrorResponseBody("file transfer: upload: failed to upload: status: "+resp.Status,
+			resp)
 	}
 	task.Response = resp
 
 	return nil
+}
+
+// attachErrorResponseBody returns an error with the error prefix and the first 1024 bytes of the response body.
+// It closes the response body after reading the first 1024 bytes.
+func attachErrorResponseBody(errPrefix string, resp *http.Response) error {
+	// Only read first 1024 bytes of error message
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	resp.Body.Close()
+	if err != nil {
+		return fmt.Errorf("%s: error reading body: %s", errPrefix, err)
+	}
+	return fmt.Errorf("%s: body: %s", errPrefix, string(body))
 }
 
 // Download downloads a file from the server

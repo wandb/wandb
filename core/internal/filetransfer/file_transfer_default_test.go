@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -198,11 +199,63 @@ func TestDefaultFileTransfer_UploadNotFound(t *testing.T) {
 	fnfHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}
-	err := uploadToServerWithHandler(t, fnfHandler)
+	handlerCalled, err := uploadToServerWithCountedHandler(t, fnfHandler)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "404")
 	// 404s shouldn't be retried.
-	assert.NotContains(t, err.Error(), "giving up after 2 attempt(s)")
+	assert.Equal(t, 1, handlerCalled)
+}
+
+func TestDefaultFileTransfer_UploadErrorWithBody(t *testing.T) {
+	errorBody := "detailed error message from server"
+	errorHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(errorBody))
+	}
+	handlerCalled, err := uploadToServerWithCountedHandler(t, errorHandler)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "400")
+	assert.Contains(t, err.Error(), errorBody)
+	// 400s shouldn't be retried.
+	assert.Equal(t, 1, handlerCalled)
+}
+
+func TestDefaultFileTransfer_UploadErrorWithLargeBody(t *testing.T) {
+	// Create an error body larger than 1024 bytes
+	largeErrorBody := strings.Repeat("error message ", 100)
+	errorHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(largeErrorBody))
+	}
+	handlerCalled, err := uploadToServerWithCountedHandler(t, errorHandler)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "400")
+	assert.Contains(t, err.Error(), "error message")
+	// 100 bytes for the prefix in the error
+	assert.Less(t, len(err.Error()), 1024+100)
+	// 400s shouldn't be retried.
+	assert.Equal(t, 1, handlerCalled)
+}
+
+func TestDefaultFileTransfer_UploadErrorWithUnreadableBody(t *testing.T) {
+	errorHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		w.WriteHeader(http.StatusBadRequest)
+		// Close connection without sending body to simulate read error
+		hj, ok := w.(http.Hijacker)
+		if ok {
+			conn, _, err := hj.Hijack()
+			if err == nil {
+				_ = conn.Close()
+			}
+		}
+	}
+	handlerCalled, err := uploadToServerWithCountedHandler(t, errorHandler)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "400")
+	assert.Contains(t, err.Error(), "error reading body")
+	// 400s shouldn't be retried.
+	assert.Equal(t, 1, handlerCalled)
 }
 
 func TestDefaultFileTransfer_UploadConnectionClosed(t *testing.T) {
@@ -213,13 +266,13 @@ func TestDefaultFileTransfer_UploadConnectionClosed(t *testing.T) {
 		assert.NoError(t, err, "hijacking error")
 		_ = conn.Close()
 	}
-	err := uploadToServerWithHandler(t, closeHandler)
+	handlerCalled, err := uploadToServerWithCountedHandler(t, closeHandler)
 	assert.Error(t, err)
 	assert.Condition(t, func() bool {
 		return strings.Contains(err.Error(), "EOF") ||
 			strings.Contains(err.Error(), "connection reset")
 	})
-	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
+	assert.Equal(t, 2, handlerCalled)
 }
 
 func TestDefaultFileTransfer_UploadContextCancelled(t *testing.T) {
@@ -280,11 +333,16 @@ func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
 }
 
-func uploadToServerWithHandler(
+// Start test server and count number of times the handler was called
+func uploadToServerWithCountedHandler(
 	t *testing.T,
 	handler func(w http.ResponseWriter, r *http.Request),
-) error {
-	server := httptest.NewServer(http.HandlerFunc(handler))
+) (int, error) {
+	handlerCalled := int64(0)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&handlerCalled, 1)
+		handler(w, r)
+	}))
 	defer server.Close()
 	ft := filetransfer.NewDefaultFileTransfer(
 		impatientClient(),
@@ -303,7 +361,8 @@ func uploadToServerWithHandler(
 		Url:  server.URL,
 	}
 
-	return ft.Upload(task)
+	err = ft.Upload(task)
+	return int(atomic.LoadInt64(&handlerCalled)), err
 }
 
 func impatientClient() *retryablehttp.Client {

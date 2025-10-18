@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLResult
 
-from .fragments import MembershipWithArtifact
+from .fragments import ArtifactMembershipFragment
 
 
 class LinkArtifact(GQLResult):
@@ -18,7 +18,7 @@ class LinkArtifact(GQLResult):
 
 class LinkArtifactLinkArtifact(GQLResult):
     version_index: Optional[int] = Field(alias="versionIndex")
-    artifact_membership: Optional[MembershipWithArtifact] = Field(
+    artifact_membership: Optional[ArtifactMembershipFragment] = Field(
         alias="artifactMembership", default=None
     )
 

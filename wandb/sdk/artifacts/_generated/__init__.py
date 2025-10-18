@@ -8,10 +8,10 @@ __all__ = [
     "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_URLS_GQL",
     "ARTIFACT_CREATED_BY_GQL",
     "ARTIFACT_FILE_URLS_GQL",
+    "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
     "ARTIFACT_TYPE_GQL",
     "ARTIFACT_USED_BY_GQL",
     "ARTIFACT_VERSION_FILES_GQL",
-    "ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL",
     "CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
     "DELETE_ALIASES_GQL",
     "DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL",
@@ -60,7 +60,7 @@ __all__ = [
     "FetchArtifactManifest",
     "ArtifactByID",
     "ArtifactByName",
-    "ArtifactViaMembershipByName",
+    "ArtifactMembershipByName",
     "ArtifactUsedBy",
     "ArtifactCreatedBy",
     "ArtifactType",
@@ -89,16 +89,20 @@ __all__ = [
     "UpdateArtifactInput",
     "UpdateArtifactPortfolioInput",
     "UpdateArtifactSequenceInput",
+    "ArtifactAliasFragment",
     "ArtifactCollectionConnectionFragment",
+    "ArtifactCollectionFragment",
+    "ArtifactCollectionSummary",
     "ArtifactFragment",
     "ArtifactFragmentWithoutAliases",
+    "ArtifactMembershipFragment",
     "ArtifactPortfolioTypeFields",
     "ArtifactSequenceTypeFields",
     "ArtifactTypeFragment",
+    "CollectionInfoFragment",
     "DeferredManifestFragment",
     "FileFragment",
     "FileWithUrlFragment",
-    "MembershipWithArtifact",
     "OrgInfoFragment",
     "PageInfoFragment",
     "ProjectInfoFragment",
@@ -110,6 +114,8 @@ __all__ = [
     "RunInfoFragment",
     "RunInputArtifactConnectionFragment",
     "RunOutputArtifactConnectionFragment",
+    "SourceCollectionInfoFragment",
+    "TagFragment",
     "TypeInfoFragment",
     "VersionedArtifactConnectionFragment",
     "ArtifactCollectionState",
@@ -125,10 +131,10 @@ from .artifact_collection_membership_file_urls import (
 from .artifact_collection_membership_files import ArtifactCollectionMembershipFiles
 from .artifact_created_by import ArtifactCreatedBy
 from .artifact_file_urls import ArtifactFileUrls
+from .artifact_membership_by_name import ArtifactMembershipByName
 from .artifact_type import ArtifactType
 from .artifact_used_by import ArtifactUsedBy
 from .artifact_version_files import ArtifactVersionFiles
-from .artifact_via_membership_by_name import ArtifactViaMembershipByName
 from .create_artifact_collection_tag_assignments import (
     CreateArtifactCollectionTagAssignments,
 )
@@ -145,16 +151,20 @@ from .fetch_linked_artifacts import FetchLinkedArtifacts
 from .fetch_org_info_from_entity import FetchOrgInfoFromEntity
 from .fetch_registries import FetchRegistries
 from .fragments import (
+    ArtifactAliasFragment,
     ArtifactCollectionConnectionFragment,
+    ArtifactCollectionFragment,
+    ArtifactCollectionSummary,
     ArtifactFragment,
     ArtifactFragmentWithoutAliases,
+    ArtifactMembershipFragment,
     ArtifactPortfolioTypeFields,
     ArtifactSequenceTypeFields,
     ArtifactTypeFragment,
+    CollectionInfoFragment,
     DeferredManifestFragment,
     FileFragment,
     FileWithUrlFragment,
-    MembershipWithArtifact,
     OrgInfoFragment,
     PageInfoFragment,
     ProjectInfoFragment,
@@ -166,6 +176,8 @@ from .fragments import (
     RunInfoFragment,
     RunInputArtifactConnectionFragment,
     RunOutputArtifactConnectionFragment,
+    SourceCollectionInfoFragment,
+    TagFragment,
     TypeInfoFragment,
     VersionedArtifactConnectionFragment,
 )
@@ -195,10 +207,10 @@ from .operations import (
     ARTIFACT_COLLECTION_MEMBERSHIP_FILES_GQL,
     ARTIFACT_CREATED_BY_GQL,
     ARTIFACT_FILE_URLS_GQL,
+    ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
     ARTIFACT_TYPE_GQL,
     ARTIFACT_USED_BY_GQL,
     ARTIFACT_VERSION_FILES_GQL,
-    ARTIFACT_VIA_MEMBERSHIP_BY_NAME_GQL,
     CREATE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,
     DELETE_ALIASES_GQL,
     DELETE_ARTIFACT_COLLECTION_TAG_ASSIGNMENTS_GQL,

@@ -32,7 +32,6 @@ class ProjectArtifactsProjectArtifactTypeArtifactCollection(GQLResult):
     typename__: Typename[
         Literal["ArtifactCollection", "ArtifactPortfolio", "ArtifactSequence"]
     ]
-    name: str
     artifacts: Optional[VersionedArtifactConnectionFragment]
 
 
