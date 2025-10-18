@@ -57,15 +57,19 @@ class WandbStoragePolicy(StoragePolicy):
 
     @classmethod
     def from_config(
-        cls, config: dict[str, Any], api: InternalApi | None = None
+        cls,
+        config: dict[str, Any],
+        api: InternalApi | None = None,
+        extra_http_headers: dict[str, str] | None = None,
     ) -> WandbStoragePolicy:
-        return cls(config=config, api=api)
+        return cls(config=config, api=api, extra_http_headers=extra_http_headers)
 
     def __init__(
         self,
         config: dict[str, Any] | None = None,
         cache: ArtifactFileCache | None = None,
         api: InternalApi | None = None,
+        extra_http_headers: dict[str, str] | None = None,
         session: requests.Session | None = None,
     ) -> None:
         self._config = config or {}
@@ -73,6 +77,9 @@ class WandbStoragePolicy(StoragePolicy):
             self._validate_storage_region(storage_region)
         self._cache = cache or get_artifact_file_cache()
         self._session = session or make_http_session()
+        print("WandbStoragePolicy.extra_http_headers", extra_http_headers)
+        self._session.headers = extra_http_headers or {}
+        # TODO: Creating InternalApi() directly would ignore the settings ...
         self._api = api or InternalApi()
         self._handler = MultiHandler(
             handlers=make_storage_handlers(self._session),

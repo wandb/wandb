@@ -104,9 +104,14 @@ class RetryingClient:
         """
     )
 
-    def __init__(self, client: Client):
+    def __init__(self, client: Client, extra_http_headers: dict[str, str] | None = None):
         self._server_info = None
         self._client = client
+        # Hack to pass header around for artifacts operations...
+        self._extra_http_headers = extra_http_headers
+
+    def extra_http_headers(self):
+        return self._extra_http_headers
 
     @property
     def app_url(self):
@@ -365,7 +370,7 @@ class Api:
                 proxies=proxies,
             )
         )
-        self._client = RetryingClient(self._base_client)
+        self._client = RetryingClient(self._base_client, extra_http_headers=extra_http_headers)
         self._sentry = wandb.analytics.sentry.Sentry()
         self._configure_sentry()
 

@@ -32,13 +32,16 @@ class ArtifactManifestV1(ArtifactManifest):
 
     @classmethod
     def from_manifest_json(
-        cls, manifest_json: dict[str, Any], api: InternalApi | None = None
+        cls,
+        manifest_json: dict[str, Any],
+        api: InternalApi | None = None,
+        extra_http_headers: dict[str, str] | None = None,
     ) -> ArtifactManifestV1:
         data = ArtifactManifestV1Data(**manifest_json)
 
         policy_name = data.storage_policy
         policy_cfg = data.storage_policy_config
-        policy = StoragePolicy.lookup_by_name(policy_name).from_config(policy_cfg, api)
+        policy = StoragePolicy.lookup_by_name(policy_name).from_config(policy_cfg, api, extra_http_headers)
         return cls(
             manifest_version=data.version, entries=data.contents, storage_policy=policy
         )
