@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Any
 
-from annotated_types import Interval
 from pydantic import PositiveInt, ValidationError
-from typing_extensions import TypeAlias, override
+from typing_extensions import override
 from wandb_gql import gql
 
 from wandb._analytics import tracked
@@ -40,9 +39,6 @@ if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient
     from wandb.sdk.artifacts.artifact import Artifact
 
-_PerPage: TypeAlias = Annotated[PositiveInt, Interval(ge=1, le=10_000)]
-"""Type hint for `per_page` parameter in paginated query methods."""
-
 
 class Registries(Paginator):
     """An lazy iterator of `Registry` objects."""
@@ -56,7 +52,7 @@ class Registries(Paginator):
         client: RetryingClient,
         organization: str,
         filter: dict[str, Any] | None = None,
-        per_page: _PerPage = 100,
+        per_page: PositiveInt = 100,
     ):
         self.client = client
         self.organization = organization
@@ -77,7 +73,7 @@ class Registries(Paginator):
 
     @tracked
     def collections(
-        self, filter: dict[str, Any] | None = None, per_page: _PerPage = 100
+        self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
     ) -> Collections:
         return Collections(
             client=self.client,
@@ -89,7 +85,7 @@ class Registries(Paginator):
 
     @tracked
     def versions(
-        self, filter: dict[str, Any] | None = None, per_page: _PerPage = 100
+        self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
     ) -> Versions:
         return Versions(
             client=self.client,
@@ -160,7 +156,7 @@ class Collections(Paginator[ArtifactCollection]):
         organization: str,
         registry_filter: dict[str, Any] | None = None,
         collection_filter: dict[str, Any] | None = None,
-        per_page: _PerPage = 100,
+        per_page: PositiveInt = 100,
     ):
         self.client = client
         self.organization = organization
@@ -186,7 +182,7 @@ class Collections(Paginator[ArtifactCollection]):
 
     @tracked
     def versions(
-        self, filter: dict[str, Any] | None = None, per_page: _PerPage = 100
+        self, filter: dict[str, Any] | None = None, per_page: PositiveInt = 100
     ) -> Versions:
         return Versions(
             client=self.client,
@@ -259,7 +255,7 @@ class Versions(Paginator["Artifact"]):
         registry_filter: dict[str, Any] | None = None,
         collection_filter: dict[str, Any] | None = None,
         artifact_filter: dict[str, Any] | None = None,
-        per_page: _PerPage = 100,
+        per_page: PositiveInt = 100,
     ):
         self.client = client
         self.organization = organization

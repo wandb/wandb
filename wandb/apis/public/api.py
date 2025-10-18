@@ -961,8 +961,8 @@ class Api:
             entity: Name of the entity requested.  If None, will fall back to
                 the default entity passed to `Api`.  If no default entity,
                 will raise a `ValueError`.
-            per_page: Sets the page size for query pagination. If set to `None`,
-                use the default size. Usually there is no reason to change this.
+            per_page: Sets the page size for query pagination.
+                Usually there is no reason to change this.
 
         Returns:
             A `Projects` object which is an iterable collection of `Project`objects.
@@ -1018,9 +1018,8 @@ class Api:
                 entity that created the project as a prefix followed by a
                 forward slash.
             name: Name of the report requested.
-            per_page: Sets the page size for query pagination. If set to
-                `None`, use the default size. Usually there is no reason to
-                change this.
+            per_page: Sets the page size for query pagination.
+                Usually there is no reason to change this.
 
         Returns:
             A `Reports` object which is an iterable collection of
